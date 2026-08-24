@@ -76,10 +76,11 @@ frontier material gets the depth.
 "Operating guide (for Claude)" is the Notion-side manual.
 
 - Weekly update: a scheduled cloud task (routine "Weekly tech KB update", Mondays
-  07:00 UTC, Opus, Notion connector) researches every topic and updates Notion
-  directly. Manual fallback: `/kb-weekly-update-manual`.
-- Repo sync: run `/kb-sync-from-notion` on the PC to pull Notion into this repo,
-  download new paper PDFs, commit, and push.
+  07:00 UTC, Opus, Notion connector, repo cloned) researches every topic, updates
+  Notion directly, then syncs this repo and pushes to main. Manual fallback:
+  `/kb-weekly-update-manual`.
+- Repo sync on the PC: `git pull` first; run `/kb-sync-from-notion` for ad-hoc
+  catch-ups or to backfill anything the cloud run skipped (e.g. SVG re-renders).
 - New paper: `/kb-add-paper <arxiv id or url>` (writes Notion first, then here).
 - New topic: `/kb-new-topic <name>` (writes Notion first, then here).
 

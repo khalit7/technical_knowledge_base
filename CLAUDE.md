@@ -3,8 +3,11 @@
 This is the **mirror** of Khalid's personal AI/ML knowledge base. **The source of truth
 is Notion**: the "Technical knowledge base" page (id
 `3c65c17b-0d0d-81c7-b646-e548e65d9446`, child of his "Me" page). A scheduled cloud
-task (Mondays 07:00 UTC, Opus, routine "Weekly tech KB update") updates Notion weekly;
-this repo is synced from Notion on demand and pushed.
+task (Mondays 07:00 UTC, Opus, routine "Weekly tech KB update") updates Notion weekly
+and then syncs this repo in its cloud clone, committing and pushing to main
+(github.com/khalit7/technical_knowledge_base). On the PC: `git pull` first, always;
+`/kb-sync-from-notion` is for ad-hoc catch-ups and for backfilling anything the cloud
+run noted it skipped.
 
 Before doing anything: read `GOAL.md` (structure and writing conventions, both binding)
 and `DECISIONS.md` (standing decisions, do not re-ask them). The Notion side's manual

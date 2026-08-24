@@ -5,11 +5,14 @@ description: Sync this repo FROM Notion (the source of truth) and push. Use when
 
 # Sync the repo from Notion
 
-**Direction (decided 2026-08-25): Notion is the source of truth; this repo is the
-mirror.** A scheduled cloud task updates Notion weekly (Mondays 07:00 UTC, Opus). This
-skill brings the repo up to date afterwards. Never resolve a conflict in the repo's
-favour; if the repo has local edits Notion lacks, surface them to Khalid instead of
-overwriting either side silently.
+**Direction (decided 2026-08-24): Notion is the source of truth; this repo is the
+mirror.** A scheduled cloud task updates Notion weekly (Mondays 07:00 UTC, Opus) and
+then runs this same skill in its cloud clone, committing and pushing to main. So on
+the PC, `git pull` is usually enough; run this skill for ad-hoc catch-ups, to backfill
+anything the cloud run noted it skipped (e.g. taxonomy.svg re-renders), or if the
+weekly run failed. Never resolve a conflict in the repo's favour; if the repo has
+local edits Notion lacks, surface them to Khalid instead of overwriting either side
+silently. Always `git pull` before starting.
 
 Root page: **Technical knowledge base** (child of the personal "Me" page), id
 `3c65c17b-0d0d-81c7-b646-e548e65d9446`
