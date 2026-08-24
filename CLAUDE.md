@@ -42,5 +42,6 @@ is the root page's child **Operating guide (for Claude)**.
 
 ## Git
 
-Commit after meaningful units of work. Pushing after a Notion sync is expected once a
-remote exists. The `notion-sync` tag marks the last commit that matched Notion.
+Commit after meaningful units of work; push to main after syncs. The newest commit
+whose message starts with `sync from notion` marks the last point the repo matched
+Notion (no tag: the cloud run's credential cannot move tags).
