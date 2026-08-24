@@ -32,6 +32,9 @@ is the root page's child **Operating guide (for Claude)**.
   GOAL.md and on the Notion Tech news page).
 - Audience: MSc-level AI engineer with production LLM experience. Summarise
   fundamentals, go deep on frontier material.
+- Khalid frequently asks "explain X and add it": file the explanation as a child of
+  the most relevant existing topic (new topic only if nothing fits), on both surfaces
+  (Notion first), and tell him exactly where it went.
 
 ## Workflows (project skills in .claude/skills/)
 
