@@ -31,6 +31,11 @@ Every RAG system, however fancy, decomposes into:
 
 ## Taxonomy of the retrieval stack
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     RAG[RAG and retrieval]
@@ -62,6 +67,8 @@ graph TD
     EVAL --> GMET[Faithfulness, answer relevance, context precision/recall]
     EVAL --> TOOLS[RAGAS, DeepEval, TruLens, ARES; golden sets, failure analysis]
 ```
+
+</details>
 
 ## Map of the space (skim this)
 

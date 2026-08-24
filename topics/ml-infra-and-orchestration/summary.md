@@ -8,6 +8,11 @@ metrics, checkpoints, and a bill I can explain". Four layers: **compute schedule
 code + cloud** (how the machines exist at all), and **observability + tracking** (how
 you know it worked).
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     A[ML infra] --> B[Cluster schedulers]
@@ -48,6 +53,8 @@ graph TD
     H --> H4[Ray Data<br/>streaming into GPU training]
     H --> H5[datatrove<br/>LLM text curation at scale]
 ```
+
+</details>
 
 ## The map, briefly
 

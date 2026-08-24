@@ -9,6 +9,11 @@ Last updated: 2026-08-24.
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     HW[AI Compute] --> CPU[CPU vs GPU fundamentals]
@@ -46,6 +51,8 @@ graph TD
     NET --> IB[InfiniBand vs RoCE scale-out]
     NET --> ICI[TPU ICI torus]
 ```
+
+</details>
 
 ## Map of the space
 

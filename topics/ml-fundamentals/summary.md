@@ -4,6 +4,11 @@ Core machine learning building blocks: the losses, activations, optimisers, norm
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 mindmap
   root((ML fundamentals))
@@ -51,6 +56,8 @@ mindmap
         Loss-curve diagnosis
         Imbalanced data
 ```
+
+</details>
 
 ## Map of the files
 

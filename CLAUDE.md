@@ -8,8 +8,10 @@ and `DECISIONS.md` (standing decisions, do not re-ask them).
 ## The short version of the rules
 
 - No em-dashes anywhere. Commas, colons, semicolons, parentheses. `--` for ranges.
-- Every topic has a skimmable `summary.md` with a mermaid taxonomy; depth lives in
-  deep-dive files that start with a **Best resources** links block, then synthesis.
+- Every topic has a skimmable `summary.md` with a taxonomy diagram (rendered
+  `taxonomy.svg` embedded, mermaid source kept in a `<details>` block; re-render on
+  change, command in GOAL.md); depth lives in deep-dive files that start with a
+  **Best resources** links block, then synthesis.
 - Papers go in `papers/YYYY-MM_short-name/` (PDF + `summary.md`), get a row in
   `papers/INDEX.md`, a checkbox in `TRACKER.md`, and cross-links from topic summaries.
 - Every new readable artifact gets an unchecked checkbox at the top of its `TRACKER.md`

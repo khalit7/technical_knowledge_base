@@ -6,6 +6,11 @@ Three tracks with different goals: Python and C++ are "stay current" tracks (Kha
 already strong); Rust is a "learn from zero + track the ecosystem" track, approached
 through a C++ lens.
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     PL[Programming languages]
@@ -27,6 +32,8 @@ graph TD
     RS --> RS2[Toolchain: cargo, clippy,<br/>rustfmt, tokio, Result/anyhow]
     RS --> RS3[ML ecosystem: candle, burn,<br/>tokenizers, safetensors, polars, PyO3]
 ```
+
+</details>
 
 ## What "current" means per track (as of Aug 2026)
 

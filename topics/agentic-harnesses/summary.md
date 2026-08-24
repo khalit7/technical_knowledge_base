@@ -12,6 +12,11 @@ all speak) lives in [../protocols/](../protocols/summary.md).
 
 ## Taxonomy (Aug 2026)
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     H[Agentic harnesses]
@@ -42,6 +47,8 @@ graph TD
     RES --> SA[SWE-agent / mini-SWE-agent<br/>Princeton, ACI research]
     RES --> OH[OpenHands<br/>open platform]
 ```
+
+</details>
 
 ## The landscape in one pass
 

@@ -7,6 +7,11 @@ to the current frontier: RL as the engine of LLM post-training (RLHF, GRPO, RLVR
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 flowchart TD
     RL[RL agents]
@@ -26,6 +31,8 @@ flowchart TD
 
     ON -.->|"*PPO/GRPO are nearly on-policy:<br/>importance ratios correct small staleness"| OFF
 ```
+
+</details>
 
 Three orthogonal axes; every agent sits somewhere on each. Examples: DQN is value-based,
 model-free, off-policy. PPO is actor-critic, model-free, approximately on-policy. AlphaZero is

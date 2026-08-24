@@ -9,6 +9,11 @@ databases; OSTEP territory). For an ML engineer they compose in one direction: t
 fundamentals bound what a design can promise, the design shapes what code you write,
 and the craft determines whether the whole thing survives contact with production.
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     A[SWE + system design] --> B[System design]
@@ -33,6 +38,8 @@ graph TD
     C2 --> E
     D3 --> E
 ```
+
+</details>
 
 ## The map, briefly
 

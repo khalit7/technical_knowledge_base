@@ -7,6 +7,11 @@ get fused into multimodal LLMs. Depth lives in the child files below.
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     GM[Generative and multimodal]
@@ -29,6 +34,8 @@ graph TD
     MMU --> VLM["VLMs: encoder + projector + LLM,<br/>or native early fusion"]
     MMU --> OMNI["Omni / any-to-any:<br/>speech + vision in, speech + image out"]
 ```
+
+</details>
 
 ## How families map to modalities (Aug 2026 snapshot)
 

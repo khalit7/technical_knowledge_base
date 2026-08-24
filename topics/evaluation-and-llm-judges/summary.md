@@ -4,6 +4,11 @@
 
 Methodology and tooling for evaluating LLMs and LLM-powered systems: how to measure, with what harness, judged by whom, and gated how. The datasets themselves live in [../benchmarks/](../benchmarks/summary.md); this topic is about how evaluation is done and where it breaks.
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     E[LLM Evaluation] --> T[Eval types]
@@ -46,6 +51,8 @@ graph TD
     F --> F4[Contamination]
     F --> F5[Gold-label noise]
 ```
+
+</details>
 
 ## Map of the space
 

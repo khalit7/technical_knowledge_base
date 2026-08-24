@@ -4,6 +4,11 @@ Software protocols an AI engineer actually touches: how bytes move (HTTP version
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph LR
     P[Protocols]
@@ -33,6 +38,8 @@ graph LR
     S --> S4["API keys: static bearer secrets"]
     S --> S5["Service-to-service: mTLS, IAM/SigV4"]
 ```
+
+</details>
 
 ## Map of the space
 

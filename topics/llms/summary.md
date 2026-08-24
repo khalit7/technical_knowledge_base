@@ -18,6 +18,11 @@ linear attention designs (DSA/CSA, MSA, Kimi Delta Attention).
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph LR
     classDef open fill:#1a7f37,color:#fff
@@ -49,6 +54,8 @@ graph LR
         AMZ[Amazon] --> NOVA["Nova 2 (Lite/Sonic, closed)"]:::closed
     end
 ```
+
+</details>
 
 Green = open weights, purple = closed. Nearly everything at scale is sparse MoE with a
 reasoning mode; dense survives in Qwen3.8-27B, Gemma 4 31B, Phi-4, OLMo, and other

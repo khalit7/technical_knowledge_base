@@ -8,6 +8,11 @@ and how post-training data (SFT, preference, verifiable-reward) and synthetic da
 The consistent lesson of 2023-2026: data decisions move benchmarks more than most architecture
 decisions at fixed compute.
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     DC[Data curation and datasets]
@@ -41,6 +46,8 @@ graph TD
     TOOL --> NC[NeMo Curator]
     TOOL --> SP[Spark/Ray custom pipelines]
 ```
+
+</details>
 
 ## Map of the space
 

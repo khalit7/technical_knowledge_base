@@ -10,6 +10,11 @@ live/rolling sets (LiveCodeBench, AIME of the current year, SWE-rebench).
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 mindmap
   root((LLM/ML benchmarks))
@@ -75,6 +80,8 @@ mindmap
       SQuAD
       ImageNet
 ```
+
+</details>
 
 ## Master table
 

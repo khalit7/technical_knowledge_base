@@ -11,6 +11,11 @@ PyTorch LM to Flax NNX and train it on a TPU.
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     JAX["JAX core<br/>jit, grad, vmap, shard_map<br/>(pmap = legacy wrapper)"]
@@ -51,6 +56,8 @@ graph TD
     MAXTEXT --> NNX
     TUNIX --> NNX
 ```
+
+</details>
 
 ## Map of the space
 

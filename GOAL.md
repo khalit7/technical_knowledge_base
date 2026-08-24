@@ -38,9 +38,13 @@ frontier material gets the depth.
 
 ## Structure conventions (binding)
 
-- Every topic folder has a `summary.md`: a mermaid taxonomy diagram, a brief map of the
-  space, and links to the topic's deep-dive files, relevant papers, and best resources.
-  The summary is condensed and skimmable; depth lives in child files.
+- Every topic folder has a `summary.md`: a taxonomy diagram, a brief map of the space,
+  and links to the topic's deep-dive files, relevant papers, and best resources. The
+  summary is condensed and skimmable; depth lives in child files.
+- Taxonomy diagrams ship rendered: the page embeds `taxonomy.svg` and keeps the mermaid
+  source underneath in a `<details>` block. After editing the source, re-render with
+  `npx -y @mermaid-js/mermaid-cli -i <src>.mmd -o taxonomy.svg -b white` so the image
+  and the source never drift apart.
 - Every deep-dive file starts with a **Best resources** block (links to the best
   explanations available), followed by a synthesis written from those resources.
 - Cross-cutting comparison material lives in the topic's `_comparisons/` folder.

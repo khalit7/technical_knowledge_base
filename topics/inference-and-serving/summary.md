@@ -7,6 +7,11 @@ The stack that turns model weights into tokens per second. Three layers matter: 
 layer (routes requests across engines and nodes), and the **techniques** that both
 layers implement (PagedAttention, continuous batching, speculative decoding, ...).
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     A[Inference stack] --> B[Engines]
@@ -37,6 +42,8 @@ graph TD
     E --> E5[Chunked prefill + P/D disaggregation]
     E --> E6[Quantised serving FP8/INT4]
 ```
+
+</details>
 
 ## The map, briefly
 

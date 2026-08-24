@@ -16,6 +16,11 @@ remains the standard learning community.
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     CUDA["CUDA platform"] --> APIs["APIs"]
@@ -46,6 +51,8 @@ graph TD
     DSL --> TorchCompile["torch.compile: emits Triton"]
     DSL --> CuTeDSL["CuTe DSL: Python CUTLASS"]
 ```
+
+</details>
 
 ## Map of the space
 

@@ -10,6 +10,11 @@ plus current sources.
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 flowchart LR
     subgraph PRE["Pretraining"]
@@ -41,6 +46,8 @@ flowchart LR
     MACH --- PRE
     MACH --- POST
 ```
+
+</details>
 
 ## Map of the space
 

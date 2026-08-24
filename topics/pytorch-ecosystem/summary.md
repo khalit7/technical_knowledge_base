@@ -5,6 +5,11 @@ Last verified: 2026-08-24. Current stable: **PyTorch 2.13.0** (July 2026).
 Map of the stack: core runtime, compiler, distributed training, performance libraries,
 the training-framework layer on top, and deployment paths.
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     subgraph Core
@@ -60,6 +65,8 @@ graph TD
     EXP --> ET
     EXP --> ONNX
 ```
+
+</details>
 
 ## Version status (Aug 2026)
 

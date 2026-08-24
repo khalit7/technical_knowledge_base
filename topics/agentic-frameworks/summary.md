@@ -8,6 +8,11 @@ memory layers. Ready-made harnesses (Claude Code, Codex CLI, Cursor, Devin) live
 
 ## Taxonomy
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     AF[Agentic frameworks]
@@ -35,6 +40,8 @@ graph TD
     MEM --> ZEP["Zep: temporal knowledge graph"]
     MEM --> LETTA["Letta: MemGPT-style runtime,<br/>agent-managed context"]
 ```
+
+</details>
 
 ## Map of the space
 

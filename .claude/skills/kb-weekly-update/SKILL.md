@@ -27,7 +27,8 @@ em-dashes, date every change, tracker discipline).
    matter most.
 5. **Patch topic files.** Fold each item into the relevant `summary.md` or deep-dive
    file, dated. New subtopics get new deep-dive files following the page spec (Best
-   resources block first).
+   resources block first). If a taxonomy's mermaid source changes, re-render its
+   `taxonomy.svg` (command in GOAL.md) so the image stays in sync.
 6. **Papers.** For each significant new paper, follow the `kb-add-paper` skill
    (typically 0-3 per week; more only if the week warrants it).
 7. **Tracker.** Add an unchecked box at the top of the relevant `TRACKER.md` section for

@@ -2,6 +2,11 @@
 
 Refresh-and-reference map of the mathematics behind ML: linear algebra, probability and statistics, calculus and optimisation, information theory. Depth lives in the child files; this page is the index. Written 2026-08-24.
 
+![Taxonomy diagram](taxonomy.svg)
+
+<details>
+<summary>Diagram source (mermaid)</summary>
+
 ```mermaid
 graph TD
     M[Math for ML]
@@ -29,6 +34,8 @@ graph TD
     IT --> IT2[Mutual information, InfoNCE]
     IT --> IT3[Perplexity, bits-per-byte]
 ```
+
+</details>
 
 ## Map of the files
 
