@@ -24,4 +24,8 @@ standing decision, so a genuinely new topic should come from Khalid's request).
 5. Add the topic to the table in `GOAL.md` and a new section in `TRACKER.md` with one
    unchecked box per file created.
 6. Cross-link related existing topics both ways.
-7. Commit as `new topic: <name>`.
+7. **Sync the new topic to Notion in the same session** (mandatory; follow
+   kb-notion-sync: create the `Topic: <name>` page under the recorded root, its
+   deep-dive child pages, and its Tracker section). Removing a topic likewise requires
+   a same-session Notion sync.
+8. Commit as `new topic: <name>`.

@@ -16,6 +16,9 @@ and `DECISIONS.md` (standing decisions, do not re-ask them).
   `papers/INDEX.md`, a checkbox in `TRACKER.md`, and cross-links from topic summaries.
 - Every new readable artifact gets an unchecked checkbox at the top of its `TRACKER.md`
   section. Never uncheck or remove a box Khalid ticked.
+- **Adding or removing a topic MUST be synced to Notion in the same session** (follow
+  the kb-notion-sync skill; root page id is recorded there). Content-only edits can
+  wait for the next explicit `/kb-notion-sync`, but topic-level structure never drifts.
 - Date every update; superseded content goes into `<details>` blocks, not deleted.
 - Audience: MSc-level AI engineer with production LLM experience. Summarise fundamentals,
   go deep on frontier material.

@@ -19,10 +19,25 @@ One root page **Tech KB** containing:
   the point of the mirror)
 - An **Updates** page with a child page per digest in `updates/`
 
+The mirror exists since 2026-08-24. Root page: **Technical knowledge base**, a child of
+the personal "Me" page, id `3c65c17b-0d0d-81c7-b646-e548e65d9446`
+(https://app.notion.com/p/3c65c17b0d0d81c7b646e548e65d9446), also recorded in
+`sources/.notion-root`. Topic pages are named `Topic: <folder-name>`; each deep-dive
+file is a child page titled by its H1. Conversion rules used everywhere: page title
+from the H1 (stripped from the body); drop the `taxonomy.svg` image line and the
+`<details>` wrapper but keep the ```mermaid fence (Notion renders it); relative links
+become plain text; external links stay.
+
+**Always sync when topics are added or removed** (standing instruction from Khalid,
+2026-08-24): creating or deleting a topic must be mirrored to Notion in the same
+session, including its Tracker section. Content-only edits can wait for the next
+explicit sync.
+
 ## Steps
 
-1. Find the existing **Tech KB** root page via Notion search; create it if absent.
-   Record its URL in `sources/.notion-root` (gitignored is fine) for future runs.
+1. Use the root page id above (fall back to Notion search for "Technical knowledge
+   base" under the Me page if it moved; update this file and `sources/.notion-root` if
+   so).
 2. Determine what changed since the last sync: `git diff --name-only <last-sync-tag>` if
    a `notion-sync` tag exists, else sync everything. After a successful sync, move the
    `notion-sync` tag to HEAD.
