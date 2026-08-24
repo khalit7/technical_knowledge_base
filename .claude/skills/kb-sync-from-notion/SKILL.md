@@ -38,15 +38,17 @@ it is the binding manual and decisions log.
 
 ## Steps
 
-1. Determine what changed: compare against the `notion-sync` git tag date and the
-   Notion pages' last-edited times; when in doubt re-mirror the affected section
-   whole rather than diffing line by line.
+1. Determine what changed: the last sync point is the newest commit whose message
+   starts with `sync from notion` (`git log --grep='^sync from notion' -1`); compare
+   its date against the Notion pages' last-edited times. When in doubt re-mirror the
+   affected section whole rather than diffing line by line. (There is deliberately no
+   `notion-sync` tag: the cloud run's credential cannot force-move tags, so the commit
+   message convention is the marker.)
 2. Regenerate the affected repo files per the mapping, preserving repo conventions
    (GOAL.md): no em-dashes, resources-first deep dives, dated entries.
 3. Download PDFs for new papers; re-render changed taxonomy SVGs.
 4. Verify: no broken relative links, no empty files, TRACKER.md matches the file tree.
-5. Commit as `sync from notion YYYY-MM-DD`, move the `notion-sync` tag to HEAD
-   (`git tag -f notion-sync`), and push (including `--tags --force` for the moved tag)
-   if a remote exists.
+5. Commit as `sync from notion YYYY-MM-DD` (this exact prefix; it is the sync marker)
+   and push to main.
 6. Update the root Notion page's "Last repo sync from Notion" date.
 7. Report: pages pulled, files added/updated, papers downloaded, anything ambiguous.
