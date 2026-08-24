@@ -114,6 +114,16 @@ memory tiny; push the rest behind retrieval or skills.
   debugging); crucially the leaderboard row is **agent + model**, making harness effects
   visible: the same GPT-5.x-Codex scored ~57.5% under the neutral Terminus 2 scaffold vs
   ~64.7% under OpenAI's own Codex CLI (~7 points from harness alone).
+- Added 2026-08-24: Nvidia published research (Aug 21) showing Claude Opus 5 going from
+  30% to 100% on the ARC-AGI-3 interactive reasoning benchmark when run inside its
+  Agentic Variation Operators harness, which adds memory management and a supervisor
+  that steers the agent when it drifts
+  ([TechCrunch](https://techcrunch.com/2026/08/21/nvidia-just-showed-that-the-harness-not-the-ai-model-is-now-the-real-hero/)).
+  Independently, the StateM paper reports 95.3% on Terminal-Bench 2.1 with GPT-5.6 Sol
+  by scaling the harness (durable state, phase-local context, checked transitions,
+  versioned runbooks) rather than the model, at roughly $15 of API cost per run versus
+  $575 for the reference approach
+  ([arXiv 2608.15089](https://arxiv.org/abs/2608.15089)).
 - Studies in 2026 (Harness-Bench and similar) find 10-22 point SWE-bench swings across
   scaffolds on identical weights. Mechanism: the harness determines what the model can
   observe (repo context quality), express (edit format success rate), recover from (error

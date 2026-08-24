@@ -53,6 +53,9 @@ LLM stack (scaling, prompting, RL) transfers.
   VibeVoice-Realtime, CosyVoice 3, Kokoro (tiny but excellent), Sesame CSM, Orpheus.
   Differentiators now: expressiveness control, sub-300 ms streaming latency, stability
   on long form, and multilingual voice cloning.
+- Added 2026-08-24: Qwen3 TTS reached sub-50ms response latency at frontier quality per
+  Nari Labs' cost and speed analysis (Aug 21).
+  [Nari Labs](https://nari-labs.com/blog/qwen3-tts-speed-cost-frontier/)
 - Older mel + vocoder stacks (FastSpeech 2 + HiFi-GAN) survive in constrained/embedded
   settings; note the GAN vocoder link in [vaes-and-gans.md](vaes-and-gans.md).
 

@@ -28,6 +28,8 @@ is the root page's child **Operating guide (for Claude)**.
 - `TRACKER.md` mirrors the Notion Tracker, including tick state (Notion ticks win).
   Never uncheck or remove a box Khalid ticked.
 - Date every update; superseded content goes into `<details>` blocks, not deleted.
+- `news/` mirrors the Notion Tech news issues (weekly newsletter; routing rules in
+  GOAL.md and on the Notion Tech news page).
 - Audience: MSc-level AI engineer with production LLM experience. Summarise
   fundamentals, go deep on frontier material.
 

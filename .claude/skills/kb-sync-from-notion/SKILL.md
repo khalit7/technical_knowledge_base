@@ -34,6 +34,7 @@ it is the binding manual and decisions log.
   in the repo, a standing decision).
 - Tracker page -> `TRACKER.md` including tick state (Notion tick state always wins)
 - Updates children -> `updates/YYYY-MM-DD.md`
+- Tech news children -> `news/YYYY-MM-DD.md`
 - Operating guide decisions log -> keep `DECISIONS.md` consistent with it
 
 ## Steps

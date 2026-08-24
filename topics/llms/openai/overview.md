@@ -28,6 +28,12 @@ Last updated: 2026-08-24. Per-model files to follow; this page maps the family.
   "workhorse" and best coding model), Terra (balanced), Luna (fast/cheap). All three:
   1.05M-token context, 128K max output. API pricing per 1M tokens: Sol $5/$30, Terra
   $2.50/$15, Luna $1/$6. The `gpt-5.6` alias routes to Sol.
+  - Added 2026-08-24: OpenAI cut GPT-5.6 Sol developer pricing by more than 20%
+    (announced Aug 21, in effect until at least Nov 21), days after OpenRouter cut its
+    Sol pricing by 50%; separately, Roboflow's evaluation calls Sol the best vision
+    model OpenAI has shipped.
+    [Reuters](https://www.reuters.com/technology/openai-cuts-developer-pricing-frontier-gpt-56-sol-model-by-more-than-20-2026-08-21/),
+    [Roboflow](https://blog.roboflow.com/openai-gpt-5-6/)
 - **gpt-oss-120b / gpt-oss-20b (Aug 2025)**: first open weights since GPT-2; Apache 2.0
   MoE models (117B/5.1B active and 21B/3.6B active), MXFP4-native, adjustable reasoning
   effort, sliding-window + full attention interleave.

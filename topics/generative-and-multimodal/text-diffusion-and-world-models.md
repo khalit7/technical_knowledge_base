@@ -30,6 +30,11 @@ context**, and natural **infilling**.
   quality near Flash-Lite tier; still not a flagship product.
 - **LLaDA line**: LLaDA 8B matched LLaMA-class AR baselines; LLaDA 2.x added block
   diffusion and token editing and sees real open-source adoption.
+- Added 2026-08-24: Google released the **DiffusionGemma** Technical Report, an
+  experimental open-weight discrete diffusion LM that refines 256-token blocks in
+  parallel and reaches roughly 1,500 output tokens/s on a single H100, well above
+  autoregressive decoding with speculation; trended on HN Aug 20.
+  [arXiv 2608.00146](https://arxiv.org/abs/2608.00146)
 - **Converged recipe**: initialise from a pretrained AR model and continue-train with
   the diffusion objective (much cheaper than from scratch), and use **block diffusion**
   (semi-autoregressive: generate blocks of ~32 tokens left to right, diffuse within a

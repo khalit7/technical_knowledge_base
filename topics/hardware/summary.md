@@ -86,6 +86,16 @@ graph TD
   by AWS and used by OpenAI for fast inference), AWS Trainium3/Inferentia
   (hyperscaler cost play, Anthropic's Project Rainier). Roughly a quarter of 2026
   AI server shipments are ASIC-based systems.
+  - Added 2026-08-24: Cerebras announced the CS-4 (Aug 19): three WSE-3 Turbo wafers
+    per system, 250 PFLOPS, 43.2 PB/s memory bandwidth, claimed 30x GPU inference
+    speed and over 1,000 tokens/s on 10T+ parameter models; first shipments this
+    quarter. [Cerebras](https://www.cerebras.ai/cs4)
+- Added 2026-08-24: memory prices are up roughly 500% in 12 months, with 128GB of
+  DDR5 now at $3,399, squeezed by AI datacenter demand.
+  [Tom's Hardware](https://www.tomshardware.com/pc-components/ram/memory-prices-climb-500-percent-in-12-months-up-to-10x-the-lowest-ever-tracked-prices-128gb-of-ddr5-now-usd3-399)
+- Added 2026-08-24: at Hot Chips 2026 (Aug 24), standout coverage includes
+  high-bandwidth flash (HBF) as a capacity tier alongside HBM.
+  [Chips and Cheese](https://chipsandcheese.com)
 - **Interconnects decide parallelism**: NVLink (1.8 TB/s per Blackwell GPU) inside
   the scale-up domain enables tensor parallelism; InfiniBand/RoCE (400-800 Gb/s
   per NIC) across nodes carries data and pipeline parallelism. See

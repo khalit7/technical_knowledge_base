@@ -37,6 +37,9 @@ scale/zero-point chosen per tensor, per channel, or per block.
   - **AWQ**: activation-aware; protect the ~1% salient weight channels (identified
     by activation magnitude) via per-channel scaling before 4-bit quantization.
   - **llama.cpp K-quants / GGUF**, **bitsandbytes NF4**: ecosystem workhorses.
+    Added 2026-08-24: Unsloth shipped Dynamic 3.0 GGUFs (Aug 19), the next iteration
+    of its dynamic quantization scheme for local models.
+    [Docs](https://unsloth.ai/docs/basics/dynamic-3.0-ggufs)
   - **SmoothQuant** (W8A8): migrate activation outliers into weights so both
     quantize well; **FP8 W8A8** is now the low-effort serving default on Hopper+.
 - Outliers are the central difficulty: a few channels with huge magnitudes destroy

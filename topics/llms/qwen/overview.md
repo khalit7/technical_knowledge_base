@@ -28,6 +28,11 @@ Last updated: 2026-08-24. Per-model files to follow; this page maps the family.
   Arena. On Aug 12 Alibaba open-weighted **Qwen3.8-2.4T-A95B**, the first open Max-class
   flagship; Aug 14 added **Qwen3.8-27B**: dense, Apache 2.0, native image+video VL,
   262K context.
+- Added 2026-08-24: Qwen3.8-27B is the local model of the moment: Simon Willison finds
+  it excellent but prone to overthinking, and XDA handed it a reverse-engineering job it
+  finished in 30 minutes.
+  [Simon Willison](https://simonwillison.net/2026/Aug/16/qwen-38-27b/),
+  [XDA](https://xda-developers.com/qwen-3-8-27b-reverse-engineering-job-frontier-model/)
 
 ## Training approach highlights
 

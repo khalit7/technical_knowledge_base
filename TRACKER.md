@@ -207,6 +207,11 @@ unticks or removes a box you ticked.
 
 ## papers
 
+- [ ] [2026-08_statem](papers/2026-08_statem/summary.md)
+- [ ] [2026-08_envharness](papers/2026-08_envharness/summary.md)
+- [ ] [2026-08_agent-skills](papers/2026-08_agent-skills/summary.md)
+- [ ] [2026-08_learn-whats-left](papers/2026-08_learn-whats-left/summary.md)
+- [ ] [2026-08_diffusiongemma](papers/2026-08_diffusiongemma/summary.md)
 - [ ] [2025-07_ettin](papers/2025-07_ettin/summary.md)
 - [ ] [2025-05_qwen3](papers/2025-05_qwen3/summary.md)
 - [ ] [2025-01_olmo-2](papers/2025-01_olmo-2/summary.md)
@@ -238,6 +243,10 @@ unticks or removes a box you ticked.
 - [ ] [2019-09_megatron-lm](papers/2019-09_megatron-lm/summary.md)
 - [ ] [2018-10_bert](papers/2018-10_bert/summary.md)
 - [ ] [2017-06_attention-is-all-you-need](papers/2017-06_attention-is-all-you-need/summary.md)
+
+## tech news
+
+- [ ] [2026-08-24 tech news](news/2026-08-24.md)
 
 ## updates
 
