@@ -54,7 +54,13 @@ frontier material gets the depth.
 - `sources/` holds selective verbatim article snapshots (markdown), indexed in
   `sources/SOURCES.md`. Snapshot only canonical explainers, paywall or link-rot risks,
   and heavily cited references; everything else is a link plus synthesis.
-- `updates/` holds one dated digest per periodic pull (`updates/YYYY-MM-DD.md`).
+- `updates/` holds one dated digest per periodic pull (`updates/YYYY-MM-DD.md`): the
+  changelog of KB edits.
+- `news/` holds one tech-news issue per week (`news/YYYY-MM-DD.md`): the newsletter.
+  Scope: AI/ML + big-tech industry. Routing: technical items appear in the issue AND
+  their topic files; pure industry news (IPOs, acquisitions, people moves) lives only
+  in `news/`; papers obviously relevant to the topics get full papers/ treatment
+  immediately, other interesting papers are just linked until Khalid asks.
 - `TRACKER.md` has one checkbox per readable artifact, grouped by topic. New items land
   unchecked at the top of their section.
 

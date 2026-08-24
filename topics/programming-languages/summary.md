@@ -67,6 +67,15 @@ graph TD
   safetensors), polars, uv/ruff/ty themselves; Rust keeps eating Python tooling and
   AI-infra plumbing.
 
+### Adjacent (not a track)
+
+- Added 2026-08-24: Mojo is now open source at 1.0. Modular, whose acquisition by
+  Qualcomm closed in late July, released the Mojo compiler under Apache 2.0 on Aug 18
+  (with LLVM exceptions for distributing compiled binaries), alongside ModCon
+  announcements pitching "open source, open cloud, open silicon" and a Qualcomm
+  data-center accelerator integration.
+  [Announcement](https://www.modular.com/blog/mojo-open-source)
+
 ## Files
 
 | File | Contents |

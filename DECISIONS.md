@@ -3,6 +3,17 @@
 Binding. Do not re-ask these. Each entry is dated and states what it does and does not
 license. Add new entries at the top.
 
+## 2026-08-24: Tech news section added (weekly newsletter)
+
+Khalid wants a TLDR-style weekly digest of AI/ML + big-tech news. His choices: weekly,
+produced inside the Monday routine (not a separate schedule); a separate section from
+Updates (Updates stays the KB-edit changelog); scope is AI/ML + big-tech industry, not
+all of tech. Routing: technical items go in the issue AND their topic pages; pure
+industry news (IPOs, acquisitions, people moves) lives only in Tech news; papers
+obviously relevant to the topics get full Papers treatment immediately, other
+interesting papers are only linked until he asks. Lives at the "Tech news" page in
+Notion, mirrored to `news/` here.
+
 ## 2026-08-24 (later): DIRECTION REVERSED: Notion is the source of truth, this repo is the mirror
 
 Khalid: "I want the notion page to be the source of truth and the github repo to be

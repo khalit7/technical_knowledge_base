@@ -93,6 +93,15 @@ graph TD
 (100 lines, ~65% SWE-bench Verified: evidence that strong models need little scaffold on
 short tasks), OpenHands. See [open-source-harnesses.md](open-source-harnesses.md).
 
+Added 2026-08-24: Cursor launched **Origin** (Aug 17), a Git hosting platform pitched as
+a GitHub alternative built for agent-scale workloads, alongside a 27-minute engineering
+post on scaling Git; launch day coincided with GitHub's major Aug 17 outage, which
+sharpened the "alternatives to GitHub" conversation.
+[Origin changelog](https://cursor.com/changelog/origin-code-hosting). The same week, a
+feature request for Claude Code to support the cross-tool AGENTS.md standard drew 376
+points (Aug 19), the flashpoint in the agent-config standardization argument.
+[GitHub issue](https://github.com/anthropics/claude-code/issues/6235)
+
 ## Axes that matter
 
 | Axis | Poles | Examples |

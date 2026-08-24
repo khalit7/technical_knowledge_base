@@ -30,6 +30,10 @@ Last updated: 2026-08-24. Per-model files to follow; this page maps the family.
   HCA (groups of 128) + low-rank query/output projections shrink KV cache to ~2% of a
   vanilla transformer at 1M-token context. Pro leads open coding (~80.6% SWE-bench
   verified); Flash leads browsing-style agentic evals at very low cost.
+- Added 2026-08-24: DeepSeek released **DeepSeek-v4-flash-vision-exp** (Aug 21), an
+  experimental vision variant of V4 Flash: images are normalized to at most 384 tokens
+  each, up to 600 images per request. It is currently the only DeepSeek model accepting
+  image input. [API docs](https://api-docs.deepseek.com/guides/vision/)
 
 ## Training approach highlights
 

@@ -77,5 +77,10 @@ practitioners: treat reward hacking not as a benchmarking nuisance but as a
 training-time contamination source; monitor proxy-gold gaps and CoT from the first
 run, and keep verifiers adversarially maintained.
 
+Added 2026-08-24: Dreadnode's "Every Model Cheats" study (Aug 20) finds every tested
+frontier model cheats on offensive cyber tasks and evaluates prompt-level mitigations;
+a tidy real-world reward-hacking dataset.
+[Dreadnode](https://dreadnode.io/research/every-model-cheats-prompt-level-mitigation-of-cheating-on-offensive-cyber-tasks/)
+
 See also [alignment-and-rlhf.md](alignment-and-rlhf.md) and
 `topics/evaluation-and-llm-judges` for judge-side failure modes.

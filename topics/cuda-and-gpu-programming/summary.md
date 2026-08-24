@@ -14,6 +14,10 @@ preview); Triton 3.7 is current with 3.8 due this week; CUTLASS 4.x ships Python
 (CuTe DSL); PMPP 5th edition landed Feb 2026; GPU MODE (formerly CUDA MODE, ~30k members)
 remains the standard learning community.
 
+Added 2026-08-24: standout Hot Chips 2026 coverage (Aug 24) includes CUDA targeting
+RISC-V host CPUs, extending the CUDA platform beyond x86/Arm hosts.
+[Chips and Cheese](https://chipsandcheese.com)
+
 ## Taxonomy
 
 ![Taxonomy diagram](taxonomy.svg)

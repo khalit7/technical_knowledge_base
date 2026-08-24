@@ -68,6 +68,7 @@ For HTTP transports only (stdio inherits process credentials/env vars):
 - **Official registry** at registry.modelcontextprotocol.io (launched Sept 2025, still preview): ~2k servers; aggregators list far more (PulseMCP 15k+, Smithery ~7k). Quality is a long tail; the registry adds namespacing and provenance, not vetting.
 - Governance moved to community working groups with an SEP (spec enhancement proposal) process; Tier 1 SDKs track spec releases.
 - Gateways/middleware are a real category now (auth, routing, metering, tool filtering in front of fleets of servers); header-based routing in 2026-07-28 exists for them.
+- Added 2026-08-24: the MCP project published a new roadmap (Aug 22) laying out where the spec goes next; it drew 240+ points and a long thread on HN. [MCP blog](https://blog.modelcontextprotocol.io/posts/mcp-roadmap/)
 
 ## Building servers well
 
