@@ -38,6 +38,12 @@ frontier material gets the depth.
 
 ## Structure conventions (binding)
 
+- **New material goes into the most relevant existing topic** (as a section of an
+  existing file or a new child file); create a new topic only when nothing fits. This
+  applies to everything: news routing, weekly updates, and Khalid's ad-hoc "explain X
+  and add it" questions. When he asks to understand something, add the explanation in
+  the right place on both surfaces (Notion first) and tell him where it went.
+
 - Every topic folder has a `summary.md`: a taxonomy diagram, a brief map of the space,
   and links to the topic's deep-dive files, relevant papers, and best resources. The
   summary is condensed and skimmable; depth lives in child files.

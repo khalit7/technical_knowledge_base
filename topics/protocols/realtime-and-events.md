@@ -38,6 +38,27 @@ Wins when you need **client-to-server messages on the same channel** (interrupti
 
 Rule of thumb: if the client only receives, use SSE; you get HTTP semantics, auth, retries, and CDN-compatibility for free. Reach for WebSockets only for true bidirectionality or binary. Realtime voice LLM APIs use WebSockets/WebRTC; text LLM APIs use SSE.
 
+### DDP, Distributed Data Protocol (added 2026-08-24)
+
+Disambiguation first: in this knowledge base and in ML generally, "DDP" almost always
+means PyTorch **DistributedDataParallel** ([distributed-training](../llm-training-and-post-training/distributed-training.md),
+[distributed-pytorch](../pytorch-ecosystem/distributed-pytorch.md)). The *protocol*
+DDP is unrelated:
+
+- **Meteor's Distributed Data Protocol** (~2012): a simple JSON protocol over
+  WebSockets (SockJS fallback) that combines two planes in one connection: RPC
+  (`method` calls with ids and results) and **pub/sub data synchronisation**: the
+  client subscribes to named record sets and the server streams `added` / `changed` /
+  `removed` messages that keep a client-side mini database ("minimongo") live.
+- Two ideas worth keeping: the server tracks what each client already has and sends
+  diffs, not snapshots; and **latency compensation**: the client optimistically
+  simulates a method's effect locally, then reconciles when the authoritative server
+  result arrives.
+- It never standardised beyond Meteor and survives mainly inside Meteor apps, but it
+  is the canonical early example of the **sync-engine pattern** (subscribe to a query,
+  receive diffs) that is having a renaissance: Supabase Realtime, Firebase, Phoenix
+  Channels/LiveView, Replicache/Zero-style sync engines are the same shape.
+
 ### Webhooks
 Inverted control: the provider POSTs events to a URL you host. Not a protocol, a convention; correctness lives in the patterns:
 
