@@ -3,7 +3,19 @@
 Binding. Do not re-ask these. Each entry is dated and states what it does and does not
 license. Add new entries at the top.
 
-## 2026-08-24: Notion mirror is live; topic changes always sync
+## 2026-08-25: DIRECTION REVERSED: Notion is the source of truth, this repo is the mirror
+
+Khalid: "I want the notion page to be the source of truth and the github repo to be
+the mirror", because updates arrive via a weekly Claude cowork scheduled task (Mondays
+07:00 UTC, Opus, routine "Weekly tech KB update"), which works against Notion. The
+repo is synced FROM Notion on demand on his PC and pushed. This supersedes the
+"GitHub is the source of truth" line below and the same-session repo-to-Notion sync
+rule in the entry below it (content flows Notion to repo now; kb-add-paper and
+kb-new-topic still write both sides in one session, Notion first). Paper PDFs remain
+repo-only: Notion keeps summaries and arXiv links. The Notion-side manual and
+decisions log is the root page's child "Operating guide (for Claude)".
+
+## 2026-08-24: Notion mirror is live; topic changes always sync (SUPERSEDED 2026-08-25, see above)
 
 Khalid: wire the repo to Notion and "always sync when adding/removing new topics."
 The mirror lives at the **Technical knowledge base** page inside his personal **Me**

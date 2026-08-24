@@ -1,36 +1,43 @@
 # Operating instructions for Claude sessions in this repo
 
-This is Khalid's personal AI/ML knowledge base. You maintain it; he reads it.
+This is the **mirror** of Khalid's personal AI/ML knowledge base. **The source of truth
+is Notion**: the "Technical knowledge base" page (id
+`3c65c17b-0d0d-81c7-b646-e548e65d9446`, child of his "Me" page). A scheduled cloud
+task (Mondays 07:00 UTC, Opus, routine "Weekly tech KB update") updates Notion weekly;
+this repo is synced from Notion on demand and pushed.
 
 Before doing anything: read `GOAL.md` (structure and writing conventions, both binding)
-and `DECISIONS.md` (standing decisions, do not re-ask them).
+and `DECISIONS.md` (standing decisions, do not re-ask them). The Notion side's manual
+is the root page's child **Operating guide (for Claude)**.
 
 ## The short version of the rules
 
+- **Never treat repo content as newer than Notion.** Content changes happen in Notion
+  first; the repo follows via `/kb-sync-from-notion`. If you find local edits Notion
+  lacks, surface them to Khalid instead of overwriting either side.
+- The one repo-only asset: paper PDFs (`papers/*/paper.pdf`). Notion keeps summaries
+  and arXiv links; the sync downloads PDFs.
 - No em-dashes anywhere. Commas, colons, semicolons, parentheses. `--` for ranges.
 - Every topic has a skimmable `summary.md` with a taxonomy diagram (rendered
-  `taxonomy.svg` embedded, mermaid source kept in a `<details>` block; re-render on
-  change, command in GOAL.md); depth lives in deep-dive files that start with a
-  **Best resources** links block, then synthesis.
-- Papers go in `papers/YYYY-MM_short-name/` (PDF + `summary.md`), get a row in
-  `papers/INDEX.md`, a checkbox in `TRACKER.md`, and cross-links from topic summaries.
-- Every new readable artifact gets an unchecked checkbox at the top of its `TRACKER.md`
-  section. Never uncheck or remove a box Khalid ticked.
-- **Adding or removing a topic MUST be synced to Notion in the same session** (follow
-  the kb-notion-sync skill; root page id is recorded there). Content-only edits can
-  wait for the next explicit `/kb-notion-sync`, but topic-level structure never drifts.
+  `taxonomy.svg` embedded, mermaid source in a `<details>` block; re-render on change,
+  command in GOAL.md); deep-dive files start with a **Best resources** block, then
+  synthesis.
+- `TRACKER.md` mirrors the Notion Tracker, including tick state (Notion ticks win).
+  Never uncheck or remove a box Khalid ticked.
 - Date every update; superseded content goes into `<details>` blocks, not deleted.
-- Audience: MSc-level AI engineer with production LLM experience. Summarise fundamentals,
-  go deep on frontier material.
+- Audience: MSc-level AI engineer with production LLM experience. Summarise
+  fundamentals, go deep on frontier material.
 
 ## Workflows (project skills in .claude/skills/)
 
-- `/kb-weekly-update`: the periodic news/paper pull.
-- `/kb-add-paper <arxiv id or url>`: add one paper end to end.
-- `/kb-new-topic <name>`: scaffold a new topic to spec.
-- `/kb-notion-sync`: mirror changed pages to Notion (interactive sessions only).
+- `/kb-sync-from-notion`: pull Notion into this repo, download new PDFs, commit, move
+  the `notion-sync` tag, push. The main thing this repo is for.
+- `/kb-add-paper <arxiv id or url>`: add one paper, Notion first, then here.
+- `/kb-new-topic <name>`: add a topic, Notion first, then here.
+- `/kb-weekly-update-manual`: manual fallback for the scheduled weekly update (runs in
+  Notion, then syncs here).
 
 ## Git
 
-Local commits are fine after meaningful units of work. Push only when a remote exists and
-Khalid has asked for pushes, or a standing decision says so.
+Commit after meaningful units of work. Pushing after a Notion sync is expected once a
+remote exists. The `notion-sync` tag marks the last commit that matched Notion.

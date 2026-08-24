@@ -1,0 +1,49 @@
+---
+name: kb-sync-from-notion
+description: Sync this repo FROM Notion (the source of truth) and push. Use when Khalid asks to sync the repo, pull from Notion, or update the repo from Notion. Notion-to-repo only; never push repo content to Notion.
+---
+
+# Sync the repo from Notion
+
+**Direction (decided 2026-08-25): Notion is the source of truth; this repo is the
+mirror.** A scheduled cloud task updates Notion weekly (Mondays 07:00 UTC, Opus). This
+skill brings the repo up to date afterwards. Never resolve a conflict in the repo's
+favour; if the repo has local edits Notion lacks, surface them to Khalid instead of
+overwriting either side silently.
+
+Root page: **Technical knowledge base** (child of the personal "Me" page), id
+`3c65c17b-0d0d-81c7-b646-e548e65d9446`
+(https://app.notion.com/p/3c65c17b0d0d81c7b646e548e65d9446), also in
+`sources/.notion-root`. Read its child page **Operating guide (for Claude)** first;
+it is the binding manual and decisions log.
+
+## Structure mapping (Notion -> repo)
+
+- `Topic: <name>` page body -> `topics/<name>/summary.md` (restore repo formatting:
+  H1 title line; taxonomy mermaid source into a `<details>` block below an embedded
+  `taxonomy.svg`, re-rendered via
+  `npx -y @mermaid-js/mermaid-cli -i <src>.mmd -o taxonomy.svg -b white` when changed)
+- Topic child pages -> `topics/<name>/<kebab-case-of-title>.md` (keep existing
+  filenames where the page clearly corresponds; new pages get new kebab-case files)
+- Papers index page -> `papers/INDEX.md`; each paper child page ->
+  `papers/YYYY-MM_short-name/summary.md`. For papers new since the last sync, download
+  the PDF from the arXiv link to `paper.pdf` and verify with `pdfinfo` (PDFs live only
+  in the repo, a standing decision).
+- Tracker page -> `TRACKER.md` including tick state (Notion tick state always wins)
+- Updates children -> `updates/YYYY-MM-DD.md`
+- Operating guide decisions log -> keep `DECISIONS.md` consistent with it
+
+## Steps
+
+1. Determine what changed: compare against the `notion-sync` git tag date and the
+   Notion pages' last-edited times; when in doubt re-mirror the affected section
+   whole rather than diffing line by line.
+2. Regenerate the affected repo files per the mapping, preserving repo conventions
+   (GOAL.md): no em-dashes, resources-first deep dives, dated entries.
+3. Download PDFs for new papers; re-render changed taxonomy SVGs.
+4. Verify: no broken relative links, no empty files, TRACKER.md matches the file tree.
+5. Commit as `sync from notion YYYY-MM-DD`, move the `notion-sync` tag to HEAD
+   (`git tag -f notion-sync`), and push (including `--tags --force` for the moved tag)
+   if a remote exists.
+6. Update the root Notion page's "Last repo sync from Notion" date.
+7. Report: pages pulled, files added/updated, papers downloaded, anything ambiguous.

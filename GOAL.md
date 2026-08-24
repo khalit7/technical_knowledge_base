@@ -69,19 +69,25 @@ frontier material gets the depth.
   deleted.
 - State an unfinished thing once, in the smallest space.
 
-## Maintenance
+## Maintenance (direction reversed 2026-08-25)
 
-- Periodic pull: run `/kb-weekly-update`. It researches every topic for news, writes
-  `updates/<date>.md`, patches topic files, adds papers, updates the tracker, commits.
-- New paper: run `/kb-add-paper <arxiv id or url>`.
-- New topic: run `/kb-new-topic <name>`.
-- Notion mirror: run `/kb-notion-sync` in an interactive session. GitHub is the source of
-  truth; Notion is a one-way read mirror.
+**Notion is the source of truth; this repo is the mirror.** The Notion root page is
+"Technical knowledge base" (`3c65c17b-0d0d-81c7-b646-e548e65d9446`), and its child
+"Operating guide (for Claude)" is the Notion-side manual.
 
-## Known caveats (recorded 2026-08-24)
+- Weekly update: a scheduled cloud task (routine "Weekly tech KB update", Mondays
+  07:00 UTC, Opus, Notion connector) researches every topic and updates Notion
+  directly. Manual fallback: `/kb-weekly-update-manual`.
+- Repo sync: run `/kb-sync-from-notion` on the PC to pull Notion into this repo,
+  download new paper PDFs, commit, and push.
+- New paper: `/kb-add-paper <arxiv id or url>` (writes Notion first, then here).
+- New topic: `/kb-new-topic <name>` (writes Notion first, then here).
 
-1. Scheduled/headless runs cannot use the interactively-authenticated Notion MCP, so
-   scheduled pulls update the repo only; Notion sync happens in interactive sessions.
-2. GitHub's file view renders checkboxes but does not make them clickable; tick them in
-   an editor or in Notion. `TRACKER.md` remains the source of truth.
-3. Paper PDFs live in git; revisit Git LFS if the repo passes ~1GB.
+## Known caveats (updated 2026-08-25)
+
+1. Tick reading progress in the Notion Tracker (source of truth); `TRACKER.md` here
+   mirrors it, ticks included.
+2. Paper PDFs live only in this repo (`papers/*/paper.pdf`); the sync downloads them
+   from the arXiv links in Notion. Revisit Git LFS if the repo passes ~1GB.
+3. The weekly cloud task cannot reach this repo or this machine; anything it must know
+   lives in Notion (that is what the Operating guide page is for).
