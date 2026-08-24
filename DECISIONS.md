@@ -36,3 +36,6 @@ stands) or restructuring the Me page beyond this child page.
   Notion first.
 - **Verbatim snapshots are selective** (canonical explainers, paywall or link-rot risk,
   heavily cited references only). Default is link plus synthesis.
+- **No separate NLP/information-extraction topic.** Khalid explicitly declined one; do
+  not add it unless he asks. That material belongs in the existing topics
+  (`ml-fundamentals`, `rag-and-retrieval`, `llm-training-and-post-training`).
