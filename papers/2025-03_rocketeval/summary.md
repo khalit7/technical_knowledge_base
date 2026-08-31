@@ -5,9 +5,9 @@
 - **Links**: [arXiv 2503.05142](https://arxiv.org/abs/2503.05142) | [HTML](https://arxiv.org/html/2503.05142v1)
 - **Topics**: evaluation-and-llm-judges, benchmarks, inference-and-serving
 
-*Added to the KB 2026-08-31, from Khalid's blog entry of 2026-08-30.*
+*Added to the KB 2026-08-31.*
 
-> **Note to self (Khalid, 2026-08-30).** The general pattern here is worth more than the
+> **Note to self (Khalid).** The general pattern here is worth more than the
 > evaluation result: **use a big model once, offline, to write down exactly how to do the
 > task, then let a small cheap model execute that written procedure at scale.** RocketEval
 > happens to apply it to judging, but the shape is generic. My use case: **Fable as an

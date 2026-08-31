@@ -1,6 +1,6 @@
 # Model formats: GGUF, safetensors, and the rest
 
-*Added 2026-08-31, from Khalid's blog entry of 2026-08-28: "add the GGUF model format and other model formats and make a comparison between them."*
+*Added 2026-08-31.*
 
 A model format answers three questions: how tensors are laid out on disk, what metadata travels with them, and whether loading the file can execute code. Most of the confusion in this area comes from conflating the **container** (how bytes are stored) with the **quantization scheme** (how numbers are compressed) with the **runtime artifact** (a compiled engine for one GPU). They are three different things, and GGUF is unusual precisely because it merges the first two.
 

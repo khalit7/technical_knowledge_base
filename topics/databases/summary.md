@@ -1,6 +1,6 @@
 # Databases
 
-*Created 2026-08-31, from Khalid's blog entry of 2026-08-27: "Add a 'databases' topic to technical knowledge base. It should include the top used database types and a comparison between them."*
+*Created 2026-08-31.*
 
 The storage layer: what the main database families actually are, what each is good and bad at, and how to choose. A new topic rather than a section of swe-and-system-design because storage choice is a first-class decision with its own body of theory (data models, consistency, indexing, transactions) that the system-design page can only gesture at. Caching, the layer that sits in front of all of this, is [caching.md](caching.md).
 

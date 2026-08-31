@@ -131,7 +131,7 @@ section of [inference-techniques.md](inference-techniques.md).
 
 ## Best resources: a learning path (added 2026-08-31)
 
-*From Khalid's blog entry of 2026-08-29, a curated list by Paolo Perrone. The ordering is the
+*A curated list by Paolo Perrone. The ordering is the
 useful part: most people jump straight to the optimisation techniques and then wonder why none
 of it sticks, because every technique in stage 4 is a response to a constraint introduced in
 stages 1-3.*

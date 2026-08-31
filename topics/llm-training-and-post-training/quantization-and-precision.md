@@ -96,8 +96,6 @@ Serving-side kernels and KV-cache quantization live in
 
 ## Added 2026-08-31: GGUF K-quants, and reading a quant name
 
-*From Khalid's blog entry of 2026-08-28: "Add different quantization methods ... Make sure to mention Q4_K_M and similar."*
-
 The methods above (GPTQ, AWQ, SmoothQuant, FP8, NF4) are what the GPU-serving world uses.
 The local-inference world speaks a different dialect, the llama.cpp **K-quants**, and the
 naming is worth decoding because it is what you actually pick when pulling a model.
