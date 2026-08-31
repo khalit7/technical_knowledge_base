@@ -151,6 +151,7 @@ unticks or removes a box you ticked.
 
 ## databases
 
+- [ ] [storage-engines-and-indexes.md](topics/databases/storage-engines-and-indexes.md)
 - [ ] [summary.md](topics/databases/summary.md)
 - [ ] [caching.md](topics/databases/caching.md)
 
