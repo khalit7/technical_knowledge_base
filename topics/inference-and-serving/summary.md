@@ -1,6 +1,6 @@
 # Inference and Serving
 
-Last updated: 2026-08-24
+Last updated: 2026-08-31
 
 The stack that turns model weights into tokens per second. Three layers matter: the
 **engine** (owns the GPU: batching, KV cache, kernels), the **server/orchestration**
@@ -83,6 +83,34 @@ convenience beats throughput; vLLM/SGLang win once you care about concurrent loa
 PagedAttention, prefix caching, speculative decoding (EAGLE-3, MTP), chunked prefill,
 prefill/decode disaggregation, FP8/INT4 quantised serving, MLA, and the
 memory-bandwidth arithmetic that explains all of it.
+
+## Added 2026-08-31: diffusion drafting arrives in speculative decoding
+
+**DFlash2** (z-lab, released as
+[incoai/Qwen3.8-27B-DFlash2](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2)) is a
+drafter, not a model: it plugs into vLLM or SGLang as the draft stage for Qwen3.8-27B and
+reports up to **3.43x output throughput** over plain autoregressive decoding, with MLX
+support so it also runs on Apple silicon.
+
+The mechanism is the interesting part, and it is the first production-shaped use of text
+diffusion in the serving stack. Instead of drafting one token at a time (EAGLE-style) or
+reusing the target's own MTP heads, DFlash2 does **block-diffusion drafting**: it predicts
+an entire block of tokens in a single forward pass, keeps the top candidates at every
+position in the block, and runs a lightweight selector over that lattice to trace one
+coherent path to verify. Two-tap dynamic convolutions counter the usual failure of block
+methods, where draft quality decays toward the end of the block because later positions are
+conditioned on less settled context. Verification is unchanged, so decoding stays
+**mathematically lossless**: greedy sampling reproduces the target model's output exactly,
+and the sampled distribution is preserved.
+
+Why this matters beyond one model: it separates the two things DiffusionGemma bundled
+together. DiffusionGemma (see
+[papers/2026-08_diffusiongemma](../../papers/2026-08_diffusiongemma/summary.md)) argued
+diffusion LMs can be fast but pay a real quality tax; DFlash2 takes the parallel-block
+generation and discards the quality question entirely by making diffusion a *proposal*
+mechanism behind an exact verifier. Expect drafters, not standalone diffusion LMs, to be
+where block-parallel decoding lands in production. Folded into the speculative-decoding
+section of [inference-techniques.md](inference-techniques.md).
 
 ## Quick chooser
 

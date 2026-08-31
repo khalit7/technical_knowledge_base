@@ -40,7 +40,7 @@ graph LR
         DS[DeepSeek] --> V4["V4 Pro 1.6T/49B, V4 Flash 284B/13B<br/>MoE + compressed sparse attention"]:::open
         QW[Alibaba Qwen] --> Q38["Qwen3.8 2.4T-A95B (open Max class)<br/>Qwen3.8-27B dense VL"]:::open
         MK[Moonshot AI] --> K3["Kimi K3 2.8T/104B<br/>KDA linear attention, MoE"]:::open
-        ZP[Z.ai / Zhipu] --> GLM["GLM-5.2 744B/40B MIT<br/>GLM-5.3"]:::open
+        ZP[Z.ai / Zhipu] --> GLM["GLM-5.2 744B/40B MIT<br/>GLM-5.3, GLM-5.3-Flash 320B/18B<br/>natively multimodal, 1M ctx"]:::open
         MM[MiniMax] --> M3["M3 428B/22B<br/>MSA sparse attention, multimodal"]:::open
         MIS[Mistral] --> ML3["Large 3 (Apache 2.0 MoE)<br/>Small 4, Magistral, Devstral"]:::open
     end
@@ -60,6 +60,17 @@ graph LR
 Green = open weights, purple = closed. Nearly everything at scale is sparse MoE with a
 reasoning mode; dense survives in Qwen3.8-27B, Gemma 4 31B, Phi-4, OLMo, and other
 sub-40B models.
+
+Added 2026-08-31: **GLM-5.3-Flash** (Z.ai, Aug 26) is the first natively multimodal model
+in the GLM-5 line and the first open-weight model to put frontier-adjacent multimodality at
+a flash-tier price: 320B total / 18B active MoE, a 1,048,576-token context, image and video
+input, MIT licence, weights on Hugging Face. Z.ai claims it beats GLM-5.2 across its own
+evaluations at roughly one tenth the cost; list API pricing is $0.15 / $0.50 per million
+tokens (a $0.075 input promo ran to Sep 9). It is the same model that appeared on evaluation
+platforms the week before as the stealth entry **Ox Alpha**, which the 2026-08-24 news issue
+flagged as unattributed. Detail in [zhipu-glm/overview.md](zhipu-glm/overview.md).
+[Announcement](https://docs.z.ai/release-notes/new-released),
+[SiliconANGLE](https://siliconangle.com/2026/08/26/z-ai-open-sources-ox-alpha-model-as-glm-5-3-flash/)
 
 ## Families at a glance
 

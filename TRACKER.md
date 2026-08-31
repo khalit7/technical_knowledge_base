@@ -159,6 +159,7 @@ unticks or removes a box you ticked.
 
 ## agentic-harnesses
 
+- [ ] [personal-agents.md](topics/agentic-harnesses/personal-agents.md)
 - [ ] [summary.md](topics/agentic-harnesses/summary.md)
 - [ ] [claude-code.md](topics/agentic-harnesses/claude-code.md)
 - [ ] [harness-engineering.md](topics/agentic-harnesses/harness-engineering.md)
@@ -207,6 +208,9 @@ unticks or removes a box you ticked.
 
 ## papers
 
+- [ ] [2026-08_prime-agent](papers/2026-08_prime-agent/summary.md)
+- [ ] [2026-08_jit-agent](papers/2026-08_jit-agent/summary.md)
+- [ ] [2025-07_wsm](papers/2025-07_wsm/summary.md)
 - [ ] [2026-08_statem](papers/2026-08_statem/summary.md)
 - [ ] [2026-08_envharness](papers/2026-08_envharness/summary.md)
 - [ ] [2026-08_agent-skills](papers/2026-08_agent-skills/summary.md)
@@ -246,8 +250,11 @@ unticks or removes a box you ticked.
 
 ## tech news
 
+- [ ] [2026-08-31 tech news](news/2026-08-31.md)
 - [ ] [2026-08-24 tech news](news/2026-08-24.md)
 
 ## updates
 
+- [ ] [2026-08-31 weekly update](updates/2026-08-31.md)
+- [ ] [2026-08-25 learning-rate schedulers expanded, WSM added](updates/2026-08-25.md)
 - [ ] [2026-08-24 founding build](updates/2026-08-24.md)
