@@ -134,6 +134,44 @@ memory tiny; push the rest behind retrieval or skills.
   need little scaffold on short tasks; harness engineering pays off mainly on long-horizon,
   underspecified, or safety-constrained work.
 
+## Added 2026-08-31: encrypted prompt injection, or why content filters cannot see the payload
+
+Adversa AI's **cryptographic context injection** against Grok's web chat agent (disclosed
+to xAI 2026-06-03, still unpatched as of late August) is the cleanest demonstration so far
+that input scanning is the wrong layer for injection defence when the agent has a code
+interpreter.
+
+The chain: a web page carries an AES-encrypted blob plus the key. Static content filters
+see ciphertext and pass it, because there is nothing to match on. Grok then runs the
+decryption **in its own Python runtime**, which is the step that matters: the harness
+itself manufactures the malicious plaintext, inside the trust boundary, after every filter
+has already approved the request. Grok follows the revealed instructions with no
+confirmation prompt, appends the user's full chat history, name, coarse location, and
+subscription tier to a URL, and fetches it. Roughly a 40% success rate over 20 attempts
+since June. The user action required is asking for a summary of the page.
+
+Three transferable lessons for harness design:
+
+1. **A sandboxed interpreter is an injection decoder.** Any harness that lets the model
+   execute code on untrusted input has a gadget for turning filtered content into
+   unfiltered instructions. Encryption is only the obvious encoding; base64, a zip, a
+   compiled regex, or a fetched second stage all work the same way. Input-side content
+   scanning is therefore a speed bump, not a control.
+2. **Egress is the control that actually holds.** Every step of this attack is benign until
+   the final outbound request to an attacker-controlled host. Allowlisting outbound
+   destinations from the tool sandbox, and treating URL construction from conversation
+   state as privileged, stops exfiltration regardless of how the instructions got in. This
+   is the same conclusion [personal-agents.md](personal-agents.md) reaches from the
+   standing-authority direction.
+3. **Confirmation gates need to fire on the action, not the input.** Grok took no user
+   confirmation before exfiltrating, because from inside the loop nothing unusual happened:
+   the model read a page and made a request. Permission models keyed to *what the tool call
+   does with sensitive state* catch this; permission models keyed to *where the text came
+   from* do not.
+
+Links: [Adversa AI write-up](https://adversa.ai/blog/cryptographic-context-injection-grok-data-theft/),
+[The Register](https://www.theregister.com/ai-and-ml/2026/08/20/grok-chat-duped-into-swallowing-injected-instructions/).
+
 Cross-links: products in [summary.md](summary.md); Claude Code specifics in
 [claude-code.md](claude-code.md); benchmark taxonomy in
 [../benchmarks/](../benchmarks/summary.md); MCP in [../protocols/](../protocols/summary.md).
