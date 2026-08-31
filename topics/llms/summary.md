@@ -1,6 +1,6 @@
 # LLMs: taxonomy of the major model landscape
 
-Last updated: 2026-08-24. This page is the map of who builds what; per-family depth lives in
+Last updated: 2026-08-31. This page is the map of who builds what; per-family depth lives in
 the subfolders, cross-model material in `_comparisons/`, and thematic deep dives in
 `reasoning-models.md` and `moe-models.md`. Per-model files will be added in later sessions.
 
@@ -40,7 +40,7 @@ graph LR
         DS[DeepSeek] --> V4["V4 Pro 1.6T/49B, V4 Flash 284B/13B<br/>MoE + compressed sparse attention"]:::open
         QW[Alibaba Qwen] --> Q38["Qwen3.8 2.4T-A95B (open Max class)<br/>Qwen3.8-27B dense VL"]:::open
         MK[Moonshot AI] --> K3["Kimi K3 2.8T/104B<br/>KDA linear attention, MoE"]:::open
-        ZP[Z.ai / Zhipu] --> GLM["GLM-5.2 744B/40B MIT<br/>GLM-5.3"]:::open
+        ZP[Z.ai / Zhipu] --> GLM["GLM-5.2 744B/40B MIT<br/>GLM-5.3, GLM-5.3-Flash 320B/18B<br/>natively multimodal, 1M ctx"]:::open
         MM[MiniMax] --> M3["M3 428B/22B<br/>MSA sparse attention, multimodal"]:::open
         MIS[Mistral] --> ML3["Large 3 (Apache 2.0 MoE)<br/>Small 4, Magistral, Devstral"]:::open
     end
@@ -60,6 +60,35 @@ graph LR
 Green = open weights, purple = closed. Nearly everything at scale is sparse MoE with a
 reasoning mode; dense survives in Qwen3.8-27B, Gemma 4 31B, Phi-4, OLMo, and other
 sub-40B models.
+
+Added 2026-08-31: **GLM-5.3-Flash** (Z.ai, Aug 26) is the first natively multimodal model in
+the GLM-5 line and the first open-weight model to put frontier-adjacent multimodality at a
+flash-tier price: 320B total / 18B active MoE, a 1,048,576-token context, image and video
+input, MIT licence, weights on Hugging Face. Z.ai claims it beats GLM-5.2 across its own
+evaluations at roughly one tenth the cost; list API pricing is $0.15 / $0.50 per million
+tokens (a $0.075 input promo ran to Sep 9). It is the same model that appeared on evaluation
+platforms the week before as the stealth entry **Ox Alpha**, which the 2026-08-24 news issue
+flagged as unattributed. Detail on the [zhipu-glm/](zhipu-glm/overview.md) page.
+[Announcement](https://docs.z.ai/release-notes/new-released),
+[SiliconANGLE](https://siliconangle.com/2026/08/26/z-ai-open-sources-ox-alpha-model-as-glm-5-3-flash/)
+
+Added 2026-08-31: **Qwen3.8-Flash-Next** (Alibaba, Aug 26) is an open-weight preview of the
+**Qwen4 architecture**, released early and explicitly so the ecosystem can adapt before the
+full Qwen4 family lands. 125B total / 6B active MoE (a sparsity ratio of about 21x, the most
+aggressive in the open frontier), causal LM plus a vision encoder, 262,144-token native
+context extensible to 1M. The architectural change worth knowing: the Gated DeltaNet plus
+Gated Attention hybrid of Qwen3.x becomes **Gated DeltaNet plus Qwen Sparse Attention
+(QSA)**, where QSA selects at micro-block rather than individual-token granularity, cutting
+long-context latency because block selection is hardware-friendly in a way token-level
+selection is not. That puts the whole open frontier on some form of trainable sparse or
+linear attention: DeepSeek DSA/CSA, Kimi KDA, MiniMax MSA, and now Qwen QSA. Weights on
+[Hugging Face](https://huggingface.co/Qwen/Qwen3.8-Flash-Next), detail on the
+[qwen/](qwen/overview.md) page. [Qwen blog](https://qwen.ai/blog?id=qwen3.8-flash-next),
+[TechNode](https://technode.com/2026/08/26/alibabas-qwen-to-open-source-qwen3-8-flash-next-previewing-qwen4-architecture/)
+
+Both releases land the same week and point the same way: the open-weight frontier is now
+competing on active-parameter efficiency and attention sparsity rather than on total
+parameter count, and both shipped natively multimodal.
 
 ## Families at a glance
 

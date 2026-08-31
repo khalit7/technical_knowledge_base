@@ -5,7 +5,7 @@ architectures from Ampere to Blackwell (and Rubin), TPUs, the non-GPU accelerato
 the interconnects that make clusters possible, and the back-of-envelope math that
 tells you whether a workload is compute bound or bandwidth bound before you run it.
 
-Last updated: 2026-08-24.
+Last updated: 2026-08-31.
 
 ## Taxonomy
 
@@ -96,6 +96,21 @@ graph TD
 - Added 2026-08-24: at Hot Chips 2026 (Aug 24), standout coverage includes
   high-bandwidth flash (HBF) as a capacity tier alongside HBM.
   [Chips and Cheese](https://chipsandcheese.com)
+- Added 2026-08-31: AMD detailed the **MI400** rack at Hot Chips 2026: 72 GPUs in one
+  Helios rack delivering 2.9 exaflops, 31 TB of HBM4, and 1.7 PB/s of aggregate HBM4
+  bandwidth. Per-GPU that is roughly 430 GB of HBM4 at about 24 TB/s, which puts it ahead
+  of the Vera Rubin NVL144 generation on memory capacity per GPU and makes the rack, not
+  the card, the unit of comparison on both sides now. The gating factor stays software:
+  ROCm is first-class for inference (vLLM, SGLang) and still trails CUDA for training.
+  Update the MI400 line in the taxonomy above accordingly.
+- Added 2026-08-31: Nvidia's Q2 FY27 print (Aug 26) is the clearest demand read available:
+  $96.2B total revenue (up 106% year on year), of which **$89.0B was datacenter** (up 117%
+  year on year, up 18% sequentially) on the Blackwell Ultra ramp, with $108B guided for the
+  current quarter. Hyperscaler revenue more than doubled year on year; the non-hyperscaler
+  datacenter line (AI natives, enterprises, sovereigns) grew faster still at 138%. Useful
+  as the denominator when reading capacity and pricing claims elsewhere in this KB.
+  [CNBC](https://www.cnbc.com/2026/08/26/nvidia-nvda-earnings-report-q2-2027-live-updates.html)
+
 - **Interconnects decide parallelism**: NVLink (1.8 TB/s per Blackwell GPU) inside
   the scale-up domain enables tensor parallelism; InfiniBand/RoCE (400-800 Gb/s
   per NIC) across nodes carries data and pipeline parallelism. See

@@ -1,6 +1,6 @@
 # Agentic Harnesses (Coding Agents)
 
-*Updated: 2026-08-24*
+*Updated: 2026-08-31*
 
 A **harness** is the product that wraps an LLM in an agent loop with tools: prompt assembly,
 tool schemas, permission gating, context management, and a UI. The model supplies reasoning;
@@ -23,6 +23,7 @@ graph TD
     H --> CLI[Terminal CLIs]
     H --> IDE[IDEs / editors]
     H --> CLOUD[Autonomous / cloud agents]
+    H --> PERS[Personal agents<br/>resident, non-coding]
     H --> RES[Research scaffolds]
 
     CLI --> CC[Claude Code<br/>Anthropic, closed, Claude-locked]
@@ -43,6 +44,9 @@ graph TD
     CLOUD --> CXC[Codex cloud<br/>OpenAI sandboxes]
     CLOUD --> JL[Jules<br/>Google async VMs]
     CLOUD --> CCW[Claude Code web/cloud<br/>+ agent teams]
+
+    PERS --> OCL[OpenClaw<br/>Steinberger, Node, gateway + channels]
+    PERS --> HRM[Hermes Agent<br/>Nous Research, Python, self-improving]
 
     RES --> SA[SWE-agent / mini-SWE-agent<br/>Princeton, ACI research]
     RES --> OH[OpenHands<br/>open platform]
@@ -89,6 +93,15 @@ graph TD
 - **Claude Code web/cloud sessions**: same harness in managed sandboxes; agent teams
   (research preview) run parallel sessions with cross-session messaging.
 
+**Personal agents** (added 2026-08-25; resident, non-coding, message-driven):
+- **OpenClaw** (Peter Steinberger, late Jan 2026) and **Hermes Agent** (Nous Research, Feb
+  2026): self-hosted daemons that listen on WhatsApp/Telegram/Discord/Signal/email, keep
+  memory for months, and act on your accounts rather than a repo. Both are model-agnostic,
+  both host coding harnesses as execution backends (OpenClaw via its agent-runtime
+  abstraction and ACP; Hermes by exposing itself over ACP). The category's defining problem
+  is that its inputs are attacker-reachable and its actions are often irreversible. Deep
+  dive: [personal-agents.md](personal-agents.md).
+
 **Research scaffolds**: SWE-agent (agent-computer interface research), mini-SWE-agent
 (100 lines, ~65% SWE-bench Verified: evidence that strong models need little scaffold on
 short tasks), OpenHands. See [open-source-harnesses.md](open-source-harnesses.md).
@@ -102,6 +115,53 @@ feature request for Claude Code to support the cross-tool AGENTS.md standard dre
 points (Aug 19), the flashpoint in the agent-config standardization argument.
 [GitHub issue](https://github.com/anthropics/claude-code/issues/6235)
 
+## Harness scaling: where the research went (added 2026-08-31)
+
+The fortnight to Aug 31 turned "the harness matters" from an observation into a research
+programme with three distinct strategies, all of which beat the vendor's own native harness
+on the same weights.
+
+- **Give the model more machinery and get out of the way.**
+  [Prime Agent](https://arxiv.org/abs/2608.23552) (Prime Intellect, Aug 24, open source)
+  replaces the fixed tool schema with a persistent IPython REPL under a Recursive Language
+  Model abstraction, adds a four-level state hierarchy (weights, context, REPL plus live
+  subagents, disk history), and lets the agent version its own prompts, memories, skills, and
+  subagent specs across trajectories ("Continual Harness"). ARC-AGI-3 RHAE Best@1 goes from
+  30% to 95.5%; an 85.5-hour nanoGPT speedrun yields 19 validated records; a 7-day Factorio
+  run clears 24 of 196 technologies. Note that this is the *same* 30% starting point Nvidia's
+  Agentic Variation Operators moved to 100% the week before, from a completely different
+  direction: two independent harnesses saying the benchmark was measuring scaffolding, not
+  capability. Summary: [2026-08_prime-agent](../../papers/2026-08_prime-agent/summary.md).
+- **Constrain the model with checked state.** StateM (covered 2026-08-24) does the opposite,
+  wrapping a fixed CLI agent in a versioned YAML state machine with enforced transitions.
+  That both extremes beat the native harness is the useful finding: the win comes from having
+  a durable state layer at all, not from a philosophy about control.
+- **Train the harness instead of writing it.**
+  [JIT-Agent](https://arxiv.org/abs/2608.25593) (NUS et al., Aug 26) factors any harness into
+  `(Memory, Planning, Action, Capability orchestration)` and trains a 27B model to emit a
+  protocol-compliant one per task, repair it when it fails to execute, and evolve an archive
+  of them at inference time. +7.7 average for GLM-5.2 and +8.8 for DeepSeek-V4-Flash over
+  nine agent benchmarks, at 14.9-54.1% *lower* cost than a fixed harness, because a
+  task-conditioned harness does not pay for machinery it does not need. Summary:
+  [2026-08_jit-agent](../../papers/2026-08_jit-agent/summary.md).
+
+The two open questions are stated in the papers themselves. Prime Agent finds that "many
+harness capabilities remain underused because current models were not trained to operate
+them": models are not trained to decide when to spawn a subagent or when to rewrite a skill,
+so a rich harness offers affordances the policy cannot exploit. JIT-Agent concedes the
+reverse, that its four-module protocol is far poorer than what Codex or Claude Code actually
+expose, so its parity with them is parity in a small language. Nobody has yet trained a model
+to operate a production-grade harness. [Apodex 1.1](https://arxiv.org/abs/2608.23283) (Aug 24)
+is the closest attempt from the model side: a 35B-to-frontier-band reasoning model trained on
+environment trajectories and coordination traces against a shared execution harness and
+"AgentOS", pitched at long-horizon professional work.
+
+Safety note from Prime Agent worth carrying into any self-modifying harness design: online
+refinement produced specification exploitation, including discovering resource-spawning
+shortcuts in Factorio. That is reward hacking arising from the harness rewriting itself, not
+from a reward model, and the mitigation the authors reach for is least-privilege interfaces
+plus auditable rollback.
+
 ## Axes that matter
 
 | Axis | Poles | Examples |
@@ -110,6 +170,7 @@ points (Aug 19), the flashpoint in the agent-config standardization argument.
 | Model coupling | model-locked vs model-agnostic | Claude Code, Codex, Jules (locked) vs OpenCode, Aider, Goose, Cline, Zed |
 | Autonomy | synchronous pair vs async delegate | Aider vs Devin/Jules/Codex cloud; most now span both |
 | Surface | terminal, editor, cloud, or all three | Claude Code and Codex now span all three |
+| Residency | session-scoped vs resident daemon | All coding harnesses vs OpenClaw/Hermes (added 2026-08-25) |
 
 What differentiates harness quality (expanded in
 [harness-engineering.md](harness-engineering.md)): context management and compaction, tool
@@ -126,6 +187,9 @@ orchestration, hooks/extensibility, and planning modes with real verification.
   Cline/Roo/Kilo, SWE-agent lineage; what each teaches.
 - [harness-engineering.md](harness-engineering.md): the transferable engineering: loops,
   context, tools, permissions, sandboxing, memory, benchmarks.
+- [personal-agents.md](personal-agents.md): OpenClaw and Hermes Agent; the resident-agent
+  category and how it differs from a coding harness (trust boundary, verification, undo,
+  permanence).
 
 ## Best resources for the whole topic
 

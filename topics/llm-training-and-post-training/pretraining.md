@@ -84,7 +84,12 @@ GQA; MoE for the compute-rich).
   training (common in 2025+ recipes) rather than fixing it.
 - **LR schedule**: warmup + cosine is classic; WSD (warmup-stable-decay) is now
   popular because you can branch anneals off the stable plateau without committing
-  to a total token count.
+  to a total token count. Added 2026-08-25: the thirteen-scheduler comparison (shape,
+  whether it needs T up front, where each is actually used) now lives in
+  [../ml-fundamentals/optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md),
+  along with the decay-free option (WSM: constant LR forever, with the anneal emulated
+  afterwards by merging checkpoints) and the terminology note distinguishing LR decay
+  from the data anneal.
 - **Stability**: z-loss or logit soft-capping, QK-norm (OLMo 2 moved to QK-norm +
   reordered norms specifically for stability), bf16 with fp32 master weights,
   gradient clipping at 1.0, watch for loss spikes correlated with bad data shards.
