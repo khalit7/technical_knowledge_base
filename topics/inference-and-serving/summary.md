@@ -127,6 +127,43 @@ section of [inference-techniques.md](inference-techniques.md).
 - [ollama-and-local.md](ollama-and-local.md): Ollama, llama.cpp, GGUF quants, dual-RTX-5090 guidance.
 - [triton-and-tensorrt.md](triton-and-tensorrt.md): Triton Inference Server vs TensorRT-LLM vs Dynamo; not OpenAI Triton.
 - [inference-techniques.md](inference-techniques.md): every technique that makes serving fast, with the math.
+- [model-formats.md](model-formats.md): containers versus quantization schemes versus compiled engines; how to read `Q4_K_M`.
+
+## Best resources: a learning path (added 2026-08-31)
+
+*From Khalid's blog entry of 2026-08-29, a curated list by Paolo Perrone. The ordering is the
+useful part: most people jump straight to the optimisation techniques and then wonder why none
+of it sticks, because every technique in stage 4 is a response to a constraint introduced in
+stages 1-3.*
+
+1. **Foundations**: the path every call takes, tokenization, forward pass, autoregressive
+   generation, prefill and decode, KV cache, TTFT and ITL, throughput versus latency.
+   [What is inference](https://theaiengineer.substack.com/p/what-is-inference),
+   [Why is inference slow and expensive](https://theaiengineer.substack.com/p/why-is-inference-slow-and-expensive).
+2. **Transformer internals**, only as deep as the computations the engines optimise: the
+   block, embeddings, self-attention, QKV. [bbycroft.net/llm](https://bbycroft.net/llm), the
+   3D walkthrough of a running model.
+3. **GPU and hardware**, because most inference bottlenecks are hardware bottlenecks: SMs,
+   HBM versus SRAM, memory bandwidth, FLOPS, and the compute-bound versus memory-bound
+   distinction that explains everything else.
+   [What is a GPU](https://theaiengineer.substack.com/p/what-is-a-gpu),
+   [Why does AI need a GPU](https://theaiengineer.substack.com/p/why-does-ai-need-a-gpu),
+   [H100 vs H200 vs B200](https://theaiengineer.substack.com/p/h100-vs-h200-vs-b200),
+   [Why your multi-GPU training job keeps failing](https://theaiengineer.substack.com/p/why-your-multi-gpu-training-job-keeps),
+   and Horace He's [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html),
+   still the best single explanation of the memory-bandwidth wall.
+4. **Optimisation techniques**: quantization, PagedAttention, FlashAttention, chunked prefill,
+   speculative decoding, prompt caching, continuous batching. Covered in depth in
+   [inference-techniques.md](inference-techniques.md); the quantization pair is
+   [What is quantization](https://theaiengineer.substack.com/p/what-is-quantization) and
+   [GPTQ vs AWQ](https://theaiengineer.substack.com/p/quantization-in-practice-gptq-vs-awq).
+5. **Engines**, and matching one to a workload: vLLM for throughput, SGLang when requests
+   share context, llama.cpp for CPU and edge, TensorRT-LLM for peak NVIDIA.
+   [vLLM vs Ollama vs SGLang vs TensorRT](https://theaiengineer.substack.com/p/vllm-vs-ollama-vs-sglang-vs-tensorrt),
+   [Should you self-host inference](https://theaiengineer.substack.com/p/should-you-self-host-inference),
+   [What breaks when you self-host](https://theaiengineer.substack.com/p/what-breaks-when-you-self-host-an),
+   and Aleksa Gordic's [Inside vLLM](https://aleksagordic.com/blog/vllm), the best code-level
+   tour of a modern engine.
 
 ## Papers
 

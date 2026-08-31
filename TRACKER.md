@@ -91,6 +91,7 @@ unticks or removes a box you ticked.
 
 ## inference-and-serving
 
+- [ ] [model-formats.md](topics/inference-and-serving/model-formats.md)
 - [ ] [summary.md](topics/inference-and-serving/summary.md)
 - [ ] [inference-techniques.md](topics/inference-and-serving/inference-techniques.md)
 - [ ] [ollama-and-local.md](topics/inference-and-serving/ollama-and-local.md)
@@ -148,6 +149,11 @@ unticks or removes a box you ticked.
 - [ ] [pretraining-corpora.md](topics/data-curation-and-datasets/pretraining-corpora.md)
 - [ ] [synthetic-and-post-training-data.md](topics/data-curation-and-datasets/synthetic-and-post-training-data.md)
 
+## databases
+
+- [ ] [summary.md](topics/databases/summary.md)
+- [ ] [caching.md](topics/databases/caching.md)
+
 ## ml-infra-and-orchestration
 
 - [ ] [summary.md](topics/ml-infra-and-orchestration/summary.md)
@@ -192,6 +198,7 @@ unticks or removes a box you ticked.
 
 ## swe-and-system-design
 
+- [ ] [ai-engineering-skills-map.md](topics/swe-and-system-design/ai-engineering-skills-map.md)
 - [ ] [summary.md](topics/swe-and-system-design/summary.md)
 - [ ] [api-and-code-design.md](topics/swe-and-system-design/api-and-code-design.md)
 - [ ] [distributed-systems-basics.md](topics/swe-and-system-design/distributed-systems-basics.md)
@@ -208,6 +215,7 @@ unticks or removes a box you ticked.
 
 ## papers
 
+- [ ] [2025-03_rocketeval](papers/2025-03_rocketeval/summary.md)
 - [ ] [2026-08_prime-agent](papers/2026-08_prime-agent/summary.md)
 - [ ] [2026-08_jit-agent](papers/2026-08_jit-agent/summary.md)
 - [ ] [2025-07_wsm](papers/2025-07_wsm/summary.md)
