@@ -1,6 +1,6 @@
 # Protocols
 
-Software protocols an AI engineer actually touches: how bytes move (HTTP versions, sockets, streams), how services talk (REST, gRPC, GraphQL), how agents talk (MCP, A2A), and how everything authenticates. Updated 2026-08-24.
+Software protocols an AI engineer actually touches: how bytes move (HTTP versions, sockets, streams), how services talk (REST, gRPC, GraphQL), how agents talk (MCP, A2A), and how everything authenticates. Updated 2026-08-31.
 
 ## Taxonomy
 
@@ -30,6 +30,7 @@ graph LR
     A --> A1["MCP: agent-to-tool, JSON-RPC, spec 2026-07-28"]
     A --> A2["A2A: agent-to-agent, Linux Foundation, v1.x"]
     A --> A3["AGNTCY / ACP and friends: consolidating into A2A"]
+    A --> A4["MHS: agent-to-instrument, Anthropic research preview"]
 
     P --> S[Auth]
     S --> S1["OAuth 2.1: auth code + PKCE, client creds, device"]
@@ -47,6 +48,7 @@ graph LR
 - **Real-time and events**: client only receives -> SSE (this is LLM token streaming and MCP's HTTP transport). True bidirectional or binary (voice agents) -> WebSockets. Cross-service "job done" notifications -> webhooks, which means HMAC signature verification, at-least-once delivery, and idempotent consumers. Details: [realtime-and-events.md](realtime-and-events.md).
 - **RPC/APIs**: REST (maturity level 2) for public APIs; gRPC (protobuf, four streaming modes, propagated deadlines, L7 load-balancing requirement) for internal and inference infra (Triton, Ray, vector DBs, OTLP); GraphQL for many-UI-client products, rarely for ML serving. Details: [rpc-and-apis.md](rpc-and-apis.md).
 - **Agent protocols**: **MCP** connects one agent to tools/context (client-host-server, tools/resources/prompts, stdio + Streamable HTTP, OAuth 2.1). The 2026-07-28 revision made the core stateless and added extensions (Tasks, MCP Apps). **A2A** (Google-origin, Linux Foundation since June 2025, v1.x with 150+ member orgs) connects opaque agents to each other: Agent Cards for discovery, task lifecycle, JSON-RPC/HTTP+SSE; it complements MCP rather than competing (MCP = agent-to-tool, A2A = agent-to-agent). The rest of the 2025 alphabet soup consolidated: IBM's ACP merged into A2A; Cisco-led **AGNTCY** (agent directory, identity, its REST-flavored Agent Connect Protocol) moved under the Linux Foundation and its ACP SDK was archived in April 2026. Practical takeaway: build tool access on MCP, watch A2A for cross-org agent federation, ignore the rest unless a platform forces it. Deep dive (MCP): [mcp.md](mcp.md).
+- **Agent-to-instrument** (added 2026-08-31): Anthropic opened a research preview of the **Model Hardware Standard (MHS)** on Aug 27, a shared specification for letting agents drive physical laboratory and manufacturing equipment: microscopes, liquid handlers, robotic arms, optical benches. It works with any device exposing a programmable interface, is model-agnostic, and is reachable by any harness over standard protocols including MCP, so it sits as a device-abstraction layer above MCP rather than as a competing transport. Reported early results: a drug-discovery run with real-time error handling at Genentech, an imaging experiment compressed from weeks to a day at HHMI Janelia, and laser stabilisation on QuEra's quantum computers going from 58% to 99.3%. Anthropic says it intends to open-source the standard. The interesting protocol question is the trust boundary: MCP's failure modes (prompt injection, confused deputy) are documented in [mcp.md](mcp.md) and are recoverable, whereas an agent driving a liquid handler is issuing irreversible physical actions, which is the same standing-authority problem [../agentic-harnesses/personal-agents.md](../agentic-harnesses/personal-agents.md) raises for resident agents. First preview is limited to selected research labs and advanced manufacturers. [Anthropic](https://www.anthropic.com/news/model-hardware-standard-research-preview), [CNBC](https://www.cnbc.com/2026/08/27/anthropic-pushes-into-physical-world-with-new-standard-to-help-ai-agents-operate-machines.html)
 - **Auth**: OAuth 2.1 (still an IETF draft, but the operative standard): auth code + PKCE for anything user-facing, client credentials for M2M, device grant for headless. OIDC adds identity. JWTs are the token format with the long pitfall list (alg confusion, audience confusion, no revocation). Inside AWS prefer IAM/SigV4; across orgs, OIDC federation over long-lived secrets. MCP made every AI engineer an OAuth integrator, and banned token passthrough for good reasons. Details: [auth.md](auth.md).
 
 ## Which to reach for when
