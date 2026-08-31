@@ -39,6 +39,13 @@ mixtures, evaluated on your target benchmarks.
 
 ## Staged pretraining: curriculum, mid-training, annealing
 
+Added 2026-08-25: "annealing" means three different things in this literature (classical
+LR-lowering, the modern pretraining phase that bundles LR decay with a data switch, and
+annealing-as-dataset-evaluation). The disambiguation, and why the two levers are separable
+even though papers almost always pull them together, is in
+[../ml-fundamentals/optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md).
+Sense 2 is what this section describes.
+
 The single-static-mixture era is over. The standard 2025-26 recipe is 2-4 stages with quality
 increasing and diversity narrowing toward the end:
 

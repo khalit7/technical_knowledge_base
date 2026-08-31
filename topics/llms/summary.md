@@ -72,6 +72,24 @@ flagged as unattributed. Detail in [zhipu-glm/overview.md](zhipu-glm/overview.md
 [Announcement](https://docs.z.ai/release-notes/new-released),
 [SiliconANGLE](https://siliconangle.com/2026/08/26/z-ai-open-sources-ox-alpha-model-as-glm-5-3-flash/)
 
+Added 2026-08-31: **Qwen3.8-Flash-Next** (Alibaba, Aug 26) is an open-weight preview of the
+**Qwen4 architecture**, released early and explicitly so the ecosystem can adapt before the
+full Qwen4 family lands. 125B total / 6B active MoE (a sparsity ratio of about 21x, the most
+aggressive in the open frontier), causal LM plus a vision encoder, 262,144-token native
+context extensible to 1M. The architectural change worth knowing: the Gated DeltaNet plus
+Gated Attention hybrid of Qwen3.x becomes **Gated DeltaNet plus Qwen Sparse Attention
+(QSA)**, where QSA selects at micro-block rather than individual-token granularity, cutting
+long-context latency because block selection is hardware-friendly in a way token-level
+selection is not. That puts the whole open frontier on some form of trainable sparse or
+linear attention: DeepSeek DSA/CSA, Kimi KDA, MiniMax MSA, and now Qwen QSA. Weights on
+[Hugging Face](https://huggingface.co/Qwen/Qwen3.8-Flash-Next), detail on the
+[qwen/](qwen/overview.md) page. [Qwen blog](https://qwen.ai/blog?id=qwen3.8-flash-next),
+[TechNode](https://technode.com/2026/08/26/alibabas-qwen-to-open-source-qwen3-8-flash-next-previewing-qwen4-architecture/)
+
+Both releases land the same week and point the same way: the open-weight frontier is now
+competing on active-parameter efficiency and attention sparsity rather than on total
+parameter count, and both shipped natively multimodal.
+
 ## Families at a glance
 
 | Family | One-line characterisation | Folder |

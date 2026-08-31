@@ -4,7 +4,8 @@ Last updated: 2026-08-24.
 
 The benchmark landscape turns over fast: anything a frontier model scores above ~90% on
 stops discriminating, and most pre-2024 static benchmarks are now saturated,
-contaminated, or both. The active frontier as of Aug 2026: HLE, ARC-AGI-3, FrontierMath
+contaminated, or both. Last updated 2026-08-31. The active frontier as of Aug 2026: HLE,
+ARC-AGI-3, FrontierMath
 (upper tiers), SWE-bench Pro, Terminal-Bench 2.x, OSWorld-Verified, tau2-bench, and
 live/rolling sets (LiveCodeBench, AIME of the current year, SWE-rebench).
 
@@ -129,7 +130,7 @@ models cluster above ~85-90%), **saturated** (no frontier signal), **contaminate
 | GDPval | 2025 | Economically valuable occupational tasks | Expert pairwise win-rate | Active, OpenAI-run |
 | ARC-AGI-1 | 2019 | Abstract grid puzzles, fluid intelligence | % tasks (2 tries) | Solved at frontier (o3, late 2024); prize track retired |
 | ARC-AGI-2 | 2025 | Harder ARC, efficiency-aware | % tasks + cost axis | Rapidly saturating through 2026 (high-60s to low-90s depending on leaderboard, from ~4% in early 2025) |
-| ARC-AGI-3 | 2026 | Interactive game environments, agentic exploration | % environments solved | Active frontier: humans 100%, SOTA ~30% (Aug 2026) |
+| ARC-AGI-3 | 2026 | Interactive game environments, agentic exploration | % environments solved | Active, but harness-dominated: humans 100%; bare/default-harness SOTA ~30%, rising to 95.5% (Prime Agent) and 100% (Nvidia AVO) with a research harness (Aug 2026). Always report the harness. See the 2026-08-31 note below. |
 | SimpleBench | 2024 | Trick/commonsense questions where humans beat LLMs | MCQ | Active, informal |
 | RULER | 2024 | Synthetic long context (retrieval, tracing, aggregation) | Accuracy vs length | Active for context-length claims |
 | LongBench v2 | 2024 | Realistic long-document understanding | MCQ | Active |
@@ -154,6 +155,38 @@ models cluster above ~85-90%), **saturated** (no frontier signal), **contaminate
 | GLUE / SuperGLUE | 2018/19 | Fine-tuned NLU (BERT era) | Aggregate score | Retired; historical |
 | SQuAD 1.1/2.0 | 2016/18 | Extractive reading comprehension | EM/F1 | Retired; historical |
 | ImageNet (ILSVRC) | 2009/12 | Image classification; started the deep-learning era | top-1/top-5 accuracy | Retired as a frontier target; still a reference staple |
+
+## Added 2026-08-31
+
+**[new] Terminal-Bench-Science 0.1** (Stanford plus the Terminal-Bench team, Aug 2026): 70
+expert-curated tasks across life, physical, Earth, mathematical, and engineering sciences,
+contributed and reviewed by 376 people across 22 countries, run in the same terminal-sandbox
+harness as Terminal-Bench. It is deliberately calibrated well below saturation: Claude Opus 5
+leads at 30.0% task resolution, GPT-5.6 Sol 22.4%, Claude Fable 5 21.4%, against roughly 92%
+for the best agents on Terminal-Bench 2.0. Version 0.2 is already in development. This is the
+natural successor headline once Terminal-Bench 2.x saturates, and it is the first agent
+benchmark built around research workflows rather than software engineering.
+[Announcement](https://www.terminal-bench-science.ai/announcement)
+
+**[update] ARC-AGI-3 stopped being a 30% benchmark this fortnight, and the cause was the
+harness, not the model.** Three independent results moved the same 30% baseline: Nvidia's
+Agentic Variation Operators to 100% (Aug 21), and Prime Agent's four-level state hierarchy to
+95.5% RHAE Best@1 (Aug 24, [arXiv 2608.23552](https://arxiv.org/abs/2608.23552)), with StateM
+making the analogous point on Terminal-Bench 2.1. The reading for this page: ARC-AGI-3 as
+reported through mid-2026 was measuring scaffolding quality, not model capability, so any
+ARC-AGI-3 number is now uninterpretable without the harness named alongside it. This is the
+same failure [benchmark-methodology.md](benchmark-methodology.md) records for GAIA and
+WebArena, arriving on the benchmark that was supposed to be resistant to it. Harness detail
+lives in [../agentic-harnesses/](../agentic-harnesses/summary.md).
+
+<details>
+<summary>Superseded 2026-08-24: ARC-AGI-3 status</summary>
+
+The master table row previously read "Active frontier: humans 100%, SOTA ~30% (Aug 2026)",
+which was accurate for bare-model and vendor-default-harness submissions through mid-August
+2026.
+
+</details>
 
 ## How to read the landscape (Aug 2026)
 
