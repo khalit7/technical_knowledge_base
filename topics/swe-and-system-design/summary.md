@@ -90,6 +90,7 @@ That walk is also, almost verbatim, the ML system design interview.
 | [distributed-systems-basics.md](distributed-systems-basics.md) | CAP and consistency models, idempotency, queues and backpressure, retries, delivery semantics, leader election, database taxonomy, event-driven architecture; DDIA as anchor |
 | [testing-and-quality.md](testing-and-quality.md) | Testing ML systems: data transform units, property-based testing with Hypothesis, model regression suites, LLM contract tests, CI gates, GPU CI, general test taste |
 | [api-and-code-design.md](api-and-code-design.md) | API design (versioning, pagination, idempotency keys, errors, webhooks), Python library design, code review taste, when abstraction pays |
+| [ai-engineering-skills-map.md](ai-engineering-skills-map.md) | Andrew Ng's five pillars of software fundamentals for AI engineers (full-stack, data, architecture, security/reliability, production), mapped onto KB coverage with the gaps named |
 
 ## Related topics
 

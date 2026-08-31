@@ -93,3 +93,53 @@ storage trick to a compute format:
 
 Serving-side kernels and KV-cache quantization live in
 `topics/inference-and-serving`; hardware details in `topics/hardware`.
+
+## Added 2026-08-31: GGUF K-quants, and reading a quant name
+
+*From Khalid's blog entry of 2026-08-28: "Add different quantization methods ... Make sure to mention Q4_K_M and similar."*
+
+The methods above (GPTQ, AWQ, SmoothQuant, FP8, NF4) are what the GPU-serving world uses.
+The local-inference world speaks a different dialect, the llama.cpp **K-quants**, and the
+naming is worth decoding because it is what you actually pick when pulling a model.
+
+`Q4_K_M` reads as three parts:
+
+- **`Q4`**: roughly 4 bits per weight.
+- **`_K`**: a K-quant, meaning the two-level super-block scheme rather than the legacy
+  flat-scale formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`).
+- **`_M`**: the size variant (**S**mall / **M**edium / **L**arge), which selects how much
+  extra precision goes to the sensitive tensors.
+
+**The super-block idea**: 256 weights form a super-block, subdivided into blocks of 16 or 32
+depending on bit width. One FP16 scale sits on the super-block, and each inner block carries
+a 4- or 6-bit sub-scale relative to it. Quantizing the scales themselves is where the quality
+gain over legacy quants comes from, at around 4.5 effective bits/weight for Q4_K once
+overhead is counted. This is the same insight as group-wise quantization in GPTQ/AWQ, taken
+one level further by compressing the group scales too.
+
+**What the variant changes**: llama.cpp ships a hand-tuned per-tensor precision allocation
+based on measured layer sensitivity. `Q4_K_M` keeps half the `attention.wv` and
+`feed_forward.w2` tensors at `Q6_K` and the rest at `Q4_K`; `Q4_K_S` is uniformly `Q4_K`.
+Value and down-projection tensors get the extra bits because they are empirically the most
+quantization-sensitive, which matches what AWQ finds when it protects salient channels.
+
+**The IQ family** (`IQ2_XXS`, `IQ3_S`, `IQ4_NL`, ...) adds an importance matrix from
+calibration data plus codebook quantization, which is what makes 2-3 bit models usable at
+all. Slower to decode, and needs a calibration pass, so it is the trade you make when the
+model would otherwise not fit.
+
+**Defaults worth remembering**: `Q4_K_M` is the standard recommendation and sits at the knee
+of the quality-size curve; `Q5_K_M` when memory allows; `Q6_K` is close enough to FP16 that
+the gap is rarely measurable; `Q8_0` is effectively lossless and usually not worth it over
+FP16. And the allocation rule that matters more than the quant choice: **a larger model at
+lower precision generally beats a smaller model at higher precision for the same memory
+budget**, so a 70B at Q3 tends to beat an 8B at Q8.
+
+Container details, and how GGUF compares to safetensors, ONNX, TensorRT engines, and MLX,
+are in [../inference-and-serving/model-formats.md](../inference-and-serving/model-formats.md).
+
+**Added resources**: [What is quantization?](https://theaiengineer.substack.com/p/what-is-quantization)
+and [Quantization in practice: GPTQ vs AWQ](https://theaiengineer.substack.com/p/quantization-in-practice-gptq-vs-awq)
+(The AI Engineer); [GGUF format and k-quants explained](https://zeroentropy.dev/concepts/gguf/);
+[Which Quantization Should I Use? (arXiv 2601.14277)](https://arxiv.org/abs/2601.14277), a
+unified evaluation of llama.cpp quantizations on Llama-3.1-8B-Instruct.
