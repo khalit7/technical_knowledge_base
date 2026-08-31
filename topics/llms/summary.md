@@ -1,6 +1,6 @@
 # LLMs: taxonomy of the major model landscape
 
-Last updated: 2026-08-31. This page is the map of who builds what; per-family depth lives in
+Last updated: 2026-08-24. This page is the map of who builds what; per-family depth lives in
 the subfolders, cross-model material in `_comparisons/`, and thematic deep dives in
 `reasoning-models.md` and `moe-models.md`. Per-model files will be added in later sessions.
 
@@ -61,14 +61,14 @@ Green = open weights, purple = closed. Nearly everything at scale is sparse MoE 
 reasoning mode; dense survives in Qwen3.8-27B, Gemma 4 31B, Phi-4, OLMo, and other
 sub-40B models.
 
-Added 2026-08-31: **GLM-5.3-Flash** (Z.ai, Aug 26) is the first natively multimodal model in
-the GLM-5 line and the first open-weight model to put frontier-adjacent multimodality at a
-flash-tier price: 320B total / 18B active MoE, a 1,048,576-token context, image and video
+Added 2026-08-31: **GLM-5.3-Flash** (Z.ai, Aug 26) is the first natively multimodal model
+in the GLM-5 line and the first open-weight model to put frontier-adjacent multimodality at
+a flash-tier price: 320B total / 18B active MoE, a 1,048,576-token context, image and video
 input, MIT licence, weights on Hugging Face. Z.ai claims it beats GLM-5.2 across its own
 evaluations at roughly one tenth the cost; list API pricing is $0.15 / $0.50 per million
 tokens (a $0.075 input promo ran to Sep 9). It is the same model that appeared on evaluation
 platforms the week before as the stealth entry **Ox Alpha**, which the 2026-08-24 news issue
-flagged as unattributed. Detail on the [zhipu-glm/](zhipu-glm/overview.md) page.
+flagged as unattributed. Detail in [zhipu-glm/overview.md](zhipu-glm/overview.md).
 [Announcement](https://docs.z.ai/release-notes/new-released),
 [SiliconANGLE](https://siliconangle.com/2026/08/26/z-ai-open-sources-ox-alpha-model-as-glm-5-3-flash/)
 
