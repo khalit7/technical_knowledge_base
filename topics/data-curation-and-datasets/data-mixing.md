@@ -49,7 +49,11 @@ increasing and diversity narrowing toward the end:
    ("Dolmino": 100B-token mid-training mix of math/code/QA/instruction/thinking data);
    SmolLM2/3's 3-stage mixes where FineMath and Stack-Edu enter late. Annealing experiments
    are also the cheap way to *evaluate* a candidate dataset: anneal an existing checkpoint on
-   it and compare (Llama 3 and OLMo both do this).
+   it and compare (Llama 3 and OLMo both do this). Added 2026-08-25: "annealing" means
+   three different things in this literature (LR decay alone, the LR-plus-data phase
+   described here, and the dataset-pricing experiment just mentioned), and the LR lever and
+   the data lever are separable even though papers usually pull both at once. Terminology
+   note: [../ml-fundamentals/optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md).
 3. **Long-context extension**: a short final stage on long documents (books, PDFs, repo-level
    code); Dolma 3 "Longmino" (50-100B tokens) is the open template.
 

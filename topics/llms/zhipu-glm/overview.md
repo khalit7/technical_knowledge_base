@@ -1,6 +1,6 @@
 # Z.ai (Zhipu): GLM
 
-Last updated: 2026-08-24. Per-model files to follow; this page maps the family.
+Last updated: 2026-08-31. Per-model files to follow; this page maps the family.
 
 ## Best resources
 
@@ -26,8 +26,21 @@ Last updated: 2026-08-24. Per-model files to follow; this page maps the family.
   context, MIT license. Beat GPT-5.5 on FrontierSWE at roughly one sixth the cost;
   topped the open-weight division of the Artificial Analysis index and led Design
   Arena/frontend-code arenas.
-- **GLM-5.3 (Aug 14, 2026)**: incremental update; the most recent frontier-tracked
-  release as of this page's date.
+- **GLM-5.3 (Aug 14, 2026)**: incremental update, reported as roughly 6x coding gains over
+  5.2 from post-training alone, and a claimed #1 on CyberGym at 84.5%.
+- **GLM-5.3-Flash (Aug 26, 2026)**: added 2026-08-31. The line's first natively multimodal
+  model and its most strategically aggressive release. 320B total / 18B active MoE,
+  1,048,576-token context, image *and video* input with text output, MIT licence, weights on
+  Hugging Face. Z.ai claims it beats GLM-5.2 across its own evaluation suite while costing
+  roughly a tenth as much: list pricing $0.15 input / $0.50 output per million tokens, with a
+  $0.075 input promotion running to Sep 9. It had been on evaluation platforms the week
+  before as the unattributed stealth model **Ox Alpha**, which is worth noting as a pattern:
+  shipping anonymously first to collect clean third-party scores, then claiming the model
+  once the numbers are in. The strategic read is unchanged from GLM-4.6 onward, only sharper:
+  put frontier-class capability under MIT at a price that makes a paid multimodal API tier
+  hard to defend.
+  [Announcement](https://docs.z.ai/release-notes/new-released),
+  [SiliconANGLE](https://siliconangle.com/2026/08/26/z-ai-open-sources-ox-alpha-model-as-glm-5-3-flash/)
 
 ## Training approach highlights
 
@@ -43,6 +56,7 @@ Last updated: 2026-08-24. Per-model files to follow; this page maps the family.
 | Model | Params | Notes |
 |---|---|---|
 | GLM-5.3 / GLM-5.2 | 744B / 40B active | Open-weight quality leader per AA v4.x, MIT, 1M ctx |
+| GLM-5.3-Flash | 320B / 18B active | Natively multimodal (image + video in), 1M ctx, MIT, $0.15/$0.50 per Mtok; shipped Aug 26 2026, ex-"Ox Alpha" |
 | GLM-4.7-Air class | ~100B | Cheap self-hostable tier |
 | GLM Coding Plan | service | Claude Code-compatible agentic coding value play |
 
