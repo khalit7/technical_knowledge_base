@@ -32,12 +32,6 @@ is the root page's child **Operating guide (for Claude)**.
   GOAL.md and on the Notion Tech news page).
 - Audience: MSc-level AI engineer with production LLM experience. Summarise
   fundamentals, go deep on frontier material.
-- **Requests also arrive via the Blog, not just in session.** Rows in the `entries`
-  database under Khalid's Notion **Blog** page
-  (`collection://0fbbc243-d165-40e0-aeee-eea032f950e9`) can explicitly ask for KB
-  additions, and those are binding. The weekly run sweeps unprocessed rows before doing
-  anything else; tick `processed` only on rows actually finished. Full rule: "Blog
-  entries are KB requests" in the Notion Operating guide.
 - Khalid frequently asks "explain X and add it": file the explanation as a child of
   the most relevant existing topic (new topic only if nothing fits), on both surfaces
   (Notion first), and tell him exactly where it went.

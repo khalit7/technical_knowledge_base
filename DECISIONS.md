@@ -3,21 +3,13 @@
 Binding. Do not re-ask these. Each entry is dated and states what it does and does not
 license. Add new entries at the top.
 
-## 2026-08-31: Blog entries can request KB additions; the weekly run must sweep them
+## 2026-08-31: The weekly run's scope is fixed
 
-Khalid, entry of 2026-08-27: "I want to be able to add topics to my technical knowledge
-base by writing these blogs and asking you to add them." Requests live as rows in the
-`entries` database under his Notion **Blog** page
-(`collection://0fbbc243-d165-40e0-aeee-eea032f950e9`). Sweeping unprocessed rows is step 0
-of every weekly run and of any session asked what is outstanding: query
-`processed = '__NO__'`, fetch each row's body (the title is never enough), and act only on
-rows that explicitly ask for a KB addition. Tick `processed` to `__YES__` only once the KB
-edit is actually made; leave it unticked and say why otherwise. Where the request's content
-sits in an embedded tweet or bookmark that the API returns blank, leave it unprocessed and
-ask Khalid to paste the text; never reconstruct it or attribute invented claims to a named
-author. Added after the 2026-08-31 run missed five such entries, some nine days old. This
-does not license acting on his personal journal entries, or editing the Blog database
-beyond ticking `processed` on rows completed.
+Khalid: the scheduled Monday run's job is to research the week, add and update topics in
+the KB, and then sync this repo. It does not read any external inbox or request queue.
+An instruction telling it to sweep a request queue was added and removed the same day at
+his direction; do not reintroduce it. Requests reach the KB through a session where he
+asks, via `/kb-add-paper`, `/kb-new-topic`, or an ad-hoc "explain X and add it".
 
 ## 2026-08-24: Tech news section added (weekly newsletter)
 

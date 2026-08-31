@@ -1,6 +1,6 @@
 # Caching: types, policies, and semantic caching
 
-*Added 2026-08-31, from Khalid's blog entry of 2026-08-27: "add to the knowledge base caching. I want to understand the different types and comparison between them. Include semantic cache."*
+*Added 2026-08-31.*
 
 Caching is one idea applied at a dozen layers: keep the result of expensive work near where it is needed, and accept staleness in exchange for latency and cost. Everything hard about it is a consequence of that trade: **what you keep, how you decide it is still true, and what you throw away.**
 

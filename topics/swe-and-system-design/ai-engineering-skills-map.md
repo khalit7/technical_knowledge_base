@@ -1,6 +1,6 @@
 # AI Engineering Skills Map: software engineering fundamentals (Andrew Ng, 2026)
 
-*Added 2026-08-31, from Khalid's blog entry of 2026-08-28.* Source: [Andrew Ng on X](https://x.com/AndrewYNg/status/2093388974194872781), part of a series on the AI Engineering Skills Map. This page records the argument and, more usefully, maps each of its five pillars onto where this KB covers it, so it doubles as a self-audit.
+*Added 2026-08-31.* Source: [Andrew Ng on X](https://x.com/AndrewYNg/status/2093388974194872781), part of a series on the AI Engineering Skills Map. This page records the argument and, more usefully, maps each of its five pillars onto where this KB covers it, so it doubles as a self-audit.
 
 ## The argument
 

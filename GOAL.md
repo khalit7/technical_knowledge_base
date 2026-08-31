@@ -91,12 +91,9 @@ frontier material gets the depth.
   07:00 UTC, Opus, Notion connector, repo cloned) researches every topic, updates
   Notion directly, then syncs this repo and pushes to main. Manual fallback:
   `/kb-weekly-update-manual`.
-- **Step 0 of every weekly run: sweep the Blog entries database** for unprocessed KB
-  requests (`collection://0fbbc243-d165-40e0-aeee-eea032f950e9`, under the Notion
-  **Blog** page). Khalid adds topics and papers by writing an entry and asking; only
-  entries that explicitly ask for a KB addition count, and `processed` is ticked only
-  once the KB edit is actually made. Added 2026-08-31 after the weekly run missed five
-  such requests because nothing pointed at that database.
+- **The weekly run's scope is fixed** (2026-08-31): research the week, add and update
+  topics in Notion, then sync this repo and push. It does not read any external inbox or
+  request queue; requests reach the KB through a session where Khalid asks.
 - Repo sync on the PC: `git pull` first; run `/kb-sync-from-notion` for ad-hoc
   catch-ups or to backfill anything the cloud run skipped (e.g. SVG re-renders).
 - New paper: `/kb-add-paper <arxiv id or url>` (writes Notion first, then here).
