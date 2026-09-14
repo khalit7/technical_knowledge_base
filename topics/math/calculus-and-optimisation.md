@@ -1,13 +1,15 @@
 # Calculus and optimisation for ML
 
+⏱ 12 min read · +8h 45m resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [The Matrix Calculus You Need For Deep Learning](https://explained.ai/matrix-calculus/) (Parr and Howard): the DL-focused refresher; covers every chain-rule form used below.
-- [Mathematics for Machine Learning, ch. 5 and 7](https://mml-book.github.io/) (Deisenroth et al.): vector calculus and continuous optimisation.
-- [Convex Optimization](https://web.stanford.edu/~boyd/cvxbook/) (Boyd and Vandenberghe, free PDF): ch. 2-5 for convexity, duality, KKT.
-- [CS231n backprop notes](https://cs231n.github.io/optimization-2/): backprop as local gradient routing, staged computation.
+- [The Matrix Calculus You Need For Deep Learning](https://explained.ai/matrix-calculus/) (~1h 30m): Parr and Howard; the DL-focused refresher, covers every chain-rule form used below.
+- [Mathematics for Machine Learning, ch. 5 and 7](https://mml-book.github.io/) (book, ~1h 45m for ch. 5 and 7): Deisenroth et al.; vector calculus and continuous optimisation.
+- [Convex Optimization](https://web.stanford.edu/~boyd/cvxbook/) (book, ~5h for ch. 2-5): Boyd and Vandenberghe, free PDF; ch. 2-5 for convexity, duality, KKT.
+- [CS231n backprop notes](https://cs231n.github.io/optimization-2/) (~30 min): backprop as local gradient routing, staged computation.
 
 ## Differentiation of each cost function (flagged question)
 
@@ -17,7 +19,9 @@ Setup: $n$ examples, model output before the final activation is the logit $z = 
 
 $L = \frac{1}{n}\sum_i (\hat{y}_i - y_i)^2$ with $\hat{y}_i = z_i$.
 
-$$\frac{\partial L}{\partial z_i} = \frac{2}{n}(\hat{y}_i - y_i).$$
+$$
+\frac{\partial L}{\partial z_i} = \frac{2}{n}(\hat{y}_i - y_i).
+$$
 
 For linear regression $\hat{y} = Xw$: $\nabla_w L = \frac{2}{n} X^\top (Xw - y)$; setting to zero gives the normal equations $X^\top X w = X^\top y$.
 
@@ -27,7 +31,9 @@ $L = -\big[y \log p + (1-y)\log(1-p)\big]$ with $p = \sigma(z) = \frac{1}{1+e^{-
 
 Two ingredients: $\frac{\partial L}{\partial p} = -\frac{y}{p} + \frac{1-y}{1-p} = \frac{p - y}{p(1-p)}$, and the sigmoid's self-referential derivative $\sigma'(z) = \sigma(z)(1 - \sigma(z)) = p(1-p)$. Chain rule:
 
-$$\frac{\partial L}{\partial z} = \frac{p - y}{p(1-p)} \cdot p(1-p) = p - y.$$
+$$
+\frac{\partial L}{\partial z} = \frac{p - y}{p(1-p)} \cdot p(1-p) = p - y.
+$$
 
 The $p(1-p)$ factors cancel exactly. This is why you compute BCE on logits, not on probabilities: the combined gradient never divides by $p$ or $1-p$, so no blow-up when $p \to 0$ or $1$, and the loss itself can be computed stably via $\log(1+e^{-|z|})$ tricks (`BCEWithLogitsLoss`).
 
@@ -35,7 +41,9 @@ The $p(1-p)$ factors cancel exactly. This is why you compute BCE on logits, not 
 
 $L = -\log p_y$ with $p_k = \frac{e^{z_k}}{\sum_j e^{z_j}}$. The softmax Jacobian is $\frac{\partial p_k}{\partial z_j} = p_k(\delta_{kj} - p_j)$, i.e. $\operatorname{diag}(p) - pp^\top$ as a matrix. Then
 
-$$\frac{\partial L}{\partial z_j} = -\frac{1}{p_y}\cdot p_y(\delta_{yj} - p_j) = p_j - \delta_{yj}, \qquad \text{i.e. } \nabla_z L = p - \mathbf{1}_y.$$
+$$
+\frac{\partial L}{\partial z_j} = -\frac{1}{p_y}\cdot p_y(\delta_{yj} - p_j) = p_j - \delta_{yj}, \qquad \text{i.e. } \nabla_z L = p - \mathbf{1}_y.
+$$
 
 Again exactly prediction minus one-hot target. With soft labels $q$: $\nabla_z L = p - q$ (used in distillation).
 
@@ -59,7 +67,9 @@ Example VJPs: for $Y = XW$: $\bar{X} = \bar{Y}W^\top$, $\bar{W} = X^\top \bar{Y}
 
 The Hessian $H_{ij} = \frac{\partial^2 L}{\partial \theta_i \partial \theta_j}$ is the symmetric matrix of curvatures: the Taylor expansion is
 
-$$L(\theta + \delta) \approx L(\theta) + g^\top \delta + \tfrac{1}{2}\delta^\top H \delta.$$
+$$
+L(\theta + \delta) \approx L(\theta) + g^\top \delta + \tfrac{1}{2}\delta^\top H \delta.
+$$
 
 Why second derivatives matter:
 

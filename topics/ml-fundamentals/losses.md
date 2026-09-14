@@ -1,11 +1,13 @@
 # Loss functions
 
+⏱ 5 min read · +2h 10m resources
+
 ## Best resources
 
-- [A comprehensive guide to loss functions, part 1: regression (Analytics Vidhya / Medium)](https://medium.com/analytics-vidhya/a-comprehensive-guide-to-loss-functions-part-1-regression-ff8b847675d6): the regression-loss walkthrough these notes were seeded from.
-- [PyTorch loss function docs](https://pytorch.org/docs/stable/nn.html#loss-functions): canonical reference for exact formulas and reduction semantics.
-- [Focal loss paper (Lin et al. 2017, arXiv:1708.02002)](https://arxiv.org/abs/1708.02002): the original derivation and the class-imbalance argument.
-- [When does label smoothing help? (Müller et al. 2019, arXiv:1906.02629)](https://arxiv.org/abs/1906.02629): what smoothing does to representations and calibration.
+- [A comprehensive guide to loss functions, part 1: regression (Analytics Vidhya / Medium)](https://medium.com/analytics-vidhya/a-comprehensive-guide-to-loss-functions-part-1-regression-ff8b847675d6) (~20 min): the regression-loss walkthrough these notes were seeded from.
+- [PyTorch loss function docs](https://pytorch.org/docs/stable/nn.html#loss-functions) (docs, ~20 min): canonical reference for exact formulas and reduction semantics.
+- [Focal loss paper (Lin et al. 2017, arXiv:1708.02002)](https://arxiv.org/abs/1708.02002) (45 min): the original derivation and the class-imbalance argument.
+- [When does label smoothing help? (Müller et al. 2019, arXiv:1906.02629)](https://arxiv.org/abs/1906.02629) (45 min): what smoothing does to representations and calibration.
 
 ## Terminology
 

@@ -1,15 +1,17 @@
 # Language Models are Few-Shot Learners (GPT-3)
 
+⏱ 10 min read · +~4h 40m resources
+
 - **Authors**: Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, and 26 others (OpenAI)
 - **Date**: May 2020 (arXiv v1; NeurIPS 2020 best paper)
-- **Links**: [arXiv:2005.14165](https://arxiv.org/abs/2005.14165) | [OpenAI API announcement](https://openai.com/index/openai-api/) | no weights released (API only)
+- **Links**: [arXiv:2005.14165](https://arxiv.org/abs/2005.14165) (~3h, very long paper) | [OpenAI API announcement](https://openai.com/index/openai-api/) (~10 min) | no weights released (API only)
 
 ## Best resources
 
-- [How GPT-3 Works: Visualizations and Animations](https://jalammar.github.io/how-gpt3-works-visualizations-animations/) (Jay Alammar): the standard visual intuition for the architecture and the prompt-as-conditioning idea
-- [GPT-3 digest](https://samuelalbanie.com/digests/2022-07-gpt-3/) (Samuel Albanie): dense slide-style walkthrough of the whole paper, including the eval protocol and contamination analysis
-- [AI Paper Review: Language Models are Few-Shot Learners](https://www.freecodecamp.org/news/ai-paper-review-language-models-are-few-shot-learners-gpt-3/) (freeCodeCamp): readable end-to-end review of the results and their significance
-- [Review of GPT-3](https://sh-tsang.medium.com/review-gpt-3-language-models-are-few-shot-learners-ff3e63da944d) (Sik-Ho Tsang): concise per-benchmark summary with the key tables
+- [How GPT-3 Works: Visualizations and Animations](https://jalammar.github.io/how-gpt3-works-visualizations-animations/) (Jay Alammar) (~20 min): the standard visual intuition for the architecture and the prompt-as-conditioning idea
+- [GPT-3 digest](https://samuelalbanie.com/digests/2022-07-gpt-3/) (Samuel Albanie) (~30 min): dense slide-style walkthrough of the whole paper, including the eval protocol and contamination analysis
+- [AI Paper Review: Language Models are Few-Shot Learners](https://www.freecodecamp.org/news/ai-paper-review-language-models-are-few-shot-learners-gpt-3/) (freeCodeCamp) (~25 min): readable end-to-end review of the results and their significance
+- [Review of GPT-3](https://sh-tsang.medium.com/review-gpt-3-language-models-are-few-shot-learners-ff3e63da944d) (Sik-Ho Tsang) (~15 min): concise per-benchmark summary with the key tables
 
 ## Problem
 

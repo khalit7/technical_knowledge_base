@@ -1,15 +1,17 @@
 # Training Compute-Optimal Large Language Models (Chinchilla)
 
+⏱ 9 min read · +~3h resources
+
 - **Authors/lab**: Hoffmann, Borgeaud, Mensch, Buchatskaya, Cai, Rutherford, de Las Casas, Hendricks, Welbl, Clark, ... Rae, Vinyals, Sifre (DeepMind)
 - **Date**: March 2022 (NeurIPS 2022)
-- **Links**: [arXiv:2203.15556](https://arxiv.org/abs/2203.15556)
+- **Links**: [arXiv:2203.15556](https://arxiv.org/abs/2203.15556) (~1h)
 
 ## Best resources
 
-- [Chinchilla's wild implications](https://www.lesswrong.com/posts/6Fpvch8RR29qLEWNH/chinchilla-s-wild-implications) (nostalgebraist): the best conceptual unpacking of what the result means; reframes scaling as data-bound rather than parameter-bound and works through the loss equation term by term.
-- [Chinchilla data-optimal scaling laws: in plain English](https://lifearchitect.ai/chinchilla/) (Alan Thompson): the 20-tokens-per-parameter heuristic spelled out, with tables applying it to real model sizes.
-- [Chinchilla scaling: a replication attempt](https://epoch.ai/publications/chinchilla-scaling-a-replication-attempt) (Epoch AI, Besiroglu et al. 2024): re-fits Approach 3 from the paper's own extracted data, finds fitting bugs, and shows the corrected fit agrees with Approaches 1-2. The essential critique.
-- [Beyond Chinchilla-Optimal](https://arxiv.org/abs/2401.00448) (Sardana et al., MosaicML 2023): extends the scaling law to include inference cost, formalising why everyone now overtrains past the Chinchilla point.
+- [Chinchilla's wild implications](https://www.lesswrong.com/posts/6Fpvch8RR29qLEWNH/chinchilla-s-wild-implications) (nostalgebraist) (~30 min): the best conceptual unpacking of what the result means; reframes scaling as data-bound rather than parameter-bound and works through the loss equation term by term.
+- [Chinchilla data-optimal scaling laws: in plain English](https://lifearchitect.ai/chinchilla/) (Alan Thompson) (~15 min): the 20-tokens-per-parameter heuristic spelled out, with tables applying it to real model sizes.
+- [Chinchilla scaling: a replication attempt](https://epoch.ai/publications/chinchilla-scaling-a-replication-attempt) (Epoch AI, Besiroglu et al. 2024) (~30 min): re-fits Approach 3 from the paper's own extracted data, finds fitting bugs, and shows the corrected fit agrees with Approaches 1-2. The essential critique.
+- [Beyond Chinchilla-Optimal](https://arxiv.org/abs/2401.00448) (Sardana et al., MosaicML 2023) (~45 min): extends the scaling law to include inference cost, formalising why everyone now overtrains past the Chinchilla point.
 
 ## Problem
 

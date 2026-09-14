@@ -1,15 +1,17 @@
 # TPUs: systolic arrays and pod-scale machines
 
+⏱ 6 min read · +3h 15m resources
+
 Last updated: 2026-08-24. Software stack (JAX/XLA, sharding) lives in
-[../jax-and-tpu/](../jax-and-tpu/summary.md); this file is the silicon and the pods.
+[../jax-and-tpu/](../jax-and-tpu/); this file is the silicon and the pods.
 
 ## Best resources
 
-- [How To Scale Your Model: TPUs chapter](https://jax-ml.github.io/scaling-book/tpus/): the canonical modern explainer of TPU internals and pod networking
-- [In-Datacenter Performance Analysis of a Tensor Processing Unit](https://arxiv.org/abs/1704.04760) (Jouppi et al., 2017): the original TPU paper; the systolic-array rationale
-- [TPU v4 paper](https://arxiv.org/abs/2304.01433): optically reconfigurable supercomputer + embeddings (SparseCore)
-- [Ironwood announcement](https://blog.google/innovation-and-ai/infrastructure-and-cloud/google-cloud/ironwood-tpu-age-of-inference/) and [TPU7x docs](https://docs.cloud.google.com/tpu/docs/tpu7x): current-generation specs
-- [Google TPU Architecture: 7 Generations Explained](https://introl.com/blog/google-tpu-architecture-complete-guide-7-generations): generation-by-generation survey
+- [How To Scale Your Model: TPUs chapter](https://jax-ml.github.io/scaling-book/tpus/) (~50 min): the canonical modern explainer of TPU internals and pod networking
+- [In-Datacenter Performance Analysis of a Tensor Processing Unit](https://arxiv.org/abs/1704.04760) (45 min) (Jouppi et al., 2017): the original TPU paper; the systolic-array rationale
+- [TPU v4 paper](https://arxiv.org/abs/2304.01433) (45 min): optically reconfigurable supercomputer + embeddings (SparseCore)
+- [Ironwood announcement](https://blog.google/innovation-and-ai/infrastructure-and-cloud/google-cloud/ironwood-tpu-age-of-inference/) (~10 min) and [TPU7x docs](https://docs.cloud.google.com/tpu/docs/tpu7x) (docs, ~20 min for the core pages): current-generation specs
+- [Google TPU Architecture: 7 Generations Explained](https://introl.com/blog/google-tpu-architecture-complete-guide-7-generations) (~25 min): generation-by-generation survey
 
 ## The systolic array idea
 
@@ -85,8 +87,8 @@ the differentiation is pod scale and cost, not the chip.
 
 ## TPU vs GPU, the engineer's summary
 
-- Per-chip peak numbers are now comparable; **TPUs win on cost per FLOP and
-  power, plus deterministic performance** (static compilation: no kernel-launch
+- Per-chip peak numbers are now comparable; TPUs win on cost per FLOP and
+  power, plus deterministic performance (static compilation: no kernel-launch
   jitter), **GPUs win on flexibility and ecosystem** (custom CUDA/Triton kernels,
   every OSS project targets NVIDIA first).
 - TPU torus + OCS scales one training job to ~10k chips as a single fabric;

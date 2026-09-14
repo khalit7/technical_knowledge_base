@@ -1,15 +1,17 @@
 # High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
 
+⏱ 9 min read · +~3h 50m resources
+
 - **Authors**: Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, Bjorn Ommer (CompVis, LMU Munich and IWR Heidelberg; Runway ML)
 - **Date**: December 2021 (CVPR 2022)
-- **Links**: [arXiv 2112.10752](https://arxiv.org/abs/2112.10752) | [code](https://github.com/CompVis/latent-diffusion) | [Stable Diffusion repo](https://github.com/CompVis/stable-diffusion)
+- **Links**: [arXiv 2112.10752](https://arxiv.org/abs/2112.10752) (~45 min) | [code](https://github.com/CompVis/latent-diffusion) (repo, ~20 min for the README and entry path) | [Stable Diffusion repo](https://github.com/CompVis/stable-diffusion) (repo, ~15 min for the README)
 
 ## Best resources
 
-- [Jay Alammar, "The Illustrated Stable Diffusion"](https://jalammar.github.io/illustrated-stable-diffusion/): the best visual walkthrough of the full pipeline (text encoder -> UNet in latent space -> VAE decoder); ideal first read before the paper.
-- [labml.ai, annotated Stable Diffusion implementation](https://nn.labml.ai/diffusion/stable_diffusion/index.html): line-by-line PyTorch of the CompVis code, including the autoencoder, cross-attention UNet, and samplers.
-- [Hugging Face, "Stable Diffusion with Diffusers"](https://huggingface.co/blog/stable_diffusion): the practical component-level breakdown (VAE, UNet, scheduler, CLIP text encoder) with runnable code.
-- [Sander Dieleman, "Generative modelling in latent space"](https://sander.ai/2025/04/15/latents.html): the modern retrospective on why two-stage latent generative models won, how autoencoder design trades off reconstruction vs modelability, and where the paradigm is heading.
+- [Jay Alammar, "The Illustrated Stable Diffusion"](https://jalammar.github.io/illustrated-stable-diffusion/) (~25 min): the best visual walkthrough of the full pipeline (text encoder -> UNet in latent space -> VAE decoder); ideal first read before the paper.
+- [labml.ai, annotated Stable Diffusion implementation](https://nn.labml.ai/diffusion/stable_diffusion/index.html) (~1h): line-by-line PyTorch of the CompVis code, including the autoencoder, cross-attention UNet, and samplers.
+- [Hugging Face, "Stable Diffusion with Diffusers"](https://huggingface.co/blog/stable_diffusion) (~30 min): the practical component-level breakdown (VAE, UNet, scheduler, CLIP text encoder) with runnable code.
+- [Sander Dieleman, "Generative modelling in latent space"](https://sander.ai/2025/04/15/latents.html) (~35 min): the modern retrospective on why two-stage latent generative models won, how autoencoder design trades off reconstruction vs modelability, and where the paradigm is heading.
 
 ## Problem
 

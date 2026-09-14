@@ -1,15 +1,17 @@
 # Writing kernels: the practical track
 
+⏱ 8 min read · +9h 45m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [Simon Boehm, How to Optimize a CUDA Matmul Kernel for cuBLAS-like Performance: a Worklog](https://siboehm.com/articles/22/CUDA-MMM) (2022/2023): the canonical worked example; 10 kernels from naive to ~94% of cuBLAS SGEMM. Read it, then reproduce it.
-- [salykova, Advanced Matrix Multiplication Optimization on NVIDIA GPUs](https://salykova.github.io/sgemm-gpu): the modern sequel; beats cuBLAS SGEMM on a 4090 and covers vectorisation, double buffering, and autotuning.
-- [Mark Harris, Optimizing Parallel Reduction in CUDA](https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf): the classic 7-step reduction deck; still the best mental warm-up for memory-bound kernels.
-- PMPP 5th ed: ch. 6 (tiled matmul), ch. 10-11 (reduction, scan), later chapters for patterns.
-- [GPU MODE lectures](https://github.com/gpu-mode/lectures): lecture 8 (CUDA performance checklist), lecture 12 (FlashAttention), plus guest lectures by kernel authors.
-- [FlashAttention paper summary](../../papers/2022-05_flashattention/summary.md) (Dao et al., 2022) and [flash-attention repo](https://github.com/Dao-AILab/flash-attention).
+- [Simon Boehm, How to Optimize a CUDA Matmul Kernel for cuBLAS-like Performance: a Worklog](https://siboehm.com/articles/22/CUDA-MMM) (1h 30m, 2022/2023): the canonical worked example; 10 kernels from naive to ~94% of cuBLAS SGEMM. Read it, then reproduce it.
+- [salykova, Advanced Matrix Multiplication Optimization on NVIDIA GPUs](https://salykova.github.io/sgemm-gpu) (1h 30m): the modern sequel; beats cuBLAS SGEMM on a 4090 and covers vectorisation, double buffering, and autotuning.
+- [Mark Harris, Optimizing Parallel Reduction in CUDA](https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf) (45 min): the classic 7-step reduction deck; still the best mental warm-up for memory-bound kernels.
+- PMPP 5th ed (~90 pages, 2h 15m): ch. 6 (tiled matmul), ch. 10-11 (reduction, scan), later chapters for patterns.
+- [GPU MODE lectures](https://github.com/gpu-mode/lectures) (~3h for lectures 8 and 12): lecture 8 (CUDA performance checklist), lecture 12 (FlashAttention), plus guest lectures by kernel authors.
+- [FlashAttention paper summary](../../papers/2022-05_flashattention/summary.md) (Dao et al., 2022) and [flash-attention repo](https://github.com/Dao-AILab/flash-attention) (repo, ~45 min for the entry path).
 
 ## The matmul ladder (memorise this progression)
 
@@ -58,7 +60,7 @@ Numerically safe softmax needs max, then sum of exp, then divide: naively 3 pass
 the row. The **online softmax** (Milakov and Gimelshein, 2018) fuses max and sum into one
 pass by rescaling the running sum when a new max appears:
 
-```
+```text
 m_new = max(m, x_i);  d = d * exp(m - m_new) + exp(x_i - m_new);  m = m_new
 ```
 

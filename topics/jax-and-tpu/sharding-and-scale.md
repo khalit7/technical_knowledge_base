@@ -1,16 +1,18 @@
 # Sharding and scale: GSPMD, Mesh, shard_map
 
+⏱ 8 min read · +3h 50m resources
+
 ## Best resources
 
-- [How to Scale Your Model, ch. 3 (sharded matmuls) and ch. 5 (transformer parallelism)](https://jax-ml.github.io/scaling-book/sharding/):
+- [How to Scale Your Model, ch. 3 (sharded matmuls) and ch. 5 (transformer parallelism)](https://jax-ml.github.io/scaling-book/sharding/) (~1h 20m):
   the canonical treatment; verified current (2025 book, still the reference in 2026).
-- [JAX: Introduction to parallel programming](https://docs.jax.dev/en/latest/sharded-computation.html):
+- [JAX: Introduction to parallel programming](https://docs.jax.dev/en/latest/sharded-computation.html) (~45 min):
   the official tutorial covering automatic sharding, explicit sharding, and shard_map.
-- [shard_map guide](https://docs.jax.dev/en/latest/notebooks/shard_map.html): per-device
+- [shard_map guide](https://docs.jax.dev/en/latest/notebooks/shard_map.html) (~35 min): per-device
   SPMD programming with collectives.
-- [Distributed arrays and automatic parallelization](https://docs.jax.dev/en/latest/notebooks/Distributed_arrays_and_automatic_parallelization.html):
+- [Distributed arrays and automatic parallelization](https://docs.jax.dev/en/latest/notebooks/Distributed_arrays_and_automatic_parallelization.html) (~40 min):
   Mesh/NamedSharding mechanics.
-- [MaxText sharding config](https://github.com/AI-Hypercomputer/maxtext): grep for
+- [MaxText sharding config](https://github.com/AI-Hypercomputer/maxtext) (repo, ~30 min for the config and axis rules): grep for
   `logical_axis_rules`; production example of everything below.
 
 *Verified 2026-08-24. `pmap` is legacy (since JAX 0.8-0.10 it is a wrapper over
@@ -101,8 +103,8 @@ know it exists when reading fresh code.
 
 ## Multi-host basics
 
-A TPU pod slice = N hosts, each with (usually) 4 local chips. JAX runs the **same
-script on every host** (launched by `gcloud ... tpu-vm ssh --worker=all`, GKE, or Ray):
+A TPU pod slice = N hosts, each with (usually) 4 local chips. JAX runs the same
+script on every host (launched by `gcloud ... tpu-vm ssh --worker=all`, GKE, or Ray):
 
 - `jax.distributed.initialize()` first (auto-configured on Cloud TPU).
 - `jax.devices()` = all chips in the slice (global); `jax.local_devices()` = this

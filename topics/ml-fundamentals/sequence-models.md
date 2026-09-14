@@ -1,11 +1,13 @@
 # Sequence models: the pre-transformer lineage
 
+⏱ 5 min read · +2h resources
+
 ## Best resources
 
-- [Understanding LSTM Networks (colah)](https://colah.github.io/posts/2015-08-Understanding-LSTMs/): still the best LSTM explanation ever written.
-- [An intuitive explanation of LSTM (Calzone, Medium)](https://medium.com/@ottaviocalzone/an-intuitive-explanation-of-lstm-a035eb6ab42c) and [RNN architecture explained (Poudel, Medium)](https://medium.com/@poudelsushmita878/recurrent-neural-network-rnn-architecture-explained-1d69560541ef): the seed articles.
-- [The Illustrated Word2vec (Jay Alammar)](https://jalammar.github.io/illustrated-word2vec/): embeddings intuition.
-- [The Unreasonable Effectiveness of RNNs (Karpathy)](https://karpathy.github.io/2015/05/21/rnn-effectiveness/): what RNNs could do, and why people were excited.
+- [Understanding LSTM Networks (colah)](https://colah.github.io/posts/2015-08-Understanding-LSTMs/) (~25 min): still the best LSTM explanation ever written.
+- [An intuitive explanation of LSTM (Calzone, Medium)](https://medium.com/@ottaviocalzone/an-intuitive-explanation-of-lstm-a035eb6ab42c) (~15 min) and [RNN architecture explained (Poudel, Medium)](https://medium.com/@poudelsushmita878/recurrent-neural-network-rnn-architecture-explained-1d69560541ef) (~15 min): the seed articles.
+- [The Illustrated Word2vec (Jay Alammar)](https://jalammar.github.io/illustrated-word2vec/) (~30 min): embeddings intuition.
+- [The Unreasonable Effectiveness of RNNs (Karpathy)](https://karpathy.github.io/2015/05/21/rnn-effectiveness/) (~35 min): what RNNs could do, and why people were excited.
 
 ## Word embeddings
 
@@ -36,14 +38,13 @@ Input $x_t$ and previous hidden state $h_{t-1}$ are concatenated and fed to four
 | Input | $i_t = \sigma(W_i[h_{t-1},x_t])$, candidate $\tilde C_t = \tanh(W_C[h_{t-1},x_t])$ | What new information to write |
 | Output | $o_t = \sigma(W_o[h_{t-1},x_t])$ | What part of the cell state to expose |
 
-Updates: $C_t = f_t \odot C_{t-1} + i_t \odot \tilde C_t$; $\quad h_t = o_t \odot \tanh(C_t)$.
+Updates: $C_t = f_t \odot C_{t-1} + i_t \odot \tilde C_t$; $h_t = o_t \odot \tanh(C_t)$.
 
 Key point: the cell state is updated **additively** (like a skip connection), so gradients flow along $C$ largely unmultiplied; this is what solves vanishing gradients.
 
 ## GRUs
 
 Simplified LSTM: two gates (update $z_t$, reset $r_t$), cell state and hidden state merged into one.
-
 $h_t = (1-z_t)\odot h_{t-1} + z_t \odot \tilde h_t$: the same additive/interpolating trick, ~25% fewer parameters, usually comparable quality.
 
 ## Seq2seq and attention

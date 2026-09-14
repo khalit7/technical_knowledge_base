@@ -1,15 +1,17 @@
 # Embeddings and vector search
 
+⏱ 7 min read · +2h 30m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [Milvus: choosing an embedding model for RAG in 2026](https://milvus.io/blog/choose-embedding-model-rag-2026.md): current landscape with MTEB numbers and cost.
-- [Qwen3 Embedding technical report](https://arxiv.org/pdf/2506.05176): how modern open embedders are trained (LLM backbone, instruction-aware, MRL).
-- [Voyage 4 announcement](https://blog.voyageai.com/2026/01/15/voyage-4/): MoE embedder, shared embedding space, Matryoshka and quantization options.
-- [MTEB leaderboard](https://huggingface.co/spaces/mteb/leaderboard): the scoreboard; filter by task and language, do not worship the top row.
-- [Firecrawl: best vector databases 2026](https://www.firecrawl.dev/blog/best-vector-databases) and [Encore's comparison](https://encore.dev/articles/best-vector-databases): honest DB selection guides.
-- [pgvector repo](https://github.com/pgvector/pgvector) plus [pgvectorscale](https://github.com/timescale/pgvectorscale): what plain Postgres can actually do.
+- [Milvus: choosing an embedding model for RAG in 2026](https://milvus.io/blog/choose-embedding-model-rag-2026.md) (~15 min): current landscape with MTEB numbers and cost.
+- [Qwen3 Embedding technical report](https://arxiv.org/pdf/2506.05176) (45 min): how modern open embedders are trained (LLM backbone, instruction-aware, MRL).
+- [Voyage 4 announcement](https://blog.voyageai.com/2026/01/15/voyage-4/) (~8 min): MoE embedder, shared embedding space, Matryoshka and quantization options.
+- [MTEB leaderboard](https://huggingface.co/spaces/mteb/leaderboard) (~10 min to explore): the scoreboard; filter by task and language, do not worship the top row.
+- [Firecrawl: best vector databases 2026](https://www.firecrawl.dev/blog/best-vector-databases) (~15 min) and [Encore's comparison](https://encore.dev/articles/best-vector-databases) (~12 min): honest DB selection guides.
+- [pgvector repo](https://github.com/pgvector/pgvector) (docs, ~30 min for the core pages) plus [pgvectorscale](https://github.com/timescale/pgvectorscale) (docs, ~15 min): what plain Postgres can actually do.
 
 ## Embedding model landscape (Aug 2026)
 
@@ -17,6 +19,7 @@ Two families dominate: API models and open weights. All serious 2026 models are
 instruction-aware (query and document get different prompts) and Matryoshka-trained.
 
 **API models**
+
 - **Gemini Embedding (gemini-embedding-001, now v2)**: top of MTEB Multilingual among
   APIs; the safe managed default.
 - **Voyage 4 family** (voyage-4-large is MoE): strong retrieval quality, dims
@@ -29,6 +32,7 @@ instruction-aware (query and document get different prompts) and Matryoshka-trai
   (3-small at $0.02/M tokens) and everywhere; fine for low-stakes retrieval.
 
 **Open weights**
+
 - **Qwen3-Embedding 0.6B/4B/8B**: the open MTEB leaders; 8B scored 70.6 on MMTEB,
   ahead of Gemini; the 0.6B is the best small self-host option. Paired
   Qwen3-Reranker models.
@@ -111,5 +115,5 @@ architecture.
 
 - [retrieval-pipeline.md](retrieval-pipeline.md): what happens around the index
   (chunking, hybrid, reranking).
-- [BERT paper](../../papers/2018-10_bert/summary.md): ancestor of every bi-encoder and
+- BERT paper: ancestor of every bi-encoder and
   cross-encoder here.

@@ -1,15 +1,17 @@
 # Direct Preference Optimization: Your Language Model is Secretly a Reward Model
 
+⏱ 9 min read · +~2h 30m resources
+
 - **Authors**: Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, Chelsea Finn (Stanford, CZ Biohub)
 - **Date**: May 2023 (arXiv 2305.18290; NeurIPS 2023, Outstanding Paper Runner-Up)
-- **Links**: [arXiv](https://arxiv.org/abs/2305.18290) | [reference implementation](https://github.com/eric-mitchell/direct-preference-optimization)
+- **Links**: [arXiv](https://arxiv.org/abs/2305.18290) (~45 min) | [reference implementation](https://github.com/eric-mitchell/direct-preference-optimization) (repo, ~20 min for the README and the loss in trainers.py)
 
 ## Best resources
 
-- [Cameron Wolfe: Direct Preference Optimization](https://cameronrwolfe.substack.com/p/direct-preference-optimization): full derivation walked through step by step, plus where DPO sits in the modern post-training pipeline and TRL code.
-- [HF TRL DPOTrainer docs](https://huggingface.co/docs/trl/dpo_trainer): the production implementation, expected dataset format, logged implicit-reward metrics, and a catalogue of the loss variants (IPO, SimPO-style normalisation, robust DPO, etc.) that TRL exposes as `loss_type`.
-- [Nathan Lambert: Do we need RL for RLHF?](https://www.interconnects.ai/p/the-dpo-debate): the DPO-vs-PPO debate laid out with the evidence on both sides.
-- [Official repo](https://github.com/eric-mitchell/direct-preference-optimization): the ~20-line loss in `trainers.py` is worth reading once; the whole method fits in it.
+- [Cameron Wolfe: Direct Preference Optimization](https://cameronrwolfe.substack.com/p/direct-preference-optimization) (~40 min): full derivation walked through step by step, plus where DPO sits in the modern post-training pipeline and TRL code.
+- [HF TRL DPOTrainer docs](https://huggingface.co/docs/trl/dpo_trainer) (docs, ~25 min for the core pages): the production implementation, expected dataset format, logged implicit-reward metrics, and a catalogue of the loss variants (IPO, SimPO-style normalisation, robust DPO, etc.) that TRL exposes as `loss_type`.
+- [Nathan Lambert: Do we need RL for RLHF?](https://www.interconnects.ai/p/the-dpo-debate) (~20 min): the DPO-vs-PPO debate laid out with the evidence on both sides.
+- [Official repo](https://github.com/eric-mitchell/direct-preference-optimization) (the same repo as the Links line): the ~20-line loss in `trainers.py` is worth reading once; the whole method fits in it.
 
 ## Problem
 
@@ -21,19 +23,25 @@ The key move is a change of variables from reward functions to policies.
 
 **1. Closed-form optimal policy.** The RLHF objective is max_pi E[r(x, y)] - beta * KL(pi || pi_ref). For any reward r this has a known analytical solution (standard result from KL-regularised control):
 
-    pi_r(y | x) = (1 / Z(x)) * pi_ref(y | x) * exp(r(x, y) / beta)
+```
+pi_r(y | x) = (1 / Z(x)) * pi_ref(y | x) * exp(r(x, y) / beta)
+```
 
 where Z(x) is the partition function summing pi_ref(y | x) exp(r(x, y) / beta) over all y. This is exact but useless directly, since Z(x) is intractable.
 
 **2. Reparameterise the reward in terms of the policy.** Take logs and rearrange:
 
-    r(x, y) = beta * log(pi_r(y | x) / pi_ref(y | x)) + beta * log Z(x)
+```
+r(x, y) = beta * log(pi_r(y | x) / pi_ref(y | x)) + beta * log Z(x)
+```
 
 So every reward function can be written as a scaled policy/reference log-ratio plus a per-prompt constant. Section 5 makes this rigorous: rewards that differ only by a function of x form equivalence classes, all rewards in a class induce the same preference distribution (Bradley-Terry is invariant to per-prompt shifts) and the same optimal policy, and every class contains exactly one member of the form beta * log(pi(y|x) / pi_ref(y|x)). Nothing is lost by restricting to this parameterisation.
 
 **3. Substitute into Bradley-Terry.** BT models p(y_w > y_l | x) = sigmoid(r(x, y_w) - r(x, y_l)). The difference of rewards cancels the log Z(x) term, so the preference probability depends only on the policy and the reference. Plugging the reparameterised reward into the standard reward-model MLE loss gives the DPO objective:
 
-    L_DPO = -E_(x, y_w, y_l) [ log sigmoid( beta * log(pi_theta(y_w|x) / pi_ref(y_w|x)) - beta * log(pi_theta(y_l|x) / pi_ref(y_l|x)) ) ]
+```
+L_DPO = -E_(x, y_w, y_l) [ log sigmoid( beta * log(pi_theta(y_w|x) / pi_ref(y_w|x)) - beta * log(pi_theta(y_l|x) / pi_ref(y_l|x)) ) ]
+```
 
 This is logistic regression on the difference of policy/reference log-ratios: four forward passes per pair (policy and frozen reference on chosen and rejected), one backward, no sampling.
 
@@ -41,7 +49,9 @@ This is logistic regression on the difference of policy/reference log-ratios: fo
 
 **5. Gradient intuition.** The gradient is
 
-    -beta * E[ sigmoid(r_hat(x, y_l) - r_hat(x, y_w)) * ( grad log pi(y_w|x) - grad log pi(y_l|x) ) ]
+```
+-beta * E[ sigmoid(r_hat(x, y_l) - r_hat(x, y_w)) * ( grad log pi(y_w|x) - grad log pi(y_l|x) ) ]
+```
 
 i.e. push up the chosen completion, push down the rejected one, weighted per example by how badly the implicit reward currently misorders the pair. Pairs the model already gets right contribute little; confidently wrong pairs dominate. The paper shows this weighting is essential: a naive unweighted probability-ratio objective degenerates.
 

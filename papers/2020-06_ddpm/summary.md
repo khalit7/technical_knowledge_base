@@ -1,15 +1,17 @@
 # Denoising Diffusion Probabilistic Models (DDPM)
 
+⏱ 9 min read · +~5h 30m resources
+
 - **Authors**: Jonathan Ho, Ajay Jain, Pieter Abbeel (UC Berkeley)
 - **Date**: June 2020 (NeurIPS 2020)
-- **Links**: [arXiv 2006.11239](https://arxiv.org/abs/2006.11239) | [code (TF)](https://github.com/hojonathanho/diffusion)
+- **Links**: [arXiv 2006.11239](https://arxiv.org/abs/2006.11239) (~1h, math-heavy) | [code (TF)](https://github.com/hojonathanho/diffusion) (repo, ~15 min for the README and entry path)
 
 ## Best resources
 
-- [Lilian Weng, "What are Diffusion Models?"](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/): the canonical walkthrough of the full derivation, from ELBO to L_simple, plus DDIM and guidance follow-ups.
-- [Calvin Luo, "Understanding Diffusion Models: A Unified Perspective"](https://arxiv.org/abs/2208.11970): tutorial paper deriving VAE -> hierarchical VAE -> DDPM -> score-based views as one framework; best for making the three equivalent parameterisations (x_0, epsilon, score) click.
-- [Hugging Face, "The Annotated Diffusion Model"](https://huggingface.co/blog/annotated-diffusion): line-by-line PyTorch implementation of this exact paper, including the U-Net.
-- [Yang Song, "Generative Modeling by Estimating Gradients of the Data Distribution"](https://yang-song.net/blog/2021/score/): the score-matching side of the story from the NCSN author; explains why DDPM's objective is denoising score matching in disguise.
+- [Lilian Weng, "What are Diffusion Models?"](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/) (~1h): the canonical walkthrough of the full derivation, from ELBO to L_simple, plus DDIM and guidance follow-ups.
+- [Calvin Luo, "Understanding Diffusion Models: A Unified Perspective"](https://arxiv.org/abs/2208.11970) (~1h 30m, tutorial paper): tutorial paper deriving VAE -> hierarchical VAE -> DDPM -> score-based views as one framework; best for making the three equivalent parameterisations (x_0, epsilon, score) click.
+- [Hugging Face, "The Annotated Diffusion Model"](https://huggingface.co/blog/annotated-diffusion) (~1h): line-by-line PyTorch implementation of this exact paper, including the U-Net.
+- [Yang Song, "Generative Modeling by Estimating Gradients of the Data Distribution"](https://yang-song.net/blog/2021/score/) (~45 min): the score-matching side of the story from the NCSN author; explains why DDPM's objective is denoising score matching in disguise.
 
 ## Problem
 

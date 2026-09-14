@@ -1,15 +1,17 @@
 # Production eval engineering: gates, golden sets, statistics, gold-label auditing
 
+⏱ 11 min read · +4h 35m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [Adding Error Bars to Evals (Evan Miller, Anthropic, arXiv:2411.00640)](https://arxiv.org/abs/2411.00640): the statistical framework: CLT-based CIs, clustered SEs, paired tests, power analysis. Read first.
-- [statsforevals.com](https://statsforevals.com/): companion resources adapting that framework to small (20-100 item) developer evals.
-- [Hamel Husain's evals FAQ](https://hamel.dev/blog/posts/evals-faq/): the best condensed practitioner answers on golden sets, CI gates, and error analysis.
-- [Braintrust: practical guide to LLM evaluation and regression testing](https://www.braintrust.dev/articles/llm-evaluation-guide): representative of the current offline/online split as implemented by tooling.
-- [Do Large Language Model Benchmarks Test Reliability? / PlatinumBench (arXiv:2502.03461)](http://platinum-bench.csail.mit.edu/): label-error rates in standard benchmarks and what cleaning them changes.
-- [How to Correctly Report LLM-as-a-Judge Evaluations (arXiv:2511.21140)](https://arxiv.org/abs/2511.21140): bias-correcting judge-derived metrics.
+- [Adding Error Bars to Evals (Evan Miller, Anthropic, arXiv:2411.00640)](https://arxiv.org/abs/2411.00640) (45 min): the statistical framework: CLT-based CIs, clustered SEs, paired tests, power analysis. Read first.
+- [statsforevals.com](https://statsforevals.com/) (~30 min): companion resources adapting that framework to small (20-100 item) developer evals.
+- [Hamel Husain's evals FAQ](https://hamel.dev/blog/posts/evals-faq/) (~40 min): the best condensed practitioner answers on golden sets, CI gates, and error analysis.
+- [Braintrust: practical guide to LLM evaluation and regression testing](https://www.braintrust.dev/articles/llm-evaluation-guide) (~25 min): representative of the current offline/online split as implemented by tooling.
+- [Do Large Language Model Benchmarks Test Reliability? / PlatinumBench (arXiv:2502.03461)](http://platinum-bench.csail.mit.edu/) (45 min): label-error rates in standard benchmarks and what cleaning them changes.
+- [How to Correctly Report LLM-as-a-Judge Evaluations (arXiv:2511.21140)](https://arxiv.org/abs/2511.21140) (45 min): bias-correcting judge-derived metrics.
 
 ## Regression gates and promotion paths
 
@@ -64,7 +66,7 @@ Model selection is a Pareto problem: plot quality (calibrated eval score) vs cos
 
 ## Gold-label auditing and gold-error-aware scoring
 
-Your gold labels are wrong at rates that dominate small deltas. Northcutt et al. found pervasive test-set label errors across ML benchmarks; roughly 9% of MMLU items are erroneous ([Are We Done with MMLU?, arXiv:2406.04127](https://arxiv.org/abs/2406.04127), with some subsets at 57%); about 5% of GSM8K; PlatinumBench found that after cleaning, a majority of residual "model failures" on many benchmarks were label noise. Consequences: ceiling effects are artificial, model rankings can flip by 10-15 points on cleaned sets, and a regression gate can fail a genuinely better model because it disagrees with wrong gold.
+Your gold labels are wrong at rates that dominate small deltas. Northcutt et al. found pervasive test-set label errors across ML benchmarks; roughly 9% of MMLU items are erroneous ([Are We Done with MMLU?, arXiv:2406.04127](https://arxiv.org/abs/2406.04127), 45 min, with some subsets at 57%); about 5% of GSM8K; PlatinumBench found that after cleaning, a majority of residual "model failures" on many benchmarks were label noise. Consequences: ceiling effects are artificial, model rankings can flip by 10-15 points on cleaned sets, and a regression gate can fail a genuinely better model because it disagrees with wrong gold.
 
 The generic pattern (gold-error-aware consensus scoring), applicable to any internal golden set:
 

@@ -1,11 +1,13 @@
 # Sampling and Decoding
 
+⏱ 5 min read · +3h 15m resources
+
 ## Best resources
 
-- [Chip Huyen, Generation configurations: temperature, top-k, top-p](https://huyenchip.com/2024/01/16/sampling.html): clear, practical treatment of the standard knobs.
-- [Min-p sampling paper (ICLR 2025 oral)](https://arxiv.org/abs/2407.01082): the strongest recent addition to the sampler toolbox.
-- [XGrammar paper](https://arxiv.org/abs/2411.15100) and [docs](https://xgrammar.mlc.ai/docs/): how modern constrained decoding works and why it is near-zero overhead.
-- [The Curious Case of Neural Text Degeneration (Holtzman 2019)](https://arxiv.org/abs/1904.09751): the nucleus-sampling paper; why likelihood-maximising decoding fails for open-ended text.
+- [Chip Huyen, Generation configurations: temperature, top-k, top-p](https://huyenchip.com/2024/01/16/sampling.html) (~35 min): clear, practical treatment of the standard knobs.
+- [Min-p sampling paper (ICLR 2025 oral)](https://arxiv.org/abs/2407.01082) (45 min): the strongest recent addition to the sampler toolbox.
+- [XGrammar paper](https://arxiv.org/abs/2411.15100) (45 min) and [docs](https://xgrammar.mlc.ai/docs/) (docs, ~25 min): how modern constrained decoding works and why it is near-zero overhead.
+- [The Curious Case of Neural Text Degeneration (Holtzman 2019)](https://arxiv.org/abs/1904.09751) (45 min): the nucleus-sampling paper; why likelihood-maximising decoding fails for open-ended text.
 
 ## Deterministic search
 
@@ -49,8 +51,8 @@ pass@k / majority-vote (self-consistency).
 
 ## Structured / constrained decoding
 
-Guarantee outputs match a format (JSON schema, regex, CFG) by **masking invalid
-tokens** each step: compile the constraint to an automaton over the tokenizer's
+Guarantee outputs match a format (JSON schema, regex, CFG) by masking invalid
+tokens each step: compile the constraint to an automaton over the tokenizer's
 vocabulary, intersect with the current state, zero out disallowed logits.
 
 - **Outlines**: regex/JSON-schema -> finite state machine over tokens; the

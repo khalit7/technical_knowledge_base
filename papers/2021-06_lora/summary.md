@@ -1,15 +1,17 @@
 # LoRA: Low-Rank Adaptation of Large Language Models
 
+⏱ 9 min read · +~3h 20m resources
+
 - **Authors**: Edward J. Hu*, Yelong Shen*, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen (Microsoft)
 - **Date**: June 2021 (arXiv v1; v2 October 2021; ICLR 2022)
-- **Links**: [arXiv:2106.09685](https://arxiv.org/abs/2106.09685) | [code](https://github.com/microsoft/LoRA) (`loralib`)
+- **Links**: [arXiv:2106.09685](https://arxiv.org/abs/2106.09685) (~45 min) | [code](https://github.com/microsoft/LoRA) (`loralib`) (repo, ~15 min for the README)
 
 ## Best resources
 
-- [Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms) (Sebastian Raschka): the best empirical guide to r, alpha, which layers, and QLoRA trade-offs, from hundreds of runs
-- [Code LoRA from Scratch](https://lightning.ai/lightning-ai/studios/code-lora-from-scratch) (Raschka, Lightning AI): implement the ~20 lines that LoRA actually is; makes the mechanics stick
-- [LoRA Without Regret](https://thinkingmachines.ai/blog/lora/) (Thinking Machines, Sept 2025): the modern authority on when LoRA matches full fine-tuning and how to configure it; partially overturns the original paper's layer advice
-- [Hugging Face PEFT docs](https://huggingface.co/docs/peft): the library everyone actually uses to apply LoRA; the conceptual guides double as a good method overview
+- [Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms) (Sebastian Raschka) (~30 min): the best empirical guide to r, alpha, which layers, and QLoRA trade-offs, from hundreds of runs
+- [Code LoRA from Scratch](https://lightning.ai/lightning-ai/studios/code-lora-from-scratch) (Raschka, Lightning AI) (~45 min): implement the ~20 lines that LoRA actually is; makes the mechanics stick
+- [LoRA Without Regret](https://thinkingmachines.ai/blog/lora/) (Thinking Machines, Sept 2025) (~35 min): the modern authority on when LoRA matches full fine-tuning and how to configure it; partially overturns the original paper's layer advice
+- [Hugging Face PEFT docs](https://huggingface.co/docs/peft) (docs, ~30 min for the core pages): the library everyone actually uses to apply LoRA; the conceptual guides double as a good method overview
 
 ## Problem
 
@@ -19,7 +21,9 @@ Adapting a pretrained LM to each downstream task by full fine-tuning produces a 
 
 **Low-rank update decomposition.** Building on the observation (Aghajanyan et al. 2020) that fine-tuning has a low intrinsic dimension, LoRA hypothesizes that the weight *update* during adaptation also has low intrinsic rank. For a pretrained weight W0 in R^(d x k), freeze W0 and parametrize the update as a rank decomposition:
 
-    h = W0 x + dW x = W0 x + B A x
+```
+h = W0 x + dW x = W0 x + B A x
+```
 
 with B in R^(d x r), A in R^(r x k), and r << min(d, k). Only A and B receive gradients. For GPT-3, d = 12,288 and r = 1 or 2 can already suffice.
 

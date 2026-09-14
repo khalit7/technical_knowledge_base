@@ -1,16 +1,16 @@
 # WSM: Decay-Free Learning Rate Schedule via Checkpoint Merging for LLM Pre-training
 
-- **Authors/lab**: Changxin Tian, Jiapeng Wang, Qian Zhao, Kunlong Chen, Jia Liu, Ziqi Liu, Jiaxin Mao, Wayne Xin Zhao, Zhiqiang Zhang, Jun Zhou (Ling Team, Ant Group; Gaoling School of AI, Renmin University)
-- **Date**: arXiv 23 July 2025, v2 11 August 2025
-- **Links**: [arXiv abstract](https://arxiv.org/abs/2507.17634) | [PDF](https://arxiv.org/pdf/2507.17634) | [HTML](https://arxiv.org/html/2507.17634v2)
-- **Topics**: llm-training-and-post-training, ml-fundamentals
+⏱ 8 min read · +~1h 30m resources
 
-*Added to the KB 2026-08-25 on request.*
+Changxin Tian, Jiapeng Wang, Qian Zhao, Kunlong Chen, Jia Liu, Ziqi Liu, Jiaxin Mao, Wayne Xin Zhao, Zhiqiang Zhang, Jun Zhou (Ling Team, Ant Group; Gaoling School of AI, Renmin University). arXiv 23 July 2025, v2 11 August 2025. Added to the KB 2026-08-31 on request.
+
+- [arXiv abstract](https://arxiv.org/abs/2507.17634) (~45 min) | [PDF](https://arxiv.org/pdf/2507.17634) (same paper) | [HTML](https://arxiv.org/html/2507.17634v2) (same paper)
+- Topics: llm-training-and-post-training, ml-fundamentals
 
 ## Best resources
 
-- [The paper itself (HTML)](https://arxiv.org/html/2507.17634v2): short, and Figure 2 (merge-weight distributions next to their equivalent decay curves) carries the whole idea.
-- Background on why the decay phase is worth attacking: [Scaling Laws and Compute-Optimal Training Beyond Fixed Training Durations (Hägele et al., arXiv:2405.18392)](https://arxiv.org/abs/2405.18392).
+- [The paper itself (HTML)](https://arxiv.org/html/2507.17634v2) (~45 min): short, and Figure 2 (merge-weight distributions next to their equivalent decay curves) carries the whole idea.
+- Background on why the decay phase is worth attacking: [Scaling Laws and Compute-Optimal Training Beyond Fixed Training Durations (Hägele et al., arXiv:2405.18392)](https://arxiv.org/abs/2405.18392) (~45 min).
 - The concurrent, purely empirical take on merging during pretraining: Li et al. 2025 (WMA/SMA/EMA heuristics), cited as reference 36 in the paper.
 
 ## Problem
@@ -24,22 +24,20 @@ So even WSD is not a fully autonomous, continuously extendable training process.
 
 ## Method
 
-**WSM (Warmup-Stable and Merge)**: warm up, then hold the LR constant indefinitely. No decay, ever. Checkpoints are saved every `T_cpt` steps, and an asynchronous process merges the most recent `n` of them into `W_merged`, which is the model you evaluate or ship. Training itself never pauses.
+**WSM (Warmup-Stable and Merge)**: warm up, then hold the LR constant indefinitely. No decay, ever. Checkpoints are saved every $T_{cpt}$ steps, and an asynchronous process merges the most recent $n$ of them into $W_{merged}$, which is the model you evaluate or ship. Training itself never pauses.
 
-The contribution is that this is not a heuristic. Write a merge as `theta_hat_{n+k} = sum_j c_j * theta_{n+j}` and expand each checkpoint into its base plus accumulated gradient updates; the double sum rearranges into
+The contribution is that this is not a heuristic. Write a merge as $\hat\theta_{n+k}=\sum_j c_j\theta_{n+j}$ and expand each checkpoint into its base plus accumulated gradient updates; the double sum rearranges into
 
-```
-theta_hat_{n+k} = theta_n - sum_i w_i * g_{n+i-1},   with   w_i = sum_{j >= i} c_j
-```
+$\hat\theta_{n+k}=\theta_n-\sum_i w_i g_{n+i-1}$ with $w_i=\sum_{j\ge i} c_j$.
 
-Merging with weights `c_j` is therefore *identical* to having applied a synthetic decay schedule `w_i` to the gradients since the base checkpoint. Theorem 3.1 inverts the map: for any monotonically non-increasing target curve `{w_i}`, the checkpoint weights are uniquely `c_k = w_k`, `c_j = w_j - w_{j+1}`, `c_0 = 1 - w_1`.
+Merging with weights $c_j$ is therefore *identical* to having applied a synthetic decay schedule $w_i$ to the gradients since the base checkpoint. Theorem 3.1 inverts the map: for any monotonically non-increasing target curve $\{w_i\}$, the checkpoint weights are uniquely $c_k=w_k$, $c_j=w_j-w_{j+1}$, $c_0=1-w_1$.
 
 Consequences:
 
 - Mean averaging is (approximately) **linear decay**. EMA is a **convex** decay. Cosine and 1-sqrt curves can be constructed explicitly.
 - Optimiser-agnostic: nothing in the training loop changes, so it composes with SGD, Adam, or anything else.
 - Offline merging (keep the checkpoint history) is the exploration mode: one training run, many simulated anneals of different shapes and durations. Once a winner is found it can be run online as a fixed sliding window, which is what EMA forces you to commit to from step one.
-- A data anneal can still be layered on: after a switch step `T_switch` the run moves to a curated high-quality mixture, with the LR still flat.
+- A data anneal can still be layered on: after a switch step $T_{switch}$ the run moves to a curated high-quality mixture, with the LR still flat.
 
 ## Results
 
@@ -63,8 +61,8 @@ Costs and caveats: storage for the checkpoint history (small relative to a pretr
 
 ## Connections
 
-- Sits alongside the rest of the LR-schedule family in [optimisers-and-schedulers.md](../../topics/ml-fundamentals/optimisers-and-schedulers.md), where the WSD-versus-WSM comparison lives.
+- Sits alongside the rest of the LR-schedule family in [Optimisers and learning-rate schedulers (ml-fundamentals)](../../topics/ml-fundamentals/optimisers-and-schedulers.md), where the WSD-versus-WSM comparison lives.
 - The decay-shape ordering it depends on (concave beats linear beats convex) comes from Hägele et al. 2024, the same work that made constant-plus-cooldown a credible cosine replacement.
-- Its data-anneal switch step is the same lever as the mid-training anneal in [pretraining.md](../../topics/llm-training-and-post-training/pretraining.md) and [data-mixing.md](../../topics/data-curation-and-datasets/data-mixing.md) (Dolmino, Llama 3 annealing).
+- Its data-anneal switch step is the same lever as the mid-training anneal in [Pretraining](../../topics/llm-training-and-post-training/pretraining.md) and [Data mixing](../../topics/data-curation-and-datasets/data-mixing.md) (Dolmino, Llama 3 annealing).
 - Complements schedule-free optimisation (Defazio et al. 2024): both delete the schedule, one via iterate averaging inside the optimiser, the other via checkpoint merging outside it.
 - The merge machinery is ordinary model merging (see also model souping in the OLMo 2 recipe), reframed as scheduling rather than as ensembling.

@@ -1,16 +1,18 @@
 # Qwen3 Technical Report
 
+⏱ 12 min read · +~3h 45m resources
+
 - **Authors/lab**: Qwen Team (Alibaba)
 - **Date**: May 2025 (arXiv v1 2025-05-14; models released 2025-04-29)
-- **Links**: [arXiv 2505.09388](https://arxiv.org/abs/2505.09388) | [Blog: Qwen3: Think Deeper, Act Faster](https://qwenlm.github.io/blog/qwen3/) | [GitHub](https://github.com/QwenLM/Qwen3) | [HF collection](https://huggingface.co/Qwen)
+- **Links**: [arXiv 2505.09388](https://arxiv.org/abs/2505.09388) (~1h 30m, technical report) | [Blog: Qwen3: Think Deeper, Act Faster](https://qwenlm.github.io/blog/qwen3/) (~15 min) | [GitHub](https://github.com/QwenLM/Qwen3) (repo, ~20 min for the README and entry path) | [HF collection](https://huggingface.co/Qwen) (~10 min)
 - Added to KB: 2026-08-24
 
 ## Best resources
 
-- [Understanding and Implementing Qwen3 From Scratch (Sebastian Raschka)](https://magazine.sebastianraschka.com/p/qwen3-from-scratch): builds the dense architecture in plain PyTorch; the fastest way to internalize exactly what a Qwen3 block contains.
-- [The Big LLM Architecture Comparison (Sebastian Raschka)](https://magazine.sebastianraschka.com/p/the-big-llm-architecture-comparison): situates Qwen3 dense and MoE against DeepSeek-V3, Llama, Gemma and later designs; good on the no-shared-expert MoE choice.
-- [Qwen 3: The new open standard (Nathan Lambert, Interconnects)](https://www.interconnects.ai/p/qwen-3-the-new-open-standard): release-week analysis of why the size ladder plus Apache 2.0 made Qwen3 the default open family.
-- [Official release post](https://qwenlm.github.io/blog/qwen3/): the team's own framing of hybrid thinking, the 119-language jump, and agentic focus.
+- [Understanding and Implementing Qwen3 From Scratch (Sebastian Raschka)](https://magazine.sebastianraschka.com/p/qwen3-from-scratch) (~35 min): builds the dense architecture in plain PyTorch; the fastest way to internalize exactly what a Qwen3 block contains.
+- [The Big LLM Architecture Comparison (Sebastian Raschka)](https://magazine.sebastianraschka.com/p/the-big-llm-architecture-comparison) (~40 min): situates Qwen3 dense and MoE against DeepSeek-V3, Llama, Gemma and later designs; good on the no-shared-expert MoE choice.
+- [Qwen 3: The new open standard (Nathan Lambert, Interconnects)](https://www.interconnects.ai/p/qwen-3-the-new-open-standard) (~15 min): release-week analysis of why the size ladder plus Apache 2.0 made Qwen3 the default open family.
+- [Official release post](https://qwenlm.github.io/blog/qwen3/) (~15 min, the same post as the Links line): the team's own framing of hybrid thinking, the 119-language jump, and agentic focus.
 
 ## Problem
 

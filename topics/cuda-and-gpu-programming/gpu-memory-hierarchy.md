@@ -1,15 +1,17 @@
 # GPU memory hierarchy
 
+⏱ 8 min read · +5h 40m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [Horace He, Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html): the canonical explanation of compute-bound vs memory-bound vs overhead-bound for ML people.
-- PMPP 5th ed, ch. 5-6: memory architecture and tiling; the tiled matmul derivation everyone learns from.
-- [Simon Boehm's matmul worklog](https://siboehm.com/articles/22/CUDA-MMM): coalescing, shared memory, and tiling with measured numbers at each step.
-- [CUDA C++ Best Practices Guide, memory optimizations](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/#memory-optimizations): coalescing and bank conflict reference.
-- [Modal GPU Glossary](https://modal.com/gpu-glossary): definitions with die-shot-level accuracy.
-- Roofline model: Williams, Waterman, Patterson, ["Roofline: an insightful visual performance model"](https://dl.acm.org/doi/10.1145/1498765.1498785) (CACM 2009).
+- [Horace He, Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (25 min): the canonical explanation of compute-bound vs memory-bound vs overhead-bound for ML people.
+- PMPP 5th ed, ch. 5-6 (~60 pages, 1h 30m): memory architecture and tiling; the tiled matmul derivation everyone learns from.
+- [Simon Boehm's matmul worklog](https://siboehm.com/articles/22/CUDA-MMM) (1h 30m): coalescing, shared memory, and tiling with measured numbers at each step.
+- [CUDA C++ Best Practices Guide, memory optimizations](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/#memory-optimizations) (45 min): coalescing and bank conflict reference.
+- [Modal GPU Glossary](https://modal.com/gpu-glossary) (~45 min): definitions with die-shot-level accuracy.
+- Roofline model: Williams, Waterman, Patterson, ["Roofline: an insightful visual performance model"](https://dl.acm.org/doi/10.1145/1498765.1498785) (45 min, CACM 2009).
 
 ## The levels
 

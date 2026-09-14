@@ -1,15 +1,17 @@
 # BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding
 
+⏱ 9 min read · +~2h 40m resources
+
 - **Authors**: Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova (Google AI Language)
 - **Date**: October 2018 (arXiv v1; v2 May 2019, NAACL 2019 best paper)
-- **Links**: [arXiv:1810.04805](https://arxiv.org/abs/1810.04805) | [code + checkpoints](https://github.com/google-research/bert) | [Google AI blog](https://research.google/blog/open-sourcing-bert-state-of-the-art-pre-training-for-natural-language-processing/)
+- **Links**: [arXiv:1810.04805](https://arxiv.org/abs/1810.04805) (~45 min) | [code + checkpoints](https://github.com/google-research/bert) (repo, ~20 min for the README and entry path) | [Google AI blog](https://research.google/blog/open-sourcing-bert-state-of-the-art-pre-training-for-natural-language-processing/) (~10 min)
 
 ## Best resources
 
-- [The Illustrated BERT, ELMo, and co.](https://jalammar.github.io/illustrated-bert/) (Jay Alammar): the classic visual walkthrough of how BERT relates to ELMo and GPT and how fine-tuning works
-- [BERT 101](https://huggingface.co/blog/bert-101) (Hugging Face): practical intro with code, good for the fine-tuning workflow
-- [Finally, a Replacement for BERT: ModernBERT](https://www.answer.ai/posts/2024-12-19-modernbert.html) (Answer.AI, Dec 2024): where the encoder lineage stands today and why it still matters
-- Original [Google AI blog post](https://research.google/blog/open-sourcing-bert-state-of-the-art-pre-training-for-natural-language-processing/): concise author framing of the contribution
+- [The Illustrated BERT, ELMo, and co.](https://jalammar.github.io/illustrated-bert/) (Jay Alammar) (~30 min): the classic visual walkthrough of how BERT relates to ELMo and GPT and how fine-tuning works
+- [BERT 101](https://huggingface.co/blog/bert-101) (Hugging Face) (~25 min): practical intro with code, good for the fine-tuning workflow
+- [Finally, a Replacement for BERT: ModernBERT](https://www.answer.ai/posts/2024-12-19-modernbert.html) (Answer.AI, Dec 2024) (~30 min): where the encoder lineage stands today and why it still matters
+- Original [Google AI blog post](https://research.google/blog/open-sourcing-bert-state-of-the-art-pre-training-for-natural-language-processing/) (~10 min, the same post as the Links line): concise author framing of the contribution
 
 ## Problem
 

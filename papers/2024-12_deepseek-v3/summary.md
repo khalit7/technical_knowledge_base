@@ -1,16 +1,18 @@
 # DeepSeek-V3 Technical Report
 
+⏱ 12 min read · +~3h 5m resources
+
 - **Authors/lab**: DeepSeek-AI
 - **Date**: December 2024 (arXiv v1 2024-12-27; v2 2025-02-18)
-- **Links**: [arXiv 2412.19437](https://arxiv.org/abs/2412.19437) | [GitHub (weights + code)](https://github.com/deepseek-ai/DeepSeek-V3)
+- **Links**: [arXiv 2412.19437](https://arxiv.org/abs/2412.19437) (~1h 30m, technical report) | [GitHub (weights + code)](https://github.com/deepseek-ai/DeepSeek-V3) (repo, ~20 min for the README and entry path)
 - Added to KB: 2026-08-24
 
 ## Best resources
 
-- [DeepSeek-V3 Explained: Multi-head Latent Attention (Shirley Li, TDS)](https://towardsdatascience.com/deepseek-v3-explained-1-multi-head-latent-attention-ed6bee2a67c4/): the clearest derivation of MLA from MHA/MQA/GQA, including the decoupled RoPE trick.
-- [Stratechery: DeepSeek FAQ (Ben Thompson)](https://stratechery.com/2025/deepseek-faq/): context on what the $5.576M figure does and does not cover, and why the release landed the way it did.
-- [DeepSeek-V3 training budget Fermi estimation (planetbanatt)](https://planetbanatt.net/articles/v3fermi.html): independent sanity check that the claimed GPU hours are plausible for a 37B-active MoE on 14.8T tokens.
-- [DeepWiki: DeepSeek-V3 MLA implementation walkthrough](https://deepwiki.com/deepseek-ai/DeepSeek-V3/4.2-multi-head-latent-attention-(mla)): maps the paper's equations to the released code.
+- [DeepSeek-V3 Explained: Multi-head Latent Attention (Shirley Li, TDS)](https://towardsdatascience.com/deepseek-v3-explained-1-multi-head-latent-attention-ed6bee2a67c4/) (~20 min): the clearest derivation of MLA from MHA/MQA/GQA, including the decoupled RoPE trick.
+- [Stratechery: DeepSeek FAQ (Ben Thompson)](https://stratechery.com/2025/deepseek-faq/) (~20 min): context on what the $5.576M figure does and does not cover, and why the release landed the way it did.
+- [DeepSeek-V3 training budget Fermi estimation (planetbanatt)](https://planetbanatt.net/articles/v3fermi.html) (~15 min): independent sanity check that the claimed GPU hours are plausible for a 37B-active MoE on 14.8T tokens.
+- [DeepWiki: DeepSeek-V3 MLA implementation walkthrough](https://deepwiki.com/deepseek-ai/DeepSeek-V3/4.2-multi-head-latent-attention-(mla)) (~20 min): maps the paper's equations to the released code.
 
 ## Problem
 

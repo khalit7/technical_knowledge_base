@@ -1,15 +1,17 @@
 # ZeRO: Memory Optimizations Toward Training Trillion Parameter Models
 
+⏱ 9 min read · +~3h 45m resources
+
 - **Authors/lab**: Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, Yuxiong He (Microsoft)
 - **Date**: October 2019 (arXiv v1); v3 May 2020; published at SC20
-- **Links**: [arXiv](https://arxiv.org/abs/1910.02054) | [DeepSpeed repo](https://github.com/microsoft/deepspeed) | [Microsoft Research blog](https://www.microsoft.com/en-us/research/blog/zero-deepspeed-new-system-optimizations-enable-training-models-with-over-100-billion-parameters/)
+- **Links**: [arXiv](https://arxiv.org/abs/1910.02054) (~1h) | [DeepSpeed repo](https://github.com/microsoft/deepspeed) (repo, ~20 min for the README and entry path) | [Microsoft Research blog](https://www.microsoft.com/en-us/research/blog/zero-deepspeed-new-system-optimizations-enable-training-models-with-over-100-billion-parameters/) (~15 min)
 
 ## Best resources
 
-- [HF Ultra-Scale Playbook, ZeRO section](https://huggingface.co/spaces/nanotron/ultrascale-playbook?section=zero_zero_redundancy_optimizer): the clearest modern walkthrough of the stage-by-stage memory math and communication schedules, with diagrams
-- [DeepSpeed ZeRO tutorial](https://www.deepspeed.ai/tutorials/zero/): the practitioner view, config flags for stages 1/2/3, offload, and what each knob costs
-- [Lilian Weng, How to Train Really Large Models on Many GPUs](https://lilianweng.github.io/posts/2021-09-25-train-large/): places ZeRO in the full DP/TP/PP/MoE landscape
-- [PyTorch FSDP docs](https://docs.pytorch.org/docs/stable/fsdp.html): the PyTorch-native descendant of ZeRO-3; maps ZeRO stages onto FSDP sharding strategies
+- [HF Ultra-Scale Playbook, ZeRO section](https://huggingface.co/spaces/nanotron/ultrascale-playbook?section=zero_zero_redundancy_optimizer) (~40 min): the clearest modern walkthrough of the stage-by-stage memory math and communication schedules, with diagrams
+- [DeepSpeed ZeRO tutorial](https://www.deepspeed.ai/tutorials/zero/) (docs, ~20 min): the practitioner view, config flags for stages 1/2/3, offload, and what each knob costs
+- [Lilian Weng, How to Train Really Large Models on Many GPUs](https://lilianweng.github.io/posts/2021-09-25-train-large/) (~45 min): places ZeRO in the full DP/TP/PP/MoE landscape
+- [PyTorch FSDP docs](https://docs.pytorch.org/docs/stable/fsdp.html) (docs, ~25 min for the core pages): the PyTorch-native descendant of ZeRO-3; maps ZeRO stages onto FSDP sharding strategies
 
 ## Problem
 

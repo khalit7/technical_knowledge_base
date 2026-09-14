@@ -1,17 +1,19 @@
 # DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning
 
+⏱ 16 min read · +~5h 35m resources
+
 - **Authors/lab**: DeepSeek-AI (core contributors: Daya Guo, Dejian Yang, Junxiao Song, Peiyi Wang, Zhihong Shao, et al.)
 - **Date**: January 2025 (arXiv v1); v2 January 2026 is the expanded Nature version (published in Nature, September 2025)
-- **Links**: [arXiv 2501.12948](https://arxiv.org/abs/2501.12948) | [Nature paper](https://www.nature.com/articles/s41586-025-09422-z) | [GitHub](https://github.com/deepseek-ai/DeepSeek-R1) | [Models on HF](https://huggingface.co/deepseek-ai)
+- **Links**: [arXiv 2501.12948](https://arxiv.org/abs/2501.12948) (~2h, long report) | [Nature paper](https://www.nature.com/articles/s41586-025-09422-z) (~1h 30m, the expanded version of the same work) | [GitHub](https://github.com/deepseek-ai/DeepSeek-R1) (repo, ~20 min for the README and entry path) | [Models on HF](https://huggingface.co/deepseek-ai) (~10 min)
 
 The paper that showed frontier reasoning can be trained with **pure RL against rule-based verifiable rewards, no reasoning SFT required** (R1-Zero), then packaged that capability into a usable model via a four-stage pipeline (R1) and transferred it to small models by plain SFT distillation. It is the open blueprint for o1-style reasoning models and the founding recipe of the RLVR ecosystem.
 
 ## Best resources
 
-- [The Illustrated DeepSeek-R1 (Jay Alammar)](https://newsletter.languagemodels.co/p/the-illustrated-deepseek-r1): visual walkthrough of the three training paths (R1-Zero, R1, distillation); the fastest way to get the whole picture.
-- [Understanding Reasoning LLMs (Sebastian Raschka)](https://magazine.sebastianraschka.com/p/understanding-reasoning-llms): places R1 among the four ways to build reasoning models (inference scaling, pure RL, SFT+RL, distillation), with the pipeline redrawn stage by stage.
-- [DeepSeek R1's recipe to replicate o1 (Nathan Lambert)](https://www.interconnects.ai/p/deepseek-r1-recipe-for-o1): the best analysis of what the four-stage recipe means for RL training practice and the o1 replication race.
-- [Open-R1 (Hugging Face)](https://github.com/huggingface/open-r1): fully open reproduction with GRPO training code, data generation, and evals; the natural starting point for building your own loop.
+- [The Illustrated DeepSeek-R1 (Jay Alammar)](https://newsletter.languagemodels.co/p/the-illustrated-deepseek-r1) (~20 min): visual walkthrough of the three training paths (R1-Zero, R1, distillation); the fastest way to get the whole picture.
+- [Understanding Reasoning LLMs (Sebastian Raschka)](https://magazine.sebastianraschka.com/p/understanding-reasoning-llms) (~30 min): places R1 among the four ways to build reasoning models (inference scaling, pure RL, SFT+RL, distillation), with the pipeline redrawn stage by stage.
+- [DeepSeek R1's recipe to replicate o1 (Nathan Lambert)](https://www.interconnects.ai/p/deepseek-r1-recipe-for-o1) (~20 min): the best analysis of what the four-stage recipe means for RL training practice and the o1 replication race.
+- [Open-R1 (Hugging Face)](https://github.com/huggingface/open-r1) (repo, ~25 min for the README and training entry path): fully open reproduction with GRPO training code, data generation, and evals; the natural starting point for building your own loop.
 
 ## Problem
 

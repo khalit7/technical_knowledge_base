@@ -1,14 +1,16 @@
 # Training language models to follow instructions with human feedback (InstructGPT)
 
+⏱ 11 min read · +~4h 55m resources
+
 - **Authors**: Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, John Schulman, Jacob Hilton, Fraser Kelton, Luke Miller, Maddie Simens, Amanda Askell, Peter Welinder, Paul Christiano, Jan Leike, Ryan Lowe (OpenAI Alignment team)
 - **Date**: March 2022 (arXiv 2203.02155; NeurIPS 2022)
-- **Links**: [arXiv](https://arxiv.org/abs/2203.02155) | [OpenAI blog](https://openai.com/index/instruction-following/) | [model samples](https://github.com/openai/following-instructions-human-feedback)
+- **Links**: [arXiv](https://arxiv.org/abs/2203.02155) (~1h 30m, long paper with appendices) | [OpenAI blog](https://openai.com/index/instruction-following/) (~10 min) | [model samples](https://github.com/openai/following-instructions-human-feedback) (repo, ~10 min to skim)
 
 ## Best resources
 
-- [Chip Huyen: RLHF, Reinforcement Learning from Human Feedback](https://huyenchip.com/2023/05/02/rlhf.html): the whole pipeline (pretrain, SFT, RM, PPO) with the math, data economics, and practical failure modes; the single best walkthrough of what this paper standardised.
-- [Hugging Face: Illustrating RLHF](https://huggingface.co/blog/rlhf) (Lambert, Castricato, von Werra, Havrilla): the canonical diagram-first explanation of the three stages and the KL-penalised reward.
-- [Nathan Lambert: RLHF Book](https://rlhfbook.com/): book-length treatment of RLHF and post-training; the chapters on reward modeling and policy optimisation put InstructGPT in the context of everything that came after (DPO, GRPO, RLVR).
+- [Chip Huyen: RLHF, Reinforcement Learning from Human Feedback](https://huyenchip.com/2023/05/02/rlhf.html) (~40 min): the whole pipeline (pretrain, SFT, RM, PPO) with the math, data economics, and practical failure modes; the single best walkthrough of what this paper standardised.
+- [Hugging Face: Illustrating RLHF](https://huggingface.co/blog/rlhf) (Lambert, Castricato, von Werra, Havrilla) (~25 min): the canonical diagram-first explanation of the three stages and the KL-penalised reward.
+- [Nathan Lambert: RLHF Book](https://rlhfbook.com/) (book, ~2h for the reward-modeling and policy-optimisation chapters): book-length treatment of RLHF and post-training; the chapters on reward modeling and policy optimisation put InstructGPT in the context of everything that came after (DPO, GRPO, RLVR).
 
 ## Problem
 
@@ -22,13 +24,17 @@ The now-canonical three-stage pipeline, applied to pretrained GPT-3 at 1.3B, 6B,
 
 **Stage 2, reward model.** Initialise from the SFT model with the unembedding layer replaced by a scalar head. Labelers rank K = 4 to 9 sampled completions per prompt (~33k prompts), yielding K-choose-2 pairwise comparisons. Loss is pairwise cross-entropy on the reward difference:
 
-    loss(theta) = -(1 / C(K,2)) * E_(x, y_w, y_l) [ log sigmoid( r_theta(x, y_w) - r_theta(x, y_l) ) ]
+```
+loss(theta) = -(1 / C(K,2)) * E_(x, y_w, y_l) [ log sigmoid( r_theta(x, y_w) - r_theta(x, y_l) ) ]
+```
 
 Key implementation detail: all comparisons from one prompt go into a single batch element. Shuffling them as independent examples makes the RM overfit within one epoch (each completion appears in K-1 gradient updates); batching by prompt fixes this and is also K times cheaper in forward passes. Only 6B RMs are used; 175B RM training was unstable. Rewards are shifted so labeler demonstrations score 0 on average.
 
 **Stage 3, PPO with KL penalty (RLHF proper).** Treat generation as a bandit environment: a prompt is sampled, the policy generates one response, the RM scores it, episode ends. Fine-tune the SFT model with PPO on ~31k prompts, with a per-token KL penalty against the SFT policy to prevent reward-model over-optimisation; the value function is initialised from the RM. The plain version is "PPO". The headline variant, **PPO-ptx**, mixes pretraining gradients into the PPO updates to repair capability regressions:
 
-    objective(phi) = E_(x,y)~pi_RL [ r_theta(x, y) - beta * log( pi_RL(y|x) / pi_SFT(y|x) ) ] + gamma * E_x~D_pretrain [ log pi_RL(x) ]
+```
+objective(phi) = E_(x,y)~pi_RL [ r_theta(x, y) - beta * log( pi_RL(y|x) / pi_SFT(y|x) ) ] + gamma * E_x~D_pretrain [ log pi_RL(x) ]
+```
 
 "InstructGPT" in the paper means the PPO-ptx models. Stages 2 and 3 can be iterated: collect new comparisons on the current policy, retrain the RM, retrain the policy.
 

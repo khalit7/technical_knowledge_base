@@ -1,11 +1,13 @@
 # RL foundations
 
+⏱ 8 min read · +5h 50m resources
+
 ## Best resources
 
-- David Silver's UCL course, Lectures 1-2 (Intro, MDPs): https://www.davidsilver.uk/teaching/ ; the source most of this file's framing comes from; slides plus YouTube videos.
-- Sutton & Barto, *Reinforcement Learning: An Introduction*, Chapters 1-3: http://incompleteideas.net/book/the-book-2nd.html ; free PDF, the canonical treatment of MDPs and Bellman equations.
-- Lilian Weng, "A (Long) Peek into Reinforcement Learning": https://lilianweng.github.io/posts/2018-02-19-rl-overview/ ; the best single-page compression of everything below.
-- Spinning Up, "Key Concepts in RL": https://spinningup.openai.com/en/latest/spinningup/rl_intro.html ; crisp notation reference.
+- David Silver's UCL course, Lectures 1-2 (Intro, MDPs): [https://www.davidsilver.uk/teaching/](https://www.davidsilver.uk/teaching/) (3h) ; the source most of this file's framing comes from; slides plus YouTube videos.
+- Sutton & Barto, *Reinforcement Learning: An Introduction*, Chapters 1-3: [http://incompleteideas.net/book/the-book-2nd.html](http://incompleteideas.net/book/the-book-2nd.html) (2h) ; free PDF, the canonical treatment of MDPs and Bellman equations.
+- Lilian Weng, "A (Long) Peek into Reinforcement Learning": [https://lilianweng.github.io/posts/2018-02-19-rl-overview/](https://lilianweng.github.io/posts/2018-02-19-rl-overview/) (~35 min) ; the best single-page compression of everything below.
+- Spinning Up, "Key Concepts in RL": [https://spinningup.openai.com/en/latest/spinningup/rl_intro.html](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html) (~15 min) ; crisp notation reference.
 
 ## Definition
 
@@ -47,6 +49,7 @@ At each step t the agent executes action A_t, receives observation O_t, and rece
 ## What an RL agent may contain
 
 An agent might have any subset of three components:
+
 - **Policy** pi: the behaviour function, a map from state to action (deterministic a = pi(s), or
   stochastic pi(a|s)).
 - **Value function**: a prediction of expected future reward; how good each state (or state-action
@@ -60,12 +63,14 @@ Using a model makes a method **model-based**; not using one makes it **model-fre
 ## Taxonomy of RL agents
 
 By what is stored:
+
 1. **Value-based**: store a value function only; the policy is implicit (act greedily with respect
    to the values). Example: Q-learning, DQN.
 2. **Policy-based**: store the policy directly, never an explicit value function. Example: REINFORCE.
 3. **Actor-critic**: store both a policy (actor) and a value function (critic). Example: A2C, PPO.
 
 By use of a model:
+
 1. **Model-free**: do not try to explicitly model the environment; go directly from experience to a
    policy or value function.
 2. **Model-based**: build a model of the environment, then plan or simulate with it to predict how
@@ -92,6 +97,7 @@ By use of a model:
 ## Bootstrapping vs sampling
 
 Two independent axes for how a value update is built (Silver's "unified view" diagram):
+
 - **Bootstrapping**: update a value estimate from another value estimate one step ahead
   ("solve one step, then trust your own answer for the rest"). Depth of update = 1 step.
   Dynamic programming and TD both bootstrap.
@@ -123,6 +129,7 @@ does neither (full depth, full width).
 ## Markov process to MRP to MDP
 
 Build up in three steps:
+
 1. **Markov process (Markov chain)**: (S, P). States plus transition probabilities; the future
    depends only on the current state.
 2. **Markov reward process (MRP)**: (S, P, R, gamma). Same, plus a reward attached to transitions.
@@ -132,8 +139,10 @@ Build up in three steps:
    between states randomly: an action moves you. The only new ingredient is agency.
 
 **Why discount (gamma < 1)?**
+
 1. Cycles: avoids infinite returns in cyclic or infinite-horizon processes.
 2. Uncertainty: the future is less certain than the present, so weight it less (be a bit greedy).
+
 Also mathematically convenient: makes the Bellman operator a contraction, guaranteeing convergence.
 
 ## Bellman equations

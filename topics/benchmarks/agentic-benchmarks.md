@@ -1,5 +1,7 @@
 # Agentic benchmarks: GAIA, OSWorld, WebArena, tau2, Terminal-Bench, MCP evals
 
+⏱ 9 min read · +6h 30m resources
+
 Last updated: 2026-08-24.
 
 Agentic benchmarks score a model + scaffold system on multi-step tasks in an environment
@@ -10,14 +12,14 @@ gamed outright.
 
 ## Best resources
 
-- [GAIA (Mialon et al., 2023)](https://arxiv.org/abs/2311.12983)
-- [OSWorld (2024)](https://arxiv.org/abs/2404.07972) and the [OSWorld-Verified leaderboard](https://os-world.github.io/)
-- [WebArena (2023)](https://arxiv.org/abs/2307.13854)
-- [tau-bench (Sierra, 2024)](https://arxiv.org/abs/2406.12045) and [tau2-bench (2025)](https://arxiv.org/abs/2506.07982)
-- [Terminal-Bench](https://www.tbench.ai) (Stanford/Laude Institute), 2.0 leaderboard at tbench.ai
-- [Berkeley RDI: How We Broke Top AI Agent Benchmarks (2026)](https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/)
-- [METR time-horizon work](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/)
-- [HAL: Holistic Agent Leaderboard (Princeton)](https://hal.cs.princeton.edu/): standardized-harness agent leaderboards
+- [GAIA (Mialon et al., 2023)](https://arxiv.org/abs/2311.12983) (45 min)
+- [OSWorld (2024)](https://arxiv.org/abs/2404.07972) (45 min) and the [OSWorld-Verified leaderboard](https://os-world.github.io/) (~10 min)
+- [WebArena (2023)](https://arxiv.org/abs/2307.13854) (45 min)
+- [tau-bench (Sierra, 2024)](https://arxiv.org/abs/2406.12045) (45 min) and [tau2-bench (2025)](https://arxiv.org/abs/2506.07982) (45 min)
+- [Terminal-Bench](https://www.tbench.ai) (~20 min) (Stanford/Laude Institute), 2.0 leaderboard at [tbench.ai](http://tbench.ai)
+- [Berkeley RDI: How We Broke Top AI Agent Benchmarks (2026)](https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/) (~25 min)
+- [METR time-horizon work](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/) (~35 min)
+- [HAL: Holistic Agent Leaderboard (Princeton)](https://hal.cs.princeton.edu/) (~15 min): standardized-harness agent leaderboards
 
 ## The main benchmarks
 
@@ -76,7 +78,7 @@ MCPMark, MCP-Bench, MCP-Atlas. These test tool selection, argument construction,
 long-horizon orchestration across real protocol servers rather than mocked functions.
 Young, fragmented, no single standard yet; MCP-Universe is the most cited. Frontier
 models still fail 40%+ of hard MCP-Universe tasks, so there is headroom here. See
-../protocols/ for MCP itself.
+[../protocols/](../protocols/summary.md) for MCP itself.
 
 **Economically-grounded evals**: METR's HCAST + time-horizon methodology (the task
 length humans need such that agents succeed 50% of the time; doubling roughly every 7
@@ -109,7 +111,7 @@ baseline requirements.
 
 ## Leaderboards worth checking (Aug 2026)
 
-- [tbench.ai](https://www.tbench.ai/leaderboard) (Terminal-Bench), [swebench.com](https://www.swebench.com), [Scale SWE-bench Pro](https://labs.scale.com/leaderboard/swe_bench_pro_public)
-- [os-world.github.io](https://os-world.github.io) (OSWorld-Verified), [gaia-benchmark HF space](https://huggingface.co/spaces/gaia-benchmark/leaderboard)
-- [HAL (Princeton)](https://hal.cs.princeton.edu/): reruns many agent benchmarks under one harness with cost axes; the closest thing to a fair cross-benchmark agent view.
+- [tbench.ai](https://www.tbench.ai/leaderboard) (~10 min) (Terminal-Bench), [swebench.com](https://www.swebench.com) (~10 min), [Scale SWE-bench Pro](https://labs.scale.com/leaderboard/swe_bench_pro_public) (~10 min)
+- [os-world.github.io](https://os-world.github.io) (~10 min) (OSWorld-Verified), [gaia-benchmark HF space](https://huggingface.co/spaces/gaia-benchmark/leaderboard) (~10 min)
+- [HAL (Princeton)](https://hal.cs.princeton.edu/) (~10 min): reruns many agent benchmarks under one harness with cost axes; the closest thing to a fair cross-benchmark agent view.
 - Aggregators (Epoch, Artificial Analysis) for cross-checking vendor claims.

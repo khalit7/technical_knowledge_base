@@ -1,15 +1,17 @@
 # 2 OLMo 2 Furious (OLMo 2)
 
+⏱ 12 min read · +~4h 30m resources
+
 - **Authors/lab**: OLMo Team, Allen Institute for AI (Ai2) with University of Washington; core contributors include Pete Walsh, Luca Soldaini, Dirk Groeneveld, Kyle Lo, Nathan Lambert, Hannaneh Hajishirzi
 - **Date**: December 2024 (arXiv 2501.00656; 32B added March 2025; COLM 2025)
-- **Links**: [arXiv](https://arxiv.org/abs/2501.00656) | [Ai2 blog](https://allenai.org/blog/olmo2) | [OLMo-core trainer](https://github.com/allenai/OLMo-core) | [open-instruct post-training](https://github.com/allenai/open-instruct) | [OLMES evals](https://github.com/allenai/olmes) | Data: olmo-mix-1124, dolmino-mix-1124 on HF
+- **Links**: [arXiv](https://arxiv.org/abs/2501.00656) (~2h, long technical report) | [Ai2 blog](https://allenai.org/blog/olmo2) (~15 min) | [OLMo-core trainer](https://github.com/allenai/OLMo-core) (repo, ~20 min for the README and entry path) | [open-instruct post-training](https://github.com/allenai/open-instruct) (repo, ~20 min for the README and entry path) | [OLMES evals](https://github.com/allenai/olmes) (repo, ~15 min for the README) | Data: olmo-mix-1124, dolmino-mix-1124 on HF
 
 ## Best resources
 
-- [Ai2 release blog](https://allenai.org/blog/olmo2): condensed overview of the recipe, artifacts, and links to every dataset, checkpoint, and log
-- [Interconnects: Interviewing OLMo 2 leads](https://www.interconnects.ai/p/olmo-2-pod): the team on the practical secrets behind the recipe (stability debugging, mid-training, infra)
-- [Sebastian Raschka: The Big LLM Architecture Comparison](https://magazine.sebastianraschka.com/p/the-big-llm-architecture-comparison): puts OLMo 2's post-norm and QK-norm choices in context against Llama/Qwen/Gemma
-- [Papers Explained 284: OLMo 2 (Ritvik Rastogi)](https://ritvik19.medium.com/papers-explained-olmo-2-f4d34e886503): section-by-section walkthrough of the paper
+- [Ai2 release blog](https://allenai.org/blog/olmo2) (~15 min, the same post as the Links line): condensed overview of the recipe, artifacts, and links to every dataset, checkpoint, and log
+- [Interconnects: Interviewing OLMo 2 leads](https://www.interconnects.ai/p/olmo-2-pod) (~20 min): the team on the practical secrets behind the recipe (stability debugging, mid-training, infra)
+- [Sebastian Raschka: The Big LLM Architecture Comparison](https://magazine.sebastianraschka.com/p/the-big-llm-architecture-comparison) (~40 min): puts OLMo 2's post-norm and QK-norm choices in context against Llama/Qwen/Gemma
+- [Papers Explained 284: OLMo 2 (Ritvik Rastogi)](https://ritvik19.medium.com/papers-explained-olmo-2-f4d34e886503) (~20 min): section-by-section walkthrough of the paper
 
 ## Problem
 

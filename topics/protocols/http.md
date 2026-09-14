@@ -1,14 +1,16 @@
 # HTTP: 1.1, 2, 3, and what matters for LLM services
 
+⏱ 13 min read · +19h 40m resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [MDN HTTP guide](https://developer.mozilla.org/en-US/docs/Web/HTTP): the canonical reference for semantics, headers, caching, and content negotiation.
-- [High Performance Browser Networking](https://hpbn.co/) (Ilya Grigorik, free online): still the best explanation of TCP/TLS/HTTP performance mechanics; pre-HTTP/3 but the fundamentals hold.
-- [RFC 9110 HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110), [RFC 9112 HTTP/1.1](https://www.rfc-editor.org/rfc/rfc9112), [RFC 9113 HTTP/2](https://www.rfc-editor.org/rfc/rfc9113), [RFC 9114 HTTP/3](https://www.rfc-editor.org/rfc/rfc9114): the 2022 re-split of the specs; 9110 is the one to actually read.
-- [web.dev: HTTP/3 and QUIC](https://web.dev/articles/content-delivery-networks) and Cloudflare's [HTTP/3 explainer](https://blog.cloudflare.com/http3-the-past-present-and-future/): practical deployment view.
-- [Stripe: Designing robust and predictable APIs with idempotency](https://stripe.com/blog/idempotency): the classic treatment of retries plus idempotency keys.
+- [MDN HTTP guide](https://developer.mozilla.org/en-US/docs/Web/HTTP) (docs, ~1h for the core pages): the canonical reference for semantics, headers, caching, and content negotiation.
+- [High Performance Browser Networking](https://hpbn.co/) (Ilya Grigorik, free online) (book, ~9h): still the best explanation of TCP/TLS/HTTP performance mechanics; pre-HTTP/3 but the fundamentals hold.
+- [RFC 9110 HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110) (4h), [RFC 9112 HTTP/1.1](https://www.rfc-editor.org/rfc/rfc9112) (1h), [RFC 9113 HTTP/2](https://www.rfc-editor.org/rfc/rfc9113) (2h), [RFC 9114 HTTP/3](https://www.rfc-editor.org/rfc/rfc9114) (1h 50m): the 2022 re-split of the specs; 9110 is the one to actually read.
+- [web.dev: HTTP/3 and QUIC](https://web.dev/articles/content-delivery-networks) (15 min) and Cloudflare's [HTTP/3 explainer](https://blog.cloudflare.com/http3-the-past-present-and-future/) (20 min): practical deployment view.
+- [Stripe: Designing robust and predictable APIs with idempotency](https://stripe.com/blog/idempotency) (15 min): the classic treatment of retries plus idempotency keys.
 
 ## Version evolution: the one problem each version solved
 
@@ -29,6 +31,8 @@ Practical guidance: HTTP/3 gains matter most on lossy/mobile networks and at CDN
 - **Compression**: brotli/zstd for text; do not double-compress SSE streams if you need low latency (buffering proxies + compression can break token-by-token delivery; set `Content-Encoding` carefully and disable proxy buffering, e.g. `X-Accel-Buffering: no` for nginx).
 
 ## TLS essentials
+
+Deep dive added 2026-08-24: [TLS and PKI](tls-and-pki.md) (22 min read · +17h 30m resources). Two corrections to the summary below, dated 2026-08-24: TLS 1.3 was respecified as **RFC 9846** (July 2026), which obsoletes RFC 8446; and certificate lifetimes are no longer 90-day-normal but on a schedule falling to 200 days (in force since 2026-03-15), 100 days in 2027, and 47 days in 2029.
 
 - TLS 1.3 (RFC 8446) is the baseline: 1-RTT handshake, forward secrecy always, removed weak ciphers, optional 0-RTT resumption (same replay caveat as QUIC). TLS 1.2 survives only for legacy clients.
 - SNI routes the handshake to the right cert; ALPN negotiates the protocol (`h2` vs `http/1.1`); HTTP/3 discovery is via `Alt-Svc`/HTTPS DNS records instead.

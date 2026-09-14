@@ -1,8 +1,10 @@
 # DiffusionGemma Technical Report
 
+⏱ 13 min read · +~1h 30m resources
+
 - **Authors/lab**: DiffusionGemma Team, Google DeepMind
 - **Date**: August 2026 (arXiv v1 31 Jul 2026; report dated 2026-08-04)
-- **Links**: [arXiv 2608.00146](https://arxiv.org/abs/2608.00146) | open weights (Apache 2.0) with reference implementations in HuggingFace Transformers and vLLM, plus an open-source LoRA finetuning toolkit built on Hackable Diffusion
+- **Links**: [arXiv 2608.00146](https://arxiv.org/abs/2608.00146) (~1h 30m, technical report) | open weights (Apache 2.0) with reference implementations in HuggingFace Transformers and vLLM, plus an open-source LoRA finetuning toolkit built on Hackable Diffusion
 
 The first open-weights text diffusion model that is simultaneously fast and genuinely capable: Gemma 4 26B A4B (MoE, 3.85B active) converted from autoregressive to discrete diffusion with less than 10% of the AR model's training token budget, generating ~20 tokens per forward pass and ~1,500 tokens per second on a single H100, a 7.1x speedup over its own AR baseline (4.8x over the AR baseline with multi-token-prediction speculative decoding) while staying broadly competitive in quality and retaining thinking mode, multimodality, long context, and even AR decoding.
 

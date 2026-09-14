@@ -1,10 +1,12 @@
 # Distributed Training
 
+⏱ 6 min read · +9h 40m resources
+
 ## Best resources
 
-- [HuggingFace Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook): the canonical walk from single-GPU memory anatomy through DP, ZeRO, TP, PP, CP, EP and how to combine them; includes 4000+ real benchmark runs.
-- [PyTorch FSDP2 docs](https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html) and [torchtitan paper](https://arxiv.org/abs/2410.06511): FSDP2 (per-parameter DTensor sharding) and how PyTorch composes 4D parallelism natively.
-- [Framework survey: FSDP2 vs Megatron-Core vs DeepSpeed vs torchtitan](https://megacpp.com/blog/framework-survey-fsdp-vs-megatron-vs-deepspeed/): current (2026) practical comparison.
+- [HuggingFace Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook) (~8h): the canonical walk from single-GPU memory anatomy through DP, ZeRO, TP, PP, CP, EP and how to combine them; includes 4000+ real benchmark runs.
+- [PyTorch FSDP2 docs](https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html) (docs, ~30 min) and [torchtitan paper](https://arxiv.org/abs/2410.06511) (45 min): FSDP2 (per-parameter DTensor sharding) and how PyTorch composes 4D parallelism natively.
+- [Framework survey: FSDP2 vs Megatron-Core vs DeepSpeed vs torchtitan](https://megacpp.com/blog/framework-survey-fsdp-vs-megatron-vs-deepspeed/) (~25 min): current (2026) practical comparison.
 - Papers: [ZeRO](../../papers/2019-10_zero/summary.md), [Megatron-LM](../../papers/2019-09_megatron-lm/summary.md), [Switch Transformer](../../papers/2021-01_switch-transformer/summary.md).
 
 ## Data parallelism (DP/DDP)

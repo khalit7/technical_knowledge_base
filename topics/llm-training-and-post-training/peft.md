@@ -1,11 +1,13 @@
 # Parameter-Efficient Fine-Tuning (PEFT)
 
+⏱ 5 min read · +2h 30m resources
+
 ## Best resources
 
-- [LoRA Without Regret (Thinking Machines Lab, Schulman et al. 2025)](https://thinkingmachines.ai/blog/lora/): the definitive empirical study of when LoRA matches full fine-tuning; also as a [TRL guide](https://huggingface.co/docs/trl/main/lora_without_regret).
+- [LoRA Without Regret (Thinking Machines Lab, Schulman et al. 2025)](https://thinkingmachines.ai/blog/lora/) (~50 min): the definitive empirical study of when LoRA matches full fine-tuning; also as a [TRL guide](https://huggingface.co/docs/trl/main/lora_without_regret) (docs, ~30 min).
 - [LoRA paper](../../papers/2021-06_lora/summary.md) and [QLoRA paper](../../papers/2023-05_qlora/summary.md).
-- [HF PEFT library docs](https://huggingface.co/docs/peft): the standard implementation of every method below.
-- [Sebastian Raschka: Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms): hyperparameter intuition.
+- [HF PEFT library docs](https://huggingface.co/docs/peft) (docs, ~40 min): the standard implementation of every method below.
+- [Sebastian Raschka: Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms) (~30 min): hyperparameter intuition.
 
 ## Why PEFT
 
@@ -28,8 +30,8 @@ reduced catastrophic forgetting since the base weights never move.
 4. **LoRA**: reparameterise the update of a frozen weight as low-rank:
    W = W0 + dW, dW = (alpha/r) * B A with A in R^{r x d} (random init) and
    B in R^{d x r} (zero init), so training starts at the base model. r is
-   typically 8-128. After training, dW merges into W0: **zero inference
-   overhead**. See [lora](../../papers/2021-06_lora/summary.md).
+   typically 8-128. After training, dW merges into W0: zero inference
+   overhead. See [lora](../../papers/2021-06_lora/summary.md).
 5. **QLoRA**: quantize the frozen base to 4-bit **NF4** (information-theoretically
    optimal for normal-distributed weights), with double quantization of the scales
    and paged optimizers; train LoRA adapters in bf16 on top, backpropagating

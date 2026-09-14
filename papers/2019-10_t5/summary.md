@@ -1,0 +1,77 @@
+# Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)
+
+⏱ 11 min read · +4h 12m resources
+
+- **Authors**: Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena, Yanqi Zhou, Wei Li, Peter J. Liu (Google)
+- **Date**: October 2019 (arXiv v1); published in JMLR 21(140), 2020
+- **Links**: [arXiv:1910.10683](https://arxiv.org/abs/1910.10683) (~1h 30m; 53 pages, read it as a survey rather than a paper) | [code and checkpoints](https://github.com/google-research/text-to-text-transfer-transformer) (repo, ~20 min for the README and entry path) | [C4 on TensorFlow Datasets](https://www.tensorflow.org/datasets/catalog/c4) (~5 min)
+
+## Best resources
+
+- [Exploring Transfer Learning with T5](https://research.google/blog/exploring-transfer-learning-with-t5-the-text-to-text-transfer-transformer/) (Google AI blog, Feb 2020) (~12 min): the authors' own short framing, the fastest way to get the shape of the paper before committing to it
+- [T5 model docs](https://huggingface.co/docs/transformers/model_doc/t5) (Hugging Face) (~25 min): practical, covers the sentinel-token convention and how to actually format inputs and targets, which the paper describes but never spells out at code level
+- [Released checkpoints](https://github.com/google-research/text-to-text-transfer-transformer/blob/main/released_checkpoints.md) (~10 min): the map of what "T5" means in practice now, including T5 1.1 (span corruption only, no multi-task pretraining, GeGLU feed-forward) and the LM-adapted variants; almost nobody should start from the original checkpoints
+- [mT5: A Massively Multilingual Pre-trained Text-to-Text Transformer](https://arxiv.org/abs/2010.11934) (2020) (~45 min): the same recipe on 101 languages via mC4, and the direct answer to T5's own weakest result
+- [Scaling Instruction-Finetuned Language Models](https://arxiv.org/abs/2210.11416) (Flan-T5, 2022) (~45 min): what happened when task prefixes were replaced by natural-language instructions across 1,800+ tasks, on T5 checkpoints
+
+## Problem
+
+By 2019 the pretrain-then-fine-tune recipe was clearly working, but the field had fragmented into variations nobody could compare. Papers differed simultaneously in pretraining objective (BERT's masked language modelling, GPT's left-to-right language modelling, XLNet's permutation objective), in architecture (encoder-only, decoder-only, prefix language model), in corpus (Wikipedia plus BooksCorpus, WebText, CC-News), in fine-tuning scheme, and in evaluation protocol. Each release changed several axes at once, so the reported gain could not be attributed to any one of them.
+
+T5's stated goal is explicitly not a new method. It is to build a single framework in which every one of those choices becomes a swappable component of one fixed pipeline, hold everything else constant, and run the resulting ablation grid at a scale large enough for the answers to mean something. A secondary problem it fixes along the way: there was no standard large clean pretraining corpus, because datasets were typically introduced as a side effect of a model release and often never published.
+
+## Method
+
+**The text-to-text framing.** Every task is cast as text in, text out, trained with plain maximum likelihood using teacher forcing and cross entropy, decoded greedily. A short task prefix in the input selects the task, for example `translate English to German: That is good.` producing `Das ist gut.` Classification emits the label as a word, so MNLI outputs the literal string `entailment`. STS-B, a regression task scoring similarity from 1 to 5, is rounded to increments of 0.2 and emitted as a string, which turns it into a 21-class problem. The Winograd tasks (WNLI, WSC, DPR) are rewritten so the ambiguous pronoun is marked with asterisks in the passage and the model generates the noun phrase it refers to. The payoff is that one model, one loss, one decoding procedure and one hyperparameter set cover translation, summarisation, question answering and classification, which is the only reason the ablations that follow are comparable.
+
+**The baseline model.** A standard encoder-decoder Transformer with encoder and decoder each sized like BERT-Base (12 blocks, d_model 768, d_ff 3072, 12 heads), about 220M parameters, roughly twice BERT-Base because there are two stacks. Three deliberate departures from Vaswani et al. 2017, all of which outlived the paper: layer normalisation is rescale-only with no additive bias and no mean subtraction (the same computation later standardised as RMSNorm), it sits outside the residual path rather than after it, and absolute position embeddings are replaced by a relative scheme reduced to its cheapest possible form, a single learned scalar added to each attention logit, drawn from 32 buckets whose ranges grow logarithmically up to an offset of 128 and are shared across all layers. The optimiser is Adafactor, which factorises Adam's second-moment matrix into row and column vectors so optimiser state costs a fraction of the memory, on an inverse-square-root learning-rate schedule. Tokenisation is SentencePiece with a 32k vocabulary shared between input and output, trained on English mixed 10:1:1:1 with German, French and Romanian so that translation targets are representable at all.
+
+Pretraining runs for 2^19 steps at 2^16 tokens per batch, about 34B tokens. That is roughly a quarter of BERT's budget and a sixtieth of RoBERTa's, chosen deliberately: the point is to afford dozens of variants, not to win a leaderboard. Fine-tuning is 2^18 steps per task, best checkpoint selected on validation.
+
+**Span corruption, the objective.** Sample 15% of tokens for corruption. Replace each consecutive run of corrupted tokens with a single sentinel token that is unique within that example, and make the target the dropped spans, each prefixed by the sentinel that replaced it, terminated by a final sentinel. The contrast with BERT-style masked language modelling is that the target is only the missing text, not a reconstruction of the whole sequence, so decoder sequences stay short and training is meaningfully cheaper. The final recipe corrupts contiguous spans of mean length 3 rather than making an independent decision per token, which shortens sequences further.
+
+**The ablation grid**, one axis moved at a time against that fixed baseline:
+
+- **Architecture.** Encoder-decoder with a denoising objective wins on every task. Sharing parameters between encoder and decoder costs almost nothing (GLUE 82.81 versus 83.28) and halves the parameter count, whereas halving the depth of both stacks hurts badly. A decoder-only prefix language model, which is a single stack with fully visible attention over the input and causal attention over the target, lands below the shared-parameter encoder-decoder, suggesting explicit cross-attention is worth having. A plain causal language model is far behind everything (GLUE 74.70, SQuAD 61.14).
+- **Objective.** Denoising beats language modelling beats deshuffling, and that gap is the only large one. Within the denoising family, BERT-style masking, MASS-style masking, replacing corrupted spans with sentinels, and dropping corrupted tokens entirely all perform about the same. Corruption rates of 10%, 15% and 25% are indistinguishable and 50% hurts; span lengths of 2, 3 and 5 are indistinguishable and 10 is slightly worse. The conclusion the authors draw is that you should choose among denoising variants on computational cost, not quality, and that further tinkering in this space is unlikely to pay.
+- **Data.** C4 is 745GB of English text from one month (April 2019) of Common Crawl, filtered with blunt heuristics: keep only lines ending in terminal punctuation, drop pages under 5 sentences, drop pages containing a curly brace (a cheap code detector), drop pages with placeholder or offensive text, drop any repeated three-sentence span, keep only pages a language detector calls English with probability 0.99. Removing that filtering gives 6.1TB and the worst scores on every single task, which is the paper's cleanest data lesson. In-domain corpora beat C4 where domains match, for example Wikipedia plus Toronto Books lifts SuperGLUE to 73.24 almost entirely through MultiRC, whose source is fiction. That is unsurprising and unhelpful if you want one general model.
+- **Data repetition.** Truncating C4 and looping over it: 64 repeats is harmless, 1,024 repeats costs about 4 GLUE points and 4.6 on SQuAD, and training loss falls as the dataset shrinks, which is the memorisation signature.
+- **Fine-tuning strategy.** Updating all parameters wins. Adapter layers (small dense-ReLU-dense blocks inserted after each feed-forward network, with only those and the layer norms trained) work only when the inner dimension is scaled to the size of the task. Gradual unfreezing costs a little accuracy and buys some speed.
+- **Multi-task learning.** In this framework multi-task training is just mixing datasets, since there are no task-specific heads. Equal mixing is a disaster. Examples-proportional mixing with an artificial cap K on each dataset's counted size has a sweet spot, and temperature-scaled mixing with T=2 is a reasonable single-knob alternative. Multi-task training alone still loses to pretrain-then-fine-tune, but multi-task pretraining followed by per-task fine-tuning matches it, and leaving a task out of the pretraining mixture barely hurts it afterwards, so task interference is mild.
+- **Scaling.** Given 4x the compute of the baseline: 4x steps, 4x batch size, 2x model with 2x steps, and 4x model at baseline steps all help, with model size giving a slightly bigger bump than time alone, and 2x-size-2x-steps indistinguishable from 4x-size. Ensembling four separately trained models is an orthogonal win and beats every single-model scaling route on summarisation and translation.
+
+**The final models.** Everything above combined: span corruption at mean length 3, C4, multi-task pretraining then per-task fine-tuning, 1M steps at a batch of 2^11 sequences of 512 tokens, about 1 trillion tokens, 32x the ablation baseline. Five sizes: Small 60M, Base 220M, Large 770M, 3B and 11B. The two largest scale d_ff (to 16,384 and 65,536) and head count rather than depth, because large dense matrix multiplications are what TPUs run efficiently.
+
+## Results
+
+- **GLUE**: 90.3 average for T5-11B, state of the art at publication.
+- **SuperGLUE**: 88.9, against a human baseline of 89.8. This was the headline, and it stood until DeBERTa passed the human number in early 2021 with a 1.5B model, which is itself a useful data point about parameter efficiency.
+- **SQuAD**: about 90 exact match and 96 F1, state of the art.
+- **CNN/Daily Mail** summarisation: state of the art.
+- **WMT translation**: not state of the art on any pair. The authors attribute this to English-only pretraining and to not using backtranslation, both of which the leading translation systems relied on. mT5 was the direct follow-up.
+
+The benchmark numbers are the least durable part of the paper. The result that aged well is the ablation table: a controlled, same-pipeline measurement of what each design choice is actually worth, which is why the paper still gets cited for its negative findings (corruption rate barely matters, denoising variants barely differ, multi-task alone underperforms) as often as for T5 itself.
+
+## Why it matters
+
+**C4 became infrastructure.** It was the first large web corpus released together with its cleaning pipeline rather than described and withheld, and it went on to pretrain a long list of models that have nothing to do with T5. Its filtering heuristics, crude as they are, became the template that later corpora (The Pile, RefinedWeb, Dolma, FineWeb) argued with rather than ignored, and the finding that filtering beats raw volume is now assumed.
+
+**Span corruption became the default encoder-decoder objective**, carried into mT5, ByT5, LongT5 and UL2, and it is still what you reach for when pretraining a sequence-to-sequence model.
+
+**Text-to-text framing became universal, and prefigured instruction tuning.** T5's task prefixes are a hard-coded, fixed-vocabulary ancestor of the natural-language instruction: FLAN and Flan-T5 kept the framing and replaced the prefixes with free-form instructions across thousands of tasks, which is the direct line from this paper to how models are post-trained today.
+
+**The encoder-decoder finding lost, and it is worth knowing why.** At matched compute T5 measured encoder-decoder above decoder-only, and the field went decoder-only regardless. The reasons are ones T5 does not test: in-context learning arrived a year later with GPT-3 and rewarded a single causal stack, serving a decoder is simpler (one KV cache, no encoder pass), and prompt-and-continue unified training with inference. Ettin (2025) is the modern compute-matched rerun of the same question and finds the split is task-dependent rather than settled.
+
+**Architectural details leaked everywhere.** Rescale-only layer norm outside the residual path, relative position bias as a shared learned scalar, and Adafactor were all popularised at scale here. The relative-position-bias scheme in particular is still what you find in T5 descendants and in several retrieval encoders.
+
+**The checkpoints are still load-bearing in 2026.** The T5 size ladder (Small through XXL) is still the naming convention for Flan-T5, and the T5 encoder on its own is still the text conditioner in a string of image and video generation models including Imagen, Stable Diffusion 3 and Flux, where what you need is a strong frozen text representation rather than a generator.
+
+## Connections
+
+- `papers/2018-10_bert`: T5's denoising objective is a modified BERT masked-LM, and the architecture ablation here is largely a controlled test of BERT's encoder-only assumption against the alternatives
+- `papers/2020-05_gpt-3`: published seven months later and pointing the opposite way, replacing fine-tuning with in-context learning on a decoder-only stack; the two papers together are the fork in the road
+- `papers/2021-01_switch-transformer`: built directly on this setup, using T5-Base and T5-Large on C4 with span corruption as its dense control, and reporting its 7x speedup relative to them
+- `papers/2025-07_ettin`: the modern compute-matched encoder versus decoder comparison, revisiting T5's architecture ablation with a 2025 recipe
+- `papers/2022-03_chinchilla`: T5's scaling section asks the same question (given more compute, buy size or steps) informally and at a fixed 4x budget; Chinchilla answers it with a fitted law
+- `papers/2020-05_rag`: contemporaneous, and the counterpoint on knowledge, storing facts in a swappable index rather than in the weights T5 scaled up
+- Topics: `topics/llm-training-and-post-training` (pretraining objectives, multi-task mixing, transfer learning), `topics/data-curation-and-datasets` (C4, filtering, data repetition), `topics/llms` (the encoder-decoder lineage)

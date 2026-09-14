@@ -1,14 +1,16 @@
 # The retrieval pipeline: chunking, hybrid search, query transformation, reranking
 
+⏱ 7 min read · +1h 44m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [Anthropic: Contextual Retrieval](https://www.anthropic.com/news/contextual-retrieval): the canonical writeup; contextual embeddings + contextual BM25 + reranking cut retrieval failures ~67%.
-- [Jina: Late Chunking](https://jina.ai/news/late-chunking-in-long-context-embedding-models/): embed the whole document first, pool per chunk afterwards.
-- [Hybrid search reference 2026 (Digital Applied)](https://www.digitalapplied.com/blog/hybrid-search-bm25-vector-reranking-reference-2026): BM25 + vector + reranking as a pipeline, with tuning numbers.
-- [Reconstructing Context: evaluating advanced chunking (arXiv 2504.19754)](https://arxiv.org/pdf/2504.19754): empirical comparison of chunking strategies.
-- [Reranker comparison: Cohere vs Voyage vs Jina vs BGE (Particula)](https://particula.tech/blog/reranker-models-compared-cohere-voyage-jina-bge-latency-ndcg): latency vs nDCG numbers.
+- [Anthropic: Contextual Retrieval](https://www.anthropic.com/news/contextual-retrieval) (~15 min): the canonical writeup; contextual embeddings + contextual BM25 + reranking cut retrieval failures ~67%.
+- [Jina: Late Chunking](https://jina.ai/news/late-chunking-in-long-context-embedding-models/) (~12 min): embed the whole document first, pool per chunk afterwards.
+- [Hybrid search reference 2026 (Digital Applied)](https://www.digitalapplied.com/blog/hybrid-search-bm25-vector-reranking-reference-2026) (~20 min): BM25 + vector + reranking as a pipeline, with tuning numbers.
+- [Reconstructing Context: evaluating advanced chunking (arXiv 2504.19754)](https://arxiv.org/pdf/2504.19754) (45 min): empirical comparison of chunking strategies.
+- [Reranker comparison: Cohere vs Voyage vs Jina vs BGE (Particula)](https://particula.tech/blog/reranker-models-compared-cohere-voyage-jina-bge-latency-ndcg) (~12 min): latency vs nDCG numbers.
 
 The 2026 production default, in one line: contextualized chunks -> hybrid BM25 + dense
 retrieval -> RRF fusion -> metadata filtering -> cross-encoder rerank of top 50-150 ->

@@ -1,11 +1,13 @@
 # Continued Pretraining (CPT)
 
+⏱ 5 min read · +3h 30m resources
+
 ## Best resources
 
-- [Simple and Scalable Strategies to Continually Pre-train LLMs (Ibrahim et al., 2024)](https://arxiv.org/abs/2403.08763): the reference empirical study: LR re-warming, re-decaying, and replay match full retraining.
-- [CMR Scaling Law paper (Gu et al., EMNLP 2024)](https://arxiv.org/abs/2407.17467): predicting the critical domain/general mixture ratio for CPT.
-- [Continued Pre-Training overview (Emergent Mind)](https://www.emergentmind.com/topics/continued-pre-training-cpt): living survey of CPT findings through 2026.
-- [D-CPT Law (NeurIPS 2024)](https://arxiv.org/abs/2406.01375): scaling-law approach to choosing the domain mixture ratio.
+- [Simple and Scalable Strategies to Continually Pre-train LLMs (Ibrahim et al., 2024)](https://arxiv.org/abs/2403.08763) (90 min): the reference empirical study: LR re-warming, re-decaying, and replay match full retraining.
+- [CMR Scaling Law paper (Gu et al., EMNLP 2024)](https://arxiv.org/abs/2407.17467) (45 min): predicting the critical domain/general mixture ratio for CPT.
+- [Continued Pre-Training overview (Emergent Mind)](https://www.emergentmind.com/topics/continued-pre-training-cpt) (~30 min): living survey of CPT findings through 2026.
+- [D-CPT Law (NeurIPS 2024)](https://arxiv.org/abs/2406.01375) (45 min): scaling-law approach to choosing the domain mixture ratio.
 
 ## What and why
 

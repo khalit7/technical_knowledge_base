@@ -1,9 +1,40 @@
 # PyTorch Ecosystem
 
+⏱ 8 min read · +2h 45m resources
+
 Last verified: 2026-08-24. Current stable: **PyTorch 2.13.0** (July 2026).
 
-Map of the stack: core runtime, compiler, distributed training, performance libraries,
-the training-framework layer on top, and deployment paths.
+Map of the stack, in the order a tensor meets it, because the diagram below is otherwise
+a wall of proper nouns.
+
+**Core** is the eager runtime. **ATen** is the C++ tensor library every operator is
+implemented against. The **dispatcher** picks which implementation of an operator to call
+for a given device, dtype and autograd state, and is the extension point every backend,
+every custom op and every tensor subclass hooks into; understanding it is what makes
+torchao and DTensor stop looking like magic. **Autograd** is the tape that records those
+dispatched calls so backward can replay them.
+
+**Compilation** replaces op-by-op interpretation with generated code. **TorchDynamo**
+captures Python bytecode into an FX graph plus a set of guards (assumptions about shapes,
+dtypes and object identity that are rechecked on every call). **AOTAutograd** traces
+forward and backward together into one joint graph ahead of time and partitions it into
+what to save versus what to recompute. **TorchInductor** lowers that graph to fused
+**Triton** kernels on GPU and C++/OpenMP on CPU. `torch.export` is the strict, full-graph
+version of the capture step, meant for serialisation rather than for falling back to
+eager, and **AOTInductor** compiles an exported graph into a standalone shared library
+callable from C++ with no Python in the loop.
+
+**Distributed** is built on **c10d**, the process-group layer wrapping the NCCL and Gloo
+collective libraries, and on **DTensor**, a tensor that carries a device mesh plus a
+per-dimension placement (sharded on dim d, replicated, or pending reduction). FSDP2,
+tensor parallel, pipelining and distributed checkpointing are all expressed in terms of
+DTensor, which is precisely why they compose with each other and with compile.
+
+**Performance** is the attention and precision layer (SDPA backend selection,
+FlexAttention, torchao) plus the profiling tools. **Training frameworks** wrap all of the
+above into a loop you do not have to write. **Deployment** is where a trained model
+leaves the ecosystem: ExecuTorch for on-device, ONNX export for other vendors' runtimes,
+vLLM for serving.
 
 ![Taxonomy diagram](taxonomy.svg)
 
@@ -72,51 +103,73 @@ graph TD
 
 | Release | Date | Headlines |
 |---|---|---|
-| 2.9 | Oct 2025 | Symmetric memory (NVLink-domain tensors), Python >= 3.10 floor, wheel variants |
-| 2.10 | Jan 2026 | Python 3.14, `varlen_attn()` for ragged sequences, Inductor combo-kernel fusion |
-| 2.11 | Mar 2026 | **FSDP1 formally deprecated**, differentiable collectives, FlashAttention-4 SDPA backend on Hopper/Blackwell |
-| 2.12 | May 2026 | `torch.accelerator.Graph` (device-neutral CUDA-graph API), fused Adagrad, batched `linalg.eigh` |
-| 2.13 | Jul 2026 | FlexAttention on Apple Silicon (MPS), CuTeDSL Inductor backend, `nn.LinearCrossEntropyLoss` (fused, memory-saving), Python 3.15 |
+| 2.9 | Oct 2025 | **Symmetric memory**: tensors placed at the same virtual address on every GPU in an NVLink domain, so a kernel can read a peer's memory directly and custom fused collectives can beat NCCL on small messages. Python >= 3.10 floor; wheel variants (one wheel per accelerator build) |
+| 2.10 | Jan 2026 | Python 3.14. `varlen_attn()`: attention over packed variable-length sequences addressed by a cumulative-length index instead of padding, the `flash_attn_varlen` equivalent in core. Inductor **combo-kernel fusion**: horizontally fusing many independent small kernels into one launch to cut launch overhead |
+| 2.11 | Mar 2026 | **FSDP1 formally deprecated** in favour of the `fully_shard` API. **Differentiable collectives**: autograd now flows through explicit DTensor redistributions, so writing a manual all-gather or reduce-scatter no longer severs the backward pass. FlashAttention-4 SDPA backend on Hopper/Blackwell |
+| 2.12 | May 2026 | `torch.accelerator.Graph`: capture a whole launch sequence once and replay it as a unit (the CUDA-graph idea, generalised across accelerator backends), removing per-kernel CPU launch cost for shape-stable workloads. Fused Adagrad; batched `linalg.eigh` |
+| 2.13 | Jul 2026 | FlexAttention on Apple Silicon (MPS). **CuTeDSL Inductor backend**: Inductor can emit CUTLASS CuTe kernels as well as Triton, reaching Blackwell tensor-core features Triton does not expose. `nn.LinearCrossEntropyLoss` fuses the lm-head matmul into the loss so the [batch, seq, vocab] logits tensor is never materialised, usually the single largest activation in a large-vocab LLM. Python 3.15 |
 
 Cadence is roughly one minor release per quarter.
 
 ## Governance and repo shuffle worth knowing
 
-- The PyTorch Foundation is a multi-project umbrella hosting six projects: PyTorch,
-  vLLM, DeepSpeed, Ray, Helion, and Safetensors.
-- Meta-owned satellite libraries moved from `pytorch/*` to the `meta-pytorch` GitHub org
-  (torchtitan, torchtune, torchforge, monarch).
-- torchtune is **discontinued** (mid-2025); its successor torchforge (RL post-training)
-  then also paused, with Meta consolidating LLM training into **torchtitan**.
-  Details in [hf-and-training-frameworks.md](hf-and-training-frameworks.md).
-- Helion: a PyTorch-hosted high-level kernel DSL (compiles to Triton, CuTeDSL, and
-  Pallas backends; NVIDIA, AMD, and TPU targets). Sits between `torch.compile` and
-  hand-written Triton; prebuilt kernels ship on the HF Kernels Hub.
-- ExecuTorch hit 1.0 (Oct 2025): out of beta, multimodal on-device LLMs, torchao
-  quantization integration, Arm/Apple/Qualcomm/NVIDIA backends.
+- The **PyTorch Foundation** stopped being the home of one library and became a
+  multi-project umbrella, which is worth knowing because it tells you where the ecosystem
+  expects its centre of gravity to be. It now hosts six projects: **PyTorch** itself;
+  **vLLM**, the default open-source LLM serving engine; **DeepSpeed**, Microsoft's
+  training library and the original implementation of ZeRO optimiser-state and parameter
+  sharding, still the main alternative engine to FSDP2; **Ray**, the distributed-execution
+  framework whose actor model underpins most RL rollout, batch-inference and
+  hyperparameter stacks; **Helion**, the kernel DSL described below; and **Safetensors**,
+  the zero-copy tensor container that replaced pickle checkpoints across the ecosystem.
+- Meta's satellite libraries moved from the `pytorch/*` GitHub org to a separate
+  `meta-pytorch` org, a rename that draws the line between community-governed projects
+  and Meta-owned ones. The four that moved: **torchtitan**, the n-D-parallel pretraining
+  reference; **torchtune**, fine-tuning recipes; **torchforge**, RL post-training; and
+  **monarch**, an experiment in single-controller cluster programming, where one Python
+  process drives the whole job as if it were a single machine instead of every rank
+  re-executing the same script.
+- Of those, **torchtune** is **discontinued** (mid-2025) and its intended RL successor
+  **torchforge** is **paused**, with Meta consolidating LLM training into **torchtitan**.
+  The practical reading: PyTorch-native training now means torchtitan plus the core APIs,
+  and starting a project on torchtune or torchforge is starting on a dead branch. Details
+  in [hf-and-training-frameworks.md](hf-and-training-frameworks.md) (8 min read · +3h 50m
+  resources).
+- **Helion** is a high-level kernel DSL hosted by PyTorch. You write a kernel at roughly
+  the level of a tiled loop nest in Python and the compiler autotunes the tiling, memory
+  layout and pipelining decisions that Triton makes you commit to by hand. It compiles to
+  Triton, CuTeDSL and Pallas, so one source targets NVIDIA, AMD and TPU. Positionally it
+  sits between `torch.compile`, which decides everything for you and occasionally decides
+  badly, and hand-written Triton, which decides nothing for you; prebuilt Helion kernels
+  ship on the Hugging Face Kernels Hub, so you can pull one at runtime instead of
+  compiling locally.
+- **ExecuTorch** is on-device PyTorch: a `torch.export`ed graph lowered to a flatbuffer
+  program plus per-backend delegate blobs, executed by a small C++ runtime with no Python
+  and no dynamic dispatch. It hit **1.0** in Oct 2025: out of beta, multimodal on-device
+  LLMs, torchao quantization integration, and Arm, Apple, Qualcomm and NVIDIA backends.
 
 ## Deep dives in this folder
 
 | File | What it covers |
 |---|---|
-| [torch-compile.md](torch-compile.md) | Dynamo capture (guards, graph breaks), AOTAutograd, Inductor/Triton codegen, modes, CUDA graphs, compiled autograd, regional compilation, TORCH_LOGS debugging |
-| [distributed-pytorch.md](distributed-pytorch.md) | DDP internals, FSDP1 vs FSDP2, DTensor and DeviceMesh, HSDP, TP/SP/PP/CP, torchrun/elastic, NCCL debugging |
-| [performance-stack.md](performance-stack.md) | SDPA backends, FlexAttention, torchao (quant/fp8/sparsity), memory snapshot, activation checkpointing, torch.profiler |
-| [hf-and-training-frameworks.md](hf-and-training-frameworks.md) | transformers v5, accelerate, PEFT, TRL, datasets; torchtitan vs torchtune vs Axolotl vs Lightning; when to use which |
+| [torch-compile.md](torch-compile.md) (9 min read · +3h 50m resources) | Dynamo capture (guards, graph breaks), AOTAutograd, Inductor/Triton codegen, modes, CUDA graphs, compiled autograd, regional compilation, TORCH_LOGS debugging |
+| [distributed-pytorch.md](distributed-pytorch.md) (9 min read · +4h 5m resources) | DDP internals, FSDP1 vs FSDP2, DTensor and DeviceMesh, HSDP, TP/SP/PP/CP, torchrun/elastic, NCCL debugging |
+| [performance-stack.md](performance-stack.md) (9 min read · +3h 5m resources) | SDPA backends, FlexAttention, torchao (quant/fp8/sparsity), memory snapshot, activation checkpointing, torch.profiler |
+| [hf-and-training-frameworks.md](hf-and-training-frameworks.md) (8 min read · +3h 50m resources) | transformers v5, accelerate, PEFT, TRL, datasets; torchtitan vs torchtune vs Axolotl vs Lightning; when to use which |
 
 ## Adjacent topics and papers
 
 - Kernels and the Triton language itself: [../cuda-and-gpu-programming/](../cuda-and-gpu-programming/)
 - Parallelism theory (ZeRO, TP/PP/EP math): [../llm-training-and-post-training/](../llm-training-and-post-training/)
 - Serving (vLLM, SGLang): [../inference-and-serving/](../inference-and-serving/)
-- Paper: [FlashAttention (2022)](../../papers/2022-05_flashattention/summary.md), the
+- Paper: [FlashAttention (2022)](../../papers/2022-05_flashattention/summary.md) (45 min), the
   algorithm behind the SDPA flash backend and the mental model FlexAttention generalises.
 
 ## Best entry points into the whole ecosystem
 
-- [PyTorch release blog index](https://pytorch.org/blog/) and monthly
-  [newsletter](https://pytorch.org/newsletter/august-2026/): fastest way to track the 2.x line.
-- [PyTorch dev-discuss](https://dev-discuss.pytorch.org/): where compiler and distributed
+- [PyTorch release blog index](https://pytorch.org/blog/) (blog index, ~20 min) and monthly
+  [newsletter](https://pytorch.org/newsletter/august-2026/) (10 min): fastest way to track the 2.x line.
+- [PyTorch dev-discuss](https://dev-discuss.pytorch.org/) (forum, ~30 min for the current front page): where compiler and distributed
   design discussions actually happen (RFCs, release announcements).
-- [torchtitan repo](https://github.com/pytorch/torchtitan): the reference for composing
+- [torchtitan repo](https://github.com/pytorch/torchtitan) (repo, ~1h for the entry path): the reference for composing
   FSDP2 + TP + PP + torch.compile in anger; effectively executable documentation.

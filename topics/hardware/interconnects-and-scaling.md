@@ -1,14 +1,16 @@
 # Interconnects and scaling: why the network picks your parallelism
 
+⏱ 6 min read · +3h resources
+
 Last updated: 2026-08-24.
 
 ## Best resources
 
-- [How To Scale Your Model: All About Rooflines](https://jax-ml.github.io/scaling-book/roofline/) and the sharding chapters: communication rooflines done properly
-- [GPU Interconnects and Rack-Scale Topology: the complete guide](https://blog.prompt20.com/posts/nvlink-and-rack-scale-topology/): NVLink/NVSwitch/NVL72 in one place
-- [Nebius: leveraging GB200 NVL72 interconnect](https://nebius.com/blog/posts/leveraging-nvidia-gb200-nvl72-gpu-interconnect): practical NVL72 numbers
-- [SemiAnalysis: 100k H100 cluster series](https://newsletter.semianalysis.com/p/100000-h100-clusters-power-network): network design, rail optimisation, reliability at scale
-- [NCCL documentation](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html): what the collectives actually do
+- [How To Scale Your Model: All About Rooflines](https://jax-ml.github.io/scaling-book/roofline/) (~45 min) and the sharding chapters: communication rooflines done properly
+- [GPU Interconnects and Rack-Scale Topology: the complete guide](https://blog.prompt20.com/posts/nvlink-and-rack-scale-topology/) (~35 min): NVLink/NVSwitch/NVL72 in one place
+- [Nebius: leveraging GB200 NVL72 interconnect](https://nebius.com/blog/posts/leveraging-nvidia-gb200-nvl72-gpu-interconnect) (~15 min): practical NVL72 numbers
+- [SemiAnalysis: 100k H100 cluster series](https://newsletter.semianalysis.com/p/100000-h100-clusters-power-network) (~45 min): network design, rail optimisation, reliability at scale
+- [NCCL documentation](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) (docs, ~40 min for the core pages): what the collectives actually do
 
 ## The hierarchy of bandwidth
 
@@ -87,7 +89,7 @@ per step (overlappable); PP communicates one activation tensor per stage boundar
   otherwise use DP for fine-tuning or PP/offload to fit bigger models. Same logic,
   smaller machine.
 - Full parallelism math and implementations:
-  [../llm-training-and-post-training/](../llm-training-and-post-training/summary.md)
+  [../llm-training-and-post-training/](../llm-training-and-post-training/)
   and [../jax-and-tpu/sharding-and-scale.md](../jax-and-tpu/sharding-and-scale.md).
 
 ## Quick sanity numbers

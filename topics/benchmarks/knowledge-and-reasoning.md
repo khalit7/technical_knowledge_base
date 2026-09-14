@@ -1,23 +1,25 @@
 # Knowledge and reasoning benchmarks: MMLU family, GPQA, HLE, ARC-AGI
 
+⏱ 10 min read · +7h 5m resources
+
 Last updated: 2026-08-24.
 
 ## Best resources
 
-- [MMLU paper (Hendrycks et al., 2020)](https://arxiv.org/abs/2009.03300) and [MMLU-Pro (2024)](https://arxiv.org/abs/2406.01574)
-- [GPQA paper (Rein et al., 2023)](https://arxiv.org/abs/2311.12022); [Epoch AI GPQA Diamond tracker](https://epoch.ai/benchmarks/gpqa-diamond)
-- [HLE paper (Phan et al., 2025)](https://arxiv.org/abs/2501.14249); official leaderboard at [lastexam.ai](https://lastexam.ai) / [Scale labs](https://labs.scale.com/leaderboard/humanitys_last_exam)
-- [FutureHouse: about 30% of HLE answers are wrong](https://www.futurehouse.org/research/hle-exam); [HLE-Verified (2026)](https://arxiv.org/abs/2602.13964)
-- [On the Measure of Intelligence (Chollet, 2019)](https://arxiv.org/abs/1911.01547); [ARC Prize site](https://arcprize.org) for ARC-AGI-1/2/3 rules and leaderboards
-- [MMLU-Redux / "Are We Done with MMLU?" (2024)](https://arxiv.org/abs/2406.04127) for MMLU errata
+- [MMLU paper (Hendrycks et al., 2020)](https://arxiv.org/abs/2009.03300) (45 min) and [MMLU-Pro (2024)](https://arxiv.org/abs/2406.01574) (45 min)
+- [GPQA paper (Rein et al., 2023)](https://arxiv.org/abs/2311.12022) (45 min); [Epoch AI GPQA Diamond tracker](https://epoch.ai/benchmarks/gpqa-diamond) (~10 min)
+- [HLE paper (Phan et al., 2025)](https://arxiv.org/abs/2501.14249) (45 min); official leaderboard at [lastexam.ai](https://lastexam.ai) (~10 min) / [Scale labs](https://labs.scale.com/leaderboard/humanitys_last_exam) (~10 min)
+- [FutureHouse: about 30% of HLE answers are wrong](https://www.futurehouse.org/research/hle-exam) (~15 min); [HLE-Verified (2026)](https://arxiv.org/abs/2602.13964) (45 min)
+- [On the Measure of Intelligence (Chollet, 2019)](https://arxiv.org/abs/1911.01547) (90 min, 60+ pages); [ARC Prize site](https://arcprize.org) (~20 min) for ARC-AGI-1/2/3 rules and leaderboards
+- [MMLU-Redux / "Are We Done with MMLU?" (2024)](https://arxiv.org/abs/2406.04127) (45 min) for MMLU errata
 
 ## MMLU family
 
 **MMLU (2020)**: 15,908 four-option MCQs across 57 subjects, scraped from exams and study
 guides. Metric: accuracy, historically 5-shot without CoT; modern reports use 0-shot CoT.
 Random chance 25%. It defined 2021-2023 model comparisons (GPT-4's 86.4% was a headline).
-
 Known issues, all documented:
+
 - **Errata**: MMLU-Redux found ~6.5% of questions have errors (wrong gold labels,
   ambiguous or unanswerable items); the virology subset is notoriously bad (~57% flawed).
 - **Contamination**: questions come from public web sources; verbatim and paraphrase

@@ -1,15 +1,17 @@
 # Performance math: the arithmetic before every run
 
+⏱ 7 min read · +2h 40m resources
+
 Last updated: 2026-08-24. Every number here is a 30-second pencil estimate; do
 these before launching anything, then let the profiler correct you.
 
 ## Best resources
 
-- [Transformer Math 101](https://blog.eleuther.ai/transformer-math/) (EleutherAI): training FLOPs and memory budgets
-- [Transformer Inference Arithmetic](https://kipp.ly/transformer-inference-arithmetic/) (kipply): the inference-side counterpart, KV cache and latency math
-- [How To Scale Your Model: All About Rooflines](https://jax-ml.github.io/scaling-book/roofline/): rooflines for compute, memory, and network
-- [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (Horace He): compute vs bandwidth vs overhead bound, with intuition
-- [PaLM paper, Appendix B](https://arxiv.org/abs/2204.02311): the original MFU definition
+- [Transformer Math 101](https://blog.eleuther.ai/transformer-math/) (~35 min) (EleutherAI): training FLOPs and memory budgets
+- [Transformer Inference Arithmetic](https://kipp.ly/transformer-inference-arithmetic/) (~40 min) (kipply): the inference-side counterpart, KV cache and latency math
+- [How To Scale Your Model: All About Rooflines](https://jax-ml.github.io/scaling-book/roofline/) (~45 min): rooflines for compute, memory, and network
+- [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (25 min) (Horace He): compute vs bandwidth vs overhead bound, with intuition
+- [PaLM paper, Appendix B](https://arxiv.org/abs/2204.02311) (~15 min for the appendix; 90 min for the full paper): the original MFU definition
 
 ## 1. FLOPs: the 6ND rule
 
@@ -47,7 +49,7 @@ layers, 8 KV heads, d 128, bf16): 2 x 32 x 8 x 128 x 2 = **128 KB/token**, so an
 8K-token conversation holds 1 GB and 32 concurrent 8K streams on a 5090 would
 want 32 GB for cache alone: this is why serving quantises KV to FP8 and why GQA
 (8 heads not 32) exists. Details:
-[../inference-and-serving/](../inference-and-serving/summary.md).
+[../inference-and-serving/](../inference-and-serving/).
 
 Immediate corollaries for Khalid's hardware: full fine-tune of 8B (128 GB) does
 not fit two 5090s (64 GB) without ZeRO-offload; LoRA/QLoRA fits comfortably.
@@ -82,10 +84,10 @@ bound, below it bandwidth bound.
 ## 4. Inference tokens/sec
 
 Decode at low batch: every token reads all weights plus the KV cache once, so
-
 **tokens/sec ceiling = bandwidth / (weight bytes + KV bytes per token read)**
 
 5090, Llama-3.1-8B:
+
 - FP8 weights (8 GB), short context: 1,790 / 8 = **~224 tok/s** single-stream
   ceiling; expect 60-80% of it in vLLM/TensorRT-LLM, so ~140-180 tok/s.
 - FP4 weights (4 GB): ceiling ~450 tok/s; kernels are newer, expect a bigger gap.
@@ -94,6 +96,7 @@ Decode at low batch: every token reads all weights plus the KV cache once, so
 
 8 x H100 node, 70B bf16, TP=8: aggregate 26.8 TB/s / 140 GB = **~190 tok/s**
 single-stream ceiling (minus NVLink all-reduce time each layer; real ~120-150).
+
 Throughput serving is a different game: raise batch until AI approaches the
 critical value (~300 concurrent decode tokens on H100 BF16), at which point
 tokens/sec ~ peak FLOPs / 2N: 7.9e15 x 0.5 (achievable) / 1.6e10 = ~250k tok/s

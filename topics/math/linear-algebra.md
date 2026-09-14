@@ -1,13 +1,15 @@
 # Linear algebra for ML
 
+⏱ 9 min read · +8h 15m resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [Mathematics for Machine Learning, ch. 2-4](https://mml-book.github.io/) (Deisenroth, Faisal, Ong; free PDF): vector spaces, norms, decompositions, matrix calculus, in exactly the notation used below.
-- [The Matrix Calculus You Need For Deep Learning](https://explained.ai/matrix-calculus/) (Parr and Howard): Jacobians, layout conventions, chain rules for vectors.
-- [The Matrix Cookbook](https://www.math.uwaterloo.ca/~hwolkowi/matrixcookbook.pdf) (Petersen and Pedersen): lookup table for derivatives, inverses, decompositions; do not memorise, bookmark.
-- [3Blue1Brown, Essence of Linear Algebra](https://www.3blue1brown.com/topics/linear-algebra): geometric intuition for span, determinants, eigenvectors.
+- [Mathematics for Machine Learning, ch. 2-4](https://mml-book.github.io/) (book, ~3h 15m for ch. 2-4): Deisenroth, Faisal, Ong; free PDF. Vector spaces, norms, decompositions, matrix calculus, in exactly the notation used below.
+- [The Matrix Calculus You Need For Deep Learning](https://explained.ai/matrix-calculus/) (~1h 30m): Parr and Howard; paper-length article. Jacobians, layout conventions, chain rules for vectors.
+- [The Matrix Cookbook](https://www.math.uwaterloo.ca/~hwolkowi/matrixcookbook.pdf) (reference, ~30 min to skim the identities you actually use): Petersen and Pedersen; lookup table for derivatives, inverses, decompositions; do not memorise, bookmark.
+- [3Blue1Brown, Essence of Linear Algebra](https://www.3blue1brown.com/topics/linear-algebra) (video series, ~3h): geometric intuition for span, determinants, eigenvectors.
 
 ## Vector spaces, rank, and the mental model
 
@@ -43,14 +45,16 @@ Key facts:
 
 - Spectral theorem: real symmetric matrices have real eigenvalues and orthonormal eigenvectors. Covariances and Hessians are symmetric, so this applies constantly.
 - SVD relates to eigen: $A^\top A = V \Sigma^2 V^\top$, $AA^\top = U \Sigma^2 U^\top$. Singular values are always real and nonnegative even when eigenvalues are not defined.
-- Condition number $\kappa(A) = \sigma_{\max}/\sigma_{\min}$: large $\kappa$ means ill-conditioned; for optimisation, $\kappa$ of the Hessian governs gradient descent's convergence rate (see calculus-and-optimisation.md).
+- Condition number $\kappa(A) = \sigma_{\max}/\sigma_{\min}$: large $\kappa$ means ill-conditioned; for optimisation, $\kappa$ of the Hessian governs gradient descent's convergence rate (see [calculus-and-optimisation.md](calculus-and-optimisation.md)).
 - PCA is the eigendecomposition of the covariance $\frac{1}{n}X^\top X$, equivalently the SVD of the centred data matrix.
 
 ## Low-rank approximation and LoRA
 
 Eckart-Young-Mirsky: the best rank-$k$ approximation of $A$ in Frobenius or spectral norm is the truncated SVD
 
-$$A_k = \sum_{i=1}^{k} \sigma_i u_i v_i^\top, \qquad \|A - A_k\|_2 = \sigma_{k+1}.$$
+$$
+A_k = \sum_{i=1}^{k} \sigma_i u_i v_i^\top, \qquad \|A - A_k\|_2 = \sigma_{k+1}.
+$$
 
 So singular values tell you exactly how much you lose by compressing. LoRA's move: instead of learning a full update $\Delta W \in \mathbb{R}^{d \times d}$ during fine-tuning, parameterise $\Delta W = BA$ with $B \in \mathbb{R}^{d \times r}$, $A \in \mathbb{R}^{r \times d}$, $r \ll d$: a hard rank-$r$ constraint, cutting trainable params from $d^2$ to $2dr$. It works because task-adaptation updates have low "intrinsic rank". Same idea underlies low-rank KV compression (DeepSeek MLA) and low-rank gradient projection (GaLore).
 
@@ -65,18 +69,18 @@ Practical rule: derive in numerator layout (chain rule is clean), then remember 
 
 ## Jacobians and Hessians
 
-- Jacobian of $f: \mathbb{R}^n \to \mathbb{R}^m$: $J_{ij} = \partial f_i / \partial x_j$. Backprop never materialises $J$; it computes vector-Jacobian products $v^\top J$ (see calculus-and-optimisation.md).
+- Jacobian of $f: \mathbb{R}^n \to \mathbb{R}^m$: $J_{ij} = \partial f_i / \partial x_j$. Backprop never materialises $J$; it computes vector-Jacobian products $v^\top J$ (see [calculus-and-optimisation.md](calculus-and-optimisation.md)).
 - Hessian of scalar $f$: $H_{ij} = \partial^2 f / \partial x_i \partial x_j$, symmetric (Schwarz). Positive definite $\Rightarrow$ local min; eigenvalues are curvatures along eigenvector directions.
 
 Gradients worth knowing cold (numerator layout, $x$ vector, $A$ constant):
 
 - $\nabla_x (a^\top x) = a$
 - $\nabla_x (x^\top A x) = (A + A^\top)x$, $= 2Ax$ for symmetric $A$
-- $\nabla_X \operatorname{tr}(AX) = A^\top$; $\quad \nabla_X \|X\|_F^2 = 2X$
+- $\nabla_X \operatorname{tr}(AX) = A^\top$; $\nabla_X \|X\|_F^2 = 2X$
 - $\nabla_X \log\det X = X^{-\top}$
 - Least squares: $\nabla_w \|Xw - y\|_2^2 = 2X^\top(Xw - y)$, giving normal equations $X^\top X w = X^\top y$.
 
-Anything else: Matrix Cookbook, or [matrixcalculus.org](https://www.matrixcalculus.org/) for symbolic checking.
+Anything else: Matrix Cookbook, or [matrixcalculus.org](https://www.matrixcalculus.org/) (tool, no reading time) for symbolic checking.
 
 ## Einsum thinking
 

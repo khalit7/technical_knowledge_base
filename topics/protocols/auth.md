@@ -1,21 +1,24 @@
 # Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era
 
+⏱ 11 min read · +9h resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [OAuth 2.1 draft](https://oauth.net/2.1/) (draft-ietf-oauth-v2-1, still Standards Track draft as of 2026 but the de facto profile): consolidates RFC 6749 + PKCE + Security BCP; read this instead of OAuth 2.0.
-- [Aaron Parecki, "OAuth 2 Simplified"](https://aaronparecki.com/oauth-2-simplified/) and his [oauth.net](https://oauth.net/) materials: clearest flow-by-flow explanations (Parecki also co-designed MCP's auth).
-- [RFC 8725 JWT Best Current Practices](https://www.rfc-editor.org/rfc/rfc8725): the pitfalls list, from the horse's mouth.
-- [OIDC Core spec](https://openid.net/specs/openid-connect-core-1_0.html) plus [Auth0 docs](https://auth0.com/docs/get-started/authentication-and-authorization-flow): pragmatic flow selection.
-- [MCP authorization spec](https://modelcontextprotocol.io/specification/latest/basic/authorization) and [security best practices](https://modelcontextprotocol.io/specification/latest/basic/security_best_practices): the agent-era twist, including why token passthrough is banned.
-- [AWS SigV4 docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html): request signing as an alternative model to bearer tokens.
+- [OAuth 2.1 draft](https://oauth.net/2.1/) (2h 30m) (draft-ietf-oauth-v2-1, still Standards Track draft as of 2026 but the de facto profile): consolidates RFC 6749 + PKCE + Security BCP; read this instead of OAuth 2.0.
+- [Aaron Parecki, "OAuth 2 Simplified"](https://aaronparecki.com/oauth-2-simplified/) (30 min) and his [oauth.net](https://oauth.net/) materials (~45 min for the flow guides): clearest flow-by-flow explanations (Parecki also co-designed MCP's auth).
+- [RFC 8725 JWT Best Current Practices](https://www.rfc-editor.org/rfc/rfc8725) (40 min): the pitfalls list, from the horse's mouth.
+- [OIDC Core spec](https://openid.net/specs/openid-connect-core-1_0.html) (2h 15m) plus [Auth0 docs](https://auth0.com/docs/get-started/authentication-and-authorization-flow) (docs, ~45 min for the flow pages): pragmatic flow selection.
+- [MCP authorization spec](https://modelcontextprotocol.io/specification/latest/basic/authorization) (35 min) and [security best practices](https://modelcontextprotocol.io/specification/latest/basic/security_best_practices) (20 min): the agent-era twist, including why token passthrough is banned.
+- [AWS SigV4 docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html) (docs, ~40 min for the signing pages): request signing as an alternative model to bearer tokens.
 
 ## OAuth 2.0/2.1: delegated authorization
 
 OAuth is authorization delegation: a **client** gets scoped, time-limited access to a **resource server** on behalf of a **resource owner**, via tokens from an **authorization server** (AS). It is not authentication; that is OIDC's job. OAuth 2.1 (draft, but treat as current) locks in the security consensus: PKCE always, no implicit flow, no password grant, exact redirect URI matching, sender-constrained or rotated refresh tokens.
 
 Flows that survive in 2026:
+
 - **Authorization code + PKCE**: the flow for anything user-facing (web, mobile, SPA, CLI). Client generates `code_verifier`, sends hashed `code_challenge` with the browser redirect to the AS; user authenticates and consents; AS redirects back with a one-time code; client exchanges code + verifier for access (and maybe refresh) token. PKCE kills code interception; it is mandatory even for confidential clients. CLIs (like `claude` login) run this with a localhost loopback redirect.
 - **Client credentials**: machine-to-machine, no user; client authenticates with its own secret (or better, a private-key JWT / mTLS) and gets a token representing itself. The standard for backend service-to-service where OAuth is used at all.
 - **Device authorization grant** (RFC 8628): input-constrained devices; device shows a user code + URL, user approves on their phone, device polls the token endpoint. TVs, IoT, and headless CLI logins.
@@ -32,6 +35,7 @@ OpenID Connect = OAuth 2 + an **ID token** (a JWT about who authenticated: `iss`
 A JWT is a signed (JWS) base64url triplet `header.payload.signature`; claims are readable by anyone (signing is not encryption; use JWE if you need secrecy). Great as short-lived, self-contained access tokens: resource servers validate offline against the AS's published JWKS.
 
 Pitfalls (RFC 8725 distilled):
+
 - `alg: none` and algorithm-confusion attacks (RS256 public key reused as HS256 secret): pin the expected algorithm server-side; never take it from the token header.
 - Validate everything: signature, `iss`, `aud` (audience confusion lets a token for service A replay against service B), `exp`/`nbf` with small clock skew, and the key via `kid` lookup in a trusted JWKS (never fetch keys from URLs the token itself supplies via `jku`/`x5u`).
 - **Revocation does not exist** for self-contained tokens: keep lifetimes short (minutes), pair with refresh tokens, or accept an introspection/denylist round-trip for high-value operations.
@@ -43,7 +47,7 @@ Static bearer secrets (`x-api-key`, `Authorization: Bearer sk-...`). Fine for se
 
 ## Service-to-service auth
 
-- **mTLS**: both sides present certificates; strongest transport-level identity; painful cert lifecycle unless automated: which is exactly what service meshes (Istio, Linkerd, App Mesh) and SPIFFE/SPIRE do (short-lived SVID certs as workload identity).
+- **mTLS** (mechanics, workload identity, and the February 2027 end of public-CA client certificates: [TLS and PKI](tls-and-pki.md) (22 min read · +17h 30m resources), added 2026-08-24): both sides present certificates; strongest transport-level identity; painful cert lifecycle unless automated: which is exactly what service meshes (Istio, Linkerd, App Mesh) and SPIFFE/SPIRE do (short-lived SVID certs as workload identity).
 - **IAM + SigV4 (AWS)**: no bearer token at all; each request is HMAC-signed with rotating credentials from the instance/Lambda role, and IAM policies authorize. Calling SageMaker/Bedrock/S3 from Lambda is this, for free via the SDK. Prefer IAM auth between your own AWS services over hand-rolled keys; for cross-cloud/GitHub Actions, use OIDC federation (workload presents an OIDC token, STS exchanges it for temporary credentials: no long-lived secrets).
 - **OAuth client credentials with private-key JWT** where you need standards-based M2M across organizations.
 

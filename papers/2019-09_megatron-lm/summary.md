@@ -1,14 +1,16 @@
 # Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
 
+⏱ 10 min read · +~3h 20m resources
+
 - **Authors/lab**: Mohammad Shoeybi, Mostofa Patwary, Raul Puri, Patrick LeGresley, Jared Casper, Bryan Catanzaro (NVIDIA)
 - **Date**: September 2019 (arXiv v1; v4 March 2020)
-- **Links**: [arXiv 1909.08053](https://arxiv.org/abs/1909.08053) | [code (NVIDIA/Megatron-LM)](https://github.com/NVIDIA/Megatron-LM)
+- **Links**: [arXiv 1909.08053](https://arxiv.org/abs/1909.08053) (~45 min) | [code (NVIDIA/Megatron-LM)](https://github.com/NVIDIA/Megatron-LM) (repo, ~25 min for the README and entry path)
 
 ## Best resources
 
-- [The Ultra-Scale Playbook, tensor parallelism section](https://huggingface.co/spaces/nanotron/ultrascale-playbook?section=tensor_parallelism) (HF/nanotron, 2025): the clearest modern walkthrough of column/row parallel linears, with communication-cost analysis and profiles
-- [How to Train Really Large Models on Many GPUs?](https://lilianweng.github.io/posts/2021-09-25-train-large/) (Lilian Weng): situates Megatron-style tensor parallelism among the other parallelism and memory-saving techniques
-- [Megatron-LM GitHub repo](https://github.com/NVIDIA/Megatron-LM): the living codebase (now Megatron-Core); the reference implementation of everything in the paper
+- [The Ultra-Scale Playbook, tensor parallelism section](https://huggingface.co/spaces/nanotron/ultrascale-playbook?section=tensor_parallelism) (HF/nanotron, 2025) (~40 min): the clearest modern walkthrough of column/row parallel linears, with communication-cost analysis and profiles
+- [How to Train Really Large Models on Many GPUs?](https://lilianweng.github.io/posts/2021-09-25-train-large/) (Lilian Weng) (~45 min): situates Megatron-style tensor parallelism among the other parallelism and memory-saving techniques
+- [Megatron-LM GitHub repo](https://github.com/NVIDIA/Megatron-LM) (the same repo as the Links line): the living codebase (now Megatron-Core); the reference implementation of everything in the paper
 
 ## Problem
 
@@ -54,7 +56,7 @@ The headline meaning: a model 5x larger than GPT-2 was trainable at good efficie
 
 - **Tensor parallelism became a standard axis.** The DP/TP/PP/EP decomposition that every modern training stack speaks (the "3D parallelism" framing) traces its TP axis to this paper. The column-then-row split with conjugate f/g operators is still the canonical formulation, and the same recipe is standard at inference time (`tensor_parallel_size` in vLLM, TensorRT-LLM, SGLang).
 - **The codebase outlived the paper.** Megatron-LM evolved into Megatron-Core, the backbone of NVIDIA's large-model training stack and of many frontier runs: Turing-NLG 17B (cited in the paper's own v4), MT-NLG 530B, Nemotron, plus countless forks (it also fed into DeepSpeed's Megatron-DeepSpeed).
-- **Follow-up work completed the picture.** Narayanan et al. 2021, "Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM" ([arXiv 2104.04473](https://arxiv.org/abs/2104.04473)), combined this TP with pipeline parallelism and an interleaved 1F1B schedule (PTD-P), reaching 502 PFLOP/s on 3072 A100s; the pair of papers defines the classic pre-training scaling playbook.
+- **Follow-up work completed the picture.** Narayanan et al. 2021, "Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM" ([arXiv 2104.04473](https://arxiv.org/abs/2104.04473), ~45 min), combined this TP with pipeline parallelism and an interleaved 1F1B schedule (PTD-P), reaching 502 PFLOP/s on 3072 A100s; the pair of papers defines the classic pre-training scaling playbook.
 - **It fixed the mental model for communication cost**: TP's per-layer all-reduces on activations demand high-bandwidth interconnect, which is why TP degree is conventionally capped at the NVLink domain (8 GPUs per node) while DP and PP cross nodes; that placement rule comes straight from this paper's setup.
 - The pre-LN observation for BERT scaling anticipated the now-universal pre-norm transformer.
 

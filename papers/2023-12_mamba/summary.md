@@ -1,15 +1,17 @@
 # Mamba: Linear-Time Sequence Modeling with Selective State Spaces
 
+⏱ 10 min read · +~5h 40m resources
+
 - **Authors**: Albert Gu (CMU) and Tri Dao (Princeton)
 - **Date**: December 2023 (arXiv v1; v2 May 2024). Published at COLM 2024.
-- **Links**: [arXiv:2312.00752](https://arxiv.org/abs/2312.00752) | [code + checkpoints](https://github.com/state-spaces/mamba)
+- **Links**: [arXiv:2312.00752](https://arxiv.org/abs/2312.00752) (~1h) | [code + checkpoints](https://github.com/state-spaces/mamba) (repo, ~20 min for the README and entry path)
 
 ## Best resources
 
-- [A Visual Guide to Mamba and State Space Models](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mamba-and-state) (Maarten Grootendorst): the best intuition-first walkthrough, from RNN/CNN duality through selectivity, with excellent diagrams.
-- [The Annotated S4](https://srush.github.io/annotated-s4/) (Sasha Rush): executable notebook covering the S4 lineage Mamba builds on; essential background for the discretization and convolution-mode math.
-- [Mamba: The Hard Way](https://srush.github.io/annotated-mamba/hard.html) (Sasha Rush): reimplements the selective scan kernel step by step in Triton; the fastest route to actually understanding the hardware-aware algorithm.
-- [State Space Duality (Mamba-2) blog series](https://tridao.me/blog/2024/mamba2-part1-model/) (Tri Dao and Albert Gu): the authors' own follow-up explaining how selective SSMs and attention are two views of the same family of structured matrices.
+- [A Visual Guide to Mamba and State Space Models](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mamba-and-state) (Maarten Grootendorst) (~35 min): the best intuition-first walkthrough, from RNN/CNN duality through selectivity, with excellent diagrams.
+- [The Annotated S4](https://srush.github.io/annotated-s4/) (Sasha Rush) (~1h 30m): executable notebook covering the S4 lineage Mamba builds on; essential background for the discretization and convolution-mode math.
+- [Mamba: The Hard Way](https://srush.github.io/annotated-mamba/hard.html) (Sasha Rush) (~1h): reimplements the selective scan kernel step by step in Triton; the fastest route to actually understanding the hardware-aware algorithm.
+- [State Space Duality (Mamba-2) blog series](https://tridao.me/blog/2024/mamba2-part1-model/) (Tri Dao and Albert Gu) (~1h 15m for the series): the authors' own follow-up explaining how selective SSMs and attention are two views of the same family of structured matrices.
 
 ## Problem
 

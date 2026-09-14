@@ -1,12 +1,14 @@
 # Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)
 
+⏱ 8 min read · +~1h 30m resources
+
 - **Authors/lab**: Orion Weller, Kathryn Ricci, Marc Marone, Dawn Lawrie, Benjamin Van Durme (Johns Hopkins CLSP) with Antoine Chaffin (LightOn)
 - **Date**: July 2025 (arXiv 2507.11412; published at ICLR 2026)
-- **Links**: [arXiv](https://arxiv.org/abs/2507.11412) | [GitHub (code, data, batch order)](https://github.com/JHU-CLSP/ettin-encoder-vs-decoder) | [HF models and data (jhu-clsp)](https://huggingface.co/jhu-clsp)
+- **Links**: [arXiv](https://arxiv.org/abs/2507.11412) (~45 min) | [GitHub (code, data, batch order)](https://github.com/JHU-CLSP/ettin-encoder-vs-decoder) (repo, ~20 min for the README and entry path) | [HF models and data (jhu-clsp)](https://huggingface.co/jhu-clsp) (~10 min)
 
 ## Best resources
 
-- [HuggingFace blog: Ettin Suite](https://huggingface.co/blog/ettin): the authors' own release post; condensed walkthrough of the suite, the recipe, and the encoder-vs-decoder findings with usage snippets
+- [HuggingFace blog: Ettin Suite](https://huggingface.co/blog/ettin) (~15 min): the authors' own release post; condensed walkthrough of the suite, the recipe, and the encoder-vs-decoder findings with usage snippets
 
 ## Problem
 

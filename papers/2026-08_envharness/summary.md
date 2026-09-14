@@ -1,12 +1,14 @@
 # EnvHarness: Awakening Static Worlds for Agent Learning
 
+⏱ 8 min read · +~1h 15m resources
+
 - **Authors/lab**: Chengsong Huang (Washington University in St. Louis, work done at Google), Zifeng Wang, Rujun Han, Jun Yan, Yanfei Chen, Chen-Yu Lee et al. (Google Cloud AI Research; with Google Cloud and UNC Chapel Hill)
 - **Date**: August 2026 (arXiv 2608.19880, v1 20 Aug 2026)
-- **Links**: [arXiv](https://arxiv.org/abs/2608.19880) | [GitHub](https://github.com/google-research/envharness) | [Project page](https://www.envharness.com)
+- **Links**: [arXiv](https://arxiv.org/abs/2608.19880) (~45 min) | [GitHub](https://github.com/google-research/envharness) (repo, ~20 min for the README and entry path) | [Project page](https://www.envharness.com) (~10 min)
 
 ## Best resources
 
-- [arXiv abstract](https://arxiv.org/abs/2608.19880) and the [project page](https://www.envharness.com): paper is days old, no good third-party explainers yet; the repo README is the practical entry point
+- [arXiv abstract](https://arxiv.org/abs/2608.19880) (~45 min for the full paper) and the [project page](https://www.envharness.com) (~10 min): paper is days old, no good third-party explainers yet; the repo README is the practical entry point
 
 ## Problem
 

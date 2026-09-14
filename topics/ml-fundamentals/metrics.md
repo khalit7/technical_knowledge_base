@@ -1,11 +1,13 @@
 # Evaluation metrics
 
+⏱ 5 min read · +2h 45m resources
+
 ## Best resources
 
-- [Google ML Crash Course: classification metrics](https://developers.google.com/machine-learning/crash-course/classification): precision/recall/ROC with interactive thresholds.
-- [The Relationship Between Precision-Recall and ROC Curves (Davis & Goadrich 2006)](https://www.biostat.wisc.edu/~page/rocpr.pdf): the imbalanced-data argument, formally.
-- [BERTScore paper (Zhang et al. 2019, arXiv:1904.09675)](https://arxiv.org/abs/1904.09675): embedding-based text evaluation.
-- [HuggingFace evaluate docs](https://huggingface.co/docs/evaluate): implementations of BLEU/ROUGE/METEOR/perplexity and friends.
+- [Google ML Crash Course: classification metrics](https://developers.google.com/machine-learning/crash-course/classification) (~45 min): precision/recall/ROC with interactive thresholds.
+- [The Relationship Between Precision-Recall and ROC Curves (Davis & Goadrich 2006)](https://www.biostat.wisc.edu/~page/rocpr.pdf) (45 min): the imbalanced-data argument, formally.
+- [BERTScore paper (Zhang et al. 2019, arXiv:1904.09675)](https://arxiv.org/abs/1904.09675) (45 min): embedding-based text evaluation.
+- [HuggingFace evaluate docs](https://huggingface.co/docs/evaluate) (docs, ~30 min): implementations of BLEU/ROUGE/METEOR/perplexity and friends.
 
 ## Classification metrics
 

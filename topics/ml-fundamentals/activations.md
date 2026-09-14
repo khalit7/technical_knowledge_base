@@ -1,11 +1,13 @@
 # Activation functions
 
+⏱ 3 min read · +2h 5m resources
+
 ## Best resources
 
-- [GLU Variants Improve Transformer (Shazeer 2020, arXiv:2002.05202)](https://arxiv.org/abs/2002.05202): the 4-page paper behind GEGLU/SwiGLU; ends with the famous "we attribute their success to divine benevolence".
-- [GELU paper (Hendrycks & Gimpel 2016, arXiv:1606.08415)](https://arxiv.org/abs/1606.08415): original definition and the stochastic-regulariser interpretation.
-- [Searching for Activation Functions (Ramachandran et al. 2017, arXiv:1710.05941)](https://arxiv.org/abs/1710.05941): the Swish/SiLU search paper.
-- [PyTorch nonlinear activation docs](https://pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity): exact formulas and variants.
+- [GLU Variants Improve Transformer (Shazeer 2020, arXiv:2002.05202)](https://arxiv.org/abs/2002.05202) (20 min): the 4-page paper behind GEGLU/SwiGLU; ends with the famous "we attribute their success to divine benevolence".
+- [GELU paper (Hendrycks & Gimpel 2016, arXiv:1606.08415)](https://arxiv.org/abs/1606.08415) (45 min): original definition and the stochastic-regulariser interpretation.
+- [Searching for Activation Functions (Ramachandran et al. 2017, arXiv:1710.05941)](https://arxiv.org/abs/1710.05941) (45 min): the Swish/SiLU search paper.
+- [PyTorch nonlinear activation docs](https://pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity) (docs, ~15 min): exact formulas and variants.
 
 ## Required properties
 

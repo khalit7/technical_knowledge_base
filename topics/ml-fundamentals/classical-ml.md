@@ -1,11 +1,13 @@
 # Classical ML
 
+⏱ 5 min read · +22h 25m resources
+
 ## Best resources
 
-- [An Introduction to Statistical Learning (ISLR/ISLP)](https://www.statlearning.com/): free book; the standard reference for everything below.
-- [StatQuest (Josh Starmer) playlists](https://www.youtube.com/@statquest): the fastest intuition refreshers for trees, boosting, SVMs, PCA.
-- [XGBoost docs: introduction to boosted trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html): the gradient-boosting math from the source.
-- [scikit-learn user guide](https://scikit-learn.org/stable/user_guide.html): algorithm-by-algorithm reference with practical caveats.
+- [An Introduction to Statistical Learning (ISLR/ISLP)](https://www.statlearning.com/) (~15h): free book; the standard reference for everything below.
+- [StatQuest (Josh Starmer) playlists](https://www.youtube.com/@statquest) (video, ~6h for the tree, boosting, SVM and PCA playlists): the fastest intuition refreshers for trees, boosting, SVMs, PCA.
+- [XGBoost docs: introduction to boosted trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html) (~25 min): the gradient-boosting math from the source.
+- [scikit-learn user guide](https://scikit-learn.org/stable/user_guide.html) (docs, ~1h for the core pages): algorithm-by-algorithm reference with practical caveats.
 
 ## The map
 

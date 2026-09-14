@@ -1,16 +1,18 @@
 # JAX core: the functional model
 
+⏱ 9 min read · +4h 50m resources
+
 ## Best resources
 
-- [Thinking in JAX](https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html) and
-  the [JAX tutorials](https://docs.jax.dev/en/latest/tutorials.html): jit, grad, vmap,
+- [Thinking in JAX](https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html) (~25 min) and
+  the [JAX tutorials](https://docs.jax.dev/en/latest/tutorials.html) (docs, ~1h 5m for the tutorial set): jit, grad, vmap,
   PRNG, pytrees; the fastest correct mental model.
-- [How to think about jit / tracing](https://docs.jax.dev/en/latest/jit-compilation.html)
-  and [Common gotchas](https://docs.jax.dev/en/latest/notebooks/Common_Gotchas_in_JAX.html):
+- [How to think about jit / tracing](https://docs.jax.dev/en/latest/jit-compilation.html) (~20 min)
+  and [Common gotchas](https://docs.jax.dev/en/latest/notebooks/Common_Gotchas_in_JAX.html) (~25 min):
   the official footgun list; read before debugging anything.
-- [Autodidax](https://docs.jax.dev/en/latest/autodidax.html): build JAX's core (tracing,
+- [Autodidax](https://docs.jax.dev/en/latest/autodidax.html) (~2h): build JAX's core (tracing,
   jaxprs, jvp/vjp) from scratch; the deepest explanation of why JAX behaves as it does.
-- [PyTorch-to-JAX comparison in the scaling book, ch. 10](https://jax-ml.github.io/scaling-book/jax-stuff/):
+- [PyTorch-to-JAX comparison in the scaling book, ch. 10](https://jax-ml.github.io/scaling-book/jax-stuff/) (~35 min):
   how a PyTorch person should read JAX code.
 
 *Verified current 2026-08-24 (JAX 0.11.1; minimum Python 3.11).*
@@ -62,8 +64,8 @@ give each element or device its own key deterministically. Flax NNX wraps this i
 
 ## jit: tracing rules
 
-`jax.jit(f)` traces `f` with abstract shapes and compiles one executable **per distinct
-(shape, dtype, static-arg) signature**.
+`jax.jit(f)` traces `f` with abstract shapes and compiles one executable per distinct
+(shape, dtype, static-arg) signature.
 
 - **Traced vs static.** Array arguments are traced (their values are unknown at trace
   time). Python scalars/bools used in control flow, and anything passed via

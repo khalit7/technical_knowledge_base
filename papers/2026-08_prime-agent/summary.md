@@ -1,17 +1,18 @@
 # Prime Agent: A Self-Improving RLM Harness
 
-- **Authors/lab**: Seth Karten, Alex L. Zhang, Kevin Thomas, Sebastian Müller, Elie Bakouch, Daniel Auras, Mika Senghaas, Fares Obeid, Konstantin Dunas, Johannes Hagemann, Sami Jaghouar (Prime Intellect)
+⏱ 6 min read · +~1h 15m resources
+
+- **Authors**: Seth Karten, Alex L. Zhang, Kevin Thomas, Sebastian Müller, Elie Bakouch, Daniel Auras, Mika Senghaas, Fares Obeid, Konstantin Dunas, Johannes Hagemann, Sami Jaghouar (Prime Intellect)
 - **Date**: 2026-08-24 (arXiv v1)
-- **Links**: [arXiv 2608.23552](https://arxiv.org/abs/2608.23552) | [HTML](https://arxiv.org/html/2608.23552) | [code](https://github.com/PrimeIntellect-ai/prime-agent) | [blog](https://www.primeintellect.ai/blog/prime-agent)
-- **Topics**: agentic-harnesses, benchmarks, agentic-frameworks
+- **Links**: [arXiv:2608.23552](https://arxiv.org/abs/2608.23552) (~45 min) | [HTML](https://arxiv.org/html/2608.23552) (same paper) | [code](https://github.com/PrimeIntellect-ai/prime-agent) (repo, ~20 min for the README and entry path) | [blog](https://www.primeintellect.ai/blog/prime-agent) (~10 min)
 
 *Added to the KB 2026-08-31.*
 
 ## Best resources
 
-- [The paper](https://arxiv.org/abs/2608.23552): read sections 2 (state hierarchy) and 4 (Continual Harness) if you read nothing else.
-- [PrimeIntellect-ai/prime-agent](https://github.com/PrimeIntellect-ai/prime-agent): the harness itself, which is the real artifact.
-- [Prime Intellect blog post](https://www.primeintellect.ai/blog/prime-agent): the short version with the Factorio and nanoGPT footage.
+- [The paper](https://arxiv.org/abs/2608.23552) (~45 min, sections 2 and 4 alone ~15 min): read sections 2 (state hierarchy) and 4 (Continual Harness) if you read nothing else.
+- [PrimeIntellect-ai/prime-agent](https://github.com/PrimeIntellect-ai/prime-agent) (repo, ~20 min for the README and entry path): the harness itself, which is the real artifact.
+- [Prime Intellect blog post](https://www.primeintellect.ai/blog/prime-agent) (~10 min): the short version with the Factorio and nanoGPT footage.
 
 ## Problem
 
@@ -23,7 +24,7 @@ Harness quality, not model quality, is now the binding constraint on long-horizo
 
 **Recursive Language Model (RLM) abstraction over a persistent REPL.** The agent's primary tool is a long-lived IPython session rather than a fixed tool schema. Inside it, the model can spawn subagents asynchronously and keep computing locally while they run, so context processing becomes a program the model writes rather than a policy the harness enforces.
 
-**Continual Harness.** Four kinds of state survive across trajectories and are revisable by the agent itself: behavioural prompts, factual memories, executable skills, and reusable subagent specifications. Trajectory evidence is converted into versioned updates to that state, which gives self-improvement without touching weights. This is the same lever as agent skills (see [2026-08_agent-skills](../2026-08_agent-skills/summary.md)), extended to prompts and subagent definitions.
+**Continual Harness.** Four kinds of state survive across trajectories and are revisable by the agent itself: behavioural prompts, factual memories, executable skills, and reusable subagent specifications. Trajectory evidence is converted into versioned updates to that state, which gives self-improvement without touching weights. This is the same lever as agent skills (see the [Demystifying Agent Skills](../2026-08_agent-skills/summary.md) page), extended to prompts and subagent definitions.
 
 **Recursive subagents with direct A2A messaging.** Subagents talk to each other through daemon-mediated asynchronous message queues rather than routing everything through a parent, which is what makes genuinely parallel long-horizon work possible.
 
@@ -39,18 +40,12 @@ Harness quality, not model quality, is now the binding constraint on long-horizo
 
 ## Why it matters
 
-Three things are worth taking away. First, the ARC-AGI-3 jump makes the harness-scaling claim hard to dismiss as one lab's tooling: two unrelated harnesses moved the same benchmark from 30% to near-ceiling in the same fortnight, which says the benchmark's published model scores were harness-limited, not capability-limited.
-
-Second, the paper is unusually honest about the ceiling it hit: *"many harness capabilities remain underused because current models were not trained to operate them."* Models are not trained to decide when to spawn a subagent, what to retain, or when to rewrite their own skills, so the harness offers affordances the policy does not know how to use. That gap is exactly what JIT-Agent and Apodex 1.1 attack from the training side.
-
-Third, the safety finding is concrete rather than hypothetical: online refinement produced specification exploitation, including discovering resource-spawning shortcuts in Factorio, which is reward hacking arising from a self-modifying harness rather than from a reward model. The authors' proposed mitigations are least-privilege interfaces and auditable rollback.
-
-Other stated limitations: native-harness reruns fell below published scores on ARC-AGI-3, so the comparison defers to official numbers rather than isolating cause; and PMPP-Hard's strict wall-clock budgets hide token-efficiency gains.
+Three things are worth taking away. First, the ARC-AGI-3 jump makes the harness-scaling claim hard to dismiss as one lab's tooling: two unrelated harnesses moved the same benchmark from 30% to near-ceiling in the same fortnight, which says the benchmark's published model scores were harness-limited, not capability-limited. Second, the paper is unusually honest about the ceiling it hit: *"many harness capabilities remain underused because current models were not trained to operate them."* Models are not trained to decide when to spawn a subagent, what to retain, or when to rewrite their own skills, so the harness offers affordances the policy does not know how to use. That gap is exactly what JIT-Agent and Apodex 1.1 attack from the training side. Third, the safety finding is concrete rather than hypothetical: online refinement produced specification exploitation, including discovering resource-spawning shortcuts in Factorio, which is reward hacking arising from a self-modifying harness rather than from a reward model.
 
 ## Connections
 
 - [StateM](../2026-08_statem/summary.md): the other side of the harness-scaling argument. StateM constrains the agent with a checked state machine; Prime Agent deliberately does the opposite and gives the model a REPL plus subagents. Both beat the fixed native harness, which suggests the win comes from having any durable state layer, not from a particular philosophy about control.
 - [Demystifying Agent Skills](../2026-08_agent-skills/summary.md): Prime Agent's Continual Harness generalises SKILL.md from procedural anchors to prompts, memories, and subagent specs, and inherits the misapplication failure mode that paper identified.
 - [JIT-Agent](../2026-08_jit-agent/summary.md): complementary. Prime Agent hands a rich harness to an untrained model; JIT-Agent trains a model to synthesise the harness.
-- [topics/agentic-harnesses](../../topics/agentic-harnesses/summary.md), in particular [harness-engineering.md](../../topics/agentic-harnesses/harness-engineering.md).
-- The Factorio specification exploitation belongs with [reward-hacking.md](../../topics/llm-training-and-post-training/reward-hacking.md).
+- Topic: [agentic-harnesses](../../topics/agentic-harnesses/summary.md), in particular the [harness-engineering deep dive](../../topics/agentic-harnesses/harness-engineering.md).
+- **Reward hacking**: the Factorio specification exploitation belongs with the [reward-hacking material](../../topics/llm-training-and-post-training/reward-hacking.md) in llm-training-and-post-training.

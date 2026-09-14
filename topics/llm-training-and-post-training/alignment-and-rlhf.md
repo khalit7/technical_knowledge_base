@@ -1,10 +1,12 @@
 # Alignment: SFT, RLHF, DPO Family, RLVR
 
+⏱ 6 min read · +7h 25m resources
+
 ## Best resources
 
-- [RLHF Book (Nathan Lambert)](https://rlhfbook.com/): free, continuously updated, the best end-to-end treatment of modern post-training.
-- [GRPO, DPO and RLVR explained: reasoning RL in 2026 (Turing Post)](https://www.turingpost.com/p/reasoning-rl-in-2026): current map of the algorithm zoo.
-- [HF TRL docs](https://huggingface.co/docs/trl): reference implementations of SFT, DPO, KTO, ORPO, PPO, GRPO, online DPO.
+- [RLHF Book (Nathan Lambert)](https://rlhfbook.com/) (~6h): free, continuously updated, the best end-to-end treatment of modern post-training.
+- [GRPO, DPO and RLVR explained: reasoning RL in 2026 (Turing Post)](https://www.turingpost.com/p/reasoning-rl-in-2026) (~25 min): current map of the algorithm zoo.
+- [HF TRL docs](https://huggingface.co/docs/trl) (docs, ~1h for the core pages): reference implementations of SFT, DPO, KTO, ORPO, PPO, GRPO, online DPO.
 - Papers: [InstructGPT](../../papers/2022-03_instructgpt/summary.md), [DPO](../../papers/2023-05_dpo/summary.md), [DeepSeekMath/GRPO](../../papers/2024-02_deepseekmath-grpo/summary.md), [Constitutional AI](../../papers/2022-12_constitutional-ai/summary.md), plus DeepSeek-R1 (`papers/2025-01_deepseek-r1`).
 
 ## The pipeline
@@ -65,8 +67,8 @@
 Offline (vanilla DPO on a fixed dataset) optimises preferences on stale,
 off-policy data; online methods (PPO, GRPO, online/iterative DPO) sample from the
 current policy and are consistently stronger at equal data budgets, at higher
-compute and complexity cost. Current consensus: **DPO-family for cheap broad
-preference shaping, online RL (GRPO/PPO variants) where it matters** (reasoning,
+compute and complexity cost. Current consensus: DPO-family for cheap broad
+preference shaping, online RL (GRPO/PPO variants) where it matters (reasoning,
 agentic behaviour, final alignment polish). Llama 3 used SFT + rejection sampling
 + DPO; frontier reasoning models all use large-scale online RL.
 

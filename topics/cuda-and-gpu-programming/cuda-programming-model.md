@@ -1,14 +1,16 @@
 # The CUDA programming model
 
+⏱ 8 min read · +8h resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [CUDA C++ Programming Guide, ch. "Programming Model"](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#programming-model): the authoritative reference.
-- PMPP 5th ed, ch. 2-4: threads, blocks, scheduling; the best pedagogical treatment.
-- [GPU MODE lecture 2 (PMPP ch. 1-3)](https://github.com/gpu-mode/lectures) and [Christian Mills's lecture notes](https://christianjmills.com/posts/cuda-mode-notes/lecture-002/).
-- [Modal GPU Glossary](https://modal.com/gpu-glossary): crisp definitions of SIMT, warp, occupancy, etc.
-- [CUDA C++ Best Practices Guide](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/): the optimisation checklist NVIDIA maintains.
+- [CUDA C++ Programming Guide, ch. "Programming Model"](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#programming-model) (~1h): the authoritative reference.
+- PMPP 5th ed, ch. 2-4 (~90 pages, 2h 15m): threads, blocks, scheduling; the best pedagogical treatment.
+- [GPU MODE lecture 2 (PMPP ch. 1-3)](https://github.com/gpu-mode/lectures) (video, ~1h 30m) and [Christian Mills's lecture notes](https://christianjmills.com/posts/cuda-mode-notes/lecture-002/) (30 min).
+- [Modal GPU Glossary](https://modal.com/gpu-glossary) (~45 min): crisp definitions of SIMT, warp, occupancy, etc.
+- [CUDA C++ Best Practices Guide](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/) (~2h): the optimisation checklist NVIDIA maintains.
 
 ## The hierarchy: grid > block > warp > thread
 
@@ -57,7 +59,7 @@ context-switch spill). A GPU wants tens of thousands of threads in flight; this 
 
 ## Kernel launch and execution
 
-```cuda
+```cpp
 __global__ void saxpy(int n, float a, const float* x, float* y) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) y[i] = a * x[i] + y[i];

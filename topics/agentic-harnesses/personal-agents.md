@@ -1,15 +1,17 @@
 # Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
 
-*Added 2026-08-25.* The 2026 category that is not a coding harness: always-on personal agents that live on a daemon, listen on your messaging accounts, and act on your life rather than your repo. Two projects dominate it: **OpenClaw** (Peter Steinberger, now an OpenClaw Foundation project) and **Hermes Agent** (Nous Research). Both are open source, self-hosted, and model-agnostic. The last section is the part that matters most for our work: how this differs from Claude Code or Codex, and why the difference is mostly about the trust boundary, not the agent loop.
+⏱ 13 min read · +2h 27m resources
+
+*Added 2026-08-31.* The 2026 category that is not a coding harness: always-on personal agents that live on a daemon, listen on your messaging accounts, and act on your life rather than your repo. Two projects dominate it: **OpenClaw** (Peter Steinberger, now an OpenClaw Foundation project) and **Hermes Agent** (Nous Research). Both are open source, self-hosted, and model-agnostic. The last section is the part that matters most for our work: how this differs from Claude Code or Codex, and why the difference is mostly about the trust boundary, not the agent loop.
 
 ## Best resources
 
-- [OpenClaw docs: agent runtime](https://docs.openclaw.ai/concepts/agent) and [agent runtimes](https://docs.openclaw.ai/concepts/agent-runtimes): the workspace contract, the bootstrap files, and the runtime abstraction that lets OpenClaw delegate a turn to Codex or Claude CLI. The clearest primary source in the category.
-- [Hermes Agent architecture doc](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/developer-guide/architecture.md): full subsystem map, data flow for CLI / gateway / cron, design principles. Read this one if you read only one.
-- [Hermes Agent repo](https://github.com/NousResearch/hermes-agent) and [OpenClaw repo](https://github.com/openclaw/openclaw).
-- [NVIDIA Nemotron Labs: what OpenClaw agents mean for every organization](https://blogs.nvidia.com/blog/what-openclaw-agents-mean-for-every-organization/): the "claw" framing (persistent heartbeat agents) from a non-participant.
-- [freeCodeCamp: build and secure a personal AI agent with OpenClaw](https://www.freecodecamp.org/news/how-to-build-and-secure-a-personal-ai-agent-with-openclaw/): three-layer architecture walkthrough plus the security section most tutorials skip.
-- [Wikipedia: OpenClaw](https://en.wikipedia.org/wiki/OpenClaw): the incident and regulation record, which the vendor comparisons tend to launder.
+- [OpenClaw docs: agent runtime](https://docs.openclaw.ai/concepts/agent) (15 min) and [agent runtimes](https://docs.openclaw.ai/concepts/agent-runtimes) (15 min): the workspace contract, the bootstrap files, and the runtime abstraction that lets OpenClaw delegate a turn to Codex or Claude CLI. The clearest primary source in the category.
+- [Hermes Agent architecture doc](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/developer-guide/architecture.md) (30 min): full subsystem map, data flow for CLI / gateway / cron, design principles. Read this one if you read only one.
+- [Hermes Agent repo](https://github.com/NousResearch/hermes-agent) (repo, ~20 min for the README and entry path) and [OpenClaw repo](https://github.com/openclaw/openclaw) (repo, ~20 min for the README and entry path).
+- [NVIDIA Nemotron Labs: what OpenClaw agents mean for every organization](https://blogs.nvidia.com/blog/what-openclaw-agents-mean-for-every-organization/) (10 min): the "claw" framing (persistent heartbeat agents) from a non-participant.
+- [freeCodeCamp: build and secure a personal AI agent with OpenClaw](https://www.freecodecamp.org/news/how-to-build-and-secure-a-personal-ai-agent-with-openclaw/) (25 min): three-layer architecture walkthrough plus the security section most tutorials skip.
+- [Wikipedia: OpenClaw](https://en.wikipedia.org/wiki/OpenClaw) (12 min): the incident and regulation record, which the vendor comparisons tend to launder.
 
 ## The category
 
@@ -27,12 +29,12 @@ Created by Peter Steinberger, released late January 2026 (earlier names Clawdbot
 
 | File | Role |
 |---|---|
-| `AGENTS.md` | Operating instructions plus memory (the `CLAUDE.md` analogue) |
-| `SOUL.md` | Persona, boundaries, tone. No coding harness has this concept |
-| `IDENTITY.md` | Agent name, vibe, emoji |
-| `USER.md` | Who you are and how to address you |
-| `MEMORY.md` | Root long-term memory, injected only if present |
-| `BOOTSTRAP.md` | One-time first-run ritual, deleted after completion |
+| AGENTS.md | Operating instructions plus memory (the CLAUDE.md analogue) |
+| SOUL.md | Persona, boundaries, tone. No coding harness has this concept |
+| IDENTITY.md | Agent name, vibe, emoji |
+| USER.md | Who you are and how to address you |
+| MEMORY.md | Root long-term memory, injected only if present |
+| BOOTSTRAP.md | One-time first-run ritual, deleted after completion |
 
 Other notable machinery: skills resolved from a precedence chain (workspace, `.agents/skills`, `~/.agents/skills`, managed, bundled) with **ClawHub** as the public skill marketplace; sessions in per-agent SQLite; **steering while streaming** (a message arriving mid-run is injected into the current run before the next tool launch rather than queued, which is the right default when the input channel is a chat); multi-agent routing with per-agent workspaces and channel bindings.
 
@@ -68,7 +70,7 @@ The agent loops are close cousins. Prompt assembly, tool registry, compaction, s
 | Verification | Compiler, tests, CI, diff review: a real ground-truth signal | Usually none. "Did the agent handle my inbox correctly" has no test suite |
 | Undo | Git. Almost everything is revertible | Sent messages, deleted mail, bookings, purchases. Frequently irreversible |
 | Permissions | Per-tool approval inside a session, sandboxed cwd | Standing authority over live accounts, granted once at setup |
-| Identity | None. The harness is a tool | Named persona (`SOUL.md`, `IDENTITY.md`); users anthropomorphise and delegate accordingly |
+| Identity | None. The harness is a tool | Named persona (SOUL.md, IDENTITY.md); users anthropomorphise and delegate accordingly |
 | Users | One developer | Multi-user routing, group chats, agents acting on behalf of a person to other people |
 | Measurement | SWE-bench, Terminal-Bench: contested but real | No accepted benchmark. OpenClaw ships a "personal agent benchmark pack"; nothing comparable to tbench exists |
 

@@ -1,11 +1,13 @@
 # Normalisation and initialisation
 
+⏱ 5 min read · +3h 45m resources
+
 ## Best resources
 
-- [Batch Normalization paper (Ioffe & Szegedy 2015, arXiv:1502.03167)](https://arxiv.org/abs/1502.03167) and [Layer Normalization (Ba et al. 2016, arXiv:1607.06450)](https://arxiv.org/abs/1607.06450): the originals.
-- [RMSNorm paper (Zhang & Sennrich 2019, arXiv:1910.07467)](https://arxiv.org/abs/1910.07467): the LLM-era default norm.
-- [Delving Deep into Rectifiers (He et al. 2015, arXiv:1502.01852)](https://arxiv.org/abs/1502.01852): He initialisation, derived alongside PReLU.
-- [Understanding the difficulty of training deep feedforward networks (Glorot & Bengio 2010)](https://proceedings.mlr.press/v9/glorot10a.html): Xavier initialisation.
+- [Batch Normalization paper (Ioffe & Szegedy 2015, arXiv:1502.03167)](https://arxiv.org/abs/1502.03167) (45 min) and [Layer Normalization (Ba et al. 2016, arXiv:1607.06450)](https://arxiv.org/abs/1607.06450) (45 min): the originals.
+- [RMSNorm paper (Zhang & Sennrich 2019, arXiv:1910.07467)](https://arxiv.org/abs/1910.07467) (45 min): the LLM-era default norm.
+- [Delving Deep into Rectifiers (He et al. 2015, arXiv:1502.01852)](https://arxiv.org/abs/1502.01852) (45 min): He initialisation, derived alongside PReLU.
+- [Understanding the difficulty of training deep feedforward networks (Glorot & Bengio 2010)](https://proceedings.mlr.press/v9/glorot10a.html) (45 min): Xavier initialisation.
 
 ## Feature scaling (input normalisation)
 
@@ -21,6 +23,7 @@ Purpose: make all features contribute equally, so large-range features do not do
 Z-score normalisation applied per layer inside the network, over the batch dimension.
 
 **Training**, per layer, per feature:
+
 1. Compute batch mean $\mu_B$ and std $\sigma_B$ of each feature across the batch dimension.
 2. Normalise: $\hat x = (x-\mu_B)/\sqrt{\sigma_B^2+\epsilon}$.
 3. Re-scale and re-shift with learnable parameters: $y = \gamma\hat x + \beta$ (one $\gamma,\beta$ per feature, so num_features of each per layer).

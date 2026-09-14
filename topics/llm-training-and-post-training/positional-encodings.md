@@ -1,11 +1,13 @@
 # Positional Encodings
 
+⏱ 6 min read · +2h 50m resources
+
 ## Best resources
 
-- [How LLMs scaled from 512 to 2M context (Aman Arora, 2025)](https://amaarora.github.io/posts/2025-09-21-rope-context-extension.html): the best single walkthrough of RoPE, position interpolation, NTK-aware scaling, dynamic NTK, and YaRN.
-- [EleutherAI: Rotary Embeddings, a relative revolution](https://blog.eleuther.ai/rotary-embeddings/): canonical RoPE explainer with derivation.
+- [How LLMs scaled from 512 to 2M context (Aman Arora, 2025)](https://amaarora.github.io/posts/2025-09-21-rope-context-extension.html) (~50 min): the best single walkthrough of RoPE, position interpolation, NTK-aware scaling, dynamic NTK, and YaRN.
+- [EleutherAI: Rotary Embeddings, a relative revolution](https://blog.eleuther.ai/rotary-embeddings/) (~30 min): canonical RoPE explainer with derivation.
 - [RoFormer paper](../../papers/2021-04_roformer-rope/summary.md): the RoPE original.
-- [ALiBi paper (Press et al.)](https://arxiv.org/abs/2108.12409) and [YaRN paper](https://arxiv.org/abs/2309.00071): extrapolation and context extension.
+- [ALiBi paper (Press et al.)](https://arxiv.org/abs/2108.12409) (45 min) and [YaRN paper](https://arxiv.org/abs/2309.00071) (45 min): extrapolation and context extension.
 
 ## Encoding vs embedding, absolute vs relative
 

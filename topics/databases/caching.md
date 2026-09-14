@@ -1,16 +1,18 @@
 # Caching: types, policies, and semantic caching
 
+⏱ 27 min read · +4h 15m resources
+
 Caching is one idea applied at a dozen layers: keep the result of expensive work near where it is needed, and accept staleness in exchange for latency and cost. Everything hard about it is a consequence of that trade: **what you keep, how you decide it is still true, and what you throw away.**
 
-## Best resources
+## Best resources (1 min)
 
-- [Caching best practices (AWS)](https://aws.amazon.com/caching/best-practices/): the clearest short taxonomy of the layers.
-- [Designing Data-Intensive Applications (Kleppmann)](https://dataintensive.net/), ch. 1 and 11: caches as derived data, and why invalidation is a consistency problem in disguise.
-- [Caching at Netflix: EVCache](https://netflixtechblog.com/caching-for-a-global-netflix-7bcc457012f1): what a real global cache tier looks like.
-- [MDN: HTTP caching](https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching): the header semantics people get wrong most often.
-- [GPTCache](https://github.com/zilliztech/GPTCache): the reference open-source semantic cache; the README is the best short explanation of the idea.
+- [Caching best practices (AWS)](https://aws.amazon.com/caching/best-practices/) (~20 min): the clearest short taxonomy of the layers.
+- [Designing Data-Intensive Applications (Kleppmann)](https://dataintensive.net/) (~1h 30m for ch. 1 and 11; ~15h for the book), ch. 1 and 11: caches as derived data, and why invalidation is a consistency problem in disguise.
+- [Caching at Netflix: EVCache](https://netflixtechblog.com/caching-for-a-global-netflix-7bcc457012f1) (~20 min): what a real global cache tier looks like.
+- [MDN: HTTP caching](https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching) (~30 min): the header semantics people get wrong most often.
+- [GPTCache](https://github.com/zilliztech/GPTCache) (repo, ~25 min for the README and architecture docs): the reference open-source semantic cache; the README is the best short explanation of the idea.
 
-## The layers, nearest to furthest
+## The layers, nearest to furthest (3 min)
 
 | Layer | Typical latency | Holds | Invalidation problem |
 |---|---|---|---|
@@ -26,7 +28,7 @@ Caching is one idea applied at a dozen layers: keep the result of expensive work
 | **Semantic cache (LLM)** | 10-50 ms | Prompt embeddings to responses | A *similar* prompt is not the same prompt; see below |
 | **KV / prefix cache (LLM serving)** | in-GPU | Attention keys and values | Exact-prefix only, so it is always correct; the problem is eviction under memory pressure |
 
-## Write and read strategies
+## Write and read strategies (1 min)
 
 - **Cache-aside (lazy loading)**: the application checks the cache, and on a miss reads the database and populates it. The default. Simple, resilient (a cache outage degrades to slow, not broken), and only caches what is actually asked for. Downside: every miss pays full latency, and the first request after a write can serve stale data.
 - **Read-through**: the cache itself loads on a miss. Same behaviour as cache-aside with the loading logic moved into the cache layer.
@@ -35,7 +37,7 @@ Caching is one idea applied at a dozen layers: keep the result of expensive work
 - **Write-around**: write straight to the database and let the cache fill on the next read. Good when writes are rarely read soon after.
 - **Refresh-ahead**: proactively refresh entries approaching expiry. Hides latency for predictably hot keys, wastes work on cold ones.
 
-## Eviction policies
+## Eviction policies (2 min)
 
 - **LRU** is the default and is usually right. Fails on a full scan, which evicts everything hot.
 - **LFU** resists scans by keeping genuinely popular items, but adapts slowly to shifting popularity; **TinyLFU / W-TinyLFU** (Caffeine's policy) is the modern answer, using a frequency sketch to admit only items likely to be reused.
@@ -44,7 +46,7 @@ Caching is one idea applied at a dozen layers: keep the result of expensive work
 - **ARC** balances recency and frequency adaptively; patent history kept it out of much open-source use.
 - **Redis's actual maxmemory-policy menu**, because this is where the theory meets a config file: `noeviction` (the default, and correct only when Redis is a store of record, since writes error once memory is full), `allkeys-lru`, `allkeys-lfu`, `allkeys-random`, and the `volatile-` variants (`volatile-lru`, `volatile-lfu`, `volatile-random`, `volatile-ttl`) which consider only keys that carry a TTL. Two things people get wrong: Redis's LRU and LFU are **sampled approximations rather than exact** (it samples `maxmemory-samples` keys, default 5, and evicts the best candidate from that sample plus a maintained pool, so raise it to 10 for a closer fit at a CPU cost), and a `volatile-` policy with no TTLs actually set behaves exactly like `noeviction`, which is a classic 3am outage. For a pure cache `allkeys-lru` is the right default, and `allkeys-lfu` is better when popularity is stable.
 
-## The failure modes worth knowing by name
+## The failure modes worth knowing by name (3 min)
 
 - **Thundering herd / stampede**: a hot key expires and a thousand requests miss simultaneously, all hitting the database. Fix with a per-key lock so one request recomputes, or probabilistic early expiry so refreshes desynchronise.
 - **Cache penetration**: repeated requests for a key that does not exist bypass the cache every time. Fix by caching the negative result, or a Bloom filter in front.
@@ -54,13 +56,13 @@ Caching is one idea applied at a dozen layers: keep the result of expensive work
 
 And the standing rule: a cache is an optimisation, so the system must remain *correct* without it. If losing the cache loses data or breaks behaviour, it is not a cache, it is a database with no durability guarantees.
 
-## Measuring it: raw hit ratio is a trap
+## Measuring it: raw hit ratio is a trap (2 min)
 
 Hit ratio is `hits / (hits + misses)`, it is the number everyone reports, and alone it misleads in four ways. It is unweighted, so a 1 ms miss and a 10 second miss count as the same event, which means 95 percent hits where the misses are the expensive queries is worse than 80 percent that catches them. It says nothing about the tail, and the tail is where the user actually lives, so split your latency distribution by hit and miss rather than collapsing it. It is trivially gamed by caching a stream of never-reread keys. And it ignores correctness entirely: a semantic cache at a 0.7 threshold will show you a beautiful hit ratio and a terrible product.
 
 Track **cost-weighted hit ratio** instead, meaning the fraction of *work avoided* rather than the fraction of requests served, weighting each hit by the backend latency or the dollar cost it saved. For an LLM cache this is the only metric that means anything, and it has an exact monetary form. For prefix caching it is `(cached_input_tokens * (1 - cache_read_multiplier)) / total_input_tokens_at_full_price`: a 90 percent token hit rate at a 0.1x read price saves 81 percent of the input bill, and cache writes at 1.25x have to be netted off, which is why a high hit ratio on short prompts is worth far less than a moderate one on a 50k-token system prompt. For semantic caching it is dollars and seconds saved *minus the cost of the wrong answers you served*, and if you cannot estimate that second term you should not be running the cache. Keep eviction rate, key cardinality growth (unbounded growth means a user id or a timestamp got into the key), and origin load with and without the cache on the same dashboard, because the day the cache is empty is coming.
 
-## The KV cache, in a few lines
+## The KV cache, in a few lines (2 min)
 
 The KV cache is the foundation the other two LLM caches are built on, and it is not a cache in the hit-or-miss sense: it is the data structure that makes autoregressive decode O(1) per step instead of O(n), by storing the key and value tensors of every token already processed, at every layer. Its problem is capacity, never correctness. The number to have memorised:
 
@@ -68,19 +70,19 @@ The KV cache is the foundation the other two LLM caches are built on, and it is 
 bytes_per_token = 2 * n_layers * n_kv_heads * head_dim * bytes_per_element
 ```
 
-The leading 2 is K and V. For Llama-3-70B (80 layers, 8 KV heads under GQA, head_dim 128) at FP16 that is `2 * 80 * 8 * 128 * 2` = 320 KB per token, so a single 128k-context request holds roughly 40 GB, more than half an H100. **KV capacity, not weights, is what caps your batch size.** It is also why decode is memory-bandwidth-bound rather than compute-bound: every step streams the whole weight set plus the entire KV cache out of HBM to perform a tiny matmul, and batching amortises the weight stream but never the KV, since each sequence carries its own. PagedAttention, KV quantisation, GQA and MLA, and the rest of the serving-side depth live in [../inference-and-serving/inference-techniques.md](../inference-and-serving/inference-techniques.md) and are not repeated here.
+The leading 2 is K and V. For Llama-3-70B (80 layers, 8 KV heads under GQA, head_dim 128) at FP16 that is `2 * 80 * 8 * 128 * 2` = 320 KB per token, so a single 128k-context request holds roughly 40 GB, more than half an H100. **KV capacity, not weights, is what caps your batch size.** It is also why decode is memory-bandwidth-bound rather than compute-bound: every step streams the whole weight set plus the entire KV cache out of HBM to perform a tiny matmul, and batching amortises the weight stream but never the KV, since each sequence carries its own. PagedAttention, KV quantisation, GQA and MLA, and the rest of the serving-side depth live in [Inference techniques: what actually makes serving fast](../inference-and-serving/inference-techniques.md) and are not repeated here.
 
-## Semantic caching for LLM calls
+## Semantic caching for LLM calls (9 min)
 
 An ordinary cache keys on exact bytes, which is nearly useless for natural language: "what is your refund policy" and "how do refunds work" are the same question and hash differently. A **semantic cache** embeds the incoming prompt, does an approximate nearest-neighbour lookup against stored prompt embeddings, and returns the stored response if similarity clears a threshold.
 
-**The mechanism**: embed prompt to vector, ANN search a vector store (see [summary.md](summary.md) and [../rag-and-retrieval/](../rag-and-retrieval/summary.md)), return the hit if cosine similarity exceeds a threshold, otherwise call the model and store the pair. The implementations worth knowing:
+**The mechanism**: embed prompt to vector, ANN search a vector store (see the parent [Topic: databases](summary.md) and rag-and-retrieval), return the hit if cosine similarity exceeds a threshold, otherwise call the model and store the pair. The implementations worth knowing:
 
-- [GPTCache](https://github.com/zilliztech/gptcache) (Zilliz): the reference open-source design and the one to read. Its architecture names the parts properly (embedding function, vector store, cache store, similarity evaluator, eviction policy), and its evaluator stage is precisely the verification step naive implementations omit.
-- [Redis LangCache and vector sets](https://redis.io/blog/spring-release-2025/): managed semantic caching as a service plus a native vector type in Redis, which is the obvious fit if Redis is already in your stack.
-- [Portkey](https://portkey.ai/blog/semantic-caching-thresholds/): gateway-level semantic caching with the threshold managed for you rather than exposed, and unusually candid public writing about the accuracy tradeoff.
-- [LiteLLM](https://docs.litellm.ai/docs/proxy/caching): semantic caching as a proxy feature alongside exact-match caching, which makes it the cheapest way to A/B the idea without changing application code.
-- [Canonical AI](https://canonical.chat/blog/voice_ai_caching): aimed at voice agents, where skipping a multi-second generation matters more than the money and the scripted conversational domain genuinely suits it.
+- [GPTCache](https://github.com/zilliztech/gptcache) (repo, ~25 min for the README and architecture docs) (Zilliz): the reference open-source design and the one to read. Its architecture names the parts properly (embedding function, vector store, cache store, similarity evaluator, eviction policy), and its evaluator stage is precisely the verification step naive implementations omit.
+- [Redis LangCache and vector sets](https://redis.io/blog/spring-release-2025/) (~15 min): managed semantic caching as a service plus a native vector type in Redis, which is the obvious fit if Redis is already in your stack.
+- [Portkey](https://portkey.ai/blog/semantic-caching-thresholds/) (~20 min): gateway-level semantic caching with the threshold managed for you rather than exposed, and unusually candid public writing about the accuracy tradeoff.
+- [LiteLLM](https://docs.litellm.ai/docs/proxy/caching) (~20 min): semantic caching as a proxy feature alongside exact-match caching, which makes it the cheapest way to A/B the idea without changing application code.
+- [Canonical AI](https://canonical.chat/blog/voice_ai_caching) (~15 min): aimed at voice agents, where skipping a multi-second generation matters more than the money and the scripted conversational domain genuinely suits it.
 
 **Why it is genuinely different from every other cache on this page**: every other cache is *exact*. A hit is provably the right answer. A semantic cache hit is a *guess* that two different questions deserve the same answer, and the threshold is the dial between saving money and being wrong. That makes it the only cache in the stack with a false-positive rate, which changes how you treat it:
 
@@ -93,12 +95,12 @@ An ordinary cache keys on exact bytes, which is nearly useless for natural langu
 **Cheaper things to try first**, because they are exact and therefore safe:
 
 - **Provider prompt caching** (Anthropic, OpenAI, Google): the provider caches the prefix of your prompt, cutting cost and TTFT on long shared system prompts with no correctness risk at all.
-- **Prefix / KV caching in the serving engine** (vLLM, SGLang RadixAttention): the same idea inside your own inference stack, covered in [../inference-and-serving/](../inference-and-serving/summary.md).
+- **Prefix / KV caching in the serving engine** (vLLM, SGLang RadixAttention): the same idea inside your own inference stack, covered in inference-and-serving.
 - **Exact-match caching** on normalised prompts, which catches genuine repeats for free.
 
 The provider economics decide how much of your bill the first of those bullets can actually take off, so they are worth holding precisely:
 
-| Provider | Opt-in? | Cache write cost | Cache read cost | Minimum cacheable prefix | TTL |
+| **Provider** | **Opt-in?** | **Cache write cost** | **Cache read cost** | **Minimum cacheable prefix** | **TTL** |
 |---|---|---|---|---|---|
 | Anthropic (Claude API) | Explicit: you mark up to 4 `cache_control` breakpoints in the request | 1.25x base input price (5 min TTL); 2x base input price (1 h TTL) | **0.1x** base input price | Model-dependent: 512 tokens (Opus 5, Fable 5, Mythos 5); 1,024 (Opus 4.8, Sonnet 5, Sonnet 4.6, Sonnet 4.5); 2,048 (Opus 4.7, Haiku 3.5); 4,096 (Opus 4.6, Opus 4.5, Haiku 4.5) | 5 min default, refreshed on each hit; 1 h option at the higher write price |
 | OpenAI | Automatic, on by default for supported models; no request changes needed | No write surcharge | **0.1x** base input price on GPT-5.6 and later (documented as "discounted up to 90 percent"; the exact multiplier has varied by model generation, so read the rate card for the model you actually call) | 1,024 tokens (GPT-5.6 and later); 2,048 on older models. Older models report `cached_tokens` rounded down to a multiple of 128 | 30 min on GPT-5.6 and later (`prompt_cache_options.ttl`, currently the only supported value), measured from the last write or reuse; OpenAI may retain longer |
@@ -108,7 +110,7 @@ Reading it: the shape of the deal is identical everywhere, **a cache read costs 
 
 The sane ordering is: exact-match, then provider prompt caching and prefix caching, and only then semantic caching, with a measured false-hit rate and a way to bypass it.
 
-## Which cache do I reach for
+## Which cache do I reach for (3 min)
 
 For an LLM service, in order. Each step is cheaper and safer than the one after it, so do not skip ahead.
 
@@ -121,11 +123,10 @@ For an LLM service, in order. Each step is cheaper and safer than the one after 
 
 The rule underneath all six: **a cache is not free.** It buys latency and cost with staleness, complexity, and a new class of failure. Steps 1 through 5 pay for themselves with almost no correctness debt, which is precisely why they come first.
 
-## Cross-links
+## Cross-links (1 min)
 
-- Parent: [summary.md](summary.md).
-- [storage-engines-and-indexes.md](storage-engines-and-indexes.md): the buffer pool and page cache from the storage-engine side.
-- [../inference-and-serving/](../inference-and-serving/summary.md): KV caching, prefix caching, and RadixAttention, the exact-match caches inside the model server.
-- [../rag-and-retrieval/](../rag-and-retrieval/summary.md): embeddings and ANN indexes, the machinery a semantic cache is built from.
-- [../swe-and-system-design/](../swe-and-system-design/summary.md): where caching sits in a service architecture.
-- [../protocols/http.md](../protocols/http.md): HTTP cache headers, ETags, and conditional requests.
+- Parent: [Topic: databases](summary.md).
+- **inference-and-serving**: KV caching, prefix caching, and RadixAttention, the exact-match caches inside the model server.
+- **rag-and-retrieval**: embeddings and ANN indexes, the machinery a semantic cache is built from.
+- **swe-and-system-design**: where caching sits in a service architecture.
+- **protocols**: HTTP cache headers, ETags, and conditional requests.

@@ -1,15 +1,17 @@
 # Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools
 
+⏱ 12 min read · +5h 5m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [lm-evaluation-harness repo](https://github.com/EleutherAI/lm-evaluation-harness) and its [task_guide.md](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/task_guide.md) / [interface.md](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/interface.md): the canonical docs for YAML task configs and the model API.
-- [Inspect documentation](https://inspect.aisi.org.uk/): excellent official docs; start with Tasks, Solvers, Scorers, then Sandboxing and Agents.
-- [Hamel Husain's notes on Inspect](https://hamel.dev/notes/llm/evals/inspect.html): practitioner walkthrough of why Inspect's design works.
-- [inspect_evals CONTRIBUTING.md](https://github.com/UKGovernmentBEIS/inspect_evals/blob/main/CONTRIBUTING.md): the concrete contribution entry point for Inspect.
-- [HELM repo](https://github.com/stanford-crfm/helm) and [docs](https://crfm-helm.readthedocs.io/): in maintenance mode since 2026-06, still the reference for multi-metric methodology.
-- [lighteval repo](https://github.com/huggingface/lighteval): HF's harness, 1000+ tasks, multi-backend.
+- [lm-evaluation-harness repo](https://github.com/EleutherAI/lm-evaluation-harness) (repo, ~40 min for the entry path) and its [task_guide.md](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/task_guide.md) (~30 min) / [interface.md](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/interface.md) (~20 min): the canonical docs for YAML task configs and the model API.
+- [Inspect documentation](https://inspect.aisi.org.uk/) (docs, ~90 min for the core pages): excellent official docs; start with Tasks, Solvers, Scorers, then Sandboxing and Agents.
+- [Hamel Husain's notes on Inspect](https://hamel.dev/notes/llm/evals/inspect.html) (~20 min): practitioner walkthrough of why Inspect's design works.
+- [inspect_evals CONTRIBUTING.md](https://github.com/UKGovernmentBEIS/inspect_evals/blob/main/CONTRIBUTING.md) (~15 min): the concrete contribution entry point for Inspect.
+- [HELM repo](https://github.com/stanford-crfm/helm) (repo, ~15 min for the entry path) and [docs](https://crfm-helm.readthedocs.io/) (docs, ~40 min for the core pages): in maintenance mode since 2026-06, still the reference for multi-metric methodology.
+- [lighteval repo](https://github.com/huggingface/lighteval) (repo, ~20 min for the entry path): HF's harness, 1000+ tasks, multi-backend.
 
 ## lm-evaluation-harness (EleutherAI)
 
@@ -29,7 +31,7 @@ The frontier-safety and agentic-eval standard; used by UK/other AISIs, METR, Apo
 - **Sandboxing**: first-class sandbox abstraction (Docker default; k8s and Proxmox adapters) so agentic tasks can execute untrusted model-written code, run web/CTF/SWE environments, and be isolated per-sample. This is the feature that made it the agentic-eval default; nothing in lm-eval-harness compares.
 - **Tooling**: `inspect view` log viewer + VS Code extension render full transcripts (every model call, tool call, score) from structured `.eval` logs: the debugging experience is the best of any harness, and eval logs are a stable format other tools consume.
 - **Model support**: all major APIs plus local (vllm, hf); `--model` flag switches provider without task changes.
-- **Contributing**: two repos. `inspect_ai` (framework; harder bar) and [`inspect_evals`](https://github.com/UKGovernmentBEIS/inspect_evals) (community benchmark implementations; the designed on-ramp). For inspect_evals: pick a published, credibly-sourced benchmark not yet implemented (check open issues/PRs first, propose in an issue), start with Q&A-style before agentic tasks, and ship an end-to-end test plus reported-score parity check; untested evals are rejected. Their docs/methodology.md describes the validation bar. Given Khalid's judge-battery background, model-graded scorers and judge-reliability tooling inside inspect_evals are a natural niche.
+- **Contributing**: two repos. `inspect_ai` (framework; harder bar) and [`inspect_evals`](https://github.com/UKGovernmentBEIS/inspect_evals) (repo, ~15 min for the entry path) (community benchmark implementations; the designed on-ramp). For inspect_evals: pick a published, credibly-sourced benchmark not yet implemented (check open issues/PRs first, propose in an issue), start with Q&A-style before agentic tasks, and ship an end-to-end test plus reported-score parity check; untested evals are rejected. Their docs/methodology.md describes the validation bar. Given Khalid's judge-battery background, model-graded scorers and judge-reliability tooling inside inspect_evals are a natural niche.
 
 ## HELM (Stanford CRFM)
 
@@ -44,7 +46,7 @@ Harness-inspired, HF-native: 1000+ tasks, backends for transformers/accelerate, 
 Different job: evaluating your application (prompt + model + RAG + tools), not the model.
 
 - **promptfoo**: OSS, CLI/YAML-first, local-first. Declarative test matrices (prompts x providers x test cases), assertion types from regex to model-graded, diff view, CI-friendly, plus a serious red-teaming/scanner mode. Choose for repo-local prompt regression tests and multi-model comparisons with fastest setup.
-- **Braintrust**: commercial platform: `Eval()` SDK (TS/Python), dataset versioning, autoevals scorer library, production trace logging, online scoring on live traffic, CI quality gates, human-review queues. Choose when you need the offline-eval-to-production-observability loop in one place and are willing to pay/host. (Alternatives in this niche: Langfuse, Arize Phoenix, W&B Weave; see ../agentic-frameworks/ for observability.)
+- **Braintrust**: commercial platform: `Eval()` SDK (TS/Python), dataset versioning, autoevals scorer library, production trace logging, online scoring on live traffic, CI quality gates, human-review queues. Choose when you need the offline-eval-to-production-observability loop in one place and are willing to pay/host. (Alternatives in this niche: Langfuse, Arize Phoenix, W&B Weave; see [../agentic-frameworks/](../agentic-frameworks/summary.md) for observability.)
 
 ## The shape of a task in each framework
 

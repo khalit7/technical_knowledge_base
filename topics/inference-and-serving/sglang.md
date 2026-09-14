@@ -1,18 +1,20 @@
 # SGLang
 
+⏱ 7 min read · +3h 35m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [SGLang paper: "SGLang: Efficient Execution of Structured Language Model Programs"](https://arxiv.org/abs/2312.07104)
+- [SGLang paper: "SGLang: Efficient Execution of Structured Language Model Programs"](https://arxiv.org/abs/2312.07104) (45 min)
   (NeurIPS 2024): RadixAttention and the frontend DSL in one paper.
-- [SGLang docs](https://docs.sglang.io), especially
-  [Structured Outputs](https://docs.sglang.io/docs/advanced_features/structured_outputs).
-- [sgl-project/sgl-learning-materials](https://github.com/sgl-project/sgl-learning-materials):
+- [SGLang docs](https://docs.sglang.io) (docs, ~40 min for the core pages), especially
+  [Structured Outputs](https://docs.sglang.io/docs/advanced_features/structured_outputs) (15 min).
+- [sgl-project/sgl-learning-materials](https://github.com/sgl-project/sgl-learning-materials) (~1h 30m):
   curated talks and deep-dives from the team.
-- [XGrammar-2 blog (MLC, May 2026)](https://blog.mlc.ai/2026/05/04/xgrammar-2-fast-customizable-structured-generation):
+- [XGrammar-2 blog (MLC, May 2026)](https://blog.mlc.ai/2026/05/04/xgrammar-2-fast-customizable-structured-generation) (15 min):
   the constrained-decoding backend SGLang leans on.
-- Comparison reading: [Yotta Labs: What is SGLang?](https://www.yottalabs.ai/post/what-is-sglang-architecture-performance-and-when-to-use-it).
+- Comparison reading: [Yotta Labs: What is SGLang?](https://www.yottalabs.ai/post/what-is-sglang-architecture-performance-and-when-to-use-it) (10 min).
 
 ## What it is
 

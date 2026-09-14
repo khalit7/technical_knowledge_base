@@ -1,13 +1,15 @@
 # RAG evaluation
 
+⏱ 6 min read · +1h 27m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [RAGAS documentation](https://docs.ragas.io/): reference implementations of the core LLM-judged metrics.
-- [Atlan: RAG evaluation, metrics, tools, and the context gap (2026)](https://atlan.com/know/how-to-evaluate-rag-systems-explained/): why high metric scores can still hide wrong answers.
-- [FutureAGI: RAG evaluation metrics 2026](https://futureagi.com/blog/rag-evaluation-metrics-2025/): current metric landscape and tooling survey.
-- [Pinecone: evaluating retrieval, recall@k/nDCG/MRR](https://www.pinecone.io/learn/offline-evaluation/): clean explanations of the IR metrics.
+- [RAGAS documentation](https://docs.ragas.io/) (docs, ~40 min for the core pages): reference implementations of the core LLM-judged metrics.
+- [Atlan: RAG evaluation, metrics, tools, and the context gap (2026)](https://atlan.com/know/how-to-evaluate-rag-systems-explained/) (~15 min): why high metric scores can still hide wrong answers.
+- [FutureAGI: RAG evaluation metrics 2026](https://futureagi.com/blog/rag-evaluation-metrics-2025/) (~12 min): current metric landscape and tooling survey.
+- [Pinecone: evaluating retrieval, recall@k/nDCG/MRR](https://www.pinecone.io/learn/offline-evaluation/) (~20 min): clean explanations of the IR metrics.
 - Cross-link: [../evaluation-and-llm-judges/summary.md](../evaluation-and-llm-judges/summary.md) for judge design, bias, and calibration; everything there applies to the LLM-judged metrics below.
 
 Evaluate the two halves separately, then end to end. Retrieval metrics are cheap,

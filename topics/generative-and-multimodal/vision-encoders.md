@@ -1,13 +1,15 @@
 # Vision Encoders: ViT, CLIP, SigLIP, DINO, SAM
 
+⏱ 6 min read · +2h 40m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
 - ViT paper summary in this repo: [../../papers/2020-10_vit/summary.md](../../papers/2020-10_vit/summary.md); CLIP: [../../papers/2021-02_clip/summary.md](../../papers/2021-02_clip/summary.md).
-- Tschannen et al., [SigLIP 2](https://arxiv.org/abs/2502.14786): the current default contrastive encoder family, with the training recipe.
-- Meta AI, [DINOv3](https://arxiv.org/abs/2508.10104): scaling self-supervised vision to 7B params; read for gram anchoring and dense-feature quality.
-- Hugging Face, [Vision Language Models (better, faster, stronger)](https://huggingface.co/blog/vlms-2025): what open VLMs actually plug in as eyes.
+- Tschannen et al., [SigLIP 2](https://arxiv.org/abs/2502.14786) (45 min): the current default contrastive encoder family, with the training recipe.
+- Meta AI, [DINOv3](https://arxiv.org/abs/2508.10104) (90 min): scaling self-supervised vision to 7B params; read for gram anchoring and dense-feature quality.
+- Hugging Face, [Vision Language Models (better, faster, stronger)](https://huggingface.co/blog/vlms-2025) (~25 min): what open VLMs actually plug in as eyes.
 
 ## ViT: the substrate
 
