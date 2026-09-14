@@ -2,12 +2,12 @@
 
 This is the **mirror** of Khalid's personal AI/ML knowledge base. **The source of truth
 is Notion**: the "Technical knowledge base" page (id
-`3c65c17b-0d0d-81c7-b646-e548e65d9446`, child of his "Me" page). A scheduled cloud
-task (Mondays 07:00 UTC, Opus, routine "Weekly tech KB update") updates Notion weekly
-and then syncs this repo in its cloud clone, committing and pushing to main
-(github.com/khalit7/technical_knowledge_base). On the PC: `git pull` first, always;
-`/kb-sync-from-notion` is for ad-hoc catch-ups and for backfilling anything the cloud
-run noted it skipped.
+`3c65c17b-0d0d-81c7-b646-e548e65d9446`, child of his "Me" page). Content changes in
+Notion, either through the weekly update that **Khalid runs by hand** (the scheduled
+cloud routine "Weekly tech KB update" was stopped on 2026-09-14; do not recreate it or
+any other schedule unless he asks) or through ad-hoc sessions. This repo follows via
+`/kb-sync-from-notion`, which Khalid runs on his PC; nothing syncs it automatically
+(github.com/khalit7/technical_knowledge_base). On the PC: `git pull` first, always.
 
 Before doing anything: read `GOAL.md` (structure and writing conventions, both binding)
 and `DECISIONS.md` (standing decisions, do not re-ask them). The Notion side's manual
@@ -38,15 +38,16 @@ is the root page's child **Operating guide (for Claude)**.
 
 ## Workflows (project skills in .claude/skills/)
 
-- `/kb-sync-from-notion`: pull Notion into this repo, download new PDFs, commit, move
-  the `notion-sync` tag, push. The main thing this repo is for.
+- `/kb-sync-from-notion`: pull Notion into this repo, download new PDFs, commit as
+  `sync from notion YYYY-MM-DD`, push. The main thing this repo is for.
 - `/kb-add-paper <arxiv id or url>`: add one paper, Notion first, then here.
 - `/kb-new-topic <name>`: add a topic, Notion first, then here.
-- `/kb-weekly-update-manual`: manual fallback for the scheduled weekly update (runs in
-  Notion, then syncs here).
+- `/kb-weekly-update-manual`: the weekly update, run by hand when Khalid asks (works
+  in Notion, then syncs here). Since 2026-09-14 this is the only way it runs.
 
 ## Git
 
 Commit after meaningful units of work; push to main after syncs. The newest commit
 whose message starts with `sync from notion` marks the last point the repo matched
-Notion (no tag: the cloud run's credential cannot move tags).
+Notion (no tag: the convention dates from when a cloud credential could not move tags,
+and it stays because it needs nothing beyond a commit).

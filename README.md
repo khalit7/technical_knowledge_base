@@ -1,8 +1,8 @@
 # tech_knowledge_base
 
 Mirror of Khalid's personal AI/ML knowledge base. **The source of truth is Notion**
-(the "Technical knowledge base" page; a weekly scheduled cloud task updates it every
-Monday). This repo is synced from Notion on demand and pushed.
+(the "Technical knowledge base" page, updated by a weekly update that Khalid runs by
+hand). This repo is synced from Notion on demand and pushed.
 
 - **What to read**: start at any `topics/<topic>/summary.md`, follow links into deep
   dives and papers. Or read in Notion, where updates land first.

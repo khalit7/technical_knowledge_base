@@ -6,11 +6,11 @@ description: Sync this repo FROM Notion (the source of truth) and push. Use when
 # Sync the repo from Notion
 
 **Direction (decided 2026-08-24): Notion is the source of truth; this repo is the
-mirror.** A scheduled cloud task updates Notion weekly (Mondays 07:00 UTC, Opus) and
-then runs this same skill in its cloud clone, committing and pushing to main. So on
-the PC, `git pull` is usually enough; run this skill for ad-hoc catch-ups, to backfill
-anything the cloud run noted it skipped (e.g. taxonomy.svg re-renders), or if the
-weekly run failed. Never resolve a conflict in the repo's favour; if the repo has
+mirror.** Nothing syncs this repo automatically: the weekly update is run by hand in
+Notion (since 2026-09-14; the scheduled cloud routine is stopped), and this skill is
+how the repo catches up afterwards, on Khalid's PC. Run it after a weekly update,
+after ad-hoc Notion sessions, or to backfill anything a previous sync skipped (e.g.
+taxonomy.svg re-renders). Never resolve a conflict in the repo's favour; if the repo has
 local edits Notion lacks, surface them to Khalid instead of overwriting either side
 silently. Always `git pull` before starting.
 
@@ -44,9 +44,10 @@ it is the binding manual and decisions log.
    its date against the Notion pages' last-edited times. When in doubt re-mirror the
    affected section whole rather than diffing line by line. (There is deliberately no
    `notion-sync` tag: the cloud run's credential cannot force-move tags, so the commit
-   message convention is the marker.)
+   message convention is the marker; it stays because it needs nothing but a commit.)
 2. Regenerate the affected repo files per the mapping, preserving repo conventions
-   (GOAL.md): no em-dashes, resources-first deep dives, dated entries.
+   (GOAL.md): no em-dashes, resources-first deep dives, dated entries, and the `⏱`
+   estimate line directly under each page's H1 (copied from Notion, never invented).
 3. Download PDFs for new papers; re-render changed taxonomy SVGs.
 4. Verify: no broken relative links, no empty files, TRACKER.md matches the file tree.
 5. Commit as `sync from notion YYYY-MM-DD` (this exact prefix; it is the sync marker)
