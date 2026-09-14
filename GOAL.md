@@ -80,22 +80,39 @@ frontier material gets the depth.
 - Date every update. Superseded content moves into a `<details>` block instead of being
   deleted.
 - State an unfinished thing once, in the smallest space.
+- **Time estimates on everything** (binding, Notion decision 2026-08-31). Every page
+  opens with an estimate line directly under its title: `⏱ 12 min read · +3h 40m
+  resources` (prose on that page; sum of the recommended external resources; omit the
+  second half if the page recommends nothing external; never merge the two). Every
+  external link carries a bracketed estimate right after it, e.g. `(25 min)`; every
+  link to another KB page carries the target's rolled-up numbers; pages over roughly
+  20 minutes get a per-H2 estimate. Basis: prose at 200 words per minute, a standard
+  arXiv paper 45 min, a survey 90 min+, books at 1.5 min per page, videos at runtime,
+  repos and docs as the entry path. Prefix `~` for judgement calls. Editing a page
+  means updating its line and every ancestor that links to it, in the same session.
+- **Explain, do not name-drop** (binding, Notion decision 2026-08-31). Every entity a
+  synthesis names (model, architecture, technique, library, benchmark) gets at least
+  one clause on what it is and one on what is distinctive about it; acronyms are
+  expanded and explained on first use per page. If it is only worth a name, put it in
+  a table or drop it. Condense by cutting entities, never by reducing them to labels.
 
-## Maintenance (direction reversed 2026-08-25)
+## Maintenance (direction reversed 2026-08-25; weekly run manual since 2026-09-14)
 
 **Notion is the source of truth; this repo is the mirror.** The Notion root page is
 "Technical knowledge base" (`3c65c17b-0d0d-81c7-b646-e548e65d9446`), and its child
 "Operating guide (for Claude)" is the Notion-side manual.
 
-- Weekly update: a scheduled cloud task (routine "Weekly tech KB update", Mondays
-  07:00 UTC, Opus, Notion connector, repo cloned) researches every topic, updates
-  Notion directly, then syncs this repo and pushes to main. Manual fallback:
-  `/kb-weekly-update-manual`.
+- Weekly update: **run by hand, when Khalid asks** (`/kb-weekly-update-manual` on the
+  PC, or the Operating guide's procedure in a claude.ai session). It researches every
+  topic, updates Notion directly, then syncs this repo and pushes to main. The
+  scheduled cloud routine that used to do this (Mondays 07:00 UTC) was stopped on
+  2026-09-14; do not recreate it or any other schedule unless he asks.
 - **The weekly run's scope is fixed** (2026-08-31): research the week, add and update
   topics in Notion, then sync this repo and push. It does not read any external inbox or
   request queue; requests reach the KB through a session where Khalid asks.
-- Repo sync on the PC: `git pull` first; run `/kb-sync-from-notion` for ad-hoc
-  catch-ups or to backfill anything the cloud run skipped (e.g. SVG re-renders).
+- Repo sync on the PC: `git pull` first; run `/kb-sync-from-notion` whenever Notion
+  has moved ahead of the repo (after a weekly update, after ad-hoc Notion sessions, or
+  to backfill anything a previous sync skipped, e.g. SVG re-renders).
 - New paper: `/kb-add-paper <arxiv id or url>` (writes Notion first, then here).
 - New topic: `/kb-new-topic <name>` (writes Notion first, then here).
 
@@ -105,5 +122,7 @@ frontier material gets the depth.
    mirrors it, ticks included.
 2. Paper PDFs live only in this repo (`papers/*/paper.pdf`); the sync downloads them
    from the arXiv links in Notion. Revisit Git LFS if the repo passes ~1GB.
-3. The weekly cloud task cannot reach this repo or this machine; anything it must know
-   lives in Notion (that is what the Operating guide page is for).
+3. A claude.ai session (where the weekly update may be run) cannot reach this repo or
+   this machine; anything it must know lives in Notion (that is what the Operating
+   guide page is for). Such a session skips the repo sync and says so; the sync then
+   happens here via `/kb-sync-from-notion`.

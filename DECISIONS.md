@@ -3,6 +3,38 @@
 Binding. Do not re-ask these. Each entry is dated and states what it does and does not
 license. Add new entries at the top.
 
+## 2026-09-14: The scheduled weekly cloud run is stopped; the weekly update is manual
+
+Khalid: "I stopped the weekly automatic run. From now on this will be manually run by
+me." The routine "Weekly tech KB update" (Mondays 07:00 UTC, Opus) no longer exists.
+The weekly update happens only when he starts one (`/kb-weekly-update-manual` on the
+PC, or the Operating guide procedure in a claude.ai session), and the repo sync is
+likewise manual (`/kb-sync-from-notion`). Procedure, scope, and the news source
+checklist are unchanged. Do not recreate the routine or any other schedule unless he
+asks. Recorded in the Notion Operating guide the same day.
+
+## 2026-08-31: Time estimates on everything; explain, do not name-drop (Notion)
+
+Khalid's feedback after using the KB in anger: he could not tell what a page would
+cost him, and the prose (the llms tree especially) listed terminology without
+explaining it. Two binding writing conventions followed, specified in the Notion
+Operating guide and mirrored in GOAL.md: every page opens with a `⏱ N min read ·
++Xh resources` line (two numbers, never merged) and every link carries an estimate;
+every named entity gets a clause on what it is and how it works. Applied 2026-08-31
+across all topic roots and the llms tree; deeper pages of other topics are still owed
+the explanation pass.
+
+## 2026-08-31: News sweep rules (Notion)
+
+Three decisions from the 2026-08-31 run's misses, all binding and detailed in the
+Operating guide: (1) the sweep runs against a **fixed named-source checklist**
+(newsletters, paper feeds, release feeds, community) and records what was checked in
+the digest, after 13 in-scope items were missed; (2) an **unverifiable item is
+flagged, not dropped and not embellished**; (3) the sweep includes a **homeless-release
+check**: scope decides whether an item goes in the issue, having no topic home does
+not (Cohere Parse 5 was missed for that reason). Open question, not decided: AI
+security has no topic page; keep flagging it in digests, do not create it unilaterally.
+
 ## 2026-08-31: The weekly run's scope is fixed
 
 Khalid: the scheduled Monday run's job is to research the week, add and update topics in
