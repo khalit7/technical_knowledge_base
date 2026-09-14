@@ -1,15 +1,17 @@
 # Pretraining corpora: lineage and current landscape
 
+⏱ 9 min read · +7h 40m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [FineWeb: decanting the web](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1): the canonical writeup of how a modern web corpus is built, with per-decision ablations
-- [FineWeb paper (NeurIPS 2024 D&B)](https://arxiv.org/abs/2406.17557): the same material in paper form
-- [DCLM: DataComp for Language Models](https://arxiv.org/abs/2406.11794): controlled testbed comparing curation strategies at fixed compute
-- [Nemotron-CC](https://arxiv.org/abs/2412.02595): how to keep 4x more tokens at equal quality; [Nemotron-CC-v2.1 card](https://huggingface.co/datasets/nvidia/Nemotron-CC-v2.1)
-- [Dolma paper](https://arxiv.org/abs/2402.00159) and the [Olmo 3 / Dolma 3 release](https://allenai.org/blog/olmo3): fully documented open corpus lineage
-- [HuggingFaceFW org page](https://huggingface.co/HuggingFaceFW): FineWeb, FineWeb-Edu, FineWeb2, FinePDFs, FineWiki, Smol-Data mixtures in one place
+- [FineWeb: decanting the web](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) (~1h 30m): the canonical writeup of how a modern web corpus is built, with per-decision ablations
+- [FineWeb paper (NeurIPS 2024 D&B)](https://arxiv.org/abs/2406.17557) (90 min): the same material in paper form
+- [DCLM: DataComp for Language Models](https://arxiv.org/abs/2406.11794) (90 min): controlled testbed comparing curation strategies at fixed compute
+- [Nemotron-CC](https://arxiv.org/abs/2412.02595) (45 min): how to keep 4x more tokens at equal quality; [Nemotron-CC-v2.1 card](https://huggingface.co/datasets/nvidia/Nemotron-CC-v2.1) (~10 min)
+- [Dolma paper](https://arxiv.org/abs/2402.00159) (90 min) and the [Olmo 3 / Dolma 3 release](https://allenai.org/blog/olmo3) (~30 min): fully documented open corpus lineage
+- [HuggingFaceFW org page](https://huggingface.co/HuggingFaceFW) (~15 min): FineWeb, FineWeb-Edu, FineWeb2, FinePDFs, FineWiki, Smol-Data mixtures in one place
 
 ## The lineage
 
@@ -57,6 +59,23 @@ and **The Stack v2** (code, 900B+ tokens, from Software Heritage).
 5. **Synthetic augmentation**: rephrased web and QA-ified documents are now a standard slice
    (Nemotron-CC's 1.9T synthetic tokens; see
    [synthetic-and-post-training-data.md](synthetic-and-post-training-data.md)).
+
+Added 2026-09-07: **where the founding evidence for point 4's premise comes from.** The whole
+lineage above assumes filtering earns its losses, and that assumption was first measured in the
+C4 paper itself, which is worth knowing because the experiment is cleaner than most that came
+after it. Holding model, compute and evaluation fixed, an unfiltered variant of the same crawl
+snapshot (6.1TB, roughly 8x more text than filtered C4's 745GB) scored worst on every single
+downstream task, with no task where the extra volume bought anything. That is the strongest
+form the filtering-beats-volume claim takes, and it is why Nemotron-CC's counter-argument is
+about *how much* to filter rather than whether to.
+
+The same paper also ran the repetition experiment that sets the token-horizon budget everyone
+now reasons with. Truncating C4 and looping over it during a fixed-token run: 64 repeats is
+harmless, 256 is marginal, and 1,024 repeats costs about 4 GLUE points and 4.6 on SQuAD, with
+training loss *falling* as the corpus shrinks, which is the memorisation signature rather than
+learning. So the practical rule that a corpus is large enough if you repeat it a few dozen times
+at most predates the modern corpora by five years. See
+[T5](../../papers/2019-10_t5/summary.md) (11 min read · +4h 12m resources).
 
 ## Aug 2026 snapshot
 

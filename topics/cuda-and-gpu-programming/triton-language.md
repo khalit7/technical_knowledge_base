@@ -1,21 +1,23 @@
 # Triton
 
+⏱ 8 min read · +13h 25m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [Official Triton tutorials](https://triton-lang.org/main/getting-started/tutorials/index.html): 01 vector add, 02 fused softmax, 03 matmul, 06 fused attention; the core curriculum, each with benchmarks against PyTorch.
-- [Triton paper (Tillet et al., MAPL 2019)](https://www.eecs.harvard.edu/~htk/publication/2019-mapl-tillet-kung-cox.pdf): the block-level design rationale in 10 pages.
-- [GPU MODE lectures](https://github.com/gpu-mode/lectures): lecture 14 (practical Triton), lecture 29 (Triton internals), plus compiler deep dives; recordings on the [GPU MODE YouTube](https://www.youtube.com/@GPUMODE).
-- [triton-lang/triton releases](https://github.com/triton-lang/triton/releases): the changelog is the best record of what the compiler can do now.
-- [Sasha Rush, GPU Puzzles](https://github.com/srush/GPU-Puzzles) and [Triton-Puzzles](https://github.com/srush/Triton-Puzzles): learn by solving.
+- [Official Triton tutorials](https://triton-lang.org/main/getting-started/tutorials/index.html) (~3h for tutorials 01, 02, 03 and 06): 01 vector add, 02 fused softmax, 03 matmul, 06 fused attention; the core curriculum, each with benchmarks against PyTorch.
+- [Triton paper (Tillet et al., MAPL 2019)](https://www.eecs.harvard.edu/~htk/publication/2019-mapl-tillet-kung-cox.pdf) (45 min): the block-level design rationale in 10 pages.
+- [GPU MODE lectures](https://github.com/gpu-mode/lectures) (~3h for the two lectures below): lecture 14 (practical Triton), lecture 29 (Triton internals), plus compiler deep dives; recordings on the [GPU MODE YouTube](https://www.youtube.com/@GPUMODE) (the same lectures in video form, ~1h 30m each).
+- [triton-lang/triton releases](https://github.com/triton-lang/triton/releases) (20 min): the changelog is the best record of what the compiler can do now.
+- [Sasha Rush, GPU Puzzles](https://github.com/srush/GPU-Puzzles) (~3h) and [Triton-Puzzles](https://github.com/srush/Triton-Puzzles) (~3h): learn by solving.
 
 ## Programming model: blocks, not threads
 
 A Triton kernel is a Python function (decorated `@triton.jit`) written at the level of a
 **program instance**, which corresponds to a CUDA thread block. There are no threads,
-warps, shared memory, or `__syncthreads()` in the source; you manipulate **blocks of
-values** (power-of-2-shaped tensors) and the compiler decides the thread mapping, shared
+warps, shared memory, or `__syncthreads()` in the source; you manipulate blocks of
+values (power-of-2-shaped tensors) and the compiler decides the thread mapping, shared
 memory staging, vectorisation, and synchronisation.
 
 ```python
@@ -84,8 +86,7 @@ the kernel layer of PyTorch on all three).
   new Blackwell-generation tensor-core features without source changes; Triton is now
   effectively the shared DSL target NVIDIA, AMD, and Intel all optimise for.
 - **Ecosystem**: torch.compile/Inductor, vLLM, SGLang, Unsloth, liger-kernel and most
-  open kernel libraries are Triton-first; the [GPU MODE kernel
-  leaderboard](https://www.gpumode.com) popularised competitive Triton/CUDA kernel
+  open kernel libraries are Triton-first; the [GPU MODE kernel leaderboard](https://www.gpumode.com) (~20 min) popularised competitive Triton/CUDA kernel
   writing and is worth using for practice problems.
 
 ## Learning path
@@ -94,7 +95,7 @@ the kernel layer of PyTorch on all three).
    plots on your own GPU.
 2. Triton-Puzzles for indexing fluency.
 3. Tutorial 06 (fused attention) after reading the FlashAttention paper.
-4. GPU MODE Triton lectures for internals: how tl.dot picks mma layouts, what
+4. GPU MODE Triton lectures for internals: how `tl.dot` picks mma layouts, what
    num_stages does, reading the generated PTX/TTGIR when performance surprises you
    (`TRITON_PRINT_AUTOTUNING=1`, `kernel.asm["ptx"]`).
 5. Profile Triton kernels exactly like CUDA kernels with ncu

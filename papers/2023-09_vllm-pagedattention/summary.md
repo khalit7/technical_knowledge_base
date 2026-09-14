@@ -1,16 +1,18 @@
 # Efficient Memory Management for Large Language Model Serving with PagedAttention
 
+⏱ 11 min read · +~2h 40m resources
+
 - **Authors/lab**: Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, Ion Stoica (UC Berkeley, with Stanford and UCSD); published at SOSP 2023
 - **Date**: September 2023 (arXiv 2023-09-12; SOSP '23, October 2023)
-- **Links**: [arXiv 2309.06180](https://arxiv.org/abs/2309.06180) | [GitHub (vllm-project/vllm)](https://github.com/vllm-project/vllm) | [Announcement blog](https://blog.vllm.ai/2023/06/20/vllm.html)
+- **Links**: [arXiv 2309.06180](https://arxiv.org/abs/2309.06180) (~45 min) | [GitHub (vllm-project/vllm)](https://github.com/vllm-project/vllm) (repo, ~25 min for the README and entry path) | [Announcement blog](https://blog.vllm.ai/2023/06/20/vllm.html) (~10 min)
 - Added to KB: 2026-08-24
 
 ## Best resources
 
-- [vLLM announcement blog (June 2023)](https://blog.vllm.ai/2023/06/20/vllm.html): the authors' own short version, with the clearest animations of block tables, copy-on-write sharing, and the 24x-over-HF headline.
-- [Anyscale: How continuous batching enables 23x throughput](https://www.anyscale.com/blog/continuous-batching-llm-inference): the best explanation of iteration-level (continuous) batching, the Orca idea that PagedAttention composes with; benchmarks vLLM against static-batching baselines.
-- [Aleksa Gordic: Inside vLLM, anatomy of a high-throughput inference system](https://www.aleksagordic.com/blog/vllm): code-level walkthrough of the modern vLLM engine (scheduler, KV cache manager, paged attention kernels), the bridge from this paper to today's codebase.
-- [vLLM V1 alpha release blog (January 2025)](https://blog.vllm.ai/2025/01/27/v1-alpha-release.html): what the project learned in 1.5 years of production and how the re-architected V1 engine changes the scheduler and cache manager described here.
+- [vLLM announcement blog (June 2023)](https://blog.vllm.ai/2023/06/20/vllm.html) (~10 min, the same post as the Links line): the authors' own short version, with the clearest animations of block tables, copy-on-write sharing, and the 24x-over-HF headline.
+- [Anyscale: How continuous batching enables 23x throughput](https://www.anyscale.com/blog/continuous-batching-llm-inference) (~20 min): the best explanation of iteration-level (continuous) batching, the Orca idea that PagedAttention composes with; benchmarks vLLM against static-batching baselines.
+- [Aleksa Gordic: Inside vLLM, anatomy of a high-throughput inference system](https://www.aleksagordic.com/blog/vllm) (~45 min): code-level walkthrough of the modern vLLM engine (scheduler, KV cache manager, paged attention kernels), the bridge from this paper to today's codebase.
+- [vLLM V1 alpha release blog (January 2025)](https://blog.vllm.ai/2025/01/27/v1-alpha-release.html) (~15 min): what the project learned in 1.5 years of production and how the re-architected V1 engine changes the scheduler and cache manager described here.
 
 ## Problem
 

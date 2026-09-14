@@ -1,13 +1,15 @@
 # VAEs and GANs: Review and Where They Survive
 
+⏱ 6 min read · +6h 40m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- Kingma and Welling, [An Introduction to Variational Autoencoders](https://arxiv.org/abs/1906.02691): the authors' own monograph, the definitive VAE reference.
-- Lilian Weng, [From Autoencoder to Beta-VAE](https://lilianweng.github.io/posts/2018-08-12-vae/): compact tour of AE, VAE, VQ-VAE and variants.
-- Goodfellow et al., [Generative Adversarial Networks](https://arxiv.org/abs/1406.2661) and Lilian Weng, [From GAN to WGAN](https://lilianweng.github.io/posts/2017-08-20-gan/): minimax objective, why training is unstable, Wasserstein fix.
-- Esser et al., [Taming Transformers (VQGAN)](https://arxiv.org/abs/2012.09841): the paper that shows how VAE + GAN loss became the standard image tokenizer/compressor.
+- Kingma and Welling, [An Introduction to Variational Autoencoders](https://arxiv.org/abs/1906.02691) (~4h): the authors' own monograph, the definitive VAE reference.
+- Lilian Weng, [From Autoencoder to Beta-VAE](https://lilianweng.github.io/posts/2018-08-12-vae/) (~35 min): compact tour of AE, VAE, VQ-VAE and variants.
+- Goodfellow et al., [Generative Adversarial Networks](https://arxiv.org/abs/1406.2661) (45 min) and Lilian Weng, [From GAN to WGAN](https://lilianweng.github.io/posts/2017-08-20-gan/) (~35 min): minimax objective, why training is unstable, Wasserstein fix.
+- Esser et al., [Taming Transformers (VQGAN)](https://arxiv.org/abs/2012.09841) (45 min): the paper that shows how VAE + GAN loss became the standard image tokenizer/compressor.
 
 ## Autoencoders vs VAEs (skimmable review)
 
@@ -65,6 +67,7 @@ frontier image model as a pure GAN.
 ## Where each survives in 2026
 
 **VAE: the invisible workhorse.**
+
 - The **latent compressor under every latent diffusion model**: SD/FLUX use a
   KL-regularised conv VAE (~8x downsample); video models use causal 3D VAEs compressing
   space and time. VAE quality caps the whole system's fidelity, which is why model
@@ -77,6 +80,7 @@ frontier image model as a pure GAN.
   variational derivation (DDPM is trained on a bound of the same form).
 
 **GAN: the invisible loss term.**
+
 - **Decoder training**: the SD-family VAE decoder and every VQGAN-style tokenizer are
   trained with reconstruction + perceptual (LPIPS) + **adversarial loss**; the GAN term
   is what makes decoded outputs crisp instead of blurry.

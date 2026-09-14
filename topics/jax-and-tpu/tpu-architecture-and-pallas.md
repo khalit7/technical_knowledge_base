@@ -1,20 +1,22 @@
 # TPU architecture and Pallas
 
+⏱ 7 min read · +3h 20m resources
+
 Programming-side view. The hardware deep dive (die layout, exact FLOPs/bandwidth tables,
 GPU comparisons) lives in [../hardware/tpus.md](../hardware/tpus.md).
 
 ## Best resources
 
-- [How to Think About TPUs (scaling book, ch. 2)](https://jax-ml.github.io/scaling-book/tpus/):
+- [How to Think About TPUs (scaling book, ch. 2)](https://jax-ml.github.io/scaling-book/tpus/) (~50 min):
   the best single explanation of MXU, HBM, VMEM, ICI, and pod topology; verified current.
-- [Cloud TPU docs: system architecture](https://docs.cloud.google.com/tpu/docs/system-architecture-tpu-vm)
+- [Cloud TPU docs: system architecture](https://docs.cloud.google.com/tpu/docs/system-architecture-tpu-vm) (docs, ~40 min for the core pages)
   and per-generation pages (v5e, v5p, v6e, Ironwood): authoritative specs and topologies.
-- [Pallas documentation](https://docs.jax.dev/en/latest/pallas/index.html) and the
-  [Pallas TPU pipelining guide](https://docs.jax.dev/en/latest/pallas/tpu/pipelining.html):
+- [Pallas documentation](https://docs.jax.dev/en/latest/pallas/index.html) (docs, ~45 min for the core pages) and the
+  [Pallas TPU pipelining guide](https://docs.jax.dev/en/latest/pallas/tpu/pipelining.html) (~25 min):
   the kernel language; TPU details under `pallas/tpu`.
-- [How to profile TPU programs (scaling book, ch. 9)](https://jax-ml.github.io/scaling-book/profiling/):
+- [How to profile TPU programs (scaling book, ch. 9)](https://jax-ml.github.io/scaling-book/profiling/) (~35 min):
   XProf/Tensorboard profiler, trace viewer, HLO reading.
-- [TPU Research Cloud](https://sites.research.google/trc/about/): free research TPUs.
+- [TPU Research Cloud](https://sites.research.google/trc/about/) (~5 min): free research TPUs.
 
 *Verified 2026-08-24: TPU v7 (Ironwood) GA on Google Cloud since April 2026; v6e
 (Trillium) widely available; Colab and Kaggle hand out v5e.*
@@ -108,7 +110,7 @@ land.
    experiments and all scaling-book notebook exercises.
 2. **Kaggle**: free v5e-8 (8 chips), roughly 20 h/month quota with ~9 h sessions:
    enough to really train the ported small LM with a `('data',)` or small FSDP mesh.
-3. **TRC (TPU Research Cloud)**: apply at sites.research.google/trc; grants ~30 days of
+3. **TRC (TPU Research Cloud)**: apply at [sites.research.google/trc](https://sites.research.google/trc) (~5 min); grants ~30 days of
    free on-demand/preemptible TPU VMs (typically v2-8/v3-8 up to v4/v5e pods slices),
    renewable if you publish/blog results. The standard route for exactly the
    "learning JAX, porting a model, writing it up" plan; mention the blog-post intent in

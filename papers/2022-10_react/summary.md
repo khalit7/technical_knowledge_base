@@ -1,15 +1,17 @@
 # ReAct: Synergizing Reasoning and Acting in Language Models
 
+⏱ 10 min read · +~2h 25m resources
+
 - **Authors**: Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, Yuan Cao (Princeton NLP, Google Brain)
 - **Date**: October 2022 (arXiv 2210.03629; ICLR 2023)
-- **Links**: [arXiv](https://arxiv.org/abs/2210.03629) | [project page + code](https://react-lm.github.io/)
+- **Links**: [arXiv](https://arxiv.org/abs/2210.03629) (~45 min) | [project page + code](https://react-lm.github.io/) (~20 min)
 
 ## Best resources
 
-- [Google Research blog: ReAct](https://research.google/blog/react-synergizing-reasoning-and-acting-in-language-models/): the authors' own short-form summary with the key figures.
-- [Prompting Guide: ReAct](https://www.promptingguide.ai/techniques/react): concise walkthrough of the prompt format with worked HotpotQA examples and a LangChain reproduction.
-- [Simon Willison: a Python ReAct pattern](https://til.simonwillison.net/llms/python-react-pattern): the whole agent loop implemented from scratch in ~40 lines; the fastest way to internalise that ReAct is just a parse-act-append loop around a prompt.
-- [Lilian Weng: LLM Powered Autonomous Agents](https://lilianweng.github.io/posts/2023-06-23-agent/): places ReAct within the broader 2023 agent design space (planning, memory, tool use) alongside Reflexion and friends.
+- [Google Research blog: ReAct](https://research.google/blog/react-synergizing-reasoning-and-acting-in-language-models/) (~10 min): the authors' own short-form summary with the key figures.
+- [Prompting Guide: ReAct](https://www.promptingguide.ai/techniques/react) (~15 min): concise walkthrough of the prompt format with worked HotpotQA examples and a LangChain reproduction.
+- [Simon Willison: a Python ReAct pattern](https://til.simonwillison.net/llms/python-react-pattern) (~10 min): the whole agent loop implemented from scratch in ~40 lines; the fastest way to internalise that ReAct is just a parse-act-append loop around a prompt.
+- [Lilian Weng: LLM Powered Autonomous Agents](https://lilianweng.github.io/posts/2023-06-23-agent/) (~45 min): places ReAct within the broader 2023 agent design space (planning, memory, tool use) alongside Reflexion and friends.
 
 ## Problem
 

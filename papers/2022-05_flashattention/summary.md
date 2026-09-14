@@ -1,15 +1,17 @@
 # FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
 
+⏱ 12 min read · +~4h resources
+
 - **Authors/lab**: Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Re (Stanford Hazy Research / U. Buffalo)
 - **Date**: May 2022 (NeurIPS 2022)
-- **Links**: [arXiv:2205.14135](https://arxiv.org/abs/2205.14135) | [code (Dao-AILab/flash-attention)](https://github.com/Dao-AILab/flash-attention) | [Tri Dao's site](https://tridao.me/)
+- **Links**: [arXiv:2205.14135](https://arxiv.org/abs/2205.14135) (~1h) | [code (Dao-AILab/flash-attention)](https://github.com/Dao-AILab/flash-attention) (repo, ~25 min for the README and entry path) | [Tri Dao's site](https://tridao.me/) (~5 min)
 
 ## Best resources
 
-- [ELI5: FlashAttention](https://gordicaleksa.medium.com/eli5-flash-attention-5c44017022ad) (Aleksa Gordic): the best gentle walkthrough of the tiling and rescaling math, with diagrams of the block loops.
-- [From Online Softmax to FlashAttention](https://courses.cs.washington.edu/courses/cse599m/23sp/notes/flashattn.pdf) (Zihao Ye, UW CSE 599M note): derives the algorithm the right way round, starting from 3-pass safe softmax, then online softmax, then the fused one-pass attention; the cleanest path to reconstructing the kernel yourself.
-- [FlashAttention talk, Stanford MLSys #67](https://www.youtube.com/watch?v=gMOAud7hZg4) (Tri Dao): the author's own explanation of the memory hierarchy argument and the algorithm.
-- [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (Horace He): not about FlashAttention specifically, but the compute-bound vs memory-bound framing that makes the whole paper obvious in retrospect.
+- [ELI5: FlashAttention](https://gordicaleksa.medium.com/eli5-flash-attention-5c44017022ad) (Aleksa Gordic) (~25 min): the best gentle walkthrough of the tiling and rescaling math, with diagrams of the block loops.
+- [From Online Softmax to FlashAttention](https://courses.cs.washington.edu/courses/cse599m/23sp/notes/flashattn.pdf) (Zihao Ye, UW CSE 599M note) (~40 min): derives the algorithm the right way round, starting from 3-pass safe softmax, then online softmax, then the fused one-pass attention; the cleanest path to reconstructing the kernel yourself.
+- [FlashAttention talk, Stanford MLSys #67](https://www.youtube.com/watch?v=gMOAud7hZg4) (Tri Dao) (~1h): the author's own explanation of the memory hierarchy argument and the algorithm.
+- [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (Horace He) (25 min): not about FlashAttention specifically, but the compute-bound vs memory-bound framing that makes the whole paper obvious in retrospect.
 
 ## Problem
 
@@ -21,8 +23,10 @@ FlashAttention computes exact (not approximate) attention in a single fused CUDA
 
 **Tiling + online softmax (forward).** The obstacle to blocking attention like a tiled matmul is that softmax couples an entire row of S: softmax(x)_i = e^(x_i - m(x)) / sum_j e^(x_j - m(x)) needs the row max m and the row sum l before any output can be finalised. The fix is the online softmax decomposition: for a row split into blocks x^(1), x^(2), the statistics combine as
 
-    m = max(m(x^(1)), m(x^(2)))
-    l = e^(m(x^(1)) - m) l(x^(1)) + e^(m(x^(2)) - m) l(x^(2))
+```
+m = max(m(x^(1)), m(x^(2)))
+l = e^(m(x^(1)) - m) l(x^(1)) + e^(m(x^(2)) - m) l(x^(2))
+```
 
 so a running (m, l) pair per row lets you process one block of columns at a time, rescaling everything accumulated so far by e^(m_old - m_new) whenever a new block raises the max. FlashAttention applies this to whole tiles: split K, V into blocks of B_c rows and Q into blocks of B_r rows, with block sizes chosen so one K/V block, one Q block, and the running output block fit in SRAM (B_c = ceil(M / 4d) for SRAM size M). The outer loop streams K_j, V_j blocks from HBM into SRAM; the inner loop streams Q_i blocks; on chip it computes S_ij = Q_i K_j^T, the block-local max and exponentials, then updates the running statistics (m_i, l_i) and rescales the output accumulator O_i before adding P_ij V_j. Only Q, K, V, O, and the O(N) statistics ever touch HBM. (FlashAttention-2 later swapped the loop order so Q is outer, which is what you should picture today.) Because everything happens inside one kernel, masking and dropout fuse in for free instead of costing extra N x N round trips.
 

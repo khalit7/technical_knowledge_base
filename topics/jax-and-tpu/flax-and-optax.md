@@ -1,18 +1,20 @@
 # Flax NNX, optax, orbax: the training stack
 
+⏱ 7 min read · +3h 45m resources
+
 ## Best resources
 
-- [Flax NNX basics](https://flax.readthedocs.io/en/latest/nnx_basics.html) and the
-  [NNX vs JAX transforms guide](https://flax.readthedocs.io/en/latest/guides/jax_and_nnx_transforms.html):
+- [Flax NNX basics](https://flax.readthedocs.io/en/latest/nnx_basics.html) (~30 min) and the
+  [NNX vs JAX transforms guide](https://flax.readthedocs.io/en/latest/guides/jax_and_nnx_transforms.html) (~20 min):
   the current recommended API, from the source.
-- [Linen to NNX migration guide](https://flax.readthedocs.io/en/latest/migrating/linen_to_nnx.html):
+- [Linen to NNX migration guide](https://flax.readthedocs.io/en/latest/migrating/linen_to_nnx.html) (~30 min):
   read it even as a newcomer; most existing JAX code (big_vision, older MaxText) is
   Linen, and this doc is the Rosetta stone.
-- [optax docs](https://optax.readthedocs.io/): gradient transformations, `chain`,
+- [optax docs](https://optax.readthedocs.io/) (docs, ~40 min for the core pages): gradient transformations, `chain`,
   schedules, `MultiSteps` (grad accumulation).
-- [orbax checkpointing docs](https://orbax.readthedocs.io/): async + sharded
+- [orbax checkpointing docs](https://orbax.readthedocs.io/) (docs, ~30 min for the core pages): async + sharded
   checkpointing, the standard everywhere (MaxText, Tunix).
-- [JAX AI stack tutorials](https://docs.jaxstack.ai/): Google's blessed end-to-end
+- [JAX AI stack tutorials](https://docs.jaxstack.ai/) (~1h 15m): Google's blessed end-to-end
   examples wiring JAX + Flax NNX + optax + orbax + grain together.
 
 *Verified current 2026-08-24: NNX is the recommended API for new code; Linen is

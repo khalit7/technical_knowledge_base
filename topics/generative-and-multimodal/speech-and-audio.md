@@ -1,14 +1,16 @@
 # Speech and Audio Models
 
+⏱ 6 min read · +11h 20m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- Radford et al., [Whisper: Robust Speech Recognition via Large-Scale Weak Supervision](https://arxiv.org/abs/2212.04356): the paper that reset ASR; read for the weak-supervision data recipe.
-- Kyutai, [Moshi: a speech-text foundation model for real-time dialogue](https://arxiv.org/abs/2410.00037): best single paper for how modern speech LLMs and the Mimi codec work.
-- Wang et al., [VALL-E: Neural Codec Language Models are Zero-Shot TTS](https://arxiv.org/abs/2301.02111): the paper that made TTS a language-modelling problem.
-- [kyutai/mimi on Hugging Face](https://huggingface.co/kyutai/mimi) and Défossez et al., [EnCodec](https://arxiv.org/abs/2210.13438): the codec side.
-- Hugging Face [Audio Course](https://huggingface.co/learn/audio-course): hands-on grounding if needed.
+- Radford et al., [Whisper: Robust Speech Recognition via Large-Scale Weak Supervision](https://arxiv.org/abs/2212.04356) (45 min): the paper that reset ASR; read for the weak-supervision data recipe.
+- Kyutai, [Moshi: a speech-text foundation model for real-time dialogue](https://arxiv.org/abs/2410.00037) (45 min): best single paper for how modern speech LLMs and the Mimi codec work.
+- Wang et al., [VALL-E: Neural Codec Language Models are Zero-Shot TTS](https://arxiv.org/abs/2301.02111) (45 min): the paper that made TTS a language-modelling problem.
+- [kyutai/mimi on Hugging Face](https://huggingface.co/kyutai/mimi) (model card, ~10 min) and Défossez et al., [EnCodec](https://arxiv.org/abs/2210.13438) (45 min): the codec side.
+- Hugging Face [Audio Course](https://huggingface.co/learn/audio-course) (course, ~8h): hands-on grounding if needed.
 
 ## Neural audio codecs: how audio becomes tokens
 
@@ -53,9 +55,7 @@ LLM stack (scaling, prompting, RL) transfers.
   VibeVoice-Realtime, CosyVoice 3, Kokoro (tiny but excellent), Sesame CSM, Orpheus.
   Differentiators now: expressiveness control, sub-300 ms streaming latency, stability
   on long form, and multilingual voice cloning.
-- Added 2026-08-24: Qwen3 TTS reached sub-50ms response latency at frontier quality per
-  Nari Labs' cost and speed analysis (Aug 21).
-  [Nari Labs](https://nari-labs.com/blog/qwen3-tts-speed-cost-frontier/)
+- Added 2026-08-24: Qwen3 TTS reached sub-50ms response latency at frontier quality per Nari Labs' cost and speed analysis (Aug 21). [Nari Labs](https://nari-labs.com/blog/qwen3-tts-speed-cost-frontier/) (~10 min)
 - Older mel + vocoder stacks (FastSpeech 2 + HiFi-GAN) survive in constrained/embedded
   settings; note the GAN vocoder link in [vaes-and-gans.md](vaes-and-gans.md).
 

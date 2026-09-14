@@ -1,13 +1,15 @@
 # Multimodal LLM Architectures
 
+⏱ 6 min read · +3h 10m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- Sebastian Raschka, [Understanding Multimodal LLMs](https://magazine.sebastianraschka.com/p/understanding-multimodal-llms): the clearest architecture comparison (decoder-only + adapter vs cross-attention vs unified).
-- Zhang et al., [MM-LLMs: Recent Advances in MultiModal Large Language Models](https://arxiv.org/abs/2401.13601): survey that fixed the standard component vocabulary (modality encoder, input projector, backbone, output projector).
-- Hugging Face, [Vision Language Models (better, faster, stronger)](https://huggingface.co/blog/vlms-2025): open-model landscape and practical trends.
-- Chameleon team, [Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818): the reference for token-level early fusion.
+- Sebastian Raschka, [Understanding Multimodal LLMs](https://magazine.sebastianraschka.com/p/understanding-multimodal-llms) (~30 min): the clearest architecture comparison (decoder-only + adapter vs cross-attention vs unified).
+- Zhang et al., [MM-LLMs: Recent Advances in MultiModal Large Language Models](https://arxiv.org/abs/2401.13601) (90 min): survey that fixed the standard component vocabulary (modality encoder, input projector, backbone, output projector).
+- Hugging Face, [Vision Language Models (better, faster, stronger)](https://huggingface.co/blog/vlms-2025) (~25 min): open-model landscape and practical trends.
+- Chameleon team, [Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818) (45 min): the reference for token-level early fusion.
 
 ## Three integration levels (from the notes, tightened)
 

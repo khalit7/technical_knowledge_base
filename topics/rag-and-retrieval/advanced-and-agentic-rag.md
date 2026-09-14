@@ -1,15 +1,17 @@
 # Advanced and agentic RAG: GraphRAG, agent loops, long context, memory
 
+⏱ 7 min read · +3h resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [Microsoft: LazyGraphRAG](https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/): GraphRAG quality at vector-RAG indexing cost.
-- [Graph RAG in production, 2026 (Paperclipped)](https://www.paperclipped.de/en/blog/graph-rag-production/): Microsoft GraphRAG vs LightRAG vs Graphiti with real cost numbers.
-- [LightOn: RAG is dead, long live RAG](https://lighton.ai/lighton-blogs/rag-is-dead-long-live-rag-retrieval-in-the-age-of-agents): retrieval in the age of agents, well argued.
-- [Is agentic RAG worth it? (arXiv 2601.07711)](https://arxiv.org/html/2601.07711v2): experimental comparison of pipeline vs agentic approaches.
-- [Long context vs RAG: an evaluation and revisits (arXiv 2501.01880)](https://arxiv.org/pdf/2501.01880): the most careful head-to-head study.
-- [ReAct paper](../../papers/2022-10_react/summary.md): the reason-act loop that agentic retrieval instantiates.
+- [Microsoft: LazyGraphRAG](https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/) (12 min): GraphRAG quality at vector-RAG indexing cost.
+- [Graph RAG in production, 2026 (Paperclipped)](https://www.paperclipped.de/en/blog/graph-rag-production/) (~20 min): Microsoft GraphRAG vs LightRAG vs Graphiti with real cost numbers.
+- [LightOn: RAG is dead, long live RAG](https://lighton.ai/lighton-blogs/rag-is-dead-long-live-rag-retrieval-in-the-age-of-agents) (~12 min): retrieval in the age of agents, well argued.
+- [Is agentic RAG worth it? (arXiv 2601.07711)](https://arxiv.org/html/2601.07711v2) (45 min): experimental comparison of pipeline vs agentic approaches.
+- [Long context vs RAG: an evaluation and revisits (arXiv 2501.01880)](https://arxiv.org/pdf/2501.01880) (45 min): the most careful head-to-head study.
+- ReAct paper (45 min): the reason-act loop that agentic retrieval instantiates.
 
 ## The maturity ladder
 
@@ -80,6 +82,7 @@ and one-off analyses where building an index is overhead. Strong closed models n
 degrade far less mid-window than 2024's "lost in the middle" results.
 
 Where RAG wins, and why it persists:
+
 - **Economics**: reprocessing a million tokens per query is ~1000x the cost of
   retrieve-then-read; caching helps but does not close the gap at scale.
 - **Latency**: seconds of prefill vs tens of milliseconds of ANN search.
@@ -97,6 +100,7 @@ of 5). Adaptive routing (small corpus -> stuff it all; large -> retrieve) is sta
 ## Memory systems
 
 Agent memory is RAG turned inward: the corpus is the agent's own history.
+
 - Patterns: append-only episodic logs with retrieval; extracted-fact stores (Mem0,
   Zep/Graphiti) that update and expire facts; agent-curated plain-text files
   (Claude Code's CLAUDE.md pattern) for small working memory.
@@ -115,6 +119,6 @@ evaluation; those transfer to whatever orchestration fashion wins.
 
 ## See also
 
-- [RAG paper (2020)](../../papers/2020-05_rag/summary.md): where the term started.
-- [Agentic frameworks](../agentic-frameworks/summary.md): LangGraph/LlamaIndex
+- RAG paper (2020): where the term started.
+- Agentic frameworks: LangGraph/LlamaIndex
   implementations of these loops.

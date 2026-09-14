@@ -1,11 +1,13 @@
 # Model-free methods: Monte Carlo, TD, SARSA, Q-learning
 
+⏱ 7 min read · +5h 40m resources
+
 ## Best resources
 
-- David Silver's UCL course, Lectures 4-5 ("Model-Free Prediction", "Model-Free Control"): https://www.davidsilver.uk/teaching/ ; the driving/near-crash analogy for MC vs TD is from Lecture 4.
-- Sutton & Barto, Chapters 5-7 (MC, TD, n-step): http://incompleteideas.net/book/the-book-2nd.html ; the random-walk experiments make the MC vs TD trade-off concrete.
-- Lilian Weng, "A (Long) Peek into RL", sections on MC/TD/SARSA/Q-learning: https://lilianweng.github.io/posts/2018-02-19-rl-overview/ ; compact equations for everything here.
-- GridWorld TD demo (Karpathy): https://cs.stanford.edu/people/karpathy/reinforcejs/gridworld_td.html ; watch TD learn without a model.
+- David Silver's UCL course, Lectures 4-5 ("Model-Free Prediction", "Model-Free Control"): [https://www.davidsilver.uk/teaching/](https://www.davidsilver.uk/teaching/) (3h) ; the driving/near-crash analogy for MC vs TD is from Lecture 4.
+- Sutton & Barto, Chapters 5-7 (MC, TD, n-step): [http://incompleteideas.net/book/the-book-2nd.html](http://incompleteideas.net/book/the-book-2nd.html) (2h 15m) ; the random-walk experiments make the MC vs TD trade-off concrete.
+- Lilian Weng, "A (Long) Peek into RL", sections on MC/TD/SARSA/Q-learning: [https://lilianweng.github.io/posts/2018-02-19-rl-overview/](https://lilianweng.github.io/posts/2018-02-19-rl-overview/) (~15 min) ; compact equations for everything here.
+- GridWorld TD demo (Karpathy): [https://cs.stanford.edu/people/karpathy/reinforcejs/gridworld_td.html](https://cs.stanford.edu/people/karpathy/reinforcejs/gridworld_td.html) (~10 min) ; watch TD learn without a model.
 
 ## Model-free vs model-based
 
@@ -43,9 +45,11 @@ instead of waiting for the real return.
 Generalise TD by looking n steps ahead before bootstrapping: the n-step return uses n real rewards
 plus the value estimate at step n. TD(lambda) geometrically averages all n-step returns with decay
 lambda. The endpoints recover the two pure methods:
+
 - lambda = 0: one-step TD.
 - lambda = 1 (equivalently, looking infinitely many steps ahead): Monte Carlo; the "TD" update
   becomes the full sampled return.
+
 So MC and TD are two ends of a single bias-variance dial.
 
 ### MC vs TD intuition
@@ -69,6 +73,7 @@ almost a disaster" signal; MC misses it.
 
 Monte Carlo **policy iteration** follows the same two-phase loop as DP policy iteration
 (evaluate, then improve), but both phases break when you only sample:
+
 - Evaluation is no longer guaranteed to cover every state: DP sweeps all states; sampling only
   touches the states your trajectories visit.
 - Greedy improvement is no longer guaranteed to help, because the values it is greedy over may be
@@ -76,6 +81,7 @@ Monte Carlo **policy iteration** follows the same two-phase loop as DP policy it
   algorithm itself.
 
 Two standard fixes:
+
 1. **Use Q(s,a), not V(s)**, for evaluation. Acting greedily on V requires a model to know where
    each action leads; acting greedily on Q is just argmax over actions you have estimates for.
 2. **Epsilon-greedy exploration**: with probability epsilon take a random action, otherwise take

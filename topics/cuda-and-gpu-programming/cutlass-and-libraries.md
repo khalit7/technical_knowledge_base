@@ -1,14 +1,16 @@
 # CUTLASS, cuBLAS, cuDNN, and tensor cores
 
+⏱ 8 min read · +17h 15m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [CUTLASS documentation](https://docs.nvidia.com/cutlass/) and [NVIDIA/cutlass](https://github.com/NVIDIA/cutlass): docs for 4.x cover both the C++ templates and the Python CuTe DSL, including tcgen05 programming guides.
-- [Colfax Research CUTLASS tutorial series](https://research.colfax-intl.com/blog/): the best written explanations of CuTe layouts, Hopper wgmma/TMA pipelines, and FlashAttention-3 style kernels.
-- [GPU MODE lectures on CUTLASS and CuTe](https://github.com/gpu-mode/lectures) (several, including ones by CUTLASS developers).
-- [cuBLAS docs](https://docs.nvidia.com/cuda/cublas/) (esp. the cuBLASLt section) and [cuDNN docs](https://docs.nvidia.com/deeplearning/cudnn/) (the graph API is the modern interface).
-- [PTX ISA guide](https://docs.nvidia.com/cuda/parallel-thread-execution/) for mma/wgmma/tcgen05 instruction semantics when you need ground truth.
+- [CUTLASS documentation](https://docs.nvidia.com/cutlass/) (docs, ~2h for the core pages) and [NVIDIA/cutlass](https://github.com/NVIDIA/cutlass) (repo, ~45 min for the entry path): docs for 4.x cover both the C++ templates and the Python CuTe DSL, including tcgen05 programming guides.
+- [Colfax Research CUTLASS tutorial series](https://research.colfax-intl.com/blog/) (series, ~6h): the best written explanations of CuTe layouts, Hopper wgmma/TMA pipelines, and FlashAttention-3 style kernels.
+- [GPU MODE lectures on CUTLASS and CuTe](https://github.com/gpu-mode/lectures) (video, ~1h 30m each, roughly 4h 30m for the CUTLASS set, including ones by CUTLASS developers).
+- [cuBLAS docs](https://docs.nvidia.com/cuda/cublas/) (docs, ~1h 30m; esp. the cuBLASLt section) and [cuDNN docs](https://docs.nvidia.com/deeplearning/cudnn/) (docs, ~1h 30m; the graph API is the modern interface).
+- [PTX ISA guide](https://docs.nvidia.com/cuda/parallel-thread-execution/) (reference, ~1h for the mma sections) for mma/wgmma/tcgen05 instruction semantics when you need ground truth.
 
 ## The library landscape: when to use which
 
@@ -85,6 +87,6 @@ and CUTLASS's `examples/cute/tutorial`.
   beat it only with a genuinely different algorithm, not a re-implementation.
 - Grouped GEMM (MoE), dequant-fused GEMM, and block-scaled FP8/FP4 experiments are the
   areas where custom CUTLASS/CuTe-DSL work still pays visibly in 2026.
-- Cross-reference: [hardware topic](../hardware/summary.md) for Blackwell architecture
+- Cross-reference: [hardware](../hardware/summary.md) topic for Blackwell architecture
   detail; [inference-and-serving](../inference-and-serving/summary.md) for where these
   kernels land in production stacks.

@@ -1,15 +1,17 @@
 # QLoRA: Efficient Finetuning of Quantized LLMs
 
+⏱ 7 min read · +~3h 20m resources
+
 - **Authors/lab**: Tim Dettmers, Artidoro Pagnoni, Ari Holtzman, Luke Zettlemoyer (University of Washington)
 - **Date**: May 2023
-- **Links**: [arXiv 2305.14314](https://arxiv.org/abs/2305.14314) | [code (artidoro/qlora)](https://github.com/artidoro/qlora) | [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
+- **Links**: [arXiv 2305.14314](https://arxiv.org/abs/2305.14314) (~45 min) | [code (artidoro/qlora)](https://github.com/artidoro/qlora) (repo, ~20 min for the README and entry path) | [bitsandbytes](https://github.com/TimDettmers/bitsandbytes) (repo, ~20 min for the README and entry path)
 
 ## Best resources
 
-- [HF blog: 4-bit transformers with bitsandbytes and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes): the canonical practitioner guide, co-written with the paper authors; covers NF4, double quantization, and the `transformers`/PEFT API.
-- [Maarten Grootendorst: A Visual Guide to Quantization](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-quantization): the best visual intuition for absmax/blockwise quantization, NF4, and where QLoRA sits among GPTQ/AWQ-style methods.
-- [Sebastian Raschka: Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms): hands-on hyperparameter guidance (r, alpha, target modules, memory trade-offs) that reflects the paper's "adapters on all layers" finding.
-- [Lightning AI: LoRA/QLoRA insights from hundreds of experiments](https://lightning.ai/pages/community/lora-insights/): empirical study of QLoRA's memory savings vs runtime cost and quality across settings.
+- [HF blog: 4-bit transformers with bitsandbytes and QLoRA](https://huggingface.co/blog/4bit-transformers-bitsandbytes) (~25 min): the canonical practitioner guide, co-written with the paper authors; covers NF4, double quantization, and the `transformers`/PEFT API.
+- [Maarten Grootendorst: A Visual Guide to Quantization](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-quantization) (~30 min): the best visual intuition for absmax/blockwise quantization, NF4, and where QLoRA sits among GPTQ/AWQ-style methods.
+- [Sebastian Raschka: Practical Tips for Finetuning LLMs Using LoRA](https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms) (~30 min): hands-on hyperparameter guidance (r, alpha, target modules, memory trade-offs) that reflects the paper's "adapters on all layers" finding.
+- [Lightning AI: LoRA/QLoRA insights from hundreds of experiments](https://lightning.ai/pages/community/lora-insights/) (~30 min): empirical study of QLoRA's memory savings vs runtime cost and quality across settings.
 
 ## Problem
 

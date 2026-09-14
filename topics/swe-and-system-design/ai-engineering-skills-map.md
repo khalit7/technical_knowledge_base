@@ -1,6 +1,8 @@
 # AI Engineering Skills Map: software engineering fundamentals (Andrew Ng, 2026)
 
-*Added 2026-08-31.* Source: [Andrew Ng on X](https://x.com/AndrewYNg/status/2093388974194872781), part of a series on the AI Engineering Skills Map. This page records the argument and, more usefully, maps each of its five pillars onto where this KB covers it, so it doubles as a self-audit.
+⏱ 6 min read · +10 min resources
+
+*Added 2026-08-31.* Source: [Andrew Ng on X](https://x.com/AndrewYNg/status/2093388974194872781) (~10 min), part of a series on the AI Engineering Skills Map. This page records the argument and, more usefully, maps each of its five pillars onto where this KB covers it, so it doubles as a self-audit.
 
 ## The argument
 
@@ -14,11 +16,11 @@ A second point, aimed at us specifically: the AI core of an application is usual
 
 | Pillar | What Ng says it requires | Where it lives here |
 |---|---|---|
-| **Full-stack applications** | Agentic coding pushes specialists into full-stack roles. Know UI components, caching, page rendering, API choice and design, authentication, state and session management, async processing, persistence, testing, security, accessibility | API design in [api-and-code-design.md](api-and-code-design.md); auth, REST/GraphQL/gRPC, websockets and SSE in [../protocols/](../protocols/summary.md); caching and session state in [../databases/](../databases/summary.md); testing in [testing-and-quality.md](testing-and-quality.md). **Gap: front-end proper** (UI components, rendering, accessibility) is not covered anywhere in this KB |
-| **Managing data** | The foundation that is hardest to change later. Reason from access patterns to what you store and for how long; pick data models and storage types (relational, document, key-value, graph); understand transactions, concurrency, cleanliness, freshness; privacy, governance, compliance; evolve the architecture as the app evolves | [../databases/](../databases/summary.md) and its [caching.md](../databases/caching.md) child, both created 2026-08-31 in the same batch as this page; vector stores in [../rag-and-retrieval/](../rag-and-retrieval/summary.md); pipelines in [../ml-infra-and-orchestration/](../ml-infra-and-orchestration/summary.md) |
-| **Designing system architectures** | Application platform, front-end/back-end boundary, system decomposition, where application state lives, monolith versus microservices, choosing the stack (sometimes by experiment). And: the right architecture is a moving target across prototype, first production system, and scale | [ml-system-design.md](ml-system-design.md), [distributed-systems-basics.md](distributed-systems-basics.md) |
-| **Secure and reliable** | Testing strategy (unit/integration mix, frameworks, coverage), designing around failure (rate limits, graceful degradation, blast radius), and "shift left" security: every developer is now partly a security engineer, with AI tools for vulnerability scanning, dependency and supply-chain checks, and cloud configuration review | [testing-and-quality.md](testing-and-quality.md); prompt-injection and agent security in [../agentic-harnesses/harness-engineering.md](../agentic-harnesses/harness-engineering.md) and [../agentic-harnesses/personal-agents.md](../agentic-harnesses/personal-agents.md); guardrails in [../evaluation-and-llm-judges/guardrails.md](../evaluation-and-llm-judges/guardrails.md). **Gap: conventional application security** (supply chain, cloud posture, dependency scanning) has no home here |
-| **Scaling and operating in production** | The full SDLC: deployment environments, release strategy, CI/CD, IaaS. Then observability, alerting, incident management. Then scaling: load balancing, sharding, indexing, replication, or architectural change. Plus version control, code review, dependency maintenance, technical debt | [../ml-infra-and-orchestration/](../ml-infra-and-orchestration/summary.md) (Kubernetes, Terraform, monitoring, SLURM); sharding, indexing and replication in [../databases/](../databases/summary.md) |
+| **Full-stack applications** | Agentic coding pushes specialists into full-stack roles. Know UI components, caching, page rendering, API choice and design, authentication, state and session management, async processing, persistence, testing, security, accessibility | API design in [api-and-code-design](api-and-code-design.md); auth, REST/GraphQL/gRPC, websockets and SSE in ../protocols/; caching and session state in ../databases/; testing in [testing-and-quality](testing-and-quality.md). **Gap: front-end proper** (UI components, rendering, accessibility) is not covered anywhere in this KB |
+| **Managing data** | The foundation that is hardest to change later. Reason from access patterns to what you store and for how long; pick data models and storage types (relational, document, key-value, graph); understand transactions, concurrency, cleanliness, freshness; privacy, governance, compliance; evolve the architecture as the app evolves | [Topic: databases](../databases/summary.md) and its [Caching](../databases/caching.md) child, both created 2026-08-31 in the same batch as this page; vector stores in ../rag-and-retrieval/; pipelines in ../ml-infra-and-orchestration/ |
+| **Designing system architectures** | Application platform, front-end/back-end boundary, system decomposition, where application state lives, monolith versus microservices, choosing the stack (sometimes by experiment). And: the right architecture is a moving target across prototype, first production system, and scale | [ml-system-design](ml-system-design.md), [distributed-systems-basics](distributed-systems-basics.md) |
+| **Secure and reliable** | Testing strategy (unit/integration mix, frameworks, coverage), designing around failure (rate limits, graceful degradation, blast radius), and "shift left" security: every developer is now partly a security engineer, with AI tools for vulnerability scanning, dependency and supply-chain checks, and cloud configuration review | [testing-and-quality](testing-and-quality.md); prompt-injection and agent security in ../agentic-harnesses/[harness-engineering](../agentic-harnesses/harness-engineering.md) and [personal-agents](../agentic-harnesses/personal-agents.md); guardrails in ../evaluation-and-llm-judges/. **Gap: conventional application security** (supply chain, cloud posture, dependency scanning) has no home here |
+| **Scaling and operating in production** | The full SDLC: deployment environments, release strategy, CI/CD, IaaS. Then observability, alerting, incident management. Then scaling: load balancing, sharding, indexing, replication, or architectural change. Plus version control, code review, dependency maintenance, technical debt | ../ml-infra-and-orchestration/ (Kubernetes, Terraform, monitoring, SLURM); sharding, indexing and replication in [Topic: databases](../databases/summary.md) |
 
 ## The part worth arguing with, and the part worth keeping
 
@@ -30,8 +32,8 @@ One claim ages well and is worth stating plainly because it cuts against the usu
 
 ## Cross-links
 
-- Parent: [summary.md](summary.md).
-- [../databases/](../databases/summary.md) and [../databases/caching.md](../databases/caching.md): the "managing data" pillar, created from the same batch of requests.
-- [../protocols/](../protocols/summary.md): API choice and design, auth, real-time delivery.
-- [../ml-infra-and-orchestration/](../ml-infra-and-orchestration/summary.md): the deploy-and-operate pillar.
-- [../agentic-harnesses/](../agentic-harnesses/summary.md): the other half of the picture, what the coding agent itself is doing while you steer it.
+- Parent: [Topic: swe-and-system-design](summary.md).
+- [Topic: databases](../databases/summary.md) and [Caching](../databases/caching.md): the "managing data" pillar, created from the same batch of requests.
+- ../protocols/: API choice and design, auth, real-time delivery.
+- ../ml-infra-and-orchestration/: the deploy-and-operate pillar.
+- ../agentic-harnesses/: the other half of the picture, what the coding agent itself is doing while you steer it.

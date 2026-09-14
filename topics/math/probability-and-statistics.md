@@ -1,13 +1,15 @@
 # Probability and statistics for ML
 
+⏱ 11 min read · +11h 50m resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [Mathematics for Machine Learning, ch. 6](https://mml-book.github.io/) (Deisenroth et al., free PDF): probability, distributions, conjugacy at exactly this level.
-- [CS229 probability review notes](https://cs229.stanford.edu/section/cs229-prob.pdf): compact refresher; the [CS229 main notes](https://cs229.stanford.edu/main_notes.pdf) then derive losses as GLM maximum likelihood.
-- All of Statistics (Wasserman): the fastest serious route through estimation and testing; the reference for MLE properties and hypothesis testing.
-- [Visual Information Theory (Olah)](https://colah.github.io/posts/2015-09-Visual-Information/): for the entropy/CE side of the same coin (see information-theory.md).
+- [Mathematics for Machine Learning, ch. 6](https://mml-book.github.io/) (book, ~1h 10m for ch. 6): Deisenroth et al., free PDF; probability, distributions, conjugacy at exactly this level.
+- [CS229 probability review notes](https://cs229.stanford.edu/section/cs229-prob.pdf) (~1h): compact refresher; the [CS229 main notes](https://cs229.stanford.edu/main_notes.pdf) (course notes, ~5h) then derive losses as GLM maximum likelihood.
+- All of Statistics (Wasserman) (book, ~4h for the estimation and testing chapters): the fastest serious route through estimation and testing; the reference for MLE properties and hypothesis testing.
+- [Visual Information Theory (Olah)](https://colah.github.io/posts/2015-09-Visual-Information/) (~40 min): for the entropy/CE side of the same coin (see [information-theory.md](information-theory.md)).
 
 ## Independent vs dependent variables (flagged question)
 
@@ -24,13 +26,15 @@ The unifying idea: pick a distribution for $p(y \mid x)$, take negative log-like
 
 ### Bernoulli and binary classification (flagged question)
 
-$Y \in \{0, 1\}$ with $P(Y = 1) = p$: $\;P(Y = y) = p^y (1-p)^{1-y}$. Mean $p$, variance $p(1-p)$.
+$Y \in \{0, 1\}$ with $P(Y = 1) = p$: $P(Y = y) = p^y (1-p)^{1-y}$. Mean $p$, variance $p(1-p)$.
 
 Relation to classification, exactly: a binary classifier with sigmoid output $\hat{p} = \sigma(z)$ is modelling $y \mid x \sim \text{Bernoulli}(\hat{p}(x))$. The likelihood of an i.i.d. dataset is $\prod_i \hat{p}_i^{y_i}(1-\hat{p}_i)^{1-y_i}$, and the negative log-likelihood is
 
-$$-\sum_i \big[ y_i \log \hat{p}_i + (1 - y_i)\log(1 - \hat{p}_i) \big],$$
+$$
+-\sum_i \big[ y_i \log \hat{p}_i + (1 - y_i)\log(1 - \hat{p}_i) \big],
+$$
 
-which is binary cross-entropy. BCE is not an arbitrary choice: minimising BCE is exactly maximum-likelihood estimation under a Bernoulli model. Consequences: the optimal $\hat{p}$ is the true conditional probability (BCE is a proper scoring rule, so outputs are calibrated probabilities at the optimum), and the gradient through the sigmoid collapses to $\hat{p} - y$ (derived in calculus-and-optimisation.md). Logistic regression = linear model + Bernoulli likelihood; it is the canonical GLM with logit link.
+which is binary cross-entropy. BCE is not an arbitrary choice: minimising BCE is exactly maximum-likelihood estimation under a Bernoulli model. Consequences: the optimal $\hat{p}$ is the true conditional probability (BCE is a proper scoring rule, so outputs are calibrated probabilities at the optimum), and the gradient through the sigmoid collapses to $\hat{p} - y$ (derived in [calculus-and-optimisation.md](calculus-and-optimisation.md)). Logistic regression = linear model + Bernoulli likelihood; it is the canonical GLM with logit link.
 
 ### Categorical and multi-class classification
 
@@ -56,7 +60,9 @@ Rule of thumb: everything you train with "loss + regulariser" is MAP whether you
 
 For squared error at a point, over resampled training sets:
 
-$$\mathbb{E}\big[(\hat{f}(x) - y)^2\big] = \underbrace{\big(\mathbb{E}[\hat{f}(x)] - f(x)\big)^2}_{\text{bias}^2} + \underbrace{\mathbb{E}\big[(\hat{f}(x) - \mathbb{E}[\hat{f}(x)])^2\big]}_{\text{variance}} + \underbrace{\sigma^2}_{\text{irreducible}}.$$
+$$
+\mathbb{E}\big[(\hat{f}(x) - y)^2\big] = \underbrace{\big(\mathbb{E}[\hat{f}(x)] - f(x)\big)^2}_{\text{bias}^2} + \underbrace{\mathbb{E}\big[(\hat{f}(x) - \mathbb{E}[\hat{f}(x)])^2\big]}_{\text{variance}} + \underbrace{\sigma^2}_{\text{irreducible}}.
+$$
 
 Classic regime: capacity up $\Rightarrow$ bias down, variance up. Modern caveat: heavily overparameterised nets can show double descent, where test error falls again past the interpolation threshold; the decomposition still holds, the variance term just behaves non-monotonically. Ensembling reduces variance (averaging), boosting attacks bias.
 

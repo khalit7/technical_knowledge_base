@@ -1,14 +1,16 @@
 # Constitutional AI: Harmlessness from AI Feedback
 
+⏱ 9 min read · +~2h 30m resources
+
 - **Authors/lab**: Yuntao Bai, Saurav Kadavath, Sandipan Kundu, Amanda Askell, Jared Kaplan et al. (Anthropic)
 - **Date**: December 2022
-- **Links**: [arXiv 2212.08073](https://arxiv.org/abs/2212.08073) | [PDF](https://arxiv.org/pdf/2212.08073) | [prompts + principles repo](https://github.com/anthropics/ConstitutionalHarmlessnessPaper)
+- **Links**: [arXiv 2212.08073](https://arxiv.org/abs/2212.08073) (~1h 30m, long paper) | [PDF](https://arxiv.org/pdf/2212.08073) (same paper) | [prompts + principles repo](https://github.com/anthropics/ConstitutionalHarmlessnessPaper) (repo, ~20 min for the principles and sample transcripts)
 
 ## Best resources
 
-- [Anthropic research post](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback): the official summary of the paper
-- [Claude's Constitution](https://www.anthropic.com/news/claudes-constitution): the production constitution actually used for Claude, showing how the research-era principles evolved (UN Declaration of Human Rights, platform norms, etc.)
-- [ConstitutionalHarmlessnessPaper repo](https://github.com/anthropics/ConstitutionalHarmlessnessPaper): the 16 SL principles, 16 RL principles, few-shot prompts, and sample transcripts; the fastest way to see what a "constitution" concretely is
+- [Anthropic research post](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback) (~10 min): the official summary of the paper
+- [Claude's Constitution](https://www.anthropic.com/news/claudes-constitution) (~30 min): the production constitution actually used for Claude, showing how the research-era principles evolved (UN Declaration of Human Rights, platform norms, etc.)
+- [ConstitutionalHarmlessnessPaper repo](https://github.com/anthropics/ConstitutionalHarmlessnessPaper) (the same repo as the Links line): the 16 SL principles, 16 RL principles, few-shot prompts, and sample transcripts; the fastest way to see what a "constitution" concretely is
 
 ## Problem
 
@@ -19,6 +21,7 @@ RLHF (InstructGPT, Anthropic's own HH work) needs tens of thousands of human pre
 Start from a **helpful-only RLHF model** (trained with human helpfulness labels only; it will happily comply with harmful requests). Two phases follow.
 
 **Phase 1, supervised (SL-CAI): critique -> revise -> finetune.**
+
 1. Sample a response to a red-team prompt from the helpful model (typically harmful).
 2. Append a **critique request** drawn from the constitution ("identify specific ways in which the assistant's last response is harmful, unethical, racist, sexist, toxic, dangerous, or illegal") and sample a critique.
 3. Append a **revision request** and sample a revised response; splice the revision back onto the original prompt.
@@ -28,6 +31,7 @@ Start from a **helpful-only RLHF model** (trained with human helpfulness labels 
 The first revision removes most harmful content; later revisions help marginally. Critiques matter for small models, but at 52B direct revision (skipping the critique) scores about the same; they keep critiques anyway for transparency. The number of principles does not change harmlessness scores but adds response diversity, which helps RL exploration later. The point of this phase is to get the policy on-distribution so the RL phase needs less exploration.
 
 **Phase 2, RL from AI feedback (RL-CAI, i.e. RLAIF): AI comparisons -> preference model -> RL.**
+
 1. Sample response **pairs** from the SL-CAI model on red-team prompts.
 2. Present each pair to an independent **feedback model** (a pretrained LM) as a multiple-choice question with a randomly sampled constitutional principle ("Which of these assistant responses is less harmful? Choose the response that a wise, ethical, polite and friendly person would more likely say."), few-shot prompted.
 3. Use the normalized log-probs of options (A)/(B) as **soft preference labels** (well calibrated, per the "LMs (mostly) know what they know" line of work); ensembling over the 16 principles makes the PM notably more robust than reusing one fixed principle.

@@ -1,14 +1,16 @@
 # The layer above core: HF stack and training frameworks
 
+⏱ 8 min read · +3h 50m resources
+
 Last verified: 2026-08-24. transformers 5.15, Axolotl 0.29+, torchtune discontinued.
 
 ## Best resources
 
-- [Transformers v5 announcement](https://huggingface.co/blog/transformers-v5): what changed in the Jan 2026 major release and why.
-- [The future of torchtune (issue #2883)](https://github.com/meta-pytorch/torchtune/issues/2883): the primary source on the wind-down and Meta's consolidation plan.
-- [torchtitan repo](https://github.com/pytorch/torchtitan) and [tech report](https://arxiv.org/abs/2410.06511): PyTorch-native pretraining reference.
-- [Axolotl docs](https://docs.axolotl.ai/): config-driven fine-tuning, the most complete recipe surface today.
-- [TRL docs](https://huggingface.co/docs/trl): SFT/DPO/GRPO trainer APIs and their assumptions.
+- [Transformers v5 announcement](https://huggingface.co/blog/transformers-v5) (20 min): what changed in the Jan 2026 major release and why.
+- [The future of torchtune (issue #2883)](https://github.com/meta-pytorch/torchtune/issues/2883) (15 min): the primary source on the wind-down and Meta's consolidation plan.
+- [torchtitan repo](https://github.com/pytorch/torchtitan) (repo, ~1h for the entry path) and [tech report](https://arxiv.org/abs/2410.06511) (45 min): PyTorch-native pretraining reference.
+- [Axolotl docs](https://docs.axolotl.ai/) (docs, ~45 min for the core pages): config-driven fine-tuning, the most complete recipe surface today.
+- [TRL docs](https://huggingface.co/docs/trl) (docs, ~45 min for the core pages): SFT/DPO/GRPO trainer APIs and their assumptions.
 
 ## The Hugging Face stack
 
@@ -45,8 +47,8 @@ Last verified: 2026-08-24. transformers 5.15, Axolotl 0.29+, torchtune discontin
   DCP async checkpointing, torchft fault tolerance. Treat it as a fork-and-own codebase,
   not a pip framework. Its experiments tree hosts new-architecture bring-ups
   (MoE, VLM, diffusion) and post-training scale-out is being consolidated here.
-- **torchtune**: PyTorch-native fine-tuning recipes. **Development discontinued in
-  2025** (critical fixes only through 2025; effectively frozen now). Its ideas
+- **torchtune**: PyTorch-native fine-tuning recipes. Development discontinued in
+  2025 (critical fixes only through 2025; effectively frozen now). Its ideas
   (recipe-per-file, QAT, per-param FSDP2 LoRA) live on elsewhere; do not start new
   projects on it.
 - **torchforge** (meta-pytorch): announced late 2025 as the RL/post-training successor

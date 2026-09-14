@@ -1,20 +1,22 @@
 # Inference techniques: what actually makes serving fast
 
+⏱ 8 min read · +4h 5m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [kipply: Transformer Inference Arithmetic](https://kipp.ly/transformer-inference-arithmetic/):
+- [kipply: Transformer Inference Arithmetic](https://kipp.ly/transformer-inference-arithmetic/) (30 min):
   the canonical back-of-envelope math; read first.
-- [Anyscale: How continuous batching enables 23x throughput](https://www.anyscale.com/blog/continuous-batching-llm-inference):
+- [Anyscale: How continuous batching enables 23x throughput](https://www.anyscale.com/blog/continuous-batching-llm-inference) (20 min):
   still the clearest continuous-batching explainer (based on the Orca idea, OSDI 2022).
-- [PagedAttention paper](https://arxiv.org/abs/2309.06180) and notes:
+- [PagedAttention paper](https://arxiv.org/abs/2309.06180) (45 min) and notes:
   [../../papers/2023-09_vllm-pagedattention/summary.md](../../papers/2023-09_vllm-pagedattention/summary.md).
-- [DistServe](https://arxiv.org/abs/2401.09670) (P/D disaggregation) and
-  [Sarathi-Serve](https://arxiv.org/abs/2403.02310) (chunked prefill): the two papers
+- [DistServe](https://arxiv.org/abs/2401.09670) (45 min, P/D disaggregation) and
+  [Sarathi-Serve](https://arxiv.org/abs/2403.02310) (45 min, chunked prefill): the two papers
   behind modern schedulers.
-- [EAGLE-3](https://arxiv.org/abs/2503.01840) for state-of-the-art speculative decoding;
-  [vLLM blog on EAGLE 3.1](https://vllm.ai/blog/2026-05-26-eagle-3-1) for current practice.
+- [EAGLE-3](https://arxiv.org/abs/2503.01840) (45 min) for state-of-the-art speculative decoding;
+  [vLLM blog on EAGLE 3.1](https://vllm.ai/blog/2026-05-26-eagle-3-1) (15 min) for current practice.
 
 ## The two regimes (know this cold)
 
@@ -23,8 +25,8 @@ Every forward pass either moves weights or does math; the ratio decides everythi
 - **Prefill** (process the prompt): all prompt tokens in parallel, big matmuls,
   **compute-bound**. Measured by time-to-first-token (TTFT).
 - **Decode** (generate): one token per step per sequence; every step streams the entire
-  weight matrix set (plus KV cache) from HBM to do a tiny matmul. **Memory-bandwidth
-  bound**. Measured by inter-token latency (ITL/TPOT).
+  weight matrix set (plus KV cache) from HBM to do a tiny matmul. Memory-bandwidth
+  bound. Measured by inter-token latency (ITL/TPOT).
 
 Bandwidth math: single-stream decode speed is roughly `HBM bandwidth / bytes touched
 per token` (weights + KV). H100 SXM (3.35 TB/s) over a 70B FP16 model (140 GB): ~24
@@ -123,7 +125,7 @@ Hopper/Ada/Blackwell, the default for frontier serving; also FP8 KV cache),
 W4A16 is a decode-speed and fit play, prefill still FP16 compute), **NVFP4/MXFP4**
 (Blackwell-native 4-bit floats with per-block scales, ~3x decode vs FP16 with small
 loss), GGUF K/I-quants for local ([ollama-and-local.md](ollama-and-local.md)).
-Method details live in [../llm-training-and-post-training/](../llm-training-and-post-training/).
+Method details live in [../llm-training-and-post-training/](../llm-training-and-post-training/summary.md).
 
 ## Attention variants and serving (MQA/GQA/MLA)
 
@@ -149,4 +151,4 @@ which one you are hitting before tuning anything.
 ## See also
 
 - [vllm.md](vllm.md), [sglang.md](sglang.md), [triton-and-tensorrt.md](triton-and-tensorrt.md)
-- Bandwidth specs and roofline: [../hardware/](../hardware/); kernels: [../cuda-and-gpu-programming/](../cuda-and-gpu-programming/)
+- Bandwidth specs and roofline: [../hardware/](../hardware/summary.md); kernels: [../cuda-and-gpu-programming/](../cuda-and-gpu-programming/summary.md)

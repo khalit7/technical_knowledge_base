@@ -1,14 +1,16 @@
 # Demystifying Agent Skills: Why They Work - Until They Don't
 
+⏱ 10 min read · +~1h 20m resources
+
 - **Authors/lab**: Zhiyuan Jiang, Fangrui Huang, Hanwen Xing, Xander Wu, Yipeng Gao, Rui Cao, Mengdi Wang, Shilong Liu, Yijiang Li (Princeton, UC San Diego, Stanford, USC, Johns Hopkins)
 - **Date**: August 2026 (arXiv v1 2026-08-14)
-- **Links**: [arXiv 2608.14036](https://arxiv.org/abs/2608.14036) | [PDF](https://arxiv.org/pdf/2608.14036)
+- **Links**: [arXiv 2608.14036](https://arxiv.org/abs/2608.14036) (~45 min) | [PDF](https://arxiv.org/pdf/2608.14036) (same paper)
 - Added to KB: 2026-08-24
 
 ## Best resources
 
-- [Anthropic engineering: Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills): the canonical description of the SKILL.md abstraction this paper dissects (progressive disclosure, folder layout, when to write one).
-- [anthropics/skills (GitHub)](https://github.com/anthropics/skills): the public skill repository the paper cites as its reference skill-usage protocol; useful for seeing what production skills actually contain.
+- [Anthropic engineering: Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills) (~15 min): the canonical description of the SKILL.md abstraction this paper dissects (progressive disclosure, folder layout, when to write one).
+- [anthropics/skills (GitHub)](https://github.com/anthropics/skills) (repo, ~20 min for the README and a couple of skills): the public skill repository the paper cites as its reference skill-usage protocol; useful for seeing what production skills actually contain.
 
 ## Problem
 

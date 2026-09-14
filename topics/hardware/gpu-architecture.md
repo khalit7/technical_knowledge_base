@@ -1,14 +1,16 @@
 # GPU architecture: Ampere to Blackwell
 
+⏱ 7 min read · +3h 25m resources
+
 Last updated: 2026-08-24.
 
 ## Best resources
 
-- [Modal GPU Glossary](https://modal.com/gpu-glossary/readme): the fastest way to nail every term below (SM, warp, occupancy, TMA, ...)
-- [How To Scale Your Model: GPUs chapter](https://jax-ml.github.io/scaling-book/gpus/): GPU rooflines and networking from a systems view
-- [NVIDIA H100 whitepaper](https://resources.nvidia.com/en-us-tensor-core) and [Blackwell architecture page](https://www.nvidia.com/en-us/data-center/technologies/blackwell-architecture/): primary sources for the numbers
-- [Chips and Cheese: Blackwell coverage](https://chipsandcheese.com/): independent microarchitecture analysis
-- [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (Horace He): why the memory subsystem, not FLOPs, usually rules
+- [Modal GPU Glossary](https://modal.com/gpu-glossary/readme) (docs, ~30 min for the core pages): the fastest way to nail every term below (SM, warp, occupancy, TMA, ...)
+- [How To Scale Your Model: GPUs chapter](https://jax-ml.github.io/scaling-book/gpus/) (~1h): GPU rooflines and networking from a systems view
+- [NVIDIA H100 whitepaper](https://resources.nvidia.com/en-us-tensor-core) (~45 min) and [Blackwell architecture page](https://www.nvidia.com/en-us/data-center/technologies/blackwell-architecture/) (~15 min): primary sources for the numbers
+- [Chips and Cheese: Blackwell coverage](https://chipsandcheese.com/) (~30 min per deep dive): independent microarchitecture analysis
+- [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (25 min) (Horace He): why the memory subsystem, not FLOPs, usually rules
 
 ## The execution model in one paragraph
 
@@ -103,7 +105,7 @@ FP16/BF16 tensor math with FP32 accumulation at half rate, there is no NVLink fo
 tensor parallelism, and 32 GB caps model plus optimiser state. Dual 5090s are best
 treated as: 64 GB total, DP/PP across PCIe, FP8/FP4 inference monsters, and a
 perfect kernel-dev target for sm_120 (see
-[../cuda-and-gpu-programming/](../cuda-and-gpu-programming/summary.md)).
+[../cuda-and-gpu-programming/](../cuda-and-gpu-programming/)).
 
 ## Datacenter line quick reference
 

@@ -1,15 +1,17 @@
 # Data mixing: domain weights, curricula, and continued-pretraining ratios
 
+⏱ 7 min read · +8h resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [DoReMi (Xie et al. 2023)](https://arxiv.org/abs/2305.10429): proxy-model domain reweighting via Group DRO
-- [Data Mixing Laws (Ye et al. 2024)](https://arxiv.org/abs/2403.16952): fit functional forms, predict performance of unseen mixtures
-- [RegMix (Liu et al. 2024)](https://arxiv.org/abs/2407.01492): mixture search as regression over tiny proxy runs; matches DoReMi at ~10% of its compute
-- [CMR Scaling Law (Gu et al., EMNLP 2024)](https://arxiv.org/abs/2407.17467): predicting the critical general/domain mixture ratio for continued pretraining
-- [Scaling Data-Constrained Language Models (Muennighoff et al. 2023)](https://arxiv.org/abs/2305.16264): how many epochs you can repeat data before it stops helping
-- [OLMo 2/3 reports](https://allenai.org/olmo) and [SmolLM2 paper](https://arxiv.org/abs/2502.02737): the best fully documented staged-mixture recipes
+- [DoReMi (Xie et al. 2023)](https://arxiv.org/abs/2305.10429) (45 min): proxy-model domain reweighting via Group DRO
+- [Data Mixing Laws (Ye et al. 2024)](https://arxiv.org/abs/2403.16952) (45 min): fit functional forms, predict performance of unseen mixtures
+- [RegMix (Liu et al. 2024)](https://arxiv.org/abs/2407.01492) (45 min): mixture search as regression over tiny proxy runs; matches DoReMi at ~10% of its compute
+- [CMR Scaling Law (Gu et al., EMNLP 2024)](https://arxiv.org/abs/2407.17467) (45 min): predicting the critical general/domain mixture ratio for continued pretraining
+- [Scaling Data-Constrained Language Models (Muennighoff et al. 2023)](https://arxiv.org/abs/2305.16264) (90 min): how many epochs you can repeat data before it stops helping
+- [OLMo 2/3 reports](https://allenai.org/olmo) (~2h across the reports) and [SmolLM2 paper](https://arxiv.org/abs/2502.02737) (90 min): the best fully documented staged-mixture recipes
 
 ## The problem
 
@@ -39,13 +41,6 @@ mixtures, evaluated on your target benchmarks.
 
 ## Staged pretraining: curriculum, mid-training, annealing
 
-Added 2026-08-25: "annealing" means three different things in this literature (classical
-LR-lowering, the modern pretraining phase that bundles LR decay with a data switch, and
-annealing-as-dataset-evaluation). The disambiguation, and why the two levers are separable
-even though papers almost always pull them together, is in
-[../ml-fundamentals/optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md).
-Sense 2 is what this section describes.
-
 The single-static-mixture era is over. The standard 2025-26 recipe is 2-4 stages with quality
 increasing and diversity narrowing toward the end:
 
@@ -56,11 +51,7 @@ increasing and diversity narrowing toward the end:
    ("Dolmino": 100B-token mid-training mix of math/code/QA/instruction/thinking data);
    SmolLM2/3's 3-stage mixes where FineMath and Stack-Edu enter late. Annealing experiments
    are also the cheap way to *evaluate* a candidate dataset: anneal an existing checkpoint on
-   it and compare (Llama 3 and OLMo both do this). Added 2026-08-25: "annealing" means
-   three different things in this literature (LR decay alone, the LR-plus-data phase
-   described here, and the dataset-pricing experiment just mentioned), and the LR lever and
-   the data lever are separable even though papers usually pull both at once. Terminology
-   note: [../ml-fundamentals/optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md).
+   it and compare (Llama 3 and OLMo both do this).
 3. **Long-context extension**: a short final stage on long documents (books, PDFs, repo-level
    code); Dolma 3 "Longmino" (50-100B tokens) is the open template.
 
@@ -105,3 +96,4 @@ itself (LR re-warming, forgetting, infinite-LR schedules) live in
 - Corpus choices being mixed: [pretraining-corpora.md](pretraining-corpora.md)
 - Synthetic slices that enter at mid-training: [synthetic-and-post-training-data.md](synthetic-and-post-training-data.md)
 - Training-side schedule interaction (WSD, annealing): [../llm-training-and-post-training/pretraining.md](../llm-training-and-post-training/pretraining.md)
+- Added 2026-08-31: the "annealing vs LR decay" terminology split (data switch versus schedule, and why papers conflate them) lives in [../ml-fundamentals/optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md)

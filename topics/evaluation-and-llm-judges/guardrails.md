@@ -1,14 +1,16 @@
 # Guardrails: staged runtime safety for LLM systems
 
+⏱ 10 min read · +2h 15m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [NeMo Guardrails (NVIDIA)](https://github.com/NVIDIA/NeMo-Guardrails): the reference orchestration framework; docs cover the five rail types and Colang.
-- [Llama Guard model cards (Meta)](https://huggingface.co/meta-llama/Llama-Guard-3-8B): the canonical open guard-model family; MLCommons hazard taxonomy.
-- [Turing Post: Guardian models overview (Llama Guard, ShieldGemma, DynaGuard)](https://www.turingpost.com/p/guardianmodels): good current survey of the guard-model landscape.
-- [Granite Guardian (IBM)](https://github.com/ibm-granite/granite-guardian): strongest open models on prompt-injection and hallucination detection.
-- [OWASP Top 10 for LLM Applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/): the threat taxonomy guardrails are defending against.
+- [NeMo Guardrails (NVIDIA)](https://github.com/NVIDIA/NeMo-Guardrails) (docs, ~40 min for the core pages): the reference orchestration framework; docs cover the five rail types and Colang.
+- [Llama Guard model cards (Meta)](https://huggingface.co/meta-llama/Llama-Guard-3-8B) (~15 min): the canonical open guard-model family; MLCommons hazard taxonomy.
+- [Turing Post: Guardian models overview (Llama Guard, ShieldGemma, DynaGuard)](https://www.turingpost.com/p/guardianmodels) (~20 min): good current survey of the guard-model landscape.
+- [Granite Guardian (IBM)](https://github.com/ibm-granite/granite-guardian) (repo, ~20 min for the entry path): strongest open models on prompt-injection and hallucination detection.
+- [OWASP Top 10 for LLM Applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/) (~40 min): the threat taxonomy guardrails are defending against.
 
 ## The three-stage guardrail pattern
 

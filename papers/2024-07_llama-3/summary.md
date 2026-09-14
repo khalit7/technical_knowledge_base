@@ -1,15 +1,17 @@
 # The Llama 3 Herd of Models
 
+⏱ 15 min read · +~5h 5m resources
+
 - **Authors/lab**: Llama Team, AI @ Meta
 - **Date**: July 2024 (paper 2024-07-23; arXiv v3 2024-11)
-- **Links**: [arXiv 2407.21783](https://arxiv.org/abs/2407.21783) | [Meta blog](https://ai.meta.com/blog/meta-llama-3-1/) | [llama.meta.com](https://llama.meta.com/) | [Model repo](https://github.com/meta-llama/llama-models)
+- **Links**: [arXiv 2407.21783](https://arxiv.org/abs/2407.21783) (~2h 30m, long technical report) | [Meta blog](https://ai.meta.com/blog/meta-llama-3-1/) (~15 min) | [llama.meta.com](https://llama.meta.com/) (~10 min) | [Model repo](https://github.com/meta-llama/llama-models) (repo, ~20 min for the README and entry path)
 
 ## Best resources
 
-- [Oxen.ai arXiv Dive: How Meta Trained Llama 3.1](https://www.oxen.ai/blog/llama-3-1-herd-of-models): section-by-section walkthrough with emphasis on data and the training pipeline.
-- [Raschka, New LLM Pre-training and Post-training Paradigms](https://magazine.sebastianraschka.com/p/new-llm-pre-training-and-post-training): puts the Llama 3.1 recipe side by side with Qwen 2, Gemma 2, and Apple AFM.
-- [Arize: Breaking Down Meta's Llama 3 Herd of Models](https://arize.com/blog/breaking-down-meta-llama-3/): compact tour of pre-training, post-training, and the key levers.
-- [Rudrite interactive visual explainer](https://research.rudrite.com/llama-3): animated walkthrough with exhibits computed from the paper's formulas.
+- [Oxen.ai arXiv Dive: How Meta Trained Llama 3.1](https://www.oxen.ai/blog/llama-3-1-herd-of-models) (~30 min): section-by-section walkthrough with emphasis on data and the training pipeline.
+- [Raschka, New LLM Pre-training and Post-training Paradigms](https://magazine.sebastianraschka.com/p/new-llm-pre-training-and-post-training) (~35 min): puts the Llama 3.1 recipe side by side with Qwen 2, Gemma 2, and Apple AFM.
+- [Arize: Breaking Down Meta's Llama 3 Herd of Models](https://arize.com/blog/breaking-down-meta-llama-3/) (~20 min): compact tour of pre-training, post-training, and the key levers.
+- [Rudrite interactive visual explainer](https://research.rudrite.com/llama-3) (~25 min): animated walkthrough with exhibits computed from the paper's formulas.
 
 ## Problem
 

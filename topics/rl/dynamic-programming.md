@@ -1,10 +1,12 @@
 # Dynamic programming: planning with a known model
 
+⏱ 5 min read · +2h 25m resources
+
 ## Best resources
 
-- David Silver's UCL course, Lecture 3 "Planning by Dynamic Programming": https://www.davidsilver.uk/teaching/ ; the clearest walkthrough of policy iteration vs value iteration, with the gridworld demo.
-- Sutton & Barto, Chapter 4 "Dynamic Programming": http://incompleteideas.net/book/the-book-2nd.html ; includes the proof sketches (policy improvement theorem, contraction).
-- GridWorld: DP demo (Karpathy's REINFORCEjs): https://cs.stanford.edu/people/karpathy/reinforcejs/gridworld_dp.html ; interactive; watch values propagate.
+- David Silver's UCL course, Lecture 3 "Planning by Dynamic Programming": [https://www.davidsilver.uk/teaching/](https://www.davidsilver.uk/teaching/) (1h 30m) ; the clearest walkthrough of policy iteration vs value iteration, with the gridworld demo.
+- Sutton & Barto, Chapter 4 "Dynamic Programming": [http://incompleteideas.net/book/the-book-2nd.html](http://incompleteideas.net/book/the-book-2nd.html) (45 min) ; includes the proof sketches (policy improvement theorem, contraction).
+- GridWorld: DP demo (Karpathy's REINFORCEjs): [https://cs.stanford.edu/people/karpathy/reinforcejs/gridworld_dp.html](https://cs.stanford.edu/people/karpathy/reinforcejs/gridworld_dp.html) (~10 min) ; interactive; watch values propagate.
 
 ## Setting
 

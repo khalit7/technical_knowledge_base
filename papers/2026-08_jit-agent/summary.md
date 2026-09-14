@@ -1,16 +1,17 @@
 # JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
 
-- **Authors/lab**: Guibin Zhang, Leo Lu, Fangzhou Xie, Kang Zhu, Junhao Wang, Zhifei Xie, Zhaochen Yu, Zihang Liu, Zhongxiang Sun, Qiankun Li, Yue Liao, Heng Chang, Xiaobin Hu, Qibing Ren, Wangchunshu Zhou, Shuicheng Yan (NUS and collaborators)
+⏱ 5 min read · +~45 min resources
+
+- **Authors**: Guibin Zhang, Leo Lu, Fangzhou Xie, Kang Zhu, Junhao Wang, Zhifei Xie, Zhaochen Yu, Zihang Liu, Zhongxiang Sun, Qiankun Li, Yue Liao, Heng Chang, Xiaobin Hu, Qibing Ren, Wangchunshu Zhou, Shuicheng Yan (NUS and collaborators)
 - **Date**: 2026-08-26 (arXiv v1)
-- **Links**: [arXiv 2608.25593](https://arxiv.org/abs/2608.25593) | [HTML](https://arxiv.org/html/2608.25593)
-- **Topics**: agentic-harnesses, agentic-frameworks, rl
+- **Links**: [arXiv:2608.25593](https://arxiv.org/abs/2608.25593) (~45 min) | [HTML](https://arxiv.org/html/2608.25593) (same paper)
 
 *Added to the KB 2026-08-31.*
 
 ## Best resources
 
-- [The paper](https://arxiv.org/abs/2608.25593).
-- Read alongside [StateM](../2026-08_statem/summary.md) and [Prime Agent](../2026-08_prime-agent/summary.md); the three together are the current state of the harness-scaling argument.
+- [The paper](https://arxiv.org/abs/2608.25593) (~45 min).
+- Read alongside [StateM](../2026-08_statem/summary.md) and [Prime Agent](../2026-08_prime-agent/summary.md) in this folder; the three together are the current state of the harness-scaling argument.
 
 ## Problem
 
@@ -57,4 +58,4 @@ The honest caveat is in the paper: production harnesses such as Codex, Claude Co
 - [StateM](../2026-08_statem/summary.md): the hand-built harness whose lift JIT-Agent is trying to automate; StateM's versioned YAML runbook is roughly a hand-tuned `(M, P, A, F)` instance.
 - [Demystifying Agent Skills](../2026-08_agent-skills/summary.md): the `F` module is the skills question, and the 10% misapplication rate found there is a plausible source of JIT-Agent's residual failures.
 - [SA-MRPO](../2026-08_learn-whats-left/summary.md): Evo-GDPO's separate normalisation of reward, latency, and cost is the same multi-objective RL problem, approached through frontier comparison rather than saturation-aware reweighting.
-- [topics/agentic-harnesses](../../topics/agentic-harnesses/summary.md) (harness engineering); [topics/agentic-frameworks](../../topics/agentic-frameworks/summary.md).
+- Topic: [agentic-harnesses](../../topics/agentic-harnesses/summary.md) (harness engineering); Topic: [agentic-frameworks](../../topics/agentic-frameworks/summary.md).

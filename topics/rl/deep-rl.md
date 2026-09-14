@@ -1,12 +1,14 @@
 # Deep RL: from DQN to PPO to MuZero
 
+⏱ 9 min read · +32h 35m resources
+
 ## Best resources
 
-- OpenAI Spinning Up: https://spinningup.openai.com ; especially "Intro to Policy Optimization" and the algorithm docs (VPG, TRPO, PPO, DDPG, SAC) with reference implementations.
-- Lilian Weng, "Policy Gradient Algorithms": https://lilianweng.github.io/posts/2018-04-08-policy-gradient/ ; the best single derivation chain from REINFORCE through TRPO/PPO to SAC.
-- Berkeley CS285 (Sergey Levine), Deep RL course: https://rail.eecs.berkeley.edu/deeprlcourse/ ; lecture-depth treatment of everything here.
-- "The 37 Implementation Details of PPO": https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/ ; mandatory before implementing PPO or GRPO; most "algorithm" gains live in these details.
-- David Silver's Lecture 6-7 (function approximation, policy gradients): https://www.davidsilver.uk/teaching/ ; bridges the classical material to this file.
+- OpenAI Spinning Up: [https://spinningup.openai.com](https://spinningup.openai.com) (docs, ~3h for the core pages) ; especially "Intro to Policy Optimization" and the algorithm docs (VPG, TRPO, PPO, DDPG, SAC) with reference implementations.
+- Lilian Weng, "Policy Gradient Algorithms": [https://lilianweng.github.io/posts/2018-04-08-policy-gradient/](https://lilianweng.github.io/posts/2018-04-08-policy-gradient/) (~45 min) ; the best single derivation chain from REINFORCE through TRPO/PPO to SAC.
+- Berkeley CS285 (Sergey Levine), Deep RL course: [https://rail.eecs.berkeley.edu/deeprlcourse/](https://rail.eecs.berkeley.edu/deeprlcourse/) (course, ~25h) ; lecture-depth treatment of everything here.
+- "The 37 Implementation Details of PPO": [https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/) (~50 min) ; mandatory before implementing PPO or GRPO; most "algorithm" gains live in these details.
+- David Silver's Lecture 6-7 (function approximation, policy gradients): [https://www.davidsilver.uk/teaching/](https://www.davidsilver.uk/teaching/) (3h) ; bridges the classical material to this file.
 
 ## Why deep RL
 
@@ -18,12 +20,14 @@ diverges. Deep RL history is largely a list of stabilisation tricks.
 ## Value-based line: DQN and variants
 
 **DQN** (Mnih et al. 2013/2015, Atari): Q-learning with a CNN, made stable by two tricks:
+
 - **Experience replay**: store transitions (s, a, r, s') in a buffer, train on random minibatches;
   breaks temporal correlation and reuses data (possible because Q-learning is off-policy).
 - **Target network**: compute the TD target r + gamma max_a' Q(s', a'; theta^-) with a frozen copy
   theta^-, updated only periodically; stops the chase-your-own-tail instability.
 
 Variants, each fixing a specific pathology:
+
 - **Double DQN**: vanilla max over noisy Q-values is upward-biased (it both selects and evaluates
   with the same noise). Decouple: select a' with the online network, evaluate with the target
   network. Target: r + gamma Q(s', argmax_a' Q(s',a'; theta); theta^-).
@@ -73,6 +77,7 @@ constraint KL(pi_old || pi_theta) <= delta. Works, but needs second-order machin
 gradient on the Fisher matrix): heavy and awkward.
 
 **PPO** (2017) gets the same effect with a first-order trick. Intuition for the clipped objective:
+
 - The surrogate r_t * A_t says "raise the probability of good actions (A > 0), lower it for bad
   ones (A < 0)". Unconstrained, the optimiser will crank r_t to extremes, leaving the trust region.
 - PPO clips the ratio to [1 - eps, 1 + eps] (eps ~ 0.2) and takes

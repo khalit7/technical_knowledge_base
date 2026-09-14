@@ -1,15 +1,17 @@
 # Learning Transferable Visual Models From Natural Language Supervision (CLIP)
 
+⏱ 11 min read · +~4h 10m resources
+
 - **Authors/lab**: Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever (OpenAI)
 - **Date**: February 2021 (ICML 2021)
-- **Links**: [arXiv](https://arxiv.org/abs/2103.00020) | [code and weights](https://github.com/OpenAI/CLIP) | [OpenAI blog](https://openai.com/index/clip/)
+- **Links**: [arXiv](https://arxiv.org/abs/2103.00020) (~2h, long paper) | [code and weights](https://github.com/OpenAI/CLIP) (repo, ~15 min for the README and entry path) | [OpenAI blog](https://openai.com/index/clip/) (~15 min)
 
 ## Best resources
 
-- [OpenAI blog: CLIP, connecting text and images](https://openai.com/index/clip/): the authors' condensed account, with the zero-shot classifier construction shown visually
-- [Lilian Weng: Contrastive Representation Learning](https://lilianweng.github.io/posts/2021-05-31-contrastive/): places CLIP's loss in the InfoNCE family and derives the surrounding contrastive-learning theory
-- [Chip Huyen: Multimodality and Large Multimodal Models](https://huyenchip.com/2023/10/10/multimodal.html): CLIP as the foundation of the modern VLM stack, with a clear walkthrough of the training objective and what came after
-- [mlfoundations/open_clip](https://github.com/mlfoundations/open_clip): the open reproduction; the fastest way to read a working implementation and see how the recipe scales on LAION-scale data
+- [OpenAI blog: CLIP, connecting text and images](https://openai.com/index/clip/) (~15 min, the same post as the Links line): the authors' condensed account, with the zero-shot classifier construction shown visually
+- [Lilian Weng: Contrastive Representation Learning](https://lilianweng.github.io/posts/2021-05-31-contrastive/) (~40 min): places CLIP's loss in the InfoNCE family and derives the surrounding contrastive-learning theory
+- [Chip Huyen: Multimodality and Large Multimodal Models](https://huyenchip.com/2023/10/10/multimodal.html) (~40 min): CLIP as the foundation of the modern VLM stack, with a clear walkthrough of the training objective and what came after
+- [mlfoundations/open_clip](https://github.com/mlfoundations/open_clip) (repo, ~20 min for the README and entry path): the open reproduction; the fastest way to read a working implementation and see how the recipe scales on LAION-scale data
 
 ## Problem
 

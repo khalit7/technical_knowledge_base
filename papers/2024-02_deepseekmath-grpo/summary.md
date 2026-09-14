@@ -1,17 +1,19 @@
 # DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
 
+⏱ 14 min read · +~4h 15m resources
+
 - **Authors/lab**: Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, et al. (DeepSeek-AI, with Tsinghua and Peking University)
 - **Date**: February 2024 (arXiv v1; v3 April 2024)
-- **Links**: [arXiv 2402.03300](https://arxiv.org/abs/2402.03300) | [GitHub](https://github.com/deepseek-ai/DeepSeek-Math) | [Models on HF](https://huggingface.co/deepseek-ai/deepseek-math-7b-rl)
+- **Links**: [arXiv 2402.03300](https://arxiv.org/abs/2402.03300) (~1h 30m, long paper) | [GitHub](https://github.com/deepseek-ai/DeepSeek-Math) (repo, ~20 min for the README and entry path) | [Models on HF](https://huggingface.co/deepseek-ai/deepseek-math-7b-rl) (~10 min)
 
 This is the paper that introduced **GRPO (Group Relative Policy Optimization)**, later the default RL algorithm for reasoning models (DeepSeek-R1 and most of the open RLVR ecosystem). It also built a 120B-token math corpus from Common Crawl that let a 7B model match Minerva 540B.
 
 ## Best resources
 
-- [A vision researcher's guide to PPO & GRPO (Yuge Shi)](https://yugeten.github.io/posts/2025/01/ppogrpo/): the clearest from-first-principles walkthrough of the PPO machinery and exactly what GRPO deletes from it.
-- [RLHF Book, Policy Gradient chapter (Nathan Lambert)](https://rlhfbook.com/c/11-policy-gradients.html): GRPO in the context of REINFORCE/PPO variants, with the advantage formulas and implementation caveats side by side.
-- [TRL GRPOTrainer docs](https://huggingface.co/docs/trl/grpo_trainer): the reference open implementation; the loss section documents where modern practice diverges from the paper (loss aggregation, KL handling).
-- [Understanding R1-Zero-Like Training (Dr. GRPO paper)](https://arxiv.org/abs/2503.20783): the critical follow-up identifying GRPO's length and difficulty biases; read after the original.
+- [A vision researcher's guide to PPO & GRPO (Yuge Shi)](https://yugeten.github.io/posts/2025/01/ppogrpo/) (~40 min): the clearest from-first-principles walkthrough of the PPO machinery and exactly what GRPO deletes from it.
+- [RLHF Book, Policy Gradient chapter (Nathan Lambert)](https://rlhfbook.com/c/11-policy-gradients.html) (~30 min): GRPO in the context of REINFORCE/PPO variants, with the advantage formulas and implementation caveats side by side.
+- [TRL GRPOTrainer docs](https://huggingface.co/docs/trl/grpo_trainer) (docs, ~20 min for the core pages): the reference open implementation; the loss section documents where modern practice diverges from the paper (loss aggregation, KL handling).
+- [Understanding R1-Zero-Like Training (Dr. GRPO paper)](https://arxiv.org/abs/2503.20783) (~45 min): the critical follow-up identifying GRPO's length and difficulty biases; read after the original.
 
 ## Problem
 
@@ -40,7 +42,9 @@ Decontamination: drop any page containing a 10-gram exactly matching GSM8K, MATH
 
 **The objective.** For each question q, sample G outputs {o_1..o_G} from the old policy. Maximize:
 
+```
 J = E [ (1/G) sum_i (1/|o_i|) sum_t { min( r_{i,t}(theta) A_{i,t}, clip(r_{i,t}(theta), 1-eps, 1+eps) A_{i,t} ) - beta * D_KL[pi_theta || pi_ref] } ]
+```
 
 where r_{i,t}(theta) = pi_theta(o_{i,t} | q, o_{i,<t}) / pi_theta_old(o_{i,t} | q, o_{i,<t}) is the per-token importance ratio. Two deliberate departures from PPO:
 
@@ -59,7 +63,9 @@ where r_{i,t}(theta) = pi_theta(o_{i,t} | q, o_{i,<t}) / pi_theta_old(o_{i,t} | 
 
 Section 5.2 rewrites every post-training method's gradient as
 
+```
 grad J = E_{(q,o) ~ D} [ (1/|o|) sum_t GC(q, o, t, r) * grad log pi_theta(o_t | q, o_<t) ]
+```
 
 so methods differ only in three knobs: **data source** (offline: sampled once from the SFT model, as in RFT and DPO; online: sampled from the current policy, as in Online RFT, PPO, GRPO), **reward function** (rule-based correctness vs learned model), and **gradient coefficient GC** (SFT: constant 1; RFT: binary indicator of answer correctness; DPO: sigmoid-weighted pairwise term; PPO/GRPO: advantage-weighted). Their ablations then isolate each knob: Online RFT overtakes offline RFT late in training (the policy drifts from the SFT model, so fresh samples matter); GRPO beats Online RFT because graded, reward-proportional GC penalizes wrong answers with varying strength instead of uniformly reinforcing correct ones; PS beats OS; iterative RL beats static. It is the cleanest published mental model for why these methods behave differently.
 

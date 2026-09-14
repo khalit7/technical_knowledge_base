@@ -1,15 +1,17 @@
 # Attention Is All You Need (Transformer)
 
+⏱ 9 min read · +~5h 35m resources
+
 - **Authors/lab**: Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, Polosukhin (Google Brain / Google Research / U. Toronto)
 - **Date**: June 2017 (NeurIPS 2017)
-- **Links**: [arXiv:1706.03762](https://arxiv.org/abs/1706.03762) | [tensor2tensor code](https://github.com/tensorflow/tensor2tensor)
+- **Links**: [arXiv:1706.03762](https://arxiv.org/abs/1706.03762) (~45 min) | [tensor2tensor code](https://github.com/tensorflow/tensor2tensor) (repo, ~20 min for the README and entry path)
 
 ## Best resources
 
-- [The Illustrated Transformer](https://jalammar.github.io/illustrated-transformer/) (Jay Alammar): still the canonical visual walkthrough of Q/K/V, multi-head attention, and the encoder-decoder data flow.
-- [The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/) (Harvard NLP, 2022 revision): the paper reimplemented line by line in PyTorch; the fastest route from equations to working code.
-- [3Blue1Brown: Attention in transformers, visually explained](https://www.3blue1brown.com/lessons/attention): the best geometric intuition for what attention heads actually compute.
-- [Karpathy: Let's build GPT from scratch](https://www.youtube.com/watch?v=kCc8FmEb1nY): builds a decoder-only Transformer from an empty file; makes the causal-masking and multi-head mechanics concrete.
+- [The Illustrated Transformer](https://jalammar.github.io/illustrated-transformer/) (Jay Alammar) (~30 min): still the canonical visual walkthrough of Q/K/V, multi-head attention, and the encoder-decoder data flow.
+- [The Annotated Transformer](https://nlp.seas.harvard.edu/annotated-transformer/) (Harvard NLP, 2022 revision) (~1h 30m): the paper reimplemented line by line in PyTorch; the fastest route from equations to working code.
+- [3Blue1Brown: Attention in transformers, visually explained](https://www.3blue1brown.com/lessons/attention) (~30 min): the best geometric intuition for what attention heads actually compute.
+- [Karpathy: Let's build GPT from scratch](https://www.youtube.com/watch?v=kCc8FmEb1nY) (~2h): builds a decoder-only Transformer from an empty file; makes the causal-masking and multi-head mechanics concrete.
 
 ## Problem
 
@@ -21,7 +23,9 @@ The Transformer is an encoder-decoder built purely from attention, position-wise
 
 **Scaled dot-product attention.** Queries and keys of dimension d_k, values of dimension d_v, computed as matrices:
 
-    Attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V
+```
+Attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) V
+```
 
 The 1/sqrt(d_k) scaling is the load-bearing detail: for random q, k with unit-variance components, q.k has variance d_k, so unscaled logits push the softmax into saturated, tiny-gradient regions as d_k grows. Dot-product attention is chosen over additive (Bahdanau) attention because it compiles to a single matmul.
 

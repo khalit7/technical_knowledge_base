@@ -1,11 +1,13 @@
 # Pretraining
 
+⏱ 8 min read · +15h 35m resources
+
 ## Best resources
 
-- [HuggingFace Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook): interactive book distilling 4000+ scaling experiments on up to 512 GPUs; covers memory anatomy, all parallelism strategies, and how to pick a configuration. The single best modern reference.
-- [OLMo 2 blog](https://allenai.org/blog/olmo2) and [OLMo 3 blog](https://allenai.org/blog/olmo3): fully open recipes (data, code, checkpoints, logs); OLMo 3 adds a 9.3T-token Dolma 3 corpus and RL-Zero checkpoints.
-- [Karpathy's nanoGPT](https://github.com/karpathy/nanoGPT) and [modded-nanogpt speedrun](https://github.com/KellerJordan/modded-nanogpt): minimal GPT training and the community leaderboard that stress-tests every training trick.
-- [How the NanoGPT speedrun WR dropped 20% in 3 months (LessWrong)](https://www.lesswrong.com/posts/j3gp8tebQiFJqzBgg/how-the-nanogpt-speedrun-wr-dropped-by-20-in-3-months): what actually moves the loss curve.
+- [HuggingFace Ultra-Scale Playbook](https://huggingface.co/spaces/nanotron/ultrascale-playbook) (~8h): interactive book distilling 4000+ scaling experiments on up to 512 GPUs; covers memory anatomy, all parallelism strategies, and how to pick a configuration. The single best modern reference.
+- [OLMo 2 blog](https://allenai.org/blog/olmo2) (~30 min) and [OLMo 3 blog](https://allenai.org/blog/olmo3) (~30 min): fully open recipes (data, code, checkpoints, logs); OLMo 3 adds a 9.3T-token Dolma 3 corpus and RL-Zero checkpoints.
+- [Karpathy's nanoGPT](https://github.com/karpathy/nanoGPT) (repo, ~30 min for the core files) and [modded-nanogpt speedrun](https://github.com/KellerJordan/modded-nanogpt) (repo, ~30 min for the entry path): minimal GPT training and the community leaderboard that stress-tests every training trick.
+- [How the NanoGPT speedrun WR dropped 20% in 3 months (LessWrong)](https://www.lesswrong.com/posts/j3gp8tebQiFJqzBgg/how-the-nanogpt-speedrun-wr-dropped-by-20-in-3-months) (~35 min): what actually moves the loss curve.
 - Papers: [Kaplan scaling laws](../../papers/2020-01_scaling-laws/summary.md), [Chinchilla](../../papers/2022-03_chinchilla/summary.md), [Llama 3](../../papers/2024-07_llama-3/summary.md), [OLMo 2](../../papers/2025-01_olmo-2/summary.md).
 
 ## Objective
@@ -16,11 +18,37 @@ each token given its prefix (cross-entropy loss over the vocabulary). Variants:
 - **Causal LM** (GPT lineage): the universal choice for generative LLMs.
 - **Masked LM** (BERT): predict masked tokens; better for encoders, not generation.
 - **Span corruption / UL2**: T5-style denoising; mostly historical for LLMs now.
+  Added 2026-09-07: what the objective actually does is sample 15% of tokens, replace
+  each contiguous run of them with a single sentinel token unique to that example, and
+  train the decoder to emit only the dropped spans, each prefixed by its sentinel. The
+  difference from BERT's masked LM is the target: you predict the missing text rather
+  than reconstruct the whole sequence, so decoder sequences stay short and a step is
+  cheaper. **UL2 (Unifying Language Learning)** generalised this into a mixture of
+  denoisers, varying corruption rate and span length and prefixing each example with a
+  mode token so one model learns short-span denoising, long-span denoising and prefix
+  LM at once. Still the default when you pretrain an encoder-decoder; see
+  [T5](../../papers/2019-10_t5/summary.md) (11 min read · +4h 12m resources).
 - **Fill-in-the-middle (FIM)**: rearrange (prefix, middle, suffix) so a causal model
   learns infilling; standard for code models.
 
 Loss is reported as per-token cross entropy or perplexity; downstream ability tracks
 loss smoothly (which is what makes scaling laws work).
+
+Added 2026-09-07: **how much the choice of objective is worth, measured.** T5 ran the
+comparison properly, holding architecture, data, compute and evaluation fixed and moving
+only the objective. The finding that matters is the shape of the result rather than the
+numbers: the gap between objective *families* is large (denoising beats causal LM beats
+deshuffling, and a plain causal LM trails badly on understanding tasks, GLUE 74.70 against
+83.28), while the gap *within* the denoising family is close to nothing. BERT-style masking,
+MASS-style masking, sentinel replacement and outright token dropping all land within noise of
+each other; corruption rates of 10%, 15% and 25% are indistinguishable and only 50% hurts;
+mean span lengths of 2, 3 and 5 are indistinguishable and 10 is slightly worse. The practical
+conclusion, and the reason this section is short rather than long: pick a denoising variant on
+computational cost, not on quality, and do not expect further tuning in this space to pay.
+The same paper is also why the field's architecture default is worth knowing as a measured
+result and not a habit, since at matched compute the encoder-decoder beat the decoder-only
+prefix LM and the field went decoder-only anyway, for reasons about in-context learning and
+serving cost that the comparison did not test.
 
 ## Scaling laws
 
@@ -66,7 +94,7 @@ GQA; MoE for the compute-rich).
   base -> think/instruct variants with RL-Zero checkpoints released.
 - **SmolLM3 (HuggingFace)**: 3B model with the full engineering blueprint published
   (architecture ablations, 11T-token data mixture, post-training); the companion
-  [Smol Training Playbook](https://huggingface.co/spaces/HuggingFaceTB/smol-training-playbook)
+  [Smol Training Playbook](https://huggingface.co/spaces/HuggingFaceTB/smol-training-playbook) (~5h)
   documents the decisions.
 - **nanoGPT speedrun lineage**: Karpathy's nanoGPT -> llm.c -> Keller Jordan's
   modded-nanogpt. Community record for GPT-2 (124M) quality fell from 45 min
@@ -84,11 +112,9 @@ GQA; MoE for the compute-rich).
   training (common in 2025+ recipes) rather than fixing it.
 - **LR schedule**: warmup + cosine is classic; WSD (warmup-stable-decay) is now
   popular because you can branch anneals off the stable plateau without committing
-  to a total token count. Added 2026-08-25: thirteen schedulers compared on shape, whether
-  they need the total step count T upfront, and where each is actually used, plus cooldown
-  shape/length guidance and a decay-free option (WSM: constant LR forever, with the decay
-  emulated afterwards by merging checkpoints), in
-  [../ml-fundamentals/optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md).
+  to a total token count. Added 2026-08-31: the full family comparison (shapes,
+  cooldown length and curve, decay-free options like schedule-free and WSM) lives in
+  [optimisers-and-schedulers.md](../ml-fundamentals/optimisers-and-schedulers.md).
 - **Stability**: z-loss or logit soft-capping, QK-norm (OLMo 2 moved to QK-norm +
   reordered norms specifically for stability), bf16 with fp32 master weights,
   gradient clipping at 1.0, watch for loss spikes correlated with bad data shards.

@@ -1,19 +1,23 @@
 # Information theory for ML
 
+⏱ 10 min read · +4h 30m resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [Visual Information Theory](https://colah.github.io/posts/2015-09-Visual-Information/) (Chris Olah): the best intuition-first walk through entropy, cross-entropy, KL, and mutual information via code lengths.
-- [Information Theory, Inference, and Learning Algorithms](https://www.inference.org.uk/mackay/itila/) (MacKay, free PDF): the deep treatment; ch. 1-2 and 8 cover everything below.
-- Elements of Information Theory (Cover and Thomas): the standard reference text.
-- [Mathematics for Machine Learning](https://mml-book.github.io/) has only fragments; for this topic Olah then MacKay is the route.
+- [Visual Information Theory](https://colah.github.io/posts/2015-09-Visual-Information/) (~40 min): Chris Olah; the best intuition-first walk through entropy, cross-entropy, KL, and mutual information via code lengths.
+- [Information Theory, Inference, and Learning Algorithms](https://www.inference.org.uk/mackay/itila/) (book, ~1h 30m for ch. 1-2 and 8): MacKay, free PDF; the deep treatment, and those three chapters cover everything below.
+- Elements of Information Theory (Cover and Thomas) (book, reference, ~2h for the chapters relevant here): the standard reference text.
+- [Mathematics for Machine Learning](https://mml-book.github.io/) (book, ~20 min for the relevant fragments) has only fragments; for this topic Olah then MacKay is the route.
 
 ## What is entropy? (flagged question)
 
 Entropy is the expected surprise of a random variable. Define the surprise (information content) of an outcome with probability $p$ as $-\log p$: rare events are more informative, certain events ($p = 1$) carry none, and independent surprises add ($-\log p_1 p_2 = -\log p_1 - \log p_2$, the property that forces the log). Then
 
-$$H(X) = \mathbb{E}[-\log p(X)] = -\sum_x p(x) \log p(x).$$
+$$
+H(X) = \mathbb{E}[-\log p(X)] = -\sum_x p(x) \log p(x).
+$$
 
 In base 2 the unit is bits, in base $e$ nats ($1 \text{ nat} = 1/\ln 2 \approx 1.443$ bits).
 
@@ -27,13 +31,17 @@ ML sightings: entropy of a policy (exploration bonus in RL, entropy regularisati
 
 ## Cross-entropy
 
-$$H(p, q) = \mathbb{E}_{x \sim p}[-\log q(x)] = -\sum_x p(x) \log q(x).$$
+$$
+H(p, q) = \mathbb{E}_{x \sim p}[-\log q(x)] = -\sum_x p(x) \log q(x).
+$$
 
 Coding reading: the average message length when the data comes from $p$ but you built your code for $q$. Always $\ge H(p)$, with equality iff $q = p$. This is exactly the training objective of classifiers and language models: $p$ is the empirical data distribution (one-hot labels, or next-token targets), $q$ is the model. Minimising CE = building the code that best fits reality = maximum likelihood (per-example CE $= -\log q(y \mid x)$ is precisely the NLL).
 
 ## KL divergence
 
-$$D_{KL}(p \| q) = \sum_x p(x) \log \frac{p(x)}{q(x)} = H(p, q) - H(p).$$
+$$
+D_{KL}(p \| q) = \sum_x p(x) \log \frac{p(x)}{q(x)} = H(p, q) - H(p).
+$$
 
 The overhead: extra bits paid for using code $q$ when the truth is $p$. Properties: $\ge 0$ (Gibbs' inequality), $= 0$ iff $p = q$, not symmetric, no triangle inequality; it is not a metric.
 
@@ -46,7 +54,9 @@ Forward vs reverse KL, the asymmetry that shapes generative modelling:
 
 ## Mutual information
 
-$$I(X; Y) = D_{KL}\big(p(x,y) \,\|\, p(x)p(y)\big) = H(X) - H(X \mid Y) = H(X) + H(Y) - H(X, Y).$$
+$$
+I(X; Y) = D_{KL}\big(p(x,y) \,\|\, p(x)p(y)\big) = H(X) - H(X \mid Y) = H(X) + H(Y) - H(X, Y).
+$$
 
 How many bits knowing $Y$ saves you about $X$. Zero iff independent; symmetric; invariant to invertible reparameterisation (unlike correlation, it captures nonlinear dependence). Sightings: feature selection, the information bottleneck view of representation learning, and contrastive objectives below.
 
@@ -59,7 +69,9 @@ How many bits knowing $Y$ saves you about $X$. Zero iff independent; symmetric; 
 
 Contrastive learning's InfoNCE loss (CPC, SimCLR, CLIP): given a positive pair $(x, y^+)$ and $N-1$ negatives, score with a similarity $f$ and apply softmax-CE to pick the positive:
 
-$$L_{\text{NCE}} = -\mathbb{E}\left[ \log \frac{e^{f(x, y^+)}}{\sum_{j=1}^{N} e^{f(x, y_j)}} \right].$$
+$$
+L_{\text{NCE}} = -\mathbb{E}\left[ \log \frac{e^{f(x, y^+)}}{\sum_{j=1}^{N} e^{f(x, y_j)}} \right].
+$$
 
 It is literally an $N$-way classification CE, and it lower-bounds mutual information: $I(X; Y) \ge \log N - L_{\text{NCE}}$. So minimising InfoNCE maximises a lower bound on the MI between the two views/modalities; the $\log N$ term explains why large batch sizes (many negatives) help: the bound saturates at $\log N$, so more negatives raise the ceiling. CLIP's symmetric loss is InfoNCE both directions (image-to-text and text-to-image) with a learned temperature.
 

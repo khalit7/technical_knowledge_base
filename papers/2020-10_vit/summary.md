@@ -1,15 +1,17 @@
 # An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)
 
+⏱ 8 min read · +~3h 20m resources
+
 - **Authors/lab**: Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby (Google Research, Brain Team)
 - **Date**: October 2020 (ICLR 2021)
-- **Links**: [arXiv](https://arxiv.org/abs/2010.11929) | [code and pretrained models](https://github.com/google-research/vision_transformer) | [Google AI blog](https://research.google/blog/transformers-for-image-recognition-at-scale/)
+- **Links**: [arXiv](https://arxiv.org/abs/2010.11929) (~1h) | [code and pretrained models](https://github.com/google-research/vision_transformer) (repo, ~20 min for the README and entry path) | [Google AI blog](https://research.google/blog/transformers-for-image-recognition-at-scale/) (~15 min)
 
 ## Best resources
 
-- [Google AI blog: Transformers for Image Recognition at Scale](https://research.google/blog/transformers-for-image-recognition-at-scale/): the authors' own condensed account of the architecture and the data-scale story
-- [Yannic Kilcher: paper walkthrough (video)](https://www.youtube.com/watch?v=TrdevFK_am4): section-by-section reading with good intuition on inductive bias vs scale
-- [lucidrains/vit-pytorch](https://github.com/lucidrains/vit-pytorch): minimal reference implementation plus dozens of ViT variants; the fastest way to see how little code the model needs
-- [AI Summer: How the Vision Transformer works](https://theaisummer.com/vision-transformer/): diagrams and code snippets for patch embedding, the class token, and position embeddings
+- [Google AI blog: Transformers for Image Recognition at Scale](https://research.google/blog/transformers-for-image-recognition-at-scale/) (~15 min, the same post as the Links line): the authors' own condensed account of the architecture and the data-scale story
+- [Yannic Kilcher: paper walkthrough (video)](https://www.youtube.com/watch?v=TrdevFK_am4) (~1h): section-by-section reading with good intuition on inductive bias vs scale
+- [lucidrains/vit-pytorch](https://github.com/lucidrains/vit-pytorch) (repo, ~20 min for the README and the base model): minimal reference implementation plus dozens of ViT variants; the fastest way to see how little code the model needs
+- [AI Summer: How the Vision Transformer works](https://theaisummer.com/vision-transformer/) (~25 min): diagrams and code snippets for patch embedding, the class token, and position embeddings
 
 ## Problem
 

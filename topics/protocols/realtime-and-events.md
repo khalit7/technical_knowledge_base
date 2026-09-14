@@ -1,14 +1,16 @@
 # Real-time and event delivery: WebSockets, SSE, webhooks, long polling
 
+⏱ 11 min read · +5h resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [MDN: Server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events) and [MDN: WebSockets API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API): mechanics and API surface.
-- [High Performance Browser Networking, ch. WebSocket/SSE](https://hpbn.co/): protocol-level detail (framing, deployment hazards).
-- [RFC 6455 The WebSocket Protocol](https://www.rfc-editor.org/rfc/rfc6455) and the [WHATWG HTML spec SSE section](https://html.spec.whatwg.org/multipage/server-sent-events.html): the primary sources.
-- [Stripe webhooks docs](https://docs.stripe.com/webhooks) and [Svix's webhook security guide](https://www.svix.com/resources/guides/webhook-security-checklist/): the industry-standard patterns for signatures, retries, ordering.
-- [Standard Webhooks spec](https://www.standardwebhooks.com/): community standardization of signature/metadata conventions.
+- [MDN: Server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events) (25 min) and [MDN: WebSockets API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) (30 min): mechanics and API surface.
+- [High Performance Browser Networking, ch. WebSocket/SSE](https://hpbn.co/) (45 min): protocol-level detail (framing, deployment hazards).
+- [RFC 6455 The WebSocket Protocol](https://www.rfc-editor.org/rfc/rfc6455) (1h 45m) and the [WHATWG HTML spec SSE section](https://html.spec.whatwg.org/multipage/server-sent-events.html) (20 min): the primary sources.
+- [Stripe webhooks docs](https://docs.stripe.com/webhooks) (docs, ~30 min for the core pages) and [Svix's webhook security guide](https://www.svix.com/resources/guides/webhook-security-checklist/) (20 min): the industry-standard patterns for signatures, retries, ordering.
+- [Standard Webhooks spec](https://www.standardwebhooks.com/) (25 min): community standardization of signature/metadata conventions.
 
 ## The four mechanisms
 
@@ -20,9 +22,11 @@ Updated 2026-08-24.
 | Webhooks | server to *your server* | separate HTTP POSTs | one JSON body per event | async job completion, SaaS integration |
 
 ### Long polling
+
 Client sends a request; server holds it until an event exists (or timeout), responds, client immediately re-requests. Works through everything, but costs a full request cycle per event batch, has awkward timeout tuning, and per-event latency jitter. Today it is a fallback when proxies break SSE/WebSockets.
 
 ### Server-Sent Events (SSE)
+
 A single ordinary HTTP response with `Content-Type: text/event-stream` that never ends; the server writes UTF-8 events separated by blank lines (`data:`, optional `event:`, `id:`, `retry:` fields). Because it is just HTTP: works through most infrastructure, trivially supports auth headers (when using fetch-based clients rather than browser `EventSource`, which cannot set headers), benefits from HTTP/2 multiplexing (the old 6-connection-per-host limit only bites on HTTP/1.1).
 
 Built-in resumability: browser `EventSource` auto-reconnects and sends `Last-Event-ID`, so a server that assigns event IDs can resume a dropped stream. Text only; one direction only.
@@ -32,6 +36,9 @@ Deployment hazards: buffering proxies (nginx needs `proxy_buffering off` or `X-A
 **SSE is the LLM streaming standard.** Anthropic/OpenAI streaming responses are SSE over a POST (typed events like `message_start`, `content_block_delta` for Anthropic; `data: [DONE]` sentinel for OpenAI-style). MCP's Streamable HTTP transport is the same move: a POST whose response may be an SSE stream. When building LLM proxies, preserve event boundaries; do not re-chunk naively (split multi-byte UTF-8 or split `data:` lines and clients break).
 
 ### WebSockets (RFC 6455)
+
+Wire-level detail moved to its own page on 2026-08-24: [WebSocket protocol (RFC 6455) in depth](websockets.md) (19 min read · +5h 10m resources) (framing, masking, close codes, extensions, HTTP/2 bootstrapping, scaling, CSWSH). What follows is the summary you need to choose.
+
 Starts as HTTP GET with `Upgrade: websocket` (101 Switching Protocols), then becomes a raw full-duplex message protocol over the TCP socket: binary or text frames, ping/pong keepalive, close handshake. Over HTTP/2/3 there are bootstrapping RFCs (8441/9220) but plain HTTP/1.1 upgrade remains the norm.
 
 Wins when you need **client-to-server messages on the same channel** (interruptible voice agents, OpenAI/ Gemini realtime APIs, collaborative editing, games) or binary frames (audio). Costs: no auto-reconnect/resume (you build heartbeats, backoff, replay yourself), stateful connections fight serverless (API Gateway WebSocket API + connection table in DynamoDB is the AWS workaround), some corporate proxies still kill upgrades, load balancing needs connection affinity or a pub/sub backplane (Redis) behind stateless nodes.
@@ -40,26 +47,14 @@ Rule of thumb: if the client only receives, use SSE; you get HTTP semantics, aut
 
 ### DDP, Distributed Data Protocol (added 2026-08-24)
 
-Disambiguation first: in this knowledge base and in ML generally, "DDP" almost always
-means PyTorch **DistributedDataParallel** ([distributed-training](../llm-training-and-post-training/distributed-training.md),
-[distributed-pytorch](../pytorch-ecosystem/distributed-pytorch.md)). The *protocol*
-DDP is unrelated:
+Disambiguation first: in this knowledge base and in ML generally, "DDP" almost always means PyTorch **DistributedDataParallel** (see the llm-training-and-post-training distributed-training page and the pytorch-ecosystem distributed page). The *protocol* DDP is unrelated:
 
-- **Meteor's Distributed Data Protocol** (~2012): a simple JSON protocol over
-  WebSockets (SockJS fallback) that combines two planes in one connection: RPC
-  (`method` calls with ids and results) and **pub/sub data synchronisation**: the
-  client subscribes to named record sets and the server streams `added` / `changed` /
-  `removed` messages that keep a client-side mini database ("minimongo") live.
-- Two ideas worth keeping: the server tracks what each client already has and sends
-  diffs, not snapshots; and **latency compensation**: the client optimistically
-  simulates a method's effect locally, then reconciles when the authoritative server
-  result arrives.
-- It never standardised beyond Meteor and survives mainly inside Meteor apps, but it
-  is the canonical early example of the **sync-engine pattern** (subscribe to a query,
-  receive diffs) that is having a renaissance: Supabase Realtime, Firebase, Phoenix
-  Channels/LiveView, Replicache/Zero-style sync engines are the same shape.
+- **Meteor's Distributed Data Protocol** (~2012): a simple JSON protocol over WebSockets (SockJS fallback) that combines two planes in one connection: RPC (`method` calls with ids and results) and **pub/sub data synchronisation**: the client subscribes to named record sets and the server streams `added` / `changed` / `removed` messages that keep a client-side mini database ("minimongo") live.
+- Two ideas worth keeping: the server tracks what each client already has and sends diffs, not snapshots; and **latency compensation**: the client optimistically simulates a method's effect locally, then reconciles when the authoritative server result arrives.
+- It never standardised beyond Meteor and survives mainly inside Meteor apps, but it is the canonical early example of the **sync-engine pattern** (subscribe to a query, receive diffs) that is having a renaissance: Supabase Realtime, Firebase, Phoenix Channels/LiveView, Replicache/Zero-style sync engines are the same shape.
 
 ### Webhooks
+
 Inverted control: the provider POSTs events to a URL you host. Not a protocol, a convention; correctness lives in the patterns:
 
 - **Delivery is at-least-once**: consumers MUST be idempotent (dedupe on event ID; store processed IDs). Never at-most-once or exactly-once.

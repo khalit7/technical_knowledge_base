@@ -1,15 +1,17 @@
 # Model Context Protocol (MCP)
 
+⏱ 11 min read · +4h 55m resources
+
 Updated 2026-08-24. Current spec revision: **2026-07-28**.
 
 ## Best resources
 
-- [Official spec](https://modelcontextprotocol.io/specification/latest) and [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog): read the actual spec; it is short and well written.
-- [MCP blog: The 2026-07-28 Specification](https://blog.modelcontextprotocol.io/posts/2026-07-28/): the authors' own summary of the stateless redesign.
-- [Security best practices page of the spec](https://modelcontextprotocol.io/specification/latest/basic/security_best_practices): confused deputy, token passthrough, session hijacking.
-- [Simon Willison's MCP/prompt-injection posts](https://simonwillison.net/tags/model-context-protocol/): the clearest thinking on the "lethal trifecta" (private data + untrusted content + exfiltration channel).
-- [MCP spec version timeline](https://hidekazu-konishi.com/entry/mcp_specification_version_timeline.html): concise version-by-version history.
-- SDKs: [TypeScript](https://github.com/modelcontextprotocol/typescript-sdk), [Python](https://github.com/modelcontextprotocol/python-sdk) (FastMCP-style decorators built in), Go, C# are Tier 1; Rust is beta.
+- [Official spec](https://modelcontextprotocol.io/specification/latest) (1h 30m) and [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog) (20 min): read the actual spec; it is short and well written.
+- [MCP blog: The 2026-07-28 Specification](https://blog.modelcontextprotocol.io/posts/2026-07-28/) (15 min): the authors' own summary of the stateless redesign.
+- [Security best practices page of the spec](https://modelcontextprotocol.io/specification/latest/basic/security_best_practices) (20 min): confused deputy, token passthrough, session hijacking.
+- [Simon Willison's MCP/prompt-injection posts](https://simonwillison.net/tags/model-context-protocol/) (~1h for the key posts): the clearest thinking on the "lethal trifecta" (private data + untrusted content + exfiltration channel).
+- [MCP spec version timeline](https://hidekazu-konishi.com/entry/mcp_specification_version_timeline.html) (15 min): concise version-by-version history.
+- SDKs: [TypeScript](https://github.com/modelcontextprotocol/typescript-sdk) (repo, ~30 min for the README and examples), [Python](https://github.com/modelcontextprotocol/python-sdk) (repo, ~30 min for the README and examples) (FastMCP-style decorators built in), Go, C# are Tier 1; Rust is beta.
 
 ## What it is
 
@@ -18,11 +20,13 @@ MCP (Anthropic, Nov 2024; now a broadly adopted open standard) standardizes how 
 ## Primitives
 
 Server-exposed (the big three):
+
 - **Tools**: model-controlled functions. JSON Schema input (and, since 2025-06-18, optional `outputSchema` + structured content). Discovery via `tools/list`, invocation via `tools/call`. Annotations hint read-only vs destructive.
 - **Resources**: application-controlled data (URI-addressed documents, files, table schemas) for the host to inject as context; support subscriptions for change notifications.
 - **Prompts**: user-controlled templates (slash-command-like), parameterized, discoverable.
 
 Client-exposed (server asks the host):
+
 - **Sampling**: server requests an LLM completion through the host, so servers can be "agentic" without holding API keys. **Deprecated in 2026-07-28** (12-month window); its role is largely replaced by host-side agent loops.
 - **Elicitation** (added 2025-06-18): server requests structured user input mid-operation (confirmation, form fill). In 2026-07-28 this is realized statelessly via Multi Round-Trip Requests.
 - **Roots**: client tells the server which filesystem/URI boundaries it may operate in. Also **deprecated in 2026-07-28**.
@@ -49,6 +53,7 @@ Design direction: away from a chatty stateful session protocol toward a cacheabl
 ## Authorization
 
 For HTTP transports only (stdio inherits process credentials/env vars):
+
 - Servers are OAuth 2.1 **resource servers**. On 401 they return `WWW-Authenticate` pointing to protected resource metadata (RFC 9728), which points to the authorization server; client discovers AS metadata (RFC 8414 / OIDC Discovery), runs **authorization code + PKCE**, and sends `Authorization: Bearer` on every request.
 - Tokens must be audience-bound to the specific server (RFC 8707 `resource` parameter); servers MUST reject tokens not issued for them, and MUST NOT pass their inbound token to upstream APIs (token passthrough is explicitly forbidden).
 - 2026-07-28 replaced Dynamic Client Registration with **Client ID Metadata Documents** (client identity = HTTPS URL serving its own metadata) and added RFC 9207 `iss` validation against mix-up attacks.
@@ -65,10 +70,10 @@ For HTTP transports only (stdio inherits process credentials/env vars):
 ## Ecosystem state (Aug 2026)
 
 - Adopted by all major hosts: Claude (Code/Desktop/API MCP connector), OpenAI, Google/Gemini, Microsoft (Windows, Copilot Studio), Cursor, VS Code, JetBrains.
-- **Official registry** at registry.modelcontextprotocol.io (launched Sept 2025, still preview): ~2k servers; aggregators list far more (PulseMCP 15k+, Smithery ~7k). Quality is a long tail; the registry adds namespacing and provenance, not vetting.
+- **Official registry** at [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io) (launched Sept 2025, still preview): ~2k servers; aggregators list far more (PulseMCP 15k+, Smithery ~7k). Quality is a long tail; the registry adds namespacing and provenance, not vetting.
 - Governance moved to community working groups with an SEP (spec enhancement proposal) process; Tier 1 SDKs track spec releases.
 - Gateways/middleware are a real category now (auth, routing, metering, tool filtering in front of fleets of servers); header-based routing in 2026-07-28 exists for them.
-- Added 2026-08-24: the MCP project published a new roadmap (Aug 22) laying out where the spec goes next; it drew 240+ points and a long thread on HN. [MCP blog](https://blog.modelcontextprotocol.io/posts/mcp-roadmap/)
+- Added 2026-08-24: the MCP project published a new roadmap (Aug 22) laying out where the spec goes next; it drew 240+ points and a long thread on HN. [MCP blog](https://blog.modelcontextprotocol.io/posts/mcp-roadmap/) (15 min)
 
 ## Building servers well
 

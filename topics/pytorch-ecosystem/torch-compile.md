@@ -1,14 +1,16 @@
 # torch.compile: Dynamo, AOTAutograd, Inductor
 
+⏱ 9 min read · +3h 50m resources
+
 Last verified: 2026-08-24 (PyTorch 2.13).
 
 ## Best resources
 
-- [torch.compile programming model docs](https://docs.pytorch.org/docs/stable/torch.compiler_programming_model.html): the modern official mental model (guards, graph breaks, specialization).
-- [Dynamo deep dive](https://docs.pytorch.org/docs/stable/torch.compiler_dynamo_deepdive.html): how bytecode tracing and guards actually work.
-- [torch.compile, the missing manual](https://docs.google.com/document/d/1y5CRfMLdwEoF1nTk9q8qEu1mgMUuUtvhklPKJ2emLU8) (Edward Yang): the best practical troubleshooting document.
-- [Compilers for ML: torch.compile walkthrough (ASPLOS 2024 PyTorch 2 paper)](https://pytorch.org/assets/pytorch2-2.pdf): the canonical academic description of Dynamo + Inductor.
-- [tlparse](https://github.com/pytorch/tlparse) and [depyf](https://github.com/thuml/depyf): tools for reading compile logs and decompiled graphs.
+- [torch.compile programming model docs](https://docs.pytorch.org/docs/stable/torch.compiler_programming_model.html) (docs, ~50 min for the core pages): the modern official mental model (guards, graph breaks, specialization).
+- [Dynamo deep dive](https://docs.pytorch.org/docs/stable/torch.compiler_dynamo_deepdive.html) (40 min): how bytecode tracing and guards actually work.
+- [torch.compile, the missing manual](https://docs.google.com/document/d/1y5CRfMLdwEoF1nTk9q8qEu1mgMUuUtvhklPKJ2emLU8) (1h 15m, Edward Yang): the best practical troubleshooting document.
+- [Compilers for ML: torch.compile walkthrough (ASPLOS 2024 PyTorch 2 paper)](https://pytorch.org/assets/pytorch2-2.pdf) (45 min): the canonical academic description of Dynamo + Inductor.
+- [tlparse](https://github.com/pytorch/tlparse) (10 min) and [depyf](https://github.com/thuml/depyf) (10 min): tools for reading compile logs and decompiled graphs.
 
 ## The three-stage pipeline
 

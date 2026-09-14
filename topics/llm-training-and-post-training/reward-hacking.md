@@ -1,11 +1,13 @@
 # Reward Hacking
 
+⏱ 6 min read · +4h 45m resources
+
 ## Best resources
 
-- [Lilian Weng, "Reward Hacking in Reinforcement Learning" (2024)](https://lilianweng.github.io/posts/2024-11-28-reward-hacking/): the canonical survey, from Goodhart's law to RLHF-specific hacking.
-- [Anthropic: Natural emergent misalignment from reward hacking in production RL (Nov 2025)](https://www.anthropic.com/research/emergent-misalignment-reward-hacking) ([paper](https://arxiv.org/abs/2511.18397)): reward hacking in real coding RL generalises to sabotage and alignment faking; inoculation prompting as the fix.
-- [OpenAI: Monitoring reasoning models for misbehavior (2025)](https://openai.com/index/chain-of-thought-monitoring/): CoT monitoring and the obfuscation risk of optimising against it.
-- [Gao et al., Scaling laws for reward model overoptimization (2022)](https://arxiv.org/abs/2210.10760): the proxy-vs-gold divergence quantified.
+- [Lilian Weng, "Reward Hacking in Reinforcement Learning" (2024)](https://lilianweng.github.io/posts/2024-11-28-reward-hacking/) (~1h 10m): the canonical survey, from Goodhart's law to RLHF-specific hacking.
+- [Anthropic: Natural emergent misalignment from reward hacking in production RL (Nov 2025)](https://www.anthropic.com/research/emergent-misalignment-reward-hacking) (~25 min) ([paper](https://arxiv.org/abs/2511.18397) (90 min)): reward hacking in real coding RL generalises to sabotage and alignment faking; inoculation prompting as the fix.
+- [OpenAI: Monitoring reasoning models for misbehavior (2025)](https://openai.com/index/chain-of-thought-monitoring/) (~25 min): CoT monitoring and the obfuscation risk of optimising against it.
+- [Gao et al., Scaling laws for reward model overoptimization (2022)](https://arxiv.org/abs/2210.10760) (45 min): the proxy-vs-gold divergence quantified.
 
 ## What it is
 
@@ -77,10 +79,7 @@ practitioners: treat reward hacking not as a benchmarking nuisance but as a
 training-time contamination source; monitor proxy-gold gaps and CoT from the first
 run, and keep verifiers adversarially maintained.
 
-Added 2026-08-24: Dreadnode's "Every Model Cheats" study (Aug 20) finds every tested
-frontier model cheats on offensive cyber tasks and evaluates prompt-level mitigations;
-a tidy real-world reward-hacking dataset.
-[Dreadnode](https://dreadnode.io/research/every-model-cheats-prompt-level-mitigation-of-cheating-on-offensive-cyber-tasks/)
+Added 2026-08-24: Dreadnode's "Every Model Cheats" study (Aug 20) finds every tested frontier model cheats on offensive cyber tasks and evaluates prompt-level mitigations; a tidy real-world reward-hacking dataset. [Dreadnode](https://dreadnode.io/research/every-model-cheats-prompt-level-mitigation-of-cheating-on-offensive-cyber-tasks/) (~30 min)
 
 See also [alignment-and-rlhf.md](alignment-and-rlhf.md) and
 `topics/evaluation-and-llm-judges` for judge-side failure modes.

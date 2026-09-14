@@ -1,12 +1,14 @@
 # RL for LLMs: RLHF, GRPO, RLVR (state as of 2026-08-24)
 
+⏱ 10 min read · +8h 40m resources
+
 ## Best resources
 
-- Nathan Lambert, *RLHF Book*: https://rlhfbook.com ; the reference text for this whole area, kept current; read the policy-gradient and GRPO chapters before writing any training code.
-- "Understanding GRPO: PPO without the critic" (Aayush Garg, HF blog, 2026): https://huggingface.co/blog/garg-aayush/derive-grpo-loss ; step-by-step derivation of the GRPO loss from PPO.
-- HF, "Illustrating RLHF": https://huggingface.co/blog/rlhf ; the canonical picture of the PPO-RLHF pipeline.
-- verl docs, "Rollout Correction": https://verl.readthedocs.io/en/latest/algo/rollout_corr.html ; the practical guide to training/inference mismatch and importance-sampling fixes; directly relevant to a from-scratch RLVR loop.
-- "The 37 Implementation Details of PPO": https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/ ; still where most GRPO bugs are caught.
+- Nathan Lambert, *RLHF Book*: [https://rlhfbook.com](https://rlhfbook.com) (~6h) ; the reference text for this whole area, kept current; read the policy-gradient and GRPO chapters before writing any training code.
+- "Understanding GRPO: PPO without the critic" (Aayush Garg, HF blog, 2026): [https://huggingface.co/blog/garg-aayush/derive-grpo-loss](https://huggingface.co/blog/garg-aayush/derive-grpo-loss) (~25 min) ; step-by-step derivation of the GRPO loss from PPO.
+- HF, "Illustrating RLHF": [https://huggingface.co/blog/rlhf](https://huggingface.co/blog/rlhf) (~20 min) ; the canonical picture of the PPO-RLHF pipeline.
+- verl docs, "Rollout Correction": [https://verl.readthedocs.io/en/latest/algo/rollout_corr.html](https://verl.readthedocs.io/en/latest/algo/rollout_corr.html) (docs, ~20 min) ; the practical guide to training/inference mismatch and importance-sampling fixes; directly relevant to a from-scratch RLVR loop.
+- "The 37 Implementation Details of PPO": [https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/) (~50 min) ; still where most GRPO bugs are caught.
 - Papers: [DeepSeekMath/GRPO](../../papers/2024-02_deepseekmath-grpo/summary.md), [DeepSeek-R1](../../papers/2025-01_deepseek-r1/summary.md), [InstructGPT](../../papers/2022-03_instructgpt/summary.md).
 
 Scope note: the full alignment pipeline (SFT, reward-model training, DPO and its family) lives in
@@ -18,6 +20,7 @@ This file covers the RL algorithms themselves.
 ## LLM generation as an MDP
 
 Autoregressive generation maps cleanly onto the foundations file's vocabulary:
+
 - **State** s_t: the prompt plus tokens generated so far (the "S_t = H_t" choice for a fully
   observable, deterministic environment).
 - **Action** a_t: the next token; the action space is the vocabulary (~10^5 discrete actions).
@@ -34,6 +37,7 @@ expensive (inference-time generation dominates wall-clock).
 ## PPO for RLHF (the InstructGPT recipe)
 
 Four models participate:
+
 1. **Policy** pi_theta: the model being trained (initialised from the SFT model).
 2. **Reference model** pi_ref: a frozen copy of the SFT model.
 3. **Reward model** RM: frozen, trained beforehand on human preference pairs; scores full responses.
@@ -69,6 +73,7 @@ per-token importance ratios, plus an explicit KL term to pi_ref (DeepSeek used t
 "k3" estimator) added to the loss rather than folded into the reward.
 
 What is gained and lost:
+
 - No value model: ~half the memory, no critic warm-up, no per-token value estimation problem.
 - The baseline is exactly the REINFORCE-with-baseline idea from [deep-rl.md](deep-rl.md); GRPO is
   closer to a group-baselined REINFORCE with PPO-style clipping than to true PPO.
@@ -120,7 +125,7 @@ The GRPO baseline has accumulated well-understood biases and a family of fixes:
   precision, KV-cache), so data is subtly off-policy by design. Fixes now standard in frameworks
   (verl "rollout correction"): truncated importance sampling (TIS) against the actual rollout
   probabilities, masked/clipped IS (MIS/CISPO-style), or rejection sampling. A 2025 line of work
-  ("Group-Relative REINFORCE is Secretly Off-Policy", https://arxiv.org/abs/2509.24203) reframes
+  ("Group-Relative REINFORCE is Secretly Off-Policy", [https://arxiv.org/abs/2509.24203](https://arxiv.org/abs/2509.24203) (45 min)) reframes
   GRPO as off-policy REINFORCE, making these corrections principled rather than patches. For a
   from-scratch loop: log rollout-time logprobs and compare against training-time logprobs; the gap
   is your mismatch diagnostic.

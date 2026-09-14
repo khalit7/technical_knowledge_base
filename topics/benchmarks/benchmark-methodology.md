@@ -1,16 +1,18 @@
 # Benchmark methodology: how benchmarks are used, misused, and die
 
+⏱ 10 min read · +3h resources
+
 Last updated: 2026-08-24. Folds in Khalid's own notes (IBM benchmark primer, benchmark
 lifespan observation).
 
 ## Best resources
 
-- [IBM: What are LLM benchmarks?](https://www.ibm.com/think/topics/llm-benchmarks): the primer Khalid's original notes came from
-- [The Leaderboard Illusion (2025)](https://arxiv.org/abs/2504.20879) and [LMArena's response](https://arena.ai/blog/our-response/); [Simon Willison's summary](https://simonwillison.net/2025/Apr/30/criticism-of-the-chatbot-arena/)
-- [A Careful Examination of LLM Benchmark Contamination (GSM1k, 2024)](https://arxiv.org/abs/2405.00332)
-- [Adding Error Bars to Evals (Anthropic, 2024)](https://www.anthropic.com/research/statistical-approach-to-model-evals)
-- [BetterBench (2024)](https://betterbench.stanford.edu/): assesses benchmarks themselves against design criteria
-- [Berkeley RDI on gamed agent benchmarks (2026)](https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/)
+- [IBM: What are LLM benchmarks?](https://www.ibm.com/think/topics/llm-benchmarks) (~12 min): the primer Khalid's original notes came from
+- [The Leaderboard Illusion (2025)](https://arxiv.org/abs/2504.20879) (45 min) and [LMArena's response](https://arena.ai/blog/our-response/) (~10 min); [Simon Willison's summary](https://simonwillison.net/2025/Apr/30/criticism-of-the-chatbot-arena/) (~8 min)
+- [A Careful Examination of LLM Benchmark Contamination (GSM1k, 2024)](https://arxiv.org/abs/2405.00332) (45 min)
+- [Adding Error Bars to Evals (Anthropic, 2024)](https://www.anthropic.com/research/statistical-approach-to-model-evals) (~20 min)
+- [BetterBench (2024)](https://betterbench.stanford.edu/) (~15 min): assesses benchmarks themselves against design criteria
+- [Berkeley RDI on gamed agent benchmarks (2026)](https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/) (~25 min)
 
 ## The basic protocol (from the notes, still the right skeleton)
 
@@ -24,7 +26,7 @@ lifespan observation).
 Every one of those knobs changes the number. A benchmark result is meaningless without
 the protocol tuple: (dataset version, shots, CoT, tools, sampling params, extraction
 logic, scaffold, judge). Harness details live in
-[../evaluation-and-llm-judges/](../evaluation-and-llm-judges/).
+[../evaluation-and-llm-judges/](../evaluation-and-llm-judges/summary.md).
 
 ## Few-shot vs zero-shot, and protocol drift
 
@@ -50,6 +52,7 @@ logic, scaffold, judge). Harness details live in
 ## Contamination: detection and defenses
 
 Detection heuristics:
+
 - N-gram / substring overlap between benchmark and pretraining corpus (weak vs
   paraphrase).
 - Perplexity or completion tests: model completes a benchmark item verbatim from a
@@ -85,6 +88,7 @@ yearly, and keep a private regression set that never touches the internet.
 ## Goodhart effects and benchmark gaming
 
 "When a measure becomes a target, it ceases to be a good measure." Concrete forms:
+
 - **Training on the test** (or its paraphrases/distillations); the boundary with
   "training on similar data" is genuinely blurry.
 - **Overfitting the format**: models tuned for MCQ letter-answering or arena-pleasing
@@ -114,8 +118,8 @@ discriminative precisely because they are not in anyone's training data.
 LMArena (ex Chatbot Arena/LMSYS): anonymous pairwise battles, human votes, Bradley-Terry
 (Elo-style) ratings; Arena-Hard distills hard arena prompts into an offline judge-graded
 proxy. Strengths: live, contamination-free by construction, measures what users prefer.
-
 Critiques:
+
 - **The Leaderboard Illusion (2025)**: undisclosed private testing (Meta tested 27
   Llama-4 variants pre-release, best-of-N retracted at will), unequal sampling rates
   favoring big proprietary labs, silent deprecation of open models, and arena data
@@ -138,5 +142,5 @@ Critiques:
 - Any number you cannot reproduce with a public harness deserves a discount.
 
 Cross-links: harnesses, judge design, regression gates, and contamination tooling in
-[../evaluation-and-llm-judges/](../evaluation-and-llm-judges/); reward hacking in
-../llm-training-and-post-training/.
+[../evaluation-and-llm-judges/](../evaluation-and-llm-judges/summary.md); reward hacking in
+[../llm-training-and-post-training/](../llm-training-and-post-training/summary.md).

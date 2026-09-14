@@ -1,8 +1,12 @@
 # Reading tracker
 
-One checkbox per readable artifact. Tick what you have read. New items are added
-unchecked at the top of their section by whoever adds the content. Claude never
-unticks or removes a box you ticked.
+One checkbox per readable artifact. Tick what you have read. Every page carries its own
+`⏱ N min read · +Xh Ym resources` line, so open a page to see what a box costs before
+ticking into it; the topic summaries carry the per-topic subtree totals. New items are
+added unchecked at the top of their section by whoever adds the content. Claude never
+unticks or removes a box you ticked. Tick in the Notion Tracker (source of truth); this
+file mirrors it on sync.
+
 
 ## llms
 
@@ -183,6 +187,11 @@ unticks or removes a box you ticked.
 
 ## protocols
 
+- [ ] [tcp-udp-ip.md](topics/protocols/tcp-udp-ip.md)
+- [ ] [dns.md](topics/protocols/dns.md)
+- [ ] [tls-and-pki.md](topics/protocols/tls-and-pki.md)
+- [ ] [ssh.md](topics/protocols/ssh.md)
+- [ ] [websockets.md](topics/protocols/websockets.md)
 - [ ] [summary.md](topics/protocols/summary.md)
 - [ ] [auth.md](topics/protocols/auth.md)
 - [ ] [http.md](topics/protocols/http.md)
@@ -192,10 +201,14 @@ unticks or removes a box you ticked.
 
 ## programming-languages
 
+- [ ] [python.md](topics/programming-languages/python.md) (zero to expert)
+- [ ] [cpp.md](topics/programming-languages/cpp.md) (zero to expert)
+- [ ] [rust.md](topics/programming-languages/rust.md) (zero to expert)
+- [ ] [javascript.md](topics/programming-languages/javascript.md) (zero to expert)
+- [ ] [typescript.md](topics/programming-languages/typescript.md) (zero to expert)
+- [ ] [python-staying-current.md](topics/programming-languages/python-staying-current.md)
+- [ ] [cpp-staying-current.md](topics/programming-languages/cpp-staying-current.md)
 - [ ] [summary.md](topics/programming-languages/summary.md)
-- [ ] [cpp.md](topics/programming-languages/cpp.md)
-- [ ] [python.md](topics/programming-languages/python.md)
-- [ ] [rust.md](topics/programming-languages/rust.md)
 
 ## swe-and-system-design
 
@@ -216,6 +229,17 @@ unticks or removes a box you ticked.
 
 ## papers
 
+- [ ] [2026-09_phi-bench](papers/2026-09_phi-bench/summary.md)
+- [ ] [2026-09_neohorse-1](papers/2026-09_neohorse-1/summary.md)
+- [ ] [2026-09_mole](papers/2026-09_mole/summary.md)
+- [ ] [2026-06_lclm](papers/2026-06_lclm/summary.md)
+- [ ] [2025-04_t5gemma](papers/2025-04_t5gemma/summary.md)
+- [ ] [2026-09_terminal-universe](papers/2026-09_terminal-universe/summary.md)
+- [ ] [2026-09_repo-to-skill](papers/2026-09_repo-to-skill/summary.md)
+- [ ] [2026-09_harnessdev](papers/2026-09_harnessdev/summary.md)
+- [x] [2024-05_bitune](papers/2024-05_bitune/summary.md)
+- [ ] [2025-02_llm-modules](papers/2025-02_llm-modules/summary.md)
+- [ ] [2026-03_trained-persistent-memory](papers/2026-03_trained-persistent-memory/summary.md)
 - [ ] [2025-03_rocketeval](papers/2025-03_rocketeval/summary.md)
 - [ ] [2026-08_prime-agent](papers/2026-08_prime-agent/summary.md)
 - [ ] [2026-08_jit-agent](papers/2026-08_jit-agent/summary.md)
@@ -225,7 +249,7 @@ unticks or removes a box you ticked.
 - [ ] [2026-08_agent-skills](papers/2026-08_agent-skills/summary.md)
 - [ ] [2026-08_learn-whats-left](papers/2026-08_learn-whats-left/summary.md)
 - [ ] [2026-08_diffusiongemma](papers/2026-08_diffusiongemma/summary.md)
-- [ ] [2025-07_ettin](papers/2025-07_ettin/summary.md)
+- [x] [2025-07_ettin](papers/2025-07_ettin/summary.md)
 - [ ] [2025-05_qwen3](papers/2025-05_qwen3/summary.md)
 - [ ] [2025-01_olmo-2](papers/2025-01_olmo-2/summary.md)
 - [ ] [2025-01_deepseek-r1](papers/2025-01_deepseek-r1/summary.md)
@@ -252,18 +276,31 @@ unticks or removes a box you ticked.
 - [ ] [2020-05_rag](papers/2020-05_rag/summary.md)
 - [ ] [2020-05_gpt-3](papers/2020-05_gpt-3/summary.md)
 - [ ] [2020-01_scaling-laws](papers/2020-01_scaling-laws/summary.md)
+- [ ] [2019-10_t5](papers/2019-10_t5/summary.md)
 - [ ] [2019-10_zero](papers/2019-10_zero/summary.md)
 - [ ] [2019-09_megatron-lm](papers/2019-09_megatron-lm/summary.md)
-- [ ] [2018-10_bert](papers/2018-10_bert/summary.md)
-- [ ] [2017-06_attention-is-all-you-need](papers/2017-06_attention-is-all-you-need/summary.md)
-
-## tech news
-
-- [ ] [2026-08-31 tech news](news/2026-08-31.md)
-- [ ] [2026-08-24 tech news](news/2026-08-24.md)
+- [x] [2018-10_bert](papers/2018-10_bert/summary.md)
+- [x] [2017-06_attention-is-all-you-need](papers/2017-06_attention-is-all-you-need/summary.md)
 
 ## updates
 
-- [ ] [2026-08-31 weekly update](updates/2026-08-31.md)
-- [ ] [2026-08-25 learning-rate schedulers expanded, WSM added](updates/2026-08-25.md)
-- [ ] [2026-08-24 founding build](updates/2026-08-24.md)
+- [ ] [2026-09-14 weekly update](updates/2026-09-14.md)
+- [ ] [2026-09-07 T5Gemma and LCLM added to Papers](updates/2026-09-07-t5gemma-and-lclm-added.md)
+- [ ] [2026-09-07 T5 added to Papers](updates/2026-09-07-t5-added.md)
+- [x] [2026-09-07 weekly update](updates/2026-09-07.md)
+- [x] [2026-09-01 blog processed: three papers added](updates/2026-09-01.md)
+- [x] [2026-08-31 time estimates everywhere, and the explanation pass](updates/2026-08-31-time-estimates-everywhere.md)
+- [x] [2026-08-31 tech news backfill (items the weekly run missed)](updates/2026-08-31-tech-news-backfill.md)
+- [x] [2026-08-31 programming languages restructured to zero-to-expert](updates/2026-08-31-programming-languages-restructured.md)
+- [x] [2026-08-31 weekly update](updates/2026-08-31.md)
+- [x] [2026-08-31 learning-rate schedulers expanded, WSM added](updates/2026-08-25.md)
+- [x] [2026-08-24 core networking protocols added](updates/2026-08-24-core-networking-protocols-added.md)
+- [x] [2026-08-24 websocket protocol added](updates/2026-08-24-websocket-protocol-added.md)
+- [x] [2026-08-24 founding build](updates/2026-08-24.md)
+
+## tech news
+
+- [ ] [2026-09-14 tech news](news/2026-09-14.md)
+- [x] [2026-09-07 tech news](news/2026-09-07.md)
+- [x] [2026-08-31 tech news (backfill section added post-publication)](news/2026-08-31.md)
+- [x] [2026-08-24 tech news](news/2026-08-24.md)

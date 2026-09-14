@@ -1,10 +1,12 @@
 # Debugging training
 
+⏱ 5 min read · +3h 20m resources
+
 ## Best resources
 
-- [A Recipe for Training Neural Networks (Karpathy)](https://karpathy.github.io/2019/04/25/recipe/): the canonical "why your training silently fails" checklist.
-- [Deep Learning Tuning Playbook (Google Research)](https://github.com/google-research/tuning_playbook): systematic hyperparameter and debugging methodology.
-- [Focal loss paper (arXiv:1708.02002)](https://arxiv.org/abs/1708.02002): the imbalance-handling reference.
+- [A Recipe for Training Neural Networks (Karpathy)](https://karpathy.github.io/2019/04/25/recipe/) (~35 min): the canonical "why your training silently fails" checklist.
+- [Deep Learning Tuning Playbook (Google Research)](https://github.com/google-research/tuning_playbook) (repo, ~2h for the main document): systematic hyperparameter and debugging methodology.
+- [Focal loss paper (arXiv:1708.02002)](https://arxiv.org/abs/1708.02002) (45 min): the imbalance-handling reference.
 
 ## Why feature scaling
 

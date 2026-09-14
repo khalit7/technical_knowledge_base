@@ -1,8 +1,10 @@
 # StateM: Reaching 95.3% Raw Accuracy, or a $15 Frontier Run, on Terminal-Bench 2.1 via Harness Scaling
 
+⏱ 11 min read · +~1h resources
+
 - **Authors/lab**: Ziheng Qin, Yaxin Lu, Zhangyang "Atlas" Wang, Kai Wang (independent work done in the authors' personal time; Ziheng Qin and Yaxin Lu are equal-first)
 - **Date**: August 2026 (arXiv v1, 2026-08-15)
-- **Links**: [arXiv 2608.15089](https://arxiv.org/abs/2608.15089) | code and runtime cases open sourced on GitHub (linked from the abstract) | [Terminal-Bench 2.1 submission PR #142](https://github.com/harbor-framework/terminal-bench-2-1/pull/142)
+- **Links**: [arXiv 2608.15089](https://arxiv.org/abs/2608.15089) (~45 min) | code and runtime cases open sourced on GitHub (linked from the abstract) | [Terminal-Bench 2.1 submission PR #142](https://github.com/harbor-framework/terminal-bench-2-1/pull/142) (~15 min)
 
 The paper names and systematically tests **harness scaling**: improving the stateful control layer around a fixed agent instead of the model. A YAML state-machine runbook wrapped around Codex takes GPT-5.5 from 83.1% to 92.1% on Terminal-Bench 2.1 (a model-generation-sized gain with frozen weights), transfers unchanged to GPT-5.6 Sol xhigh for a 95.3% raw public submission, and, after ~$37 of adaptation, lets DeepSeek-V4-Flash match the reported GPT-5.6 Sol max score with about $15 of final-evaluation API spend versus $574.68 for the GPT reference.
 

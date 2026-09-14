@@ -1,11 +1,13 @@
 # Distillation and Small Language Models
 
+⏱ 6 min read · +3h 50m resources
+
 ## Best resources
 
-- [Hinton et al., Distilling the Knowledge in a Neural Network (2015)](https://arxiv.org/abs/1503.02531): the original; still the right mental model.
-- [On-policy distillation (Thinking Machines Lab, 2025)](https://thinkingmachines.ai/blog/on-policy-distillation/): why sampling from the student and grading with the teacher beats offline distillation for post-training.
-- [MiniLLM](https://arxiv.org/abs/2306.08543) and [GKD (Generalized Knowledge Distillation)](https://arxiv.org/abs/2306.13649): the key papers on distribution-matching choices for LLM distillation.
-- [BentoML: best open-source small language models 2026](https://www.bentoml.com/blog/the-best-open-source-small-language-models) and [SmolLM3 blueprint](https://huggingface.co/blog/smollm3): current landscape and a fully open small-model recipe.
+- [Hinton et al., Distilling the Knowledge in a Neural Network (2015)](https://arxiv.org/abs/1503.02531) (45 min): the original; still the right mental model.
+- [On-policy distillation (Thinking Machines Lab, 2025)](https://thinkingmachines.ai/blog/on-policy-distillation/) (~40 min): why sampling from the student and grading with the teacher beats offline distillation for post-training.
+- [MiniLLM](https://arxiv.org/abs/2306.08543) (45 min) and [GKD (Generalized Knowledge Distillation)](https://arxiv.org/abs/2306.13649) (45 min): the key papers on distribution-matching choices for LLM distillation.
+- [BentoML: best open-source small language models 2026](https://www.bentoml.com/blog/the-best-open-source-small-language-models) (~20 min) and [SmolLM3 blueprint](https://huggingface.co/blog/smollm3) (~35 min): current landscape and a fully open small-model recipe.
 
 ## Making models smaller: the four levers
 

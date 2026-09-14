@@ -1,15 +1,17 @@
 # Synthetic data and post-training data
 
+⏱ 8 min read · +4h 50m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [Cosmopedia blog post](https://huggingface.co/blog/cosmopedia): the open playbook for textbook-style synthetic pretraining data
-- [BeyondWeb (DatologyAI, 2025)](https://arxiv.org/abs/2508.10975): lessons from trillion-scale synthetic pretraining; why rephrasing won
-- [Nemotron-CC](https://arxiv.org/abs/2412.02595): rephrasing + synthetic QA as a corpus slice, with ablations
-- [Tulu 3 paper](https://arxiv.org/abs/2411.15124): end-to-end open post-training data recipe (SFT + preference + RLVR)
-- [LIMA](https://arxiv.org/abs/2305.11206): the quality-over-quantity result for SFT
-- [AI models collapse when trained on recursively generated data (Shumailov et al., Nature 2024)](https://www.nature.com/articles/s41586-024-07566-y): the model-collapse result everyone cites
+- [Cosmopedia blog post](https://huggingface.co/blog/cosmopedia) (~25 min): the open playbook for textbook-style synthetic pretraining data
+- [BeyondWeb (DatologyAI, 2025)](https://arxiv.org/abs/2508.10975) (45 min): lessons from trillion-scale synthetic pretraining; why rephrasing won
+- [Nemotron-CC](https://arxiv.org/abs/2412.02595) (45 min): rephrasing + synthetic QA as a corpus slice, with ablations
+- [Tulu 3 paper](https://arxiv.org/abs/2411.15124) (90 min): end-to-end open post-training data recipe (SFT + preference + RLVR)
+- [LIMA](https://arxiv.org/abs/2305.11206) (45 min): the quality-over-quantity result for SFT
+- [AI models collapse when trained on recursively generated data (Shumailov et al., Nature 2024)](https://www.nature.com/articles/s41586-024-07566-y) (~40 min): the model-collapse result everyone cites
 
 ## Synthetic pretraining data
 

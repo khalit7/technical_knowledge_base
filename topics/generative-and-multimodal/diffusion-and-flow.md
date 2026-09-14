@@ -1,13 +1,15 @@
 # Diffusion and Flow Models
 
+⏱ 7 min read · +4h 55m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- Lilian Weng, [What are Diffusion Models?](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/): canonical derivation of DDPM, DDIM, guidance; updated with progressive distillation and consistency models.
-- Yang Song, [Generative Modeling by Estimating Gradients of the Data Distribution](https://yang-song.net/blog/2021/score/): the score-based/SDE view that unifies diffusion.
-- Meta AI, [Flow Matching Guide and Code](https://arxiv.org/abs/2412.06264): the reference text for flow matching, with code.
-- Sander Dieleman's blog, [sander.ai](https://sander.ai/): the best running commentary on diffusion research (guidance, distillation, latents, "diffusion is spectral autoregression").
+- Lilian Weng, [What are Diffusion Models?](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/) (45 min): canonical derivation of DDPM, DDIM, guidance; updated with progressive distillation and consistency models.
+- Yang Song, [Generative Modeling by Estimating Gradients of the Data Distribution](https://yang-song.net/blog/2021/score/) (~40 min): the score-based/SDE view that unifies diffusion.
+- Meta AI, [Flow Matching Guide and Code](https://arxiv.org/abs/2412.06264) (~3h): the reference text for flow matching, with code.
+- Sander Dieleman's blog, [sander.ai](https://sander.ai/) (~30 min for the key posts): the best running commentary on diffusion research (guidance, distillation, latents, "diffusion is spectral autoregression").
 - Papers in this repo: [DDPM](../../papers/2020-06_ddpm/summary.md), [Latent diffusion](../../papers/2021-12_latent-diffusion/summary.md).
 
 ## Core idea (from the notes, tightened)
@@ -72,11 +74,13 @@ This is no longer SOTA; transformers replaced it (see DiT below).
     outputs stay sharp.
   - Rectified-flow reflow and shortcut/MeanFlow-style models: straighten or average the
     velocity field so few steps are accurate by construction.
+
   Real-time (sub-second) generation and streaming video rely on these.
 
 ## Current landscape (Aug 2026)
 
 **Image**
+
 - **FLUX.2** (Black Forest Labs, Nov 2025): rectified-flow MMDiT, frontier open-weight
   quality, strong text rendering. FLUX.1 [dev] remains the local workhorse.
 - **SD3.5** (Stability): MMDiT + triple text encoder; middle weight, permissive-ish
@@ -86,6 +90,7 @@ This is no longer SOTA; transformers replaced it (see DiT below).
   the top for instruction-following edits; internally hybrid AR + diffusion decoding.
 
 **Video**
+
 - Closed leaders: **Seedance 2.0** (ByteDance, Feb 2026) and **Kling 3 / O3** top quality
   rankings; **Veo 3.1** leads on cinematic quality with native 48kHz audio; Runway
   Gen-4.5, Hailuo 2.3, Luma Ray 3.2 in the chasing pack. OpenAI deprecated **Sora 2**

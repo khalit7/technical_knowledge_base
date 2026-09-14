@@ -1,11 +1,13 @@
 # Tokenizers
 
+⏱ 5 min read · +6h 35m resources
+
 ## Best resources
 
-- [Karpathy, "Let's build the GPT Tokenizer"](https://www.youtube.com/watch?v=zduSFxRajkE) + [minbpe repo](https://github.com/karpathy/minbpe): byte-level BPE from scratch; the best single explainer.
-- [HuggingFace NLP course, ch. 6](https://huggingface.co/learn/nlp-course/chapter6/1): BPE vs WordPiece vs Unigram with worked algorithms.
-- [SentencePiece paper](https://arxiv.org/abs/1808.06226) and [Unigram LM paper (Kudo 2018)](https://arxiv.org/abs/1804.10959): the originals, both short and readable.
-- [tiktoken](https://github.com/openai/tiktoken) and [HF tokenizers](https://github.com/huggingface/tokenizers): the production implementations to know.
+- [Karpathy, "Let's build the GPT Tokenizer"](https://www.youtube.com/watch?v=zduSFxRajkE) (2h 15m) + [minbpe repo](https://github.com/karpathy/minbpe) (repo, ~30 min): byte-level BPE from scratch; the best single explainer.
+- [HuggingFace NLP course, ch. 6](https://huggingface.co/learn/nlp-course/chapter6/1) (1h 30m): BPE vs WordPiece vs Unigram with worked algorithms.
+- [SentencePiece paper](https://arxiv.org/abs/1808.06226) (45 min) and [Unigram LM paper (Kudo 2018)](https://arxiv.org/abs/1804.10959) (45 min): the originals, both short and readable.
+- [tiktoken](https://github.com/openai/tiktoken) (repo, ~20 min) and [HF tokenizers](https://github.com/huggingface/tokenizers) (repo, ~30 min): the production implementations to know.
 
 ## The design space
 

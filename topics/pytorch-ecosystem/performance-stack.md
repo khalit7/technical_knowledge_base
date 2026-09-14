@@ -1,14 +1,16 @@
 # PyTorch performance stack: attention, torchao, memory, profiling
 
+⏱ 9 min read · +3h 5m resources
+
 Last verified: 2026-08-24 (PyTorch 2.13, torchao 0.14.x).
 
 ## Best resources
 
-- [FlexAttention blog post](https://pytorch.org/blog/flexattention/): the canonical explainer (score_mod, block masks, performance model).
-- [SDPA docs (torch.nn.attention)](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html) plus `torch.nn.attention.sdpa_kernel`.
-- [torchao repo and docs](https://github.com/pytorch/ao): README is a good index; see `torchao.quantization`, `torchao.float8`, `torchao.sparsity`.
-- [Understanding GPU memory (PyTorch blog, parts 1-2)](https://pytorch.org/blog/understanding-gpu-memory-1/): the memory-snapshot workflow.
-- [FlashAttention paper summary](../../papers/2022-05_flashattention/summary.md): the IO-aware tiling idea every backend below implements.
+- [FlexAttention blog post](https://pytorch.org/blog/flexattention/) (30 min): the canonical explainer (score_mod, block masks, performance model).
+- [SDPA docs (torch.nn.attention)](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html) (20 min) plus `torch.nn.attention.sdpa_kernel`.
+- [torchao repo and docs](https://github.com/pytorch/ao) (repo, ~45 min for the entry path): README is a good index; see `torchao.quantization`, `torchao.float8`, `torchao.sparsity`.
+- [Understanding GPU memory (PyTorch blog, parts 1-2)](https://pytorch.org/blog/understanding-gpu-memory-1/) (35 min): the memory-snapshot workflow.
+- [FlashAttention paper summary](../../papers/2022-05_flashattention/summary.md) (45 min): the IO-aware tiling idea every backend below implements.
 
 ## SDPA backends
 
@@ -74,7 +76,7 @@ composes with torch.compile, FSDP2, and DTensor. Current line: 0.14.x.
 
 - **Memory snapshot**: `torch.cuda.memory._record_memory_history(max_entries=100000)`,
   run the workload, `torch.cuda.memory._dump_snapshot("snap.pickle")`, then drop the
-  file on [pytorch.org/memory_viz](https://pytorch.org/memory_viz). You get a timeline
+  file on [pytorch.org/memory_viz](https://pytorch.org/memory_viz) (tool, ~10 min). You get a timeline
   of every allocation with stack traces: the tool for finding leaks, fragmentation, and
   what exactly holds peak memory. Categories separate params/grads/optimizer/activations.
 - `torch.cuda.memory_summary()` and `max_memory_allocated()` for quick numbers;

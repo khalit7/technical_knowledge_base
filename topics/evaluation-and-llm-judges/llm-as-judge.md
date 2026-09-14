@@ -1,16 +1,18 @@
 # LLM-as-judge: design, biases, calibration, reliability
 
+⏱ 11 min read · +9h 35m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena (Zheng et al., 2023)](https://arxiv.org/abs/2306.05685): the paper that named the pattern and catalogued position, verbosity and self-enhancement biases.
-- [A Survey on LLM-as-a-Judge (Gu et al., 2024, arXiv:2411.15594)](https://arxiv.org/abs/2411.15594): the standard survey; taxonomy of judge designs and mitigation strategies.
-- [Hamel Husain, Creating an LLM-as-a-Judge That Drives Business Results](https://hamel.dev/blog/posts/llm-judge/): the best practitioner guide; Critique Shadowing methodology for building judges from domain-expert critiques.
-- [JudgeBench (ICLR 2025, arXiv:2410.12784)](https://arxiv.org/abs/2410.12784): meta-eval on objectively-verifiable hard pairs; best single number for "how good are judges really".
-- [Cheating Automatic LLM Benchmarks: Null Models Achieve High Win Rates (arXiv:2410.07137)](https://arxiv.org/abs/2410.07137): canonical judge-exploitation result.
-- [Justice or Prejudice? Quantifying Biases in LLM-as-a-Judge (arXiv:2410.02736)](https://arxiv.org/abs/2410.02736): CALM framework quantifying 12 judge biases.
-- [Replacing Judges with Juries / PoLL (Verga et al., arXiv:2404.18796)](https://arxiv.org/abs/2404.18796): the jury-of-small-models result.
+- [Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena (Zheng et al., 2023)](https://arxiv.org/abs/2306.05685) (45 min): the paper that named the pattern and catalogued position, verbosity and self-enhancement biases.
+- [A Survey on LLM-as-a-Judge (Gu et al., 2024, arXiv:2411.15594)](https://arxiv.org/abs/2411.15594) (90 min, survey): the standard survey; taxonomy of judge designs and mitigation strategies.
+- [Hamel Husain, Creating an LLM-as-a-Judge That Drives Business Results](https://hamel.dev/blog/posts/llm-judge/) (~35 min): the best practitioner guide; Critique Shadowing methodology for building judges from domain-expert critiques.
+- [JudgeBench (ICLR 2025, arXiv:2410.12784)](https://arxiv.org/abs/2410.12784) (45 min): meta-eval on objectively-verifiable hard pairs; best single number for "how good are judges really".
+- [Cheating Automatic LLM Benchmarks: Null Models Achieve High Win Rates (arXiv:2410.07137)](https://arxiv.org/abs/2410.07137) (45 min): canonical judge-exploitation result.
+- [Justice or Prejudice? Quantifying Biases in LLM-as-a-Judge (arXiv:2410.02736)](https://arxiv.org/abs/2410.02736) (45 min): CALM framework quantifying 12 judge biases.
+- [Replacing Judges with Juries / PoLL (Verga et al., arXiv:2404.18796)](https://arxiv.org/abs/2404.18796) (45 min): the jury-of-small-models result.
 
 ## Judge design: the three grading modes
 
@@ -26,7 +28,7 @@ Confirmed and repeatedly replicated (MT-Bench, CALM, and the 2025-26 reliability
 
 - **Position bias**: pairwise judges favour one slot; judge model choice affects it more than task type or quality gap. GPT-4-class judges still flip verdicts on swap for a noticeable fraction of pairs. Mitigation: evaluate both orders, count disagreements as ties (or resample); never single-order pairwise.
 - **Verbosity bias**: longer answers win independent of quality. Mitigation: length-controlled win rates (AlpacaEval 2.0 LC), or explicit rubric criteria penalising padding.
-- **Self-preference / self-enhancement**: judges favour outputs from their own family; Panickssery et al. ([arXiv:2404.13076](https://arxiv.org/abs/2404.13076)) showed a linear relation between a model's self-recognition ability and its self-preference. Mitigation: never judge a model with itself or a sibling when comparing across families; use a disinterested third family or a jury.
+- **Self-preference / self-enhancement**: judges favour outputs from their own family; Panickssery et al. ([arXiv:2404.13076](https://arxiv.org/abs/2404.13076), 45 min) showed a linear relation between a model's self-recognition ability and its self-preference. Mitigation: never judge a model with itself or a sibling when comparing across families; use a disinterested third family or a jury.
 - **Sycophancy / authority bias**: confident tone, citations (even fake ones), and assertive framing raise scores.
 - **Format exploitation**: the null-model result: a constant, content-free but well-structured response achieved 86.5% LC win rate on AlpacaEval 2.0 and 83.0 on Arena-Hard-Auto by exploiting the judge template's parsing, including embedding instructions that the judge executes. Any judge pipeline that feeds candidate text into a template is prompt-injectable by the candidate. Mitigation: delimit candidate text clearly, instruct the judge to treat it as data, run injection canaries in your judge battery.
 - **Truncation blindness** (the plumbing failure mode Khalid has hit personally): if the candidate output is truncated upstream (max_tokens, logging layer, context overflow) the judge grades the stump as a quality failure rather than flagging an artifact. Judges rarely say "this looks cut off" unprompted. Mitigation: assert finish_reason == stop before judging, pass completion metadata to the judge, and add an explicit rubric criterion "is the response complete or truncated" whose failure routes to an infra bucket, not a quality bucket.
@@ -37,20 +39,20 @@ A judge is a measurement instrument; it needs a calibration certificate before i
 
 - Build a human-labelled gold slice (a few hundred items) via **Critique Shadowing**: one domain expert makes binary pass/fail judgments with free-text critiques; iterate the judge prompt until judge-vs-expert agreement plateaus; report agreement (Cohen's kappa, not raw accuracy, since class balance flatters accuracy) and keep re-checking on fresh samples for drift.
 - Human agreement is the ceiling: inter-annotator agreement on open-ended tasks is often 75-85%, so a judge at 80% agreement with one human may be at ceiling, not underperforming.
-- Judge scores are biased estimators of the human pass rate; recent work formalises correcting the aggregate metric using the judge's measured TPR/FPR on the gold slice ([How to Correctly Report LLM-as-a-Judge Evaluations, arXiv:2511.21140](https://arxiv.org/abs/2511.21140)). Report the corrected rate with CIs, not the raw judge rate.
-- Distinguish reliability from validity: a 2026 large-scale study ([arXiv:2606.19544](https://arxiv.org/abs/2606.19544)) found judges can be highly self-consistent while systematically wrong; consistency metrics alone certify nothing.
+- Judge scores are biased estimators of the human pass rate; recent work formalises correcting the aggregate metric using the judge's measured TPR/FPR on the gold slice ([How to Correctly Report LLM-as-a-Judge Evaluations, arXiv:2511.21140](https://arxiv.org/abs/2511.21140), 45 min). Report the corrected rate with CIs, not the raw judge rate.
+- Distinguish reliability from validity: a 2026 large-scale study ([arXiv:2606.19544](https://arxiv.org/abs/2606.19544), 45 min) found judges can be highly self-consistent while systematically wrong; consistency metrics alone certify nothing.
 
 ## Ensembles and juries
 
 - **PoLL (Panel of LLM evaluators)**: a jury of smaller judges from different families, mean- or vote-aggregated, correlates better with humans than a single GPT-4-class judge at roughly 7-8x lower cost, and washes out intra-family bias. This is the default pattern for production judge batteries.
-- **Robust aggregation**: plain mean aggregation is fragile; one contaminated or broken jury member drags the panel arbitrarily (RoPoLL, [arXiv:2606.30931](https://arxiv.org/abs/2606.30931), fixes this with a geometric-median aggregate). Practical translation: median or trimmed mean over jurors, and monitor per-juror agreement so a degraded juror is detected.
+- **Robust aggregation**: plain mean aggregation is fragile; one contaminated or broken jury member drags the panel arbitrarily (RoPoLL, [arXiv:2606.30931](https://arxiv.org/abs/2606.30931) (45 min), fixes this with a geometric-median aggregate). Practical translation: median or trimmed mean over jurors, and monitor per-juror agreement so a degraded juror is detected.
 - **Debate / meta-judge** patterns (ChatEval-style multi-agent debate, a meta-judge adjudicating juror disagreement) buy a few points of accuracy at large cost; mostly worth it only for high-stakes offline audits, not batch scoring.
 - Escalation design: cheap juror pass on everything, disagreement or borderline scores escalate to a frontier judge, persistent disagreement escalates to a human. This spends judge budget where the signal is.
 
 ## Judge model choice and meta-evals
 
 - **JudgeBench** (hard, objectively-groundable response pairs in knowledge/reasoning/math/code): best frontier judges reach only ~64%; fine-tuned open judge models and reward models cluster at 55-64%. On genuinely hard comparisons, judges are far from solved; do not use judge deltas to adjudicate small quality gaps between strong models.
-- **RewardBench 2** (arXiv:2506.01937): stricter reward-model meta-eval on unseen human prompts, best-of-N selection focus; the reference for choosing an RM as scorer.
+- **RewardBench 2** ([arXiv:2506.01937](https://arxiv.org/abs/2506.01937), 45 min): stricter reward-model meta-eval on unseen human prompts, best-of-N selection focus; the reference for choosing an RM as scorer.
 - Rule of thumb ordering for judge quality: frontier reasoning models > frontier chat models > specialised fine-tuned judges (Prometheus-style) on their trained rubric distribution > small open models. But per-task calibration beats the global ranking: a small judge that agrees 92% with your expert on your task beats a frontier judge at 85%.
 - Cost note: reasoning-model judges with long CoT can cost more than the system being evaluated; juries of minis are usually the better cost-accuracy point, with reasoning judges reserved for escalation.
 

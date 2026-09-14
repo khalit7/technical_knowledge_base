@@ -1,14 +1,16 @@
 # Profiling and tools
 
+⏱ 8 min read · +8h 55m resources
+
 *Last updated: 2026-08-24*
 
 ## Best resources
 
-- [Nsight Compute docs](https://docs.nvidia.com/nsight-compute/) and [Nsight Systems docs](https://docs.nvidia.com/nsight-systems/): the references; the Nsight Compute "Kernel Profiling Guide" is the piece worth reading end to end.
-- [GPU MODE lecture 1 (profiling PyTorch + how to integrate profilers)](https://github.com/gpu-mode/lectures) and lecture 8 (CUDA performance checklist).
-- [PyTorch profiler recipe](https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html) and the [holistic trace analysis](https://github.com/facebookresearch/HolisticTraceAnalysis) tooling.
-- [CUDA C++ Best Practices Guide, performance metrics](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/#performance-metrics): timing with events, effective bandwidth.
-- Microbenchmark papers ("dissecting the NVIDIA GPU architecture via microbenchmarking" lineage) for ground-truth latencies; optional.
+- [Nsight Compute docs](https://docs.nvidia.com/nsight-compute/) (docs, ~2h for the core pages) and [Nsight Systems docs](https://docs.nvidia.com/nsight-systems/) (docs, ~1h): the references; the Nsight Compute "Kernel Profiling Guide" is the piece worth reading end to end.
+- [GPU MODE lecture 1 (profiling PyTorch + how to integrate profilers)](https://github.com/gpu-mode/lectures) (video, ~1h 30m) and lecture 8 (CUDA performance checklist, video, ~1h 30m).
+- [PyTorch profiler recipe](https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html) (25 min) and the [holistic trace analysis](https://github.com/facebookresearch/HolisticTraceAnalysis) (repo, ~30 min for the entry path) tooling.
+- [CUDA C++ Best Practices Guide, performance metrics](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/#performance-metrics) (30 min): timing with events, effective bandwidth.
+- Microbenchmark papers ("dissecting the NVIDIA GPU architecture via microbenchmarking" lineage) (~1h 30m) for ground-truth latencies; optional.
 
 ## The tool split
 
@@ -36,7 +38,6 @@
 Start with the **Speed of Light (GPU Throughput)** section: SM % and Memory % of peak.
 The pair tells you the regime: high mem + low SM = memory-bound; high SM + low mem =
 compute-bound; both low = latency/occupancy/divergence problem (or the kernel is tiny).
-
 Then, per suspicion:
 
 | Question | Metric (section) |

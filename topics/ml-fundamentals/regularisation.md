@@ -1,10 +1,12 @@
 # Regularisation
 
+⏱ 4 min read · +3h 45m resources
+
 ## Best resources
 
-- [Dropout paper (Srivastava et al. 2014, JMLR)](https://jmlr.org/papers/v15/srivastava14a.html): the original, still the clearest statement of the ensemble interpretation.
-- [Decoupled Weight Decay Regularization (Loshchilov & Hutter 2017, arXiv:1711.05101)](https://arxiv.org/abs/1711.05101): the AdamW paper; why L2-in-the-loss is not weight decay for adaptive optimisers.
-- [Deep Learning book, ch. 7: Regularization (Goodfellow et al.)](https://www.deeplearningbook.org/contents/regularization.html): the systematic treatment.
+- [Dropout paper (Srivastava et al. 2014, JMLR)](https://jmlr.org/papers/v15/srivastava14a.html) (1h 30m): the original, still the clearest statement of the ensemble interpretation.
+- [Decoupled Weight Decay Regularization (Loshchilov & Hutter 2017, arXiv:1711.05101)](https://arxiv.org/abs/1711.05101) (45 min): the AdamW paper; why L2-in-the-loss is not weight decay for adaptive optimisers.
+- [Deep Learning book, ch. 7: Regularization (Goodfellow et al.)](https://www.deeplearningbook.org/contents/regularization.html) (1h 30m): the systematic treatment.
 
 ## Definition
 

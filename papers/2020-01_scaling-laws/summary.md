@@ -1,15 +1,17 @@
 # Scaling Laws for Neural Language Models
 
+⏱ 8 min read · +~4h resources
+
 - **Authors/lab**: Kaplan, McCandlish (equal contribution), Henighan, Brown, Chess, Child, Gray, Radford, Wu, Amodei (OpenAI / Johns Hopkins)
 - **Date**: January 2020
-- **Links**: [arXiv:2001.08361](https://arxiv.org/abs/2001.08361)
+- **Links**: [arXiv:2001.08361](https://arxiv.org/abs/2001.08361) (~1h 30m, long paper)
 
 ## Best resources
 
-- [Scaling Laws, Carefully](https://lilianweng.github.io/posts/2026-06-24-scaling-laws/) (Lilian Weng): modern end-to-end treatment of the scaling-law literature, from Kaplan through Chinchilla to current practice, with the fitting pitfalls spelled out.
-- [Scaling Laws for LLM Pretraining](https://www.jonvet.com/blog/llm-scaling-laws) (Jonas Vetterle): accessible walkthrough of the Kaplan and Chinchilla papers side by side, good for building intuition before running a sweep.
-- [Resolving Discrepancies in Compute-Optimal Scaling of Language Models](https://arxiv.org/abs/2406.19146) (Porian et al., 2024): the forensic reconciliation of Kaplan vs Chinchilla; identifies exactly which methodological choices moved the exponents.
-- [Chinchilla's wild implications](https://www.lesswrong.com/posts/6Fpvch8RR29qLEWNH/chinchilla-s-wild-implications) (nostalgebraist): what the revised laws imply about data as the binding constraint; useful counterpoint to this paper's "big models over big data" conclusion.
+- [Scaling Laws, Carefully](https://lilianweng.github.io/posts/2026-06-24-scaling-laws/) (Lilian Weng) (~50 min): modern end-to-end treatment of the scaling-law literature, from Kaplan through Chinchilla to current practice, with the fitting pitfalls spelled out.
+- [Scaling Laws for LLM Pretraining](https://www.jonvet.com/blog/llm-scaling-laws) (Jonas Vetterle) (~25 min): accessible walkthrough of the Kaplan and Chinchilla papers side by side, good for building intuition before running a sweep.
+- [Resolving Discrepancies in Compute-Optimal Scaling of Language Models](https://arxiv.org/abs/2406.19146) (Porian et al., 2024) (~45 min): the forensic reconciliation of Kaplan vs Chinchilla; identifies exactly which methodological choices moved the exponents.
+- [Chinchilla's wild implications](https://www.lesswrong.com/posts/6Fpvch8RR29qLEWNH/chinchilla-s-wild-implications) (nostalgebraist) (~30 min): what the revised laws imply about data as the binding constraint; useful counterpoint to this paper's "big models over big data" conclusion.
 
 ## Problem
 

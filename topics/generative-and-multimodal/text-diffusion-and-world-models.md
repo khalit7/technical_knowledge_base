@@ -1,5 +1,7 @@
 # Text Diffusion and World Models
 
+⏱ 7 min read · +3h 2m resources
+
 Last updated: 2026-08-24
 
 Two "watch this space" areas from the notes ("research about text diffusion"), treated
@@ -7,10 +9,10 @@ honestly: real progress, real limitations.
 
 ## Best resources
 
-- Nie et al., [Large Language Diffusion Models (LLaDA)](https://arxiv.org/abs/2502.09992): the paper that showed masked diffusion matches AR at 8B scale.
-- Inception Labs, [Mercury: Ultra-Fast Language Models Based on Diffusion](https://arxiv.org/abs/2506.17298): the commercial diffusion-LM tech report.
-- Sander Dieleman, [Diffusion language models](https://sander.ai/2023/01/09/diffusion-language.html): why discrete data makes diffusion hard; still the best conceptual grounding.
-- Google DeepMind, [Genie 3: a new frontier for world models](https://deepmind.google/blog/genie-3-a-new-frontier-for-world-models/): the flagship interactive world model.
+- Nie et al., [Large Language Diffusion Models (LLaDA)](https://arxiv.org/abs/2502.09992) (45 min): the paper that showed masked diffusion matches AR at 8B scale.
+- Inception Labs, [Mercury: Ultra-Fast Language Models Based on Diffusion](https://arxiv.org/abs/2506.17298) (45 min): the commercial diffusion-LM tech report.
+- Sander Dieleman, [Diffusion language models](https://sander.ai/2023/01/09/diffusion-language.html) (~35 min): why discrete data makes diffusion hard; still the best conceptual grounding.
+- Google DeepMind, [Genie 3: a new frontier for world models](https://deepmind.google/blog/genie-3-a-new-frontier-for-world-models/) (~12 min): the flagship interactive world model.
 
 ## Diffusion language models
 
@@ -23,6 +25,7 @@ Key properties: **parallel decoding** (many tokens per forward pass), **bidirect
 context**, and natural **infilling**.
 
 **State of play (Aug 2026).**
+
 - **Mercury / Mercury 2** (Inception Labs): production coding-oriented models; Mercury 2
   reports ~1,000 tok/s on a single Blackwell GPU, several times faster than
   speed-tier AR models at comparable quality.
@@ -30,11 +33,7 @@ context**, and natural **infilling**.
   quality near Flash-Lite tier; still not a flagship product.
 - **LLaDA line**: LLaDA 8B matched LLaMA-class AR baselines; LLaDA 2.x added block
   diffusion and token editing and sees real open-source adoption.
-- Added 2026-08-24: Google released the **DiffusionGemma** Technical Report, an
-  experimental open-weight discrete diffusion LM that refines 256-token blocks in
-  parallel and reaches roughly 1,500 output tokens/s on a single H100, well above
-  autoregressive decoding with speculation; trended on HN Aug 20.
-  [arXiv 2608.00146](https://arxiv.org/abs/2608.00146)
+- Added 2026-08-24: Google released the **DiffusionGemma** Technical Report, an experimental open-weight discrete diffusion LM that refines 256-token blocks in parallel and reaches roughly 1,500 output tokens/s on a single H100, well above autoregressive decoding with speculation; trended on HN Aug 20. [arXiv 2608.00146](https://arxiv.org/abs/2608.00146) (45 min)
 - **Converged recipe**: initialise from a pretrained AR model and continue-train with
   the diffusion objective (much cheaper than from scratch), and use **block diffusion**
   (semi-autoregressive: generate blocks of ~32 tokens left to right, diffuse within a
@@ -42,6 +41,7 @@ context**, and natural **infilling**.
   length generation.
 
 **Limitations (be honest in interviews).**
+
 - Pure any-order diffusion is incompatible with KV caching, so naive implementations
   waste the parallelism they promise; block diffusion is the workaround, which concedes
   that some left-to-right structure is needed.
@@ -65,6 +65,7 @@ dynamics, then use the model to act (planning, RL in imagination) or as a simula
 a video model conditioned on actions with enough consistency *is* a world model.
 
 **Genie lineage (DeepMind).**
+
 - Genie 1 (2024): 11B foundation world model learning latent actions from unlabelled
   gameplay video; playable at 1 fps.
 - Genie 2 (Dec 2024): 3D worlds from a single image, up to a minute of consistency,
@@ -76,6 +77,7 @@ a video model conditioned on actions with enough consistency *is* a world model.
   Waymo built a specialised Waymo World Model on it for driving simulation (Feb 2026).
 
 **Other threads.**
+
 - **Video prediction as world model**: the claim behind Sora-class models ("video
   generation as world simulation"); NVIDIA **Cosmos** ships open world foundation models
   for robotics/AV simulation; interactive game worlds (Genie, Odyssey, Mirage,

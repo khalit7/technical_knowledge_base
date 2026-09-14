@@ -1,16 +1,18 @@
 # Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity
 
+⏱ 10 min read · +~4h 45m resources
+
 - **Authors/lab**: William Fedus, Barret Zoph, Noam Shazeer (Google Brain)
 - **Date**: January 2021 (arXiv v1 2021-01-11; published JMLR 2022)
-- **Links**: [arXiv 2101.03961](https://arxiv.org/abs/2101.03961) | [JAX code + checkpoints (t5x)](https://github.com/google-research/t5x) | [Mesh-TensorFlow reference implementation](https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/moe.py)
+- **Links**: [arXiv 2101.03961](https://arxiv.org/abs/2101.03961) (~1h 30m, JMLR-length paper) | [JAX code + checkpoints (t5x)](https://github.com/google-research/t5x) (repo, ~20 min for the README and entry path) | [Mesh-TensorFlow reference implementation](https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/moe.py) (~15 min)
 - Added to KB: 2026-08-24
 
 ## Best resources
 
-- [Mixture of Experts Explained (Hugging Face blog)](https://huggingface.co/blog/moe): the canonical MoE explainer; its sections on Switch routing, capacity factor, load balancing, and selective precision are essentially a modern restatement of this paper.
-- [A Visual Guide to Mixture of Experts (Maarten Grootendorst)](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts): the clearest diagrams of the router, expert capacity, and token dropping; walks through the Switch simplification step by step.
-- [Mixture-of-Experts LLMs deep dive (Cameron Wolfe)](https://cameronrwolfe.substack.com/p/moe-llms): places Switch in the lineage from Shazeer 2017 and GShard through Mixtral and DeepSeekMoE, with the sparse-vs-active parameter math.
-- [Yannic Kilcher's paper walkthrough (YouTube)](https://www.youtube.com/watch?v=iAR8LkkMMIM): hour-long read-through of the paper with commentary on the routing and scaling claims.
+- [Mixture of Experts Explained (Hugging Face blog)](https://huggingface.co/blog/moe) (~30 min): the canonical MoE explainer; its sections on Switch routing, capacity factor, load balancing, and selective precision are essentially a modern restatement of this paper.
+- [A Visual Guide to Mixture of Experts (Maarten Grootendorst)](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts) (~30 min): the clearest diagrams of the router, expert capacity, and token dropping; walks through the Switch simplification step by step.
+- [Mixture-of-Experts LLMs deep dive (Cameron Wolfe)](https://cameronrwolfe.substack.com/p/moe-llms) (~40 min): places Switch in the lineage from Shazeer 2017 and GShard through Mixtral and DeepSeekMoE, with the sparse-vs-active parameter math.
+- [Yannic Kilcher's paper walkthrough (YouTube)](https://www.youtube.com/watch?v=iAR8LkkMMIM) (~1h): hour-long read-through of the paper with commentary on the routing and scaling claims.
 
 ## Problem
 

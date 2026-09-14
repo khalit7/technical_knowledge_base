@@ -1,16 +1,18 @@
 # Math and coding benchmarks: GSM8K to FrontierMath, HumanEval to SWE-bench Pro
 
+⏱ 10 min read · +6h 40m resources
+
 Last updated: 2026-08-24.
 
 ## Best resources
 
-- [GSM8K paper (Cobbe et al., 2021)](https://arxiv.org/abs/2110.14168); [GSM-Symbolic (Apple, 2024)](https://arxiv.org/abs/2410.05229) for the fragility critique
-- [MATH paper (Hendrycks et al., 2021)](https://arxiv.org/abs/2103.03874)
-- [FrontierMath (Epoch AI, 2024)](https://arxiv.org/abs/2411.04872) and [Epoch's FrontierMath trackers](https://epoch.ai/benchmarks)
-- [MathArena](https://matharena.ai): uncontaminated contest-time evals (AIME, HMMT, IMO)
-- [HumanEval / Codex paper (Chen et al., 2021)](https://arxiv.org/abs/2107.03374)
-- [SWE-bench (Jimenez et al., 2023)](https://arxiv.org/abs/2310.06770); [SWE-bench Verified writeup (OpenAI, 2024)](https://openai.com/index/introducing-swe-bench-verified/); [SWE-bench Pro (Scale, 2025)](https://labs.scale.com/leaderboard/swe_bench_pro_public)
-- [LiveCodeBench](https://livecodebench.github.io/) and [LiveCodeBench Pro](https://livecodebenchpro.com/)
+- [GSM8K paper (Cobbe et al., 2021)](https://arxiv.org/abs/2110.14168) (45 min); [GSM-Symbolic (Apple, 2024)](https://arxiv.org/abs/2410.05229) (45 min) for the fragility critique
+- [MATH paper (Hendrycks et al., 2021)](https://arxiv.org/abs/2103.03874) (45 min)
+- [FrontierMath (Epoch AI, 2024)](https://arxiv.org/abs/2411.04872) (45 min) and [Epoch's FrontierMath trackers](https://epoch.ai/benchmarks) (~15 min)
+- [MathArena](https://matharena.ai) (~15 min): uncontaminated contest-time evals (AIME, HMMT, IMO)
+- [HumanEval / Codex paper (Chen et al., 2021)](https://arxiv.org/abs/2107.03374) (90 min, 35 pages)
+- [SWE-bench (Jimenez et al., 2023)](https://arxiv.org/abs/2310.06770) (45 min); [SWE-bench Verified writeup (OpenAI, 2024)](https://openai.com/index/introducing-swe-bench-verified/) (~12 min); [SWE-bench Pro (Scale, 2025)](https://labs.scale.com/leaderboard/swe_bench_pro_public) (~10 min)
+- [LiveCodeBench](https://livecodebench.github.io/) (~15 min) and [LiveCodeBench Pro](https://livecodebenchpro.com/) (~15 min)
 
 ## Math
 
@@ -64,7 +66,6 @@ lesson that weak test suites overstate correctness recurs in every code benchmar
 Codeforces with problem release dates attached, so you can evaluate any model only on
 post-cutoff problems: contamination control by construction. Also tests self-repair,
 test-output prediction, execution. Frontier models score ~90% on recent windows, so:
-
 **LiveCodeBench Pro (2025)**: Olympiad/ICPC-grade problems annotated by medalists,
 reports an Elo-style rating against the human distribution rather than pass@1
 (frontier ratings around 2800-2900 in mid-2026, i.e. grandmaster-plus territory, but

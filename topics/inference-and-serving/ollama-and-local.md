@@ -1,19 +1,21 @@
 # Ollama, llama.cpp, and local serving
 
+⏱ 7 min read · +2h 15m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [llama.cpp repo](https://github.com/ggml-org/llama.cpp) and its
-  [llama-server README](https://github.com/ggml-org/llama.cpp/tree/master/tools/server):
+- [llama.cpp repo](https://github.com/ggml-org/llama.cpp) (repo, ~30 min for the entry path) and its
+  [llama-server README](https://github.com/ggml-org/llama.cpp/tree/master/tools/server) (25 min):
   the authoritative feature list, moves weekly.
-- [GGUF format spec](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
-- [Ollama blog](https://ollama.com/blog), especially
-  ["Ollama's new engine for multimodal models"](https://ollama.com/blog/multimodal-models)
+- [GGUF format spec](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) (20 min).
+- [Ollama blog](https://ollama.com/blog) (blog index, ~20 min), especially
+  ["Ollama's new engine for multimodal models"](https://ollama.com/blog/multimodal-models) (10 min)
   (the split from vendored llama.cpp).
-- [HF docs: GGUF quantisation types](https://huggingface.co/docs/hub/gguf): decoder ring
+- [HF docs: GGUF quantisation types](https://huggingface.co/docs/hub/gguf) (15 min): decoder ring
   for Q4_K_M vs IQ4_XS vs Q8_0.
-- Practical local-serving guide: [daily.dev: Running LLMs Locally in 2026](https://daily.dev/blog/running-llms-locally-ollama-llama-cpp-self-hosted-ai-developers/).
+- Practical local-serving guide: [daily.dev: Running LLMs Locally in 2026](https://daily.dev/blog/running-llms-locally-ollama-llama-cpp-self-hosted-ai-developers/) (15 min).
 
 ## The layering
 
@@ -98,4 +100,4 @@ docker), manages VRAM residency, keep-alive, and exposes an OpenAI-compatible AP
 ## See also
 
 - [vllm.md](vllm.md), [inference-techniques.md](inference-techniques.md) (quantised serving, bandwidth math).
-- GPU architecture details: [../hardware/](../hardware/).
+- GPU architecture details: [../hardware/](../hardware/summary.md).

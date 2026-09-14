@@ -1,16 +1,18 @@
 # Mixtral of Experts
 
+⏱ 9 min read · +~2h 55m resources
+
 - **Authors/lab**: Mistral AI (Jiang, Sablayrolles, Roux, Mensch et al.)
 - **Date**: January 2024 (arXiv v1 2024-01-08; weights released via magnet link 2023-12-08)
-- **Links**: [arXiv 2401.04088](https://arxiv.org/abs/2401.04088) | [Blog](https://mistral.ai/news/mixtral-of-experts/) | [Code (mistral-src)](https://github.com/mistralai/mistral-src)
+- **Links**: [arXiv 2401.04088](https://arxiv.org/abs/2401.04088) (~45 min) | [Blog](https://mistral.ai/news/mixtral-of-experts/) (~10 min) | [Code (mistral-src)](https://github.com/mistralai/mistral-src) (repo, ~20 min for the README and entry path)
 - Added to KB: 2026-08-24
 
 ## Best resources
 
-- [Mixture of Experts Explained (Hugging Face blog)](https://huggingface.co/blog/moe): the canonical MoE explainer, written for the Mixtral release; covers routing, load balancing, expert parallelism, and MoE fine-tuning gotchas (instability, router sensitivity) directly relevant to anyone tuning these models.
-- [A Visual Guide to Mixture of Experts (Maarten Grootendorst)](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts): the best diagrams of the router, top-K gating, and capacity concepts; ends with a Mixtral walkthrough.
-- [Mixture-of-Experts LLMs deep dive (Cameron Wolfe)](https://cameronrwolfe.substack.com/p/moe-llms): traces the lineage from sparsely-gated MoE and Switch through Mixtral to modern fine-grained designs, with the math for sparse vs active parameter counts.
-- [Mistral's own release post](https://mistral.ai/news/mixtral-of-experts/): concise statement of the cost-performance claim and the serving story (vLLM + Megablocks, Skypilot deployment).
+- [Mixture of Experts Explained (Hugging Face blog)](https://huggingface.co/blog/moe) (~30 min): the canonical MoE explainer, written for the Mixtral release; covers routing, load balancing, expert parallelism, and MoE fine-tuning gotchas (instability, router sensitivity) directly relevant to anyone tuning these models.
+- [A Visual Guide to Mixture of Experts (Maarten Grootendorst)](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts) (~30 min): the best diagrams of the router, top-K gating, and capacity concepts; ends with a Mixtral walkthrough.
+- [Mixture-of-Experts LLMs deep dive (Cameron Wolfe)](https://cameronrwolfe.substack.com/p/moe-llms) (~40 min): traces the lineage from sparsely-gated MoE and Switch through Mixtral to modern fine-grained designs, with the math for sparse vs active parameter counts.
+- [Mistral's own release post](https://mistral.ai/news/mixtral-of-experts/) (~10 min, the same post as the Links line): concise statement of the cost-performance claim and the serving story (vLLM + Megablocks, Skypilot deployment).
 
 ## Problem
 

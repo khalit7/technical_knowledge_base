@@ -1,11 +1,13 @@
 # Training Infrastructure
 
+⏱ 6 min read · +3h 55m resources
+
 ## Best resources
 
-- [torchtitan paper (ICLR 2025)](https://arxiv.org/abs/2410.06511) and [repo](https://github.com/pytorch/torchtitan): the PyTorch-native production pretraining reference (4D parallelism, DCP, torchft).
+- [torchtitan paper (ICLR 2025)](https://arxiv.org/abs/2410.06511) (45 min) and [repo](https://github.com/pytorch/torchtitan) (repo, ~40 min for the entry path): the PyTorch-native production pretraining reference (4D parallelism, DCP, torchft).
 - [Llama 3 paper, infrastructure section](../../papers/2024-07_llama-3/summary.md): the best public account of failures at 16k-GPU scale.
-- [PyTorch: Fault-tolerant Llama with torchft](https://pytorch.org/blog/fault-tolerant-llama-training-with-2000-synthetic-failures-every-15-seconds-and-no-checkpoints-on-crusoe-l40s/): checkpoint-free fault tolerance in practice.
-- [AWS SageMaker HyperPod docs](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod.html) and [NVIDIA NeMo Framework docs](https://docs.nvidia.com/nemo-framework/): the managed-cluster and enterprise stacks.
+- [PyTorch: Fault-tolerant Llama with torchft](https://pytorch.org/blog/fault-tolerant-llama-training-with-2000-synthetic-failures-every-15-seconds-and-no-checkpoints-on-crusoe-l40s/) (~30 min): checkpoint-free fault tolerance in practice.
+- [AWS SageMaker HyperPod docs](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod.html) (docs, ~1h for the core pages) and [NVIDIA NeMo Framework docs](https://docs.nvidia.com/nemo-framework/) (docs, ~1h for the core pages): the managed-cluster and enterprise stacks.
 
 ## The stack, bottom to top
 
@@ -18,8 +20,8 @@
    topology-aware placement.
 3. **Managed offerings**: **AWS SageMaker HyperPod** is "supercomputer as a
    service": provisioned EFA-connected clusters with SLURM or EKS as the
-   orchestrator, deep health checks, and **automatic faulty-node replacement and
-   job auto-resume from checkpoint**. Equivalents: GCP Cluster Toolkit / Vertex,
+   orchestrator, deep health checks, and automatic faulty-node replacement and
+   job auto-resume from checkpoint. Equivalents: GCP Cluster Toolkit / Vertex,
    Azure CycleCloud, CoreWeave/Lambda/Nebius neoclouds.
 4. **Training framework**: see below.
 5. **Experiment layer**: W&B/MLflow/TensorBoard, config management, data

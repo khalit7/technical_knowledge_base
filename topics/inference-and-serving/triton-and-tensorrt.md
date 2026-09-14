@@ -1,15 +1,17 @@
 # NVIDIA Triton Inference Server, TensorRT-LLM, and Dynamo
 
+⏱ 7 min read · +2h 40m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [Triton Inference Server docs](https://docs.nvidia.com/deeplearning/triton-inference-server/)
-  and [repo](https://github.com/triton-inference-server/server).
-- [TensorRT-LLM repo](https://github.com/NVIDIA/TensorRT-LLM) and its tech blogs,
-  especially [Disaggregated Serving in TensorRT-LLM](https://nvidia.github.io/TensorRT-LLM/blogs/tech_blog/blog5_Disaggregated_Serving_in_TensorRT-LLM.html).
-- [Introducing NVIDIA Dynamo](https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models)
-  (GTC 2025) plus [Dynamo docs on disaggregated serving](https://docs.dynamo.nvidia.com/dynamo/design-docs/disaggregated-serving).
+- [Triton Inference Server docs](https://docs.nvidia.com/deeplearning/triton-inference-server/) (docs, ~45 min for the core pages)
+  and [repo](https://github.com/triton-inference-server/server) (repo, ~15 min for the entry path).
+- [TensorRT-LLM repo](https://github.com/NVIDIA/TensorRT-LLM) (repo, ~30 min for the entry path) and its tech blogs,
+  especially [Disaggregated Serving in TensorRT-LLM](https://nvidia.github.io/TensorRT-LLM/blogs/tech_blog/blog5_Disaggregated_Serving_in_TensorRT-LLM.html) (25 min).
+- [Introducing NVIDIA Dynamo](https://developer.nvidia.com/blog/introducing-nvidia-dynamo-a-low-latency-distributed-inference-framework-for-scaling-reasoning-ai-models) (20 min)
+  (GTC 2025) plus [Dynamo docs on disaggregated serving](https://docs.dynamo.nvidia.com/dynamo/design-docs/disaggregated-serving) (25 min).
 
 ## Naming disambiguation (important)
 
@@ -61,8 +63,8 @@ NVIDIA's open-source LLM engine: the peak-performance path on NVIDIA GPUs.
 
 ## NVIDIA Dynamo
 
-Announced GTC March 2025 as "the operating system of the AI factory"; **Dynamo 1.0
-shipped March 2026**. Successor to the "Triton as the front door" era for LLMs:
+Announced GTC March 2025 as "the operating system of the AI factory"; Dynamo 1.0
+shipped March 2026. Successor to the "Triton as the front door" era for LLMs:
 a Rust/Python distributed serving framework above the engines.
 
 - **Engine-agnostic**: workers run vLLM, SGLang, or TensorRT-LLM; Dynamo owns routing,

@@ -1,15 +1,17 @@
 # Filtering, dedup, and the curation pipeline
 
+⏱ 8 min read · +5h 45m resources
+
 Last updated: 2026-08-24
 
 ## Best resources
 
-- [FineWeb blog post](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1): every stage ablated with 1.8B-param proxy runs; read this first
-- [DCLM paper](https://arxiv.org/abs/2406.11794): controlled comparisons of extractors, filters, dedup at multiple compute scales
-- [RefinedWeb paper](https://arxiv.org/abs/2306.01116): the MDR pipeline (Macrodata Refinement) that FineWeb descends from
-- [Deduplicating Training Data Makes Language Models Better (Lee et al. 2021)](https://arxiv.org/abs/2107.06499): the foundational dedup evidence
-- [SemDeDup](https://arxiv.org/abs/2303.09540): semantic dedup via embedding clusters
-- [datatrove](https://github.com/huggingface/datatrove): reference implementations of everything below (local/Slurm/Ray executors)
+- [FineWeb blog post](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) (~1h 30m): every stage ablated with 1.8B-param proxy runs; read this first
+- [DCLM paper](https://arxiv.org/abs/2406.11794) (90 min): controlled comparisons of extractors, filters, dedup at multiple compute scales
+- [RefinedWeb paper](https://arxiv.org/abs/2306.01116) (45 min): the MDR pipeline (Macrodata Refinement) that FineWeb descends from
+- [Deduplicating Training Data Makes Language Models Better (Lee et al. 2021)](https://arxiv.org/abs/2107.06499) (45 min): the foundational dedup evidence
+- [SemDeDup](https://arxiv.org/abs/2303.09540) (45 min): semantic dedup via embedding clusters
+- [datatrove](https://github.com/huggingface/datatrove) (docs, ~30 min for the core pages): reference implementations of everything below (local/Slurm/Ray executors)
 
 ## Pipeline order
 
@@ -64,8 +66,8 @@ cheap filters first, dedup after filtering (fewer pairs), decontamination last (
 - **Exact**: hash whole docs (xxhash/sha) or URLs. Trivial, always do it.
 - **Fuzzy: MinHash + LSH** (the workhorse): shingle into n-grams (FineWeb: 5-grams, 112
   hashes in 14 buckets of 8, catching ~75%+ similarity), documents sharing a bucket are
-  duplicates. FineWeb's key finding: **per-snapshot dedup beat global dedup across all
-  snapshots**. Global dedup preferentially kept the oldest copy of everything and what
+  duplicates. FineWeb's key finding: per-snapshot dedup beat global dedup across all
+  snapshots. Global dedup preferentially kept the oldest copy of everything and what
   survived 90+ snapshots of dedup was disproportionately low-quality boilerplate; per-dump
   dedup performed better despite leaving cross-dump duplicates.
 - **Exact substring: suffix arrays** (RefinedWeb, Lee et al.): remove any 50+ token span
@@ -91,7 +93,7 @@ cheap filters first, dedup after filtering (fewer pairs), decontamination last (
 - Beware: over-aggressive decontamination (short n-grams, common phrases) silently removes
   good data. Log what you drop and eyeball it.
 - Contamination checking from the eval side lives in
-  [../evaluation-and-llm-judges/](../evaluation-and-llm-judges/).
+  ../evaluation-and-llm-judges/.
 
 ## 5. PII scrubbing
 

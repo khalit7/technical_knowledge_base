@@ -1,49 +1,39 @@
 # RPC and API styles: REST, gRPC, GraphQL
 
+⏱ 12 min read · +6h 45m resources
+
 Updated 2026-08-24.
 
 ## Best resources
 
-- [gRPC docs: core concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) and [Protocol Buffers guide](https://protobuf.dev/programming-guides/proto3/): primary sources, well written.
-- [Google API Improvement Proposals (AIPs)](https://google.aip.dev/): the most rigorous public catalog of resource-oriented API design decisions (naming, pagination, long-running operations, errors).
-- [Stripe API reference](https://docs.stripe.com/api) plus their [idempotency post](https://stripe.com/blog/idempotency): the de facto REST style guide by example (expansion, pagination, versioning).
-- [Richardson Maturity Model (Fowler)](https://martinfowler.com/articles/richardsonMaturityModel.html): the classic framing of "how RESTful".
-- [gRPC performance best practices](https://grpc.io/docs/guides/performance/) and [deadlines guide](https://grpc.io/docs/guides/deadlines/): what actually bites in production.
-- [GraphQL docs](https://graphql.org/learn/): sufficient for the working knowledge an ML engineer needs.
+- [gRPC docs: core concepts](https://grpc.io/docs/what-is-grpc/core-concepts/) (30 min) and [Protocol Buffers guide](https://protobuf.dev/programming-guides/proto3/) (50 min): primary sources, well written.
+- [Google API Improvement Proposals (AIPs)](https://google.aip.dev/) (docs, ~2h for the core AIPs): the most rigorous public catalog of resource-oriented API design decisions (naming, pagination, long-running operations, errors).
+- [Stripe API reference](https://docs.stripe.com/api) (docs, ~1h for the core resources) plus their [idempotency post](https://stripe.com/blog/idempotency) (15 min): the de facto REST style guide by example (expansion, pagination, versioning).
+- [Richardson Maturity Model (Fowler)](https://martinfowler.com/articles/richardsonMaturityModel.html) (15 min): the classic framing of "how RESTful".
+- [gRPC performance best practices](https://grpc.io/docs/guides/performance/) (15 min) and [deadlines guide](https://grpc.io/docs/guides/deadlines/) (10 min): what actually bites in production.
+- [GraphQL docs](https://graphql.org/learn/) (docs, ~1h 30m for the learn track): sufficient for the working knowledge an ML engineer needs.
 
 ## REST
 
 ### What REST actually is (added 2026-08-24)
 
-REST (Representational State Transfer) is not a protocol or a spec: it is an
-architectural style Roy Fielding distilled in chapter 5 of his 2000 PhD thesis to
-explain why the web scaled. The constraints:
+REST (Representational State Transfer) is not a protocol or a spec: it is an architectural style Roy Fielding distilled in chapter 5 of his 2000 PhD thesis to explain why the web scaled. The constraints:
 
-- **Resources, not functions**: anything nameable gets a stable identifier (URI); you
-  never "call an endpoint's function", you transfer representations of a resource.
-- **Representations**: the client holds a representation of resource state (JSON, HTML);
-  state changes by transferring new representations (PUT a new version of the resource).
-- **Uniform interface**: a small fixed verb set with universal semantics (GET is safe
-  and cacheable, PUT/DELETE are idempotent, POST is neither) instead of a per-API
-  method vocabulary. This is the deepest difference from RPC styles.
-- **Statelessness**: every request carries all context (auth, cursors); no server-side
-  session. This is what makes horizontal scaling and shared caching work.
-- **Cacheability and layered system**: intermediaries can cache and route because the
-  request semantics are visible in the method and headers.
-- **HATEOAS** (hypermedia as the engine of application state): responses carry links to
-  the next possible actions, so clients navigate rather than hardcode URL structures.
-  The least-followed constraint; the human web (HTML links and forms) is its only mass
-  deployment.
+- **Resources, not functions**: anything nameable gets a stable identifier (URI); you never "call an endpoint's function", you transfer representations of a resource.
+- **Representations**: the client holds a representation of resource state (JSON, HTML); state changes by transferring new representations (PUT a new version of the resource).
+- **Uniform interface**: a small fixed verb set with universal semantics (GET is safe and cacheable, PUT/DELETE are idempotent, POST is neither) instead of a per-API method vocabulary. This is the deepest difference from RPC styles.
+- **Statelessness**: every request carries all context (auth, cursors); no server-side session. This is what makes horizontal scaling and shared caching work.
+- **Cacheability and layered system**: intermediaries can cache and route because the request semantics are visible in the method and headers.
+- **HATEOAS** (hypermedia as the engine of application state): responses carry links to the next possible actions, so clients navigate rather than hardcode URL structures. The least-followed constraint; the human web (HTML links and forms) is its only mass deployment.
 
-"A REST API" in the wild almost always means resource-oriented HTTP+JSON at Richardson
-L2, not Fielding-complete REST; "HTTP API" is the honest term when someone is being
-pedantic.
+"A REST API" in the wild almost always means resource-oriented HTTP+JSON at Richardson L2, not Fielding-complete REST; "HTTP API" is the honest term when someone is being pedantic.
 
 ### REST as practiced
 
 REST as practiced = resource-oriented HTTP + JSON. The Richardson maturity ladder: L0 (one POST endpoint, RPC-in-JSON), L1 (resources with URLs), L2 (HTTP verbs + status codes used correctly: where almost everyone sensibly stops), L3 (HATEOAS hypermedia links: rare outside academia). Aim for honest L2: nouns for resources, verbs from HTTP, correct status codes, idempotent PUT/DELETE, `:verb` custom-action escape hatch for the genuinely non-CRUD (Google AIP-136 style, e.g. `POST /models/m1:deploy`).
 
 Patterns that separate good APIs from bad:
+
 - **Pagination**: cursor-based (`page_token`/`next_cursor`) over offset-based (offsets skew under concurrent writes and get slow deep in the list). Return an opaque cursor plus `has_more`. Every list endpoint paginates from day one; retrofitting breaks clients.
 - **Idempotency**: `Idempotency-Key` header on POSTs; server stores key + first response, replays on retry, errors on same-key-different-body. Essential for payment-like and inference-cost-like operations. See [http.md](http.md).
 - **Versioning**: URL major versions (`/v1/`) are the pragmatic default; header/date-based versioning (Stripe's per-account API version pinning) is the deluxe option. Rules that matter more than the mechanism: additive changes are non-breaking (clients must tolerate unknown fields), removals/renames/type changes are breaking, and you need a deprecation policy with dates. Anthropic's `anthropic-version` header is date-based versioning.
@@ -63,20 +53,11 @@ RPC framework over HTTP/2: you define services and messages in **protobuf** (`.p
 
 ## tRPC, and its relation to gRPC (added 2026-08-24)
 
-Despite the name, tRPC has no relationship to gRPC beyond both being RPC: no protobuf,
-no HTTP/2 streams, no codegen, no shared lineage. The "t" is TypeScript.
+Despite the name, tRPC has no relationship to gRPC beyond both being RPC: no protobuf, no HTTP/2 streams, no codegen, no shared lineage. The "t" is TypeScript.
 
-- **What it is**: end-to-end typesafe RPC for TypeScript monorepos. The server defines
-  procedures (`query` / `mutation` / `subscription`) in plain TS, usually with zod
-  input validators; the client imports the router's *type* and gets fully typed,
-  autocompleted calls. No schema files, no code generation: the TypeScript compiler is
-  the contract.
-- **On the wire** it is ordinary HTTP/JSON (batched GETs/POSTs; subscriptions ride SSE
-  or WebSockets), so there is nothing protocol-novel: the innovation is entirely in the
-  type-level developer experience.
-- **The catch**: the contract exists only at compile time and only in TypeScript.
-  Client and server must live in one codebase and deploy roughly together; there is no
-  language-neutral artifact another team or language can consume.
+- **What it is**: end-to-end typesafe RPC for TypeScript monorepos. The server defines procedures (`query` / `mutation` / `subscription`) in plain TS, usually with zod input validators; the client imports the router's *type* and gets fully typed, autocompleted calls. No schema files, no code generation: the TypeScript compiler is the contract.
+- **On the wire** it is ordinary HTTP/JSON (batched GETs/POSTs; subscriptions ride SSE or WebSockets), so there is nothing protocol-novel: the innovation is entirely in the type-level developer experience.
+- **The catch**: the contract exists only at compile time and only in TypeScript. Client and server must live in one codebase and deploy roughly together; there is no language-neutral artifact another team or language can consume.
 
 | | tRPC | gRPC |
 |---|---|---|
@@ -87,11 +68,7 @@ no HTTP/2 streams, no codegen, no shared lineage. The "t" is TypeScript.
 | Streaming | subscriptions (SSE/WS) | native 4-mode HTTP/2 streaming |
 | Evolution | refactor the monorepo | field-number rules, `reserved` |
 
-When: tRPC for TS full-stack apps (the Next.js world) where the frontend is the only
-client; gRPC for internal polyglot service-to-service. If a system needs both, put
-REST or gRPC at the public boundary and keep tRPC as internal frontend glue. ML
-relevance is thin: you meet tRPC in the TS dashboards of ML products, not in serving
-infra.
+When: tRPC for TS full-stack apps (the Next.js world) where the frontend is the only client; gRPC for internal polyglot service-to-service. If a system needs both, put REST or gRPC at the public boundary and keep tRPC as internal frontend glue. ML relevance is thin: you meet tRPC in the TS dashboards of ML products, not in serving infra.
 
 ## GraphQL (briefly)
 

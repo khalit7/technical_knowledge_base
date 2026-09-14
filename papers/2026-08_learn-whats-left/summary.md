@@ -1,8 +1,10 @@
 # Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
 
+⏱ 10 min read · +3h resources
+
 - **Authors/lab**: Yixuan Wang, Yifei Chen, Haichao Zhang, Haozheng Luo, Xander Wu, Jie Ni, Yun Fu, Nuno Vasconcelos, Yijiang Li (University of Florida, UC San Diego, Northeastern, Northwestern, Stanford, Zillion Network, Universitaet Innsbruck)
 - **Date**: August 2026 (arXiv v1, 17 Aug 2026)
-- **Links**: [arXiv 2608.16072](https://arxiv.org/abs/2608.16072)
+- **Links**: [arXiv 2608.16072](https://arxiv.org/abs/2608.16072) (45 min, 14 pages)
 
 Introduces **SA-MRPO** (Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization): a drop-in change to how the advantage is built in GRPO-style RLVR when there are multiple reward objectives (correctness plus length, format, executability, ...). Each objective is normalized independently and then down-weighted by how close its batch-mean reward already is to its ceiling, so gradient budget flows to the objectives with remaining headroom instead of the ones already solved. Strictly generalizes both GRPO and GDPO.
 
@@ -69,6 +71,6 @@ Setup: verl + vLLM, G = 8, batch 256, 3 epochs, max response 4096 tokens; math a
 
 - [2024-02_deepseekmath-grpo](../2024-02_deepseekmath-grpo/): the underlying policy update; SA-MRPO changes only the advantage construction and keeps the clipped GRPO surrogate.
 - [2025-01_deepseek-r1](../2025-01_deepseek-r1/): the RLVR regime (rule-based verifiable rewards) this method assumes; R1-style recipes with format + correctness rewards are exactly the saturation scenario in Figure 1.
-- GDPO ([arXiv 2601.05242](https://arxiv.org/abs/2601.05242)): the reward-decoupled baseline SA-MRPO generalizes (its gamma = 0 case).
-- DVAO ([arXiv 2605.25604](https://arxiv.org/abs/2605.25604)) and GD2PO ([arXiv 2606.16771](https://arxiv.org/abs/2606.16771)): concurrent multi-reward GRPO variants driven by reward variance and advantage conflict rather than saturation.
+- GDPO ([arXiv 2601.05242](https://arxiv.org/abs/2601.05242) (~45 min)): the reward-decoupled baseline SA-MRPO generalizes (its gamma = 0 case).
+- DVAO ([arXiv 2605.25604](https://arxiv.org/abs/2605.25604) (~45 min)) and GD2PO ([arXiv 2606.16771](https://arxiv.org/abs/2606.16771) (~45 min)): concurrent multi-reward GRPO variants driven by reward variance and advantage conflict rather than saturation.
 - KB topics: [topics/rl](../../topics/rl/) (RL for LLMs, RLVR, GRPO), [topics/llm-training-and-post-training](../../topics/llm-training-and-post-training/) (alignment, reward shaping).

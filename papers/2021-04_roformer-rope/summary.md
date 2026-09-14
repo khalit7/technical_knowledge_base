@@ -1,15 +1,17 @@
 # RoFormer: Enhanced Transformer with Rotary Position Embedding
 
+⏱ 10 min read · +~3h 10m resources
+
 - **Authors**: Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, Yunfeng Liu (Zhuiyi Technology, Shenzhen)
 - **Date**: April 2021 (arXiv v1; v5 November 2023; journal version in Neurocomputing 2024)
-- **Links**: [arXiv:2104.09864](https://arxiv.org/abs/2104.09864) | [code](https://github.com/ZhuiyiTechnology/roformer) | [HF model doc](https://huggingface.co/docs/transformers/model_doc/roformer)
+- **Links**: [arXiv:2104.09864](https://arxiv.org/abs/2104.09864) (~45 min) | [code](https://github.com/ZhuiyiTechnology/roformer) (repo, ~15 min for the README) | [HF model doc](https://huggingface.co/docs/transformers/model_doc/roformer) (docs, ~10 min)
 
 ## Best resources
 
-- [Rotary Embeddings: A Relatively Revolutionary](https://blog.eleuther.ai/rotary-embeddings/) (EleutherAI): the canonical English explainer; complex-number view, derivation, runnable code, and the early adoption story (GPT-NeoX, GPT-J)
-- [Transformer升级之路: 旋转式位置编码](https://kexue.fm/archives/8265) (Jianlin Su): the first author's original blog derivation, which predates and is more readable than the paper (Chinese)
-- [You could have designed state of the art positional encoding](https://huggingface.co/blog/designing-positional-encoding) (Fleetwood, Hugging Face): rederives RoPE step by step from desiderata; the best intuition builder for why each design choice is forced
-- [Annotated RoPE implementation](https://nn.labml.ai/transformers/rope/index.html) (labml.ai): line-by-line PyTorch of the efficient elementwise form
+- [Rotary Embeddings: A Relatively Revolutionary](https://blog.eleuther.ai/rotary-embeddings/) (EleutherAI) (~30 min): the canonical English explainer; complex-number view, derivation, runnable code, and the early adoption story (GPT-NeoX, GPT-J)
+- [Transformer升级之路: 旋转式位置编码](https://kexue.fm/archives/8265) (Jianlin Su) (~30 min): the first author's original blog derivation, which predates and is more readable than the paper (Chinese)
+- [You could have designed state of the art positional encoding](https://huggingface.co/blog/designing-positional-encoding) (Fleetwood, Hugging Face) (~35 min): rederives RoPE step by step from desiderata; the best intuition builder for why each design choice is forced
+- [Annotated RoPE implementation](https://nn.labml.ai/transformers/rope/index.html) (labml.ai) (~25 min): line-by-line PyTorch of the efficient elementwise form
 
 ## Problem
 
@@ -21,13 +23,17 @@ Self-attention is position-agnostic, so position must be injected somewhere. Eve
 
 **2D solution: rotation.** In d = 2, identify the plane with the complex numbers. The solution is f_q(x_m, m) = (W_q x_m) e^{imθ} and f_k(x_n, n) = (W_k x_n) e^{inθ}: rotate the projected query/key by an angle proportional to its position. Then
 
-    <q_m, k_n> = Re[(W_q x_m)(W_k x_n)* e^{i(m-n)θ}]
+```
+<q_m, k_n> = Re[(W_q x_m)(W_k x_n)* e^{i(m-n)θ}]
+```
 
 The conjugation makes the phases subtract, so absolute rotations by mθ and nθ leave only the relative angle (m - n)θ. The paper's Section 3.4.1 shows this is essentially forced: decomposing f into radial and angular parts, the constraint makes the radius position-independent and the angle an arithmetic progression φ(m) = mθ + γ, i.e. rotation at constant angular velocity is the solution, not just a solution.
 
 **General form.** For even d, split the vector into d/2 independent 2D pairs, each rotated by its own frequency: f(x, m) = R_{Θ,m} W x with R a block-diagonal matrix of 2x2 rotations by angles mθ_1, ..., mθ_{d/2}. Since rotations are orthogonal and R_{Θ,m}^T R_{Θ,n} = R_{Θ,n-m},
 
-    q_m^T k_n = x_m^T W_q^T R_{Θ,n-m} W_k x_n
+```
+q_m^T k_n = x_m^T W_q^T R_{Θ,n-m} W_k x_n
+```
 
 which satisfies the constraint exactly. Position is injected multiplicatively into q and k only (values are untouched), norms are preserved, and the sparse block structure means no matrix multiply is needed: implement as elementwise cos/sin combination of x with its pair-swapped negation (Equation 34), a few fused elementwise ops per layer.
 

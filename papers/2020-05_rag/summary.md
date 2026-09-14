@@ -1,14 +1,16 @@
 # Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
 
+⏱ 9 min read · +~3h 10m resources
+
 - **Authors**: Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Kuttler, Mike Lewis, Wen-tau Yih, Tim Rocktaschel, Sebastian Riedel, Douwe Kiela (Facebook AI Research; UCL; NYU)
 - **Date**: May 2020 (arXiv v1; NeurIPS 2020)
-- **Links**: [arXiv:2005.11401](https://arxiv.org/abs/2005.11401) | [code (HF Transformers examples/rag)](https://github.com/huggingface/transformers/tree/main/examples/research_projects/rag) | [demo](https://huggingface.co/rag/)
+- **Links**: [arXiv:2005.11401](https://arxiv.org/abs/2005.11401) (~45 min) | [code (HF Transformers examples/rag)](https://github.com/huggingface/transformers/tree/main/examples/research_projects/rag) (repo, ~20 min for the README and entry path) | [demo](https://huggingface.co/rag/) (~5 min)
 
 ## Best resources
 
-- [Meta AI blog: Retrieval Augmented Generation](https://ai.meta.com/blog/retrieval-augmented-generation-streamlining-the-creation-of-intelligent-natural-language-processing-models/): the authors' own framing; short and good on the "hot-swap the index instead of retraining" motivation
-- [Hugging Face Transformers RAG docs](https://huggingface.co/docs/transformers/model_doc/rag): the original model as runnable code (`RagSequenceForGeneration`, `RagTokenForGeneration`, `RagRetriever` over the wiki_dpr index); the clearest way to see how the pieces compose
-- [RAG for LLMs: A Survey (Gao et al., 2023)](https://arxiv.org/abs/2312.10997): the canonical bridge from this paper to the modern stack; its Naive / Advanced / Modular RAG taxonomy is the standard map of what the field became
+- [Meta AI blog: Retrieval Augmented Generation](https://ai.meta.com/blog/retrieval-augmented-generation-streamlining-the-creation-of-intelligent-natural-language-processing-models/) (~10 min): the authors' own framing; short and good on the "hot-swap the index instead of retraining" motivation
+- [Hugging Face Transformers RAG docs](https://huggingface.co/docs/transformers/model_doc/rag) (docs, ~20 min for the core pages): the original model as runnable code (`RagSequenceForGeneration`, `RagTokenForGeneration`, `RagRetriever` over the wiki_dpr index); the clearest way to see how the pieces compose
+- [RAG for LLMs: A Survey (Gao et al., 2023)](https://arxiv.org/abs/2312.10997) (~1h 30m, survey): the canonical bridge from this paper to the modern stack; its Naive / Advanced / Modular RAG taxonomy is the standard map of what the field became
 
 ## Problem
 

@@ -1,14 +1,16 @@
 # Distributed PyTorch: DDP, FSDP2, DTensor, and friends
 
+⏱ 9 min read · +4h 5m resources
+
 Last verified: 2026-08-24 (PyTorch 2.13; FSDP1 deprecated since 2.11).
 
 ## Best resources
 
-- [FSDP2 tutorial](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html): the official getting-started, now FSDP2-first and marks FSDP1 deprecated.
-- [fully_shard API docs](https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html): the authoritative FSDP2 reference, including the FSDP1 vs FSDP2 design comparison.
-- [torchtitan repo + technical report (arXiv 2410.06511)](https://github.com/pytorch/torchtitan): the reference composition of FSDP2 + TP + PP + CP + compile; read `docs/composability.md`.
-- [DDP paper (VLDB 2020, arXiv 2006.15704)](https://arxiv.org/abs/2006.15704): still the best description of bucket/overlap internals.
-- [DTensor docs](https://docs.pytorch.org/docs/stable/distributed.tensor.html) and [Device Mesh recipe](https://docs.pytorch.org/tutorials/recipes/distributed_device_mesh.html).
+- [FSDP2 tutorial](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html) (30 min): the official getting-started, now FSDP2-first and marks FSDP1 deprecated.
+- [fully_shard API docs](https://docs.pytorch.org/docs/stable/distributed.fsdp.fully_shard.html) (25 min): the authoritative FSDP2 reference, including the FSDP1 vs FSDP2 design comparison.
+- [torchtitan repo + technical report (arXiv 2410.06511)](https://github.com/pytorch/torchtitan) (repo, ~1h for the entry path; the report 45 min): the reference composition of FSDP2 + TP + PP + CP + compile; read `docs/composability.md`.
+- [DDP paper (VLDB 2020, arXiv 2006.15704)](https://arxiv.org/abs/2006.15704) (45 min): still the best description of bucket/overlap internals.
+- [DTensor docs](https://docs.pytorch.org/docs/stable/distributed.tensor.html) (25 min) and [Device Mesh recipe](https://docs.pytorch.org/tutorials/recipes/distributed_device_mesh.html) (15 min).
 
 ## DDP internals
 
@@ -17,8 +19,8 @@ Last verified: 2026-08-24 (PyTorch 2.13; FSDP1 deprecated since 2.11).
 - **Buckets**: at construction, parameters are grouped into buckets (default
   `bucket_cap_mb=25`) in reverse registration order (approximating backward execution
   order). A `Reducer` registers an autograd hook per parameter; when every grad in a
-  bucket is ready, an async NCCL all-reduce launches for that bucket, **overlapping
-  communication with the rest of backward**. First iteration also rebuilds buckets in
+  bucket is ready, an async NCCL all-reduce launches for that bucket, overlapping
+  communication with the rest of backward. First iteration also rebuilds buckets in
   the true grad-ready order.
 - Readiness bookkeeping is why unused parameters hang DDP: the bucket never fills. Fix
   with `find_unused_parameters=True` (costly: extra graph traversal + sentinel
@@ -53,7 +55,6 @@ the block's params, run, free; in backward, all-gather again, compute grads,
 reduce-scatter grads to shards. Prefetching (`set_modules_to_forward_prefetch`, implicit
 backward prefetch) overlaps the all-gathers. Apply `fully_shard` bottom-up per
 transformer block, then once on the root; the root holds params of anything not covered.
-
 Optimizer states are built on the sharded DTensor params, so any `torch.optim` optimizer
 works unchanged (this replaces FSDP1's special-cased optim state dict handling).
 
