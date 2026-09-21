@@ -33,6 +33,9 @@ procedure and the commands.
 7. **Render the voice and the animation**: `uv run video/build.py <episode>`.
    The voice stage verifies every take and reseeds on failure.
 8. **Run the checks and fix what they find:**
+   - `uv run python video/tools/check_structure.py --script <episode>` first,
+     before rendering: it is the only check that reads the script rather than
+     the finished video, so it catches a missing beat while it is still cheap.
    - the layout audit runs inside the render: read
      `video/out/layout_<episode>.json` for text off the frame or overlapping.
    - `uv run python video/tools/check_timing.py --script <episode>` for two

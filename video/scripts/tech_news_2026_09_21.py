@@ -56,6 +56,8 @@ Numbers are spelled the way they should be said, because text to speech reads
 A = "A"
 B = "B"
 
+FORMAT = "news"
+
 SCRIPT: dict[str, list[tuple[str, str]]] = {
     # 1. tension
     "cold_open": [

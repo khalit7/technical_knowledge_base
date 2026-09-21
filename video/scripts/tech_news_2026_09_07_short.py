@@ -19,6 +19,8 @@ one clause at a time. Every figure comes from "2026-09-07: tech news".
 A = "A"
 B = "B"
 
+FORMAT = "news"
+
 SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
 SCRIPT["ident"] = [

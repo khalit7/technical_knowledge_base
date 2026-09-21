@@ -14,6 +14,8 @@ Every figure comes from "GPU memory hierarchy". Short sentences.
 A = "A"
 B = "B"
 
+FORMAT = "deep dive"
+
 SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
 # --- what this is, before anything else ----------------------------------
