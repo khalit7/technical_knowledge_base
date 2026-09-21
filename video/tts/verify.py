@@ -30,7 +30,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 ASR_MODEL = "large-v3"          # already cached on this machine
-WER_LIMIT = 0.15                # above this, the take is defective
+WER_LIMIT = 0.15                # informational: word-level disagreement
+CER_LIMIT = 0.07                # the gate: character-level disagreement
 _model = None
 
 
@@ -50,6 +51,7 @@ def asr(device: str = "cpu"):
 
 
 ORDINAL = re.compile(r"^([0-9]+)(st|nd|rd|th)$")
+ALNUM = re.compile(r"^([a-z]+)([0-9]+(?:\.[0-9]+)?)$")
 
 
 def _spell(token: str) -> list[str]:
@@ -85,13 +87,23 @@ def _spell(token: str) -> list[str]:
 def normalise(text: str) -> list[str]:
     """Compare like with like: numbers spoken, punctuation gone, case gone."""
     text = text.lower()
-    text = re.sub(r"\$([0-9.]+)", r"\1 dollars", text)
+    # Currency is dropped on both sides: the narration says "two dollars fifty"
+    # and the transcriber writes "$2.50", and no amount of expansion makes
+    # those the same tokens.
+    text = re.sub(r"\$", " ", text)
+    text = re.sub(r"\bdollars?\b", " ", text)
     text = text.replace("%", " percent ").replace("&", " and ").replace("-", " ")
     text = re.sub(r"[^a-z0-9.\s]", " ", text)
     words = []
     for w in text.split():
         w = w.strip(".")
-        if ORDINAL.match(w):
+        m = ALNUM.match(w)
+        if m:
+            # "v4" is "v four" said aloud, and the transcriber writes it back
+            # as one token. Split both sides the same way.
+            words.append(m.group(1))
+            words.extend(x for x in _spell(m.group(2)) if x != "and")
+        elif ORDINAL.match(w):
             words.extend(x for x in _spell(w) if x != "and")
         elif re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", w):
             words.extend(x for x in _spell(w) if x != "and")
@@ -132,6 +144,28 @@ def insertion_burst(reference: list[str], hypothesis: list[str], window: int = 4
     return worst
 
 
+def cer(reference: list[str], hypothesis: list[str]) -> float:
+    """Character error rate over the words with the spaces removed.
+
+    This is the gate, and the word error rate is only a hint, because most
+    word-level disagreement here is spelling convention rather than a wrong
+    take: "DeepSeek" comes back as "Deep Seek", "Kimi K3" as "Kimi K 3". Those
+    are a handful of characters apart and a third of the words apart. Real
+    hallucination moves both.
+    """
+    ref = "".join(reference)
+    hyp = "".join(hypothesis)
+    if not ref:
+        return 0.0 if not hyp else 1.0
+    prev = list(range(len(hyp) + 1))
+    for i, r in enumerate(ref, 1):
+        cur = [i]
+        for j, h in enumerate(hyp, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (r != h)))
+        prev = cur
+    return prev[-1] / len(ref)
+
+
 def transcribe(path: Path, device: str = "cpu") -> tuple[str, str, float]:
     """Text, detected language, and the worst no-speech probability seen.
 
@@ -155,17 +189,19 @@ def check_beat(key: str, turns: list[tuple[str, str]], audio_dir: Path,
     heard, language, silence = transcribe(path, device)
     ref, hyp = normalise(said), normalise(heard)
     score = wer(ref, hyp)
+    chars = cer(ref, hyp)
     burst = insertion_burst(ref, hyp)
     return {
         "key": key,
         "wer": round(score, 3),
+        "cer": round(chars, 3),
         "language": language,
         "no_speech": round(silence, 2),
         "invented": burst,
         # A high no-speech probability on a clip that is all speech is how a
         # burst of music or noise shows up, even when the words around it
         # transcribe fine.
-        "ok": (score <= WER_LIMIT and language == "en" and silence <= 0.5
+        "ok": (chars <= CER_LIMIT and language == "en" and silence <= 0.5
                and not burst),
         "heard": heard,
         "said": said,
@@ -191,8 +227,8 @@ def main() -> int:
             print(f"{key:16s} MISSING")
             continue
         flag = "ok " if r["ok"] else "BAD"
-        print(f"{flag} {key:16s} wer {r['wer']:.3f}  lang {r['language']}  "
-              f"no-speech {r['no_speech']:.2f}"
+        print(f"{flag} {key:16s} cer {r['cer']:.3f}  wer {r['wer']:.3f}  "
+              f"lang {r['language']}  no-speech {r['no_speech']:.2f}"
               + (f"  invented: \"{r['invented']}\"" if r["invented"] else ""))
         if args.show_text or not r["ok"]:
             print(f"      said:  {r['said'][:160]}")
@@ -200,7 +236,7 @@ def main() -> int:
 
     bad = [r for r in results if not r.get("ok") and not r.get("missing")]
     print(f"\n{len(results) - len(bad)} of {len(results)} beats pass "
-          f"(word error rate at or below {WER_LIMIT})")
+          f"(character error rate at or below {CER_LIMIT})")
     (audio_dir / "verification.json").write_text(json.dumps(results, indent=2))
     return 1 if bad else 0
 

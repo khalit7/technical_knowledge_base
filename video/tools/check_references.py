@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -93,7 +94,7 @@ def main() -> int:
     for old in out.glob("*.png"):
         old.unlink()
 
-    ffmpeg = Path(ROOT / "env" / "manim" / "bin" / "ffmpeg")
+    ffmpeg = os.environ.get("KB_FFMPEG", "ffmpeg")
     rows = []
     for key in script:
         clip = audio_dir / f"{key}.wav"
@@ -106,7 +107,7 @@ def main() -> int:
             at = timing[key] + offset - 0.2
             name = re.sub(r"[^a-z0-9]+", "-", phrase.lower()).strip("-")
             frame = out / f"{at:07.2f}_{key}_{name}.png"
-            subprocess.run([str(ffmpeg), "-v", "error", "-ss", f"{at:.2f}",
+            subprocess.run([ffmpeg, "-v", "error", "-ss", f"{at:.2f}",
                             "-i", str(video), "-frames:v", "1", "-y", str(frame)],
                            check=False)
             rows.append((at, key, phrase))

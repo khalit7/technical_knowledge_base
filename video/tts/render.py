@@ -216,8 +216,9 @@ def main() -> int:
             check = verify.check_beat(key, turns, out, device=asr_device,
                                       path=scratch)
             scratch.unlink(missing_ok=True)
-            score = check["wer"] if check["language"] == "en" else 1.0
-            note = f"wer {check['wer']:.3f} {check['language']}  {rate:.0f} wpm"
+            score = check["cer"] if check["language"] == "en" else 1.0
+            note = (f"cer {check['cer']:.3f} wer {check['wer']:.3f} "
+                    f"{check['language']}  {rate:.0f} wpm")
             if best is None or score < best[0]:
                 best = (score, wav, took, note)
             if check["ok"]:
@@ -237,7 +238,7 @@ def main() -> int:
         rate = words / max(seconds, 0.01) * 60
         if rate > FAST_WPM:
             note += "  STILL FAST: shorten the sentences"
-        verdict = "ok " if score <= verify.WER_LIMIT else "KEPT BEST OF ALL BAD"
+        verdict = "ok " if score <= verify.CER_LIMIT else "KEPT BEST OF ALL BAD"
         print(f"{verdict} {key:18s} {seconds:6.2f}s  {words:4d} words  "
               f"({words / max(seconds, 0.01) * 60:5.0f} wpm)  {note}  "
               f"rendered in {took:.1f}s")
