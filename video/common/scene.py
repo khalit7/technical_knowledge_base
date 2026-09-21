@@ -35,6 +35,8 @@ from manim import (
     config,
 )
 
+from manim import Paragraph, Text
+
 from .style import ACCENT, DIM, apply_theme
 
 WORDS_PER_SECOND = 2.4          # 145 words per minute, the technical register
@@ -73,6 +75,7 @@ class TechScene(MovingCameraScene):
         self._beat_len = 0.0
         self._log: list[dict] = []
         self._parked: list[VGroup] = []
+        self.layout_issues: list[dict] = []
 
     # -- narration ---------------------------------------------------------
 
@@ -88,6 +91,7 @@ class TechScene(MovingCameraScene):
         what paces the reveals, but forgetting one can no longer break the audio.
         """
         if self._beat_len:
+            self.audit_layout()
             left = self.remaining() + TAIL
             if left > 0:
                 # How long the frame sat still while this line finished. A few
@@ -105,6 +109,72 @@ class TechScene(MovingCameraScene):
                           "dur": round(self._beat_len, 2)})
         if self.timing_out:
             self.timing_out.write_text(json.dumps(self._log, indent=1))
+            issues = self.timing_out.with_name(
+                self.timing_out.name.replace("timing_", "layout_"))
+            issues.write_text(json.dumps(self.layout_issues, indent=1))
+
+    # -- layout audit ------------------------------------------------------
+
+    def audit_layout(self):
+        """Look at the frame the way a viewer would, before moving on.
+
+        Two defects account for most of the rework on these videos and neither
+        is visible in the code that causes them: text that runs off the frame,
+        and two pieces of text sitting on top of each other. They happen
+        because a label inherits the alignment of whatever it was placed next
+        to, or because a block was sized for an empty frame and something else
+        is already there. Checking the actual bounding boxes at the end of each
+        beat catches both without anyone having to squint at a frame."""
+        key = self._log[-1]["key"] if self._log else "?"
+        half_w = config.frame_width / 2
+        half_h = config.frame_height / 2
+
+        texts = []
+        for mob in self.mobjects:
+            for part in mob.get_family():
+                # A Text holds no points itself: its glyphs do. Asking the
+                # container whether it has points skips every piece of text on
+                # screen, which is how this check first shipped doing nothing.
+                if not isinstance(part, (Text, Paragraph)):
+                    continue
+                if not part.family_members_with_points():
+                    continue
+                if max(part.get_fill_opacity(), part.get_stroke_opacity()) < 0.25:
+                    continue            # faded out, not on screen in practice
+                texts.append(part)
+
+        for part in texts:
+            left, right = part.get_left()[0], part.get_right()[0]
+            bottom, top = part.get_bottom()[1], part.get_top()[1]
+            if left < -half_w - 0.02 or right > half_w + 0.02 \
+                    or bottom < -half_h - 0.02 or top > half_h + 0.02:
+                self.layout_issues.append(
+                    {"beat": key, "kind": "off frame",
+                     "text": part.text[:60] if hasattr(part, "text") else "?"})
+
+        for i, a in enumerate(texts):
+            for b in texts[i + 1:]:
+                overlap = self._box_overlap(a, b)
+                if overlap > 0.25:
+                    self.layout_issues.append(
+                        {"beat": key, "kind": "overlapping text",
+                         "text": (getattr(a, "text", "?")[:40] + " | "
+                                  + getattr(b, "text", "?")[:40]),
+                         "fraction": round(overlap, 2)})
+
+    @staticmethod
+    def _box_overlap(a, b) -> float:
+        """Intersection as a fraction of the smaller bounding box."""
+        ax0, ax1 = a.get_left()[0], a.get_right()[0]
+        ay0, ay1 = a.get_bottom()[1], a.get_top()[1]
+        bx0, bx1 = b.get_left()[0], b.get_right()[0]
+        by0, by1 = b.get_bottom()[1], b.get_top()[1]
+        dx = min(ax1, bx1) - max(ax0, bx0)
+        dy = min(ay1, by1) - max(ay0, by0)
+        if dx <= 0 or dy <= 0:
+            return 0.0
+        smaller = min((ax1 - ax0) * (ay1 - ay0), (bx1 - bx0) * (by1 - by0))
+        return (dx * dy) / smaller if smaller > 0 else 0.0
 
     def elapsed(self) -> float:
         return self.renderer.time - self._beat_start

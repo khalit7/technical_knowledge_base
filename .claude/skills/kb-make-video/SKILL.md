@@ -32,7 +32,9 @@ procedure and the commands.
    `uv run video/build.py <episode> --skip-tts --quality l`
 7. **Render the voice and the animation**: `uv run video/build.py <episode>`.
    The voice stage verifies every take and reseeds on failure.
-8. **Run all three checks and fix what they find:**
+8. **Run the checks and fix what they find:**
+   - the layout audit runs inside the render: read
+     `video/out/layout_<episode>.json` for text off the frame or overlapping.
    - `uv run python video/tools/check_timing.py --script <episode>` for two
      voices at once, silent gaps and still frames.
    - `uv run --group tts --group video python video/tools/check_references.py
@@ -40,8 +42,11 @@ procedure and the commands.
      then look at every frame it extracts.
    - `uv run --group tts python video/tts/verify.py --script <episode>` for
      what each take actually said.
-9. **Watch it.** With the sound off, with your eyes closed, then properly.
-10. **Attach it to the canonical Notion page** under a `Video` heading, and add
+9. **Watch it.** With the sound off, with your eyes closed, then properly. The
+   checks are geometry and transcription; whether it reads is not.
+10. **After any refactor, build one episode end to end** before calling it done.
+    A moved path or a renamed tool does not surface until something uses it.
+11. **Attach it to the canonical Notion page** under a `Video` heading, and add
     a dated line to the Notion Updates changelog.
 
 ## Registering a new episode

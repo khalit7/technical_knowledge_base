@@ -50,9 +50,23 @@ GROUPS = ["--group", "tts", "--group", "video"]
 # longer needs a coarser encode. Try each in turn and stop at the first that
 # fits, rather than encoding once and failing at the upload.
 NOTION_CAP_MIB = 5.0
-CRF_LADDER = (28, 31, 34, 37)
 NOTION_FPS = "30"
-NOTION_AUDIO_KBPS = "48k"
+
+# Height, constant rate factor, audio bitrate. Tried in order until one fits.
+# A three minute episode lands on the first rung. An eight minute topic
+# overview does not: at that length the audio alone is nearly three megabytes
+# at 48 kbit/s, and pushing the video quality down far enough to compensate
+# turns the text to mush. Dropping to 720p keeps text sharper than staying at
+# 1080p with a brutal rate factor, because these frames are large flat colour
+# and text rather than detail.
+PROFILES = (
+    (1080, 28, "48k"),
+    (1080, 31, "48k"),
+    (1080, 34, "40k"),
+    (720, 30, "40k"),
+    (720, 34, "32k"),
+    (720, 38, "32k"),
+)
 
 SCENES = {
     "tech_news_2026_09_21": ("scenes/tech_news_2026_09_21.py", "TechNews20260921"),
@@ -61,6 +75,7 @@ SCENES = {
     "tech_news_2026_09_21_short": ("scenes/tech_news_2026_09_21_short.py", "Short"),
     "tech_news_2026_09_14_short": ("scenes/tech_news_2026_09_14_short.py", "Short"),
     "tech_news_2026_09_07_short": ("scenes/tech_news_2026_09_07_short.py", "Short"),
+    "topic_llms_overview": ("scenes/topic_llms_overview.py", "Overview"),
 }
 
 
@@ -99,22 +114,23 @@ def main() -> int:
 
     delivery = ROOT / "out" / f"{args.episode}.mp4"
     size = 0.0
-    for crf in CRF_LADDER:
+    for height, crf, audio in PROFILES:
         run([FFMPEG, "-y", "-i", source,
              "-r", NOTION_FPS,
+             "-vf", f"scale=-2:{height}",
              "-c:v", "libx264", "-crf", str(crf), "-preset", "slow", "-pix_fmt", "yuv420p",
-             "-c:a", "aac", "-b:a", NOTION_AUDIO_KBPS, "-ac", "1",
+             "-c:a", "aac", "-b:a", audio, "-ac", "1",
              "-movflags", "+faststart", delivery])
         size = delivery.stat().st_size / (1024 * 1024)
-        print(f"  crf {crf}: {size:.2f} MiB", file=sys.stderr)
+        print(f"  {height}p crf {crf} audio {audio}: {size:.2f} MiB", file=sys.stderr)
         if size <= NOTION_CAP_MIB:
             break
 
     print(f"\n{delivery} is {size:.2f} MiB")
     if size > NOTION_CAP_MIB:
-        print(f"Still over the {NOTION_CAP_MIB} MiB Notion cap at crf "
-              f"{CRF_LADDER[-1]}. The episode is too long to upload whole: "
-              "shorten it, or publish it elsewhere and link it from the page.",
+        print(f"Still over the {NOTION_CAP_MIB} MiB Notion cap at the lowest "
+              "profile. The episode is too long to upload whole: shorten it, "
+              "or publish it elsewhere and link it from the page.",
               file=sys.stderr)
         return 1
     print("Notion will accept this. Upload it with the content type "
