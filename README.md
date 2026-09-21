@@ -1,17 +1,56 @@
 # tech_knowledge_base
 
-Mirror of Khalid's personal AI/ML knowledge base. **The source of truth is Notion**
-(the "Technical knowledge base" page, updated by a weekly update that Khalid runs by
-hand). This repo is synced from Notion on demand and pushed.
+A mirror of Khalid's Notion "Technical knowledge base", and the toolchain that
+turns its pages into narrated explainer videos.
 
-- **What to read**: start at any `topics/<topic>/summary.md`, follow links into deep
-  dives and papers. Or read in Notion, where updates land first.
-- **What you have read**: tick it in the Notion Tracker; [TRACKER.md](TRACKER.md) here
-  mirrors it.
-- **Why it is shaped this way**: [GOAL.md](GOAL.md). Standing decisions:
-  [DECISIONS.md](DECISIONS.md).
-- **Papers**: [papers/INDEX.md](papers/INDEX.md); PDFs live only here, not in Notion.
-- **What changed lately**: newest file in `updates/`.
+**Notion is the source of truth.** Read and edit there. These files follow.
 
-Maintained via the project skills in `.claude/skills/` (`/kb-sync-from-notion`,
-`/kb-add-paper`, `/kb-new-topic`, `/kb-weekly-update-manual`).
+## Reading
+
+Start at any `topics/<topic>/summary.md` and follow the links into deep dives
+and papers. `papers/INDEX.md` indexes the papers, and the PDFs under
+`papers/*/paper.pdf` live only here. `news/` holds the weekly issues, `updates/`
+the changelog, `TRACKER.md` the reading state.
+
+## The two things this repo does
+
+### Mirror Notion
+
+```bash
+git pull
+export NOTION_TOKEN=ntn_...          # or write it to .notion-token
+python3 tools/notion_mirror.py --dry-run
+python3 tools/notion_mirror.py --render-svg
+git commit -am "sync from notion $(date +%F)" && git push
+```
+
+The mirror is derived from Notion's current state rather than from a diff of
+recent edits, so it deletes files whose page no longer exists. Paper PDFs,
+`sources/`, `video/` and `tools/` are never touched. Details and the page-to-path
+map: `.claude/skills/kb-sync-from-notion/SKILL.md`.
+
+The token is an internal integration secret from
+<https://www.notion.so/profile/integrations>, connected to the "Technical
+knowledge base" page. Read access is enough; nothing here writes to Notion.
+
+### Make a video
+
+```bash
+bash video/env/setup.sh
+python3 video/build.py tech_news_2026_09_21 --skip-tts --quality l   # silent preview
+python3 video/build.py tech_news_2026_09_21                          # with voice
+```
+
+`video/README.md` is the manual. The craft rules are the Notion skill
+"Explainer video style and voice".
+
+## Layout
+
+```
+topics/ news/ updates/ papers/ TRACKER.md known-gaps.md   mirrored from Notion
+papers/*/paper.pdf                                        repo-only
+sources/                                                  repo-only snapshots
+tools/notion_mirror.py                                    the mirror
+video/                                                    the video toolchain
+.claude/skills/                                           the two workflows
+```

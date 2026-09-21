@@ -1,53 +1,53 @@
-# Operating instructions for Claude sessions in this repo
+# Operating instructions for agent sessions in this repo
 
-This is the **mirror** of Khalid's personal AI/ML knowledge base. **The source of truth
-is Notion**: the "Technical knowledge base" page (id
-`3c65c17b-0d0d-81c7-b646-e548e65d9446`, child of his "Me" page). Content changes in
-Notion, either through the weekly update that **Khalid runs by hand** (the scheduled
-cloud routine "Weekly tech KB update" was stopped on 2026-09-14; do not recreate it or
-any other schedule unless he asks) or through ad-hoc sessions. This repo follows via
-`/kb-sync-from-notion`, which Khalid runs on his PC; nothing syncs it automatically
-(github.com/khalit7/technical_knowledge_base). On the PC: `git pull` first, always.
+This repo does two things, and nothing else:
 
-Before doing anything: read `GOAL.md` (structure and writing conventions, both binding)
-and `DECISIONS.md` (standing decisions, do not re-ask them). The Notion side's manual
-is the root page's child **Operating guide (for Claude)**.
+1. **Mirrors** Khalid's Notion "Technical knowledge base" into files.
+2. **Produces** the explainer videos derived from those pages.
 
-## The short version of the rules
+Everything else that used to live here now lives in Notion, which is where the
+knowledge actually is.
 
-- **Never treat repo content as newer than Notion.** Content changes happen in Notion
-  first; the repo follows via `/kb-sync-from-notion`. If you find local edits Notion
-  lacks, surface them to Khalid instead of overwriting either side.
-- The one repo-only asset: paper PDFs (`papers/*/paper.pdf`). Notion keeps summaries
-  and arXiv links; the sync downloads PDFs.
-- No em-dashes anywhere. Commas, colons, semicolons, parentheses. `--` for ranges.
-- Every topic has a skimmable `summary.md` with a taxonomy diagram (rendered
-  `taxonomy.svg` embedded, mermaid source in a `<details>` block; re-render on change,
-  command in GOAL.md); deep-dive files start with a **Best resources** block, then
-  synthesis.
-- `TRACKER.md` mirrors the Notion Tracker, including tick state (Notion ticks win).
-  Never uncheck or remove a box Khalid ticked.
-- Date every update; superseded content goes into `<details>` blocks, not deleted.
-- `news/` mirrors the Notion Tech news issues (weekly newsletter; routing rules in
-  GOAL.md and on the Notion Tech news page).
-- Audience: MSc-level AI engineer with production LLM experience. Summarise
-  fundamentals, go deep on frontier material.
-- Khalid frequently asks "explain X and add it": file the explanation as a child of
-  the most relevant existing topic (new topic only if nothing fits), on both surfaces
-  (Notion first), and tell him exactly where it went.
+## Source of truth
 
-## Workflows (project skills in .claude/skills/)
+**Notion is the source of truth. This repo is the mirror and is never the origin
+of a fact.** Root page: "Technical knowledge base", id
+`3c65c17b-0d0d-81c7-b646-e548e65d9446`, a child of the personal "Me" page.
 
-- `/kb-sync-from-notion`: pull Notion into this repo, download new PDFs, commit as
-  `sync from notion YYYY-MM-DD`, push. The main thing this repo is for.
-- `/kb-add-paper <arxiv id or url>`: add one paper, Notion first, then here.
-- `/kb-new-topic <name>`: add a topic, Notion first, then here.
-- `/kb-weekly-update-manual`: the weekly update, run by hand when Khalid asks (works
-  in Notion, then syncs here). Since 2026-09-14 this is the only way it runs.
+The conventions that govern content are in Notion, under `Me -> _AI`:
+
+- **Instructions**: what is true for every task, read before anything else.
+- **Skills**: one page per procedure. For this material, **Maintain technical
+  knowledge base** (placement, page shape, writing conventions), **Produce
+  technical explainer video** (what a video is for and where it lives) and
+  **Explainer video style and voice** (how it is structured, animated and
+  voiced).
+
+Do not restate those rules here and do not edit content in this repo expecting
+it to reach Notion. If you find local edits Notion lacks, surface them to
+Khalid rather than overwriting either side.
+
+## The two jobs
+
+- `/kb-sync-from-notion` mirrors Notion into this repo. It is derived from
+  Notion's current state, deletes files whose page is gone, and is driven by
+  `tools/notion_mirror.py`. It needs a Notion integration token.
+- `/kb-make-video` produces an episode from a page. Everything it needs is in
+  `video/`, and `video/README.md` is its manual.
+
+## Repo-only assets, never deleted by a sync
+
+`papers/*/paper.pdf` (Notion keeps the summaries and the arXiv links),
+`sources/`, `video/` and `tools/`.
+
+## Writing
+
+No em-dashes anywhere, in prose or in commit messages. Commas, colons,
+semicolons, parentheses. `--` for ranges.
 
 ## Git
 
-Commit after meaningful units of work; push to main after syncs. The newest commit
-whose message starts with `sync from notion` marks the last point the repo matched
-Notion (no tag: the convention dates from when a cloud credential could not move tags,
-and it stays because it needs nothing beyond a commit).
+Commit after a meaningful unit of work. A sync commits as
+`sync from notion YYYY-MM-DD`, and the newest such commit marks the last point
+the repo matched Notion. Push to main after syncing. On this machine, `git pull`
+first, always.
