@@ -4,7 +4,7 @@ Not a research pass. No new external material was gathered, and the research win
 
 ### Deletion authority
 
-Khalid authorised deletion explicitly for this run, suspending the never-delete rule in [Maintain technical knowledge base](../.claude/skills/kb-maintain/SKILL.md) for this pass only. The authority was limited: superseded pages once nothing links to them and the merge claim is verified, deferral notes once the deferred action is done, duplicate coverage once merged, editorial scaffolding once acted on, empty mentions, and dated sections once fully integrated. Nothing Khalid wrote himself was touched, nothing was removed for being merely old, and this history is append-only as before. **The suspension does not carry forward.** A proposed permanent wording is at the end of this entry.
+Khalid authorised deletion explicitly for this run, suspending the never-delete rule in [Update technical knowledge base](../.claude/skills/kb-update/SKILL.md) for this pass only. The authority was limited: superseded pages once nothing links to them and the merge claim is verified, deferral notes once the deferred action is done, duplicate coverage once merged, editorial scaffolding once acted on, empty mentions, and dated sections once fully integrated. Nothing Khalid wrote himself was touched, nothing was removed for being merely old, and this history is append-only as before. **The suspension does not carry forward.** A proposed permanent wording is at the end of this entry.
 
 ### The debt this pass was clearing
 
@@ -106,7 +106,7 @@ The Technical KB row in Last updated had never carried a through date. It is now
 
 ### Proposed permanent wording, for Khalid to accept or reject
 
-The deletion authority above was for this run only, and the skill was not edited. If the posture should change permanently, the smallest useful version is a replacement for the never-delete rule in [Maintain technical knowledge base](../.claude/skills/kb-maintain/SKILL.md):
+The deletion authority above was for this run only, and the skill was not edited. If the posture should change permanently, the smallest useful version is a replacement for the never-delete rule in [Update technical knowledge base](../.claude/skills/kb-update/SKILL.md):
 
 > Do not hard-delete content as a matter of course. You may delete four things, and only after the replacement is verified live: a deferral note whose action you have just carried out, duplicate coverage you have just merged, a dated section whose every fact and link you have just integrated, and editorial scaffolding whose purpose you have just served. Never delete anything Khalid wrote, anything merely old, any Updates history, or anything you cannot justify in one sentence. Record every deletion in Updates marked [deleted]. Verify before you delete: a page claiming its content was merged elsewhere is a claim to check, not a fact to trust.
 
