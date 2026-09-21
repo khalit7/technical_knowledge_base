@@ -4,18 +4,18 @@
 
 Last updated: 2026-08-31 (explanation rewrite; map first written 2026-08-24). Per-model pages to follow; this page explains the family.
 
-## What xAI is
+### What xAI is
 
 xAI, merged into SpaceX in Feb 2026 to form SpaceXAI, is the frontier lab whose strategy is the least algorithmic and the most industrial. Where DeepSeek optimises cost per token and Ai2 optimises reproducibility, xAI optimises the rate at which it can convert capital into training compute and then into shipped models. The lab has published very little method; what it has demonstrated is that a datacentre built in months, plus a willingness to spend RL compute at pretraining scale, is enough to stay in the top five without an obvious architectural edge. Its two durable differentiators are the real-time X firehose as a data source and a looser alignment posture than any other frontier lab.
 
-## Best resources
+### Best resources
 
 - [Grok (Wikipedia)](https://en.wikipedia.org/wiki/Grok_(chatbot)) (~25 min): maintained lineage and corporate history.
 - [xAI news](https://x.ai/news) (news index, ~15 min to skim the current entries): primary source for model releases.
 - [VentureBeat on Grok 4.6](https://venturebeat.com/technology/spacexai-debuts-grok-4-6-overtaking-kimi-k3s-performance-and-matching-gpt-5-6-sol-for-worlds-third-best-on-artificial-analysis) (~8 min): current flagship positioning.
 - [Grok 4.6 explainer (CometAPI)](https://www.cometapi.com/grok-4-6-release-date/) (~10 min): specs roundup.
 
-## Lineage
+### Lineage
 
 - **Grok-1 (Nov 2023)**: built in months, a 314B sparse mixture-of-experts model (the feed-forward block of each layer is replaced by many independent experts and a router that runs only a couple of them per token, so total parameters and per-token FLOPs decouple). Its weights were open-sourced in Mar 2024 under Apache 2.0, establishing the lab's pattern of opening the previous generation once it is commercially spent: cheap goodwill, no competitive cost.
 - **Grok-1.5 / 2 (2024)**: caught up to the GPT-4 class; Grok 2 weights released Aug 2025 under the same lagging-release policy.
@@ -25,27 +25,27 @@ xAI, merged into SpaceX in Feb 2026 to form SpaceXAI, is the frontier lab whose 
 - **Grok 4.6 (Aug 12, 2026)**: current flagship at roughly 1.5T parameters, built for long-running agents, coding, knowledge work and visual projects. Artificial Analysis intelligence index around 61 (a composite that averages a fixed basket of benchmarks into a single number, useful for coarse ranking and nothing finer), tying GPT-5.6 Sol and overtaking Kimi K3, at $2 per 1M input tokens and $6 per 1M output. That price against that position is the actual product claim: frontier-adjacent quality at roughly a third of what the top two charge.
 - **Grok 5**: in training; target dates (late 2025, then Q1 and Q2 2026) have all slipped.
 
-## Training approach highlights
+### Training approach highlights
 
 - **Compute scale as the core strategy**: Colossus 1 and 2 expanding toward a million-plus GPUs, with the fastest shipping cadence of any lab, achieved by brute-force iteration rather than by publishing a better recipe.
 - **RL at pretraining scale**: Grok 4 reportedly spent as much compute on reinforcement learning as on pretraining, which is the concrete form of the industry's 2025 realisation that post-training is a second scaling axis rather than a finishing step. Practically it means very large volumes of rollouts on verifiable tasks (maths, code, tool use), scored by checking the outcome, which is why reasoning and agentic behaviour improved faster than raw knowledge.
 - **Data edge**: real-time integration with the X firehose gives recency and a conversational corpus that competitors must license or scrape, and DeepSearch turns that into live retrieval at inference time.
 - **Alignment posture**: deliberately looser than rivals, with recurring moderation incidents that are part of the brand's risk profile rather than accidents of it. Weights stay closed at the frontier; previous generations are sometimes opened once superseded.
 
-## Current models (Aug 2026)
+### Current models (Aug 2026)
 
 | Model | Role |
-|---|---|
+| --- | --- |
 | Grok 4.6 | Flagship; value pick among the frontier five ($2/$6) |
 | Grok 4.1 Fast | Cheap agentic workhorse, 2M context |
 | Grok Code Fast | Coding at volume |
 | Grok 5 | In training, no date |
 
-## Cross-links
+### Cross-links
 
-- [../reasoning-models.md](../reasoning-models.md): Heavy-style parallel test-time compute.
-- Rivals: [../openai/overview.md](../openai/overview.md), [../anthropic/overview.md](../anthropic/overview.md).
-- Compute context: topics/hardware.
+- [Reasoning models and test-time compute](../reasoning-models.md): Heavy-style parallel test-time compute.
+- Rivals: [OpenAI: GPT family](../openai/overview.md), [Anthropic: Claude family](../anthropic/overview.md).
+- Compute context: [Topic: hardware](../../hardware/summary.md).
 
 <details>
 <summary>2026-08-24: original map (superseded by this rewrite; kept for reference, not counted in the read estimate)</summary>

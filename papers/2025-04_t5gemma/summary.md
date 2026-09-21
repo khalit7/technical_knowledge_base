@@ -5,23 +5,22 @@
 - **Authors**: Biao Zhang, Fedor Moiseev, Joshua Ainslie, Paul Suganthan, Min Ma, Surya Bhupatiraju, Fede Lebron, Orhan Firat, Armand Joulin, Zhe Dong (Google), and for T5Gemma 2, Biao Zhang, Paul Suganthan, Gaël Liu, Ilya Philippov et al. (Google DeepMind)
 - **Date**: April 2025 (Encoder-Decoder Gemma, ICML 2025) and December 2025 (T5Gemma 2)
 - **Links**: [arXiv:2504.06225](https://arxiv.org/abs/2504.06225) (45 min) | [arXiv:2512.14856](https://arxiv.org/abs/2512.14856), T5Gemma 2 (45 min) | [Google developers blog](https://developers.googleblog.com/en/t5gemma/) (10 min) | weights on Hugging Face: [t5gemma-2-270m-270m](https://huggingface.co/google/t5gemma-2-270m-270m), [1b-1b](https://huggingface.co/google/t5gemma-2-1b-1b) (model cards, ~10 min)
-
 Filed as one page rather than two because the second paper is the same recipe extended, and reading them separately would repeat the method twice.
 
-## Best resources
+### Best resources
 
 - [Encoder-Decoder Gemma](https://arxiv.org/abs/2504.06225) (45 min): the method paper. Read Sections 3, 5 and 6; the discussion section is where the ablations that matter live (bidirectional attention, cross-attention warmup, adaptation versus from scratch).
 - [T5Gemma 2](https://arxiv.org/abs/2512.14856) (45 min): shorter, and the one to read if you care about long context or multimodality. Tables 4 and 5 are the whole argument.
 - [Encoder-Decoder or Decoder-Only? Revisiting Encoder-Decoder Large Language Models](https://arxiv.org/abs/2510.26622) (45 min): the same group's scaling study, the companion that argues the architecture case on scaling grounds rather than on a released model.
 - [Google developers blog](https://developers.googleblog.com/en/t5gemma/) (10 min): the fast version if you only want the shape of the result.
 
-## Problem
+### Problem
 
 The decoder-only architecture won, but the argument was never settled on the merits. An encoder-decoder splits parameters by function: an encoder that reads the input with bidirectional attention, and a decoder that writes the output with cross-attention over the encoder's representation. That split buys two things a single causal stack cannot offer. Bidirectional attention over the input, because there is no autoregressive constraint on something you are only reading. And **independent sizing of the two halves**, so you can pair a large encoder with a small decoder when understanding the input matters more than generating the output. The paper names summarisation as the case: deep understanding of the input matters, generation invents nothing.
 
 The blocker was cost. Nobody was going to pretrain a competitive encoder-decoder from scratch when strong decoder-only checkpoints already existed at every size. So the question the paper actually asks is narrower and more useful: can you **adapt** an existing decoder-only checkpoint into an encoder-decoder, cheaply, and end up ahead?
 
-## Method
+### Method
 
 **Architecture.** Kept as close to the source decoder-only model as possible, so that initialisation is mostly a copy. The encoder is architecturally identical to the decoder-only model with self-attention switched from causal to bidirectional. Each decoder block keeps its feed-forward network and self-attention unchanged and adds cross-attention with the same head count and head dimension, attending to the full encoder output.
 
@@ -31,7 +30,7 @@ The blocker was cost. Nobody was going to pretrain a competitive encoder-decoder
 
 **T5Gemma 2** repeats this on Gemma 3, drops distillation (UL2 and UL2 plus distillation were within 0.4 points, and the data-loading overhead was not worth it), and adds three things. A frozen SigLIP vision encoder turning an image into 256 tokens that are fed to the encoder, so vision inherits bidirectional visibility for free. Positional interpolation for long context, pretrained at only 16K but evaluated to 128K. And two parameter-saving changes: **tied word embeddings** across encoder input, decoder input and decoder softmax, which costs nothing measurable and removes 10.5% of parameters, and **merged attention**, which concatenates the encoder output onto the decoder self-attention input so one attention module with shared weights does both jobs, saving 6.5% for about 0.3 points. A rejected variant is worth knowing: applying cross-attention only on global-attention decoder layers, one every six, looked like an obvious saving and cost 1.3 points.
 
-## Results
+### Results
 
 **The objective choice splits by what you want.** UL2 gives better contextual representations and wins on SuperGLUE at most scales. PrefixLM with distillation gives better generative models and wins on the pretraining and instruction-tuning benchmarks, by up to 3.6 points at 9B-2B. There is no free combination: merging PrefixLM and UL2 checkpoints produced worse models, and two-stage switching gave mixed results in both directions.
 
@@ -45,7 +44,7 @@ The blocker was cost. Nobody was going to pretrain a competitive encoder-decoder
 
 **T5Gemma 2's long-context numbers are the strongest single result in the line.** On RULER 32K after pretraining, T5Gemma 2 4B-4B scores 81.7 against Gemma 3 4B's 66.8, and at 128K, 57.6 against 51.7. The 270M-270M model scores 57.3 on RULER 32K against 21.3 for Gemma 3 270M, despite being pretrained only at 16K. Text-only Gemma 3 270M and 1B adapt into usable multimodal models, and the 1B-1B trails Gemma 3 4B on multimodal by only 8.7 points at a quarter the size.
 
-## Why it matters
+### Why it matters
 
 **It is the first serious modern test of the architecture question T5 originally answered.** T5 measured encoder-decoder above decoder-only in 2019 and the field ignored it. This line redoes that measurement at 2025 scale with a modern recipe, and the answer holds, with the honest qualification that the advantage concentrates in fine-tuned and long-context settings rather than in raw pretraining scores.
 
@@ -57,7 +56,7 @@ The blocker was cost. Nobody was going to pretrain a competitive encoder-decoder
 
 **Downstream, the checkpoints are already load-bearing.** EmbeddingGemma is built on T5Gemma 2 checkpoints, which is the encoder half being reused for exactly what encoders are good at.
 
-## Connections
+### Connections
 
 - `papers/2019-10_t5`: the original claim being retested, and the source of the UL2 objective's ancestor; the tied-embedding choice in T5Gemma 2 is explicitly a return to T5's
 - `papers/2025-07_ettin`: the compute-matched encoder versus decoder comparison from the representation-learning side, where T5Gemma is the same question from the generation side

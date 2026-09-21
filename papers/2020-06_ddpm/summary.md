@@ -6,18 +6,18 @@
 - **Date**: June 2020 (NeurIPS 2020)
 - **Links**: [arXiv 2006.11239](https://arxiv.org/abs/2006.11239) (~1h, math-heavy) | [code (TF)](https://github.com/hojonathanho/diffusion) (repo, ~15 min for the README and entry path)
 
-## Best resources
+### Best resources
 
 - [Lilian Weng, "What are Diffusion Models?"](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/) (~1h): the canonical walkthrough of the full derivation, from ELBO to L_simple, plus DDIM and guidance follow-ups.
 - [Calvin Luo, "Understanding Diffusion Models: A Unified Perspective"](https://arxiv.org/abs/2208.11970) (~1h 30m, tutorial paper): tutorial paper deriving VAE -> hierarchical VAE -> DDPM -> score-based views as one framework; best for making the three equivalent parameterisations (x_0, epsilon, score) click.
 - [Hugging Face, "The Annotated Diffusion Model"](https://huggingface.co/blog/annotated-diffusion) (~1h): line-by-line PyTorch implementation of this exact paper, including the U-Net.
 - [Yang Song, "Generative Modeling by Estimating Gradients of the Data Distribution"](https://yang-song.net/blog/2021/score/) (~45 min): the score-matching side of the story from the NCSN author; explains why DDPM's objective is denoising score matching in disguise.
 
-## Problem
+### Problem
 
 Diffusion probabilistic models (Sohl-Dickstein et al., 2015) were theoretically elegant latent-variable models but had never produced competitive samples. GANs dominated image synthesis quality but trained unstably and lacked likelihoods; autoregressive models and flows had likelihoods but weaker samples. The open question: can a diffusion model, trained with plain variational inference, actually generate high quality images, and what parameterisation makes that work?
 
-## Method
+### Method
 
 **Forward (noising) process.** A fixed, parameter-free Markov chain gradually corrupts data x_0 with Gaussian noise over T steps (T = 1000 here) under a variance schedule beta_1..beta_T (linear, 1e-4 to 0.02):
 
@@ -55,7 +55,7 @@ resembles annealed Langevin dynamics with epsilon_theta acting as a learned grad
 
 **Architecture.** U-Net backbone (PixelCNN++ style) with group normalisation, self-attention at the 16x16 resolution, and the timestep t injected via Transformer sinusoidal embeddings; weights shared across time.
 
-## Results
+### Results
 
 - **CIFAR-10 unconditional**: FID 3.17 (state of the art at publication, beating most class-conditional models too), Inception Score 9.46, NLL <= 3.70 bits/dim.
 - **LSUN 256x256**: Church FID 7.89, Bedroom FID 4.90, comparable to ProgressiveGAN; strong CelebA-HQ 256x256 samples.
@@ -63,13 +63,13 @@ resembles annealed Langevin dynamics with epsilon_theta acting as a learned grad
 - **Rate-distortion analysis**: over half the model's lossless codelength describes imperceptible image detail; sampling acts as progressive decoding (coarse structure first, fine detail last), a generalised bit-ordering view of autoregressive decoding.
 - Honest caveats: log likelihoods are not competitive with strong autoregressive models, and sampling needs T = 1000 sequential network evaluations.
 
-## Why it matters
+### Why it matters
 
 This is the paper that founded the modern diffusion era. It turned a dormant 2015 idea into the dominant generative paradigm by finding the parameterisation that works: fixed forward process, epsilon-prediction, unweighted MSE. Nearly everything since is a direct descendant: improved DDPM and classifier guidance (Dhariwal and Nichol, "beating GANs"), DDIM's deterministic fast sampler, latent diffusion / Stable Diffusion moving the chain into a VAE latent space, Imagen and DALL-E 2 for text-to-image, DiT swapping the U-Net for a Transformer (the backbone behind Sora), and consistency models / flow matching / rectified flow reframing the noise-to-data path for few-step generation. The score-matching connection it made explicit was generalised by Song et al. (2021) into the SDE framework unifying DDPM and NCSN. The training recipe (sample t, add noise, predict it, MSE) has spread far beyond images: audio, video, molecules, robotics policies, and text diffusion.
 
-## Connections
+### Connections
 
-- [Latent Diffusion (2021-12)](../2021-12_latent-diffusion/summary.md): runs this exact DDPM machinery in a compressed VAE latent space, making high-resolution text-to-image (Stable Diffusion) tractable.
-- [CLIP (2021-02)](../2021-02_clip/summary.md): supplies the text conditioning that later diffusion systems bolt onto the DDPM backbone.
-- [ViT (2020-10)](../2020-10_vit/summary.md): the DiT line replaces DDPM's U-Net with this Transformer architecture.
-- Topics: [generative-and-multimodal](../../topics/generative-and-multimodal/summary.md) (diffusion-and-flow), with the ELBO and score-matching math grounded in [math](../../topics/math/summary.md).
+- Latent Diffusion (2021-12): runs this exact DDPM machinery in a compressed VAE latent space, making high-resolution text-to-image (Stable Diffusion) tractable.
+- CLIP (2021-02): supplies the text conditioning that later diffusion systems bolt onto the DDPM backbone.
+- ViT (2020-10): the DiT line replaces DDPM's U-Net with this Transformer architecture.
+- Topics: generative-and-multimodal (diffusion-and-flow), with the ELBO and score-matching math grounded in math.

@@ -2,16 +2,16 @@
 
 ⏱ 6 min read · +2h 55m resources
 
-Last updated: 2026-08-31 (explanation pass: every named model, architecture and acronym below now says what it is and what it changes; time estimates added). Per-model files to follow; this page maps the family.
+Last updated: 2026-09-21 (Muse Spark 1.3, Muse Code and Muse Voice Transcribe folded into the lineage, status table and strategic read; the 2026-08-31 explanation pass made every named model, architecture and acronym say what it is and what it changes). Per-model pages to follow; this page maps the family.
 
-## Best resources
+### Best resources
 
 - [Llama 3 paper](https://arxiv.org/abs/2407.21783) (~2h 30m) and repo summary: the most detailed open frontier training report ever published, and still the reference for dense-at-scale. 90-plus pages; the pretraining-infrastructure and post-training sections are the ones that transfer directly to your own runs.
 - [Llama 4 announcement](https://ai.meta.com/blog/llama-4-multimodal-intelligence/) (12 min): Scout and Maverick architecture details, including the MoE configuration and the long-context claim.
 - [VentureBeat on Muse Spark](https://venturebeat.com/technology/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since) (6 min): the closed-source pivot and what it means for the open ecosystem.
 - [Zuckerberg's superintelligence memo coverage](https://www.theverge.com/meta/717033/meta-superintelligence-labs-ai-mark-zuckerberg) (8 min): the context in which Meta Superintelligence Labs was formed.
 
-## Lineage
+### Lineage
 
 **Llama 1 (Feb 2023): the overtraining bet, and the leak.** A research-only release whose weights leaked, and the leak is the historically important part: it created the local-LLM ecosystem, above all **llama.cpp**, a dependency-free C and C++ inference engine with aggressive weight quantisation that put 7B-class models on laptop CPUs and made "run it yourself" a real option. The technical contribution was to take the **Chinchilla** result (for a fixed training-compute budget the loss-optimal allocation is roughly 20 training tokens per parameter, meaning the giant models of the day were badly undertrained) and then deliberately overshoot it: train relatively small models on far more tokens than compute-optimal, because the cost that actually matters in production is inference, which is paid on every request forever, not training, which is paid once. That reframing is why the 7B and 13B sizes exist at all and why nearly every open model since has been overtrained by Chinchilla's standard.
 
@@ -25,7 +25,9 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 
 **Muse Spark (Apr 2026): closed weights.** The first MSL frontier model, and closed. It returned Meta to frontier-competitive performance at the cost of the open identity that was its entire strategic differentiation, since Meta's argument for releasing weights had always been that commoditising the model layer was worth more to it than owning one. Next in line are "Avocado" (text, coding and reasoning) and "Mango" (image and video), with talk of open releases of some variants, but nothing frontier-open has shipped since Llama 4.
 
-## Training approach highlights
+**Muse Spark 1.3 (Sep 2, 2026): back in the frontier band.** 61 on the Artificial Analysis Intelligence Index at xhigh reasoning and 62 at a max tier available only in limited preview, third among labs on the reranked v4.2 index. 1M-token context, text, image and video input, $1.25 and $4.25 per million with cache hits at $0.15, and at $0.55 per task the cheapest model scoring 59 or above. The claim worth testing is agentic efficiency rather than raw score: roughly 20% fewer tool calls and 25% fewer tokens than Muse Spark 1.2 for the same work, which is the metric that decides agent economics once capability is close. Weights are closed, first-party API and Muse Code only, and the top numbers come from the max tier developers cannot broadly use. It shipped alongside **Muse Code**, a first-party terminal and CI coding agent with sandbox-and-approval defaults, and **Muse Voice Transcribe**, a real-time transcription model covering more than 25 languages. [Meta](https://research.meta.ai/blog/introducing-muse-spark-1-3) (5 min), [Artificial Analysis](https://artificialanalysis.ai/articles/muse-spark-1-3) (10 min)
+
+### Training approach highlights
 
 **Why the Llama 3 report still matters more than the model.** It is the only end-to-end public account of training a frontier model, and it maps directly onto the stack a practitioner already runs. It documents data curation and deduplication at 15T-token scale; an **annealing** phase that upweights high-quality data in the final stretch of pretraining, and the use of that phase to cheaply evaluate whether a candidate data source is worth including; scaling-law experiments run specifically to choose the data mixture instead of guessing it; training on 16K GPUs using **FSDP (Fully Sharded Data Parallel**, which shards parameters, gradients and optimiser state across ranks and re-gathers each layer's parameters just in time for its forward and backward pass) composed into **4D parallelism**, tensor, pipeline, context and data parallelism arranged on one device mesh so that each dimension absorbs a different bottleneck; and a post-training loop of rejection sampling plus preference optimisation with **DPO (Direct Preference Optimization**, which fits preferences with a closed-form classification loss on the policy itself, removing the separate reward model and the RL loop entirely) and PPO. It is also honest about the unglamorous part: observed hardware failure rates per GPU-hour, and the checkpointing and restart machinery needed to survive them at that cluster size.
 
@@ -33,18 +35,18 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 
 **MSL-era training details are undisclosed.** Muse Spark and Avocado have no technical report, which is the concrete cost of the closed pivot for anyone who used Meta's reports as the field's reference documentation.
 
-## Current status (Aug 2026)
+### Current status (Sep 2026)
 
 | Model | Status |
-|---|---|
-| Muse Spark | Closed frontier model, Meta AI products |
+| --- | --- |
+| Muse Spark 1.3 | Closed frontier model, third on the Intelligence Index v4.2 (Sep 2026); Meta AI products, first-party API, Muse Code |
 | Avocado / Mango | In development, H1-2026 targets slipped |
 | Llama 4 Scout/Maverick | Last open weights; still widely served |
 | Llama 3.x | Legacy but still the most-deployed open family by install base |
 
-Strategic read: Llama's retreat handed open-weights leadership to the Chinese labs and to Mistral. **DeepSeek** builds efficiency-obsessed open MoE models and was first to make frontier-quality open reasoning models practical to serve. **Qwen** (Alibaba) covers the widest size ladder in open weights, from sub-1B to frontier-scale MoE, which makes it the default when you need one family across edge and server. **Moonshot** and **Zhipu** ship large agentic-focused MoE models (the Kimi and GLM lines). **Mistral** is the European open-weights vendor, pairing permissively licensed small models with commercial frontier ones. Meanwhile Llama 3.1 and 3.3 remain default bases in many fine-tuning stacks purely through incumbency: tooling, LoRA adapters, quantised builds and tribal knowledge all accumulated around them, and that inertia outlives the quality argument.
+Strategic read: Llama's retreat handed open-weights leadership to the Chinese labs and to Mistral, and the retreat is from the *open* frontier only: Muse Spark 1.3 put Meta back in the frontier band in September 2026, so "Meta left the frontier" is no longer true, while "Meta left the open frontier" still is. **DeepSeek** builds efficiency-obsessed open MoE models and was first to make frontier-quality open reasoning models practical to serve. **Qwen** (Alibaba) covers the widest size ladder in open weights, from sub-1B to frontier-scale MoE, which makes it the default when you need one family across edge and server. **Moonshot** and **Zhipu** ship large agentic-focused MoE models (the Kimi and GLM lines). **Mistral** is the European open-weights vendor, pairing permissively licensed small models with commercial frontier ones. Meanwhile Llama 3.1 and 3.3 remain default bases in many fine-tuning stacks purely through incumbency: tooling, LoRA adapters, quantised builds and tribal knowledge all accumulated around them, and that inertia outlives the quality argument.
 
-## Cross-links
+### Cross-links
 
-- [../moe-models.md](../moe-models.md): Llama 4's MoE configs next to the sparse models that outcompeted them.
-- Open-weights successors: [../deepseek/overview.md](../deepseek/overview.md), [../qwen/overview.md](../qwen/overview.md), [../mistral/overview.md](../mistral/overview.md).
+- [Mixture-of-Experts (MoE) models](../moe-models.md): Llama 4's MoE configs next to the sparse models that outcompeted them.
+- Open-weights successors: [DeepSeek](../deepseek/overview.md), [Alibaba: Qwen](../qwen/overview.md), [Mistral AI](../mistral/overview.md).

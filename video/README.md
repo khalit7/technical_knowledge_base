@@ -16,21 +16,22 @@ of it, and it may not claim anything the page does not.
 | `tts/render.py` | VibeVoice, one WAV per beat plus `durations.json` |
 | `tts/bakeoff.py` | the same thirty seconds through each candidate voice, for choosing by ear |
 | `build.py` | voice, then animation, then the encode Notion will accept |
-| `env/` | pinned environments and the script that builds them |
+| `tools/check_references.py` | every line that points at the screen, and the frame it points at |
 | `voices/` | reference clips, one per speaker (not in git) |
 | `out/` | everything generated (not in git) |
 
 ## Build an episode
 
 ```bash
-bash video/env/setup.sh                        # once
-export KB_MANIM_PYTHON=$PWD/video/env/manim/bin/python
-export KB_FFMPEG=$PWD/video/env/manim/bin/ffmpeg
-export KB_TTS_PYTHON=$PWD/video/env/tts/bin/python
+uv sync --group tts --group video     # once
 
-python3 video/build.py tech_news_2026_09_21 --skip-tts --quality l   # silent preview
-python3 video/build.py tech_news_2026_09_21                          # the real thing
+uv run video/build.py tech_news_2026_09_07_short --skip-tts --quality l  # silent preview
+uv run video/build.py tech_news_2026_09_07_short                         # the real thing
 ```
+
+Both halves are uv dependency groups, so there is nothing to activate and
+nothing to point at. `build.py` requests both on every call, because asking for
+one at a time makes uv uninstall the other.
 
 Without the voice render the scene estimates each beat from its word count, so
 a silent preview is right about layout and roughly right about pacing. Publish
@@ -91,8 +92,10 @@ written as `<video src="file-upload://ID">Caption</video>`.
 
 ## This machine
 
-- No sudo, so no apt. Everything comes from conda-forge or a wheel.
-- No LaTeX. Scenes use Pango `Text` and `Paragraph`; `Tex` and `MathTex` fail.
+- cairo, pango, ffmpeg and a TeX distribution are installed system-wide; the
+  apt line is at the bottom of `pyproject.toml`.
+- `Tex` and `MathTex` now work, but prefer Pango `Text` and `Paragraph` unless
+  the content is genuinely an equation.
 - Two RTX 5090s, 32 GB each, compute capability 12.0, driver 590.48.01. Use the
   CUDA 12.8 torch wheels.
 - The voice render is the only GPU stage. Everything else is CPU, so a silent

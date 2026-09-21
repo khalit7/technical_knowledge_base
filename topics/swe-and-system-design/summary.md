@@ -1,15 +1,20 @@
-# SWE and System Design
+# Topic: swe-and-system-design
 
 ⏱ 9 min read · +44h resources
 
-Last updated: 2026-08-24 (time estimates and the vocabulary section added 2026-08-31)
+Last updated: 2026-09-21 (repaired the truncated last-updated note, replaced a repo-style reference in the taxonomy diagram, and tidied the fundamentals sentence)
 
-The engineering substrate under every ML service. Three pillars: **system design** (general distributed systems plus the ML-specific serving layer), **software craft** (testing, API design, code quality), and **systems fundamentals** (OS, networking, databases; OSTEP territory). For an ML engineer they compose in one direction: the fundamentals bound what a design can promise, the design shapes what code you write, and the craft determines whether the whole thing survives contact with production.
+The engineering substrate under every ML service. Three pillars: **system design**
 
-![Taxonomy diagram](taxonomy.svg)
+(general distributed systems plus the ML-specific serving layer), **software craft**
 
-<details>
-<summary>Diagram source (mermaid)</summary>
+(testing, API design, code quality), and **systems fundamentals** (OS, networking,
+
+databases; OSTEP territory). For an ML engineer they compose in one direction: the
+
+fundamentals bound what a design can promise, the design shapes what code you write,
+
+and the craft determines whether the whole thing survives contact with production.
 
 ```mermaid
 graph TD
@@ -26,7 +31,7 @@ graph TD
     C --> C3[Code quality<br/>review taste, abstraction economics]
 
     D --> D1[OS<br/>OSTEP: processes, memory, IO]
-    D --> D2[Networking<br/>see topics/protocols]
+    D --> D2[Networking<br/>HTTP, gRPC, SSE, webhooks]
     D --> D3[Databases<br/>OLTP vs OLAP vs KV vs vector]
 
     B1 --> E[ML service in production]
@@ -36,17 +41,41 @@ graph TD
     D3 --> E
 ```
 
-</details>
+### The map, briefly
 
-## The map, briefly
+**System design.** Two layers. The general layer is classic distributed systems:
 
-**System design.** Two layers. The general layer is classic distributed systems: consistency models, idempotency, backpressure, delivery semantics, database selection. The ML layer sits on top and adds what makes model serving different from CRUD: requests are expensive and long-lived (seconds of GPU time, streaming responses), capacity is quantized in GPUs rather than fluid vCPUs, outputs are nondeterministic so correctness is statistical, and cost per request is high enough that caching, routing, and quota design dominate the architecture.
+consistency models, idempotency, backpressure, delivery semantics, database
 
-**Software craft.** Testing ML systems means testing three different things: code (deterministic, unit-testable), data (schema and distribution checks), and model behaviour (regression suites, LLM contract tests). API and library design is where production experience shows: versioning discipline, idempotency keys, typed pydantic contracts, and knowing when an abstraction earns its keep.
+selection. The ML layer sits on top and adds what makes model serving different from
 
-**Systems fundamentals.** Already largely covered elsewhere in this KB: OSTEP for OS, topics/protocols for networking, and the database taxonomy in [distributed-systems-basics.md](distributed-systems-basics.md) here. The fundamentals matter in interviews mostly as justification: you defend a design choice by naming the bottleneck (fsync latency, TCP slow start, page cache, GPU memory bandwidth) rather than by pattern-matching.
+CRUD: requests are expensive and long-lived (seconds of GPU time, streaming
 
-## What the named ideas actually are
+responses), capacity is quantized in GPUs rather than fluid vCPUs, outputs are
+
+nondeterministic so correctness is statistical, and cost per request is high enough
+
+that caching, routing, and quota design dominate the architecture.
+
+**Software craft.** Testing ML systems means testing three different things: code
+
+(deterministic, unit-testable), data (schema and distribution checks), and model
+
+behaviour (regression suites, LLM contract tests). API and library design is where
+
+production experience shows: versioning discipline, idempotency keys, typed pydantic
+
+contracts, and knowing when an abstraction earns its keep.
+
+**Systems fundamentals.** Already largely covered elsewhere in this KB: OSTEP for OS, [Topic: protocols](../protocols/summary.md) for networking, and the database taxonomy in [Distributed Systems Basics](distributed-systems-basics.md) and [Topic: databases](../databases/summary.md).
+
+The fundamentals matter in interviews mostly as justification: you defend a design
+
+choice by naming the bottleneck (fsync latency, TCP slow start, page cache, GPU
+
+memory bandwidth) rather than by pattern-matching.
+
+### What the named ideas actually are
 
 The terms above are the vocabulary the rest of this topic is written in, so each gets a definition and a reason to care.
 
@@ -76,40 +105,46 @@ The terms above are the vocabulary the rest of this topic is written in, so each
 
 **The bottlenecks worth being able to name.** **fsync latency**, roughly a millisecond, is what a durable write costs when it must actually reach stable storage, and it caps write throughput per transaction. **TCP slow start** is the congestion window ramping up from small on a new connection, which is why short-lived connections underuse the link and why connection reuse and HTTP/2 multiplexing pay. The **page cache** is the OS holding recently used file pages in RAM, which is why a "disk read" is often free and why memory pressure surfaces as unexplained IO. **GPU memory bandwidth** is the ceiling on decode throughput, because generating one token reads the whole weight set once and is memory-bound rather than compute-bound, which is the physical fact behind continuous batching, KV cache design, and quantisation.
 
-## How they compose for an ML engineer
+### How they compose for an ML engineer
 
-A representative production question: "serve an LLM feature to 10k tenants." The answer walks all three pillars in order:
+A representative production question: "serve an LLM feature to 10k tenants."
+
+The answer walks all three pillars in order:
 
 1. **Fundamentals** set the physics: one 70B model replica needs N GPUs, holds M concurrent KV caches, and cold-starts in minutes not milliseconds.
 2. **General design** handles the traffic: gateway, queue with backpressure, retries with jitter and idempotency keys, per-tenant rate limits, OLTP store for state and OLAP store for usage analytics.
 3. **ML design** handles the model: routing across model tiers, semantic and prefix caching, batch vs realtime split, shadow deployment for the new checkpoint, degradation ladder for when the GPU pool saturates.
 4. **Craft** keeps it alive: contract tests on model outputs, regression evals in CI, API versioning so tenants survive the model swap.
-
 That walk is also, almost verbatim, the ML system design interview.
 
-## Deep dives
+### Deep dives
 
-| File | What it covers |
-|---|---|
-| [ml-system-design.md](ml-system-design.md) (12 min read · +24h 25m resources) | Designing LLM/ML services end to end: gateways, batch vs realtime, GPU autoscaling, caching, rate limiting, multi-tenancy, progressive rollout, failure modes; the interview structure |
-| [distributed-systems-basics.md](distributed-systems-basics.md) (11 min read · +18h 55m resources) | CAP and consistency models, idempotency, queues and backpressure, retries, delivery semantics, leader election, database taxonomy, event-driven architecture; DDIA as anchor |
-| [testing-and-quality.md](testing-and-quality.md) (10 min read · +3h 40m resources) | Testing ML systems: data transform units, property-based testing with Hypothesis, model regression suites, LLM contract tests, CI gates, GPU CI, general test taste |
-| [api-and-code-design.md](api-and-code-design.md) (11 min read · +9h 15m resources) | API design (versioning, pagination, idempotency keys, errors, webhooks), Python library design, code review taste, when abstraction pays |
+| Page | What it covers |
+| --- | --- |
+| [ML System Design: LLM and ML Services](ml-system-design.md) (12 min read · +24h 25m resources) | Designing LLM/ML services end to end: gateways, batch vs realtime, GPU autoscaling, caching, rate limiting, multi-tenancy, progressive rollout, failure modes; the interview structure |
+| [Distributed Systems Basics](distributed-systems-basics.md) (11 min read · +18h 55m resources) | CAP and consistency models, idempotency, queues and backpressure, retries, delivery semantics, leader election, database taxonomy, event-driven architecture; DDIA as anchor |
+| [Testing and Quality for ML Systems](testing-and-quality.md) (10 min read · +3h 40m resources) | Testing ML systems: data transform units, property-based testing with Hypothesis, model regression suites, LLM contract tests, CI gates, GPU CI, general test taste |
+| [API and Code Design](api-and-code-design.md) (11 min read · +9h 15m resources) | API design (versioning, pagination, idempotency keys, errors, webhooks), Python library design, code review taste, when abstraction pays |
 
-Also under this topic, outside the file table: the **[AI Engineering Skills Map](ai-engineering-skills-map.md)** page (6 min read · +10 min resources), which maps Andrew Ng's five software-fundamentals pillars onto where this KB covers each one and flags the two gaps (front-end proper, and conventional application security). The superseded duplicate caching page is kept only until Khalid deletes it and is not counted in any number here.
+Also under this topic, outside the table above: the [AI Engineering Skills Map: software engineering fundamentals (Andrew Ng, 2026)](ai-engineering-skills-map.md) (6 min read · +10 min resources), which maps Andrew Ng's five software-fundamentals pillars onto where this KB covers each one and flags the two gaps (front-end proper, and conventional application security).
 
-## Related topics
+### Related topics
 
-- topics/protocols: HTTP, gRPC, SSE, webhooks; the wire formats these designs run on
-- topics/inference-and-serving: the engine layer below the service layer designed here
-- topics/ml-infra-and-orchestration: Kubernetes, Terraform, monitoring; how these designs get deployed
-- topics/evaluation-and-llm-judges: the eval harnesses that back model regression testing
-- topics/databases: the storage layer these designs sit on, the database families compared directly, and caching (every layer from CPU to CDN, plus the LLM caches) as a deep dive under it
+- [Topic: protocols](../protocols/summary.md): HTTP, gRPC, SSE, webhooks; the wire formats these designs run on
+- [Topic: inference-and-serving](../inference-and-serving/summary.md): the engine layer below the service layer designed here
+- [Topic: ml-infra-and-orchestration](../ml-infra-and-orchestration/summary.md): Kubernetes, Terraform, monitoring; how these designs get deployed
+- [Topic: evaluation-and-llm-judges](../evaluation-and-llm-judges/summary.md): the eval harnesses that back model regression testing
+- [Topic: databases](../databases/summary.md): the storage layer these designs sit on, the database families compared directly, and caching (every layer from CPU to CDN, plus the LLM caches) as a deep dive under it
 
-## Best resources (topic-wide)
+### Best resources (topic-wide)
 
 - [Designing Data-Intensive Applications, 2nd ed.](https://dataintensive.net/) (book, ~15h): Kleppmann and Riccomini, O'Reilly, March 2026; the anchor book for the whole topic
 - [The System Design Primer](https://github.com/donnemartin/system-design-primer) (repo, ~2h for the core sections): 366k-star GitHub repo; the standard general system design interview prep
 - [AI Engineering](https://huyenchip.com/books/) (book, ~13h): Chip Huyen, O'Reilly 2025; the ML-specific serving and evaluation layer
 - [Amazon Builders' Library](https://aws.amazon.com/builders-library/) (essay collection, ~2h for the core essays): short, battle-tested essays on retries, timeouts, backpressure, deployment safety
 - [Google SRE Book](https://sre.google/sre-book/table-of-contents/) (book, ~12h; ~1h for ch. 4 and 22 alone): SLOs, error budgets, and the operational vocabulary interviews expect
+- [ML System Design: LLM and ML Services](ml-system-design.md)
+- [Distributed Systems Basics](distributed-systems-basics.md)
+- [Testing and Quality for ML Systems](testing-and-quality.md)
+- [API and Code Design](api-and-code-design.md)
+- [AI Engineering Skills Map: software engineering fundamentals (Andrew Ng, 2026)](ai-engineering-skills-map.md)

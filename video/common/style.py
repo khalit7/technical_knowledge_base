@@ -12,6 +12,7 @@ visual identity: this is an original palette and an original layout grammar.
 
 from manim import (
     BOLD,
+    Rectangle,
     DOWN,
     LEFT,
     NORMAL,
@@ -94,6 +95,35 @@ def stat(big, caption, color=WARM):
     head = T(big, size=H1, color=color, weight=BOLD)
     sub = P(caption, size=SMALL, color=DIM, align=ORIGIN)
     return VGroup(head, sub).arrange(DOWN, buff=0.22)
+
+
+def hbar(width, height=0.5, color=ACCENT, opacity=0.85):
+    return Rectangle(
+        width=max(width, 0.04), height=height,
+        stroke_width=0, fill_color=color, fill_opacity=opacity,
+    )
+
+
+def labelled_bar(label, value_text, width, color=ACCENT, label_width=3.1,
+                 height=0.5, size=SMALL):
+    """One row of a bar chart: name, bar, value.
+
+    The name sits in a fixed-width invisible column. Without that, every row
+    starts its bar wherever its own label happens to end, the bars no longer
+    share a baseline, and the chart stops being a comparison. That is a quiet
+    way to publish a misleading picture.
+    """
+    name = T(label, size=size, color=FG)
+    if name.width > label_width - 0.2:
+        name.scale((label_width - 0.2) / name.width)
+    column = Rectangle(width=label_width, height=max(name.height, height),
+                       stroke_width=0, fill_opacity=0)
+    name.move_to(column.get_center()).align_to(column, LEFT)
+    slot = VGroup(column, name)
+
+    bar = hbar(width, height=height, color=color)
+    value = T(value_text, size=size, color=color)
+    return VGroup(slot, bar, value).arrange(RIGHT, buff=0.3)
 
 
 def fit(mob, max_w=None, max_h=None, margin=0.9):

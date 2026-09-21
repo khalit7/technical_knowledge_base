@@ -2,9 +2,9 @@
 
 ⏱ 8 min read · +3h 15m resources
 
-Last updated: 2026-08-31 (explanation pass: every named model, architecture and acronym below now says what it is and what it changes; time estimates added). Per-model files to follow; this page maps both families.
+Last updated: 2026-08-31 (explanation pass: every named model, architecture and acronym below now says what it is and what it changes; time estimates added). Per-model pages to follow; this page maps both families.
 
-## Best resources
+### Best resources
 
 - [Gemini API release notes](https://ai.google.dev/gemini-api/docs/changelog) (docs, ~15 min for the entries in scope): authoritative dated model list, including quiet capability changes that never get a blog post.
 - [Gemini (Wikipedia)](https://en.wikipedia.org/wiki/Gemini_(language_model)) (~20 min): well-maintained lineage overview, the fastest way to reconstruct what shipped when.
@@ -12,7 +12,7 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 - [Gemma 3 tech report](https://arxiv.org/abs/2503.19786) (~1h): the open family's architecture, including the 5:1 sliding-window ratio and the distillation recipe. This is the one to read if you want to know what Google actually believes about attention layouts.
 - [Gemma (Wikipedia)](https://en.wikipedia.org/wiki/Gemma_(language_model)) (~10 min): open-family lineage including Gemma 4.
 
-## Lineage: Gemini (closed)
+### Lineage: Gemini (closed)
 
 **The PaLM era (2022-2023).** PaLM and PaLM 2 were dense models trained on TPU pods; PaLM's 540B run was the demonstration that Google could train at frontier scale on its own silicon and its own orchestration layer, and it is the model on which chain-of-thought prompting was first shown to work at scale. After Brain and DeepMind merged in 2023, Gemini was built as the successor with two departures designed in from the start: sparsity instead of dense scaling, and multimodality in pretraining instead of bolted on afterwards.
 
@@ -26,7 +26,7 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 
 **Gemini 4.** In pretraining as of Aug 2026, no announced date.
 
-## Lineage: Gemma (open)
+### Lineage: Gemma (open)
 
 **Gemma 1 and 2 (2024).** Small open models built from Gemini research and trained with distillation from larger internal teachers rather than from scratch at their own scale, which is why they consistently outperform their parameter count against models trained conventionally.
 
@@ -36,7 +36,7 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 
 **T5Gemma (Apr 2025) and T5Gemma 2 (Dec 2025): the encoder-decoder branch.** Added 2026-09-07. Easy to miss because it is a research line rather than a product tier, and it is the only place a frontier lab is currently shipping open encoder-decoder LLMs. The method is **adaptation**: copy a pretrained decoder-only Gemma checkpoint into an encoder-decoder shell (encoder identical but with self-attention switched from causal to bidirectional, decoder gaining cross-attention over the encoder output) and continue pretraining with UL2 or PrefixLM instead of pretraining a new model. That is cheaper than from scratch and, above roughly 100M parameters, also better. The gains land after instruction tuning rather than at pretraining, and encoder-decoder wins SuperGLUE at every scale, which is the direct evidence for the bidirectional-encoder claim. Two things carry beyond the Gemma family. **Asymmetric sizing**: because the halves are separately sized, a 9B encoder with a 2B decoder runs at Gemma 2 2B latency and scores far above it, which is the right shape for any long-input, short-output task and is structurally impossible in a decoder-only model. And **long context**: T5Gemma 2 4B-4B scores 81.7 on RULER 32K against Gemma 3 4B's 66.8 despite being pretrained at only 16K, because encoder parameters are spent exclusively on reading and cross-attention retrieves from a high-level representation rather than rescanning raw tokens. Released at 270M-270M, 1B-1B and 4B-4B with a frozen SigLIP vision encoder feeding the text encoder, and EmbeddingGemma is built on these checkpoints. Full summary in [Encoder-Decoder Gemma and T5Gemma 2](../../../papers/2025-04_t5gemma/summary.md) (9 min read · +2h 35m resources).
 
-## Training approach highlights
+### Training approach highlights
 
 **Everything trains on TPUs.** Google is the only frontier lab fully off NVIDIA for training, using **JAX** (a functional array library that traces Python into XLA-compiled programs, with sharding expressed as explicit annotations on arrays rather than as a wrapper around a module tree) on **Pathways** (the orchestration layer that lets a single program drive many TPU pods asynchronously). What it buys: no exposure to GPU supply, pricing or allocation politics, and a pod interconnect designed for exactly this collective pattern. What it costs: the stack is Google's own, so essentially none of it transfers to an outside practitioner the way PyTorch, FSDP and NCCL do, and the published work is correspondingly hard to reproduce.
 
@@ -46,17 +46,17 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 
 **Distribution is the strategic asset.** Search (AI Overviews and AI Mode), Workspace, Android and Vertex all ship Gemini by default, and the Gemini app passed 750M users in 2026. No other lab can put a model in front of that many people without acquiring the users first.
 
-## Current models (Aug 2026)
+### Current models (Aug 2026)
 
 | Model | Role |
-|---|---|
+| --- | --- |
 | Gemini 3.1 Pro | Flagship; long-document reasoning leader |
 | Gemini 3 Flash / Flash-Lite | Price-performance and latency tiers |
 | Deep Think mode | Parallel test-time compute for hardest problems |
 | Gemma 4 (26b-a4b MoE, 31b, edge) | Open weights |
 
-## Cross-links
+### Cross-links
 
-- [../reasoning-models.md](../reasoning-models.md): thinking budgets and Deep Think, alongside the serial-chain-of-thought approaches they contrast with.
-- [../moe-models.md](../moe-models.md): Gemini 1.5's role in mainstreaming frontier MoE, and where Gemma 4's small MoE sits.
-- TPU stack: topics/jax-and-tpu for the JAX and Pathways side of the training approach above.
+- [Reasoning models and test-time compute](../reasoning-models.md): thinking budgets and Deep Think, alongside the serial-chain-of-thought approaches they contrast with.
+- [Mixture-of-Experts (MoE) models](../moe-models.md): Gemini 1.5's role in mainstreaming frontier MoE, and where Gemma 4's small MoE sits.
+- TPU stack: [Topic: jax-and-tpu](../../jax-and-tpu/summary.md) for the JAX and Pathways side of the training approach above.

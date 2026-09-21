@@ -14,37 +14,35 @@ source of every fact; the video may not out-claim it.
 
 ## The shape of the work
 
-1. **Read the canonical page** in Notion and resolve every factual gap before
-   scripting. A number you cannot trace does not go in.
-2. **Outline, then revise the outline.** The spine is: tension, the sharp
-   question, the contract, common ground, a causal walk, the objection, the
-   take, a coda. Pick one story and follow it down; a roundup of eight items is
-   not an episode.
-3. **Write the script sterile**, into `video/scripts/<episode>.py`, as a dict
-   of beat key to `(speaker, line)` turns. Speaker A narrates; speaker B is the
-   listener who asks the viewer's question, three to five times in eight
-   minutes.
-4. **Critique it and fix what the critique finds.** Record what changed in the
-   module docstring, which is where the previous episode's critique lives too.
-5. **Only then add the humanity**: the breaths, the one false start, the
-   "yeah, and". Roughly one per one hundred and fifty spoken words.
-6. **Storyboard into `video/scenes/<episode>.py`**, using the same beat keys.
-   Every beat is a change to the episode's one persistent diagram. Never a
-   hard cut: morph, park at the edge, or dim.
-7. **Preview silently** while the script settles:
-   `python3 video/build.py <episode> --skip-tts --quality l`. Pull a dozen
-   frames out with ffmpeg and look at them. Text running off the frame is the
-   commonest defect, and `fit()` in `common/style.py` is the fix.
-8. **Render the voice**, then the real animation:
-   `python3 video/build.py <episode>`. The voice stage is the only part that
-   needs a GPU. If the GPUs are busy with Khalid's own work, ask before taking
-   them.
-9. **Check it against the quality bar** in the Notion skill. The two that catch
-   most problems: with the sound off the animation should still tell the story,
-   and with eyes closed the audio should still tell the story.
+The Notion skill holds the method and the reasoning. This is the repo-side
+procedure and the commands.
+
+1. **Read the canonical page** in Notion. A number you cannot trace does not go in.
+2. **Outline against the spine, then revise it.** For a news edition: ident,
+   then one story at a time opened headline first, then the take.
+3. **Write the script** into `video/scripts/<episode>.py`: beats mapping to
+   `(speaker, line)` turns. Short sentences. Numbers spelled the way they are
+   said. Pace is a writing problem; nothing downstream will fix it.
+4. **Critique it, fix it, then add the humanity.** Record what the critique
+   changed in the module docstring, so the next episode inherits the lesson.
+5. **Storyboard into `video/scenes/<episode>.py`** using the same beat keys.
+   Inherit the shared furniture from `common/news.py`; write only this week's
+   diagrams. Beats must not depend on objects another beat created.
+6. **Preview silently**, then pull frames and look at them:
+   `uv run video/build.py <episode> --skip-tts --quality l`
+7. **Render the voice and the animation**: `uv run video/build.py <episode>`.
+   The voice stage verifies every take and reseeds on failure.
+8. **Run all three checks and fix what they find:**
+   - `uv run python video/tools/check_timing.py --script <episode>` for two
+     voices at once, silent gaps and still frames.
+   - `uv run --group tts --group video python video/tools/check_references.py
+     --script <episode> --scene <Class>` for lines that point at the screen,
+     then look at every frame it extracts.
+   - `uv run --group tts python video/tts/verify.py --script <episode>` for
+     what each take actually said.
+9. **Watch it.** With the sound off, with your eyes closed, then properly.
 10. **Attach it to the canonical Notion page** under a `Video` heading, and add
-    a dated line to the Notion Updates changelog. Add the video section only
-    where a video actually exists.
+    a dated line to the Notion Updates changelog.
 
 ## Registering a new episode
 

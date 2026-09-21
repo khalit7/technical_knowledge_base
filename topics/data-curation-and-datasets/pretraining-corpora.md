@@ -4,7 +4,7 @@
 
 Last updated: 2026-08-24
 
-## Best resources
+### Best resources
 
 - [FineWeb: decanting the web](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) (~1h 30m): the canonical writeup of how a modern web corpus is built, with per-decision ablations
 - [FineWeb paper (NeurIPS 2024 D&B)](https://arxiv.org/abs/2406.17557) (90 min): the same material in paper form
@@ -13,16 +13,20 @@ Last updated: 2026-08-24
 - [Dolma paper](https://arxiv.org/abs/2402.00159) (90 min) and the [Olmo 3 / Dolma 3 release](https://allenai.org/blog/olmo3) (~30 min): fully documented open corpus lineage
 - [HuggingFaceFW org page](https://huggingface.co/HuggingFaceFW) (~15 min): FineWeb, FineWeb-Edu, FineWeb2, FinePDFs, FineWiki, Smol-Data mixtures in one place
 
-## The lineage
+### The lineage
 
 Everything starts at **Common Crawl** (CC): a nonprofit crawling the web since 2008, releasing
+
 roughly monthly snapshots as WARC (raw HTML), WAT (metadata), and WET (pre-extracted text)
+
 files; hundreds of TB per snapshot, petabytes total. Raw CC is unusable as-is: boilerplate,
+
 spam, SEO farms, duplicates, adult content. The history of pretraining corpora is the history
+
 of learning to distill it.
 
 | Corpus | Year | Size | License | Key idea |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | C4 | 2019 | ~175B tokens | ODC-BY | Heuristic filters on one CC snapshot (terminal punctuation, badwords, 3-sentence min) for T5 |
 | The Pile | 2020 | 825GB, ~300B tokens | mixed, contested | 22 curated sources (arXiv, PubMed, code, books); Books3 later removed for copyright |
 | ROOTS | 2022 | 1.6TB, 46 languages | mixed | BLOOM's multilingual curated corpus |
@@ -38,73 +42,115 @@ of learning to distill it.
 | FinePDFs / FinePDFs-Edu | 2025 | 3T / 350B tokens | ODC-BY | PDFs are the untapped high-quality pool (long, technical documents) |
 
 Other corpora worth knowing: **TxT360** (globally deduped 15T with per-doc counts for flexible
+
 upsampling), **Zyda-2** (5T, cross-dataset filtered union of FineWeb-Edu/DCLM/Zyda/Dolma),
+
 **Ultra-FineWeb** (efficient verification-based filtering over FineWeb), **Common Pile v0.1**
+
 (8TB of genuinely openly licensed text, for license-clean training), **Essential-Web v1.0**
+
 (24T tokens with a 12-category taxonomy label per document, so you can carve your own subsets),
+
 and **The Stack v2** (code, 900B+ tokens, from Software Heritage).
 
-## What actually separates the generations
+### What actually separates the generations
 
 1. **Extraction**: WARC + trafilatura/resiliparse instead of prefab WET text. FineWeb measured
    this as one of the largest single wins.
+
 2. **Model-based quality filtering**: DCLM showed a cheap fastText classifier trained on
    instruction-ish positives beats every heuristic stack; FineWeb-Edu showed an
+
    LLM-annotation-distilled classifier does the same for educational content.
+
 3. **Dedup done right**: fuzzy MinHash per snapshot (global dedup over all snapshots hurt in
    FineWeb's ablations); exact substring dedup via suffix arrays in RefinedWeb.
+
 4. **Not over-filtering**: Nemotron-CC's point: aggressive filtering (DCLM discards ~90% of
    tokens) caps your token horizon. Bucket by quality, keep medium tokens for bulk, rephrase
+
    instead of deleting. This matters for 15T+ token runs more than for small ones.
+
 5. **Synthetic augmentation**: rephrased web and QA-ified documents are now a standard slice
    (Nemotron-CC's 1.9T synthetic tokens; see
-   [synthetic-and-post-training-data.md](synthetic-and-post-training-data.md)).
 
-Added 2026-09-07: **where the founding evidence for point 4's premise comes from.** The whole
+   [synthetic-and-post-training-data.md](http://synthetic-and-post-training-data.md/)).
+
+**where the founding evidence for point 4's premise comes from.** The whole
+
 lineage above assumes filtering earns its losses, and that assumption was first measured in the
+
 C4 paper itself, which is worth knowing because the experiment is cleaner than most that came
+
 after it. Holding model, compute and evaluation fixed, an unfiltered variant of the same crawl
+
 snapshot (6.1TB, roughly 8x more text than filtered C4's 745GB) scored worst on every single
+
 downstream task, with no task where the extra volume bought anything. That is the strongest
+
 form the filtering-beats-volume claim takes, and it is why Nemotron-CC's counter-argument is
+
 about *how much* to filter rather than whether to.
 
 The same paper also ran the repetition experiment that sets the token-horizon budget everyone
-now reasons with. Truncating C4 and looping over it during a fixed-token run: 64 repeats is
-harmless, 256 is marginal, and 1,024 repeats costs about 4 GLUE points and 4.6 on SQuAD, with
-training loss *falling* as the corpus shrinks, which is the memorisation signature rather than
-learning. So the practical rule that a corpus is large enough if you repeat it a few dozen times
-at most predates the modern corpora by five years. See
-[T5](../../papers/2019-10_t5/summary.md) (11 min read · +4h 12m resources).
 
-## Aug 2026 snapshot
+now reasons with. Truncating C4 and looping over it during a fixed-token run: 64 repeats is
+
+harmless, 256 is marginal, and 1,024 repeats costs about 4 GLUE points and 4.6 on SQuAD, with
+
+training loss *falling* as the corpus shrinks, which is the memorisation signature rather than
+
+learning. So the practical rule that a corpus is large enough if you repeat it a few dozen times
+
+at most predates the modern corpora by five years. See
+
+[Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)](../../papers/2019-10_t5/summary.md) (11 min read · +4h 12m resources).
+
+### Aug 2026 snapshot
 
 Independent head-to-head evaluations consistently rank **Nemotron-CC-HQ** and **DCLM-Baseline**
+
 at the top for per-token quality on English web, with **FineWeb-Edu** the default academic
+
 reference corpus and the easiest to use. Nemotron-CC-HQ beats DCLM by roughly +5.6 MMLU in
+
 NVIDIA's matched 8B ablations; recent "evolved curation" pipelines (e.g. Darwin-CC style
+
 automated pipeline search) squeeze a bit more. For scale, the frontier open stack is a
+
 composition: Nemotron-CC-v2.1 or FineWeb-family web + FinePDFs + The Stack v2/code +
+
 FineMath-style math + a mid-training mix (Dolmino is the open template).
 
-## What to use for a 150-350M pretrain on FineWeb-Edu
+### What to use for a 150-350M pretrain on FineWeb-Edu
 
 - **Core**: FineWeb-Edu (the 1.3T score>=3 cut). At 150-350M params you will train maybe
   50-500B tokens (SmolLM2-135M/360M used 2T/4T; Chinchilla-optimal is only ~3-7B, so you are
+
   deliberately over-training for inference quality). You will never exhaust 1.3T, so the
+
   strictest cut is right; sample the `sample-350BT` or `sample-100BT` configs for convenience.
+
   nanochat and most nanoGPT-scale speedruns standardized on exactly this corpus.
+
 - **Sprinkle**: ~5-10% code (python-edu or The Stack v2 smol) and ~5% math (FineMath 4+),
   mostly concentrated in the final 10-20% of training as an annealing phase; see
-  [data-mixing.md](data-mixing.md).
+
+  [data-mixing.md](http://data-mixing.md/).
+
 - **Tokenizer**: train it on the same distribution; see
-  [../llm-training-and-post-training/tokenizers.md](../llm-training-and-post-training/tokenizers.md).
+  ../llm-training-and-post-training/[tokenizers.md](http://tokenizers.md/).
+
 - **Alternatives worth an ablation**: DCLM-Baseline sample (more diverse register than
   FineWeb-Edu's homogeneous educational tone, sometimes better at small scale on
-  commonsense tasks), or a 50/50 FineWeb-Edu + DCLM mix (what SmolLM2 converged to after
-  finding Edu-only too narrow); Nemotron-CC-HQ if you want the current per-token quality peak.
-- **Decontaminate** against your eval suite before training, not after; see
-  [filtering-and-dedup.md](filtering-and-dedup.md).
 
-See [../llm-training-and-post-training/pretraining.md](../llm-training-and-post-training/pretraining.md)
+  commonsense tasks), or a 50/50 FineWeb-Edu + DCLM mix (what SmolLM2 converged to after
+
+  finding Edu-only too narrow); Nemotron-CC-HQ if you want the current per-token quality peak.
+
+- **Decontaminate** against your eval suite before training, not after; see
+  [filtering-and-dedup.md](http://filtering-and-dedup.md/).
+
+See ../llm-training-and-post-training/[pretraining.md](http://pretraining.md/)
+
 for the training-side decisions these tokens feed into.

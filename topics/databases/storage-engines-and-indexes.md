@@ -4,7 +4,7 @@
 
 Last updated: 2026-08-31
 
-## Best resources (1 min)
+### Best resources (1 min)
 
 - [Database Internals](https://www.databass.dev/) (book, ~9h 25m) (Alex Petrov, O'Reilly 2019): Part I is the clearest published walk through B-tree mechanics, page layout, and LSM compaction. Start here
 - [Designing Data-Intensive Applications, 2nd ed.](https://dataintensive.net/) (~1h 30m for ch. 4; ~15h for the book) (Kleppmann and Riccomini, O'Reilly, March 2026): chapter 4, Storage and Retrieval, for the same material at a higher altitude and with better judgement about when each engine wins
@@ -15,7 +15,7 @@ Last updated: 2026-08-31
 - [ANN-Benchmarks](https://ann-benchmarks.com/) (~20 min): the standing recall-versus-QPS comparison across ANN libraries. Look at the Pareto curves, not vendor blog numbers
 - [Interactive latency numbers](https://colin-scott.github.io/personal_website/research/interactive_latency.html) (~10 min) (Colin Scott's version of Jeff Dean's list): the numbers below, with a slider for hardware year
 
-## The one idea underneath everything (2 min)
+### The one idea underneath everything (2 min)
 
 An access method cannot be simultaneously optimal at reading, at updating, and at memory footprint. That is the **RUM conjecture**: improving two of read overhead, update overhead, and memory or space overhead makes the third worse. B-trees buy cheap reads with expensive random updates. LSM-trees buy cheap sequential updates with read amplification and background compaction work. Adding an index buys read speed with space and write cost. Compression buys space with CPU. Every storage decision you make is a point on that triangle, and the useful engineering question is never "which is faster" but "which corner am I allowed to give up".
 
@@ -25,7 +25,7 @@ The three amplification factors are how you measure the corners:
 - **Read amplification**: pages read per logical read. B-tree: the tree height, so 3 to 4 page reads for a large table plus one heap fetch, mostly cached. LSM-tree: potentially one lookup per level, cut down by bloom filters (about 10 bits per key gives roughly a 1 percent false positive rate) and by block indexes held in memory.
 - **Space amplification**: bytes on disk per byte of logical data. B-tree: fragmentation and half-full pages, so roughly 1.3x. LSM levelled: about 1.1x. LSM tiered: up to 2x or more because obsolete versions linger until compaction catches up.
 
-## B-tree vs LSM-tree (4 min)
+### B-tree vs LSM-tree (4 min)
 
 **B+ tree.** A balanced tree of fixed-size pages, updated in place, with all values in the leaves and leaves linked for range scans. Height is roughly log base (fanout) of N, and with a fanout in the hundreds a billion-row table is 4 levels deep. Interior nodes stay hot in the buffer pool, so a point lookup is usually one physical read. Range scans follow leaf sibling pointers, which is why B-trees are natural for ORDER BY and BETWEEN. The pain is random writes: a workload that updates rows in random key order dirties pages all over the disk, and a page split under concurrency needs careful latching. Postgres, MySQL InnoDB, SQL Server, SQLite are all here.
 
@@ -37,7 +37,7 @@ Compaction strategy is the real knob. **Levelled** keeps one sorted run per leve
 
 **Choosing.** B-tree for transactional workloads with reads and updates mixed and predictable latency required. LSM for write-heavy ingestion, for good compression (immutable sorted files compress well), and for cheap flash write budgets. Analytical column stores are LSM-shaped for the same reason: ClickHouse MergeTree is exactly this pattern applied to columnar parts.
 
-## Page cache, fsync, and the WAL (3 min)
+### Page cache, fsync, and the WAL (3 min)
 
 Every durable database is fighting the same fact: a write is not durable until it reaches stable storage, and reaching stable storage is 10,000 times slower than reaching memory.
 
@@ -45,7 +45,7 @@ Every durable database is fighting the same fact: a write is not durable until i
 - **fsync is the durability primitive.** `write()` only moves bytes into the page cache; `fsync()` forces them to the device and does not return until the device says so. On enterprise SSDs with power-loss-protected caches this is tens of microseconds, on consumer hardware or network storage a millisecond or more. Committing a transaction costs at least one fsync, which is why single-row commit rate is bounded by fsync latency, why group commit exists (batch many transactions into one fsync), and why `synchronous_commit = off` in Postgres buys enormous throughput in exchange for losing a small window of committed transactions on crash. Also worth knowing: fsync error handling is historically unsafe (the "fsyncgate" problem), which is why Postgres now panics on fsync failure rather than pretending it can retry.
 - **The WAL.** Write-ahead logging: append the intended change to a sequential log and fsync that, before touching the data pages. Recovery replays the log from the last checkpoint. This turns random durable writes into sequential ones, and it is the same mechanism that powers replication (ship the log to followers), point-in-time recovery (replay the log to a timestamp), and change data capture (parse the log into an event stream, as Debezium does). Checkpointing flushes dirty pages so the log can be trimmed, which is why you see periodic IO spikes and why checkpoint tuning smooths tail latency. Redo log, journal, oplog, binlog, commitlog: same idea, different vendors.
 
-## Index families (2 min)
+### Index families (2 min)
 
 - **B-tree**: ordered, supports equality, range, prefix, sorting, and covering (index-only) scans. The default and usually the right one. Composite indexes must be ordered equality columns first, then the range column, because the index is only usable up to the first range predicate.
 - **Hash**: equality only, no ordering, slightly smaller and faster for point lookups. Rarely worth choosing over a B-tree in Postgres. Also the internal mechanism for hash joins and hash aggregates.
@@ -55,7 +55,7 @@ Every durable database is fighting the same fact: a write is not durable until i
 - **Bitmap**: one bitmap per distinct value, combined with bitwise AND and OR. Excellent for low-cardinality columns in analytical stores. Postgres does not persist bitmap indexes but builds bitmaps on the fly for bitmap heap scans, which is why combining two mediocre indexes can still be fast.
 - **Skipping and zone maps**: not indexes exactly, but the reason column stores are fast. Store min and max per block, then skip blocks that cannot match. ClickHouse's sparse primary key, Parquet row-group statistics, and Snowflake's micro-partition pruning are all this idea. Sort order at write time therefore matters more than any index you add later.
 
-## ANN indexes for vector search (4 min)
+### ANN indexes for vector search (4 min)
 
 Exact nearest neighbour over high-dimensional vectors is a brute-force scan, so every practical system trades recall for speed. Recall at k is the fraction of true neighbours returned, and it is a dial: quote latency and recall together, never latency alone.
 
@@ -65,10 +65,9 @@ Exact nearest neighbour over high-dimensional vectors is a brute-force scan, so 
 - **IVF-PQ**: IVF plus product quantisation, which splits each vector into subvectors and replaces each with a codebook id. Compression of 16x to 64x is normal, so a billion vectors fit in RAM, at the cost of a lossy distance estimate that usually needs a rerank pass over the original vectors. This is the classic FAISS billion-scale recipe. Scalar quantisation to int8 (4x) and binary quantisation (32x) with a rerank are the cheaper modern alternatives and are usually the first thing to try.
 - **DiskANN (Vamana)**: a graph index designed so the graph lives on SSD and only a compressed representation stays in RAM, which cuts memory cost by roughly an order of magnitude for a few extra milliseconds of latency. This is what makes billion-scale on one node affordable, and it is the design behind Azure's vector search, Milvus's disk index, and pgvectorscale.
 - **ScaNN**: Google's anisotropic vector quantisation, which optimises the quantiser for inner-product ranking loss rather than reconstruction loss. The best QPS-versus-recall numbers on several ANN-Benchmarks tracks, and available in Postgres via pgvector's competitor extensions and in Vertex AI.
-
 The thing that actually breaks in production is **filtered search**. "Nearest neighbours where tenant_id equals X and created_at is recent" is not what an ANN graph indexes. Pre-filtering then brute-forcing is correct but slow when the filter is loose; post-filtering the top-k is fast but returns nothing when the filter is selective. Good implementations do filtered traversal with the predicate evaluated during graph search, or maintain per-tenant indexes. Evaluate a vector store on this, not on unfiltered QPS.
 
-## Query planning, and why the planner picks a bad plan (3 min)
+### Query planning, and why the planner picks a bad plan (3 min)
 
 A planner turns SQL into a physical plan by estimating the cost of alternatives from table statistics. Three access paths (sequential scan, index scan, index-only scan or bitmap scan), three join algorithms (nested loop, hash join, merge join), and a costing model over estimated row counts. It picks the cheapest estimated plan, which is not always the cheapest plan.
 
@@ -80,13 +79,12 @@ Why it goes wrong, in rough order of how often you will hit it:
 4. **Parameter sniffing and generic plans.** A prepared statement plans once for a typical parameter, then reuses that plan for an atypical one. A plan that suits `status = 'pending'` (rare) is a disaster for `status = 'done'` (most rows).
 5. **Cardinality estimation through joins and aggregates.** Errors compound multiplicatively up the plan tree; a three-join query with a 10x error at the bottom is a 1000x error at the top. This is the known fundamental weakness of cost-based optimisation, not a bug you can configure away.
 6. **Cost constants that do not match the hardware.** Postgres defaults assume spinning disks. On NVMe, `random_page_cost` of 4 is wrong and pushes the planner towards sequential scans; 1.1 is the common setting.
-
 How to work: read `EXPLAIN (ANALYZE, BUFFERS)` and compare estimated rows against actual rows at every node. The lowest node where they diverge badly is the problem. Buffers tells you whether you were reading from cache or disk. Everything else is downstream of that one comparison.
 
-## Latency numbers to have memorised (2 min)
+### Latency numbers to have memorised (2 min)
 
 | Operation | Order of magnitude | Why it matters |
-|---|---|---|
+| --- | --- | --- |
 | L1 cache reference | 1 ns | The unit everything else is measured in |
 | Main memory reference | 100 ns | A buffer pool hit; roughly 100x a cache hit |
 | Read 1 MB sequentially from memory | 50 us | Why vectorised columnar execution beats row-at-a-time |

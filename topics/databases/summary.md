@@ -1,19 +1,12 @@
-# Databases
+# Topic: databases
 
 ⏱ 29 min read · +62h 20m resources
 
-Last updated: 2026-08-31
+Last updated: 2026-09-21 (the trailing dated write-up on learned query plans was folded into the body as a standing section; its page reference converted to a mention)
 
 Outcome first: for almost everything you will build, Postgres is the correct default, Parquet on object storage queried by DuckDB or ClickHouse is the correct analytics layer, and Redis is the correct cache. Everything else on this page is a specific escape hatch you take once a measured workload proves the default wrong. A database is really three stacked choices: a **data model** (how you say what you mean), a **storage engine** (rows or columns, B-tree or LSM-tree), and a **distribution story** (replication, partitioning, and which consistency you are willing to pay for). Most product categories are the top layer plus one specialised index rather than a genuinely new kind of system, which is why "vector database" is best read as "an ANN (approximate nearest neighbour) index that someone sells separately". This page maps the families, compares them directly, and says which to reach for.
 
-Why storage earns a topic of its own in an ML knowledge base: Andrew Ng's 2026 AI Engineering Skills Map ([ai-engineering-skills-map.md](../swe-and-system-design/ai-engineering-skills-map.md)) singles out data management as the one foundation that is *hard to change later*, and notes that if the data architecture is chosen poorly "the AI doesn't know what it doesn't know". Retrieval quality, agent memory, and feature freshness are all downstream of the choice made here, which is why it is worth spending real judgement on before the corpus is loaded rather than after.
-
-## Taxonomy
-
-![Taxonomy diagram](taxonomy.svg)
-
-<details>
-<summary>Diagram source (mermaid)</summary>
+Why storage earns a topic of its own in an ML knowledge base: Andrew Ng's 2026 [AI Engineering Skills Map: software engineering fundamentals (Andrew Ng, 2026)](../swe-and-system-design/ai-engineering-skills-map.md) singles out data management as the one foundation that is *hard to change later*, and notes that if the data architecture is chosen poorly "the AI doesn't know what it doesn't know". Retrieval quality, agent memory, and feature freshness are all downstream of the choice made here, which is why it is worth spending real judgement on before the corpus is loaded rather than after.
 
 ```mermaid
 graph TD
@@ -46,9 +39,7 @@ graph TD
     F1 --> G
 ```
 
-</details>
-
-## The map, briefly (7 min)
+### The map, briefly (7 min)
 
 **Relational and OLTP (online transaction processing: many small, indexed, concurrent reads and writes, each touching a handful of rows and expected to be both fast and correct).** Postgres and MySQL: normalised tables, SQL, real constraints, **ACID** transactions (atomic, consistent, isolated, durable: a transaction either happens completely or not at all, cannot observe another's half-finished work, and survives a crash once committed), B-tree indexes over a row store. Optimised for many small reads and writes with strong correctness. A single modern node handles low tens of thousands of transactions per second and comfortably holds several terabytes, which is more than most products ever need. Postgres is also the extension platform: JSONB for documents, pgvector for embeddings, TimescaleDB for time-series, PostGIS for geometry, full-text search built in. That is why "just use Postgres" is a real engineering position rather than a joke.
 
@@ -72,7 +63,7 @@ graph TD
 
 **Distributed SQL and NewSQL.** CockroachDB, TiDB, YugabyteDB, and Spanner keep SQL and ACID while sharding writes across nodes with Raft or Paxos per range. Vitess is the different trick: sharded MySQL behind a proxy, which is how YouTube and Slack scaled. You buy horizontal write scaling and multi-region survivability, and you pay a higher latency floor plus expensive cross-shard transactions. Reach for it after a single Postgres has genuinely failed, not before.
 
-## Cross-cutting axes (5 min)
+### Cross-cutting axes (5 min)
 
 - **OLTP vs OLAP.** Many small indexed reads and writes with transactions versus few enormous scans and aggregates. This split, not the vendor, decides row store or column store, and it is why analytics belongs on a replica or in a separate system rather than on your production primary.
 - **Row vs column.** Row stores keep a whole record together, so a point lookup is one page read. Column stores keep each attribute together, so a scan reads only what it needs and compresses far better (run-length, dictionary, delta). Columnar updates mean rewriting large blocks, which is why OLAP systems are append-mostly.
@@ -81,10 +72,10 @@ graph TD
 - **Indexing.** An index is a redundant, ordered copy of a subset of your data that turns a scan into a lookup. Every index makes writes slower and the planner's job harder. Know your cardinality and selectivity, prefer composite indexes ordered by equality then range, use covering indexes to avoid heap fetches, and remember that an index is useless if the predicate is not sargable.
 - **Transactions and isolation.** ACID's hard part is the I. Read committed (the Postgres default) still allows non-repeatable reads, lost updates, and write skew; repeatable read and snapshot isolation stop most of that but not write skew; serialisable stops everything and costs retries or locks. Name the anomaly you are defending against, then pick the level. In practice: use serialisable for money and counters, and use explicit `SELECT ... FOR UPDATE` when you know exactly what you are protecting.
 - **Replication and partitioning.** Replication is copies of the same data (single-leader with sync or async followers, multi-leader, or leaderless quorums) and buys availability and read scale. Partitioning, or sharding, splits different data across nodes (by hash for even spread, by range for range scans) and buys write scale plus capacity. They are orthogonal, you almost always need both, and the shard key is the decision you cannot cheaply reverse.
-- **CAP and PACELC as they actually apply.** CAP only says something during a partition: stay consistent or stay available. The useful generalisation is PACELC: on Partition choose Availability or Consistency, Else choose Latency or Consistency. That "else" branch is the one you live in every day. Single-leader systems (Postgres, MongoDB) are CP-ish and fail over with a gap; Cassandra and DynamoDB let you dial it per query with quorums; Spanner buys strict consistency by paying commit-wait latency against TrueTime bounds. See topics/swe-and-system-design, deep dive [distributed-systems-basics.md](../swe-and-system-design/distributed-systems-basics.md), for the systems-design treatment.
+- **CAP and PACELC as they actually apply.** CAP only says something during a partition: stay consistent or stay available. The useful generalisation is PACELC: on Partition choose Availability or Consistency, Else choose Latency or Consistency. That "else" branch is the one you live in every day. Single-leader systems (Postgres, MongoDB) are CP-ish and fail over with a gap; Cassandra and DynamoDB let you dial it per query with quorums; Spanner buys strict consistency by paying commit-wait latency against TrueTime bounds. See [Topic: swe-and-system-design](../swe-and-system-design/summary.md) for the systems-design treatment.
 - **The data lifecycle.** Retention, archival, and deletion are design decisions rather than cleanup tasks, and the cheapest moment to make them is when you design the schema. Privacy and compliance obligations attach exactly here: right to erasure, data residency, and audit retention are all lifecycle questions, and a store with no deletion path is a store you will eventually have to migrate off.
 
-## How to actually choose (2 min)
+### How to actually choose (2 min)
 
 The default needs no procedure: start with Postgres, and move off it only when a measured limit forces you. When something does force the question, five questions decide it, in this order.
 
@@ -94,10 +85,10 @@ The default needs no procedure: start with Postgres, and move off it only when a
 4. **How much do you know today?** Unknown future queries favour a normalised relational schema you can query new ways for free. Known, frozen access patterns are what license a denormalised store, and they are also exactly what you lose the first time the product changes.
 5. **What can your team operate at 3am?** A database nobody on the rota can debug under load is the wrong database regardless of its benchmarks. Count the operational surface honestly: backups, restores actually tested, failover behaviour, version upgrades, and who gets paged.
 
-## Comparison of the major types (5 min)
+### Comparison of the major types (5 min)
 
 | Type | Representative systems | Data model | Consistency and scaling | Reach for it when | Avoid when |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | **Relational OLTP** | Postgres, MySQL, Aurora | Normalised relations, SQL, strict schema, row store on B-trees | Single-writer ACID up to serialisable; scale by bigger box plus read replicas; sharding is manual | You need joins, constraints, and transactions: app state, users, jobs, billing, metadata. The default | Query is a scan over billions of rows, or write volume genuinely exceeds one node |
 | **Distributed SQL** | CockroachDB, TiDB, YugabyteDB, Spanner, Vitess | Relational and SQL, usually Postgres or MySQL wire compatible | Raft or Paxos per shard, horizontal writes, multi-region; cross-shard transactions are expensive | Single-node Postgres is genuinely exhausted, or you need regional data residency without losing SQL | You have not yet measured the Postgres ceiling; latency floor and ops cost are both real |
 | **OLAP columnar** | ClickHouse, BigQuery, Snowflake, Redshift, DuckDB | Columnar relations, wide denormalised fact tables, vectorised execution | Append-mostly, weak or no cross-row transactions; compute scales separately from storage | Aggregates and scans: usage and cost analytics, eval results, log analytics, dashboards | Point updates, deletes by row, or high-concurrency single-row reads |
@@ -111,7 +102,7 @@ The default needs no procedure: start with Postgres, and move off it only when a
 | **Search** | Elasticsearch, OpenSearch, Vespa, Typesense, Lucene | Inverted index over analysed text, BM25 scoring, facets, aggregations, plus dense vectors | Sharded with replicas, near-real-time refresh, eventually consistent; reindexing is routine | Keyword and hybrid retrieval, log search, faceted browse, anything needing lexical matching | You would treat it as the system of record: it is a derived view and should be rebuildable |
 | **Embedded** | SQLite, DuckDB, RocksDB, LMDB, LanceDB | In-process library, no server. SQLite is rows and OLTP, DuckDB is columns and OLAP, RocksDB is a raw LSM engine | Consistency is your process's; one writer, one machine (libSQL and MotherDuck stretch this) | Local analytics on Parquet, notebooks, tests, on-device state, or an engine inside your own service | Multiple writers over a network need the same data concurrently |
 
-## The ML and LLM angle (3 min)
+### The ML and LLM angle (3 min)
 
 **Postgres plus pgvector is the boring correct default for RAG.** Your chunks already need metadata, tenancy, permissions, provenance, and a delete path, which is a relational problem with a vector column attached rather than a vector problem. One system means one transaction, one backup, one failover story, and no dual-write skew between chunk text and chunk embedding. **HNSW (Hierarchical Navigable Small World)**, a layered proximity graph searched greedily from a sparse top layer down to a dense bottom one, runs inside pgvector and serves millions of vectors at single-digit millisecond latency, and Postgres full-text search gives you the lexical half of hybrid retrieval for free.
 
@@ -123,7 +114,23 @@ The default needs no procedure: start with Postgres, and move off it only when a
 
 **The rest of the ML data path in one line each.** Object storage plus Parquet is the substrate for training data, and the file layout (row group size, partitioning, sort order) matters more than the query engine. Kafka is the event backbone when three or more systems need the same usage and feedback events. Redis holds the semantic cache, per-tenant rate limits, and job state. ClickHouse holds token, latency, and cost analytics because those queries are aggregate scans over an append-only stream. Postgres holds everything else, including the eval registry and the run metadata, until it demonstrably cannot.
 
-## Quick chooser (1 min)
+### Learned query plans: a 4B model against the Postgres planner (2 min)
+
+Rohan Bansal trained Empero's Qwen 3.8 4B distillation to produce PostgreSQL query plans and beat the built-in planner on join-heavy analytic queries (Sep 16, 2026; 695 points on Hacker News). It is the first result in this knowledge base where a language model outperforms a mature cost-based optimiser on its own ground, and the numbers are specific enough to argue with.
+
+**Results**, validated on the 113 queries of the Join Order Benchmark after training on roughly 13.6k queries from the Cardinality Estimation Benchmark:
+
+- **1.81x geometric mean speedup** on best-of-three rollouts.
+- **44.7% latency reduction** across join-heavy queries.
+- **Zero regressions** when taking the best candidate of three attempts.
+- Valid plans produced for queries where the untrained base model failed **72%** of the time.
+**Why it works, and where it stops working.** A query optimiser picks a join order and access method from cardinality estimates, and those estimates are systematically wrong on correlated predicates, which is the oldest known weakness in the field. A model trained on measured outcomes is learning a correction to those estimates from data rather than from a statistical model of the data. The economics only close where the same analytic query runs repeatedly, because generating and measuring three candidate plans costs far more than the planner does; the optimisation has to amortise across repeated executions. For transactional traffic it makes no sense at all.
+
+**The measurement discipline is the part to copy.** Four containerised Postgres instances, `shared_buffers` tuned to 2GB to keep the Linux page cache from dominating, and best-of-three reported explicitly rather than best-of-N hidden in a footnote. Query-plan benchmarking is notoriously easy to fake by accident through cache warming, and this protocol says what it did about it.
+
+The training recipe, which is a clean worked example of frontier-distillation plus LoRA plus agentic RL at a scale one engineer can afford, is recorded on [Topic: llm-training-and-post-training](../llm-training-and-post-training/summary.md). [Write-up](https://rohanbansal.com/qorl) (30 min)
+
+### Quick chooser (1 min)
 
 - Need app state, users, jobs, metadata, billing: use **Postgres**. This is the right answer most of the time.
 - Need RAG retrieval below roughly 10M chunks: use **Postgres with pgvector** and an HNSW index.
@@ -140,26 +147,21 @@ The default needs no procedure: start with Postgres, and move off it only when a
 - Need variable-depth traversal over a graph: use **Neo4j**. Two hops is a join, not a graph problem.
 - Need serving features to a model in milliseconds: use a **key-value online store** fed by the same transform as your offline columnar store.
 
-## Deep dives (1 min)
+### Deep dives (1 min)
 
-| File | What it covers |
-|---|---|
-| [storage-engines-and-indexes.md](storage-engines-and-indexes.md) | B-tree vs LSM-tree and the RUM conjecture, write and read and space amplification, page cache and fsync and the WAL, index families (B-tree, hash, GIN, GiST, inverted, bitmap), ANN index families for vector search (HNSW, IVF, IVF-PQ, DiskANN, ScaNN) and their build, recall, and memory tradeoffs, query planning and why the planner goes wrong, and the latency numbers to memorise |
+| Page | What it covers |
+| --- | --- |
+| [Storage engines, indexes, and the physics of a query](storage-engines-and-indexes.md) (21 min read · +18h 10m resources) | B-tree vs LSM-tree and the RUM conjecture, write and read and space amplification, page cache and fsync and the WAL, index families (B-tree, hash, GIN, GiST, inverted, bitmap), ANN index families for vector search (HNSW, IVF, IVF-PQ, DiskANN, ScaNN) and their build, recall, and memory tradeoffs, query planning and why the planner goes wrong, and the latency numbers to memorise |
 | [Caching: types, policies, and semantic caching](caching.md) (27 min read · +4h 15m resources) | Every cache layer from CPU to OS page cache to reverse proxy to CDN to Redis to the buffer pool and materialised views, write and read strategies, eviction policies including Redis's actual maxmemory menu, invalidation and the failure modes worth knowing by name, cost-weighted hit ratio as the metric that replaces raw hit ratio, and the three LLM caches: KV cache, prefix and provider prompt caching with their economics, and semantic caching with its thresholds and its false-hit rate |
 
-### The same deep dives as KB pages, with rolled-up cost
+### Related topics (1 min)
 
-- [Storage engines, indexes, and the physics of a query](storage-engines-and-indexes.md) (21 min read · +18h 10m resources)
-- [Caching: types, policies, and semantic caching](caching.md) (27 min read · +4h 15m resources)
+- [Topic: swe-and-system-design](../swe-and-system-design/summary.md): CAP, PACELC, consistency models, and the same taxonomy from the systems-design angle
+- [Topic: rag-and-retrieval](../rag-and-retrieval/summary.md): vector search in context, chunking, hybrid retrieval, rerankers, and what actually moves retrieval quality
+- [Topic: ml-infra-and-orchestration](../ml-infra-and-orchestration/summary.md): how these stores get deployed, backed up, and monitored alongside the training and serving stack
+- [Topic: data-curation-and-datasets](../data-curation-and-datasets/summary.md): the Parquet and lakehouse layer as it is used for training corpora
 
-## Related topics (1 min)
-
-- topics/swe-and-system-design: [distributed-systems-basics.md](../swe-and-system-design/distributed-systems-basics.md) covers CAP, PACELC, consistency models, and the same taxonomy from the systems-design angle
-- topics/rag-and-retrieval: vector search in context, chunking, hybrid retrieval, rerankers, and what actually moves retrieval quality
-- topics/ml-infra-and-orchestration: how these stores get deployed, backed up, and monitored alongside the training and serving stack
-- topics/data-curation-and-datasets: the Parquet and lakehouse layer as it is used for training corpora
-
-## Best resources (topic-wide) (2 min)
+### Best resources (topic-wide) (2 min)
 
 - [Designing Data-Intensive Applications, 2nd ed.](https://dataintensive.net/) (book, ~15h) (Kleppmann and Riccomini, O'Reilly, March 2026): the anchor. Chapters on storage engines, replication, partitioning, and transactions are the canonical treatment, and the 2nd edition adds cloud-native storage and the lakehouse
 - [Database Internals](https://www.databass.dev/) (book, ~9h 25m) (Alex Petrov, O'Reilly 2019): the level below DDIA. Part I is the clearest published explanation of B-trees, LSM-trees, and page layout
@@ -168,3 +170,5 @@ The default needs no procedure: start with Postgres, and move off it only when a
 - [Jepsen analyses](https://jepsen.io/analyses) (~3h for the systems you actually run): empirical testing of what databases actually do under partition versus what their docs claim. Read the ones for systems you use, then read the consistency models map
 - [Just Use Postgres for Everything](https://www.amazingcto.com/postgres-for-everything/) (~10 min) (Stephan Schmidt): the short polemic for the default position on this page, and a useful list of what Postgres extensions replace
 - [The Log: What every software engineer should know about real-time data's unifying abstraction](https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying-abstraction) (~45 min) (Jay Kreps, LinkedIn 2013): why the append-only log sits underneath replication, change data capture, stream processing, and most of the rest of this page. Read it once and replication, event sourcing, and the lakehouse commit log stop looking like three separate ideas
+- [Storage engines, indexes, and the physics of a query](storage-engines-and-indexes.md)
+- [Caching: types, policies, and semantic caching](caching.md)

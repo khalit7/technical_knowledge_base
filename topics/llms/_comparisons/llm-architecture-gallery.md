@@ -2,40 +2,39 @@
 
 ⏱ 10 min read · +2h resources
 
-Last updated: 2026-08-31. Rewritten on 2026-08-31 under the "explain, do not name-drop" convention: every architectural delta below is now stated as a change with its benefit and its cost, rather than as a label. Nothing from the 2026-08-24 version was dropped.
+Last updated: 2026-09-21 (rewrite process note removed; Mamba paper reference linked). Every architectural delta below is stated as a change with its benefit and its cost, rather than as a label.
 
-## The resource
+### The resource
 
 - **Gallery**: [sebastianraschka.com/llm-architecture-gallery](https://sebastianraschka.com/llm-architecture-gallery/) (reference site, ~45 min for a first pass over the models you care about), metadata repo at [github.com/rasbt/llm-architecture-gallery](https://github.com/rasbt/llm-architecture-gallery) (repo, ~15 min for `models.yml` and the README) (a `models.yml` of per-model fact sheets, Apache 2.0).
 - **Companion article**: [The Big LLM Architecture Comparison](https://magazine.sebastianraschka.com/p/the-big-llm-architecture-comparison) (1h), the written walkthrough of the same material.
-
 The gallery is a living side-by-side reference of 70+ open(-ish) model architectures with a diagram per model plus a fact sheet: total and active parameters, decoder type (dense, sparse MoE, or dense/sparse *hybrid*), attention mechanism and layer mix, context length, **KV-cache bytes per token** (its most useful headline number), positional encoding, licence, and links to configs and tech reports. Coverage runs from DeepSeek V3/V3.2/V4, Kimi K2-K3, GLM-4.5-5, Qwen3-3.8, MiniMax M2-M3, Mistral Large 3, Llama 4, gpt-oss and Gemma 3/4, down to OLMo, Phi-4, SmolLM3, and exotic entries (Nemotron 3 Nano, Kimi Linear, INTELLECT-3).
 
 Why the KV-cache figure is the one to read first: it is the product `2 times layers times kv_heads times head_dim times bytes_per_element`, so it folds the attention variant, the layer count and the storage precision into a single number that you can multiply by target context length and concurrency to get the memory your serving fleet actually needs. Two models with the same parameter count can differ by an order of magnitude on it, and that difference, not the parameter count, decides whether long context is affordable.
 
 Use the gallery as the first stop whenever a new open model drops: the diagram plus the KV-cache and MoE numbers tell you 80% of what changed.
 
-## Key architectural deltas across modern open models
+### Key architectural deltas across modern open models
 
 The GPT-2-style decoder transformer is still recognisably the skeleton. Almost every change since is about memory and compute efficiency rather than modelling power, and the changes concentrate in four places: how attention is computed and cached, how the FFN is made sparse, where normalisation sits, and how position is encoded. Each subsection below states what the variant changes, what it buys, and what it costs, because none of these are free.
 
-### 1. Attention
+#### 1. Attention
 
 - **MHA to GQA (grouped-query attention).** Query heads are divided into groups and each group shares one key/value head, so the number of distinct K/V projections falls from the head count to the group count. Since the KV cache is sized by the number of KV heads, an 8-way grouping cuts the cache and the per-token memory traffic by 8. Decode is memory-bandwidth-bound, so that is close to a linear speedup at long context. What it costs is expressivity: query heads in a group can no longer attend along independent key subspaces, which shows up as a small quality loss, generally recovered by training with GQA from the start rather than converting afterwards. The extreme case, one shared KV head for all queries (MQA), saves more and degrades more. GQA was the 2023-2024 default and remains the baseline in Llama 3 and 4, Qwen3, Gemma and gpt-oss.
 - **MLA (multi-head latent attention).** Instead of caching keys and values per head, project them jointly down into a single low-rank latent vector, cache only that, and up-project back to per-head keys and values inside the attention call. The cache shrinks by roughly an order of magnitude against MHA and materially against GQA, and DeepSeek's ablations report quality at or slightly above MHA at equal cache size, which is the unusual part: most cache reductions cost quality. The costs are compute and complexity. Every attention call now pays two extra projections, trading arithmetic (cheap and parallel) for memory traffic (scarce during decode), which is the right trade on current hardware. And RoPE cannot simply be applied to the compressed latent, since rotating before compression does not survive the up-projection, so MLA carries a small separate decoupled RoPE key dimension alongside the latent. That makes the kernels fussier than GQA's, which is why MLA support lagged in serving stacks. Used in DeepSeek V2/V3/R1 and Kimi K2.
 - **Local/global mixing (sliding-window layers).** Most layers attend only within a fixed window of recent tokens, with a full-attention layer inserted periodically, at ratios such as 5:1 in Gemma 3 or 3:1 elsewhere. Windowed layers need cache only for the window, not the context, so total cache stops growing with context length for the majority of layers. Quality loss is negligible on most workloads because the global layers still route information across the whole sequence. The cost is that information has to travel through those global layers, so the ratio is a real hyperparameter: retrieval-style long-context tasks, where an exact token far back must be recovered, are the workload most sensitive to it.
 - **Trained sparse attention.** A lightweight learned indexer scores candidate keys or blocks of keys for each query, and full attention is computed only over the selected top-k. Cost per token becomes roughly linear in the selected count rather than quadratic in the context. This is the change that made 1M-token contexts economical in 2026: DeepSeek V3.2's DSA, V4's compressed CSA/HCA (which drops KV cache to about 2% of vanilla), MiniMax M3's MSA, and Qwen's QSA, which selects at micro-block rather than individual-token granularity because block-level gathers are far friendlier to memory hardware than scattered token-level ones. What it costs: the indexer is itself trained and must run on every query, selection is a hard decision that can miss the one token that mattered, and the whole thing has to be trained in rather than bolted on, so it is not a post-hoc optimisation.
-- **Linear and hybrid attention.** Replace softmax attention in most layers with a recurrent update to a fixed-size state, so per-token cost is constant and there is no KV cache that grows with context, then interleave periodic full-attention layers (roughly 1 in 4) to restore exact recall. Qwen3-Next's Gated DeltaNet, Moonshot's Kimi Delta Attention, and Mamba-2 hybrids such as NVIDIA's Nemotron Nano and IBM Granite 4 all take this shape, and they push KV cache per token from hundreds of KiB down to a few KiB. The cost is inherent to the fixed-size state: it is a lossy summary, so anything not written into it is unrecoverable, and pure linear models are measurably worse at exact retrieval. The hybrid exists precisely because the full-attention layers are what buy that capability back, and the mixing ratio is the dial between memory footprint and recall fidelity. See the Mamba paper for the state-space formulation underneath.
+- **Linear and hybrid attention.** Replace softmax attention in most layers with a recurrent update to a fixed-size state, so per-token cost is constant and there is no KV cache that grows with context, then interleave periodic full-attention layers (roughly 1 in 4) to restore exact recall. Qwen3-Next's Gated DeltaNet, Moonshot's Kimi Delta Attention, and Mamba-2 hybrids such as NVIDIA's Nemotron Nano and IBM Granite 4 all take this shape, and they push KV cache per token from hundreds of KiB down to a few KiB. The cost is inherent to the fixed-size state: it is a lossy summary, so anything not written into it is unrecoverable, and pure linear models are measurably worse at exact retrieval. The hybrid exists precisely because the full-attention layers are what buy that capability back, and the mixing ratio is the dial between memory footprint and recall fidelity. See [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](../../../papers/2023-12_mamba/summary.md) for the state-space formulation underneath.
 
-### 2. MoE configuration
+#### 2. MoE configuration
 
 The change is to replace each block's feed-forward network with many expert FFNs plus a router that activates a few per token, so capacity is decoupled from per-token compute. The trend has been from few big experts (Mixtral 8x7B with top-2 of 8, Grok 2 with 8 experts) to many small experts at high sparsity, usually with a shared always-on expert: DeepSeek V3 runs 256 routed experts with 8 active plus 1 shared, Kimi K2 384, K3 896 with 16 active, while Qwen3 uses 128 with no shared expert. Splitting the same FFN budget into more, narrower experts buys a combinatorially larger space of expert combinations and therefore finer specialisation; it costs smaller per-expert matmuls and wider communication fan-out. Several models keep the first blocks dense (V3, GLM-4.5), because early-layer representations are barely differentiated and routing on them is near-random and destabilising.
 
 **Multi-token prediction (MTP)** heads are increasingly standard alongside this: extra output heads trained to predict the token after next, and the one after that. During training they densify the learning signal per position; at inference they act as a built-in draft model for speculative decoding, so the speedup arrives without a separate small model to maintain. The cost is a modest number of extra parameters and a more involved loss.
 
-Full treatment of routing, load balancing, capacity factors, expert parallelism and what breaks at inference is in [../moe-models.md](../moe-models.md): [Mixture-of-Experts (MoE) models](../moe-models.md) (17 min read · +3h 25m resources).
+Full treatment of routing, load balancing, capacity factors, expert parallelism and what breaks at inference is in [Mixture-of-Experts (MoE) models](../moe-models.md) (17 min read · +3h 25m resources).
 
-### 3. Normalisation
+#### 3. Normalisation
 
 RMSNorm is universal: it rescales by the root mean square of the activations and drops LayerNorm's mean subtraction and bias, which removes one reduction and a set of parameters at no measured quality cost. The interesting differences are placement and extras.
 
@@ -43,7 +42,7 @@ RMSNorm is universal: it rescales by the root mean square of the activations and
 - **Post-norm variants.** OLMo 2 normalises each sublayer's output before it is added back to the residual stream rather than normalising the sublayer's input, which damps what each block injects and is reported to improve loss stability. Gemma 3 applies normalisation both before and after each block, taking the stability of both placements for the price of an extra norm per sublayer, which is negligible next to the matmuls.
 - **QK-norm.** Apply RMSNorm to the query and key vectors before the attention dot product (in most implementations before RoPE). This bounds the magnitude of attention logits, which otherwise grow steadily during training and produce the classic bf16 attention overflow and loss spike. It spread from OLMo 2 and Gemma to most 2025-and-later models and is close to free insurance; MiniMax M2 applies it per head. Cost: two extra normalisations per attention layer.
 
-### 4. Positional encoding
+#### 4. Positional encoding
 
 RoPE is near-universal: it rotates query and key vectors by an angle proportional to absolute position, with a different frequency per dimension pair, so that the dot product between two tokens depends only on their relative distance. Everything below is about the fact that a model trained at one context length must work at another.
 
@@ -52,7 +51,7 @@ RoPE is near-universal: it rotates query and key vectors by an angle proportiona
 - **NoPE on a subset of layers.** Apply no positional encoding at all in some layers. A causal decoder can still infer ordering from the attention mask, and layers with no positional bias extrapolate past the training length far more gracefully, since there is no rotation running off the end of its trained range. Pure NoPE is weaker on short-range ordering, so it is mixed: SmolLM3 makes every fourth layer NoPE, and several 2026 models interleave RoPE and NoPE layers.
 - **iRoPE (Llama 4).** Interleaves local RoPE layers with global layers that carry no positional encoding, plus inference-time attention temperature scaling, aimed squarely at length generalisation rather than at cache size.
 
-## How to read a new model card in 30 seconds
+### How to read a new model card in 30 seconds
 
 1. **Total versus active parameters.** The ratio is the sparsity; the total is the memory floor you must provision, the active count is what sets latency and price per token. These predict different things and are routinely conflated.
 2. **Attention type and layer mix.** Quadratic, hybrid, or trained-sparse, and in what proportion. This tells you how cost scales with context, which matters more than the headline context number.
@@ -60,8 +59,8 @@ RoPE is near-universal: it rotates query and key vectors by an angle proportiona
 4. **Experts: routed, active, shared.** Determines routing style, how much expert parallelism you need to make per-expert batches large enough to be efficient, and how skewed traffic will hurt you.
 5. **Licence, and whether base weights shipped, not just instruct.** Base weights decide whether you can do your own post-training at all.
 
-## Cross-links
+### Cross-links
 
-- [../summary.md](../summary.md): the provider taxonomy these architectures belong to.
-- [../moe-models.md](../moe-models.md), [../reasoning-models.md](../reasoning-models.md): [Mixture-of-Experts (MoE) models](../moe-models.md) (17 min read · +3h 25m resources) and [Reasoning models and test-time compute](../reasoning-models.md) (16 min read · +4h 15m resources).
-- Papers: DeepSeek-V3 (the MLA plus fine-grained MoE template), Mixtral, Switch Transformer, Llama 3 (the dense counterpoint), Qwen3, Mamba.
+- [Topic: llms](../summary.md): the provider taxonomy these architectures belong to.
+- [Mixture-of-Experts (MoE) models](../moe-models.md) (17 min read · +3h 25m resources) and [Reasoning models and test-time compute](../reasoning-models.md) (16 min read · +4h 15m resources).
+- Papers: [DeepSeek-V3 Technical Report](../../../papers/2024-12_deepseek-v3/summary.md) (the MLA plus fine-grained MoE template), [Mixtral of Experts](../../../papers/2024-01_mixtral/summary.md), [Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity](../../../papers/2021-01_switch-transformer/summary.md), [The Llama 3 Herd of Models](../../../papers/2024-07_llama-3/summary.md) (the dense counterpoint), [Qwen3 Technical Report](../../../papers/2025-05_qwen3/summary.md), [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](../../../papers/2023-12_mamba/summary.md).

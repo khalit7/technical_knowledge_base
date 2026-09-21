@@ -6,17 +6,17 @@
 - **Date**: May 2020 (arXiv v1; NeurIPS 2020)
 - **Links**: [arXiv:2005.11401](https://arxiv.org/abs/2005.11401) (~45 min) | [code (HF Transformers examples/rag)](https://github.com/huggingface/transformers/tree/main/examples/research_projects/rag) (repo, ~20 min for the README and entry path) | [demo](https://huggingface.co/rag/) (~5 min)
 
-## Best resources
+### Best resources
 
 - [Meta AI blog: Retrieval Augmented Generation](https://ai.meta.com/blog/retrieval-augmented-generation-streamlining-the-creation-of-intelligent-natural-language-processing-models/) (~10 min): the authors' own framing; short and good on the "hot-swap the index instead of retraining" motivation
 - [Hugging Face Transformers RAG docs](https://huggingface.co/docs/transformers/model_doc/rag) (docs, ~20 min for the core pages): the original model as runnable code (`RagSequenceForGeneration`, `RagTokenForGeneration`, `RagRetriever` over the wiki_dpr index); the clearest way to see how the pieces compose
 - [RAG for LLMs: A Survey (Gao et al., 2023)](https://arxiv.org/abs/2312.10997) (~1h 30m, survey): the canonical bridge from this paper to the modern stack; its Naive / Advanced / Modular RAG taxonomy is the standard map of what the field became
 
-## Problem
+### Problem
 
 By 2020, large pretrained LMs (GPT-2, T5) demonstrably store factual knowledge in their parameters and can answer questions "closed-book". But parametric knowledge has three structural flaws: it cannot be inspected (no provenance for why the model said something), it cannot be updated without retraining (the world changes, the weights do not), and it runs out on knowledge-intensive tasks, where task-specific retrieve-and-extract pipelines still beat general seq2seq models. Hybrid parametric plus non-parametric approaches existed (REALM, ORQA) but only for extractive QA: they point at spans, they do not generate. The gap: a general-purpose fine-tuning recipe that gives any seq2seq generator a differentiable, non-parametric memory, applicable to the full range of generation and classification tasks.
 
-## Method
+### Method
 
 RAG treats the retrieved document as a latent variable in a probabilistic seq2seq model and trains retriever and generator jointly, end to end, with no supervision on what to retrieve.
 
@@ -26,14 +26,13 @@ RAG treats the retrieved document as a latent variable in a probabilistic seq2se
 
 - **RAG-Sequence**: one document is responsible for the whole output. p(y|x) is approximated by sum over z in top-k of p_eta(z|x) * prod_i p_theta(y_i | x, z, y_1:i-1). Same document conditions every token.
 - **RAG-Token**: each token can draw on a different document. p(y|x) is approximated by prod_i of sum over z in top-k of p_eta(z|x) * p_theta(y_i | x, z, y_1:i-1). The generator can stitch an answer from several passages; Figure 2 in the paper shows the document posterior hopping between passages as a Jeopardy question mentions different books.
-
 For sequence classification (target of length one, e.g. FEVER labels) the two are equivalent.
 
 **Training.** Minimise negative marginal log-likelihood of (x, y) pairs with Adam. Crucially, only the query encoder BERT_q and the BART generator are fine-tuned; the document encoder and the index stay frozen, because re-embedding and re-indexing 21M passages during training (as REALM does) is expensive and turned out unnecessary. Retrieval is learned purely from the generation loss: gradients flow into the query encoder through the p_eta(z|x) weighting.
 
 **Decoding.** RAG-Token factorises per token, so its transition probability (sum over documents of p_eta * p_theta) plugs into a standard beam decoder. RAG-Sequence does not decompose per token; the paper runs one beam search per document and rescores the union of hypotheses ("Thorough Decoding"), or skips the extra forward passes by treating unseen hypotheses as probability approximately zero ("Fast Decoding").
 
-## Results
+### Results
 
 - **Open-domain QA**: new state of the art on all four benchmarks. Exact match: NQ 44.5 (vs 41.5 DPR, 36.6 T5-11B+SSM closed-book), TriviaQA 56.8 (68.0 on the T5-comparable Wiki split), WebQuestions 45.5, CuratedTrec 52.2. A generator beats extractive readers, without REALM-style "salient span masking" pretraining, and with no reranker or cross-encoder. RAG also answers correctly when the answer string is in no retrieved document (11.8% of such NQ cases), where extraction scores exactly 0.
 - **Abstractive QA (MS-MARCO NLG)**: +2.6 BLEU and +2.6 Rouge-L over BART, approaching systems that get the gold passages RAG never sees.
@@ -42,7 +41,7 @@ For sequence classification (target of length one, e.g. FEVER labels) the two ar
 - **Ablations**: learned retrieval beats a frozen retriever and beats BM25 on everything except entity-heavy FEVER.
 - **Index hot-swapping**: swap the 2018 index for a 2016 one and the same model answers 2016 "Who is the President of X?" questions at 70% (vs 12% with the mismatched index). World knowledge updated by replacing the index, zero retraining.
 
-## Why it matters
+### Why it matters
 
 This is the paper that coined "RAG", and it is worth being precise about what it proposed versus what the term now means, because they differ substantially.
 
@@ -54,9 +53,9 @@ This is the paper that coined "RAG", and it is worth being precise about what it
 
 For open-domain QA specifically it also settled an argument of its moment: a general retrieve-and-generate recipe beat both closed-book giants (T5-11B) and specialised extractive pipelines simultaneously, across four benchmarks, with one architecture.
 
-## Connections
+### Connections
 
-- [`papers/2018-10_bert`](../2018-10_bert/): the DPR retriever is a pair of BERT-base encoders; retrieval embeddings remain BERT's main living habitat
-- [`papers/2020-05_gpt-3`](../2020-05_gpt-3/): the same-month parametric-only counterpoint; ironically, GPT-3-style in-context learning is what let modern RAG drop this paper's end-to-end training
-- [`papers/2022-10_react`](../2022-10_react/): retrieval moved from a fixed pipeline step to a tool an agent decides to call; the road to agentic RAG
+- `papers/2018-10_bert`: the DPR retriever is a pair of BERT-base encoders; retrieval embeddings remain BERT's main living habitat
+- `papers/2020-05_gpt-3`: the same-month parametric-only counterpoint; ironically, GPT-3-style in-context learning is what let modern RAG drop this paper's end-to-end training
+- `papers/2022-10_react`: retrieval moved from a fixed pipeline step to a tool an agent decides to call; the road to agentic RAG
 - Topics: `topics/rag-and-retrieval` (this is the founding paper of the topic)

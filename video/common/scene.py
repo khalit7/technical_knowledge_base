@@ -77,7 +77,25 @@ class TechScene(MovingCameraScene):
     # -- narration ---------------------------------------------------------
 
     def say(self, key: str):
-        """Start the narration line for this beat and remember its length."""
+        """Start the narration line for this beat and remember its length.
+
+        A beat whose animation is shorter than its line would otherwise let the
+        next beat's audio start over the top of it, and two voices talking at
+        once is not a thing anyone notices while writing the scene: the visuals
+        look right, every clip verifies, and the video is unlistenable. So the
+        previous line is waited out here rather than trusting each beat to call
+        `hold()`. An explicit `hold()` is still good practice, because it is
+        what paces the reveals, but forgetting one can no longer break the audio.
+        """
+        if self._beat_len:
+            left = self.remaining() + TAIL
+            if left > 0:
+                # How long the frame sat still while this line finished. A few
+                # seconds is a breath; twenty is a beat that ran out of things
+                # to show and left a title card on screen.
+                self._log[-1]["still"] = round(left, 2)
+                self.wait(left)
+
         clip = self.narration.clip(key)
         if clip:
             self.add_sound(str(clip))

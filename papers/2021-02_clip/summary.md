@@ -6,18 +6,18 @@
 - **Date**: February 2021 (ICML 2021)
 - **Links**: [arXiv](https://arxiv.org/abs/2103.00020) (~2h, long paper) | [code and weights](https://github.com/OpenAI/CLIP) (repo, ~15 min for the README and entry path) | [OpenAI blog](https://openai.com/index/clip/) (~15 min)
 
-## Best resources
+### Best resources
 
 - [OpenAI blog: CLIP, connecting text and images](https://openai.com/index/clip/) (~15 min, the same post as the Links line): the authors' condensed account, with the zero-shot classifier construction shown visually
 - [Lilian Weng: Contrastive Representation Learning](https://lilianweng.github.io/posts/2021-05-31-contrastive/) (~40 min): places CLIP's loss in the InfoNCE family and derives the surrounding contrastive-learning theory
 - [Chip Huyen: Multimodality and Large Multimodal Models](https://huyenchip.com/2023/10/10/multimodal.html) (~40 min): CLIP as the foundation of the modern VLM stack, with a clear walkthrough of the training objective and what came after
 - [mlfoundations/open_clip](https://github.com/mlfoundations/open_clip) (repo, ~20 min for the README and entry path): the open reproduction; the fastest way to read a working implementation and see how the recipe scales on LAION-scale data
 
-## Problem
+### Problem
 
 Computer vision in 2021 was trained to predict a fixed set of predetermined categories (1000 ImageNet classes, 18k for weakly supervised work), which caps generality: any new visual concept needs new labeled data and a new head. NLP had already escaped this via task-agnostic pretraining on raw web text with zero-shot transfer (GPT-2/3), but vision still relied on crowd-labeled datasets. Earlier attempts to learn images from text (VirTex, ICMLM, ConVIRT, Visual N-Grams) were proofs of concept at small scale; Visual N-Grams managed only 11.5% zero-shot ImageNet accuracy. The question: does natural language supervision at web scale produce transferable visual representations, and can it deliver flexible zero-shot classifiers instead of static softmax heads?
 
-## Method
+### Method
 
 **Data**: a new 400M (image, text) pair dataset, WIT (WebImageText), scraped from the public internet. Coverage is enforced by building pairs around 500k queries (words with at least 100 Wikipedia occurrences, plus high-PMI bigrams and WordNet synsets), capped at 20k pairs per query. Total word count is comparable to the WebText corpus used for GPT-2.
 
@@ -27,7 +27,7 @@ Computer vision in 2021 was trained to predict a fixed set of predetermined cate
 
 **Zero-shot classification**: embed each class name inside a prompt template ("A photo of a {label}.") with the text encoder; the class whose text embedding has highest temperature-scaled cosine similarity to the image embedding wins. The text encoder acts as a hypernetwork generating the weights of an L2-normalized linear classifier, computed once per dataset and cached. Prompt engineering matters because a bare label is out of distribution for web captions and often polysemous ("crane", "boxer"): the default template gives +1.3% on ImageNet, task-tailored templates ("a photo of a {label}, a type of pet", "a satellite photo of a {label}") help further, and ensembling 80 prompts in embedding space adds another 3.5% on ImageNet, roughly +5% total.
 
-## Results
+### Results
 
 - **Zero-shot ImageNet**: 76.2% top-1 (95% top-5), matching the original supervised ResNet-50 while using none of its 1.28M labeled examples, versus 11.5% for Visual N-Grams four years earlier.
 - **Zero-shot across 27 datasets**: beats a fully supervised logistic regression on ResNet-50 features on 16 of 27 datasets, with big wins on action recognition (Kinetics700 +14.5%, UCF101 +7.7%) and fine-grained sets like StanfordCars and Food101; it loses badly on specialized or abstract tasks (EuroSAT satellite imagery, GTSRB traffic signs, CLEVR counting, lymph-node tumor detection).
@@ -37,7 +37,7 @@ Computer vision in 2021 was trained to predict a fixed set of predetermined cate
 - **Contamination check**: a duplicate-detection audit finds median 2.2% overlap between WIT and the evaluation sets, moving overall accuracy by more than 0.1% on only 7 of 35 datasets.
 - **Limitations**: zero-shot CLIP is on average only competitive with a ResNet-50 linear probe, far from the supervised state of the art; the authors estimate roughly 1000x more compute would be needed to reach it with this recipe, so better methods, not just scale, are required. It also remains weak at systematic tasks like counting and at truly out-of-pretraining-distribution data (weak zero-shot MNIST), and inherits social biases from web data.
 
-## Why it matters
+### Why it matters
 
 CLIP created the vision-language embedding paradigm: a shared space where images and text are directly comparable, and where a classifier is just text. That single move made image classification open-vocabulary, promoted prompt engineering into vision, and reframed robustness evaluation around zero-shot transfer. Its fingerprints are on most of the modern multimodal stack:
 
@@ -47,10 +47,10 @@ CLIP created the vision-language embedding paradigm: a shared space where images
 - **Successors**: ALIGN (Google, noisier data at similar scale), OpenCLIP's open reproductions and contrastive scaling laws, EVA-CLIP and MetaCLIP, and the SigLIP line (2023) which replaced softmax InfoNCE with a pairwise sigmoid loss to decouple the objective from batch size, refined further by SigLIP 2 (2025), today's default open vision tower.
 - **Retrieval**: CLIP embeddings made cross-modal search (text-to-image, image-to-image) a commodity capability in vector databases.
 
-## Connections
+### Connections
 
-- [ViT (2020-10)](../2020-10_vit/summary.md): supplies CLIP's best image encoder; CLIP is the main vehicle through which ViT reached multimodal models
-- [GPT-3 (2020-05)](../2020-05_gpt-3/summary.md): the zero-shot task-transfer and prompt-engineering paradigm CLIP imports into vision, and the WebText-style data philosophy behind WIT
-- [Scaling Laws (2020-01)](../2020-01_scaling-laws/summary.md): CLIP's zero-shot error follows the same smooth log-log compute scaling
-- [Latent Diffusion (2021-12)](../2021-12_latent-diffusion/summary.md): the Stable Diffusion line that conditions generation on CLIP text embeddings
-- KB topics: [generative-and-multimodal](../../topics/generative-and-multimodal/summary.md), [ml-fundamentals](../../topics/ml-fundamentals/summary.md) (contrastive learning)
+- ViT (2020-10): supplies CLIP's best image encoder; CLIP is the main vehicle through which ViT reached multimodal models
+- GPT-3 (2020-05): the zero-shot task-transfer and prompt-engineering paradigm CLIP imports into vision, and the WebText-style data philosophy behind WIT
+- Scaling Laws (2020-01): CLIP's zero-shot error follows the same smooth log-log compute scaling
+- Latent Diffusion (2021-12): the Stable Diffusion line that conditions generation on CLIP text embeddings
+- KB topics: generative-and-multimodal, ml-fundamentals (contrastive learning)
