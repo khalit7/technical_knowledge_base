@@ -41,8 +41,8 @@ uv run video/build.py tech_news_2026_09_21_short --skip-tts --quality l   # sile
 uv run video/build.py tech_news_2026_09_21_short                          # with voice
 ```
 
-`video/README.md` is the manual. The craft rules are the Notion skill
-"Produce technical explainer video".
+`video/README.md` is the mechanics. The method is the Notion skill "Produce
+technical explainer video", mirrored here as `.claude/skills/kb-make-video/`.
 
 ## Layout
 
@@ -52,7 +52,7 @@ papers/*/paper.pdf                                        repo-only
 sources/                                                  repo-only snapshots
 tools/notion_mirror.py                                    the mirror
 video/                                                    the video toolchain
-.claude/skills/                                           the two workflows
+.claude/INSTRUCTIONS.md, .claude/skills/                   mirrored from Notion
 pyproject.toml, uv.lock                                   dependencies, via uv
 ```
 

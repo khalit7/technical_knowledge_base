@@ -14,25 +14,34 @@ knowledge actually is.
 of a fact.** Root page: "Technical knowledge base", id
 `3c65c17b-0d0d-81c7-b646-e548e65d9446`, a child of the personal "Me" page.
 
-The conventions that govern content are in Notion, under `Me -> _AI`:
+## One copy of every procedure
 
-- **Instructions**: what is true for every task, read before anything else.
-- **Skills**: one page per procedure. For this material, **Maintain technical
-  knowledge base** (placement, page shape, writing conventions) and **Produce
-  technical explainer video** (the whole video method: spine, animation,
-  script, voice, and where the finished thing lives).
+The operating instructions and every procedure live in Notion, under
+`Me -> _AI`, and are **mirrored into this repo by the sync**:
 
-Do not restate those rules here and do not edit content in this repo expecting
-it to reach Notion. If you find local edits Notion lacks, surface them to
+- `.claude/INSTRUCTIONS.md` is the Instructions page.
+- `.claude/skills/<command>/SKILL.md` is one skill page each, with its front
+  matter generated from the row's Command and Description so it loads here.
+
+**Those files are generated. Never edit them.** The next sync overwrites them.
+A change to a procedure is a change to the Notion page, and it reaches this
+repo the same way every other fact does. A skill whose Area is not "Technical
+knowledge base", or which has no Command, is not mirrored, because it governs
+some other part of Notion.
+
+The same rule holds for content: do not edit mirrored files expecting the
+change to reach Notion. If you find local edits Notion lacks, surface them to
 Khalid rather than overwriting either side.
 
 ## The two jobs
 
-- `/kb-sync-from-notion` mirrors Notion into this repo. It is derived from
-  Notion's current state, deletes files whose page is gone, and is driven by
-  `tools/notion_mirror.py`. It needs a Notion integration token.
-- `/kb-make-video` produces an episode from a page. Everything it needs is in
-  `video/`, and `video/README.md` is its manual.
+- `/kb-sync-from-notion` mirrors Notion into this repo, state-derived, deleting
+  files whose page is gone, driven by `tools/notion_mirror.py`. It needs a
+  Notion token.
+- `/kb-make-video` produces an episode from a page, using `video/`, with
+  `video/README.md` as the mechanics.
+
+Both of those skills are themselves mirrored from Notion.
 
 ## Repo-only assets, never deleted by a sync
 

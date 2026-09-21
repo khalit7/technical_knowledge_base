@@ -18,6 +18,6 @@ The mirror is now derived from this workspace's current state rather than from a
 
 ## Video
 
-Produce technical explainer video now carries the whole method rather than just the pipeline: the spine, the transition rules, how narration is written for the ear, how the voice is made to sound human, and the decision that the news edition is one narrator plus a listener rather than two hosts. Khalid reviewed the draft and asked for it to be merged into the existing skill rather than kept separate.
+[Produce technical explainer video](../.claude/skills/kb-make-video/SKILL.md) now carries the whole method rather than just the pipeline: the spine, the transition rules, how narration is written for the ear, how the voice is made to sound human, and the decision that the news edition is one narrator plus a listener rather than two hosts. Khalid reviewed the draft and asked for it to be merged into the existing skill rather than kept separate.
 
 Three conventions were added from his review of the first cut: an edition opens by saying what it is and giving the date; stories are separated plainly and each opens with its headline, why it matters and the context before any mechanism; and the narration points at what is on screen rather than running alongside it.
