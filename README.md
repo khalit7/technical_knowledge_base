@@ -42,7 +42,7 @@ python3 video/build.py tech_news_2026_09_21                          # with voic
 ```
 
 `video/README.md` is the manual. The craft rules are the Notion skill
-"Explainer video style and voice".
+"Produce technical explainer video".
 
 ## Layout
 
