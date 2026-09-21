@@ -33,8 +33,9 @@ from .style import (
 )
 
 
-class TopicOverview(TechScene):
-    """Base scene for a topic overview: the map, then the tour."""
+class PageVideo(TechScene):
+    """What every video derived from a page shares: it says which page and when,
+    keeps that on screen, and ends on a claim and a question."""
 
     TOPIC = ""            # "Topic: llms"
     SUBTITLE = ""         # "who builds what, and what each of them is betting on"
@@ -62,6 +63,41 @@ class TopicOverview(TechScene):
         self.play(Create(rule), run_time=0.5)
         self.strip = VGroup(strip, rule)
         return self.strip
+
+    # -- the take ----------------------------------------------------------
+
+    def take(self, key, lines, ask):
+        self.say(key)
+        line = P(lines, size=H2, color=FG, align=ORIGIN)
+        line.to_edge(UP, buff=1.7).set_x(0)
+        fit(line, max_w=11.0)
+        self.play(Write(line), run_time=1.3)
+
+        question = T(ask, size=SMALL, color=ACCENT)
+        question.to_edge(DOWN, buff=0.8)
+        fit(question, max_w=12.0)
+        self.play(FadeIn(question, shift=UP * 0.2), run_time=0.8)
+        self.hold()
+
+        end = T(f"{self.TOPIC} · {self.UPDATED} · the page has all of it",
+                size=SMALL, color=DIM)
+        end.to_edge(DOWN, buff=0.8)
+        fit(end, max_w=12.0)
+        self.morph(question, end, run_time=0.8)
+        self.wait(1.0)
+
+    # -- a panel of prose beside whatever is parked -----------------------
+
+    def panel(self, lines, colour=FG, size=BODY, width=6.8, y=0.3):
+        """The block of text that sits next to the map while a lab is discussed."""
+        block = P(lines, size=size, color=colour, align=LEFT)
+        fit(block, max_w=width)
+        block.to_edge(RIGHT, buff=0.7).set_y(y)
+        return block
+
+
+class TopicOverview(PageVideo):
+    """A topic overview: the map, then the tour."""
 
     # -- the map -----------------------------------------------------------
 
@@ -112,34 +148,3 @@ class TopicOverview(TechScene):
         if anims:
             self.play(*anims, run_time=run_time)
         self._lit = lit
-
-    # -- a panel of prose beside the map ----------------------------------
-
-    def panel(self, lines, colour=FG, size=BODY, width=6.8, y=0.3):
-        """The block of text that sits next to the map while a lab is discussed."""
-        block = P(lines, size=size, color=colour, align=LEFT)
-        fit(block, max_w=width)
-        block.to_edge(RIGHT, buff=0.7).set_y(y)
-        return block
-
-    # -- the take ----------------------------------------------------------
-
-    def take(self, key, lines, ask):
-        self.say(key)
-        line = P(lines, size=H2, color=FG, align=ORIGIN)
-        line.to_edge(UP, buff=1.7).set_x(0)
-        fit(line, max_w=11.0)
-        self.play(Write(line), run_time=1.3)
-
-        question = T(ask, size=SMALL, color=ACCENT)
-        question.to_edge(DOWN, buff=0.8)
-        fit(question, max_w=12.0)
-        self.play(FadeIn(question, shift=UP * 0.2), run_time=0.8)
-        self.hold()
-
-        end = T(f"{self.TOPIC} · {self.UPDATED} · the page has all of it",
-                size=SMALL, color=DIM)
-        end.to_edge(DOWN, buff=0.8)
-        fit(end, max_w=12.0)
-        self.morph(question, end, run_time=0.8)
-        self.wait(1.0)

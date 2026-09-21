@@ -76,6 +76,8 @@ SCENES = {
     "tech_news_2026_09_14_short": ("scenes/tech_news_2026_09_14_short.py", "Short"),
     "tech_news_2026_09_07_short": ("scenes/tech_news_2026_09_07_short.py", "Short"),
     "topic_llms_overview": ("scenes/topic_llms_overview.py", "Overview"),
+    "topic_cuda_overview": ("scenes/topic_cuda_overview.py", "Overview"),
+    "deep_gpu_memory": ("scenes/deep_gpu_memory.py", "DeepDiveScene"),
 }
 
 
