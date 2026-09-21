@@ -81,6 +81,32 @@ SCENES = {
 }
 
 
+def discover(episode: str) -> tuple[str, str]:
+    """Where an episode's scene lives, and what its class is called.
+
+    The table above is the original hand-kept register. It stopped being a
+    good idea at the point where one run produces forty episodes: a register
+    you have to remember to add to is a register somebody forgets, and the
+    failure arrives as "unknown episode" after the voice has already been
+    rendered. So an episode whose scene file is `scenes/<episode>.py` needs no
+    entry at all. The class is read out of the file rather than guessed,
+    because these files name their scene for what it is (Overview, Short,
+    DeepDiveScene) and no convention covers all of them."""
+    if episode in SCENES:
+        return SCENES[episode]
+    path = ROOT / "scenes" / f"{episode}.py"
+    if not path.exists():
+        raise SystemExit(f"no scene for '{episode}': expected {path}")
+    import ast
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    classes = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
+    if not classes:
+        raise SystemExit(f"{path} defines no scene class")
+    # Manim renders one scene per file here, and when a file holds a helper
+    # base plus the scene, the scene is the last one defined.
+    return f"scenes/{episode}.py", classes[-1]
+
+
 def run(cmd: list, **kw) -> None:
     print("+", " ".join(str(c) for c in cmd), file=sys.stderr)
     subprocess.run([str(c) for c in cmd], check=True, cwd=ROOT, **kw)
@@ -88,7 +114,7 @@ def run(cmd: list, **kw) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("episode", choices=sorted(SCENES))
+    ap.add_argument("episode")
     ap.add_argument("--skip-tts", action="store_true")
     ap.add_argument("--skip-render", action="store_true")
     ap.add_argument("--quality", default="h", choices=list("lmhpk"),
@@ -96,22 +122,39 @@ def main() -> int:
     ap.add_argument("--device", default="auto", help="GPU for the voice render")
     args = ap.parse_args()
 
-    scene_file, scene_class = SCENES[args.episode]
+    scene_file, scene_class = discover(args.episode)
 
     if not args.skip_tts:
         run([UV, "run", "--project", REPO, *GROUPS,
              "python", "tts/render.py", "--script", args.episode,
              "--device", args.device])
 
+    # One media directory per episode, not one shared by all of them.
+    # Manim writes every piece of text through a temporary SVG under
+    # <media_dir>/texts, named by a hash of the text and the font, and unlinks
+    # it once it has been converted. Two episodes rendering at the same time
+    # share plenty of text (a title style, a word), so they collide on that
+    # hash and one deletes the file the other is still using. It surfaces as
+    # FileNotFoundError on a .svg nobody asked about, and only ever under
+    # concurrency, which makes it the kind of bug a single-episode test can
+    # never find.
+    media = Path("out") / "media" / args.episode
     if not args.skip_render:
         run([UV, "run", "--project", REPO, *GROUPS,
              "python", "-m", "manim", f"-q{args.quality}", "--disable_caching",
-             "--media_dir", "out/media", scene_file, scene_class])
+             "--media_dir", str(media), scene_file, scene_class])
 
-    rendered = sorted((ROOT / "out" / "media" / "videos").rglob(f"{scene_class}.mp4"),
+    # Scoped to this scene's own directory, not the whole media tree. Manim
+    # names the directory after the scene FILE and the mp4 after the scene
+    # CLASS, and nearly every topic overview calls its class Overview. A
+    # tree-wide search picked whichever Overview.mp4 was newest, which is
+    # correct exactly until two episodes render at once, and then it silently
+    # delivers another episode's animation with this episode's audio.
+    scene_dir = ROOT / media / "videos" / Path(scene_file).stem
+    rendered = sorted(scene_dir.rglob(f"{scene_class}.mp4"),
                       key=lambda p: p.stat().st_mtime)
     if not rendered:
-        raise SystemExit("no rendered file found under out/media/videos")
+        raise SystemExit(f"no rendered file found under {scene_dir}")
     source = rendered[-1]
 
     delivery = ROOT / "out" / f"{args.episode}.mp4"

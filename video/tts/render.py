@@ -123,37 +123,31 @@ def write_wav(path: Path, audio: np.ndarray, sr: int) -> float:
     return len(pcm) / float(sr)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--script", required=True, help="module name under video/scripts/")
-    ap.add_argument("--only", nargs="*", help="render just these beats")
-    ap.add_argument("--force", action="store_true", help="re-render beats that exist")
-    ap.add_argument("--guidance", type=float, default=DEFAULT_GUIDANCE,
-                    help="classifier-free guidance, 1.2 to 1.5")
-    ap.add_argument("--steps", type=int, default=20, help="diffusion steps")
-    ap.add_argument("--device", default="auto", help="auto, cuda:0, cuda:1 or cpu")
-    ap.add_argument("--out", default=None, help="output directory")
-    ap.add_argument("--no-verify", action="store_true",
-                    help="skip the ASR check and keep the first take")
-    ap.add_argument("--attempts", type=int, default=4,
-                    help="how many seeds to try before keeping the best take")
-    args = ap.parse_args()
+def load_model(device: str):
+    """Load VibeVoice once, for as many scripts as the caller has.
 
-    script = load_script(args.script)
-    # Relative output paths resolve against the video directory, not against
-    # wherever the command happened to be run from.
-    out = ROOT / args.out if args.out and not Path(args.out).is_absolute() \
-        else Path(args.out) if args.out else ROOT / "out" / "audio" / args.script
-    out.mkdir(parents=True, exist_ok=True)
-
-    keys = args.only or list(script)
-    todo = [k for k in keys if args.force or not (out / f"{k}.wav").exists()]
-    if not todo:
-        print("nothing to render")
-        return 0
-
+    Loading the seven-billion-parameter model takes the better part of a
+    minute, and a run that produces forty episodes used to pay that forty
+    times over, once per process. It is now paid once per worker."""
     import torch
     from transformers import AutoModelForTextToWaveform, AutoProcessor
+
+    print(f"loading {MODEL_ID} on {device}...", file=sys.stderr)
+    processor = AutoProcessor.from_pretrained(MODEL_ID)
+    # CPU wants float32: the checkpoint's own dtype is half precision, which on
+    # CPU is emulated and slower than the thing it is meant to speed up.
+    dtype = torch.float32 if device.startswith("cpu") else "auto"
+    model = AutoModelForTextToWaveform.from_pretrained(
+        MODEL_ID, dtype=dtype,
+        device_map=device if device != "auto" else "auto",
+    )
+    model.eval()
+    return processor, model, processor.feature_extractor.sampling_rate
+
+
+def render_script(name: str, args, processor, model, sr) -> int:
+    """Every beat of one script, to one WAV each plus durations.json."""
+    import torch
 
     from tts import verify
 
@@ -161,17 +155,18 @@ def main() -> int:
     # GPU when there is one, so a check never waits on a render.
     asr_device = "cpu" if args.device.startswith("cpu") else "cuda"
 
-    print(f"loading {MODEL_ID} on {args.device}...", file=sys.stderr)
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    # CPU wants float32: the checkpoint's own dtype is half precision, which on
-    # CPU is emulated and slower than the thing it is meant to speed up.
-    dtype = torch.float32 if args.device.startswith("cpu") else "auto"
-    model = AutoModelForTextToWaveform.from_pretrained(
-        MODEL_ID, dtype=dtype,
-        device_map=args.device if args.device != "auto" else "auto",
-    )
-    model.eval()
-    sr = processor.feature_extractor.sampling_rate
+    script = load_script(name)
+    # Relative output paths resolve against the video directory, not against
+    # wherever the command happened to be run from.
+    out = (ROOT / args.out if args.out and not Path(args.out).is_absolute()
+           else Path(args.out) if args.out else ROOT / "out" / "audio" / name)
+    out.mkdir(parents=True, exist_ok=True)
+
+    keys = args.only or list(script)
+    todo = [k for k in keys if args.force or not (out / f"{k}.wav").exists()]
+    if not todo:
+        print(f"{name}: nothing to render", file=sys.stderr)
+        return 0
 
     durations_path = out / "durations.json"
     durations = json.loads(durations_path.read_text()) if durations_path.exists() else {}
@@ -241,10 +236,64 @@ def main() -> int:
         verdict = "ok " if score <= verify.CER_LIMIT else "KEPT BEST OF ALL BAD"
         print(f"{verdict} {key:18s} {seconds:6.2f}s  {words:4d} words  "
               f"({words / max(seconds, 0.01) * 60:5.0f} wpm)  {note}  "
-              f"rendered in {took:.1f}s")
+              f"rendered in {took:.1f}s", file=sys.stderr)
 
     total = sum(durations.get(k, 0.0) for k in script)
-    print(f"\n{len(durations)} of {len(script)} beats, {total / 60:.1f} minutes of speech")
+    print(f"{name}: {len(durations)} of {len(script)} beats, "
+          f"{total / 60:.1f} minutes of speech", file=sys.stderr)
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--script", nargs="+", default=[],
+                    help="one or more module names under video/scripts/")
+    ap.add_argument("--serve", action="store_true",
+                    help="after those, keep the model loaded and take more "
+                         "script names on stdin, one per line, answering DONE "
+                         "or FAIL on stdout. This is how produce.py keeps a "
+                         "GPU busy without reloading the model.")
+    ap.add_argument("--only", nargs="*", help="render just these beats")
+    ap.add_argument("--force", action="store_true", help="re-render beats that exist")
+    ap.add_argument("--guidance", type=float, default=DEFAULT_GUIDANCE,
+                    help="classifier-free guidance, 1.2 to 1.5")
+    ap.add_argument("--steps", type=int, default=20, help="diffusion steps")
+    ap.add_argument("--device", default="auto", help="auto, cuda:0, cuda:1 or cpu")
+    ap.add_argument("--out", default=None, help="output directory")
+    ap.add_argument("--no-verify", action="store_true",
+                    help="skip the ASR check and keep the first take")
+    ap.add_argument("--attempts", type=int, default=4,
+                    help="how many seeds to try before keeping the best take")
+    args = ap.parse_args()
+
+    if not args.script and not args.serve:
+        ap.error("give --script NAME [NAME ...], or --serve")
+    if args.serve and args.out:
+        ap.error("--out names one directory, so it cannot serve many scripts")
+
+    loaded: list = []
+
+    def ready():
+        if not loaded:
+            loaded.extend(load_model(args.device))
+        return loaded
+
+    for name in args.script:
+        processor, model, sr = ready()
+        render_script(name, args, processor, model, sr)
+
+    if args.serve:
+        processor, model, sr = ready()
+        print("READY", flush=True)
+        for line in sys.stdin:
+            name = line.strip()
+            if not name or name == "quit":
+                break
+            try:
+                render_script(name, args, processor, model, sr)
+                print(f"DONE {name}", flush=True)
+            except Exception as exc:
+                import traceback
+                traceback.print_exc()
+                print(f"FAIL {name} {type(exc).__name__}: {exc}", flush=True)
     return 0
 
 
