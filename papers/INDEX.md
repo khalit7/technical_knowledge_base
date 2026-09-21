@@ -4,7 +4,7 @@
 
 One row per paper, newest first. Each row opens to its full summary; source PDFs may live only in the GitHub mirror. Reading state belongs in [Tracker](../TRACKER.md).
 
-> 🤖 AI guidance: Maintain technical knowledge base.
+> 🤖 AI guidance: [Maintain technical knowledge base](../.claude/skills/kb-maintain/SKILL.md).
 
 | Page | Takeaway | Year | Topics |
 | --- | --- | --- | --- |

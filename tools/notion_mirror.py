@@ -38,6 +38,13 @@ import requests
 
 REPO = Path(__file__).resolve().parent.parent
 ROOT_PAGE_ID = "3c65c17b-0d0d-81c7-b646-e548e65d9446"
+
+# The operating instructions and the procedures live in Notion under Me -> _AI,
+# and a procedure is written once. Mirroring them here, in the form a coding
+# agent loads, is what stops a second hand-written copy existing to drift.
+AI_PAGE_ID = "3e05c17b-0d0d-81ac-8ba3-cafe3176fc2e"
+AI_INSTRUCTIONS_ID = "3e05c17b-0d0d-8197-9659-c106b821519a"
+SKILL_AREA = "Technical knowledge base"      # skills for this repo, not for the rest
 API = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
 MANIFEST = REPO / "tools" / ".notion-mirror.json"
@@ -45,6 +52,8 @@ MANIFEST = REPO / "tools" / ".notion-mirror.json"
 # Files this script owns. Anything matching these globs and not written by a run
 # is an orphan and gets deleted.
 MANAGED_GLOBS = (
+    ".claude/INSTRUCTIONS.md",
+    ".claude/skills/*/SKILL.md",
     "topics/**/*.md",
     # Taxonomy diagrams used to ship as a rendered SVG with the mermaid source
     # folded underneath, because the old mirror could not render mermaid.
@@ -249,6 +258,43 @@ class Walker:
     def walk(self) -> None:
         root = self.api.page(ROOT_PAGE_ID)
         self._visit(ROOT_PAGE_ID, title_of(root), None, root.get("last_edited_time", ""))
+        self.walk_ai()
+
+    def walk_ai(self) -> None:
+        """The operating instructions, and the skills that govern this repo.
+
+        Walked separately from the knowledge base because only part of _AI
+        belongs here: the instructions page, and the skills whose Area says
+        they are about this material. The rest govern other parts of Notion and
+        would only clutter an agent's skill list."""
+        page = self.api.page(AI_INSTRUCTIONS_ID)
+        node = Node(page_id=AI_INSTRUCTIONS_ID, title=title_of(page), parent_id=None,
+                    last_edited=page.get("last_edited_time", ""), kind="instructions")
+        node.blocks = self.api.children(AI_INSTRUCTIONS_ID)
+        self.nodes[AI_INSTRUCTIONS_ID] = node
+        self.order.append(AI_INSTRUCTIONS_ID)
+        print(f"  read {node.title} (operating instructions)", file=sys.stderr)
+
+        for block in self.api.children(AI_PAGE_ID):
+            if block["type"] != "child_page":
+                continue
+            for inner in self.api.children(block["id"]):
+                if inner["type"] != "child_database":
+                    continue
+                for row in self.api.db_rows(inner["id"]):
+                    props = row.get("properties", {})
+                    area = (props.get("Area", {}).get("select") or {}).get("name")
+                    command = plain(props.get("Command", {}).get("rich_text", []))
+                    if area != SKILL_AREA or not command.strip():
+                        continue
+                    skill = Node(page_id=row["id"], title=title_of(row), parent_id=None,
+                                 props=props, last_edited=row.get("last_edited_time", ""),
+                                 kind="skill")
+                    skill.blocks = self.api.children(row["id"])
+                    self.nodes[row["id"]] = skill
+                    self.order.append(row["id"])
+                    print(f"  read {skill.title} (skill: {command.strip()})",
+                          file=sys.stderr)
 
     def _visit(self, page_id: str, title: str, parent_id: str | None, last_edited: str,
                props: dict | None = None, kind: str = "page", section: str | None = None,
@@ -314,6 +360,12 @@ class Walker:
         return list(reversed(chain))          # root first
 
     def _path_for(self, node: Node, existing_papers: dict[str, Path]) -> Path | None:
+        if node.kind == "instructions":
+            return Path(".claude") / "INSTRUCTIONS.md"
+        if node.kind == "skill":
+            command = plain(node.props.get("Command", {}).get("rich_text", [])).strip()
+            return Path(".claude") / "skills" / command / "SKILL.md"
+
         chain = self._ancestry(node)          # [root, ..., node]
         if len(chain) < 2:
             return None
@@ -646,11 +698,40 @@ class Renderer:
     # -- whole page -------------------------------------------------------
 
     def page(self, node: Node) -> str:
+        if node.kind == "skill":
+            return self.skill(node)
         lines = [f"# {node.title}", ""]
         lines += self.blocks(node.blocks, node.path)
         text = "\n".join(lines)
         text = re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
         return text
+
+
+    def skill(self, node: Node) -> str:
+        """A skill page, in the form a coding agent can load.
+
+        The front matter is generated from the row rather than written by
+        hand: `name` from its Command, `description` from the one-line
+        Description that already says when to use it. That is the whole reason
+        there is no second copy of any procedure in this repository."""
+        command = plain(node.props.get("Command", {}).get("rich_text", [])).strip()
+        description = plain(node.props.get("Description", {}).get("rich_text", []))
+        description = " ".join(description.split()).replace('"', "'")
+        lines = [
+            "---",
+            f"name: {command}",
+            f"description: {description}",
+            "---",
+            "",
+            f"# {node.title}",
+            "",
+            "*Mirrored from Notion, where it is the source of truth. Edit it there:*",
+            f"*Me -> _AI -> Skills -> {node.title}. Changes here are overwritten by the next sync.*",
+            "",
+        ]
+        lines += self.blocks(node.blocks, node.path)
+        text = "\n".join(lines)
+        return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
 
 
 def attach_children(api: Notion, blocks: list[dict]) -> None:

@@ -4,7 +4,7 @@ A small addition, recorded separately from the research pass and the cleanup pas
 
 **[new] A Manim explainer video is attached to **[2026-09-21: tech news](../news/2026-09-21.md)**.** Four minutes forty three seconds, 1080p30, narrated. It covers the four top stories of the issue plus a round-up of the week's releases: the Anthropic task-horizon series animated as a log-scaled chart, the two Lean-verified proofs compared by token spend, the [Z.ai](http://z.ai/) finding that the bottleneck was the feedback environment rather than the model, and the Emergence World result that detection did not ensure containment.
 
-**[update] That page gained a Video section**, placed above Top stories. Per Produce technical explainer video the video is a derived representation and the written issue stays canonical, so the section says so explicitly and no empty Video sections were created anywhere else in the tree. Every figure in the animation is taken from the issue text; nothing was introduced that the page does not already state.
+**[update] That page gained a Video section**, placed above Top stories. Per [Produce technical explainer video](../.claude/skills/kb-make-video/SKILL.md) the video is a derived representation and the written issue stays canonical, so the section says so explicitly and no empty Video sections were created anywhere else in the tree. Every figure in the animation is taken from the issue text; nothing was introduced that the page does not already state.
 
 ### Production notes, for whoever runs this next
 
