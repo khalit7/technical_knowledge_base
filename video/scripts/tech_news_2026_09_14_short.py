@@ -21,6 +21,8 @@ Every figure comes from the canonical page "2026-09-14: tech news".
 A = "A"
 B = "B"
 
+FORMAT = "news"
+
 SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
 SCRIPT["ident"] = [

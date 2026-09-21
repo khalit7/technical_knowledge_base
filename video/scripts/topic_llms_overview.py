@@ -14,6 +14,8 @@ Written short-sentenced on purpose: pace comes from the writing.
 A = "A"
 B = "B"
 
+FORMAT = "overview"
+
 SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
 SCRIPT["ident"] = [

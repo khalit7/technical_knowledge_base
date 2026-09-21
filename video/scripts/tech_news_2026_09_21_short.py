@@ -27,6 +27,13 @@ drift and their audio is rendered once and shared.
 
 from scripts.tech_news_2026_09_21 import A, B, SCRIPT as FULL
 
+FORMAT = "news"
+
+# The contract lives inside the opening here ("two stories, and by the end they
+# turn out to be the same story") rather than in a beat of its own. At three
+# and a half minutes it needs one; it does not need a separate one.
+ROLES = {"contract": "ident"}
+
 SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
 # --- what this is ---------------------------------------------------------
