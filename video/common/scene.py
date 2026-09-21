@@ -150,7 +150,7 @@ class TechScene(MovingCameraScene):
                     or bottom < -half_h - 0.02 or top > half_h + 0.02:
                 self.layout_issues.append(
                     {"beat": key, "kind": "off frame",
-                     "text": part.text[:60] if hasattr(part, "text") else "?"})
+                     "text": self._describe(part)[:60]})
 
         for i, a in enumerate(texts):
             for b in texts[i + 1:]:
@@ -158,9 +158,19 @@ class TechScene(MovingCameraScene):
                 if overlap > 0.25:
                     self.layout_issues.append(
                         {"beat": key, "kind": "overlapping text",
-                         "text": (getattr(a, "text", "?")[:40] + " | "
-                                  + getattr(b, "text", "?")[:40]),
+                         "text": (self._describe(a)[:40] + " | "
+                                  + self._describe(b)[:40]),
                          "fraction": round(overlap, 2)})
+
+    @staticmethod
+    def _describe(mob) -> str:
+        """Whatever text this is, for a report a human has to read."""
+        text = getattr(mob, "text", None)
+        if text:
+            return text
+        parts = [getattr(sub, "text", "") for sub in mob.submobjects]
+        joined = " ".join(p for p in parts if p)
+        return joined or type(mob).__name__
 
     @staticmethod
     def _box_overlap(a, b) -> float:
