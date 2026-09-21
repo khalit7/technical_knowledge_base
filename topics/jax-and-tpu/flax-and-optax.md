@@ -2,28 +2,35 @@
 
 ⏱ 7 min read · +3h 45m resources
 
-## Best resources
+### Best resources
 
 - [Flax NNX basics](https://flax.readthedocs.io/en/latest/nnx_basics.html) (~30 min) and the
   [NNX vs JAX transforms guide](https://flax.readthedocs.io/en/latest/guides/jax_and_nnx_transforms.html) (~20 min):
+
   the current recommended API, from the source.
+
 - [Linen to NNX migration guide](https://flax.readthedocs.io/en/latest/migrating/linen_to_nnx.html) (~30 min):
   read it even as a newcomer; most existing JAX code (big_vision, older MaxText) is
+
   Linen, and this doc is the Rosetta stone.
+
 - [optax docs](https://optax.readthedocs.io/) (docs, ~40 min for the core pages): gradient transformations, `chain`,
   schedules, `MultiSteps` (grad accumulation).
+
 - [orbax checkpointing docs](https://orbax.readthedocs.io/) (docs, ~30 min for the core pages): async + sharded
   checkpointing, the standard everywhere (MaxText, Tunix).
+
 - [JAX AI stack tutorials](https://docs.jaxstack.ai/) (~1h 15m): Google's blessed end-to-end
   examples wiring JAX + Flax NNX + optax + orbax + grain together.
 
-*Verified current 2026-08-24: NNX is the recommended API for new code; Linen is
-maintained, not deprecated, and interops via `flax.nnx.bridge`.*
+Verified current 2026-08-24: NNX is the recommended API for new code; Linen is
 
-## The library landscape
+maintained, not deprecated, and interops via `flax.nnx.bridge`.
 
-| | Status | Model | Feel |
-|---|---|---|---|
+### The library landscape
+
+|  | Status | Model | Feel |
+| --- | --- | --- | --- |
 | **Flax NNX** | Recommended for new code | Modules own their state as attributes, eager init | Closest to `torch.nn.Module` |
 | **Flax Linen** | Maintained, huge installed base | Stateless modules, params returned by `.init()`, lazy shape inference | Functional, `apply(params, x)` everywhere |
 | **Equinox** | Active, research favourite | Model is itself a pytree; filtered jit/grad | Minimal, elegant |
@@ -31,7 +38,7 @@ maintained, not deprecated, and interops via `flax.nnx.bridge`.*
 
 For the PyTorch-LM port: use NNX. Learn to *read* Linen.
 
-## NNX in one screen
+### NNX in one screen
 
 ```python
 from flax import nnx
@@ -54,22 +61,32 @@ Key ideas:
 
 - Parameters are `nnx.Param` attributes; mutable non-param state (BN stats, KV cache)
   is `nnx.Variable` subclasses (`nnx.BatchStat`, custom). No separate "collections"
+
   dance as in Linen.
+
 - `nnx.Rngs` carries PRNG streams (`params`, `dropout`, ...) so you do not hand-split
   keys inside layers.
+
 - `nnx.split(model)` / `nnx.merge(...)` convert between the stateful Python object and
   (graphdef, state-pytree) form when you need raw JAX; `nnx.jit`, `nnx.grad`,
+
   `nnx.value_and_grad`, `nnx.scan` are lifted transforms that do this for you and allow
+
   in-place-looking mutation of modules inside jit.
+
 - Linen contrast: Linen's `model.init(key, x)` returns a params dict and
   `model.apply({'params': p}, x, mutable=['batch_stats'])` threads state explicitly;
+
   `@nn.compact` defines submodules inline with lazy shapes. NNX removes that ceremony at
+
   the cost of an explicit `d_in` on every layer (`nnx.Linear(din, dout)`), like PyTorch.
 
-## optax: optimisers as pure gradient transformations
+### optax: optimisers as pure gradient transformations
 
 An optax optimiser is a pair of pure functions, `init(params) -> opt_state` and
+
 `update(grads, opt_state, params) -> (updates, opt_state)`. You then apply updates with
+
 `optax.apply_updates(params, updates)`. Everything composes with `optax.chain`:
 
 ```python
@@ -84,17 +101,21 @@ tx = optax.chain(
 
 - Schedules are just functions `step -> lr` passed in place of a float; no
   `scheduler.step()`, no separate object to checkpoint (the step count lives in the
+
   optimiser state).
+
 - Gradient accumulation: `optax.MultiSteps(tx, every_k_schedule=k)`.
 - Per-parameter behaviour (e.g. no weight decay on norms/bias): `optax.multi_transform`
   or `adamw(mask=...)` with a pytree mask; the mask replaces PyTorch param-group lists.
+
 - EMA (`optax.ema`), SAM, Lion, Muon, apply-if-finite, are all stock transformations you
   chain, not new optimiser classes.
 
 In NNX, `optimizer = nnx.Optimizer(model, tx, wrt=nnx.Param)` bundles model reference +
+
 opt state; `optimizer.update(model, grads)` applies the step in place.
 
-## The train loop, line by line vs PyTorch
+### The train loop, line by line vs PyTorch
 
 ```python
 # PyTorch                                  # JAX / Flax NNX
@@ -120,12 +141,16 @@ for step, batch in enumerate(loader):      for step, batch in enumerate(loader):
 ```
 
 Differences that matter: the whole step is one compiled XLA program (fusion across
+
 forward/backward/update, so JAX loops are typically fast without kernel work); there is
+
 no `.train()`/`.eval()` global mode (pass `deterministic=True` or use
+
 `model.eval()` in NNX to toggle dropout); metrics you pull to host every step force a
+
 device sync, so log every N steps.
 
-## orbax checkpointing
+### orbax checkpointing
 
 ```python
 import orbax.checkpoint as ocp
@@ -140,18 +165,27 @@ nnx.update(model, state)
 ```
 
 Use `ocp.CheckpointManager` for rotation/retention and to save model + optimiser + data
+
 iterator (grain iterators are checkpointable) atomically. Orbax saves each shard from
+
 its own host (no gather-to-rank-0 as in naive `torch.save`), restores directly into a
+
 sharding layout, and supports emergency/multi-tier local checkpointing at scale. This is
+
 the `torch.distributed.checkpoint` analogue, but it is the default path, not the
+
 advanced one.
 
-## Data: grain in one paragraph
+### Data: grain in one paragraph
 
 `grain` is the JAX-blessed input pipeline: deterministic global shuffle, worker
+
 processes, and an iterator whose state can be checkpointed alongside the model (exact
+
 resume mid-epoch). API shape: `grain.MapDataset.source(...).shuffle(seed).map(...)
+
 .batch(B)`. A plain Python generator or a PyTorch `DataLoader` also works fine for the
+
 small-LM port; adopt grain when you care about reproducible resume.
 
-Next: sharding this loop across devices in [sharding-and-scale.md](sharding-and-scale.md).
+Next: sharding this loop across devices in [Sharding and scale: GSPMD, Mesh, shard_map](sharding-and-scale.md).

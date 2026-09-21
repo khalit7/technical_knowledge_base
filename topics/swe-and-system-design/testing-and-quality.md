@@ -4,28 +4,28 @@
 
 Last updated: 2026-08-24
 
-## Best resources
+### Best resources
 
 - [How to Test Machine Learning Code and Systems](https://eugeneyan.com/writing/testing-ml/) (~30 min): Eugene Yan; the pre-train / post-train test framing with worked code
 - [Hypothesis documentation](https://hypothesis.readthedocs.io/en/latest/) (docs, ~45 min for the quick start plus the numpy/pandas extras): property-based testing for Python
 - [Made With ML: Testing](https://madewithml.com/courses/mlops/testing/) (~40 min): Goku Mohandas; code + data + model testing with pytest and Great Expectations, CI-ready
 - [The ML Test Score](https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/) (paper, ~45 min): Breck et al., Google; the classic 28-test production-readiness rubric, still the best checklist
 - [pytest documentation](https://docs.pytest.org/) (docs, ~1h for the core pages): fixtures, parametrize, markers; the substrate everything below runs on
-- For LLM regression/eval harnesses, see topics/evaluation-and-llm-judges
+- For LLM regression/eval harnesses, see [Topic: evaluation-and-llm-judges](../evaluation-and-llm-judges/summary.md)
 
-## The three-object model
+### The three-object model
 
 ML systems have three things to test, with different determinism and different tools:
 
 | Object | Property | Tooling |
-|---|---|---|
+| --- | --- | --- |
 | Code | Deterministic | pytest units, property tests, types |
 | Data | Schema-checkable, distribution-checkable | pydantic/pandera/Great Expectations, drift monitors |
 | Model | Statistical | Regression eval suites, behavioural tests, judges |
 
 Most "ML testing" failures come from testing only the first object.
 
-## Unit tests for data transforms
+### Unit tests for data transforms
 
 The transforms between raw data and model input are ordinary code and deserve ordinary tests, plus a few ML-specific habits:
 
@@ -35,7 +35,7 @@ The transforms between raw data and model input are ordinary code and deserve or
 - Tokenization and prompt-assembly code is transform code: assert round-trips (decode(encode(x)) == x where the tokenizer promises it), template rendering with empty/huge/injection-shaped fields, and exact token counts for cost-critical paths.
 - Make transforms **pure functions** over explicit inputs; anything touching S3 or a DB gets an interface you can fake. This is test design driving better design.
 
-## Property-based testing with Hypothesis
+### Property-based testing with Hypothesis
 
 Instead of hand-picking examples, state a property and let Hypothesis search for a counterexample, then shrink it to a minimal failing case:
 
@@ -52,7 +52,7 @@ def test_normalize_bounds(x):
 
 Properties that pay off in ML code: shape/dtype preservation, invariance (normalisation is idempotent: f(f(x)) == f(x)), equivalence of a vectorised implementation against a slow reference loop, serialization round-trips (config -> yaml -> config), monotonicity of scoring functions, and "never crashes" over adversarial strings for parsers of LLM output. Use `st.composite` for domain objects and reuse strategies as your typed-fixture library. `hypothesis.extra.numpy` and `.pandas` generate arrays/frames natively. Pin `derandomize=True` or a database in CI if flaky-test policing is strict.
 
-## Regression suites for model behaviour
+### Regression suites for model behaviour
 
 A model change (checkpoint, prompt, temperature, provider) needs a gate that plays the role unit tests play for code:
 
@@ -60,9 +60,9 @@ A model change (checkpoint, prompt, temperature, provider) needs a gate that pla
 - **Behavioural tests** (the CheckList idea): minimum-functionality cases ("2+2" must be 4), invariance cases (paraphrase, name-swap, irrelevant-context injection must not flip the answer), and directional cases (adding "answer in French" must change the language).
 - **Slice the metrics**: aggregate score can hold while a critical slice (long inputs, one language, one tenant's domain) regresses; store per-slice scores.
 - Treat prompts as code: versioned, reviewed, and every prompt edit runs the suite.
-- Harness mechanics (LLM judges, pass@k, contamination) live in topics/evaluation-and-llm-judges; the point here is wiring them in as a **merge gate**, not a dashboard.
+- Harness mechanics (LLM judges, pass@k, contamination) live in [Topic: evaluation-and-llm-judges](../evaluation-and-llm-judges/summary.md); the point here is wiring them in as a **merge gate**, not a dashboard.
 
-## Contract tests for LLM outputs
+### Contract tests for LLM outputs
 
 Where an LLM feeds downstream code, the boundary needs a schema contract:
 
@@ -71,7 +71,7 @@ Where an LLM feeds downstream code, the boundary needs a schema contract:
 - **Repair loop**: on validation failure, one retry with the error message appended; after that, fall back and log. Track repair rate as a quality metric; a rising repair rate is a model or prompt regression signal.
 - Contract-test the **providers** too: a recorded-response test suite (VCR-style cassettes) against each provider's API shape, so an upstream API change breaks CI rather than production.
 
-## CI for ML
+### CI for ML
 
 - **Static gates** on every PR, fast and non-negotiable: ruff (lint + format), mypy (or pyright) on typed packages, pytest unit tier (< a few minutes). Modern baseline: `uv` for env resolution, pre-commit for the local mirror of CI.
 - **Test tiers by cost**: unit (every push) -> integration with fakes/small models (every PR) -> GPU/eval tier (merge queue or nightly). Mark with pytest markers (`-m "not gpu"`) so laptops stay usable.
@@ -79,7 +79,7 @@ Where an LLM feeds downstream code, the boundary needs a schema contract:
 - **Training smoke test**: one tiny end-to-end run (overfit 10 samples, assert loss drops) catches wiring bugs that unit tests structurally cannot.
 - Data pipelines get CI too: run transforms against fixture snapshots; validate output schemas with pandera/Great Expectations before publishing partitions.
 
-## General test design taste
+### General test design taste
 
 - Test **behaviour through the public interface**, not implementation; tests that break on refactors teach people not to refactor.
 - One reason to fail per test; name it after the behaviour (`test_retry_preserves_idempotency_key`).

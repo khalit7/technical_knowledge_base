@@ -20,9 +20,9 @@ Stages:
    enough because the animation is fades, writes and camera moves rather than
    motion.
 
-Environments are separate on purpose: manim comes from conda-forge (it needs
-cairo and pango, which have no Linux wheels) and the text-to-speech stack is a
-CUDA 12.8 virtualenv. `env.sh` holds both paths.
+Everything is uv-managed: `tts` for the voice, `video` for manim, both pinned
+by `uv.lock`. The system packages they build against (cairo, pango, ffmpeg)
+are listed in `pyproject.toml`.
 """
 
 from __future__ import annotations
@@ -35,21 +35,32 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-MANIM_PY = Path(os.environ.get("KB_MANIM_PYTHON",
-                               Path.home() / "manim-tech-news" / "menv" / "bin" / "python"))
-TTS_PY = Path(os.environ.get("KB_TTS_PYTHON",
-                             Path.home() / "manim-tech-news" / ".tts" / "bin" / "python"))
-FFMPEG = Path(os.environ.get("KB_FFMPEG",
-                             Path.home() / "manim-tech-news" / "menv" / "bin" / "ffmpeg"))
+REPO = ROOT.parent
+UV = os.environ.get("KB_UV", "uv")
+FFMPEG = os.environ.get("KB_FFMPEG", "ffmpeg")
 
-# The profile that fits a Notion upload. Do not raise these without checking the
-# resulting file size: the workspace cap is 5 MiB.
-NOTION_CRF = "28"
+# Both halves are uv dependency groups. They are requested together on every
+# call because `uv run --group x` syncs the environment to exactly that group,
+# so asking for one at a time would uninstall and reinstall three gigabytes of
+# CUDA wheels between the voice stage and the animation stage.
+GROUPS = ["--group", "tts", "--group", "video"]
+
+# The profile that fits a Notion upload. The workspace cap is 5 MiB, and a
+# four and a half minute episode lands at 4.52 MiB at crf 28, so anything
+# longer needs a coarser encode. Try each in turn and stop at the first that
+# fits, rather than encoding once and failing at the upload.
+NOTION_CAP_MIB = 5.0
+CRF_LADDER = (28, 31, 34, 37)
 NOTION_FPS = "30"
 NOTION_AUDIO_KBPS = "48k"
 
 SCENES = {
     "tech_news_2026_09_21": ("scenes/tech_news_2026_09_21.py", "TechNews20260921"),
+    # The two minute cut is its own edition with its own script; it reuses two
+    # detail beats from the full episode by copying their rendered audio in.
+    "tech_news_2026_09_21_short": ("scenes/tech_news_2026_09_21_short.py", "Short"),
+    "tech_news_2026_09_14_short": ("scenes/tech_news_2026_09_14_short.py", "Short"),
+    "tech_news_2026_09_07_short": ("scenes/tech_news_2026_09_07_short.py", "Short"),
 }
 
 
@@ -71,14 +82,13 @@ def main() -> int:
     scene_file, scene_class = SCENES[args.episode]
 
     if not args.skip_tts:
-        if not TTS_PY.exists():
-            raise SystemExit(f"no text-to-speech interpreter at {TTS_PY}; see video/README.md")
-        run([TTS_PY, "tts/render.py", "--script", args.episode, "--device", args.device])
+        run([UV, "run", "--project", REPO, *GROUPS,
+             "python", "tts/render.py", "--script", args.episode,
+             "--device", args.device])
 
     if not args.skip_render:
-        if not MANIM_PY.exists():
-            raise SystemExit(f"no manim interpreter at {MANIM_PY}; see video/README.md")
-        run([MANIM_PY, "-m", "manim", f"-q{args.quality}", "--disable_caching",
+        run([UV, "run", "--project", REPO, *GROUPS,
+             "python", "-m", "manim", f"-q{args.quality}", "--disable_caching",
              "--media_dir", "out/media", scene_file, scene_class])
 
     rendered = sorted((ROOT / "out" / "media" / "videos").rglob(f"{scene_class}.mp4"),
@@ -88,17 +98,24 @@ def main() -> int:
     source = rendered[-1]
 
     delivery = ROOT / "out" / f"{args.episode}.mp4"
-    run([FFMPEG, "-y", "-i", source,
-         "-r", NOTION_FPS,
-         "-c:v", "libx264", "-crf", NOTION_CRF, "-preset", "slow", "-pix_fmt", "yuv420p",
-         "-c:a", "aac", "-b:a", NOTION_AUDIO_KBPS, "-ac", "1",
-         "-movflags", "+faststart", delivery])
+    size = 0.0
+    for crf in CRF_LADDER:
+        run([FFMPEG, "-y", "-i", source,
+             "-r", NOTION_FPS,
+             "-c:v", "libx264", "-crf", str(crf), "-preset", "slow", "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", NOTION_AUDIO_KBPS, "-ac", "1",
+             "-movflags", "+faststart", delivery])
+        size = delivery.stat().st_size / (1024 * 1024)
+        print(f"  crf {crf}: {size:.2f} MiB", file=sys.stderr)
+        if size <= NOTION_CAP_MIB:
+            break
 
-    size = delivery.stat().st_size / (1024 * 1024)
     print(f"\n{delivery} is {size:.2f} MiB")
-    if size > 5.0:
-        print("TOO BIG for a Notion upload (5 MiB cap). Raise the constant rate "
-              "factor or shorten the episode.", file=sys.stderr)
+    if size > NOTION_CAP_MIB:
+        print(f"Still over the {NOTION_CAP_MIB} MiB Notion cap at crf "
+              f"{CRF_LADDER[-1]}. The episode is too long to upload whole: "
+              "shorten it, or publish it elsewhere and link it from the page.",
+              file=sys.stderr)
         return 1
     print("Notion will accept this. Upload it with the content type "
           "application/mp4, which is what the .mp4 extension implies; video/mp4 "

@@ -4,7 +4,7 @@
 
 Last updated: 2026-08-31 (explanation rewrite; map first written 2026-08-24). Per-model pages to follow; this page explains the family.
 
-## Best resources
+### Best resources
 
 - [OLMo 2 paper](https://arxiv.org/abs/2501.00656) (1h 30m, long report) and repo summary: the fully open training-science reference.
 - [Olmo 3 blog (Ai2)](https://allenai.org/blog/olmo3) (~30 min): the "model flow" release: data, code, every checkpoint, logs.
@@ -12,7 +12,7 @@ Last updated: 2026-08-31 (explanation rewrite; map first written 2026-08-24). Pe
 - [Ettin paper](https://arxiv.org/abs/2507.11412) (45 min): paired encoder/decoder suite trained on the OLMo 2 recipe; the cleanest encoder-vs-decoder controlled comparison.
 - [Ai2 HuggingFace org](https://huggingface.co/allenai) (weights, datasets and tooling, ~20 min for the entry pages): all weights, data (Dolma), and tooling.
 
-## What "fully open" actually means here
+### What "fully open" actually means here
 
 "Open weights" and "open source" are used interchangeably in the industry and they are not remotely the same thing. A typical open-weights release (Llama, Qwen, Mistral, DeepSeek) gives you one artefact: the final parameter tensors, plus a model card and a table of scores. Everything that produced those tensors stays inside the lab. OLMo is the only frontier-adjacent line that releases the production process rather than the product, and it is worth being precise about which specific items that adds, because each one unlocks a different kind of research that is simply impossible otherwise.
 
@@ -24,7 +24,6 @@ What Ai2 ships that others withhold:
 - **Intermediate checkpoints across the whole run**, not just the final one. This is the single most valuable item on the list and the rarest.
 - **Training logs**: loss curves, spikes, restarts, and what was changed when. The failures are as informative as the final number and are almost never published.
 - **The post-training stack (Tulu, later Dolci)**: the actual SFT datasets, preference data, RL prompt sets and the recipe code, not a paragraph describing them.
-
 Why each of those matters if you do research rather than just inference:
 
 - **Causal claims about data need the data.** Any statement of the form "this capability comes from that data source" is untestable against a closed corpus. With Dolma you can ablate a source, retrain at small scale, and measure.
@@ -32,10 +31,9 @@ Why each of those matters if you do research rather than just inference:
 - **Contamination becomes checkable.** If you cannot search the training corpus, every benchmark number is unfalsifiable in principle. Here you can grep for the eval set.
 - **Interventions get a real control.** To claim an RL algorithm or a data recipe helps, you need to hold the base model, its data and its exact checkpoint fixed. A fork of a released OLMo checkpoint with the released mixture is a controlled experiment; fine-tuning someone's closed-corpus weights is not.
 - **Auditable provenance for regulated deployment.** A government or healthcare buyer who must answer "what is in this model" has an answer here and nowhere else.
-
 The trade is that this transparency has a price in capability: publishing your corpus means you cannot use data you have no clear right to publish, and that constraint alone puts a ceiling on OLMo relative to labs that train on whatever they can reach. Treat the family as the reference stack for understanding how models are trained, and as the base for reproducible research (Ettin, the ladder-scaling studies), rather than as the model you would serve for its raw scores.
 
-## Lineage
+### Lineage
 
 - **OLMo 1 (Feb 2024)**: first genuinely fully open 7B, and the release that established **Dolma**, a 3T-token open pretraining corpus shipped with its own construction toolkit. Dolma is arguably the more important artefact: it made "here is exactly what the model read" a thing that could exist.
 - **OLMoE (2024)**: a fully open sparse mixture-of-experts model at roughly 1B active parameters, so the MoE design space (router behaviour, expert specialisation, load balancing) became studiable with the data and checkpoints in hand rather than inferred from released weights.
@@ -45,26 +43,26 @@ The trade is that this transparency has a price in capability: publishing your c
 - **OLMo 3.1 (2026)**: extended-RL Think 32B and Instruct 32B checkpoints, Ai2's most performant models to date.
 - **Ettin (Jul 2025, JHU collaboration)**: paired encoders and decoders from 17M to 1B parameters, trained identically on the OLMo 2 recipe. The value is methodological: encoder models (bidirectional attention, trained by masked language modelling, producing contextual embeddings for retrieval and classification) and decoder models (causal attention, next-token prediction) had never been compared with data, scale, recipe and tokeniser all held fixed, so every prior comparison confounded the objective with everything else. With only the objective varying, encoders win on masked-LM and retrieval, decoders win on generation, and continued training across objectives (taking a decoder and training it with an MLM objective, or the reverse) does not close either gap. Useful directly when choosing an embedding backbone versus a generative one: the answer is that the pretraining objective, not size, is what decides it.
 
-## Training approach highlights
+### Training approach highlights
 
 - Radical transparency as the product: every claim reproducible, and per-stage checkpoints make the family the standard testbed for interventions (data ablations, RL variants, interpretability work that needs a training trajectory).
 - Efficiency over scale: competitive quality at roughly 6x fewer tokens, achieved through data curation (Dolma 3, the Dolmino and Dolci mixes) and staged curricula rather than more compute.
 - The **ladder-scaling** line of work fits here: fitting scaling curves on many small controlled runs to predict a large model's downstream task accuracy before paying for it. That kind of study needs dozens of runs with a fixed recipe and open data, which is precisely what only this stack provides.
 - US-origin fully open matters politically as well as scientifically: it is the Western answer to Chinese open weights for auditable government and regulated deployments, where provenance is a procurement requirement rather than a preference.
 
-## Current models (Aug 2026)
+### Current models (Aug 2026)
 
 | Model | Notes |
-|---|---|
+| --- | --- |
 | OLMo 3.1 Think/Instruct 32B | Best fully open reasoning/instruct models |
 | OLMo 3 7B family | Small fully open workhorses |
 | Molmo | Open VLM line |
 
-## Cross-links
+### Cross-links
 
-- Training science details belong to topics/llm-training-and-post-training.
-- [../reasoning-models.md](../reasoning-models.md): OLMo 3 Think as open replication.
-- Papers: OLMo 2, Ettin.
+- Training science details belong to [Topic: llm-training-and-post-training](../../llm-training-and-post-training/summary.md).
+- [Reasoning models and test-time compute](../reasoning-models.md): OLMo 3 Think as open replication.
+- Papers: [2 OLMo 2 Furious (OLMo 2)](../../../papers/2025-01_olmo-2/summary.md), [Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)](../../../papers/2025-07_ettin/summary.md).
 
 <details>
 <summary>2026-08-24: original map (superseded by this rewrite; kept for reference, not counted in the read estimate)</summary>

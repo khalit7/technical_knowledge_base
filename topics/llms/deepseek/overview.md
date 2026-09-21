@@ -2,9 +2,9 @@
 
 ⏱ 13 min read · +4h 45m resources
 
-Last updated: 2026-08-31 (rewritten: every named technique now carries a mechanism, not just a label). Per-model files to follow; this page maps the family.
+Last updated: 2026-08-31 (rewritten: every named technique now carries a mechanism, not just a label). Per-model pages to follow; this page maps the family.
 
-## Best resources
+### Best resources
 
 - [DeepSeek-V3 tech report](https://arxiv.org/abs/2412.19437) (~1h 30m, 50+ pages) and repo summary: the modern open-MoE template, unusually complete on infra.
 - [DeepSeek-R1 paper](https://arxiv.org/abs/2501.12948) (~1h) and repo summary: the open reasoning recipe.
@@ -12,13 +12,13 @@ Last updated: 2026-08-31 (rewritten: every named technique now carries a mechani
 - [The Salt: DeepSeek-V4, the interesting part is the attention](https://thesalt.substack.com/p/deepseek-v4-the-interesting-part) (~20 min): best V4 attention walkthrough.
 - [DeepSeek HuggingFace org](https://huggingface.co/deepseek-ai) (docs, ~15 min for the core model cards): all weights and model cards.
 
-## The through-line: one question, asked at every layer
+### The through-line: one question, asked at every layer
 
 DeepSeek is a spinoff of High-Flyer, a Chinese quantitative hedge fund, and the model line reads like it was designed by people who pay for their own GPUs. A single question runs through every release: what does it cost to train, and above all to *serve*, a frontier-quality model. Nearly every named DeepSeek contribution is that question asked at a different layer of the stack: at the attention layer (MLA, then sparse attention, then compressed attention), at the feed-forward layer (fine-grained mixture-of-experts with shared experts, and load balancing without an auxiliary loss), in the numerics (FP8 training, low-precision serving), in the parallelism schedule (DualPipe, DeepEP), and in the RL recipe (GRPO, which deletes the critic network). They then publish the details, which is why the line matters well beyond its own weights: it is the de facto reference design that most open MoE models now copy.
 
 The sections below explain each of those ideas: what it is, how it works, and what it buys against the obvious alternative.
 
-## Attention: MLA, then DSA, then compressed attention
+### Attention: MLA, then DSA, then compressed attention
 
 **The problem being attacked.** Standard multi-head attention caches one key and one value vector per head per token. During decode the arithmetic intensity is terrible (one token at a time against the whole cache), so serving throughput is set by KV cache size: it decides how many sequences fit on a GPU and how much memory bandwidth each decoded token costs. Every DeepSeek attention variant is an attack on that number.
 
@@ -30,7 +30,7 @@ The sections below explain each of those ideas: what it is, how it works, and wh
 
 **Compressed attention (V4)** changes what is stored rather than what is read. V4 uses a hybrid of two compression granularities, CSA over groups of 4 tokens and HCA over groups of 128, plus low-rank query and output projections (MLA's trick applied to the projections either side of attention). The general principle of grouped KV compression is that a group of tokens is summarised into a single cached entry, so the cache grows at one over the group size: fine granularity preserves near-exact local detail where it matters most, coarse granularity covers distant history for almost nothing, and running both in parallel gives you a cache that is precise nearby and cheap far away. DeepSeek report the combination holding the KV cache at roughly 2% of a vanilla transformer's at 1M-token context. Against DSA the contrast is clean: sparse selection still requires the whole cache to be resident so that something can be selected from it, whereas compression shrinks what is resident in the first place. Treat the sketch above as the general mechanism of grouped compression; The Salt walkthrough linked above is the place to go for V4's exact formulation.
 
-## The MoE layer: fine-grained experts, shared experts, balancing without a loss
+### The MoE layer: fine-grained experts, shared experts, balancing without a loss
 
 **DeepSeekMoE**, from V2, makes two changes to the Mixtral-style mixture of experts (a handful of large experts, two active per token). First, **fine-grained experts**: split each expert into several narrower ones and activate more of them per token, so V3 routes 8 of 256 experts rather than 2 of 8. The active parameter count is unchanged, but the number of distinct expert *combinations* a token can be routed to explodes combinatorially, which is what lets experts specialise narrowly instead of each having to be a generalist. Second, **shared experts**: one expert that every token passes through unconditionally, which absorbs the common computation that would otherwise be duplicated inside every routed expert, freeing routed capacity for what is actually specialised. The price of both is routing and communication overhead: more experts touched per token means more all-to-all traffic, which is exactly why DeepSeek ended up writing their own communication kernels.
 
@@ -38,7 +38,7 @@ The sections below explain each of those ideas: what it is, how it works, and wh
 
 **MTP (Multi-Token Prediction)** adds lightweight prediction modules that, during training, predict not only the next token but the one after it (and further out) from the same trunk. That is a denser supervision signal per forward pass, so the model learns more per token seen, and it forces representations that look slightly further ahead. The second payoff arrives at inference: the extra heads are already a draft of the next few tokens, so they can be reused as a built-in draft model for speculative decoding, getting the usual speedup without training, aligning and hosting a separate draft model.
 
-## Numerics and systems: FP8, DualPipe, DeepEP, disaggregation
+### Numerics and systems: FP8, DualPipe, DeepEP, disaggregation
 
 **FP8 mixed-precision training** was V3's headline systems result: the first frontier-scale run demonstrated end to end in 8-bit floating point, roughly halving memory traffic and raising effective tensor-core throughput against BF16. Naive FP8 fails because the format's dynamic range is small: a single outlier forces the tensor's scale down and small gradients flush to zero. The recipe that made it work is fine-grained scaling (per-tile and per-block scale factors rather than one per tensor, so one outlier cannot poison a whole matrix), keeping the sensitive components (master weights, optimizer state, normalisation, embedding and output layers) in higher precision, and promoting accumulation to higher precision at intervals to work around the limited accumulate width of the tensor cores. What it buys, on their reported curves, is BF16-equivalent loss at roughly half the memory and materially faster steps. What it costs is a much more delicate training stack.
 
@@ -48,7 +48,7 @@ The sections below explain each of those ideas: what it is, how it works, and wh
 
 **Prefill/decode disaggregation** splits serving across two pools of GPUs because the two phases have opposite bottlenecks: prefill is compute-bound and batches thousands of tokens at once, decode is memory-bandwidth-bound and produces one token per sequence per step. Interleaving them on the same workers means each phase is configured wrong; separating them lets each pool be batched, parallelised and sized for its own limit, at the cost of shipping the KV cache between pools. It is now standard practice in serious vLLM and SGLang deployments.
 
-## Training and RL: GRPO, R1, hybrid thinking
+### Training and RL: GRPO, R1, hybrid thinking
 
 **GRPO (Group Relative Policy Optimization)**, introduced in the DeepSeekMath work, is a PPO variant whose distinguishing move is deleting the value network. PPO needs a learned critic of roughly policy size to produce the advantage baseline, which means a second large model in memory, a second thing to train, and a second thing to go unstable. GRPO instead samples a group of completions for the same prompt, scores them all, and uses the group's own statistics (mean, and in the original formulation standard deviation) as the baseline, so a completion's advantage is simply how much better it did than its siblings. What it buys is roughly half the memory and one fewer model to babysit, and it fits verifiable-reward RL naturally, since sampling many rollouts per prompt is cheap when scoring is automatic. What it costs is those extra rollouts, which moves the expense into sampling, and later work has pointed out that the standard-deviation normalisation introduces a bias across prompt difficulty and response length, which several successor variants simply drop.
 
@@ -56,7 +56,7 @@ The sections below explain each of those ideas: what it is, how it works, and wh
 
 **Hybrid thinking** (V3.1 onward) folds the chat model and the reasoning model into one checkpoint, with the long-chain mode selected by the prompt template rather than by loading different weights. It buys operational simplicity (one set of weights, one cache, one deployment) and lets the caller pay for deliberation only where it earns its latency.
 
-## Lineage
+### Lineage
 
 Dates and what actually changed; the mechanisms are explained in the sections above.
 
@@ -69,19 +69,19 @@ Dates and what actually changed; the mechanisms are explained in the sections ab
 - **V4 (Apr 2026)**: current family, two MoE models. **V4 Pro** (1.6T total / 49B active) and **V4 Flash** (284B / 13B). Hybrid compressed attention (CSA over groups of 4, HCA over groups of 128) with low-rank query and output projections holds the KV cache near 2% of a vanilla transformer's at 1M context. Pro leads open coding (~80.6% SWE-bench verified); Flash leads browsing-style agentic evals at very low cost.
 - Added 2026-08-24: **DeepSeek-v4-flash-vision-exp** (Aug 21), an experimental vision variant of V4 Flash: images are normalised to at most 384 tokens each, up to 600 images per request. It is currently the only DeepSeek model accepting image input. [API docs](https://api-docs.deepseek.com/guides/vision/) (docs, ~10 min)
 
-## Current models (Aug 2026)
+### Current models (Aug 2026)
 
 | Model | Params | Notes |
-|---|---|---|
+| --- | --- | --- |
 | V4 Pro | 1.6T / 49B active | Open-weight coding/reasoning leader, 1M context |
 | V4 Flash | 284B / 13B active | Price-performance and agentic browsing |
 | R1 (legacy) | 671B / 37B | Historic; reasoning now folded into V-line |
 
-## Cross-links
+### Cross-links
 
-- [../reasoning-models.md](../reasoning-models.md): R1's role in the reasoning era.
-- [../moe-models.md](../moe-models.md): DeepSeekMoE, aux-loss-free balancing.
-- [../_comparisons/llm-architecture-gallery.md](../_comparisons/llm-architecture-gallery.md): MLA/DSA/CSA in context.
+- [Reasoning models and test-time compute](../reasoning-models.md): R1's role in the reasoning era.
+- [Mixture-of-Experts (MoE) models](../moe-models.md): DeepSeekMoE, aux-loss-free balancing.
+- [LLM Architecture Gallery (rasbt) and the architectural deltas that matter](../_comparisons/llm-architecture-gallery.md): MLA/DSA/CSA in context.
 
 <details>
 <summary>2026-08-24: previous version of this page (superseded)</summary>

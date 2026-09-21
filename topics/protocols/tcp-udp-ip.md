@@ -4,7 +4,7 @@
 
 Added 2026-08-24. Everything else in this topic rides on these three. HTTP, WebSockets, gRPC, DNS, SSH, and NCCL all reduce to "bytes into a socket", and when a distributed job hangs or a checkpoint upload crawls, the answer is almost always here rather than in the application. Written for the cases you actually hit: high bandwidth-delay paths, cluster fabrics, and cloud MTU and NAT limits.
 
-## Best resources
+### Best resources
 
 - [High Performance Browser Networking, "Building Blocks of TCP"](https://hpbn.co/building-blocks-of-tcp/) (free) (35 min): the clearest treatment of handshake cost, congestion window growth, and why latency dominates throughput.
 - [ESnet fasterdata host tuning](https://fasterdata.es.net/host-tuning/linux/) (40 min): the canonical high-BDP tuning reference, maintained by the people running DOE's 100G science network. Best source for buffer sizing math.
@@ -12,9 +12,9 @@ Added 2026-08-24. Everything else in this topic rides on these three. HTTP, WebS
 - [EC2 instance network bandwidth](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html) (20 min) and [EC2 network MTU](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/network_mtu.html) (15 min): the per-flow caps and jumbo-frame rules that decide your real transfer speed on AWS.
 - [NCCL environment variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html) (docs, ~30 min for the socket and net variables): what `NCCL_SOCKET_IFNAME` and the multi-socket knobs actually do.
 
-## IP: addressing, MTU, and the silent failure
+### IP: addressing, MTU, and the silent failure
 
-**Addressing.** IPv4 is 32-bit with a 20-byte minimum header and routers that may fragment. IPv6 is 128-bit with a fixed 40-byte header, no header checksum, and **routers never fragment**: only the source may, via a Fragment extension header. Private ranges (RFC 1918) are `10/8`, `172.16/12`, `192.168/16`; CGNAT space `100.64/10` (RFC 6598) turns up in EKS and Docker overlays and will collide with a carelessly chosen VPC CIDR. `169.254.169.254` is the EC2 instance metadata endpoint, which matters for the SSRF discussion in [DNS](dns.md) (21 min read · +6h 15m resources).
+**Addressing.** IPv4 is 32-bit with a 20-byte minimum header and routers that may fragment. IPv6 is 128-bit with a fixed 40-byte header, no header checksum, and **routers never fragment**: only the source may, via a Fragment extension header. Private ranges (RFC 1918) are `10/8`, `172.16/12`, `192.168/16`; CGNAT space `100.64/10` (RFC 6598) turns up in EKS and Docker overlays and will collide with a carelessly chosen VPC CIDR. `169.254.169.254` is the EC2 instance metadata endpoint, which matters for the SSRF discussion in [DNS: resolution, caching, and the failure modes](dns.md) (21 min read · +6h 15m resources).
 
 **Google's IPv6 measurement crossed 50 percent for the first time on 2026-03-28** (50.10 percent). APNIC's differently weighted figure sits nearer 42 percent. Dual-stack is now the boring default rather than an experiment.
 
@@ -26,14 +26,14 @@ The mixed-MTU failure is the one that will cost you a day: node A at 9001, node 
 
 **NAT gateway limits worth knowing** (they are the reason a dataloader fleet suddenly fails): 55,000 simultaneous connections per unique destination per IP address, scaling to 100 Gbps and 10M packets per second, and idle connections dropped at 350 s. Five hundred dataloader workers hammering S3 through NAT will hit `ErrorPortAllocation`. Use a **VPC gateway endpoint for S3** and remove NAT from the path (which also removes the data-processing charge).
 
-## TCP: the four numbers that explain most problems
+### TCP: the four numbers that explain most problems
 
 **Throughput is window over RTT.** `throughput ≈ min(cwnd, receiver_window) / RTT`. Everything else is detail.
 
 **Bandwidth-delay product** is how much data must be in flight to keep a pipe full:
 
 | Path | BDP |
-|---|---|
+| --- | --- |
 | 10 Gbps, 100 ms (cross-region) | 125 MB |
 | 25 Gbps, 1 ms (in-AZ) | 3.1 MB |
 | 100 Gbps, 50 us (in-rack) | 625 KB |
@@ -54,18 +54,17 @@ The TCP header's window field is 16 bits, so **without window scaling (RFC 7323)
 
 **Congestion control.** CUBIC has been the Linux default since 2006 and still is in 2026 (standardised as RFC 9438 in 2023). BBR models bottleneck bandwidth and round-trip propagation time and paces sends rather than reacting to loss, which is exactly right for high-BDP paths with non-congestive loss; BBRv1 has been in mainline since Linux 4.9. **BBRv3 remains an IETF draft (draft-ietf-ccwg-bbr, revision 06 dated 2026-07-06) and is not confirmed in mainline**; it ships via Google's `google/bbr` v3 branch and distro kernels such as XanMod. Check with `sysctl net.ipv4.tcp_available_congestion_control` rather than trusting a blog post.
 
-**Head-of-line blocking.** TCP delivers one strictly ordered byte stream, so one lost segment stalls everything behind it, including bytes already in the receive buffer. HTTP/2 multiplexes many streams over one connection, so a single loss stalls all of them. That is the whole motivation for QUIC, covered in [HTTP: 1.1, 2, 3](http.md) (13 min read · +19h 40m resources).
+**Head-of-line blocking.** TCP delivers one strictly ordered byte stream, so one lost segment stalls everything behind it, including bytes already in the receive buffer. HTTP/2 multiplexes many streams over one connection, so a single loss stalls all of them. That is the whole motivation for QUIC, covered in [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (13 min read · +19h 40m resources).
 
 **TCP Fast Open is effectively dead**: Firefox removed it in v87 (2021), no major browser enables it, and the cause was middlebox ossification. That failure is why QUIC was built over UDP with encrypted transport headers instead of extending TCP.
 
-## UDP: a thin wrapper and your problem
+### UDP: a thin wrapper and your problem
 
 An 8-byte header carrying source port, destination port, length, and checksum. You get port multiplexing, message boundaries, and an optional checksum (mandatory in IPv6). You do not get ordering, reliability, deduplication, flow control, congestion control, or MTU discovery.
 
 - Practical maximum payload without fragmentation on a 1500 path is **1472 bytes** (IPv4) or 1452 (IPv6). Beyond that you are relying on IP fragmentation, where losing one fragment discards the whole datagram and UDP will not retransmit it.
 - DNS Flag Day 2020 settled on **1232 bytes** as the safe EDNS buffer size. QUIC (RFC 9000) requires the path to carry a **1200-byte** UDP payload and runs its own probing.
 - Where you meet UDP: DNS, QUIC and HTTP/3, NTP, syslog, WebRTC media, and, most relevant to GPU clusters, **RoCEv2, which is RDMA encapsulated in UDP on destination port 4791** and depends on a near-lossless fabric (PFC/DCQCN) rather than on UDP itself. AWS EFA does not use kernel UDP at all: **SRD** is a custom OS-bypass protocol that sprays packets across many paths and reorders at the endpoint, which is why it beats TCP on a fat tree.
-
 **UDP has no receive-buffer autotuning.** TCP grows its buffer; UDP gives you exactly what you configured. The stock 208 KB default is far too small for a multi-Gbps QUIC flow, and the symptom is datagrams dropped before the application reads them, which QUIC interprets as loss and answers by backing off. quic-go recommends 7.5 MB:
 
 ```bash
@@ -75,7 +74,7 @@ sysctl -w net.core.wmem_max=7500000
 nstat -az | grep -i Udp     # UdpRcvbufErrors, UdpInErrors climbing means raise it
 ```
 
-## Linux knobs you will actually touch
+### Linux knobs you will actually touch
 
 ```
 net.ipv4.tcp_congestion_control   cubic (default); bbr worth testing on high-BDP paths
@@ -93,7 +92,7 @@ Two traps. First, **rmem_max does not cap autotuning**; it caps explicit `setsoc
 
 On Slurm, limits are inherited from `slurmd`'s environment rather than your login shell, so `ulimit -n` in your `.bashrc` will not help a job.
 
-## Diagnosing: tools and a checklist
+### Diagnosing: tools and a checklist
 
 `ss -tinm` is the single best command: per-socket cwnd, rtt, retransmits, pacing rate, delivery rate, and the congestion control in use. Small cwnd with climbing retransmits means loss-limited; large cwnd with a pinned receive window means receiver-limited. Then `ss -lnt` for accept queues, `nstat -az` for `TcpRetransSegs` and `TcpExtListenOverflows`, `ethtool -S eth0` for NIC-level drops that no TCP counter shows, `mtr` for per-hop loss, and `iperf3 -P 8` versus `-P 1` to demonstrate the single-stream ceiling to someone who does not believe it.
 
@@ -109,7 +108,7 @@ When a distributed training job stalls on the network, in rough order of likelih
 8. **Security group or NACL**: NCCL needs all ports open between nodes, not just 29500. A silent hang in `init_process_group` is usually a firewall.
 9. **Not the network at all**: one straggler rank makes an allreduce look like a network hang. Check GPU utilisation across ranks first.
 
-## Where this shows up in ML
+### Where this shows up in ML
 
 **NCCL bootstraps over TCP sockets even on an InfiniBand cluster**, so interface selection matters for job startup regardless of the data-plane transport. Its transport preference runs NVLink, then P2P/shared memory, then ibverbs (IB/RoCE), then plain sockets. `NCCL_SOCKET_NTHREADS` and `NCCL_NSOCKS_PERTHREAD` exist precisely because one TCP stream cannot fill a modern NIC: on AWS the defaults are 2 and 8, giving 16 parallel sockets per peer, against 1 and 1 elsewhere. The product is capped at 64.
 
@@ -117,16 +116,16 @@ When a distributed training job stalls on the network, in rough order of likelih
 
 **Small-file dataloading is latency-bound, not bandwidth-bound.** Ten million small files over NFS will be slow whatever your NIC is; the fix is sharded sequential formats (WebDataset, Parquet, MDS) plus prefetching workers, which is the multi-stream trick again. S3 gives 5,500 GET and 3,500 PUT per second per prefix, so shard across prefixes to scale past it.
 
-## Recent developments worth a line
+### Recent developments worth a line
 
 - **io_uring zero-copy receive merged in Linux 6.15 (2025)**, and devmem TCP lets a NIC DMA straight into GPU memory. This is the kernel's answer to userspace bypass, and it matters for inference serving and ingest rather than for NCCL, which already bypasses via RDMA.
 - **HTTP/3 reached roughly 40 percent of websites by August 2026**, which makes UDP buffer tuning a mainstream production concern rather than a niche one.
 - **DPDK stayed largely irrelevant to ML**: the field took the RDMA/EFA plus libfabric path instead. eBPF and XDP do matter to you, but for observability and policy (bpftrace, Cilium) rather than datapath throughput.
 - **L4S** (RFC 9330/9331/9332) is the low-latency ECN work now seeing ISP deployment. Worth watching, not yet something you tune on a cluster.
 
-## Connections
+### Connections
 
-- Why HTTP/2 inherits TCP's head-of-line blocking and HTTP/3 does not: [HTTP: 1.1, 2, 3](http.md) (13 min read · +19h 40m resources).
+- Why HTTP/2 inherits TCP's head-of-line blocking and HTTP/3 does not: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (13 min read · +19h 40m resources).
 - Long-lived sockets, heartbeats, and per-connection cost at scale: [WebSocket protocol (RFC 6455) in depth](websockets.md) (19 min read · +5h 10m resources).
-- What sits on top of UDP port 53, and why it fails: [DNS](dns.md) (21 min read · +6h 15m resources).
-- Interconnects, NVLink, and RDMA hardware: the hardware topic's interconnects page.
+- What sits on top of UDP port 53, and why it fails: [DNS: resolution, caching, and the failure modes](dns.md) (21 min read · +6h 15m resources).
+- Interconnects, NVLink, and RDMA hardware: [Interconnects and scaling: why the network picks your parallelism](../hardware/interconnects-and-scaling.md).

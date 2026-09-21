@@ -9,10 +9,10 @@ A sync that cannot delete is how a mirror rots.
 
 Usage:
     export NOTION_TOKEN=ntn_...          # or put it in .notion-token
-    python3 tools/notion_mirror.py               # full sync
-    python3 tools/notion_mirror.py --dry-run     # report, write nothing
-    python3 tools/notion_mirror.py --no-pdfs     # skip arXiv PDF downloads
-    python3 tools/notion_mirror.py --render-svg  # re-render changed taxonomy diagrams
+    uv run tools/notion_mirror.py                # full sync
+    uv run tools/notion_mirror.py --dry-run      # report, write nothing
+    uv run tools/notion_mirror.py --no-pdfs      # skip arXiv PDF downloads
+    uv run tools/notion_mirror.py --pdfs-only    # fetch missing paper PDFs only
 
 The token is an internal integration secret from notion.so/profile/integrations,
 with the integration connected to the "Technical knowledge base" page. Only read
@@ -46,7 +46,13 @@ MANIFEST = REPO / "tools" / ".notion-mirror.json"
 # is an orphan and gets deleted.
 MANAGED_GLOBS = (
     "topics/**/*.md",
+    # Taxonomy diagrams used to ship as a rendered SVG with the mermaid source
+    # folded underneath, because the old mirror could not render mermaid.
+    # GitHub renders a mermaid block natively and Notion holds one, so the
+    # mirror now carries the block itself and these two globs exist to sweep
+    # up the generated files that convention left behind.
     "topics/**/*.mmd",
+    "topics/**/taxonomy.svg",
     "news/*.md",
     "updates/*.md",
     "papers/*/summary.md",
@@ -54,6 +60,10 @@ MANAGED_GLOBS = (
     "TRACKER.md",
     "known-gaps.md",
 )
+
+# Sections of the knowledge base whose database rows are real pages with bodies
+# worth mirroring. Everywhere else a row is a record, not a document.
+ROW_PAGE_SECTIONS = {"Papers"}
 
 # Never deleted, whatever Notion says. Paper PDFs and article snapshots live
 # only here, and the video toolchain is repo-only.
@@ -146,13 +156,56 @@ class Node:
     kind: str = "page"                # page | db_row
 
 
-def slugify(title: str) -> str:
-    """Kebab-case file stem, matching the names already in the repo."""
+MAX_SLUG_WORDS = 6
+
+
+def slugify(title: str, max_words: int = MAX_SLUG_WORDS) -> str:
+    """Kebab-case file stem, matching the names already in the repo.
+
+    Notion titles are prose ("Personal agents: OpenClaw, Hermes Agent, and how
+    they differ from coding harnesses"), so a full slug makes a filename nobody
+    can type. Cut at a word boundary instead, and let the page's own H1 carry
+    the full title."""
     t = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()
     t = t.lower()
     t = re.sub(r"^topic:\s*", "", t)
-    t = re.sub(r"[^a-z0-9]+", "-", t)
-    return t.strip("-") or "untitled"
+    t = re.sub(r"[^a-z0-9]+", "-", t).strip("-")
+    words = [w for w in t.split("-") if w]
+    if max_words and len(words) > max_words:
+        words = words[:max_words]
+    return "-".join(words) or "untitled"
+
+
+def first_heading(path: Path) -> str:
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[:5]:
+        if line.startswith("# "):
+            return line[2:].strip()
+    return ""
+
+
+def scan_existing_titles() -> dict[tuple[str, str], Path]:
+    """Index every mirrored file by (scope, the title in its H1).
+
+    This is what keeps filenames stable. The repo's names were chosen before
+    Notion's titles grew into prose, so deriving names purely from titles would
+    rename a hundred files that nobody renamed. A page whose title still
+    matches an existing file keeps that file; only genuinely new pages get a
+    freshly slugified name.
+    """
+    index: dict[tuple[str, str], Path] = {}
+    for path in REPO.glob("topics/**/*.md"):
+        rel = path.relative_to(REPO)
+        if rel.name == "summary.md":
+            continue
+        title = first_heading(path)
+        if title:
+            index[(f"topics/{rel.parts[1]}", title.lower())] = rel
+    for scope in ("news", "updates"):
+        for path in REPO.glob(f"{scope}/*.md"):
+            title = first_heading(path)
+            if title:
+                index[(scope, title.lower())] = path.relative_to(REPO)
+    return index
 
 
 def plain(rich: list[dict]) -> str:
@@ -198,39 +251,60 @@ class Walker:
         self._visit(ROOT_PAGE_ID, title_of(root), None, root.get("last_edited_time", ""))
 
     def _visit(self, page_id: str, title: str, parent_id: str | None, last_edited: str,
-               props: dict | None = None, kind: str = "page") -> None:
+               props: dict | None = None, kind: str = "page", section: str | None = None,
+               with_content: bool = True) -> None:
         node = Node(page_id=page_id, title=title, parent_id=parent_id,
                     props=props or {}, last_edited=last_edited, kind=kind)
         self.nodes[page_id] = node
         self.order.append(page_id)
-        node.blocks = self.api.children(page_id)
-        print(f"  read {title}", file=sys.stderr)
+        node.blocks = self.api.children(page_id) if with_content else []
+        if with_content:
+            print(f"  read {title}", file=sys.stderr)
 
         for b in node.blocks:
+            child_section = title if parent_id == ROOT_PAGE_ID else section
             if b["type"] == "child_page":
                 child = self.api.page(b["id"])
                 self._visit(b["id"], b["child_page"]["title"], page_id,
-                            child.get("last_edited_time", ""))
+                            child.get("last_edited_time", ""), section=child_section)
             elif b["type"] == "child_database":
                 db_id = b["id"]
                 self.rows_of_db[db_id] = []
+                # Only some database rows become files. The reading tracker has
+                # a row per readable artifact, roughly 250 of them, and they
+                # mirror pages that already exist elsewhere in the tree: their
+                # bodies are never written anywhere, so reading them would
+                # triple the length of a sync for nothing. Their properties,
+                # which carry the tick state, come from the query either way.
+                rows_are_pages = child_section in ROW_PAGE_SECTIONS
                 for row in self.api.db_rows(db_id):
                     self.rows_of_db[db_id].append(row["id"])
                     self._visit(row["id"], title_of(row), page_id,
                                 row.get("last_edited_time", ""),
-                                props=row.get("properties", {}), kind="db_row")
+                                props=row.get("properties", {}), kind="db_row",
+                                section=child_section, with_content=rows_are_pages)
 
     # -- path mapping -------------------------------------------------------
 
-    def assign_paths(self, existing_papers: dict[str, Path]) -> None:
+    def assign_paths(self, existing_papers: dict[str, Path],
+                     existing_titles: dict[tuple[str, str], Path] | None = None) -> None:
         root = self.nodes[ROOT_PAGE_ID]
         root.path = None  # the root page is the repo itself, not a file
+        self.existing_titles = existing_titles or {}
+        self.taken: set[Path] = set()
 
         for page_id in self.order:
             node = self.nodes[page_id]
             if page_id == ROOT_PAGE_ID:
                 continue
             node.path = self._path_for(node, existing_papers)
+            if node.path:
+                self.taken.add(node.path)
+
+    def _keep_existing(self, scope: str, title: str) -> Path | None:
+        """Reuse the file this page already has, when the title still matches."""
+        path = self.existing_titles.get((scope, title.strip().lower()))
+        return path if path and path not in self.taken else None
 
     def _ancestry(self, node: Node) -> list[Node]:
         chain, cur = [], node
@@ -247,9 +321,12 @@ class Walker:
         t = top.title.strip()
 
         if t.lower().startswith("topic:"):
-            topic = slugify(t)
+            topic = slugify(t, max_words=0)
             if node is top:
                 return Path("topics") / topic / "summary.md"
+            kept = self._keep_existing(f"topics/{topic}", node.title)
+            if kept:
+                return kept
             middle = [slugify(n.title) for n in chain[2:-1]]
             return Path("topics").joinpath(topic, *middle, slugify(node.title) + ".md")
 
@@ -264,12 +341,14 @@ class Walker:
         if t == "Tech news":
             if node is top:
                 return None                    # the index page has no repo file
-            return Path("news") / (dated_name(node.title) + ".md")
+            return (self._keep_existing("news", node.title)
+                    or Path("news") / (dated_name(node.title) + ".md"))
 
         if t == "Updates":
             if node is top:
                 return None
-            return Path("updates") / (dated_name(node.title) + ".md")
+            return (self._keep_existing("updates", node.title)
+                    or Path("updates") / (dated_name(node.title) + ".md"))
 
         if t == "Tracker":
             return Path("TRACKER.md") if node is top else None
@@ -280,20 +359,24 @@ class Walker:
         return Path(slugify(t)) / (slugify(node.title) + ".md")
 
     def _new_paper_folder(self, node: Node) -> str:
-        """YYYY-MM_short-name, taking the date from the arXiv id where possible."""
-        text = "\n".join(plain(v.get(v["type"], [])) if isinstance(v.get(v["type"]), list) else ""
-                         for v in node.props.values())
-        text += json.dumps(node.blocks)
-        m = re.search(r"arxiv\.org/(?:abs|pdf)/(\d{2})(\d{2})\.\d{4,5}", text)
+        """YYYY-MM_short-name, taking the month from the arXiv id where possible.
+
+        The id is what dates a paper folder, and it turns up in three forms on
+        these pages: a link, `arXiv:2609.18094`, or the bare number after the
+        word arXiv. Match all three, because a folder named 0000-00 is a folder
+        somebody has to rename by hand later."""
+        text = json.dumps(node.props) + json.dumps(node.blocks)
+        m = (re.search(r"arxiv\.org/(?:abs|pdf)/(\d{2})(\d{2})\.\d{4,5}", text, re.I)
+             or re.search(r"arxiv[:\s]+(\d{2})(\d{2})\.\d{4,5}", text, re.I))
+        stem = slugify(node.title, max_words=5)
         if m:
-            yy, mm = m.group(1), m.group(2)
-            return f"20{yy}-{mm}_{slugify(node.title)[:40].strip('-')}"
+            return f"20{m.group(1)}-{m.group(2)}_{stem}"
         year = ""
         for key, value in node.props.items():
             if key.lower() == "year":
                 year = plain(value.get("rich_text", []))[:4]
         year = year if re.fullmatch(r"\d{4}", year) else "0000"
-        return f"{year}-00_{slugify(node.title)[:40].strip('-')}"
+        return f"{year}-00_{stem}"
 
 
 def scan_existing_papers() -> dict[str, Path]:
@@ -317,8 +400,33 @@ def scan_existing_papers() -> dict[str, Path]:
 
 
 class Renderer:
-    def __init__(self, walker: Walker):
+    def __init__(self, walker: Walker, api: Notion | None = None):
         self.w = walker
+        self.api = api
+        self._titles: dict[str, str] = {}
+        self.dangling: dict[str, str] = {}      # target id -> page that mentions it
+
+    def title_of_target(self, target_id: str) -> str:
+        """The title of a mentioned page.
+
+        Notion's API does not resolve mention text: every page mention comes
+        back with `plain_text: "Untitled"`, which is how 126 links in this repo
+        ended up labelled Untitled. The walk already knows the title of
+        everything inside the knowledge base; anything outside it costs one
+        lookup, cached."""
+        node = self.w.nodes.get(target_id)
+        if node:
+            return node.title
+        if target_id in self._titles:
+            return self._titles[target_id]
+        title = ""
+        if self.api:
+            try:
+                title = title_of(self.api.page(target_id))
+            except RuntimeError:
+                title = ""          # deleted, or outside what the token can see
+        self._titles[target_id] = title
+        return title
 
     # -- inline -----------------------------------------------------------
 
@@ -357,7 +465,13 @@ class Renderer:
         if m["type"] in ("page", "database"):
             target_id = m[m["type"]]["id"]
             node = self.w.nodes.get(target_id)
-            label = r.get("plain_text", "").strip() or (node.title if node else "page")
+            label = self.title_of_target(target_id)
+            if not label or label.lower() == "untitled":
+                # The page is gone. Notion keeps rendering the mention, so the
+                # defect is invisible there and would be invisible here too if
+                # this said "Untitled". Name it instead, and report it.
+                self.dangling.setdefault(target_id, str(source) if source else "?")
+                label = "link broken in Notion"
             if node and node.path and source:
                 rel = os.path.relpath(REPO / node.path, (REPO / source).parent)
                 return f"[{label}]({rel})"
@@ -562,20 +676,30 @@ def managed_files() -> set[Path]:
     return out - protected
 
 
-ARXIV_RE = re.compile(r"arxiv\.org/(?:abs|pdf)/(\d{4}\.\d{4,5})")
+# An arXiv id turns up three ways on these pages: as a link, as `arXiv:2609.1`
+# and as the bare number after the word arXiv. Matching only the link form is
+# why a whole week of papers arrived without PDFs.
+ARXIV_RE = re.compile(
+    r"(?:arxiv\.org/(?:abs|pdf)/|arxiv[:\s]+)(\d{4}\.\d{4,5})", re.I
+)
 
 
-def download_pdfs(nodes: list[Node], dry_run: bool) -> list[str]:
+def download_pdfs(dry_run: bool) -> list[str]:
+    """Fetch the PDF for any paper folder that lacks one.
+
+    Driven by the mirrored summaries on disk rather than by the Notion nodes,
+    so it can be re-run on its own (`--pdfs-only`) without walking Notion
+    again. PDFs live only in this repo, which makes this the one step whose
+    output nothing else can reproduce."""
     done = []
-    for node in nodes:
-        if not node.path or node.path.parts[0] != "papers" or node.path.name != "summary.md":
-            continue
-        pdf = REPO / node.path.parent / "paper.pdf"
+    for summary in sorted((REPO / "papers").glob("*/summary.md")):
+        pdf = summary.parent / "paper.pdf"
         if pdf.exists():
             continue
-        m = ARXIV_RE.search(json.dumps(node.blocks))
+        text = summary.read_text(encoding="utf-8", errors="ignore")
+        m = ARXIV_RE.search(text)
         if not m:
-            done.append(f"no arXiv link, no PDF: {node.title}")
+            done.append(f"no arXiv id, no PDF: {summary.parent.name}")
             continue
         url = f"https://arxiv.org/pdf/{m.group(1)}"
         if dry_run:
@@ -590,38 +714,6 @@ def download_pdfs(nodes: list[Node], dry_run: bool) -> list[str]:
             done.append(f"FAILED download {url} ({r.status_code})")
         time.sleep(1.0)
     return done
-
-
-MERMAID_RE = re.compile(r"```mermaid\n(.*?)```", re.S)
-
-
-def render_svgs(written: dict[Path, str], dry_run: bool) -> list[str]:
-    """Keep taxonomy.svg in step with the mermaid source on the page."""
-    import subprocess
-
-    out = []
-    for path, text in written.items():
-        if path.name != "summary.md":
-            continue
-        m = MERMAID_RE.search(text)
-        if not m:
-            continue
-        src = REPO / path.parent / "taxonomy.mmd"
-        svg = REPO / path.parent / "taxonomy.svg"
-        source = m.group(1).strip() + "\n"
-        if src.exists() and src.read_text() == source and svg.exists():
-            continue
-        if dry_run:
-            out.append(f"would re-render {svg.relative_to(REPO)}")
-            continue
-        src.write_text(source)
-        r = subprocess.run(
-            ["npx", "-y", "@mermaid-js/mermaid-cli", "-i", str(src), "-o", str(svg), "-b", "white"],
-            capture_output=True, text=True,
-        )
-        out.append(f"re-rendered {svg.relative_to(REPO)}" if r.returncode == 0
-                   else f"FAILED render {svg.relative_to(REPO)}: {r.stderr[-200:]}")
-    return out
 
 
 def load_token() -> str:
@@ -643,8 +735,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true", help="report, change nothing")
     ap.add_argument("--no-pdfs", action="store_true", help="skip arXiv PDF downloads")
-    ap.add_argument("--render-svg", action="store_true", help="re-render changed taxonomy diagrams")
+    ap.add_argument("--pdfs-only", action="store_true",
+                    help="only fetch missing paper PDFs, without walking Notion")
     args = ap.parse_args()
+
+    if args.pdfs_only:
+        for note in download_pdfs(args.dry_run):
+            print(f"  {note}")
+        return 0
 
     api = Notion(load_token())
     print("walking Notion...", file=sys.stderr)
@@ -652,9 +750,9 @@ def main() -> int:
     walker.walk()
     for node in walker.nodes.values():
         attach_children(api, node.blocks)
-    walker.assign_paths(scan_existing_papers())
+    walker.assign_paths(scan_existing_papers(), scan_existing_titles())
 
-    renderer = Renderer(walker)
+    renderer = Renderer(walker, api)
     written: dict[Path, str] = {}
     for page_id in walker.order:
         node = walker.nodes[page_id]
@@ -699,9 +797,7 @@ def main() -> int:
 
     notes = []
     if not args.no_pdfs:
-        notes += download_pdfs([walker.nodes[p] for p in walker.order], args.dry_run)
-    if args.render_svg:
-        notes += render_svgs(written, args.dry_run)
+        notes += download_pdfs(args.dry_run)
 
     print(f"\n{'DRY RUN: ' if args.dry_run else ''}{len(written)} pages mirrored "
           f"in {api.calls} API calls")
@@ -716,6 +812,11 @@ def main() -> int:
         print(f"    - {p}")
     for n in notes:
         print(f"  {n}")
+    if renderer.dangling:
+        print(f"\n  {len(renderer.dangling)} mention(s) point at a page that no "
+              f"longer exists. Fix these in Notion, not here:")
+        for target, where in renderer.dangling.items():
+            print(f"    {where} -> {target}")
     return 0
 
 

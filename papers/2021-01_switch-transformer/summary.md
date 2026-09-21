@@ -7,18 +7,18 @@
 - **Links**: [arXiv 2101.03961](https://arxiv.org/abs/2101.03961) (~1h 30m, JMLR-length paper) | [JAX code + checkpoints (t5x)](https://github.com/google-research/t5x) (repo, ~20 min for the README and entry path) | [Mesh-TensorFlow reference implementation](https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/moe.py) (~15 min)
 - Added to KB: 2026-08-24
 
-## Best resources
+### Best resources
 
 - [Mixture of Experts Explained (Hugging Face blog)](https://huggingface.co/blog/moe) (~30 min): the canonical MoE explainer; its sections on Switch routing, capacity factor, load balancing, and selective precision are essentially a modern restatement of this paper.
 - [A Visual Guide to Mixture of Experts (Maarten Grootendorst)](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts) (~30 min): the clearest diagrams of the router, expert capacity, and token dropping; walks through the Switch simplification step by step.
 - [Mixture-of-Experts LLMs deep dive (Cameron Wolfe)](https://cameronrwolfe.substack.com/p/moe-llms) (~40 min): places Switch in the lineage from Shazeer 2017 and GShard through Mixtral and DeepSeekMoE, with the sparse-vs-active parameter math.
 - [Yannic Kilcher's paper walkthrough (YouTube)](https://www.youtube.com/watch?v=iAR8LkkMMIM) (~1h): hour-long read-through of the paper with commentary on the routing and scaling claims.
 
-## Problem
+### Problem
 
 Kaplan-era scaling said bigger dense models are better, but every dense parameter is touched by every token, so parameter count and per-token FLOPs scale together. Sparse Mixture-of-Experts (Shazeer 2017, GShard) had shown you can decouple them, yet MoE saw little adoption for three reasons the paper attacks head-on: complexity (top-k routing, multiple auxiliary losses, capacity juggling), training instability (especially in bfloat16; GShard fell back to full float32), and communication cost. Switch Transformer asks whether MoE can be made simple, stable, and fast enough to make parameter count a routine fourth scaling axis at constant FLOPs per token.
 
-## Method
+### Method
 
 **Architecture.** Take T5 and replace the FFN in (every other) Transformer block with a Switch layer: N expert FFNs plus a linear router W_r. The router computes logits h(x) = W_r x, softmaxes them into probabilities p_i(x), and sends the token to the single argmax expert. The layer output is the chosen expert's output scaled by its gate value p_i(x), which keeps the router differentiable.
 
@@ -32,7 +32,7 @@ Kaplan-era scaling said bigger dense models are better, but every dense paramete
 
 **Expert parallelism.** Each device holds its own expert(s); the batch is data-parallel-sharded, the router builds a dispatch mask [n, B/n, E, C], and an all-to-all reshards tokens from the data dimension to the expert dimension, then back after the FFN. Section 5 lays out the full design space of data, model, and expert parallelism (how weights vs data shard over a 2D mesh) and combines all three for the biggest models. Switch-C (1.6T parameters, 2048 experts) uses expert + data parallelism only; Switch-XXL (395B, 64 experts) adds model parallelism for larger d_model/d_ff at fewer experts.
 
-## Results
+### Results
 
 - **7x pretraining speedup at equal FLOPs**: Switch-Base 64e reaches T5-Base quality in one-seventh the wall-clock time on the same 32 TPUv3 cores (7.5x on a step basis). Quality improves monotonically with expert count (up to 256 experts, 14.7B params) at constant FLOPs per token.
 - **Beats bigger dense models too**: Switch-Base outperforms T5-Large per step and gives a 2.5x wall-clock speedup despite T5-Large spending 3.5x more FLOPs per token.
@@ -42,15 +42,15 @@ Kaplan-era scaling said bigger dense models are better, but every dense paramete
 - **Multilingual**: over mT5-Base on 101 languages, every language improves; mean 5x step speedup, 91% of languages at 4x or more.
 - **Trillion scale**: Switch-C hits 1.6T parameters and trains with no instability; Switch-XXL (395B, 10x more FLOPs per token) is better per step but sporadically unstable. Both give a 4x speedup over T5-XXL, and Switch-XXL sets the upstream perplexity state of the art, though upstream gains only partially transfer to reasoning-heavy fine-tuning (a gap the paper flags honestly).
 
-## Why it matters
+### Why it matters
 
 This is the paper that made sparse MoE practical. It demolished the belief that top-k routing with k > 1 was necessary, compressed MoE's loss zoo into one balancing loss, showed bfloat16 sparse training is possible with a one-line precision fix, and articulated the vocabulary the field still uses: expert capacity, capacity factor, token dropping, expert parallelism, sparse vs active parameters. It established parameter count as a scaling axis independent of FLOPs, and its 1.6T Switch-C was the first trillion-parameter model trained. The lineage runs straight through GLaM and ST-MoE to Mixtral (top-2, coarse experts, open weights) and DeepSeekMoE/DeepSeek-V3 (fine-grained plus shared experts, aux-loss-free balancing that fixes the balancing-vs-quality tension Switch's loss introduced), to today's default frontier recipe of high-sparsity MoE (GPT-4-class models, Llama 4, Qwen3-MoE, Kimi K2). Its pain points were as influential as its fixes: token dropping motivated dropless kernels (MegaBlocks), and its instability at scale motivated the router-z-loss line of work (ST-MoE).
 
-## Connections
+### Connections
 
-- [papers/2024-01_mixtral](../2024-01_mixtral/summary.md): the open-weights descendant that made the sparse-FFN template mainstream; top-2 where Switch is top-1, no capacity-factor machinery on GPUs.
-- [papers/2024-12_deepseek-v3](../2024-12_deepseek-v3/summary.md): modern high-sparsity MoE; its aux-loss-free balancing is a direct response to the auxiliary loss introduced here.
-- [papers/2020-01_scaling-laws](../2020-01_scaling-laws/summary.md): the dense scaling results Switch extends with a fourth axis (parameters at fixed FLOPs).
-- [papers/2019-09_megatron-lm](../2019-09_megatron-lm/summary.md): tensor model parallelism, the technique Switch combines with expert and data parallelism in section 5.
-- [papers/2017-06_attention-is-all-you-need](../2017-06_attention-is-all-you-need/summary.md): the Transformer whose FFN sub-block the Switch layer replaces.
+- papers/2024-01_mixtral: the open-weights descendant that made the sparse-FFN template mainstream; top-2 where Switch is top-1, no capacity-factor machinery on GPUs.
+- papers/2024-12_deepseek-v3: modern high-sparsity MoE; its aux-loss-free balancing is a direct response to the auxiliary loss introduced here.
+- papers/2020-01_scaling-laws: the dense scaling results Switch extends with a fourth axis (parameters at fixed FLOPs).
+- papers/2019-09_megatron-lm: tensor model parallelism, the technique Switch combines with expert and data parallelism in section 5.
+- papers/2017-06_attention-is-all-you-need: the Transformer whose FFN sub-block the Switch layer replaces.
 - Topics: `topics/llm-training-and-post-training` (expert parallelism, distributed training, distillation), `topics/llms` (MoE architecture lineage).

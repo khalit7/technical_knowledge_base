@@ -4,7 +4,7 @@
 
 Added 2026-08-24. The protocol you use more than any other and configure least. This page is two things: how SSH-2 actually works, and the config and workflow patterns that make a 2FA-gated cluster with a jump host tolerable rather than infuriating.
 
-## Best resources (1 min)
+### Best resources (1 min)
 
 - [OpenSSH release notes](https://www.openssh.com/releasenotes.html) (~1h for the recent releases): the authoritative changelog. Every version and default claimed below traces here.
 - [OpenSSH post-quantum page](https://www.openssh.com/pq.html) (15 min): which hybrid key exchange, when it became default, and the reasoning behind the new weak-crypto warning.
@@ -12,7 +12,7 @@ Added 2026-08-24. The protocol you use more than any other and configure least. 
 - [RFC 4251](https://www.rfc-editor.org/rfc/rfc4251) through [4254](https://www.rfc-editor.org/rfc/rfc4254) (3h for all four): architecture, authentication, transport, and connection layers.
 - [Qualys regreSSHion advisory](https://www.qualys.com/2024/07/01/cve-2024-6387/regresshion.txt) (25 min) and [terrapin-attack.com](https://terrapin-attack.com/) (20 min): the two vulnerabilities worth understanding rather than just patching.
 
-## The three layers (2 min)
+### The three layers (2 min)
 
 **Transport (RFC 4253).** TCP connects, both sides exchange version banners, then `SSH_MSG_KEXINIT` negotiates algorithms and key exchange runs. The output includes a **session ID**, the hash of the first key exchange, which every later signature binds to. The server proves possession of its host key here, and that is the only anti-MITM anchor in the protocol. Rekeying happens periodically.
 
@@ -22,14 +22,13 @@ Added 2026-08-24. The protocol you use more than any other and configure least. 
 
 Channels are why the workflow section below works. Port forwards, SFTP, and connection multiplexing are all extra channels on one TCP connection and **one authentication**, which is why the second and subsequent `ssh`, `rsync`, or VS Code connection to a login node opens in milliseconds instead of re-running key exchange and 2FA. It is also why one dropped TCP connection kills every forward at once.
 
-## Algorithms and the post-quantum migration (4 min)
+### Algorithms and the post-quantum migration (4 min)
 
 Current OpenSSH 10.x defaults:
 
 - **Key exchange**: `mlkem768x25519-sha256` first, then `sntrup761x25519-sha512@openssh.com`, then `curve25519-sha256`. Finite-field Diffie-Hellman was removed from sshd's defaults in 10.0.
 - **Host keys**: prefer `ssh-ed25519` (fixed 32-byte keys, no parameter choices, no per-signature RNG footgun), then ECDSA, then `rsa-sha2-512/256`. **DSA was removed entirely in OpenSSH 10.0 (2025-04-09)**, ending a deprecation begun in 2015.
 - **Ciphers**: ChaCha20-Poly1305, then AES-GCM, then AES-CTR with encrypt-then-MAC. CBC and non-ETM MACs are off by default.
-
 The rule that follows: **do not hand-write Ciphers and KexAlgorithms lines.** Frozen crypto lists copied from a 2016 hardening blog post are now the main reason someone's SSH is weaker than the defaults.
 
 **Post-quantum timeline.** OpenSSH 9.0 (2022-04-08) made `sntrup761x25519` the default key exchange, making SSH one of the first mainstream protocols with hybrid PQ on by default, explicitly reasoning about capture-now-decrypt-later. 9.9 added `mlkem768x25519-sha256` (ML-KEM-768 plus X25519, per FIPS 203), and **10.0 made it the default**. 10.1 added **WarnWeakCrypto, on by default**, which prints a warning when a session negotiates a non-PQ key exchange: expect to see it against older RHEL login nodes, and silence it per-Host rather than globally. 10.4 (2026-07-06) added an experimental composite PQ signature, `mldsa44-ed25519`, **not enabled by default**, which is the authentication half that was previously missing. The IETF hybrid key exchange draft is in the RFC Editor queue rather than published.
@@ -42,7 +41,7 @@ Three recent changes that break scripts rather than security:
 - **10.0 made scp and sftp use ControlMaster no**, so `scp` no longer silently warms a multiplexing socket for later use.
 - **10.5 requires ECC support including NISTP521 in libcrypto**, which matters if you build OpenSSH in a container.
 
-## Authentication (3 min)
+### Authentication (3 min)
 
 **Turn off passwords** (`PasswordAuthentication no`, `KbdInteractiveAuthentication no`). Password auth is the entire input to the SSH brute-force botnet economy.
 
@@ -62,7 +61,7 @@ ssh-keygen -s ca_key -I "khalid@2026-08" -n khalid,khalid-gpu -V +8h -z 42 id_ed
 
 `ssh -Z` (new in 10.5) shows which keys will be offered and in what order, which is the fix for "Too many authentication failures" when your agent holds nine keys and the server allows six attempts. The other fix is `IdentitiesOnly yes`.
 
-## Config that saves hours (3 min)
+### Config that saves hours (3 min)
 
 ```
 Host *
@@ -97,12 +96,11 @@ Host gpu-node-*
 - **ProxyJump replaced both ProxyCommand ssh -W and the ancient nc invocation.** Multi-hop is `ssh -J bastion,login gpu-node-07`. Version 10.3 added hostname validation to it to block shell injection from crafted hostnames.
 - **ControlMaster plus ControlPersist is the single biggest time saver on a 2FA cluster.** Authenticate once, then every `rsync`, `git`, and VS Code channel rides the same connection. The caveats: when the master dies everything dies, `-O check` and `-O exit` manage it, and `scp` no longer creates one since 10.0.
 - **ServerAliveInterval is what you want, not TCPKeepAlive.** The former is an SSH-layer probe that works through NAT; the latter is a 2-hour TCP timer that is useless against a VPN that drops idle flows at 10 minutes.
-
 **Forwarding.** `-L lport:dsthost:dport` exposes a remote service on your laptop (Jupyter, TensorBoard). `-R` exposes something of yours on the remote. `-D port` opens a local SOCKS5 proxy and is the best single trick for reaching an internal Grafana or MLflow without one `-L` per port; point tools at it with `ALL_PROXY=socks5h://127.0.0.1:1080` so DNS resolves remotely. Use `-N -f` for pure tunnels. At an idle prompt, `~C` adds forwards to a live session, `~I` (10.3) prints connection info, and `~.` kills a wedged one.
 
 **File transfer.** `scp` is deprecated as a protocol: since OpenSSH 9.0 it speaks SFTP underneath, and the legacy protocol's server-side glob expansion has produced repeated path-traversal CVEs, including two more in 2026. **Use rsync -avhP --partial -e ssh for anything checkpoint-sized**: resumable, delta-transferred, and free of extra handshakes when ControlMaster is up. For many small files, `tar | ssh 'tar -x'` beats rsync's per-file overhead. `sshfs` is convenient for editing but latency-bound, unusable for training data, and effectively unmaintained; VS Code Remote-SSH (code runs remotely) is the better answer.
 
-## Cluster workflows (4 min)
+### Cluster workflows (4 min)
 
 **Jupyter or TensorBoard through a login node.** Compute nodes are usually not routable; the login node is.
 
@@ -123,7 +121,7 @@ Bind to `127.0.0.1` and never `0.0.0.0` on a shared node, or any other user on t
 
 **GitHub.** Use a per-repository **deploy key** on the cluster, read-only by default, so a compromised login node exposes one repository rather than your account. `Host github.com / HostName ssh.github.com / Port 443` gets you through a firewall that blocks outbound 22. For commit signing you no longer need GPG: `git config gpg.format ssh` plus a signing key, with `gpg.ssh.allowedSignersFile` for local verification; GitHub has verified SSH signatures since 2022-08-23. It works with `ed25519-sk`, so signing requires a touch.
 
-## Security (3 min)
+### Security (3 min)
 
 **regreSSHion (CVE-2024-6387)**, disclosed 2024-07-01, is unauthenticated remote code execution as root. A `SIGALRM` on login-grace expiry calls a signal handler that reaches `syslog` and `malloc`, which are not async-signal-safe, and interrupting inside an allocation leaves the heap inconsistent. It affects **OpenSSH 8.5p1 through 9.7p1** (and pre-4.4p1) and is **fixed in 9.8**. It is a regression of a 2006 bug whose guard a 2020 refactor removed. Exploitation is slow and noisy (roughly one attempt in ten thousand, hours of work in the lab, glibc-Linux only), but the lesson stands: **key-only authentication does not protect you from a pre-auth bug**, which is the strongest argument for not exposing port 22 to the internet.
 
@@ -135,7 +133,7 @@ Since then: **CVE-2025-26465** (client-side MITM when `VerifyHostKeyDNS` is enab
 
 **Modern alternatives to an internet-facing bastion**: AWS **SSM Session Manager** (no inbound ports, IAM-authorised, CloudTrail-audited, and it still supports plain `ssh` via a `ProxyCommand` so `-J` and `rsync` keep working), **Tailscale or WireGuard** (device identity, ACLs, NAT traversal, port 22 never facing the internet), and **Teleport** (SSH CA with short-lived certificates, SSO, RBAC, session recording) where you need auditable multi-user access to GPU boxes. On a university cluster you rarely get to choose, and ProxyJump plus ControlPersist is what makes institutional VPN plus 2FA tolerable.
 
-## Deltas worth knowing since 2025 (1 min)
+### Deltas worth knowing since 2025 (1 min)
 
 - `mlkem768x25519-sha256` is the default key exchange; `WarnWeakCrypto` warnings against older nodes are expected and informational.
 - Agent sockets moved to `~/.ssh/agent`; fix hardcoded paths and container mounts.
@@ -146,8 +144,8 @@ Since then: **CVE-2025-26465** (client-side MITM when `VerifyHostKeyDNS` is enab
 - **RFC 9987 (May 2026) standardised the SSH agent protocol**, so third-party agents (password managers, cloud KMS) should interoperate better than the previous de-facto arrangement.
 - VS Code Remote-SSH needs glibc 2.28 or newer on the remote, so CentOS 7 login nodes are out. Pair it with `ControlPersist 4h` so its several channels do not re-trigger 2FA.
 
-## Connections
+### Connections
 
-- Host keys, trust-on-first-use, and how this compares with the CA model on the web: [TLS and PKI](tls-and-pki.md) (22 min read · +17h 30m resources).
-- Keepalives, idle timeouts, and why `ServerAliveInterval` beats `TCPKeepAlive`: [TCP, UDP, and IP](tcp-udp-ip.md) (17 min read · +5h 35m resources).
-- SSHFP records and the DNSSEC dependency that makes them meaningful: [DNS](dns.md) (21 min read · +6h 15m resources).
+- Host keys, trust-on-first-use, and how this compares with the CA model on the web: [TLS and PKI: handshake, certificates, and mTLS](tls-and-pki.md) (22 min read · +17h 30m resources).
+- Keepalives, idle timeouts, and why `ServerAliveInterval` beats `TCPKeepAlive`: [TCP, UDP, and IP: the transport foundations](tcp-udp-ip.md) (17 min read · +5h 35m resources).
+- SSHFP records and the DNSSEC dependency that makes them meaningful: [DNS: resolution, caching, and the failure modes](dns.md) (21 min read · +6h 15m resources).

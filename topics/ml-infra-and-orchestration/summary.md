@@ -1,17 +1,14 @@
-# ML Infra and Orchestration
+# Topic: ml-infra-and-orchestration
 
 ⏱ 12 min read · +3h 35m resources
 
-Last updated: 2026-08-24
+Last updated: 2026-09-21 (merged the duplicated Prefect and Dagster acquisition note into the Dagster paragraph; fixed a page reference)
 
 Everything between "I have a training script" and "it runs reliably on 256 GPUs with
+
 metrics, checkpoints, and a bill I can explain". Four layers: **compute schedulers**
+
 (who gets which GPU), **workflow orchestrators** (what runs when and why), **infra as code + cloud** (how the machines exist at all), and **observability + tracking** (how you know it worked).
-
-![Taxonomy diagram](taxonomy.svg)
-
-<details>
-<summary>Diagram source (mermaid)</summary>
 
 ```mermaid
 graph TD
@@ -54,44 +51,63 @@ graph TD
     H --> H5[datatrove<br/>LLM text curation at scale]
 ```
 
-</details>
-
-## The map, briefly
+### The map, briefly
 
 **Schedulers** decide who gets GPUs. SLURM is the HPC incumbent: gang
+
 scheduling is native, jobs are batch scripts, and it is what HyperPod's Slurm flavour
+
 and most academic clusters run. Kubernetes is the industry
+
 platform everything else is converging on; raw K8s is bad at batch ML, so Kueue
+
 (quota + gang admission), Volcano, and training operators (Kubeflow Trainer v2's
+
 TrainJob, KubeRay) fill the gap. The pragmatic 2026 read: SLURM still wins for pure
+
 large-scale pretraining ergonomics; K8s wins the moment you also serve models, run
+
 many teams, or want one platform for everything.
 
 **Managed training**: SageMaker HyperPod gives you a persistent SLURM or EKS cluster
+
 with health-monitored, auto-replaced nodes and job auto-resume; plain SageMaker
+
 training jobs are ephemeral per-job capacity. Vertex AI is GCP's equivalent. Covered
-in [terraform-and-aws-ml.md](terraform-and-aws-ml.md).
+
+in [Terraform and the AWS ML Stack](terraform-and-aws-ml.md).
 
 **Orchestrators** decide what runs when. Dagster models pipelines as a graph of
+
 **assets** (datasets, models); Airflow models a DAG of **tasks**; Prefect is dynamic
+
 Pythonic flows; Flyte is typed and K8s-native; Metaflow optimises for data scientist
-ergonomics. Note: Prefect agreed to acquire Dagster Labs in July 2026, so watch that
-space. Comparison and fit in [pipelines-and-data-eng.md](pipelines-and-data-eng.md).
+
+ergonomics.
+
+Comparison and fit in [Pipelines and Data Engineering for ML](pipelines-and-data-eng.md).
 
 **Data engines**: Polars for single-node (often replacing a whole Spark cluster),
+
 Dask/Spark for distributed dataframes, Ray Data for feeding GPUs, datatrove for
-FineWeb-style trillion-token text curation. Same file as pipelines.
+
+FineWeb-style trillion-token text curation. Same page as pipelines.
 
 **IaC**: Terraform state/modules/workspaces patterns plus the AWS ML stack (S3 layout
+
 for datasets and checkpoints, Lambda/EventBridge glue, cost control) in
-[terraform-and-aws-ml.md](terraform-and-aws-ml.md).
+
+[Terraform and the AWS ML Stack](terraform-and-aws-ml.md).
 
 **Observability + tracking**: Prometheus + Grafana + DCGM exporter for GPU metrics,
-what to alert on for training (throughput drops, NCCL stalls, node health), W&B vs
-MLflow, and checkpoint/reproducibility hygiene in
-[monitoring-and-tracking.md](monitoring-and-tracking.md).
 
-## What each tool actually is, and why you would pick it
+what to alert on for training (throughput drops, NCCL stalls, node health), W&B vs
+
+MLflow, and checkpoint/reproducibility hygiene in
+
+[Monitoring, Experiment Tracking, and Run Hygiene](monitoring-and-tracking.md).
+
+### What each tool actually is, and why you would pick it
 
 The map above names the layers. This section is the one-paragraph-per-tool version, because a name on its own tells you nothing about when to reach for it.
 
@@ -107,7 +123,7 @@ The map above names the layers. This section is the one-paragraph-per-tool versi
 
 **Airflow** is the incumbent workflow orchestrator: you declare tasks and the edges between them, and it schedules runs, retries and backfills. It knows that a task succeeded, not what data that task produced, which is its structural limitation. Airflow 3 (2025) added DAG versioning, asset-aware and event-driven scheduling, and a task execution API that isolates workers from the metadata database. Pick it when the organisation already runs it: the real moat is the thousand-provider ecosystem, the managed offerings, and the fact that every data engineer already knows it.
 
-**Dagster** models the same problem as a graph of **software-defined assets**: you declare the thing that should exist (this table, this embedding index, this model checkpoint) as a function of its upstream assets, and execution order, lineage, freshness and partition state fall out of the graph instead of being bolted on with sensors. That fits ML unusually well, because ML work *is* materialised artifacts with data dependencies, so "retrain when the features go stale" is a first-class concept. Pick it for a greenfield platform where lineage and freshness matter. One business note that bears on the choice: Prefect agreed to acquire Dagster Labs in July 2026. **Prefect** discovers the graph at runtime from decorated Python functions, so loops and dynamic fan-out are just code, at the cost of the weakest lineage story of the three. **Flyte** compiles strongly typed workflows into containerised tasks on Kubernetes with caching and versioning, making reproducibility structural, and is heavier to operate because it is a platform in its own right. **Metaflow** (Netflix) optimises for the individual data scientist: local-first steps, automatic artifact snapshotting, resume from any step, and decorators to burst onto AWS Batch or Kubernetes.
+**Dagster** models the same problem as a graph of **software-defined assets**: you declare the thing that should exist (this table, this embedding index, this model checkpoint) as a function of its upstream assets, and execution order, lineage, freshness and partition state fall out of the graph instead of being bolted on with sensors. That fits ML unusually well, because ML work *is* materialised artifacts with data dependencies, so "retrain when the features go stale" is a first-class concept. Pick it for a greenfield platform where lineage and freshness matter. One business note that bears on the choice: Prefect agreed to acquire Dagster Labs in July 2026, so watch that space. **Prefect** discovers the graph at runtime from decorated Python functions, so loops and dynamic fan-out are just code, at the cost of the weakest lineage story of the three. **Flyte** compiles strongly typed workflows into containerised tasks on Kubernetes with caching and versioning, making reproducibility structural, and is heavier to operate because it is a platform in its own right. **Metaflow** (Netflix) optimises for the individual data scientist: local-first steps, automatic artifact snapshotting, resume from any step, and decorators to burst onto AWS Batch or Kubernetes.
 
 **Terraform** is infrastructure as code: you declare resources in HCL, Terraform diffs that declaration against a **state file** recording what it believes exists, then applies the difference. Three concepts carry most of the practice. **State** is kept remote in S3 with locking, and split one file per blast-radius unit (network, cluster, data) so a bad apply on experiment infrastructure cannot touch the VPC. **Modules** are reusable parameterised groups of resources, with thin root configurations composing them and versions pinned. **Workspaces** give multiple named states from one configuration, which is right for identical per-developer sandboxes and wrong for dev versus prod, where separate root directories keep the production GPU counts in a file you can code-review. Pick it because capacity reservations, cluster definitions and bucket lifecycle rules are precisely the things you cannot afford to have existing only in someone's console history.
 
@@ -115,20 +131,25 @@ The map above names the layers. This section is the one-paragraph-per-tool versi
 
 **MLflow** is the open-source experiment tracker and, more to the point, a **model registry**: runs log parameters, metrics and artifacts, and registered models move through explicit stages toward production, which is the governance piece. It is self-hostable, Databricks-backed, and available managed inside SageMaker. **Weights and Biases (W&B)** does the tracking half considerably better: hosted-first, the strongest run-comparison UI, automatic capture of system and GPU metrics per run, Sweeps for hyperparameter search, and artifacts with lineage. Pick W&B when research velocity across dozens of runs dominates and you accept a vendor holding your metrics; pick MLflow when you need deployment-side governance or must self-host. The common answer is both: W&B during training, the MLflow registry for promotion.
 
-## Deep dives
+### Deep dives
 
-| File | Contents |
-|---|---|
-| [slurm.md](slurm.md) (10 min read · +3h 15m resources) | Partitions/QOS, sbatch/srun, GRES GPU scheduling, arrays, multi-node torchrun, Enroot/Pyxis, preemption, debugging distributed failures |
-| [kubernetes-for-ml.md](kubernetes-for-ml.md) (12 min read · +4h 40m resources) | K8s learning track for a SLURM native: core objects, GPU scheduling, Kueue, training operators, SLURM-to-K8s translation table, k3s home lab |
-| [pipelines-and-data-eng.md](pipelines-and-data-eng.md) (10 min read · +5h resources) | Dagster vs Airflow vs Prefect vs Flyte; Polars vs Dask vs Spark vs Ray Data; trillion-token text pipelines (datatrove) |
-| [terraform-and-aws-ml.md](terraform-and-aws-ml.md) (11 min read · +3h 5m resources) | Terraform patterns, SageMaker + HyperPod, Lambda/EventBridge, S3 design, cost control |
-| [monitoring-and-tracking.md](monitoring-and-tracking.md) (10 min read · +4h 5m resources) | DCGM/Prometheus/Grafana, training alerts, W&B vs MLflow, checkpoint hygiene, reproducibility |
+| Page | Contents |
+| --- | --- |
+| [SLURM for ML](slurm.md) (10 min read · +3h 15m resources) | Partitions/QOS, sbatch/srun, GRES GPU scheduling, arrays, multi-node torchrun, Enroot/Pyxis, preemption, debugging distributed failures |
+| [Kubernetes for ML (a learning track for a SLURM native)](kubernetes-for-ml.md) (12 min read · +4h 40m resources) | K8s learning track for a SLURM native: core objects, GPU scheduling, Kueue, training operators, SLURM-to-K8s translation table, k3s home lab |
+| [Pipelines and Data Engineering for ML](pipelines-and-data-eng.md) (10 min read · +5h resources) | Dagster vs Airflow vs Prefect vs Flyte; Polars vs Dask vs Spark vs Ray Data; trillion-token text pipelines (datatrove) |
+| [Terraform and the AWS ML Stack](terraform-and-aws-ml.md) (11 min read · +3h 5m resources) | Terraform patterns, SageMaker + HyperPod, Lambda/EventBridge, S3 design, cost control |
+| [Monitoring, Experiment Tracking, and Run Hygiene](monitoring-and-tracking.md) (10 min read · +4h 5m resources) | DCGM/Prometheus/Grafana, training alerts, W&B vs MLflow, checkpoint hygiene, reproducibility |
 
-## Best starting resources
+### Best starting resources
 
 - [Slurm containers guide](https://slurm.schedmd.com/containers.html) (~20 min) and the [NVIDIA Pyxis repo](https://github.com/NVIDIA/pyxis) (repo, ~15 min for the entry path): the container story on HPC.
 - [Kueue docs](https://kueue.sigs.k8s.io/docs/) (docs, ~30 min for the core pages): the K8s batch scheduling model.
 - [Kubeflow Trainer v2 announcement](https://blog.kubeflow.org/trainer/intro/) (~15 min): where K8s training APIs landed after PyTorchJob.
 - [SageMaker HyperPod resiliency docs](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-resiliency.html) (~20 min): what the platform actually does for you when a GPU dies.
 - [The FineWeb paper](https://arxiv.org/abs/2406.17557) (90 min, long paper) + [datatrove](https://github.com/huggingface/datatrove) (repo, ~25 min for the entry path): canonical large-scale text pipeline design.
+- [SLURM for ML](slurm.md)
+- [Kubernetes for ML (a learning track for a SLURM native)](kubernetes-for-ml.md)
+- [Pipelines and Data Engineering for ML](pipelines-and-data-eng.md)
+- [Terraform and the AWS ML Stack](terraform-and-aws-ml.md)
+- [Monitoring, Experiment Tracking, and Run Hygiene](monitoring-and-tracking.md)

@@ -57,6 +57,8 @@ from common.style import (                             # noqa: E402
     T,
     fit,
     hairline,
+    hbar,
+    labelled_bar,
     pill,
     stat,
 )
@@ -74,24 +76,6 @@ TIMING = ROOT / "out" / "timing_2026_09_21.json"
 
 
 # -- reusable pieces -------------------------------------------------------
-
-
-def hbar(width, height=0.5, color=ACCENT, opacity=0.85):
-    return Rectangle(
-        width=max(width, 0.04), height=height,
-        stroke_width=0, fill_color=color, fill_opacity=opacity,
-    )
-
-
-def labelled_bar(label, value_text, width, color=ACCENT, label_width=3.1):
-    name = T(label, size=SMALL, color=FG)
-    if name.width > label_width:
-        name.scale(label_width / name.width)
-    bar = hbar(width, color=color)
-    value = T(value_text, size=SMALL, color=color)
-    row = VGroup(name, bar, value).arrange(RIGHT, buff=0.3)
-    name.align_to(row, LEFT)
-    return row
 
 
 def loop_diagram():
@@ -193,6 +177,7 @@ class TechNews20260921(TechScene):
         self.play(Write(question), run_time=1.6)
         self.hold()
         self.question_text = question
+        self.stage = question          # whatever the next beat has to clear
 
     # -- 3. the contract ---------------------------------------------------
 
@@ -206,12 +191,18 @@ class TechNews20260921(TechScene):
         self.morph(self.question_text, route, run_time=1.0)
         self.hold()
         self.route = route
+        self.stage = route
 
     # -- 4. common ground: the task horizon --------------------------------
 
     def task_horizon(self):
         self.say("horizon")
-        self.retire(self.route, run_time=0.5)
+        # Whatever the previous beat left in the middle of the frame. Naming
+        # the thing rather than the beat that made it is what lets the two
+        # minute cut drop the contract beat and still run.
+        if getattr(self, "stage", None) is not None:
+            self.retire(self.stage, run_time=0.5)
+            self.stage = None
 
         head = T("task horizon: how long a job it can finish alone", size=SMALL, color=DIM)
         head.to_edge(UP, buff=TOP_BUFF)

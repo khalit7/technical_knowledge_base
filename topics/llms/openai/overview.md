@@ -2,9 +2,9 @@
 
 ⏱ 9 min read · +2h 40m resources
 
-Last updated: 2026-08-31 (explanation pass: every named model, architecture and acronym below now says what it is and what it changes; time estimates added). Per-model files to follow; this page maps the family.
+Last updated: 2026-08-31 (explanation pass: every named model, architecture and acronym below now says what it is and what it changes; time estimates added). Per-model pages to follow; this page maps the family.
 
-## Best resources
+### Best resources
 
 - [GPT-5.6 announcement](https://openai.com/index/gpt-5-6/) (10 min): current flagship line, the three tiers and how OpenAI positions them against each other.
 - [OpenAI model release timeline](https://hidekazu-konishi.com/entry/openai_gpt_model_release_timeline.html) (~20 min): the cleanest dated lineage of every GPT/o/Codex release. Use it as a reference table, not a read.
@@ -12,7 +12,7 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 - [gpt-oss model card](https://openai.com/index/introducing-gpt-oss/) (15 min): the only architecture disclosure OpenAI has made since GPT-2.
 - [GPT-3 paper](https://arxiv.org/abs/2005.14165) (~1h 30m) and repo summary: where the scaling bet was proven. It is 75 pages and mostly evaluation tables; the first 25 pages carry the argument.
 
-## Lineage
+### Lineage
 
 **GPT-1, GPT-2, GPT-3 (2018-2020): the scaling bet.** All three are decoder-only transformers trained on plain next-token prediction, and what is interesting is how little changed between them other than size and data. GPT-2 (1.5B) showed that one unsupervised objective produced usable zero-shot behaviour on tasks nobody trained for. GPT-3 (175B, dense, meaning every parameter participates in every token) established **in-context learning**: you specify a task by putting examples in the prompt, with no gradient update at all. That single property is what turns one served checkpoint into a general product, and it is why the paper is called "Language models are few-shot learners". GPT-3 also anchored the scaling-law era, in which loss moves predictably with compute, so the research question shifted from architecture search to how to allocate a compute budget.
 
@@ -26,11 +26,10 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 
 **GPT-5.6 (Jul 2026): the current family.** Three tiers, named rather than numbered. **Sol** takes the hardest work and is the line's workhorse and best coding model; **Terra** is the balanced tier; **Luna** is the fast and cheap one. All three share a 1.05M-token context window and a 128K maximum output. API pricing per 1M tokens: Sol $5/$30, Terra $2.50/$15, Luna $1/$6. The bare `gpt-5.6` alias routes to Sol.
 
-- Added 2026-08-24: OpenAI cut GPT-5.6 Sol developer pricing by more than 20% (announced Aug 21, in effect until at least Nov 21), days after OpenRouter cut its Sol pricing by 50%; separately, Roboflow's evaluation calls Sol the best vision model OpenAI has shipped. [Reuters](https://www.reuters.com/technology/openai-cuts-developer-pricing-frontier-gpt-56-sol-model-by-more-than-20-2026-08-21/) (4 min), [Roboflow](https://blog.roboflow.com/openai-gpt-5-6/) (8 min)
-
+- OpenAI cut GPT-5.6 Sol developer pricing by more than 20% (announced Aug 21, in effect until at least Nov 21), days after OpenRouter cut its Sol pricing by 50%; separately, Roboflow's evaluation calls Sol the best vision model OpenAI has shipped. [Reuters](https://www.reuters.com/technology/openai-cuts-developer-pricing-frontier-gpt-56-sol-model-by-more-than-20-2026-08-21/) (4 min), [Roboflow](https://blog.roboflow.com/openai-gpt-5-6/) (8 min)
 **gpt-oss-120b and gpt-oss-20b (Aug 2025): the one open window.** The first open weights since GPT-2, Apache 2.0 licensed, and the only place OpenAI's actual design choices are visible. Both are **MoE (Mixture of Experts)** models, where the feed-forward block is replaced by many expert FFNs of which a router selects a few per token, so total parameters and per-token compute decouple: 120b holds 117B parameters and activates roughly 5.1B per token, 20b holds 21B and activates 3.6B. They ship **MXFP4**-native, a 4-bit microscaled float format in which a small block of values shares one exponent scale; the expert weights are trained and released in it rather than quantised afterwards, which is why 120b fits on a single 80GB card and 20b fits in 16GB with no quality cliff from post-hoc compression. Reasoning effort is set in the system prompt (low, medium, high) instead of by shipping separate checkpoints. The attention stack is conventional modern practice, which is itself the useful signal about what OpenAI considers settled: **GQA (Grouped-Query Attention)**, where several query heads share one key/value head so the KV cache shrinks by the sharing factor at almost no quality cost; **RoPE (Rotary Position Embedding)** extended with **YaRN**, which rescales the rotation frequencies by wavelength so a model trained at short context extrapolates to long ones with a short fine-tune instead of a retrain; alternating sliding-window and full-attention layers, so most layers cost attention linear in sequence length and only a minority pay the quadratic price; no QK-norm (normalising queries and keys before the dot product, a common large-scale stability trick, which this recipe evidently does not need); and learned **attention sinks**, per-head bias logits that give the softmax somewhere to dump probability mass when no token deserves it, which is what keeps long-context and streaming generation from degenerating.
 
-## Training approach highlights
+### Training approach highlights
 
 **What is public.** Frontier data is not. The pillars that are known: very large web crawl plus licensed corpora, heavy use of synthetic data (model-generated training data filtered and graded by other models), and the RLHF family applied at a scale nobody else had in the early years.
 
@@ -40,10 +39,10 @@ Last updated: 2026-08-31 (explanation pass: every named model, architecture and 
 
 **Architecture visibility.** Flagship weights are closed and dense-versus-MoE is unconfirmed, though MoE is assumed universally given the pricing and latency structure. gpt-oss is the only window, and it looks like a conventional modern MoE, which suggests the flagships differ from public practice in data, RL and scale rather than in block design.
 
-## Current models (Aug 2026)
+### Current models (Aug 2026)
 
 | Model | Role | Notes |
-|---|---|---|
+| --- | --- | --- |
 | GPT-5.6 Sol | Flagship reasoning/coding | SOTA-competitive across coding, knowledge work, cyber, science; AA index ~61 |
 | GPT-5.6 Terra | Balanced default | ChatGPT mainline |
 | GPT-5.6 Luna | Fast/cheap | High-volume and latency-sensitive |
@@ -54,8 +53,8 @@ The **AA index** in that table is the Artificial Analysis Intelligence Index, a 
 
 Position: still the largest consumer distribution by a wide margin (ChatGPT); on pure capability the top is shared with Anthropic (Opus 5 and Fable 5, the Mythos-class line) and contested by xAI's Grok 4.6 and Google's Gemini 3.1.
 
-## Cross-links
+### Cross-links
 
-- [../reasoning-models.md](../reasoning-models.md) for the o-series' role in test-time compute, and for how hidden chains of thought compare with Anthropic's budgeted, visible thinking.
-- [../moe-models.md](../moe-models.md) for gpt-oss MoE configs alongside the other open sparse models.
-- Rivals: [../anthropic/overview.md](../anthropic/overview.md), [../google-gemini/overview.md](../google-gemini/overview.md), [../xai-grok/overview.md](../xai-grok/overview.md).
+- [Reasoning models and test-time compute](../reasoning-models.md) for the o-series' role in test-time compute, and for how hidden chains of thought compare with Anthropic's budgeted, visible thinking.
+- [Mixture-of-Experts (MoE) models](../moe-models.md) for gpt-oss MoE configs alongside the other open sparse models.
+- Rivals: [Anthropic: Claude family](../anthropic/overview.md), [Google DeepMind: Gemini and Gemma](../google-gemini/overview.md), [xAI / SpaceXAI: Grok](../xai-grok/overview.md).

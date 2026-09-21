@@ -27,9 +27,9 @@ clean state to a walk.
 ## Script, not judgement
 
 `tools/notion_mirror.py` does the whole thing: traversal, Notion blocks to markdown,
-page mentions to relative repo links, file writing, orphan deletion, arXiv PDF
-downloads, and the taxonomy re-render. It needs no model in the loop, so it is
-reproducible and costs nothing to re-run.
+page mentions resolved to relative repo links, file writing, orphan deletion and
+arXiv PDF downloads. It needs no model in the loop, so it is reproducible and costs
+nothing to re-run. `uv run` handles its dependencies, which are only `requests`.
 
 The split is deliberate. Mechanical work (which page goes where, what to delete) is
 scripted because a model doing it by hand is slower, more expensive and less
@@ -39,8 +39,8 @@ sense, is a page missing that should exist) stays with whoever runs the sync, at
 
 ```bash
 export NOTION_TOKEN=ntn_...            # or write it to .notion-token (gitignored)
-python3 tools/notion_mirror.py --dry-run          # report only
-python3 tools/notion_mirror.py --render-svg       # the real run
+uv run tools/notion_mirror.py --dry-run           # report only
+uv run tools/notion_mirror.py                     # the real run
 ```
 
 The token is an internal integration secret from
@@ -74,10 +74,9 @@ the arXiv link on the paper's page when missing; Notion keeps the summaries and 
 
 1. `git pull`, and check the working tree is clean. Local edits to mirrored files are a
    mistake: surface them to Khalid rather than committing or discarding them.
-2. `python3 tools/notion_mirror.py --dry-run` and read the added, changed and deleted
+2. `uv run tools/notion_mirror.py --dry-run` and read the added, changed and deleted
    lists.
-3. `python3 tools/notion_mirror.py --render-svg` for the real run. The SVG re-render
-   needs `npx`; skip the flag if the taxonomy diagrams did not change.
+3. `uv run tools/notion_mirror.py` for the real run.
 4. Review the diff. Every deletion should trace to a page deleted in Notion, and every
    large body change to a real edit. If something looks like a conversion defect rather
    than a content change, fix the converter, not the file: a hand-fixed file is
@@ -86,7 +85,9 @@ the arXiv link on the paper's page when missing; Notion keeps the summaries and 
    newest such commit is the last point the repo matched Notion.
 6. Push to main.
 7. Report: pages mirrored, files added, changed and deleted, PDFs downloaded, and
-   anything that looked wrong in Notion itself.
+   anything that looked wrong in Notion itself. The run ends by listing mentions that
+   point at a page that no longer exists; those are Notion defects, so fix them there
+   and re-run, rather than editing the mirrored file.
 
 ## When the converter is wrong
 

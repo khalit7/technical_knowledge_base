@@ -4,7 +4,7 @@
 
 Last updated: 2026-08-24
 
-## Best resources
+### Best resources
 
 - [Stripe: Designing robust and predictable APIs with idempotency](https://stripe.com/blog/idempotency) (~15 min): Brandur Leach; idempotency keys, the canonical treatment
 - [Stripe: APIs as infrastructure (versioning)](https://stripe.com/blog/api-versioning) (~15 min): rolling versions with compatibility transforms; the gold standard for API evolution
@@ -13,19 +13,19 @@ Last updated: 2026-08-24
 - [Google Engineering Practices: Code Review](https://google.github.io/eng-practices/review/) (~1h): both reviewer and author guides; calibrates "what to flag vs let go"
 - [Pydantic documentation](https://docs.pydantic.dev/latest/) (docs, ~1h 30m for the core pages): the contract layer for modern Python services and libraries
 
-## API design
+### API design
 
 **Versioning.** Version the contract, not the URL aesthetics. The Stripe model is the one to name in interviews: each breaking change becomes a dated version; the server stores transforms between adjacent versions and pins each consumer to the version they onboarded with, so the core codebase only ever speaks the latest. Cheaper variants: a major version in the path (`/v1/`) plus additive-only changes within it. Breaking = removing/renaming a field, tightening validation, changing semantics; adding optional fields is not breaking, and clients must ignore unknown fields (tolerant reader). LLM APIs add a twist: the **model** is part of the contract surface; pin model versions and announce deprecations with dates.
 
 **Pagination.** Cursor-based (opaque token encoding the position) beats offset: stable under concurrent writes, O(1) on the DB, no page-drift. Offset survives only for small admin UIs. Return `next_cursor` (null when done), accept `limit` with a server cap, and document the sort order the cursor assumes. Keyset pagination is the SQL implementation (WHERE (created, id) > (:c, :i) ORDER BY created, id).
 
-**Idempotency keys.** Every mutating endpoint that a client might retry (POST especially) accepts `Idempotency-Key`; the server atomically records key -> response and replays it for the retry window. Return a conflict if the same key arrives with a different payload. This is the piece that makes client retry policy safe; see [distributed-systems-basics.md](distributed-systems-basics.md).
+**Idempotency keys.** Every mutating endpoint that a client might retry (POST especially) accepts `Idempotency-Key`; the server atomically records key -> response and replays it for the retry window. Return a conflict if the same key arrives with a different payload. This is the piece that makes client retry policy safe; see [Distributed Systems Basics](distributed-systems-basics.md).
 
 **Error taxonomy.** Machine-readable, layered: HTTP status class (4xx yours, 5xx mine), a stable string `code` (`rate_limit_exceeded`, `context_length_exceeded`), a human `message`, a `param` pointer where relevant, and a `request_id` for support. RFC 9457 (`application/problem+json`) is the standards-track shape. Design rules: distinguish retryable from non-retryable explicitly (429/503 + Retry-After vs 400), never leak internals in messages, and keep codes append-only (clients switch on them). The OpenAI/Anthropic error shapes are the de-facto reference for LLM APIs.
 
-**Webhooks.** The inverse API, so apply the inverse discipline: sign payloads (HMAC with timestamp to stop replays), deliver at-least-once so consumers must dedupe on event ID, retry with backoff to a dead-letter state, order is not guaranteed (ship a sequence number or let consumers re-fetch current state), and send **thin events** (IDs + type, consumer fetches the resource) when payload staleness or PII is a concern. Provide a redelivery UI; every serious consumer will ask for it. Details in topics/protocols.
+**Webhooks.** The inverse API, so apply the inverse discipline: sign payloads (HMAC with timestamp to stop replays), deliver at-least-once so consumers must dedupe on event ID, retry with backoff to a dead-letter state, order is not guaranteed (ship a sequence number or let consumers re-fetch current state), and send **thin events** (IDs + type, consumer fetches the resource) when payload staleness or PII is a concern. Provide a redelivery UI; every serious consumer will ask for it. Details in [Topic: protocols](../protocols/summary.md).
 
-## Library and package design in Python
+### Library and package design in Python
 
 The bar: a colleague can use the package correctly from the type signatures alone.
 
@@ -35,7 +35,7 @@ The bar: a colleague can use the package correctly from the type signatures alon
 - **Errors as a hierarchy**: one package base exception, subclasses per failure category, retryability encoded in the type. Never raise bare `Exception`; never swallow one.
 - Mechanics: `pyproject.toml` + `uv`, semver honestly (0.x means unstable and everyone knows it), deprecate with `DeprecationWarning` one minor version before removal, and remember Hyrum's Law: every observable behaviour will be depended on, so keep the observable surface minimal.
 
-## Code review taste
+### Code review taste
 
 - Google's standard is the right default: approve when the change **improves the codebase**, not when it is perfect. Perfect-is-the-enemy blocking trains people to batch huge PRs.
 - Review priority order: correctness of the approach > API/interface shape > tests > naming/clarity > style. Style belongs to the formatter (ruff), not the reviewer; if a human is commenting on formatting, automation is missing.
@@ -44,7 +44,7 @@ The bar: a colleague can use the package correctly from the type signatures alon
 - ML-specific review habits: config and prompt diffs deserve the same scrutiny as code; check seeds and determinism in training changes; ask "what eval covers this?" the way you'd ask "what test covers this?"; be suspicious of notebook code migrating to prod without an interface.
 - LLM-authored code raises the review bar, not lowers it: the failure mode is plausible-looking code with subtly wrong edge behaviour, so review tests first and demand the author (human or agent) explain the invariants.
 
-## When abstraction earns its keep
+### When abstraction earns its keep
 
 The core economics: an abstraction is a loan; it pays interest (indirection, learning cost) against the principal it saves (duplication, blast radius). Rules of thumb:
 

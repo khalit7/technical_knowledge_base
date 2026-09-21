@@ -7,20 +7,20 @@
 - **Links**: [arXiv 2309.06180](https://arxiv.org/abs/2309.06180) (~45 min) | [GitHub (vllm-project/vllm)](https://github.com/vllm-project/vllm) (repo, ~25 min for the README and entry path) | [Announcement blog](https://blog.vllm.ai/2023/06/20/vllm.html) (~10 min)
 - Added to KB: 2026-08-24
 
-## Best resources
+### Best resources
 
 - [vLLM announcement blog (June 2023)](https://blog.vllm.ai/2023/06/20/vllm.html) (~10 min, the same post as the Links line): the authors' own short version, with the clearest animations of block tables, copy-on-write sharing, and the 24x-over-HF headline.
 - [Anyscale: How continuous batching enables 23x throughput](https://www.anyscale.com/blog/continuous-batching-llm-inference) (~20 min): the best explanation of iteration-level (continuous) batching, the Orca idea that PagedAttention composes with; benchmarks vLLM against static-batching baselines.
 - [Aleksa Gordic: Inside vLLM, anatomy of a high-throughput inference system](https://www.aleksagordic.com/blog/vllm) (~45 min): code-level walkthrough of the modern vLLM engine (scheduler, KV cache manager, paged attention kernels), the bridge from this paper to today's codebase.
 - [vLLM V1 alpha release blog (January 2025)](https://blog.vllm.ai/2025/01/27/v1-alpha-release.html) (~15 min): what the project learned in 1.5 years of production and how the re-architected V1 engine changes the scheduler and cache manager described here.
 
-## Problem
+### Problem
 
 LLM serving throughput is memory-bound: decode generates one token per step, underutilizes the GPU, and the fix is batching many requests, so the batch size is capped by how much KV cache fits in GPU memory. On an A100-40GB serving a 13B model, weights take ~65% of memory and the KV cache over 30%, and each OPT-13B token costs 800 KB of KV (2 vectors x 5120 hidden x 40 layers x 2 bytes FP16), so one 2048-token request can need 1.6 GB.
 
 Pre-2023 systems (FasterTransformer, Orca) inherited the deep learning framework assumption that a tensor lives in contiguous memory, so they pre-allocated one contiguous chunk per request sized to the maximum possible sequence length (e.g. 2048 tokens). That wastes memory three ways: reserved slots for future tokens that sit idle for the request's whole lifetime, internal fragmentation because most requests finish far short of the maximum, and external fragmentation from the buddy allocator because chunk sizes differ per request. The authors' profiling shows only 20.4% to 38.2% of KV cache memory in these systems holds actual token states (Orca variants; Fig. 2). Contiguous layouts also make KV sharing across sequences (parallel sampling, beam search) impossible. Compaction is impractical at these sizes and would not enable sharing anyway.
 
-## Method
+### Method
 
 The core move is to transplant OS virtual memory with paging onto the KV cache: blocks are pages, tokens are bytes, requests are processes.
 
@@ -36,24 +36,24 @@ The core move is to transplant OS virtual memory with paging onto the KV cache: 
 
 The system is ~8.5K lines of Python plus ~2K lines of C++/CUDA, with a FastAPI frontend speaking the OpenAI API.
 
-## Results
+### Results
 
 - **Throughput**: 2-4x over Orca (Oracle), the strongest possible contiguous baseline (it is given the true output lengths in advance), at the same normalized latency, on OPT-13B/66B/175B and LLaMA-13B with ShareGPT and Alpaca traces. 2.7-8x over Orca (Max), up to 22x over FasterTransformer. Gains grow with longer sequences, larger models, and more complex decoding.
 - **Batch size is the mechanism**: on OPT-13B/ShareGPT, vLLM batches 30.4 requests on average vs 7.0 (Orca Max) to 13.6 (Orca Oracle).
 - **Sharing**: beam search (width 6) saves up to 55.2% of KV memory on Alpaca and 66.3% on ShareGPT; parallel sampling saves 6.1-9.8% (Alpaca) and 16.2-30.5% (ShareGPT). Shared-prefix translation: 1.67x (1-shot prefix) to 3.58x (5-shot) over Orca Oracle.
 - **Block size**: 16 balances GPU parallelism against internal fragmentation and became the default.
 
-## Why it matters
+### Why it matters
 
 This is the paper that made high-throughput LLM serving an open-source commodity, and it did it by importing 50-year-old OS ideas (paging, copy-on-write, swapping) rather than inventing new math. PagedAttention became the industry-standard KV layout almost immediately: TensorRT-LLM, Hugging Face TGI, SGLang (whose RadixAttention prefix cache is built on paged KV), and DeepSpeed all adopted paged KV caches, and continuous batching + paged KV is now the assumed baseline every serving paper compares against. Later work refined rather than replaced it: vAttention (2024) argued for using CUDA virtual memory APIs to keep kernels contiguous-view, Sarathi-style chunked prefill and disaggregated prefill/decode addressed the prefill-decode interference the paper's monolithic step scheduling left open, and MLA-style architectures (DeepSeek) attacked KV size from the model side.
 
 The vLLM project itself became the reference open-source inference engine. By 2025 it had grown far beyond the paper: automatic prefix caching, chunked prefill, speculative decoding, FP8 and quantized KV cache, guided decoding, and multi-hardware backends (NVIDIA, AMD, TPU, AWS Neuron, Intel). The V1 engine (alpha January 2025, default during 2025, with the legacy V0 path subsequently removed) rebuilt the scheduler around a token-budget abstraction that treats prefill and decode uniformly, added a zero-overhead prefix cache and an isolated EngineCore process, and delivered ~1.7x speedups; vLLM joined the PyTorch Foundation ecosystem in May 2025, and the llm-d project (Red Hat, Google, IBM) built Kubernetes-native disaggregated serving on top of it. vLLM is also the de facto rollout engine inside RL post-training stacks (verl, TRL, OpenRLHF), which makes this paper's memory model load-bearing for training pipelines, not just serving. For contributing to vLLM today: the block manager, scheduler, and paged kernels in the codebase are direct descendants of Sections 4.2-4.5, so this paper is still the correct mental model of the core.
 
-## Connections
+### Connections
 
-- [papers/2017-06_attention-is-all-you-need](../2017-06_attention-is-all-you-need/summary.md): the KV cache being paged is the per-token key/value state of Transformer self-attention.
-- [papers/2022-05_flashattention](../2022-05_flashattention/summary.md): the complementary attention-systems paper; FlashAttention optimizes the compute/IO of attention within a kernel, PagedAttention optimizes where the KV operands live across requests. Modern engines use both (vLLM V1 builds on FlashAttention kernels).
-- [papers/2019-09_megatron-lm](../2019-09_megatron-lm/summary.md): vLLM's distributed execution uses Megatron-style tensor parallelism with the KV manager centralized above it.
-- [papers/2024-12_deepseek-v3](../2024-12_deepseek-v3/summary.md): MLA shrinks the KV cache at the architecture level, the model-side attack on the same bottleneck; serving MLA efficiently required new paged-KV kernel work in vLLM.
-- [papers/2025-01_deepseek-r1](../2025-01_deepseek-r1/summary.md): RLVR-era post-training depends on vLLM-class engines for fast rollout generation.
+- papers/2017-06_attention-is-all-you-need: the KV cache being paged is the per-token key/value state of Transformer self-attention.
+- papers/2022-05_flashattention: the complementary attention-systems paper; FlashAttention optimizes the compute/IO of attention within a kernel, PagedAttention optimizes where the KV operands live across requests. Modern engines use both (vLLM V1 builds on FlashAttention kernels).
+- papers/2019-09_megatron-lm: vLLM's distributed execution uses Megatron-style tensor parallelism with the KV manager centralized above it.
+- papers/2024-12_deepseek-v3: MLA shrinks the KV cache at the architecture level, the model-side attack on the same bottleneck; serving MLA efficiently required new paged-KV kernel work in vLLM.
+- papers/2025-01_deepseek-r1: RLVR-era post-training depends on vLLM-class engines for fast rollout generation.
 - Topics: `topics/inference-and-serving` (continuous batching, PagedAttention, KV caching are named scope items), `topics/cuda-and-gpu-programming` (fused paged-attention kernels), `topics/swe-and-system-design` (a model systems paper: OS abstractions applied to a new resource).

@@ -7,18 +7,18 @@
 - **Links**: [arXiv 2412.19437](https://arxiv.org/abs/2412.19437) (~1h 30m, technical report) | [GitHub (weights + code)](https://github.com/deepseek-ai/DeepSeek-V3) (repo, ~20 min for the README and entry path)
 - Added to KB: 2026-08-24
 
-## Best resources
+### Best resources
 
 - [DeepSeek-V3 Explained: Multi-head Latent Attention (Shirley Li, TDS)](https://towardsdatascience.com/deepseek-v3-explained-1-multi-head-latent-attention-ed6bee2a67c4/) (~20 min): the clearest derivation of MLA from MHA/MQA/GQA, including the decoupled RoPE trick.
 - [Stratechery: DeepSeek FAQ (Ben Thompson)](https://stratechery.com/2025/deepseek-faq/) (~20 min): context on what the $5.576M figure does and does not cover, and why the release landed the way it did.
 - [DeepSeek-V3 training budget Fermi estimation (planetbanatt)](https://planetbanatt.net/articles/v3fermi.html) (~15 min): independent sanity check that the claimed GPU hours are plausible for a 37B-active MoE on 14.8T tokens.
 - [DeepWiki: DeepSeek-V3 MLA implementation walkthrough](https://deepwiki.com/deepseek-ai/DeepSeek-V3/4.2-multi-head-latent-attention-(mla)) (~20 min): maps the paper's equations to the released code.
 
-## Problem
+### Problem
 
 Open-source models trailed frontier closed models, and the assumed fix (more dense parameters, more GPUs) was priced out of reach for most labs. DeepSeek-V2 had validated MLA and fine-grained MoE as an efficiency architecture; V3 asks how far algorithm-framework-hardware co-design can push a 671B-parameter MoE trained on export-restricted H800s: MoE without auxiliary-loss damage, FP8 without divergence, and cross-node expert parallelism without communication becoming the bottleneck.
 
-## Method
+### Method
 
 671B total parameters, 37B activated per token; 61 layers, hidden dim 7168, 128 attention heads; trained on 14.8T tokens with remarkable stability (no irrecoverable loss spikes, no rollbacks).
 
@@ -36,23 +36,23 @@ Open-source models trailed frontier closed models, and the assumed fix (more den
 
 **Post-training.** SFT on 1.5M instances, with reasoning data distilled from DeepSeek-R1-series expert models via rejection sampling (balancing R1 accuracy against its verbosity), then GRPO with rule-based rewards (math answers, code tests) plus a model-based RM for open-ended tasks, and constitutional-AI-style self-rewarding using V3's own voting judgments.
 
-## Results
+### Results
 
 - **Base model**: strongest open-source base at release. MMLU 87.1, BBH 87.5, HumanEval 65.2, MATH 61.6, beating LLaMA-3.1 405B (11x more active params) on most benchmarks, especially code and math.
 - **Chat model**: MMLU 88.5, MMLU-Pro 75.9, GPQA-Diamond 59.1, MATH-500 90.2 (above o1-preview), AIME 2024 39.2, LiveCodeBench 40.5, Codeforces 51.6 percentile, SWE-bench Verified 42.0 (below Claude-3.5-Sonnet's 50.8 but far above other open models). Arena-Hard 85.5: first open model over 85, on par with Claude-3.5-Sonnet.
 - **Efficiency**: full training in 2.788M H800 hours; MTP-based speculative decoding gives 1.8x TPS; MLA keeps the KV cache small enough for long-context serving (solid 128K needle-in-a-haystack).
 
-## Why it matters
+### Why it matters
 
 The release collapsed the assumed cost floor for frontier-class training and, together with R1 a month later, triggered a broad repricing of AI compute narratives (the "DeepSeek moment"). Technically it is the reference blueprint for large-scale MoE efficiency: MLA, fine-grained experts with aux-loss-free balancing, FP8 with tile/block scaling, and scheduling that hides all-to-all behind compute have all been widely studied and adopted since. It also normalized publishing real systems detail (SM counts, PTX-level tricks, hardware requests to NVIDIA) in open model reports, and it is the base model for DeepSeek-R1, making it the substrate of the 2025 open reasoning-model wave. V3 is a case study in what algorithm-hardware co-design buys when GPU supply is the binding constraint.
 
-## Connections
+### Connections
 
-- [papers/2025-01_deepseek-r1](../2025-01_deepseek-r1/summary.md): RL-based reasoning successor built on V3-Base; also the distillation source for V3's own reasoning SFT data.
-- [papers/2024-02_deepseekmath-grpo](../2024-02_deepseekmath-grpo/summary.md): origin of the GRPO algorithm used in V3 post-training.
-- [papers/2024-01_mixtral](../2024-01_mixtral/summary.md) and [papers/2021-01_switch-transformer](../2021-01_switch-transformer/summary.md): earlier open MoE designs; V3's aux-loss-free balancing directly addresses the auxiliary-loss trade-off Switch introduced.
-- [papers/2021-04_roformer-rope](../2021-04_roformer-rope/summary.md): RoPE, whose incompatibility with low-rank KV compression motivates MLA's decoupled key.
-- [papers/2019-10_zero](../2019-10_zero/summary.md) and [papers/2019-09_megatron-lm](../2019-09_megatron-lm/summary.md): the DP/TP/PP toolbox V3 remixes (ZeRO-1 DP, no TP, DualPipe PP).
-- [papers/2024-07_llama-3](../2024-07_llama-3/summary.md): the dense 405B baseline V3 overtakes with 37B active parameters.
-- [papers/2022-12_constitutional-ai](../2022-12_constitutional-ai/summary.md): basis of V3's self-rewarding feedback for open-ended RL.
+- papers/2025-01_deepseek-r1: RL-based reasoning successor built on V3-Base; also the distillation source for V3's own reasoning SFT data.
+- papers/2024-02_deepseekmath-grpo: origin of the GRPO algorithm used in V3 post-training.
+- papers/2024-01_mixtral and papers/2021-01_switch-transformer: earlier open MoE designs; V3's aux-loss-free balancing directly addresses the auxiliary-loss trade-off Switch introduced.
+- papers/2021-04_roformer-rope: RoPE, whose incompatibility with low-rank KV compression motivates MLA's decoupled key.
+- papers/2019-10_zero and papers/2019-09_megatron-lm: the DP/TP/PP toolbox V3 remixes (ZeRO-1 DP, no TP, DualPipe PP).
+- papers/2024-07_llama-3: the dense 405B baseline V3 overtakes with 37B active parameters.
+- papers/2022-12_constitutional-ai: basis of V3's self-rewarding feedback for open-ended RL.
 - Topics: `topics/llms`, `topics/llm-training-and-post-training`, `topics/inference-and-serving`, `topics/hardware`.
