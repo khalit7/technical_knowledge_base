@@ -828,6 +828,46 @@ def load_token() -> str:
     )
 
 
+# Credential shapes that must never reach a public mirror.
+#
+# Notion serves every file it hosts through a presigned S3 URL, and that URL
+# carries a temporary AWS key id and session token in its query string. Until
+# 22 September 2026 this mirror copied them out verbatim, and GitHub's secret
+# scanner opened three alerts on the public repository before anybody read the
+# email. Not one of Khalid's credentials: Notion's own, minted to serve a
+# video, valid for an hour.
+#
+# _file_url now drops the signature, which closes the path that leaked. This
+# closes the rest, because the next one will arrive through a path nobody
+# predicted, and a job that pushes to a public repository is the wrong place
+# to learn about it by email a day later.
+CREDENTIAL_PATTERNS = (
+    ("AWS key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("AWS presigned URL", re.compile(r"X-Amz-(?:Signature|Security-Token)=")),
+    ("Notion token", re.compile(r"\bntn_[0-9A-Za-z]{30,}")),
+    ("GitHub token", re.compile(r"\b(?:gh[pousr]_[0-9A-Za-z]{30,}|github_pat_[0-9A-Za-z_]{30,})")),
+    ("Anthropic key", re.compile(r"\bsk-ant-[0-9A-Za-z_-]{20,}")),
+    ("OpenAI key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9]{32,}")),
+    ("Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{30,}")),
+    ("private key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+)
+
+
+def credentials_in(text: str) -> list[str]:
+    """Credential-shaped strings in one rendered page, located and redacted.
+
+    Redacted because the report is the thing that ends up on a terminal, in a
+    log, or pasted into a chat, and a leak check that prints the leak has
+    solved nothing."""
+    hits = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        for name, pattern in CREDENTIAL_PATTERNS:
+            for m in pattern.finditer(line):
+                found = m.group(0)
+                hits.append(f"line {lineno}: {name}, {found[:6]}... ({len(found)} chars)")
+    return hits
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true", help="report, change nothing")
@@ -858,6 +898,20 @@ def main() -> int:
         if node.path in written:
             print(f"  collision on {node.path}: {node.title}", file=sys.stderr)
         written[node.path] = renderer.page(node)
+
+    leaks = {p: found for p in sorted(written)
+             if (found := credentials_in(written[p]))}
+    if leaks:
+        print("\nREFUSING TO WRITE: credential-shaped strings in rendered pages.",
+              file=sys.stderr)
+        for path, found in leaks.items():
+            print(f"  {path}", file=sys.stderr)
+            for hit in found:
+                print(f"    {hit}", file=sys.stderr)
+        print("\nNothing was written and nothing was deleted. Either the page in "
+              "Notion holds a secret, in which case fix it there, or the renderer "
+              "is copying one out, in which case teach it not to.", file=sys.stderr)
+        return 2
 
     before = managed_files()
     added = sorted(p for p in written if not (REPO / p).exists())
