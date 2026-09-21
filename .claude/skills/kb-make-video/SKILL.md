@@ -16,7 +16,7 @@ Asked to create or revise a technical explainer video derived from a Technical k
 
 ## Read first
 
-The canonical page being explained, and [Maintain technical knowledge base](../kb-maintain/SKILL.md) for the writing and accuracy conventions the video must respect.
+The canonical page being explained, and [Update technical knowledge base](../kb-update/SKILL.md) for the writing and accuracy conventions the video must respect.
 
 ## Principle
 

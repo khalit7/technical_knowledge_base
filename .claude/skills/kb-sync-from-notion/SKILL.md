@@ -16,7 +16,7 @@ Khalid asks to sync the repo, pull from Notion, or update the repo from Notion. 
 
 ## Read first
 
-[Maintain technical knowledge base](../kb-maintain/SKILL.md), because the conventions it sets are what the mirror is copying, and a defect in them shows up as a defect in the repository.
+[Update technical knowledge base](../kb-update/SKILL.md), because the conventions it sets are what the mirror is copying, and a defect in them shows up as a defect in the repository.
 
 ## Principle
 
