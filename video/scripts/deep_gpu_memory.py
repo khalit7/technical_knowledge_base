@@ -16,6 +16,17 @@ B = "B"
 
 SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
+# --- what this is, before anything else ----------------------------------
+SCRIPT["ident"] = [
+    (A, "This is a deep dive on the G P U memory hierarchy."),
+    (A, "The subject is simple to state. Where data sits on a graphics card, "
+        "and what it costs you to move it from one of those places to another."),
+    (A, "And the reason it earns a whole video is this. "
+        "Almost every slow kernel you will ever write "
+        "is slow because of that movement. Not because of the arithmetic."),
+    (A, "Which is not what it feels like when you are writing one."),
+]
+
 # --- tension: two numbers and a division ---------------------------------
 SCRIPT["open"] = [
     (A, "Here are two numbers off the spec sheet of the card in your machine."),
@@ -43,6 +54,16 @@ SCRIPT["question"] = [
         "Slow because of the maths. Or slow because of the memory."),
     (A, "There is one number that tells you. "
         "And you can work it out on paper, before you profile anything."),
+]
+
+# --- the contract ---------------------------------------------------------
+SCRIPT["contract"] = [
+    (A, "So here is where we are going."),
+    (A, "We work out that one number. Then we use it on a matrix multiply, "
+        "which is the case everything in machine learning is built around."),
+    (A, "We watch a naive implementation throw the whole thing away. "
+        "And then we fix it twice. Once with tiling, once with coalescing."),
+    (A, "It gets more concrete as it goes, not less."),
 ]
 
 # --- the definition ------------------------------------------------------
