@@ -74,6 +74,66 @@ def roles_of(key: str, roles: dict) -> list[str]:
     return found
 
 
+# What each panel kind needs to draw anything at all. A beat that declares a
+# kind and forgets its content renders as an empty frame with narration over
+# it, which no other check notices: the audio verifies, the layout audit finds
+# nothing to collide with, and the timing is correct. It is simply blank.
+PANEL_FIELDS = {
+    "title": (),
+    "points": ("items",),
+    "columns": ("columns",),
+    "stack": ("layers",),
+    "flow": ("steps",),
+    "bars": ("bars",),
+    "stat": ("big",),
+    "compare": ("sides",),
+    "table": ("rows",),
+    "claim": ("text",),
+    "resources": ("items",),
+}
+
+
+def check_visuals(script: dict, visuals: dict) -> list[str]:
+    """A declarative episode's pictures, checked before the GPU is booked."""
+    problems = []
+    if not visuals:
+        return problems
+
+    for key in script:
+        if key not in visuals:
+            problems.append(f"beat '{key}' has narration and no visual: it "
+                            f"renders as a blank frame")
+    for key in visuals:
+        if key not in script:
+            problems.append(f"visual '{key}' matches no beat in SCRIPT "
+                            f"(a typo here is silent)")
+
+    for key, spec in visuals.items():
+        kind = spec.get("kind", "points")
+        if kind not in PANEL_FIELDS:
+            problems.append(f"beat '{key}': unknown panel kind '{kind}'")
+            continue
+        for field in PANEL_FIELDS[kind]:
+            if not spec.get(field):
+                problems.append(f"beat '{key}': a '{kind}' panel needs "
+                                f"'{field}' and it is empty")
+        if kind == "bars":
+            for bar in spec.get("bars", []):
+                if not isinstance(bar, dict) or "value" not in bar:
+                    problems.append(f"beat '{key}': every bar needs a numeric "
+                                    f"'value'. Widths are computed, never given")
+
+    parked = [k for k, v in visuals.items() if v.get("park")]
+    if len(parked) > 1:
+        problems.append(f"{len(parked)} beats park a panel ({', '.join(parked)}): "
+                        f"the second one replaces the first as the map, and the "
+                        f"first is left on screen forever")
+    focused = [f for v in visuals.values() if (f := v.get("focus"))]
+    if focused and not parked:
+        problems.append(f"'focus' is used with nothing parked to focus on")
+    return problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--script", required=True)
@@ -83,8 +143,9 @@ def main() -> int:
     script = module.SCRIPT
     fmt = getattr(module, "FORMAT", None)
     roles = getattr(module, "ROLES", {})
+    visuals = getattr(module, "VISUALS", {})
 
-    problems = []
+    problems = check_visuals(script, visuals)
     if fmt not in REQUIRED:
         print(f"{args.script}: no FORMAT declared (one of {sorted(REQUIRED)})")
         return 1
@@ -129,6 +190,7 @@ def main() -> int:
                         f"are the least stable input the voice model gets")
 
     print(f"{args.script}: {fmt}, {len(script)} beats, ~{minutes:.1f} min, "
+          f"{len(visuals) or 'bespoke scene'} visuals, "
           f"roles found: {', '.join(sorted(found))}")
     for p in problems:
         print(f"  {p}")
