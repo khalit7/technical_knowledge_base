@@ -96,7 +96,14 @@ def discover(episode: str) -> tuple[str, str]:
         return SCENES[episode]
     path = ROOT / "scenes" / f"{episode}.py"
     if not path.exists():
-        raise SystemExit(f"no scene for '{episode}': expected {path}")
+        # A script that declares VISUALS describes its own pictures, so it
+        # renders through the one generic scene and needs no file here. That
+        # is the normal case now; a bespoke scene is the exception.
+        script = ROOT / "scripts" / f"{episode}.py"
+        if script.exists() and "VISUALS" in script.read_text(encoding="utf-8"):
+            return "scenes/_generic.py", "Episode"
+        raise SystemExit(f"no scene for '{episode}': expected {path}, or a "
+                         f"VISUALS declaration in {script}")
     import ast
     tree = ast.parse(path.read_text(encoding="utf-8"))
     classes = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
@@ -142,7 +149,8 @@ def main() -> int:
     if not args.skip_render:
         run([UV, "run", "--project", REPO, *GROUPS,
              "python", "-m", "manim", f"-q{args.quality}", "--disable_caching",
-             "--media_dir", str(media), scene_file, scene_class])
+             "--media_dir", str(media), scene_file, scene_class],
+            env=dict(os.environ, KB_EPISODE=args.episode))
 
     # Scoped to this scene's own directory, not the whole media tree. Manim
     # names the directory after the scene FILE and the mp4 after the scene
