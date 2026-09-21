@@ -5,11 +5,12 @@ description: Produce a narrated explainer video from a knowledge base page (a to
 
 # Make an explainer video
 
-Two things to read before writing anything. In Notion: the skill **Explainer
-video style and voice**, which holds the craft and is canonical, and the skill
-**Produce technical explainer video**, which holds placement and tool choice.
-In this repo: `video/README.md` for the mechanics. The canonical page being
-explained is the source of every fact; the video may not out-claim it.
+Read the Notion skill **Produce technical explainer video** before writing
+anything. It is canonical and it holds the whole method: the spine, the
+transitions, the script, the voice, the weekly news format, and where the
+finished video lives. This file is only the repo-side procedure, and
+`video/README.md` is the mechanics. The canonical page being explained is the
+source of every fact; the video may not out-claim it.
 
 ## The shape of the work
 
@@ -38,7 +39,7 @@ explained is the source of every fact; the video may not out-claim it.
    `python3 video/build.py <episode>`. The voice stage is the only part that
    needs a GPU. If the GPUs are busy with Khalid's own work, ask before taking
    them.
-9. **Check it against the quality bar** in the style skill. The two that catch
+9. **Check it against the quality bar** in the Notion skill. The two that catch
    most problems: with the sound off the animation should still tell the story,
    and with eyes closed the audio should still tell the story.
 10. **Attach it to the canonical Notion page** under a `Video` heading, and add

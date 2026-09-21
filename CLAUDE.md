@@ -18,10 +18,9 @@ The conventions that govern content are in Notion, under `Me -> _AI`:
 
 - **Instructions**: what is true for every task, read before anything else.
 - **Skills**: one page per procedure. For this material, **Maintain technical
-  knowledge base** (placement, page shape, writing conventions), **Produce
-  technical explainer video** (what a video is for and where it lives) and
-  **Explainer video style and voice** (how it is structured, animated and
-  voiced).
+  knowledge base** (placement, page shape, writing conventions) and **Produce
+  technical explainer video** (the whole video method: spine, animation,
+  script, voice, and where the finished thing lives).
 
 Do not restate those rules here and do not edit content in this repo expecting
 it to reach Notion. If you find local edits Notion lacks, surface them to

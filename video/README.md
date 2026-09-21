@@ -38,7 +38,7 @@ only from a real render.
 
 ## Writing an episode
 
-The craft rules live in the Notion skill **Explainer video style and voice**,
+The craft rules live in the Notion skill **Produce technical explainer video**,
 which is canonical. The short version, because these are the parts the code
 depends on:
 
