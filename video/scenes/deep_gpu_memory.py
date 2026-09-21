@@ -31,6 +31,8 @@ sys.path.insert(0, str(ROOT))
 
 from common.deepdive import DeepDive                      # noqa: E402
 from common.scene import Narration                        # noqa: E402
+from manim import UL                                      # noqa: E402
+
 from common.style import (                                # noqa: E402
     ACCENT,
     BAD,
@@ -44,6 +46,7 @@ from common.style import (                                # noqa: E402
     P,
     T,
     fit,
+    hairline,
     pill,
 )
 from scripts.deep_gpu_memory import SCRIPT                # noqa: E402
@@ -68,8 +71,10 @@ class DeepDiveScene(DeepDive):
 
     def construct(self):
         self.camera.background_color = "#0E1116"
+        self.opening()
         self.two_numbers()
         self.the_question()
+        self.contract()
         self.definition()
         self.build_roofline()
         self.the_matmul()
@@ -89,6 +94,43 @@ class DeepDiveScene(DeepDive):
             ["PMPP 5th edition, chapters 5 and 6",
              "the tiled matmul derivation everyone learns from (1h 30m)"],
         ])
+
+    def opening(self):
+        """Say what the subject is and why it is worth the time, then start.
+
+        A title card alone is not a setup: it names the video without telling
+        anyone what is in it. Opening on tension is right, but the viewer still
+        has to know what they are being shown tension about."""
+        self.say("ident")
+        title = T(self.TOPIC, size=44, color=FG, weight="BOLD")
+        sub_line = T(self.SUBTITLE, size=SMALL, color=ACCENT)
+        card = VGroup(title, sub_line).arrange(DOWN, buff=0.35)
+        fit(card, max_w=11.0)
+        card.move_to(UP * 1.5)
+        self.play(Write(title), run_time=1.0)
+        self.play(FadeIn(sub_line, shift=UP * 0.15), run_time=0.6)
+
+        setup = VGroup(
+            P(["where data sits on a graphics card,",
+               "and what it costs to move it"], size=SMALL, color=FG, align=ORIGIN),
+            P(["almost every slow kernel is slow because of that movement.",
+               "not because of the arithmetic."], size=SMALL, color=WARM,
+              align=ORIGIN),
+            T("which is not what it feels like when you are writing one",
+              size=SMALL, color=DIM),
+        ).arrange(DOWN, buff=0.55)
+        fit(setup, max_w=10.5, max_h=3.0)
+        setup.next_to(card, DOWN, buff=0.8)
+        self.spread(list(setup), run_time=0.7, reserve=1.2)
+        self.hold()
+
+        strip = T(f"{self.TOPIC} · {self.UPDATED}", size=SMALL, color=DIM)
+        strip.to_corner(UL, buff=0.4)
+        self.retire(setup, run_time=0.5)
+        self.morph(card, strip, run_time=0.9)
+        rule = hairline().next_to(strip, DOWN, buff=0.15).align_to(strip, LEFT)
+        self.play(Create(rule), run_time=0.4)
+        self.strip = VGroup(strip, rule)
 
     # -- tension: two numbers and a division -------------------------------
 
@@ -141,8 +183,27 @@ class DeepDiveScene(DeepDive):
         note.next_to(question, DOWN, buff=0.7)
         self.play(FadeIn(note, shift=UP * 0.15), run_time=0.8)
         self.hold()
-        self.retire(note, run_time=0.4)
-        self.question_text = question
+        self.retire(question, note, run_time=0.5)
+
+    def contract(self):
+        """Five seconds of orientation is not an agenda slide.
+
+        Opening on tension does not mean opening on nothing: a viewer who
+        cannot tell what they are watching stops watching. The title card says
+        which page this is, and this beat says where the next six minutes go,
+        in the order they go there."""
+        self.say("contract")
+        steps = VGroup(
+            pill("1 · work out one number", WARM, width=6.4),
+            pill("2 · use it on a matrix multiply", ACCENT, width=6.4),
+            pill("3 · watch a naive kernel throw it away", BAD, width=6.4),
+            pill("4 · fix it twice: tiling, then coalescing", GOOD, width=6.4),
+        ).arrange(DOWN, buff=0.35)
+        fit(steps, max_w=8.0, max_h=4.0)
+        steps.move_to(ORIGIN)
+        self.spread(steps, run_time=0.5, reserve=2.0)
+        self.hold()
+        self.retire(steps, run_time=0.5)
 
     def definition(self):
         self.say("intensity")
@@ -152,7 +213,7 @@ class DeepDiveScene(DeepDive):
         block = VGroup(title, formula, crossover).arrange(DOWN, buff=0.45)
         fit(block, max_w=10.0)
         block.move_to(UP * 0.3)
-        self.morph(self.question_text, block, run_time=1.0)
+        self.play(Write(block), run_time=1.4)
 
         sides = VGroup(
             pill("below it: memory bound", BAD, width=5.6),
