@@ -624,8 +624,24 @@ class Renderer:
 
     @staticmethod
     def _file_url(body: dict) -> str:
-        f = body.get("file") or body.get("external") or {}
-        return f.get("url", "")
+        """The link for an uploaded or linked file.
+
+        A file Notion hosts itself comes back as a presigned S3 URL carrying a
+        signature and an expiry, and Notion signs a fresh one on every fetch.
+        Written out as-is, the signature is the only thing that changes, so
+        every page holding an uploaded file (which now means every page with a
+        video on it) shows up as modified on every single sync, forever, and
+        the link is dead an hour later regardless. Keep the stable path and
+        drop the signature: the mirror stops churning, and the link is honest
+        about being a pointer into Notion rather than something you can fetch.
+
+        External URLs keep their query string, because there it carries meaning
+        (a YouTube watch id lives in ?v=).
+        """
+        hosted = body.get("file")
+        if hosted:
+            return hosted.get("url", "").split("?", 1)[0]
+        return (body.get("external") or {}).get("url", "")
 
     def table(self, b: dict, source: Path | None) -> list[str]:
         rows = [r for r in b.get("_children", []) if r["type"] == "table_row"]
