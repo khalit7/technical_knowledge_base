@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from check_structure import PANEL_FIELDS  # noqa: E402  (path set above)
 
 LEAD_TOLERANCE = 3.0     # seconds of pointing at nothing before it is a defect
+SECONDS_PER_WORD = 0.40  # the series aggregate, tails and gaps included
 RUN_TIME = 0.45          # one FadeIn, from scene.spread
 
 
@@ -130,12 +131,25 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--script", required=True)
     ap.add_argument("--tolerance", type=float, default=LEAD_TOLERANCE)
+    ap.add_argument("--estimate", action="store_true",
+                    help="work from word counts, before any voice exists")
     args = ap.parse_args()
 
     mod = importlib.import_module(f"scripts.{args.script}")
     script, visuals = mod.SCRIPT, getattr(mod, "VISUALS", {})
-    durations = json.loads(
-        (ROOT / "out" / "audio" / args.script / "durations.json").read_text())
+    measured = ROOT / "out" / "audio" / args.script / "durations.json"
+    if args.estimate or not measured.exists():
+        # Between the outline and the GPU there was nothing, so every author
+        # rebuilt the same scratch estimator and iterated against it by hand.
+        # 0.40 seconds a word is the measured aggregate across the series and
+        # holds to about 3%, which is far inside the tolerance this check
+        # cares about. Good enough to fix the writing before paying for voice.
+        durations = {k: round(sum(len(t.split()) for _s, t in turns) * SECONDS_PER_WORD, 2)
+                     for k, turns in script.items()}
+        print(f"estimating from word counts at {SECONDS_PER_WORD} s/word; "
+              f"re-run after the voice for the real thing\n")
+    else:
+        durations = json.loads(measured.read_text())
 
     print(f"{'beat':16s} {'reveal':28s} {'drawn':>7s} {'said':>7s} {'lead':>7s}")
     problems = []
