@@ -32,14 +32,32 @@ STILL_LIMIT = 6.0            # a frame held this long has run out of things to s
 FAST_WPM = 165.0             # above this the read is a gallop, whatever the gate said
 
 
-def spoken_words(turns) -> int:
-    """How many words the beat was asked to say.
+LETTER_WEIGHT = 0.4      # a spelled letter is not a word's worth of talking
+
+
+def spoken_words(turns) -> float:
+    """How many words the beat was asked to say, weighted for spelled letters.
 
     The pace defect this pipeline keeps producing is a beat that reads
     correctly and reads too fast, which every other check passes: the clip is
     clean, it transcribes, nothing overlaps. Rate is the only thing that shows
-    it, and rate needs the script as well as the durations."""
-    return sum(len(text.split()) for _speaker, text in turns)
+    it, and rate needs the script as well as the durations.
+
+    Counting raw whitespace tokens overstates the rate on exactly the pages
+    this knowledge base is made of. The narration spells names out for the
+    voice model, so "T P U" and "M X U" arrive as three tokens each while
+    taking about one word of time. One beat carried eighteen spelled letters
+    in 185 tokens and was reported at 169 words a minute, which sent an author
+    rewriting a beat that was fine. A single letter counts as a fraction of a
+    word here, which is the same calibration the orphan and error-rate checks
+    already needed for the same reason.
+    """
+    total = 0.0
+    for _speaker, text in turns:
+        for token in text.split():
+            bare = token.strip(".,;:!?\"'()")
+            total += LETTER_WEIGHT if len(bare) == 1 and bare.isalpha() else 1.0
+    return total
 
 
 def main() -> int:
@@ -75,7 +93,7 @@ def main() -> int:
         elif previous_key and -overlap > SILENCE_LIMIT:
             note = f"silent for {-overlap:.1f}s"
             problems.append((key, note))
-        words = spoken_words(script[key]) if key in script else 0
+        words = spoken_words(script[key]) if key in script else 0.0
         rate = words / (length / 60.0) if words and length else 0.0
         if rate > FAST_WPM:
             note = (note + "  " if note else "") + f"FAST at {rate:.0f} wpm"
