@@ -35,7 +35,7 @@ from manim import (
     config,
 )
 
-from manim import Paragraph, Text
+from manim import Animation, Paragraph, Text, Wait
 
 from .style import ACCENT, DIM, apply_theme
 
@@ -80,6 +80,7 @@ class TechScene(MovingCameraScene):
         self._beat_start = 0.0
         self._beat_len = 0.0
         self._log: list[dict] = []
+        self._last_motion = 0.0      # renderer time when something last moved
         self._parked: list[VGroup] = []
         self.layout_issues: list[dict] = []
 
@@ -99,11 +100,18 @@ class TechScene(MovingCameraScene):
         if self._beat_len:
             self.audit_layout()
             left = self.remaining() + TAIL
+            # How long the frame sat still while this line finished: from the
+            # last thing that moved to the end of the beat. A few seconds is a
+            # breath; twenty is a beat that ran out of things to show and left
+            # a title card on screen while somebody talked over it.
+            #
+            # This used to be measured as `left` alone, which is always zero:
+            # every beat ends in `hold()`, which waits exactly `remaining() +
+            # TAIL`, so there is never any residual here. The check could not
+            # fire, and across four shipped episodes it never had. Measure
+            # from the motion instead, which is the thing the rule is about.
+            self._log[-1]["still"] = round(self._static_tail(left), 2)
             if left > 0:
-                # How long the frame sat still while this line finished. A few
-                # seconds is a breath; twenty is a beat that ran out of things
-                # to show and left a title card on screen.
-                self._log[-1]["still"] = round(left, 2)
                 self.wait(left)
 
         clip = self.narration.clip(key)
@@ -214,6 +222,29 @@ class TechScene(MovingCameraScene):
 
     def remaining(self) -> float:
         return self._beat_len - self.elapsed()
+
+    def play(self, *args, **kwargs):
+        """Every animation goes through here, so this is where motion is dated.
+
+        Manim implements `wait()` as `play(Wait(...))`, so a naive hook here
+        dates waiting as motion and the static-tail measure comes out zero on
+        every beat, which is the bug this was written to fix in the first
+        place. Waiting is the absence of motion; skip it."""
+        super().play(*args, **kwargs)
+        if not all(isinstance(a, Wait) for a in args if isinstance(a, Animation)):
+            self._last_motion = self.renderer.time
+
+    def _static_tail(self, pending_wait: float = 0.0) -> float:
+        """Seconds the frame will have been motionless when this beat ends."""
+        end = self.renderer.time + max(0.0, pending_wait)
+        return max(0.0, end - max(self._last_motion, self._beat_start))
+
+    def close_last_beat(self):
+        """Score the final beat, which no following `say()` will ever close."""
+        if self._log and "still" not in self._log[-1]:
+            self._log[-1]["still"] = round(self._static_tail(), 2)
+            if self.timing_out:
+                self.timing_out.write_text(json.dumps(self._log, indent=1))
 
     def hold(self, tail: float = TAIL):
         left = self.remaining() + tail
