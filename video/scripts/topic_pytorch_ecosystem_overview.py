@@ -165,10 +165,9 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
     # 1. what this is, and that it moves
     "ident": [
         (A, "This is the PyTorch ecosystem. Not PyTorch the library, but the whole "
-            "stack that has grown around it. A compiler, a distributed layer, a "
-            "performance layer, and the frameworks people actually train with."),
-        (A, "Current stable release is two point thirteen, from July twenty twenty "
-            "six, and this page was verified today."),
+            "stack around it. A compiler, a distributed layer, a performance layer, "
+            "and the frameworks people actually train with. Current stable release "
+            "is two point thirteen, from July twenty twenty six."),
         (A, "And unlike most stack diagrams, this one has a direction of travel. Some "
             "of it will still be here in three years. Some of it is being deprecated "
             "underneath you right now."),
@@ -177,18 +176,17 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
     # 2. the inventory, in the order a tensor meets it
     "map": [
         (A, "Here is the board, in the order a tensor meets it. Nothing explained yet."),
-        (A, "Core is the eager runtime. A Ten is the C plus plus tensor library every "
-            "operator is implemented against. The dispatcher. Autograd. And the "
-            "device backends, CUDA, ROCm, Apple's M P S and X P U."),
-        (A, "Compilation replaces running operations one at a time with generated "
-            "code. Torch Dynamo, A O T Autograd, Torch Inductor, and torch dot "
+        (A, "Core is the eager runtime. A Ten, the C plus plus tensor library. The "
+            "dispatcher. Autograd. And the device backends, CUDA, ROCm, Apple's "
+            "M P S and X P U."),
+        (A, "Compilation, which replaces running operations one at a time with "
+            "generated code. Torch Dynamo, A O T Autograd, Torch Inductor, torch dot "
             "export."),
-        (A, "Distributed is c ten d, the process group layer, and D Tensor, with "
+        (A, "Distributed. c ten d, the process group layer, and D Tensor, with "
             "F S D P two and pipelining above them."),
-        (A, "Performance is attention and precision. S D P A backends, Flex "
-            "Attention, torch A O, and the profiler."),
-        (A, "Above those four sit the training frameworks and the deployment edge. We "
-            "come back to those, because that is where the story is."),
+        (A, "Performance. S D P A backends, Flex Attention, torch A O, the profiler."),
+        (A, "And above those four sit the training frameworks and the deployment "
+            "edge. That is where the story is."),
     ],
 
     # 3. the organising question
@@ -208,28 +206,27 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
         (A, "The dispatcher is the piece worth understanding properly. For any "
             "operator, it picks which implementation to call, based on the device, "
             "the data type, and whether autograd is recording."),
-        (A, "That sounds like plumbing. It is actually the extension point that every "
-            "backend, every custom operator and every tensor subclass hooks into."),
-        (A, "And that is the thing to hold on to, because once you have seen it, torch "
+        (A, "That sounds like plumbing. It is the extension point that every backend, "
+            "every custom operator and every tensor subclass hooks into."),
+        (A, "Which is the thing to hold on to, because once you have seen it, torch "
             "A O and D Tensor stop looking like magic. They are not special cases "
-            "bolted onto the framework. They are ordinary users of the dispatcher."),
+            "bolted on. They are ordinary users of the dispatcher."),
     ],
 
     # 5. the compiler, in three stages
     "compile": [
-        (A, "Compilation is three stages, and it helps enormously to know which one "
-            "is failing when it fails."),
+        (A, "Compilation is three stages, and it helps to know which one is failing "
+            "when it fails."),
         (A, "Torch Dynamo captures Python bytecode into a graph, plus guards. The "
-            "guards are the conditions under which that capture stays valid, and when "
-            "one breaks you get a graph break."),
-        (A, "A O T Autograd takes that and builds one joint forward and backward "
-            "graph, so the backward pass is compiled too, not just the forward."),
+            "guards are the conditions under which that capture stays valid."),
+        (A, "A O T Autograd builds one joint forward and backward graph from it, so "
+            "the backward pass is compiled too, not just the forward."),
         (A, "Torch Inductor then emits fused kernels. Triton on the graphics card, "
-            "C plus plus with OpenMP on the processor."),
+            "C plus plus on the processor."),
         (A, "And torch dot export is the strict version of that first step. Full "
             "graph, no breaks. That is what deployment builds on, because A O T "
-            "Inductor turns an exported graph into a standalone shared library with "
-            "no Python in the loop."),
+            "Inductor turns an exported graph into a standalone library with no "
+            "Python in the loop."),
     ],
 
     # 6. why the distributed layer composes
@@ -238,25 +235,23 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
             "is the reason."),
         (A, "Underneath it is c ten d, the process group layer sitting on the N C C L "
             "and Gloo collective libraries. That part is old and fine."),
-        (A, "D Tensor is the newer idea, and it is a small one. A tensor that carries "
-            "a device mesh and a placement for each of its dimensions. That is all "
-            "it is."),
+        (A, "D Tensor is the newer idea, and it is a small one. A tensor carrying a "
+            "device mesh and a placement for each of its dimensions."),
         (A, "But F S D P two, tensor parallel, pipelining and distributed "
-            "checkpointing are all expressed in terms of it. Which is precisely why "
-            "they compose, with each other and with torch dot compile. That "
-            "composition is the whole payoff, and it is why the older interface is "
-            "going away."),
+            "checkpointing are all expressed in terms of it. Which is why they "
+            "compose, with each other and with torch dot compile. That composition "
+            "is the payoff, and it is why the older interface is going away."),
     ],
 
     # 7. what is dead or dying
     "moving": [
         (A, "Which brings us to the table you actually need, because three things on "
-            "this map are dead or dying and none of them looks dead from outside."),
-        (A, "F S D P one was formally deprecated in two point eleven, in March. The "
-            "replacement is the fully shard interface, which is F S D P two."),
+            "this map are dead or dying, and none of them looks dead from outside."),
+        (A, "F S D P one was formally deprecated in two point eleven, in March, in "
+            "favour of the fully shard interface, which is F S D P two."),
         (A, "Torch tune, Meta's fine tuning recipes, was discontinued in twenty "
-            "twenty five. Torch forge, the reinforcement learning successor that was "
-            "meant to replace it, is paused."),
+            "twenty five. And torch forge, the reinforcement learning successor meant "
+            "to replace it, is paused."),
         (B, "So anything I start today on torch tune is a dead branch."),
         (A, "A dead branch. PyTorch native training now means torch titan plus the "
             "core interfaces, and nothing else from that family."),
@@ -267,40 +262,37 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
         (A, "The performance layer changes fastest and breaks least, because almost "
             "all of it is opt in."),
         (A, "S D P A picks an attention backend for you, and Flash Attention four is "
-            "one of those backends on Hopper and Blackwell now. Flex Attention lets "
-            "you write your own mask or score modification and still get a fused "
-            "kernel."),
+            "one of those on Hopper and Blackwell now. Flex Attention lets you write "
+            "your own mask and still get a fused kernel."),
         (A, "Torch A O is quantization, float eight and sparsity. And the profiler, "
-            "with the memory snapshot, is how you find out which of those you "
-            "actually needed rather than guessing."),
+            "with the memory snapshot, is how you find out which of those you needed "
+            "rather than guessing."),
     ],
 
     # 9. the gap between the two bad options
     "helion": [
-        (A, "There is a newer piece between two of those, and the gap it fills is a "
-            "real one."),
+        (A, "There is a newer piece between two of those, and the gap it fills is "
+            "real."),
         (B, "Why not just write Triton?"),
         (A, "Because Triton makes you commit, by hand, to the tiling, the memory "
             "layout and the pipelining. And torch dot compile makes none of those "
-            "choices yours, which is fine right up until it chooses badly."),
-        (A, "Helion sits in between. You write roughly a tiled loop nest in Python, "
-            "and the compiler autotunes the parts Triton made you fix. It compiles "
-            "down to Triton, to Cute D S L and to Pallas, so one source targets "
-            "N Vidia, A M D and T P U. And it is hosted by the PyTorch Foundation "
-            "rather than by any one vendor."),
+            "choices yours, which is fine until it chooses badly."),
+        (A, "Helion sits in between. You write roughly a tiled loop nest in Python "
+            "and the compiler autotunes what Triton made you fix. It compiles down to "
+            "Triton, to Cute D S L and to Pallas, so one source targets N Vidia, "
+            "A M D and T P U. And it is hosted by the PyTorch Foundation rather than "
+            "by any one vendor."),
     ],
 
     # 10. who owns the layer above
     "ownership": [
         (A, "Which matters more this month than last, because of the number on the "
-            "screen."),
-        (A, "On the third of September, N Vidia confirmed it is buying Hugging Face "
-            "for twelve point nine three billion dollars."),
+            "screen. On the third of September, N Vidia confirmed it is buying "
+            "Hugging Face for twelve point nine three billion dollars."),
         (A, "Transformers version five is now the model definition source for v L L M "
             "and S G Lang as well as for training. One implementation, many runtimes. "
-            "So that hub, and every training and inference integration layered on it, "
-            "now sits inside the company that sells the hardware those weights run "
-            "on."),
+            "So that hub sits inside the company that sells the hardware those "
+            "weights run on."),
         (B, "Does that change anything today, or is it just a logo?"),
         (A, "Today, nothing. Jensen Huang's stated commitment is that the platform "
             "stays open and that N Vidia compute will not be required to use it. "
@@ -311,11 +303,10 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
     "close": [
         (A, "So what is this map for?"),
         (A, "It tells you where to put weight. The bottom, the dispatcher and "
-            "D Tensor, is what everything else is expressed in terms of. It is the "
-            "safest thing here to learn and the best place to debug from."),
+            "D Tensor, is what everything else is expressed in terms of. Safest thing "
+            "here to learn, and the best place to debug from."),
         (A, "The frameworks above it are the opposite. They churn, they get "
-            "discontinued, and this month the ownership of the biggest one changed "
-            "hands."),
+            "discontinued, and this month the biggest one changed hands."),
         (A, "Cadence is about one minor release a quarter. So the habit that keeps "
             "this map true is not reading more of it. It is rechecking the top of it "
             "every quarter, and never the bottom."),

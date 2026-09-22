@@ -162,117 +162,100 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 # --- what this is ---------------------------------------------------------
 SCRIPT["ident"] = [
     (A, "This is DeepSeek. A Chinese lab, spun out of a quantitative hedge "
-        "fund called High Flyer, that publishes frontier model weights and "
-        "unusually complete technical reports about how it built them."),
+        "fund called High Flyer. It publishes frontier model weights, and "
+        "unusually complete reports on how it built them."),
     (A, "It earns an episode because almost nothing here is a product "
-        "announcement. Every release is the same engineering question asked "
-        "one layer further down, and the answers became the design most open "
-        "models now copy. Current as of the twenty second of September, "
+        "announcement. Every release asks one engineering question, one layer "
+        "further down. Current as of the twenty second of September, "
         "twenty twenty six."),
 ]
 
 # --- the inventory, before any explanation --------------------------------
 SCRIPT["map"] = [
     (A, "The whole stack first. Nothing explained yet."),
-    (A, "Attention. Multi head latent attention, then sparse attention, "
-        "then compressed attention."),
+    (A, "Attention. Latent attention, then sparse, then compressed."),
     (A, "The expert layer. Fine grained mixture of experts, and load "
         "balancing with no balancing loss in it."),
     (A, "Numerics and parallelism. Eight bit floating point training, "
         "DualPipe, DeepEP."),
-    (A, "The training loop, which produced R one, and which we are going to "
-        "walk straight past, because it is the one row of this everybody "
-        "already knows."),
-    (A, "And then, since September, the shape of the network itself. "
-        "That column stays on screen, because every beat after this one is a "
-        "row of it."),
+    (A, "The training loop, which produced R one. We walk past that row, "
+        "because it is the one everybody already knows."),
+    (A, "And since September, the shape of the network itself. The column "
+        "stays up, and every beat after this is one row of it."),
 ]
 
 # --- the organising question ----------------------------------------------
 SCRIPT["question"] = [
-    (A, "Here is the question all five rows answer, and it is the same "
-        "question every time. What does it cost to serve this?"),
-    (A, "Not what it costs to train. What it costs to serve, per token, "
-        "forever. These are people who pay for their own graphics cards, and "
-        "you can read that off every decision they have made."),
+    (A, "Here is the question all five rows answer. "
+        "What does it cost to serve this?"),
+    (A, "Not to train it. To serve it, per token, forever. These are people "
+        "who pay for their own graphics cards, and you can read that off "
+        "every row on the screen."),
 ]
 
 # --- row one: attention ---------------------------------------------------
 SCRIPT["mla"] = [
-    (A, "Start at the top of the column. Attention caches a key and a value "
-        "for every head, for every token. Decoding reads that whole cache "
-        "back one token at a time, so the size of the key value cache is "
-        "the serving bill."),
+    (A, "Start at the top. Attention caches a key and a value per head, per "
+        "token, and decoding reads that whole cache back one token at a time. "
+        "Cache size is the serving bill."),
     (A, "The standard fix is on the left. Grouped query attention shares one "
-        "key value pair across a group of query heads. The cache shrinks with "
-        "the sharing factor, and the heads genuinely lose independent memory, "
-        "so quality degrades as you push the ratio."),
-    (A, "Multi head latent attention, on the right, refuses that trade. It "
-        "caches one low rank latent vector per token and rebuilds each head's "
-        "keys and values on the way into attention. Nothing is shared. "
-        "About an order of magnitude off the cache, and the quality holds."),
+        "key value pair across a group of query heads. The heads lose "
+        "independent memory, so quality degrades as you push it."),
+    (A, "Latent attention, on the right, refuses that trade. One low rank "
+        "vector cached per token, and each head's keys and values rebuilt on "
+        "the way in. Nothing shared. An order of magnitude off the cache, and "
+        "quality holds."),
 ]
 
 SCRIPT["sparse"] = [
-    (A, "Now the same question one step along. Even a small cache gets read "
-        "in full by every token you decode, so the cost still grows with "
-        "context length."),
-    (A, "Sparse attention scores the cache cheaply and reads only the top "
-        "entries. Compressed attention goes further and changes what is "
-        "stored: groups of four tokens summarised into one entry for nearby "
-        "detail, groups of a hundred and twenty eight for distant history."),
-    (A, "Look at the two bars. At a million tokens of context, that "
-        "combination holds the key value cache near two percent of a plain "
-        "transformer's."),
+    (A, "Same question, one step along. Even a small cache is read in full by "
+        "every token you decode, so cost still grows with context."),
+    (A, "Sparse attention reads only the top scoring entries. Compressed "
+        "attention changes what is stored instead: groups of four tokens "
+        "summarised into one entry nearby, groups of a hundred and twenty "
+        "eight far back."),
+    (A, "Look at the two bars. At a million tokens of context, that holds the "
+        "cache near two percent of a plain transformer's."),
 ]
 
 # --- row two: the experts -------------------------------------------------
 SCRIPT["moe"] = [
-    (A, "Row two. Their mixture of experts routes eight of two hundred and "
-        "fifty six narrow experts per token, plus one shared expert that "
-        "every token passes through, where the earlier design routed two of "
-        "eight fat ones."),
+    (A, "Row two, the experts. Eight of two hundred and fifty six narrow ones "
+        "per token, plus one shared expert. The design before it routed two "
+        "of eight fat ones."),
     (A, "But the decision I would point at is the balancing. Left alone, "
-        "routers collapse. Tokens pile onto a few popular experts, and under "
-        "expert parallelism the busiest card sets the step time for everyone."),
-    (A, "The usual answer is on the left. An auxiliary loss, which is a "
-        "second objective fighting the first, pushing a token away from the "
-        "expert that would have modelled it best."),
-    (A, "DeepSeek put a bias on each expert's routing logits instead, and "
-        "nudge it up or down between steps. Balancing becomes a control loop "
-        "outside the loss. It costs nothing in the objective, and it is close "
-        "to standard practice now."),
+        "routers collapse. Tokens pile onto a few popular experts, and the "
+        "busiest card sets the step time for everyone."),
+    (A, "The usual answer is on the left: an auxiliary loss, a second "
+        "objective fighting the first."),
+    (A, "DeepSeek bias each expert's routing logits instead, nudged between "
+        "steps. Balancing becomes a control loop outside the loss, so it never "
+        "pushes a token off the expert that suited it."),
 ]
 
 # --- row three: numerics and parallelism ----------------------------------
 SCRIPT["systems"] = [
-    (A, "Row three is where the constraint was physical. They trained on "
-        "H eight hundreds, whose interconnect bandwidth is cut relative to an "
-        "H one hundred, so communication rather than arithmetic was the "
-        "binding limit."),
-    (A, "So, eight bit floating point training end to end, with scale factors "
-        "per tile so a single outlier cannot poison a whole matrix. DualPipe, "
-        "which hides expert communication behind another micro batch's "
-        "compute. And their own dispatch and combine kernels, because a "
-        "generic collective is not shaped like mixture of experts traffic."),
-    (B, "And the five point six million dollars is the whole thing?"),
-    (A, "No. That is the final run, on two thousand and forty eight cards. "
-        "It is still the number that shook the industry."),
+    (A, "Row three, and here the constraint was physical. They trained on "
+        "H eight hundreds, whose interconnect is cut relative to an H one "
+        "hundred, so communication was the binding limit."),
+    (A, "Eight bit floating point end to end, scaled per tile so one outlier "
+        "cannot poison a matrix. DualPipe, hiding expert traffic behind "
+        "another micro batch's compute. And their own routing kernels."),
+    (B, "And the five point six million dollars covers all of that?"),
+    (A, "The final run only. Two thousand and forty eight cards."),
 ]
 
 # --- the line as it stands ------------------------------------------------
 SCRIPT["line"] = [
-    (A, "That is the machinery. Here is the family it produced."),
-    (A, "V four Pro. One point six trillion parameters, forty nine billion "
+    (A, "That is the machinery. The family it produced is on the screen. "
+        "V four Pro: one point six trillion parameters, forty nine billion "
         "active, and the strongest open weight model on S W E bench verified, "
         "at about eighty point six percent."),
-    (A, "V four Flash, at two hundred and eighty four billion, is the cheap "
+    (A, "V four Flash, two hundred and eighty four billion, is the cheap "
         "agentic one. And V four point one Flash, five hundred and fifty two "
-        "billion, is the one that broke the pattern."),
-    (B, "Strongest open weights on one benchmark, though. That is not the "
-        "same as strongest at coding."),
-    (A, "It is not, and the distinction matters. On S W E bench verified "
-        "specifically. Hold onto that, because it comes back."),
+        "billion, broke the pattern."),
+    (B, "Strongest on one benchmark is not the same as strongest at coding."),
+    (A, "It is not. On that benchmark specifically. Hold onto it."),
 ]
 
 # --- the closing turn -----------------------------------------------------
@@ -280,46 +263,39 @@ SCRIPT["flash"] = [
     (A, "Because V four point one Flash is not a decoder only transformer. "
         "Forty layers, split into a twenty layer causal encoder and a twenty "
         "layer decoder."),
-    (A, "The prompt gets encoded once into a shared representation, rather "
-        "than carried as a per layer cache through one causal stack. Add "
-        "cross layer sparse attention with index reuse, hierarchical "
-        "retrieval, and a four bit cache."),
-    (A, "Eight hundred and ninety bytes per token. That is a quarter of V four "
-        "Flash's footprint in card memory, and an eighth of its footprint on "
-        "disk, which is the difference between a long agent loop being "
-        "possible and being affordable."),
-    (A, "It is the first frontier scale open model to abandon the decoder "
-        "only consensus, and the reason they give is not quality. It is the "
-        "cache."),
+    (A, "The prompt is encoded once into a shared representation, instead of "
+        "being carried as a per layer cache through one causal stack. Add "
+        "hierarchical retrieval and a four bit cache."),
+    (A, "Eight hundred and ninety bytes per token. A quarter of V four "
+        "Flash's footprint in card memory, an eighth of it on disk."),
+    (A, "The first frontier scale open model to abandon the decoder only "
+        "consensus. And the reason they give is not quality. It is the cache."),
 ]
 
 # --- the objection --------------------------------------------------------
 SCRIPT["objection"] = [
-    (B, "The encoder decoder case was argued years ago, though. T five made "
-        "it on quality grounds and nobody moved."),
-    (A, "Nobody moved. Serving arithmetic moved them. Which is the pattern of "
-        "the whole lab, and it is also the reason to read each of these "
-        "claims with its scope attached."),
+    (B, "T five argued the encoder decoder case years ago, though, on quality "
+        "grounds. Nobody moved."),
+    (A, "Nobody moved. Serving arithmetic moved them. Which is also why every "
+        "claim here needs its scope attached."),
     (A, "Sparse attention is an approximation, where latent attention was "
-        "exact up to its bottleneck. DeepSeek themselves concede that V four "
-        "point one Flash holds up better on shorter agent loops than on the "
-        "longest horizon evaluations."),
-    (A, "And one operational detail that decides whether anything you pinned "
-        "still behaves. Since the fourteenth of September, a request naming "
-        "V four Pro is answered by V four point one Flash, at Flash pricing, "
-        "until V four point one Pro ships."),
+        "exact up to its bottleneck. And DeepSeek concede V four point one "
+        "Flash is weaker on the longest agent loops."),
+    (A, "And one operational detail. Since the fourteenth of September, a "
+        "call naming V four Pro is answered by V four point one Flash, at "
+        "Flash pricing."),
 ]
 
 # --- the take -------------------------------------------------------------
 SCRIPT["take"] = [
-    (A, "So the take. This lab has one idea, it has now applied it at five "
-        "different depths of the same stack, and it keeps working."),
-    (A, "Make a frontier model cheap enough to serve, and questions the rest "
-        "of the field treats as settled come back open. An old argument about "
-        "encoder decoders got reversed this month, not because anybody proved "
-        "it was better, but because somebody counted bytes per token."),
-    (A, "The thing worth watching is whether the others follow them out of "
-        "the attention layer and into the shape of the network."),
+    (A, "So, the take. One idea, applied at five depths of one stack, and it "
+        "keeps paying."),
+    (A, "Make a frontier model cheap enough to serve, and questions the field "
+        "treats as settled come back open. An old argument about encoder "
+        "decoders got reversed this month, because somebody counted bytes per "
+        "token."),
+    (A, "What to watch is whether the rest of them follow it out of the "
+        "attention layer and into the shape of the network."),
 ]
 
 

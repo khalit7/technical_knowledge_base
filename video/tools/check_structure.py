@@ -131,6 +131,21 @@ def check_visuals(script: dict, visuals: dict) -> list[str]:
     focused = [f for v in visuals.values() if (f := v.get("focus"))]
     if focused and not parked:
         problems.append(f"'focus' is used with nothing parked to focus on")
+    elif focused:
+        # A focus label that matches nothing in the parked panel is silent:
+        # the beat renders, nothing lights up, and the narration says "look at
+        # this part of the map" over a map that did not change.
+        home = visuals[parked[0]]
+        labels = set()
+        for col in home.get("columns", []):
+            labels.add(str(col.get("head", "")))
+            labels |= {str(i) for i in col.get("items", [])}
+        for layer in home.get("layers", []):
+            labels.add(str(layer[0] if isinstance(layer, (list, tuple)) else layer))
+        for f in focused:
+            if str(f) not in labels:
+                problems.append(f"focus '{f}' matches nothing in the parked "
+                                f"'{parked[0]}' panel, so nothing will light up")
     return problems
 
 

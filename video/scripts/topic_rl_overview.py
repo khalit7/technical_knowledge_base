@@ -32,8 +32,8 @@ The outline that survived the revision step:
     ladder     the policy-gradient ladder, REINFORCE up to PPO, as one stack
                where each rung fixes the previous rung's problem
     llm_turn   the join: a classical MDP against token generation
-    lineage    RLHF -> GRPO -> RLVR, as three deletions
-    taxonomy   the grid: where DQN, PPO and GRPO land on the three axes
+    lineage    RLHF -> GRPO -> RLVR, as three deletions, and where deleting
+               the critic lands GRPO on the page's own taxonomy
     caveat     GRPO's known biases and the corrections to them
     close      the take: the environment got easy, the reward got hard
 
@@ -59,6 +59,13 @@ What the step-4 critique caught, and what changed:
   - SARSA and Q-learning were originally a footnote. Promoted, because the
     off-policy licence is what makes DQN's replay buffer legal, and that is a
     causal link rather than a taxonomy fact.
+  - A beat placing DQN, PPO and GRPO on the page's three axes was cut for
+    delivery length, at 8.1 minutes against a target that keeps the encode at
+    1080p. It was the one beat that asserted nothing new: the narration had
+    already established every cell of that grid on its way past. Its one
+    genuinely new observation, that deleting the critic leaves GRPO storing
+    the policy alone, which is where REINFORCE started, survives as a clause
+    in the lineage beat. Nothing from the page was lost with it.
 
 Speakers:
   A  narrator, owns the spine and the visuals
@@ -160,14 +167,6 @@ VISUALS = {
     "lineage": {"kind": "flow", "focus": "GRPO", "tone": "subject",
                 "steps": ["RLHF", "GRPO", "RLVR"]},
 
-    "taxonomy": {"kind": "table",
-                 "head": ["method", "stores", "environment", "experience"],
-                 "rows": [
-        ["DQN", "value only", "model-free", "off-policy"],
-        ["PPO", "policy + critic", "model-free", "nearly on-policy"],
-        ["GRPO", "policy only", "model-free", "nearly on-policy"],
-    ]},
-
     "caveat": {"kind": "points", "tone": "cost",
                "head": "the version in the paper is not the version in use",
                "items": [
@@ -216,7 +215,7 @@ SCRIPT["question"] = [
         "and the reward is a verifier?"),
     (A, "We go left to right, and at each step I will say which piece of the "
         "classical picture survives and which stops applying. "
-        "Most of it survives. That is the surprise."),
+        "Most of it survives."),
 ]
 
 # --- the classical core ---------------------------------------------------
@@ -239,12 +238,11 @@ SCRIPT["mc_td"] = [
         "approximates by sampling."),
     (A, "Two ways to sample, and the two sides on screen are the whole of "
         "classical learning."),
-    (A, "Monte Carlo averages the returns it actually got. Unbiased. "
-        "But a whole episode's randomness lands in every estimate, so variance "
-        "is high, and you wait for the end."),
-    (A, "Temporal difference learning updates from its own one step ahead estimate "
-        "instead. Lower variance, at the cost of bias, and it works online on "
-        "tasks that never terminate. T D lambda is the dial."),
+    (A, "Monte Carlo averages the returns it actually got. Unbiased, "
+        "high variance, and you wait for the episode to end."),
+    (A, "Temporal difference learning bootstraps off its own next estimate "
+        "instead. Biased, much lower variance, and it works online on tasks "
+        "that never terminate. T D lambda is the dial between them."),
 ]
 
 # --- on-policy, off-policy, and DQN ---------------------------------------
@@ -257,14 +255,14 @@ SCRIPT["dqn"] = [
         "policy while behaving exploratorily. Off policy."),
     (A, "Now replace the table with a network. D Q N buys stability with the two "
         "tricks on screen, and the first is only legal because Q learning is off "
-        "policy. A replay buffer, breaking the correlation between consecutive "
-        "transitions. And a frozen target, so it stops moving while you chase it."),
+        "policy. A replay buffer, which breaks the correlation between "
+        "consecutive transitions. And a frozen target, so it stops moving."),
 ]
 
 # --- the policy-gradient ladder -------------------------------------------
 SCRIPT["ladder"] = [
-    (A, "The other branch optimises the policy directly, and it is a ladder. "
-        "Each rung fixes the rung above it."),
+    (A, "The other branch optimises the policy directly, and it is a ladder "
+        "where each rung fixes the rung above it."),
     (A, "REINFORCE is the top. Raise the log probability of an action in "
         "proportion to how well it turned out. Unbiased, and very high variance."),
     (A, "Subtract a state dependent baseline. Variance drops, the gradient stays "
@@ -281,8 +279,8 @@ SCRIPT["ladder"] = [
 # --- the join -------------------------------------------------------------
 SCRIPT["llm_turn"] = [
     (A, "Third column. The move that joins the two fields is smaller than the "
-        "vocabulary around it suggests. Token generation is a Markov decision "
-        "process. The state is the text so far, the action is the next token, "
+        "vocabulary suggests. Token generation is a Markov decision process. "
+        "The state is the text so far, the action is the next token, "
         "and the transition is: append the token."),
     (A, "Look what that does to the pieces on screen. The transition "
         "distribution, which you never know in a classical setting, and which "
@@ -297,46 +295,35 @@ SCRIPT["llm_turn"] = [
 SCRIPT["lineage"] = [
     (A, "Those three names are one lineage, and each step deletes a piece of "
         "the machinery you just watched me build."),
-    (A, "R L H F is the full version. A reward model trained on human preferences, "
-        "then P P O against it, with a per token K L penalty back to a frozen "
-        "reference."),
+    (A, "R L H F is the full version. A reward model trained on human "
+        "preferences, then P P O against it, with a per token K L penalty "
+        "back to a frozen reference."),
     (A, "G R P O deletes the critic. It samples a group of answers to the same "
         "prompt and uses the group's mean reward as the baseline. "
-        "The same advantage, by sampling rather than by learning."),
+        "The same advantage, by sampling rather than by learning. "
+        "Which leaves it storing the policy alone, "
+        "which is where REINFORCE started."),
     (A, "R L V R deletes the reward model too, and puts a programmatic verifier "
         "in its place. Did the tests pass. Is the proof valid."),
     (B, "So human preference is out of the loop."),
     (A, "In that branch, yes, which is why it works wherever an answer can be "
-        "checked. The mechanics live on the page underneath this one."),
-]
-
-# --- the grid -------------------------------------------------------------
-SCRIPT["taxonomy"] = [
-    (A, "And all of it lands on one grid: what the agent stores, whether it "
-        "models the environment, and whose experience it learns from."),
-    (A, "D Q N stores values, model free, off policy. P P O stores a policy and a "
-        "critic, and is nearly on policy, because importance ratios correct a "
-        "little staleness."),
-    (A, "Now the last row. G R P O deleted the critic, so it stores the policy "
-        "alone. That is the box REINFORCE started in, reached from the other "
-        "direction, with the baseline bought by sampling."),
+        "checked by machine. The mechanics live on the page underneath this one."),
 ]
 
 # --- the caveat -----------------------------------------------------------
 SCRIPT["caveat"] = [
-    (A, "One caveat. G R P O has known biases, and twenty twenty five and twenty "
-        "twenty six have been a run of corrections to them. Doctor G R P O. "
-        "D A P O. G S P O. Off policy corrections."),
-    (A, "Implement it from the original paper and you are implementing a version "
-        "the field has already patched."),
+    (A, "One caveat. The G R P O in the original paper has known biases, and "
+        "twenty twenty five and twenty twenty six have been a run of corrections "
+        "to them. Doctor G R P O. D A P O. G S P O. Off policy corrections. "
+        "Implement from the paper and you implement a version already patched."),
 ]
 
 # --- the take -------------------------------------------------------------
 SCRIPT["close"] = [
     (A, "So what changed when the environment became a conversation?"),
-    (A, "Less than the new vocabulary suggests. The Bellman recursion still holds. "
-        "The advantage is still an advantage. P P O is still doing the clipping "
-        "it did on robots."),
+    (A, "Less than the new vocabulary suggests. The Bellman recursion still "
+        "holds. The advantage is still an advantage. P P O is still doing the "
+        "clipping it did on robots."),
     (A, "What moved is where the difficulty sits. The environment model became "
         "free, and the reward became the expensive part. Either a learned model "
         "of human preference, or a verifier somebody had to build."),

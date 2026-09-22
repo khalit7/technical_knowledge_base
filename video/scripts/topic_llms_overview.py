@@ -186,107 +186,97 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 # 0. what this is. Name the subject, say what it is, say why it earns the time.
 SCRIPT["ident"] = [
     (A, "This is the map of large language models. Who builds what, what each "
-        "lab is actually betting on, and what all of them now agree about."),
+        "lab is betting on, and what all of them now agree about."),
     (A, "It earns the time because the field has converged. Nearly every model "
-        "at this scale is now the same shape, so the differences that are left "
-        "are the ones that decide what you can afford to run. Current as of the "
-        "twenty second of September, twenty twenty six, and a landscape is "
-        "worthless without a date on it."),
+        "at this scale is the same shape now, so the differences left over are "
+        "the ones that decide what you can afford to run. Current as of the "
+        "twenty second of September, twenty twenty six."),
 ]
 
 # 1. the inventory, before any explanation. This is the contract for an
 #    overview: the viewer sees the whole scope rather than being told about it.
 SCRIPT["map"] = [
-    (A, "Here is the whole board first, grouped by what you can actually do "
-        "with each one, and nothing explained yet."),
-    (A, "The closed frontier. OpenAI, with G P T six Astra above the G P T five "
-        "point six tiers. Anthropic, with Claude Opus five and Fable five point "
-        "one. Google DeepMind, with Gemini three point eight. SpaceXAI, with "
-        "Grok four point six. And Meta, with Muse Spark one point three."),
-    (A, "The open weight frontier, which is mostly Chinese. DeepSeek, with V "
-        "four Pro and the new V four point one Flash. Alibaba's Qwen, at two "
-        "point four trillion. Moonshot, with Kimi K three. Zhipu, with G L M "
-        "five point three. Then MiniMax, Mistral, Tencent's Hunyuan and "
-        "StepFun's Step five."),
-    (A, "And the fully open group, which matters for a different reason. Ai two, "
-        "with OLMo, and K two Horizon from the Institute of Foundation Models "
-        "in Abu Dhabi. Plus the small open models, Gemma four and G P T O S S."),
+    (A, "Here is the whole board, grouped by what you can do with each one, and "
+        "nothing explained yet."),
+    (A, "The closed frontier. OpenAI, with G P T six Astra. Anthropic, with "
+        "Opus five and Fable five point one. Google DeepMind, with Gemini three "
+        "point eight. SpaceXAI, with Grok four point six. Meta, with Muse Spark "
+        "one point three."),
+    (A, "The open weight frontier, mostly Chinese. DeepSeek, with V four Pro and "
+        "V four point one Flash. Alibaba's Qwen, at two point four trillion. "
+        "Moonshot, with Kimi K three. Zhipu, with G L M five point three. Then "
+        "MiniMax, Mistral, Tencent's Hunyuan and StepFun's Step five."),
+    (A, "And the fully open group, which matters for a different reason. Ai two's "
+        "OLMo, and K two Horizon from the Institute of Foundation Models in Abu "
+        "Dhabi. Plus Gemma four and G P T O S S."),
     (B, "That is twenty odd families on one screen."),
 ]
 
 # 2. the organising question, spoken over the thing that justifies it.
 SCRIPT["question"] = [
-    (A, "It is. So the useful question is not who is on the list. It is what "
-        "actually separates them, because on architecture they have stopped "
-        "separating."),
-    (A, "Look at the three things nearly every one of them now is. A sparse "
-        "mixture of experts, so only a few percent of the parameters run per "
-        "token. A reasoning model, with a thinking budget somebody sets. And "
-        "some form of trained sparse or linear attention."),
+    (A, "It is. So the question is not who is on the list. It is what separates "
+        "them, because on architecture they have stopped separating."),
+    (A, "Look at what nearly every one of them now is. A sparse mixture of "
+        "experts, so a few percent of the parameters run per token. A reasoning "
+        "model, on a budget somebody sets. And some form of trained sparse "
+        "attention."),
     (A, "That is the shared skeleton. What differs is the bet each lab made on "
-        "top of it. So we will go lab by lab, and then come back to why the "
-        "skeleton is the same."),
+        "top of it, so we go lab by lab and then come back to the skeleton."),
 ]
 
 # 3. the cleanest contrast in the field, and it is not about size.
 SCRIPT["control"] = [
-    (A, "Start with the closed frontier and the cleanest contrast in it, which "
-        "is about who decides how long the model thinks."),
-    (A, "OpenAI hides it. A classifier in front of G P T five point six reads "
-        "your request and decides whether to answer straight away or to spend "
-        "compute on a reasoning trace. Sol, Terra and Luna are cost bands, not "
-        "different architectures."),
+    (A, "Start with the cleanest contrast in the closed frontier: who decides "
+        "how long the model thinks."),
+    (A, "OpenAI hides it. A classifier reads your request and decides whether "
+        "to answer straight away or spend compute on a reasoning trace. Sol, "
+        "Terra and Luna are cost bands, not different architectures."),
     (B, "So the same prompt can cost different amounts on different days."),
-    (A, "And be answered by different amounts of compute, which means an "
-        "evaluation is partly measuring the router. Anthropic went the other "
-        "way and exposed it: extended thinking is a token budget the caller "
-        "sets, so your application decides how much it deliberates and the bill "
-        "is predictable. That, plus training on long agentic coding, is why "
-        "Claude leads harness benchmarks rather than knowledge tests."),
+    (A, "And by different amounts of compute, so an evaluation is partly "
+        "measuring the router. Anthropic exposed it instead: extended thinking "
+        "is a token budget the caller sets, so the bill is predictable. That, "
+        "plus training on long agentic coding, is why Claude leads harness "
+        "benchmarks and not knowledge tests."),
 ]
 
 # 4. two labs, one beat, because the pairing is the argument.
 SCRIPT["google_meta"] = [
     (A, "Google DeepMind is the only frontier lab training end to end off N "
-        "Vidia. Gemini runs on T P Us, through JAX and Pathways, and that is a "
-        "hedge on supply and on cost rather than a hardware footnote."),
-    (A, "It was also the long context pioneer, and Deep Think spends its budget "
-        "in parallel branches instead of one long serial trace."),
+        "Vidia. Gemini runs on T P Us, through JAX and Pathways: a hedge on "
+        "supply and on cost, not a hardware footnote. Deep Think spends its "
+        "budget in parallel branches, not one long trace."),
     (A, "Meta is the cautionary story. Llama two and three were the open weights "
         "standard. Llama four's reception collapsed, the lab was reorganised, "
-        "and the frontier line went closed. Muse Spark one point three has put "
-        "Meta back in the frontier band. It has not put Meta back in the open."),
+        "and the frontier line went closed. Muse Spark one point three put Meta "
+        "back in the frontier band, not back in the open."),
 ]
 
 # 5. the efficiency lab, and the thing it did this month.
 SCRIPT["deepseek"] = [
-    (A, "DeepSeek is the efficiency lab, and almost every contribution is one "
-        "idea applied at a different layer: make a frontier model cheap to "
-        "serve. Multi head latent attention shrinks the key value cache by "
-        "about an order of magnitude. Auxiliary loss free balancing removes the "
-        "loss that normally fights the real training objective."),
-    (A, "This month it applied that logic to the shape of the stack itself. V "
-        "four point one Flash is five hundred and fifty two billion parameters, "
-        "split into a twenty layer encoder and a twenty layer decoder. The "
+    (A, "DeepSeek is the efficiency lab, and every contribution is one idea at "
+        "a different layer: make a frontier model cheap to serve. Multi head "
+        "latent attention shrank the key value cache by about an order of "
+        "magnitude."),
+    (A, "This month it applied that logic to the shape of the stack. V four "
+        "point one Flash is five hundred and fifty two billion parameters, "
+        "split into a twenty layer encoder and a twenty layer decoder: the "
         "first frontier scale open encoder decoder, when everyone else ships a "
-        "decoder."),
-    (A, "Eight billion parameters active during prefill, sixteen during decode. "
-        "And the stated reason is not quality. It is the key value cache."),
+        "decoder. Eight billion active during prefill, sixteen during decode."),
+    (A, "And the stated reason is not quality. It is the key value cache."),
 ]
 
 # 6. the rest of the open frontier, by strategy rather than by score.
 SCRIPT["china_open"] = [
     (A, "The rest of the open frontier splits by strategy. Qwen competes on "
-        "breadth: a complete ladder from under a billion parameters to two "
-        "point four trillion, nearly all Apache two point zero, which is why "
-        "Qwen checkpoints are the most fine tuned base models anywhere."),
-    (A, "Moonshot does the most distinctive systems research. A different "
-        "optimiser, called Muon. A linear attention design called Kimi Delta "
+        "breadth: a ladder from under a billion parameters to two point four "
+        "trillion, nearly all Apache two point zero, which is why Qwen "
+        "checkpoints are the most fine tuned base models there are."),
+    (A, "Moonshot does the most distinctive systems research: an optimiser "
+        "called Muon, and a linear attention design called Kimi Delta "
         "Attention, hybridised with full attention, because pure linear "
         "attention loses exact recall."),
-    (A, "Zhipu is the value play: M I T licence, aggressive pricing, agentic "
-        "coding rather than benchmark maxima. And MiniMax is the instructive "
-        "one, because it went hard on linear attention and then partially "
+    (A, "Zhipu is the value play, on the M I T licence and on price. MiniMax is "
+        "the instructive one: it went hard on linear attention, then partially "
         "reversed, for exactly the reason Moonshot hybridised."),
 ]
 
@@ -294,59 +284,56 @@ SCRIPT["china_open"] = [
 SCRIPT["open_leader"] = [
     (B, "Hold on. Which of those is actually the strongest open model?"),
     (A, "That question no longer has one answer, and it is worth slowing down "
-        "on. Kimi K three is the highest placed open weight model on the "
-        "aggregate intelligence indices. G L M five point three leads on Real "
-        "S W E, which runs against private codebases, and on cost per index "
-        "point. DeepSeek V four Pro leads S W E bench verified."),
-    (A, "Three scopes, three winners, all three on the screen. So when somebody "
-        "tells you which open model is strongest, the useful reply is two words. "
-        "On what."),
+        "on. Kimi K three is highest placed on the aggregate intelligence "
+        "indices. G L M five point three leads on Real S W E, which runs "
+        "against private codebases, and on cost per index point. DeepSeek V "
+        "four Pro leads S W E bench verified."),
+    (A, "Three scopes, three winners, all on the screen. So when somebody tells "
+        "you which open model is strongest, the reply is two words. On what."),
 ]
 
 # 8. the convergence: the most valuable thirty seconds in an overview.
 SCRIPT["convergence"] = [
-    (A, "Which brings us to the part worth more than the inventory. What all of "
-        "them are doing the same way."),
-    (A, "Everything at scale is sparse mixture of experts, and dense models now "
-        "survive only below about forty billion parameters. Every flagship is a "
-        "reasoning model with an adjustable or routed budget, so the standalone "
-        "reasoning category has dissolved into the mainline. And every lab has "
-        "shipped some form of trainable sparse or linear attention."),
+    (A, "Which brings us to the part worth more than the inventory: what they "
+        "all do the same way."),
+    (A, "Everything at scale is sparse mixture of experts, and dense survives "
+        "only below about forty billion parameters. Every flagship reasons on a "
+        "budget or a router, so the standalone reasoning category dissolved "
+        "into the mainline. And every lab has shipped trainable sparse or "
+        "linear attention."),
     (B, "Why all of them, and all at once?"),
     (A, "Because a million token context became table stakes, and quadratic "
         "attention over a million tokens is not affordable at any parameter "
-        "count. So the competition moved off total parameters, onto active "
-        "parameters and onto how cheaply you can serve a long conversation."),
+        "count. So the competition moved off total parameters and onto active "
+        "ones."),
 ]
 
 # 9. the numbers, late and with the scope named. Two claims wear one word.
 SCRIPT["numbers"] = [
     (A, "So, the numbers, and a word to stop trusting. Sparsest."),
-    (A, "The bars are the sparsity ratio: total parameters divided by active "
-        "ones. DeepSeek V four Pro leads at about thirty three times. Step five "
-        "Preview is about twenty two. Tencent's Hunyuan four is a conservative "
+    (A, "The bars are the sparsity ratio: total parameters over active ones. "
+        "DeepSeek V four Pro leads at about thirty three times. Step five "
+        "Preview, about twenty two. Tencent's Hunyuan four, a conservative "
         "sixteen."),
     (B, "But that chart is not showing the number I would be paying for."),
     (A, "It is not, and that is the point. The ratio tells you how much memory "
         "you buy per unit of decode speed. The absolute active count tells you "
-        "what a token costs to decode, and there the leader is different: Step "
-        "five Preview activates twenty seven billion of six hundred billion, "
-        "the smallest active count yet shipped in the frontier band. It also "
-        "charges about eighteen percent of Kimi K three's output price, on its "
-        "own table, which is a claim rather than a measurement."),
+        "what a token costs, and there the leader is different: Step five "
+        "Preview activates twenty seven billion of six hundred billion, the "
+        "smallest active count in the frontier band. On its own table, which is "
+        "a claim rather than a measurement."),
 ]
 
 # 10. the take.
 SCRIPT["close"] = [
     (A, "So what is this map for? Not for picking a model. That changes monthly, "
-        "and any ranking on it is stale before you finish reading it."),
-    (A, "It is for predicting what a lab does next, because each of them is "
-        "running a consistent bet, and the bets move far more slowly than the "
-        "scores do."),
-    (A, "And the thing that would redraw the map is not a benchmark result. It "
-        "is somebody breaking the convergence. DeepSeek just tried, by shipping "
+        "and any ranking is stale before you finish reading it."),
+    (A, "It is for predicting what a lab does next, because each is running a "
+        "consistent bet, and the bets move far more slowly than the scores."),
+    (A, "And what would redraw the map is not a benchmark result. It is "
+        "somebody breaking the convergence. DeepSeek just tried it, by shipping "
         "a frontier scale encoder decoder while everybody else ships decoders. "
-        "The number to watch is whether anyone follows."),
+        "Watch whether anyone follows."),
 ]
 
 
