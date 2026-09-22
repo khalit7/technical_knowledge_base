@@ -7,6 +7,9 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
+*This copy is the page as Notion last edited it, 2026-09-22 11:14:00 UTC. A procedure*
+*that has moved on since then has moved on in Notion first, so if anything here*
+*contradicts what the tools actually do, re-run the sync before trusting this file.*
 
 Produce a narrated explainer video derived from a Technical knowledge base page: how it is structured, animated, scripted and voiced, and where it lives when it is done. The written page stays canonical.
 
@@ -30,6 +33,8 @@ Two limits on that freedom:
 
 - **Add explanation, never claims.** Context, definitions, plain restatements and caveats are the video's to add. A new fact, figure or conclusion is not: if it is worth asserting, it is worth asserting on the page.
 - **Back-port it.** If a line of narration explains something better than the page does, the page is now the weaker of the two. Put the explanation on the page in the same session. The page is the thing that lasts; the video is the thing that made the gap obvious.
+**A citation the page renders as an untitled mention has no name you can say.** Some pages link a paper as a bare mention that renders with no text at all, so the subject of a beat is invisible on the canonical page and unsayable in narration. Open the linked page, take the name from there, and back-port it into the citing page as real words in the same session.
+
 Borrow the method of the best explainers, not their visual identity: build an original visual system for this knowledge base.
 
 ## What we are borrowing, and from what evidence
@@ -98,7 +103,7 @@ Everything else is the format's, and the three formats want genuinely different 
 | the shape | story, story, story | map first, then the tour | a single line of reasoning |
 | borrowed from | a news bulletin | a field guide & caleb writes code style | 3Blue1Brown |
 | one thesis? | only if one genuinely exists | often, if one genuinely exists | yes, that is the format |
-| length | as long as the stories need | six to seven minutes | as long as the idea needs |
+| length | as long as the stories need | under six minutes | as long as the idea needs |
 
 ### Nothing here is a quota
 
@@ -115,7 +120,13 @@ Notion will not take a file over 5 MiB, and `build.py` targets 4.7. It gets ther
 - **Under about six minutes** delivers at 1080p, and text stays crisp.
 - **Six to eight** lands at 720p. That is the resolution the layout audit already measures against, and a parked panel or a dense table is close to its legibility floor there.
 - **Past about nine minutes** the ladder runs out and the render fails at the last step, after the voice and the animation have already been paid for.
-A recent seven and a half minute news edition stepped down three rungs to fit. Work the length out at the outline, not at the encode: roughly 145 words a minute, so a thousand words is seven minutes. If an episode wants to be longer than that, the answer is usually fewer stories or a split, not a coarser picture.
+A recent seven and a half minute news edition stepped down three rungs to fit. Work the length out at the outline, not at the encode.
+
+**Plan at about 150 words a minute, and aim to land under six.** The estimate is softer than it looks: the voice renderer generates several takes and keeps the one whose pace is nearest the target, so beats land anywhere between about 115 and 165 words a minute and the total drifts. One overview estimated at 6.6 minutes delivered at 6 minutes 43. Planning to six is what reliably keeps an episode at 1080p; planning to seven is how it ends up at 720p.
+
+If an episode wants to be longer than that, the answer is usually fewer items or a split, not a coarser picture.
+
+**A page can hold more than one episode, and most of the big ones do.** A five or six thousand word overview does not fit in six minutes, and forcing it produces an episode that gallops. Decide at the outline which single question this episode answers, cut to that, and record in the script's docstring what you left out and why, so the next person can see the second episode sitting there rather than rediscover it. An inventory that splits cleanly in two is two episodes, not one crowded one. Cutting half a page is a normal outcome, not a failure.
 
 The one thing that is checked mechanically is the small set of roles each format genuinely requires, and `check_structure.py` holds that list rather than this page.
 
@@ -167,12 +178,13 @@ Build a consistent original visual grammar across videos, so a returning viewer 
 
 - Write spoken syntax: short clauses, verb early, one subordinate clause at most. If you cannot say it in one breath, split it.
 - 130 to 150 words per minute. Slow is the technical register.
-- **Pace is a writing problem, not a post-processing one.** Slowing the finished audio with a phase vocoder hits the target rate on paper and makes the voice sound processed, which is the exact quality this whole pipeline exists to avoid. It was tried, and rejected on listening. The levers that work are shorter sentences, full stops instead of commas, and one clause at a time. The other lever is selection: generate a few takes and keep the one whose natural rate is closest to the target, because seeds differ in pace as much as in accuracy. A clean read at a hundred and ninety words a minute is correct and unusable.
+- **Pace is a writing problem, not a post-processing one.** Slowing the finished audio with a phase vocoder hits the target rate on paper and makes the voice sound processed, which is the exact quality this whole pipeline exists to avoid. It was tried, and rejected on listening. The levers that work are shorter sentences, full stops instead of commas, and one clause at a time. The other lever is selection: generate a few takes and keep the one whose natural rate is closest to the target, because seeds differ in pace as much as in accuracy. A clean read at a hundred and ninety words a minute is correct and unusable. The fix is almost always punctuation rather than deletion: a beat that came back at a hundred and seventy nine words a minute returned at a hundred and fifty five with its commas turned into full stops and not one word cut. Reach for the full stop before the delete key.
 - Punctuation is prosody. A comma is a short breath, a full stop is a longer one, a paragraph break is a beat of silence.
 - Spell numbers and names the way they should be said: "three point two two times", "twelve hours", "Z dot A I", "four thousand tokens". Text to speech reads `3.22x` and `Z.ai` badly, so never leave either in a spoken line.
 - Expand every acronym on first use in speech, even where the page already expanded it in text.
 - Vary sentence length deliberately. Three long sentences in a row sound like a document being read.
 - Say "you" and "we". Never "this video will", never "let us now turn to".
+- **Never narrate the rules.** The constraints this page places on a script are invisible to the viewer and must stay that way. When a rule says not to do something, the script simply does not do it: it does not announce the abstention, apologise for it, or take credit for it. "They are not connected and I am not going to pretend they are." "This is not a roundup." "I will not bore you with the benchmark table." "Rather than list these one by one..." Every one of those is the script talking about itself rather than about the subject, and it reads as defensiveness about a decision the viewer never saw being made. Cut the sentence; the behaviour it describes is already visible in what follows.
 - Never read the page aloud. The page is written for the eye and in a different order; rewrite it as speech, starting from the mental model.
 
 ## Making the voice sound human
@@ -212,6 +224,8 @@ A check that cries wolf gets its threshold raised, and a raised threshold stops 
 **False negatives come from averaging.** A word error rate divides by the length of the whole beat, so a short burst of nonsense inside a long passage stays under the threshold. A closing line passed at 0.128 while containing "not just about a model, at the author cases". So check separately for a run of invented words: three or more words in a short window that appear nowhere in the script. Report the phrase it caught, because that is what makes the failure obvious to a human.
 
 **A third signal costs nothing.** Ask the recogniser for its no-speech probability. A clip that is entirely speech but scores above about 0.5 somewhere usually contains a burst of music or noise, which the words around it will happily transcribe through.
+
+**Neither detector sees one real word swapped for another, so read the transcripts.** Both gates are built for noise: a high error rate, or a run of words appearing nowhere in the script. A take that substitutes a single real word trips neither, and changes the meaning completely. "That turns the whole question into review" came back as "Zed turns the whole question into review" at an error rate of 0.010, putting an editor into a sentence about cloud review; a line ending on a bare "ninety nine point nine" grew an invented syllable the same way. Read every transcript against its line, as text, before publishing. It costs a couple of minutes on a ten beat episode and it is the only thing that catches this class.
 
 ## Building scenes that survive being reused
 
@@ -265,7 +279,9 @@ If a genuine connection runs through the whole issue, state it once at the end a
 
 **Stories do not get equal time.** One with a mechanism worth explaining earns two minutes. One that is a single fact earns twenty seconds and a line in the coda. Giving them the same length is a decision to waste the viewer's time on the smaller one, and it is what turns an edition back into a feed.
 
-What replaces the connecting thesis is the opening: say what this edition is, how many stories there are and roughly what they are about, so the viewer knows the shape of the next eight minutes. Then take them in order. The closing take is about the week, not about a thread running through it, and "these three are unrelated and that is normal" is an honest close.
+What replaces the connecting thesis is the opening: say what this edition is, how many stories there are and roughly what they are about, so the viewer knows the shape of the next eight minutes. Then take them in order. The closing take is about the week, not about a thread running through it.
+
+**Do not say that the stories are unconnected.** Just do not connect them. The viewer learns that four separate things happened by watching four separate stories, and a line like "they are not connected, and I am not going to pretend they are" tells them about an editorial decision instead. See the rule below, which this is one case of.
 
 A story is finished when its mechanism, its number and its caveat have been said. Move on with a plain handover ("second story") rather than a transition that implies a relationship. A flat handover is not a failure of craft here; it is the honest signal that a new thing is starting.
 
@@ -415,6 +431,18 @@ Three modifiers: `park` shrinks the panel into the corner and keeps it as the ho
 
 **A news edition parks nothing.** A parked panel stays in the corner for the rest of the episode, so parking story three's map leaves it there through story four and the take, which is exactly the implied relationship between unrelated stories that the news format exists to avoid. The home frame belongs to an overview, where the map genuinely is the spine of the whole video, and to a deep dive's single construction.
 
+**If a previous cut of this episode exists in git history, read it and then write fresh.** Episodes get cleared when the method changes, and the old one is worth reading for the inventory axis it found and the traps it hit. It is not worth reusing: it was written to rules that no longer apply, and at least one deleted cut asserted a date its own page does not carry.
+
+There is a fourth modifier, `reserve`, which holds back a share of the beat so a panel finishes revealing before the line pointing at it ends. Use it whenever the narration names something drawn late: a three step `flow` named in one sentence otherwise draws its third step two thirds of the way through the beat, and the narrator points at the right of the screen twelve seconds before anything is there.
+
+Two timing facts that are not obvious and will cost you a re-render:
+
+- **A beat carrying ****`focus`**** delays its own panel** by roughly a second per label, because the map is lit first. A screen reference in the first line of such a beat lands on an empty frame. The general form of this is worth holding on to, because it bites without `focus` too: reveals are spread across the whole beat, so the first several seconds of a forty five second beat are an empty or half drawn panel whatever the beat carries. A line one second in that asks "who measured these" has nothing to point at. Put the reference after the picture, or hold the picture back with `reserve`.
+- **A partial reveal under a reference is fine.** "Look at what that checkpoint buys" correctly lands with two of four items drawn, and `check_references` will still show you that frame. The checker is working, not complaining.
+**What parking actually leaves on screen.** The parked map is its column headings and nothing else, and `focus` only changes their brightness. The detail does not come back. So a parked map is an orientation device, four or five words telling the viewer which part of the subject a beat belongs to, and any beat needing the detail again has to draw it again.
+
+**`focus`**** is a state, not a flash, and it persists until something changes it.** Three columns lit for one beat stay lit through every later beat, so the map goes on asserting a relationship long after the narration has moved elsewhere. Nothing warns you: the frame is legible, and the check only asks whether the labels exist. To return to neutral, light everything, because a `focus` naming every label reads as no emphasis at all. Decide the lit state of the map for every beat after the first one that touches it.
+
 The field names each panel takes are not listed here on purpose, because a second copy of them would drift. `PANEL_FIELDS` in `check_structure.py` holds the required ones and `common/episode.py` holds the optional ones, and the check tells you what is missing before anything renders. The tone names a script may use (`subject`, `number`, `verified`, `cost`, `machinery`, `context`) are the keys of `SEMANTIC` in `common/style.py`.
 
 A bespoke scene is still allowed and has to earn itself. The memory pyramid and the roofline in the GPU deep dive earn it, because those pictures are the argument. If the vocabulary can carry the beat, use the vocabulary: a consistent series is worth more than a clever frame.
@@ -429,7 +457,8 @@ Everything that draws itself wide has to be derived from that number rather than
 
 Worth knowing before you plan a beat around one of these, because every one of them was worked around rather than solved:
 
-- **Focus is column-level.** Against a parked map, every item resolves to its column heading, so lighting two different items in the same column produces the same frame twice.
+- **Focus is column-level.** Against a parked map, every item resolves to its column heading, so lighting two different items in the same column produces the same frame twice. It does accept a list, so a beat genuinely about two columns can light both.
+- **Keep map items short.** A `columns` item is a pill that grows to fit its label, so one long item narrows the whole map; stay under about thirty characters. With a map parked, a `compare` side's items want about twenty-two.
 - **No "same structure, twice, with one thing changed".** `compare` gives two free-form positions and `table` gives a grid; neither draws an identical skeleton with one differing part, which is exactly what makes some comparisons land.
 - **No translation panel.** Two topics in this knowledge base are explicitly translation tracks (SLURM to Kubernetes, PyTorch to JAX) and the most useful picture either has is "these two names are the same thing in two worlds". A table renders it as data instead.
 - **Bars cannot show before and after on one quantity**, so an improvement from 58% to 99.3% draws identically to two different things measured once. They also cannot mark a row as the denominator rather than a measurement.
@@ -545,6 +574,8 @@ At the end of every beat, before the next line starts, walk every piece of text 
 
 This is cheap, it runs inside the render, and it replaces several rounds of pulling frames and squinting. Still pull frames, but to judge whether the thing reads, not to hunt for collisions.
 
+`video/out/audio/<episode>/verification.json` carries what the transcriber heard against what the script said, per beat. It is the only way to read the narration back as text, which matters when nobody can listen to it.
+
 **And know which defects the frames are now for.** The three this step used to name, text off the frame, labels on each other, a diagram taller than the screen, are exactly what the audit catches automatically. One episode reported zero layout issues with five real defects on screen, and every one was of a kind only a person sees: a panel line the narration had stopped saying, a card read aloud word for word, a trailing comma stranded inside a pill, a list toned as a cost where half its lines were neutral facts, and the date printed twice because the title carried it and the corner strip appended it again. Those are what to look for.
 
 One warning learned immediately: a check nobody has seen fail is not a check. The first version of this one silently passed everything, because a text object in manim holds no points of its own and the filter that was supposed to skip empty objects skipped all of them. Test a new check against a defect you have deliberately created before believing a clean report from it.
@@ -574,6 +605,8 @@ After changing a gate, re-test it against the defect it was built for. This one 
 ### Audio belongs to the words it was rendered from
 
 A beat is re-rendered when its words change, not only when its file is missing. An episode gets rewritten, the beat keys stay the same, and skipping on "the wav exists" then keeps the old take under the new line. Every check downstream passes it: the clip is clean, it verifies against nothing, and the episode says something the script does not. The renderer stores a fingerprint of each beat's text beside the durations, and `produce.py --fresh` clears an episode's audio outright when it has been rewritten wholesale.
+
+**A partial re-render does not refresh the verification file.** `render.py --only <beat> --force` writes the new audio and prints its own error rate, but `verification.json` still holds the previous transcript until `tts/verify.py` runs again. Read the file after a targeted fix and you will conclude the fix failed while the renderer is telling you it worked. Re-run the verifier before reading it, every time.
 
 ### Checking the script before the GPU is booked
 

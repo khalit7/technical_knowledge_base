@@ -769,11 +769,26 @@ class Renderer:
             "",
             "*Mirrored from Notion, where it is the source of truth. Edit it there:*",
             f"*Me -> _AI -> Skills -> {node.title}. Changes here are overwritten by the next sync.*",
+            f"*This copy is the page as Notion last edited it, {stamp(node.last_edited)}. A procedure*",
+            "*that has moved on since then has moved on in Notion first, so if anything here*",
+            "*contradicts what the tools actually do, re-run the sync before trusting this file.*",
             "",
         ]
         lines += self.blocks(node.blocks, node.path)
         text = "\n".join(lines)
         return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
+
+
+def stamp(iso: str) -> str:
+    """Notion's last_edited_time as a line a reader can compare against.
+
+    A generated file that governs the work has to say how old it is. Without
+    this, a stale skill and a current one read identically, and the only way
+    to tell them apart is to notice that a commit message mentions something
+    the file does not contain."""
+    if not iso:
+        return "at an unrecorded time"
+    return iso.replace("T", " ").replace("Z", "").split(".")[0] + " UTC"
 
 
 def attach_children(api: Notion, blocks: list[dict]) -> None:

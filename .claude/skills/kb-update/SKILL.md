@@ -7,6 +7,9 @@ description: Add to, edit or reorganise the technical knowledge base, including 
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Update technical knowledge base. Changes here are overwritten by the next sync.*
+*This copy is the page as Notion last edited it, 2026-09-22 07:39:00 UTC. A procedure*
+*that has moved on since then has moved on in Notion first, so if anything here*
+*contradicts what the tools actually do, re-run the sync before trusting this file.*
 
 Add to, edit or reorganise the Technical knowledge base, including the weekly research pass: where material goes, what shape a page takes, how an update is integrated rather than appended, and what else has to move when something new arrives.
 
@@ -28,8 +31,8 @@ Keep the hierarchy shallow. Category names on the knowledge base root are headin
 
 - **Topic pages** hold the current taxonomy, mental map, synthesis and links to deep dives.
 - **Deep dives** hold focused explanations and resources.
-- [Papers](../../../papers/INDEX.md) holds one row per paper; the row opens to the full summary.
-- Tech news holds weekly news. Updates is the only changelog. [Tracker](../../../TRACKER.md) holds structured reading state.
+- Papers holds one row per paper; the row opens to the full summary.
+- Tech news holds weekly news. Updates is the only changelog. Tracker holds structured reading state.
 Put new material into the most relevant existing topic whenever possible. Create a new topic only when no existing topic fits, and only when the body of durable knowledge justifies it rather than because one or two news items lack a home.
 
 ## Three layers: intake, knowledge, history
@@ -214,10 +217,10 @@ The same rules, run over a whole week at once.
 1. Establish the research window from the newest Updates entry.
 2. Research developments relevant to the existing topic map, and check important releases that may not surface through topic searches.
 3. **Integrate durable technical knowledge into the topic or deep-dive page it belongs on**, under the rules above: rewrite the passage, fix the taxonomy, fix the table, fix the summary sentence the news makes false, and add the note under any video the change leaves behind.
-4. Give clearly relevant papers the normal [Papers](../../../papers/INDEX.md) treatment: one row per paper with Year, Topics and Takeaway, and the full summary in the row. Less central papers can remain links in Tech news until deeper treatment is requested.
+4. Give clearly relevant papers the normal Papers treatment: one row per paper with Year, Topics and Takeaway, and the full summary in the row. Less central papers can remain links in Tech news until deeper treatment is requested.
 5. Write the dated Tech news issue. The 3 to 5 most important stories first, then sections as warranted. Concise, factual, linked, no hype.
 6. Write the dated Updates digest: the changelog of what was actually edited. This is where the week's history lives, and it is why the topic pages do not need any.
-7. Update [Tracker](../../../TRACKER.md) for newly readable artifacts, without altering existing read state.
+7. Update Tracker for newly readable artifacts, without altering existing read state.
 8. Apply the writing conventions and the page-level estimates.
 9. Update the **Technical KB** row in Last updated: Through date, Last processed and Status.
 
@@ -242,7 +245,7 @@ Treat a short video as a **source type**, not as its own knowledge silo. Route i
 
 ## Reading tracker
 
-New readable artifacts should be represented in [Tracker](../../../TRACKER.md). Preserve existing read state. Use page names.
+New readable artifacts should be represented in Tracker. Preserve existing read state. Use page names.
 
 ## Related skills
 
