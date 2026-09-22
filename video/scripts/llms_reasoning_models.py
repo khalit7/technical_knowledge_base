@@ -182,12 +182,12 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 # 0. what this is.
 SCRIPT["ident"] = [
     (A, "This is a deep dive on reasoning models and test time compute."),
-    (A, "What a reasoning model is: a model that writes a long chain of thought "
-        "before its answer, and that was trained by reinforcement learning to "
-        "use that chain well, on problems where a program can check the answer. "
+    (A, "What one is: a model that writes a long chain of thought before its "
+        "answer, and that was trained by reinforcement learning to use that "
+        "chain well, on problems where a program can check the answer. "
         "Mathematics with a reference answer. Code with a test suite."),
-    (A, "It earns a video because it opened a second scaling axis. You can now "
-        "buy accuracy at inference time, not only at training time."),
+    (A, "It earns a video because it opened a second scaling axis. You can buy "
+        "accuracy at inference time now, not only at training time."),
 ]
 
 # 1. the sharp question, and it is more mechanical than it sounds.
@@ -211,8 +211,8 @@ SCRIPT["contract"] = [
 # 3. the mechanism.
 SCRIPT["depth"] = [
     (A, "The mechanism is on the screen and it is one idea. Each emitted token is "
-        "another full forward pass, conditioned on everything written so far. So "
-        "serial steps become unbounded, and the context window becomes working "
+        "another full forward pass, conditioned on everything written so far. "
+        "Serial steps become unbounded, and the context window becomes working "
         "memory that persists across them."),
     (A, "Three things follow. Decomposition: a problem needing more serial steps "
         "than the model has layers becomes reachable. Externalised state, written "
@@ -227,10 +227,9 @@ SCRIPT["depth"] = [
 SCRIPT["three_ways"] = [
     (A, "There are three ways to spend a test time budget. Until this year there "
         "were two, and everything after this points back at these columns."),
-    (A, "Sequential: one longer trajectory with self correction inside it. That "
-        "is the o one and R one pattern, and it is the axis reinforcement "
-        "learning scales. It costs latency you cannot parallelise, because "
-        "tokens come out in order."),
+    (A, "Sequential: one longer trajectory with self correction inside it. The o "
+        "one and R one pattern, and the axis reinforcement learning scales. It "
+        "costs latency you cannot parallelise, because tokens come out in order."),
     (A, "Parallel: sample many solutions and select one. Wall clock need not "
         "grow, but the token bill does, and it lives or dies on the selector. "
         "Deep Think and the heavy tiers are this."),
@@ -242,7 +241,7 @@ SCRIPT["three_ways"] = [
 # 5. how the behaviour is trained. GRPO is one clause; the page has the rest.
 SCRIPT["training"] = [
     (A, "Now how that behaviour is trained, because it is not prompting. Two "
-        "answers, and production uses both."),
+        "answers, and production uses both of them."),
     (A, "Supervised traces: generate long chains, keep the ones that got the "
         "right answer, train on them as ordinary next token prediction. Cheap "
         "and stable. But the student is bounded by the teacher, and a set "
@@ -272,12 +271,11 @@ SCRIPT["harness"] = [
     (A, "The same weights, twice. ARC Prize ran G P T six Astra through its "
         "standard provider agnostic harness and got sixty two point seven "
         "percent. Through a Provider Adapter that preserves opaque reasoning "
-        "state between requests, and compacts long conversations, the same model "
-        "got ninety nine point nine."),
+        "state between requests, the same model got ninety nine point nine."),
     (A, "Thirty seven points on identical weights, and the higher score was also "
         "forty nine percent cheaper in tokens. Once part of the deliberation "
-        "lives outside the transcript, the serving adapter that carries it is "
-        "worth points."),
+        "lives outside the transcript, the adapter that carries it is worth "
+        "points."),
 ]
 
 # 8. what the latent column costs, which is the reason it matters.
@@ -310,7 +308,7 @@ SCRIPT["objection"] = [
 
 # 10. the take.
 SCRIPT["take"] = [
-    (A, "So, the take. The standalone reasoning category has dissolved: there are "
+    (A, "So, the take. The standalone reasoning category has dissolved. There are "
         "essentially no non reasoning flagships left, so the open problem is when "
         "and how much to think, not whether."),
     (A, "And no test time compute number means anything now without its harness "
@@ -326,7 +324,7 @@ SCRIPT["resources"] = [
         "Fifteen minutes."),
     (A, "The DeepSeek R one paper is the openly documented recipe, about an hour. "
         "And Sasha Rush's Speculations on Test Time Scaling is forty minutes of "
-        "video, and the best technical tour of the design space there is."),
+        "video, and the best technical tour of the design space."),
 ]
 
 

@@ -19,8 +19,7 @@ The outline that survived the revision step:
                 and the one thing that is not a model
     question    what do you optimise if not the leaderboard, plus the route
     arc         the ARC design brief, and what a unified model gives up
-    price       what it costs, including cost per index point
-    how         the architecture that makes that price servable
+    price       what it costs, and the architecture that makes it servable
     lead        where they still lead: Real-SWE on private codebases
     stack       the inference stack, and the 3.22x
     feedback    the transferable finding, which is about feedback not about
@@ -144,12 +143,12 @@ VISUALS = {
 
 SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
-# 0. what this is, and the bet. Twenty seconds, before any tension.
+# 0. what this is, and the bet. Before any tension.
 SCRIPT["ident"] = [
     (A, "This is Zhipu's G L M family, as the knowledge base has it on the "
         "twenty second of September, twenty twenty six. Zhipu is the Tsinghua "
-        "University spinoff behind G L M, and it publishes its flagship "
-        "weights under M I T, the most permissive licence in common use."),
+        "spinoff behind G L M, and it puts its flagship weights under M I T, "
+        "the most permissive licence in common use."),
     (A, "It earns the time for one reason. Most labs here sell a leaderboard "
         "position. Zhipu sells a price, and the page ends with what that "
         "bought them."),
@@ -158,13 +157,13 @@ SCRIPT["ident"] = [
 # 1. the inventory, named before anything is explained
 SCRIPT["map"] = [
     (A, "The line, with nothing explained yet. The open flagship is G L M "
-        "five point three, with five point two underneath it. Seven hundred "
-        "and forty four billion parameters, about forty billion active per "
-        "token, a one million token window."),
-    (A, "Beside it, G L M five point three Flash: three hundred and twenty "
-        "billion total, eighteen billion active, natively multimodal. Then a "
-        "cheap self-hostable tier around a hundred billion, and two things "
-        "that are not models at all."),
+        "five point three, with five point two under it. Seven hundred and "
+        "forty four billion parameters, forty billion active per token, a one "
+        "million token window."),
+    (A, "Beside it, Flash: three hundred and twenty billion total, eighteen "
+        "billion active, natively multimodal. Then a cheap self-hostable tier "
+        "around a hundred billion, and two things that are not models at "
+        "all."),
 ]
 
 # 2. the organising question, with the route inside it
@@ -172,9 +171,9 @@ SCRIPT["question"] = [
     (B, "If they are not chasing the leaderboard, what are they optimising?"),
     (A, "That question is the whole family, and the answer is cost per unit "
         "of useful work on agentic coding, with the weights given away."),
-    (A, "So: the design brief, then what it costs, then how that price is "
-        "even servable, then where they genuinely lead, and then the "
-        "strangest thing on the page."),
+    (A, "So: the design brief, what it costs, how that price is servable at "
+        "all, where they genuinely lead, and then the strangest thing on the "
+        "page."),
 ]
 
 # 3. the design brief, and what it concedes
@@ -185,35 +184,33 @@ SCRIPT["arc"] = [
         "slogan."),
     (A, "Reasoning teaches a model to deliberate before answering, and you "
         "pay for that in latency. Agentic training rewards short decisive "
-        "tool calls instead. Coding wants exact formatted output with no chat "
-        "around it."),
-    (A, "The industry answer is separate specialised checkpoints. G L M "
-        "instead ships hybrid thinking modes, picked in the prompt template "
-        "rather than by loading another model, and gives up a little at the "
-        "top of each one."),
+        "tool calls instead. Coding wants exact formatted output. The usual "
+        "answer is separate specialised checkpoints."),
+    (A, "G L M ships hybrid thinking modes instead, picked in the prompt "
+        "template rather than by loading another model, and gives up a little "
+        "at the top of each one."),
 ]
 
-# 4. the number that is the product
+# 4. the price, which on this page is the product
 SCRIPT["price"] = [
-    (A, "Now the prices, because here the pricing is the product. The Coding "
-        "Plan is about three dollars a month, and its endpoint is compatible "
-        "with Claude Code, so an existing setup moves across by changing a "
-        "base U R L and a key."),
+    (A, "The prices, because here the pricing is the product. The Coding Plan "
+        "is about three dollars a month, and its endpoint is compatible with "
+        "Claude Code, so an existing setup moves across by changing a base U "
+        "R L and a key."),
     (A, "Flash lists at fifteen cents per million input tokens and fifty per "
-        "million output, roughly a tenth of their own flagship. Keep the "
-        "bottom row: at fifty seven on the Artificial Analysis index, Flash "
-        "costs about nine cents a task, against about two dollars and three "
-        "cents for a comparably placed closed model."),
+        "million output. Keep the bottom row: at fifty seven on the "
+        "Artificial Analysis index, Flash costs about nine cents a task, "
+        "against roughly two dollars for a comparably placed closed model."),
 ]
 
-# 5. why the price is not only a loss leader
+# 5. why that price is not only somebody eating a loss
 SCRIPT["how"] = [
     (B, "That is a twenty-fold gap. Is that a real cost, or is somebody "
-        "eating the difference to buy market share?"),
-    (A, "Both, and the architecture is the part you can check. Flash routes "
-        "eight of two hundred and eighty eight experts per token, and its "
-        "attention stack is hybrid linear plus sparse, cutting attention "
-        "compute to roughly a third."),
+        "eating the difference?"),
+    (A, "Partly real, and the architecture is the checkable part. Flash "
+        "routes eight of two hundred and eighty eight experts per token, and "
+        "its attention stack is hybrid linear plus sparse, about a third of "
+        "the attention compute."),
     (A, "Then IndexPool averages every four lookup vectors before selection, "
         "dropping the key-value cache under a quarter of its size at a "
         "million tokens. That is what makes the advertised window affordable "
@@ -224,25 +221,22 @@ SCRIPT["how"] = [
 SCRIPT["lead"] = [
     (A, "So where does that leave quality? They topped the aggregate "
         "open-weight index at release, and that lead has since passed to "
-        "Moonshot's Kimi K three. What G L M still leads on is narrower and "
-        "more useful, and it is on the screen."),
+        "Moonshot's Kimi K three. What G L M still leads on is narrower, and "
+        "it is on the screen."),
     (A, "Real S W E runs against private enterprise codebases rather than "
         "public repositories. G L M five point three resolves twenty eight "
         "point eight percent of its tasks, the best open-weight result. Kimi "
         "K three resolves eighteen point eight."),
-    (A, "Be careful with the arena scores, though. Flash sat on evaluation "
-        "platforms the week before launch as an unattributed model called Ox "
-        "Alpha, and was claimed once the numbers came in."),
 ]
 
 # 7. the artifact the whole strategy was for
 SCRIPT["stack"] = [
     (A, "Which brings us to the strangest document in this knowledge base. In "
-        "September, Zhipu published an account of building the serving system "
-        "that runs Flash in production. Thirteen days. More than a hundred "
-        "thousand Chinese-made accelerators. Three point two two times the "
-        "throughput they started with. And the code was largely written by G "
-        "L M five point three, the model it was being built to serve."),
+        "September, Zhipu published an account of building the system that "
+        "serves Flash in production. Thirteen days, more than a hundred "
+        "thousand Chinese-made accelerators, three point two two times the "
+        "throughput they began with. The code was largely written by G L M "
+        "five point three itself."),
     (B, "That is the recursive self-improvement headline, surely."),
     (A, "Zhipu says plainly that it is not, and that humans kept control of "
         "the objectives and the boundaries. That disclaimer is what makes the "
@@ -260,19 +254,18 @@ SCRIPT["feedback"] = [
         "layered tests showing which constraint binds."),
     (A, "That caught a T F thirty two precision bug visible only under "
         "certain parallelism strategies, and a twenty percent slowdown traced "
-        "to Python's global interpreter lock. Neither would ever have "
-        "surfaced from an end-to-end metric."),
+        "to Python's global interpreter lock. Neither shows up in an "
+        "end-to-end metric."),
 ]
 
 # 9. the take
 SCRIPT["close"] = [
-    (A, "So what does giving the weights away buy? Look at Atria Dawn "
-        "Preview. A Shanghai national laboratory reached seven hundred and "
-        "forty four billion parameters by post-training on the G L M five "
-        "point two base rather than training from scratch, and shipped it "
-        "with no announcement at all."),
-    (A, "That is what the hosted margin was traded for. A permissive licence "
-        "at the frontier stops the base model being a product and makes it "
+    (A, "So what does giving the weights away buy? Atria Dawn Preview. A "
+        "Shanghai national laboratory reached seven hundred and forty four "
+        "billion parameters by post-training on the G L M five point two "
+        "base, and shipped it with no announcement at all."),
+    (A, "That is what the hosted margin bought. A permissive licence at the "
+        "frontier stops the base model being a product and makes it "
         "infrastructure other people build on."),
 ]
 
