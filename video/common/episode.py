@@ -116,6 +116,7 @@ class Episode(PageVideo):
             self.beat(key, spec)
 
         self.hold()
+        self.close_last_beat()
         self.audit_layout()
         if self.timing_out:
             issues = self.timing_out.with_name(
