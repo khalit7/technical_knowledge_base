@@ -45,8 +45,15 @@ def asr(device: str = "cpu"):
             # and fails in a script that does not happen to import torch.
             import torch  # noqa: F401
         from faster_whisper import WhisperModel
-        compute = "int8" if device == "cpu" else "float16"
-        _model = WhisperModel(ASR_MODEL, device=device, compute_type=compute)
+        # ctranslate2 takes the ordinal separately and rejects "cuda:1"
+        # outright, while render.py accepts it. Same flag, same pipeline, two
+        # spellings, and the second GPU is unreachable from here without this.
+        name, _, index = device.partition(":")
+        compute = "int8" if name == "cpu" else "float16"
+        kwargs = {"device": name, "compute_type": compute}
+        if index:
+            kwargs["device_index"] = int(index)
+        _model = WhisperModel(ASR_MODEL, **kwargs)
     return _model
 
 
