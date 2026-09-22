@@ -1,10 +1,6 @@
 # Benchmark methodology: how benchmarks are used, misused, and die
 
-⏱ 10 min read · +3h resources
-
-Last updated: 2026-09-21 (acronyms expanded; Sep 2026 examples added to the saturation, Goodhart and checklist sections). Incorporates Khalid's own notes (IBM benchmark primer, benchmark
-
-lifespan observation).
+⏱ 9 min read · +3h resources
 
 ### Best resources
 
@@ -18,14 +14,8 @@ lifespan observation).
 ### The basic protocol (from the notes, still the right skeleton)
 
 1. **Sample data**: the benchmark ships the dataset (and ideally a canonical prompt).
-2. **Testing**: run the model zero-shot or few-shot (today: plus chain-of-thought (CoT) on/off, tools
-   on/off, reasoning-effort setting, agent scaffold).
-
-3. **Scoring**: defined metric: accuracy, precision/recall/F1, exact match, pass@k,
-   ROUGE/BLEU (legacy generation), perplexity (legacy LM quality), Elo (preference),
-
-   judge score, task success rate, pass^k (reliability).
-
+2. **Testing**: zero-shot or few-shot, plus chain-of-thought (CoT) on/off, tools on/off, reasoning-effort setting, agent scaffold.
+3. **Scoring**: a defined metric: accuracy, precision/recall/F1, exact match, pass@k, ROUGE/BLEU (legacy generation), perplexity (legacy LM quality), Elo (preference), judge score, task success rate, pass^k (reliability).
 Every one of those knobs changes the number. A benchmark result is meaningless without
 
 the protocol tuple: (dataset version, shots, CoT, tools, sampling params, extraction logic, scaffold, judge). Harness details live in [Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools](../evaluation-and-llm-judges/eval-harnesses.md).
@@ -75,7 +65,7 @@ Detection heuristics:
 - Temporal splits: performance cliff on data created after the training cutoff
   (SWE-rebench found models score much better on pre-cutoff repos).
 
-Defenses (ranked roughly by strength): fully private sets with an evaluation API
+Defenses, ranked roughly by strength. Above everything else now sits enclave evaluation: the lab's weights and the evaluator's benchmark prompts are loaded into the same hardware-encrypted enclave and only scores come out, so the lab cannot put the questions in a training set and the evaluator never holds the model, which makes non-contamination a property of the execution environment rather than of a contract. It was piloted in Aug 2026 on one small model, so treat it as a direction rather than a defence you can currently buy; mechanism and caveats in [Topic: evaluation-and-llm-judges](../evaluation-and-llm-judges/summary.md). Below it, in order: fully private sets with an evaluation API
 
 (FrontierMath, HLE private split, SWE-bench Pro commercial split) > rolling live data
 
@@ -93,10 +83,10 @@ and the score decouples from capability. Typical arc:
 
 1. **Launch**: frontier scores low (MMLU 2020: ~32%; ARC-AGI-2 2025: ~4%).
 2. **Discriminative years**: the useful period, historically 2-4 years, now often <18
-   months (ARC-AGI-2 went ~4% to ~85%+ in about a year; Terminal-Bench 1.0 lasted months). The sharpest data point so far: Terminal-Bench-Science 0.1, built in Aug 2026 to sit far below saturation (Claude Opus 5 at 30.0%), stood at 52.6% for Claude Fable 5.1 one week later, a routine point release removing 22 points of headroom in seven days. Stage 5 running in public: the Artificial Analysis Intelligence Index v4.2 (Sep 2026) dropped GPQA Diamond outright as saturated, replaced it with private-set evaluations (AA-Briefcase, GDP.pdf), and raised private held-out sets to 40% of the index weight to make it harder to optimise against ([Artificial Analysis](https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-2) (15 min)).
+   months (ARC-AGI-2 went ~4% to ~85%+ in about a year; Terminal-Bench 1.0 lasted months). The sharpest data point so far: Terminal-Bench-Science 0.1, built in Aug 2026 to sit far below saturation (Claude Opus 5 at 30.0%), stood at 52.6% for Claude Fable 5.1 one week later, a routine point release removing 22 points of headroom in seven days. Stage 5 running in public: Artificial Analysis Intelligence Index v4.2 (Sep 2026) dropped GPQA Diamond as saturated, replaced it with private-set evaluations (AA-Briefcase, GDP.pdf) and raised private held-out sets to 40% of the index weight ([Artificial Analysis](https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-2) (15 min)).
 
 3. **Saturation**: top models cluster within noise of each other and of the errata
-   ceiling (MMLU ~92%, SWE-bench Verified ~97%, GPQA ~95%).
+   ceiling (MMLU ~92%, SWE-bench Verified ~97%, GPQA Diamond ~96%).
 
 4. **Zombie phase**: still cited for continuity and marketing; deltas are meaningless.
 5. **Replacement**: a harder sibling (MMLU->MMLU-Pro->GPQA->HLE; SWE-bench->Verified->
@@ -119,7 +109,7 @@ yearly, and keep a private regression set that never touches the internet.
   length-controlled variants).
 
 - **Scaffold shopping**: report the best of many agent harnesses, compare to rivals'
-  default harness. The extreme case is ARC-AGI-3: GPT-6 Astra scored 62.7% on ARC Prize's standard provider-agnostic harness and 99.9% on the Provider Adapter harness, which preserves opaque reasoning state between requests (Sep 2026; [ARC Prize](https://arcprize.org/blog/astra) (15 min)). ARC Prize now labels both, and the lesson generalises: once a model reasons partly in latent state, provider-neutral evaluation and best-achievable evaluation are permanently different questions. Hyper-tau-bench (Sierra, Sep 2026) shows the same from the human side: Claude Opus 5 passes 23.9% of held-out tasks alone and 82.2% paired with an engineer who knows the task ([Sierra](https://sierra.ai/blog/hyper-t-bench-evaluating-agents-that-build-agents) (20 min)). Harness mechanics live in [Topic: agentic-harnesses](../agentic-harnesses/summary.md).
+  default harness. The extreme cases are ARC-AGI-3, where the same model scores 62.7% and 99.9% depending on the harness ([ARC Prize](https://arcprize.org/blog/astra) (15 min)), and Hyper-tau-bench, where the same agent passes 23.9% of held-out tasks alone and 82.2% paired with an engineer who knows the task ([Sierra](https://sierra.ai/blog/hyper-t-bench-evaluating-agents-that-build-agents) (20 min)). The lesson generalises: once a model reasons partly in latent state, provider-neutral and best-achievable evaluation are permanently different questions. Both are worked through in [Topic: benchmarks](summary.md); harness mechanics in [Topic: agentic-harnesses](../agentic-harnesses/summary.md).
 
 - **Reward hacking inside the eval**: agents tamper with checkers or fetch gold answers
   (Berkeley RDI 2026 broke 8 agent benchmarks this way; METR saw o3 hack scoring
@@ -141,21 +131,11 @@ semi-private, SWE-bench Pro), with the private split used to measure public-spli
 
 overfitting, plus independent rerunners (Epoch, HAL, Artificial Analysis) as auditors.
 
-Private in-house benchmarks (like AveniBench: finance capabilities, general
-
-capabilities, safety) are the same idea applied inside a company: they stay
-
-discriminative precisely because they are not in anyone's training data.
+Private in-house benchmarks (AveniBench: finance, general capabilities, safety) apply the same idea inside a company: they stay discriminative precisely because they are not in anyone's training data.
 
 ### Elo arenas and their critiques
 
-LMArena (ex Chatbot Arena/LMSYS): anonymous pairwise battles, human votes, Bradley-Terry
-
-(Elo-style) ratings; Arena-Hard distills hard arena prompts into an offline judge-graded
-
-proxy. Strengths: live, contamination-free by construction, measures what users prefer.
-
-Critiques:
+LMArena (ex Chatbot Arena/LMSYS): anonymous pairwise battles, human votes, Bradley-Terry (Elo-style) ratings; Arena-Hard distills hard arena prompts into an offline judge-graded proxy. Live, contamination-free by construction, and measures what users prefer. Critiques:
 
 - **The Leaderboard Illusion (2025)**: undisclosed private testing (Meta tested 27
   Llama-4 variants pre-release, best-of-N retracted at will), unequal sampling rates
@@ -168,13 +148,7 @@ Critiques:
 
   policy on variant testing.
 
-- **Preference is not capability**: votes reward confident, well-formatted, sycophantic
-  answers; style effects rival capability effects (style-controlled ratings reorder the
-
-  board). The 2025 "sycophancy incident" (GPT-4o rollback) showed optimization pressure
-
-  toward arena-pleasing behavior has product consequences.
-
+- **Preference is not capability**: votes reward confident, well-formatted, sycophantic answers; style effects rival capability effects (style-controlled ratings reorder the board). The 2025 sycophancy incident (GPT-4o rollback) showed optimization pressure toward arena-pleasing behavior has product consequences.
 - Practical read: use arenas as one noisy signal of user preference, category-filtered
   (coding, hard prompts, style control on), never as the capability ranking.
 

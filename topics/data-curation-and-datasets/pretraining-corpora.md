@@ -2,8 +2,6 @@
 
 ⏱ 9 min read · +7h 40m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [FineWeb: decanting the web](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) (~1h 30m): the canonical writeup of how a modern web corpus is built, with per-decision ablations
@@ -74,15 +72,15 @@ and **The Stack v2** (code, 900B+ tokens, from Software Heritage).
 5. **Synthetic augmentation**: rephrased web and QA-ified documents are now a standard slice
    (Nemotron-CC's 1.9T synthetic tokens; see
 
-   [synthetic-and-post-training-data.md](http://synthetic-and-post-training-data.md/)).
+   [Synthetic data and post-training data](synthetic-and-post-training-data.md)).
 
-**where the founding evidence for point 4's premise comes from.** The whole
+Those five levers are also why the data side has outrun the modelling side: on the 2019--2025 decomposition recorded on [Topic: data-curation-and-datasets](summary.md), data improvements contributed 3.24x more compute-efficiency gain than architecture and optimisation combined, and the corpus generations in the table above are most of what that number is measuring.
 
-lineage above assumes filtering earns its losses, and that assumption was first measured in the
+**The founding evidence for point 4's premise.** The whole lineage above assumes filtering
 
-C4 paper itself, which is worth knowing because the experiment is cleaner than most that came
+earns its losses, and that assumption was first measured in the C4 paper itself, in an
 
-after it. Holding model, compute and evaluation fixed, an unfiltered variant of the same crawl
+experiment cleaner than most that came after it. Holding model, compute and evaluation fixed, an unfiltered variant of the same crawl
 
 snapshot (6.1TB, roughly 8x more text than filtered C4's 745GB) scored worst on every single
 
@@ -106,7 +104,7 @@ at most predates the modern corpora by five years. See
 
 [Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)](../../papers/2019-10_t5/summary.md) (11 min read · +4h 12m resources).
 
-### Aug 2026 snapshot
+### Current snapshot
 
 Independent head-to-head evaluations consistently rank **Nemotron-CC-HQ** and **DCLM-Baseline**
 
@@ -136,10 +134,10 @@ FineMath-style math + a mid-training mix (Dolmino is the open template).
 - **Sprinkle**: ~5-10% code (python-edu or The Stack v2 smol) and ~5% math (FineMath 4+),
   mostly concentrated in the final 10-20% of training as an annealing phase; see
 
-  [data-mixing.md](http://data-mixing.md/).
+  [Data mixing: domain weights, curricula, and continued-pretraining ratios](data-mixing.md).
 
 - **Tokenizer**: train it on the same distribution; see
-  ../llm-training-and-post-training/[tokenizers.md](http://tokenizers.md/).
+  [Tokenizers](../llm-training-and-post-training/tokenizers.md).
 
 - **Alternatives worth an ablation**: DCLM-Baseline sample (more diverse register than
   FineWeb-Edu's homogeneous educational tone, sometimes better at small scale on
@@ -149,8 +147,8 @@ FineMath-style math + a mid-training mix (Dolmino is the open template).
   finding Edu-only too narrow); Nemotron-CC-HQ if you want the current per-token quality peak.
 
 - **Decontaminate** against your eval suite before training, not after; see
-  [filtering-and-dedup.md](http://filtering-and-dedup.md/).
+  [Filtering, dedup, and the curation pipeline](filtering-and-dedup.md).
 
-See ../llm-training-and-post-training/[pretraining.md](http://pretraining.md/)
+See [Pretraining](../llm-training-and-post-training/pretraining.md) for the
 
-for the training-side decisions these tokens feed into.
+training-side decisions these tokens feed into.

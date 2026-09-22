@@ -2,8 +2,6 @@
 
 ⏱ 6 min read · +11h 20m resources
 
-Last updated: 2026-09-21 (added Meta Muse Voice Transcribe, AuK, GPT-Live-1, Gemini 3.8 Live, Suno v6 and the Universal Music and ElevenLabs deal)
-
 ### Best resources
 
 - Radford et al., [Whisper: Robust Speech Recognition via Large-Scale Weak Supervision](https://arxiv.org/abs/2212.04356) (45 min): the paper that reset ASR; read for the weak-supervision data recipe.
@@ -57,7 +55,7 @@ LLM stack (scaling, prompting, RL) transfers.
 
   than raw WER. Realtime systems return partials in under 250 ms.
 
-- **Meta Muse Voice Transcribe** (Sep 2026): a real-time multilingual transcription model covering more than 25 languages, shipped alongside Muse Spark 1.3. Recorded as a release only; Meta published no technical detail.
+- **Meta Muse Voice Transcribe** (Sep 2026): real-time multilingual transcription across more than 25 languages, shipped alongside Muse Spark 1.3. A release note only; Meta published no technical detail.
 
 ### TTS
 
@@ -80,7 +78,7 @@ LLM stack (scaling, prompting, RL) transfers.
   on long form, and multilingual voice cloning.
 
 - Qwen3 TTS reached sub-50ms response latency at frontier quality per Nari Labs' cost and speed analysis (Aug 21). [Nari Labs](https://nari-labs.com/blog/qwen3-tts-speed-cost-frontier/) (~10 min)
-- **AuK** (Tencent Hunyuan, Sep 2026): an open-source foundation model for speech generation **and editing**, the editing half being the less common capability, modifying existing speech rather than synthesising it from scratch. 217 Hugging Face upvotes at release. [arXiv 2609.08936](https://arxiv.org/abs/2609.08936) (45 min)
+- **AuK** (Tencent Hunyuan, Sep 2026): an open-source foundation model for speech generation **and editing**, editing being the less common capability: modifying existing speech rather than synthesising it from scratch. 217 Hugging Face upvotes at release. [arXiv 2609.08936](https://arxiv.org/abs/2609.08936) (45 min)
 - Older mel + vocoder stacks (FastSpeech 2 + HiFi-GAN) survive in constrained/embedded
   settings; note the GAN vocoder link in [VAEs and GANs: Review and Where They Survive](vaes-and-gans.md).
 
@@ -110,11 +108,11 @@ Two architectures (this is the multimodal-LLM story of [Multimodal LLM Architect
 
    stream speech.
 
-**GPT-Live-1** (OpenAI, Sep 2026) brought the full-duplex design to a production API: it listens and speaks simultaneously rather than taking turns, which is the change that makes interruption work the way it does between people. 12 real-time voices at $0.05 per minute for the voice layer, served over WebRTC, WebSockets, telephony and SIP.
+**GPT-Live-1** (OpenAI, Sep 2026) brought the full-duplex design to a production API: it listens and speaks simultaneously rather than taking turns, which is what makes interruption work as it does between people. 12 real-time voices at $0.05 per minute for the voice layer, served over WebRTC, WebSockets, telephony and SIP.
 
-**Gemini 3.8 Live and 3.8 Live Extended Thinking** (Google, Sep 15, 2026) are production voice-agent models, and the design idea is worth more than the scores. Both do near real-time speech with visual grounding and automatic language detection across **97 languages**. Extended Thinking **speaks while it reasons**: it emits verbal cues like "Let me check that" and keeps the conversation alive while tool calls and multi-step reasoning run in the background, instead of going silent. Every other approach to test-time compute spends the budget and makes the caller wait; this one spends it and hides the latency behind speech, which is a product answer to a systems constraint and the first shipped one in this category.
+**Gemini 3.8 Live and 3.8 Live Extended Thinking** (Google, Sep 15, 2026) are production voice-agent models; the design idea is worth more than the scores. Both do near real-time speech with visual grounding and automatic language detection across **97 languages**. Extended Thinking **speaks while it reasons**, emitting verbal cues like "Let me check that" to keep the conversation alive while tool calls and multi-step reasoning run in the background, instead of going silent. Every other approach to test-time compute spends the budget and makes the caller wait; this one hides the latency behind speech, a product answer to a systems constraint and the first shipped one in this category.
 
-Scores: number one on Artificial Analysis' speech-to-speech index at **82.6**, 68.6% on tau-Voice, **35.1%** on Sierra's tau-Voice-banking, and 97.7% on Big Bench Audio. The banking figure is the one to hold on to, because it is the agentic one, and the distance between 97.7% on audio reasoning and 35.1% on a real banking workflow is the same capability gap that Real-SWE found between public agent benchmarks and private production code. Live in the Gemini API and AI Studio, private preview in Gemini Enterprise, and already behind Search Live, Gmail and Keep. Google publishes no millisecond latency figure. [Google](https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-8-live-gemini-3-8-live-extended-thinking/) (8 min)
+Scores: number one on Artificial Analysis' speech-to-speech index at **82.6**, 68.6% on tau-Voice, **35.1%** on Sierra's tau-Voice-banking, 97.7% on Big Bench Audio. Hold on to the banking figure, because it is the agentic one: the distance between 97.7% on audio reasoning and 35.1% on a real banking workflow is the same capability gap Real-SWE found between public agent benchmarks and private production code. Live in the Gemini API and AI Studio, private preview in Gemini Enterprise, already behind Search Live, Gmail and Keep. Google publishes no millisecond latency figure. [Google](https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-8-live-gemini-3-8-live-extended-thinking/) (8 min)
 
 ### Music (brief)
 
@@ -127,18 +125,18 @@ Scores: number one on Artificial Analysis' speech-to-speech index at **82.6**, 6
   open models remain clearly behind Suno-class quality.
 
 - The 2025-26 licensing settlements (Suno-WMG, Udio-UMG) turned music gen from a
-  copyright fight into a licensed product category. **Suno v6** (Sep 2026) went further: it was built with Warner Music Group, BMG and Believe, with participating repertoire entering the model on an opt-in basis and rightsholders compensated, which makes it the first major generative-audio release to arrive with licences rather than litigation attached. **Universal Music and ElevenLabs** signed a comparable multi-year deal on Sep 10, 2026 for a licensed fan-remix platform.
+  copyright fight into a licensed product category. **Suno v6** (Sep 2026) went further: built with Warner Music Group, BMG and Believe, participating repertoire entering the model opt-in with rightsholders compensated, the first major generative-audio release to arrive with licences rather than litigation attached. **Universal Music and ElevenLabs** signed a comparable multi-year deal on Sep 10, 2026 for a licensed fan-remix platform.
 
 ### Interview-ready summary
 
-Audio became tractable for LLMs when codecs (EnCodec, Mimi) turned waveforms into
+Codecs (EnCodec, Mimi) made audio tractable for LLMs by turning waveforms into discrete
 
-discrete token streams; RVQ with a semantically-distilled first level is the key design.
+token streams; RVQ with a semantically-distilled first level is the key design. ASR:
 
-ASR: Whisper lineage, now edged out on English by conformer+LLM decoders (Canary,
+Whisper lineage, now edged out on English by conformer+LLM decoders (Canary, Parakeet).
 
-Parakeet). TTS: VALL-E-style codec LMs with zero-shot cloning. Realtime voice: native
+TTS: VALL-E-style codec LMs with zero-shot cloning. Realtime voice: native codec-token
 
-codec-token omni models (Moshi's full-duplex design, GPT-realtime, Gemini Live) instead
+omni models (Moshi's full-duplex design, GPT-realtime, Gemini Live) instead of
 
-of ASR->LLM->TTS pipelines.
+ASR->LLM->TTS pipelines.

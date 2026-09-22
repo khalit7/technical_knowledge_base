@@ -10,7 +10,7 @@
 
 - [The Illustrated BERT, ELMo, and co.](https://jalammar.github.io/illustrated-bert/) (Jay Alammar) (~30 min): the classic visual walkthrough of how BERT relates to ELMo and GPT and how fine-tuning works
 - [BERT 101](https://huggingface.co/blog/bert-101) (Hugging Face) (~25 min): practical intro with code, good for the fine-tuning workflow
-- [Finally, a Replacement for BERT: ModernBERT](https://www.answer.ai/posts/2024-12-19-modernbert.html) ([Answer.AI](http://answer.ai/), Dec 2024) (~30 min): where the encoder lineage stands today and why it still matters
+- [Finally, a Replacement for BERT: ModernBERT](https://www.answer.ai/posts/2024-12-19-modernbert.html) (Answer.AI, Dec 2024) (~30 min): where the encoder lineage stands today and why it still matters
 - Original [Google AI blog post](https://research.google/blog/open-sourcing-bert-state-of-the-art-pre-training-for-natural-language-processing/) (~10 min, the same post as the Links line): concise author framing of the contribution
 
 ### Problem

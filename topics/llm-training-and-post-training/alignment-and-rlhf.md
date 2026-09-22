@@ -17,7 +17,17 @@
 
    format, persona, and chat template; quality beats quantity (curated + synthetic
 
-   data; Tulu 3 is the open reference recipe).
+   data; Tulu 3 is the open reference recipe). NeoHorse-1 is the production-traffic
+
+   variant of this step rather than an offline curation pass: a router over a
+
+   heterogeneous model pool predicts each request's capability demand, those predictions
+
+   order a three-stage supervised curriculum, and served interactions become training
+
+   examples after structural validation and subscene-level labelling, finer than
+
+   per-conversation labelling, which is what makes supervising a partial trajectory work.
 
 3. **Reward model (RM) training** (skipped by direct methods): humans rank 2+
    sampled responses per prompt; train a model (usually the SFT model with a scalar
@@ -32,29 +42,23 @@
 
 ### RL-based methods
 
-- **RLHF with PPO** (InstructGPT;
-  GPT-4, Llama 2): actor-critic policy gradient. Four models in memory: policy,
+- **RLHF with PPO** (InstructGPT; GPT-4, Llama 2): actor-critic policy gradient with
+  four models in memory: policy, frozen reference (for the per-token KL penalty that
 
-  reference (frozen, for the per-token KL penalty that keeps the policy close to
+  keeps the policy close to the SFT model), reward model, and a learned **value/critic**
 
-  the SFT model), reward model, and a learned **value/critic** model estimating
+  estimating expected return per state. The clipped ratio objective bounds each update.
 
-  expected return per state. PPO's clipped ratio objective bounds each policy
+  Powerful, notoriously fiddly and memory-hungry; mechanics in [RL for LLMs: RLHF, GRPO, RLVR](../rl/rl-for-llms-rlhf-grpo-rlvr.md).
 
-  update for stability. Powerful, notoriously fiddly and memory-hungry.
+- **GRPO** (DeepSeekMath): drops the critic. Sample a **group** of G responses per
+  prompt; advantage of each = (its reward - group mean) / group std, so group-relative
 
-- **GRPO** (DeepSeekMath):
-  drops the critic. Sample a **group** of G responses per prompt; advantage of
+  baselines replace value estimation; otherwise PPO-style clipping + KL. The 2026
 
-  each = (its reward - group mean) / group std. Group-relative baselines replace
+  workhorse for reasoning RL. Its known length and std-normalisation biases spawned
 
-  value estimation; otherwise PPO-style clipping + KL. The 2026 workhorse for
-
-  reasoning RL. Known biases (length, std normalisation) spawned fixes:
-
-  Dr. GRPO, DAPO (clip-higher, dynamic sampling, token-level loss), GSPO
-
-  (sequence-level ratios, Qwen3), CISPO.
+  Dr. GRPO, DAPO, GSPO and CISPO, all detailed in [RL for LLMs: RLHF, GRPO, RLVR](../rl/rl-for-llms-rlhf-grpo-rlvr.md).
 
 - **RLAIF**: same pipelines, but preference labels come from a strong AI judge
   instead of humans; scales far better and is now the norm for most labels.
@@ -85,6 +89,11 @@
   alignment happens during SFT in one stage.
 
 - **SimPO**: reference-free, length-normalised average log-prob as implicit reward.
+- **PLC-DPO**: posterior label correction for noisy preference optimisation (KAIST AI). It
+  works on the input rather than the objective, inferring and correcting mislabelled
+
+  pairs, which is the failure mode the practice note below names.
+
 - Practice note: DPO-family results are sensitive to data quality and the
   chosen/rejected gap; iterative/online DPO (regenerate pairs from the current
 
@@ -92,27 +101,27 @@
 
 ### Online vs offline
 
-Offline (vanilla DPO on a fixed dataset) optimises preferences on stale,
+Offline (vanilla DPO on a fixed dataset) optimises preferences on stale, off-policy
 
-off-policy data; online methods (PPO, GRPO, online/iterative DPO) sample from the
+data; online methods (PPO, GRPO, online/iterative DPO) sample from the current policy
 
-current policy and are consistently stronger at equal data budgets, at higher
+and are consistently stronger at equal data budgets, at higher compute and complexity
 
-compute and complexity cost. Current consensus: DPO-family for cheap broad
+cost. Consensus: DPO-family for cheap broad preference shaping, online RL (GRPO/PPO
 
-preference shaping, online RL (GRPO/PPO variants) where it matters (reasoning,
+variants) where it matters (reasoning, agentic behaviour, final alignment polish).
 
-agentic behaviour, final alignment polish). Llama 3 used SFT, rejection sampling and DPO; frontier reasoning models all use large-scale online RL.
+Llama 3 used SFT, rejection sampling and DPO; frontier reasoning models all use
 
-- DPO; frontier reasoning models all use large-scale online RL.
+large-scale online RL.
 
 ### RLVR: RL with verifiable rewards
 
-RL only needs *some* reward source. When the reward is **checkable** (unit tests,
+RL only needs *some* reward source. When the reward is **checkable** (unit tests, math
 
-math answer checkers, compilers, rule-based format checks) you bypass learned RMs
+answer checkers, compilers, rule-based format checks) you bypass learned RMs and their
 
-and their hackability. Lineage: AlphaCode-style execution feedback; DeepSeek-R1-Zero
+hackability. Lineage: AlphaCode-style execution feedback; DeepSeek-R1-Zero
 
 (pure RLVR on a base model, emergent long CoT), then DeepSeek-R1 (SFT cold start +
 

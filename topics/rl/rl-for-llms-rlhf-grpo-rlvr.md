@@ -1,6 +1,6 @@
-# RL for LLMs: RLHF, GRPO, RLVR (state as of 2026-08-24)
+# RL for LLMs: RLHF, GRPO, RLVR
 
-⏱ 10 min read · +8h 40m resources
+⏱ 11 min read · +8h 40m resources
 
 ### Best resources
 
@@ -10,9 +10,7 @@
 - verl docs, "Rollout Correction": [https://verl.readthedocs.io/en/latest/algo/rollout_corr.html](https://verl.readthedocs.io/en/latest/algo/rollout_corr.html) (docs, ~20 min): the practical guide to training/inference mismatch and importance-sampling fixes; directly relevant to a from-scratch RLVR loop.
 - "The 37 Implementation Details of PPO": [https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/) (~50 min): still where most GRPO bugs are caught.
 - Papers: [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](../../papers/2024-02_deepseekmath-grpo/summary.md), [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](../../papers/2025-01_deepseek-r1/summary.md), [Training language models to follow instructions with human feedback (InstructGPT)](../../papers/2022-03_instructgpt/summary.md).
-Scope note: the full alignment pipeline (SFT, reward-model training, DPO and its family) lives in [Alignment: SFT, RLHF, DPO Family, RLVR](../llm-training-and-post-training/alignment-and-rlhf.md); reward-model exploitation lives in [Reward Hacking](../llm-training-and-post-training/reward-hacking.md).
-
-This page covers the RL algorithms themselves.
+Scope note: this page covers the RL algorithms themselves. The full alignment pipeline (SFT, reward-model training, DPO and its family) lives in [Alignment: SFT, RLHF, DPO Family, RLVR](../llm-training-and-post-training/alignment-and-rlhf.md); reward-model exploitation lives in [Reward Hacking](../llm-training-and-post-training/reward-hacking.md).
 
 ### LLM generation as an MDP
 
@@ -67,7 +65,7 @@ Pain points: four large models in memory; the value model is as big as the polic
 
 from scratch during RL, and per-token value estimation is hard when the true reward is one scalar
 
-at the end. This is the pain GRPO removes.
+at the end. GRPO removes exactly this pain.
 
 ### GRPO in detail (DeepSeekMath, 2024)
 
@@ -114,6 +112,22 @@ math/code ("the verifier problem", rubric-based and generative verifiers) is a m
 
 front.
 
+Human preference and a pass/fail verifier are not the only two reward sources on offer.
+
+**Reinforcement Learning for Calibrated Decisions**, the training method behind TypeSafe's Jev,
+
+optimises instead for epistemically honest probability estimates on structured decisions: the
+
+model returns a typed value with a confidence score, and the objective rewards that confidence
+
+being well calibrated rather than the answer being preferred or passing a check. Worth naming as a
+
+third branch beside RLHF and RLVR, because it targets a property neither of them scores. The
+
+surrounding product claims (40x to 200x faster than frontier models on comparable tasks) are
+
+vendor-reported with no independent evaluation.
+
 ### Case study: DeepSeek-R1 and R1-Zero (2025-01)
 
 - **R1-Zero**: GRPO + RLVR (accuracy + format rewards) applied directly to the V3 base model, no
@@ -130,7 +144,7 @@ front.
 
 - Also demonstrated distillation of R1 traces into small models: cheaper than running RL on them.
 
-### Current debates and refinements (as of Aug 2026)
+### Current debates and refinements
 
 The GRPO baseline has accumulated well-understood biases and a family of fixes:
 
@@ -191,6 +205,34 @@ The GRPO baseline has accumulated well-understood biases and a family of fixes:
 
   (ProRL-style) is the strongest claim for genuine expansion.
 
+- **Cost as a term in the objective**: selectable reasoning-effort tiers have normally been
+  separate checkpoints, or a budget parameter bolted onto a finished model. Cognition trained
+
+  SWE-2's whole effort ladder in a **single RL run using slope-matched cost penalties**, which
+
+  makes the cost-quality trade something the optimiser solves rather than something configured
+
+  afterwards. The saving showed up in turns rather than tokens: SWE-2 medium used 58% fewer
+
+  turns and cost 81% less than SWE-1.7 on the same work. For agentic RL that is the axis that
+
+  matters, because turn count is where the money goes once per-token price is competitive.
+
+  [Cognition](https://cognition.com/blog/swe-2) (15 min)
+
+- **Saturation-aware multi-objective RL**: when a run optimises several objectives at once,
+  gradient keeps flowing into the ones the policy has already mastered, which is both wasted
+
+  compute and a route to over-optimising the easy terms. "Learn What's Left, Not What's
+
+  Mastered" downweights mastered objectives so the budget moves to the unsolved ones. It is the
+
+  multi-objective cousin of DAPO's dynamic sampling above, which discards groups whose rewards
+
+  are all identical for the same reason: no disagreement, no signal.
+
+  [arXiv 2608.16072](https://arxiv.org/abs/2608.16072) (45 min)
+
 - Other active threads: entropy control as the central stability knob (clip-higher, entropy
   targets); process/turn-level credit assignment for multi-turn agentic RL; replacing the group
 
@@ -209,3 +251,19 @@ The GRPO baseline has accumulated well-understood biases and a family of fixes:
 5. Filter degenerate groups (all-correct/all-wrong) or dynamic-sample past them.
 6. Monitor: entropy, response length, KL, clip fraction, reward by difficulty bucket, and the
    rollout-vs-training logprob gap.
+
+The largest recipe published in this shape makes the same point about where the difficulty sits.
+
+Mercor with SkyRL trained Qwen3.5-397B-A17B on 1,928 expert knowledge-work tasks and reports a 70%
+
+relative improvement in APEX-Agents Pass@1, and spends most of the write-up on exact token
+
+accounting, asynchronous RL, environment robustness and harness design, with the explicit argument
+
+that those decide the outcome as much as the algorithm does. Steps 1, 2 and 5 above are where that
+
+work actually lands; the recipe in full sits on
+
+[Topic: llm-training-and-post-training](../llm-training-and-post-training/summary.md).
+
+[Mercor](https://www.mercor.com/blog/training-frontier-knowledge-work-agents-a-397b-rl-training-guide-with-skyrl/) (25 min)

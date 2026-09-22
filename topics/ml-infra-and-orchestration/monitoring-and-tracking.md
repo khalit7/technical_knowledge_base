@@ -2,8 +2,6 @@
 
 ⏱ 10 min read · +4h 5m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [NVIDIA dcgm-exporter](https://github.com/NVIDIA/dcgm-exporter) (repo, ~20 min for the entry path): the GPU metrics exporter for Prometheus; also NVIDIA's [GPU telemetry docs](https://docs.nvidia.com/datacenter/cloud-native/gpu-telemetry/latest/) (docs, ~30 min for the core pages).
@@ -18,7 +16,7 @@ The standard stack: **DCGM exporter** (a DaemonSet on K8s, installed by the GPU 
 
 Metrics that earn their dashboard slots:
 
-- `DCGM_FI_DEV_GPU_UTIL` (coarse) and, better, `DCGM_FI_PROF_SM_ACTIVE` / `SM_OCCUPANCY` / `PIPE_TENSOR_ACTIVE`: is the GPU actually computing or just allocated? Tensor-core activity is the honest utilisation metric for training.
+- `DCGM_FI_DEV_GPU_UTIL` (coarse) and, better, `DCGM_FI_PROF_SM_ACTIVE` / `SM_OCCUPANCY` / `PIPE_TENSOR_ACTIVE`: is the GPU actually computing or just allocated? `GPU_UTIL` reports only that some kernel was resident, so a job starved by its dataloader still reads near 100%; tensor-core activity is the honest utilisation metric for training.
 - `DCGM_FI_DEV_FB_USED`: memory headroom and leak detection.
 - `DCGM_FI_DEV_GPU_TEMP`, `POWER_USAGE`, and clock **throttle reasons**: thermally throttled GPUs are silent stragglers that stall whole NCCL collectives.
 - `DCGM_FI_DEV_ECC_DBE_VOL_TOTAL` (double-bit ECC), row-remap counters, and `DCGM_FI_DEV_XID_ERRORS`: leading indicators of a node about to kill your job (Xid 79 = GPU fell off the bus; 48/63/64 = ECC trouble).

@@ -2,11 +2,7 @@
 
 ⏱ 7 min read · +3h 2m resources
 
-Last updated: 2026-09-21 (added the September 2026 world-model releases: Solaris, Atlas, GWM Worlds 2)
-
-Two "watch this space" areas from the notes ("research about text diffusion"), treated
-
-honestly: real progress, real limitations.
+Two watch-this-space areas, treated honestly: real progress, real limitations.
 
 ### Best resources
 
@@ -31,7 +27,7 @@ Key properties: **parallel decoding** (many tokens per forward pass), bidirectio
 
 context**, and natural **infilling.
 
-**State of play (Aug 2026).**
+**State of play.**
 
 - **Mercury / Mercury 2** (Inception Labs): production coding-oriented models; Mercury 2
   reports ~1,000 tok/s on a single Blackwell GPU, several times faster than
@@ -44,7 +40,7 @@ context**, and natural **infilling.
 - **LLaDA line**: LLaDA 8B matched LLaMA-class AR baselines; LLaDA 2.x added block
   diffusion and token editing and sees real open-source adoption.
 
-- Google released the **DiffusionGemma** Technical Report, an experimental open-weight discrete diffusion LM that refines 256-token blocks in parallel and reaches roughly 1,500 output tokens/s on a single H100, well above autoregressive decoding with speculation; trended on HN Aug 20. [arXiv 2608.00146](https://arxiv.org/abs/2608.00146) (45 min)
+- **DiffusionGemma** (Google): an experimental open-weight discrete diffusion LM that refines 256-token blocks in parallel and reaches roughly 1,500 output tokens/s on a single H100, well above autoregressive decoding with speculation. [arXiv 2608.00146](https://arxiv.org/abs/2608.00146) (45 min)
 - **Converged recipe**: initialise from a pretrained AR model and continue-train with
   the diffusion objective (much cheaper than from scratch), and use **block diffusion**
 
@@ -104,11 +100,11 @@ a video model conditioned on actions with enough consistency *is* a world model.
 
   Waymo built a specialised Waymo World Model on it for driving simulation (Feb 2026).
 
-**The 2026 coordinated push.** Three releases in four days in early September 2026 turned world models into a coordinated industry push, and one of them is pointed at software rather than at physics.
+**The 2026 push.** Three releases in four days in early September 2026, one of them pointed at software rather than at physics.
 
-- **Runway Solaris** (Sep 1, 2026) is the first world model aimed at software rather than at physics. It renders a working software interface **frame by frame in real time**, with no code generated underneath: what you interact with is a rolling prediction of what the next frame of that interface should look like given your input, not a program that was written and then executed. That inverts the assumption behind every code-generating tool, which is that the artifact is source. It raises the same question video world models raise, namely what "state" means when there is no state object, only a model conditioned on its own history, except that here the answer has to survive a user clicking things. A pointer rather than a synthesis: no technical report had been published as of September 2026. [Runway](https://runway.com/news/research/introducing-solaris) (5 min), [The Decoder](https://the-decoder.com/runways-solaris-is-an-ai-system-that-generates-software-interfaces-in-real-time/) (6 min)
-- **World Labs Atlas** (Sep 1, 2026) pretrains natively on text, image, video and 3D in a shared spatial context. The claim worth testing is that it scales with compute the way language models do rather than plateauing the way earlier video models did; if that holds it is the most consequential of the three. [World Labs](https://www.worldlabs.ai/blog/atlas) (8 min)
-- **Runway GWM Worlds 2** (Sep 4, 2026) generates real-time interactive environments at 720p and 24 fps with audio. The reason to track it here rather than as a graphics story is that a real-time interactive environment is a candidate training environment for agents, which is the same shortage [Terminal-Universe: Turning Agent Trajectories into Scalable Terminal Environments](../../papers/2026-09_terminal-universe/summary.md) addresses from the trajectory side. [Runway](https://runway.com/research/introducing-gwm-worlds-2) (5 min)
+- **Runway Solaris** (Sep 1, 2026) is the first world model aimed at software rather than at physics. It renders a working software interface **frame by frame in real time** with no code underneath: what you interact with is a rolling prediction of the next frame of that interface given your input, not a program that was written and then executed. That inverts the assumption behind every code-generating tool, that the artifact is source, and it raises the question video world models raise, what "state" means when there is no state object but a model conditioned on its own history, except that here the answer has to survive a user clicking things. A pointer rather than a synthesis: no technical report published as of September 2026. [Runway](https://runway.com/news/research/introducing-solaris) (5 min), [The Decoder](https://the-decoder.com/runways-solaris-is-an-ai-system-that-generates-software-interfaces-in-real-time/) (6 min)
+- **World Labs Atlas** (Sep 1, 2026) pretrains natively on text, image, video and 3D in a shared spatial context. The claim worth testing: that it scales with compute the way language models do rather than plateauing the way earlier video models did. If that holds it is the most consequential of the three. [World Labs](https://www.worldlabs.ai/blog/atlas) (8 min)
+- **Runway GWM Worlds 2** (Sep 4, 2026) generates real-time interactive environments at 720p and 24 fps with audio. Track it here rather than as a graphics story because a real-time interactive environment is a candidate training environment for agents, the same shortage [Terminal-Universe: Turning Agent Trajectories into Scalable Terminal Environments](../../papers/2026-09_terminal-universe/summary.md) addresses from the trajectory side. [Runway](https://runway.com/research/introducing-gwm-worlds-2) (5 min)
 **Other threads.**
 
 - **Video prediction as world model**: the claim behind Sora-class models ("video

@@ -1,8 +1,6 @@
 # Real-time and event delivery: WebSockets, SSE, webhooks, long polling
 
-⏱ 11 min read · +5h resources
-
-Updated 2026-09-21 (duplicate MCP-transport sentence merged into the SSE in MCP section; acronyms expanded on first use).
+⏱ 10 min read · +5h resources
 
 ### Best resources
 
@@ -33,7 +31,7 @@ Built-in resumability: browser `EventSource` auto-reconnects and sends `Last-Eve
 
 Deployment hazards: buffering proxies (nginx needs `proxy_buffering off` or `X-Accel-Buffering: no`), idle timeouts (send `: keepalive` comment lines every ~15s), compression middleware that buffers.
 
-**SSE is the LLM streaming standard.** Anthropic/OpenAI streaming responses are SSE over a POST (typed events like `message_start`, `content_block_delta` for Anthropic; `data: [DONE]` sentinel for OpenAI-style). MCP's Streamable HTTP transport is the same move (see SSE in MCP specifically, below). When building LLM proxies, preserve event boundaries; do not re-chunk naively (split multi-byte UTF-8 or split `data:` lines and clients break).
+**SSE is the LLM streaming standard.** Anthropic/OpenAI streaming responses are SSE over a POST (typed events like `message_start`, `content_block_delta` for Anthropic; `data: [DONE]` sentinel for OpenAI-style). MCP's Streamable HTTP transport is the same move: the client POSTs a JSON-RPC message to one endpoint and the server answers with `application/json` or a `text/event-stream` of progress notifications followed by the result. Since the 2026-07-28 stateless core replaced server-initiated requests with Multi Round-Trip Requests, an SSE stream there is an optimisation for progress and streamed results rather than a session backbone; details in [Model Context Protocol (MCP)](mcp.md). When building LLM proxies, preserve event boundaries; do not re-chunk naively (split multi-byte UTF-8 or split `data:` lines and clients break).
 
 #### WebSockets (RFC 6455)
 
@@ -43,11 +41,11 @@ Starts as HTTP GET with `Upgrade: websocket` (101 Switching Protocols), then bec
 
 Wins when you need **client-to-server messages on the same channel** (interruptible voice agents, OpenAI/Gemini realtime APIs, collaborative editing, games) or binary frames (audio). Costs: no auto-reconnect/resume (you build heartbeats, backoff, replay yourself), stateful connections fight serverless (API Gateway WebSocket API + connection table in DynamoDB is the AWS workaround), some corporate proxies still kill upgrades, load balancing needs connection affinity or a pub/sub backplane (Redis) behind stateless nodes.
 
-Rule of thumb: if the client only receives, use SSE; you get HTTP semantics, auth, retries, and CDN-compatibility for free. Reach for WebSockets only for true bidirectionality or binary. Realtime voice LLM APIs use WebSockets/WebRTC; text LLM APIs use SSE.
+Rule of thumb: if the client only receives, use SSE; you get HTTP semantics, auth, retries, and CDN-compatibility for free. Reach for WebSockets only for true bidirectionality or binary. Realtime voice LLM APIs use WebSockets or WebRTC, with SIP alongside them for telephony, and since the frontier voice models went full duplex in 2026 that channel carries audio both ways at once rather than alternating; text LLM APIs use SSE.
 
 #### DDP, Distributed Data Protocol
 
-Disambiguation first: in this knowledge base and in ML generally, "DDP" almost always means PyTorch **DistributedDataParallel** (see [Distributed Training](../llm-training-and-post-training/distributed-training.md) and [Distributed PyTorch: DDP, FSDP2, DTensor, and friends](../pytorch-ecosystem/distributed-pytorch.md)). The *protocol* DDP is unrelated:
+In this knowledge base and in ML generally, "DDP" means PyTorch **DistributedDataParallel** (see [Distributed Training](../llm-training-and-post-training/distributed-training.md) and [Distributed PyTorch: DDP, FSDP2, DTensor, and friends](../pytorch-ecosystem/distributed-pytorch.md)). The *protocol* DDP is unrelated:
 
 - **Meteor's Distributed Data Protocol** (~2012): a simple JSON protocol over WebSockets (SockJS fallback) that combines two planes in one connection: RPC (`method` calls with ids and results) and **pub/sub data synchronisation**: the client subscribes to named record sets and the server streams `added` / `changed` / `removed` messages that keep a client-side mini database ("minimongo") live.
 - Two ideas worth keeping: the server tracks what each client already has and sends diffs, not snapshots; and **latency compensation**: the client optimistically simulates a method's effect locally, then reconciles when the authoritative server result arrives.
@@ -67,13 +65,8 @@ In ML systems webhooks are the completion channel for async work: batch inferenc
 ### Choosing, quickly
 
 - LLM token streaming to a client: **SSE**.
-- Voice/realtime bidirectional agent: **WebSockets** (or WebRTC for media).
+- Voice/realtime bidirectional agent: **WebSockets** (or WebRTC for media, SIP for telephony).
 - "Tell me when the job finishes" across service boundaries: **webhook** (or queue/EventBridge inside your own infra).
 - Hostile network where nothing else works: **long polling**.
 - Server-to-server request/response: not this page; see [RPC and API styles: REST, gRPC, GraphQL](rpc-and-apis.md).
-
-### SSE in MCP specifically
-
-MCP's Streamable HTTP transport (2025-03-26 onward): client POSTs a JSON-RPC message to one endpoint; server answers either `application/json` (single response) or `text/event-stream` (stream of messages related to that request: progress notifications, then the result). The original 2024 HTTP+SSE transport (separate GET /sse channel + POST endpoint, stateful) is deprecated with a year-long phase-out. The 2026-07-28 stateless core reduces how much long-lived streaming MCP needs at all: server-initiated requests were replaced by Multi Round-Trip Requests, so an SSE stream is now an optimization for progress/streaming results, not a session backbone. Details in [Model Context Protocol (MCP)](mcp.md).
-
 See also: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) for chunked transfer, timeouts, and proxy-buffering mechanics that determine whether your stream actually streams.

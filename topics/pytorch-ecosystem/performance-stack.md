@@ -2,7 +2,7 @@
 
 ⏱ 9 min read · +3h 5m resources
 
-Last verified: 2026-08-24 (PyTorch 2.13, torchao 0.14.x).
+Last verified: 2026-09-22 (PyTorch 2.13, torchao 0.14.x).
 
 ### Best resources
 

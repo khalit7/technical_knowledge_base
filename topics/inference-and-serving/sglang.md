@@ -2,8 +2,6 @@
 
 ⏱ 7 min read · +3h 35m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [SGLang paper: "SGLang: Efficient Execution of Structured Language Model Programs"](https://arxiv.org/abs/2312.07104) (45 min)
@@ -45,13 +43,11 @@ also the reference engine for DeepSeek-style MLA/EP serving and many Chinese lab
   requests to maximise hit rate instead of pure FCFS.
 
 - Contrast with vLLM: vLLM V1 also has automatic prefix caching (block-hash based, near
-  zero overhead), so the gap has narrowed a lot. SGLang's tree structure plus
+  zero overhead), so the gap has narrowed. SGLang's tree plus cache-aware scheduling and
 
-  cache-aware scheduling and router still tend to win on workloads where 60-90% of
+  router still tend to win where 60-90% of input tokens are shared (agents, RAG,
 
-  input tokens are shared (agents, RAG, chatbots); on unique-prompt traffic the two are
-
-  within noise of each other.
+  chatbots); on unique-prompt traffic the two are within noise of each other.
 
 ### Structured generation
 
@@ -92,7 +88,7 @@ models; at 70B+ dense scale differences shrink to a few percent; treat every ben
 
 blog as workload-specific and rerun on your own traffic.
 
-### Adoption and state (Aug 2026)
+### Adoption and state
 
 - Serves Grok at xAI; used by AMD (day-0 MI-series support), LinkedIn, Cursor, and
   most major Chinese model labs for reference deployments.
@@ -101,22 +97,41 @@ blog as workload-specific and rerun on your own traffic.
   KV-offload ecosystem; SGLang router does cache-aware load balancing across replicas.
 
 - Speculative decoding: EAGLE-2/EAGLE-3 well integrated, frequently top of the
-  spec-decode benchmarks; MTP for DeepSeek-style models.
+  spec-decode benchmarks; MTP for DeepSeek-style models; and **DFlash2**, the
+
+  block-diffusion drafter that proposes a whole block per forward pass, which plugs into
+
+  SGLang as a draft stage exactly as it does into vLLM.
 
 - Governance: community project under LMSYS non-profit; slower-moving than vLLM on
   long-tail model support, faster on some frontier serving recipes.
 
+- Releases: **v0.5.18** (September 2026) merged 710 pull requests from 212 contributors,
+  on PyTorch 2.13.0 with Triton 3.7.1. New model support covers Muse Glimmer,
+
+  Intern-S2-Mobius, SANA-Video, LingBot-Video-MoE, LTX-2.5 and Cosmos3; the engine work
+
+  is a TP LMHead optimisation, FlashInfer improvements, and overlapped checkpoint
+
+  staging at startup, cutting startup time by 2.38x. Startup time is the quietly
+
+  ignored number in engine comparisons, and the one that decides how cheaply a fleet
+
+  scales a replica in or rolls one back. Day-zero support for new open releases is the
+
+  standing pattern, Qwen-Image-2.1 being the most recent.
+
 ### When to choose it
 
-Choose SGLang when traffic is agentic/multi-turn/RAG with fat shared prefixes, when
+SGLang when traffic is agentic/multi-turn/RAG with fat shared prefixes, when structured
 
-structured output dominates (heavy JSON tool calling), or when replicating a published
+output dominates (heavy JSON tool calling), or when replicating a published
 
-DeepSeek/Grok-style serving recipe. Choose vLLM for breadth, ecosystem, and anything
+DeepSeek/Grok-style serving recipe. vLLM for breadth, ecosystem, and anything exotic
 
-exotic (hardware, modality, RL integration). Running both behind a router is a real
+(hardware, modality, RL integration). Running both behind a router is a real pattern,
 
-pattern, and Dynamo/llm-d treat both as interchangeable workers.
+and Dynamo/llm-d treat both as interchangeable workers.
 
 ### See also
 

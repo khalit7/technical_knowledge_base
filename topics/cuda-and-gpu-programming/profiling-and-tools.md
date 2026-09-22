@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +8h 55m resources
 
-*Last updated: 2026-08-24*
-
 ### Best resources
 
 - [Nsight Compute docs](https://docs.nvidia.com/nsight-compute/) (docs, ~2h for the core pages) and [Nsight Systems docs](https://docs.nvidia.com/nsight-systems/) (docs, ~1h): the references; the Nsight Compute "Kernel Profiling Guide" is the piece worth reading end to end.
@@ -70,9 +68,9 @@ Then, per suspicion:
 
 ncu's guided analysis (rules engine) names the likely bottleneck in prose; trust it as a
 
-hypothesis generator, verify with the counters. Note ncu locks clocks to base by default
+hypothesis generator, verify with the counters. ncu locks clocks to base by default during
 
-during replay (`--clock-control base`): numbers are stable but not "boost" numbers.
+replay (`--clock-control base`): numbers are stable but not "boost" numbers.
 
 ### Benchmark methodology (where everyone gets burned)
 
@@ -118,6 +116,34 @@ during replay (`--clock-control base`): numbers are stable but not "boost" numbe
 
 7. Keep an environment log: GPU, driver, CUDA/toolkit (13.3 current), PyTorch/Triton
    versions, clocks. Kernel numbers without this are not reproducible.
+
+### The tooling is starting to do the work itself
+
+The loop below is the one now being automated. AMD's **Hyperloom**, shipped inside
+
+ROCm.AI in August 2026, profiles, analyses, plans and validates workload optimisations
+
+autonomously, with AMD claiming it turns weeks of manual tuning into hours: an autonomous
+
+profiler rather than a better one. Dream-RSI (September 2026) demonstrates its
+
+replay-simulator method in three domains, one of them GPU kernel engineering, reporting
+
+competitive or better solution quality at substantially lower discovery cost.
+
+Set that against Phi-Bench, which measures models on exactly this kind of work and finds
+
+Hardware and Edge its worst category at 5.4%. The gap is not closing through better models
+
+so far; it is closing through cheaper search over candidate kernels, and through vendors
+
+packaging their own operational knowledge, which is the other half of ROCm.AI (see
+
+[Topic: cuda-and-gpu-programming](summary.md)). The methodology above is what any of them has to be held to: an
+
+agent reporting a speedup without locked clocks, warmup and an L2-flushing benchmark has
+
+reported nothing.
 
 ### Suggested workflow
 

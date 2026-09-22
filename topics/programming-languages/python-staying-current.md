@@ -10,11 +10,11 @@
 - [uv docs](https://docs.astral.sh/uv/) (docs, ~1h for the core pages) and [Astral blog](https://astral.sh/blog) (blog, ~30 min for the current posts): the tooling that replaced pip/poetry/pyenv.
 - [PEP index](https://peps.python.org/) (PEPs, ~2h 45m for the six listed): PEP 703 (nogil), 779 (supported free-threading), 734 (subinterpreters), 750 (t-strings), 810 (lazy imports), 803 (abi3t).
 
-### The one-paragraph state of Python (2026-08)
+### The one-paragraph state of Python
 
 The GIL is now optional and officially supported (3.14, PEP 779): free-threaded builds run true multi-threaded CPU-bound code with single-digit-percent single-thread overhead (down from ~40% in 3.13). The JIT ships in official installers but stays experimental and off by default. Astral's Rust tools (uv, ruff, ty) have effectively won the tooling war; Astral itself announced an agreement to join OpenAI (Codex team) in March 2026. Python 3.15 is due 2026-10-01: lazy imports (PEP 810) and a stable ABI for free-threaded builds (abi3t, PEP 803) are its headline items.
 
-### Language changes by release (2025-08 baseline, updated 2026-08-24)
+### Language changes by release
 
 #### Python 3.12 (Oct 2023): the typing and error-message release
 
@@ -46,12 +46,12 @@ The GIL is now optional and officially supported (3.14, PEP 779): free-threaded 
 - **Lazy imports** (PEP 810): explicit `lazy import foo`; big startup-time wins for CLIs and serverless.
 - **Stable ABI for free-threaded builds** (abi3t, PEP 803): lets NumPy-class extensions ship one wheel per platform for nogil Python; the last structural blocker to free-threading becoming the default over the next few releases.
 
-#### Practical guidance (2026-08)
+#### Practical guidance
 
-- Target 3.12+ syntax (type statement, PEP 695 generics) in new code; run 3.13/3.14 in production. Try `3.14t` for CPU-bound threaded workloads (data loading, tokenization); check extension compatibility at [py-free-threading.github.io](http://py-free-threading.github.io/) (site, already counted above) first.
+- Target 3.12+ syntax (type statement, PEP 695 generics) in new code; run 3.13/3.14 in production. Try `3.14t` for CPU-bound threaded workloads (data loading, tokenization); check extension compatibility at py-free-threading.github.io (site, already counted above) first.
 - The GIL-removal endgame: PEP 703 acceptance was conditional; with PEP 779 done and abi3t landing in 3.15, expect free-threaded to become the default build around 3.16-3.17 if ecosystem support holds.
 
-### Tooling: the 2026 standard stack (updated 2026-08-24)
+### Tooling: the 2026 standard stack
 
 | Concern | Standard | Replaces | Notes |
 | --- | --- | --- | --- |
@@ -59,21 +59,21 @@ The GIL is now optional and officially supported (3.14, PEP 779): free-threaded 
 | Lint + format | **ruff** | flake8, isort, black, pyupgrade | Rust; `ruff check --fix`  • `ruff format` |
 | Type check | **pyright** now, **ty** rising | mypy | ty (Astral, Rust) hit beta in 2026, 10-100x faster cold checks, doubles as LSP; pyright still the correctness reference; mypy is legacy-maintenance only |
 | Tests | **pytest** | unittest | unchanged king; `pytest-xdist` for parallelism |
-| Validation | **pydantic v2** | v1, dataclasses for IO | Rust core (pydantic-core); v2.12+ current; v3 signalled by deprecation warnings, not yet released as of 2026-08 |
+| Validation | **pydantic v2** | v1, dataclasses for IO | Rust core (pydantic-core); v2.12+ current; v3 signalled by deprecation warnings but not yet released |
 | DataFrames | **polars** for new work, pandas for interop |  | polars 1.x (Rust, lazy, multi-threaded, Arrow-native); 2.0 roadmap open (issue #26148); pandas 2.x with Arrow dtypes still fine for glue |
-| Packaging | `pyproject.toml`  • uv | [setup.py](http://setup.py/) | see below |
+| Packaging | `pyproject.toml`  • uv | `setup.py` | see below |
 
 - Astral joined OpenAI (announced 2026-03): tools remain open source (MIT); watch governance, plus their **pyx** registry/build service.
 - One-liner project bootstrap: `uv init --package myproj && uv add ruff pytest && uv run pytest`.
 - Inline script deps (PEP 723): `# /// script` header + `uv run script.py` replaced ad-hoc virtualenvs for one-off scripts.
 
-### Async state of the art (2026-08)
+### Async state of the art
 
 - `asyncio` improved steadily: 3.14 ships better `asyncio` introspection (`python -m asyncio ps <pid>` style task inspection) and TaskGroup refinements. Structured concurrency via `asyncio.TaskGroup` (3.11+) + `asyncio.timeout` is the idiom; stop using `gather` for new fan-out code.
 - Free-threading does not replace async: async remains right for high-concurrency IO; free-threading covers CPU-bound parallelism without multiprocessing serialization.
 - Libraries: httpx (async HTTP client), FastAPI + uvicorn still standard for services; Trio's ideas (nurseries, cancellation scopes) absorbed into asyncio; AnyIO if you need to span both.
 
-### Packaging best practice (2026-08)
+### Packaging best practice
 
 - Single `pyproject.toml`; build backend `uv_build` (fast, zero-config) or `hatchling`. `setup.py` only for compiled extensions that need it (and even then, prefer scikit-build-core, meson-python, or maturin for Rust).
 - Lock with `uv.lock` (applications) and test against lower bounds (libraries).

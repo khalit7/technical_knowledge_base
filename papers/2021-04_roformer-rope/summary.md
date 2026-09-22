@@ -11,7 +11,7 @@
 - [Rotary Embeddings: A Relatively Revolutionary](https://blog.eleuther.ai/rotary-embeddings/) (EleutherAI) (~30 min): the canonical English explainer; complex-number view, derivation, runnable code, and the early adoption story (GPT-NeoX, GPT-J)
 - [Transformer升级之路: 旋转式位置编码](https://kexue.fm/archives/8265) (Jianlin Su) (~30 min): the first author's original blog derivation, which predates and is more readable than the paper (Chinese)
 - [You could have designed state of the art positional encoding](https://huggingface.co/blog/designing-positional-encoding) (Fleetwood, Hugging Face) (~35 min): rederives RoPE step by step from desiderata; the best intuition builder for why each design choice is forced
-- [Annotated RoPE implementation](https://nn.labml.ai/transformers/rope/index.html) ([labml.ai](http://labml.ai/)) (~25 min): line-by-line PyTorch of the efficient elementwise form
+- [Annotated RoPE implementation](https://nn.labml.ai/transformers/rope/index.html) (labml.ai) (~25 min): line-by-line PyTorch of the efficient elementwise form
 
 ### Problem
 

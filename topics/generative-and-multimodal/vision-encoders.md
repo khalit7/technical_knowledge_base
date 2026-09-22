@@ -1,8 +1,6 @@
 # Vision Encoders: ViT, CLIP, SigLIP, DINO, SAM
 
-⏱ 6 min read · +2h 40m resources
-
-Last updated: 2026-08-24
+⏱ 7 min read · +2h 40m resources
 
 ### Best resources
 
@@ -25,7 +23,7 @@ Resolution handling matters in practice: fixed-res ViTs need interpolated positi
 
 embeddings or native-resolution tricks (NaViT-style patch packing, 2D RoPE) to accept
 
-arbitrary aspect ratios; modern VLM encoders build this in.
+arbitrary aspect ratios, which modern VLM encoders build in.
 
 ### CLIP: contrastive vision-language pretraining
 
@@ -35,7 +33,7 @@ cosine similarity and mismatched pairs low, via a symmetric InfoNCE loss over th
 
 Results: zero-shot classification by prompt ("a photo of a {class}"), and, more
 
-importantly for 2026, an image embedding space aligned with language, which is why CLIP
+importantly now, an image embedding space aligned with language, which is why CLIP
 
 towers became the default VLM front-end and the text encoder for early diffusion models.
 
@@ -85,7 +83,7 @@ text phrase or exemplar, plus tracking. Used as a data engine (auto-labelling), 
 
 editing tool, and a source of segmentation-aware features; not a general VLM encoder.
 
-### What current VLMs use as eyes (Aug 2026)
+### What current VLMs use as eyes
 
 - **Contrastive (CLIP/SigLIP 2) towers remain the default front-end** for
   semantics-heavy chat VLMs: language-aligned features connect to an LLM with a small
@@ -114,6 +112,12 @@ editing tool, and a source of segmentation-aware features; not a general VLM enc
 
   at comparable compute.
 
+### Document parsing: where the encoder becomes the product
+
+Page-to-Markdown parsing is the application in which a vision encoder stops being a component of something larger and is the whole thing being sold, and a single small VLM now collapses the OCR-plus-layout-plus-LLM pipeline into one pass. **Cohere Parse 5** (`parse-v5.0`, Aug 2026) is the clearest instance: a 2.3B model on Cohere Labs' north-micro-vision-instruct, 8,192-token context, roughly 4.6GB, that takes a PDF, PPT or JPEG page as a base64 image and returns structured Markdown, with tables as HTML, bounding boxes for tables and images, and image descriptions; nine languages are stable and the rest zero-shot. **Reducto r-1** (Sep 2026) is the same single-pass shape, claiming 20% fewer errors at competitive pricing.
+
+The trade is explicit and is about economics rather than accuracy. Cohere's own ParseBench numbers put Parse 5 at 79.2, behind GPT-5.5, Opus 4.8 and Gemini 3.5 Flash, and the pitch is $1.50 per 1,000 pages at enterprise volume. A 2.3B model that loses on accuracy and wins decisively on price per page is what specialising an encoder to one document-shaped distribution buys, and it is why this line is worth watching separately from the general VLM race.
+
 ### Interview-ready summary
 
 ViT is the substrate; the objective defines the encoder. CLIP/SigLIP align vision with
@@ -124,4 +128,8 @@ spatial tasks), SAM is promptable segmentation (best as a tool/data engine). Mod
 
 mostly use SigLIP-2-class or in-house native-resolution ViTs, increasingly fused with
 
-DINO features for dense understanding.
+DINO features for dense understanding. Document parsing is the one application where a
+
+small purpose-built VLM is itself the product, sold on price per page rather than on
+
+accuracy.

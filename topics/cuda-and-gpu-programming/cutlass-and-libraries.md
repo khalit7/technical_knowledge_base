@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +17h 15m resources
 
-*Last updated: 2026-08-24*
-
 ### Best resources
 
 - [CUTLASS documentation](https://docs.nvidia.com/cutlass/) (docs, ~2h for the core pages) and [NVIDIA/cutlass](https://github.com/NVIDIA/cutlass) (repo, ~45 min for the entry path): docs for 4.x cover both the C++ templates and the Python CuTe DSL, including tcgen05 programming guides.
@@ -35,9 +33,9 @@ does not expose; raw PTX inline asm essentially never (read it, rarely write it)
 
 Tensor cores are matrix-multiply units: each instruction computes a small tile MMA
 
-(e.g. 16x8x16) per warp or larger. You never index them directly; you reach them via
+(e.g. 16x8x16) per warp or larger. You never index them directly; you reach them, in
 
-(descending abstraction): cuBLAS/cuDNN -> Triton `tl.dot` -> CUTLASS/CuTe atoms ->
+descending abstraction, via cuBLAS/cuDNN -> Triton `tl.dot` -> CUTLASS/CuTe atoms ->
 
 `wmma` (portable but slow, ignore) -> PTX `mma.sync` / `wgmma` / `tcgen05.mma`.
 
@@ -75,7 +73,7 @@ What changed per generation (matters for reading kernels and docs):
 
   Ampere-lineage `mma.sync` model, extended with FP8/FP6/FP4 dtypes, and it does have
 
-  TMA and clusters. Practical upshot: 5090 kernels look like Ada/Ampere kernels
+  TMA and clusters. Upshot: 5090 kernels look like Ada/Ampere kernels
 
   (register accumulators, `cp.async`/TMA pipelines, `mma.sync`); CUTLASS sm_120
 
@@ -105,9 +103,9 @@ atom's operand fragment. Once internalised, a CUTLASS kernel reads as: partition
 
 by tiles (`local_tile`), partition tiles across threads/atoms (`local_partition`,
 
-`ThrMMA`), then `copy` and `gemm` on the pieces; correctness of the plumbing is enforced
+`ThrMMA`), then `copy` and `gemm` on the pieces, with the algebra enforcing correctness
 
-by the algebra. This is the main learning investment in modern NVIDIA kernel work, and
+of the plumbing. This is the main learning investment in modern NVIDIA kernel work, and
 
 the CuTe DSL makes it explorable interactively from Python. Start with the Colfax series
 

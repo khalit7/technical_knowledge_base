@@ -2,8 +2,6 @@
 
 ⏱ 10 min read · +5h resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [Dagster vs Airflow (Dataworkers)](https://dataworkers.io/resources/airflow-vs-dagster/) (~20 min) and [ZenML's orchestration showdown](https://www.zenml.io/blog/orchestration-showdown-dagster-vs-prefect-vs-airflow) (~25 min): clear-eyed comparisons of the task vs asset models.
@@ -20,7 +18,7 @@ Last updated: 2026-08-24
 
 **Prefect (dynamic Python flows)**: decorate functions (`@flow`, `@task`); the graph is discovered at runtime, so loops/conditionals/dynamic fan-out are just Python. The least ceremony of the three; weakest built-in data-lineage story. Business note: Prefect agreed to acquire Dagster Labs in July 2026; both products continue for now, expect convergence pressure.
 
-**Flyte (typed, K8s-native)**: workflows are strongly-typed DAGs compiled to containerised tasks on Kubernetes; versioned, cached, reproducible by construction; GPU resources and map-tasks (huge fan-out) are first class. Heavier to operate (it is a K8s platform), great fit when reproducible ML at org scale on K8s is the actual requirement ([Union.ai](http://union.ai/) is the managed/commercial arm).
+**Flyte (typed, K8s-native)**: workflows are strongly-typed DAGs compiled to containerised tasks on Kubernetes; versioned, cached, reproducible by construction; GPU resources and map-tasks (huge fan-out) are first class. Heavier to operate (it is a K8s platform), right when reproducible ML at org scale on K8s is the actual requirement (Union.ai is the managed and commercial arm).
 
 **Metaflow (Netflix)**: optimises for the data scientist: `@step` classes, local-first then `@batch`/`@kubernetes` decorators to burst to the cloud, automatic artifact snapshotting, `resume` from any step. Less of an org-wide scheduler, more of a personal-to-team ML workflow tool; pairs with AWS Batch/Step Functions natively.
 
@@ -35,17 +33,17 @@ Last updated: 2026-08-24
 | DS-driven experimentation bursting to AWS | Metaflow |
 | Trillion-token corpus processing on a SLURM cluster | None of the above: datatrove-style array jobs (below) |
 
-Key insight: orchestrators schedule and record; they should not move bytes. Heavy compute belongs in the engines below (or SLURM/K8s jobs the orchestrator launches); the orchestrator's job is dependencies, retries, observability, and lineage.
+Orchestrators schedule and record; they should not move bytes. Heavy compute belongs in the engines below (or SLURM/K8s jobs the orchestrator launches); the orchestrator's job is dependencies, retries, observability, and lineage.
 
 ### Data engines: Polars vs pandas vs Dask vs Spark vs Ray Data
 
-- **pandas**: the API everyone knows; single-threaded, eager, memory-hungry (typically needs 5-10x data size in RAM). Fine below ~1 GB and for glue code; pandas 2.x Arrow backing helps but does not change the ceiling.
+- **pandas**: single-threaded, eager, memory-hungry (typically needs 5-10x data size in RAM). Fine below ~1 GB and for glue code; pandas 2.x Arrow backing helps but does not change the ceiling.
 - **Polars**: Rust, Apache Arrow, multi-threaded, with a lazy optimiser and a streaming engine that processes larger-than-RAM data on one machine; also a GPU engine (cuDF-backed) for interactive scale-up. Order-of-magnitude faster than pandas; a beefy EC2 box + Polars now covers a huge share of jobs that used to justify a Spark cluster. Default choice for new single-node work.
 - **Dask**: distributed pandas/NumPy semantics; partitions dataframes across a cluster with a Python-native scheduler. Best when you genuinely need multi-node *and* want to stay in PyData idioms; also the parallelism layer inside many libraries (xarray, RAPIDS via dask-cudf). Weaker query optimiser than Spark/Polars, though dask-expr narrowed the gap.
 - **Spark**: the JVM heavyweight: petabyte-proven, SQL + dataframes, mature shuffle, huge ecosystem (Databricks). Costs: cluster ops, JVM/Python serialisation boundary, slow iteration. Right when data is truly cluster-scale, the lakehouse is Spark-shaped, or the org already runs it.
 - **Ray Data**: not a dataframe library; a streaming distributed dataset layer (map_batches over blocks) designed to feed GPU workloads: last-mile preprocessing, batch inference, streaming ingest into Ray Train. Use it to keep GPUs fed, not to do joins and aggregations.
-- Worth knowing: **DuckDB** (embedded OLAP SQL, pairs beautifully with Parquet and Polars) and **Daft** (Rust distributed dataframes with multimodal types, aimed exactly at ML data).
-Rule of thumb: pandas < 1 GB; Polars/DuckDB to hundreds of GB on one box; Dask when PyData-on-a-cluster; Spark at organisational petabyte scale; Ray Data for the last mile into GPUs.
+- Worth knowing: **DuckDB** (embedded OLAP SQL, pairs beautifully with Parquet and Polars; AWS bought DuckLabs, the Amsterdam company behind it, in August 2026, while the project itself stays MIT-licensed under the independent DuckDB Foundation with its creators still leading the technical direction) and **Daft** (Rust distributed dataframes with multimodal types, aimed exactly at ML data).
+Thresholds: pandas below 1 GB; Polars/DuckDB to hundreds of GB on one box; Dask, Spark and Ray Data as above.
 
 ### Trillion-token text pipelines (what datatrove-style tooling does)
 

@@ -2,8 +2,6 @@
 
 ⏱ 7 min read · +1h 44m resources
 
-Last updated: 2026-09-21 (acronyms expanded on first use)
-
 ### Best resources
 
 - [Anthropic: Contextual Retrieval](https://www.anthropic.com/news/contextual-retrieval) (~15 min): the canonical writeup; contextual embeddings + contextual BM25 + reranking cut retrieval failures ~67%.
@@ -62,11 +60,11 @@ context); contextual retrieval is stronger, late chunking is cheaper.
 
 ### Hybrid search: BM25 + dense, fused with RRF
 
-Dense embeddings capture paraphrase and semantics but whiff on exact identifiers,
+Dense embeddings capture paraphrase and semantics but whiff on exact identifiers, part
 
-part numbers, error codes, and rare names; BM25 is the reverse. Production systems run
+numbers, error codes and rare names; BM25 is the reverse. Production systems run both
 
-both and fuse.
+and fuse.
 
 - **Fusion**: raw scores are incomparable (BM25 unbounded, cosine in [-1,1]), so fuse
   on ranks with Reciprocal Rank Fusion: `score(d) = sum over lists of 1/(k + rank_d)`,

@@ -2,7 +2,7 @@
 
 ⏱ 21 min read · +6h 15m resources
 
-DNS is the most boring protocol you depend on and the most common cause of an outage that looks like something else. This page is organised around that: mechanics first, then the specific ways it breaks in Kubernetes, clusters, and AWS, which is where you will actually meet it.
+DNS is the most boring protocol you depend on and the most common cause of an outage that looks like something else. Mechanics first, then the specific ways it breaks in Kubernetes, clusters, and AWS, which is where you will actually meet it.
 
 ### Best resources (1 min)
 
@@ -83,7 +83,7 @@ Ray needs DNS only to find the head node (GCS on 6379) and does its own actor di
 
 **DNSSEC** authenticates data origin and integrity and provides authenticated denial of existence, via a chain from the root trust anchor through DS and DNSKEY records to per-RRset signatures. It does **not** provide confidentiality, does not protect the stub-to-resolver hop, does not help against DDoS (it makes amplification worse), and says nothing about the service you then connect to. Roughly **36 percent of users sit behind validating resolvers, while only about 7 percent of zones are signed**, essentially flat after twenty years.
 
-The cautionary tale is fresh: on **2026-05-05 DENIC published non-validatable signatures for the .de zone during a KSK rollover**, and every compliant validating resolver was obliged to return SERVFAIL, taking millions of domains dark regardless of who hosted them. Cloudflare mitigated hours later by marking `.de` insecure. DNSSEC converts a signing bug into a total hierarchy-wide outage.
+On **2026-05-05 DENIC published non-validatable signatures for the .de zone during a KSK rollover**, and every compliant validating resolver was obliged to return SERVFAIL, taking millions of domains dark regardless of who hosted them. Cloudflare mitigated hours later by marking `.de` insecure. DNSSEC converts a signing bug into a total hierarchy-wide outage.
 
 **Encrypted transports.** DoT (RFC 7858) on port 853/TCP is trivially blockable by policy. DoH (RFC 8484) on 443 is indistinguishable from HTTPS, which is why enterprises dislike it. DoQ (RFC 9250) on 853/UDP is where things are actually heading: 2026 measurements found far better session resumption and 0-RTT support than DoH/3, median RTT of 88 ms against 883 ms, and at most a 1 percent page-load difference against plain DNS.
 

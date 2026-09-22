@@ -5,7 +5,7 @@
 ### Best resources
 
 - [Understanding LSTM Networks (colah)](https://colah.github.io/posts/2015-08-Understanding-LSTMs/) (~25 min): still the best LSTM explanation ever written.
-- [An intuitive explanation of LSTM (Calzone, Medium)](https://medium.com/@ottaviocalzone/an-intuitive-explanation-of-lstm-a035eb6ab42c) (~15 min) and [RNN architecture explained (Poudel, Medium)](https://medium.com/@poudelsushmita878/recurrent-neural-network-rnn-architecture-explained-1d69560541ef) (~15 min): the seed articles.
+- [An intuitive explanation of LSTM (Calzone, Medium)](https://medium.com/@ottaviocalzone/an-intuitive-explanation-of-lstm-a035eb6ab42c) (~15 min) and [RNN architecture explained (Poudel, Medium)](https://medium.com/@poudelsushmita878/recurrent-neural-network-rnn-architecture-explained-1d69560541ef) (~15 min): short gate-by-gate and cell-by-cell walkthroughs.
 - [The Illustrated Word2vec (Jay Alammar)](https://jalammar.github.io/illustrated-word2vec/) (~30 min): embeddings intuition.
 - [The Unreasonable Effectiveness of RNNs (Karpathy)](https://karpathy.github.io/2015/05/21/rnn-effectiveness/) (~35 min): what RNNs could do, and why people were excited.
 

@@ -2,8 +2,6 @@
 
 ⏱ 12 min read · +24h 25m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [AI Engineering](https://huyenchip.com/books/) (book, ~13h): Chip Huyen, O'Reilly 2025; the current best single book on serving foundation models, covering routing, caching, evaluation, and cost end to end
@@ -26,7 +24,7 @@ Four properties break the standard web service playbook:
 
 Client -> **gateway** -> **router** -> (realtime pool | batch queue) -> engine (vLLM/SGLang) -> model, with caches at every layer and a metering pipeline off to the side.
 
-**Gateway.** AuthN/Z, per-tenant rate limiting, request validation, idempotency keys, streaming passthrough (SSE), and provider abstraction (one OpenAI-compatible surface over many backends). Open-source gateways: LiteLLM, Envoy AI Gateway, Portkey, Kong AI Gateway. The gateway is also where you record usage events for billing.
+**Gateway.** AuthN/Z, per-tenant rate limiting, request validation, idempotency keys, streaming passthrough (SSE), and provider abstraction (one OpenAI-compatible surface over many backends). Open-source gateways: LiteLLM, Envoy AI Gateway, Portkey, Kong AI Gateway. It is also where you record usage events for billing.
 
 **Router.** Decides which model serves the request: tier routing (cheap model for easy queries, frontier for hard ones, via a classifier or heuristics), tenant pinning, region/compliance routing, and failover across providers. Below that, replica-level routing should be cache-aware: send requests sharing a prefix to the replica that already holds the KV blocks (SGLang router, llm-d, Dynamo all do this).
 
@@ -70,7 +68,7 @@ Model changes (new checkpoint, new prompt, new provider) ship like risky code de
 
 ### The interview structure
 
-The classic ML system design loop expects roughly this walk, spending real time on each block and quantifying wherever possible:
+The classic loop expects roughly this walk, with real time on each block and numbers wherever possible:
 
 1. **Requirements**: users, scale (QPS, tokens/s), latency targets (p50/p99, TTFT vs full-response), cost envelope, online vs batch, personalisation, compliance. Clarify before designing; state assumptions out loud.
 2. **Metrics**: offline (task metrics, eval-suite scores) and online (CTR, task completion, thumbs-up rate, escalation rate), plus system SLOs (availability, TTFT, tokens/s) and guardrail metrics (cost/request, safety violation rate).

@@ -2,8 +2,6 @@
 
 ⏱ 7 min read · +2h 40m resources
 
-Last updated: 2026-09-20 (wording sweep)
-
 ### Best resources
 
 - [Triton Inference Server docs](https://docs.nvidia.com/deeplearning/triton-inference-server/) (docs, ~45 min for the core pages)
@@ -28,9 +26,9 @@ NVIDIA has leaned into "Dynamo-Triton" branding for the server to reduce confusi
 
 ### Triton Inference Server
 
-The veteran production server (2018-): serves **any model from any framework** behind
+The veteran production server (2018-): **any model from any framework** behind one
 
-one endpoint. Still actively released (monthly NGC containers, r26.x in 2026).
+endpoint, still actively released (monthly NGC containers, r26.x in 2026).
 
 - **Backends**: TensorRT, TensorRT-LLM, ONNX Runtime, PyTorch (libtorch), TensorFlow,
   OpenVINO, FIL (XGBoost/LightGBM), vLLM, and arbitrary Python. AMD maintains a ROCm port.
@@ -51,7 +49,7 @@ one endpoint. Still actively released (monthly NGC containers, r26.x in 2026).
 - **Use it when**: you run a heterogeneous zoo (recsys, CV, XGBoost, embedders, plus
   the odd LLM) and want one serving substrate. For pure LLM APIs it adds little over
 
-  vLLM/SGLang's own servers and its centre-of-gravity role is being taken by Dynamo.
+  vLLM/SGLang's own servers, and Dynamo is taking its centre-of-gravity role.
 
 ### TensorRT-LLM
 
@@ -79,11 +77,11 @@ NVIDIA's open-source LLM engine: the peak-performance path on NVIDIA GPUs.
 
 ### NVIDIA Dynamo
 
-Announced GTC March 2025 as "the operating system of the AI factory"; Dynamo 1.0
+Announced GTC March 2025 as "the operating system of the AI factory", 1.0 in March
 
-shipped March 2026. Successor to the "Triton as the front door" era for LLMs:
+2026: a Rust/Python distributed serving framework above the engines, successor to the
 
-a Rust/Python distributed serving framework above the engines.
+"Triton as the front door" era for LLMs.
 
 - **Engine-agnostic**: workers run vLLM, SGLang, or TensorRT-LLM; Dynamo owns routing,
   scheduling, and memory across the cluster.

@@ -51,7 +51,7 @@ Same idea, different axis: normalise across the **feature** dimension, per datap
 `y = \frac{x}{\text{RMS}(x)}\cdot\gamma`, with `\text{RMS}(x)=\sqrt{\tfrac1d\sum x_i^2}`: LayerNorm without mean-centring and without `\beta`.
 
 - Re-scaling invariance turns out to be what matters; dropping the mean subtraction saves compute with equal quality.
-- Default in essentially every modern LLM (Llama, Mistral, Qwen, DeepSeek). Some 2024-25 models add extra QK-norm (RMSNorm on queries/keys) for attention stability.
+- Default in essentially every modern LLM (Llama, Mistral, Qwen, DeepSeek). Most also add **QK-norm** (RMSNorm on queries and keys) for attention stability, because at scale the query-key dot products can grow without bound until the softmax saturates and the loss spikes. QK-norm buys that inside the forward pass, changing the model's own computation. Moonshot's **qk-clip** is the alternative that leaves the forward pass untouched and instead rescales a head's query and key projection weights after the optimiser step when its maximum logit crosses a threshold, which is what made a 1T-parameter run on the Muon optimiser stable.
 
 ### Initialisation
 
@@ -69,3 +69,4 @@ All variance-scaling schemes share one goal: keep activation and gradient varian
 
 - Vanishing/exploding gradient fixes in practice: [Debugging training](debugging-training.md)
 - Why activation choice dictates the init scheme: [Activation functions](activations.md)
+- Attention-logit growth, qk-clip and MuonClip in a frontier run: [Moonshot AI: Kimi](../llms/moonshot-kimi/overview.md)

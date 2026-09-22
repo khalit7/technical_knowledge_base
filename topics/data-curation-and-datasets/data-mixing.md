@@ -2,8 +2,6 @@
 
 ⏱ 7 min read · +8h resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [DoReMi (Xie et al. 2023)](https://arxiv.org/abs/2305.10429) (45 min): proxy-model domain reweighting via Group DRO
@@ -24,6 +22,12 @@ The proportions measurably change downstream ability at fixed compute, and the n
 solutions: offline optimization with proxy models, predictive scaling laws, and online/staged
 
 schedules.
+
+Mixture is also the cheapest large lever available, which is the practical end of the
+
+3.24x data-versus-model decomposition on [Topic: data-curation-and-datasets](summary.md): reweighting domains costs a few proxy runs and moves
+
+downstream ability by as much as an architecture change would at the same compute.
 
 ### Domain weighting methods
 
@@ -90,11 +94,11 @@ Continued pretraining (CPT) on domain data (finance, legal, medical, a new langu
 
 general ability unless you replay general-corpus data. The replay ratio has usually been picked
 
-heuristically (common folklore: 10-50% general data). The **CMR Scaling Law** paper (Gu et al.
+heuristically (common folklore: 10-50% general data). The **CMR Scaling Law** paper (Gu et al. 2024,
 
-2024, EMNLP; in my notes from the FinLLM project as the reference for balancing domain vs
+EMNLP; the reference used on the FinLLM project for balancing domain against general data in
 
-general data in CPT) makes it predictive:
+CPT) makes it predictive:
 
 - Observation: during CPT, general-domain loss and domain loss each follow a power law in
   mixture ratio and training tokens.
@@ -124,11 +128,11 @@ CPT; D-CPT-Law is the other named scaling-law treatment of the same problem. Mec
 
 itself (LR re-warming, forgetting, infinite-LR schedules) live in
 
-../llm-training-and-post-training/[continued-pretraining.md](http://continued-pretraining.md/).
+[Continued Pretraining (CPT)](../llm-training-and-post-training/continued-pretraining.md).
 
 ### Cross-links
 
-- Corpus choices being mixed: [pretraining-corpora.md](http://pretraining-corpora.md/)
-- Synthetic slices that enter at mid-training: [synthetic-and-post-training-data.md](http://synthetic-and-post-training-data.md/)
-- Training-side schedule interaction (WSD, annealing): ../llm-training-and-post-training/[pretraining.md](http://pretraining.md/)
-- the "annealing vs LR decay" terminology split (data switch versus schedule, and why papers conflate them) lives in ../ml-fundamentals/[optimisers-and-schedulers.md](http://optimisers-and-schedulers.md/)
+- Corpus choices being mixed: [Pretraining corpora: lineage and current landscape](pretraining-corpora.md)
+- Synthetic slices that enter at mid-training: [Synthetic data and post-training data](synthetic-and-post-training-data.md)
+- Training-side schedule interaction (WSD, annealing): [Pretraining](../llm-training-and-post-training/pretraining.md)
+- The "annealing vs LR decay" terminology split (data switch versus schedule, and why papers conflate them): [Optimisers and learning-rate schedulers](../ml-fundamentals/optimisers-and-schedulers.md)

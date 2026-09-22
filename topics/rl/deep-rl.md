@@ -67,7 +67,7 @@ grad J ~ sum_t grad log pi(a_t|s_t) * G_t. Unbiased but very high variance.
 
 group-mean baseline is exactly this idea with an empirical per-prompt mean
 
-([RL for LLMs: RLHF, GRPO, RLVR (state as of 2026-08-24)](rl-for-llms.md)).
+([RL for LLMs: RLHF, GRPO, RLVR](rl-for-llms-rlhf-grpo-rlvr.md)).
 
 ### Actor-critic
 

@@ -2,9 +2,7 @@
 
 ⏱ 13 min read · +2h 27m resources
 
-Last updated: 2026-09-21 (broken opening line repaired).
-
-The 2026 category that is not a coding harness: always-on personal agents that live on a daemon, listen on your messaging accounts, and act on your life rather than your repo. Two projects dominate it: **OpenClaw** (Peter Steinberger, now an OpenClaw Foundation project) and **Hermes Agent** (Nous Research). Both are open source, self-hosted, and model-agnostic. The last section is the part that matters most for our work: how this differs from Claude Code or Codex, and why the difference is mostly about the trust boundary, not the agent loop.
+The 2026 category that is not a coding harness: always-on personal agents that live on a daemon, listen on your messaging accounts, and act on your life rather than your repo. Two projects dominate it: **OpenClaw** (Peter Steinberger, now an OpenClaw Foundation project) and **Hermes Agent** (Nous Research). Both are open source, self-hosted and model-agnostic. What separates them from Claude Code or Codex is the trust boundary, not the agent loop.
 
 ### Best resources
 
@@ -17,9 +15,11 @@ The 2026 category that is not a coding harness: always-on personal agents that l
 
 ### The category
 
-A coding harness is invoked: you open a session, it works in a repo, it ends. A personal agent is **resident**. It runs as a background daemon (a "gateway"), receives input from wherever you already talk (WhatsApp, Telegram, Discord, Signal, Slack, iMessage, email), keeps state across months, and wakes itself on a schedule or heartbeat to check whether anything needs doing. NVIDIA's framing is the useful one: most agents are prompt-triggered and stop; a "claw" runs persistently and surfaces only what needs a human decision.
+A coding harness is invoked: you open a session, it works in a repo, it ends. A personal agent is **resident**, a background daemon (a "gateway") that receives input wherever you already talk (WhatsApp, Telegram, Discord, Signal, Slack, iMessage, email), keeps state across months, and wakes itself on a schedule or heartbeat to check whether anything needs doing. NVIDIA's framing: most agents are prompt-triggered and stop; a "claw" runs persistently and surfaces only what needs a human decision.
 
 The scope is life admin and personal ops: triage mail, prep meetings, chase a dealer over email, run a cron that summarises papers into Telegram every morning, drive the smart home. Same agent loop as a coding harness underneath. Completely different exposure.
+
+September 2026 brought the first frontier-lab entrant. Meta's **Muse agent** (Sep 9) is a general assistant across US web, mobile and WhatsApp, wired to email, calendar, payments, health, shopping and smart home, with each agent instance running in an isolated virtual machine under dedicated security monitoring. Same scope and the same attacker-reachable inputs as the two self-hosted projects below, with the two differences that decide everything else: it is hosted rather than self-hosted, and the isolation is the vendor's engineering rather than yours.
 
 ### OpenClaw
 
@@ -40,22 +40,22 @@ Created by Peter Steinberger, released late January 2026 (earlier names Clawdbot
 
 Other notable machinery: skills resolved from a precedence chain (workspace, `.agents/skills`, `~/.agents/skills`, managed, bundled) with **ClawHub** as the public skill marketplace; sessions in per-agent SQLite; **steering while streaming** (a message arriving mid-run is injected into the current run before the next tool launch rather than queued, which is the right default when the input channel is a chat); multi-agent routing with per-agent workspaces and channel bindings.
 
-**The architectural detail that matters most**: OpenClaw separates *provider*, *model*, *agent runtime*, and *channel* as four independent layers, and the runtime is pluggable. Embedded harnesses (`openclaw`, `codex`, `copilot`) run inside its prepared loop; CLI backends run a local CLI process (`claude-cli`); and external harnesses (Claude Code, Gemini CLI, OpenCode, Cursor) attach over **ACP**. Its docs even specify a compatibility contract for a non-native runtime: who owns the model loop, who owns canonical thread history, whether OpenClaw tools and hooks still fire, what compaction metadata is exposed. That is a mature statement of the layering question, and it means OpenClaw is not a competitor to Claude Code so much as a host for it.
+**The architectural detail that matters most**: OpenClaw separates *provider*, *model*, *agent runtime*, and *channel* as four independent layers, and the runtime is pluggable. Embedded harnesses (`openclaw`, `codex`, `copilot`) run inside its prepared loop; CLI backends run a local CLI process (`claude-cli`); and external harnesses (Claude Code, Gemini CLI, OpenCode, Cursor) attach over **ACP**. Its docs specify a compatibility contract for a non-native runtime: who owns the model loop, who owns canonical thread history, whether OpenClaw tools and hooks still fire, what compaction metadata is exposed. A mature statement of the layering question, and it makes OpenClaw a host for Claude Code rather than a competitor to it.
 
 ### Hermes Agent
 
-Nous Research, first release February 2026, MIT, Python (uv, one-line installer). 231k GitHub stars as of this writing, and the repo ships a `hermes claw migrate` command that imports an OpenClaw install's settings, memories, skills, and keys, which tells you exactly who it was aimed at. By May 2026, OpenRouter's app rankings reportedly put Hermes ahead of OpenClaw on daily token volume (roughly 224B versus 186B), the moment the challenger overtook the incumbent.
+Nous Research, first release February 2026, MIT, Python (uv, one-line installer). 231k GitHub stars by mid-2026, and a `hermes claw migrate` command that imports an OpenClaw install's settings, memories, skills and keys, which tells you who it was aimed at. By May 2026, OpenRouter's app rankings reportedly put Hermes ahead of OpenClaw on daily token volume (roughly 224B versus 186B), the moment the challenger overtook the incumbent.
 
 **Shape**: one `AIAgent` loop (`run_agent.py`) serving five entry points (interactive CLI, messaging gateway, ACP adapter for VS Code/Zed/JetBrains, batch runner, API server). Platform differences live in the entry point, not the agent. 70+ tools across ~28 toolsets; terminal execution across seven backends (local, Docker, SSH, Daytona, Modal, Singularity, Vercel Sandbox); sessions in SQLite with **FTS5 full-text search** and lineage tracking across compressions; pluggable single-select memory providers and context engines.
 
-**The differentiator is the learning loop**, and it is a real architectural commitment rather than a slogan:
+**The differentiator is the learning loop**, a real architectural commitment rather than a slogan:
 
-- After a non-trivial task (roughly 5+ tool calls) the agent writes a **skill** document capturing the approach, the dead ends, and the edge cases.
-- Skills are **patched during use** when found outdated, incomplete, or wrong.
+- After a non-trivial task (roughly 5+ tool calls) the agent writes a **skill** document capturing the approach, the dead ends and the edge cases.
+- Skills are **patched during use** when found outdated, incomplete or wrong.
 - An **autonomous curator** (`hermes curator`) reviews agent-created skills, consolidates overlaps, archives stale ones, and writes per-run reports, with pinned skills protected.
 - Memory holds small durable facts that stay in context; skills hold longer procedures loaded on relevance. Honcho provides dialectic user modelling across sessions.
 - Both skill writes and memory writes can be gated: staged under `~/.hermes/pending/`, reviewed with `/skills pending`, `/skills diff`, `/skills approve`, survives restarts.
-Also interesting to us specifically: **cron jobs are first-class agent tasks** (fresh agent, attached skills injected, delivered to any platform), and Hermes exports sessions as **ShareGPT-format trajectories** for training data and RL, with Nous's own Atropos and Tinker integrations. It is a personal agent that doubles as a tool-calling trajectory factory, which is an unusual and rather Nous thing to build.
+Also: **cron jobs are first-class agent tasks** (fresh agent, attached skills injected, delivered to any platform), and Hermes exports sessions as **ShareGPT-format trajectories** for training data and RL, with Nous's own Atropos and Tinker integrations. A personal agent that doubles as a tool-calling trajectory factory.
 
 ### How this differs from a coding harness
 
@@ -75,7 +75,7 @@ The agent loops are close cousins. Prompt assembly, tool registry, compaction, s
 | Users | One developer | Multi-user routing, group chats, agents acting on behalf of a person to other people |
 | Measurement | SWE-bench, Terminal-Bench: contested but real | No accepted benchmark. OpenClaw ships a "personal agent benchmark pack"; nothing comparable to tbench exists |
 
-**The relationship is layering, not rivalry.** OpenClaw's runtime abstraction drives Claude Code, Codex, or Copilot as execution backends; Hermes exposes itself over ACP as the agent inside your editor. The personal agent is the router, scheduler, memory, and delivery surface; the coding harness remains the best executor for coding work. When a claw is asked to fix a bug, the sane configuration is for it to hand that turn to a real coding harness.
+**The relationship is layering, not rivalry.** OpenClaw's runtime abstraction drives Claude Code, Codex or Copilot as execution backends; Hermes exposes itself over ACP as the agent inside your editor. The personal agent is the router, scheduler, memory and delivery surface; the coding harness remains the best executor for coding work, so a claw asked to fix a bug should hand that turn to one.
 
 **Three things this category teaches that the coding-harness literature underweights:**
 
@@ -85,16 +85,17 @@ The agent loops are close cousins. Prompt assembly, tool registry, compaction, s
 
 ### Security: the category's open wound
 
-This is not a footnote, it is the defining engineering problem. A resident agent with standing account access, reading attacker-controllable inbound text, is the worst-case prompt-injection surface, and 2026 demonstrated it.
+Not a footnote, the defining engineering problem: a resident agent with standing account access, reading attacker-controllable inbound text, is the worst-case prompt-injection surface, and 2026 demonstrated it.
 
 - **OpenClaw** had a rough year: an unauthenticated RCE (reported as CVE-2026-25253, CVSS 8.8) in early February with tens of thousands of unpatched instances exposed, followed by supply-chain campaigns through the ClawHub skill marketplace (over a thousand malicious packages, compromised publisher accounts, auto-update propagation). Its security model treats prompt injection as explicitly out of scope, and defaults assume a trusted single-user environment that does not match how people actually deploy it. In March 2026 Chinese authorities restricted OpenClaw on government and state-enterprise computers. There is also a documented consent incident where a user's agent autonomously created a dating profile and screened matches on their behalf.
-- **Hermes** was built after that shock and defaults harder: sandboxing on, read-only root and dropped capabilities in containers, the gateway kept from reaching the runtime directly, scanning of community skills and context files for injection patterns, MCP credential filtering, cross-session isolation, dangerous-command approval, staged skill and memory writes. It is not clean either: CVEs for command injection, SSRF, path traversal, and prompt injection were disclosed against it around April 2026.
-- Vendor comparisons in this space are unreliable and their numbers (star counts, CVE tallies, exposed-instance counts) contradict each other freely. Treat the specifics above as directional and check primary advisories before quoting any of them.
-The honest summary: the sandboxing and permission engineering that coding harnesses invented for a *watched* session is not sufficient for an *unwatched* one with account access, and nobody has solved it. This is the most interesting unsolved problem in harness engineering right now, and it is being explored in production on hundreds of thousands of personal machines.
+- **Hermes** was built after that shock and defaults harder: sandboxing on, read-only root and dropped capabilities in containers, the gateway kept from reaching the runtime directly, scanning of community skills and context files for injection patterns, MCP credential filtering, cross-session isolation, dangerous-command approval, staged skill and memory writes. Not clean either: CVEs for command injection, SSRF, path traversal and prompt injection were disclosed against it around April 2026.
+- **The credential that gets stolen is the session, not the password.** In August 2026 Anthropic signed affected Claude users out, cleared saved payment methods and refunded unauthorised charges after infostealer malware on user machines (Vidar, LummaC2, StealC, RedLine and Acreed on Windows, Atomic Stealer on macOS) harvested live Claude sessions and burned usage limits; the tell was limits refilling and draining while nobody was at the keyboard. A resident agent makes this strictly worse, because it holds long-lived sessions for many services on a machine that is always on and nobody is watching for the tell. Rotating a password does not close it, since no password was taken; short-lived tokens plus server-side session revocation do.
+- Vendor comparisons in this space are unreliable and their numbers (star counts, CVE tallies, exposed-instance counts) contradict each other freely. Treat every figure above as dated and directional, and check primary advisories before quoting any of them.
+The sandboxing and permission engineering that coding harnesses invented for a *watched* session is not sufficient for an *unwatched* one with account access. The problem is not solved, but the design direction now has a shipped instance. Meta's Muse Spark 1.3 architecture assumes a successful prompt injection and moves everything that matters outside the blast radius: the agent never sees credentials, because a credential service outside the runtime cell holds them and a separate agent swaps the real token in as the request leaves the VM; approvals arrive as OS-level system dialogs rather than as messages in the conversation, so text in the context window cannot manufacture consent; and the browser sub-agent reads the accessibility tree rather than page code and cannot run JavaScript. The transferable principle is that enforcement and credentials belong outside the component that can be persuaded, which is weaker than a solution and much stronger than a better detector. Meta has published no classifier accuracy figures, so the parts still resting on judgement are unmeasured. Full treatment in [Topic: agentic-harnesses](summary.md).
 
 ### Cross-links
 
 - The harness engineering these borrow from: [Harness engineering: the transferable layer](harness-engineering.md), [Claude Code: deep dive](claude-code.md)
 - The runtimes they host: [OpenAI and Google harnesses](openai-and-google-harnesses.md), [Open-source harnesses](open-source-harnesses.md)
 - ACP and MCP as the interop layer: [Model Context Protocol (MCP)](../protocols/mcp.md)
-- Trajectory export for RL and finetuning (the Hermes angle): [RL for LLMs: RLHF, GRPO, RLVR (state as of 2026-08-24)](../rl/rl-for-llms.md), [Synthetic data and post-training data](../data-curation-and-datasets/synthetic-and-post-training-data.md)
+- Trajectory export for RL and finetuning (the Hermes angle): [RL for LLMs: RLHF, GRPO, RLVR](../rl/rl-for-llms-rlhf-grpo-rlvr.md), [Synthetic data and post-training data](../data-curation-and-datasets/synthetic-and-post-training-data.md)

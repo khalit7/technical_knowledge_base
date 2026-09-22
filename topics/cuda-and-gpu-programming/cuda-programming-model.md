@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +8h resources
 
-*Last updated: 2026-08-24*
-
 ### Best resources
 
 - [CUDA C++ Programming Guide, ch. "Programming Model"](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#programming-model) (~1h): the authoritative reference.
@@ -26,7 +24,7 @@ The hardware mapping is what gives each level its meaning:
 
 - **Thread**: has private registers. Cheap to create; you launch millions.
 - **Warp**: 32 consecutive threads, the actual unit of execution. Not part of the
-  original abstract model but essential in practice.
+  abstract model but essential in practice.
 
 - **Block**: scheduled onto exactly one **SM** (streaming multiprocessor) and stays
   there. Threads in a block share **shared memory** and can synchronise with
@@ -46,7 +44,7 @@ Since Hopper there is an optional level between block and grid: **thread block c
 
 which let a few blocks on adjacent SMs share each other's shared memory (distributed
 
-shared memory). Useful for advanced kernels; ignore until needed.
+shared memory). For advanced kernels; ignore until needed.
 
 ### SIMT execution
 

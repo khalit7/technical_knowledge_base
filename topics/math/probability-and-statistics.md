@@ -2,8 +2,6 @@
 
 ⏱ 11 min read · +11h 50m resources
 
-Updated 2026-08-24.
-
 ### Best resources
 
 - [Mathematics for Machine Learning, ch. 6](https://mml-book.github.io/) (book, ~1h 10m for ch. 6): Deisenroth et al., free PDF; probability, distributions, conjugacy at exactly this level.

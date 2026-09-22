@@ -2,7 +2,7 @@
 
 ⏱ 9 min read · +4h 5m resources
 
-Last verified: 2026-08-24 (PyTorch 2.13; FSDP1 deprecated since 2.11).
+Last verified: 2026-09-22 (PyTorch 2.13; FSDP1 deprecated since 2.11).
 
 ### Best resources
 
@@ -62,19 +62,7 @@ FSDP1 (`FullyShardedDataParallel` wrapper class) is deprecated since 2.11. FSDP2
 | Mixed dtype per param | No | Yes (`MixedPrecisionPolicy` per fully_shard call) |
 | Memory | `recordStream` issues, less deterministic | Deterministic freeing, ~equal or lower peak, ~same or better throughput |
 
-Mechanics are the same ZeRO-3 idea: params live sharded; at layer forward, all-gather
-
-the block's params, run, free; in backward, all-gather again, compute grads,
-
-reduce-scatter grads to shards. Prefetching (`set_modules_to_forward_prefetch`, implicit
-
-backward prefetch) overlaps the all-gathers. Apply `fully_shard` bottom-up per
-
-transformer block, then once on the root; the root holds params of anything not covered.
-
-Optimizer states are built on the sharded DTensor params, so any `torch.optim` optimizer
-
-works unchanged (this replaces FSDP1's special-cased optim state dict handling).
+The underlying ZeRO-3 mechanics are unchanged and are owned by the parallelism-theory page linked below. PyTorch-specific: prefetching (`set_modules_to_forward_prefetch`, implicit backward prefetch) overlaps the all-gathers; apply `fully_shard` bottom-up per transformer block then once on the root, which holds whatever the blocks did not cover; and optimizer states are built on the sharded DTensor params, so any `torch.optim` optimizer works unchanged, replacing FSDP1's special-cased optim state dict handling.
 
 ### DeviceMesh, HSDP, DTensor
 
@@ -106,9 +94,7 @@ works unchanged (this replaces FSDP1's special-cased optim state dict handling).
 ### Tensor / sequence / context / pipeline parallelism
 
 - **TP**: `parallelize_module(model, tp_mesh, {"attn.wq": ColwiseParallel(), ...})`
-  annotates modules with parallel styles; DTensor handles the collectives. Megatron-style
-
-  pairing: colwise then rowwise so the all-reduce happens once per block.
+  annotates modules with parallel styles; DTensor handles the collectives. The Megatron colwise-then-rowwise pairing puts one all-reduce per block.
 
 - **Sequence parallel**: shards LayerNorm/dropout activations along sequence dim between
   TP regions (`SequenceParallel()` style), swapping all-reduce for all-gather +
@@ -130,9 +116,7 @@ works unchanged (this replaces FSDP1's special-cased optim state dict handling).
 
 ### torchrun and elasticity
 
-`torchrun --nproc-per-node 8 --nnodes 4 --rdzv-backend c10d --rdzv-endpoint host:29400
-
-[train.py](http://train.py/)`: spawns one process per GPU, sets `RANK/LOCAL_RANK/WORLD_SIZE/MASTER_*`,
+`torchrun --nproc-per-node 8 --nnodes 4 --rdzv-backend c10d --rdzv-endpoint host:29400 `train.py`: spawns one process per GPU, sets `RANK/LOCAL_RANK/WORLD_SIZE/MASTER_\*\`,
 
 handles rendezvous. Elastic mode (`--nnodes 2:4 --max-restarts 3`) re-rendezvouses the
 

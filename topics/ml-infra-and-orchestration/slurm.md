@@ -2,8 +2,6 @@
 
 ⏱ 10 min read · +3h 15m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [Slurm official docs](https://slurm.schedmd.com/documentation.html) (docs, ~45 min for the core pages): sbatch/srun man pages are genuinely the best reference; also the [containers guide](https://slurm.schedmd.com/containers.html) (~20 min) and [GRES guide](https://slurm.schedmd.com/gres.html) (~15 min).
@@ -43,13 +41,13 @@ SLURM is a batch scheduler with three core objects: **nodes** (machines with res
 Key distinctions:
 
 - `sbatch` queues a script; `srun` launches tasks (inside an allocation, or creates one ad hoc); `salloc` gives an interactive allocation.
-- `--ntasks` is the number of processes SLURM launches. For torchrun the standard pattern is one task per node and let torchrun fork per-GPU workers; for `srun`-native launching (e.g. with `python -m torch.distributed.run` replaced by srun) you use `--ntasks-per-node=8` and read `SLURM_PROCID`/`SLURM_LOCALID` as rank/local_rank.
+- `--ntasks` is the number of processes SLURM launches. With torchrun: one task per node, torchrun forks the per-GPU workers. Launching natively with srun instead: `--ntasks-per-node=8`, reading `SLURM_PROCID`/`SLURM_LOCALID` as rank/local_rank.
 - GPU requests: `--gres=gpu:8` (classic), or the newer `--gpus`, `--gpus-per-node`, `--gpus-per-task` family. `--gpus-per-task` plus `--gpu-bind` controls affinity; SLURM sets `CUDA_VISIBLE_DEVICES` per task. Check binding with `srun nvidia-smi -L`.
 - Useful env vars inside a job: `SLURM_JOB_ID`, `SLURM_NNODES`, `SLURM_NODEID`, `SLURM_PROCID` (global rank), `SLURM_LOCALID`, `SLURM_JOB_NODELIST`.
 
 ### Job arrays
 
-`#SBATCH --array=0-99%10` runs 100 tasks, max 10 concurrent; each gets `SLURM_ARRAY_TASK_ID`. This is the workhorse for sweeps, data-shard processing (datatrove's SlurmPipelineExecutor is built on arrays), and eval grids. Arrays are far cheaper for the scheduler than 100 separate jobs, and `scancel jobid_[5-20]` gives you granular control.
+`#SBATCH --array=0-99%10` runs 100 tasks, max 10 concurrent; each gets `SLURM_ARRAY_TASK_ID`. This is the workhorse for sweeps, data-shard processing (datatrove's SlurmPipelineExecutor is built on arrays), and eval grids. Arrays are far cheaper for the scheduler than 100 separate jobs, and `scancel jobid_[5-20]` cancels a sub-range.
 
 ### Multi-node torchrun
 
@@ -67,7 +65,7 @@ srun torchrun \
   train.py
 ```
 
-`srun` runs one torchrun per node; c10d rendezvous handles the process group. On EFA clusters (HyperPod) also export `FI_PROVIDER=efa` and let NCCL pick it up via aws-ofi-nccl. `NCCL_DEBUG=INFO` on rank 0 for bring-up, off for production. Frameworks note: HF Accelerate, Lightning, and torchtitan all read SLURM env vars and can skip the manual rendezvous dance.
+`srun` runs one torchrun per node; c10d rendezvous handles the process group. On EFA clusters (HyperPod) also export `FI_PROVIDER=efa` and let NCCL pick it up via aws-ofi-nccl. `NCCL_DEBUG=INFO` on rank 0 for bring-up, off for production. HF Accelerate, Lightning and torchtitan read SLURM env vars and skip the manual rendezvous dance.
 
 ### Containers: Enroot/Pyxis and Apptainer
 

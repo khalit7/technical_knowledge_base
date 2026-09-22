@@ -2,8 +2,6 @@
 
 ⏱ 7 min read · +3h resources
 
-Last updated: 2026-09-21 (acronyms expanded on first use, LangChain and LangGraph deep dive cross-linked)
-
 ### Best resources
 
 - [Microsoft: LazyGraphRAG](https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/) (12 min): GraphRAG quality at the indexing cost of plain vector retrieval-augmented generation (RAG).
@@ -16,7 +14,7 @@ Last updated: 2026-09-21 (acronyms expanded on first use, LangChain and LangGrap
 ### The maturity ladder
 
 - **Naive RAG**: embed query, retrieve top-k, stuff prompt, generate. One shot, no
-  feedback. Fails on multi-hop, ambiguous, and global questions.
+  feedback; fails on multi-hop, ambiguous and global questions.
 
 - **Advanced RAG**: the naive core wrapped in pre-retrieval (query rewriting,
   routing, decomposition) and post-retrieval (reranking, compression, citation
@@ -143,12 +141,27 @@ Agent memory is RAG turned inward: the corpus is the agent's own history.
 
   (Claude Code's `CLAUDE.md` pattern) for small working memory.
 
+- **Timing** is the fourth hard problem and the least studied: not what to retrieve from
+  memory but when. Meta AI's Proactive Memory Agent (Sep 2026) runs a second model beside
+
+  an acting agent to decide at each step whether to remind it of something it already
+
+  knows, with no retraining of the worker: Terminal-Bench 2.0 goes 37.6% to 45.9% for
+
+  Claude Sonnet 4.5 and 37.6% to 41.1% for Qwen3.5-27B, tau2-Bench 55.0% to 61.8% for
+
+  Sonnet 4.5. Reminding **selectively** beats reminding at every step, because a reminder
+
+  consumes context and competes with live task state, so the memory agent's job is
+
+  discrimination rather than ranking.
+
 - The hard problems are writing (what to remember), updating (superseding stale
   facts), and forgetting; retrieval over memories is the easy part. Temporal knowledge
 
   graphs are the current best answer for contradiction-and-supersession handling.
 
-### Where RAG is headed (as of Aug 2026)
+### Where RAG is headed
 
 The pipeline era is ending; the retrieval era is not. "RAG" as a fixed
 

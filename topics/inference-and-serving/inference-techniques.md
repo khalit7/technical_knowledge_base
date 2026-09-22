@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +4h 5m resources
 
-Last updated: 2026-09-21 (added DFlash2 block-diffusion drafting, the adaptive speculative token budget and confidence-scheduled verification, and disk-tier KV offload)
-
 ### Best resources
 
 - [kipply: Transformer Inference Arithmetic](https://kipp.ly/transformer-inference-arithmetic/) (30 min):
@@ -51,9 +49,19 @@ fundamental tradeoff: bigger batches raise throughput and worsen per-token laten
 
 serving is the art of riding that curve.
 
+At the bottom of that curve the bandwidth math stops being the whole story. At batch
+
+size 1 the per-kernel launch and scheduling overhead of a decode step is no longer
+
+negligible and becomes the limit, so the win is issuing fewer kernels rather than moving
+
+fewer bytes: a single fused decode **megakernel** is the software answer and weights
+
+resident in on-chip SRAM the hardware one, both covered on [Topic: inference-and-serving](summary.md).
+
 ### KV caching
 
-(Seeded from Khalid's notes, rewritten.) Autoregressive decode at step t needs
+Autoregressive decode at step t needs
 
 attention over all previous tokens. Without caching you would recompute every past
 
@@ -103,7 +111,9 @@ fragmentation (contiguous preallocation wasted 60-80% of KV memory), enables
 
 copy-on-write sharing (parallel sampling, beam search) and cheap preemption/swap.
 
-The reason vLLM could run 2-4x bigger effective batches than 2023-era baselines.
+The reason vLLM could run 2-4x bigger effective batches than 2023-era baselines. The
+
+cost is an indirection in the hottest kernel in the system.
 
 ### Prefix caching
 
@@ -126,6 +136,32 @@ hierarchy keeps deepening: vLLM's tiered KV cache offloading now reaches disk as
 as host memory, with custom tier managers, so KV placement is becoming a storage
 
 problem with its own policy rather than a fixed GPU allocation.
+
+### Context compression
+
+Everything above makes a KV cache cheaper to hold. The remaining option is not putting
+
+the tokens in the decoder at all, in two families. **KV cache compression** prefills
+
+normally and evicts entries by an importance signal (SnapKV, KVzip, Expected Attention).
+
+**Soft-token compression** runs a small encoder over the raw input, pools its hidden
+
+states into a much shorter sequence of continuous latents, and hands the decoder those
+
+instead of the tokens (LCLM, REFRAG). Distinguish **algorithmic from systems-realisable**
+
+saving when reading either: eviction must materialise the full cache before it can evict,
+
+and methods that evict non-uniformly across heads and layers mask positions rather than
+
+shrink the sequence, so they forfeit exactly the memory and throughput a paged engine
+
+would have given them. Before adopting any eviction policy, run the one-line control:
+
+keeping a uniformly sampled subset of entries matches or beats learned-importance
+
+eviction. The full treatment is on [Topic: inference-and-serving](summary.md).
 
 ### Speculative decoding
 
@@ -203,7 +239,7 @@ Two answers to "prefill stalls decode":
 
 Fewer bytes per weight means faster bandwidth-bound decode and bigger KV budget;
 
-quality is the price. Production menu: **FP8** (W8A8, near-lossless, native
+quality is the price, and it is workload-dependent enough to measure rather than assume. Production menu: **FP8** (W8A8, near-lossless, native
 
 Hopper/Ada/Blackwell, the default for frontier serving; also FP8 KV cache),
 

@@ -2,8 +2,6 @@
 
 ⏱ 6 min read · +1h 27m resources
 
-Last updated: 2026-09-21 (acronyms expanded on first use)
-
 ### Best resources
 
 - [RAGAS documentation](https://docs.ragas.io/) (docs, ~40 min for the core pages): RAGAS is Retrieval Augmented Generation Assessment; reference implementations of the core metrics judged by a large language model (LLM).
@@ -69,7 +67,7 @@ faithfulness checks answer-vs-context, not context-vs-truth. Add freshness/sourc
 
 checks if your corpus versions matter.
 
-### Tooling (Aug 2026)
+### Tooling
 
 - **RAGAS**: most adopted; metrics library plus synthetic testset generation.
 - **DeepEval**: pytest-style assertions, good continuous integration (CI) ergonomics.

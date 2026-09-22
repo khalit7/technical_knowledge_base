@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +5h 45m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [FineWeb blog post](https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1) (~1h 30m): every stage ablated with 1.8B-param proxy runs; read this first
@@ -82,7 +80,7 @@ cheap filters first, dedup after filtering (fewer pairs), decontamination last (
 ### 3. Deduplication
 
 - **Why**: duplicated text wastes compute, amplifies memorization (Lee et al. 2021), and
-  degrades quality; but dedup also interacts with quality in non-obvious ways.
+  degrades quality, but it interacts with quality in non-obvious ways.
 
 - **Exact**: hash whole docs (xxhash/sha) or URLs. Trivial, always do it.
 - **Fuzzy: MinHash + LSH** (the workhorse): shingle into n-grams (FineWeb: 5-grams, 112
@@ -130,7 +128,7 @@ cheap filters first, dedup after filtering (fewer pairs), decontamination last (
   good data. Log what you drop and eyeball it.
 
 - Contamination checking from the eval side lives in
-  ../evaluation-and-llm-judges/.
+  [Topic: evaluation-and-llm-judges](../evaluation-and-llm-judges/summary.md).
 
 ### 5. PII scrubbing
 

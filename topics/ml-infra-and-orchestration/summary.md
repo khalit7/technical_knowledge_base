@@ -1,8 +1,6 @@
 # Topic: ml-infra-and-orchestration
 
-⏱ 12 min read · +3h 35m resources
-
-Last updated: 2026-09-21 (merged the duplicated Prefect and Dagster acquisition note into the Dagster paragraph; fixed a page reference)
+⏱ 4 min read · +3h 35m resources
 
 Everything between "I have a training script" and "it runs reliably on 256 GPUs with
 
@@ -67,7 +65,9 @@ TrainJob, KubeRay) fill the gap. The pragmatic 2026 read: SLURM still wins for p
 
 large-scale pretraining ergonomics; K8s wins the moment you also serve models, run
 
-many teams, or want one platform for everything.
+many teams, or want one platform for everything. Depth in [SLURM for ML](slurm.md) and [Kubernetes for ML (a learning track for a SLURM native)](kubernetes-for-ml.md).
+
+**Ray** is the third scheduler, and the one no deep dive owns: decorate a function to get a stateless **task**, a class to get a stateful **actor**, and Ray schedules them across a cluster with a shared object store, so distributed code reads as ordinary Python instead of a job script. One runtime spans stages that usually take three systems: **Ray Data** streams and transforms blocks to keep GPUs fed, **Ray Train** wraps distributed training loops including PyTorch DDP and FSDP, **Ray Serve** hosts inference, and **KubeRay** runs Ray clusters as Kubernetes custom resources (RayCluster, RayJob). Pick Ray when preprocessing, training and serving belong in one program, or when the workload is elastic and heterogeneous (RL rollouts, batch inference); pick SLURM for a fixed-size synchronous pretraining run, where Ray's flexibility buys nothing and adds a layer.
 
 **Managed training**: SageMaker HyperPod gives you a persistent SLURM or EKS cluster
 
@@ -81,7 +81,7 @@ in [Terraform and the AWS ML Stack](terraform-and-aws-ml.md).
 
 **assets** (datasets, models); Airflow models a DAG of **tasks**; Prefect is dynamic
 
-Pythonic flows; Flyte is typed and K8s-native; Metaflow optimises for data scientist
+Pythonic flows, and since Prefect's 2026 acquisition of Dagster Labs those two are one company shipping two products; Flyte is typed and K8s-native; Metaflow optimises for data scientist
 
 ergonomics.
 
@@ -106,30 +106,6 @@ what to alert on for training (throughput drops, NCCL stalls, node health), W&B 
 MLflow, and checkpoint/reproducibility hygiene in
 
 [Monitoring, Experiment Tracking, and Run Hygiene](monitoring-and-tracking.md).
-
-### What each tool actually is, and why you would pick it
-
-The map above names the layers. This section is the one-paragraph-per-tool version, because a name on its own tells you nothing about when to reach for it.
-
-**Slurm** (Simple Linux Utility for Resource Management) is a batch scheduler built for HPC clusters. It has three objects: nodes, which advertise resources including GPUs as generic resources (GRES); partitions, which are named queues over sets of nodes with their own time limits and priorities; and jobs, which are a resource request plus a shell script. The property that matters for training is that gang scheduling is implicit: a job starts only when every requested node is free simultaneously, which is exactly the guarantee synchronous data-parallel training needs and exactly what plain Kubernetes lacks. Pick it when the workload is large multi-node pretraining and the cluster does one thing. It is also what most academic clusters and the Slurm flavour of SageMaker HyperPod run, so it is frequently not a choice you get to make.
-
-**Kubernetes** is a declarative cluster operating system: you describe the desired state as API objects and controllers reconcile reality toward it, forever. That is the opposite framing to Slurm's "give me 4 nodes for 48 hours", which is why raw Kubernetes is poor at batch training (pods are scheduled one at a time, so a partially placed job holds GPUs and deadlocks) and excellent at everything around it: serving, multi-tenancy, self-healing, and one API for training, inference and data services. Pick it when you also serve models, run several teams, or want a single platform; the converged 2026 ML stack on top of it is the NVIDIA GPU Operator, Kueue, either Kubeflow Trainer or KubeRay, and vLLM or KServe for serving.
-
-**Kueue** is the admission-control layer that makes Kubernetes usable for batch ML. It suspends a job until a **ClusterQueue**, a cluster-wide quota pool (say 64 H100s for one team with borrowing rights over 32 more), can admit the entire workload atomically, which is gang scheduling reimplemented at admission time rather than in the scheduler. It also provides quotas, borrowing between teams, priority-based preemption, and topology-aware placement so ranks land on the same network spine for NCCL bandwidth. It is Slurm's fairshare and QOS layer rebuilt for Kubernetes, and it is the de facto standard. **Volcano** is the older alternative, with its own scheduler and PodGroup objects, still common in Spark-on-Kubernetes and Chinese-cloud stacks.
-
-**Ray** is a distributed execution framework for Python: decorate a function to get a stateless **task**, decorate a class to get a stateful **actor**, and Ray schedules them across a cluster with a shared object store, so distributed code reads as ordinary Python instead of a job script. Its value in ML is that one runtime spans stages that usually take three systems: **Ray Data** streams and transforms blocks to keep GPUs fed, **Ray Train** wraps distributed training loops including PyTorch DDP and FSDP, and **Ray Serve** hosts inference. **KubeRay** runs Ray clusters as Kubernetes custom resources (RayCluster, RayJob). Pick Ray when preprocessing, training and serving belong in one program, or when the workload is elastic and heterogeneous (RL rollouts, batch inference); pick Slurm instead for a fixed-size synchronous pretraining run, where Ray's flexibility buys nothing and adds a layer.
-
-**Kubeflow** is the umbrella project for ML on Kubernetes, and the piece that matters here is **Kubeflow Trainer v2**, whose single **TrainJob** custom resource replaced the old per-framework operators (PyTorchJob, TFJob, MPIJob). It ships **TrainingRuntime** templates for torch distributed, DeepSpeed, MPI and JAX, integrates with Kueue or Volcano for gang admission, and exposes a Python SDK, so it creates the headless services, rank assignments and `MASTER_ADDR` wiring you would otherwise hand-roll with an Indexed Job. Pick it when training lives on Kubernetes and you want restart semantics and elastic scaling handled for you; hand-rolled Indexed Job plus torchrun is worth doing once, to learn the mechanics.
-
-**Airflow** is the incumbent workflow orchestrator: you declare tasks and the edges between them, and it schedules runs, retries and backfills. It knows that a task succeeded, not what data that task produced, which is its structural limitation. Airflow 3 (2025) added DAG versioning, asset-aware and event-driven scheduling, and a task execution API that isolates workers from the metadata database. Pick it when the organisation already runs it: the real moat is the thousand-provider ecosystem, the managed offerings, and the fact that every data engineer already knows it.
-
-**Dagster** models the same problem as a graph of **software-defined assets**: you declare the thing that should exist (this table, this embedding index, this model checkpoint) as a function of its upstream assets, and execution order, lineage, freshness and partition state fall out of the graph instead of being bolted on with sensors. That fits ML unusually well, because ML work *is* materialised artifacts with data dependencies, so "retrain when the features go stale" is a first-class concept. Pick it for a greenfield platform where lineage and freshness matter. One business note that bears on the choice: Prefect agreed to acquire Dagster Labs in July 2026, so watch that space. **Prefect** discovers the graph at runtime from decorated Python functions, so loops and dynamic fan-out are just code, at the cost of the weakest lineage story of the three. **Flyte** compiles strongly typed workflows into containerised tasks on Kubernetes with caching and versioning, making reproducibility structural, and is heavier to operate because it is a platform in its own right. **Metaflow** (Netflix) optimises for the individual data scientist: local-first steps, automatic artifact snapshotting, resume from any step, and decorators to burst onto AWS Batch or Kubernetes.
-
-**Terraform** is infrastructure as code: you declare resources in HCL, Terraform diffs that declaration against a **state file** recording what it believes exists, then applies the difference. Three concepts carry most of the practice. **State** is kept remote in S3 with locking, and split one file per blast-radius unit (network, cluster, data) so a bad apply on experiment infrastructure cannot touch the VPC. **Modules** are reusable parameterised groups of resources, with thin root configurations composing them and versions pinned. **Workspaces** give multiple named states from one configuration, which is right for identical per-developer sandboxes and wrong for dev versus prod, where separate root directories keep the production GPU counts in a file you can code-review. Pick it because capacity reservations, cluster definitions and bucket lifecycle rules are precisely the things you cannot afford to have existing only in someone's console history.
-
-**Prometheus, Grafana and the DCGM exporter** are the GPU observability spine. DCGM is NVIDIA's data centre GPU manager, and **dcgm-exporter** publishes its counters on a metrics endpoint; **Prometheus** scrapes and stores them as time series and evaluates alerting rules; **Grafana** draws them. The reason to care about which metric is that the obvious one lies: `DCGM_FI_DEV_GPU_UTIL` reports only that some kernel was resident, so a job starved by its dataloader still reads near 100%, while `DCGM_FI_PROF_SM_ACTIVE` and `PIPE_TENSOR_ACTIVE` say whether the tensor cores are doing work. Pair these node-level metrics with progress metrics emitted by the training loop, because the expensive failure mode is a job that is running and not progressing.
-
-**MLflow** is the open-source experiment tracker and, more to the point, a **model registry**: runs log parameters, metrics and artifacts, and registered models move through explicit stages toward production, which is the governance piece. It is self-hostable, Databricks-backed, and available managed inside SageMaker. **Weights and Biases (W&B)** does the tracking half considerably better: hosted-first, the strongest run-comparison UI, automatic capture of system and GPU metrics per run, Sweeps for hyperparameter search, and artifacts with lineage. Pick W&B when research velocity across dozens of runs dominates and you accept a vendor holding your metrics; pick MLflow when you need deployment-side governance or must self-host. The common answer is both: W&B during training, the MLflow registry for promotion.
 
 ### Deep dives
 

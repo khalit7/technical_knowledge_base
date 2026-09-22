@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +4h 25m resources
 
-Last updated: 2026-09-21 (folded in the v0.28.0 engine detail and added upgrade notes)
-
 ### Best resources
 
 - [vLLM docs](https://docs.vllm.ai/) (docs, ~1h for the core pages), especially the
@@ -47,21 +45,15 @@ Request path: **entrypoint** (OpenAI API server or `LLM` class) -> **EngineCore*
 
 **ModelRunner/Worker** per GPU -> sampled tokens stream back.
 
-- **PagedAttention**: the KV cache is stored in fixed-size blocks (default 16 tokens)
-  with a per-sequence block table, like virtual memory pages. Kills internal/external
+- **PagedAttention**: fixed-size KV blocks, default 16 tokens, with a per-sequence block
+  table. Enables copy-on-write sharing for beam search and parallel sampling, and cheap
 
-  fragmentation (naive contiguous allocation wastes 60-80% of KV memory), enables
+  preemption by swap or recompute. Mechanism: [Inference techniques: what actually makes serving fast](inference-techniques.md).
 
-  copy-on-write sharing for beam search and parallel sampling, and makes preemption
+- **Continuous batching**: scheduling is per-step, not per-request; every engine step the
+  scheduler builds a fresh batch mixing prefill and decode work. Chunked prefill, on by
 
-  cheap (swap or recompute blocks). Details: [Inference techniques: what actually makes serving fast](inference-techniques.md).
-
-- **Continuous batching**: scheduling is per-step, not per-request. Every engine step
-  the scheduler builds a fresh batch mixing prefill and decode work; finished sequences
-
-  leave immediately and waiting ones join. Chunked prefill (on by default in V1) splits
-
-  long prompts so decode latency stays flat.
+  default in V1, splits long prompts so decode latency stays flat.
 
 - **Scheduler**: V1 collapsed the old prefill/decode phase distinction. The scheduler
   just allocates a token budget per step ({request: num_tokens} to run), which is what
@@ -78,9 +70,17 @@ Request path: **entrypoint** (OpenAI API server or `LLM` class) -> **EngineCore*
   unified path where torch.compile handles model-level optimisation.
 
 - **Model Runner V2**: the successor model-runner path, matured through v0.28.0 with
-  E/P/D disaggregation (encode as well as prefill and decode) and weight offloading.
+  E/P/D disaggregation (encode as well as prefill and decode) and weight offloading, and
 
-### Feature set (Sep 2026 snapshot)
+  since v0.29.0 **the default for every model**, completing a rollout that began with
+
+  pooling models. Model Runner V1 is deprecated with removal targeted for v0.32, but
+
+  sequence parallelism and dual-batch overlap are not yet supported on V2, so a
+
+  deployment relying on either should stay on V1 until they land.
+
+### Feature set
 
 - **Quantised serving**: FP8 W8A8 (native on Hopper/Blackwell, and on the RTX 5090),
   NVFP4/MXFP4 on Blackwell, INT4/INT8 via AWQ, GPTQ, GGUF, bitsandbytes, compressed-tensors
@@ -94,9 +94,13 @@ Request path: **entrypoint** (OpenAI API server or `LLM` class) -> **EngineCore*
 
   verification, an adaptive speculative token budget worth roughly 60% better DSpark
 
-  TTFT, and the DFlash2 block-diffusion drafter, which now lives in the engine itself
+  TTFT, and the DFlash2 block-diffusion drafter, now in the engine itself rather than
 
-  rather than only in a model card.
+  only in a model card. Acceptance rate is an observable rather than something to infer
+
+  since v0.29.0, which reports per-request acceptance statistics in OpenAI API responses
+
+  and extends adaptive verification to logprobs.
 
 - **Parallelism**: TP, PP, EP (wide expert parallel for MoE), data parallel attention,
   and decode context parallelism (2026; about 3x throughput on long-context agentic
@@ -105,7 +109,13 @@ Request path: **entrypoint** (OpenAI API server or `LLM` class) -> **EngineCore*
 
   context parallel to Kimi-K3 and added fused FlashKDA kernels for Kimi Delta Attention
 
-  with combined all-gathers, reporting 1.5-3x kernel-level speedup.
+  with combined all-gathers, reporting 1.5-3x kernel-level speedup. v0.29.0 pushed the
+
+  same two models further: fused MXFP4 top-k finalisation cutting Kimi-K3 latency by
+
+  roughly 5%, a 6.6x to 7.6x kernel speedup on Mamba metadata handling, and fused expert
+
+  operations with adaptive selection for DeepSeek V4.
 
 - **Disaggregation and scale-out**: KV connector API (NIXL, LMCache, Mooncake) for
   prefill/decode disaggregation and KV offload; first-class integration with
@@ -127,7 +137,11 @@ Request path: **entrypoint** (OpenAI API server or `LLM` class) -> **EngineCore*
 
   DSpark alike and including AMD Quark NVFP4, so sparse attention is no longer a
 
-  special path.
+  special path. v0.29.0 brought five more model families, among them **Hy4-preview**
+
+  (770B with sparse attention) and **Qwen3.8-Flash-Next** in several quantisation
+
+  formats.
 
 - **Hardware enablement** (v0.28.0): ROCm support for DeepSeek-V4 and Kimi-K3, an Intel
   XPU torch linear backend with blockwise GEMM, FlashInfer XQA decode on SM12x, and a
@@ -140,9 +154,20 @@ SGLang can win on prefix-heavy and structured workloads ([SGLang](sglang.md)); T
 
 ### Upgrade notes
 
-v0.28.0 (584 commits from 270 contributors, 76 of them new) changes a default and drops
+Both of the last two releases change defaults and drop interfaces, so check these before
 
-interfaces, so check these before upgrading an existing deployment:
+moving an existing deployment.
+
+v0.29.0 (594 commits from 277 contributors, 91 of them new):
+
+- Model Runner V2 becomes the default for every model; stay on V1 if you depend on
+  sequence parallelism or dual-batch overlap, neither of which V2 supports yet.
+
+- Ten deprecated model architectures are removed, and several models move to the
+  Transformers backend.
+
+- The PyAV video decoder is dropped in favour of OpenCV or Torchcodec.
+v0.28.0 (584 commits from 270 contributors, 76 of them new):
 
 - `max_num_batched_tokens` doubles from 8192 to 16384, which changes the memory
   footprint and the TTFT/throughput balance of any deployment that never set it.
@@ -150,7 +175,7 @@ interfaces, so check these before upgrading an existing deployment:
 - bitsandbytes moves to an out-of-tree plugin.
 - Transformers is bumped to 5.15.0.
 - `calculate_kv_scales` and `override_attention_dtype` are removed.
-[Release notes](https://github.com/vllm-project/vllm/releases/tag/v0.28.0) (20 min).
+[v0.29.0 release notes](https://github.com/vllm-project/vllm/releases/tag/v0.29.0) (20 min), [v0.28.0 release notes](https://github.com/vllm-project/vllm/releases/tag/v0.28.0) (20 min).
 
 ### Contributing (entry points)
 
@@ -176,7 +201,7 @@ Realistic ladder for getting PRs merged:
 
    under `csrc/` and `vllm/attention/`), quantisation backends, spec-decode.
 
-5. **Community**: developer Slack ([slack.vllm.ai](http://slack.vllm.ai/), sign-up ~5 min), biweekly office hours, RFC
+5. **Community**: developer Slack (slack.vllm.ai, sign-up ~5 min), biweekly office hours, RFC
    discussions on GitHub. Small correct PRs land fast; kernel PRs need benchmarks
 
    (`benchmarks/` has harnesses).

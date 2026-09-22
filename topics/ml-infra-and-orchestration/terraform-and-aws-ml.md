@@ -2,8 +2,6 @@
 
 ⏱ 11 min read · +3h 5m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [Terraform style/structure guide (HashiCorp)](https://developer.hashicorp.com/terraform/language/style) (docs, ~35 min for the core pages): official patterns for modules, state, and workspaces.
@@ -37,7 +35,7 @@ Last updated: 2026-08-24
 
 #### Lambda/EventBridge glue patterns
 
-The serverless layer is the nervous system around training, and it is where your existing serverless strength pays off directly:
+The serverless layer is the nervous system around training:
 
 - **Event-driven ingestion**: S3 `ObjectCreated` on a raw prefix, then EventBridge rule, then Lambda (or Step Functions) kicking preprocessing or a Dagster/Airflow run. EventBridge over direct S3-to-Lambda for fan-out and filtering.
 - **Job lifecycle reactions**: SageMaker and HyperPod emit state-change events to EventBridge (`Training Job State Change`, cluster/node events). Route failures to Slack/PagerDuty, completions to eval-triggering Lambdas, spot interruptions to checkpoint-now signals.
@@ -46,7 +44,7 @@ The serverless layer is the nervous system around training, and it is where your
 
 #### S3 design for datasets and checkpoints
 
-- **Buckets**: separate `raw`, `processed/tokenized`, `checkpoints`, `artifacts` buckets (different lifecycle, replication, and access policies), versioning on code/config artifacts, not on multi-TB shards.
+- **Buckets**: separate `raw`, `processed/tokenized`, `checkpoints`, `artifacts` buckets (different lifecycle, replication and access policies); version code/config artifacts, not multi-TB shards.
 - **Prefix design for throughput**: S3 scales request rate per prefix (~5,500 GET/s each), so shard datasets across many prefixes and many files (`processed/dclm/v3/shard=00417/part-*.parquet`); hundreds of parallel readers need hundreds of prefixes, not one giant directory. Target shard sizes in the 100 MB-1 GB range; millions of tiny files kill listing and per-request overhead.
 - **Checkpoints**: `ckpt/<run-id>/step-<n>/` with sharded writes (one object per rank, e.g. torch.distributed.checkpoint layout) for parallel PUT bandwidth; lifecycle rule keeping last-k step dirs plus milestone steps to Glacier; a `latest` pointer object rather than renames. **S3 Express One Zone** (directory buckets) is the option for checkpoint hot storage when restore latency matters.
 - **FSx for Lustre** in front of S3 (data repository association) is the HyperPod pattern: POSIX + striped bandwidth for the hot path, S3 as durable truth. Also in the toolbox: **Mountpoint for S3** (read-heavy dataset mounts on EKS) and s5cmd for bulk copies.

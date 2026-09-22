@@ -19,9 +19,9 @@
 - [MaxText sharding config](https://github.com/AI-Hypercomputer/maxtext) (repo, ~30 min for the config and axis rules): grep for
   `logical_axis_rules`; production example of everything below.
 
-Verified 2026-08-24. `pmap` is legacy (since JAX 0.8-0.10 it is a wrapper over
+`pmap` is legacy (since JAX 0.8-0.10 it is a wrapper over jit + shard_map);
 
-jit + shard_map); `jax.experimental.shard` APIs moved to `jax.sharding`.
+`jax.experimental.shard` APIs moved to `jax.sharding`.
 
 ### The core idea: sharding is a type annotation, parallelism is compilation
 
@@ -121,7 +121,7 @@ communication, used for hand-rolled overlap tricks and pipelining). Use GSPMD-st
 
 by default; reach for shard_map when the compiler schedules communication badly, for
 
-custom collective patterns, or wrapping Pallas kernels. This replaces `pmap`: pmap only
+custom collective patterns, or when wrapping Pallas kernels. This replaces `pmap`: pmap only
 
 handled one device axis per host cleanly and is now in maintenance mode, implemented on
 

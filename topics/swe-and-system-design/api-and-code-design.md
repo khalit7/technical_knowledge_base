@@ -2,8 +2,6 @@
 
 ⏱ 11 min read · +9h 15m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [Stripe: Designing robust and predictable APIs with idempotency](https://stripe.com/blog/idempotency) (~15 min): Brandur Leach; idempotency keys, the canonical treatment
@@ -23,7 +21,7 @@ Last updated: 2026-08-24
 
 **Error taxonomy.** Machine-readable, layered: HTTP status class (4xx yours, 5xx mine), a stable string `code` (`rate_limit_exceeded`, `context_length_exceeded`), a human `message`, a `param` pointer where relevant, and a `request_id` for support. RFC 9457 (`application/problem+json`) is the standards-track shape. Design rules: distinguish retryable from non-retryable explicitly (429/503 + Retry-After vs 400), never leak internals in messages, and keep codes append-only (clients switch on them). The OpenAI/Anthropic error shapes are the de-facto reference for LLM APIs.
 
-**Webhooks.** The inverse API, so apply the inverse discipline: sign payloads (HMAC with timestamp to stop replays), deliver at-least-once so consumers must dedupe on event ID, retry with backoff to a dead-letter state, order is not guaranteed (ship a sequence number or let consumers re-fetch current state), and send **thin events** (IDs + type, consumer fetches the resource) when payload staleness or PII is a concern. Provide a redelivery UI; every serious consumer will ask for it. Details in [Topic: protocols](../protocols/summary.md).
+**Webhooks.** The inverse API, so apply the inverse discipline: sign payloads (HMAC with timestamp to stop replays), deliver at-least-once so consumers must dedupe on event ID, retry with backoff to a dead-letter state, order is not guaranteed (ship a sequence number or let consumers re-fetch current state), and send **thin events** (IDs + type, consumer fetches the resource) when payload staleness or PII is a concern. Provide a redelivery UI; every serious consumer asks for one. Details in [Topic: protocols](../protocols/summary.md).
 
 ### Library and package design in Python
 
@@ -49,7 +47,7 @@ The bar: a colleague can use the package correctly from the type signatures alon
 The core economics: an abstraction is a loan; it pays interest (indirection, learning cost) against the principal it saves (duplication, blast radius). Rules of thumb:
 
 - **Rule of three**: tolerate duplication twice; abstract on the third occurrence, when the real axis of variation is visible. Wrong abstractions cost more than duplication (Sandi Metz), because they get parameterised into pretzels.
-- **Declarative config over code** when the variation is data-shaped: a YAML/JSON spec (validated by pydantic) for pipelines, eval suites, model routing tables. You already know this from DAG engines: the DAG definition is declarative, the operators are code. The trap is config that grows conditionals until it is a worse programming language; when config needs if/else, drop back to code (or a real DSL with review and tests).
+- **Declarative config over code** when the variation is data-shaped: a YAML/JSON spec (validated by pydantic) for pipelines, eval suites, model routing tables. Same split as a DAG engine: the DAG definition is declarative, the operators are code. The trap is config that grows conditionals until it is a worse programming language; when config needs if/else, drop back to code (or a real DSL with review and tests).
 - **Plugin architectures** when third parties (or other teams) must extend without forking: a small stable interface (`Protocol`), a registry or entry-points discovery, versioned hook contracts. This is the vLLM/pytest/Airflow-provider pattern. Cost: the plugin interface is forever (Hyrum again), so start private, promote to plugin API only under demonstrated demand.
 - Premature platformisation is the ML-org failure mode: building the general "framework for all training jobs" before the second training job exists. Build the concrete thing, extract the platform from working examples.
 - Cheap reversibility beats prediction: prefer abstractions you can inline away (a function, a Protocol) over ones you cannot (a service boundary, a published API, a database schema). Decide those last, with the most information.

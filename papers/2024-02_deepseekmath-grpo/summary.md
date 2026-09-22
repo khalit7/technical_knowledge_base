@@ -26,7 +26,7 @@ An iterative fastText loop over deduplicated Common Crawl (40B HTML pages after 
 
 1. Train a fastText classifier with 500K OpenWebMath pages as positives and 500K random CC pages as negatives (dim 256, word n-grams up to 3, 3 epochs).
 2. Score and rank all CC pages, keep the top-ranked tokens (top 40B in round one).
-3. Group CC into domains; any domain with over 10% of its pages recalled is flagged math-related (e.g. [mathoverflow.net](http://mathoverflow.net/)). Humans annotate math URL patterns inside those domains; still-uncollected pages under those URLs become new positives.
+3. Group CC into domains; any domain with over 10% of its pages recalled is flagged math-related (e.g. mathoverflow.net). Humans annotate math URL patterns inside those domains; still-uncollected pages under those URLs become new positives.
 4. Retrain the classifier and repeat. Four iterations yield 35.5M pages, 120B tokens; by iteration 3 nearly 98% of the data was already found, so they stopped.
 Decontamination: drop any page containing a 10-gram exactly matching GSM8K, MATH, CMATH or AGIEval text (exact match for 3-9 gram benchmark segments). In controlled 1.3B/150B-token runs the corpus beats MathPile, OpenWebMath and Proof-Pile-2 by wide margins and keeps improving where the smaller corpora plateau from repetition; it is also multilingual (English and Chinese).
 

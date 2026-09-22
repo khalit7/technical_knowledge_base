@@ -4,7 +4,7 @@
 
 - **Authors**: Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, Chelsea Finn (Stanford, CZ Biohub)
 - **Date**: May 2023 (arXiv 2305.18290; NeurIPS 2023, Outstanding Paper Runner-Up)
-- **Links**: [arXiv](https://arxiv.org/abs/2305.18290) (~45 min) | [reference implementation](https://github.com/eric-mitchell/direct-preference-optimization) (repo, ~20 min for the README and the loss in [trainers.py](http://trainers.py/))
+- **Links**: [arXiv](https://arxiv.org/abs/2305.18290) (~45 min) | [reference implementation](https://github.com/eric-mitchell/direct-preference-optimization) (repo, ~20 min for the README and the loss in trainers.py)
 
 ### Best resources
 

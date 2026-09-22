@@ -2,14 +2,12 @@
 
 ⏱ 7 min read · +4h 55m resources
 
-Last updated: 2026-09-21 (editorial heading note removed)
-
 ### Best resources
 
 - Lilian Weng, [What are Diffusion Models?](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/) (45 min): canonical derivation of DDPM, DDIM, guidance; updated with progressive distillation and consistency models.
 - Yang Song, [Generative Modeling by Estimating Gradients of the Data Distribution](https://yang-song.net/blog/2021/score/) (~40 min): the score-based/SDE view that unifies diffusion.
 - Meta AI, [Flow Matching Guide and Code](https://arxiv.org/abs/2412.06264) (~3h): the reference text for flow matching, with code.
-- Sander Dieleman's blog, [sander.ai](https://sander.ai/) (~30 min for the key posts): the best running commentary on diffusion research (guidance, distillation, latents, "diffusion is spectral autoregression").
+- Sander Dieleman's blog, sander.ai (~30 min for the key posts): the best running commentary on diffusion research (guidance, distillation, latents, "diffusion is spectral autoregression").
 - Papers: [Denoising Diffusion Probabilistic Models (DDPM)](../../papers/2020-06_ddpm/summary.md), [High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)](../../papers/2021-12_latent-diffusion/summary.md).
 
 ### Core idea
@@ -30,11 +28,11 @@ is small (large noising steps) the per-step posterior is far from Gaussian and t
 
 gets harder; classic DDPM used n = 1000.
 
-**Backbone**: originally a U-Net, chosen because it preserves input dimensions while
+**Backbone**: originally a U-Net, which preserves input dimensions while compressing to a
 
-compressing to a bottleneck and reconstructing, with skip connections carrying detail.
+bottleneck and reconstructing, with skip connections carrying detail. Transformers have
 
-This is no longer SOTA; transformers replaced it (see DiT below).
+since replaced it (see DiT below).
 
 ### The modernisation path
 
@@ -106,7 +104,7 @@ This is no longer SOTA; transformers replaced it (see DiT below).
 
   Real-time (sub-second) generation and streaming video rely on these.
 
-### Current landscape (Aug 2026)
+### Current landscape
 
 **Image**
 
@@ -116,9 +114,27 @@ This is no longer SOTA; transformers replaced it (see DiT below).
 - **SD3.5** (Stability): MMDiT + triple text encoder; middle weight, permissive-ish
   licence. SDXL still has the deepest LoRA/ControlNet ecosystem.
 
-- **Qwen-Image**: best open model for readable in-image text.
-- Frontier LLM-native image generation (GPT-image, Gemini's native image gen) competes at
+- **Qwen-Image-2.1** (Alibaba, Sep 2026): a 7B single-stream DiT with a Qwen3-VL 8B text
+  encoder and a 64-channel RGBA autoencoder, so transparency is native rather than matted
+
+  afterwards; one model now covers text to image, editing with up to ten reference images,
+
+  transparent layer creation and subject extraction, and the line is still the best open
+
+  option for readable in-image text. Weights are public, but under the non-commercial Qwen
+
+  Research License Agreement rather than Apache 2.0.
+
+- Frontier LLM-native image generation (OpenAI's ChatGPT Images 2.5, Gemini's native image
+  gen) competes at
+
   the top for instruction-following edits; internally hybrid AR + diffusion decoding.
+
+  Images 2.5 (Sep 2026) added a Sketch mode turning a rough drawing into an image prompt,
+
+  cut latency by up to 50%, and shipped two API variants, Flare and Sunburst, for region
+
+  editing and reference preservation.
 
 **Video**
 

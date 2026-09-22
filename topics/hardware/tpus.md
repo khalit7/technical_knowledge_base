@@ -2,7 +2,7 @@
 
 ⏱ 6 min read · +3h 15m resources
 
-Last updated: 2026-09-21 (three filename-style cross-references converted to page mentions). Software stack (JAX/XLA, sharding) lives in
+Software stack (JAX/XLA, sharding) lives in
 
 [Topic: jax-and-tpu](../jax-and-tpu/summary.md); this page is the silicon and the pods.
 
@@ -92,6 +92,24 @@ what Anthropic's 2025 deal for up to one million TPUs runs on. Per-chip it is
 roughly a B200-class part (4.6 vs 4.5 PFLOPS FP8, 192 GB on both, 7.4 vs 8 TB/s);
 
 the differentiation is pod scale and cost, not the chip.
+
+Ironwood is also the first TPU generation Google sells for other companies' inference
+
+workloads rather than keeping for internal use, and it is priced on that basis: Google
+
+claims up to 50% better performance per dollar than Nvidia's B200 and B300 (Sep 2026).
+
+Whether anyone outside Google reaches that number is a software question rather than a
+
+silicon one, since it depends on how much of a decade of internal tooling can be
+
+externalised, which is exactly what SemiAnalysis's system teardown of the Ironwood serving
+
+stack sets out to measure. Commercially this matters more than any per-chip number above: a TPU
+
+generation that can be rented is a competitor to the accelerators above in a way that
+
+previous generations were not.
 
 ### Pod architecture and ICI
 

@@ -2,8 +2,6 @@
 
 ⏱ 12 min read · +8h 45m resources
 
-Updated 2026-08-24.
-
 ### Best resources
 
 - [The Matrix Calculus You Need For Deep Learning](https://explained.ai/matrix-calculus/) (~1h 30m): Parr and Howard; the DL-focused refresher, covers every chain-rule form used below.

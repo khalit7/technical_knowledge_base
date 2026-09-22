@@ -23,9 +23,9 @@
 - [JAX AI stack tutorials](https://docs.jaxstack.ai/) (~1h 15m): Google's blessed end-to-end
   examples wiring JAX + Flax NNX + optax + orbax + grain together.
 
-Verified current 2026-08-24: NNX is the recommended API for new code; Linen is
+NNX is the recommended API for new code; Linen is maintained, not deprecated, and
 
-maintained, not deprecated, and interops via `flax.nnx.bridge`.
+interops via `flax.nnx.bridge`.
 
 ### The library landscape
 

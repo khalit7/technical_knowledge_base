@@ -1,8 +1,6 @@
 # HTTP: 1.1, 2, 3, and what matters for LLM services
 
-⏱ 13 min read · +19h 40m resources
-
-Updated 2026-09-21 (acronyms expanded on first use; no content changes).
+⏱ 12 min read · +19h 40m resources
 
 ### Best resources
 
@@ -16,10 +14,10 @@ Updated 2026-09-21 (acronyms expanded on first use; no content changes).
 
 Each version attacks a different layer of head-of-line (HoL) blocking:
 
-- **HTTP/1.1** (1997, re-spec'd as RFC 9112): text framing, one request at a time per TCP connection. Keep-alive and pipelining exist, but pipelining is unusable in practice (response ordering, broken proxies), so browsers open ~6 parallel connections per host. Chunked transfer encoding (`Transfer-Encoding: chunked`) enables streaming bodies of unknown length; this is still how most LLM Server-Sent Events (SSE) streams ride over HTTP/1.1.
+- **HTTP/1.1** (1997, re-spec'd as RFC 9112): text framing, one request at a time per TCP connection. Keep-alive and pipelining exist, but pipelining is unusable in practice (response ordering, broken proxies), so browsers open ~6 connections per host. Chunked transfer encoding (`Transfer-Encoding: chunked`) enables streaming bodies of unknown length; this is still how most LLM Server-Sent Events (SSE) streams ride over HTTP/1.1.
 - **HTTP/2** (2015, RFC 9113): binary framing, **multiplexing** many streams over one TCP connection, **HPACK** header compression (static + dynamic tables, so repeated headers like `authorization` cost a few bytes), stream prioritization, server push (dead in practice; Chrome removed it). Fixes application-layer HoL blocking, but one lost TCP packet still stalls every stream on the connection (transport-layer HoL blocking), which is worse than HTTP/1.1's 6 connections on lossy links.
 - **HTTP/3** (2022, RFC 9114) runs over **QUIC** (RFC 9000), UDP-based with TLS 1.3 baked in. Streams are independent at the transport layer, so packet loss on one stream does not stall others: the transport HoL fix. Other wins: a 1-RTT (round-trip time) handshake (transport + crypto combined), **0-RTT** resumption (send application data in the first flight; replayable, so servers must restrict 0-RTT to idempotent requests), and connection migration via connection IDs (survives Wi-Fi to cellular handoff). Header compression is QPACK, a HoL-safe HPACK redesign.
-Practical guidance: HTTP/3 gains matter most on lossy/mobile networks and at content delivery network (CDN) edges. Inside a datacenter or for server-to-server calls, HTTP/2 (or gRPC over it) is typically fine; many backends still terminate HTTP/3 at the load balancer and speak HTTP/1.1 or 2 upstream. `Alt-Svc` headers and DNS HTTPS records advertise HTTP/3 support.
+HTTP/3 gains matter most on lossy/mobile networks and at content delivery network (CDN) edges. Inside a datacenter or for server-to-server calls, HTTP/2 (or gRPC over it) is typically fine; many backends still terminate HTTP/3 at the load balancer and speak HTTP/1.1 or 2 upstream. `Alt-Svc` headers and DNS HTTPS records advertise HTTP/3 support.
 
 ### Semantics (version-independent, RFC 9110)
 
@@ -31,16 +29,12 @@ Practical guidance: HTTP/3 gains matter most on lossy/mobile networks and at con
 
 ### TLS essentials
 
-Deep dive [TLS and PKI: handshake, certificates, and mTLS](tls-and-pki.md) (22 min read · +17h 30m resources).
+Deep dive [TLS and PKI: handshake, certificates, and mTLS](tls-and-pki.md) (22 min read · +17h 30m resources): TLS 1.3 as the baseline (respecified as **RFC 9846**, July 2026, obsoleting RFC 8446), its 1-RTT handshake and mandatory forward secrecy, 0-RTT's replay caveat, and certificate lifetimes collapsing on a fixed schedule to 47 days by 2029, which ends manual renewal at any scale. TLS 1.2 survives only for legacy clients, and managed platforms (ALB, API Gateway, CloudFront) handle issuance and renewal for you.
 
-- TLS 1.3 is the baseline, respecified as **RFC 9846** (July 2026), which obsoletes RFC 8446: 1-RTT handshake, forward secrecy always, removed weak ciphers, optional 0-RTT resumption (same replay caveat as QUIC). TLS 1.2 survives only for legacy clients.
 - SNI (Server Name Indication) routes the handshake to the right cert; ALPN (Application-Layer Protocol Negotiation) negotiates the protocol (`h2` vs `http/1.1`); HTTP/3 discovery is via `Alt-Svc`/HTTPS DNS records instead.
-- Certificates: Let's Encrypt/ACME normalized automated issuance, and maximum lifetimes are now on a fixed schedule: 200 days since 2026-03-15, 100 days from 2027, 47 days from 2029, which ends manual renewal at any scale. Managed platforms (ALB, API Gateway, CloudFront) handle this for you.
 - **mTLS** (mutual TLS, client certificates) is the strongest service-to-service authentication and is what service meshes (Istio, App Mesh) automate; see [Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era](auth.md).
 
 ### HTTP as it matters for LLM APIs
-
-This is the part to internalize for production LLM services:
 
 - **Streaming responses**: token streaming is SSE over a normal HTTP response (`Content-Type: text/event-stream`, chunked or HTTP/2 DATA frames). Details in [Real-time and event delivery: WebSockets, SSE, webhooks, long polling](realtime-and-events.md). Key infra concerns: disable buffering at every proxy hop, set idle timeouts above inter-token gaps, and remember ALB/API Gateway response streaming limits (Lambda response streaming exists but has payload and duration caps; long generations often need Fargate/ECS or WebSockets instead).
 - **Long-lived requests**: a 5-minute generation holds a connection open. Every hop (client SDK, CDN, LB, app server) has its own idle and total timeout; the effective timeout is the minimum. Prefer async job patterns (202 + polling or webhook) for anything beyond a couple of minutes: Anthropic/OpenAI batch APIs are exactly this shape.

@@ -2,7 +2,7 @@
 
 ⏱ 7 min read · +2h 40m resources
 
-Last updated: 2026-09-21 (two filename-style cross-references converted to page mentions). Every number here is a 30-second pencil estimate; do
+Every number here is a 30-second pencil estimate; do
 
 these before launching anything, then let the profiler correct you.
 

@@ -2,7 +2,7 @@
 
 ⏱ 22 min read · +17h 30m resources
 
-Added 2026-08-24. [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (13 min read · +19h 40m resources) covers TLS in one paragraph as a dependency of HTTP; this is the deep dive. Two things make it worth reading now rather than treating as solved plumbing: the post-quantum migration is genuinely underway on the client side and barely started on the server side, and certificate lifetimes are collapsing on a fixed schedule that ends manual issuance.
+[HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (12 min read · +19h 40m resources) covers TLS in one paragraph as a dependency of HTTP; this is the deep dive. Two things make it worth reading rather than treating as solved plumbing: the post-quantum migration is underway on the client side and barely started on the server side, and certificate lifetimes are collapsing on a fixed schedule that ends manual issuance.
 
 ### Best resources (1 min)
 
@@ -15,13 +15,13 @@ Added 2026-08-24. [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) 
 
 ### TLS 1.3 mechanics (5 min)
 
-**One round trip.** The ClientHello carries a speculative `key_share` plus `supported_groups`, `signature_algorithms`, ALPN, and SNI. The server answers with ServerHello, EncryptedExtensions, Certificate, CertificateVerify, and Finished, and application data flows on the client's second flight. Guess the wrong group and you eat a **HelloRetryRequest** and an extra round trip, which is a live concern now that some clients offer only X25519 while some servers prefer a hybrid PQ group.
+**One round trip.** The ClientHello carries a speculative `key_share` plus `supported_groups`, `signature_algorithms`, ALPN, and SNI. The server answers with ServerHello, EncryptedExtensions, Certificate, CertificateVerify, and Finished, and application data flows on the client's second flight. Guess the wrong group and you eat a **HelloRetryRequest** and an extra round trip, a live concern now that some clients offer only X25519 while some servers prefer a hybrid PQ group.
 
 **Everything after ServerHello is encrypted**, including the certificate. Passive network monitoring lost certificate visibility when 1.3 shipped, which is why middleboxes fall back to SNI inspection, which ECH is now taking away too.
 
 **What 1.2 lost.** Static RSA key transport is gone, so **forward secrecy is mandatory rather than a configuration choice**. Custom DH groups, compression, DSA, and renegotiation are gone. The ciphersuite now names only the AEAD and hash: `TLS_AES_128_GCM_SHA256` (mandatory to implement), `TLS_AES_256_GCM_SHA384`, and `TLS_CHACHA20_POLY1305_SHA256`. AES-GCM wins anywhere AES-NI exists (all modern x86-64 and Graviton); ChaCha20 wins on hardware without it.
 
-**Resumption and 0-RTT.** Resumption is PSK-based via post-handshake session tickets. Use `psk_dhe_ke`, which keeps forward secrecy. **0-RTT early data is replay-vulnerable by construction** and every mitigation is partial, so it is only safe for idempotent requests. The concrete rule for you: **never enable 0-RTT on an inference endpoint.** A replayed generation request is a duplicate billed inference and, in an agent loop, a duplicate side-effecting tool call.
+**Resumption and 0-RTT.** Resumption is PSK-based via post-handshake session tickets. Use `psk_dhe_ke`, which keeps forward secrecy. **0-RTT early data is replay-vulnerable by construction** and every mitigation is partial, so it is only safe for idempotent requests. The rule: **never enable 0-RTT on an inference endpoint.** A replayed generation request is a duplicate billed inference and, in an agent loop, a duplicate side-effecting tool call.
 
 Session ticket keys must be shared and rotated across a terminator fleet, or resumption silently never hits behind a load balancer.
 
@@ -29,7 +29,7 @@ Session ticket keys must be shared and rotated across a terminator fleet, or res
 
 **SNI and ECH.** SNI is plaintext and is the last significant metadata leak in the handshake. **Encrypted Client Hello is now RFC 9849 (March 2026)**, encrypting the inner ClientHello (SNI and ALPN both) under a server key published in a DNS HTTPS/SVCB record, with the key parameter defined by RFC 9848. **ECH is only meaningful over encrypted DNS**, since a plaintext lookup leaks exactly what ECH hides. It needs a shared outer public name across tenants, which makes it effectively CDN-only: you cannot meaningfully deploy it on a single-origin ALB.
 
-The operational consequence is worth planning for: **if your organisation filters egress by SNI, ECH-enabled clients degrade to IP-based control**, and the failure will look like a network error rather than a policy block. Expect this to surface first on `pip` and Hugging Face traffic through corporate proxies.
+**If your organisation filters egress by SNI, ECH-enabled clients degrade to IP-based control**, and the failure looks like a network error rather than a policy block. Expect it first on `pip` and Hugging Face traffic through corporate proxies.
 
 ### Post-quantum: where the migration actually is (4 min)
 
@@ -43,11 +43,11 @@ The operational consequence is worth planning for: **if your organisation filter
 
 X25519MLKEM768 concatenates the ML-KEM key first, the NIST-curve variants put ECDH first, and getting that backwards is a real interop footgun. The older `X25519Kyber768Draft00` (codepoint 0x6399) from the 2024 Chrome experiment is **not** interoperable with it.
 
-**Adoption, measured.** Cloudflare saw post-quantum key exchange go from under 3 percent of HTTPS requests in January 2024 to 29 percent at the start of 2025, 52 percent by December 2025, and **over 60 percent by February 2026**. Apple enabling it by default in iOS 26 moved iOS from under 2 percent to 11 percent globally in four days. Meanwhile **origin servers went from under 1 percent to only about 10 percent** over the same period.
+**Adoption, measured.** Cloudflare's post-quantum key exchange share went from under 3 percent of HTTPS requests in January 2024 to 29 percent at the start of 2025, 52 percent by December 2025, and **over 60 percent by February 2026**. Apple enabling it by default in iOS 26 moved iOS from under 2 percent to 11 percent globally in four days. Meanwhile **origin servers went from under 1 percent to only about 10 percent** over the same period.
 
 That gap is the actionable finding: **the client half of the internet is done and your own inference endpoints are almost certainly in the unprotected 90 percent.** If harvest-now-decrypt-later is in your threat model, the exposed legs are your endpoints and internal service hops, and closing them is mostly an OpenSSL 3.5+ or Go 1.24+ upgrade. OpenSSL 3.5.0 (2025-04-08) offers and prefers hybrid groups **by default**, so an upgrade turns this on silently; test for middlebox intolerance to the larger ClientHello.
 
-**Why signatures lag.** The threat models differ. Key exchange is vulnerable retroactively (record now, decrypt later), so the fix must land before a quantum computer exists. Authentication only breaks on the day one exists, because forging a signature has to happen in real time. Then there is size: ECDSA P-256 is a 65-byte key and 72-byte signature; **ML-DSA-44 is 1,312 bytes and 2,420 bytes**. A naive ML-DSA chain runs 14 to 18 KB, blowing straight past the roughly 14.5 KB initial congestion window and adding a round trip at the worst possible moment, and Certificate Transparency takes a handshake from three signatures to five. **Merkle Tree Certificates** are the way out: the CA signs a batch, browsers fetch batch roots out of band, and the handshake carries one signature plus an inclusion proof, ending up smaller than today's classical handshake. Let's Encrypt plans staging issuance in late 2026 and production in 2027.
+**Why signatures lag.** The threat models differ: key exchange is vulnerable retroactively (record now, decrypt later), so the fix must land before a quantum computer exists, while authentication only breaks on the day one exists, because forging a signature has to happen in real time. Then there is size: ECDSA P-256 is a 65-byte key and 72-byte signature; **ML-DSA-44 is 1,312 bytes and 2,420 bytes**. A naive ML-DSA chain runs 14 to 18 KB, blowing straight past the roughly 14.5 KB initial congestion window and adding a round trip at the worst possible moment, and Certificate Transparency takes a handshake from three signatures to five. **Merkle Tree Certificates** are the way out: the CA signs a batch, browsers fetch batch roots out of band, and the handshake carries one signature plus an inclusion proof, ending up smaller than today's classical handshake. Let's Encrypt plans staging issuance in late 2026 and production in 2027.
 
 **Deadlines.** NSA's CNSA 2.0 wants browsers, servers, and cloud services to support and prefer PQ from 2025 and to use it exclusively by 2033, with software and firmware signing at 2030 and an overall 2035 target. Google has publicly aimed at 2029 for its own migration.
 
@@ -88,7 +88,7 @@ Where you meet it: **Istio** (identity as a SPIFFE URI SAN, certificates typical
 
 **Rotation is the real cost.** One-hour SVIDs mean the application must reload credentials without restarting: Go handles it via `GetCertificate` callbacks, while Python needs a whole new `SSLContext` because you cannot mutate one in place. **Long-lived connections never pick up rotated certificates or revocation**, so set gRPC `max_connection_age` if you want identity to actually turn over. Clock skew is fatal at short TTLs (five minutes of skew burns 8 percent of a one-hour lifetime), so run chrony everywhere, and on EC2 point it at 169.254.169.123. Trust-bundle rotation is the genuinely hard part: distribute the new CA to every verifier **before** any issuer starts signing with it, as an overlap and not a cutover.
 
-**A dated change that will break things.** Chrome's Root Program requires roots in its store to be dedicated to TLS server authentication, so public CAs are ending certificates that carry both serverAuth and clientAuth. Sectigo stopped including clientAuth by default on 2025-09-15, with full removal by **February 2027** and the Chrome policy deadline in March 2027. **If any service-to-service mTLS relies on publicly trusted certificates for the client side, that path is scheduled for removal.** Move to ACM Private CA, SPIRE, Vault, or cert-manager with a private issuer before it becomes urgent.
+Chrome's Root Program requires roots in its store to be dedicated to TLS server authentication, so public CAs are ending certificates that carry both serverAuth and clientAuth. Sectigo stopped including clientAuth by default on 2025-09-15, with full removal by **February 2027** and the Chrome policy deadline in March 2027. **If any service-to-service mTLS relies on publicly trusted certificates for the client side, that path is scheduled for removal.** Move to ACM Private CA, SPIRE, Vault, or cert-manager with a private issuer before it becomes urgent.
 
 ### Failure modes you will actually hit (3 min)
 
@@ -127,7 +127,7 @@ Where you meet it: **Istio** (identity as a SPIFFE URI SAN, certificates typical
 
 ### Connections
 
-- TLS as a dependency of HTTP versions, ALPN, and Alt-Svc: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (13 min read · +19h 40m resources).
-- Tokens, OAuth, and where mTLS fits among service-to-service options: [Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era](auth.md) (11 min read · +9h resources).
+- TLS as a dependency of HTTP versions, ALPN, and Alt-Svc: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (12 min read · +19h 40m resources).
+- Tokens, OAuth, and where mTLS fits among service-to-service options: [Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era](auth.md) (10 min read · +9h resources).
 - CAA records, DNS-01 validation, and the HTTPS/SVCB record that carries the ECH key: [DNS: resolution, caching, and the failure modes](dns.md) (21 min read · +6h 15m resources).
-- Host keys, TOFU, and SSH's parallel post-quantum migration: [SSH: protocol, keys, tunnels, and cluster workflows](ssh.md) (21 min read · +7h resources).
+- Host keys, TOFU, and SSH's parallel post-quantum migration: [SSH: protocol, keys, tunnels, and cluster workflows](ssh.md) (20 min read · +7h resources).

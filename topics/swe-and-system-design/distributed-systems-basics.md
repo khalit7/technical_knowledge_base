@@ -2,11 +2,9 @@
 
 ⏱ 11 min read · +18h 55m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
-- [Designing Data-Intensive Applications, 2nd edition](https://dataintensive.net/) (book, ~15h) (Kleppmann and Riccomini, O'Reilly, March 2026): **the** anchor. The 2nd edition (co-authored with Chris Riccomini) finally shipped after years of early-release chapters; it refreshes the 2017 classic with cloud-native storage, data lakes/lakehouses, and updated consensus material. If you read one book from this topic, read this.
+- [Designing Data-Intensive Applications, 2nd edition](https://dataintensive.net/) (book, ~15h) (Kleppmann and Riccomini, O'Reilly, March 2026): **the** anchor. The 2nd edition refreshes the 2017 classic with cloud-native storage, data lakes/lakehouses, and updated consensus material. If you read one book from this topic, read this.
 - [The System Design Primer](https://github.com/donnemartin/system-design-primer) (repo, ~2h for the core sections): breadth-first interview coverage of everything below
 - [Jepsen consistency models map](https://jepsen.io/consistency) (~20 min): the definitive clickable hierarchy from eventual to strict serializable
 - [Stripe: Designing robust and predictable APIs with idempotency](https://stripe.com/blog/idempotency) (~15 min): Brandur Leach; idempotency keys done properly
@@ -46,7 +44,7 @@ The single highest-leverage property in service design: an operation that can be
 
 ### Leader election, briefly
 
-Single-writer systems need one node to be "it". Election is done with a consensus protocol: **Raft** (etcd, Consul, Kafka KRaft) or Paxos-family (Chubby, Spanner). Practical use: never hand-roll; take a lease/lock from etcd or ZooKeeper, keep the lease TTL well above GC pauses, and remember a deposed leader may not know it yet (fence with monotonically increasing tokens on writes). That fencing-token idea is the part interviewers actually probe.
+Single-writer systems need one node to be "it", elected with a consensus protocol: **Raft** (etcd, Consul, Kafka KRaft) or Paxos-family (Chubby, Spanner). Practical use: never hand-roll; take a lease/lock from etcd or ZooKeeper, keep the lease TTL well above GC pauses, and remember a deposed leader may not know it yet (fence with monotonically increasing tokens on writes). That fencing-token idea is the part interviewers actually probe.
 
 ### Database choices
 
