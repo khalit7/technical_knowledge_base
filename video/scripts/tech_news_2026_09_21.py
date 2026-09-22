@@ -68,9 +68,10 @@ UPDATED = "21 September 2026"
 # pixels in the delivered file. Neither is possible here, because the panel
 # layer reserves the space beside a parked panel and the layout audit measures
 # text at delivery size.
-ROLES = {"opening": "cold_open", "contract": "contract", "objection": "objection"}
+ROLES = {"opening": "ident", "contract": "contract", "objection": "objection"}
 
 VISUALS = {
+    "ident": {"kind": "title"},
     "cold_open": {"kind": "bars", "head": "two proofs, same class of result", "bars": [
         {"label": "Anthropic, Fermat", "text": "6 billion output tokens",
          "value": 6, "tone": "verified"},
@@ -120,8 +121,8 @@ VISUALS = {
         "the model could not have fixed either: nothing told it they existed",
     ]},
     "proofs": {"kind": "compare", "sides": [
-        {"head": "11 days, alone", "tone": "verified", "items": [
-            "about 6 billion output tokens",
+        {"head": "11 days, 6B tokens", "tone": "verified", "items": [
+            "agents coordinated over a graph of theorems",
             "built on Buzzard's verified formalisation",
             "standing on verified ground, adding to it"]},
         {"head": "10,000 concurrent agents", "tone": "cost", "items": [
@@ -164,6 +165,18 @@ VISUALS = {
 }
 
 SCRIPT: dict[str, list[tuple[str, str]]] = {
+    # 0. what this is. Not optional, and not the same thing as a title card:
+    # a viewer who cannot tell what they are watching stops watching, and
+    # opening on a surprising number about a subject nobody has named yet
+    # loses them rather than intriguing them.
+    "ident": [
+        (A, "This is the technical news. Week ending the twenty first of "
+            "September, twenty twenty six."),
+        (A, "One story runs through the whole issue. It is about what is "
+            "actually slowing these systems down. Not how clever they are. "
+            "What stops them finishing. The rest of the week comes at the end."),
+    ],
+
     # 1. tension
     "cold_open": [
         (A, "Two different agent systems produced formally verified mathematics this month. "
@@ -258,9 +271,11 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
     # 8. back to the proofs
     "proofs": [
         (A, "Now take that back to the two proofs, because the gap stops being mysterious."),
-        (A, "Anthropic's run worked alone for eleven days, about six billion output tokens, "
-            "and it built on Kevin Buzzard's formalisation effort at Imperial. "
-            "It was standing on verified ground and adding to it."),
+        (A, "Anthropic's run took eleven days and about six billion output tokens. "
+            "Its agents coordinated through an open platform called Prove2Me, over a "
+            "graph of theorem statements, and it built on Kevin Buzzard's "
+            "formalisation effort at Imperial. It was standing on verified ground "
+            "and adding to it."),
         (A, "OpenAI's run grew to ten thousand concurrent agents, exchanged four point nine "
             "million messages, and burned roughly three hundred billion output tokens, "
             "for an estimated two to twenty two and a half million dollars."),
