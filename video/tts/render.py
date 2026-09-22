@@ -24,6 +24,7 @@ still carries the pre-Transformers config layout (`decoder_config` rather than
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import os
@@ -123,6 +124,12 @@ def write_wav(path: Path, audio: np.ndarray, sr: int) -> float:
     return len(pcm) / float(sr)
 
 
+def beat_stamp(turns: list) -> str:
+    """A fingerprint of the words a beat is meant to say."""
+    text = "|".join(f"{who}:{line}" for who, line in turns)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
 def load_model(device: str):
     """Load VibeVoice once, for as many scripts as the caller has.
 
@@ -163,7 +170,35 @@ def render_script(name: str, args, processor, model, sr) -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     keys = args.only or list(script)
-    todo = [k for k in keys if args.force or not (out / f"{k}.wav").exists()]
+
+    # A rendered beat is reused only if it was rendered from THIS text. An
+    # episode gets rewritten (a page moves on, a line is cut), and the beat
+    # keys stay the same while the words change. Skipping on "the wav exists"
+    # then keeps the old take under the new line, and every check downstream
+    # passes it: the clip is clean, it verifies against nothing, and the
+    # episode says something the script does not.
+    stamps_path = out / "takes.json"
+    fresh_dir = not stamps_path.exists()
+    stamps = json.loads(stamps_path.read_text()) if stamps_path.exists() else {}
+    if fresh_dir:
+        # Episodes rendered before stamps existed: adopt what is on disk
+        # rather than re-rendering hours of audio that is known good. From
+        # here on their words are tracked. An episode being deliberately
+        # rewritten should have its audio directory removed instead, which is
+        # what produce.py --fresh does.
+        for k in keys:
+            if (out / f"{k}.wav").exists():
+                stamps[k] = beat_stamp(script[k])
+        if stamps:
+            stamps_path.write_text(json.dumps(stamps, indent=2, sort_keys=True))
+    todo = []
+    for k in keys:
+        if args.force or not (out / f"{k}.wav").exists():
+            todo.append(k)
+        elif stamps.get(k) != beat_stamp(script[k]):
+            print(f"{name}: '{k}' was rendered from different words, "
+                  f"re-rendering", file=sys.stderr)
+            todo.append(k)
     if not todo:
         print(f"{name}: nothing to render", file=sys.stderr)
         return 0
@@ -230,6 +265,8 @@ def render_script(name: str, args, processor, model, sr) -> int:
         seconds = write_wav(out / f"{key}.wav", wav, sr)
         durations[key] = round(seconds, 3)
         durations_path.write_text(json.dumps(durations, indent=2, sort_keys=True))
+        stamps[key] = beat_stamp(turns)
+        stamps_path.write_text(json.dumps(stamps, indent=2, sort_keys=True))
         rate = words / max(seconds, 0.01) * 60
         if rate > FAST_WPM:
             note += "  STILL FAST: shorten the sentences"

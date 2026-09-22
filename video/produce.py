@@ -134,6 +134,11 @@ def main() -> int:
                     help="audio already rendered: animate only")
     ap.add_argument("--only-tts", action="store_true",
                     help="voice only, animate later")
+    ap.add_argument("--fresh", action="store_true",
+                    help="delete each episode's rendered audio first. Use when "
+                         "a script has been rewritten: the renderer reuses a "
+                         "beat whose words are unchanged, and that is exactly "
+                         "what you do not want after a rewrite")
     args = ap.parse_args()
 
     episodes = list(args.episodes)
@@ -150,6 +155,14 @@ def main() -> int:
     missing = [e for e in episodes if not (ROOT / "scripts" / f"{e}.py").exists()]
     if missing:
         ap.error("no script for: " + ", ".join(missing))
+
+    if args.fresh:
+        import shutil
+        for episode in episodes:
+            audio = ROOT / "out" / "audio" / episode
+            if audio.exists():
+                shutil.rmtree(audio)
+                print(f"cleared {audio.relative_to(ROOT)}", flush=True)
 
     LOGS.mkdir(parents=True, exist_ok=True)
     print(f"{len(episodes)} episodes, GPUs {args.gpus}, "
