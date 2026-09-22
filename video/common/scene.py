@@ -64,6 +64,12 @@ class Narration:
         return path if path.exists() else None
 
 
+# What the viewer's file is, rather than what the renderer produced. build.py
+# steps down to 720p for anything that will not otherwise fit the upload cap.
+DELIVERY_HEIGHT = 720
+MIN_LEGIBLE_PX = 13
+
+
 class TechScene(MovingCameraScene):
     narration: "Narration | None" = None   # set by the episode module
     timing_out: "Path | None" = None       # where to write the beat log
@@ -161,6 +167,23 @@ class TechScene(MovingCameraScene):
                          "text": (self._describe(a)[:40] + " | "
                                   + self._describe(b)[:40]),
                          "fraction": round(overlap, 2)})
+
+        # Legible at the size it is DELIVERED, not at the size it is rendered.
+        # An episode over about six minutes does not fit Notion's cap at 1080p
+        # and is encoded down to 720p, and anything parked at the corner has
+        # already been shrunk to under half size before that. The two multiply:
+        # a chart that reads perfectly in the render is a grey smudge in the
+        # file anybody actually watches. This is invisible at render time and
+        # obvious in the delivered frame, which makes it exactly the kind of
+        # thing to measure rather than to notice later.
+        for part in texts:
+            lines = max(1, len(getattr(part, "text", "a").splitlines()))
+            pixels = part.height / config.frame_height * DELIVERY_HEIGHT / lines
+            if pixels < MIN_LEGIBLE_PX:
+                self.layout_issues.append(
+                    {"beat": key, "kind": "too small to read",
+                     "text": self._describe(part)[:50],
+                     "pixels": round(pixels, 1)})
 
     @staticmethod
     def _describe(mob) -> str:

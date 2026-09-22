@@ -149,9 +149,19 @@ class Episode(PageVideo):
             # is left, not the whole frame. Fitting to the whole frame and
             # centring puts a wide panel straight through the map.
             if self.home is not None:
-                free = config.frame_width - HOME_WIDTH - 2.2
+                # Centre the panel in the space to the RIGHT of the parked
+                # map, not in the whole frame. The free region runs from the
+                # map's right edge to the frame edge, so its centre sits at
+                # half the width the map and its gutter take up.
+                # The margin matters. Fitting exactly to the free width puts
+                # the panel's right edge on the frame edge, which the layout
+                # audit accepts (it is inside, by two hundredths of a unit)
+                # and the delivery encode clips. Leave a real gutter on both
+                # sides and the question does not arise.
+                gutter, margin = 1.4, 0.8
+                free = config.frame_width - HOME_WIDTH - gutter - margin
                 fit(group, max_w=free)
-                group.move_to(ORIGIN).shift(RIGHT * (HOME_WIDTH + 2.2 - free) / 2)
+                group.move_to(ORIGIN).shift(RIGHT * (HOME_WIDTH + gutter - margin) / 2)
             else:
                 fit(group)
                 group.move_to(ORIGIN)
@@ -159,15 +169,49 @@ class Episode(PageVideo):
             self.current = group
 
         if spec.get("park") and group is not None:
-            # Below the corner strip, not on top of it. title_card leaves the
-            # page name and date at the top left corner for the whole episode,
-            # and the default park buffer puts a map straight over it: an
-            # overlap that then persists in every later beat, because the
-            # parked map never moves again.
-            self.park(group, width=HOME_WIDTH, buff=STRIP_CLEARANCE)
-            self.home = group
+            # What gets parked is a compact stand-in, not the panel shrunk.
+            #
+            # A map of five columns of five items, scaled to fit a corner and
+            # then delivered at 720p, renders its labels at about seven
+            # pixels. That is not a map the viewer can read, it is coloured
+            # blocks, and it fails the one job parking has: letting somebody
+            # see where the thing being explained sits in the whole. So the
+            # panel morphs into its own headings, which stay legible, and the
+            # detail comes back when a later beat focuses on it.
+            small = self.compact(spec, group)
+            self.morph(group, small, run_time=0.7)
+            # Never scale the stand-in UP. `park(width=...)` sets the width
+            # absolutely, so handing it a fixed number enlarges anything
+            # narrower than that, and three short headings came out bigger
+            # than the panel they replaced.
+            self.park(small, width=min(HOME_WIDTH, small.width),
+                      buff=STRIP_CLEARANCE)
+            self.home = small
             self.current = None
         self.hold()
+
+    def compact(self, spec: dict, group):
+        """The parked form of a panel: its headings, large enough to read."""
+        kind = spec.get("kind")
+        rows, self.handles = [], {}
+        if kind == "columns":
+            for col in spec.get("columns", []):
+                row = T(str(col["head"]), size=BODY, color=tone(col.get("tone")))
+                rows.append(row)
+                for entry in col.get("items", []):
+                    self.handles[str(entry)] = row
+                self.handles[str(col["head"])] = row
+        elif kind == "stack":
+            for layer in spec.get("layers", []):
+                name = layer[0] if isinstance(layer, (list, tuple)) else layer
+                row = T(str(name), size=BODY, color=tone(spec.get("tone")))
+                rows.append(row)
+                self.handles[str(name)] = row
+        else:
+            rows = [T(str(spec.get("head", "")), size=BODY, color=ACCENT)]
+        small = VGroup(*rows).arrange(DOWN, buff=0.3, aligned_edge=LEFT)
+        small.move_to(group.get_center())
+        return small
 
     # -- attention ---------------------------------------------------------
 

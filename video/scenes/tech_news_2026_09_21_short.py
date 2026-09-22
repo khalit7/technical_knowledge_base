@@ -59,7 +59,7 @@ from scenes.tech_news_2026_09_21 import (                            # noqa: E40
 from scripts.tech_news_2026_09_21_short import SCRIPT                # noqa: E402
 
 AUDIO = ROOT / "out" / "audio" / "tech_news_2026_09_21_short"
-TIMING = ROOT / "out" / "timing_2026_09_21_short.json"
+TIMING = ROOT / "out" / "timing_tech_news_2026_09_21_short.json"
 
 # Everything below the two persistent strips at the top of the frame.
 BODY_TOP = 2.15
