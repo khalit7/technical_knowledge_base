@@ -74,14 +74,15 @@ PROFILES = (
     (540, 40, "24k"),
 )
 
+# Bespoke scenes, which a script may still have when its argument needs its
+# own picture. Discovery handles everything else, and an entry whose file has
+# gone falls through rather than failing.
 SCENES = {
     # The two minute cut is its own edition with its own script; it reuses two
     # detail beats from the full episode by copying their rendered audio in.
     "tech_news_2026_09_21_short": ("scenes/tech_news_2026_09_21_short.py", "Short"),
     "tech_news_2026_09_14_short": ("scenes/tech_news_2026_09_14_short.py", "Short"),
     "tech_news_2026_09_07_short": ("scenes/tech_news_2026_09_07_short.py", "Short"),
-    "topic_llms_overview": ("scenes/topic_llms_overview.py", "Overview"),
-    "topic_cuda_overview": ("scenes/topic_cuda_overview.py", "Overview"),
     "deep_gpu_memory": ("scenes/deep_gpu_memory.py", "DeepDiveScene"),
 }
 

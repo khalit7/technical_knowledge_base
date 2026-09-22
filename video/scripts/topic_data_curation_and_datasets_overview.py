@@ -219,10 +219,10 @@ SCRIPT["corpora"] = [
     (A, "So, the corpora, and the flow on screen is the whole history. C four "
         "in twenty nineteen. RefinedWeb in twenty twenty three. FineWeb and "
         "D C L M in twenty twenty four. Dolma three and Nemotron C C now."),
-    (A, "What separates each generation from the one before it is not more raw "
+    (A, "What separates each generation from the one before is not more raw "
         "data. Every one of them is Common Crawl underneath. It is a better "
-        "model based quality classifier, and that is the single highest "
-        "leverage stage in this entire topic."),
+        "model based quality classifier, and that is the highest leverage stage "
+        "in the topic."),
 ]
 
 # --- the live disagreement ------------------------------------------------
@@ -245,8 +245,8 @@ SCRIPT["mixing"] = [
         "code, maths, papers, books, measurably changes downstream ability at "
         "fixed compute, and you can answer it without paying for the real run. "
         "DoReMi reads domain weights off a small proxy model. Data Mixing Laws "
-        "fit loss as a function of the proportions. RegMix is the cheap "
-        "regression over tiny runs."),
+        "fit loss against the proportions. RegMix is the cheap regression over "
+        "tiny runs."),
     (A, "But the bigger change is the shape on screen. The static mixture is "
         "gone. A broad bulk phase. Then a mid training phase over the last ten "
         "to thirty percent of tokens, upweighting maths, code and reasoning "
@@ -259,18 +259,18 @@ SCRIPT["mixing"] = [
 
 # --- manufactured text ----------------------------------------------------
 SCRIPT["synthetic"] = [
-    (A, "Fourth column, and now nobody crawled any of it. Generating documents "
-        "from scratch, the textbooks are all you need line, works, but it "
-        "narrows style and shapes skills towards benchmarks."),
+    (A, "Third column, and nobody crawled any of it. Generating documents from "
+        "scratch, the textbooks are all you need line, works, but it narrows "
+        "style and shapes skills towards benchmarks."),
     (A, "What went mainstream instead is the second line. Rephrasing. Have a "
-        "model rewrite a real web document into a cleaner register, which keeps "
-        "the information diversity of the real source and only fixes the form."),
+        "model rewrite a real web document into a cleaner register, keeping the "
+        "information diversity of the real source and fixing only the form."),
     (A, "Below it, fine tuning data moved from self instruct to curated "
         "distillation from a strong teacher, with reasoning traces verified "
         "before anything trains on them. Preference data is now mostly on "
-        "policy, scored by a judge model rather than by people. And verifiable "
-        "reward training swaps the reward model for a deterministic checker, so "
-        "its dataset is prompt and verifier pairs."),
+        "policy, scored by a judge model. And verifiable reward training swaps "
+        "the reward model for a deterministic checker, so its dataset is prompt "
+        "and verifier pairs."),
 ]
 
 # --- the new category -----------------------------------------------------
@@ -290,8 +290,8 @@ SCRIPT["environments"] = [
 SCRIPT["caveat"] = [
     (A, "Two caveats before the take. The three point two four figure is one "
         "decomposition, by one analyst, over one window. It is the best "
-        "quantification of the claim that exists, and it is not something "
-        "anybody has replicated."),
+        "quantification of the claim that exists, and nobody has replicated "
+        "it."),
     (B, "And is training on model output not the thing that ruins models?"),
     (A, "Model collapse. It is real in the experiment that named it, and that "
         "experiment assumed indiscriminate recursion replacing human data. The "

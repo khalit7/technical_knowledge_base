@@ -212,7 +212,7 @@ SCRIPT["pipeline"] = [
         "score, because their scales are not comparable."),
     (A, "Then a cross encoder reranker over the top fifty to a hundred and "
         "fifty. Thirty to three hundred milliseconds, and the highest leverage "
-        "thing you can add to a stack that already works."),
+        "thing you can add to a stack that works."),
 ]
 
 # --- the corpus is the product --------------------------------------------
@@ -264,8 +264,8 @@ SCRIPT["timing"] = [
         "retrieve. It is when. Meta put a second model beside an acting agent, "
         "whose only job is to decide at each step whether to remind it of "
         "something it already knows. That lifted a terminal benchmark from "
-        "thirty seven point six percent to forty five point nine, with no "
-        "retraining of the worker."),
+        "thirty seven point six to forty five point nine percent, without "
+        "retraining the worker."),
     (B, "Why does reminding it at every step not do better?"),
     (A, "Because a reminder consumes context and competes with the live task "
         "state, so the memory model's job is discrimination rather than "
@@ -276,13 +276,12 @@ SCRIPT["timing"] = [
 
 # --- how you know ---------------------------------------------------------
 SCRIPT["eval"] = [
-    (A, "Third column, briefly, because it is what settles the argument in your "
-        "own stack. Split the system and measure each half. Recall at k "
-        "dominates the retrieval side, because nothing downstream can recover "
-        "an answer that never entered the prompt. On the generation side a "
-        "judge model scores faithfulness, the fraction of the answer's claims "
-        "entailed by the retrieved context. Low faithfulness is hallucination "
-        "despite retrieving correctly."),
+    (A, "Third column, briefly, because it settles the argument in your own "
+        "stack. Split the system and measure each half. Recall at k dominates "
+        "the retrieval side, because nothing downstream can recover an answer "
+        "that never entered the prompt. On the generation side a judge model "
+        "scores faithfulness, the fraction of the answer's claims entailed by "
+        "the retrieved context."),
     (A, "And the triage is one bit. For every wrong answer, was the right chunk "
         "in the prompt? That assigns the bug to one half or the other, and it "
         "is worth more than any dashboard."),

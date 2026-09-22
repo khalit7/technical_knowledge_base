@@ -188,11 +188,11 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 # --- what this is ---------------------------------------------------------
 SCRIPT["ident"] = [
     (A, "This is the map of evaluation. Not the datasets, which are the "
-        "benchmarks topic. This is how evaluation is done: what you run, what "
-        "runs it, who grades it, and what you gate on."),
+        "benchmarks topic. This is how evaluation is done: what you run, "
+        "what runs it, and who grades it."),
     (A, "Current as of the twenty second of September, twenty twenty six. It "
         "earns an episode because an eval is a measuring instrument, and "
-        "almost nobody calibrates theirs."),
+        "nobody calibrates theirs."),
 ]
 
 # --- the inventory, before any explanation --------------------------------
@@ -201,9 +201,9 @@ SCRIPT["map"] = [
     (A, "On the left, the five things you can run, cheapest first. Static "
         "benchmarks, deterministic scoring over a fixed dataset. An L L M "
         "judge, which scales to anything and is a biased proxy for human "
-        "preference. Human evaluation, the reference standard, and itself "
-        "noisy. Regression gates, a frozen golden set in continuous "
-        "integration. And online measurement, on live traffic."),
+        "preference. Human evaluation, the reference standard, itself noisy. "
+        "Regression gates, a frozen golden set wired into C I. And online "
+        "measurement, on live traffic."),
     (A, "In the middle, the harnesses that run them. And the right hand "
         "column is what this episode is about. When a number moves, three "
         "different things could have moved. The model. The judge. Or the gold "
@@ -216,14 +216,14 @@ SCRIPT["question"] = [
     (A, "That is the assumption, and it is usually wrong. Most apparent model "
         "regressions turn out to be eval bugs first and model changes second."),
     (A, "So the question on the screen is the one everything after this "
-        "answers. When your instrument's number moves, which part of the "
-        "instrument moved?"),
+        "answers. When the number moves, which part of the instrument "
+        "moved?"),
 ]
 
 # --- the harnesses --------------------------------------------------------
 SCRIPT["harnesses"] = [
     (A, "The middle column. They all run a dataset through a model and score "
-        "it, and differ in what they treat as the unit of work."),
+        "it, and differ in what they call the unit of work."),
     (A, "L M evaluation harness treats it as a declarative task, and it is "
         "the reproducibility standard behind model card numbers. Inspect "
         "treats it as a program with a sandbox, which is why the safety "
@@ -235,54 +235,53 @@ SCRIPT["harnesses"] = [
 
 # --- the judge, and how grading mode fixes the bias ------------------------
 SCRIPT["judges"] = [
-    (A, "Now the judge, and the part people get wrong. How a judge grades "
-        "fixes which way it is biased."),
-    (A, "Pointwise gives one score on an absolute scale, and the scale "
-        "drifts: a seven today is not a seven next month. Pairwise agrees "
-        "with humans more, but carries position bias, so you run both "
-        "orderings, and ranking a field costs n squared."),
+    (A, "Now the judge, and the part people get wrong. How it grades fixes "
+        "which way it is biased."),
+    (A, "Pointwise gives one score on an absolute scale, and it drifts: a "
+        "seven today is not a seven next month. Pairwise agrees with humans "
+        "more, but carries position bias, so you run both orderings, and "
+        "ranking a field costs n squared."),
     (A, "Rubric grading against a reference is the most reliable where one "
         "exists, and the only mode that says which criterion failed. Compile "
-        "it into binary checks answered one at a time, and position bias has "
-        "no channel left to travel down."),
+        "it into binary checks answered one at a time, and the bias has no "
+        "channel left."),
 ]
 
 # --- the evidence that the bias is real ------------------------------------
 SCRIPT["bias"] = [
     (A, "Here is how far that goes. Somebody ran a null model against the "
-        "standard judged leaderboards. One constant reply, containing no "
-        "answer to anything, formatted to exploit how the judge's template is "
-        "parsed."),
+        "standard judged leaderboards. One constant reply, no answer to "
+        "anything, formatted to exploit how the judge's template is parsed."),
     (A, "Eighty six and a half percent length controlled win rate on "
-        "AlpacaEval two point zero. Eighty three on Arena Hard Auto."),
+        "AlpacaEval two. Eighty three on Arena Hard Auto."),
     (B, "A reply with no content won eighty six percent of its comparisons."),
     (A, "It did. Any pipeline that drops candidate text into a judge's "
         "template is prompt injectable by the candidate, which is why a judge "
-        "battery needs injection canaries in it."),
+        "battery needs injection canaries."),
 ]
 
 # --- calibration, and the ceiling above it --------------------------------
 SCRIPT["ceiling"] = [
     (A, "A judge needs a calibration certificate before its numbers mean "
-        "anything, and the two columns are what that involves."),
-    (A, "On the left, what gets reported. It is self consistent. It agrees "
-        "with a human eighty percent of the time. Here is the pass rate."),
+        "anything. On the left, what gets reported. It is self consistent. It "
+        "agrees with a human eighty percent of the time. Here is the pass "
+        "rate."),
     (A, "Self consistency certifies nothing: a judge can be reproducible and "
         "systematically wrong at once. And that eighty percent needs the "
         "middle line on the right. Two humans labelling open ended work agree "
         "seventy five to eighty five percent of the time."),
     (B, "So a judge at eighty percent might already be at the ceiling."),
-    (A, "It might be. And you cannot tell which without a human labelled "
-        "slice and Cohen's kappa against it."),
+    (A, "It might be. And you cannot tell without a human labelled slice and "
+        "Cohen's kappa against it."),
 ]
 
 # --- the third suspect ----------------------------------------------------
 SCRIPT["gold"] = [
-    (A, "Third suspect, and the one nobody audits. Your gold labels are wrong "
-        "at rates that dominate the deltas you are gating on."),
+    (A, "Third suspect, the one nobody audits. Your gold labels are wrong at "
+        "rates that dominate the deltas you gate on."),
     (A, "About five percent of G S M eight K items are wrong. On several "
         "benchmarks, once the labels were cleaned, most of what looked like "
-        "model failure was label noise, and rankings move ten to fifteen "
+        "model failure was label noise, and rankings moved ten to fifteen "
         "points."),
     (A, "Which means a gate can fail a better model for disagreeing with a "
         "wrong answer. The bottom two lines are the fix. Send disagreements "
@@ -296,41 +295,39 @@ SCRIPT["refusal"] = [
     (A, "And in agentic systems the thing you are scoring slips out from "
         "under you. MOLE ran a hundred and fifty A I operated accounts across "
         "nine shared services for thirty simulated working days. Seventy two "
-        "percent of thirty nine agent models completed most of the harm they "
-        "were assigned."),
+        "percent of thirty nine models completed most of the harm they were "
+        "assigned."),
     (A, "The result to carry is not that number. It is that a model's stated "
-        "refusal did not predict whether it actually declined."),
+        "refusal did not predict whether it declined."),
     (B, "So it says no, and does it anyway."),
     (A, "Sometimes. Which means grading the response string measures the "
-        "wrong variable, once the harm lives in the tool calls rather than in "
-        "the text."),
+        "wrong variable, once the harm lives in the tool calls."),
 ]
 
 # --- the structural answer ------------------------------------------------
 SCRIPT["enclave"] = [
-    (A, "Which brings us to the one structural answer here, aimed at the "
-        "oldest problem on the page. Contamination is handled by promise, and "
-        "nobody can check afterwards that a held out set stayed held out."),
+    (A, "The one structural answer here is aimed at the oldest problem on "
+        "the page. Contamination is handled by promise, and nobody can check "
+        "that a held out set stayed held out."),
     (A, "In August, Google DeepMind ran what it calls the first double blind "
         "evaluation of a proprietary model, with the Singapore A I Safety "
-        "Institute, OpenMined and MLCommons. Both secrets go into one "
-        "hardware encrypted enclave. The lab never sees the prompts. The "
-        "evaluator never sees the weights."),
+        "Institute and MLCommons. Both secrets go into one hardware "
+        "encrypted enclave. The lab never sees the prompts, the evaluator "
+        "never sees the weights."),
     (A, "That makes non contamination a property of the execution "
         "environment rather than a promise. It was a pilot on a small model, "
-        "and it costs you the transcripts you would normally debug a bad "
-        "score with."),
+        "and it costs you the transcripts you would debug a bad score with."),
 ]
 
 # --- the take -------------------------------------------------------------
 SCRIPT["close"] = [
     (A, "So what is the map for? For remembering that your eval's number is "
         "the output of three fallible parts, and a delta has to be pinned on "
-        "one of them before anybody acts on it."),
-    (A, "The habits that follow are small. Pin the judge model and the prompt "
-        "version, and treat a change to either as a new instrument. Run both "
-        "orderings. Check the output was not truncated before you grade it, "
-        "because a judge scores a cut off answer as a quality failure."),
+        "one of them before anybody acts."),
+    (A, "The habits that follow are small. Pin the judge model and the "
+        "prompt version, and treat a change to either as a new instrument. "
+        "Run both orderings. And check the output was not truncated before "
+        "you grade it, because a judge reads a cut off answer as bad work."),
     (A, "And the one to start with today. Before you believe your next "
         "failing gate, audit the items it failed on."),
 ]
