@@ -50,11 +50,17 @@ SHORT_BEAT_WORDS = 25       # below this, the voice model is least stable
 WPM = 148                   # the measured delivery rate
 CONTRACT_MINUTES = 3.0      # above this, a contract beat stops being optional
 
-# An overview does not need a separate contract beat, because building the
-# whole map on screen before explaining any of it IS the contract, and a
-# stronger one than a list of steps: the viewer can see the entire scope.
-# Its question beat still has to say where the tour goes.
-CONTRACT_EXEMPT = {"overview"}
+# Only a deep dive needs a contract beat of its own.
+#
+# An overview does not, because building the whole map on screen before
+# explaining any of it IS the contract, and a stronger one than a list of
+# steps: the viewer can see the entire scope rather than being told about it.
+#
+# A news edition does not, because its opening already says how many stories
+# there are and roughly what they are, which is the same promise. Requiring
+# one here pushed an edition towards inventing a thread to promise, which is
+# the defect the skill now names outright.
+CONTRACT_EXEMPT = {"overview", "news"}
 
 # News runs a coda of smaller items after the take, deliberately, so the take
 # is near the end rather than at it.

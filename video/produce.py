@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -44,6 +45,25 @@ REPO = ROOT.parent
 UV = os.environ.get("KB_UV", "uv")
 GROUPS = ["--group", "tts", "--group", "video"]
 LOGS = ROOT / "out" / "logs"
+
+def die_with_parent():
+    """Ask the kernel to signal this child when its parent dies.
+
+    A voice worker holds twenty four gigabytes of GPU memory. Killing the
+    scheduler used to leave its workers running: they kept voicing into a
+    queue nobody was reading, kept both cards occupied, and the next run then
+    failed to start with CUDA out of memory. Nothing in the logs said why.
+
+    PR_SET_PDEATHSIG makes that impossible: the worker gets SIGTERM the
+    moment the parent exits, however it exits.
+    """
+    try:
+        import ctypes
+        PR_SET_PDEATHSIG = 1
+        ctypes.CDLL("libc.so.6").prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+    except Exception:
+        pass            # not Linux, or no prctl: the finally-block still runs
+
 
 lock = threading.Lock()
 state: dict[str, str] = {}
@@ -81,7 +101,7 @@ def voice_worker(gpu: str, pending: deque, cpu: ThreadPoolExecutor,
             [UV, "run", "--project", REPO, *GROUPS, "python", "tts/render.py",
              "--serve", "--device", "cuda:0", "--attempts", str(attempts)],
             cwd=ROOT, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=fh, text=True, bufsize=1)
+            stderr=fh, text=True, bufsize=1, preexec_fn=die_with_parent)
         assert worker.stdin and worker.stdout
 
         # The worker says READY once the model is resident. Anything else on
@@ -112,9 +132,13 @@ def voice_worker(gpu: str, pending: deque, cpu: ThreadPoolExecutor,
                 mark(episode, f"VOICE FAILED ({reply or 'worker died'}), see {log}")
                 if not reply:
                     break
-        worker.stdin.write("quit\n")
-        worker.stdin.flush()
-        worker.wait(timeout=120)
+        try:
+            worker.stdin.write("quit\n")
+            worker.stdin.flush()
+            worker.wait(timeout=120)
+        finally:
+            if worker.poll() is None:
+                worker.kill()
 
 
 def main() -> int:

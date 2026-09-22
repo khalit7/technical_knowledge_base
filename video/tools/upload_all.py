@@ -18,7 +18,7 @@ sys.path.insert(0, str(REPO / "video"))
 sys.path.insert(0, str(REPO / "tools"))
 sys.path.insert(0, str(HERE))
 import notion_mirror as nm                                   # noqa: E402
-from upload import upload                                    # noqa: E402
+from upload import upload, place_at_top, remove_existing_video   # noqa: E402
 from stale import check as stale_check                       # noqa: E402
 
 CAP = 4.7
@@ -90,8 +90,9 @@ def main() -> int:
         if not args.go:
             print(f"would upload {name} ({mib:.2f} MiB) -> {meta['title']}")
             continue
+        remove_existing_video(api, meta["page_id"])
         fid = upload(api, mp4)
-        api._request("PATCH", f"/blocks/{meta['page_id']}/children", json={"children": [
+        place_at_top(api, meta["page_id"], [
             {"object": "block", "type": "heading_1",
              "heading_1": {"rich_text": [{"type": "text", "text": {"content": "Video"}}]}},
             {"object": "block", "type": "paragraph",
@@ -99,7 +100,7 @@ def main() -> int:
             {"object": "block", "type": "video",
              "video": {"type": "file_upload", "file_upload": {"id": fid},
                        "caption": [{"type": "text", "text": {"content": caption}}]}},
-        ]})
+        ])
         print(f"uploaded {name} ({mib:.2f} MiB) -> {meta['title']}")
         done += 1
 

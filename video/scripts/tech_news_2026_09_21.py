@@ -4,46 +4,25 @@ Narration for "Tech news, week to 21 September 2026".
 Source: the canonical Notion page "2026-09-21: tech news". Every figure below
 comes from that page; nothing is invented for narrative shape.
 
-Written with the five-step method the knowledge base skill "Explainer video
-style and voice" prescribes, which is Google's published NotebookLM order:
+Rewritten after Khalid watched the first cut: **the stories are not merged.**
 
-  1. outline
-  2. revise the outline
-  3. write the detailed script, sterile
-  4. critique it and fix what the critique found
-  5. last, and only last, add the breaths and the false starts
+The first version was built as "two stories, one point", with a spine running
+from a task-horizon chart through a serving-infrastructure post to two
+mathematical proofs, all arguing that the constraint had moved from capability
+to verification. It is a good argument. It is not what happened this week.
+Four unrelated things happened in the same seven days, and bending them onto
+one line made the episode harder to follow than reading the page. The skill
+now says so outright.
 
-The outline that survived step 2:
+So this cut is four stories, in order, each finished before the next begins.
+Each opens the same way: the headline in plain words, why it matters, the
+context you need, and only then the detail and the caveat. The handovers are
+flat on purpose ("second story") and imply no relationship, because there is
+none. The close is about the week, not about a thread running through it.
 
-    tension     two agent systems proved theorems this month, fifty times apart
-                in cost
-    question    when the machines do the work, what actually limits them
-    contract    start from the numbers everyone is quoting, then go one layer
-                down to why the cheap run was cheap
-    ground      the task-horizon series, because it is the number everyone has
-                already seen
-    walk        leverage is real -> but capability was not the binding
-                constraint -> the GLM serving story says the constraint was
-                feedback -> which explains the proof cost gap -> so the field
-                is now optimising the loop, not the model
-    objection   this is vendors marking their own homework
-    take        the constraint moved from capability to verification
-    coda        the rest of the week in thirty seconds
-
-What the step-4 critique caught, and what changed:
-
-  - The first draft opened on the Anthropic percentages. They are the most
-    quoted numbers of the week and therefore the least interesting thing to
-    open on. Moved to beat 5, behind the cost gap, which nobody has seen.
-  - The Lean proofs were two separate stories in draft one. They are one story:
-    the same class of result at fifty times the cost, and the difference is how
-    much verified structure each one started from. Merged.
-  - Draft one let "recursive self-improvement" stand unexamined. The GLM post
-    explicitly denies having reached it, and that denial is the honest spine of
-    the episode. Promoted.
-  - Two numbers were doing no work (the 166-page paper, the 97 languages) and
-    were cut rather than shrunk.
-  - Speaker B was agreeing. B now interrupts three times and is right each time.
+What moved: the Nous refactor is now evidence inside story four rather than a
+story of its own, and the three loop papers became one line in the coda,
+because none of them carries a number worth a beat.
 
 Speakers:
   A  narrator, owns the spine and the visuals
@@ -58,314 +37,272 @@ B = "B"
 
 FORMAT = "news"
 TITLE = "Tech news, week to 21 September 2026"
-SUBTITLE = "when the machines do the work, what is actually limiting them"
+SUBTITLE = "four stories, and the rest of the week at the end"
 UPDATED = "21 September 2026"
 
-# The visuals are declared rather than hand-positioned. The bespoke scene this
-# replaces was 585 lines, and its defects were all of one kind: it centred each
-# beat in the whole frame while a diagram was parked down the left, so the
-# content ran underneath it, and it parked a chart whose labels came out at six
-# pixels in the delivered file. Neither is possible here, because the panel
-# layer reserves the space beside a parked panel and the layout audit measures
-# text at delivery size.
-ROLES = {"opening": "ident", "contract": "contract", "objection": "objection"}
+# The contract is a clause inside the opening rather than a beat of its own:
+# "four stories, and here is what they are" tells the viewer the shape of the
+# next seven minutes, which is what a contract is for. The skill allows this
+# and asks that the script say so rather than letting a checker guess.
+ROLES = {"opening": "ident", "contract": "ident", "question": "s1_open",
+         "take": "close"}
+
+SCRIPT: dict[str, list[tuple[str, str]]] = {
+    "ident": [
+        (A, "This is the technical news. Week ending the twenty first of "
+            "September, twenty twenty six."),
+        (A, "Four stories this week. A lab publishing numbers on its own "
+            "engineering. Two machine checked proofs at wildly different "
+            "prices. A model that built the software now serving it. And a "
+            "study of what agents do when somebody attacks them."),
+        (A, "They are not connected, and I am not going to pretend they are. "
+            "The rest of the week comes at the end."),
+    ],
+
+    "s1_open": [
+        (A, "Story one. Anthropic published a report measuring how much of "
+            "its own engineering its models now do."),
+        (A, "It matters because this argument is normally conducted with "
+            "adjectives. This is the first time a frontier lab has put a "
+            "series of numbers behind it."),
+        (A, "The context you need is that these are internal measurements. "
+            "Nobody outside a frontier lab can measure a frontier lab. Keep "
+            "that in your pocket, I will come back to it."),
+    ],
+    "s1_detail": [
+        (A, "The number that carries is task horizon. How long a job a model "
+            "can finish on its own, start to finish."),
+        (A, "March, twenty twenty four. Opus three. About four minutes."),
+        (A, "March, twenty twenty five. Sonnet three point seven. Ninety "
+            "minutes."),
+        (A, "March this year. Opus four point six. Twelve hours."),
+        (B, "And the axis on that chart is logarithmic, so every step is much "
+            "bigger than it looks."),
+        (A, "It is. The projection for next year is work that would take a "
+            "person weeks."),
+    ],
+    "s1_leverage": [
+        (A, "The leverage numbers around it are the part people quoted."),
+        (A, "More than eighty percent of the code merged into Anthropic's own "
+            "production codebase was written by Claude, as of May."),
+        (A, "The model leads twenty six percent of their artificial "
+            "intelligence research work, with more than thirty thousand "
+            "internal agents running at any one time. And their continuous "
+            "integration workload grew twenty five fold in six months."),
+    ],
+    "s1_caveat": [
+        (B, "So this is Anthropic measuring Anthropic."),
+        (A, "It is, and that is the honest way to read all of it. Every figure "
+            "was produced by the company that benefits from the answer, which "
+            "is also why it exists at all. Take the direction of the series "
+            "seriously and any single value with a pinch of salt."),
+    ],
+
+    "s2_open": [
+        (A, "Second story. Two different labs produced formally verified "
+            "mathematics this month. Real proofs, checked by machine."),
+        (A, "It matters because a proof is not a benchmark score. There is no "
+            "partial credit and nothing to game."),
+        (A, "Both are written in Lean, a language for stating mathematics a "
+            "computer can check line by line. If it compiles, the theorem is "
+            "proved."),
+    ],
+    "s2_detail": [
+        (A, "Anthropic's run took eleven days and about six billion output "
+            "tokens. Its agents coordinated through an open platform called "
+            "Prove2Me, over a graph of theorem statements."),
+        (A, "OpenAI's grew to ten thousand concurrent agents, exchanged four "
+            "point nine million messages, and burned roughly three hundred "
+            "billion output tokens. Estimated cost, two to twenty two and a "
+            "half million dollars."),
+        (B, "Same category of result, fifty times the bill."),
+        (A, "Roughly, yes. And the thing that explains the gap is not one team "
+            "being cleverer than the other."),
+    ],
+    "s2_why": [
+        (A, "Anthropic's run built on Kevin Buzzard's formalisation effort at "
+            "Imperial. It was standing on verified ground and adding to it."),
+        (A, "OpenAI's problem had far less of that already built, so it paid to "
+            "construct the scaffolding as it went."),
+        (A, "So the lesson is about starting position rather than about either "
+            "lab. How much verified structure you begin with is most of what a "
+            "run like this costs."),
+    ],
+
+    "s3_open": [
+        (A, "Third story. Zed dot A I published an account of how their model "
+            "built the inference software that now serves it."),
+        (A, "It matters because it is unusually specific. Most claims in this "
+            "area are about what a model could do. This one is about what "
+            "shipped, on more than a hundred thousand Chinese accelerators."),
+        (A, "Thirteen days from start to production. Three point two two times "
+            "the throughput they began with."),
+    ],
+    "s3_detail": [
+        (A, "The interesting claim is about why it worked, and they are blunt "
+            "about it. The bottleneck was never the model. It was the "
+            "feedback."),
+        (A, "So they replaced one sparse signal, the test failed, with three "
+            "kinds of local, verifiable feedback."),
+        (A, "Correctness, by comparing results across execution paths. System "
+            "behaviour, by reading timelines instead of totals. Performance, by "
+            "layered testing that shows which constraint is binding."),
+    ],
+    "s3_bugs": [
+        (A, "You can see what that buys, because two bugs fell out of it that "
+            "an end to end metric would never have produced."),
+        (A, "A T F thirty two precision bug visible under one parallelism "
+            "strategy only. And a twenty percent slowdown that turned out to "
+            "be the Python global interpreter lock, blocking the key value "
+            "cache transfer from overlapping."),
+        (B, "Neither of which shows up as anything except, it is a bit slow."),
+        (A, "Exactly. The model could not have fixed either one, because "
+            "nothing told it they existed."),
+    ],
+    "s3_caveat": [
+        (B, "Is this the self improving system everybody keeps predicting?"),
+        (A, "They say no, explicitly, and that is why the post is worth "
+            "reading. Humans kept the objectives and the boundaries. What "
+            "changed was the environment the model worked inside."),
+    ],
+
+    "s4_open": [
+        (A, "Fourth story, and it is the one I would actually act on."),
+        (A, "A group called Emergence stress tested long horizon multi agent "
+            "systems under attack. Eight worlds, ten agents each, sixteen "
+            "days, eight hundred and fifty thousand model calls."),
+        (A, "It matters because everything else published about agents measures "
+            "them doing their job. This measures them being interfered with, "
+            "which is the condition they will run in."),
+    ],
+    "s4_detail": [
+        (A, "None of the systems was resilient. And the finding that should "
+            "worry you is not that they were fooled."),
+        (A, "It is that detection did not ensure containment. Systems "
+            "recognised adversarial content, and then went on interacting with "
+            "it, in some cases for another forty six hours."),
+        (B, "So the system knew, and carried on anyway."),
+        (A, "The system knew, and nothing in the loop was wired to act on "
+            "knowing. Detection is not a control. It is a signal, and a signal "
+            "with nothing attached to it changes nothing."),
+    ],
+    "s4_review": [
+        (A, "There is a friendlier version of the same shape from Nous "
+            "Research. They pointed nearly fourteen hundred subagents at a "
+            "million line Python repository for about nineteen hours, and cut "
+            "a third of the non test source for around nineteen thousand "
+            "dollars."),
+        (A, "The tests passed. Human reviewers then found removed public "
+            "interfaces that the tests had happily approved. A green suite is "
+            "not a review."),
+    ],
+
+    "coda": [
+        (A, "Quickly, the rest of the week."),
+        (A, "Vera Rubin N V L seventy two posted up to seven times the token "
+            "throughput per megawatt of G B three hundred, on pre release "
+            "software. N Vidia shipped GPU programming in Rust, in two tracks."),
+        (A, "Bonsai two squeezed a twenty seven billion parameter model to one "
+            "point seven six bits per weight, keeping ninety eight percent of "
+            "its scores. And Claude Code now reads an agents markdown file."),
+        (A, "Last, experts re-graded six popular physics benchmarks and found "
+            "most of the failures everyone had reported were the test's fault. "
+            "Wrong answer keys, ambiguous questions, grader bugs."),
+    ],
+    "close": [
+        (A, "So, four stories, and they do not add up to one thing. That is "
+            "normal, and a week that did add up to one thing would be the "
+            "surprising case."),
+        (A, "If you take one of them, take the fourth. Detection without "
+            "containment is the failure mode most likely to be sitting inside "
+            "something you are already running."),
+        (A, "The written issue has all of it, with the sources."),
+    ],
+}
 
 VISUALS = {
     "ident": {"kind": "title"},
-    "cold_open": {"kind": "bars", "head": "two proofs, same class of result", "bars": [
-        {"label": "Anthropic, Fermat", "text": "6 billion output tokens",
-         "value": 6, "tone": "verified"},
-        {"label": "OpenAI, Navier-Stokes", "text": "300 billion output tokens",
-         "value": 300, "tone": "cost"},
-    ]},
-    "question": {"kind": "claim",
-                 "text": "When the machines are doing the work,\nwhat is actually limiting them?",
-                 "note": "it is not how clever the model is: both runs worked"},
-    "contract": {"kind": "flow", "tone": "machinery",
-                 "steps": ["the numbers", "one layer down", "why the cheap run was cheap"]},
-    "horizon": {"kind": "bars", "head": "task horizon: how long a job it finishes alone",
-                "bars": [
+
+    "s1_open": {"kind": "claim",
+                "text": "Anthropic measured how much of its own\nengineering its models now do.",
+                "note": "the first frontier lab to put a series of numbers behind the argument"},
+    "s1_detail": {"kind": "bars", "head": "task horizon: how long a job it finishes alone",
+                  "bars": [
         {"label": "Opus 3, Mar 2024", "text": "4 minutes", "value": 4},
         {"label": "Sonnet 3.7, Mar 2025", "text": "90 minutes", "value": 90},
         {"label": "Opus 4.6, Mar 2026", "text": "12 hours", "value": 720},
         {"label": "projected, 2027", "text": "weeks", "value": 1440, "tone": "context"},
     ]},
-    "horizon_caveat": {"kind": "points", "head": "read that chart twice", "tone": "cost",
-                       "items": ["the axis is logarithmic: every step is bigger than it looks",
-                                 "Anthropic measured Anthropic"]},
-    "leverage": {"kind": "points", "head": "the leverage, as of May", "items": [
-        "80%+ of code merged into Anthropic's production codebase, written by Claude",
+    "s1_leverage": {"kind": "points", "head": "the leverage, as of May", "items": [
+        "80%+ of merged production code, written by Claude",
         "26% of their AI research work, led by the model",
         "30,000+ internal agents running at any one time",
         "CI workload 25x in six months; the test suite 10x to keep up",
     ]},
-    "pivot": {"kind": "claim",
-              "text": "The expensive part stopped being the thinking.\nIt became the checking.",
-              "note": "and the clearest evidence came from a serving stack"},
-    "glm": {"kind": "stat", "big": "3.22x", "caption": "throughput, in thirteen days",
-            "note": "GLM-5.3 built the inference stack that now serves it, "
-                    "on 100,000+ Chinese accelerators. Z.ai says this is not "
-                    "recursive self improvement, and that is why it is worth reading"},
-    "feedback": {"kind": "columns", "park": True, "columns": [
+    "s1_caveat": {"kind": "claim", "text": "Anthropic measured Anthropic.",
+                  "note": "take the direction of the series, not any single value"},
+
+    "s2_open": {"kind": "claim",
+                "text": "Two labs produced machine-checked\nmathematics this month.",
+                "note": "written in Lean: either the proof assistant accepts it, or it does not"},
+    "s2_detail": {"kind": "compare", "sides": [
+        {"head": "Anthropic", "tone": "verified", "items": [
+            "11 days",
+            "about 6 billion output tokens",
+            "agents coordinated over a graph of theorems"]},
+        {"head": "OpenAI", "tone": "cost", "items": [
+            "10,000 concurrent agents",
+            "4.9 million messages",
+            "about 300 billion tokens, $2m to $22.5m"]},
+    ]},
+    "s2_why": {"kind": "claim",
+               "text": "The gap is starting position,\nnot cleverness.",
+               "note": "how much verified structure you begin with is most of what it costs"},
+
+    "s3_open": {"kind": "stat", "big": "3.22x", "caption": "throughput, in thirteen days",
+                "note": "GLM-5.3 built the inference software that now serves it, "
+                        "on more than 100,000 Chinese accelerators"},
+    "s3_detail": {"kind": "columns", "park": True, "columns": [
         {"head": "correctness", "tone": "verified",
-         "items": ["compare numerical results", "across execution paths"]},
+         "items": ["compare results", "across execution paths"]},
         {"head": "system behaviour", "tone": "machinery",
          "items": ["timelines, not totals"]},
         {"head": "performance", "tone": "number",
          "items": ["layered testing", "which constraint binds"]},
     ]},
-    "bugs": {"kind": "points", "head": "two bugs an end-to-end metric never finds",
-             "tone": "cost", "items": [
-        "a TF32 precision bug, visible under one parallelism strategy only",
+    "s3_bugs": {"kind": "points", "head": "two bugs an end-to-end metric never finds",
+                "tone": "cost", "items": [
+        "a TF32 precision bug, under one parallelism strategy only",
         "a 20% slowdown that was the Python global interpreter lock",
         "the model could not have fixed either: nothing told it they existed",
     ]},
-    "proofs": {"kind": "compare", "sides": [
-        {"head": "11 days, 6B tokens", "tone": "verified", "items": [
-            "agents coordinated over a graph of theorems",
-            "built on Buzzard's verified formalisation",
-            "standing on verified ground, adding to it"]},
-        {"head": "10,000 concurrent agents", "tone": "cost", "items": [
-            "4.9 million messages",
-            "about 300 billion output tokens",
-            "an estimated $2m to $22.5m"]},
+    "s3_caveat": {"kind": "claim", "text": "The lab says this is not\nself-improvement.",
+                  "note": "humans kept the objectives and the boundaries"},
+
+    "s4_open": {"kind": "stat", "big": "850,000", "caption": "model calls, under attack",
+                "tone": "cost",
+                "note": "eight worlds, ten agents each, sixteen days"},
+    "s4_detail": {"kind": "claim",
+                  "text": "Detection did not ensure containment.",
+                  "note": "systems recognised adversarial content and went on interacting "
+                          "with it, in some cases for another 46 hours"},
+    "s4_review": {"kind": "points", "head": "the friendlier version of the same shape",
+                  "items": [
+        "1,393 subagents, 19 active hours, about $19,000",
+        "a third of the non-test source removed, and the tests passed",
+        "human reviewers then found removed public interfaces",
     ]},
-    "loop": {"kind": "points", "head": "three papers went after the loop, not the model",
-             "items": [
-        "Nvidia Sol-Pi: about half an agent's tokens are harness overhead, 45% cut at the same success rate",
-        "Agora: no planner, Git as shared memory. 13 workers, 12 days, 1,700 contributions",
-        "165 independent reproductions, zero failures",
-    ]},
-    "counterweight": {"kind": "stat", "big": "46 hours", "caption": "of continued interaction after detection",
-                      "tone": "cost",
-                      "note": "Emergence World stress tested eight worlds, 850,000 model "
-                              "calls, 50 billion tokens. None was resilient, and detection "
-                              "did not ensure containment"},
-    "nous": {"kind": "stat", "big": "1/3", "caption": "of the non-test source, removed",
-             "note": "1,393 subagents, 19 active hours, about $19,000. The tests passed. "
-                     "Human reviewers then found removed public interfaces"},
-    "objection": {"kind": "points", "head": "the obvious objection", "tone": "cost", "items": [
-        "almost every number here comes from the company that benefits from it",
-        "notice which survive it: the GLM bugs and the Nous findings carry a mechanism",
-        "and experts re-graded six physics benchmarks: most failures were the test's fault",
-    ]},
-    "take": {"kind": "claim",
-             "text": "The constraint moved from capability to verification.",
-             "note": "so the question about your own stack is not which model, "
-                     "but what it finds out when it is wrong, and how soon"},
+
     "coda": {"kind": "points", "head": "the rest of the week", "items": [
-        "Vera Rubin NVL72: up to 7x the tokens per megawatt of GB300, on pre-release software",
+        "Vera Rubin NVL72: up to 7x the tokens per megawatt of GB300",
         "Nvidia shipped GPU programming in Rust, in two tracks",
-        "Bonsai 2: 27B squeezed to 1.76 bits per weight, 5.9 GB, 98% of its scores",
+        "Bonsai 2: 27B at 1.76 bits per weight, 98% of its scores",
         "Claude Code now reads an agents markdown file",
+        "six physics benchmarks re-graded: most failures were the test's fault",
     ]},
-    "outro": {"kind": "claim",
-              "text": "The written issue has all of it, with the sources.",
-              "note": "this was the part I could not stop thinking about"},
-}
-
-SCRIPT: dict[str, list[tuple[str, str]]] = {
-    # 0. what this is. Not optional, and not the same thing as a title card:
-    # a viewer who cannot tell what they are watching stops watching, and
-    # opening on a surprising number about a subject nobody has named yet
-    # loses them rather than intriguing them.
-    "ident": [
-        (A, "This is the technical news. Week ending the twenty first of "
-            "September, twenty twenty six."),
-        (A, "One story runs through the whole issue. It is about what is "
-            "actually slowing these systems down. Not how clever they are. "
-            "What stops them finishing. The rest of the week comes at the end."),
-    ],
-
-    # 1. tension
-    "cold_open": [
-        (A, "Two different agent systems produced formally verified mathematics this month. "
-            "Real proofs, checked by machine, not press releases."),
-        (A, "One of them spent about six billion output tokens. "
-            "The other spent about three hundred billion."),
-        (A, "Same category of result. Fifty times the bill."),
-    ],
-
-    # 2. the sharp question
-    "question": [
-        (A, "So that is the question worth eight minutes of your time. "
-            "When the machines are doing the work, what is actually limiting them?"),
-        (B, "Because it is obviously not how clever the model is. "
-            "Both of those runs worked."),
-    ],
-
-    # 3. the contract
-    "contract": [
-        (A, "Right. So we are going to start with the numbers everyone quoted this week, "
-            "and then go one layer underneath them, to why the cheap run was cheap. "
-            "It gets more technical as it goes."),
-    ],
-
-    # 4. common ground: the task horizon
-    "horizon": [
-        (A, "Start where you already are. Task horizon. "
-            "How long a job a model can finish on its own, start to finish."),
-        (A, "March, twenty twenty four. Opus three. About four minutes."),
-        (A, "March, twenty twenty five. Sonnet three point seven. Ninety minutes."),
-        (A, "March this year. Opus four point six. Twelve hours."),
-        (A, "And the projection for next year is work that would take a person weeks."),
-    ],
-    "horizon_caveat": [
-        (B, "And I want to stop you on that chart, because the axis is logarithmic. "
-            "Every step up is much bigger than it looks."),
-        (B, "Also, Anthropic measured Anthropic."),
-        (A, "Both true. Hold onto the second one, it comes back at the end."),
-    ],
-
-    # 5. leverage is real
-    "leverage": [
-        (A, "The leverage numbers around it are genuinely striking, though. "
-            "More than eighty percent of the code merged into Anthropic's own production "
-            "codebase was written by Claude, as of May."),
-        (A, "The model now leads twenty six percent of their artificial intelligence research work, "
-            "with more than thirty thousand internal agents running at any one time."),
-        (A, "Their continuous integration workload grew twenty five fold in six months. "
-            "The test suite grew ten fold just to keep up with it."),
-        (B, "That last one is the tell, isn't it. "
-            "The verification bill grew faster than anything else."),
-    ],
-
-    # 6. the pivot
-    "pivot": [
-        (A, "That is the turn this whole episode is built on. "
-            "The expensive part stopped being the thinking, and became the checking."),
-        (A, "And the clearest evidence for it came from a serving stack, of all places."),
-    ],
-
-    # 7. the GLM story
-    "glm": [
-        (A, "Zed dot A I published a post about how G L M five point three built the "
-            "inference infrastructure that now serves it, on more than a hundred thousand "
-            "Chinese accelerators."),
-        (A, "Thirteen days from start to production. Three point two two times the "
-            "throughput they began with."),
-        (B, "And they are careful to say this is not recursive self improvement."),
-        (A, "They are, and that is exactly why the post is worth reading. "
-            "Humans kept the objectives and the boundaries. "
-            "What changed was the environment the model worked inside."),
-    ],
-    "feedback": [
-        (A, "Their claim is that the bottleneck was never the model. It was the feedback."),
-        (A, "So they replaced one sparse signal, the test failed, "
-            "with three kinds of local, verifiable feedback."),
-        (A, "Correctness, by comparing numerical results across different execution paths."),
-        (A, "System behaviour, by looking at timelines instead of totals."),
-        (A, "And performance, by layered testing that shows which constraint is actually binding."),
-    ],
-    "bugs": [
-        (A, "And you can see what that buys, because two bugs fell out of it "
-            "that an end to end metric would never have produced."),
-        (A, "A T F thirty two precision bug that was only visible under one particular "
-            "parallelism strategy. Caught by comparing execution paths against each other."),
-        (A, "And a twenty percent slowdown that turned out to be the Python global "
-            "interpreter lock, blocking the key value cache transfer from overlapping."),
-        (B, "Neither of which shows up as anything except, it's a bit slow."),
-        (A, "Exactly. The model could not have fixed either one, because nothing told it they existed."),
-    ],
-
-    # 8. back to the proofs
-    "proofs": [
-        (A, "Now take that back to the two proofs, because the gap stops being mysterious."),
-        (A, "Anthropic's run took eleven days and about six billion output tokens. "
-            "Its agents coordinated through an open platform called Prove2Me, over a "
-            "graph of theorem statements, and it built on Kevin Buzzard's "
-            "formalisation effort at Imperial. It was standing on verified ground "
-            "and adding to it."),
-        (A, "OpenAI's run grew to ten thousand concurrent agents, exchanged four point nine "
-            "million messages, and burned roughly three hundred billion output tokens, "
-            "for an estimated two to twenty two and a half million dollars."),
-        (B, "Which is a real result. Navier Stokes blow up, verified in Lean. "
-            "That is not nothing."),
-        (A, "It is not nothing at all. But the cheaper run had more of its verification "
-            "already built. That is most of the difference, and it is a design choice, "
-            "not a capability difference."),
-    ],
-
-    # 9. the field noticed
-    "loop": [
-        (A, "And the rest of the week says the field has worked this out too, "
-            "because three separate papers went after the loop rather than the model."),
-        (A, "N Vidia's Sol Pi found that roughly half of an agent's token traffic is "
-            "harness inefficiency. Not thinking. Overhead. "
-            "They cut about forty five percent of the tokens at the same task success rate."),
-        (A, "Agora threw away the planner entirely and used Git as shared memory. "
-            "Thirteen workers, twelve days, seventeen hundred contributions, "
-            "and a hundred and sixty five independent reproductions with zero failures."),
-        (B, "Reproducible is the word I would underline there."),
-    ],
-
-    # 10. the counterweight
-    "counterweight": [
-        (A, "So, the counterweight, because it landed the same week and it is the more "
-            "important result."),
-        (A, "Emergence World stress tested long horizon multi agent systems under attack. "
-            "Eight worlds, ten agents each, sixteen days, eight hundred and fifty thousand "
-            "model calls, fifty billion tokens."),
-        (A, "None of the systems was resilient. And the finding that should worry you is not "
-            "that they were fooled."),
-        (A, "It is that detection did not ensure containment. "
-            "Systems recognised adversarial content, and then went on interacting with it, "
-            "in some cases for another forty six hours."),
-        (B, "So the system knew, and carried on anyway."),
-        (A, "The system knew, and nothing in the loop was wired to act on knowing."),
-    ],
-    "nous": [
-        (A, "You can see the same shape in a friendlier setting. "
-            "Nous Research pointed one thousand three hundred and ninety three subagents "
-            "at a million line Python repository for about nineteen active hours, "
-            "and cut a third of the non test source for around nineteen thousand dollars."),
-        (A, "The tests passed. Human reviewers then found removed public interfaces "
-            "and changed exception handling that the tests had happily approved."),
-    ],
-
-    # 11. the objection
-    "objection": [
-        (B, "Okay, but I have to say the obvious thing. Almost every number in this episode "
-            "comes from the company that benefits from it."),
-        (A, "That is fair, and it is the right instinct. Although notice which numbers survive it. "
-            "The G L M bugs and the Nous review findings both come with a mechanism attached, "
-            "so you can check the reasoning even if you cannot check the run."),
-        (A, "And there is a paper this week that makes the point harder than I can. "
-            "Experts re-graded six popular physics benchmarks, and most of the failures "
-            "everyone had been reporting turned out to be the test's fault. "
-            "Wrong answer keys. Ambiguous questions. Grader bugs."),
-        (B, "So the measurement was the broken part."),
-        (A, "The measurement was the broken part."),
-    ],
-
-    # 12. the take
-    "take": [
-        (A, "So here is what I think this week actually says."),
-        (A, "The constraint moved. It used to sit on capability, and it now sits on "
-            "verification, on the feedback you can give a system about work you did not watch it do."),
-        (A, "Which means the useful question about your own stack is not "
-            "which model, it is what does this thing find out when it is wrong, and how soon."),
-        (A, "And the number I would like to see next is a task horizon figure "
-            "verified by somebody other than the lab that produced it."),
-    ],
-
-    # 13. coda
-    "coda": [
-        (A, "Quickly, the rest of the week."),
-        (A, "Vera Rubin N V L seventy two posted up to seven times the token throughput "
-            "per megawatt of G B three hundred, on replayed agent traffic, "
-            "though that is pre release software."),
-        (A, "N Vidia shipped GPU programming in Rust, in two tracks. "
-            "The tile track is already in production. The lower level one is early alpha."),
-        (A, "Bonsai two, a twenty seven billion parameter model squeezed to one point seven six "
-            "bits per weight, five point nine gigabytes, keeping ninety eight percent of its scores."),
-        (A, "And Claude Code now reads an agents markdown file, which quietly ends "
-            "a year long argument about agent configuration."),
-    ],
-    "outro": [
-        (A, "The written issue has all of it, with the sources. "
-            "This was just the part I could not stop thinking about."),
-    ],
+    "close": {"kind": "claim",
+              "text": "Four stories. They do not add up to one thing.",
+              "note": "if you take one, take the fourth: detection without containment"},
 }
 
 
