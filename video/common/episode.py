@@ -87,6 +87,7 @@ TONE = {
 # How wide the parked map is, and how far down it sits so it clears the page
 # name and date the title card leaves in the top left corner.
 HOME_WIDTH = 4.2
+SETTLE = 2.0          # the finished map stands this long before it parks
 STRIP_CLEARANCE = 1.15
 
 
@@ -180,6 +181,18 @@ class Episode(PageVideo):
             # see where the thing being explained sits in the whole. So the
             # panel morphs into its own headings, which stay legible, and the
             # detail comes back when a later beat focuses on it.
+            # Let the finished board stand before collapsing it.
+            #
+            # The overview format's whole premise is that the viewer sees the
+            # size and shape of the field before any one part of it means
+            # anything. `spread` lands the last column at the end of its
+            # budget and the morph started immediately after, so the complete
+            # map existed for the 0.7 seconds of the morph and never once
+            # stood still. The reserve could not buy that time either, because
+            # the reserve is the tail AFTER the park. Take the settle out of
+            # the front of the reserve instead, so a parked beat wants a
+            # reserve of roughly SETTLE plus the motionless tail it can afford.
+            self.wait(min(SETTLE, max(0.0, self.remaining())))
             small = self.compact(spec, group)
             self.morph(group, small, run_time=0.7)
             # Never scale the stand-in UP. `park(width=...)` sets the width
