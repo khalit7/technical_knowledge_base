@@ -99,7 +99,18 @@ def main() -> int:
     videos = sorted(ROOT.glob(f"out/media/{args.script}/videos/**/{args.quality}/*.mp4"),
                     key=lambda p: p.stat().st_mtime)
     if not videos:
-        raise SystemExit("no rendered video found; render the scene first")
+        # Almost always a quality mismatch rather than a missing render: this
+        # check needs the delivery render, and a `--quality l` pass writes to
+        # 480p15, so the old message sent people back to re-render something
+        # they already had.
+        others = sorted({q.name for q in
+                         ROOT.glob(f"out/media/{args.script}/videos/*/*")})
+        raise SystemExit(
+            f"no {args.quality} render for {args.script}."
+            + (f" Found {', '.join(others)} instead: this check reads the"
+               f" delivery render, so run build.py without --quality l"
+               f" (or pass --quality {others[-1]})." if others else
+               " Render the scene first."))
     video = videos[-1]
 
     out = ROOT / "out" / "checks" / args.script
