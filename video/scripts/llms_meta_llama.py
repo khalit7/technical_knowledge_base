@@ -98,7 +98,7 @@ VISUALS = {
 
     "four": {"kind": "table", "focus": "Llama 4",
              "head": ["model", "shape", "what happened"], "rows": [
-        ["Scout", "109B total / 17B active", "10M-token context claim, iRoPE"],
+        ["Scout", "109B total / 17B active", "10M-token context, via iRoPE"],
         ["Maverick", "400B total / 17B active", "coding lagged the numbers"],
         ["Behemoth", "~2T teacher", "never shipped"],
     ]},
@@ -180,19 +180,18 @@ SCRIPT["open_era"] = [
         "parameters on fifteen trillion tokens, dense rather than sparse, "
         "and landed in G P T four class in the open."),
     (B, "The training report is the part people still cite."),
-    (A, "It is. Sixteen thousand cards, and honest numbers on how often the "
-        "hardware failed underneath them."),
+    (A, "It is. Sixteen thousand cards, with honest numbers on how often "
+        "the hardware failed underneath them."),
 ]
 
 # --- where it turned ------------------------------------------------------
 SCRIPT["four"] = [
     (A, "Llama four is where it turns, and the table has the shapes. Scout, "
         "one hundred and nine billion parameters, about seventeen billion "
-        "active per token. Maverick, four hundred billion total, the same "
-        "seventeen billion active."),
-    (A, "The ten million token context claim rests on interleaving: the "
-        "layers between the ordinary rotary ones carry no positional "
-        "encoding at all, so they are length agnostic."),
+        "active per token, claiming ten million tokens of context from "
+        "interleaving ordinary rotary layers with layers that carry no "
+        "positional encoding at all. Maverick, four hundred billion total, "
+        "the same seventeen billion active."),
     (A, "The reception collapsed anyway, for the two reasons in the last "
         "column. A chat tuned variant produced the headline arena score "
         "while a different checkpoint shipped, and coding quality lagged the "
@@ -250,10 +249,9 @@ SCRIPT["take"] = [
         "Meta's position, and a position is something you give up when it "
         "stops paying."),
     (A, "And note what the retreat is not. Llama three point one and three "
-        "point three are still the default base in a lot of fine tuning "
-        "stacks, purely through incumbency: tooling, adapters, quantised "
-        "builds. That inertia outlives the quality argument, and it is the "
-        "last thing Meta owns here."),
+        "point three are still the default base in many fine tuning stacks, "
+        "purely through incumbency. That inertia outlives the quality "
+        "argument, and it is the last thing Meta owns here."),
     (A, "What to watch is Avocado and Mango, and whether any variant of "
         "either ships open at all."),
 ]
