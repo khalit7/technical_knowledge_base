@@ -61,7 +61,7 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
             "Two machine checked proofs at wildly different prices. A model "
             "that built the software now serving it. And a study of what "
             "agents do under attack."),
-        (A, "They are not connected, and, look, I am not going to pretend they are. The rest of the week comes at the end."),
+        (A, "In that order, and then the rest of the week at the end."),
     ],
 
     # -- story one ---------------------------------------------------------
