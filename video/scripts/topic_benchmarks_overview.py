@@ -31,7 +31,6 @@ The outline that survived the revision step:
     astra       the spine: 62.7% against 99.9%, and the cheaper run is the
                 higher one
     separated   why, and why it is permanent: latent reasoning state
-    cost        67 cents against $26,098 on the same benchmark family
     death       the other mechanism: the questions themselves are wrong
     lifecycle   and the ones that are simply finished, in weeks now
     system      the right-hand column: the subject is not the model
@@ -62,6 +61,12 @@ What the step-4 critique caught, and what changed:
     minutes is a list. It is named on the page for anyone who reads it.
   - B was agreeing in draft one. B now has four turns and each one changes
     what A does next.
+  - Draft three measured nine and a half minutes, which is past the point
+    where the delivery encode steps down to 720p to fit Notion's cap and the
+    text stops being crisp. A whole beat went rather than a trim across all of
+    them: the 67 cents ARC-AGI-1 run, which is a second thing one score hides
+    on a benchmark family the episode has already used for the first. Every
+    remaining beat then lost its second clause.
 
 Every figure comes from the canonical page "Topic: benchmarks", read from
 Notion on 22 September 2026, except the MMLU errata rate, which is on that
@@ -197,148 +202,131 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 # --- what this is ---------------------------------------------------------
 SCRIPT["ident"] = [
     (A, "This is the map of benchmarks. The public tests that decide which "
-        "model is called the best one, and the source of almost every number "
-        "anybody quotes at you about artificial intelligence."),
+        "model gets called the best one, and the source of most numbers "
+        "quoted at you about artificial intelligence."),
     (A, "Current as of the twenty second of September, twenty twenty six. It "
-        "earns an episode because this landscape now turns over in weeks, and "
+        "earns an episode because this landscape turns over in weeks now, and "
         "a number you learned to trust last year probably means something "
-        "different today."),
+        "else today."),
 ]
 
 # --- the inventory, before any explanation --------------------------------
 SCRIPT["map"] = [
     (A, "The whole board first. Three columns, nothing explained yet."),
     (A, "On the left, what still separates frontier models. Humanity's Last "
-        "Exam. A R C A G I three. Terminal Bench Science. Real S W E. The "
-        "top tier of FrontierMath. S W E bench Pro."),
+        "Exam. A R C A G I three. Terminal Bench Science. Real S W E. The top "
+        "tier of FrontierMath. S W E bench Pro."),
     (A, "In the middle, the finished ones. M M L U. G P Q A Diamond. G S M "
         "eight K. HumanEval. S W E bench Verified. A R C A G I one."),
     (B, "That middle column is the list I was told to look at two years ago."),
-    (A, "It is. Every one of them was a headline number, and none of them "
-        "tells you anything at the frontier now. And the right hand column is "
-        "the newest thing here. HarnessDev. Phi Bench. MOLE. Hyper tau bench. "
-        "Emergence World. Benchmarks whose subject is not the model at all."),
+    (A, "It is, and not one of them separates frontier models now. The right "
+        "hand column is the newest thing here. HarnessDev. Phi Bench. MOLE. "
+        "Hyper tau bench. Emergence World. Benchmarks whose subject is not "
+        "the model."),
 ]
 
 # --- the organising question ----------------------------------------------
 SCRIPT["question"] = [
-    (A, "So here is the question the map is arranged to answer. What does a "
-        "public benchmark number actually tell you, and when did it stop "
-        "telling you that?"),
-    (A, "We go through the middle of it with one benchmark, because it "
-        "produced the cleanest result in this field all year. Then we look at "
-        "how the rest of them die."),
+    (A, "So, the question the map is arranged to answer. What does a public "
+        "benchmark number actually tell you, and when did it stop telling you "
+        "that?"),
+    (A, "One benchmark through the middle of it, because it produced the "
+        "cleanest result in this field all year. Then how the rest of them "
+        "die."),
 ]
 
 # --- scaffolding moves the number at all ----------------------------------
 SCRIPT["harness"] = [
-    (A, "A R C A G I three is interactive game environments. The agent is "
-        "given no instructions. It has to explore, work out what the goal is, "
-        "and plan. Humans finish a hundred percent of them."),
+    (A, "A R C A G I three is interactive game environments. The agent gets "
+        "no instructions. It has to explore, work out the goal, and plan. "
+        "Humans finish a hundred percent of them."),
     (A, "Through the middle of this year it read as a thirty percent "
-        "benchmark. Then, inside one week of August, two results moved that "
-        "same baseline without touching the model."),
-    (A, "Prime Agent's four level state hierarchy, ninety five and a half "
-        "percent. N Vidia's agentic variation operators, a hundred. Look at "
-        "the gap above the first bar. All of that is scaffolding."),
+        "benchmark. Then inside one week of August, two results moved that "
+        "baseline without touching the model. Prime Agent, ninety five and a "
+        "half percent. N Vidia's agentic variation operators, a hundred."),
+    (A, "Look at the gap above the first bar. All of that is scaffolding."),
 ]
 
 # --- the spine ------------------------------------------------------------
 SCRIPT["astra"] = [
-    (A, "Which is why, since September, A R C Prize publishes two labelled "
-        "harness results for every model. Same weights, same benchmark, two "
-        "numbers, both official."),
+    (A, "Which is why A R C Prize now publishes two labelled harness results "
+        "for every model. Same weights, same benchmark, two official numbers."),
     (A, "G P T six Astra. On the standard provider agnostic harness, sixty "
         "two point seven percent, for twenty six thousand and ninety eight "
-        "dollars. Through the provider adapter harness, ninety nine point "
-        "nine percent, for eighteen thousand eight hundred and seventeen."),
+        "dollars. Through the provider adapter, ninety nine point nine "
+        "percent, for eighteen thousand eight hundred and seventeen."),
     (B, "Wait. The higher score is the cheaper run?"),
     (A, "The higher score is the cheaper run. Thirty seven points apart, "
-        "about three point six six times faster, on forty nine percent fewer "
-        "tokens. If you only ever see one of those two numbers, you have no "
-        "idea which one you are looking at."),
+        "three point six six times faster, on forty nine percent fewer tokens."),
 ]
 
 # --- why, and why it does not go away -------------------------------------
 SCRIPT["separated"] = [
     (A, "The difference is not a trick, and the reasons are on the screen. "
-        "The adapter preserves the model's opaque reasoning state between "
-        "requests, and it compacts long conversations rather than forcing the "
-        "model to write visible notes to itself."),
-    (A, "Now read the last two lines, because that is the permanent part. A "
-        "provider neutral harness has to make the reasoning visible in order "
-        "to carry it forward. So once a model thinks partly in state that "
-        "only its own provider can hand back, a neutral harness cannot reach "
-        "part of its capability."),
-    (A, "A R C Prize's position is that these are simply two different "
-        "questions. What does a system do under neutral conditions, and does "
-        "a model exploit its own provider's features. Both are worth asking. "
-        "They have separated, and they are not rejoining."),
+        "The adapter keeps the model's opaque reasoning state between "
+        "requests, and compacts long conversations instead of forcing it to "
+        "write visible notes."),
+    (A, "The last two lines are the permanent part. A neutral harness has to "
+        "make the reasoning visible in order to carry it forward. So once a "
+        "model thinks partly in state that only its own provider can hand "
+        "back, a neutral harness cannot reach part of what it can do."),
+    (A, "A R C Prize's position is that those are two different questions, "
+        "and both are worth asking. They have separated, and they are not "
+        "rejoining."),
 ]
 
 # --- how a benchmark dies, mechanism one ----------------------------------
 SCRIPT["death"] = [
-    (A, "Now the middle column, and how a benchmark actually dies. Usually "
-        "not by being solved. By being wrong."),
+    (A, "Now the middle column, and how a benchmark dies. Usually not by "
+        "being solved. By being wrong."),
     (A, "M M L U Redux re-annotated five thousand seven hundred M M L U "
         "questions across all fifty seven subjects. About six and a half "
-        "percent of them carry an error of some kind. That is every defect "
-        "type counted together: wrong answer keys, no correct option, several "
-        "correct options, questions nobody can parse."),
-    (A, "Then experts re-graded six widely used physics suites and found it "
-        "harder. Most of the items where frontier models had been scored "
-        "wrong were the test's fault. Cleaned up, those models look near "
-        "saturated."),
+        "percent carry an error of some kind, counting every defect type, not "
+        "just wrong answer keys."),
+    (A, "Then experts re-graded six widely used physics suites. Most of the "
+        "items where frontier models had been scored wrong turned out to be "
+        "the test's fault."),
     (B, "So the model was right and the test was wrong."),
     (A, "Often. Which inverts the way everybody reads a benchmark gap. The "
-        "part a model fails is a mixture of what it cannot do and what the "
-        "benchmark got wrong, and you cannot separate them without expert "
-        "re-grading. The defects sit in exactly the hard tail people quote."),
+        "part a model fails mixes what it cannot do with what the benchmark "
+        "got wrong, and the defects sit in exactly the hard tail people quote."),
 ]
 
 # --- how a benchmark dies, mechanism two ----------------------------------
 SCRIPT["lifecycle"] = [
-    (A, "The other way is saturation, and that now runs in weeks. Terminal "
+    (A, "The other way is saturation, and that runs in weeks now. Terminal "
         "Bench Science launched in August as the least saturated agent "
-        "benchmark anywhere, with a top score of thirty percent. Seven days "
-        "later a routine point release put it at fifty two point six."),
-    (A, "Nothing is wrong with the benchmark. The point is the rate."),
-    (A, "And G P Q A Diamond, the graduate science test on every model card "
-        "for three years, sits at ninety six percent and was dropped from a "
-        "major index in September as saturated. What replaced it is the "
-        "interesting part. Private held out sets now carry forty percent of "
-        "that index, double what they did, explicitly to make it harder to "
-        "optimise against."),
+        "benchmark anywhere, top score thirty percent. Seven days later a "
+        "routine point release put it at fifty two point six."),
+    (A, "And G P Q A Diamond, which was on every model card for three years, "
+        "sits at ninety six percent and was dropped from a major index in "
+        "September. Private held out sets now carry forty percent of that "
+        "index, double what they did, to make it harder to optimise against."),
 ]
 
 # --- the right-hand column ------------------------------------------------
 SCRIPT["system"] = [
-    (A, "Which brings us to the right hand column, and the quietest change on "
-        "this page. A cluster of benchmarks arrived this year whose subject "
-        "is not the model."),
-    (A, "HarnessDev scores the harness a model wrote for itself. Phi Bench "
-        "asks whether it can build the infrastructure it runs on. MOLE scores "
-        "the monitor rather than the agent. Emergence World runs agents for "
-        "sixteen days and watches what drifts."),
+    (A, "The right hand column is the quietest change here. HarnessDev scores "
+        "the harness a model wrote for itself. Phi Bench asks whether it can "
+        "build the infrastructure it runs on. MOLE scores the monitor rather "
+        "than the agent. Emergence World runs agents for sixteen days and "
+        "watches what drifts."),
     (A, "Look at the fourth row. Hyper tau bench put Claude Opus five on "
-        "agent building tasks and got twenty three point nine percent working "
-        "alone, against eighty two point two percent paired with an engineer "
-        "who knew the task. Identical work, three point four times the result."),
-    (A, "Which is the harness lesson again, in a different suit. How well "
-        "this agent does is not a property of the agent."),
+        "agent building tasks. Twenty three point nine percent alone, eighty "
+        "two point two percent paired with an engineer who knew the task. "
+        "Identical work."),
+    (A, "Which is the harness lesson in a different suit. How well this agent "
+        "does is not a property of the agent."),
 ]
 
 # --- what to actually ask -------------------------------------------------
 SCRIPT["read"] = [
-    (B, "So what do I actually ask when somebody puts one of these in front "
-        "of me?"),
+    (B, "So what do I ask when somebody puts one of these in front of me?"),
     (A, "The right hand side of the screen. S W E bench Pro spans forty seven "
         "to eighty percent, for the same benchmark, depending on the split "
-        "and whose scaffold ran it."),
-    (A, "Terminal Bench four point zero recalibrated the time, processor and "
-        "memory each task gets. On a benchmark where the agent has a shell "
-        "and a clock, those limits are part of the task, so a two point "
-        "something score is not comparable to a four point zero score at all."),
+        "and whose scaffold ran it. Terminal Bench four point zero "
+        "recalibrated the time, processor and memory each task gets, so an "
+        "older score is not comparable to it at all."),
     (A, "And the bottom row is the newest one. On legal research, the same "
         "G P T six Astra weights pass fifty four percent of the correctness "
         "checks with a licensed legal index behind them, and thirty eight "
@@ -348,16 +336,16 @@ SCRIPT["read"] = [
 # --- the take -------------------------------------------------------------
 SCRIPT["close"] = [
     (A, "So what is the map for?"),
-    (A, "Every number on it is a measurement of a whole system. A model, a "
-        "harness, a split, a version, an index, and an answer key somebody "
-        "wrote by hand. The model is one part of that, and the other parts "
-        "move the number further than the model does."),
-    (A, "The one I would watch next is on the left. Real S W E licenses tasks "
-        "from real companies' private repositories, so they cannot leak into "
-        "anybody's training data, because they were never public. The leader "
-        "sits at thirty eight point eight percent, about twenty points below "
-        "what the same models post on public tasks."),
-    (A, "That gap is the closest thing here to an honest number."),
+    (A, "Every number on it measures a whole system. A model, a harness, a "
+        "split, a version, an index, and an answer key somebody wrote by "
+        "hand. The model is one part, and the other parts move the number "
+        "further than it does."),
+    (A, "The one I would watch is on the left. Real S W E licenses tasks from "
+        "private company repositories, so they cannot leak into training "
+        "data, because they were never public. The leader sits at thirty "
+        "eight point eight percent, about twenty points below what the same "
+        "models post on public tasks. That gap is the closest thing here to "
+        "an honest number."),
 ]
 
 

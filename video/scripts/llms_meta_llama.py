@@ -140,70 +140,63 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 SCRIPT["ident"] = [
     (A, "This is Meta's language model programme. The Llama family, and the "
         "lab that replaced it, Meta Superintelligence Labs. For three years "
-        "Meta published the weights of frontier models for anyone to "
-        "download, and that was the whole strategy."),
+        "Meta published frontier model weights for anyone to download, and "
+        "that was the whole strategy."),
     (A, "It earns an episode because it is the cautionary story of this era. "
         "The open weights leader stopped leading, and then stopped being "
-        "open. Current as of the twenty second of September, twenty twenty "
+        "open. Current to the twenty second of September, twenty twenty "
         "six."),
 ]
 
 # --- the arc, before any explanation --------------------------------------
 SCRIPT["map"] = [
-    (A, "The whole arc first. Nothing explained yet."),
-    (A, "Llama one and two. A research release whose weights leaked, then the "
-        "first licence a company could actually build a product on."),
-    (A, "Llama three. Open weights at G P T four class, and the most detailed "
-        "training report anybody has published."),
-    (A, "Llama four, the mixture of experts pivot that misfired. Then the "
-        "reorganisation. Then Muse Spark, which put Meta back at the "
-        "frontier, closed."),
-    (A, "That column stays on screen. Every beat after this is one row of "
-        "it."),
+    (A, "The whole arc first. Nothing explained yet. Llama one and two: a "
+        "research release whose weights leaked, then the first licence a "
+        "company could build a product on."),
+    (A, "Llama three, open weights at G P T four class. Llama four, the "
+        "pivot that misfired. The reorganisation. Then Muse Spark, which put "
+        "Meta back at the frontier, closed."),
+    (A, "That column stays up. Every beat after this is one row of it."),
 ]
 
 # --- the organising question ----------------------------------------------
 SCRIPT["question"] = [
     (A, "Here is the question the whole arc answers. What happens to an open "
         "weights strategy when the lab running it falls behind?"),
-    (A, "Because Meta's argument for giving the models away was never "
-        "charity. It was that commoditising the model layer was worth more to "
-        "Meta than owning one. Watch what that argument does under "
-        "pressure."),
+    (A, "Meta's case for giving the models away was never charity. It was "
+        "that commoditising the model layer was worth more than owning one. "
+        "Watch what that argument does under pressure."),
 ]
 
 # --- what the bet bought --------------------------------------------------
 SCRIPT["open_era"] = [
     (A, "Start with what the bet bought. Llama one took the Chinchilla "
-        "result, roughly twenty training tokens per parameter for a fixed "
-        "compute budget, and deliberately overshot it. Train a smaller model "
-        "on far more tokens, because inference is paid on every request "
-        "forever and training is paid once."),
+        "result, about twenty training tokens per parameter, and "
+        "deliberately overshot it. Train smaller models on far more tokens, "
+        "because inference is paid on every request forever and training is "
+        "paid once."),
     (A, "Llama two added a commercial licence, and a fine tuning industry "
         "formed around it. Llama three reached four hundred and five billion "
-        "parameters on more than fifteen trillion tokens, kept dense rather "
-        "than sparse, and landed in G P T four class in the open."),
-    (B, "The training report is the part people still cite, though."),
-    (A, "It is. Sixteen thousand cards, and honest figures on how often the "
+        "parameters on fifteen trillion tokens, dense rather than sparse, "
+        "and landed in G P T four class in the open."),
+    (B, "The training report is the part people still cite."),
+    (A, "It is. Sixteen thousand cards, and honest numbers on how often the "
         "hardware failed underneath them."),
 ]
 
 # --- where it turned ------------------------------------------------------
 SCRIPT["four"] = [
     (A, "Llama four is where it turns, and the table has the shapes. Scout, "
-        "one hundred and nine billion parameters with about seventeen billion "
+        "one hundred and nine billion parameters, about seventeen billion "
         "active per token. Maverick, four hundred billion total, the same "
         "seventeen billion active."),
-    (A, "Scout's ten million token context claim rests on interleaving. Most "
-        "layers use rotary position embeddings as usual, and the layers "
-        "between them carry no positional encoding at all, so they are length "
-        "agnostic by construction."),
-    (A, "The reception collapsed anyway, for two reasons in the last column. "
-        "An experimental chat tuned variant produced the headline arena "
-        "score, while a different checkpoint shipped. And real coding quality "
-        "lagged the published numbers badly. Behemoth, the roughly two "
-        "trillion parameter teacher the family was meant to be distilled "
-        "from, never shipped at all."),
+    (A, "The ten million token context claim rests on interleaving: the "
+        "layers between the ordinary rotary ones carry no positional "
+        "encoding at all, so they are length agnostic."),
+    (A, "The reception collapsed anyway, for the two reasons in the last "
+        "column. A chat tuned variant produced the headline arena score "
+        "while a different checkpoint shipped, and coding quality lagged the "
+        "published numbers. Behemoth never shipped at all."),
 ]
 
 # --- the reorg, and the closed frontier -----------------------------------
@@ -211,62 +204,55 @@ SCRIPT["closed"] = [
     (A, "What came next was not a model. It was a reorganisation. Meta "
         "Superintelligence Labs formed in mid twenty twenty five under "
         "Alexandr Wang, founder of the data labelling company Scale A I, "
-        "after a reported fourteen billion dollar talent raid on rival labs. "
-        "A new internal group took frontier work, and the open roadmap "
-        "stalled behind it."),
-    (A, "Muse Spark arrived in April, closed. Version one point three, this "
-        "month, scores sixty one on the Artificial Analysis intelligence "
-        "index, third among labs, at one dollar twenty five and four dollars "
-        "twenty five per million tokens."),
+        "after a reported fourteen billion dollar talent raid. The open "
+        "roadmap stalled behind it."),
+    (A, "Muse Spark arrived in April, closed. Version one point three "
+        "scores sixty one on the Artificial Analysis index, third among "
+        "labs."),
     (B, "So they are back. Does the open question still matter?"),
     (A, "They are back in the band. But read the bottom two lines. The top "
         "figures come from a maximum tier developers cannot broadly use, and "
-        "there is no technical report at all, which is the concrete cost of "
-        "the pivot for anyone who used Meta's reports as reference "
-        "documentation."),
+        "there is no technical report at all."),
 ]
 
 # --- the one piece of genuinely new work ----------------------------------
 SCRIPT["agent"] = [
     (A, "The most substantive thing the new lab has shipped is the Meta Muse "
         "agent, and the interesting part is not the assistant. It is this "
-        "architecture, which is built on the assumption that the model will "
-        "be fooled."),
-    (A, "Follow the arrows. The agent never sees credentials. A credential "
-        "service outside the runtime cell holds them, and a separate agent "
-        "called Sentinel swaps in the real token as the request leaves the "
-        "virtual machine. Approvals arrive as operating system dialogs rather "
-        "than as messages in the conversation, so injected text cannot "
-        "manufacture consent."),
-    (B, "And how well does any of that actually work?"),
-    (A, "They have published no classifier accuracy. What they have published "
-        "is a price. Up to three hundred thousand dollars for a valid report, "
-        "and one hundred and thirty thousand for a successful prompt "
+        "architecture, built on the assumption that the model gets fooled."),
+    (A, "Follow the arrows. The agent never sees credentials. A service "
+        "outside the runtime cell holds them, and a separate agent called "
+        "Sentinel swaps in the real token as the request leaves the virtual "
+        "machine. Approvals arrive as system dialogs, so injected text "
+        "cannot manufacture consent."),
+    (B, "And how well does that actually work?"),
+    (A, "They have published no classifier accuracy. What they have "
+        "published is a price. Three hundred thousand dollars for a valid "
+        "report, one hundred and thirty thousand for a successful prompt "
         "injection."),
 ]
 
 # --- the objection --------------------------------------------------------
 SCRIPT["cost"] = [
     (A, "Now the part the index rank hides. These bars are Real S W E, run "
-        "against private enterprise codebases rather than public benchmarks."),
+        "against private enterprise codebases rather than public "
+        "benchmarks."),
     (A, "Muse Spark one point three resolves twenty three point eight "
         "percent, level with Grok four point six, and well behind Claude "
         "Fable five point one at thirty eight point eight. Third on a "
         "composite index and third on somebody's actual repository are "
-        "different questions, and the gap between the top bar and the other "
-        "two is the size of that difference."),
+        "different questions."),
 ]
 
 # --- the take -------------------------------------------------------------
 SCRIPT["take"] = [
     (A, "So, the take. Open weights were never Meta's principle. They were "
         "Meta's position, and a position is something you give up when it "
-        "stops paying for itself."),
-    (A, "Note what that retreat is and is not. It is a retreat from the open "
-        "frontier only. Llama three point one and three point three are still "
-        "the default base in a lot of fine tuning stacks, purely through "
-        "incumbency: tooling, adapters, quantised builds, accumulated "
-        "knowledge. That inertia outlives the quality argument, and it is the "
+        "stops paying."),
+    (A, "And note what the retreat is not. Llama three point one and three "
+        "point three are still the default base in a lot of fine tuning "
+        "stacks, purely through incumbency: tooling, adapters, quantised "
+        "builds. That inertia outlives the quality argument, and it is the "
         "last thing Meta owns here."),
     (A, "What to watch is Avocado and Mango, and whether any variant of "
         "either ships open at all."),

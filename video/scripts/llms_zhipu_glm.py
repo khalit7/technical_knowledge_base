@@ -150,8 +150,8 @@ SCRIPT["ident"] = [
         "twenty second of September, twenty twenty six. Zhipu is the Tsinghua "
         "University spinoff behind G L M, and it publishes its flagship "
         "weights under M I T, the most permissive licence in common use."),
-    (A, "It earns the time for one reason. Most labs here sell a position on "
-        "a leaderboard. Zhipu sells a price, and the page ends with what that "
+    (A, "It earns the time for one reason. Most labs here sell a leaderboard "
+        "position. Zhipu sells a price, and the page ends with what that "
         "bought them."),
 ]
 
@@ -162,10 +162,9 @@ SCRIPT["map"] = [
         "and forty four billion parameters, about forty billion active per "
         "token, a one million token window."),
     (A, "Beside it, G L M five point three Flash: three hundred and twenty "
-        "billion total, eighteen billion active, and the first natively "
-        "multimodal model here. Then a cheap self-hostable tier around a "
-        "hundred billion. And two things that are not models at all, a "
-        "subscription and an open sourced training system."),
+        "billion total, eighteen billion active, natively multimodal. Then a "
+        "cheap self-hostable tier around a hundred billion, and two things "
+        "that are not models at all."),
 ]
 
 # 2. the organising question, with the route inside it
@@ -182,17 +181,16 @@ SCRIPT["question"] = [
 SCRIPT["arc"] = [
     (A, "A R C is Zhipu's name for the brief: agentic behaviour, reasoning "
         "and coding, in one set of weights. Those three pull apart in "
-        "post-training, which is what makes it a commitment rather than a "
+        "post-training, which is what makes it a commitment and not a "
         "slogan."),
-    (A, "Reasoning teaches the model to deliberate before answering, and you "
+    (A, "Reasoning teaches a model to deliberate before answering, and you "
         "pay for that in latency. Agentic training rewards short decisive "
         "tool calls instead. Coding wants exact formatted output with no chat "
         "around it."),
-    (A, "The industry answer is separate specialised checkpoints, which the "
-        "customer then operates. G L M instead ships hybrid thinking modes, "
-        "picked in the prompt template rather than by loading another model. "
-        "It gives up a little at the top of each mode, which is what Alibaba "
-        "conceded when it split Qwen three back apart."),
+    (A, "The industry answer is separate specialised checkpoints. G L M "
+        "instead ships hybrid thinking modes, picked in the prompt template "
+        "rather than by loading another model, and gives up a little at the "
+        "top of each one."),
 ]
 
 # 4. the number that is the product
@@ -201,11 +199,11 @@ SCRIPT["price"] = [
         "Plan is about three dollars a month, and its endpoint is compatible "
         "with Claude Code, so an existing setup moves across by changing a "
         "base U R L and a key."),
-    (A, "Flash lists at fifteen cents per million input tokens and fifty "
-        "cents per million output, roughly a tenth of their own flagship. "
-        "Keep the bottom row. At fifty seven on the Artificial Analysis "
-        "index, Flash costs about nine cents per task. A comparably placed "
-        "closed model costs about two dollars and three cents."),
+    (A, "Flash lists at fifteen cents per million input tokens and fifty per "
+        "million output, roughly a tenth of their own flagship. Keep the "
+        "bottom row: at fifty seven on the Artificial Analysis index, Flash "
+        "costs about nine cents a task, against about two dollars and three "
+        "cents for a comparably placed closed model."),
 ]
 
 # 5. why the price is not only a loss leader
@@ -217,7 +215,7 @@ SCRIPT["how"] = [
         "attention stack is hybrid linear plus sparse, cutting attention "
         "compute to roughly a third."),
     (A, "Then IndexPool averages every four lookup vectors before selection, "
-        "dropping the key-value cache to under a quarter of its size at a "
+        "dropping the key-value cache under a quarter of its size at a "
         "million tokens. That is what makes the advertised window affordable "
         "to serve rather than merely available."),
 ]
@@ -232,22 +230,19 @@ SCRIPT["lead"] = [
         "public repositories. G L M five point three resolves twenty eight "
         "point eight percent of its tasks, the best open-weight result. Kimi "
         "K three resolves eighteen point eight."),
-    (B, "And the arena scores everyone quotes?"),
-    (A, "Careful with those. Flash sat on evaluation platforms the week "
-        "before launch as an unattributed model called Ox Alpha, and was "
-        "claimed once the numbers came in. A run that disappoints can simply "
-        "never be claimed."),
+    (A, "Be careful with the arena scores, though. Flash sat on evaluation "
+        "platforms the week before launch as an unattributed model called Ox "
+        "Alpha, and was claimed once the numbers came in."),
 ]
 
 # 7. the artifact the whole strategy was for
 SCRIPT["stack"] = [
     (A, "Which brings us to the strangest document in this knowledge base. In "
         "September, Zhipu published an account of building the serving system "
-        "that runs Flash in production."),
-    (A, "Thirteen days. More than a hundred thousand Chinese-made "
-        "accelerators. Three point two two times the end-to-end throughput "
-        "they started with. And the code was largely written by G L M five "
-        "point three, the model it was being built to serve."),
+        "that runs Flash in production. Thirteen days. More than a hundred "
+        "thousand Chinese-made accelerators. Three point two two times the "
+        "throughput they started with. And the code was largely written by G "
+        "L M five point three, the model it was being built to serve."),
     (B, "That is the recursive self-improvement headline, surely."),
     (A, "Zhipu says plainly that it is not, and that humans kept control of "
         "the objectives and the boundaries. That disclaimer is what makes the "
@@ -256,17 +251,16 @@ SCRIPT["stack"] = [
 
 # 8. the finding that actually transfers
 SCRIPT["feedback"] = [
-    (A, "Because the finding that transfers is not about self improvement. It "
-        "is about feedback. The bottleneck was never the model, it was the "
+    (A, "Because the finding that transfers is about feedback, not about self "
+        "improvement. The bottleneck was never the model. It was the "
         "environment the model was graded in."),
     (A, "They replaced one sparse signal, the test failed, with three local "
-        "verifiable ones. Correctness, by comparing numerical results across "
-        "execution paths. System behaviour, by timeline analysis of the live "
-        "system. Performance, by layered tests showing which constraint "
-        "binds."),
-    (A, "That is how they caught a T F thirty two precision bug visible only "
-        "under certain parallelism strategies, and a twenty percent slowdown "
-        "traced to Python's global interpreter lock. Neither would have "
+        "verifiable ones. Correctness, by comparing numbers across execution "
+        "paths. System behaviour, by timeline analysis. Performance, by "
+        "layered tests showing which constraint binds."),
+    (A, "That caught a T F thirty two precision bug visible only under "
+        "certain parallelism strategies, and a twenty percent slowdown traced "
+        "to Python's global interpreter lock. Neither would ever have "
         "surfaced from an end-to-end metric."),
 ]
 
@@ -274,9 +268,9 @@ SCRIPT["feedback"] = [
 SCRIPT["close"] = [
     (A, "So what does giving the weights away buy? Look at Atria Dawn "
         "Preview. A Shanghai national laboratory reached seven hundred and "
-        "forty four billion parameters not by training from scratch, but by "
-        "post-training on the G L M five point two base, and shipped it with "
-        "no announcement at all."),
+        "forty four billion parameters by post-training on the G L M five "
+        "point two base rather than training from scratch, and shipped it "
+        "with no announcement at all."),
     (A, "That is what the hosted margin was traded for. A permissive licence "
         "at the frontier stops the base model being a product and makes it "
         "infrastructure other people build on."),

@@ -218,7 +218,7 @@ SCRIPT["adapter"] = [
         "cannot: it keeps the model's reasoning state inside the provider "
         "between requests, instead of making it write its working out as "
         "notes. And read what is beside the second bar. The better score is "
-        "the cheaper one."),
+        "also the cheaper one."),
 ]
 
 # --- what it wastes -------------------------------------------------------
@@ -268,7 +268,7 @@ SCRIPT["real"] = [
 SCRIPT["containment"] = [
     (A, "So much for what the model sees. The other half is what it is "
         "allowed to do, and that is sharpest for the personal agents lit up "
-        "at the end of the map, whose inputs are reachable by an attacker."),
+        "at the end of the map."),
     (A, "Emergence World ran eight worlds of ten agents for sixteen days under "
         "attack. No system was resilient. And the left hand column is the "
         "finding to carry: detection did not produce containment. Systems "
