@@ -2,7 +2,7 @@
 
 ⏱ 5 min read · +45m resources
 
-Aashiq Muhamed and Virginia Smith. Submitted 7 September 2026. Categories: cs.LG, [cs.CL](http://cs.cl/), [cs.CR](http://cs.cr/). Carnegie Mellon (inferred from the authors' affiliations, not stated in the abstract).
+Aashiq Muhamed and Virginia Smith. Submitted 7 September 2026. Categories: cs.LG, cs.CL, cs.CR. Carnegie Mellon (inferred from the authors' affiliations, not stated in the abstract).
 
 [arXiv 2609.06966](https://arxiv.org/abs/2609.06966) (45 min)
 

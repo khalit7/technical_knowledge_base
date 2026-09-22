@@ -2,7 +2,7 @@
 
 ⏱ 8 min read · +3h 50m resources
 
-Last verified: 2026-08-24. transformers 5.15, Axolotl 0.29+, torchtune discontinued.
+Last verified: 2026-09-14. transformers 5.15, Axolotl 0.29+, torchtune discontinued.
 
 ### Best resources
 
@@ -129,10 +129,10 @@ transparency and peak MFU; frameworks in between mostly repackage the same
 
 FSDP2/DeepSpeed/TRL primitives, so pick by how much of the loop you want to own.
 
-### Current state summary (Aug 2026)
+### Current state summary
 
 - transformers v5 completed the PyTorch-first consolidation; it is now the de facto
-  model-definition hub for both training and serving runtimes.
+  model-definition hub for both training and serving runtimes. Ownership of that hub changed in September 2026: Nvidia confirmed on 3 September that it is buying Hugging Face for $12.93 billion, so the default distribution point for open weights, along with the training and inference integrations layered on it, now sits inside the company that sells the hardware those weights run on. Jensen Huang's stated commitment is that the platform stays open and that Nvidia compute will not be required to use it, which is a promise to date and recheck rather than a property of the stack.
 
 - Meta's trainer strategy churned (tune -> forge -> titan); PyTorch-native training
   now means torchtitan plus core APIs, and its releases track PyTorch minors.
@@ -145,4 +145,4 @@ FSDP2/DeepSpeed/TRL primitives, so pick by how much of the loop you want to own.
 - Fine-tuning competition (Axolotl vs Unsloth vs TRL vs LLaMA-Factory) is converging on
   the same TRL-derived trainers; differentiation is kernels, packing, and config UX.
 
-Cross-refs: [Distributed PyTorch: DDP, FSDP2, DTensor, and friends](distributed-pytorch.md) for the primitives these frameworks wrap; [Alignment: SFT, RLHF, DPO Family, RLVR](../llm-training-and-post-training/alignment-and-rlhf.md) for alignment algorithms; [RL for LLMs: RLHF, GRPO, RLVR (state as of 2026-08-24)](../rl/rl-for-llms.md) for RLVR and GRPO theory.
+Cross-refs: [Distributed PyTorch: DDP, FSDP2, DTensor, and friends](distributed-pytorch.md) for the primitives these frameworks wrap; [Alignment: SFT, RLHF, DPO Family, RLVR](../llm-training-and-post-training/alignment-and-rlhf.md) for alignment algorithms; [RL for LLMs: RLHF, GRPO, RLVR](../rl/rl-for-llms-rlhf-grpo-rlvr.md) for RLVR and GRPO theory.

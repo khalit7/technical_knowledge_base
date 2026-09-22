@@ -1,8 +1,8 @@
 # Model Context Protocol (MCP)
 
-⏱ 11 min read · +4h 55m resources
+⏱ 13 min read · +4h 55m resources
 
-Updated 2026-09-21 (acronyms expanded on first use; stray separator in the revision table fixed). Current spec revision: **2026-07-28**.
+Current spec revision: **2026-07-28**.
 
 ### Best resources
 
@@ -15,7 +15,7 @@ Updated 2026-09-21 (acronyms expanded on first use; stray separator in the revis
 
 ### What it is
 
-MCP (Anthropic, Nov 2024; now a broadly adopted open standard) standardizes how LLM applications connect to external context and tools: "USB-C for AI". JSON-RPC 2.0 messages between a **host** (the LLM app: Claude Code, Claude Desktop, IDEs), which runs one **client** per connection, and **servers** that expose capabilities. The host owns the model loop and user consent; clients are 1:1 connection handles; servers are small, focused capability providers (filesystem, GitHub, Postgres, your internal APIs).
+MCP (Anthropic, Nov 2024; now a broadly adopted open standard) standardizes how LLM applications connect to external context and tools: "USB-C for AI". JSON-RPC 2.0 messages between a **host** (the LLM app: Claude Code, Claude Desktop, IDEs), which runs one **client** per connection, and **servers** that expose capabilities. The host owns the model loop and user consent; servers are small, focused capability providers (filesystem, GitHub, Postgres, your internal APIs).
 
 ### Primitives
 
@@ -36,7 +36,7 @@ Plus: logging (deprecated 2026-07-28), progress notifications, argument completi
 - **stdio**: host spawns the server as a subprocess, JSON-RPC over stdin/stdout, one line per message. Zero network surface; the default for local dev tools and what most Claude Code MCP configs use.
 - **Streamable HTTP** (since 2025-03-26): a single endpoint; client POSTs JSON-RPC, server replies with `application/json` or upgrades that response to an SSE stream for progress/streamed results. Replaced the original HTTP+SSE dual-endpoint transport (which is now in a year-long phase-out). Stateless-friendly: since 2026-07-28 there is no `Mcp-Session-Id`; each request self-describes via `_meta` and new `Mcp-Method`/`Mcp-Name` headers let gateways route without parsing bodies.
 
-### Spec revision history (to Aug 2026)
+### Spec revision history
 
 | Revision | Highlights |
 | --- | --- |
@@ -44,9 +44,9 @@ Plus: logging (deprecated 2026-07-28), progress notifications, argument completi
 | **2025-03-26** | OAuth 2.1 authorization framework; **Streamable HTTP** replaces HTTP+SSE; tool annotations, audio content, completions, JSON-RPC batching. |
 | **2025-06-18** | Structured tool output; **elicitation**; resource links in results; batching removed; servers become OAuth **Resource Servers** with RFC 8707 resource indicators (audience-bound tokens); security best practices doc. |
 | **2025-11-25** | Auth discovery via OpenID Connect (OIDC) Discovery, incremental scope consent; icons, standard enums, JSON Schema 2020-12; experimental Tasks. |
-| **2026-07-28** | Largest revision yet: **stateless core** (no initialize handshake, no sessions; version/identity/capabilities travel per-request in `_meta`), **Multi Round-Trip Requests** (`resultType: "input_required"`, then retry with `inputResponses` replaces server-initiated requests over open streams), header-based routing, cacheable list results (`ttlMs`, `cacheScope`), auth hardening (RFC 9207 issuer validation; **Client ID Metadata Documents** replace Dynamic Client Registration; issuer-bound credentials), formal **extensions framework** (Tasks graduates to `io.modelcontextprotocol/tasks`; **MCP Apps** for interactive UI), deprecation policy (roots, sampling, logging deprecated with 12-month support). |
+| **2026-07-28** | Largest revision yet: **stateless core** (no initialize handshake, no sessions; version, identity and capabilities travel per-request in `_meta`), **Multi Round-Trip Requests** (`resultType: "input_required"`, then retry with `inputResponses`, replacing server-initiated requests over open streams), header-based routing, cacheable list results (`ttlMs`, `cacheScope`), auth hardening (issuer-bound credentials, plus the changes under Authorization below), formal **extensions framework** (Tasks graduates to `io.modelcontextprotocol/tasks`; **MCP Apps** for interactive UI), and a 12-month deprecation policy. |
 
-Design direction: away from a chatty stateful session protocol toward a cacheable, load-balancer-friendly, gateway-routable request protocol, which is what enterprise remote-server deployment demanded.
+Design direction: away from a chatty stateful session protocol toward a cacheable, load-balancer-friendly, gateway-routable request protocol, which is what enterprise remote-server deployment demanded. It went far enough that "MCP was declared dead" became a recurring headline in August 2026: with no handshake and no session header, the argument runs, what is left is hard to tell from a plain HTTP API. The deployment win is real (any request can hit any instance, so sticky routing and shared session stores stop being protocol requirements) and the open question is whether the remaining surface justifies a protocol of its own. [InfoQ](https://www.infoq.com/news/2026/08/mcp-stateless-gateway/) (10 min)
 
 ### Authorization
 
@@ -65,10 +65,11 @@ For HTTP transports only (stdio inherits process credentials/env vars):
 - **Session hijacking** (pre-2026 stateful transports): guessable session IDs let attackers inject events; statelessness in 2026-07-28 removes much of this class.
 - **Supply chain**: thousands of community servers of unknown quality; treat installing an MCP server like installing an npm package with shell access. Prefer official/registry-verified servers, containerize, scope credentials.
 
-### Ecosystem state (Aug 2026)
+### Ecosystem state
 
-- Adopted by all major hosts: Claude (Code/Desktop/API MCP connector), OpenAI, Google/Gemini, Microsoft (Windows, Copilot Studio), Cursor, VS Code, JetBrains.
-- **Official registry** at [registry.modelcontextprotocol.io](http://registry.modelcontextprotocol.io/) (launched Sept 2025, still preview): ~2k servers; aggregators list far more (PulseMCP 15k+, Smithery ~7k). Quality is a long tail; the registry adds namespacing and provenance, not vetting.
+- Adopted by all major hosts: Claude (Code/Desktop/API MCP connector), OpenAI, Google/Gemini, Microsoft (Windows, Copilot Studio), Cursor, VS Code, JetBrains. The surface reaches past software as of 2026: **Google Home MCP** entered early access in September (device state in, device commands out, behind a Premium Advanced subscription and a Cloud project), and Anthropic's **Model Hardware Standard**, a research preview since August, puts laboratory and manufacturing equipment behind any harness that speaks MCP. Both make an ordinary MCP deployment capable of irreversible physical actions, which is a harder failure class than the ones above: revoking a token does not un-move a liquid handler.
+- **Servers can be generated rather than written.** Stanford's Paper2Agent (Nature, September 2026) turns a paper plus its repository into an agent exposed as MCP tools, and managed **74 of 100 computational biology papers with no manual intervention**. A tool schema plus a transport is evidently a small enough contract for a model to fill unaided; the 26% that failed did so because the knowledge needed to actually run the code was not in the repository. [Nature](https://www.nature.com/articles/s41586-026-11044-y) (10 min)
+- **Official registry** at registry.modelcontextprotocol.io (launched Sept 2025, still preview): ~2k servers; aggregators list far more (PulseMCP 15k+, Smithery ~7k). Quality is a long tail; the registry adds namespacing and provenance, not vetting.
 - Governance moved to community working groups with an SEP (spec enhancement proposal) process; Tier 1 SDKs track spec releases.
 - Gateways/middleware are a real category now (auth, routing, metering, tool filtering in front of fleets of servers); header-based routing in 2026-07-28 exists for them.
 - The project's roadmap (published 2026-08-22) lays out where the spec goes next; it drew 240+ points and a long thread on Hacker News. [MCP blog](https://blog.modelcontextprotocol.io/posts/mcp-roadmap/) (15 min)
@@ -78,7 +79,8 @@ For HTTP transports only (stdio inherits process credentials/env vars):
 - Start from the Python or TypeScript SDK; decorate functions as tools; run stdio first, add Streamable HTTP when you need remote.
 - **Design tools for the model, not for your API**: few, high-level, task-shaped tools beat a 1:1 REST mirror; write descriptions like docs for a junior engineer; return concise, structured results (token cost is real); paginate/truncate large outputs.
 - Use `outputSchema` + structured content; mark read-only vs destructive via annotations; make destructive tools idempotent where possible.
-- Log to stderr (stdio transport reserves stdout for JSON-RPC); never print to stdout.
+- Log to stderr; the stdio transport reserves stdout for JSON-RPC.
 - For remote servers: statelessness is now the grain of the protocol, so keep no per-session state server-side; set `ttlMs` on stable lists; validate tokens properly (audience, issuer); rate-limit per client.
+- **Deploying to an organisation is a configured surface on both sides**, not a JSON file per developer: Claude Code's `managedMcpServers` (September 2026) sets organisation-level HTTP and SSE servers centrally, with `--permission-prompts none` for unattended headless hosts, and the Claude Developer Platform's auto permission policies for Managed Agents let a server evaluate, run, deny or pause each individual agent and MCP tool call. Give such a policy a stop condition that does not rely on the agent having noticed: the Emergence World stress test of long-horizon multi-agent systems found that detection did not ensure containment, with systems recognising adversarial content and still interacting with it up to 46 hours later.
 - Test with MCP Inspector; evaluate tools with real agent transcripts (do models pick the right tool with the right args?).
 See also: [Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era](auth.md), [Real-time and event delivery: WebSockets, SSE, webhooks, long polling](realtime-and-events.md) (SSE mechanics), and [Topic: protocols](summary.md) for MCP vs A2A positioning.

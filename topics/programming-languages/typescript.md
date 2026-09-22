@@ -2,7 +2,7 @@
 
 ⏱ 17 min read · +34h 45m resources
 
-*Created 2026-08-31.* TypeScript is a **type layer over JavaScript, erased at compile time**. Nothing here changes runtime behaviour. Do [JavaScript: zero to expert](javascript.md) Stages 1 and 2 first, or you will attribute JavaScript problems to the type system.
+TypeScript is a **type layer over JavaScript, erased at compile time**. Nothing here changes runtime behaviour. Do [JavaScript: zero to expert](javascript.md) Stages 1 and 2 first, or you will attribute JavaScript problems to the type system.
 
 The one framing that makes the language click: TypeScript's type system is a **separate, Turing-complete language that runs at compile time** and describes the shape of values. Learning it well means learning to program in that second language.
 
@@ -15,7 +15,7 @@ The one framing that makes the language click: TypeScript's type system is a **s
 - [ts-reset](https://github.com/total-typescript/ts-reset) (repo, ~15 min for the README) and the [tsconfig reference](https://www.typescriptlang.org/tsconfig) (reference, ~1h) for configuration you will otherwise cargo-cult.
 - [The TypeScript release notes](https://devblogs.microsoft.com/typescript/) (blog, ~30 min per release): version-by-version, short, and the fastest way to stay current.
 
-### State of TypeScript (2026-08) (1 min)
+### State of TypeScript (1 min)
 
 **TypeScript 7.0 shipped on 2026-07-08**: the compiler and language service are now a native Go binary (Project Corsa), a port rather than a redesign, so type-checking semantics are unchanged. Microsoft reports full builds typically 8-12x faster; their headline benchmark took the VS Code codebase from 125.7s to 10.6s. Two consequences that matter in practice:
 
@@ -34,7 +34,7 @@ The one framing that makes the language click: TypeScript's type system is a **s
 TypeScript uses the JavaScript ecosystem's package managers unchanged (npm, Yarn, pnpm, Bun: see [JavaScript: zero to expert](javascript.md) for what each one is and why it exists). What follows is only what differs once types are involved.
 
 - **Install ****`typescript`**** as a devDependency, never globally.** The compiler version is part of your build, and a global install means your machine and CI disagree about what compiles. `npx tsc` runs the local one.
-- **Pin the TypeScript version tightly.** TypeScript does not follow semver in the usual sense: a minor release can introduce new errors in code that previously compiled, because better inference finds real bugs. Use `~5.9.2` rather than `^`, and treat a TypeScript upgrade as a task with its own pull request.
+- **Pin the TypeScript version tightly.** TypeScript does not follow semver in the usual sense: a minor release can introduce new errors in code that previously compiled, because better inference finds real bugs. Use a tilde range such as `~7.0` rather than a caret, and treat a TypeScript upgrade as a task with its own pull request.
 - **`@types/*`**** packages come from DefinitelyTyped**, a single enormous community repository that publishes type declarations for libraries written in plain JavaScript. If a package ships its own types (most modern ones do, via a `types` or `exports` field), you need nothing; if not, `npm i -D @types/thatpackage`. A `@types` package version tracks the library's major and minor, not its patch.
 - **`skipLibCheck: true`** stops the compiler type-checking every `.d.ts` in `node_modules`. Leave it on: without it, one badly typed transitive dependency fails your build for no benefit.
 - **Publishing a typed package**: ship `.d.ts` files, point at them from `exports` (with separate `types` conditions for ESM and CJS if you publish both), and make sure you do not leak internal types into the public surface. Getting `exports` wrong is the most common reason consumers see `any` or a module-resolution error.

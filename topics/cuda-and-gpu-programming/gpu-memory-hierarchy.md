@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +5h 40m resources
 
-*Last updated: 2026-08-24*
-
 ### Best resources
 
 - [Horace He, Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) (25 min): the canonical explanation of compute-bound vs memory-bound vs overhead-bound for ML people.
@@ -113,9 +111,9 @@ and Python overhead). Diagnose which regime you are in before optimising anythin
 
 Naive matmul: each thread computes one C element, reading a full row of A and column of B
 
-from global memory; every A and B element is fetched N times. AI per global byte stays
+from global memory, so every A and B element is fetched N times. AI per global byte stays
 
-tiny, so the kernel sits on the bandwidth roof despite matmul's intrinsic compute-bound
+tiny and the kernel sits on the bandwidth roof despite matmul's intrinsic compute-bound
 
 nature.
 

@@ -1,8 +1,6 @@
 # Topic: swe-and-system-design
 
-⏱ 9 min read · +44h resources
-
-Last updated: 2026-09-21 (repaired the truncated last-updated note, replaced a repo-style reference in the taxonomy diagram, and tidied the fundamentals sentence)
+⏱ 6 min read · +44h resources
 
 The engineering substrate under every ML service. Three pillars: **system design**
 
@@ -77,29 +75,7 @@ memory bandwidth) rather than by pattern-matching.
 
 ### What the named ideas actually are
 
-The terms above are the vocabulary the rest of this topic is written in, so each gets a definition and a reason to care.
-
-**CAP.** During a network partition a system can stay available or stay consistent, not both. Its more useful successor PACELC adds the healthy-network case: then the trade is latency against consistency. Why it matters: it turns "how consistent should this be" into a per-invariant question rather than a system-wide one, and the discipline is to pick the weakest level each invariant tolerates ("must not double-charge" needs linearizability or an idempotency key; "dashboard is 30 seconds stale" needs nothing at all).
-
-**Idempotency.** An operation that can be applied twice with the effect of once. It is the highest-leverage property in service design because it makes retries safe, which makes at-least-once delivery tolerable, which in turn makes almost every other reliability mechanism simpler.
-
-**Backpressure.** Propagating a consumer's inability to keep up back to the producer, through bounded buffers, 429 with Retry-After, or credit-based flow control. Why it matters: without it an unbounded queue converts overload into unbounded latency and then into metastable collapse, where the system stays broken after the load that broke it has gone away.
-
-**Delivery semantics.** What a messaging layer promises. At-most-once loses messages; at-least-once duplicates them and is the practical default; exactly-once delivery is impossible over an unreliable network, so what real systems ship is at-least-once plus deduplication. That is why delivery semantics and idempotency are the same conversation.
-
-**Database selection.** Choosing among transactional row stores, analytical column stores, key-value stores and vector indexes by access pattern rather than by familiarity. It matters because storage is the least reversible decision in a design: services can be rewritten in a sprint, a data model that answers the wrong questions cannot.
-
-**Property-based testing.** Rather than hand-picking examples, you state an invariant (normalisation never introduces a NaN; a vectorised implementation matches the slow reference loop) and a generator searches for a counterexample, then shrinks it to the smallest failing input. **Hypothesis** is the Python implementation, with generators for numpy arrays and dataframes. Why it matters for ML code: shape, dtype and numerical invariants are exactly what an example-based test misses and a search finds.
-
-**Model regression suites.** A versioned golden set scored against the incumbent's stored scores, failing the build on a drop beyond a noise threshold. They play the role for a checkpoint or prompt change that unit tests play for code, which is the only way a nondeterministic component can be gated at merge time rather than watched on a dashboard.
-
-**LLM contract tests.** Validation that a model's output conforms to the schema downstream code expects: field types, enum membership, IDs that resolve against the catalogue, citation indices in range. Why it matters: it moves a prompt or checkpoint regression from a production incident to a CI failure.
-
-**pydantic.** The Python library that parses input into typed models and validates it at the boundary, instead of checking dictionaries by hand deep in the call stack. It is where the contracts above are actually written, and where config, request bodies and structured LLM output all get the same treatment.
-
-**API versioning discipline.** Every breaking change (removing or renaming a field, tightening validation, changing semantics) gets a new version, and existing consumers keep the semantics they onboarded with. It matters more for ML services than for CRUD ones because the model is itself part of the contract surface: swapping a checkpoint changes observable behaviour without changing a single field.
-
-**Idempotency keys.** The client-supplied token that manufactures idempotency where the operation has none: the server atomically records key to response and replays the stored response on a retry. This is the concrete mechanism that makes a client retry policy safe on POST.
+Each term is defined where it is used: CAP and consistency models, idempotency, backpressure, delivery semantics and database selection in [Distributed Systems Basics](distributed-systems-basics.md); property-based testing, model regression suites and LLM contract tests in [Testing and Quality for ML Systems](testing-and-quality.md); pydantic contracts, API versioning discipline and idempotency keys in [API and Code Design](api-and-code-design.md). Two that no deep dive owns:
 
 **OSTEP.** Operating Systems: Three Easy Pieces, the free Wisconsin textbook organised around virtualisation, concurrency and persistence. It is the reference for the OS layer of the fundamentals, and it earns the time because its three-way split reappears in GPU serving almost directly: address spaces and paging map onto KV cache block management, and scheduling onto continuous batching.
 
@@ -126,7 +102,7 @@ That walk is also, almost verbatim, the ML system design interview.
 | [Testing and Quality for ML Systems](testing-and-quality.md) (10 min read · +3h 40m resources) | Testing ML systems: data transform units, property-based testing with Hypothesis, model regression suites, LLM contract tests, CI gates, GPU CI, general test taste |
 | [API and Code Design](api-and-code-design.md) (11 min read · +9h 15m resources) | API design (versioning, pagination, idempotency keys, errors, webhooks), Python library design, code review taste, when abstraction pays |
 
-Also under this topic, outside the table above: the [AI Engineering Skills Map: software engineering fundamentals (Andrew Ng, 2026)](ai-engineering-skills-map.md) (6 min read · +10 min resources), which maps Andrew Ng's five software-fundamentals pillars onto where this KB covers each one and flags the two gaps (front-end proper, and conventional application security).
+Also under this topic, outside the table above: the [AI Engineering Skills Map: software engineering fundamentals (Andrew Ng, 2026)](ai-engineering-skills-map.md) (5 min read · +10 min resources), which maps Andrew Ng's five software-fundamentals pillars onto where this KB covers each one and flags the two gaps (front-end proper, and conventional application security).
 
 ### Related topics
 

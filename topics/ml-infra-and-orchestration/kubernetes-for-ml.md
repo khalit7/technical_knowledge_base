@@ -2,8 +2,6 @@
 
 ⏱ 12 min read · +4h 40m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [Kubernetes concepts docs](https://kubernetes.io/docs/concepts/) (docs, ~90 min for the core pages): read Pods, Deployments, Jobs, Services first; skip the rest until needed.
@@ -52,7 +50,7 @@ SLURM answers "give me 4 nodes for 48 hours". Kubernetes answers "keep this syst
 - GPUs are requested in `limits` and are integer and exclusive by default.
 - **MIG** partitions A100/H100/B200-class GPUs into hardware-isolated slices (`nvidia.com/mig-3g.40gb: 1`); right for inference and small jobs, wrong for training throughput.
 - **Time-slicing** oversubscribes a GPU across pods with zero isolation (shared memory, no fairness); fine for a home lab and bursty dev pods, dangerous in prod.
-- **DRA (Dynamic Resource Allocation)** is the newer K8s-native resource API the GPU ecosystem is migrating toward (ResourceClaims instead of the device-plugin integer model); know it exists.
+- **DRA (Dynamic Resource Allocation)** is the newer K8s-native resource API the GPU ecosystem is migrating toward (ResourceClaims instead of the device-plugin integer model).
 
 ### Requests vs limits (the concept SLURM never made you learn)
 
@@ -70,11 +68,11 @@ Raw kube-scheduler places pods one by one: a 16-pod training job can deadlock at
 
 ### Helm, briefly
 
-Helm is templated-YAML package management: `helm install kube-prometheus-stack`, `values.yaml` for overrides, releases are upgradable/rollbackable. You will consume charts (GPU operator, Kueue, Prometheus, vLLM) far more often than you author them. For your own apps, plain manifests + Kustomize overlays are often cleaner; Terraform's helm provider ties chart installs into your IaC.
+Helm is templated-YAML package management: `helm install kube-prometheus-stack`, `values.yaml` for overrides, releases are upgradable/rollbackable. You consume charts (GPU operator, Kueue, Prometheus, vLLM) far more often than you author them. For your own apps, plain manifests + Kustomize overlays are often cleaner; Terraform's helm provider ties chart installs into your IaC.
 
 ### k3s home-lab route (dual GPU)
 
 1. **k3s** single-node: one binary, batteries included (containerd, traefik, local storage). `curl -sfL https://get.k3s.io | sh -`. Ignore multi-node until later.
 2. Install NVIDIA drivers + nvidia-container-toolkit on the host; k3s's containerd detects the runtime, then deploy the **device plugin** (or full GPU Operator with `driver.enabled=false`) so `nvidia.com/gpu: 2` appears in `kubectl describe node`.
 3. Milestones, in order: (a) a Pod that runs `nvidia-smi`; (b) a batch Job running single-GPU finetune from your own image; (c) Indexed Job + headless service running 2-GPU torchrun DDP; (d) install Kueue, put a 2-GPU quota on one ClusterQueue, watch jobs queue and gang-admit; (e) kube-prometheus-stack + DCGM exporter dashboard; (f) vLLM Deployment + Service serving a small model; (g) time-slicing config to oversubscribe GPUs for dev pods.
-4. That sequence covers every concept above with hardware you own, and maps 1:1 onto what an EKS/HyperPod-EKS cluster does at work.
+4. That sequence covers every concept above on hardware you own, and maps 1:1 onto what an EKS/HyperPod-EKS cluster does at work.

@@ -2,8 +2,6 @@
 
 ⏱ 9 min read · +8h 15m resources
 
-Updated 2026-08-24.
-
 ### Best resources
 
 - [Mathematics for Machine Learning, ch. 2-4](https://mml-book.github.io/) (book, ~3h 15m for ch. 2-4): Deisenroth, Faisal, Ong; free PDF. Vector spaces, norms, decompositions, matrix calculus, in exactly the notation used below.

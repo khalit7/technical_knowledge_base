@@ -1,6 +1,6 @@
 ---
 name: kb-make-video
-description: Produce a narrated explainer video derived from a KB page: the spine, the animation and transitions, the script, the voice, and the weekly news format. The written page stays canonical.
+description: Produce a narrated explainer video derived from a KB page. Three formats with genuinely different shapes: a news edition that tells separate stories one by one, a topic overview built on a map, and a deep dive that follows one mechanism. The written page stays canonical.
 ---
 
 # Produce technical explainer video
@@ -67,33 +67,53 @@ Where they differ: 3Blue1Brown builds one idea to depth and earns every abstract
 
 Every video opens by orienting the viewer, whatever its format. This is not in tension with opening on tension: it is what makes the tension mean something. A viewer who cannot tell what they are watching stops watching, and dropping somebody into a surprising number about a subject they have not been told is the subject does not intrigue them, it loses them.
 
-The opening does three things, in about twenty seconds, before the first beat of the spine:
+The opening does four things, in about twenty to thirty seconds:
 
 1. **Name the subject**, in the words the page uses.
 2. **Say what it actually is**, in one plain sentence. "Where data sits on a graphics card, and what it costs to move it from one of those places to another."
 3. **Say why it earns the time.** The one-line reason this is worth watching rather than skimming.
+4. **Give the context needed to follow what comes next.** Who these people are, what came before, what a number should be compared against. Without it the first real beat lands on somebody who cannot place it.
 A title card alone does not do this. It names the video without telling anyone what is in it, which is the failure this rule exists to prevent.
 
-Then, after the tension and the question, **the contract**: where the next few minutes go, in the order they go there. Four short steps on screen is enough, and it is the one place a video is allowed to look like an agenda, because by then the viewer has a reason to want it.
+**This applies at every level.** It opens the episode, and inside a news edition it opens each story as well: a viewer who joins at story three is owed the same orientation as one who joined at the start.
 
-## The spine
+What comes after the opening is the format's business, not a universal rule. A contract, where the video says where the next few minutes go, is required for a deep dive, optional for an overview, and usually redundant in a news edition where the opening has already said how many stories there are.
 
-Every video, explainer or news, follows this shape. Timings are for an eight minute piece.
+## There is no universal spine
 
-1. **Tension (0:00 to 0:25).** The confusion, the surprising number, or the thing everyone got slightly wrong. No greeting, no agenda, no "in this video we will".
-2. **The sharp question (0:25 to 0:40).** One sentence that the whole video answers. Say it out loud.
-3. **The contract (0:40 to 1:00).** Where we start, roughly where we end, and a warning if it gets harder later. Do not drop this beat from anything longer than about three minutes: the two minute news cut can lose it because the viewer can hold the whole thing in their head, and a six minute deep dive cannot.
-4. **Common ground (1:00 to 2:00).** What the viewer already knows, restored as the first rung of the ladder.
-5. **The causal walk (2:00 to 6:00).** One idea per beat, each beat caused by the limit of the one before. Concrete example first, mechanism second, name of the thing last.
-6. **The number (inside the walk).** One worked figure or comparison that makes the claim physical.
-7. **The objection (6:00 to 7:00).** The thing a knowledgeable viewer is about to say. Say it first, then answer it.
-8. **The take (7:00 to 8:00).** What this changes, what to watch, what is still unsettled. Stop there.
+There used to be one here: eight numbered beats with timings, applied to every video whatever its format. It was wrong, and it did real damage, because a shape that fits one kind of material gets forced onto material it does not fit. The clearest case: a news edition of four unrelated stories was bent onto a single thesis, because the spine said there had to be one sharp question the whole video answers. The result was harder to follow than the written page.
+
+So: **three things are common to every video, and everything else belongs to the format.**
+
+The three:
+
+1. **The opening**, as described above. Subject, what it is, why it earns the time, and the context needed to follow what comes next.
+2. **A reason to keep watching that is not suspense.** The viewer should always know why this beat exists. In a deep dive that is a question being answered; in an overview it is a map being filled in; in a news edition it is simply the next story, properly introduced.
+3. **A take at the end.** What this changes, what to watch, what is still unsettled. Never a bulleted recap of what was just said.
+Everything else is the format's, and the three formats want genuinely different things:
+
+|  | news edition | topic overview | deep dive |
+| --- | --- | --- | --- |
+| what it is | several items, usually unrelated | one landscape, seen whole | one mechanism, understood |
+| the shape | story, story, story | map first, then the tour | a single line of reasoning |
+| borrowed from | a news bulletin | a field guide & caleb writes code style | 3Blue1Brown |
+| one thesis? | only if one genuinely exists | often, if one genuinely exists | yes, that is the format |
+| length | as long as the stories need | six to seven minutes | as long as the idea needs |
+
+### Nothing here is a quota
+
+The old spine gave timings per beat, and that encouraged padding a thin story to fill its slot and rushing a rich one to fit. Neither is acceptable.
+
+- **Stories and sections do not have to be the same length.** A story with a mechanism worth explaining gets two minutes; one that is a single fact gets twenty seconds. Making them equal is a decision to waste the viewer's time on the second one.
+- **A video is as long as it has material for.** An overview of a small topic that runs four minutes is finished, not short.
+- **Not every beat in any list below is compulsory.** They are the beats that usually earn their place. If one does not, drop it and say so in the script's docstring, so the next person knows it was a decision rather than an omission.
+The one thing that is checked mechanically is the small set of roles each format genuinely requires, and `check_structure.py` holds that list rather than this page.
 
 ## Production pipeline
 
 1. **Read the canonical page** and the material it links. Resolve factual gaps before scripting. A figure that cannot be traced back to the page does not go in.
-2. **Decide the mental model** the viewer should leave with, and the one sentence the video answers.
-3. **Outline against the spine, then revise the outline.** Pick one story and follow it down. A roundup of eight items is not an episode.
+2. **Decide the mental model** the viewer should leave with, and the one sentence the video answers (in case of tech news, there is not necessarily a one sentence the whole video answers, it could be a question per story, or no question at all).
+3. **Decide the format first, then outline against that format, then revise the outline.** The three formats are news, topic overview and deep dive, and they want different shapes; the sections below set out each one. Do not carry one format's rules into another. In particular, "pick one story and follow it down" is a deep-dive rule and a sometimes-rule for an overview. It is not a news rule, and applying it there is what produces an edition that forces unrelated stories onto one thesis.
 4. **Write the script sterile**, as speech rather than as prose: beats, each beat a list of speaker turns.
 5. **Critique it, and fix what the critique finds.** Record what changed, so the next episode inherits the lesson rather than the mistake.
 6. **Only then add the humanity**: the breaths, the one false start, the "yeah, and". This order is Google's published NotebookLM method and it is the right way round, because banter written first becomes the point instead of the delivery.
@@ -103,7 +123,7 @@ Every video, explainer or news, follows this shape. Timings are for an eight min
 10. **Render the voice, then the animation**, so every visual beat lasts exactly as long as the line spoken over it.
 11. **Run the three checks** below and fix what they find: one voice at a time, screen references, and every take transcribed. None of them is optional, and none of them can be replaced by watching it once.
 12. **Watch it.** The checks catch what is measurable. Pace, whether a story lands, and whether the take is worth hearing are not, and they are the reasons to make the thing at all.
-13. **Publish**: attach the finished video to the canonical page under a `Video` heading, and record it in Updates. Add a video section only where a video actually exists.
+13. **Publish**: attach the finished video **at the top of the canonical page**, under a `Video` heading, and record it in Updates. Add a video section only where a video actually exists. `video/tools/upload.py` places it and takes down any earlier one, so this is not something to arrange by hand.
 
 ## Transitions: never cut, always morph
 
@@ -224,6 +244,20 @@ The first thing on screen and the first thing said establish the edition: that t
 
 Several stories in one issue is normal. Run them one at a time and separate them plainly: a visible break, the story's own title on screen, and a spoken handover. The separation is the point, so do not blur two stories into one continuous passage.
 
+**Do not invent a thesis that ties the stories together.** This is the rule, and it was learned by breaking it. The 21 September edition was built as "two stories, one point", with a spine running from a task-horizon chart through a serving-infrastructure post to two mathematical proofs, all of it arguing that the constraint had moved from capability to verification. It is a good argument and the stories did not support it: they were unrelated things that happened in the same week, and forcing them onto one line made the episode harder to follow than reading the page.
+
+A week's news is not an essay. Work like a news outlet: take the stories one at a time, in order of how much they matter, each one introduced, explained and closed before the next begins.
+
+**Grouping is allowed, and only when the stories are genuinely related.** Two releases of the same kind in the same week, a paper and the product that implements it, a claim and the result that contradicts it: those are one story with two parts, and running them together is right. The test is whether you would still mention the second one if the first had not happened. If yes, they are separate, and a transition implying otherwise is a small lie the viewer will feel even if they cannot name it.
+
+If a genuine connection runs through the whole issue, state it once at the end and let the viewer see the stories first. If it does not, and usually it does not, the episode is simply *story one, story two, story three*.
+
+**Stories do not get equal time.** One with a mechanism worth explaining earns two minutes. One that is a single fact earns twenty seconds and a line in the coda. Giving them the same length is a decision to waste the viewer's time on the smaller one, and it is what turns an edition back into a feed.
+
+What replaces the connecting thesis is the opening: say what this edition is, how many stories there are and roughly what they are about, so the viewer knows the shape of the next eight minutes. Then take them in order. The closing take is about the week, not about a thread running through it, and "these three are unrelated and that is normal" is an honest close.
+
+A story is finished when its mechanism, its number and its caveat have been said. Move on with a plain handover ("second story") rather than a transition that implies a relationship. A flat handover is not a failure of craft here; it is the honest signal that a new thing is starting.
+
 Every story opens the same way, in this order, before any mechanism:
 
 1. **The headline**, in one sentence: who did what, in plain words, and then the claim. "Anthropic released a report measuring how much better their models have got at running long tasks on their own" and then the number. A headline that opens on the figure alone ("four minutes to twelve hours") assumes the viewer already knows what is being measured, which is the thing the story is supposed to tell them. Name the actor and the action first, then the number.
@@ -236,9 +270,17 @@ What is still banned is the undifferentiated list: eight items of equal weight, 
 
 ## The topic overview edition
 
-Every root topic page earns one of these: a video that gives you the whole landscape of that topic in one sitting. It is a different shape from both the news edition and the single-idea explainer, and the difference is that **the inventory comes first**. A news edition picks one story and follows it down. An overview refuses to go deep until the viewer can see the whole board.
+Every root topic page earns one of these: a video that gives you the whole landscape of that topic in one sitting. The thing that makes it its own format is that **the inventory comes first**. It refuses to go deep until the viewer can see the whole board, because no part of a landscape means anything until you know how big the landscape is.
 
-### The shape
+### Two kinds of overview, and they want different videos
+
+Work out which one you have before you outline, because the answer changes the whole episode.
+
+- **A comparison.** The page is a field of things that do the same job differently: model families, database engines, serving stacks, orchestrators. The organising question is what separates them, the video is a tour of the map, and the most valuable thirty seconds is usually the convergence, what they all do the same way and why.
+- **A mental model.** The page is one general subject with structure rather than competitors: the maths topic, machine learning fundamentals, systems design. There is nothing to compare. The organising question is what this way of looking at things lets you say that you could not otherwise say, and the beats are the distinctions that only exist when you can see the whole subject at once.
+**A single story running through the whole overview is allowed, and is sometimes the best version**, particularly for a mental model, where the through-lines are the point. But it has to be a story the page already tells. Do not invent a thesis to give an overview a spine it does not need: a well-built map, toured in a sensible order, is a complete video.
+
+### The shape, when it is a comparison
 
 1. **What this is, and how current.** The topic, one sentence on what it covers, and the date the page was last updated. A landscape video is worthless without a date on it.
 2. **Name everything before explaining anything.** Build the map on screen: every provider, grouped the way the page groups them, with their models named. Do not explain any of them yet. The viewer needs to see the size and the shape of the field before any one part of it means anything, and naming all of it first is what makes the rest feel like a tour rather than a list.
@@ -252,15 +294,21 @@ Every root topic page earns one of these: a video that gives you the whole lands
 ### Rules particular to this format
 
 - **The map is the home frame.** It is built once, parked, and every later beat highlights the part of it being discussed. A viewer must always be able to see where the thing being explained sits in the whole.
-- **One provider per beat, at most.** The moment two labs share a beat, the narration starts listing.
+- **One thing per beat, usually.** The moment two of them share a beat, the narration starts listing. The exception is a pairing that is itself the argument ("one hides the reasoning budget, the other hands it to you"), which is a comparison rather than a list, and is worth more than either half alone. If you pair, say in the docstring why.
 - **Say the model names.** The inventory is the point; a viewer should be able to hear a name they half-know and place it.
-- **Longer than a news edition, and that is fine.** Six to nine minutes for a large topic. It is a reference video, and the length is the map, not padding.
+- **Longer than a news edition, and that is fine.** Six to nine minutes for a large topic. It is a reference video, and the length is the map, not padding. Note the competing constraint: past about seven minutes the file no longer fits Notion's upload cap at 1080p and the delivery encode steps down to 720p, which costs text crispness on frames that are mostly small labels. Six to seven minutes is the band where both rules are satisfied, and an overview that cannot reach it usually has an inventory that wants splitting rather than prose that wants cutting.
 - **The page is the inventory's source.** If the video names a model the page does not, the page is out of date and that is the defect to fix first.
 - **Work out what the inventory actually is before assuming it is a list of competitors.** The llms map is providers and their models. The CUDA map is layers of a stack: what the machine is, where you are allowed to write, and what you call instead of writing anything. Same format, same furniture, completely different axis, and getting that axis right is most of the work of a new overview.
 
 ## The deep dive edition
 
-A deep-dive page explains one mechanism. Its video does the same, and the temptation to resist is turning the page's six or seven headings into six or seven sections, which is a table of contents read aloud. Use the spine at the top of this page, and add the rules below, which are what make the difference between explaining a mechanism and summarising a page.
+A deep-dive page explains one mechanism. Its video does the same, and the temptation to resist is turning the page's six or seven headings into six or seven sections, which is a table of contents read aloud.
+
+**This is the format where the 3Blue1Brown method pays off most, so lean on it hardest here.** The other two formats borrow its honesty about mechanism; this one borrows the whole method. The goal Grant Sanderson states for his own work is that the viewer should come away feeling they could have invented the thing, and that is achievable for one mechanism in eight minutes in a way it is not for a landscape or a week of news.
+
+What that means concretely, beyond the rules below: go slower than feels necessary, build one idea at a time, let the picture carry the argument rather than illustrate it, and say the confusion out loud instead of hiding it. A deep dive is allowed to spend a minute on something a viewer could have looked up, if that minute is what makes the next four make sense.
+
+This is also the one format where a single line of reasoning genuinely is the structure, so the contract, the question, the objection and the closing resources are all required rather than optional, and the structure check enforces them.
 
 - **Pick the load-bearing idea and follow it.** One page usually has one sentence that everything else is downstream of. Find it, open on it, and let the other sections arrive only when the walk needs them. Anything the walk does not need belongs to the page, not the video.
 - **The worked example is the spine, and it is compulsory.** Take one concrete case, with real numbers from the page, and carry it the whole way. Concrete before abstract is not a stylistic preference in this format: it is the only way a viewer ends up able to redo the reasoning.
@@ -268,16 +316,18 @@ A deep-dive page explains one mechanism. Its video does the same, and the tempta
 - **Name the wrong model the viewer is carrying, then replace it.** "You think the card is slow at arithmetic. It is not, it is starving." A deep dive that does not correct a belief is a list of facts.
 - **One diagram, built up.** Not a sequence of pictures: one construction that grows, so that pausing anywhere shows the whole argument so far.
 - **End on the resources.** The last frame names the two or three best resources from the page's own Best resources block. The video is an entry point to a subject, not a replacement for reading about it, and saying so is what stops it pretending otherwise.
-- **Six to ten minutes, and slower than the news edition.** A mechanism needs pauses that a news item does not.
+- **Build the intuition before the formalism, and say which you are doing.** The viewer should be able to predict the next step before you take it. If they cannot, the step before was too big. This is the difference between somebody who can repeat what a mechanism does and somebody who could have derived it.
+- **Name the confusion instead of hiding it.** "A lot of people find this part genuinely confusing, and here is exactly which bit." A deep dive that pretends the subject is easy leaves a viewer who does not follow it assuming the fault is theirs.
+- **As long as the idea needs, and slower than the news edition.** Usually six to ten minutes. A mechanism needs pauses that a news item does not, and a deep dive that has said everything in five minutes is finished.
 - It still may not out-claim the page, and any explanation the video invents to make the mechanism land goes back into the page in the same session.
 
 ## Running it, in the mirror repository
 
 The toolchain lives in the GitHub mirror, under `video/`, and this page is mirrored into it as a loadable skill, so these commands are here rather than in a second copy of the method.
 
-1. Write the script into `video/scripts/<episode>.py`: beat keys mapping to `(speaker, line)` turns, a `FORMAT` declaration, and short sentences.
-2. Storyboard into `video/scenes/<episode>.py` with the same beat keys, inheriting the shared furniture (`common/news.py` for an edition, `common/overview.py` for a topic map, `common/deepdive.py` for a mechanism). Write only this episode's diagrams. A beat must not depend on an object another beat created.
-3. Register the episode in the `SCENES` map in `video/build.py`.
+1. Write the script into `video/scripts/<episode>.py`: beat keys mapping to `(speaker, line)` turns, a `FORMAT` declaration, and short sentences. Add `TITLE`, `SUBTITLE` and `UPDATED` for the title card.
+2. In the same file, declare `VISUALS`: one entry per beat key, saying what that beat shows. This is the normal way to build an episode now, and it needs no scene file at all. The vocabulary is in the section below.
+3. Write a scene file by hand only where the argument needs its own picture, in which case `video/scenes/<episode>.py` inherits the shared furniture (`common/news.py` for an edition, `common/overview.py` for a topic map, `common/deepdive.py` for a mechanism), and a beat must not depend on an object another beat created. Nothing needs registering anywhere: an episode is found by its file.
 4. Check the shape before rendering anything:
 
 ```bash
@@ -307,7 +357,74 @@ uv run --group tts python video/tts/verify.py --script <episode>
 The layout audit needs no command: it runs inside the render and writes `video/out/layout_<episode>.json`.
 
 1. Watch it, then attach it to the canonical page and record it in Updates.
+**A video goes at the top of its page, always.** Above the reading-time line, above the prose, above everything. It is the fastest way into the page, and appended at the bottom it is something the reader finds only after they no longer need it.
+
+This is not a thing to arrange by hand on each page. `video/tools/upload.py` enforces it: Notion's API has no "insert before", so it appends the blocks after the current first block, recreates that block below them from its own rich text, and deletes the original, which is lossless. It also takes down any video section the page already has, so remaking an episode replaces the old one instead of leaving two, and the stale one is always the one somebody watches.
+
+The page stays canonical underneath. Leading with the video says it is the fastest way in, not that it is the authority: the note under it says so, and every figure in it came from the page it sits on.
+
 After any refactor of the toolchain, build one episode end to end before calling it done: a moved path or a renamed tool does not surface until something uses it.
+
+### Declaring what a beat shows
+
+The first episodes were three hundred lines of hand-positioned manim each. That is how the visual grammar was worked out, and it is the wrong way to make forty, for reasons that are not about effort: hand-written scenes drift apart until the series stops looking like a series, and the bugs they carry are positioning bugs, invisible in the code and visible only in the frame.
+
+So a beat declares its picture from a fixed vocabulary, and one generic scene draws it. The vocabulary is the furniture the hand-written episodes had already converged on:
+
+- `title`: the page, what it covers, and the date it was current.
+- `points`: a short list, revealed a line at a time. The commonest beat there is.
+- `columns`: the map. Named groups of things, built group by group. Usually carries `park`.
+- `stack`: layers where the order top to bottom is the argument.
+- `flow`: a left-to-right pipeline with arrows.
+- `bars`: a comparison where the length is the point. Give `value` per bar and let the widths be computed. A chart whose bars were sized by hand is a chart that can lie by arithmetic.
+- `stat`: one number, large, with its caption.
+- `compare`: two positions side by side, so the difference is spatial rather than remembered.
+- `table`: rows and columns, for when the grid itself is the content.
+- `claim`: one sentence alone on screen, for the take.
+- `resources`: where to go next, which every deep dive owes the viewer.
+Three modifiers: `park` shrinks the panel into the corner and keeps it as the home frame, `focus` lights up one named part of it in a later beat, and `keep` leaves the previous panel up instead of clearing it. Exactly one beat may park.
+
+A bespoke scene is still allowed and has to earn itself. The memory pyramid and the roofline in the GPU deep dive earn it, because those pictures are the argument. If the vocabulary can carry the beat, use the vocabulary: a consistent series is worth more than a clever frame.
+
+#### How much fits
+
+This is the number authors actually need, and "keep panels small" is not it. The frame is about 14 units wide. A parked map takes the left 4.2 plus a gutter, so the free region beside it is **about 7.8 units**. In that space, three columns or three flow steps are comfortable, four are marginal, and five are the coloured-blocks failure. Without a parked map you have about 12.4 and can afford one more of each.
+
+Everything that draws itself wide has to be derived from that number rather than fixed, and the two that were not both produced the same defect: a four-column map at a fixed pill width was nineteen units wide before anything was drawn, and a bar chart at its default span was thirteen. In both cases `fit` scaled the labels below what the delivery encode can show, which the layout audit then reported as text too small to read.
+
+#### What the vocabulary still cannot draw
+
+Worth knowing before you plan a beat around one of these, because every one of them was worked around rather than solved:
+
+- **Focus is column-level.** Against a parked map, every item resolves to its column heading, so lighting two different items in the same column produces the same frame twice.
+- **No "same structure, twice, with one thing changed".** `compare` gives two free-form positions and `table` gives a grid; neither draws an identical skeleton with one differing part, which is exactly what makes some comparisons land.
+- **No translation panel.** Two topics in this knowledge base are explicitly translation tracks (SLURM to Kubernetes, PyTorch to JAX) and the most useful picture either has is "these two names are the same thing in two worlds". A table renders it as data instead.
+- **Bars cannot show before and after on one quantity**, so an improvement from 58% to 99.3% draws identically to two different things measured once. They also cannot mark a row as the denominator rather than a measurement.
+- **A stat holds one number**, so a result that is really two pushes the second into the small note, where the screen-reference rule then obliges the narration to read something hard to see.
+- **A table cannot mark its load-bearing column**, so the narration has to say "read the right hand column".
+- **A stack cannot show something running underneath it**, which a lifecycle with machinery under every stage needs.
+
+#### Bugs that came from using it at scale
+
+Three defects surfaced only once forty episodes were written against the vocabulary, and all three were silent.
+
+- **Ghost panels.** Every panel that registers labels for `focus` used to leave them behind, so a later `focus` animated a retired mobject, and `Scene.play` re-adds an animation's mobject to the scene. The dead panel came back at 35% opacity and stayed for the rest of the episode.
+- **A third comparison side was dropped in silence**, because the sides were zipped against a two-colour tuple.
+- **A ****`focus`**** label matching nothing** renders a beat where nothing lights up while the narration says to look at part of the map. The structure check now rejects it.
+The pattern is worth naming: every one of these produced a correct-looking render, and each was found by somebody writing a new episode rather than by a test.
+
+### Producing many at once
+
+One episode end to end leaves both GPUs idle while a single core draws rectangles, because the two stages want different hardware: the voice is GPU work whose model takes most of a minute to load, and the animation is manim on a CPU core.
+
+`video/produce.py` runs them as a pipeline: one persistent voice worker per GPU, each holding the model in memory and taking the next script as soon as it finishes the last, and a pool of animation jobs started the moment an episode's audio lands. A worker asks for work when it is free, so the faster GPU simply does more. Load balancing needs no scheduler.
+
+```bash
+uv run python video/produce.py ep_one ep_two ep_three
+uv run python video/produce.py --from episodes.txt --gpus 0,1 --cpu-workers 4
+```
+
+Two things had to be true before concurrency was safe, and both were found by running three episodes at once rather than by reading the code. Manim writes every piece of text through a temporary SVG keyed by a hash of the text and font and unlinks it after converting, so episodes that share any text delete each other's files: each episode now renders into its own media directory. And the finished animation used to be found by searching the whole media tree for the scene class name and taking the newest, which under concurrency hands one episode's animation to another episode's audio, because nearly every topic overview calls its scene class Overview.
 
 ## Tool choice
 
@@ -393,6 +510,8 @@ This is cheap, it runs inside the render, and it replaces several rounds of pull
 
 One warning learned immediately: a check nobody has seen fail is not a check. The first version of this one silently passed everything, because a text object in manim holds no points of its own and the filter that was supposed to skip empty objects skipped all of them. Test a new check against a defect you have deliberately created before believing a clean report from it.
 
+**Know what this check cannot see.** It finds collisions, not the absence of space. A table whose cells were arranged rather than placed in measured columns rendered as "Kimi K32.8T104B", and the audit passed it correctly, because nothing overlapped anything. So a frame of every panel kind still has to be looked at once, and that is what the silent preview is for. Two layout rules that came out of the same look: a parked map must clear the page name and date the title card leaves in the top corner, or it sits on them for the rest of the episode, and a centred panel must be fitted to the frame that is left after the map is parked rather than to the whole frame.
+
 ### Check the screen references
 
 The rule that narration points at the visuals creates its own failure: a line that says "the number on the screen" when the screen holds no number, or "look at the loop" before the loop is drawn. Nothing else catches it. The animation renders, the audio verifies, and the video is still lying to the viewer.
@@ -406,6 +525,26 @@ The same pass catches two other things worth looking for while the frames are in
 ### Check every take against what it was meant to say
 
 The transcription gate described under the voice. Every clip, every render, no exceptions, and measured honestly in both directions.
+
+Two more false alarms, both on takes that were read correctly, both from the burst detector rather than from the error rate:
+
+- **A transcriber renders a spoken figure its own way.** "Seventeen hundred" comes back as "one thousand, seven hundred". Every one of those words is then absent from the script, so three in a row look invented. Number words are a closed class: treat them as always known.
+- **A transcriber splits a compound the script contains.** "Subagents" comes back as "sub agents", and neither half is in the script. Any piece of a word the script contains counts as known.
+After changing a gate, re-test it against the defect it was built for. This one still catches "actually not just about a model, at the author cases", which is the only reason the change was safe to make.
+
+### Audio belongs to the words it was rendered from
+
+A beat is re-rendered when its words change, not only when its file is missing. An episode gets rewritten, the beat keys stay the same, and skipping on "the wav exists" then keeps the old take under the new line. Every check downstream passes it: the clip is clean, it verifies against nothing, and the episode says something the script does not. The renderer stores a fingerprint of each beat's text beside the durations, and `produce.py --fresh` clears an episode's audio outright when it has been rewritten wholesale.
+
+### Checking the script before the GPU is booked
+
+`check_structure.py` reads `VISUALS` as well as `SCRIPT`, because a beat with narration and no visual renders as a blank frame with a voice over it, and nothing else notices: the audio verifies, the layout audit finds nothing to collide with, the timing is right. It also catches a visual key that matches no beat, a panel missing the field it needs to draw anything, a bar without a numeric value, and a second beat trying to park, which would replace the home frame and strand the first panel on screen forever.
+
+### Reviewing a batch
+
+One episode gets watched. Forty do not, and pretending otherwise is how a batch ships with a defect every individual check would have caught. `video/tools/review.py` runs structure, layout, timing, voice and delivery across a list of episodes, ranks them worst first, and pulls a frame per beat with `--frames`. It reports what it cannot see, which is most of what matters: pace, whether a story lands, whether the take is worth hearing.
+
+One more lesson from retiring a bespoke scene: a register you have to remember to update is a register somebody forgets, in both directions. `build.py` now falls through to discovery when a registered scene file no longer exists, because an episode re-authored declaratively otherwise fails with "file not found" after its voice has already rendered.
 
 ### Then watch it
 

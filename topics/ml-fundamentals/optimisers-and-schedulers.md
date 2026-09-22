@@ -48,7 +48,7 @@ Intuition: scale the step per parameter from its gradient history; larger steps 
 
 ### Schedulers
 
-Schedulers set the base LR `\eta` over time; adaptive optimisers only rescale relative to it, so both are used together. Core intuition: high LR early to travel fast toward some basin, low LR late to settle at its bottom. Two questions separate every family below: **does the schedule need the total step count **`T`** in advance**, and **what shape is the decay**. Expanded 2026-08-31 from a three-row table into the comparison below.
+Schedulers set the base LR `\eta` over time; adaptive optimisers only rescale relative to it, so both are used together. High LR early to travel fast toward some basin, low LR late to settle at its bottom. Two questions separate every family below: **does the schedule need the total step count **`T`** in advance**, and **what shape is the decay**.
 
 #### The shapes
 
@@ -70,7 +70,7 @@ Schedulers set the base LR `\eta` over time; adaptive optimisers only rescale re
 
 **Why warmup**: Adam's per-parameter LRs come from first/second-moment estimates; in the first steps those estimates are built from almost no data and are wildly inaccurate, producing artificially large updates and instability. Warmup keeps steps small until the moment statistics are trustworthy, then lets the LR reach its full value.
 
-#### Annealing vs LR decay (terminology, )
+#### Annealing vs LR decay (terminology)
 
 "Annealing" is used in three different ways in this literature and they are not interchangeable.
 
@@ -86,7 +86,7 @@ Why the distinction is worth keeping straight:
 - **They work for different reasons that happen to reinforce each other.** Low LR means the model descends into a basin and stops moving much; low gradient noise near the end is also when scarce high-quality tokens stick best rather than being diluted across a 10T-token stream. This is why the data switch is scheduled to coincide with the decay, not because one requires the other.
 - **Reading papers**: "decay phase" or "cooldown" means the schedule alone; "anneal" or "annealed checkpoint" almost always implies the data switch too. WSM is a clean example of why the split matters: it removes sense 1 entirely (constant LR forever) while keeping sense 2 (the curated-data switch), and recovers the decay's benefit by merging.
 - Unrelated homonyms: simulated annealing proper (a combinatorial optimisation algorithm) and sampling temperature at inference (see [Sampling and Decoding](../llm-training-and-post-training/sampling-and-decoding.md)) share the metaphor but nothing else.
-Data-side detail on what goes into the anneal mixture: [Data mixing: domain weights, curricula, and continued-pretraining ratios](../data-curation-and-datasets/data-mixing.md). Schedule-side: the WSD and WSM entries above.
+Data-side detail on what goes into the anneal mixture: [Data mixing: domain weights, curricula, and continued-pretraining ratios](../data-curation-and-datasets/data-mixing.md).
 
 #### How they compare
 
@@ -95,7 +95,7 @@ Data-side detail on what goes into the anneal mixture: [Data mixing: domain weig
 - **Cooldown shape has a stable ordering**: concave (1-sqrt) is at least as good as linear, and both beat convex (exponential, EMA-like). Convex curves linger at high LR and then collapse too fast.
 - **Cooldown length**: roughly 10-20% of tokens. Longer helps, with clear diminishing returns.
 - **Final LR matters**: decaying to ~10% of peak is the usual heuristic. Going nearer to zero improves loss but can hurt some downstream benchmarks.
-- **The cooldown is also a data lever**: labs up-weight curated math, code, and instruction-like data during it. The schedule and the data anneal are one decision, not two (see [Pretraining](../llm-training-and-post-training/pretraining.md) and [Data mixing: domain weights, curricula, and continued-pretraining ratios](../data-curation-and-datasets/data-mixing.md)).
+- **The cooldown is also a data lever**: labs up-weight curated math, code and instruction-like data during it, so the schedule and the data anneal are one decision (see [Pretraining](../llm-training-and-post-training/pretraining.md) and [Data mixing: domain weights, curricula, and continued-pretraining ratios](../data-curation-and-datasets/data-mixing.md)).
 - **Weight averaging substitutes for part of the decay.** Averaging along the trajectory (SWA/EMA) improves checkpoints at no training cost, which is the observation WSM turns into a full framework.
 
 #### Choosing one
@@ -106,7 +106,7 @@ Data-side detail on what goes into the anneal mixture: [Data mixing: domain weig
 - Small supervised model with cheap, low-variance eval: **ReduceLROnPlateau** or MultiStep.
 - No schedule at all: **schedule-free** or **WSM**.
 
-#### Decay-free schedules: WSM ()
+#### Decay-free schedules: WSM
 
 WSD removed the need to know T, but not the decay itself: you still choose when to start decaying, over how many tokens, and with which curve, and extending training after the decay has begun means rolling back to the pre-decay state. **WSM (Warmup-Stable and Merge)** removes the decay phase entirely. The LR warms up, then stays constant forever; checkpoints are saved periodically, and a weighted merge of the last `n` of them stands in for the annealed model.
 
@@ -114,21 +114,23 @@ The link is exact rather than heuristic. Merging checkpoints with weights `c_j` 
 
 Empirically (16.3B/1.4B-active MoE, 400B tokens branched off a 10.2T constant-LR checkpoint) WSM beat a matched WSD decay by ~1.3 points on average, and merge duration mattered far more than checkpoint interval or the number of checkpoints merged. EMA merging was the weakest, mirroring the convex-is-worse ordering above. Full summary: [WSM: Decay-Free Learning Rate Schedule via Checkpoint Merging for LLM Pre-training](../../papers/2025-07_wsm/summary.md).
 
-Practical read: the storage cost is real (one checkpoint per interval) but small next to a pretraining budget, and the payoff is that a merge is a cheap, repeatable proxy for "how good would this model be if I annealed now", removing the need to launch throwaway decay runs to gauge progress.
+Practical read: the storage cost (one checkpoint per interval) is small next to a pretraining budget, and a merge is a cheap, repeatable proxy for "how good would this model be if I annealed now", removing the need to launch throwaway decay runs to gauge progress.
 
 ### Cross-links
 
 - Decoupled weight decay from the regularisation side: [Regularisation](regularisation.md)
 - LR-related failure modes (oscillation, NaN, plateaus): [Debugging training](debugging-training.md)
 - How schedules interact with data curricula and anneals: [Pretraining](../llm-training-and-post-training/pretraining.md), [Data mixing: domain weights, curricula, and continued-pretraining ratios](../data-curation-and-datasets/data-mixing.md)
+- Hessians, Newton's method and conditioning as mathematics: [Calculus and optimisation for ML](../math/calculus-and-optimisation.md)
+- Muon and qk-clip at trillion scale, and what they cost to run: [Moonshot AI: Kimi](../llms/moonshot-kimi/overview.md)
 
-### Modern optimisers ()
+### Modern optimisers
 
 | Optimiser | Idea | Status |
 | --- | --- | --- |
-| [Muon](https://kellerjordan.github.io/posts/muon/) (~25 min) (2024) | Treat weight matrices as matrices: orthogonalise the momentum update via Newton-Schulz iterations (approx. steepest descent under the spectral norm). Hidden 2D layers only; embeddings/heads/scalars keep AdamW | Roughly 2x sample-efficiency gains reported; used in Kimi (Moonlight/K2) and NanoGPT speedruns; landing in mainstream frameworks |
+| [Muon](https://kellerjordan.github.io/posts/muon/) (~25 min) (2024) | Treat weight matrices as matrices: orthogonalise the momentum update via Newton-Schulz iterations (approx. steepest descent under the spectral norm), so the step pushes across the whole spectrum instead of being dominated by a few large singular directions. Hidden 2D layers only; embeddings/heads/scalars keep AdamW. Momentum only, so less optimiser state than AdamW's two moment buffers | Roughly 2x sample-efficiency gains reported, and now proven at trillion scale rather than only in NanoGPT speedruns: **MuonClip** (Muon plus **qk-clip**, which rescales a head's query and key projections after the optimiser step whenever its maximum attention logit crosses a threshold) carried Moonshot's 1T-parameter Kimi K2 through 15.5T tokens with no loss spikes, and Zhipu's GLM line runs Muon-family optimisers too. The awkward part is that orthogonalisation wants a whole matrix while a large run has it sharded, which is why Moonshot published a distributed version; a stock transformation in JAX's optax |
 | [Shampoo](https://arxiv.org/abs/1802.09568) (45 min) (2018) / [SOAP](https://arxiv.org/abs/2409.11321) (45 min) (2024) | Kronecker-factored full-matrix preconditioning (practical second-order); SOAP = run Adam in Shampoo's preconditioner eigenbasis, cutting AdamW steps by ~40% in large-batch LM training | Shampoo won the 2024 AlgoPerf benchmark; SOAP adds one hyperparameter (preconditioning frequency) |
 | [Lion](https://arxiv.org/abs/2302.06675) (45 min) (2023) | Symbolically discovered; sign-of-momentum updates, one moment buffer: less memory than Adam | Competitive on vision/LM at lower memory; sensitive to LR/decay tuning |
 | [Schedule-free (Defazio et al., arXiv:2405.15682)](https://arxiv.org/abs/2405.15682) (45 min) (2024) | Replace the LR schedule with principled iterate averaging; no need to know total steps T in advance | NeurIPS 2024 oral; attractive for open-ended training runs |
 
-Takeaway: AdamW + warmup-cosine is still the safe default; Muon (with AdamW for non-matrix params) is the credible 2025-26 challenger for LLM pretraining.
+Takeaway: AdamW + warmup-cosine is still the safe default; Muon (with AdamW for non-matrix params) is the challenger with frontier-scale evidence behind it, and the only one of these routinely used to pretrain a trillion-parameter model.

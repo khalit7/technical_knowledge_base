@@ -47,7 +47,7 @@ Three things are worth taking away. First, the ARC-AGI-3 jump makes the harness-
 ### Connections
 
 - **StateM** (in this folder): the other side of the harness-scaling argument. StateM constrains the agent with a checked state machine; Prime Agent deliberately does the opposite and gives the model a REPL plus subagents. Both beat the fixed native harness, which suggests the win comes from having any durable state layer, not from a particular philosophy about control.
-- **Demystifying Agent Skills** (in this folder): Prime Agent's Continual Harness generalises [SKILL.md](http://skill.md/) from procedural anchors to prompts, memories, and subagent specs, and inherits the misapplication failure mode that paper identified.
+- **Demystifying Agent Skills** (in this folder): Prime Agent's Continual Harness generalises SKILL.md from procedural anchors to prompts, memories, and subagent specs, and inherits the misapplication failure mode that paper identified.
 - **JIT-Agent** (in this folder): complementary. Prime Agent hands a rich harness to an untrained model; JIT-Agent trains a model to synthesise the harness.
 - Topic: agentic-harnesses, in particular the harness-engineering deep dive.
 - **Reward hacking**: the Factorio specification exploitation belongs with the reward-hacking material in llm-training-and-post-training.

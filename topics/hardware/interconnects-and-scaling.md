@@ -2,8 +2,6 @@
 
 ⏱ 6 min read · +3h resources
 
-Last updated: 2026-09-21 (three filename-style cross-references converted to page mentions).
-
 ### Best resources
 
 - [How To Scale Your Model: All About Rooflines](https://jax-ml.github.io/scaling-book/roofline/) (~45 min) and the sharding chapters: communication rooflines done properly
@@ -16,7 +14,7 @@ Last updated: 2026-09-21 (three filename-style cross-references converted to pag
 
 Every cluster is a hierarchy; each tier is roughly an order of magnitude slower
 
-than the one above. Memorise the tiers, then parallelism strategy follows.
+than the one above. Memorise the tiers and parallelism strategy follows.
 
 | Tier | Technology | Bandwidth (per GPU, bidir) |
 | --- | --- | --- |
@@ -30,10 +28,11 @@ than the one above. Memorise the tiers, then parallelism strategy follows.
 
   (HGX H100/B200 baseboard), 72 GPUs (GB200/GB300 NVL72 rack: 130 TB/s aggregate,
 
-  copper spine), 144 with Rubin NVL144. NVLink also does in-switch reduction
+  copper spine), 144 with Rubin NVL144, and 72 again in AMD's Helios rack (MI400: 2.9 exaflops, 31 TB of HBM4 and 1.7 PB/s aggregate across the rack). NVLink also does in-switch reduction
 
   (NVLink SHARP).
 
+- **Challengers to the scale-up tier**: NVLink stopped being the only proprietary scale-up fabric in 2026. Huawei's **UnifiedBus** is the direct answer, claimed to link superclusters of up to a million processors, with more than 1,000 supernodes shipped to over 370 customers and 11 semiconductors built on the architecture. **Cornelis Active Compute Fabric**, an Intel spinout that raised $205M in September 2026, is the open one: a GPU-agnostic scale-up fabric aimed at the GPU time spent waiting for data, letting accelerators compute and transmit at once. Both rest on the arithmetic in the table above, that stepping outside the domain costs roughly an order of magnitude of bandwidth, so a vendor who cannot win on per-chip performance can still compete by making the domain bigger. Cornelis is the first well-funded open challenge to the scale-up tier specifically, as distinct from scale-out, where RoCE has long offered a multi-vendor path. Both sets of numbers are vendor claims with no independent measurement published.
 - **InfiniBand vs RoCE**: both give RDMA (NIC writes straight into remote GPU
   memory via GPUDirect, no CPU). InfiniBand (Quantum switches, ConnectX/BlueField
 

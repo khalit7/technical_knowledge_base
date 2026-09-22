@@ -2,14 +2,14 @@
 
 ⏱ 16 min read · +47h 30m resources
 
-*Created 2026-08-31.* A zero-to-expert path for the language itself. TypeScript sits on top of this and has its own page; learn enough JavaScript to be dangerous before adding types, because every TypeScript bug that is not a type error is a JavaScript bug.
+A zero-to-expert path for the language itself. TypeScript sits on top of this and has its own page; learn enough JavaScript to be dangerous before adding types, because every TypeScript bug that is not a type error is a JavaScript bug.
 
 **Why this track matters for you specifically**: agent harnesses, MCP servers, dev tooling, and evaluation dashboards are overwhelmingly TS/JS. Claude Code, OpenCode, and most MCP reference implementations are TypeScript. You do not need front-end depth, but you do need the runtime model.
 
 ### Best resources (2 min)
 
 - [MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript) (reference, ~1h for the JS guide, then lookup): the reference. Better than any book for looking things up.
-- [javascript.info](https://javascript.info/) (course, ~25h for the full course; individual chapters ~15 min): the best free structured course, modern and thorough.
+- javascript.info (course, ~25h for the full course; individual chapters ~15 min): the best free structured course, modern and thorough.
 - **You Don't Know JS Yet** (Simpson, free on GitHub) (books, ~8h for volumes 1 and 2): the deep-dive series on scope, closures, `this`, and types. Volumes 1 and 2 are the valuable ones.
 - **Eloquent JavaScript** (Haverbeke, free online) (book, ~10h with the exercises) for the fundamentals with real exercises.
 - [Jake Archibald, In the Loop](https://www.youtube.com/watch?v=cCOL7MC4Pl0) (video, ~35 min): the clearest explanation of the event loop, tasks, and microtasks that exists.
@@ -18,7 +18,7 @@
 
 ### Stage 0: setup and mental model (1 min)
 
-- Runtime first: install Node (24 is Active LTS as of Aug 2026; 26 is Current and becomes LTS in Oct 2026). Know that Bun and Deno exist and are compatible enough to matter; see the ecosystem section.
+- Runtime first: install Node (24 is Active LTS as of Aug 2026; 26 is Current and becomes LTS in Oct 2026). Know that Bun and Deno exist and are compatible enough to matter; the runtimes are compared at Stage 4.
 - The two mental models to hold from the start:
   1. **Single-threaded with an event loop.** Your code never runs concurrently with itself. Nothing blocks except what you make block, and blocking is a bug.
   2. **Objects are property bags with a prototype chain.** Classes are syntax over that, not a separate system.

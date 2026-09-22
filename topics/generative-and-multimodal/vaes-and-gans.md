@@ -2,8 +2,6 @@
 
 ⏱ 6 min read · +6h 40m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - Kingma and Welling, [An Introduction to Variational Autoencoders](https://arxiv.org/abs/1906.02691) (~4h): the authors' own monograph, the definitive VAE reference.
@@ -81,13 +79,13 @@ regularisation (StyleGAN). Also remember: no likelihood, so evaluation fell to F
 
 **Why GANs lost the generation crown**: diffusion matches their sharpness with stable
 
-training, full mode coverage, and easy conditioning/scaling. StyleGAN2/3 remain
+training, full mode coverage, and easy conditioning/scaling. StyleGAN2/3 remain reference
 
-reference points for faces, and GigaGAN showed GANs can scale, but nobody starts a new
+points for faces and GigaGAN showed GANs can scale, but nobody starts a new frontier
 
-frontier image model as a pure GAN.
+image model as a pure GAN.
 
-### Where each survives in 2026
+### Where each survives
 
 **VAE: the invisible workhorse.**
 
@@ -96,7 +94,7 @@ frontier image model as a pure GAN.
 
   space and time. VAE quality caps the whole system's fidelity, which is why model
 
-  releases quietly ship retrained VAEs with more channels.
+  releases quietly ship retrained VAEs with more channels. Channel count is not only a fidelity knob either: Qwen-Image-2.1 (Sep 2026) gets native transparency from a **64-channel RGBA autoencoder**, so alpha is modelled inside the latent rather than matted on afterwards, which is about as direct a demonstration as exists that the latent space's layout decides what the generator can express at all.
 
 - **Tokenizers for autoregressive generation**: VQ-VAE-style quantisers turn images and
   audio into discrete tokens for AR models (image gen in unified multimodal LLMs, and

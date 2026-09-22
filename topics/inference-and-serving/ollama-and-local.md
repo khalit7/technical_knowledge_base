@@ -1,8 +1,6 @@
 # Ollama, llama.cpp, and local serving
 
-⏱ 7 min read · +2h 15m resources
-
-Last updated: 2026-08-24
+⏱ 8 min read · +2h 15m resources
 
 ### Best resources
 
@@ -35,6 +33,16 @@ API) -> GUIs (LM Studio, Open WebUI). Ollama historically shelled into llama.cpp
 still using llama.cpp kernels underneath. LM Studio bundles llama.cpp and Apple MLX
 
 backends behind a GUI.
+
+Two September 2026 arrivals sit beside that stack rather than inside it, and both are
+
+pushes at the same problem of moving inference off the server. Perplexity's **Lily**
+
+engine targets on-device inference on Apple silicon directly, reporting better prefill
+
+and decode than MLX-LM. Hugging Face published **207 WebGPU kernels** for in-browser
+
+inference, which puts the runtime in the browser with no local install at all.
 
 ### llama.cpp
 
@@ -70,9 +78,9 @@ low-latency small-batch engine, not a datacenter one.
 
 ### GGUF quantisation
 
-GGUF is a single-file container (weights + tokenizer + metadata + chat template), the
+GGUF is a single-file container (weights + tokenizer + metadata + chat template) and the
 
-de facto local distribution format on the HF Hub. Quant families:
+de facto local distribution format on the HF Hub; the format itself is in [Model formats: GGUF, safetensors, ONNX, and the rest](model-formats.md). Quant families:
 
 - **Legacy Q4_0/Q5_0/Q8_0**: simple block quant (32-weight blocks, one scale).
 - **K-quants (Q2_K...Q6_K)**: superblocks with per-subblock scales/mins; the workhorse.
@@ -84,6 +92,18 @@ de facto local distribution format on the HF Hub. Quant families:
   models in.
 
 - Newer: `MXFP4` GGUFs (e.g. gpt-oss), ternary `TQ` types for BitNet-style models.
+  Ternary is no longer only a BitNet curiosity: **Bonsai 2 27B** (Prism ML, September
+
+  2026) is a ternary compression of Qwen3.8 27B at 1.76 effective bits per weight,
+
+  {-1, 0, +1} with FP16 group-wise scaling across the whole language model, in a 5.9GB
+
+  footprint nine times smaller than full precision, retaining 98.2% of aggregate
+
+  benchmark performance with 262K context, image input and tool use. Apache 2.0, CUDA
+
+  and MLX.
+
 - Rule of thumb: 4-bit costs ~0.6 GB/B parameters (plus KV); quality cliff is below
   ~3 bits for dense models; MoE models tolerate quantising experts harder than
 
@@ -95,7 +115,7 @@ de facto local distribution format on the HF Hub. Quant families:
 
 docker), manages VRAM residency, keep-alive, and exposes an OpenAI-compatible API on
 
-:11434. State in Aug 2026 (v0.3x line):
+:11434. State of the v0.3x line:
 
 - Own engine for multimodal and new architectures; Vulkan on by default (AMD/Intel
   iGPU coverage); NVIDIA-tuned kernels upstreamed with llama.cpp; MLX backend on Macs.
@@ -104,10 +124,16 @@ docker), manages VRAM residency, keep-alive, and exposes an OpenAI-compatible AP
 - **Ollama Cloud**: `:cloud` model tags transparently route oversized models (480B
   coders, etc.) to hosted GPUs via the same local API; local-first, escalate when VRAM
 
-  runs out.
+  runs out. That split is spreading past developer tooling: Perplexity's Portable
 
-- Tradeoffs: convenience over control (its own quant defaults, context length defaults
-  are conservative; check `num_ctx`), single-user orientation, and it hides llama.cpp
+  Computer agent launched on Windows in September 2026 for Nvidia GPUs with 24GB or more
+
+  of VRAM, running models locally with cloud fallback, and is the first consumer product
+
+  to put a stated VRAM threshold on the boundary.
+
+- Tradeoffs: convenience over control (its own quant defaults, conservative context
+  length defaults, so check `num_ctx`), single-user orientation, and it hides llama.cpp
 
   flags you may want. Power users often outgrow it into llama-server or vLLM.
 
@@ -116,7 +142,13 @@ docker), manages VRAM residency, keep-alive, and exposes an OpenAI-compatible AP
 - **What fits**: 70B dense at Q4/AWQ across both GPUs (~40GB weights + KV); 32B class
   (Qwen3-32B) in FP8 on one card with room for long context; 100B+ MoE (gpt-oss-120B,
 
-  GLM-4.x-Air class) at 4-bit across both; 8-14B models in BF16 comfortably.
+  GLM-4.x-Air class) at 4-bit across both; 8-14B models in BF16 comfortably. At the
+
+  ternary end, Bonsai 2 27B fits in 5.9GB on one card and runs up to 143 tokens per
+
+  second on a 5090 (46.8 on an M5 Max), which puts a 27B-class model with tool use and
+
+  262K context inside one card's spare capacity.
 
 - **Decode speed is bandwidth-bound**: expect very roughly 1.79 TB/s / bytes-per-token
   streamed; a 32B FP8 model (~32GB streamed per token, minus cache effects) lands in

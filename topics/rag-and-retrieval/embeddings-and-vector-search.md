@@ -2,8 +2,6 @@
 
 ⏱ 7 min read · +2h 30m resources
 
-Last updated: 2026-09-21 (acronyms expanded on first use)
-
 ### Best resources
 
 - [Milvus: choosing an embedding model for RAG in 2026](https://milvus.io/blog/choose-embedding-model-rag-2026.md) (~15 min): current landscape for retrieval-augmented generation (RAG) with Massive Text Embedding Benchmark (MTEB) numbers and cost.
@@ -13,7 +11,7 @@ Last updated: 2026-09-21 (acronyms expanded on first use)
 - [Firecrawl: best vector databases 2026](https://www.firecrawl.dev/blog/best-vector-databases) (~15 min) and [Encore's comparison](https://encore.dev/articles/best-vector-databases) (~12 min): honest DB selection guides.
 - [pgvector repo](https://github.com/pgvector/pgvector) (docs, ~30 min for the core pages) plus [pgvectorscale](https://github.com/timescale/pgvectorscale) (docs, ~15 min): what plain Postgres can actually do.
 
-### Embedding model landscape (Aug 2026)
+### Embedding model landscape
 
 Two families dominate: API models and open weights. All serious 2026 models are
 
@@ -88,9 +86,9 @@ its keep when reranker latency is the bottleneck or recall on precise phrasing m
 
 ### ANN indexes
 
-Exact k-NN is O(n) per query; approximate nearest neighbor indexes trade a little
+Exact k-NN is O(n) per query; approximate nearest neighbor indexes trade a little recall
 
-recall for orders of magnitude speed.
+for orders of magnitude of speed.
 
 - **HNSW** (hierarchical navigable small world): multi-layer proximity graph; the
   default everywhere (pgvector, Qdrant, Weaviate, Milvus). High recall, fast queries,

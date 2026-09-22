@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +13h 25m resources
 
-*Last updated: 2026-08-24*
-
 ### Best resources
 
 - [Official Triton tutorials](https://triton-lang.org/main/getting-started/tutorials/index.html) (~3h for tutorials 01, 02, 03 and 06): 01 vector add, 02 fused softmax, 03 matmul, 06 fused attention; the core curriculum, each with benchmarks against PyTorch.
@@ -90,31 +88,60 @@ the kernel layer of PyTorch on all three).
 - Rule of thumb from the field: prototype in Triton, keep it if it is within a few
   percent of target, drop to CUTLASS/CUDA only for the kernels that dominate the profile.
 
-### State as of Aug 2026
+### State
 
-- **Releases**: Triton 3.7 is current (3.7.0 May 2026, 3.7.1 Jun 2026); 3.8 is due
-  Aug 26, 2026, with the usual two-releases-per-PyTorch-cycle cadence. Ships as the
+- **Releases**: Triton 3.7 is the current line (3.7.0 May 2026, 3.7.1 Jun 2026), and
+  3.7.1 is what September 2026 engine releases pin, SGLang v0.5.18 among them; 3.8 was
 
-  `triton` wheel bundled with PyTorch.
+  scheduled for late August 2026. The cadence is two releases per PyTorch cycle, and it
+
+  ships as the `triton` wheel bundled with PyTorch.
 
 - **Hardware**: mature support for Ampere through Blackwell (B200/B300 and consumer
   sm_120, so the RTX 5090 is fully supported), AMD CDNA (MI300/MI355), Intel XPU.
 
-  OpenAI publicly runs Triton/Gluon on both NVIDIA and AMD.
+  OpenAI publicly runs Triton/Gluon on both NVIDIA and AMD. The ROCm backend is how most
 
-- **Gluon**: the big 2025-2026 development; a lower-level, explicitly-scheduled dialect
-  living in the Triton repo/runtime. It exposes what Triton hides (layouts, tensor
+  PyTorch kernels reach AMD parts, and it now sits on **ROCm 10.0** (August 2026), for
 
-  memory (TMEM) on datacenter Blackwell, async TMA, barriers, warp specialisation) with
+  which AMD reports an average 3.3x inference and 2.4x training uplift over ROCm 7: a
 
-  Python ergonomics, for the kernels where Triton's compiler heuristics leave
+  vendor number on vendor-selected workloads, to be treated as such. That release and
 
-  performance behind. Think "CuTe-DSL-shaped escape hatch inside Triton".
+  its agent-skills channel are covered on [Topic: cuda-and-gpu-programming](summary.md).
+
+- **Gluon**: the big 2025-2026 development, a lower-level, explicitly-scheduled dialect
+  in the Triton repo/runtime. It exposes what Triton hides (layouts, tensor memory
+
+  (TMEM) on datacenter Blackwell, async TMA, barriers, warp specialisation) with Python
+
+  ergonomics, for the kernels where Triton's compiler heuristics leave performance
+
+  behind. A CuTe-DSL-shaped escape hatch inside Triton.
 
 - **NVIDIA involvement**: NVIDIA contributed a CUDA Tile IR backend so Triton picks up
   new Blackwell-generation tensor-core features without source changes; Triton is now
 
   effectively the shared DSL target NVIDIA, AMD, and Intel all optimise for.
+
+- **cutile-rs**: since September 2026 Triton's block-level argument has a peer in another
+  language. You write tile-level computation, the compiler decides how tiles map onto
+
+  each architecture, and the kernel is JIT-compiled through CUDA Tile IR on first use,
+
+  the same backend NVIDIA contributed to Triton. Exclusive access is guaranteed by tensor
+
+  partitioning plus ordinary Rust ownership rather than by a bespoke type, so the
+
+  property Triton argues for in a comment is checked by the compiler. It is much further
+
+  along than its SIMT sibling cuda-oxide ([Writing kernels: the practical track](writing-kernels.md), early alpha): published on
+
+  crates.io and already in production in Hugging Face's Grout inference engine and in
+
+  mistral.rs. Neither publishes performance benchmarks, so the comparison with Triton is
+
+  about language and toolchain, not speed.
 
 - **Ecosystem**: torch.compile/Inductor, vLLM, SGLang, Unsloth, liger-kernel and most
   open kernel libraries are Triton-first; the [GPU MODE kernel leaderboard](https://www.gpumode.com/) (~20 min) popularised competitive Triton/CUDA kernel writing and is worth using for practice problems.

@@ -159,4 +159,4 @@ the table with a neural network, plus the tricks needed to make that stable, is
 
 is a Monte Carlo return; PPO with a value model and GAE sits partway along the TD(lambda) dial
 
-([RL for LLMs: RLHF, GRPO, RLVR (state as of 2026-08-24)](rl-for-llms.md)).
+([RL for LLMs: RLHF, GRPO, RLVR](rl-for-llms-rlhf-grpo-rlvr.md)).

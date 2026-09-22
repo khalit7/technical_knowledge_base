@@ -1,8 +1,8 @@
 # SSH: protocol, keys, tunnels, and cluster workflows
 
-⏱ 21 min read · +7h resources
+⏱ 20 min read · +7h resources
 
-Added 2026-08-24. The protocol you use more than any other and configure least. This page is two things: how SSH-2 actually works, and the config and workflow patterns that make a 2FA-gated cluster with a jump host tolerable rather than infuriating.
+The protocol you use more than any other and configure least: how SSH-2 works, and the config and workflow patterns that make a 2FA-gated cluster with a jump host tolerable rather than infuriating.
 
 ### Best resources (1 min)
 
@@ -10,7 +10,7 @@ Added 2026-08-24. The protocol you use more than any other and configure least. 
 - [OpenSSH post-quantum page](https://www.openssh.com/pq.html) (15 min): which hybrid key exchange, when it became default, and the reasoning behind the new weak-crypto warning.
 - [`ssh_config(5)`](https://man.openbsd.org/ssh_config.5) (1h) and [`sshd_config(5)`](https://man.openbsd.org/sshd_config.5) (1h): the canonical reference for every keyword below.
 - [RFC 4251](https://www.rfc-editor.org/rfc/rfc4251) through [4254](https://www.rfc-editor.org/rfc/rfc4254) (3h for all four): architecture, authentication, transport, and connection layers.
-- [Qualys regreSSHion advisory](https://www.qualys.com/2024/07/01/cve-2024-6387/regresshion.txt) (25 min) and [terrapin-attack.com](https://terrapin-attack.com/) (20 min): the two vulnerabilities worth understanding rather than just patching.
+- [Qualys regreSSHion advisory](https://www.qualys.com/2024/07/01/cve-2024-6387/regresshion.txt) (25 min) and terrapin-attack.com (20 min): the two vulnerabilities worth understanding rather than just patching.
 
 ### The three layers (2 min)
 
@@ -37,7 +37,7 @@ The rule that follows: **do not hand-write Ciphers and KexAlgorithms lines.** Fr
 
 Three recent changes that break scripts rather than security:
 
-- **10.1 moved the agent socket out of /tmp and into the user's .ssh directory**, breaking anything with a hardcoded `/tmp/ssh-XXXX` path or a `/tmp` bind mount for agent sharing.
+- **10.1 moved the agent socket out of /tmp and into ~/.ssh/agent**, breaking anything with a hardcoded `/tmp/ssh-XXXX` path or a `/tmp` bind mount for agent sharing.
 - **10.0 made scp and sftp use ControlMaster no**, so `scp` no longer silently warms a multiplexing socket for later use.
 - **10.5 requires ECC support including NISTP521 in libcrypto**, which matters if you build OpenSSH in a container.
 
@@ -135,12 +135,7 @@ Since then: **CVE-2025-26465** (client-side MITM when `VerifyHostKeyDNS` is enab
 
 ### Deltas worth knowing since 2025 (1 min)
 
-- `mlkem768x25519-sha256` is the default key exchange; `WarnWeakCrypto` warnings against older nodes are expected and informational.
-- Agent sockets moved to `~/.ssh/agent`; fix hardcoded paths and container mounts.
-- DSA is gone. Ed25519 or `rsa-sha2-*` only.
-- `scp` is legacy; prefer `rsync` or `sftp`.
-- Certificate handling tightened: empty principals match nothing, and `ssh-add` expires certificates automatically.
-- `ssh -Z` diagnoses key-offering order; `~I` prints live connection info.
+- `ssh-add` now expires certificates automatically.
 - **RFC 9987 (May 2026) standardised the SSH agent protocol**, so third-party agents (password managers, cloud KMS) should interoperate better than the previous de-facto arrangement.
 - VS Code Remote-SSH needs glibc 2.28 or newer on the remote, so CentOS 7 login nodes are out. Pair it with `ControlPersist 4h` so its several channels do not re-trigger 2FA.
 

@@ -1,6 +1,6 @@
 # Quantization and Precision
 
-⏱ 22 min read · +6h 25m resources
+⏱ 21 min read · +6h 25m resources
 
 ### Best resources (1 min)
 
@@ -48,29 +48,56 @@ scale/zero-point chosen per tensor, per channel, or per block.
   - **SmoothQuant** (W8A8): migrate activation outliers into weights so both
     quantize well; **FP8 W8A8** is now the low-effort serving default on Hopper+.
 
+  - **Ternary** (weights restricted to minus one, zero and plus one) is where the
+    compression floor currently sits, and the quality cost is smaller than the bit count
+
+    suggests: **Bonsai 2 27B** (Prism ML, September 2026) compresses Qwen3.8 27B to 1.76
+
+    effective bits per weight with FP16 group-wise scaling, nine times smaller than full
+
+    precision at 5.9GB, retaining 98.2% of aggregate benchmark performance at 83.9 overall
+
+    with 262K context, image input and tool use intact. The nominal floor is not 1.585
+
+    bits either. Five-trit packing rounds it up to 1.625 by assuming the three symbols are
+
+    equally likely, but across 29 ternary models zeros account for up to 51.5% of weights,
+
+    so BITCOS instead stores a dense presence bitmap plus a compacted sign vector, costing
+
+    2 minus z bits per weight at zero density z: it beats five-trit packing on 26 of those
+
+    29 models, reaches 1.485 bits on the sparsest, and runs end-to-end inference 1.18x
+
+    faster on CPUs and 1.27x on GPUs. Note what this is not: these models were built
+
+    ternary rather than converted, so the bits-per-weight numbers are a packing result and
+
+    not a reason to quantise an ordinary checkpoint this far.
+
 - Outliers are the central difficulty: a few channels with huge magnitudes destroy
   naive scaling (hence per-channel/block scales, AWQ, and rotation methods like
 
   QuIP#/SpinQuant for 2-3 bit).
 
-### Reading a quantisation name (13 min)
+### Reading a quantisation name (12 min)
 
-Everything above is the *method*. This section is the *notation*: how to decode a quant string on a Hub repo without opening `config.json`. The methods themselves (GPTQ, AWQ, SmoothQuant, NF4, fp8) are covered above and are not repeated here.
+Everything above is the *method*; this section is the *notation*: how to decode a quant string on a Hub repo without opening `config.json`.
 
 #### The GGUF grammar
 
-The pattern is the letter `Q`, a nominal bit count, an underscore, and a variant tag. The variant tag is the part that carries the information.
+The pattern is the letter `Q`, a nominal bit count, an underscore, and a variant tag. The variant tag carries the information.
 
 - **`0`**** and ****`1`** (`Q4_0`, `Q5_1`, `Q8_0`): the **legacy** flat formats. A block is 32 weights with one fp16 scale (`_0`, symmetric) or a scale plus a minimum (`_1`, asymmetric). No second level of scaling. Superseded for everything except `Q8_0`, which survives because it is trivially fast to decode.
 - **`K_S`****, ****`K_M`****, ****`K_L`** (`Q4_K_M`): the **K-quants**, and the two-level super-block scheme. A super-block is 256 weights, cut into 8 blocks of 32 (`Q4_K`, `Q5_K`) or 16 blocks of 16 (`Q2_K`, `Q3_K`, `Q6_K`). The super-block carries one fp16 scale, plus one fp16 minimum for the asymmetric types. Each inner block then carries its own 4-bit or 6-bit *sub-scale* (and sub-minimum) expressed relative to the super-block value. The scales are themselves quantised, which is the whole trick: you get group-wise granularity without paying a full fp16 scale per group. Same idea as GPTQ/AWQ group scaling, taken one level further.
-- The **S/M/L suffix is not a different block format.** It is a per-tensor *mixing recipe* baked into llama.cpp, derived from measured layer sensitivity. `Q4_K_S` is uniformly `Q4_K`. `Q4_K_M` promotes `attention.wv` and `ffn_down` to `Q6_K` for roughly half the layers. The `_L` variants additionally push the output head and token embeddings up. Value projections and down projections get the extra bits because they are empirically the most quantisation-sensitive, which is the same finding AWQ acts on when it protects salient channels.
+- The **S/M/L suffix is not a different block format.** It is a per-tensor *mixing recipe* baked into llama.cpp, derived from measured layer sensitivity. `Q4_K_S` is uniformly `Q4_K`; `Q4_K_M` promotes `attention.wv` and `ffn_down` to `Q6_K` for roughly half the layers; `_L` additionally pushes the output head and token embeddings up. Value and down projections get the extra bits because they are empirically the most quantisation-sensitive, the same finding AWQ acts on when it protects salient channels.
 - **`IQ`**** plus bits plus ****`XXS`****/****`XS`****/****`S`****/****`M`****/****`NL`** (`IQ2_XXS`, `IQ3_M`, `IQ4_XS`): the **importance-matrix family**. These are not scaled integers at all: they are codebook (lattice / lookup) quantisers whose bit allocation is steered by an imatrix, which is what makes 2-bit and 3-bit models usable. `XXS` to `M` orders by size within a bit width. `NL` means non-linear: a 16-entry non-uniform codebook over 32-weight blocks. Decode is slower than a K-quant because it is a table lookup rather than a multiply.
 
 #### Effective bits per weight, which is never the nominal number
 
-Two separate overheads sit between the name and the file size. First, the block bookkeeping: `Q4_K` costs 144 bytes per 256 weights, so its block format is exactly **4.5** bpw, not 4. Second, the mixing recipe plus the token-embedding and output tensors, which llama.cpp keeps at higher precision. The result is that a `Q4_K_M` file lands near **4.9** bpw, and `Q2_K` near **3.2**, well above its 2.625 bpw block format.
+Two overheads sit between the name and the file size. First, block bookkeeping: `Q4_K` costs 144 bytes per 256 weights, so its block format is exactly **4.5** bpw, not 4. Second, the mixing recipe plus the token-embedding and output tensors, which llama.cpp keeps at higher precision. So a `Q4_K_M` file lands near **4.9** bpw, and `Q2_K` near **3.2**, well above its 2.625 bpw block format.
 
-Left column below is what you type; the bpw column is measured whole-file bits per weight on Llama-3.1-8B from llama.cpp's own `tools/quantize` README, so it includes both overheads. The perplexity column is from llama.cpp's historical LLaMA-7B wikitext table and is **strongly model-dependent**: newer, smaller, and more heavily-trained models degrade noticeably more than 2023-era LLaMA did, so read these as an ordering, not as a prediction for your model.
+Left column is what you type. The bpw column is measured whole-file bits per weight on Llama-3.1-8B from llama.cpp's own `tools/quantize` README, so it includes both overheads. The perplexity column is from llama.cpp's historical LLaMA-7B wikitext table and is **strongly model-dependent**: newer, smaller, more heavily-trained models degrade noticeably more than 2023-era LLaMA did, so read it as an ordering, not a prediction for your model.
 
 | Quant | Effective bpw (whole file, Llama-3.1-8B) | Quality cost (ppl delta vs fp16, LLaMA-7B) | Verdict |
 | --- | --- | --- | --- |
@@ -93,7 +120,7 @@ An **imatrix** is a per-tensor record of how much each weight *column* actually 
 
 I-quants **require** one: their codebooks are far too coarse for uniform treatment to survive at 2-3 bits. K-quants can optionally use one, and increasingly do; Unsloth's Dynamic GGUFs (noted above) are essentially an imatrix plus a hand-tuned per-tensor allocation.
 
-A bad calibration set fails in a specific and sneaky way: **the model looks fine on the calibration distribution and quietly loses capability off it.** An imatrix built from English wikitext yields a model whose wikitext perplexity is excellent while code generation, non-English output, and instruction-following in unusual formats degrade. Too-short calibration contexts produce a model that falls apart at long context. So never accept an uploader's reported perplexity as evidence for an I-quant: evaluate it on your own tasks. When in doubt, prefer a quant whose imatrix came from a broad mixed corpus (code, several languages, long documents) over one with a better-looking headline number.
+A bad calibration set fails sneakily: **the model looks fine on the calibration distribution and quietly loses capability off it.** An imatrix built from English wikitext yields excellent wikitext perplexity while code generation, non-English output and instruction-following in unusual formats degrade; too-short calibration contexts produce a model that falls apart at long context. So never accept an uploader's reported perplexity as evidence for an I-quant, evaluate it on your own tasks, and when in doubt prefer a quant whose imatrix came from a broad mixed corpus (code, several languages, long documents) over one with a better-looking headline number.
 
 #### Names you will meet outside GGUF
 
@@ -111,7 +138,7 @@ A bad calibration set fails in a specific and sneaky way: **the model looks fine
 
 #### On the dual 5090s
 
-Spend the memory budget on parameters, not on bits: **a bigger model at ****`Q4_K_M`**** beats a smaller model at ****`Q8_0`** almost every time, and the 4-bit rule of thumb of roughly 0.6 GB per billion parameters is what tells you which model that is. The cliff for dense models sits below about 3 bits, where the drop stops being a perplexity number and starts being visible as broken reasoning chains and format drift; MoE models are different, because the experts tolerate much harder quantisation than the attention and shared layers do, which is why 100B-class MoEs run acceptably at 4-bit on 64 GB when a dense 70B at the same bpw would be more compromised. But note what the two 5090s actually are: **Blackwell SM120 with native fp8 and NVFP4 tensor cores**, and GGUF's K-quants are a CPU-friendly design that dequantises to fp16 before the matmul. For single-stream interactive work the difference is small and llama.cpp's flexibility wins. Once concurrency matters, an fp8 or NVFP4 checkpoint under vLLM uses hardware the GGUF path simply does not touch, and the gap becomes large. Fit and residency arithmetic for these cards is in [Ollama, llama.cpp, and local serving](../inference-and-serving/ollama-and-local.md) rather than repeated here.
+Spend the memory budget on parameters, not on bits: **a bigger model at ****`Q4_K_M`**** beats a smaller model at ****`Q8_0`** almost every time, and the 4-bit rule of thumb of roughly 0.6 GB per billion parameters tells you which model that is. The cliff for dense models sits below about 3 bits, where the drop stops being a perplexity number and becomes visible as broken reasoning chains and format drift. MoE is different: the experts tolerate much harder quantisation than the attention and shared layers, which is why 100B-class MoEs run acceptably at 4-bit on 64 GB when a dense 70B at the same bpw would be more compromised. But note what the two 5090s are: **Blackwell SM120 with native fp8 and NVFP4 tensor cores**, while GGUF's K-quants are a CPU-friendly design that dequantises to fp16 before the matmul. For single-stream interactive work the difference is small and llama.cpp's flexibility wins; once concurrency matters, an fp8 or NVFP4 checkpoint under vLLM uses hardware the GGUF path never touches, and the gap becomes large. Fit and residency arithmetic for these cards is in [Ollama, llama.cpp, and local serving](../inference-and-serving/ollama-and-local.md).
 
 **Further resources**: [What is quantization?](https://theaiengineer.substack.com/p/what-is-quantization) (~20 min) and [Quantization in practice: GPTQ vs AWQ](https://theaiengineer.substack.com/p/quantization-in-practice-gptq-vs-awq) (~25 min) (The AI Engineer); [GGUF format and k-quants explained](https://zeroentropy.dev/concepts/gguf/) (~25 min); [HF Hub: GGUF quantisation types](https://huggingface.co/docs/hub/gguf) (docs, ~20 min), the reference table for block structures and nominal bpw; [llama.cpp quantize README](https://github.com/ggml-org/llama.cpp/blob/master/tools/quantize/README.md) (~15 min), the source of the measured bpw column; [llm-compressor compression schemes](https://docs.vllm.ai/projects/llm-compressor/en/stable/guides/compression_schemes/) (docs, ~20 min), the authority on the `W4A16` naming; [Which Quantization Should I Use? (arXiv 2601.14277)](https://arxiv.org/abs/2601.14277) (45 min), a unified evaluation of llama.cpp quantizations on Llama-3.1-8B-Instruct.
 

@@ -2,7 +2,7 @@
 
 ⏱ 7 min read · +3h 20m resources
 
-Programming-side view. The hardware deep dive (die layout, exact FLOPs/bandwidth tables, GPU comparisons) lives in [TPUs: systolic arrays and pod-scale machines](../hardware/tpus.md).
+Programming-side view. Die layout, full spec tables and GPU comparisons live in [TPUs: systolic arrays and pod-scale machines](../hardware/tpus.md).
 
 ### Best resources
 
@@ -21,9 +21,6 @@ Programming-side view. The hardware deep dive (die layout, exact FLOPs/bandwidth
   XProf/Tensorboard profiler, trace viewer, HLO reading.
 
 - [TPU Research Cloud](https://sites.research.google/trc/about/) (~5 min): free research TPUs.
-Verified 2026-08-24: TPU v7 (Ironwood) GA on Google Cloud since April 2026; v6e
-
-(Trillium) widely available; Colab and Kaggle hand out v5e.
 
 ### Chip anatomy: what a PyTorch/GPU person needs to remap
 
@@ -42,20 +39,23 @@ SMs. Each TensorCore has:
 
 - **VPU**: vector unit for elementwise ops, reductions, activations.
 - **VMEM**: ~tens of MB of software-managed scratchpad (128 MB on newer chips), the
-  analogue of a GPU's SMEM but per-core and much larger; compilers/Pallas stage HBM
+  analogue of a GPU's SMEM but per-core and much larger, with no hardware cache
 
-  tiles through it with double buffering.
+  hierarchy behind it; compilers/Pallas stage HBM tiles through it with double
+
+  buffering.
 
 - **HBM**: main memory (v5e 16 GB, v5p 95 GB, v6e 32 GB, v7 192 GB per chip).
 - **SparseCore**: embedding-lookup accelerators (recsys, MoE routing assists).
-No warps, no thread blocks, no occupancy tuning: the mental model is "one wide VLIW core
+No warps, no thread blocks, no occupancy tuning: the mental model is "one wide VLIW
 
-- a matmul engine + explicit memory pipelines", and the XLA compiler (not you) schedules
-almost everything. Rooflines still rule: arithmetic intensity vs HBM bandwidth decides
+core: a matmul engine plus explicit memory pipelines", and the XLA compiler (not you)
+
+schedules almost everything. Rooflines still rule: arithmetic intensity vs HBM bandwidth decides
 
 whether you are compute- or memory-bound, exactly as on GPU.
 
-### Generations (training-relevant, as of Aug 2026)
+### Generations (training-relevant)
 
 | Gen | Year | Headline | Notes |
 | --- | --- | --- | --- |
@@ -135,7 +135,7 @@ kernel is competitive out of the box, which is the core cultural difference from
 
 land.
 
-### Getting TPU time cheaply (verified Aug 2026)
+### Getting TPU time cheaply
 
 1. **Colab**: free/Pro tiers expose a single v5e chip; enough for jax-core and NNX
    experiments and all scaling-book notebook exercises.

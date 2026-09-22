@@ -1,6 +1,6 @@
 # Continued Pretraining (CPT)
 
-⏱ 5 min read · +3h 30m resources
+⏱ 6 min read · +3h 30m resources
 
 ### Best resources
 
@@ -107,6 +107,48 @@ ratio, then commit the budget.
 
 - After CPT, re-run the full post-training pipeline (or at least SFT): CPT
   typically damages instruction-following until re-aligned.
+
+### What it costs: two documented pipelines
+
+Practitioners almost never publish a budget next to a recipe, which is why these two are
+
+worth more than their technical content.
+
+**Thomson Reuters** mid-trained a 397B-parameter domain model on top of Qwen3.5 for a
+
+reported $40M in three months: 200B curated tokens selected from a 19T pool with
+
+DatologyAI, DPO alignment against an open-source constitution, GSPO for context
+
+compaction and document caching, and a 35B open-weights sibling released alongside. It is
+
+the customise-an-open-base path stated end to end with a token count, a budget and a
+
+timeline attached, and the shape is the checklist below: select hard from a much larger
+
+pool, then re-align. Treat the $40M as a reported figure rather than an audited one
+
+(The Batch, September 2026).
+
+**Periodic's Neon** is the same argument with a different corpus. Midtraining plus
+
+reinforcement learning on real laboratory records beats GPT-6 Astra and Claude Fable 5.1
+
+on a hard scientific-analysis evaluation at lower cost per analysis, surpasses frontier
+
+models on FrontierXRD, and is deployed in labs analysing superconductor and magnet
+
+experiments. The structural claim is the transferable part: domain training on proprietary
+
+**operational** data, the records an organisation generates anyway rather than a corpus
+
+assembled for the purpose, establishes a Pareto-optimal cost-performance frontier against
+
+general frontier models. Most organisations sizing a domain-adaptation project already
+
+hold that data and do not think of it as a corpus.
+
+[Periodic](https://periodic.com/news/nature-is-our-learning-environment) (10 min)
 
 ### Checklist for a CPT run
 

@@ -2,7 +2,7 @@
 
 ⏱ 17 min read · +5h 35m resources
 
-Added 2026-08-24. Everything else in this topic rides on these three. HTTP, WebSockets, gRPC, DNS, SSH, and NCCL all reduce to "bytes into a socket", and when a distributed job hangs or a checkpoint upload crawls, the answer is almost always here rather than in the application. Written for the cases you actually hit: high bandwidth-delay paths, cluster fabrics, and cloud MTU and NAT limits.
+Everything else in this topic rides on these three. HTTP, WebSockets, gRPC, DNS, SSH, and NCCL all reduce to "bytes into a socket", and when a distributed job hangs or a checkpoint upload crawls, the answer is almost always here rather than in the application. Written for the cases you actually hit: high bandwidth-delay paths, cluster fabrics, and cloud MTU and NAT limits.
 
 ### Best resources
 
@@ -54,7 +54,7 @@ The TCP header's window field is 16 bits, so **without window scaling (RFC 7323)
 
 **Congestion control.** CUBIC has been the Linux default since 2006 and still is in 2026 (standardised as RFC 9438 in 2023). BBR models bottleneck bandwidth and round-trip propagation time and paces sends rather than reacting to loss, which is exactly right for high-BDP paths with non-congestive loss; BBRv1 has been in mainline since Linux 4.9. **BBRv3 remains an IETF draft (draft-ietf-ccwg-bbr, revision 06 dated 2026-07-06) and is not confirmed in mainline**; it ships via Google's `google/bbr` v3 branch and distro kernels such as XanMod. Check with `sysctl net.ipv4.tcp_available_congestion_control` rather than trusting a blog post.
 
-**Head-of-line blocking.** TCP delivers one strictly ordered byte stream, so one lost segment stalls everything behind it, including bytes already in the receive buffer. HTTP/2 multiplexes many streams over one connection, so a single loss stalls all of them. That is the whole motivation for QUIC, covered in [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (13 min read · +19h 40m resources).
+**Head-of-line blocking.** TCP delivers one strictly ordered byte stream, so one lost segment stalls everything behind it, including bytes already in the receive buffer. HTTP/2 multiplexes many streams over one connection, so a single loss stalls all of them. That is the whole motivation for QUIC, covered in [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (12 min read · +19h 40m resources).
 
 **TCP Fast Open is effectively dead**: Firefox removed it in v87 (2021), no major browser enables it, and the cause was middlebox ossification. That failure is why QUIC was built over UDP with encrypted transport headers instead of extending TCP.
 
@@ -125,7 +125,7 @@ When a distributed training job stalls on the network, in rough order of likelih
 
 ### Connections
 
-- Why HTTP/2 inherits TCP's head-of-line blocking and HTTP/3 does not: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (13 min read · +19h 40m resources).
+- Why HTTP/2 inherits TCP's head-of-line blocking and HTTP/3 does not: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (12 min read · +19h 40m resources).
 - Long-lived sockets, heartbeats, and per-connection cost at scale: [WebSocket protocol (RFC 6455) in depth](websockets.md) (19 min read · +5h 10m resources).
 - What sits on top of UDP port 53, and why it fails: [DNS: resolution, caching, and the failure modes](dns.md) (21 min read · +6h 15m resources).
 - Interconnects, NVLink, and RDMA hardware: [Interconnects and scaling: why the network picks your parallelism](../hardware/interconnects-and-scaling.md).

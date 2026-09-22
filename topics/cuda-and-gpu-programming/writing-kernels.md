@@ -2,8 +2,6 @@
 
 ⏱ 8 min read · +9h 45m resources
 
-*Last updated: 2026-08-24*
-
 ### Best resources
 
 - [Simon Boehm, How to Optimize a CUDA Matmul Kernel for cuBLAS-like Performance: a Worklog](https://siboehm.com/articles/22/CUDA-MMM) (1h 30m, 2022/2023): the canonical worked example; 10 kernels from naive to ~94% of cuBLAS SGEMM. Read it, then reproduce it.
@@ -15,7 +13,7 @@
 
 ### The matmul ladder (memorise this progression)
 
-Simon Boehm's worklog is the standard curriculum. The kernels, and the lesson each one
+Simon Boehm's worklog is the standard curriculum. The kernels and the lesson each one
 
 teaches (his A6000 numbers; expect higher absolute FLOPs but the same ratios on a 5090):
 
@@ -60,11 +58,11 @@ softmax, layernorm, losses). Modern recipe:
 
 Harris's deck walks the historical ladder (interleaved addressing, bank conflicts,
 
-sequential addressing, first-add-during-load, unrolling); the destination is the
+sequential addressing, first-add-during-load, unrolling) to the shuffle-based version
 
-shuffle-based version above. In library code just use CUB (`cub::BlockReduce`,
+above. In library code use CUB (`cub::BlockReduce`, `cub::DeviceReduce`), which is what
 
-`cub::DeviceReduce`), which is what PyTorch does.
+PyTorch does.
 
 ### Softmax and the online trick
 
@@ -103,9 +101,9 @@ registers/shared memory instead of round-tripping through HBM. When it wins:
 - Kernel-launch-bound sequences of tiny ops (also fixable with CUDA graphs).
 When it loses: fusing two compute-bound GEMMs rarely helps (tensor cores already
 
-saturated, register pressure hurts); and torch.compile already does elementwise and
+saturated, register pressure hurts), and torch.compile already does elementwise and
 
-epilogue-adjacent fusion automatically, so measure against a compiled baseline, not eager.
+epilogue-adjacent fusion, so measure against a compiled baseline, not eager.
 
 ### FlashAttention: the ideas above, composed
 
@@ -135,6 +133,36 @@ pipelining; Blackwell attention kernels now ship mainly via cuDNN and CUTLASS-ba
 implementations. The lineage to internalise: every generation is the same three ideas
 
 re-expressed with that architecture's data-movement hardware.
+
+### Writing the same SIMT kernels in Rust
+
+Everything above is CUDA C++, and since September 2026 there is a second language for the
+
+same thread-level code. **cuda-oxide** is a custom rustc codegen backend: it intercepts
+
+compilation, routes `#[kernel]` functions through Rust MIR (mid-level intermediate
+
+representation) and emits PTX, via the Pliron IR framework and LLVM. The programming model
+
+is untouched, you still think in threads, warps and blocks, and every kernel on this page
+
+transliterates.
+
+What is new is the safety argument. `DisjointSlice` types plus launch contracts make
+
+aliasing between concurrently running threads a **compile error** rather than something
+
+`compute-sanitizer --tool racecheck` may or may not catch later, depending on how that run
+
+happened to schedule. That is the first structural answer to the class of kernel bug that
+
+only shows up under one parallelism strategy. The cost is maturity: cuda-oxide is early
+
+alpha, needs a pinned nightly toolchain plus LLVM, and publishes no performance benchmarks,
+
+so treat it as a language result rather than a speed one. Its tile-level sibling cutile-rs
+
+is on [Triton](triton-language.md), and the two tracks are compared on [Topic: cuda-and-gpu-programming](summary.md).
 
 ### Suggested project ladder (for the dual-5090 box)
 

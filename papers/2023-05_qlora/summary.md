@@ -15,7 +15,7 @@
 
 ### Problem
 
-Full 16-bit finetuning of a 65B model needs over 780 GB of GPU memory, so adapting the largest open models was out of reach for anyone without a multi-node cluster. Existing 4-bit quantization (GPTQ, [LLM.int](http://llm.int/)8-era work) only worked for inference; training through quantized weights degraded or broke. The gap: make finetuning at the 33B/65B scale fit on one GPU without giving up 16-bit task performance.
+Full 16-bit finetuning of a 65B model needs over 780 GB of GPU memory, so adapting the largest open models was out of reach for anyone without a multi-node cluster. Existing 4-bit quantization (GPTQ, LLM.int8-era work) only worked for inference; training through quantized weights degraded or broke. The gap: make finetuning at the 33B/65B scale fit on one GPU without giving up 16-bit task performance.
 
 ### Method
 

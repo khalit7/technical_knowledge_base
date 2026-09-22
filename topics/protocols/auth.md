@@ -1,13 +1,11 @@
 # Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era
 
-⏱ 11 min read · +9h resources
-
-Updated 2026-09-21 (acronyms expanded on first use; no content changes).
+⏱ 10 min read · +9h resources
 
 ### Best resources
 
 - [OAuth 2.1 draft](https://oauth.net/2.1/) (2h 30m) (draft-ietf-oauth-v2-1, still Standards Track draft as of 2026 but the de facto profile): consolidates RFC 6749 + PKCE + Security BCP; read this instead of OAuth 2.0.
-- [Aaron Parecki, "OAuth 2 Simplified"](https://aaronparecki.com/oauth-2-simplified/) (30 min) and his [oauth.net](https://oauth.net/) materials (~45 min for the flow guides): clearest flow-by-flow explanations (Parecki also co-designed MCP's auth).
+- [Aaron Parecki, "OAuth 2 Simplified"](https://aaronparecki.com/oauth-2-simplified/) (30 min) and his oauth.net materials (~45 min for the flow guides): clearest flow-by-flow explanations (Parecki also co-designed MCP's auth).
 - [RFC 8725 JWT Best Current Practices](https://www.rfc-editor.org/rfc/rfc8725) (40 min): the pitfalls list, from the horse's mouth.
 - [OIDC Core spec](https://openid.net/specs/openid-connect-core-1_0.html) (2h 15m) plus [Auth0 docs](https://auth0.com/docs/get-started/authentication-and-authorization-flow) (docs, ~45 min for the flow pages): pragmatic flow selection.
 - [MCP authorization spec](https://modelcontextprotocol.io/specification/latest/basic/authorization) (35 min) and [security best practices](https://modelcontextprotocol.io/specification/latest/basic/security_best_practices) (20 min): the agent-era twist, including why token passthrough is banned.
@@ -23,7 +21,7 @@ Flows that survive in 2026:
 - **Client credentials**: machine-to-machine, no user; client authenticates with its own secret (or better, a private-key JWT / mTLS) and gets a token representing itself. The standard for backend service-to-service where OAuth is used at all.
 - **Device authorization grant** (RFC 8628): input-constrained devices; device shows a user code + URL, user approves on their phone, device polls the token endpoint. TVs, IoT, and headless CLI logins.
 - Removed/dead: implicit (tokens in URL fragments), resource owner password credentials.
-Supporting cast worth knowing: refresh tokens (rotate them; detect reuse), scopes (coarse permissions; keep few and meaningful), token introspection (RFC 7662) vs self-contained JWTs, dynamic client registration (RFC 7591), pushed authorization requests (PAR), `resource` indicators (RFC 8707) to audience-bind tokens, AS metadata discovery (RFC 8414).
+Also worth knowing: refresh tokens (rotate them; detect reuse), scopes (coarse permissions; keep few and meaningful), token introspection (RFC 7662) vs self-contained JWTs, dynamic client registration (RFC 7591), pushed authorization requests (PAR), `resource` indicators (RFC 8707) to audience-bind tokens, AS metadata discovery (RFC 8414).
 
 ### OIDC: authentication on top
 
@@ -46,7 +44,7 @@ Static bearer secrets (`x-api-key`, `Authorization: Bearer sk-...`). Fine for se
 
 ### Service-to-service auth
 
-- **mTLS** (mechanics, workload identity, and the February 2027 end of public-CA client certificates: [TLS and PKI: handshake, certificates, and mTLS](tls-and-pki.md) (22 min read · +17h 30m resources)): both sides present certificates; strongest transport-level identity; painful cert lifecycle unless automated: which is exactly what service meshes (Istio, Linkerd, App Mesh) and SPIFFE/SPIRE do (short-lived SVID certs as workload identity).
+- **mTLS**: both sides present certificates; strongest transport-level identity; painful cert lifecycle unless automated, which is exactly what service meshes (Istio, Linkerd, App Mesh) and SPIFFE/SPIRE do (short-lived SVID certs as workload identity). Mechanics, workload identity, and the February 2027 end of public-CA client certificates: [TLS and PKI: handshake, certificates, and mTLS](tls-and-pki.md) (22 min read · +17h 30m resources).
 - **IAM + SigV4 (AWS)**: no bearer token at all; each request is HMAC-signed with rotating credentials from the instance/Lambda role, and IAM policies authorize. Calling SageMaker/Bedrock/S3 from Lambda is this, for free via the SDK. Prefer IAM auth between your own AWS services over hand-rolled keys; for cross-cloud/GitHub Actions, use OIDC federation (workload presents an OIDC token, AWS Security Token Service (STS) exchanges it for temporary credentials: no long-lived secrets).
 - **OAuth client credentials with private-key JWT** where you need standards-based machine-to-machine auth across organizations.
 
@@ -54,9 +52,9 @@ Static bearer secrets (`x-api-key`, `Authorization: Bearer sk-...`). Fine for se
 
 Agents change the threat model: the "user" of a credential is now a model that can be prompt-injected, and credentials chain across host -> MCP server -> upstream API.
 
-- **MCP OAuth**: remote MCP servers are OAuth 2.1 resource servers. Discovery chain: 401 + `WWW-Authenticate` -> protected resource metadata (RFC 9728) -> AS metadata -> authorization code + PKCE. Tokens must be audience-bound to that server (RFC 8707); the 2026-07-28 spec added RFC 9207 issuer validation and replaced dynamic client registration with **Client ID Metadata Documents** (the client is identified by an HTTPS URL hosting its metadata: solves "every AS must accept unknown clients" without per-AS manual registration).
-- **Token passthrough is forbidden**: an MCP server must not forward the token it received to an upstream API, and must not accept tokens minted for other audiences. Passthrough breaks audience binding, hides the real caller from the upstream's controls, and enables **confused deputy** attacks (the server's privileged identity or cached consent gets exploited on behalf of an attacker). Correct pattern: the server is its own OAuth client to the upstream, performs token exchange (RFC 8693) or its own flow, and maintains per-user upstream credentials.
-- **Least privilege gets sharper**: an injected agent will use whatever scopes its tokens carry; grant read-only where possible, separate destructive scopes, require human-in-the-loop approval for irreversible actions, and log per-tool-call identity for audit. Emerging work on fine-grained, task-scoped agent credentials continues, but scoping + short lifetimes + audience binding is the durable 80%.
+- **MCP OAuth**: remote MCP servers are OAuth 2.1 resource servers holding audience-bound tokens (RFC 8707). The discovery chain, RFC 9207 issuer validation, and **Client ID Metadata Documents** (the client identified by an HTTPS URL hosting its metadata, so no AS must accept unknown clients) replacing dynamic client registration in 2026-07-28: [Model Context Protocol (MCP)](mcp.md).
+- **Token passthrough is forbidden**: an MCP server must not forward its inbound token upstream, and must not accept tokens minted for other audiences. Passthrough breaks audience binding, hides the real caller from the upstream's controls, and enables **confused deputy** attacks. Correct pattern: the server is its own OAuth client to the upstream, performs token exchange (RFC 8693) or its own flow, and maintains per-user upstream credentials.
+- **Least privilege gets sharper**: an injected agent will use whatever scopes its tokens carry; grant read-only where possible, separate destructive scopes, require human-in-the-loop approval for irreversible actions, and log per-tool-call identity for audit. Fine-grained, task-scoped agent credentials are emerging work, but scoping plus short lifetimes plus audience binding is the durable 80%.
 
 ### Choosing, quickly
 

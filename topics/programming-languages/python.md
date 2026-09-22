@@ -2,7 +2,7 @@
 
 ⏱ 18 min read · +66h resources
 
-*Created 2026-08-31.* A zero-to-expert path. Companion page [Python: staying current (3.12 to 3.15)](python-staying-current.md) tracks what changed in 3.12-3.15 and the current tooling stack; this page is the ladder, and it stays valid across releases.
+Companion page [Python: staying current (3.12 to 3.15)](python-staying-current.md) tracks what changed in 3.12-3.15 and the current tooling stack; this page is the ladder, and it stays valid across releases.
 
 **If you already write Python daily**, skip to the Stage 3 gate and try to answer it cold. Whatever you cannot answer, drop back a stage for. The fastest refresh path for a working engineer is Stage 2's idiom list plus all of Stage 3.
 

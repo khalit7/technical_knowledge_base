@@ -2,8 +2,6 @@
 
 ⏱ 10 min read · +4h 30m resources
 
-Updated 2026-08-24.
-
 ### Best resources
 
 - [Visual Information Theory](https://colah.github.io/posts/2015-09-Visual-Information/) (~40 min): Chris Olah; the best intuition-first walk through entropy, cross-entropy, KL, and mutual information via code lengths.

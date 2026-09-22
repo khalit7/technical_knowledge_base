@@ -34,6 +34,6 @@ What it does not show: whether this beats a competent RAG or text-memory baselin
 
 ### Connections
 
-- The practical alternative it implicitly argues against: text-level memory in personal agents (OpenClaw's [MEMORY.md](http://memory.md/), Hermes's memory providers and skills) and retrieval generally.
+- The practical alternative it implicitly argues against: text-level memory in personal agents (OpenClaw's MEMORY.md, Hermes's memory providers and skills) and retrieval generally.
 - Related compression-into-latents work: context distillation, KV-cache compression, Gist tokens.
 - Adjacent in this batch: Bitune and LLM Modules, also frozen-backbone-plus-adapter designs.

@@ -2,7 +2,7 @@
 
 ⏱ 19 min read · +5h 10m resources
 
-The wire-level companion to [Real-time and event delivery: WebSockets, SSE, webhooks, long polling](realtime-and-events.md) (11 min read · +5h resources), which covers *when* to choose WebSockets over Server-Sent Events (SSE), webhooks, or long polling. This page covers *what the protocol actually is* and how to run it in production.
+The wire-level companion to [Real-time and event delivery: WebSockets, SSE, webhooks, long polling](realtime-and-events.md) (10 min read · +5h resources), which covers *when* to choose WebSockets over Server-Sent Events (SSE), webhooks, or long polling. This page is *what the protocol is* and how to run it in production.
 
 ### Best resources
 
@@ -85,7 +85,7 @@ After the 101, the connection carries frames:
 
 **Messages vs frames.** One message can be split across a first frame carrying the type opcode, zero or more continuation frames (opcode 0x0), and a final frame with FIN=1. Fragmentation lets a sender stream a message of unknown length without buffering it. Control frames may be interleaved between fragments, so a ping can arrive in the middle of a large upload. Application code almost always sees reassembled messages because the library does this for you, but a streaming server-side handler is exactly where you notice the difference.
 
-**Why masking exists.** It is not confidentiality (the key is sent in the clear). It exists because in 2011 there were intermediaries that could be induced to interpret attacker-chosen plaintext as a second, forged HTTP request, poisoning caches. Randomising every client payload with a fresh key makes the attacker unable to control the bytes on the wire. Consequences today: masking is mandatory for clients and forbidden for servers (violations must fail the connection), and it costs a full XOR pass over every outbound client byte, which is why high-throughput client libraries care about SIMD (single instruction, multiple data) masking. Servers do not mask, so server-to-client throughput is cheaper.
+**Why masking exists.** Not confidentiality: the key is sent in the clear. In 2011 there were intermediaries that could be induced to interpret attacker-chosen plaintext as a second, forged HTTP request, poisoning caches, and randomising every client payload with a fresh key takes away the attacker's control of the bytes on the wire. Consequences today: masking is mandatory for clients and forbidden for servers (violations must fail the connection), and it costs a full XOR pass over every outbound client byte, which is why high-throughput client libraries care about SIMD (single instruction, multiple data) masking. Servers do not mask, so server-to-client throughput is cheaper.
 
 ### Control frames and closing
 
@@ -117,7 +117,7 @@ Two different negotiation mechanisms, often confused:
 - **RFC 8441** (2018) bootstraps WebSockets over HTTP/2 using Extended CONNECT with `:protocol = websocket`, so a WebSocket becomes one stream on a multiplexed connection instead of monopolising a TCP connection. Supported in Chrome 67+, Firefox 65+, Safari 14.1+, Edge 79+. It removes the HTTP/1.1 six-connections-per-host ceiling and the extra handshake round trips.
 - **RFC 9220** (2022) does the same over HTTP/3 and QUIC. As of early 2026 no major browser or server has shipped a production implementation; Chrome reached "intent to prototype" and stopped. Treat it as not available.
 - **WebTransport** (W3C working draft, built on HTTP/3) is the actual successor story: multiplexed independent streams, plus unreliable datagrams, plus 0-RTT. It is shipping in Chrome and Edge 97+, flagged in Firefox, absent in Safari, and blocked in networks that filter UDP. It complements rather than replaces WebSockets, and is worth watching for media-heavy and gaming workloads rather than adopting now.
-Practical reading: plain HTTP/1.1 upgrade remains the norm and is fine. Verify what your load balancer does, since several terminate HTTP/2 to the client and speak HTTP/1.1 upgrade to the origin.
+Plain HTTP/1.1 upgrade remains the norm and is fine. Verify what your load balancer does, since several terminate HTTP/2 to the client and speak HTTP/1.1 upgrade to the origin.
 
 ### Client-side API and backpressure
 
@@ -141,7 +141,7 @@ Also budget for the reconnect storm: when a node dies, every client it held reco
 
 ### Security
 
-The headline: **the same-origin policy does not apply to WebSockets, and neither does CORS.** A page on any origin may open a socket to your endpoint, and the browser will attach cookies. That is cross-site WebSocket hijacking (CSWSH), and it is worse than cross-site request forgery (CSRF) because the attacker also reads the responses.
+**The same-origin policy does not apply to WebSockets, and neither does CORS.** A page on any origin may open a socket to your endpoint, and the browser will attach cookies. That is cross-site WebSocket hijacking (CSWSH), and it is worse than cross-site request forgery (CSRF) because the attacker also reads the responses.
 
 - **Validate the Origin header server-side during the handshake.** This is the definitive mitigation and it is still, in 2026, the one people skip. Note that non-browser clients can forge `Origin` freely, so it defends browser users, not the endpoint in general.
 - `SameSite=Lax` cookie defaults (Chrome since 2020) block the attack incidentally, because a WebSocket handshake is not a top-level navigation, and Firefox's Total Cookie Protection partitions third-party cookies. `SameSite=None` re-opens it. Do not rely on browser defaults as your only control.
@@ -153,7 +153,7 @@ The headline: **the same-origin policy does not apply to WebSockets, and neither
 
 ### Where WebSockets show up in AI systems
 
-- **Realtime voice and multimodal APIs.** OpenAI's Realtime API offers WebRTC (recommended for browser and mobile clients capturing audio directly), WebSocket (recommended when your *server* already has raw audio from a media pipeline, call system, or worker), and SIP for telephony. Google's Gemini Live API is WebSocket-based. The pattern to internalise: WebRTC for the last mile to a device microphone (it handles jitter, packet loss, and echo cancellation), WebSocket for server-to-provider legs.
+- **Realtime voice and multimodal APIs.** OpenAI's Realtime API offers WebRTC (recommended for browser and mobile clients capturing audio directly), WebSocket (recommended when your *server* already has raw audio from a media pipeline, call system, or worker), and SIP for telephony. Google's Gemini Live API is WebSocket-based. The pattern to internalise: WebRTC for the last mile to a device microphone (it handles jitter, packet loss, and echo cancellation), WebSocket for server-to-provider legs. These channels are **full duplex end to end** as of GPT-Live-1 (September 2026), which listens and speaks at once over all four transports at $0.05 per minute for the voice layer. Barge-in stops being an application trick (detect speech, cancel playback, cancel the generation) and becomes a property of the session: audio flows both ways continuously and there is no turn boundary to manage, which is also what makes the telephony leg a first-class case rather than a bridge you build yourself. The model side is on [Speech and Audio Models](../generative-and-multimodal/speech-and-audio.md).
 - **Text LLM streaming is not WebSockets.** Anthropic and OpenAI text streaming is SSE over POST, and the Model Context Protocol (MCP) Streamable HTTP transport is SSE too. If someone proposes WebSockets for token streaming, they are paying the stateful-connection tax for a one-directional stream.
 - **Interactive ML tooling** rides on WebSockets everywhere: Jupyter kernel and terminal channels, TensorBoard and Ray dashboard live updates, Gradio and Streamlit event channels, vLLM and Triton demo frontends. When a notebook "loses the kernel" behind a corporate proxy, it is an upgrade or idle-timeout problem, not Python.
 - **Agent UIs** that need interruption (barge-in, cancel, tool-approval prompts mid-run) are the genuine bidirectional case, and the one place a WebSocket beats SSE plus a side-channel POST.
@@ -184,8 +184,8 @@ The headline: **the same-origin policy does not apply to WebSockets, and neither
 
 ### Connections
 
-- Choosing between WebSockets, SSE, webhooks, and long polling: [Real-time and event delivery: WebSockets, SSE, webhooks, long polling](realtime-and-events.md) (11 min read · +5h resources).
+- Choosing between WebSockets, SSE, webhooks, and long polling: [Real-time and event delivery: WebSockets, SSE, webhooks, long polling](realtime-and-events.md) (10 min read · +5h resources).
 - The DDP (Distributed Data Protocol) sync-engine pattern (WebSocket-based subscribe-and-diff) is on that same page, and is the shape most "live data" products converge on.
-- Chunked transfer, timeouts, and proxy buffering: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (13 min read · +19h 40m resources).
-- Why MCP chose Streamable HTTP over WebSockets: [Model Context Protocol (MCP)](mcp.md) (11 min read · +4h 55m resources).
-- Ticket-based auth, token audience, and why the browser API's header limitation matters: [Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era](auth.md) (11 min read · +9h resources).
+- Chunked transfer, timeouts, and proxy buffering: [HTTP: 1.1, 2, 3, and what matters for LLM services](http.md) (12 min read · +19h 40m resources).
+- Why MCP chose Streamable HTTP over WebSockets: [Model Context Protocol (MCP)](mcp.md) (13 min read · +4h 55m resources).
+- Ticket-based auth, token audience, and why the browser API's header limitation matters: [Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era](auth.md) (10 min read · +9h resources).

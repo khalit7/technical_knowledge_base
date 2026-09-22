@@ -86,6 +86,98 @@ For readable deep dives, prefer this order when applicable:
 6. Cross-links to related pages.
 Not every page needs every section.
 
+### A page carries one version of itself
+
+This is the rule a full pass over the knowledge base found broken on nearly every page, and it was the single largest source of duplicated text.
+
+- **No collapsed copy of the page's former self.** A `<details>` block titled "previous version of this page (superseded)" or "original map, kept for reference" is a second page inside the page. It ran to between 380 and 620 words on every provider page. History lives in Notion's own page history and in Updates, and the reader needs neither.
+- **No "Last updated: <date> (what this pass changed)" line.** Every rewrite adds another one, and it is the changelog leaking onto the knowledge page.
+- **A page does not narrate its own editing.** "Rewritten: every named technique now carries a mechanism" is metadata about the page, not about the subject.
+- **Dated bookkeeping migrates upward** into headings and even into page titles, where a rule about body text misses it: "## Current debates and refinements (as of Aug 2026)", a page titled "... (state as of 2026-08-24)", a table headed "Current models (Aug 2026)". A heading that hedges with a date is how a page stops being current without anybody noticing. Either the content is still true and the date comes out, or it is not and the content is the thing to fix.
+
+### Say a thing once, on the page that owns it
+
+The commonest structural defect is the same material written out in full in two or three places. Resolving it is worth more than any amount of sentence-level tightening.
+
+- **A topic page is not a second copy of its own deep dives.** A band of the topic page's map gets one orienting sentence, whatever distinction only makes sense when you can see all the children at once, its own unique material, and a mention. The depth lives on the child.
+- **One page owns a mechanism; every other page names it and points.** Shared vocabulary is where this hides, because two subtrees can both legitimately touch the same algorithm: RLHF, GRPO and RLVR were explained in four places. Decide the owner, then everywhere else keeps the one claim it needs.
+- **Generic mechanism belongs above, lab-specific detail below.** Near-identical explanations of linear attention sat on three provider pages and of expert sparsity on four. The provider page keeps what its own variant does differently.
+- **Two topic pages must not map the same ground.** Where they overlap, decide which through-line each one carries.
+- **One index per topic page.** A prose map and a deep-dive table covering the same children is two indexes. The table keeps the enumeration; the map keeps the claims.
+- **Move, then cut.** Before deleting a duplicate passage from the parent, check that the owning child actually carries every clause of it. A caveat that exists only on the summarising page is silently destroyed otherwise, and that happened twice in one pass before anybody noticed.
+
+### The rule that explains most staleness
+
+**If a fact is on the topic page but not on the child that owns the subject, that is a staleness bug on the child, not depth on the parent.**
+
+This is the single most useful thing learned from auditing the whole knowledge base at once. Updates land on the parent, because the parent is the page being edited during a weekly pass, and nobody goes back down. The result is a knowledge base whose summary pages are excellent and whose child pages are a month or a generation behind, which is the worst possible arrangement: the page that looks authoritative on a subject is the one that is wrong about it.
+
+Worked examples from one audit: the topic page covered GPT-6 Astra in depth while the OpenAI page still called GPT-5.6 "the current family"; the topic page had Terminal-Bench 4.0 while the page that owns Terminal-Bench still said 2.1 was current; the topic page carried the whole encoder-decoder turn while the DeepSeek page had never heard of V4.1-Flash.
+
+So every edit has a second half: after writing something on a topic page, open the child that owns the subject and make it true there too. If the child is the owner, the child gets the depth and the topic page gets the claim.
+
+### Dates: which ones are content
+
+The anti-bookkeeping rule and the never-lose-a-date rule collide, and the distinction has to be written down or an agent will destroy real information following one of them.
+
+- **Content, keep:** a date that qualifies a volatile fact. "Shipped in September 2026". "Last verified: 2026-08-24 (PyTorch 2.13; FSDP1 deprecated since 2.11)". A source attribution for a claim with no URL.
+- **Bookkeeping, delete:** a date describing the page's own editing. "Last updated: 2026-09-21 (dated sections folded in)". "Created 2026-08-31." "Added 2026-09-07."
+- **Never put a month in a heading.** "What to actually use in Aug 2026" is a heading and a staleness trap at once, and it silently dated two pages whose bodies were already current.
+
+### A number travels with its harness
+
+On any page carrying scores, a number moves together with the harness, the split, the date and who reported it, or it does not move at all. The most valuable passage in the benchmarks subtree exists only because somebody wrote the harness down: the same model, on the same benchmark, thirty-seven points apart through two different harnesses, and the higher score is the cheaper run.
+
+Three more ways a number goes wrong, each found more than once in a single audit:
+
+- **A benchmark name without a version is a future false claim.** Terminal-Bench 2.x against 4.0, OSWorld-Verified against OSWorld 2.0. The figure stays true and the comparison silently becomes false. When a new version resets the scale, say so at the first stale figure on the page rather than trusting the reader to know.
+- **Cite what a number measures, not only its value.** "6.49% of MMLU questions contain an error of any type" became "roughly 9% of items are erroneous" on another page, citing the same paper. The scope was dropped first and the figure drifted after. Every percentage taken from a paper carries its denominator and its definition in the same sentence.
+- **When a vendor claims a record, record which quantity it won.** One news line about the smallest active-parameter count became a *sparsity ratio* claim on three separate pages, and the ratio leader is a different model.
+
+### Claims that rot without anybody editing them
+
+These are the sentences that go stale silently, which makes them worse than the ones that go stale loudly.
+
+- **A superlative is a dated statement wearing no date.** "The only lab", "the cheapest", "the strongest", "the most aggressive". Three had rotted together in one subtree and no grep for a release name would ever have surfaced them. Every superlative carries its scope in the same sentence ("the top open-weight model *on the aggregate indices*"), which makes it falsifiable on sight and survives the next release.
+- **Close the window on a present-tense claim.** "Still unpatched as of late August", "no tagged release after Aug 2025", "watch this boundary". Write the window closed ("left through the summer of 2026 with no patch") so the sentence stays true as it ages.
+- **A forward-looking date is a landmine with a timer.** "3.8 is scheduled for 26 August" was true when written and false by default a month later, with nothing to trigger a re-read. Prefer "the current line is X" plus a fact that dates itself.
+- **Write an adoption claim as evidence, not as trajectory.** "Landing in mainstream frameworks" has no truth condition, so nothing ever triggers an update. "Used in Kimi K2 and shipped in optax" is checkable, and visibly wrong the moment it stops being the strongest example.
+- **When a mitigation is stated, name what defeats it.** A mitigation asserted without its failure boundary is exactly this shape, and in one case the knowledge base already held the counterexample.
+- **A saturation claim needs its scope.** "Saturated at 95%" beside a sibling page's "the best model resolves 38.8%" reads as a contradiction until one of them says which population saturated.
+- **A diagram ages like prose.** One taxonomy sat two generations behind a paragraph two screens above it. Anything a page enumerates, diagram or table or list, is a claim to be complete, and is reviewed whenever the prose moves.
+
+### What a currency pass must sweep
+
+The weekly intake tracks releases, papers and results, so a pass driven by it is structurally blind to everything without a product name. Three of the largest gaps ever found here were exactly that shape: an acquisition (the largest accelerator vendor buying the model distribution hub, absent from every topic page), a commercial-availability change (an accelerator generation becoming purchasable by other companies), and a licence change.
+
+So sweep **who owns it, what does it cost, what licence is it under, and can you buy it** as its own category, separately from what shipped.
+
+Two cheap checks nobody runs, both of which found real defects in seconds:
+
+- **Does this child name the same latest version its parent does?** Two child pages were exactly one release behind parents that had already integrated the newer one.
+- **Does the parent's pointer still describe the child?** The read time and the one-line gloss in a deep-dives table are assertions about the child, duplicated in up to three places, and nothing checks them.
+A line saying "current as of version X" is a maintenance obligation the weekly pass does not discharge, because the intake does not track library versions. Either it names the changelog that would falsify it, or version sweeps are a separately scheduled job.
+
+### Two rulings, so they stop being re-litigated
+
+- **An "interview-ready summary" section stays.** Several pages end with one, and by the no-restating rule it looks like duplication. It is not: it is a rehearsal device for spoken recall, which is a different job from the page's explanation. It is the one place where restating the page is the point.
+- **Do not expand an acronym the audience already owns.** The rule says expand on first use "at the depth appropriate for an experienced AI research engineer", and a pass over-applied it into "have a large language model (LLM) extract entities" and "natural language processing (NLP)". Expand what a specialist in a neighbouring field would not know. Never LLM, GPU, API, NLP, RAG.
+
+### Writing for the stated audience
+
+The audience is an MSc-level AI engineer with production LLM experience, and the commonest source of fat is writing below it.
+
+- **Expand an acronym, do not teach it.** The expansion is a fact. The tutorial sentence after it usually is not.
+- **Define a shared concept once**, on the topic page, and mention it after. One benchmark index was defined on three pages in three different phrasings.
+- **Keep a superseded model or version only for the idea it introduced**, never as a chronicle. In-context learning, the post-training stack, the Chinchilla overtraining bet: each earns its entry. "Then in June they released X" does not.
+- **State a trade-off compactly**: "it buys X, and costs Y", not "What it buys is X. What it costs is Y."
+- **On a list page, cut the per-entry verdict** that restates the page's own framing.
+- Wind-ups that always delete cleanly: "It is worth noting that", "The thing worth understanding is", "The reason X exists is that", "The intuition is that", "One key thing to understand is".
+
+### Section-level reading estimates
+
+A page carrying `(1 min)` and `(13 min)` markers per heading has to have them rescaled whenever the page is rewritten, along with the page total. They go stale silently, because nothing reads them back. If they are not going to be maintained, do not use them.
+
 ## Reading-time convention
 
 Keep the page-level `⏱ N min read · +Xh Ym resources` estimate where useful. External recommended resources should carry time estimates. Do not maintain a whole-knowledge-base aggregate or cascade calculated totals through all ancestors. Topic-level roll-ups are optional when genuinely useful.

@@ -2,8 +2,6 @@
 
 ⏱ 6 min read · +3h 10m resources
 
-Last updated: 2026-09-21 (editorial heading note removed)
-
 ### Best resources
 
 - Sebastian Raschka, [Understanding Multimodal LLMs](https://magazine.sebastianraschka.com/p/understanding-multimodal-llms) (~30 min): the clearest architecture comparison (decoder-only + adapter vs cross-attention vs unified).
@@ -16,9 +14,9 @@ Last updated: 2026-09-21 (editorial heading note removed)
 1. **LLM + tools (shallow)**: external modules translate other modalities to text
    (Whisper transcribes, a captioner describes, a diffusion API generates). Cheap,
 
-   composable, lossy: the LLM never sees the raw signal, so prosody, layout, and fine
+   composable, lossy: the LLM never sees the raw signal, so prosody, layout and fine
 
-   visual detail are gone. This is just tool-calling, still the right answer for many
+   visual detail are gone. Plain tool-calling, and still the right answer for many
 
    products.
 
@@ -74,7 +72,7 @@ increasingly with verifiable multimodal rewards.
 
   can regress without careful data mixing. Frontier labs converged on native
 
-  multimodality; open models are mostly still late fusion because it lets them reuse
+  multimodality, and by late 2026 the largest open releases had followed: GLM-5.3-Flash and DeepSeek V4.1-Flash are both multimodal from pretraining rather than adapted afterwards. Late fusion still dominates below that tier, because it lets a team reuse
 
   strong text-only backbones.
 
@@ -93,16 +91,16 @@ increasingly with verifiable multimodal rewards.
 
   closed-model versions of AR-planned, diffusion-decoded generation.
 
-### Landscape (Aug 2026)
+### Landscape
 
-- **Native multimodal frontier**: GPT-5-class (text+vision+audio in, text+image+audio
-  out), Gemini 3 (strongest pure-vision benchmarks, long video context), Claude
+- **Native multimodal frontier**: GPT-6 Astra (text+vision+audio in, text+image+audio
+  out), Gemini 3.8 Flash (long video context), Meta's Muse Spark 1.3 (text, image and video in over a 1M-token context), Claude
 
-  Opus/Sonnet 4.x (vision in, text out; no native image gen). Realtime voice modes are
+  Opus 5 and Fable 5.1 (vision in, text out; no native image generation). Realtime voice modes are
 
   omni models with streaming audio tokens (see [Speech and Audio Models](speech-and-audio.md)).
 
-- **Open VLMs**: **Qwen3-VL** (235B-A22B flagship rivals proprietary on OCR, grounding,
+- **Open VLMs**: natively multimodal has stopped being what distinguishes an open frontier release and become what one is expected to be. **GLM-5.3-Flash** (320B-A18B, MIT, image and video in, 1M context) and **Qwen3.8-Flash-Next** (125B-A6B, vision encoder, 262K native context) landed on the same day in August; **DeepSeek V4.1-Flash** (552B encoder-decoder, MIT, native vision) and inclusionAI's **Ling 3.0 Flash VL** on the same day in September; StepFun's **Step 5 Preview** (600B-A27B, text, image and video in) a week after that. The older reference lineages still set the bar on understanding: **Qwen3-VL** (235B-A22B flagship rivals proprietary on OCR, grounding,
   video; strong small variants), **InternVL3.5** (cascade RL, resolution routing),
 
   Llama vision line (cross-attention adapters), Gemma 3, Pixtral, Molmo, MiniCPM-V for

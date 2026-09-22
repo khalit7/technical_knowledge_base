@@ -82,7 +82,15 @@ From LoRA Without Regret and accumulated practice:
 
   binding constraint. This makes LoRA the default for RL fine-tuning where the
 
-  policy must stay close to the base anyway.
+  policy must stay close to the base anyway. A worked instance at the small end: a 4B
+
+  Postgres query-planner model was supervised fine-tuned on 420 trajectories distilled
+
+  from GPT-6 Astra through LoRA adapters of roughly 21M parameters on consumer GPUs, then
+
+  trained further with an anchored GRPO variant against an execution-time reward, and
+
+  beat a hand-tuned production planner on join-heavy queries for a few hundred dollars.
 
 - Capacity limit is real for large-corpus training: if your dataset approaches
   pretraining-like scale (continued pretraining), use full fine-tuning.

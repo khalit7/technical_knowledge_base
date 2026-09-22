@@ -1,6 +1,6 @@
 # Distillation and Small Language Models
 
-⏱ 6 min read · +3h 50m resources
+⏱ 7 min read · +3h 50m resources
 
 ### Best resources
 
@@ -22,7 +22,17 @@
 
    train-from-scratch cost.
 
-2. **Quantization**: see [Quantization and Precision](quantization-and-precision.md).
+2. **Quantization**: see [Quantization and Precision](quantization-and-precision.md). The current
+   marker for how far weight compression goes before quality breaks is **Bonsai 2 27B**
+
+   (Prism ML, September 2026), a ternary compression of Qwen3.8 27B at 1.76 effective bits
+
+   per weight that keeps 98.2% of aggregate benchmark performance. Nine times smaller than
+
+   full precision for a couple of points of quality is a better trade than most
+
+   distillation achieves, which is the argument for trying this lever before the others.
+
 3. **Low-rank factorisation**: replace W with low-rank products (or SVD-compress);
    rarely used alone for LLMs, lives on inside LoRA-style methods and MLA-like
 
@@ -66,10 +76,30 @@
 
   distillation from the flagship).
 
-- Aside: "distillation" of proprietary APIs via generated data is the same
-  mechanism, which is why frontier ToS restrict it and why labs watermark or
+- **The contractual layer**: "distillation" of a proprietary API via generated data is
+  the same mechanism, which is why frontier terms of service restrict it and why labs
 
-  perturb logprobs.
+  watermark or perturb logprobs. The restriction is contractual rather than technical,
+
+  and enforcement is live: Anthropic has accused seven Chinese developers, including
+
+  Alibaba, DeepSeek and Moonshot AI, of fraudulently accessing Claude to distil it and of
+
+  routing their own customers' queries to Claude while presenting the output as their
+
+  own, alleging that Alibaba alone ran 151 million exchanges through about 5,000
+
+  fraudulent accounts between May and June 2026. Those are accusations and are
+
+  unadjudicated. Andrew Ng's counterweight is the technical point worth holding onto: you
+
+  cannot distil your way to a frontier model, and the labs named have published real work
+
+  of their own. The policy argument runs in the other direction as well, with Garry Tan
+
+  arguing that US open-weight labs should distil frontier models too. Whose terms you
+
+  build a distillation pipeline on is a design decision, not a formality.
 
 ### Small language model landscape (2026)
 
@@ -85,14 +115,32 @@ context, multimodal in some), driven by better data, longer token budgets
 - **SmolLM3-3B (HF)**: fully open blueprint: 11T tokens, dual instruct/reasoning
   modes, beats Llama-3.2-3B/Qwen2.5-3B.
 
-- **Gemma 3 / Gemma 3n**: 1B-27B, multimodal; 3n's selective activation runs 5B
-  params in a ~2B memory footprint on-device.
+- **Gemma 4**: the current open Google family. Dense `gemma-4-31b`, plus
+  `gemma-4-26b-a4b`, a 26B mixture of experts with roughly 4B active per token, plus E2B
+
+  and E4B edge variants. The small MoE is the interesting entry: you pay for 26B of
+
+  weights in memory to run about 4B of matmuls per token, the right trade when you are
+
+  latency-bound and memory-rich, the wrong one on a phone.
 
 - **Phi-4 family (14B, mini)**: the synthetic-data-heavy lineage; strong
   benchmarks, mixed real-world reputation.
 
 - **Llama 3.2 1B/3B**: pruned + distilled from Llama 3.1 8B.
 - **Nemotron Nano / OLMo 2 1B**: pruning+distillation and fully-open lanes.
+- **OpenBMB MiniCPM5-2B**: a dense 2.5B Apache-2.0 on-device model averaging 53.9
+  across 34 benchmarks, aimed at local assistants and coding.
+
+- **K2 Horizon 0.9B / 3.7B / 7B**: the small tier of a fully open fleet (see
+  [Pretraining](pretraining.md)), with the lab claiming state of
+
+  the art at all three scales. The claim is IFM's own, but the training data was released
+
+  with the weights, so unlike most small-model claims this one can be audited for
+
+  contamination rather than argued about.
+
 Recurring recipe: overtrain a small dense model on maximum-quality data, distill
 
 from a frontier teacher (increasingly on-policy), then run the same post-training

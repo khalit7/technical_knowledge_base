@@ -48,7 +48,7 @@ A DiffusionGemma step processes 256 tokens yet is only 3.2x slower than a single
 
 ### Connections
 
-- topics/generative-and-multimodal/[text-diffusion-and-world-models.md](http://text-diffusion-and-world-models.md/): the KB deep dive on this space; DiffusionGemma is the strongest open-weights entry in the 2026 AR-initialised block-diffusion recipe described there (Mercury, Gemini Diffusion, LLaDA 2.x), and this paper confirms the pattern of causal-context block diffusion to restore KV-cache reuse.
+- topics/generative-and-multimodal/text-diffusion-and-world-models.md: the KB deep dive on this space; DiffusionGemma is the strongest open-weights entry in the 2026 AR-initialised block-diffusion recipe described there (Mercury, Gemini Diffusion, LLaDA 2.x), and this paper confirms the pattern of causal-context block diffusion to restore KV-cache reuse.
 - 2020-06_ddpm: the continuous diffusion foundation; DiffusionGemma uses its discrete-state descendant (CTMC / discrete flow matching, multinomial corruption) rather than embedding-space Gaussian diffusion, which the paper argues breaks likelihood bounds under rounding.
 - 2018-10_bert: masked/random token replacement pretraining is the single-step ancestor that discrete diffusion generalizes into a multi-step Markov process.
 - 2024-01_mixtral: MoE serving background; the expert-transfer cost that helps sparse AR decoding becomes DiffusionGemma's largest per-step overhead (84 vs 8 unique experts per layer per canvas).

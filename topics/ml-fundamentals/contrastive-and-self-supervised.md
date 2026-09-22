@@ -31,7 +31,7 @@ Learn an embedding space where similar pairs (augmented views of the same image,
 | BYOL / SimSiam | Same | **None** | Predictor + stop-gradient (plus EMA target in BYOL) avoids collapse without negatives |
 | CLIP (2021) | Image and its caption | In-batch, symmetric InfoNCE both directions | Cross-modal contrastive; zero-shot classification via text prompts; the vision encoder feeding most multimodal LLMs |
 
-### Relation to encoder and decoder models (the seed's open question)
+### Relation to encoder and decoder models
 
 The clean way to slice it: **what the training objective forces the model to output** determines the architecture.
 

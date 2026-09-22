@@ -2,12 +2,10 @@
 
 ⏱ 11 min read · +4h 35m resources
 
-*Last updated: 2026-09-21 (expanded acronyms on first use; no substantive changes)*
-
 ### Best resources
 
 - [Adding Error Bars to Evals (Evan Miller, Anthropic, arXiv:2411.00640)](https://arxiv.org/abs/2411.00640) (45 min): the statistical framework: central-limit-theorem (CLT) confidence intervals (CIs), clustered standard errors (SEs), paired tests, power analysis. Read first.
-- [statsforevals.com](https://statsforevals.com/) (~30 min): companion resources adapting that framework to small (20-100 item) developer evals.
+- statsforevals.com (~30 min): companion resources adapting that framework to small (20-100 item) developer evals.
 - [Hamel Husain's evals FAQ](https://hamel.dev/blog/posts/evals-faq/) (~40 min): the best condensed practitioner answers on golden sets, CI gates, and error analysis.
 - [Braintrust: practical guide to LLM evaluation and regression testing](https://www.braintrust.dev/articles/llm-evaluation-guide) (~25 min): representative of the current offline/online split as implemented by tooling.
 - [Do Large Language Model Benchmarks Test Reliability? / PlatinumBench (arXiv:2502.03461)](http://platinum-bench.csail.mit.edu/) (45 min): label-error rates in standard benchmarks and what cleaning them changes.
@@ -15,24 +13,24 @@
 
 ### Regression gates and promotion paths
 
-The promotion path for any change (prompt edit, model swap, retrieval change, tool change) should be a fixed sequence, each stage cheaper than the failure it prevents:
+The promotion path for any change (prompt edit, model swap, retrieval change, tool change) is a fixed sequence, each stage cheaper than the failure it prevents:
 
 1. **Offline gate on frozen golden sets** (minutes, in CI): pass/fail thresholds per capability slice, not one aggregate. Gate on paired deltas vs the current champion, with significance (below), plus hard floors on safety slices. Any golden-set edit is itself a reviewed change; score history must be re-baselined when the set changes.
 2. **Cost/latency budget gate**: tokens per request, p95 latency, projected spend. A model swap that wins quality but 3x cost fails promotion unless explicitly waived.
-3. **Shadow deployment**: candidate runs on mirrored production traffic, responses logged not served. Score champion vs candidate on the same requests (paired by construction) with the judge battery; diff distributions per intent/segment. Shadow catches distribution gaps golden sets cannot: real traffic is uglier than curated sets. For agentic systems shadow full trajectories, not single turns.
+3. **Shadow deployment**: candidate runs on mirrored production traffic, responses logged not served. Score champion against candidate on the same requests (paired by construction) with the judge battery; diff distributions per intent/segment. Shadow catches distribution gaps golden sets cannot, because real traffic is uglier than curated sets. For agentic systems shadow full trajectories, not single turns.
 4. **Canary / A/B with auto-rollback**: small live percentage, guardrail metrics (error rates, refusal rates, user feedback, task completion) with automated rollback triggers, then progressive rollout.
 Champion/challenger framing keeps this honest: the incumbent config is the champion; nothing ships without beating it through all gates. Keep every config (prompt hash, model version, judge version, dataset version) pinned and logged so any score is reproducible.
 
 ### Golden sets
 
-- Composition: representative slice of real traffic (deduplicated, scrubbed of personally identifiable information (PII)), plus regression cases (every production incident becomes a test), plus adversarial/edge cases, plus safety canaries. 100-500 items per surface is the practical range; smaller sets gate only large effects (see statistics), larger sets rot.
+- Composition: a representative slice of real traffic (deduplicated, scrubbed of personally identifiable information (PII)), regression cases (every production incident becomes a test), adversarial/edge cases, and safety canaries. 100-500 items per surface is the practical range; smaller sets gate only large effects (see statistics), larger sets rot.
 - Each item: input, expected behaviour (reference answer, rubric, or programmatic checks), metadata tags (intent, difficulty, source incident). Tags are what make per-slice gating possible.
-- Lifecycle: golden sets decay: product drift, traffic drift, and gradual leakage into prompts/finetunes. Refresh on a schedule from recent traffic + error analysis; version them like code; hold out a never-published split if the vendor might train on your traffic.
-- Error analysis is the engine that grows them: regularly read raw transcripts of failures (Hamel's core discipline), cluster failure modes, convert clusters into new tagged golden items and judge rubric criteria.
+- Lifecycle: golden sets decay through product drift, traffic drift and gradual leakage into prompts/finetunes. Refresh on a schedule from recent traffic and error analysis; version them like code; hold out a never-published split if the vendor might train on your traffic.
+- Error analysis is the engine that grows them: read raw transcripts of failures (Hamel's core discipline), cluster failure modes, convert clusters into new tagged golden items and judge rubric criteria.
 
 ### Offline vs online
 
-Offline evals catch anticipated regressions; online metrics catch what your golden set could not imagine. Both are required and they disagree routinely.
+Offline evals catch anticipated regressions; online metrics catch what your golden set could not imagine. Both are required, and they disagree routinely.
 
 - Online instruments: sampled judge scoring of live traces (async, out of request path), implicit signals (retry rate, edit distance of user corrections, abandonment, escalation-to-human rate), explicit feedback, and business/task-completion metrics.
 - Treat offline-online divergence as an alarm on the offline set: if a candidate wins offline and loses online, the golden set or judge is miscalibrated for current traffic; feed the divergent segment back into the golden set.
@@ -60,11 +58,11 @@ The general lesson: state each gate's minimum detectable effect next to its thre
 
 ### Cost-performance frontiers
 
-Model selection is a Pareto problem: plot quality (calibrated eval score) vs cost per request (and latency) across candidate models/configs; only frontier points are candidates. Practical additions: cascades/routing (cheap model with escalation on low confidence or judge-flagged outputs often dominates any single point), quality-per-dollar as the gate metric for cost-sensitive surfaces, and re-running the frontier on every pricing or model-version change since frontiers shift monthly. Judge cost is part of the frontier too: jury-of-minis batteries exist precisely because scoring at production scale with frontier judges inverts the economics.
+Model selection is a Pareto problem: plot quality (calibrated eval score) against cost per request and latency across candidate models and configs; only frontier points are candidates. Practical additions: cascades/routing (a cheap model with escalation on low confidence or judge-flagged outputs often dominates any single point), quality-per-dollar as the gate metric for cost-sensitive surfaces, and re-running the frontier on every pricing or model-version change, since frontiers shift monthly. Judge cost is part of the frontier: jury-of-minis batteries exist precisely because scoring at production scale with frontier judges inverts the economics.
 
 ### Gold-label auditing and gold-error-aware scoring
 
-Your gold labels are wrong at rates that dominate small deltas. Northcutt et al. found pervasive test-set label errors across ML benchmarks; roughly 9% of MMLU items are erroneous ([Are We Done with MMLU?, arXiv:2406.04127](https://arxiv.org/abs/2406.04127), 45 min, with some subsets at 57%); about 5% of GSM8K; PlatinumBench found that after cleaning, a majority of residual "model failures" on many benchmarks were label noise. Consequences: ceiling effects are artificial, model rankings can flip by 10-15 points on cleaned sets, and a regression gate can fail a genuinely better model because it disagrees with wrong gold.
+Your gold labels are wrong at rates that dominate small deltas. Northcutt et al. found pervasive test-set label errors across ML benchmarks; MMLU-Redux re-annotated 5,700 MMLU questions across all 57 subjects and estimates that about 6.5% contain an error of some kind, counting wrong gold labels together with unanswerable, ambiguous and multiple-correct-answer items, so the wrong-gold-label rate on its own is lower than that headline ([Are We Done with MMLU?, arXiv:2406.04127](https://arxiv.org/abs/2406.04127), 45 min; the virology subset runs at 57%). About 5% of GSM8K items are wrong, and PlatinumBench found that after cleaning, a majority of residual "model failures" on many benchmarks were label noise. Consequences: ceiling effects are artificial, model rankings can flip by 10-15 points on cleaned sets, and a regression gate can fail a genuinely better model for disagreeing with wrong gold. The per-benchmark rates, and the expert re-grading of six physics suites that generalises them, are in [Knowledge and reasoning benchmarks: MMLU family, GPQA, HLE, ARC-AGI](../benchmarks/knowledge-and-reasoning.md).
 
 The generic pattern (gold-error-aware consensus scoring), applicable to any internal golden set:
 

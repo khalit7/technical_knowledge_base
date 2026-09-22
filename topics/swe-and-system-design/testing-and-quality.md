@@ -2,8 +2,6 @@
 
 ⏱ 10 min read · +3h 40m resources
 
-Last updated: 2026-08-24
-
 ### Best resources
 
 - [How to Test Machine Learning Code and Systems](https://eugeneyan.com/writing/testing-ml/) (~30 min): Eugene Yan; the pre-train / post-train test framing with worked code
@@ -79,11 +77,22 @@ Where an LLM feeds downstream code, the boundary needs a schema contract:
 - **Training smoke test**: one tiny end-to-end run (overfit 10 samples, assert loss drops) catches wiring bugs that unit tests structurally cannot.
 - Data pipelines get CI too: run transforms against fixture snapshots; validate output schemas with pandera/Great Expectations before publishing partitions.
 
+### Verifying agent-authored changes at scale
+
+A green suite over a massively parallel refactor is not evidence of safety. Nous Research coordinated 1,393 subagents for about 19 active hours to refactor a million-line Python repository, cutting non-test source by 34.4% for roughly $19,300 in model costs; worktrees and frozen baselines made the parallel integration possible, but community review still caught removed public APIs and changed exception handling that the test suite passed ([write-up](https://nousresearch.com/refactoring-hermes-with-1393-agents), 20 min). The verification gap sits where the tests are silent, not where they fail, and a change of that size travels straight through that region.
+
+What closes it:
+
+- **Public-API diffing as a merge gate**: enumerate the exported surface (`__all__`, public classes, signatures) before and after, and fail on any removal or signature change the diff does not declare. Tests cover what someone thought to call; the surface is the promise.
+- **Exception-contract tests**: assert the exception type and the condition that raises it, not merely that an error path exists. Broadened or swallowed exceptions are the behaviour change a happy-path suite structurally cannot see.
+- **Frozen baselines and per-agent worktrees**: pin the pre-change commit and diff behaviour against it rather than against a moving trunk; separate worktrees are what make many parallel edits integrable at all.
+- **Route review by surface, not by file**: nobody reads a million-line diff, so spend the human attention on the public interface, the error paths, and the deleted code.
+
 ### General test design taste
 
 - Test **behaviour through the public interface**, not implementation; tests that break on refactors teach people not to refactor.
 - One reason to fail per test; name it after the behaviour (`test_retry_preserves_idempotency_key`).
 - The test pyramid still applies; ML adds a small, expensive "eval" apex above integration. Keep the base fat and fast.
 - **Flakiness is a defect**, not weather: quarantine, fix, or delete. In ML code the usual causes are unseeded randomness, real network calls, and tolerance-free float asserts.
-- Coverage is a floor detector, not a goal; a data transform at 100% coverage with no invariant tests is untested.
+- Coverage is a floor detector, not a goal: a data transform at 100% coverage with no invariant tests is untested.
 - Write the regression test **before** fixing a bug, including model bugs: every production incident should add a case to the golden set.

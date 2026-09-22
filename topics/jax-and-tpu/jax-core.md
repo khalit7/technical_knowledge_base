@@ -20,7 +20,7 @@
 - [PyTorch-to-JAX comparison in the scaling book, ch. 10](https://jax-ml.github.io/scaling-book/jax-stuff/) (~35 min):
   how a PyTorch person should read JAX code.
 
-*Verified current 2026-08-24 (JAX 0.11.1; minimum Python 3.11).*
+*Current as of JAX 0.11.2; minimum Python 3.11.*
 
 ### The one-sentence model
 
@@ -74,11 +74,11 @@ key, sub = jax.random.split(key)        # split, never reuse
 x = jax.random.normal(sub, (B, D))
 ```
 
-Rules: never use the same key twice (identical "random" numbers); `split` as many
+Rules: never reuse a key (identical "random" numbers); `split` as many subkeys as you
 
-subkeys as you need (`jax.random.split(key, n)`); thread the key through your train
+need (`jax.random.split(key, n)`); thread the key through your train step like any
 
-step like any other state. Benefit: bitwise reproducibility, and `vmap`/`shard_map` can
+other state. Benefit: bitwise reproducibility, and `vmap`/`shard_map` can
 
 give each element or device its own key deterministically. Flax NNX wraps this in
 

@@ -1,8 +1,6 @@
 # Synthetic data and post-training data
 
-⏱ 8 min read · +4h 50m resources
-
-Last updated: 2026-08-24
+⏱ 9 min read · +4h 50m resources
 
 ### Best resources
 
@@ -82,7 +80,7 @@ What the evidence says:
 
   the open template. See
 
-  ../llm-training-and-post-training/[distillation-and-small-lms.md](http://distillation-and-small-lms.md/).
+  [Distillation and Small Language Models](../llm-training-and-post-training/distillation-and-small-lms.md).
 
 - **For reasoning SFT**: verify traces (answer check, unit tests) before training on them;
   s1K showed 1k excellent verified traces can unlock test-time-scaling behavior.
@@ -104,7 +102,7 @@ What the evidence says:
   prefers longer answers, DPO amplifies it).
 
 - Consumed by DPO/GRPO/RLHF pipelines: see
-  ../llm-training-and-post-training/[alignment-and-rlhf.md](http://alignment-and-rlhf.md/).
+  [Alignment: SFT, RLHF, DPO Family, RLVR](../llm-training-and-post-training/alignment-and-rlhf.md).
 
 ### Verifiable-reward (RLVR) datasets
 
@@ -131,7 +129,15 @@ RLVR replaces the learned reward model with a deterministic checker, so the data
 
   standard since GRPO gets zero gradient from all-same-reward groups. Reward-hacking angles in
 
-  ../llm-training-and-post-training/[reward-hacking.md](http://reward-hacking.md/).
+  [Reward Hacking](../llm-training-and-post-training/reward-hacking.md).
+
+### Manufacturing environments and trajectories
+
+RLVR and agentic post-training consume (prompt, verifier) pairs a checker can actually run, so the scarce artifact is the environment rather than the text, and the supply side has industrialised. Three results are worth holding as methods rather than as releases.
+
+- **Invert the generation order.** Google Research's **ToolGrad** builds a verified API chain first and writes the user question afterwards, reaching a 99.8% success rate generating tool-use training data across 16,000 real APIs; a Gemma 3 12B trained on 500 of those examples matched Gemini 2.5 Pro on a tool-use test over APIs it had never seen. Answer first, question second is the transferable trick, because the half that has to be correct is constructed rather than sampled and then validated, which deletes the yield problem that makes verified data expensive. It generalises past tool use to anything whose answer is structured and whose question is free text.
+- **A recorded trajectory already contains its own environment.** **Terminal-Universe** (Qwen team, 2026) replays the file operations a trajectory performed to reconstruct its workspace, fills in missing dependencies, then grows tasks along two axes, breadth (cross-workspace queries resembling real development) and depth (single-turn tasks extended into multi-round sessions with iterative feedback), yielding 37,300 usable environments from public trajectories. Fine-tuning Qwen3.5-27B on it gives 11.9 points on Terminal-Bench 2.1 and 13.8 on EvoCode-Bench v2 MT@4. **EnvHarness** makes the same move from the other end, turning static corpora and applications into interactive environments.
+- **Operational knowledge is a data type of its own.** Repo-To-Skill distils the practical know-how of getting a published method to actually run out of GitHub repositories into reusable skills, task-agnostic (mine an existing repo) or task-oriented (generate for the task at hand). The artifact is the **AREX-Skill Library**: over 5,000 verified skills from 1,000 widely used ML repositories, organised into 20 areas and 178 capability families. On a GPT-5.5 backbone at a fixed compute budget it lifts MLE-bench by 134.3%, PaperBench by 34.4%, FrontierCS by 9.2% and PassNet by 14.0%. Treat it as a third category beside instruction data and reasoning traces: not what to answer and not how to think, but how to operate.
 
 ### Contamination and model collapse
 
@@ -140,7 +146,7 @@ RLVR replaces the learned reward model with a deterministic checker, so the data
 
   Decontaminate synthetic sets against evals with n-gram plus embedding matching, same as
 
-  pretraining ([filtering-and-dedup.md](http://filtering-and-dedup.md/)); report it.
+  pretraining ([Filtering, dedup, and the curation pipeline](filtering-and-dedup.md)); report it.
 
 - **Model collapse**: Shumailov et al. (Nature 2024) showed recursive training on model
   outputs collapses distribution tails. The doom scenario mostly assumes *replacing* human
@@ -161,7 +167,7 @@ RLVR replaces the learned reward model with a deterministic checker, so the data
 
 ### Practical recipe for a small model (150-350M)
 
-1. Pretrain on FineWeb-Edu (+ code/math anneal) per [pretraining-corpora.md](http://pretraining-corpora.md/).
+1. Pretrain on FineWeb-Edu (+ code/math anneal) per [Pretraining corpora: lineage and current landscape](pretraining-corpora.md).
 2. SFT: SmolTalk-style mix, a few hundred k examples max, heavy on format diversity; distill
    responses from a strong open teacher; verify anything verifiable.
 

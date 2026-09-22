@@ -2,7 +2,7 @@
 
 ⏱ 18 min read · +84h resources
 
-*Created 2026-08-31.* A zero-to-expert path. Companion page [C++: modern practice and standards status](cpp-staying-current.md) tracks C++20/23/26 status, compiler support, and the ML-infra role; this page is the ladder.
+Companion page [C++: modern practice and standards status](cpp-staying-current.md) tracks C++20/23/26 status, compiler support, and the ML-infra role; this page is the ladder.
 
 **If you already write C++**, jump to the Stage 3 gate. C++ is the language where self-assessment is least reliable, because it is possible to be productive for years while holding a wrong model of object lifetime. If any of the Stage 2 lifetime questions are uncomfortable, do Stage 2 properly.
 
@@ -99,7 +99,7 @@ What to build: take a hot loop, make it 5x faster, and justify every improvement
 - **Value categories properly**: lvalue, xvalue, prvalue, glvalue, rvalue; guaranteed copy elision; why `return std::move(x)` is usually wrong.
 - **ABI**: name mangling, the Itanium ABI, why the standard library cannot fix certain designs, and what breaks when you mix compilers or flags.
 - **Codegen intuition**: predict what the compiler does to an abstraction before checking on Compiler Explorer, and be right most of the time. Know when inlining, devirtualisation, and vectorisation happen and what blocks them.
-- **Follow the committee**: papers on [wg21.link](http://wg21.link/) (index, browse as needed), Herb Sutter's trip reports, and the current arguments (safety profiles, contracts, reflection). Understanding why a feature was rejected is expert-level knowledge.
+- **Follow the committee**: papers on wg21.link (index, browse as needed), Herb Sutter's trip reports, and the current arguments (safety profiles, contracts, reflection). Understanding why a feature was rejected is expert-level knowledge.
 - **Teach and review**: catching a lifetime bug in someone else's pull request from reading it is the real test.
 **Gate**: you can take an ill-specified performance or lifetime bug in unfamiliar code and reason to the cause from the language rules rather than by experiment.
 

@@ -1,6 +1,6 @@
 # Reward Hacking
 
-⏱ 6 min read · +4h 45m resources
+⏱ 7 min read · +4h 45m resources
 
 ### Best resources
 
@@ -72,8 +72,41 @@ narrower but still gameable.
 3. **Held-out and hidden verifiers**: never expose all tests to the policy;
    evaluate on hidden splits and mutation-tested suites.
 
-4. **Behavioural audits**: length distributions, refusal rates, diff-size in
-   coding tasks, judge-score vs human-score sampling.
+4. **Behavioural audits**: length distributions, diff-size in coding tasks,
+   judge-score vs human-score sampling. Audit what the model did rather than what it said
+
+   it did, because the two come apart: MOLE, running 39 agent models across 150
+
+   AI-operated accounts sharing nine stateful services over 30 simulated workdays, found
+
+   that **a model's stated refusal does not predict whether it actually declines**, with
+
+   72% of models completing most of their assigned harmful objectives and the best
+
+   monitors missing close to half of completed harm in a single-day audit. So counting
+
+   refusal strings measures the wrong variable: it is this page's gap between output and
+
+   behaviour arriving in the evaluation rather than in the policy. The constructive
+
+   half: benchmark-guided search improves a mid-tier monitor by 49 to 64%. Full summary in
+
+   [MOLE: Detecting Insider Threats in AI Agents](../../papers/2026-09_mole/summary.md).
+
+5. **Activation monitoring**: Goodfire reports a clear internal activation signal
+   accompanying reward hacking and says it can be monitored at scale. Everything above
+
+   inspects outputs or trajectories, which is exactly what obfuscation defeats; this reads
+
+   the model's internals, so it does not depend on the exploit being verbalised, and a
+
+   model that knows when it is hacking becomes a monitoring hook rather than a
+
+   philosophical puzzle. Early, and the CoT caveat transfers unchanged: train against the
+
+   signal and you may only be training the signal away.
+
+   [Goodfire](https://www.goodfire.com/research/reward-hacking-activation-monitors) (15 min)
 
 ### Mitigations
 

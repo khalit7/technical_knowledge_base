@@ -4,7 +4,7 @@
 
 - **Authors/lab**: Llama Team, AI @ Meta
 - **Date**: July 2024 (paper 2024-07-23; arXiv v3 2024-11)
-- **Links**: [arXiv 2407.21783](https://arxiv.org/abs/2407.21783) (~2h 30m, long technical report) | [Meta blog](https://ai.meta.com/blog/meta-llama-3-1/) (~15 min) | [llama.meta.com](https://llama.meta.com/) (~10 min) | [Model repo](https://github.com/meta-llama/llama-models) (repo, ~20 min for the README and entry path)
+- **Links**: [arXiv 2407.21783](https://arxiv.org/abs/2407.21783) (~2h 30m, long technical report) | [Meta blog](https://ai.meta.com/blog/meta-llama-3-1/) (~15 min) | llama.meta.com (~10 min) | [Model repo](https://github.com/meta-llama/llama-models) (repo, ~20 min for the README and entry path)
 
 ### Best resources
 

@@ -2,8 +2,6 @@
 
 ⏱ 7 min read · +3h 25m resources
 
-Last updated: 2026-09-21 (three filename-style cross-references converted to page mentions).
-
 ### Best resources
 
 - [Modal GPU Glossary](https://modal.com/gpu-glossary/readme) (docs, ~30 min for the core pages): the fastest way to nail every term below (SM, warp, occupancy, TMA, ...)
@@ -160,6 +158,7 @@ perfect kernel-dev target for sm_120 (see
 | B200 | 2024-25 | 192 GB HBM3e | 8 TB/s | 2,250 / 4,500 / 9,000 | 1,000 W |
 | B300 (Ultra) | 2025 | 288 GB HBM3e | 8 TB/s | FP4 dense 15 PFLOPS | 1,400 W |
 | Rubin | H2 2026 | 288 GB HBM4 | ~13 TB/s | ~50 PFLOPS NVFP4 (inference) | higher |
+| MI400 (AMD) | 2026 | ~432 GB HBM4 | ~24 TB/s | 2.9 EF per 72-GPU Helios rack, precision unstated | not disclosed |
 
 B200 is two reticle-limit dies joined by a 10 TB/s die-to-die link (NV-HBI),
 
@@ -167,4 +166,22 @@ presenting as one GPU: the first mainstream chiplet NVIDIA GPU. Blackwell Ultra
 
 (B300) trades some FP64/INT for 50% more FP4 and 288 GB. Vera Rubin (Vera CPU +
 
-Rubin GPU, NVL144 racks) entered production mid-2026.
+Rubin GPU, NVL144 racks) entered production mid-2026. AMD's MI400 is the first row here
+
+from another vendor because it is the first to be quoted at rack scale rather than per
+
+card: 432 GB per GPU is ahead of Vera Rubin on memory capacity, and the comparison AMD
+
+invites is Helios against NVL144 rather than chip against chip.
+
+The first independent Rubin measurement is a rack-level one for the same reason. On
+
+SemiAnalysis's AgentX replay of real agentic traffic (Sep 2026), a Vera Rubin NVL72 posts
+
+up to 7x the token throughput per megawatt of a GB300 rack, and 1.4x to 3x the throughput
+
+per total cost of ownership at a realistic interactivity of 60 to 100 tokens per second,
+
+on early pre-release software. The per-TCO figure is the usable one; the headline 67x
+
+performance per dollar is an extreme operating point and should not be quoted.

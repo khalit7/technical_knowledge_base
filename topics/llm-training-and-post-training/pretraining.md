@@ -93,6 +93,21 @@ serving cost that the comparison did not test.
 
   the lifetime economics; a smaller model trained longer is cheaper to serve.
 
+- **What the allocation rules leave out**: Chinchilla fixed the split between parameters
+  and tokens but treated tokens as interchangeable, and that is the term doing the most
+
+  work. Decomposing progress from 2019 to 2025 attributes 3.24x more compute-efficiency
+
+  gain to data improvements than to model improvements, and finds the two largely
+
+  independent (Dwarkesh Patel, September 2026). Taken with the rules above it reorders the
+
+  priority list: allocation is solved, mixture is not, which is why the detail lives in
+
+  [Topic: data-curation-and-datasets](../data-curation-and-datasets/summary.md).
+
+  [Dwarkesh](https://www.dwarkesh.com/p/pretraining-progress-is-mostly-data) (25 min)
+
 - Loss curves are also used prescriptively: fit a scaling law on small runs, then
   predict the big run's loss and pick hyperparameters (muP / muTransfer makes LR and
 
@@ -127,12 +142,31 @@ GQA; MoE for the compute-rich).
 
 ### Current open recipes (2026)
 
-- **OLMo 2 / OLMo 3 (Ai2)**: the gold standard for full openness: data, code,
+- **OLMo 2 / OLMo 3 (Ai2)**: the longest-running fully open recipe: data, code,
   intermediate checkpoints, training logs. OLMo 2 32B trained to 6T tokens,
 
   post-trained with Tulu 3.1. OLMo 3 (7B/32B) adds an explicit "model flow":
 
   base -> think/instruct variants with RL-Zero checkpoints released.
+
+- **K2 Horizon (Institute of Foundation Models, Abu Dhabi)**: the second lab in the
+  fully open category, which is what turns "fully open" from one lab's habit into a
+
+  category. Six models from 0.9B to 375B (0.9B, 3.7B, 7B, 32B, a 36B sparse and 375B),
+
+  Apache 2.0, released in September 2026 with weights, training code, training data and
+
+  methodology; releasing the data is the part that makes contamination auditing and data
+
+  ablations possible from outside the lab, and it is what separates this tier from
+
+  open-weight. One architecture across the whole fleet: diffusion distillation generating
+
+  token blocks in parallel for a claimed 3x speedup, and a mixture-of-value-attention
+
+  design aimed at reasoning. IFM claims state of the art at the 0.9B, 3.7B and 7B scales
+
+  and open-weight competitiveness at 375B; those are the lab's own numbers.
 
 - **SmolLM3 (HuggingFace)**: 3B model with the full engineering blueprint published
   (architecture ablations, 11T-token data mixture, post-training); the companion
@@ -151,6 +185,17 @@ GQA; MoE for the compute-rich).
   frontier-scale runs like Kimi K2), untied embeddings tweaks, careful init,
 
   FlexAttention with sliding windows, value-embedding skip connections.
+
+- **Magic**: a pretraining recipe reported at more than 10x the compute efficiency of
+  leading open-weight base models, published as the recipe and the long-context work
+
+  rather than as a benchmark table (September 2026). Vendor-reported and not
+
+  independently reproduced, so the multiple is a claim rather than a measurement, but it
+
+  is the relevant playbook for pretraining without frontier compute.
+
+  [Magic](https://magic.dev/blog/pretraining) (25 min)
 
 - **Semi-open reports** worth reading: [The Llama 3 Herd of Models](../../papers/2024-07_llama-3/summary.md) (data mix, scaling, infra failures), [DeepSeek-V3 Technical Report](../../papers/2024-12_deepseek-v3/summary.md) (fp8 training, MoE at scale), [Qwen3 Technical Report](../../papers/2025-05_qwen3/summary.md).
 

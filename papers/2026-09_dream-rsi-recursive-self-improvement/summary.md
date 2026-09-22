@@ -2,7 +2,7 @@
 
 ⏱ 4 min read · +40m resources
 
-Tong Zheng, Xidong Wu, Zheng Zhang, Zhankui He, Chaoyi Zhang, Benjamin Coleman, Ruoqiao Wei, Di Bai, Haolin Liu, Rui Liu, Xue Wang, Yue Zhuan, Wang-Cheng Kang, Renkai Xiang, Heng Huang, Xinwu Cheng, Yunsong Guo. arXiv 2609.14858, 14 September 2026. 12 pages, [cs.CL](http://cs.cl/). The most-upvoted paper of the week on Hugging Face.
+Tong Zheng, Xidong Wu, Zheng Zhang, Zhankui He, Chaoyi Zhang, Benjamin Coleman, Ruoqiao Wei, Di Bai, Haolin Liu, Rui Liu, Xue Wang, Yue Zhuan, Wang-Cheng Kang, Renkai Xiang, Heng Huang, Xinwu Cheng, Yunsong Guo. arXiv 2609.14858, 14 September 2026. 12 pages, cs.CL. The most-upvoted paper of the week on Hugging Face.
 
 ### The problem
 
