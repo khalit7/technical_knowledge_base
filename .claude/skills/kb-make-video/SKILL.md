@@ -7,7 +7,7 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
-*This copy is the page as Notion last edited it, 2026-09-22 17:54:00 UTC. A procedure*
+*This copy is the page as Notion last edited it, 2026-09-22 18:24:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
 
@@ -555,6 +555,18 @@ Three defects surfaced only once forty episodes were written against the vocabul
 The pattern is worth naming: every one of these produced a correct-looking render, and each was found by somebody writing a new episode rather than by a test.
 
 ### Producing many at once
+
+**When other episodes are being made at the same time, put every GPU command through ****`video/tools/gpu.sh`****.** Several episodes are often in flight at once, each in its own agent. The voice model wants the best part of twenty gigabytes, and two renders landing on the same card is a CUDA OOM that throws away an episode's work and does it late, after the script is written and half the takes are done. The wrapper waits for a card with enough free memory, takes a lock on it, and shows the command exactly one device, so `--device cuda` and `--device auto` both do the right thing and nothing has to name a card:
+
+```bash
+video/tools/gpu.sh uv run video/build.py <episode>
+video/tools/gpu.sh uv run --group tts --group video python video/tts/render.py --script <episode> --only <beat> --force --device cuda
+video/tools/gpu.sh uv run --group tts python video/tts/verify.py --script <episode> --device cuda
+```
+
+It costs nothing when nothing else is running, so use it every time rather than working out each run whether you are alone. CPU work does not need it: the layout audit, `check_structure`, `check_timing`, `check_references`, and anything at `--quality l --skip-tts`.
+
+**Git is shared too.** Stage your own paths rather than `git add -A`, which sweeps up another episode's half-written script; pull before you push, and retry once after a pause if an index lock collides.
 
 One episode end to end leaves both GPUs idle while a single core draws rectangles, because the two stages want different hardware: the voice is GPU work whose model takes most of a minute to load, and the animation is manim on a CPU core.
 
