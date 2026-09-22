@@ -15,7 +15,7 @@ is spoken in the finished video, and pulls the frame from that moment so it can
 be looked at.
 
     uv run --group tts python video/tools/check_references.py \\
-        --script tech_news_2026_09_21_short --scene Short
+        --script tech_news_2026_09_21
 
 Frames land in video/out/checks/<episode>/, one per reference, named for the
 phrase and its timestamp.
@@ -71,19 +71,32 @@ def find_references(words: list[tuple[str, float, float]]) -> list[tuple[str, fl
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--script", required=True)
-    ap.add_argument("--scene", required=True, help="the manim scene class name")
+    ap.add_argument("--scene", default="Episode",
+                    help="the manim scene class. A declarative episode always "
+                         "renders as Episode, which is the default; pass this "
+                         "only for an episode with a bespoke scene file")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--quality", default="1080p60")
     args = ap.parse_args()
 
     script = importlib.import_module(f"scripts.{args.script}").SCRIPT
     audio_dir = ROOT / "out" / "audio" / args.script
-    timing_path = ROOT / "out" / f"timing_{args.script.replace('tech_news_', '')}.json"
+    # Named after the episode, full stop. This used to strip a "tech_news_"
+    # prefix, which matched a filename no scene has ever written, and then
+    # fell through to `next(glob("out/timing_*.json"))`: the first arbitrary
+    # match, which silently hands you a DIFFERENT episode's beat times as
+    # soon as two episodes exist. Every frame it then pulled would be from
+    # the wrong moment and the check would still report confidently.
+    timing_path = ROOT / "out" / f"timing_{args.script}.json"
     if not timing_path.exists():
-        timing_path = next(ROOT.glob("out/timing_*.json"))
+        raise SystemExit(f"no beat times for '{args.script}': expected "
+                         f"{timing_path}. Render it first.")
     timing = {t["key"]: t["start"] for t in json.loads(timing_path.read_text())}
 
-    videos = sorted(ROOT.glob(f"out/media/videos/**/{args.quality}/*.mp4"),
+    # Each episode renders into its own media directory, which is what makes
+    # concurrent renders safe. The old whole-tree glob predates that and
+    # matches nothing, so the documented command died on every episode.
+    videos = sorted(ROOT.glob(f"out/media/{args.script}/videos/**/{args.quality}/*.mp4"),
                     key=lambda p: p.stat().st_mtime)
     if not videos:
         raise SystemExit("no rendered video found; render the scene first")

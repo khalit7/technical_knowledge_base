@@ -78,11 +78,6 @@ PROFILES = (
 # own picture. Discovery handles everything else, and an entry whose file has
 # gone falls through rather than failing.
 SCENES = {
-    # The two minute cut is its own edition with its own script; it reuses two
-    # detail beats from the full episode by copying their rendered audio in.
-    "tech_news_2026_09_21_short": ("scenes/tech_news_2026_09_21_short.py", "Short"),
-    "tech_news_2026_09_14_short": ("scenes/tech_news_2026_09_14_short.py", "Short"),
-    "tech_news_2026_09_07_short": ("scenes/tech_news_2026_09_07_short.py", "Short"),
     "deep_gpu_memory": ("scenes/deep_gpu_memory.py", "DeepDiveScene"),
 }
 

@@ -55,7 +55,7 @@ depends on:
 
 ## Voice
 
-`vibevoice/VibeVoice-1.5B-hf`, the Transformers-native conversion of Microsoft
+`vibevoice/VibeVoice-7B-hf`, the Transformers-native conversion of Microsoft
 VibeVoice. It is built for expressive long-form multi-speaker dialogue, which is
 exactly this job, and `transformers.models.vibevoice` is present in transformers
 5.17.0, so no reconstruction of the withdrawn upstream inference code is needed.
