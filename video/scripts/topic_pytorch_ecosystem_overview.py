@@ -92,7 +92,7 @@ What the critique step changed, and what the checks then changed again:
   - Length was the binding constraint throughout and it took four passes.
     Nine beats at four or five reveals each wants about 1,150 words, which is
     7.7 minutes and past the wall where the encode ladder gives up 1080p.
-    1,024 here, about 6.8 minutes. Nothing was cut for shape; `perf` lost its
+    1,025 here, delivered at 6:54. Nothing was cut for shape; `perf` lost its
     fourth idea and every beat lost its padding.
   - `check_leads --estimate` found eleven reveals named before they were
     drawn, up to ten seconds, in a draft that read perfectly well. The fix is
@@ -105,6 +105,14 @@ What the critique step changed, and what the checks then changed again:
     narration says verbatim, because the check matches a reveal's label as a
     contiguous squashed run: an item worded differently from the line is not
     checked at all, which looks like a pass.
+  - Two seeds both softened the last word of the map beat, which is this
+    method's own rule about where a fragile name may sit: "profiler", ending a
+    forty-seven second inventory beat, came back as "profiral" at 0.035 and
+    then "profile" at 0.029. Neither is a defect the gate can see and neither
+    is right. The fix was textual rather than a third roll: two ordinary words
+    after it, "and the profiler as well", and the next take read it correctly
+    at 0.024, the best of the three. Do not spend seeds on a beat whose last
+    word is the problem.
   - `check_references` caught two things in the map beat that nothing else
     would have, and both needed the voice to exist first. "Here is the board"
     was spoken over an empty frame, because `spread` starts the first column
