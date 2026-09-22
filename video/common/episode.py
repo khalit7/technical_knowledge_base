@@ -216,8 +216,16 @@ class Episode(PageVideo):
 
     # -- attention ---------------------------------------------------------
 
-    def focus_on(self, label: str):
-        """Light up one part of the parked map and cool the rest.
+    def focus_on(self, labels):
+        """Light up the part of the parked map being discussed, cool the rest.
+
+        `labels` is one name or several. Several matters because a beat is
+        sometimes genuinely about two groups at once: the convergence beat of
+        an overview says "whatever you chose above, you add these two", and
+        lighting only the first of them leaves the second dimmed while it is
+        being explained, which is a quiet lie about what the map is showing.
+        The alternative was to leave the previous beat's highlight burning
+        through it, which is a louder one.
 
         Only the parked map's handles are considered. `columns`, `stack` and
         `flow` all register handles as they build, and nothing used to clear
@@ -225,15 +233,31 @@ class Episode(PageVideo):
         panel that had already been retired. `Scene.play` re-adds an
         animation's mobject to the scene, so the dead panel came back at 35%
         opacity and stayed there for the rest of the episode. It is invisible
-        in the script and obvious in the frame."""
-        target = self.handles.get(label)
-        if target is None:
+        in the script and obvious in the frame.
+
+        Liveness is decided against the scene's mobject FAMILIES, not against
+        its top level. The first version compared a handle to `self.mobjects`
+        directly, and a parked map's rows are children of the group that was
+        parked, never top-level objects themselves, so every handle failed the
+        test and `focus` did nothing at all. That is the worst kind of defect
+        this vocabulary can have: the structure check is satisfied, the layout
+        audit is clean, the beat renders, and the narration says "lit up on
+        the map" over a map that never changes. It was found by measuring the
+        pixels under the parked headings across beats and seeing them
+        identical to the decimal."""
+        wanted = {labels} if isinstance(labels, str) else set(labels)
+        if not wanted & set(self.handles):
             return
-        live = set(self.mobjects)
+        live = set()
+        for mob in self.mobjects:
+            live |= set(mob.get_family())
         for name, mob in self.handles.items():
-            if not (set(mob.get_family()) & live or mob in live):
+            # A handle belonging to a panel that has been retired is skipped,
+            # because Scene.play re-adds an animation's mobject and the dead
+            # panel would come back at 35% opacity for the rest of the episode.
+            if mob not in live:
                 continue
-            self.fade_to(mob, 1.0 if name == label else 0.35, run_time=0.25)
+            self.fade_to(mob, 1.0 if name in wanted else 0.35, run_time=0.25)
 
     # -- panels ------------------------------------------------------------
 
