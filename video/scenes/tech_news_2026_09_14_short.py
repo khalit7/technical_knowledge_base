@@ -49,7 +49,7 @@ from scenes.tech_news_2026_09_21 import hbar, labelled_bar  # noqa: E402
 from scripts.tech_news_2026_09_14_short import SCRIPT     # noqa: E402
 
 AUDIO = ROOT / "out" / "audio" / "tech_news_2026_09_14_short"
-TIMING = ROOT / "out" / "timing_2026_09_14_short.json"
+TIMING = ROOT / "out" / "timing_tech_news_2026_09_14_short.json"
 
 BODY_TOP = 2.0          # clears the ident strip and the story banner
 

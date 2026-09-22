@@ -72,7 +72,7 @@ LOOP_CORNER = 3.0
 TOP_BUFF = 1.8           # clears the parked cost comparison along the top edge
 
 AUDIO = ROOT / "out" / "audio" / "tech_news_2026_09_21"
-TIMING = ROOT / "out" / "timing_2026_09_21.json"
+TIMING = ROOT / "out" / "timing_tech_news_2026_09_21.json"
 
 
 # -- reusable pieces -------------------------------------------------------

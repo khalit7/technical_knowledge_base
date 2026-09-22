@@ -50,7 +50,7 @@ from common.style import (                                # noqa: E402
 from scripts.tech_news_2026_09_07_short import SCRIPT     # noqa: E402
 
 AUDIO = ROOT / "out" / "audio" / "tech_news_2026_09_07_short"
-TIMING = ROOT / "out" / "timing_2026_09_07_short.json"
+TIMING = ROOT / "out" / "timing_tech_news_2026_09_07_short.json"
 
 
 class Short(NewsEdition):

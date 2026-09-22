@@ -125,6 +125,21 @@ def wer(reference: list[str], hypothesis: list[str]) -> float:
     return prev[-1] / len(reference)
 
 
+# Number words are a closed class and the transcriber renders a spoken figure
+# however it likes: "seventeen hundred" comes back as "one thousand, seven
+# hundred". Every one of those words is then absent from the script and the
+# burst detector calls a correctly read number a hallucination.
+NUMBER_WORDS = {
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+    "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty",
+    "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
+    "thousand", "million", "billion", "trillion", "and", "point", "percent",
+    "first", "second", "third", "fourth", "fifth", "sixth", "seventh",
+    "eighth", "ninth", "tenth", "half", "quarter",
+}
+
+
 def insertion_burst(reference: list[str], hypothesis: list[str], window: int = 4,
                     limit: int = 3) -> str:
     """The longest stretch of invented words.
@@ -133,13 +148,24 @@ def insertion_burst(reference: list[str], hypothesis: list[str], window: int = 4
     nonsense inside a long passage stays under the threshold. This is what
     actually catches "not just about a model, at the author cases": four words
     in a row that appear nowhere in the script.
+
+    Two things count as known besides an exact match, and both were added
+    after this check rejected takes that were read correctly. Number words,
+    for the reason above. And any piece of a compound the script contains:
+    "subagents" is heard as "sub agents", and neither half is in the script,
+    so three correct words in a row looked like an invention.
     """
-    known = set(reference)
+    known = set(reference) | NUMBER_WORDS
+    pieces = {w[:i] for w in reference for i in range(3, len(w))}
+    pieces |= {w[i:] for w in reference for i in range(1, len(w) - 2)}
+
+    def invented(word: str) -> bool:
+        return word not in known and word not in pieces
+
     worst = ""
     for i in range(len(hypothesis)):
         chunk = hypothesis[i:i + window]
-        strange = [w for w in chunk if w not in known]
-        if len(strange) >= limit:
+        if sum(invented(w) for w in chunk) >= limit:
             worst = max(worst, " ".join(chunk), key=len)
     return worst
 
