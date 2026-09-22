@@ -285,10 +285,10 @@ SCRIPT["take"] = [
     (A, "So what is the map for? Choose the model for capability. Choose the "
         "harness for what it shows the model, what it lets the model do, and "
         "what that costs per hour."),
-    (A, "And the line on the screen is the one to leave with. A benchmark "
-        "number without a named harness carries no information. Arc Prize now "
-        "labels both, because the same weights scored sixty two and ninety "
-        "nine."),
+    (A, "And the line on the screen is the one to leave with. Any score you "
+        "read, without the harness that produced it named beside it, tells "
+        "you nothing at all. Arc Prize now labels both, because the same "
+        "weights scored sixty two and ninety nine."),
 ]
 
 
