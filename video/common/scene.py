@@ -100,17 +100,13 @@ class TechScene(MovingCameraScene):
         if self._beat_len:
             self.audit_layout()
             left = self.remaining() + TAIL
-            # How long the frame sat still while this line finished: from the
-            # last thing that moved to the end of the beat. A few seconds is a
-            # breath; twenty is a beat that ran out of things to show and left
-            # a title card on screen while somebody talked over it.
-            #
-            # This used to be measured as `left` alone, which is always zero:
-            # every beat ends in `hold()`, which waits exactly `remaining() +
-            # TAIL`, so there is never any residual here. The check could not
-            # fire, and across four shipped episodes it never had. Measure
-            # from the motion instead, which is the thing the rule is about.
-            self._log[-1]["still"] = round(self._static_tail(left), 2)
+            # Fallback only. `hold()` is where a beat's static tail is scored,
+            # because by the time control reaches here the NEXT beat has
+            # already played its `retire()` and re-dated the motion, which
+            # drove this measurement back to zero on every beat that retires a
+            # panel. Only score here for a beat that never held.
+            if "still" not in self._log[-1]:
+                self._log[-1]["still"] = round(self._static_tail(left), 2)
             if left > 0:
                 self.wait(left)
 
@@ -240,27 +236,56 @@ class TechScene(MovingCameraScene):
         return max(0.0, end - max(self._last_motion, self._beat_start))
 
     def close_last_beat(self):
-        """Score the final beat, which no following `say()` will ever close."""
+        """Flush the log, so the final beat's score reaches disk.
+
+        `say()` is what writes the timing file, and there is no `say()` after
+        the last beat, so whatever `hold()` scored for it lived only in
+        memory and the file came back with a null on the end."""
         if self._log and "still" not in self._log[-1]:
             self._log[-1]["still"] = round(self._static_tail(), 2)
-            if self.timing_out:
-                self.timing_out.write_text(json.dumps(self._log, indent=1))
+        if self._log and self.timing_out:
+            self.timing_out.write_text(json.dumps(self._log, indent=1))
 
     def hold(self, tail: float = TAIL):
+        """Wait out the rest of the line, and score how long nothing moved.
+
+        This is the end of the beat's own time, and therefore the only honest
+        place to measure its static tail: the last thing that moved belongs to
+        this beat, and nothing from the next one has happened yet. Measuring
+        it at the top of the following `say()` looked right and was not,
+        because `beat()` retires the outgoing panel first and that animation
+        re-dates the motion to the instant before the measurement."""
         left = self.remaining() + tail
         if left > 0:
             self.wait(left)
+        if self._log:
+            self._log[-1]["still"] = round(self._static_tail(), 2)
 
     def spread(self, items, run_time=0.45, reserve=0.0, shift=UP * 0.18):
-        """Reveal a sequence evenly across what is left of the spoken line."""
+        """Reveal a sequence evenly across what is left of the spoken line.
+
+        The last reveal lands at the end of the budget, which is what makes
+        `reserve` mean what it says: hold the last `reserve` seconds back so
+        the panel is finished that long before the line is. This used to wait
+        a full gap after the final item as well, so a panel actually finished
+        a whole inter-item gap earlier than the reserve asked for, and the
+        beat then sat motionless for `gap + reserve`. On a fifty five second
+        beat revealing two things that was twenty seven seconds of dead frame,
+        and raising the reserve to fix it made it worse, because the reserve
+        was additive to the gap rather than a replacement for it.
+
+        One item is a special case with nothing to spread; it goes up front,
+        and a long beat showing one thing is meant to look static to the
+        timing check, because it is."""
         items = list(items)
         if not items:
             return
         budget = max(0.0, self.remaining() - reserve)
-        gap = max(0.0, (budget - len(items) * run_time) / len(items))
-        for m in items:
+        n = len(items)
+        gap = max(0.0, (budget - n * run_time) / max(1, n - 1))
+        for i, m in enumerate(items):
             self.play(FadeIn(m, shift=shift), run_time=run_time)
-            if gap > 0.05:
+            if gap > 0.05 and i < n - 1:
                 self.wait(gap)
 
     # -- the only three transitions ---------------------------------------
