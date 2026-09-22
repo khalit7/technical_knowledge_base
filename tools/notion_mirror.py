@@ -451,6 +451,30 @@ def scan_existing_papers() -> dict[str, Path]:
 # --------------------------------------------------------------------------
 
 
+def self_link(text: str, href: str) -> bool:
+    """Is this a link Notion invented out of the text itself?
+
+    Notion turns any bare token whose tail looks like a top-level domain into
+    a link to itself: `Z.ai` becomes [Z.ai](http://Z.ai), `mistral.rs` becomes
+    [mistral.rs](http://mistral.rs), and so does `setup.py`, `train.py` and
+    `crates.io`. None of those URLs exists.
+
+    It happens on ingest, in Notion's own markdown parser, so it cannot be
+    edited away: write the plain word and Notion links it again on save. That
+    was established by trying, on five pages, in both directions. The only
+    place it can be undone is here, on the way out, and the mirror is the
+    thing people read on GitHub.
+
+    A real link whose text happens to be its address ("https://arxiv.org/...")
+    is left alone: it only strips when the text is a bare token with no scheme
+    and no path.
+    """
+    if "/" in text or ":" in text or " " in text:
+        return False
+    bare = href.split("://", 1)[-1].rstrip("/")
+    return bare.lower() == text.lower()
+
+
 class Renderer:
     def __init__(self, walker: Walker, api: Notion | None = None):
         self.w = walker
@@ -509,6 +533,8 @@ class Renderer:
             text = f"~~{text}~~"
         href = r.get("href")
         if href and not (rtype == "mention"):
+            if self_link(r.get("plain_text", ""), href):
+                return text          # a link Notion invented, not one anybody wrote
             text = f"[{text}]({href})"
         return text
 
