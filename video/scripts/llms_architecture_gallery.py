@@ -176,9 +176,9 @@ SCRIPT["ident"] = [
     (A, "This is a deep dive on the L L M Architecture Gallery, and on the "
         "architectural differences it exists to show you."),
     (A, "What it is: Sebastian Raschka's side by side reference of more than "
-        "seventy open model architectures. A diagram per model plus a fact "
-        "sheet, with total and active parameters, the attention mechanism, "
-        "context length, licence, and key value cache bytes per token."),
+        "seventy open model architectures, a diagram and a fact sheet each. "
+        "Parameters, attention mechanism, context length, licence, and key "
+        "value cache bytes per token."),
     (A, "It earns a video because one of those fields decides far more than the "
         "rest, and it is not the parameter count."),
 ]
@@ -188,28 +188,27 @@ SCRIPT["question"] = [
     (A, "Here is the situation the gallery exists for. Two models with the same "
         "parameter count can differ by an order of magnitude on whether long "
         "context is affordable to serve."),
-    (A, "So which number tells you that, before you deploy anything? It is not "
-        "the parameter count, and it is not the advertised context length."),
+    (A, "So which number tells you that before you deploy anything? Not the "
+        "parameter count, and not the advertised context length."),
 ]
 
 # 2. the contract.
 SCRIPT["contract"] = [
-    (A, "Three parts. The number itself, which is one line of arithmetic. Then "
-        "the places a modern architecture differs, each of which moves that "
-        "number. Then two releases from this month that changed something all "
-        "of them quietly assumed. It gets harder as it goes."),
+    (A, "Three parts. The number itself, one line of arithmetic. Then the places "
+        "a modern architecture differs, each of which moves that number. Then "
+        "two releases from this month that broke something all of them quietly "
+        "assumed. It gets harder as it goes."),
 ]
 
 # 3. the arithmetic, derived on screen rather than asserted.
 SCRIPT["formula"] = [
     (A, "The number is key value cache bytes per token, and it is built like "
         "this. Two, for the key and the value. Times the layer count. Times the "
-        "number of key value heads. Times the head dimension. Times the bytes "
-        "each element takes."),
+        "key value heads. Times the head dimension. Times the bytes each "
+        "element takes."),
     (A, "Multiply by your target context and your concurrency, and you have the "
-        "memory your serving fleet needs, in gigabytes. One line, folding the "
-        "attention variant, the layer count and the storage precision into a "
-        "single figure."),
+        "memory your fleet needs, in gigabytes. One line, folding the attention "
+        "variant, the layer count and the storage precision into one figure."),
 ]
 
 # 4. the home frame: where an architecture is allowed to differ.
@@ -219,60 +218,53 @@ SCRIPT["places"] = [
         "places on the screen. Attention. Normalisation and position. And the "
         "shape of the stack itself."),
     (A, "There is a fourth, how the feed forward network is made sparse, and "
-        "that is a whole episode of its own on mixture of experts, so I will "
-        "point at it rather than redo it here."),
+        "that is a whole episode of its own, so I will point at it rather than "
+        "redo it."),
 ]
 
 # 5. attention, where most of the number lives.
 SCRIPT["gqa_mla"] = [
     (A, "Attention first, because most of the number lives there. Grouped query "
-        "attention divides the query heads into groups and gives each group one "
-        "shared key value head. The cache is sized by key value heads, so eight "
-        "way grouping cuts it by eight. It costs expressivity, because heads in "
-        "a group can no longer attend along independent subspaces."),
+        "attention gives each group of query heads one shared key value head. "
+        "The cache is sized by key value heads, so eight way grouping cuts it "
+        "by eight. It costs expressivity: heads in a group can no longer attend "
+        "along independent subspaces."),
     (A, "Latent attention does something else. Project keys and values jointly "
         "into one low rank latent, cache only that, and up project inside the "
-        "attention call. About an order of magnitude smaller, and DeepSeek's "
-        "ablations report quality at or slightly above plain attention at equal "
-        "cache size, which is the unusual part."),
+        "attention call. An order of magnitude smaller, at quality equal to or "
+        "slightly above plain attention at the same cache size. That is the "
+        "unusual part: most cache reductions cost quality."),
     (B, "What does that cost?"),
     (A, "Two extra projections every call, trading arithmetic for memory "
-        "traffic, which is the right way round during decode. And rotary "
-        "position cannot be applied to the compressed latent, so it carries a "
-        "separate key dimension alongside."),
+        "traffic, which is the right way round during decode."),
 ]
 
 # 6. the whole cache story as one chart, with the division done out loud.
 SCRIPT["cache_bars"] = [
-    (A, "Worth seeing as one chart, because the reductions compound. Plain multi "
-        "head attention is the baseline. Divide by eight for eight way grouping "
-        "and you are at twelve and a half percent. Latent attention, about a "
-        "tenth."),
+    (A, "Worth seeing as one chart, because they compound. Plain multi head "
+        "attention is the baseline. Divide by eight for eight way grouping and "
+        "you are at twelve and a half percent. Latent attention, about a tenth."),
     (A, "Trained sparse attention goes further. A learned indexer scores blocks "
         "of keys per query, and full attention runs only over the selected ones, "
         "so cost per token is roughly linear in the selected count instead of "
-        "quadratic in the context. DeepSeek V four's compressed version drops "
-        "the cache to about two percent. That is what made million token "
-        "contexts economical this year."),
+        "quadratic in the context. DeepSeek V four's compressed version drops it "
+        "to about two percent. That is what made million token contexts "
+        "economical."),
     (B, "And the linear attention lines have no cache at all."),
-    (A, "They replace it with a fixed size recurrent state, which is a lossy "
-        "summary, so pure linear models are measurably worse at exact recall. "
-        "That is why everyone hybridises: about one full attention layer in "
-        "four buys it back."),
+    (A, "They replace it with a fixed size recurrent state, a lossy summary, so "
+        "pure linear models are measurably worse at exact recall. Which is why "
+        "everyone hybridises: one full attention layer in four buys it back."),
 ]
 
 # 7. the smaller deltas, as a grid, because the grid is the content.
 SCRIPT["norm_pos"] = [
-    (A, "The other two places move the number less, and are worth knowing "
-        "because you will see them on every card. Each one is on the screen "
-        "with what it buys."),
-    (A, "Q K norm bounds the attention logits, which otherwise grow through "
-        "training and produce the classic sixteen bit overflow and loss spike. "
-        "Post norm damps what each block injects into the residual stream. YaRN "
-        "stretches the rotary frequencies per band, so a model trained at one "
-        "context length works at another. And some layers now carry no "
-        "positional encoding at all, which extrapolates past the trained length "
-        "far more gracefully."),
+    (A, "The other two places move the number less, and the table says what each "
+        "one buys. Q K norm bounds the attention logits, which otherwise grow "
+        "through training into the classic sixteen bit overflow. Post norm damps "
+        "what each block injects into the residual stream. YaRN stretches the "
+        "rotary frequencies per band so a model trained at one context length "
+        "works at another. And some layers now carry no positional encoding at "
+        "all, which extrapolates far more gracefully past the trained length."),
 ]
 
 # 8. the two releases that changed what the rest assumed.
@@ -281,36 +273,35 @@ SCRIPT["stack_shape"] = [
         "a model is one causal decoder stack, run once per token. Two September "
         "releases broke that in opposite directions."),
     (A, "Recurrent depth reuses layers instead of adding them: activations loop "
-        "back through the same blocks, so serial depth per token stops being "
-        "tied to parameter count. G P T six Astra is assumed to work this way. "
-        "It buys compute without parameter memory. It costs a recurrent state "
-        "the serving stack has to carry between requests, and shorter visible "
-        "reasoning traces, which is a real loss to monitorability."),
-    (A, "The other direction is DeepSeek V four point one Flash: five hundred "
-        "and fifty two billion parameters, split into a twenty layer causal "
-        "encoder and a twenty layer decoder, with the prompt encoded once."),
+        "back through the same blocks, so serial depth stops being tied to "
+        "parameter count. G P T six Astra is assumed to work this way. It buys "
+        "compute without parameter memory, and it costs a recurrent state the "
+        "server must carry between requests, plus shorter visible traces, which "
+        "is a real loss to monitorability."),
+    (A, "The other direction is DeepSeek V four point one Flash: a twenty layer "
+        "causal encoder and a twenty layer decoder, with the prompt encoded "
+        "once."),
 ]
 
 # 9. the payoff number the whole episode was built toward.
 SCRIPT["payoff"] = [
-    (A, "And the argument for it is not T five's quality argument. It is the "
-        "number on the screen. Eight hundred and ninety bytes of key value cache "
-        "per token."),
+    (A, "And the argument for it was never T five's quality argument. It is the "
+        "number on the screen. Eight hundred and ninety bytes of key value "
+        "cache per token."),
     (A, "A quarter of the high bandwidth memory footprint of the model it "
-        "replaces, and an eighth of its footprint on disk, bought with cross "
-        "layer sparse attention, index reuse and four bit cache storage. A "
-        "frontier lab reversed the decoder only consensus on serving economics."),
+        "replaces, an eighth of its footprint on disk, bought with cross layer "
+        "sparse attention, index reuse and four bit cache storage. A frontier "
+        "lab reversed the decoder only consensus on serving economics."),
 ]
 
 # 10. the objection.
 SCRIPT["objection"] = [
-    (A, "The objection here is that this is all micro optimisation, and quality "
-        "is what actually matters. Two answers."),
-    (A, "The first is that almost none of it is free, and the costs are on the "
-        "screen. Grouped heads give up independent key subspaces. A sparse "
-        "indexer makes a hard selection that can miss the token that mattered. "
-        "A fixed size linear state is lossy. And sparse attention has to be "
-        "trained in, so it is not something you apply later."),
+    (A, "The objection here is that this is micro optimisation, and quality is "
+        "what actually matters. Two answers."),
+    (A, "First, almost none of it is free, and the costs are on the screen. "
+        "Grouped heads give up independent key subspaces. A sparse indexer makes "
+        "a hard selection that can miss the token that mattered. A linear state "
+        "is lossy. And sparse attention has to be trained in, not applied later."),
     (B, "And the second?"),
     (A, "That the quality frontier is crowded and close, so what decides whether "
         "you can run a model at all is this number, not its score."),
@@ -318,25 +309,24 @@ SCRIPT["objection"] = [
 
 # 11. the take.
 SCRIPT["take"] = [
-    (A, "So, the take, and it is how to read a new card in thirty seconds. Key "
-        "value cache per token first, multiplied by your target context and "
+    (A, "So, the take, which is how to read a new card in thirty seconds. Key "
+        "value cache per token first, times your target context and "
         "concurrency. That answers whether long context actually fits, in "
         "gigabytes."),
-    (A, "Then the total over active ratio, which is the memory floor against the "
-        "latency. Then the licence, and whether base weights shipped or only "
-        "instruct, because that decides whether you can post train at all. And "
-        "stop assuming the active count is one number. An encoder decoder has "
-        "two."),
+    (A, "Then the total over active ratio, the memory floor against the latency. "
+        "Then the licence, and whether base weights shipped or only instruct, "
+        "because that decides whether you can post train at all. And stop "
+        "assuming the active count is one number. An encoder decoder has two."),
 ]
 
 # 12. where to go properly.
 SCRIPT["resources"] = [
-    (A, "The page has all of it with the links, and the gallery itself is the "
-        "first place to go: about forty five minutes for a first pass over the "
-        "models you care about, and a lookup every time a new one drops."),
+    (A, "The page has all of it with the links, and the gallery is the first "
+        "place to go: about forty five minutes for a first pass over the models "
+        "you care about, then a lookup every time a new one drops."),
     (A, "The Big L L M Architecture Comparison is the written walkthrough of the "
         "same material, about an hour. And the repository behind it is the "
-        "models file itself, Apache two point zero, fifteen minutes."),
+        "models file itself, Apache two point zero."),
 ]
 
 
