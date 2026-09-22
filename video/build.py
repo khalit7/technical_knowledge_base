@@ -49,7 +49,7 @@ GROUPS = ["--group", "tts", "--group", "video"]
 # four and a half minute episode lands at 4.52 MiB at crf 28, so anything
 # longer needs a coarser encode. Try each in turn and stop at the first that
 # fits, rather than encoding once and failing at the upload.
-NOTION_CAP_MIB = 5.0
+NOTION_CAP_MIB = 4.7   # the real cap is 5.0; this is the margin
 NOTION_FPS = "30"
 
 # Height, constant rate factor, audio bitrate. Tried in order until one fits.
@@ -66,6 +66,12 @@ PROFILES = (
     (720, 30, "40k"),
     (720, 34, "32k"),
     (720, 38, "32k"),
+    # Two more rungs, because a nine minute episode came out at exactly 5.00
+    # MiB against a 5.0 cap, which is not a margin. Past here the picture is
+    # visibly soft and the right answer is a shorter episode, but a rung that
+    # uploads beats a rung that does not.
+    (720, 42, "24k"),
+    (540, 40, "24k"),
 )
 
 SCENES = {
