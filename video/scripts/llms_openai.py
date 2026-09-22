@@ -142,11 +142,10 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 # 0. what this is, and the bet. Not a title card's job.
 SCRIPT["ident"] = [
     (A, "This is OpenAI's model family, as the knowledge base has it on the "
-        "twenty second of September, twenty twenty six. Every model they sell, "
-        "and what each one is for."),
+        "twenty second of September, twenty twenty six."),
     (A, "One sentence carries the whole thing. OpenAI sells you an answer and "
         "keeps the machine. It decides how hard to think about your request, "
-        "it bills you for the thinking, and in the new flagship some of that "
+        "bills you for the thinking, and in the new flagship some of that "
         "thinking never becomes words at all."),
 ]
 
@@ -154,41 +153,39 @@ SCRIPT["ident"] = [
 SCRIPT["map"] = [
     (A, "Here is the line, nothing explained yet. At the top, G P T six Astra, "
         "the flagship since September. Two things sit beside it on the same "
-        "weights. Astra for Law, which adds an index of American case law and "
-        "no new weights. And G P T Live one, full duplex voice, five cents a "
-        "minute."),
+        "weights: Astra for Law, which adds an index of American case law and "
+        "no new weights, and G P T Live one, full duplex voice."),
     (A, "Underneath, the tiered line. G P T five point six, in three named "
         "tiers. Sol takes the hardest work and is their best coding model. "
-        "Terra is the balanced default. Luna is fast and cheap. All three "
-        "share a one point zero five million token context window."),
-    (A, "Then the agent surface, the Codex line and the Agents A P I. And one "
-        "open window, G P T O S S."),
+        "Terra is the balanced default. Luna is fast and cheap, and all three "
+        "share a one point zero five million token window."),
+    (A, "Then the agent surface, Codex and the Agents A P I. And one open "
+        "window, G P T O S S."),
 ]
 
 # 2. the organising question, with the route inside it
 SCRIPT["question"] = [
     (B, "That is a lot of surface for one lab. What ties it together?"),
-    (A, "One question, asked at four different layers. Who decides how much "
-        "the model thinks, and can anyone else see the decision?"),
+    (A, "One question, asked at four layers. Who decides how much the model "
+        "thinks, and can anyone else see the decision?"),
     (A, "So: the router, then what Astra put underneath it, then the number "
         "that belongs to the harness rather than the weights, then the prices, "
-        "then where a rival is ahead."),
+        "then where a rival wins."),
 ]
 
 # 3. decision one, and the oldest one
 SCRIPT["router"] = [
-    (A, "It starts with the o series, in twenty twenty four. Train with "
-        "reinforcement learning on problems a program can check, and the model "
-        "learns something that looks like search. A long internal chain of "
-        "thought that backtracks and reframes."),
-    (A, "Two things followed. The chain is hidden from you and billed as "
+    (A, "It starts with the o series. Train with reinforcement learning on "
+        "problems a program can check, and the model learns something that "
+        "looks like search. A long internal chain of thought that backtracks "
+        "and reframes."),
+    (A, "Two things followed. That chain is hidden from you and billed as "
         "reasoning tokens, so accuracy became something you buy per request. "
         "And accuracy rises with the budget, so somebody has to set it."),
     (A, "G P T five made that architectural. A fast model, a reasoning model, "
-        "and a router choosing per request. People objected to not knowing "
-        "which they got, so five point one split them out as Instant and "
-        "Thinking. The tiers lighting up on the map are the same idea, sold as "
-        "price bands."),
+        "a router choosing per request. People objected to not knowing which "
+        "they got, so five point one split them out as Instant and Thinking. "
+        "The tiers lighting up are that same idea, sold as price bands."),
 ]
 
 # 4. decision two, and the new one
@@ -197,26 +194,24 @@ SCRIPT["recurrent"] = [
         "new thing here. Recurrent depth, also called opaque recurrence. "
         "Instead of emitting its deliberation as chain of thought tokens, the "
         "model loops activations back through its own layers. Part of the "
-        "budget is spent in latent space, and never becomes text."),
+        "budget is spent in latent space and never becomes text."),
     (B, "So there is nothing to read. Not hidden from me. Absent."),
-    (A, "Which gives you the two consequences on the screen. An evaluation "
-        "harness cannot rebuild the working state from a transcript. And a "
-        "serving stack has to hold that recurrent state between calls, or the "
-        "model starts from nothing every turn."),
+    (A, "Hence the two consequences on the screen. An evaluation harness "
+        "cannot rebuild the working state from a transcript. And a serving "
+        "stack has to hold that state between calls."),
 ]
 
 # 5. the number, and it is not a number about the model
 SCRIPT["harness"] = [
-    (A, "Which brings us to the most quoted number about Astra. It is not a "
-        "fact about the model. Same weights, two harnesses, two bars."),
+    (A, "Which brings us to the most quoted number about Astra, and it is not "
+        "a fact about the model. Same weights, two harnesses, two bars."),
     (A, "A R C Prize ran Astra through its standard provider agnostic harness. "
         "Sixty two point seven percent on A R C A G I three, for twenty six "
         "thousand and ninety eight dollars."),
     (A, "Then the same weights through a new Provider Adapter, which preserves "
-        "that opaque reasoning state between requests and compacts long "
-        "conversations. Ninety nine point nine percent, for eighteen thousand "
-        "eight hundred and seventeen dollars. Three point six six times "
-        "faster, on forty nine percent fewer tokens."),
+        "that opaque reasoning state between requests. Ninety nine point nine "
+        "percent, for eighteen thousand eight hundred and seventeen dollars. "
+        "Faster, on half the tokens."),
     (B, "A thirty seven point gap, and the cheaper run is the higher one."),
     (A, "That is this page in one chart. The benchmark number now belongs to "
         "the scaffold as much as to the weights."),
@@ -225,32 +220,30 @@ SCRIPT["harness"] = [
 # 6. what it costs
 SCRIPT["tiers"] = [
     (A, "Prices. Astra is ten dollars per million input tokens and fifty per "
-        "million output, with a Fast mode at double the price for double the "
-        "speed. It trained on more than a hundred thousand G P Us at Stargate "
-        "in Texas, and OpenAI published no parameter count, no architecture "
-        "and no context window."),
-    (A, "The tiers are cheap beside it. Sol at five and thirty. Terra at two "
-        "dollars fifty and fifteen. Luna at one and six. Sol's developer price "
-        "was cut by more than twenty percent in August, days after OpenRouter "
-        "halved its own."),
+        "million output, with a Fast mode at double for double the speed. It "
+        "trained on more than a hundred thousand G P Us at Stargate in Texas, "
+        "and OpenAI published no parameter count, no architecture, no context "
+        "window."),
+    (A, "The tiers are cheap beside it. Sol at five and thirty, Terra at two "
+        "dollars fifty and fifteen, Luna at one and six. Sol was cut by more "
+        "than twenty percent in August."),
 ]
 
 # 7. the only architecture window there is
 SCRIPT["oss"] = [
     (A, "The flagship weights are closed, so the one place an OpenAI design "
-        "decision is visible is G P T O S S, released last August under Apache "
-        "two point zero. Their first open weights since G P T two."),
+        "decision is visible is G P T O S S. Their first open weights since "
+        "G P T two."),
     (A, "The big one holds a hundred and seventeen billion parameters and "
         "activates about five point one billion per token. It ships in M X F P "
         "four, a four bit format the expert weights were trained in rather "
-        "than squeezed into afterwards, which is why it fits on a single "
-        "eighty gigabyte card."),
+        "than squeezed into afterwards, which is why it fits on one eighty "
+        "gigabyte card."),
     (B, "And the attention stack? Anything strange in there?"),
-    (A, "Almost nothing, and that is the signal. Grouped query attention. "
-        "Rotary embeddings stretched with Yarn. Alternating sliding window and "
-        "full attention layers. Learned attention sinks, no Q K norm. Whatever "
-        "the flagships do differently is in data, reinforcement learning and "
-        "scale, not in the blocks."),
+    (A, "Almost nothing, and that is the signal. Grouped query attention, "
+        "rotary embeddings stretched with Yarn, alternating sliding window "
+        "layers, learned attention sinks, no Q K norm. Whatever the flagships "
+        "do differently is in data and scale, not in the blocks."),
 ]
 
 # 8. where a rival is ahead
@@ -260,10 +253,8 @@ SCRIPT["rivals"] = [
         "public repositories. Astra resolves thirty three point eight percent "
         "of its tasks. Claude Fable five point one resolves thirty eight point "
         "eight, and leads the reranked index too."),
-    (A, "Where OpenAI is genuinely alone is consumer reach, and in one safety "
-        "category. Astra is the first model they classify as Critical for "
-        "cyber capability. A hundred percent on ExploitBench, against seventy "
-        "eight and a half for the model before it."),
+    (A, "Where OpenAI is alone is consumer reach, and one safety category. "
+        "Astra is their first model classified Critical for cyber capability."),
 ]
 
 # 9. the take
@@ -272,10 +263,8 @@ SCRIPT["close"] = [
         "Provider Adapter that holds reasoning state. An Agents A P I that "
         "moves the agent loop onto OpenAI's own infrastructure. A voice model "
         "that owns the turn taking."),
-    (A, "Those are one move: the parts of the harness that most change "
-        "behaviour, migrating behind the A P I. Expect more of it, and expect "
-        "the consequence. The more scaffold OpenAI owns, the fewer of its "
-        "numbers anyone outside can reproduce."),
+    (A, "One move, three times. The more scaffold OpenAI owns, the fewer of "
+        "its numbers anybody outside can reproduce."),
 ]
 
 

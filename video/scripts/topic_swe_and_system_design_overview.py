@@ -100,14 +100,14 @@ VISUALS = {
     ]},
 
     "bottlenecks": {"kind": "table", "focus": "systems fundamentals",
-                    "head": ["", "what it is", "what it caps"],
+                    "head": ["", "what it is", "what it decides"],
                     "rows": [
                         ["fsync latency", "~1 ms to stable storage",
                          "writes per transaction"],
                         ["TCP slow start", "the window ramps from small",
-                         "short-lived connections"],
+                         "what a short connection gets"],
                         ["page cache", "file pages held in RAM",
-                         "why a 'disk read' is often free"],
+                         "whether a read costs anything"],
                         ["GPU memory bandwidth", "one token reads every weight",
                          "decode throughput"],
                     ]},
@@ -211,9 +211,10 @@ SCRIPT["bottlenecks"] = [
         "millisecond, is what a durable write costs when it must actually "
         "reach stable storage. T C P slow start is why short lived connections "
         "underuse the link."),
-    (A, "The page cache is why a disk read is often free. And G P U memory "
-        "bandwidth caps decode throughput, because generating one token reads "
-        "the whole weight set once. That is the physical fact underneath "
+    (A, "The page cache decides whether a read costs anything at all, which is "
+        "why memory pressure shows up as unexplained I O. And G P U memory "
+        "bandwidth decides decode throughput, because generating one token "
+        "reads the whole weight set once. That is the physical fact underneath "
         "continuous batching, K V cache design and quantisation."),
 ]
 

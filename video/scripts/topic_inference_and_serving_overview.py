@@ -162,9 +162,6 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
         (A, "This is the map of inference and serving. The stack that turns a "
             "folder of model weights into tokens per second, on hardware you "
             "pay for by the hour."),
-        (A, "Three layers. The engine, which owns the graphics card. The server "
-            "layer above it, routing across engines and machines. And the "
-            "techniques both of them implement."),
         (A, "Current as of the twenty second of September, twenty twenty six. "
             "It earns your time because a model's speed and its price are "
             "settled here, not in training."),

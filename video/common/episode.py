@@ -107,7 +107,8 @@ class Episode(PageVideo):
 
     def construct(self):
         self.home = None            # the parked map, if any
-        self.handles = {}           # label -> mobject, for focus
+        self.handles = {}           # label -> mobject in the PARKED map only
+        self.scratch = {}           # a transient panel's own labels
         self.current = None         # what is on screen for this beat
 
         for key in self.narration.script:
@@ -216,11 +217,22 @@ class Episode(PageVideo):
     # -- attention ---------------------------------------------------------
 
     def focus_on(self, label: str):
-        """Light up one part of the parked map and cool the rest."""
+        """Light up one part of the parked map and cool the rest.
+
+        Only the parked map's handles are considered. `columns`, `stack` and
+        `flow` all register handles as they build, and nothing used to clear
+        them, so a `focus` in a later beat animated mobjects belonging to a
+        panel that had already been retired. `Scene.play` re-adds an
+        animation's mobject to the scene, so the dead panel came back at 35%
+        opacity and stayed there for the rest of the episode. It is invisible
+        in the script and obvious in the frame."""
         target = self.handles.get(label)
         if target is None:
             return
+        live = set(self.mobjects)
         for name, mob in self.handles.items():
+            if not (set(mob.get_family()) & live or mob in live):
+                continue
             self.fade_to(mob, 1.0 if name == label else 0.35, run_time=0.25)
 
     # -- panels ------------------------------------------------------------
@@ -236,23 +248,39 @@ class Episode(PageVideo):
         return group, rows
 
     def panel_columns(self, spec):
-        """The map: named groups, each a heading over a list of pills."""
+        """The map: named groups, each a heading over a list of pills.
+
+        The pill width is derived from how many columns there are, not fixed.
+        With a fixed 4.2 a four-column map is nearly nineteen units wide before
+        anything is drawn, so `fit` scales the whole group to two thirds and
+        the labels arrive at the delivery resolution too small to read. That is
+        the "coloured blocks" failure the parking code already guards against,
+        arriving through a different door. Three columns are comfortable at
+        full width; four are only comfortable if each one is narrower.
+        """
+        cols = spec.get("columns", [])
+        free = config.frame_width - 2.2
+        if self.home is not None:
+            free -= HOME_WIDTH + 1.4
+        gutter = 0.7
+        wide = max(2.5, min(4.2, (free - gutter * max(len(cols) - 1, 0))
+                            / max(len(cols), 1)))
         columns = []
         reveal = []
-        for col in spec.get("columns", []):
+        for col in cols:
             heading, entries = col["head"], col.get("items", [])
             title = T(heading, size=SMALL, color=tone(col.get("tone")),
                       weight="BOLD")
             cells = []
             for entry in entries:
-                cell = pill(str(entry), color=tone(col.get("tone")), width=4.2)
+                cell = pill(str(entry), color=tone(col.get("tone")), width=wide)
                 cells.append(cell)
-                self.handles[str(entry)] = cell
+                self.scratch[str(entry)] = cell
             body = VGroup(*cells).arrange(DOWN, buff=0.16)
             column = VGroup(title, body).arrange(DOWN, buff=0.28)
             columns.append(column)
             reveal.append(column)
-        group = VGroup(*columns).arrange(RIGHT, buff=0.7, aligned_edge=UP)
+        group = VGroup(*columns).arrange(RIGHT, buff=gutter, aligned_edge=UP)
         return group, reveal
 
     def panel_stack(self, spec):
@@ -264,7 +292,7 @@ class Episode(PageVideo):
             box = pill(str(name), color=tone(spec.get("tone")), width=5.0)
             text = T(str(gloss), size=SMALL, color=DIM)
             row = VGroup(box, text).arrange(RIGHT, buff=0.45)
-            self.handles[str(name)] = row
+            self.scratch[str(name)] = row
             rows.append(row)
         group = VGroup(*rows).arrange(DOWN, buff=0.22, aligned_edge=LEFT)
         return group, rows
@@ -276,7 +304,7 @@ class Episode(PageVideo):
         steps = spec.get("steps", [])
         for i, step in enumerate(steps):
             box = pill(str(step), color=tone(spec.get("tone")), width=3.4)
-            self.handles[str(step)] = box
+            self.scratch[str(step)] = box
             parts.append(box)
             reveal.append(box)
             if i < len(steps) - 1:
@@ -284,6 +312,10 @@ class Episode(PageVideo):
                                    stroke_width=3, max_tip_length_to_length_ratio=0.2
                                    ).scale(0.5))
         group = VGroup(*parts).arrange(RIGHT, buff=0.26)
+        if spec.get("head"):
+            head = T(str(spec["head"]), size=H2, color=FG, weight="BOLD")
+            group = VGroup(head, group).arrange(DOWN, buff=0.5)
+            reveal = [head] + reveal
         return group, reveal
 
     def panel_bars(self, spec):
@@ -293,7 +325,11 @@ class Episode(PageVideo):
         entries = spec.get("bars", [])
         values = [float(e.get("value", 0)) for e in entries]
         top = max(values + [1e-6])
-        span = spec.get("span", 6.4)
+        # Derive the span from the room actually available. The default plus
+        # the fixed label column makes a row about thirteen units wide, which
+        # `fit` then scales to well under the legibility floor once a map is
+        # parked down the left.
+        span = spec.get("span") or (3.4 if self.home is not None else 6.4)
         rows = []
         for entry, value in zip(entries, values):
             rows.append(labelled_bar(
@@ -319,8 +355,12 @@ class Episode(PageVideo):
 
     def panel_compare(self, spec):
         """Two positions, side by side, so the difference is spatial."""
+        # Three sides used to be silently rendered as two, because this
+        # zipped against a two-colour tuple. A script asking for a third got
+        # no error and no third column.
+        palette = (ACCENT, WARM, GOOD, COOL)
         sides = []
-        for side, default in zip(spec.get("sides", []), (ACCENT, WARM)):
+        for side, default in zip(spec.get("sides", []), palette):
             head = T(str(side.get("head", "")), size=H2,
                      color=tone(side.get("tone"), default), weight="BOLD")
             lines = [T(str(x), size=SMALL, color=FG)

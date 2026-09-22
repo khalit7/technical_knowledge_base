@@ -140,7 +140,7 @@ VISUALS = {
 
     "codebases": {"kind": "columns", "columns": [
         {"head": "MaxText", "tone": "subject", "items": ["pretraining reference"]},
-        {"head": "Tunix", "tone": "number", "items": ["post-training", "SFT, GRPO"]},
+        {"head": "Tunix", "tone": "number", "items": ["post-training", "fine-tuning, GRPO"]},
         {"head": "big_vision", "tone": "context", "items": ["the ViT lineage", "Linen"]},
         {"head": "levanter", "tone": "verified", "items": ["Stanford, Equinox", "bitwise reproducible"]},
     ]},
