@@ -248,7 +248,8 @@ SCRIPT["close"] = [
     (A, "Every benchmark number from a closed corpus is unfalsifiable in "
         "principle, because you cannot search the training data for the "
         "evaluation set. Here you can. Somebody has to be the place where "
-        "that check is possible, and it turns out to be worth funding."),
+        "that check is possible, and it turns out to be worth funding twice "
+        "over, on two continents."),
 ]
 
 
