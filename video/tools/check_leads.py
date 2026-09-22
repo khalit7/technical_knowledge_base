@@ -91,8 +91,12 @@ def reveals(spec: dict) -> list[list[str]]:
         head_row = [[str(h) for h in spec.get("head", [])]] if spec.get("head") else []
         return head_row + [[str(c) for c in row] for row in spec.get("rows", [])]
     if kind in ("stat", "claim"):
-        first = [str(spec.get("big") or spec.get("text") or "")]
-        return [first] + ([[str(spec["note"])]] if spec.get("note") else [])
+        # A stat's number and caption are one mobject, so they are one reveal
+        # between them; the note is the second. Same shape as claim.
+        first = [str(spec.get("big") or spec.get("text") or ""),
+                 str(spec.get("caption") or "")]
+        return [[f for f in first if f]] + (
+            [[str(spec["note"])]] if spec.get("note") else [])
     return []
 
 
