@@ -64,6 +64,7 @@ EDGE_SILENCE = 0.2       # seconds of room at each end, so clips do not clip tog
 
 TARGET_WPM = 145         # the middle of the band technical narration wants
 FAST_WPM = 165           # above this, the take is rushed whatever it scores
+SLOW_WPM = 125           # below this it drags, and dragging is also a defect
 
 # Technical material wants 130 to 150 words a minute and VibeVoice reads at
 # 150 to 200. Slowing the audio afterwards with a phase vocoder was tried and
@@ -253,7 +254,15 @@ def render_script(name: str, args, processor, model, sr) -> int:
                 best = (score, wav, took, note)
             if check["ok"]:
                 passed.append((abs(rate - TARGET_WPM), score, wav, took, note))
-                if rate <= FAST_WPM:
+                # Stop only on a take that is actually in the band. Breaking on
+                # anything at or below FAST_WPM meant selection fought fast
+                # takes and never slow ones: a beat that came back at 95 words
+                # a minute passed instantly and could not be rerolled faster,
+                # however many seeds were spent, because the first one always
+                # won. Out of band, keep seeding; if nothing better arrives the
+                # pick below still takes whichever passed take is nearest the
+                # target, so this only ever costs seeds it can use.
+                if SLOW_WPM <= rate <= FAST_WPM:
                     break
             print(f"  {key}: attempt {attempt + 1} rejected ({note}), reseeding",
                   file=sys.stderr)

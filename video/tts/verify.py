@@ -79,6 +79,21 @@ def _spell(token: str) -> list[str]:
         head, tail = int(token[:2]), int(token[2:])
         return (num2words(head, lang="en_GB").split()
                 + (num2words(tail, lang="en_GB").split() if tail else ["hundred"]))
+    # Any other four figure number is read in hundreds here, because that is
+    # how the narration writes a quantity: "fifteen hundred", "eighteen
+    # hundred and fifty". num2words says "one thousand, five hundred", so a
+    # correctly read figure scored as six wrong words and pushed one beat to
+    # 0.073 against a 0.07 limit with a transcript that was right end to end.
+    # Only 1100 to 1999, where the hundreds reading is unambiguous. Above
+    # that both readings are in use ("three thousand two hundred" as often as
+    # "thirty-two hundred"), and forcing one would trade this false positive
+    # for its mirror image.
+    if re.fullmatch(r"1[1-9][0-9][0-9]", token):
+        head, tail = int(token[:2]), int(token[2:])
+        words = num2words(head, lang="en_GB").split() + ["hundred"]
+        if tail:
+            words += ["and"] + num2words(tail, lang="en_GB").split()
+        return words
     try:
         if "." in token:
             whole, frac = token.split(".", 1)
