@@ -10,6 +10,9 @@ description: Add to, edit or reorganise the technical knowledge base, including 
 *This copy is the page as Notion last edited it, 2026-09-22 07:39:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
+*The copy your skill loader served you can also be behind this file: if you were told*
+*something is true of this run and cannot find it here, read the file on disk and*
+*`git log` it before concluding it is not so.*
 
 Add to, edit or reorganise the Technical knowledge base, including the weekly research pass: where material goes, what shape a page takes, how an update is integrated rather than appended, and what else has to move when something new arrives.
 
