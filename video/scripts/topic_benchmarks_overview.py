@@ -114,9 +114,10 @@ VISUALS = {
             "Emergence World"]},
     ]},
 
+    # Not the sentence A speaks. The panel states the object of the episode,
+    # the narration asks the question, and neither reads the other out.
     "question": {"kind": "claim",
-                 "text": "What does a public benchmark number tell you,\n"
-                         "and when did it stop telling you that?",
+                 "text": "What is a benchmark number\na measurement of?",
                  "note": "one benchmark through the middle of it, then how the rest die"},
 
     "harness": {"kind": "bars", "focus": "ARC-AGI-3",
@@ -200,7 +201,7 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 SCRIPT["ident"] = [
     (A, "This is the map of benchmarks. The public tests that decide which "
         "model gets called the best one, and the source of nearly every "
-        "number quoted at you about artificial intelligence."),
+        "number quoted at you about A I."),
     (A, "Current as of the twenty second of September, twenty twenty six. It "
         "earns an episode because the landscape turns over in weeks now, and "
         "a number you trusted last year means something else today."),
@@ -214,11 +215,11 @@ SCRIPT["map"] = [
         "FrontierMath's top tier. S W E bench Pro."),
     (A, "In the middle, the finished ones. M M L U. G P Q A Diamond, at "
         "ninety six percent, dropped from a major index this month. G S M "
-        "eight K. HumanEval. S W E bench Verified. A R C one."),
+        "eight K. HumanEval. S W E bench Verified. A R C A G I one."),
     (B, "That middle column is the list I was told to look at two years ago."),
     (A, "It is. And the right hand column is the newest thing here. "
-        "HarnessDev. Phi Bench. MOLE. Hyper tau bench. Emergence World. "
-        "Their subject is not the model."),
+        "HarnessDev. Phi Bench. MOLE. Hyper tau bench. Emergence World. Their "
+        "subject is not the model at all."),
 ]
 
 # --- the organising question ----------------------------------------------
@@ -277,11 +278,12 @@ SCRIPT["death"] = [
         "counts every defect type, not just wrong answer keys."),
     (A, "Then experts re-graded six physics suites. Most of the items where "
         "frontier models had been scored wrong turned out to be the test's "
-        "fault."),
+        "fault. Third line, same story earlier: OSWorld was revised because "
+        "about three hundred of its tasks and checkers were broken."),
     (B, "So the model was right and the test was wrong."),
     (A, "Often. Which inverts how everybody reads a benchmark gap: the part "
         "a model fails mixes what it cannot do with what the test got wrong, "
-        "and those defects sit in the hard tail people quote."),
+        "and those defects sit in the hard tail."),
 ]
 
 # --- how a number stops meaning anything, mechanism two -------------------
@@ -310,28 +312,28 @@ SCRIPT["system"] = [
 # --- what to actually ask -------------------------------------------------
 SCRIPT["read"] = [
     (B, "So what do I ask when somebody puts one of these in front of me?"),
-    (A, "The right hand side of the screen. S W E bench Pro spans forty "
-        "seven to eighty percent for one benchmark, depending on the split "
-        "and whose scaffold ran it. Terminal Bench four point zero "
-        "recalibrated what each task is allowed, so older scores are not "
-        "comparable."),
-    (A, "And the bottom row. On legal research, the same Astra weights pass "
+    (A, "The right hand side of the screen. Top row you have seen: which "
+        "harness. Then S W E bench Pro, which spans forty seven to eighty "
+        "percent for one benchmark, depending on the split and whose scaffold "
+        "ran it."),
+    (A, "Terminal Bench four point zero recalibrated what each task is "
+        "allowed, so older scores are not comparable to it."),
+    (A, "And the bottom row. On legal research the same Astra weights pass "
         "fifty four percent of the correctness checks with a licensed legal "
-        "index behind them, and thirty eight point seven with ordinary web "
-        "search."),
+        "index behind them, and thirty eight point seven with web search."),
 ]
 
 # --- the take -------------------------------------------------------------
 SCRIPT["close"] = [
     (A, "So what is the map for? Every number on it measures a whole system. "
         "A model, a harness, a split, a version, an index, and an answer key "
-        "somebody wrote by hand. The model is one part, and the others move "
-        "the number further."),
+        "somebody wrote by hand. The model is only one of its parts, and the "
+        "others move the number further."),
     (A, "The number I would watch is on the left. Real S W E licenses tasks "
         "from private company repositories, so they cannot leak into training "
         "data. Its leader sits at thirty eight point eight percent, about "
-        "twenty points below what those models post on public tasks. That gap "
-        "is the closest thing here to an honest number."),
+        "twenty points below what those models post publicly. That gap is the "
+        "closest thing here to an honest number."),
 ]
 
 
