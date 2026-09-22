@@ -168,26 +168,25 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 # --- what this is ---------------------------------------------------------
 SCRIPT["ident"] = [
     (A, "This is the map of retrieval augmented generation. Everything between "
-        "a user's question and an answer that is grounded in your own documents "
-        "and can cite them."),
+        "a user's question and an answer grounded in your own documents that "
+        "can cite them."),
     (A, "It earns an episode because the field's story about itself has moved. "
-        "For years this was a pipeline you built. The argument now is whether a "
-        "long context agent should simply do it for itself. Current as of the "
-        "twenty second of September, twenty twenty six."),
+        "This was a pipeline you built. The argument now is whether a long "
+        "context agent should just do it for itself. Current as of the twenty "
+        "second of September, twenty twenty six."),
 ]
 
 # --- the inventory, before any explanation --------------------------------
 SCRIPT["map"] = [
     (A, "Whole board first, nothing explained yet. Three columns, and the first "
         "two are the tension."),
-    (A, "What you build. Chunking, which is how a document gets cut into "
-        "retrievable units. Hybrid search, and the fusion that combines two "
-        "rankings. Rerankers. The embedding models and the index underneath "
-        "them. And the corpus itself."),
+    (A, "What you build. Chunking, how a document gets cut into retrievable "
+        "units. Hybrid search, and the fusion that combines two rankings. "
+        "Rerankers. Embeddings and the index. The corpus itself."),
     (A, "What the agent does instead. Retrieval as a tool it calls in a loop. "
-        "Graph R A G. Long context. And memory, and timing."),
-    (A, "And the third column, which is how you know either of them worked. "
-        "Recall at k. Faithfulness. And a golden set of hand labelled queries."),
+        "Graph R A G. Long context. Memory, and timing."),
+    (A, "And the third column, how you know either of them worked. Recall at k. "
+        "Faithfulness. A golden set of hand labelled queries."),
     (B, "The first column is a system. The second one is a prompt."),
     (A, "That is the whole fight, yes."),
 ]
@@ -203,93 +202,87 @@ SCRIPT["question"] = [
 
 # --- the pipeline, in one beat --------------------------------------------
 SCRIPT["pipeline"] = [
-    (A, "The production default is the four boxes on screen, and the first one "
-        "is the highest leverage decision in the stack. Chunking moves quality "
-        "more than which embedding model you pick, because a chunk that has "
-        "lost its document context cannot be matched by a query that assumes "
-        "that context."),
+    (A, "The production default is the four boxes on screen, and the first is "
+        "the highest leverage decision in the stack. Chunking moves quality more "
+        "than which embedding model you pick, because a chunk that has lost its "
+        "document context cannot be matched by a query that assumes it."),
     (A, "Then hybrid search. B M twenty five, a keyword method, for the exact "
-        "identifiers, error codes and rare names that dense vectors miss. Dense "
-        "vectors for the paraphrases B M twenty five misses. The two lists get "
-        "fused on rank rather than on score, because their score scales are not "
-        "comparable."),
+        "identifiers and rare names dense vectors miss, dense vectors for the "
+        "paraphrases it misses, and the two lists fused on rank rather than "
+        "score, because their scales are not comparable."),
     (A, "Then a cross encoder reranker over the top fifty to a hundred and "
-        "fifty. Thirty to three hundred milliseconds, and it is the single "
-        "highest leverage thing you can add to a stack that already works."),
+        "fifty. Thirty to three hundred milliseconds, and the highest leverage "
+        "thing you can add to a stack that already works."),
 ]
 
 # --- the corpus is the product --------------------------------------------
 SCRIPT["corpus"] = [
     (A, "But the page's real claim about that column is that at the top of the "
-        "market the corpus is what is being sold, not the model. And there is a "
-        "clean measurement of it."),
-    (A, "OpenAI's Astra for Law pairs one model with a proprietary legal index "
-        "of more than two hundred and thirty million documents, covering, they "
-        "claim, more than ninety nine point nine percent of published United "
-        "States precedential case law."),
+        "market the corpus is what is being sold, not the model. OpenAI's Astra "
+        "for Law pairs one model with a proprietary legal index of over two "
+        "hundred and thirty million documents, claimed to cover almost all "
+        "published United States precedential case law."),
     (A, "On a legal research benchmark it passes correctness checks on fifty "
         "four percent of questions. The same model on ordinary web search gets "
-        "thirty eight point seven. Look at the gap between those two bars. Same "
-        "weights, fifteen points, and all of it is the retrieval layer. Generic "
-        "web search is an index too. It is just a bad one for that job."),
+        "thirty eight point seven. Look at the gap. Same weights, fifteen "
+        "points, all of it the retrieval layer. Generic web search is an index "
+        "too. Just a bad one for that job."),
 ]
 
 # --- the second column ----------------------------------------------------
 SCRIPT["ladder"] = [
     (A, "Now the other side. Naive, advanced, agentic gets called a maturity "
-        "ladder, and it is far more useful read as a ladder of who decides what "
-        "to retrieve."),
+        "ladder, and it is more useful read as a ladder of who decides what to "
+        "retrieve."),
     (A, "Naive retrieves once, with the raw query. Advanced wraps that in a "
-        "fixed graph of rewriting, filtering and reranking, and a human "
-        "designed the graph. Agentic hands retrieval to the model as a tool it "
-        "may call repeatedly, writing its own queries until it judges the "
-        "context sufficient."),
-    (A, "So the decision moves from you, at design time, to the model, at run "
-        "time. That is a different kind of system, not a bigger version of the "
-        "same one."),
+        "fixed graph of rewriting, filtering and reranking, designed by a "
+        "human. Agentic hands retrieval to the model as a tool it may call "
+        "repeatedly, writing its own queries until it judges the context "
+        "sufficient."),
+    (A, "So the decision moves from you at design time to the model at run "
+        "time. A different kind of system, not a bigger version of the same "
+        "one."),
 ]
 
 # --- what it costs --------------------------------------------------------
 SCRIPT["cost"] = [
     (A, "It is also not free. A loop costs three to ten times the latency and "
-        "the tokens. It earns that on multi hop and exploratory questions, "
-        "where you cannot write the right query until you have seen the answer "
-        "to the last one. It wastes it completely on a factoid lookup, which is "
-        "exactly why routers exist."),
+        "the tokens. It earns that on multi hop questions, where you cannot "
+        "write the right query until you have seen the last answer, and wastes "
+        "it on a factoid lookup. Which is why routers exist."),
     (A, "Graph R A G sits in the same place. It exists for the corpus wide "
-        "question that no single chunk contains, the main themes across ten "
-        "thousand documents, and it works, and it is expensive, and the lazy "
-        "and light variants get most of it far cheaper."),
-    (A, "And long context has genuinely taken territory. At the small corpus "
-        "end, building an index at all is pure overhead."),
+        "question no single chunk contains, and the lazy and light variants get "
+        "most of it far cheaper. And long context has genuinely taken "
+        "territory: at the small corpus end, building an index is pure "
+        "overhead."),
 ]
 
 # --- the reframe ----------------------------------------------------------
 SCRIPT["timing"] = [
     (A, "Which brings us to the newest result here, and it moves the argument "
         "sideways. For a long horizon agent the open variable is not what to "
-        "retrieve. It is when."),
-    (A, "Meta put a second model alongside an acting agent, whose only job is "
-        "to decide at each step whether to remind it of something it already "
-        "knows. That lifted a terminal benchmark from thirty seven point six "
-        "percent to forty five point nine, with no retraining of the worker."),
+        "retrieve. It is when. Meta put a second model beside an acting agent, "
+        "whose only job is to decide at each step whether to remind it of "
+        "something it already knows. That lifted a terminal benchmark from "
+        "thirty seven point six percent to forty five point nine, with no "
+        "retraining of the worker."),
     (B, "Why does reminding it at every step not do better?"),
     (A, "Because a reminder consumes context and competes with the live task "
-        "state. So the memory model's job is discrimination rather than "
+        "state, so the memory model's job is discrimination rather than "
         "ranking. Retrieval has always treated timing as fixed and ranking as "
-        "the whole problem, and for long horizon agents it is the other way "
+        "the whole problem. For long horizon agents it is the other way "
         "round."),
 ]
 
 # --- how you know ---------------------------------------------------------
 SCRIPT["eval"] = [
     (A, "Third column, briefly, because it is what settles the argument in your "
-        "own stack. Split the system and measure each half."),
-    (A, "Recall at k dominates the retrieval side, because nothing downstream "
-        "can recover an answer that never entered the prompt. On the generation "
-        "side a judge model scores faithfulness, meaning the fraction of the "
-        "answer's claims actually entailed by the retrieved context. Low "
-        "faithfulness is hallucination despite having retrieved correctly."),
+        "own stack. Split the system and measure each half. Recall at k "
+        "dominates the retrieval side, because nothing downstream can recover "
+        "an answer that never entered the prompt. On the generation side a "
+        "judge model scores faithfulness, the fraction of the answer's claims "
+        "entailed by the retrieved context. Low faithfulness is hallucination "
+        "despite retrieving correctly."),
     (A, "And the triage is one bit. For every wrong answer, was the right chunk "
         "in the prompt? That assigns the bug to one half or the other, and it "
         "is worth more than any dashboard."),
@@ -300,22 +293,21 @@ SCRIPT["caveat"] = [
     (B, "All of those are measured against a set of queries somebody chose."),
     (A, "Which is the rule this page leads with. A retrieval sensitive number "
         "reported without a named index carries no information at all."),
-    (A, "Same for the public embedding scoreboard. Treat a high row as a prior "
-        "rather than a verdict, because models are tuned against it and a "
-        "legal, code or log corpus reorders the table. And the Astra figures I "
-        "just quoted are the vendor's own, on a validation set."),
+    (A, "Same for the public embedding scoreboard. A high row is a prior, not "
+        "a verdict: models are tuned against it, and a legal or code corpus "
+        "reorders the table. And the Astra figures I quoted are the vendor's "
+        "own, on a validation set."),
 ]
 
 # --- the take -------------------------------------------------------------
 SCRIPT["close"] = [
     (A, "So does the pipeline survive the agent? The page's answer is that the "
-        "question is the wrong one."),
-    (A, "Two things decide it, and neither is architecture. The corpus, because "
-        "that is where the fifteen points came from, and a curated corpus of a "
-        "regulated domain is the one piece nobody reproduces by scraping. And "
-        "the shape of the question, because a loop earns its cost on multi hop "
-        "work and wastes it on a lookup, which makes it a routing decision "
-        "rather than a philosophy."),
+        "question is the wrong one. Two things decide it, and neither is "
+        "architecture. The corpus, because that is where the fifteen points "
+        "came from, and a curated corpus of a regulated domain is the one piece "
+        "nobody reproduces by scraping. And the shape of the question, because "
+        "a loop earns its cost on multi hop work and wastes it on a lookup. "
+        "That is a routing decision, not a philosophy."),
     (A, "And if you are building for long horizon agents, the genuinely open "
         "variable is not the ranking. It is the timing."),
 ]
