@@ -115,7 +115,8 @@ VISUALS = {
         ["Grok 5", "in training, no date"],
     ]},
 
-    "posture": {"kind": "flow", "tone": "cost", "steps": [
+    "posture": {"kind": "flow", "tone": "cost",
+                "focus": "the alignment posture", "steps": [
         "a page carries an AES-encrypted payload",
         "static filters cannot read it",
         "Grok decrypts it in its own Python runtime",
@@ -190,10 +191,9 @@ SCRIPT["rl"] = [
         "visible. Grok four reportedly spent as much compute on reinforcement "
         "learning as on pretraining."),
     (A, "That is the concrete form of the field's realisation that post "
-        "training is a second scaling axis rather than a finishing step. Very "
-        "large volumes of rollouts on verifiable tasks, maths, code and tool "
-        "use, scored by checking the outcome. Which is why reasoning improved "
-        "faster than raw knowledge."),
+        "training is a second scaling axis, not a finishing step. Rollouts on "
+        "verifiable tasks, scored by checking the outcome, which is why "
+        "reasoning improved faster than raw knowledge."),
     (A, "Grok four Heavy added the other lever on the list. Instead of one "
         "longer chain of thought, several attempts run at once and their "
         "answers are reconciled. That trades money for accuracy without "
@@ -203,11 +203,10 @@ SCRIPT["rl"] = [
 
 # --- the line as it stands ------------------------------------------------
 SCRIPT["line"] = [
-    (A, "Row five, the line itself. Grok four point six is the flagship, at "
-        "roughly one and a half trillion parameters. Artificial Analysis puts "
-        "it around sixty one, tying G P T five point six Sol and overtaking "
-        "Kimi K three, at two dollars per million input tokens and six per "
-        "million output."),
+    (A, "Row five, the line itself. Grok four point six is the flagship, "
+        "about one and a half trillion parameters. Artificial Analysis puts "
+        "it around sixty one, tying G P T five point six Sol, at two dollars "
+        "per million input tokens and six per million output."),
     (B, "Around sixty one on what, though?"),
     (A, "A composite. It averages a fixed basket of benchmarks into one "
         "number, useful for coarse ranking and nothing finer. The product "
@@ -221,8 +220,8 @@ SCRIPT["line"] = [
 SCRIPT["posture"] = [
     (A, "That leaves the two differentiators that are not in the model at "
         "all. The X firehose gives recency and a conversational corpus "
-        "competitors have to license or scrape, and DeepSearch turns it into "
-        "live retrieval at inference time."),
+        "rivals must license or scrape, and DeepSearch turns it into live "
+        "retrieval."),
     (A, "And the alignment posture, deliberately looser than every rival. "
         "Its concrete cost is on the screen. Adversa A I disclosed this on "
         "the third of June. A web page carries an encrypted payload static "
@@ -252,9 +251,9 @@ SCRIPT["take"] = [
         "Nobody built a cluster that fast, nobody shipped that often, and the "
         "models are competitive with no public recipe behind them."),
     (A, "What it does not buy is trust, and the two differentiators that are "
-        "not compute are exactly where that shows. Grok five has slipped "
-        "three target dates. What to watch is whether the next one arrives "
-        "with a method attached, or just with more cards."),
+        "not compute are where that shows. Grok five has slipped three target "
+        "dates. Watch whether the next one arrives with a method attached, or "
+        "just with more cards."),
 ]
 
 

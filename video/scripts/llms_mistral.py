@@ -171,8 +171,7 @@ SCRIPT["question"] = [
 SCRIPT["engineering"] = [
     (A, "Take the engineering first, because it is the least surprising "
         "part. Mistral seven B let each layer attend only over the last four "
-        "thousand tokens, so attention cost stops growing with sequence "
-        "length and the cache becomes a fixed size rolling buffer. "
+        "thousand tokens, so the cache becomes a fixed size rolling buffer. "
         "Information still travels further, because the window stacks: a "
         "token at layer k reaches roughly k times the window back."),
     (A, "Add grouped query attention, eight query heads sharing one key "
@@ -208,10 +207,9 @@ SCRIPT["line"] = [
         "rather than the benchmark row is what made it notable."),
     (A, "Under it, price performance tiers, the Magistral reasoning line, "
         "and Devstral for agentic coding. Off the table, a specialist for "
-        "nearly every shape: Codestral for fill in the middle completion, "
-        "Pixtral for vision, Voxtral for audio, Ministral for a phone, and "
-        "Shieldstral as a separate safety classifier. Breadth is the other "
-        "half of the product."),
+        "nearly every shape: Codestral for code completion, Pixtral for "
+        "vision, Voxtral for audio, Ministral for a phone. Breadth is the "
+        "other half of the product."),
 ]
 
 # --- row five: the money ---------------------------------------------------
@@ -222,10 +220,10 @@ SCRIPT["money"] = [
         "roughly fourteen billion dollars when A S M L anchored the previous "
         "round."),
     (A, "The pitch was explicitly sovereign A I: research, compute and "
-        "international expansion. And the distribution moved with it. Mistral "
-        "models now ship inside Mozilla's Firefox Smart Window, sold on "
-        "private multilingual browsing, which is the sovereignty argument "
-        "reaching a consumer surface rather than a procurement one."),
+        "international expansion. Distribution moved with it. Mistral models "
+        "now ship inside Mozilla's Firefox Smart Window, sold on private "
+        "multilingual browsing, which is the sovereignty argument reaching a "
+        "consumer surface rather than a procurement one."),
 ]
 
 # --- the objection --------------------------------------------------------
@@ -236,8 +234,8 @@ SCRIPT["objection"] = [
         "weights first and papers occasionally, so the recipes are mostly "
         "inferred from the artefacts rather than documented."),
     (A, "Magistral's reinforcement learning write-up is the one exception, "
-        "and it is a good one: scoring rollouts by mechanically checking the "
-        "answer, with no reasoning traces distilled from a larger model. The "
+        "and a good one: rollouts scored by mechanically checking the answer, "
+        "with no reasoning traces distilled from a larger model. The "
         "expensive path, and the one that shows the capability was trained "
         "rather than copied."),
 ]
