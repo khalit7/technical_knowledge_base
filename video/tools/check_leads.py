@@ -125,6 +125,22 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
         best = idx if best is None else min(best, idx)
     return best
 
+    # Second route, as the orphan check has: the earliest significant word of
+    # any label. Without this, a multi-word item like "Inductor: Triton, and
+    # now CuTe" squashes to a run the narration never says and the reveal goes
+    # untimed, which used to look exactly like a pass. One significant word is
+    # a weaker signal than the whole phrase and still puts the reveal within a
+    # word or two of where it is named.
+    for label in labels:
+        for piece in (squashed(w) for w in str(label).split()):
+            if len(piece) < 4:
+                continue
+            for i, sw in enumerate(squashed_words):
+                if piece in sw or sw in piece:
+                    best = i if best is None else min(best, i)
+                    break
+    return best
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
@@ -152,7 +168,7 @@ def main() -> int:
         durations = json.loads(measured.read_text())
 
     print(f"{'beat':16s} {'reveal':28s} {'drawn':>7s} {'said':>7s} {'lead':>7s}")
-    problems = []
+    problems, unchecked = [], []
     for key in script:
         spec = visuals.get(key) or {}
         groups = reveals(spec)
@@ -166,6 +182,16 @@ def main() -> int:
             drawn = RUN_TIME if n == 1 else (k - 1) / (n - 1) * budget
             at = said_at(words, labels)
             if at is None:
+                # Not checkable, and silence here reads exactly like a pass.
+                # The orphan check has a second route, a shared significant
+                # word, that this one does not: a label the narration never
+                # says as a contiguous run simply cannot be located in time.
+                # Report it rather than skipping, or the clean-looking table
+                # is hiding however many reveals nobody timed.
+                label = (labels[0] or "?")[:26]
+                print(f"{key:16s} {label:28s} {'':>7s} {'':>7s} {'':>7s}"
+                      f"  NOT SAID VERBATIM, so not timed")
+                unchecked.append((key, labels[0]))
                 continue
             said = at / max(len(words), 1) * D
             lead = drawn - said
@@ -176,6 +202,13 @@ def main() -> int:
             label = (labels[0] or "?")[:26]
             print(f"{key:16s} {label:28s} {drawn:7.1f} {said:7.1f} {lead:7.1f}{flag}")
 
+    if unchecked:
+        print(f"\n{len(unchecked)} reveal(s) could not be timed, because the "
+              f"narration never says the label as a contiguous run. Those are "
+              f"UNCHECKED, not passed. Matching on a shared word instead was "
+              f"tried and abandoned: it timed one clean episode as eighteen "
+              f"leads, because a common word turns up earlier in the beat for "
+              f"some other reason. Say the item verbatim, or time it by hand.")
     if problems:
         print(f"\n{len(problems)} reveal(s) named more than {args.tolerance:.0f}s "
               f"before they are drawn. The narrator is pointing at an empty "
@@ -183,7 +216,8 @@ def main() -> int:
               f"drawing already is, or, on a panel whose reveal count is fixed "
               f"by the data, raise the reserve.")
         return 1
-    print("\nevery reveal is named at or after the moment it is drawn")
+    print(f"\nevery timed reveal is named at or after the moment it is drawn"
+          + (f", but {len(unchecked)} could not be timed at all" if unchecked else ""))
     return 0
 
 
