@@ -7,7 +7,7 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
-*This copy is the page as Notion last edited it, 2026-09-22 11:14:00 UTC. A procedure*
+*This copy is the page as Notion last edited it, 2026-09-22 12:47:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
 
@@ -34,6 +34,8 @@ Two limits on that freedom:
 - **Add explanation, never claims.** Context, definitions, plain restatements and caveats are the video's to add. A new fact, figure or conclusion is not: if it is worth asserting, it is worth asserting on the page.
 - **Back-port it.** If a line of narration explains something better than the page does, the page is now the weaker of the two. Put the explanation on the page in the same session. The page is the thing that lasts; the video is the thing that made the gap obvious.
 **A citation the page renders as an untitled mention has no name you can say.** Some pages link a paper as a bare mention that renders with no text at all, so the subject of a beat is invisible on the canonical page and unsayable in narration. Open the linked page, take the name from there, and back-port it into the citing page as real words in the same session.
+
+**How to write into a page without rewriting it.** The repo copy is a generated mirror, so editing the file there changes nothing and is lost at the next sync. The back-port goes to Notion. For a small insertion in a known place, the reliable route is the API client in `tools/notion_mirror.py` and a raw `PATCH /blocks/{page_id}/children` with `after` set to an existing block, then a re-read of the children to confirm where it landed. The obvious MCP call gets the position wrong silently, as the publishing section explains.
 
 Borrow the method of the best explainers, not their visual identity: build an original visual system for this knowledge base.
 
@@ -115,10 +117,11 @@ The old spine gave timings per beat, and that encouraged padding a thin story to
 
 ### The one hard limit, which applies to every format
 
-Notion will not take a file over 5 MiB, and `build.py` targets 4.7. It gets there by stepping the encode down a ladder: 1080p, then 1080p with a coarser rate factor, then 720p, then 540p. So length is not free, whatever the format:
+Notion will not take a file over 5 MiB, and `build.py` targets 4.7. It gets there by stepping the encode down a ladder: three 1080p rungs at rate factors 28, 31 and 34, then 720p, then 540p. `PROFILES` in `build.py` is the ladder, and it is worth reading before deciding an episode is too long. So length is not free, whatever the format:
 
 - **Under about six minutes** delivers at 1080p, and text stays crisp.
-- **Six to eight** lands at 720p. That is the resolution the layout audit already measures against, and a parked panel or a dense table is close to its legibility floor there.
+- **Six to about seven and a quarter** still delivers at 1080p, on a coarser rate factor. The ladder has three 1080p rungs before it gives up resolution, which is one more than this page used to claim. Measured across this series: 6:09 took rung two, 6:43 rung two, 7:04 rung three, every one of them 1080p and between 4.3 and 4.6 MiB.
+- **Past about seven and a half** drops to 720p, as a seven minute fifty news edition did. That is the resolution the layout audit already measures against, and a parked panel or a dense table is close to its legibility floor there.
 - **Past about nine minutes** the ladder runs out and the render fails at the last step, after the voice and the animation have already been paid for.
 A recent seven and a half minute news edition stepped down three rungs to fit. Work the length out at the outline, not at the encode.
 
@@ -144,7 +147,7 @@ The one thing that is checked mechanically is the small set of roles each format
 10. **Render the voice, then the animation**, so every visual beat lasts exactly as long as the line spoken over it.
 11. **Run the three checks** below and fix what they find: one voice at a time, screen references, and every take transcribed. None of them is optional, and none of them can be replaced by watching it once.
 12. **Watch it.** The checks catch what is measurable. Pace, whether a story lands, and whether the take is worth hearing are not, and they are the reasons to make the thing at all.
-13. **Publish**: attach the finished video **at the top of the canonical page**, under a `Video` heading, and record it in Updates. Add a video section only where a video actually exists. `video/tools/upload.py` places it and takes down any earlier one, so this is not something to arrange by hand. The Updates entry is a few lines: which page the video derives from, its length, and anything the page itself gained in the process. **Write it in Notion.** The `updates/` directory in the repository is generated by the sync, and anything written there is overwritten and lost.
+13. **Publish**: attach the finished video **at the top of the canonical page**, under a `Video` heading, and record it in Updates. Add a video section only where a video actually exists. `video/tools/upload.py` places it and takes down any earlier one, so this is not something to arrange by hand. The Updates entry is a child page, and the house style is whatever is already in Updates rather than whatever this sentence claims: read the two most recent entries and match them. They carry the new and update markers used throughout the knowledge base, and a production notes section. Cover which page the video derives from, its length, and anything the page itself gained in the process. **Write it in Notion.** The `updates/` directory in the repository is generated by the sync, and anything written there is overwritten and lost. Commit the script itself as well, with a message matching the convention already visible in `git log -- video/scripts/`.
 **"The page" always means the Notion page.** Every instruction here about updating, back-porting or correcting a page means Notion, which is the source of truth. The repository is a generated mirror: editing a file there looks like it worked, reaches nobody, and is destroyed by the next sync.
 
 ## Transitions: never cut, always morph
@@ -244,6 +247,7 @@ The narration and the visuals have to refer to each other out loud, or the viewe
 - A number that appears on screen is spoken at the moment it appears, not before and not two sentences later.
 - When something changes on screen, the line acknowledges the change: "watch what happens when we redraw that", "and that is the piece that disappears".
 - Anything on screen that the narration never refers to should not be on screen. This is checked now, by `check_structure.py`, because it breaks in one predictable place: **trimming for length**. Every cut to a spoken line orphans whatever its panel still says, the layout audit passes it because nothing overlaps, and the frame is left carrying a claim nobody makes. Run the check again after any pass that shortens narration.
+**How that check decides, because it shapes how an inventory beat is written.** A panel line passes if it shares one significant word with its beat's narration, or if its squashed spelling appears as a contiguous run inside the squashed narration. So a map item reading "AIME / MathArena" is an orphan unless the narration says those two names with nothing between them, because the word sets otherwise share nothing. Either say an item exactly as the panel spells it, or spell the panel the way you are going to say it. This, rather than the field names, is what actually constrains the narration of an inventory beat.
 
 ## The weekly news edition: hybrid, and why
 
@@ -323,7 +327,9 @@ Work out which one you have before you outline, because the answer changes the w
 - **The map is the home frame.** It is built once, parked, and every later beat highlights the part of it being discussed. A viewer must always be able to see where the thing being explained sits in the whole.
 - **One thing per beat, usually.** The moment two of them share a beat, the narration starts listing. The exception is a pairing that is itself the argument ("one hides the reasoning budget, the other hands it to you"), which is a comparison rather than a list, and is worth more than either half alone. If you pair, say in the docstring why.
 - **Say the model names.** The inventory is the point; a viewer should be able to hear a name they half-know and place it.
-- **Longer than a news edition, and that is fine.** Six to nine minutes for a large topic. It is a reference video, and the length is the map, not padding. Note the competing constraint: past about seven minutes the file no longer fits Notion's upload cap at 1080p and the delivery encode steps down to 720p, which costs text crispness on frames that are mostly small labels. Six to seven minutes is the band where both rules are satisfied, and an overview that cannot reach it usually has an inventory that wants splitting rather than prose that wants cutting.
+- **Under six minutes, the same ceiling every other format gets.** There is one length rule on this page, not a format-specific one, and this is it. An overview is a reference video and its length is the map rather than padding, but a map is a selection, and six minutes of selection beats nine minutes of recitation. An overview that cannot fill six minutes is finished, not short.
+An overview that wants nine usually has an inventory that wants splitting. When the topic genuinely cannot be split, and some cannot, the answer is not to cram: make the map an openly stated selection, say on what axis it was selected, and name in the script's docstring what was left off and the episode it would make. A seventy row table does not become sayable by being read faster.
+
 - **The page is the inventory's source.** If the video names a model the page does not, the page is out of date and that is the defect to fix first.
 - **Work out what the inventory actually is before assuming it is a list of competitors.** The llms map is providers and their models. The CUDA map is layers of a stack: what the machine is, where you are allowed to write, and what you call instead of writing anything. Same format, same furniture, completely different axis, and getting that axis right is most of the work of a new overview.
 
@@ -400,11 +406,13 @@ uv run python video/tools/upload.py <page_id> <episode> "<caption>" "<blurb>"
 
 The **caption** sits under the player and is the episode's title and subtitle. The **blurb** is the paragraph above it, and it exists to keep the page authoritative: say what the video is, then say that the page is canonical, that the video is a derived representation, and that every figure in it came from the page.
 
-The **page id** is the Notion id of the page the video derives from. `video/tools/episodes.json` maps the topic pages; a news issue is not in it, so find that one by title through the Notion API. `video/tools/upload_all.py` does a whole batch from that map, and refuses any episode whose script has changed since it was rendered.
+The **page id** is the Notion id of the page the video derives from. `video/tools/episodes.json` already holds every topic overview, with its episode name and its page id, so there is no row to add. A news issue is not in it, so find that one by title through the Notion API. `video/tools/upload_all.py` does a whole batch from that map, and refuses any episode whose script has changed since it was rendered.
 
 The tool handles placement: Notion's API has no "insert before", so it sends the video blocks and a copy of the page's current first block as one batch positioned after that block, then deletes the original. It also takes down any video section the page already has, so remaking an episode replaces the old one instead of leaving two, and the stale one is always the one somebody watches.
 
-One trap, learned by doing it wrong on a live page: **do not position anything ****`after`**** a video block you have just created.** Notion accepts the request, ignores the position, and appends to the END of the page. A page lost its reading-time line from the top and gained it as the last thing on an eighteen minute article, with no error anywhere. Reference only blocks that already existed.
+One trap, learned by doing it wrong on a live page: **do not position anything ****`after`**** a block you have just created.** Notion accepts the request, ignores the position, and appends to the END of the page. A page lost its reading-time line from the top and gained it as the last thing on an eighteen minute article, with no error anywhere.
+
+This is not a fact about video blocks, and reading it as one costs an hour. The same silent append happens to `insert_content` with a `selection_with_ellipsis` naming a heading: the new block lands under the child page links at the foot of the page and nothing reports it. Treat the rule as general. The only placement that is reliable is a raw `PATCH /blocks/{page_id}/children` carrying `after` set to a block that already existed before this session's writes, and after any positioned write, re-read the children and check where the block actually landed. `insert_content` also flattens bold to plain text, so rich text has to be built by hand.
 
 The page stays canonical underneath. Leading with the video says it is the fastest way in, not that it is the authority: the note under it says so, and every figure in it came from the page it sits on.
 
@@ -431,9 +439,11 @@ Three modifiers: `park` shrinks the panel into the corner and keeps it as the ho
 
 **A news edition parks nothing.** A parked panel stays in the corner for the rest of the episode, so parking story three's map leaves it there through story four and the take, which is exactly the implied relationship between unrelated stories that the news format exists to avoid. The home frame belongs to an overview, where the map genuinely is the spine of the whole video, and to a deep dive's single construction.
 
-**If a previous cut of this episode exists in git history, read it and then write fresh.** Episodes get cleared when the method changes, and the old one is worth reading for the inventory axis it found and the traps it hit. It is not worth reusing: it was written to rules that no longer apply, and at least one deleted cut asserted a date its own page does not carry.
+**If a previous cut of this episode exists in git history, read it at the outline and then write fresh.** Episodes get cleared when the method changes, and the old one is worth reading for the inventory axis it found and the traps it hit. It is not worth reusing: it was written to rules that no longer apply, and at least one deleted cut asserted a date its own page does not carry.
 
-There is a fourth modifier, `reserve`, which holds back a share of the beat so a panel finishes revealing before the line pointing at it ends. Use it whenever the narration names something drawn late: a three step `flow` named in one sentence otherwise draws its third step two thirds of the way through the beat, and the narrator points at the right of the screen twelve seconds before anything is there.
+Find it with `git log --all -- video/scripts/<episode>.py`; the cuts written against the old skill were cleared in commit `74326b3`. Read it before the inventory axis is chosen, not while declaring what a beat shows, because the axis is exactly what a previous cut is most likely to have already got right or already got wrong. One overview's first draft repeated a subject taxonomy that the deleted cut's docstring had already recorded as tried and rejected.
+
+There is a fourth modifier, `reserve`, which holds back a number of seconds at the end of the beat so a panel finishes revealing before the line pointing at it ends. The units are seconds, not a fraction: existing episodes pass values like 9.0. Note also that it holds the tail, not the head, so it is no help at all to a line that points at the panel in its opening words. Use it whenever the narration names something drawn late: a three step `flow` named in one sentence otherwise draws its third step two thirds of the way through the beat, and the narrator points at the right of the screen twelve seconds before anything is there.
 
 Two timing facts that are not obvious and will cost you a re-render:
 
@@ -441,7 +451,9 @@ Two timing facts that are not obvious and will cost you a re-render:
 - **A partial reveal under a reference is fine.** "Look at what that checkpoint buys" correctly lands with two of four items drawn, and `check_references` will still show you that frame. The checker is working, not complaining.
 **What parking actually leaves on screen.** The parked map is its column headings and nothing else, and `focus` only changes their brightness. The detail does not come back. So a parked map is an orientation device, four or five words telling the viewer which part of the subject a beat belongs to, and any beat needing the detail again has to draw it again.
 
-**`focus`**** is a state, not a flash, and it persists until something changes it.** Three columns lit for one beat stay lit through every later beat, so the map goes on asserting a relationship long after the narration has moved elsewhere. Nothing warns you: the frame is legible, and the check only asks whether the labels exist. To return to neutral, light everything, because a `focus` naming every label reads as no emphasis at all. Decide the lit state of the map for every beat after the first one that touches it.
+**`focus`**** is a state, not a flash, and it persists until something changes it.** Three columns lit for one beat stay lit through every later beat, so the map goes on asserting a relationship long after the narration has moved elsewhere. Nothing warns you: the frame is legible, and the check only asks whether the labels exist. To return to neutral, light everything, because a `focus` naming every label reads as no emphasis at all. Decide the lit state of the map for every beat after the first one that touches it. Deciding can mean no `focus` at all: when the previous beat already left the map right, a redundant `focus` buys nothing and costs about a second of panel delay. Say in the script where you did that, so it reads as a decision rather than an oversight.
+
+**A ****`focus`**** on a ****`context`****-toned column is invisible.** That tone is already the de-emphasis colour, so lighting it produces no change on screen while the narration says to look at it. Nothing warns you, and a beat lighting two columns can have only one of them visibly move. Give any column a beat will point at a tone with somewhere to brighten from.
 
 The field names each panel takes are not listed here on purpose, because a second copy of them would drift. `PANEL_FIELDS` in `check_structure.py` holds the required ones and `common/episode.py` holds the optional ones, and the check tells you what is missing before anything renders. The tone names a script may use (`subject`, `number`, `verified`, `cost`, `machinery`, `context`) are the keys of `SEMANTIC` in `common/style.py`.
 
@@ -458,7 +470,7 @@ Everything that draws itself wide has to be derived from that number rather than
 Worth knowing before you plan a beat around one of these, because every one of them was worked around rather than solved:
 
 - **Focus is column-level.** Against a parked map, every item resolves to its column heading, so lighting two different items in the same column produces the same frame twice. It does accept a list, so a beat genuinely about two columns can light both.
-- **Keep map items short.** A `columns` item is a pill that grows to fit its label, so one long item narrows the whole map; stay under about thirty characters. With a map parked, a `compare` side's items want about twenty-two.
+- **Keep map items short.** A `columns` item is a pill that grows to fit its label, so one long item narrows the whole map; stay under about thirty characters, and so do `points` items sitting beside a parked map. With a map parked, a `compare` side's items want about twenty-two. There is no measured budget for `bars` labels, `table` cells or a `claim` note, so the layout audit is what tells you: run it before the GPU is booked rather than guessing.
 - **No "same structure, twice, with one thing changed".** `compare` gives two free-form positions and `table` gives a grid; neither draws an identical skeleton with one differing part, which is exactly what makes some comparisons land.
 - **No translation panel.** Two topics in this knowledge base are explicitly translation tracks (SLURM to Kubernetes, PyTorch to JAX) and the most useful picture either has is "these two names are the same thing in two worlds". A table renders it as data instead.
 - **Bars cannot show before and after on one quantity**, so an improvement from 58% to 99.3% draws identically to two different things measured once. They also cannot mark a row as the denominator rather than a measurement.
@@ -541,7 +553,7 @@ Three of these are mechanical and run on every render. They exist because each o
 
 Run all three, then watch the video anyway.
 
-**When the watcher cannot watch.** Several rules here say to decide by ear or by eye, and they are right: the checks are a floor. An agent that cannot play a file should say so rather than claim it watched, and should substitute the closest honest proxies, which are better than nothing and worse than a person: pull a frame per beat and read them; read the transcript the voice gate already produced, as text, against the script; and read the per-beat words-per-minute table, where anything above about 165 is the pace defect this pipeline keeps producing. Report which of these were done and that the video was not actually watched.
+**When the watcher cannot watch.** Several rules here say to decide by ear or by eye, and they are right: the checks are a floor. An agent that cannot play a file should say so rather than claim it watched, and should substitute the closest honest proxies, which are better than nothing and worse than a person: pull a frame per beat and read them; read the transcript the voice gate already produced, as text, against the script; and read the per-beat words-per-minute table that `check_timing.py` prints, where anything above about 165 is the pace defect this pipeline keeps producing. The check fails on it now rather than leaving it to be noticed. Report which of these were done and that the video was not actually watched.
 
 ### Check that only one person is talking
 
