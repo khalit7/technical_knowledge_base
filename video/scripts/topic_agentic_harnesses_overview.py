@@ -158,26 +158,25 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
 SCRIPT["ident"] = [
     (A, "This is the map of agentic harnesses. A harness is the product that "
-        "wraps a language model in an agent loop with tools: it assembles the "
+        "wraps a language model in an agent loop with tools. It assembles the "
         "prompt, gates the permissions, and manages the context."),
     (A, "Current as of the twenty second of September, twenty twenty six. It "
-        "earns the time because of one number. On identical model weights, "
-        "harness quality swings S W E bench scores by ten to twenty two points."),
+        "earns the time because of one number. On identical weights, harness "
+        "quality swings S W E bench scores by ten to twenty two points."),
 ]
 
 # --- the inventory, named before anything is explained --------------------
 SCRIPT["map"] = [
     (A, "Here is the field first, with nothing explained yet. Four families, "
-        "grouped by where the agent actually lives."),
+        "grouped by where the agent lives."),
     (A, "Terminal command line tools are the centre of gravity. Claude Code, "
-        "Codex C L I, OpenCode, Goose, and Meta's Muse Code. Then editors: "
+        "Codex C L I, OpenCode, Goose, Meta's Muse Code. Then editors: "
         "Cursor, Antigravity, Devin Desktop, Zed, and the open V S Code "
         "extensions, Cline, Roo and Kilo."),
     (A, "Then cloud agents you fire and forget, and read a pull request from "
         "later. Devin, Codex cloud, Jules, Claude Code on the web. And a "
-        "fourth family that is not about code at all: resident personal "
-        "agents, OpenClaw and Hermes Agent, which listen on your messaging "
-        "accounts and act on them."),
+        "family that is not about code at all: resident personal agents, "
+        "OpenClaw and Hermes Agent, which act on your messaging accounts."),
 ]
 
 # --- the organising question ----------------------------------------------
@@ -193,48 +192,47 @@ SCRIPT["question"] = [
 
 # --- what the model sees --------------------------------------------------
 SCRIPT["sees"] = [
-    (A, "Start with the first thing a harness decides. What the model sees, "
+    (A, "Start with the first thing a harness decides: what the model sees, "
         "and what it keeps between steps. Two projects attacked that from "
         "opposite ends, and both beat the vendor's own harness on the same "
         "weights."),
     (A, "On the left, more machinery. Prime Agent swaps the fixed tool list "
-        "for a persistent Python session, adds four levels of state, and lets "
-        "the agent rewrite its own skills between runs. Arc A G I three goes "
-        "from thirty percent to ninety five point five."),
-    (A, "On the right, the exact opposite. A fixed command line agent wrapped "
-        "in a state machine with every transition enforced. That wins too, "
-        "which is the finding. The win is having a durable state layer at "
-        "all."),
+        "for a persistent Python session, four levels of state, and an agent "
+        "that rewrites its own skills. Arc A G I three, thirty percent to "
+        "ninety five point five."),
+    (A, "On the right, the opposite: a fixed command line agent inside a state "
+        "machine, every transition enforced. That wins too. So the win is "
+        "having a durable state layer at all."),
 ]
 
 # --- the number -----------------------------------------------------------
 SCRIPT["adapter"] = [
-    (A, "Then the demonstration nobody can wave away, because it is a "
-        "frontier model card. Arc Prize published two labelled numbers for "
-        "G P T six Astra on the same held out task set."),
+    (A, "Now the demonstration nobody can wave away, because it is a frontier "
+        "model card. Arc Prize published two labelled numbers for G P T six "
+        "Astra on one held out task set."),
     (A, "Through the standard, provider agnostic harness, sixty two point "
         "seven percent, for about twenty six thousand dollars. Through a new "
         "provider adapter harness, ninety nine point nine percent, for under "
         "nineteen thousand."),
-    (A, "One model, one benchmark. The adapter does the one thing a neutral "
-        "harness structurally cannot: it keeps the model's reasoning state "
-        "inside the provider between requests, rather than making it write "
-        "its working out as notes. And look at what is written beside the "
-        "second bar. The better score is the cheaper one, at half the tokens."),
+    (A, "Same weights. The adapter does the one thing a neutral harness "
+        "cannot: it keeps the model's reasoning state inside the provider "
+        "between requests, instead of making it write its working out as "
+        "notes. And read what is beside the second bar. The better score is "
+        "the cheaper one."),
 ]
 
 # --- what it wastes -------------------------------------------------------
 SCRIPT["cost"] = [
-    (A, "That is the half of the claim people skip. The harness decides the "
+    (A, "Which is the half of the claim people skip. The harness decides the "
         "bill."),
     (A, "N Vidia's Sol Pi ran an improvement loop for cost rather than "
         "capability, because cost has a cheap verifier: did it get cheaper "
         "and still pass? Across fifty one tasks it removed between forty four "
         "and forty nine percent of the token traffic, at the same success "
         "rate."),
-    (A, "About a third off the bill, measured against native Codex and Claude "
-        "Code, lit up at the top of the map. Roughly half of what an agent "
-        "spends is the harness being wasteful, not the model."),
+    (A, "About a third off the bill, against native Codex and Claude Code, lit "
+        "up at the top of the map. Roughly half of what an agent spends is "
+        "the harness being wasteful, not the model."),
 ]
 
 # --- the objection --------------------------------------------------------
@@ -246,38 +244,34 @@ SCRIPT["objection"] = [
         "moved the success rate, and changed the cost a lot. Mini S W E "
         "agent points the same way: a hundred lines, bash as its only tool, "
         "about sixty five percent on S W E bench verified."),
-    (A, "So on short, well specified, public tasks a strong model needs almost "
-        "no scaffold, and the harness is where the money is rather than where "
-        "the capability is."),
+    (A, "So on short, well specified, public tasks, the harness is where the "
+        "money is rather than where the capability is."),
 ]
 
 # --- which population -----------------------------------------------------
 SCRIPT["real"] = [
     (A, "Note what those tasks are, though. Specific Labs licensed ten out of "
-        "private enterprise codebases and scored six hundred and forty runs, "
-        "each model in its own native harness. The best is Fable five point "
-        "one, at thirty eight point eight percent."),
+        "private enterprise codebases and scored six hundred and forty runs. "
+        "The best is Fable five point one, at thirty eight point eight "
+        "percent."),
     (B, "That is a long way under the leaderboards. Is one of them wrong?"),
-    (A, "Neither. They are different populations, and any number you quote has "
-        "to say which: public, well specified issues on one side, private "
-        "codebases on the other."),
+    (A, "Neither. They are different populations, and a number has to say "
+        "which: public, well specified issues, or private codebases."),
     (A, "The grey bar is Terminal Bench four point zero, which replaced the "
         "two point x line this month and is not comparable with it. Same "
         "models, days earlier, mid fifties. Twenty points of penalty for "
-        "being real. And the commonest failure was missed requirements rather "
-        "than broken code, which is a harness problem: what the agent was "
-        "shown."),
+        "being real. And the commonest failure was missed requirements, not "
+        "broken code. That is a harness problem: what the agent was shown."),
 ]
 
 # --- what it is allowed to do ---------------------------------------------
 SCRIPT["containment"] = [
     (A, "So much for what the model sees. The other half is what it is "
         "allowed to do, and that is sharpest for the personal agents lit up "
-        "at the end of the map, whose inputs are reachable by an attacker and "
-        "whose actions are often irreversible."),
+        "at the end of the map, whose inputs are reachable by an attacker."),
     (A, "Emergence World ran eight worlds of ten agents for sixteen days under "
-        "attack. No system was resilient, and the left hand column is the "
-        "finding to carry. Detection did not produce containment. Systems "
+        "attack. No system was resilient. And the left hand column is the "
+        "finding to carry: detection did not produce containment. Systems "
         "recognised hostile content and carried on interacting with it, in "
         "cases for another forty six hours."),
     (B, "So a detector is not a control."),
@@ -285,7 +279,7 @@ SCRIPT["containment"] = [
         "the injection already worked. The agent never sees a credential: a "
         "service outside the runtime cell swaps the real token in as the "
         "request leaves. And approvals arrive as operating system dialogs, so "
-        "text in the context window cannot manufacture consent."),
+        "text in the context cannot manufacture consent."),
 ]
 
 # --- the take -------------------------------------------------------------
@@ -295,8 +289,8 @@ SCRIPT["take"] = [
         "what that costs per hour."),
     (A, "And the line on the screen is the one to leave with. A benchmark "
         "number without a named harness carries no information. Arc Prize now "
-        "labels both, on one leaderboard, because the same weights scored "
-        "sixty two and ninety nine."),
+        "labels both, because the same weights scored sixty two and ninety "
+        "nine."),
 ]
 
 

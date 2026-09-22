@@ -151,9 +151,9 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {}
 
 # --- what this is ---------------------------------------------------------
 SCRIPT["ident"] = [
-    (A, "This is Qwen, Alibaba's model line. It is the widest catalogue of "
-        "open weight models any lab publishes, from sub billion models that "
-        "run on a phone up to a two point four trillion parameter flagship."),
+    (A, "This is Qwen, Alibaba's model line. The widest catalogue of open "
+        "weight models any lab publishes, from sub billion models that run on "
+        "a phone up to a two point four trillion parameter flagship."),
     (A, "It earns an episode because that breadth is a strategy, not a "
         "product list. Current as of the twenty second of September, "
         "twenty twenty six."),
@@ -169,8 +169,8 @@ SCRIPT["ladder"] = [
     (A, "The efficiency line. Qwen three Next, and Qwen three point eight "
         "Flash Next: a hundred and twenty five billion, six billion active."),
     (A, "And the long tail. A dense twenty seven billion, the whole ladder "
-        "down to nought point six, and Coder, vision language, Audio and "
-        "Math variants of most of it."),
+        "down to nought point six, plus Coder, vision language, Audio and "
+        "Math variants."),
 ]
 
 # --- the organising question ----------------------------------------------
@@ -185,28 +185,28 @@ SCRIPT["question"] = [
 SCRIPT["moat"] = [
     (A, "Almost all of it is Apache two point zero. Commercial use, "
         "redistribution, essentially no conditions. So whatever size and "
-        "licence your project needs, a Qwen base already exists."),
+        "licence a project needs, a Qwen base already exists."),
     (A, "And that compounds. Qwen bases became the default start for open "
         "research and for distillation, including DeepSeek's own R one "
         "distillations."),
     (B, "But nobody runs a full reasoning pipeline at nine sizes at once."),
     (A, "They do not. The small ones are distilled from the large ones, "
         "trained on the teacher's output distribution rather than on hard "
-        "labels. That is what lets the whole ladder ship in one day."),
+        "labels. That is what lets the ladder ship in one day."),
 ]
 
 # --- decision one: the thinking budget ------------------------------------
 SCRIPT["budgets"] = [
     (A, "Now the decisions that are genuinely theirs. From Qwen three onward, "
         "one checkpoint serves both a fast answer and a long chain of "
-        "thought, picked by the caller in the chat template."),
+        "thought, picked in the chat template."),
     (A, "And the caller caps it. The thinking budget sets how many tokens it "
         "may spend deliberating, and it is trained to wrap up when that runs "
-        "out rather than be cut off mid thought. Reasoning depth becomes a "
-        "runtime dial."),
-    (A, "The cost is on the right. The twenty five oh seven refresh split the "
-        "line back into separate Instruct and Thinking checkpoints, because "
-        "one set of weights serving both modes left quality on the table."),
+        "out rather than be cut off mid thought."),
+    (A, "Reasoning depth becomes a runtime dial. The cost is on the right: "
+        "the twenty five oh seven refresh split the line back into Instruct "
+        "and Thinking checkpoints, because one set of weights serving both "
+        "modes left quality on the table."),
 ]
 
 # --- decision two: no shared expert ---------------------------------------
@@ -216,20 +216,20 @@ SCRIPT["moe"] = [
         "and twenty eight experts, with no shared expert at all."),
     (A, "DeepSeek, on the right, route eight of two hundred and fifty six "
         "finer grained ones, plus a shared expert every token passes through."),
-    (A, "Qwen let the router handle everything instead. Simpler, and no fixed "
+    (A, "Qwen let the router handle everything instead. Simpler, no fixed "
         "cost per token, at the risk that routed experts each relearn general "
-        "behaviour. Both of them work."),
+        "behaviour."),
 ]
 
 # --- decision three: the attention hybrid ---------------------------------
 SCRIPT["deltanet"] = [
-    (A, "Decision three lives in the efficiency line, which is where the "
-        "architecture gets tested before a flagship adopts it. Three quarters "
-        "of Qwen three Next's layers run Gated DeltaNet."),
+    (A, "Decision three lives in the efficiency line, where the architecture "
+        "gets tested before a flagship adopts it. Three quarters of Qwen "
+        "three Next's layers run Gated DeltaNet."),
     (A, "Linear attention keeps a fixed size state instead of a cache that "
         "grows. The delta rule is what makes it usable: before writing a key, "
         "subtract what the state already returns for it, so the association "
-        "is replaced rather than piled on."),
+        "is replaced."),
     (A, "And the ratio is the honest part. Three layers in four linear, one "
         "in four full, because recall through the linear layers is lossy and "
         "agents depend on exact retrieval."),
@@ -237,23 +237,22 @@ SCRIPT["deltanet"] = [
 
 # --- the Qwen4 preview, and where the ratio sits --------------------------
 SCRIPT["qsa"] = [
-    (A, "In August, Flash Next swapped the other half of that hybrid for "
-        "Qwen Sparse Attention, which selects context by micro block rather "
-        "than by token, because blocks map onto how a card reads memory."),
+    (A, "In August, Flash Next swapped the other half of that hybrid for Qwen "
+        "Sparse Attention, which selects context by micro block rather than "
+        "by token, because blocks map onto how a card reads memory."),
     (A, "It also pushes sparsity to about twenty one to one, the most "
         "aggressive ratio in the open flash tier."),
     (B, "In the flash tier. Not the open frontier."),
     (A, "Not the frontier. Look at the bars. Kimi K three sits near twenty "
         "seven, DeepSeek V four Pro near thirty three. And the ratio is not "
-        "really the point. What six billion active buys is the absolute "
-        "figure, because that is what it costs to decode."),
+        "the point: what six billion active buys is the absolute figure."),
 ]
 
 # --- the caveats ----------------------------------------------------------
 SCRIPT["caveats"] = [
     (A, "Three things to read carefully. Arena placings are human preference "
         "leaderboards: they measure which answer people preferred, not "
-        "whether a task was completed."),
+        "whether the task was done."),
     (A, "Second, the Apache default may be softening. Qwen Image two point "
         "one shipped in September under a research licence, non commercial "
         "only. One model does not settle it. A second would."),
@@ -264,9 +263,9 @@ SCRIPT["caveats"] = [
 
 # --- the take -------------------------------------------------------------
 SCRIPT["take"] = [
-    (A, "So the take. Breadth here is not generosity, and it is not a "
-        "catalogue. It is distribution, and it works because distillation "
-        "makes the ladder cheap to produce."),
+    (A, "So the take. Breadth here is not generosity and not a catalogue. It "
+        "is distribution, and it works because distillation makes the ladder "
+        "cheap to produce."),
     (A, "Being the base model everybody else fine tunes is a position no "
         "benchmark win takes away, and underneath it sits a paid cloud tier "
         "selling the same weights."),
