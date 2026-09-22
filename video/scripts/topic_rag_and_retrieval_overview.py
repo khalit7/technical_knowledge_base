@@ -220,8 +220,9 @@ SCRIPT["corpus"] = [
     (A, "But the page's real claim about that column is that at the top of the "
         "market the corpus is what is being sold, not the model. OpenAI's Astra "
         "for Law pairs one model with a proprietary legal index of over two "
-        "hundred and thirty million documents, claimed to cover almost all "
-        "published United States precedential case law."),
+        "hundred and thirty million U R Ls, claimed to cover more than ninety "
+        "nine point nine percent of published United States precedential case "
+        "law."),
     (A, "On a legal research benchmark it passes correctness checks on fifty "
         "four percent of questions. The same model on ordinary web search gets "
         "thirty eight point seven. Look at the gap. Same weights, fifteen "
