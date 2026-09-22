@@ -209,9 +209,9 @@ SCRIPT["question"] = [
 # --- scale one ------------------------------------------------------------
 SCRIPT["chips"] = [
     (A, "Start at the part. Three properties of a single chip still decide what "
-        "you can run on it. How much memory it has, how fast that memory is, "
-        "and what number format it multiplies in. Memory, not arithmetic, is "
-        "the constraint."),
+        "you can run. How much memory it has, how fast that memory is, and what "
+        "number format it multiplies in. Memory, not arithmetic, is the "
+        "constraint."),
     (A, "The two specialists on screen take that to opposite extremes. Groq "
         "removes high bandwidth memory entirely and holds the model in on chip "
         "static memory, about two hundred and thirty megabytes a chip. That "
@@ -229,8 +229,8 @@ SCRIPT["chips"] = [
 SCRIPT["rack"] = [
     (A, "Which is how the rack became the unit. Inside a scale up domain, "
         "N V Link gives a Blackwell part one point eight terabytes a second to "
-        "its neighbours, and the N V L seventy two rack puts seventy two of "
-        "them in one domain."),
+        "its neighbours, and an N V L seventy two rack puts seventy two of them "
+        "in one domain."),
     (A, "Step outside and you are on four hundred to eight hundred gigabits per "
         "network card. Look at those two rows together: roughly a twentieth of "
         "the bandwidth. Inside the domain, splitting one tensor across chips is "
@@ -273,7 +273,7 @@ SCRIPT["challengers"] = [
         "different ways."),
     (A, "A M D's Helios rack is the like for like answer. Seventy two chips, "
         "two point nine exaflops, thirty one terabytes of H B M four. About "
-        "four hundred and thirty gigabytes per chip, ahead of Vera Rubin on "
+        "four hundred and thirty gigabytes a chip, ahead of Vera Rubin on "
         "memory capacity."),
     (A, "Huawei's UnifiedBus is the second move. If you are behind on the chip, "
         "make the domain bigger. Up to a million linked processors, over a "

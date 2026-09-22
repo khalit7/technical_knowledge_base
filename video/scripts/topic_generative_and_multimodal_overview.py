@@ -219,10 +219,10 @@ SCRIPT["image"] = [
         "diffusion transformer over patches of that latent as the denoiser. "
         "Train it with a rectified flow objective."),
     (A, "Which answers what you just asked. The variational autoencoder stopped "
-        "shipping as a generator and became the compressor under every one of "
-        "these, its quantised cousin the tokenizer under the autoregressive "
-        "ones. The adversarial network survives as a loss term, and it is what "
-        "stops decoders and vocoders coming out blurry."),
+        "shipping as a generator and became the compressor under all of these, "
+        "its quantised cousin the tokenizer under the autoregressive ones. The "
+        "adversarial network survives as a loss term, and it is what stops "
+        "decoders and vocoders coming out blurry."),
     (A, "F L U X two, Stable Diffusion three point five and Qwen Image are the "
         "open weight leaders, and all three are that recipe."),
 ]
@@ -231,7 +231,7 @@ SCRIPT["image"] = [
 SCRIPT["video"] = [
     (A, "Video is the same recipe with time compressed as well as space. A "
         "causal three D autoencoder whose latents span a block of frames, so "
-        "the transformer attends over patches in space and time together."),
+        "the transformer attends over patches in space and time at once."),
     (A, "Vay o three point one leads on cinematic quality, Kling three and "
         "Seedance two top the general rankings, Wan is the open weight line. "
         "All of them lean hard on step distillation, because one denoising step "
@@ -296,17 +296,17 @@ SCRIPT["numbers"] = [
 
 # --- the objection --------------------------------------------------------
 SCRIPT["caveat"] = [
-    (A, "Three caveats, all about that one release. The benchmark is the "
-        "vendor's own. And the version numbers are not a sequence: three point "
-        "zero is a separate closed line that shipped in July, two point one is "
-        "the open line that came after it in September. The digit marks the "
-        "product family, not the date."),
+    (A, "Three caveats, all about that release. The benchmark is the vendor's "
+        "own. And the version numbers are not a sequence: three point zero is a "
+        "separate closed line that shipped in July, two point one is the open "
+        "line that came after it in September. The digit marks the product "
+        "family, not the date."),
     (B, "And the open weights are not open."),
     (A, "Public, but under a research licence, non commercial only. That image "
         "line now runs three licences at once. Apache on the older releases, "
         "research only on two point one, closed on three point zero. The "
-        "language models have not moved. If they ever do, calling Alibaba the "
-        "widest open family stops being true."),
+        "language models have not moved. If they do, calling Alibaba the widest "
+        "open family stops being true."),
 ]
 
 # --- the take -------------------------------------------------------------
