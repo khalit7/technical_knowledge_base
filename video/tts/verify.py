@@ -149,18 +149,29 @@ def insertion_burst(reference: list[str], hypothesis: list[str], window: int = 4
     actually catches "not just about a model, at the author cases": four words
     in a row that appear nowhere in the script.
 
-    Two things count as known besides an exact match, and both were added
-    after this check rejected takes that were read correctly. Number words,
-    for the reason above. And any piece of a compound the script contains:
+    Three things count as known besides an exact match, and every one was
+    added after this check rejected takes that were read correctly. Number
+    words, for the reason above. Any piece of a compound the script contains:
     "subagents" is heard as "sub agents", and neither half is in the script,
-    so three correct words in a row looked like an invention.
+    so three correct words in a row looked like an invention. And the mirror
+    of that, which is the one this page's own advice guarantees you will hit:
+    the script spells a name out for the voice model and the transcriber
+    writes it back as one word. "S Q Lite, Duck D B, Rocks D B" comes back as
+    "SQLite DuckDB RocksDB", none of which is in the script and none of which
+    is a piece of anything in it, so three correctly read product names in a
+    row are a burst. It cost four seeds on a beat that was right the first
+    time. So a run of consecutive script words, joined up, is known too.
     """
     known = set(reference) | NUMBER_WORDS
     pieces = {w[:i] for w in reference for i in range(3, len(w))}
     pieces |= {w[i:] for w in reference for i in range(1, len(w) - 2)}
+    # Six is enough for the longest spelled-out name this knowledge base
+    # uses: "J S O N B" is five tokens, "Cu BLAS L T" is four.
+    joined = {"".join(reference[i:i + n])
+              for i in range(len(reference)) for n in range(2, 7)}
 
     def invented(word: str) -> bool:
-        return word not in known and word not in pieces
+        return word not in known and word not in pieces and word not in joined
 
     worst = ""
     for i in range(len(hypothesis)):
