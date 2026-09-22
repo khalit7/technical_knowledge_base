@@ -772,6 +772,9 @@ class Renderer:
             f"*This copy is the page as Notion last edited it, {stamp(node.last_edited)}. A procedure*",
             "*that has moved on since then has moved on in Notion first, so if anything here*",
             "*contradicts what the tools actually do, re-run the sync before trusting this file.*",
+            "*The copy your skill loader served you can also be behind this file: if you were told*",
+            "*something is true of this run and cannot find it here, read the file on disk and*",
+            "*`git log` it before concluding it is not so.*",
             "",
         ]
         lines += self.blocks(node.blocks, node.path)
