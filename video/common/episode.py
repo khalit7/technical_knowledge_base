@@ -432,7 +432,19 @@ class Episode(PageVideo):
                 cell.shift(RIGHT * (x[i] + cell.width / 2))
             lines.append(VGroup(*line))
 
-        grid = VGroup(*lines).arrange(DOWN, buff=0.34, aligned_edge=LEFT)
+        # Stack the rows by moving them DOWN only. `arrange(aligned_edge=LEFT)`
+        # would undo the column placement just done above: it aligns each row's
+        # left EDGE, and a row whose first cell is empty has no left edge there,
+        # so its bounding box starts at column two. The header of a comparison
+        # table is exactly that row, because the corner cell above the row
+        # labels is naturally blank, and the whole header then slides one
+        # column to the left and sits over the wrong data. Nothing catches it:
+        # no text overlaps, nothing leaves the frame, and the type is well
+        # above the legibility floor. It is only visible in the frame.
+        pitch = max((line.height for line in lines), default=0.0) + 0.34
+        for i, line in enumerate(lines):
+            line.shift(DOWN * pitch * i)
+        grid = VGroup(*lines)
         if head:
             rule = hairline(width=grid.width + 0.3)
             rule.next_to(lines[0], DOWN, buff=0.16).align_to(grid, LEFT)
