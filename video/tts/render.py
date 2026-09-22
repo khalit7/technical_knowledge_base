@@ -15,7 +15,7 @@ each speaker on every beat, which is what VibeVoice's zero-shot cloning is for.
     python3 video/tts/render.py --script tech_news_2026_09_21
     python3 video/tts/render.py --script tech_news_2026_09_21 --only cold_open --force
 
-The model is `vibevoice/VibeVoice-1.5B-hf`, the Transformers-native conversion.
+The model defaults to `vibevoice/VibeVoice-7B-hf`, the Transformers-native conversion.
 The original `microsoft/VibeVoice-1.5B` weights do not load here: that repo
 still carries the pre-Transformers config layout (`decoder_config` rather than
 `text_config`), so `AutoProcessor` refuses it.
