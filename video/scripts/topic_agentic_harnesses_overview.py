@@ -175,8 +175,8 @@ SCRIPT["map"] = [
         "extensions, Cline, Roo and Kilo."),
     (A, "Then cloud agents you fire and forget, and read a pull request from "
         "later. Devin, Codex cloud, Jules, Claude Code on the web. And a "
-        "family that is not about code at all: resident personal agents, "
-        "OpenClaw and Hermes Agent, which act on your messaging accounts."),
+        "family that is not about code: resident personal agents, OpenClaw and "
+        "Hermes Agent, which act on your messaging accounts."),
 ]
 
 # --- the organising question ----------------------------------------------
@@ -194,8 +194,7 @@ SCRIPT["question"] = [
 SCRIPT["sees"] = [
     (A, "Start with the first thing a harness decides: what the model sees, "
         "and what it keeps between steps. Two projects attacked that from "
-        "opposite ends, and both beat the vendor's own harness on the same "
-        "weights."),
+        "opposite ends, and both beat the vendor's own harness."),
     (A, "On the left, more machinery. Prime Agent swaps the fixed tool list "
         "for a persistent Python session, four levels of state, and an agent "
         "that rewrites its own skills. Arc A G I three, thirty percent to "
@@ -209,7 +208,7 @@ SCRIPT["sees"] = [
 SCRIPT["adapter"] = [
     (A, "Now the demonstration nobody can wave away, because it is a frontier "
         "model card. Arc Prize published two labelled numbers for G P T six "
-        "Astra on one held out task set."),
+        "Astra on one task set."),
     (A, "Through the standard, provider agnostic harness, sixty two point "
         "seven percent, for about twenty six thousand dollars. Through a new "
         "provider adapter harness, ninety nine point nine percent, for under "
@@ -226,10 +225,9 @@ SCRIPT["cost"] = [
     (A, "Which is the half of the claim people skip. The harness decides the "
         "bill."),
     (A, "N Vidia's Sol Pi ran an improvement loop for cost rather than "
-        "capability, because cost has a cheap verifier: did it get cheaper "
-        "and still pass? Across fifty one tasks it removed between forty four "
-        "and forty nine percent of the token traffic, at the same success "
-        "rate."),
+        "capability, because cost has a cheap verifier: did it get cheaper and "
+        "still pass? Across fifty one tasks it removed between forty four and "
+        "forty nine percent of the token traffic, at the same success rate."),
     (A, "About a third off the bill, against native Codex and Claude Code, lit "
         "up at the top of the map. Roughly half of what an agent spends is "
         "the harness being wasteful, not the model."),
@@ -259,27 +257,27 @@ SCRIPT["real"] = [
         "which: public, well specified issues, or private codebases."),
     (A, "The grey bar is Terminal Bench four point zero, which replaced the "
         "two point x line this month and is not comparable with it. Same "
-        "models, days earlier, mid fifties. Twenty points of penalty for "
-        "being real. And the commonest failure was missed requirements, not "
-        "broken code. That is a harness problem: what the agent was shown."),
+        "models, days earlier, mid fifties. Twenty points of penalty for being "
+        "real. And the commonest failure was missed requirements, not broken "
+        "code, which is a harness problem: what the agent was shown."),
 ]
 
 # --- what it is allowed to do ---------------------------------------------
 SCRIPT["containment"] = [
     (A, "So much for what the model sees. The other half is what it is "
-        "allowed to do, and that is sharpest for the personal agents lit up "
-        "at the end of the map."),
+        "allowed to do, sharpest for the personal agents lit up at the end of "
+        "the map."),
     (A, "Emergence World ran eight worlds of ten agents for sixteen days under "
-        "attack. No system was resilient. And the left hand column is the "
-        "finding to carry: detection did not produce containment. Systems "
+        "attack. No system was resilient, and the left hand column is the "
+        "finding to carry. Detection did not produce containment. Systems "
         "recognised hostile content and carried on interacting with it, in "
         "cases for another forty six hours."),
     (B, "So a detector is not a control."),
     (A, "No. The answer on the right is Meta's, in Muse Spark, and it assumes "
         "the injection already worked. The agent never sees a credential: a "
         "service outside the runtime cell swaps the real token in as the "
-        "request leaves. And approvals arrive as operating system dialogs, so "
-        "text in the context cannot manufacture consent."),
+        "request leaves. Approvals arrive as operating system dialogs, so text "
+        "in the context cannot manufacture consent."),
 ]
 
 # --- the take -------------------------------------------------------------
