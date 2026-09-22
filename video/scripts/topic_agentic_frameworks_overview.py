@@ -179,8 +179,9 @@ SCRIPT["map"] = [
 SCRIPT["question"] = [
     (B, "I already have a while loop that calls tools. What do any of these "
         "give me that it does not?"),
-    (A, "That is the right question, and it is the only axis on this map. Not "
-        "which framework. How much of the loop do you own?"),
+    (A, "That is the right question, and it is the only axis on this map. The "
+        "choice is not between those boxes. It is how much of the loop ends "
+        "up yours."),
     (A, "Every box up there is a position on that line, and until September "
         "the line had two ends. Write it yourself, or let a framework write it "
         "for you."),
@@ -280,10 +281,10 @@ SCRIPT["buy"] = [
 
 # --- the take -------------------------------------------------------------
 SCRIPT["take"] = [
-    (A, "So the rule of thumb on the screen still holds. Start with direct "
-        "A P I calls behind your gateway. Adopt a framework when a specific "
-        "capability, checkpointed state, interrupts, replay, would otherwise "
-        "have to be built by hand."),
+    (A, "So the rule of thumb on the screen still holds. Begin with plain "
+        "A P I calls, routed through your gateway, and reach for a framework "
+        "only when a specific capability, checkpointed state, interrupts, "
+        "replay, would otherwise have to be built by hand."),
     (A, "What is new is the far end, where you own none of it, sold by the "
         "people who sell you the model. Own your control flow used to be free "
         "advice. It is now something you choose to pay for."),
