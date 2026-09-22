@@ -99,6 +99,96 @@ PANEL_FIELDS = {
 }
 
 
+def panel_strings(spec: dict) -> list[str]:
+    """The text a panel puts on screen that makes a CLAIM.
+
+    Headings and captions are left out. They label the panel rather than
+    assert anything, and a narrator naturally says "the leverage numbers"
+    rather than reading the word "leverage" off a heading, so checking them
+    produces noise about frames that are perfectly fine. Everything that
+    states something is checked.
+    """
+    out = []
+    for key in ("text", "big", "note"):
+        if spec.get(key):
+            out.append(str(spec[key]))
+    out += [str(x) for x in spec.get("items", [])]
+    out += [str(x) for x in spec.get("steps", [])]
+    for layer in spec.get("layers", []):
+        out += [str(x) for x in (layer if isinstance(layer, (list, tuple)) else [layer])]
+    for col in spec.get("columns", []) + spec.get("sides", []):
+        out += [str(x) for x in col.get("items", [])]
+    for bar in spec.get("bars", []):
+        if isinstance(bar, dict):
+            out += [str(bar.get("label", "")), str(bar.get("text", ""))]
+    for row in spec.get("rows", []):
+        if isinstance(row, list):
+            out += [str(c) for c in row]
+    return [o for o in out if o]
+
+
+def orphans(script: dict, visuals: dict) -> list[str]:
+    """Text on screen that the narration never refers to.
+
+    The skill says anything on screen the narration never refers to should not
+    be on screen, and that rule had no check. It breaks in one specific place:
+    **trimming for length**. Every cut to a spoken line orphans whatever the
+    panel still says, the layout audit passes it because nothing overlaps, and
+    the result is a frame carrying a claim nobody makes.
+
+    Matching is deliberately loose. A panel says "80%+ of merged production
+    code" and the narration says "more than eighty percent of the code merged
+    into their production codebase": those are the same claim in two
+    registers, so this compares significant words rather than strings, and
+    only complains when a panel line shares almost nothing with its beat.
+    """
+    import re
+    stop = {"the", "a", "an", "of", "and", "or", "to", "in", "on", "for", "is",
+            "it", "at", "as", "by", "with", "that", "this", "its", "from",
+            "not", "but", "was", "are", "be", "per", "than", "then", "so"}
+
+    def words(text: str) -> set:
+        # A panel writes "3.22x" and "850,000"; the narration says "three
+        # point two two times" and "eight hundred and fifty thousand",
+        # because that is how the voice model has to be fed. Comparing them
+        # raw makes every number on every card look orphaned. This is the
+        # same trap the transcription gate fell into three times, so it is
+        # worth solving once here rather than discovering again.
+        out = set()
+        for token in re.findall(r"[a-z0-9][a-z0-9.,]*", text.lower()):
+            bare = token.strip(".,")
+            if bare and bare[0].isdigit():
+                # A figure usually carries a unit glued to it: 3.22x, 80%,
+                # 27B, 850,000. Split the number off before converting.
+                head = re.match(r"[\d.,]+", bare).group(0).strip(".,")
+                try:
+                    from num2words import num2words
+                    value = float(head.replace(",", ""))
+                    spoken = num2words(int(value) if value.is_integer() else value)
+                    out |= {w for w in re.findall(r"[a-z]+", spoken) if w not in stop}
+                except Exception:
+                    pass
+                out.add(bare)
+                continue
+            if bare not in stop and len(bare) > 2:
+                out.add(bare)
+        return out
+
+    problems = []
+    for key, spec in visuals.items():
+        if key not in script or spec.get("kind") == "title":
+            continue
+        spoken = words(" ".join(line for _, line in script[key]))
+        for shown in panel_strings(spec):
+            on_screen = words(shown)
+            if not on_screen:
+                continue
+            if not (on_screen & spoken):
+                problems.append(f"beat '{key}': nothing in the narration refers "
+                                f"to what the panel says, \"{shown[:52]}\"")
+    return problems
+
+
 def check_visuals(script: dict, visuals: dict) -> list[str]:
     """A declarative episode's pictures, checked before the GPU is booked."""
     problems = []
@@ -167,6 +257,7 @@ def main() -> int:
     visuals = getattr(module, "VISUALS", {})
 
     problems = check_visuals(script, visuals)
+    problems += orphans(script, visuals)
     if fmt not in REQUIRED:
         print(f"{args.script}: no FORMAT declared (one of {sorted(REQUIRED)})")
         return 1

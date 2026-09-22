@@ -91,13 +91,20 @@ def place_at_top(api, page_id: str, blocks: list) -> None:
                      json={"children": blocks, "after": first["id"]})
         return
 
-    added = api._request("PATCH", f"/blocks/{page_id}/children",
-                         json={"children": blocks, "after": first["id"]})
-    last = added["results"][-1]["id"]
-    api._request("PATCH", f"/blocks/{page_id}/children", json={
-        "children": [{"object": "block", "type": kind,
-                      kind: {"rich_text": first[kind].get("rich_text", [])}}],
-        "after": last})
+    # One call, not two. Inserting the video and then recreating the old
+    # first block after it looked correct and was not: Notion silently
+    # ignored an `after` that pointed at the freshly created video block,
+    # which is still processing its upload, and appended the recreated block
+    # to the END of the page instead. The page lost its reading-time line
+    # from the top and gained it as the last thing on an eighteen minute
+    # article, and nothing errored.
+    #
+    # Sending the video blocks and the copy together as one batch means the
+    # only `after` reference is to a block that already existed.
+    copy = {"object": "block", "type": kind,
+            kind: {"rich_text": first[kind].get("rich_text", [])}}
+    api._request("PATCH", f"/blocks/{page_id}/children",
+                 json={"children": blocks + [copy], "after": first["id"]})
     api._request("DELETE", f"/blocks/{first['id']}")
 
 
