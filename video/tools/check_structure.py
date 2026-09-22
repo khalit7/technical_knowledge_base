@@ -160,7 +160,8 @@ def orphans(script: dict, visuals: dict) -> list[str]:
             if bare and bare[0].isdigit():
                 # A figure usually carries a unit glued to it: 3.22x, 80%,
                 # 27B, 850,000. Split the number off before converting.
-                head = re.match(r"[\d.,]+", bare).group(0).strip(".,")
+                lead = re.match(r"[\d.,]+", bare)
+                head = lead.group(0).strip(".,") if lead else ""
                 try:
                     from num2words import num2words
                     value = float(head.replace(",", ""))
@@ -239,9 +240,14 @@ def check_visuals(script: dict, visuals: dict) -> list[str]:
         for layer in home.get("layers", []):
             labels.add(str(layer[0] if isinstance(layer, (list, tuple)) else layer))
         for f in focused:
-            if str(f) not in labels:
-                problems.append(f"focus '{f}' matches nothing in the parked "
-                                f"'{parked[0]}' panel, so nothing will light up")
+            # A beat may light one part of the map or several, so a focus is
+            # one label or a list of them. Every one of them still has to name
+            # something that is actually up there.
+            for label in ([f] if isinstance(f, str) else f):
+                if str(label) not in labels:
+                    problems.append(f"focus '{label}' matches nothing in the "
+                                    f"parked '{parked[0]}' panel, so nothing "
+                                    f"will light up")
     return problems
 
 
