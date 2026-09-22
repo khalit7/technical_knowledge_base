@@ -69,7 +69,6 @@ PROFILES = (
 )
 
 SCENES = {
-    "tech_news_2026_09_21": ("scenes/tech_news_2026_09_21.py", "TechNews20260921"),
     # The two minute cut is its own edition with its own script; it reuses two
     # detail beats from the full episode by copying their rendered audio in.
     "tech_news_2026_09_21_short": ("scenes/tech_news_2026_09_21_short.py", "Short"),
@@ -92,8 +91,12 @@ def discover(episode: str) -> tuple[str, str]:
     entry at all. The class is read out of the file rather than guessed,
     because these files name their scene for what it is (Overview, Short,
     DeepDiveScene) and no convention covers all of them."""
-    if episode in SCENES:
+    if episode in SCENES and (ROOT / SCENES[episode][0]).exists():
         return SCENES[episode]
+    # A register entry whose file is gone falls through rather than failing.
+    # An episode gets re-authored declaratively and its bespoke scene deleted,
+    # and the register is the thing nobody remembers to update: the failure
+    # then arrives as "file not found" after the voice has already rendered.
     path = ROOT / "scenes" / f"{episode}.py"
     if not path.exists():
         # A script that declares VISUALS describes its own pictures, so it

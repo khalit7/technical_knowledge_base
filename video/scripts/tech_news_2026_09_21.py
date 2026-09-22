@@ -57,6 +57,111 @@ A = "A"
 B = "B"
 
 FORMAT = "news"
+TITLE = "Tech news, week to 21 September 2026"
+SUBTITLE = "when the machines do the work, what is actually limiting them"
+UPDATED = "21 September 2026"
+
+# The visuals are declared rather than hand-positioned. The bespoke scene this
+# replaces was 585 lines, and its defects were all of one kind: it centred each
+# beat in the whole frame while a diagram was parked down the left, so the
+# content ran underneath it, and it parked a chart whose labels came out at six
+# pixels in the delivered file. Neither is possible here, because the panel
+# layer reserves the space beside a parked panel and the layout audit measures
+# text at delivery size.
+ROLES = {"opening": "cold_open", "contract": "contract", "objection": "objection"}
+
+VISUALS = {
+    "cold_open": {"kind": "bars", "head": "two proofs, same class of result", "bars": [
+        {"label": "Anthropic, Fermat", "text": "6 billion output tokens",
+         "value": 6, "tone": "verified"},
+        {"label": "OpenAI, Navier-Stokes", "text": "300 billion output tokens",
+         "value": 300, "tone": "cost"},
+    ]},
+    "question": {"kind": "claim",
+                 "text": "When the machines are doing the work,\nwhat is actually limiting them?",
+                 "note": "it is not how clever the model is: both runs worked"},
+    "contract": {"kind": "flow", "tone": "machinery",
+                 "steps": ["the numbers", "one layer down", "why the cheap run was cheap"]},
+    "horizon": {"kind": "bars", "head": "task horizon: how long a job it finishes alone",
+                "bars": [
+        {"label": "Opus 3, Mar 2024", "text": "4 minutes", "value": 4},
+        {"label": "Sonnet 3.7, Mar 2025", "text": "90 minutes", "value": 90},
+        {"label": "Opus 4.6, Mar 2026", "text": "12 hours", "value": 720},
+        {"label": "projected, 2027", "text": "weeks", "value": 1440, "tone": "context"},
+    ]},
+    "horizon_caveat": {"kind": "points", "head": "read that chart twice", "tone": "cost",
+                       "items": ["the axis is logarithmic: every step is bigger than it looks",
+                                 "Anthropic measured Anthropic"]},
+    "leverage": {"kind": "points", "head": "the leverage, as of May", "items": [
+        "80%+ of code merged into Anthropic's production codebase, written by Claude",
+        "26% of their AI research work, led by the model",
+        "30,000+ internal agents running at any one time",
+        "CI workload 25x in six months; the test suite 10x to keep up",
+    ]},
+    "pivot": {"kind": "claim",
+              "text": "The expensive part stopped being the thinking.\nIt became the checking.",
+              "note": "and the clearest evidence came from a serving stack"},
+    "glm": {"kind": "stat", "big": "3.22x", "caption": "throughput, in thirteen days",
+            "note": "GLM-5.3 built the inference stack that now serves it, "
+                    "on 100,000+ Chinese accelerators. Z.ai says this is not "
+                    "recursive self improvement, and that is why it is worth reading"},
+    "feedback": {"kind": "columns", "park": True, "columns": [
+        {"head": "correctness", "tone": "verified",
+         "items": ["compare numerical results", "across execution paths"]},
+        {"head": "system behaviour", "tone": "machinery",
+         "items": ["timelines, not totals"]},
+        {"head": "performance", "tone": "number",
+         "items": ["layered testing", "which constraint binds"]},
+    ]},
+    "bugs": {"kind": "points", "head": "two bugs an end-to-end metric never finds",
+             "tone": "cost", "items": [
+        "a TF32 precision bug, visible under one parallelism strategy only",
+        "a 20% slowdown that was the Python global interpreter lock",
+        "the model could not have fixed either: nothing told it they existed",
+    ]},
+    "proofs": {"kind": "compare", "sides": [
+        {"head": "11 days, alone", "tone": "verified", "items": [
+            "about 6 billion output tokens",
+            "built on Buzzard's verified formalisation",
+            "standing on verified ground, adding to it"]},
+        {"head": "10,000 concurrent agents", "tone": "cost", "items": [
+            "4.9 million messages",
+            "about 300 billion output tokens",
+            "an estimated $2m to $22.5m"]},
+    ]},
+    "loop": {"kind": "points", "head": "three papers went after the loop, not the model",
+             "items": [
+        "Nvidia Sol-Pi: about half an agent's tokens are harness overhead, 45% cut at the same success rate",
+        "Agora: no planner, Git as shared memory. 13 workers, 12 days, 1,700 contributions",
+        "165 independent reproductions, zero failures",
+    ]},
+    "counterweight": {"kind": "stat", "big": "46 hours", "caption": "of continued interaction after detection",
+                      "tone": "cost",
+                      "note": "Emergence World stress tested eight worlds, 850,000 model "
+                              "calls, 50 billion tokens. None was resilient, and detection "
+                              "did not ensure containment"},
+    "nous": {"kind": "stat", "big": "1/3", "caption": "of the non-test source, removed",
+             "note": "1,393 subagents, 19 active hours, about $19,000. The tests passed. "
+                     "Human reviewers then found removed public interfaces"},
+    "objection": {"kind": "points", "head": "the obvious objection", "tone": "cost", "items": [
+        "almost every number here comes from the company that benefits from it",
+        "notice which survive it: the GLM bugs and the Nous findings carry a mechanism",
+        "and experts re-graded six physics benchmarks: most failures were the test's fault",
+    ]},
+    "take": {"kind": "claim",
+             "text": "The constraint moved from capability to verification.",
+             "note": "so the question about your own stack is not which model, "
+                     "but what it finds out when it is wrong, and how soon"},
+    "coda": {"kind": "points", "head": "the rest of the week", "items": [
+        "Vera Rubin NVL72: up to 7x the tokens per megawatt of GB300, on pre-release software",
+        "Nvidia shipped GPU programming in Rust, in two tracks",
+        "Bonsai 2: 27B squeezed to 1.76 bits per weight, 5.9 GB, 98% of its scores",
+        "Claude Code now reads an agents markdown file",
+    ]},
+    "outro": {"kind": "claim",
+              "text": "The written issue has all of it, with the sources.",
+              "note": "this was the part I could not stop thinking about"},
+}
 
 SCRIPT: dict[str, list[tuple[str, str]]] = {
     # 1. tension
