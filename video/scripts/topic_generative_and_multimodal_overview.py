@@ -179,10 +179,10 @@ SCRIPT["ident"] = [
     (A, "This is the map of generative and multimodal models. Everything that "
         "produces something other than text, plus everything that lets a "
         "language model take pictures and sound as input."),
-    (A, "It earns an episode because it is the broadest inventory in this "
-        "knowledge base, and because one question cuts straight through it. "
-        "Some of these have converged on a single architecture. Some have not. "
-        "Current as of the twenty second of September, twenty twenty six."),
+    (A, "It earns an episode because it is the broadest inventory here, and "
+        "because one question cuts straight through it. Some of these have "
+        "converged on a single architecture. Some have not. Current as of the "
+        "twenty second of September, twenty twenty six."),
 ]
 
 # --- the inventory, before any explanation --------------------------------
@@ -195,11 +195,11 @@ SCRIPT["map"] = [
         "sampler."),
     (A, "The modalities. Image. Video. Audio and speech. Three D and "
         "interactive worlds. And time series, which is not generative at all "
-        "but sits here because it is a sequence foundation model over a non "
-        "text modality."),
+        "but sits here because it is a sequence model over a non text "
+        "modality."),
     (A, "And the understanding side. Vision encoders. Vision language models. "
-        "Omni models that take speech and vision in and give speech and images "
-        "out. And document parsing."),
+        "Omni models, speech and vision in, speech and images out. And "
+        "document parsing."),
     (B, "Two of those families are listed as if they still ship."),
     (A, "They do not. That is the first thing the next beat fixes."),
 ]
@@ -208,9 +208,9 @@ SCRIPT["map"] = [
 SCRIPT["question"] = [
     (A, "So the question the map is arranged to answer. Which of these "
         "converged on one architecture, and which did not?"),
-    (A, "We walk the middle column, modality by modality, and each time ask "
-        "two things. What is the default recipe, and is there a real "
-        "alternative to it."),
+    (A, "We walk the middle column, modality by modality, asking two things "
+        "each time. What is the default recipe, and is there a real "
+        "alternative."),
 ]
 
 # --- the most converged thing on the board --------------------------------
@@ -222,12 +222,11 @@ SCRIPT["image"] = [
         "autoencoder rather than on pixels. Use a diffusion transformer over "
         "patches of that latent as the denoiser. Train it with a rectified flow "
         "objective."),
-    (A, "Which answers the question you just asked. The variational autoencoder "
-        "does not ship as a generator any more, it ships as the compressor "
-        "under every one of these, and its quantised cousin is the tokenizer "
-        "under the autoregressive ones. The adversarial network survives as a "
-        "loss term, and it is what stops decoders and vocoders coming out "
-        "blurry."),
+    (A, "Which answers what you just asked. The variational autoencoder stopped "
+        "shipping as a generator and became the compressor under every one of "
+        "these, with its quantised cousin the tokenizer under the "
+        "autoregressive ones. The adversarial network survives as a loss term, "
+        "and it is what stops decoders and vocoders coming out blurry."),
     (A, "F L U X two, Stable Diffusion three point five and Qwen Image are the "
         "open weight leaders, and all three are that recipe."),
 ]
@@ -239,13 +238,12 @@ SCRIPT["video"] = [
         "the transformer attends over patches in space and time together."),
     (A, "Vay o three point one leads on cinematic quality, Kling three and "
         "Seedance two top the general rankings, and Wan is the open weight line "
-        "you can actually fine tune. All of them lean hard on step "
-        "distillation, because one denoising step here costs a whole clip of "
-        "compute."),
+        "you can fine tune. All of them lean hard on step distillation, because "
+        "one denoising step here costs a whole clip of compute."),
     (A, "And the last line is the one to keep. An interactive world model is "
         "exactly this, conditioned on actions: predict the next frame from the "
         "previous frames plus a control input. Genie three is the reference, "
-        "and walking around inside one feels like a game engine that is not "
+        "and moving around inside one feels like a game engine that is not "
         "there."),
 ]
 
@@ -257,10 +255,9 @@ SCRIPT["audio"] = [
         "waveform into a few parallel streams of discrete tokens at a low frame "
         "rate. EnCodec first, then Mimi."),
     (A, "And once audio is tokens, generation is next token prediction, so the "
-        "entire language model stack transfers unchanged. That is why speech "
-        "synthesis and realtime voice are autoregressive rather than diffusion. "
-        "Diffusion survives here in music, and as a refinement pass over the "
-        "coarse tokens."),
+        "whole language model stack transfers unchanged. That is why speech "
+        "synthesis and realtime voice are autoregressive. Diffusion survives "
+        "here in music, and as a refinement pass over the coarse tokens."),
 ]
 
 # --- the alternative that lost --------------------------------------------
@@ -278,13 +275,13 @@ SCRIPT["text"] = [
 
 # --- the input side, and the turn -----------------------------------------
 SCRIPT["eyes"] = [
-    (A, "Now the input side, which is where the year's real change happened. "
-        "The anatomy is the stack on screen. A vision encoder, V I T, CLIP, "
-        "SigLIP two, DINO v three or S A M. A projector that maps its output "
-        "into the backbone's token space. Then the backbone."),
-    (A, "That is the adapter design, and it is being replaced by the bottom "
-        "line. Fuse the modalities early, inside one model trained that way "
-        "from the start, which is what open frontier releases now default to."),
+    (A, "Now the input side, where the year's real change happened. The "
+        "anatomy is the stack on screen. A vision encoder, V I T, CLIP, SigLIP "
+        "two, DINO v three or S A M. A projector that maps its output into the "
+        "backbone's token space. Then the backbone."),
+    (A, "That is the adapter design, and the bottom line is replacing it. Fuse "
+        "the modalities early, inside one model trained that way from the "
+        "start, which is what open frontier releases now default to."),
     (A, "Which is the turn worth naming out loud. Being natively multimodal "
         "stopped being a differentiator and became the expectation. Nobody "
         "announces it any more."),
@@ -292,16 +289,15 @@ SCRIPT["eyes"] = [
 
 # --- the numbers, late ----------------------------------------------------
 SCRIPT["numbers"] = [
-    (A, "Numbers last, as always, and with who measured them. Qwen Image two "
-        "point one, out this month, is the open weight state of that image "
-        "recipe. Seven billion parameters, a single stream diffusion "
-        "transformer, and a sixty four channel autoencoder that carries an "
-        "alpha channel, so transparency is native rather than matted on "
-        "afterwards."),
+    (A, "Numbers last, and with who measured them. Qwen Image two point one, "
+        "out this month, is the open weight state of that recipe. Seven billion "
+        "parameters, a single stream diffusion transformer, and a sixty four "
+        "channel autoencoder carrying an alpha channel, so transparency is "
+        "native rather than matted on afterwards."),
     (A, "One model now covers text to image, editing against up to ten "
         "reference images, transparent layers and subject extraction, which "
-        "used to be four models. It scores sixty point two eight on Qwen's "
-        "benchmark, seventh overall and first among open weights."),
+        "used to be four models. It scores sixty point two eight on Qwen's own "
+        "benchmark, first among open weights."),
     (A, "And speed is the headline, which is the two bars. One point five nine "
         "seconds for a two K edit with ten reference inputs, against seventy "
         "nine and a half seconds."),
@@ -318,9 +314,8 @@ SCRIPT["caveat"] = [
     (A, "Public, but under a research licence, non commercial only. Alibaba's "
         "image line now runs three licences at once. Apache on the older "
         "releases, research only on two point one, closed on three point zero. "
-        "The language models have not moved, and if they ever do, this base's "
-        "characterisation of Alibaba as the widest open family stops being "
-        "true."),
+        "The language models have not moved. If they ever do, calling Alibaba "
+        "the widest open family stops being true."),
 ]
 
 # --- the take -------------------------------------------------------------
@@ -329,10 +324,9 @@ SCRIPT["close"] = [
         "with a transformer denoiser and a flow objective. Audio is one recipe "
         "too, and a completely different one: tokens through a codec, then next "
         "token prediction."),
-    (A, "Text is the exception that proves the rule, because its alternative "
-        "exists, works, and is a speed play rather than a rival. And on the "
-        "input side, native multimodality is now the floor rather than the "
-        "feature."),
+    (A, "Text is the exception, because its alternative exists, works, and is "
+        "a speed play rather than a rival. And on the input side, native "
+        "multimodality is now the floor rather than the feature."),
     (A, "Which is why the liveliest argument about the best open image model "
         "this month is not about its architecture at all. It is about its "
         "licence."),
