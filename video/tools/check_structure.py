@@ -175,16 +175,41 @@ def orphans(script: dict, visuals: dict) -> list[str]:
                 out.add(bare)
         return out
 
+    def squashed(text: str) -> str:
+        """Letters and digits only, digits spelled out, spaces removed.
+
+        A card says `LiteLLM`, `Mem0`, `CrewAI`. The narration has to say
+        "Lite L L M", "Mem zero", "Crew A I", because that is how the voice
+        model pronounces them, and the format rule says to name the products.
+        Compared as words those share nothing, so every inventory beat in
+        every overview would be reported as orphaned. Squashed they are
+        identical, which is the honest test for a name.
+        """
+        import re as _re
+        parts = []
+        for token in _re.findall(r"[A-Za-z]+|\d+", text):
+            if token.isdigit():
+                try:
+                    from num2words import num2words
+                    parts.append(num2words(int(token)).replace(" ", "").replace("-", ""))
+                    continue
+                except Exception:
+                    pass
+            parts.append(token.lower())
+        return "".join(parts)
+
     problems = []
     for key, spec in visuals.items():
         if key not in script or spec.get("kind") == "title":
             continue
-        spoken = words(" ".join(line for _, line in script[key]))
+        said = " ".join(line for _, line in script[key])
+        spoken = words(said)
+        said_squashed = squashed(said)
         for shown in panel_strings(spec):
             on_screen = words(shown)
             if not on_screen:
                 continue
-            if not (on_screen & spoken):
+            if not (on_screen & spoken) and squashed(shown) not in said_squashed:
                 problems.append(f"beat '{key}': nothing in the narration refers "
                                 f"to what the panel says, \"{shown[:52]}\"")
     return problems
