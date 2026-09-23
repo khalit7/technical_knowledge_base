@@ -249,9 +249,17 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
         # beats carrying a focus, which are the ones needing the most help,
         # every number here was out by up to five seconds.
         lit = focus_delay(visuals, spec)
-        want, blind = 0.0, 0
+        want, blind, head_lead = 0.0, 0, 0.0
         for k, labels in enumerate(groups, start=1):
             if k < 2:
+                # The first reveal draws the moment the focus finishes, and no
+                # reserve or row moves it. On a focus beat whose heading is
+                # spoken in its first words that is a guaranteed lead of the
+                # whole lighting time, which this table used to skip entirely
+                # and then advise fixing with a row.
+                at = said_at(words, labels)
+                if lit and at is not None:
+                    head_lead = lit - at / max(len(words), 1) * D
                 continue
             at = said_at(words, labels)
             if at is None:
@@ -280,6 +288,12 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
         # A beat whose reveals could not be timed reports 0.0, which reads as
         # "nothing to do here" and is the more dangerous of this tool's two
         # outputs. Say how blind it is.
+        if head_lead > tolerance:
+            note = (f"FIRST REVEAL LEADS {head_lead:.1f}s: the focus lights the "
+                    f"map for {lit:.2f}s before anything draws. Drop the focus "
+                    f"if the last beat left the map right; no reserve or row "
+                    f"can fix this.  " + note)
+            over += 1
         if blind:
             note = (note + "  " if note else "") + f"[{blind} reveal(s) untimed]"
         print(f"{key:16s} {now:6.1f} {min(pick, cap):10.1f} {cap:6.1f}   {note}")
