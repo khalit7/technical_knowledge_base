@@ -89,11 +89,13 @@ collapses into its headings.
 
 Lit state of the map, decided for every beat rather than left to inherit.
 `map` builds with all three columns lit. `question` inherits that, which is
-right: the convergence question is a claim about the whole board. `pixels`
-lights the families and the modalities, because the walk is those two columns
-against each other, and `audio` and `text` inherit that state deliberately and
-pass no focus, since they are the same two columns and a redundant focus
-redraws an identical frame at a cost of about a second of panel delay. `eyes`
+right: the convergence question is a claim about the whole board. `pixels`,
+`audio` and `text` pass no focus and keep the whole board lit. `pixels` used to
+light the families and the modalities, and the 2026-09-23 re-cut took that
+out: a focus fades every handle on the parked map, seventeen of them, which is
+4.25 seconds at the head of the beat before its heading draws, and the heading
+is named in the beat's first word, so the focus alone was a 4.2 second lead
+that no reserve or row could touch. `eyes`
 lights "understanding". `qwen` lights "the modalities". `close` lights all
 three, which is how this vocabulary says no emphasis, and is also true.
 
@@ -218,7 +220,39 @@ five and a half seconds before it was drawn. At 6.0, the cap `check_timing`
 allows, the lead is about four seconds, which is where the rest of the episode
 sits.
 
-Length. 6 minutes 41 at 1080p and 4.31 MiB, on the third and last 1080p rung of the encode
+Re-cut for timing, 2026-09-23, VISUALS only: no word, beat or take changed and
+the audio is byte-identical. Measured with the focus delay modelled, the
+published cut had eight reveals named more than three seconds before they were
+drawn, worst 16.7, where the older tool had reported three. The fixes, cheapest
+first:
+
+  - Reserves moved to the midpoint between the lead floor and the still cap:
+    map 6.5, question 2.8, pixels 2.8, audio 3.5, text 3.6, eyes 2.8, qwen
+    2.8, close 3.0. Worst still frame is now 4.15 seconds, against 5.37.
+  - A row added near the end of the line where reserve could not reach, each
+    one a sentence the beat already speaks with no reveal: "Genie 3 is the
+    reference" on `pixels`, "diffusion survives in music" on `audio`, "the
+    image line: 3 licences" and "the LLMs have not moved" on `qwen`, "what
+    moves now is the licence" on `close`.
+  - `text`'s middle row label was "buys", which the opening turn says ("what
+    that buys") twenty-three words in, so the check timed row two from the
+    head of the beat: a 16.7 second lead that was lexical, not arithmetic. It
+    reads "it buys" now, and the row is timed from "exact conditioning".
+  - Four panel items reworded so they can be timed at all, and two of them
+    were hiding leads: `audio`'s "so it is next-token prediction" was a 9.7
+    second lead once it could be timed, which is why that beat has its extra
+    row. "Qwen's own benchmark", "research license" (the narration's
+    spelling of the product name) and "ask which pieces changed" are the
+    others.
+  - `pixels` lost its focus, as described under the lit state above.
+
+Worst lead after: 1.8 seconds. Four reveals remain untimed, and all four are
+safe by hand: the `question` claim is drawn at t=0; its note is drawn at 21.1s
+and paraphrased by the last words, at 23.5; and the `qwen` and `close` heads
+are free reveals. `pixels`' model-name row is timed now at 41.0 drawn, 47.9
+said.
+
+Length. 6 minutes 41 at 1080p and 4.38 MiB after the re-cut (4.31 before), on the third and last 1080p rung of the encode
 ladder. The first render came in at 6:28 and the punctuation fix on `pixels`
 added the rest. The trim lever, if a future cut needs one, is `qwen`: it is
 the only beat that is not about convergence, and the close already carries its
@@ -311,10 +345,10 @@ SCRIPT["pixels"] = [
 ]
 
 # --- the other convergence ------------------------------------------------
-# Four reveals, so three segments of about thirty words and a short fourth.
-# No focus: `pixels` left the families and the modalities lit, which is the
-# state this beat wants, and a redundant focus redraws an identical frame and
-# costs about a second of panel delay.
+# Five reveals since the re-cut: the head, three items, and a fifth row for
+# the closing sentence about music, which otherwise had nothing to land on.
+# No focus: the whole board stays lit from `map`, and a focus here would
+# cost 4.25 seconds at the head of the beat.
 SCRIPT["audio"] = [
     (A, "Audio converged too, onto the other family entirely. The enabling "
         "piece is one object. A neural audio codec, with residual vector "
@@ -335,7 +369,7 @@ SCRIPT["audio"] = [
 # side by side, as a `compare` would force, the second column of row three is
 # spoken twenty seconds before row three exists.
 #
-# No focus: the same two columns are lit as in the two beats before this one.
+# No focus, as for `pixels` and `audio`.
 SCRIPT["text"] = [
     (A, "Text is the interesting case, because here the alternative is real "
         "and lost anyway. Read it across. How each one works, what that buys, "
@@ -433,7 +467,7 @@ VISUALS = {
     # what the orphan check needs, since it matches a name on its squashed
     # spelling.
     #
-    # `reserve` is 6.0 rather than 2.5 because a parked beat spends two of
+    # `reserve` is 6.5 (6.0 until the 2026-09-23 re-cut) rather than 2.5 because a parked beat spends two of
     # those seconds letting the finished board stand still before it collapses
     # into its headings, and the format's premise is that the viewer sees the
     # whole field before any part of it means anything. It was 4.5 until the
@@ -445,7 +479,7 @@ VISUALS = {
     # before it was drawn. Six is the cap `check_timing` allows and it leaves a
     # motionless tail of about three and a half seconds, because the two second
     # settle and the 0.7 second morph come out of the front of it.
-    "map": {"kind": "columns", "park": True, "reserve": 6.0, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 6.5, "columns": [
         {"head": "the families", "tone": "subject", "items": [
             "autoregressive",
             "diffusion and flow",
@@ -471,7 +505,7 @@ VISUALS = {
     #
     # No focus: the map was built one beat ago with all three columns lit, and
     # that is exactly the state a question about the whole board wants.
-    "question": {"kind": "claim", "reserve": 2.5,
+    "question": {"kind": "claim", "reserve": 2.8,
                  "text": "Converged, or not?\nAnd if converged, onto which family?",
                  "note": "the recipes are not all the same family"},
 
@@ -482,8 +516,7 @@ VISUALS = {
     #
     # Toned `subject`: this is the recipe the whole episode keeps comparing
     # things against, and it is the left column of the map made concrete.
-    "pixels": {"kind": "points", "tone": "subject", "reserve": 5.0,
-               "focus": ["the families", "the modalities"],
+    "pixels": {"kind": "points", "tone": "subject", "reserve": 2.8,
                "head": "image and video: one recipe",
                "items": [
                    "denoise inside a latent space",
@@ -492,27 +525,29 @@ VISUALS = {
                    "FLUX.2, SD3.5, Qwen-Image-2.1",
                    "video: compress time as well",
                    "add actions: a world model",
+                   "Genie 3 is the reference",
                ]},
 
     # Machinery, because a codec is apparatus: the whole point of the beat is
     # that one piece of plumbing turns a signal into a vocabulary and the
     # language model stack then transfers unchanged.
-    "audio": {"kind": "points", "tone": "machinery", "reserve": 4.5,
+    "audio": {"kind": "points", "tone": "machinery", "reserve": 3.5,
               "head": "audio: the other convergence",
               "items": [
                   "an RVQ codec, EnCodec then Mimi",
                   "a waveform becomes tokens",
-                  "so it is next-token prediction",
+                  "so: next token prediction",
+                  "diffusion survives in music",
               ]},
 
     # The blank corner cell is the shape that slid a header one column left in
     # an earlier episode. It is fixed in `panel_table` now, and this table has
     # one, so the frame is checked at the preview step rather than assumed.
-    "text": {"kind": "table", "reserve": 4.5,
+    "text": {"kind": "table", "reserve": 3.6,
              "head": ["", "autoregressive", "diffusion LMs"],
              "rows": [
                  ["how", "one token at a time", "unmask many at once"],
-                 ["buys", "exact conditioning", "parallelism"],
+                 ["it buys", "exact conditioning", "parallelism"],
                  ["so", "the frontier", "a speed play"],
              ]},
 
@@ -520,7 +555,7 @@ VISUALS = {
     # units wide whatever the label, so the row is five plus a gutter plus the
     # gloss, and the free region beside a parked map is about seven point
     # eight. A long gloss scales the whole group down rather than wrapping.
-    "eyes": {"kind": "stack", "tone": "machinery", "reserve": 5.0,
+    "eyes": {"kind": "stack", "tone": "machinery", "reserve": 2.8,
              "focus": "understanding",
              "layers": [
                  ("vision encoder", "ViT, CLIP, SigLIP, DINO, SAM"),
@@ -533,13 +568,15 @@ VISUALS = {
     # four rather than a verdict on the release. The heading renders in the
     # subject colour whatever the tone says, which is a known limitation of
     # this panel kind and is harmless here.
-    "qwen": {"kind": "points", "tone": "cost", "reserve": 4.0,
+    "qwen": {"kind": "points", "tone": "cost", "reserve": 2.8,
              "focus": "the modalities",
              "head": "what to read twice",
              "items": [
-                 "the benchmark is Qwen's own",
+                 "Qwen's own benchmark",
                  "3.0 is closed, and shipped first",
-                 "research licence: non-commercial",
+                 "research license: non-commercial",
+                 "the image line: 3 licences",
+                 "the LLMs have not moved",
              ]},
 
     # The take, as five things that unfold with the line rather than one card
@@ -550,14 +587,15 @@ VISUALS = {
     # licence line as `cost` would deliver a verdict the page does not: the
     # page records the licence and says it is worth watching, it does not call
     # it a mistake.
-    "close": {"kind": "points", "tone": "subject", "reserve": 4.5,
+    "close": {"kind": "points", "tone": "subject", "reserve": 3.0,
               "focus": ["the families", "the modalities", "understanding"],
               "head": "what the map is for",
               "items": [
                   "a new image model is that recipe",
                   "a new voice model is codec plus LM",
-                  "ask which piece actually changed",
+                  "ask which pieces changed",
                   "native multimodality is the floor",
+                  "what moves now is the licence",
               ]},
 }
 
