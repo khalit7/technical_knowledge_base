@@ -64,6 +64,10 @@ def _n2w(n: int) -> str:
 def squashed(text: str) -> str:
     """Letters and digits only, lowercased, spaces gone. As check_structure."""
     import re
+    # A possessive adds an "s" that a match then has to end inside: "the
+    # programmer" could never meet "the programmer's", because the run must
+    # end at a word end and the narration's word is "programmers".
+    text = re.sub(r"['\u2019]s\b", "", str(text))
     out = []
     for token in re.findall(r"[A-Za-z]+|\d+\.\d+|\d+", str(text)):
         if "." in token:
@@ -207,7 +211,7 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
         # Split on anything that is not a letter or digit, not just on spaces:
         # "on-policy" was one token that squashed to "onpolicy" and could
         # never equal a narration word, since the line says "on policy".
-        allsig = [w for w in (squashed(x) for x in re.split(r"[^A-Za-z0-9.]+", str(label)))
+        allsig = [w for w in (squashed(x) for x in re.split(r"[^A-Za-z0-9.]+|(?<=[A-Za-z])\.|\.(?=[A-Za-z])", str(label)))
                   if len(w) >= 4]
         # Any starting word, not only the first. Requiring the label's first
         # significant word to appear before any other could match made
