@@ -119,12 +119,21 @@ def main() -> int:
         old.unlink()
 
     ffmpeg = os.environ.get("KB_FFMPEG", "ffmpeg")
-    rows = []
+    rows, failed = [], []
     for key in script:
         clip = audio_dir / f"{key}.wav"
         if not clip.exists() or key not in timing:
             continue
-        words = word_times(clip, args.device)
+        # One clip the aligner cannot handle must not take the whole report
+        # with it. faster-whisper raised IndexError inside find_alignment on
+        # a single take, and because every clip is transcribed before anything
+        # is printed, the references already found on seven other beats were
+        # never shown. Say which clip failed and carry on.
+        try:
+            words = word_times(clip, args.device)
+        except Exception as exc:
+            failed.append((key, f"{type(exc).__name__}: {exc}"[:120]))
+            continue
         for phrase, offset in find_references(words):
             # The clip starts a fifth of a second into the beat: render.py pads
             # every take with silence so two speakers never butt together.
@@ -137,6 +146,9 @@ def main() -> int:
             rows.append((at, key, phrase))
 
     print(f"{len(rows)} screen references, frames in {out}")
+    for key, why in failed:
+        print(f"  NOT CHECKED: '{key}' could not be word-aligned ({why}). "
+              f"Read that beat's references against its frames by hand.")
     for at, key, phrase in sorted(rows):
         print(f"  {at:7.2f}s  {key:16s} \"{phrase}\"")
     print("\nLook at each frame: the thing the line names has to be visible in it.")
