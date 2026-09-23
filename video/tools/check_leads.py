@@ -47,7 +47,20 @@ def squashed(text: str) -> str:
     """Letters and digits only, lowercased, spaces gone. As check_structure."""
     import re
     out = []
-    for token in re.findall(r"[A-Za-z]+|\d+", str(text)):
+    for token in re.findall(r"[A-Za-z]+|\d+\.\d+|\d+", str(text)):
+        if "." in token:
+            # "16.2" is said "sixteen point two", so a figure written as a
+            # figure was squashed to "sixteentwo" and could never be timed,
+            # which silently hid leads on exactly the beats carrying numbers.
+            whole, frac = token.split(".", 1)
+            try:
+                from num2words import num2words
+                out.append(num2words(int(whole)).replace(" ", "").replace("-", ""))
+                out.append("point")
+                out += [num2words(int(d)) for d in frac]
+                continue
+            except Exception:
+                pass
         if token.isdigit():
             try:
                 from num2words import num2words
@@ -57,6 +70,30 @@ def squashed(text: str) -> str:
                 pass
         out.append(token.lower())
     return "".join(out)
+
+
+FOCUS_PER_HANDLE = 0.25  # one fade each, and a handle is an ITEM not a row
+
+
+def focus_delay(visuals: dict, spec: dict) -> float:
+    """Seconds a `focus` beat spends lighting the map before it draws anything.
+
+    `focus_on` fades every handle, and `compact()` registers one handle per
+    ITEM as well as one per heading, so a four column map of four items each
+    is twenty fades and five seconds, not the one and a quarter you get by
+    counting rows. That time comes out of the front of the beat, so every
+    reveal on a focus beat lands later than the plain arithmetic says.
+    """
+    if not spec.get("focus"):
+        return 0.0
+    parked = next((v for v in visuals.values() if (v or {}).get("park")), None)
+    if not parked:
+        return 0.0
+    n = 0
+    for col in parked.get("columns", []):
+        n += 1 + len(col.get("items", []))
+    n += len(parked.get("layers", []))
+    return n * FOCUS_PER_HANDLE
 
 
 def reveals(spec: dict) -> list[list[str]]:
@@ -278,9 +315,10 @@ def main() -> int:
             continue
         reserve = float(spec.get("reserve", 0.0) or 0.0)
         words = " ".join(text for _speaker, text in script[key]).split()
-        budget = max(0.0, D - reserve)
+        lit = focus_delay(visuals, spec)
+        budget = max(0.0, D - reserve - lit)
         for k, labels in enumerate(groups, start=1):
-            drawn = RUN_TIME if n == 1 else (k - 1) / (n - 1) * budget
+            drawn = lit + (RUN_TIME if n == 1 else (k - 1) / (n - 1) * budget)
             at = said_at(words, labels)
             if at is None:
                 # Not checkable, and silence here reads exactly like a pass.

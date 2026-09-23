@@ -192,7 +192,13 @@ class Episode(PageVideo):
             # the reserve is the tail AFTER the park. Take the settle out of
             # the front of the reserve instead, so a parked beat wants a
             # reserve of roughly SETTLE plus the motionless tail it can afford.
-            self.wait(min(SETTLE, max(0.0, self.remaining())))
+            # Guarded: manim raises on wait(0), so a parked map whose beat
+            # has no reserve left crashed outright rather than simply not
+            # settling. Every parked map written before the settle landed has
+            # reserve 0, so this made those episodes unrenderable.
+            settle = min(SETTLE, self.remaining())
+            if settle > 0.05:
+                self.wait(settle)
             small = self.compact(spec, group)
             self.morph(group, small, run_time=0.7)
             # Never scale the stand-in UP. `park(width=...)` sets the width
