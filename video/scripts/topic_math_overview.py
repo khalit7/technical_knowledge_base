@@ -183,6 +183,38 @@ words a minute is the slowest beat in the episode and the one carrying least.
 Every still frame is between 1.9 and 4.95 seconds, and the closing beat's is
 1.9.
 
+Re-cut for timing only, 23 September 2026. Once `check_leads` began
+modelling the focus delay (0.25 s for each of the parked map's twenty
+handles, so five seconds at the head of every focus beat before anything
+draws), this cut showed six reveals named before they were drawn, worst 6.0 s:
+linalg's head 3.8, its first row 4.5 and its last 3.9; probability's
+"categorical" 4.6; information's first row 6.0; converge's "calculus" 4.1.
+Eight reveals were untimed, and hand-timing one of them, calculus's head,
+found a seventh lead of about 3.4. Every spoken word, the audio, the axis,
+the map and the beats are unchanged; only VISUALS moved:
+
+  - Five reveals made timeable by writing them as the line says them:
+    "never materialises a Jacobian", "binding constraint: activations",
+    "collapsed or barely moved? rank", "evaluation number? information".
+  - The heads of linalg, calculus and information are gone. Each was drawn
+    at the end of the five second focus while its words were spoken in the
+    first second or two (linalg's was a FIRST REVEAL LEAD that no reserve
+    or row can move), and dropping it moves every row one place earlier.
+    The focus on each stays, because the previous beat left a different
+    column lit.
+  - probability gained a closing row, "none of that / was taste", and
+    converge split its last row so "an N-way softmax" lands on the beat's
+    last sentence. Both re-space every earlier landing.
+  - Every reserve swept to what `--reserves` suggests.
+
+After: no lead over 1.8 s, the two untimed reveals are heads drawn no
+earlier than their words (probability's at the focus, 5.0 s, against "p of
+y given x" at about 6 s; close's at 0.0 with no focus), and every still
+between 2.4 and 4.7 s. Length unchanged at 6:57.
+
+One pre-existing defect is left because it is in the words: calculus says
+"Follow the arrows" over a `points` panel that has no arrows.
+
 Speakers:
   A  narrator, owns the spine and the visuals
   B  the listener, asks what the viewer is thinking, never chats
@@ -251,7 +283,7 @@ SCRIPT["question"] = [
 ]
 
 # --- linear algebra: the geometry of a representation ---------------------
-# Head plus four rows. Five segments, the last a dozen words. The condition
+# Four rows, no head since the 23 September re-cut (see the docstring). The condition
 # number is named here on purpose: the calculus beat's punchline is that the
 # Hessian is this same object, and that only works if the viewer has met it.
 SCRIPT["linalg"] = [
@@ -270,8 +302,8 @@ SCRIPT["linalg"] = [
 
 # --- probability: why this loss and not another --------------------------
 # A `table`, because the grid itself is the content: one assumption per row,
-# one loss per row. Header plus four rows is five reveals, so five segments
-# and a short fifth. The page's punchline, that the loss was never taste, is
+# one loss per row. Header plus five rows is six reveals since the re-cut:
+# the fifth row is the closing sentence, so it has something to land on. The page's punchline, that the loss was never taste, is
 # said at the end of segment four rather than in the tail, because eleven
 # words is all the tail holds.
 SCRIPT["probability"] = [
@@ -311,7 +343,7 @@ SCRIPT["statistics"] = [
 ]
 
 # --- calculus: the mechanism, and the constraint it imposes ---------------
-# Head plus four rows, five segments. The fifth is the connection rather than
+# Four rows, no head since the re-cut. The last is the connection rather than
 # a new fact: the Hessian is the condition number from the linear algebra
 # beat, and the Fisher information. That is what a tail reveal is for, and it
 # is why the condition number was named two beats earlier.
@@ -332,7 +364,7 @@ SCRIPT["calculus"] = [
 ]
 
 # --- information theory: what a number means ------------------------------
-# Head plus four rows, five segments, the last eleven words. The tokenizer
+# Four rows, no head since the re-cut, the last eleven words. The tokenizer
 # pair is split across the last two reveals so the tail has a reveal of its
 # own to land on.
 SCRIPT["information"] = [
@@ -351,7 +383,8 @@ SCRIPT["information"] = [
 
 # --- the convergence, which is the reason to see all four at once ---------
 # A `table` again, and the grid is the argument: one object, four places to
-# stand. Header plus four rows. The blank corner cell that slid a whole
+# stand. Header plus five rows since the re-cut, the fifth a blank-left
+# continuation carrying the closing sentence. The blank corner cell that slid a whole
 # header one column left in an earlier episode is not present here, both
 # header cells carry text.
 SCRIPT["converge"] = [
@@ -397,13 +430,13 @@ VISUALS = {
     # board down. Sixteen characters is the measured budget at four columns,
     # from the two four-column maps already shipped in this series.
     #
-    # `reserve` is 6.5 rather than the fitted value, because a parked beat
+    # `reserve` is 6.1, what `--reserves` suggests, and at least 2.7 because a parked beat
     # spends two seconds letting the finished board stand still and 0.7 on the
     # morph, both out of the FRONT of the reserve: the rendered still frame is
     # about reserve minus 2.7. The format's premise is that the viewer sees
     # the size and shape of the field before any one part of it means
     # anything.
-    "map": {"kind": "columns", "park": True, "reserve": 5.0, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 6.1, "columns": [
         {"head": "linear algebra", "tone": "subject", "items": [
             "rank",
             "eigen, SVD, QR",
@@ -441,9 +474,8 @@ VISUALS = {
                          "that you could not otherwise say?",
                  "note": "four areas, four different kinds of answer"},
 
-    "linalg": {"kind": "points", "tone": "subject", "reserve": 1.8,
+    "linalg": {"kind": "points", "tone": "subject", "reserve": 4.1,
                "focus": "linear algebra",
-               "head": "the notation all of it is written in",
                "items": [
                    "rank: how many directions",
                    "SVD: truncation as arithmetic",
@@ -453,7 +485,7 @@ VISUALS = {
 
     # Two columns rather than three, so the grid is about fifty characters
     # wide and fits the 7.8 units left beside the parked map.
-    "probability": {"kind": "table", "reserve": 3.5,
+    "probability": {"kind": "table", "reserve": 2.8,
                     "focus": "probability",
                     "head": ["assume p(y | x) is", "and the loss is"],
                     "rows": [
@@ -461,28 +493,27 @@ VISUALS = {
                         ["Bernoulli", "binary cross entropy"],
                         ["categorical", "softmax cross entropy"],
                         ["Poisson", "the Poisson loss"],
+                        ["none of that", "was taste"],
                     ]},
 
     # The figure is written as a figure, not spelled out, so "the number on
     # the screen" is a true sentence and the card is scannable.
-    "statistics": {"kind": "stat", "tone": "number", "reserve": 4.6,
+    "statistics": {"kind": "stat", "tone": "number", "reserve": 4.3,
                    "big": "1 point",
                    "caption": "gain, on a 500-example eval",
                    "note": "error bars shrink like 1 over root n"},
 
-    "calculus": {"kind": "points", "tone": "machinery", "reserve": 3.3,
+    "calculus": {"kind": "points", "tone": "machinery", "reserve": 2.8,
                  "focus": "calculus",
-                 "head": "the mechanics of how it trains",
                  "items": [
-                     "backprop never builds a Jacobian",
+                     "never materialises a Jacobian",
                      "backward costs 2x a forward",
-                     "activations, not FLOPs, bind",
+                     "binding constraint: activations",
                      "Hessian, condition number, Fisher",
                  ]},
 
-    "information": {"kind": "points", "tone": "verified", "reserve": 2.6,
+    "information": {"kind": "points", "tone": "verified", "reserve": 3.4,
                     "focus": "information",
-                    "head": "what a bit of data is worth",
                     "items": [
                         "cross-entropy is a code length",
                         "KL is the gap: the loss floors",
@@ -493,7 +524,7 @@ VISUALS = {
     # `focus` lists all four columns, which is how this vocabulary says no
     # emphasis, and is also the true statement about a beat whose whole
     # subject is the thing all four share.
-    "converge": {"kind": "table", "reserve": 3.6,
+    "converge": {"kind": "table", "reserve": 2.8,
                  "focus": ["linear algebra", "probability", "calculus",
                            "information"],
                  "head": ["read it as", "and cross entropy is"],
@@ -501,20 +532,21 @@ VISUALS = {
                      ["probability", "a maximum-likelihood estimator"],
                      ["information theory", "a code length"],
                      ["calculus", "the thing whose gradient is p - y"],
-                     ["contrastive learning", "InfoNCE, an N-way softmax"],
+                     ["contrastive learning", "InfoNCE"],
+                     ["", "an N-way softmax"],
                  ]},
 
     # Six reveals on the closing beat rather than one card held still, which
     # is the defect this series carried four times before the still-frame
     # check could fire. No focus: `converge` left all four lit, and the take
     # is about all four.
-    "close": {"kind": "points", "tone": "subject", "reserve": 1.5,
+    "close": {"kind": "points", "tone": "subject", "reserve": 2.8,
               "head": "where to look when you are stuck",
               "items": [
                   "why this loss? probability",
                   "out of memory? the backward pass",
-                  "a collapse? rank",
-                  "the eval number? entropy",
+                  "collapsed or barely moved? rank",
+                  "evaluation number? information",
                   "two areas, one object: keep it",
               ]},
 }
