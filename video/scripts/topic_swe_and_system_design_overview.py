@@ -90,7 +90,7 @@ What the critique step changed:
     traced back does not go in, and a video may add explanation but never a
     figure of its own.
 
-Length. Eight beats, thirty-two reveals, 1,009 words as shipped, planned at
+Length. Eight beats, thirty-two reveals (thirty after the re-cut), 1,009 words as shipped, planned at
 0.42 seconds a word (the top of the measured range, because planning short costs nothing
 and planning long drops the episode to 720p). The `fundamentals` beat carries
 six reveals and is deliberately the longest: six reveals is a sixty-five
@@ -114,7 +114,7 @@ a parked beat spends
 two seconds of settle and a 0.7 second morph out of the FRONT of its reserve,
 so anything under about 2.7 leaves the finished board no motionless time at
 all, which is the one thing this format exists to give the viewer. Its fit
-asked for 4.9 and it carries 6.5, which buys four seconds of finished board
+asked for 4.9 and it carried 6.5 (6.0 after the re-cut), which buys four seconds of finished board
 and, because a bigger reserve draws the columns earlier, smaller leads too.
 
 Focus states. The map is lit column by column as each pillar is discussed,
@@ -175,6 +175,28 @@ page. The five topic-wide resources are named where they do work in the
 question beat rather than listed at the end: an overview owes no resources
 card, only a deep dive does.
 
+Re-cut for timing, 23 September 2026. A closing audit against real word
+timestamps (`check_leads --words`) found six reveals named before they were
+drawn, worst 5.3 seconds, in `serving`, `fundamentals`, `testing` and `walk`.
+The episode had passed on the even-pace estimate. All four are focus beats,
+which spend three seconds lighting the twelve map handles before drawing
+anything, and three of them carried a `points` head that took one share of
+the drawing budget while its framing sentence was a single line. So, VISUALS
+only, audio byte-identical, no spoken word changed:
+
+  - dropped the heads on `fundamentals`, `testing` and `walk` ("naming the
+    bottleneck", "three separate things", "ten thousand tenants"), which
+    draws every row but the last earlier;
+  - split the `serving` cost row in two, "cost / somebody else's problem /
+    caching and routing" landing on B's question and A's answer, then a
+    continuation row with a blank first cell for "a later optimisation /
+    picks the design". That made n six and re-spaced every landing; the row
+    count the narration speaks ("Requests first", "Correctness is third")
+    stays true;
+  - swept every reserve to the `--reserves --words` suggestion.
+
+Worst lead after: 2.8 seconds, by word timestamps. Worst still: 5.5.
+
 Speakers:
   A  narrator, owns the spine and the visuals
   B  the listener, asks what the viewer is thinking, never chats
@@ -205,7 +227,7 @@ VISUALS = {
     # is at or under it. They shrink to 15 once the map is parked, but what
     # parking leaves on screen is the three headings and nothing else, so
     # the pill budget that matters is the map beat's own.
-    "map": {"kind": "columns", "park": True, "reserve": 6.5, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 6.0, "columns": [
         {"head": "systems fundamentals", "tone": "machinery", "items": [
             "OSTEP for the OS",
             "networking",
@@ -225,7 +247,7 @@ VISUALS = {
     # nowhere else. Every label is a phrase the narration says verbatim, in
     # its own segment, because the lead check can only time a reveal whose
     # label appears as a contiguous run.
-    "question": {"kind": "stack", "reserve": 2.8, "tone": "subject", "layers": [
+    "question": {"kind": "stack", "reserve": 3.0, "tone": "subject", "layers": [
         ("a better book exists", "for almost every box"),
         ("the direction of dependency", "what bounds what"),
         ("where a model bends it", "the four the page names"),
@@ -235,24 +257,27 @@ VISUALS = {
     # same four questions asked of two kinds of service. The corner cell is
     # deliberately not blank; an empty corner slides the whole header one
     # column left, silently, and the layout audit passes it.
-    "serving": {"kind": "table", "tone": "subject", "reserve": 4.0,
+    "serving": {"kind": "table", "tone": "subject", "reserve": 2.8,
                 "focus": "system design",
                 "head": ["what changes", "a CRUD service", "a model service"],
                 "rows": [
                     ["requests", "short and cheap", "seconds of GPU time"],
                     ["capacity", "fluid virtual CPUs", "whole GPUs"],
                     ["correctness", "binary", "statistical"],
-                    ["cost per call", "a later optimisation", "picks the design"],
+                    ["cost", "somebody else's problem", "caching and routing"],
+                    ["", "a later optimisation", "picks the design"],
                 ]},
 
+    # The head is gone since the re-cut, so five reveals now; the notes below
+    # describe the original six.
     # Six reveals, deliberately, and the only beat in the episode with more
     # than five: the four bottlenecks the page says you are expected to be
     # able to name, and then the OSTEP mapping as the payoff rather than as
     # a beat of its own. Ten to thirteen seconds a reveal makes this a
     # sixty-five second beat, which is why nothing else here runs long.
-    "fundamentals": {"kind": "points", "tone": "machinery", "reserve": 5.0,
+    "fundamentals": {"kind": "points", "tone": "machinery", "reserve": 5.1,
                      "focus": "systems fundamentals",
-                     "head": "naming the bottleneck", "items": [
+                     "items": [
                          "fsync latency, a millisecond",
                          "TCP slow start",
                          "the page cache",
@@ -270,9 +295,9 @@ VISUALS = {
     # One tone for all five, because a `points` panel takes one: the page
     # takes no position that any of the three kinds of test is a mistake, and
     # a cost tone here would say on screen that one of them is.
-    "testing": {"kind": "points", "tone": "verified", "reserve": 4.9,
+    "testing": {"kind": "points", "tone": "verified", "reserve": 5.1,
                 "focus": "software craft",
-                "head": "three separate things", "items": [
+                "items": [
                     "code: deterministic",
                     "data: schema and drift",
                     "model behaviour",
@@ -284,10 +309,10 @@ VISUALS = {
     #
     # It lights all three columns, which against a parked map is how this
     # vocabulary says "no emphasis": the beat is about the whole board.
-    "walk": {"kind": "points", "tone": "machinery", "reserve": 4.0,
+    "walk": {"kind": "points", "tone": "machinery", "reserve": 2.8,
              "focus": ["systems fundamentals", "system design",
                        "software craft"],
-             "head": "ten thousand tenants", "items": [
+             "items": [
                  "the physics bounds it",
                  "the traffic: queues and keys",
                  "the model: routing and caching",
@@ -297,7 +322,7 @@ VISUALS = {
     # Four reveals on the take, not one card. Measured across this series,
     # every closing beat that draws a single claim then holds it sits
     # motionless for fifteen to thirty seconds while the narrator finishes.
-    "close": {"kind": "points", "tone": "subject", "reserve": 5.2,
+    "close": {"kind": "points", "tone": "subject", "reserve": 4.3,
               "head": "what the board is for", "items": [
                   "justify up, debug down",
                   "the model bends four answers",
