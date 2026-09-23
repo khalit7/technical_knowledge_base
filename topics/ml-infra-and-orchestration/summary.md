@@ -1,5 +1,11 @@
 # Topic: ml-infra-and-orchestration
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: ml-infra-and-orchestration: four questions you answer whether you meant to or not](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/9abcdc83-edc3-4f80-be99-8bf6b3982575/topic_ml_infra_and_orchestration_overview.mp4)
+
 ⏱ 4 min read · +3h 35m resources
 
 Everything between "I have a training script" and "it runs reliably on 256 GPUs with

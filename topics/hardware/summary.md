@@ -1,8 +1,14 @@
 # Topic: hardware
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: hardware: the chip, the rack, the substation: at what scale was that measured?](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/cabd6c4e-4aaa-414a-89da-72ced6281de9/topic_hardware_overview.mp4)
+
 ⏱ 10 min read · +9h 13m resources
 
-The compute landscape that everything else in this knowledge base runs on: GPU architectures from Ampere to Blackwell (and Rubin), TPUs, the non-GPU accelerators, the interconnects that make clusters possible, and the back-of-envelope math that tells you whether a workload is compute bound or bandwidth bound before you run it.
+The compute landscape that everything else in this knowledge base runs on: GPU architectures from Ampere to Blackwell (and Rubin), TPUs, the non-GPU accelerators, the interconnects that make clusters possible, and the back-of-envelope math that tells you whether a workload is compute bound or bandwidth bound before you run it. One reading instruction for everything below. Hardware claims on this page are made at three different scales and they are not interchangeable: per chip, which decides what fits in memory; per scale-up domain, which decides what parallelism you can afford; and per gigawatt, which is where both the Vera Rubin economics and the energisation constraint below are already denominated. The unit of comparison has moved from the first to the third in about two years, most published figures have not caught up, and the first question about any of them is which scale it was measured at.
 
 ### Taxonomy
 

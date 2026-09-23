@@ -1,5 +1,11 @@
 # Topic: math
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: math: what each area lets you see](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/71d57f43-ebe5-48ff-8e0f-ef2bf6bed8ca/topic_math_overview.mp4)
+
 ⏱ 6 min read · +19h 55m resources
 
 Refresh-and-reference map of the mathematics behind ML: linear algebra, probability and statistics, calculus and optimisation, information theory. Depth lives in the linked deep-dive pages; this page is the index.
@@ -45,6 +51,8 @@ Four areas, each earning its place for a different reason, and one object they a
 **Information theory** is the measurement layer, and what makes language-model numbers mean something. **Cross-entropy** is the training objective read as a code length, the length you pay when the code was built for your model but the data came from reality; **KL divergence** is the gap, so the loss floors at the data's own entropy rather than at zero. Downstream this decides how you read evals: **perplexity** is tokenizer-dependent and cannot be compared across models with different vocabularies, while **bits-per-byte** is the tokenizer-free unit used in scaling-law work. The **forward versus reverse KL** asymmetry explains why MLE-trained models cover every mode of the data while RLHF-style KL penalties are mode-seeking and cost you output diversity.
 
 Two things only visible with all four areas in view. **Cross entropy is one object wearing four hats**: a maximum-likelihood estimator (probability), a code length (information theory), the quantity whose gradient collapses to `p - y` (calculus), and, as an N-way softmax over a single positive, the contrastive objective InfoNCE. And **curvature is one object read three ways**: the Hessian of a loss, the condition number of a matrix, and the Fisher information of a model.
+
+**Which area to reach for is a diagnosis.** If you cannot see why the loss is that loss and not some other one, that is **probability**: choose the distribution and the loss is already decided. If a run has exhausted memory and you cannot see where it went, that is **calculus**, and nearly always the backward pass. If a representation has collapsed, or a fine-tune has barely moved anything, that is **linear algebra**, and the word is **rank**. And if an eval number will not tell you what it actually means, that is **information theory**. Where two of the four answer with the same object, as they do for cross entropy and for curvature, that is one idea you were carrying two copies of.
 
 ### Map of the deep dives
 

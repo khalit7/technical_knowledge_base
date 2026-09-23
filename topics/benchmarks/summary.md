@@ -1,5 +1,11 @@
 # Topic: benchmarks
 
+## Video
+
+A narrated 6-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: benchmarks: what a headline number leaves out](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/51ac96c3-903d-4110-be4c-d03bc05f9ae8/topic_benchmarks_overview.mp4)
+
 ⏱ 20 min read · +4h 13m resources
 
 The benchmark landscape turns over fast: anything a frontier model scores above ~90% on
@@ -222,6 +228,7 @@ A cluster of benchmarks arriving in September 2026 measure something other than 
 
 ### How to read the landscape
 
+- Three questions settle most of it, and none takes long. **When was it measured**, given that Terminal-Bench-Science 0.1 lost 22 points of headroom in seven days. **What harness did it run in**, given 62.7% against 99.9% for one model on one ARC-AGI-3 task set. **Has anyone checked the answer key**, given roughly 29% of HLE's text-only chemistry and biology answers contradicted by the literature. A figure that survives none of the three is not a measurement.
 - Model cards now lead with: HLE, AIME (current year), SWE-bench
   Verified/Pro, Terminal-Bench 4.0, Terminal-Bench-Science, Real-SWE, ARC-AGI-2/3, OSWorld, tau2-bench, MMMU-Pro, LMArena Elo. GPQA Diamond is still printed but no longer discriminates at the frontier.
 

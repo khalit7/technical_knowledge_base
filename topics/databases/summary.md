@@ -1,5 +1,11 @@
 # Topic: databases
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: databases: three stacked choices, and the trade every engine made](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/4e8c90ae-fa44-4cb7-abad-67c5ce2a3728/topic_databases_overview.mp4)
+
 ⏱ 28 min read · +62h 20m resources
 
 Outcome first: for almost everything you will build, Postgres is the correct default, Parquet on object storage queried by DuckDB or ClickHouse is the correct analytics layer, and Redis is the correct cache. Everything else on this page is a specific escape hatch you take once a measured workload proves the default wrong. A database is really three stacked choices: a **data model** (how you say what you mean), a **storage engine** (rows or columns, B-tree or LSM-tree), and a **distribution story** (replication, partitioning, and which consistency you are willing to pay for). Most product categories are the top layer plus one specialised index rather than a genuinely new kind of system, which is why "vector database" is best read as "an ANN (approximate nearest neighbour) index that someone sells separately".
@@ -72,6 +78,7 @@ graph TD
 - **Replication and partitioning.** Replication is copies of the same data (single-leader with sync or async followers, multi-leader, or leaderless quorums) and buys availability and read scale. Partitioning, or sharding, splits different data across nodes (by hash for even spread, by range for range scans) and buys write scale plus capacity. They are orthogonal, you almost always need both, and the shard key is the decision you cannot cheaply reverse.
 - **CAP and PACELC as they actually apply.** CAP only says something during a partition: stay consistent or stay available. The useful generalisation is PACELC: on Partition choose Availability or Consistency, Else choose Latency or Consistency. That "else" branch is the one you live in every day. Single-leader systems (Postgres, MongoDB) are CP-ish and fail over with a gap; Cassandra and DynamoDB let you dial it per query with quorums; Spanner buys strict consistency by paying commit-wait latency against TrueTime bounds. See [Topic: swe-and-system-design](../swe-and-system-design/summary.md) for the systems-design treatment.
 - **The data lifecycle.** Retention, archival, and deletion are design decisions rather than cleanup tasks, and the cheapest moment to make them is when you design the schema. Privacy and compliance obligations attach exactly here: right to erasure, data residency, and audit retention are all lifecycle questions, and a store with no deletion path is a store you will eventually have to migrate off.
+- **The categories are converging.** Every family here is a storage engine plus an index, so the same physical trades keep arriving from different directions and the boundaries move every year. Postgres absorbs its neighbours through extensions: JSONB for documents, pgvector for embeddings, TimescaleDB for time-series, PostGIS for geometry, full-text search built in. The specialists move onto the same substrate from the other side: InfluxDB v3 is a Parquet and DataFusion engine, ClickHouse frequently beats a dedicated time-series store at its own job, Elasticsearch scores dense vectors, a lakehouse table lets Spark, Trino, DuckDB, ClickHouse and Snowflake read the same bytes, and a feature store turns out to be two ordinary databases with a name. The practical consequence: a category boundary is a weak reason to add a system, and the axes above are a strong one.
 
 ### How to actually choose (2 min)
 
@@ -82,6 +89,7 @@ When a measured limit forces you off the default, five questions decide the repl
 3. **What is the write volume, and what shape is it?** Steady low thousands per second is one Postgres box with room to spare. Hundreds of thousands of appends per second across regions is Cassandra or a log. The peak and the hot partition decide this, not the average, so a bursty skewed workload is a different question from a large smooth one.
 4. **How much do you know today?** Unknown future queries favour a normalised relational schema you can query new ways for free. Known, frozen access patterns are what license a denormalised store, and they are also exactly what you lose the first time the product changes.
 5. **What can your team operate at 3am?** A database nobody on the rota can debug under load is the wrong database regardless of its benchmarks. Count the operational surface honestly: backups, restores actually tested, failover behaviour, version upgrades, and who gets paged.
+**Then check what you cannot walk back.** Almost every answer above is reversible at the cost of a migration, which is expensive but finite. Two are not: the shard key in a partitioned store, and the partition key in a wide-column one, because changing either means rewriting every row. Everything else on this page you are allowed to change your mind about later, so this is where the judgement belongs.
 
 ### Comparison of the major types (5 min)
 

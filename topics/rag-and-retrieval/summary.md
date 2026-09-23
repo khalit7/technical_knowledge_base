@@ -1,5 +1,11 @@
 # Topic: rag-and-retrieval
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: rag-and-retrieval: a pipeline you build, or a tool the agent calls](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/36023dad-4e06-4c19-aaf9-3af1eeb7f43c/topic_rag_and_retrieval_overview.mp4)
+
 ⏱ 6 min read · +1h 30m resources
 
 Retrieval-augmented generation: everything between a user query and grounded, cited

@@ -1,5 +1,11 @@
 # Topic: llms
 
+## Video
+
+A narrated 6-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: llms: who builds what, and what is left to separate them](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/0dd1a05c-bca5-405f-b29f-974ae8b26bc5/topic_llms_overview.mp4)
+
 ⏱ 25 min read · +6h 8m resources. **Whole llms subtree: 2h 47m read · +57h 44m resources.**
 
 This page is the map of who builds what. Per-family depth lives in the model-family pages listed at the end, and thematic deep dives in [Reasoning models and test-time compute](reasoning-models.md) and [Mixture-of-Experts (MoE) models](moe-models.md). Add dedicated model pages when the material warrants them.
@@ -7,6 +13,8 @@ This page is the map of who builds what. Per-family depth lives in the model-fam
 ### State of play, September 2026, in six sentences
 
 The frontier is crowded and close: Claude Fable 5.1 and Opus 5, GPT-6 Astra, Gemini 3.8 Flash, Muse Spark 1.3 and Grok 4.6 trade the lead by task, with Kimi K3 the highest-placed open-weight model inside that pack on the aggregate indices, though GLM-5.3 leads open weights on private enterprise code and DeepSeek V4 Pro on SWE-bench verified, so which open model "leads" is now a question about the benchmark rather than about the models. Sparse MoE is the default architecture everywhere, and dense models survive only at small scale. Every flagship is now a reasoning ("thinking") model with an adjustable or routed test-time compute budget, so the standalone reasoning-model category has dissolved into the mainline, and GPT-6 Astra extended that budget into latent space through recurrent depth, which is deliberation a monitor cannot read. Open weights are led from China (DeepSeek, Qwen, Moonshot, Zhipu, MiniMax, and now Tencent), with Mistral, Ai2 and the Institute of Foundation Models the main counterweights; Meta left the *open* frontier but Muse Spark 1.3 put it back in the frontier band without returning to open weights. 1M-token context is table stakes, which drove every lab onto some form of trainable sparse or linear attention (DeepSeek DSA and CSA, MiniMax MSA, Kimi Delta Attention, Qwen QSA) and made KV-cache economics the visible product decision rather than an implementation detail. DeepSeek V4.1-Flash then reversed the field's decoder-only consensus at 552B, shipping the first frontier-scale open encoder-decoder for exactly that serving reason.
+
+**How to read the rest of this page.** Once that skeleton is shared, only two things are left to separate one lab from another, and every difference below is one or the other. The first is where the test-time budget is spent: hidden behind OpenAI's router, handed to the caller as Anthropic's token budget, spread across parallel branches in Gemini Deep Think, or sunk into activations that never become text by GPT-6 Astra's recurrent depth. The second is what the model costs to serve, which is what DeepSeek's encoder-decoder reversal, GLM-5.3-Flash's IndexPool, Qwen's QSA and the whole race on active-parameter counts are about. Capability rankings change monthly; those two bets move over years, which is why this map predicts what a lab does next better than any leaderboard does.
 
 ### Taxonomy
 

@@ -1,5 +1,11 @@
 # Topic: agentic-frameworks
 
+## Video
+
+A narrated 6-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: agentic-frameworks: one axis: how much of the agent loop do you own?](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/f040a0ca-fb26-4882-b3ed-9fbfe5ddb7ef/topic_agentic_frameworks_overview.mp4)
+
 ⏱ 10 min read · +1h 58m resources
 
 Frameworks for BUILDING agents: orchestration libraries, gateways, observability, and
@@ -38,6 +44,8 @@ graph TD
 ```
 
 ### Map of the space
+
+One axis runs through all four layers: **how much of the agent loop you own**. Orchestration is where you pick a position on it, and gateways, observability and memory are what you add once the loop runs, whichever position you picked. Since September 2026 that axis has a far end where you own none of it, which is the *buy the loop* position under Framework vs plain API calls below.
 
 **Orchestration** is where the real design choice lives. Four schools:
 
