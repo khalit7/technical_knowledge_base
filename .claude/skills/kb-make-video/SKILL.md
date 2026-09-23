@@ -7,7 +7,7 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
-*This copy is the page as Notion last edited it, 2026-09-23 08:21:00 UTC. A procedure*
+*This copy is the page as Notion last edited it, 2026-09-23 08:25:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
 *The copy your skill loader served you can also be behind this file: if you were told*
@@ -186,7 +186,7 @@ uv run --group tts --group video python video/tools/check_leads.py --script <epi
 
 Every re-cut agent in the series asked for this, because the pieces were spread across the page. In order of cost:
 
-1. **Make every reveal timeable first.** An untimed reveal is unchecked, not passed, and making one timeable has turned up real leads of 9.7 and 12.6 seconds. Write each panel item as the narration says it: same spelling ("License" against "licence" breaks the match), and no label word spoken earlier for some other reason.
+1. **Make every reveal timeable first, and expect it to create work rather than only remove doubt:** An untimed reveal is unchecked, not passed, and making one timeable has turned up real leads of 9.7 and 12.6 seconds. Write each panel item as the narration says it: same spelling ("License" against "licence" breaks the match), and no label word spoken earlier for some other reason.
 2. **Drop a focus the previous beat makes redundant.** The first reveal draws only after the map finishes lighting, 0.25 seconds per handle, so a focus beat whose heading is spoken in its first words has a guaranteed lead that no reserve or row can touch. --reserves flags it as FIRST REVEAL LEADS. **On a focus beat, go to step 5 next rather than step 3**: dropping a points heading draws every row but the last earlier, and it was the whole fix on three of four beats in one re-cut, with no rows added.
 3. **Sweep each reserve** to the value --reserves suggests, midway between the lead floor and the still cap. That can be **lower** than the reserve already there, and it is still right: a lower reserve is safe whenever the floor sits well below it.
 4. **Add a row** for a sentence the beat already speaks with no reveal, near the end of the line. Make the new label a **contiguous run of that sentence**: the matcher looks for a label anywhere in the beat, so any word it shares with an earlier sentence creates a fresh lead. That holds for the two-word route too, not only the contiguous one: "one rack, one domain" matched "rack" and "domain" from a different sentence eleven words apart and reported an 11.6 second lead. Pick label words that first appear in the label's own sentence. "position bias" and "small judge" each matched an early sentence on one beat and would have produced leads of 8 to 35 seconds. Nine lines of `points` beside a parked map still read cleanly, so rows are not scarce.
@@ -194,7 +194,7 @@ Every re-cut agent in the series asked for this, because the pieces were spread 
 6. **Re-point a note** on a two-reveal claim or stat to the beat's last sentence.
 7. **Re-panel** where the kind cannot fit the beat: compare takes up to four sides, an over-long compare wants points rather than table, and bars cannot gain rows at all.
 8. **Only then touch the words.**
-Steps 2 to 7 change only VISUALS and leave the audio byte-identical. Record a re-cut in Updates like a new video, titled "the <topic> video re-cut". The reasoning behind each step follows.
+Steps 2 to 7 change only VISUALS and leave the audio byte-identical. **The gate before publishing is ****`check_leads --words`**, not the default estimate: one re-cut passed on the estimate, published, and then found a 3.6 second lead with `--words`, which cost a second render and upload. Iterate on the estimate because it is instant; publish on `--words`. Record a re-cut in Updates like a new video, titled "the <topic> video re-cut". The reasoning behind each step follows.
 
 **The one invariant that makes all of this tractable: reveal n always lands at ****`beat - reserve`****.** Everything else follows from it, including the corollary that saves the most time: **the last reveal's lead is set only by the words spoken after it is named.** Adding words *before* a reveal changes nothing, because the naming and the drawing move together; one author spent an hour on a map beat before seeing that the 42 words after the third column were the whole problem and the 81 before it were irrelevant. So a beat is fixable by reserve only if something is named in its final few seconds.
 
@@ -670,7 +670,7 @@ A bespoke scene is still allowed and has to earn itself. The memory pyramid and 
 
 This is the number authors actually need, and "keep panels small" is not it. The frame is about 14 units wide. A parked map takes the left 4.2 plus a gutter, so the free region beside it is **about 7.8 units**. **A ****`columns`**** panel reads top to bottom within each column**, so architectural language has to match: writing "c ten d underneath, D Tensor above it" contradicts a frame where c10d is the topmost pill. Decide which way the stack runs on screen before writing "above" or "under" at all.
 
-**Changing a panel's kind invalidates every spatial word in the beat, and no check can see it.** A `VISUALS`-only repair feels safe because the narration is untouched, but "on the right of the screen" is false the moment a `compare` becomes a list, and `check_references` has no such phrase in its list. Re-read the beat's lines against the new panel by hand; two of one re-cut's three broken references were found no other way.
+**Changing a panel's kind invalidates every spatial word in the beat, and no check can see it.** A `VISUALS`-only repair feels safe because the narration is untouched, but "on the right of the screen" is false the moment a `compare` becomes a list, and `check_references` has no such phrase in its list. Re-read the beat's lines against the new panel by hand; two of one re-cut's three broken references were found no other way. **Adding a row breaks narration that counts rows** in the same way: a line saying "Third row" is false once a row is inserted above it. A row with a blank first cell reads as a continuation of the one before and keeps the count true.
 
 **Four columns is the practical maximum for a map**, and a fifth page-level group belongs inside one of them or in a beat of its own. The "five is the coloured-blocks failure" figure is for the space beside a parked map; on the map beat itself there are about 12.4 units, so five is marginal rather than fatal, which is a distinction worth not having to derive from the formula.
 
