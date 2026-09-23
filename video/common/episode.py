@@ -271,13 +271,25 @@ class Episode(PageVideo):
         live = set()
         for mob in self.mobjects:
             live |= set(mob.get_family())
+        # Several names point at one row: a parked map registers every item
+        # under its heading's row as well as the heading itself. Iterating the
+        # names faded that row once per item and then once more for the
+        # heading, a quarter second each, so a four by four map spent five
+        # seconds at the head of every focus beat. And because the heading is
+        # registered last, focusing on an item lit the row and then dimmed it
+        # again. So group the names by row: each row fades once, lit if any of
+        # its names is wanted.
+        rows = {}
         for name, mob in self.handles.items():
+            lit = rows.get(id(mob), (mob, False))[1] or name in wanted
+            rows[id(mob)] = (mob, lit)
+        for mob, lit in rows.values():
             # A handle belonging to a panel that has been retired is skipped,
             # because Scene.play re-adds an animation's mobject and the dead
             # panel would come back at 35% opacity for the rest of the episode.
             if mob not in live:
                 continue
-            self.fade_to(mob, 1.0 if name in wanted else 0.35, run_time=0.25)
+            self.fade_to(mob, 1.0 if lit else 0.35, run_time=0.25)
 
     # -- panels ------------------------------------------------------------
 

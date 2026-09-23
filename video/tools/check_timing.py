@@ -127,6 +127,10 @@ def main() -> int:
     total = sum(durations.get(b["key"], b.get("dur", 0.0)) for b in beats)
     said = sum(spoken_words(script[b["key"]]) for b in beats if b["key"] in script)
     overall = f", {said / (total / 60.0):.0f} wpm overall" if said and total else ""
+    worst = max(beats, key=lambda b: b.get("still", 0.0), default=None)
+    if worst:
+        print(f"longest still frame {worst.get('still', 0.0):.2f}s on "
+              f"'{worst['key']}' (limit {STILL_LIMIT:.0f}s)")
     print(f"\n{len(beats)} beats, none overlapping, no silence over "
           f"{SILENCE_LIMIT:.0f}s, none above {FAST_WPM:.0f} wpm{overall}")
     return 0

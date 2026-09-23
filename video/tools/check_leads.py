@@ -96,24 +96,28 @@ def squashed(text: str) -> str:
 FOCUS_PER_HANDLE = 0.25  # one fade each, and a handle is an ITEM not a row
 
 
+PER_NAME_FOCUS = False   # set by --per-name-focus, for cuts rendered before the fix
+
+
 def focus_delay(visuals: dict, spec: dict) -> float:
     """Seconds a `focus` beat spends lighting the map before it draws anything.
 
-    `focus_on` fades every handle, and `compact()` registers one handle per
-    ITEM as well as one per heading, so a four column map of four items each
-    is twenty fades and five seconds, not the one and a quarter you get by
-    counting rows. That time comes out of the front of the beat, so every
-    reveal on a focus beat lands later than the plain arithmetic says.
+    `focus_on` fades each parked ROW once, a quarter second each: one row per
+    column heading or stack layer. It used to fade once per registered NAME,
+    and `compact()` registers every item under its heading's row as well, so a
+    four by four map cost five seconds instead of one. Episodes rendered
+    before that fix still carry the old cost in their video; this models the
+    current renderer, so audit an old cut with `--per-name-focus`. The time comes out of the front of the beat, so
+    every reveal on a focus beat lands that much later than plain arithmetic.
     """
     if not spec.get("focus"):
         return 0.0
     parked = next((v for v in visuals.values() if (v or {}).get("park")), None)
     if not parked:
         return 0.0
-    n = 0
-    for col in parked.get("columns", []):
-        n += 1 + len(col.get("items", []))
-    n += len(parked.get("layers", []))
+    n = len(parked.get("columns", [])) + len(parked.get("layers", []))
+    if PER_NAME_FOCUS:
+        n += sum(len(c.get("items", [])) for c in parked.get("columns", []))
     return n * FOCUS_PER_HANDLE
 
 
@@ -355,22 +359,51 @@ def heard_words(script_name: str, key: str, device: str):
     return _HEARD[key]
 
 
+def aligned_time(words, heard, at):
+    """The heard time of script word `at`, by aligning script to transcript.
+
+    Timing a label by searching the transcript for it failed both ways: a
+    garbled first mention made it match a later one and hide a lead, and the
+    guard against that fell back to the even-pace estimate, which a pause
+    throws early (a 5.7 second pause after a listener's line made it report a
+    4.4 second lead on a label spoken after it was drawn). Locating the label
+    in the SCRIPT, the exact text it was written against, and aligning script
+    words to heard words avoids both: the time comes from the audio, so a
+    pause cannot skew it, and a garbled word is still placed by its
+    neighbours.
+    """
+    import difflib
+    sw = [squashed(w) for w in words]
+    hw = [squashed(w) for w, _s, _e in heard]
+    pairs = []
+    for blk in difflib.SequenceMatcher(None, sw, hw, autojunk=False).get_matching_blocks():
+        pairs += [(blk.a + i, blk.b + i) for i in range(blk.size)]
+    if not pairs:
+        return None
+    before = [(a, b) for a, b in pairs if a <= at]
+    after = [(a, b) for a, b in pairs if a > at]
+    if before and before[-1][0] == at:
+        return heard[before[-1][1]][1]
+    if before and after:
+        (a0, b0), (a1, b1) = before[-1], after[0]
+        t0, t1 = heard[b0][1], heard[b1][1]
+        return t0 + (t1 - t0) * (at - a0) / max(a1 - a0, 1)
+    return heard[(before[-1] if before else after[0])[1]][1]
+
+
 def said_seconds(labels, words, D, heard):
     """When the label is spoken, from real word times if we have them."""
     at = said_at(words, labels)
     estimate = None if at is None else at / max(len(words), 1) * D
     if heard:
+        if at is not None:
+            t = aligned_time(words, heard, at)
+            if t is not None:
+                return t, "heard"
+        # The script cannot place it; search the transcript instead.
         hat = said_at([w for w, _s, _e in heard], labels)
         if hat is not None:
-            t = heard[hat][1]
-            # Trust the transcript for the second of drift it exists to fix,
-            # not for a jump. A far-later match usually means the transcriber
-            # mangled the first mention and the match landed on a later one,
-            # which would hide a real lead; so take the earlier figure and say
-            # it needs a human.
-            if estimate is not None and abs(t - estimate) > DISAGREE:
-                return min(t, estimate), "disagree"
-            return t, "heard"
+            return heard[hat][1], "heard"
     if estimate is None:
         return None, None
     return estimate, "estimated"
@@ -388,10 +421,15 @@ def main() -> int:
     ap.add_argument("--words", action="store_true",
                     help="time labels from real word timestamps (needs a GPU)")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--per-name-focus", action="store_true",
+                    help="model the old focus cost (one fade per item as well "
+                         "as per heading), for a cut rendered before 2026-09-23")
     ap.add_argument("--estimate", action="store_true",
                     help="work from word counts, before any voice exists")
     args = ap.parse_args()
 
+    global PER_NAME_FOCUS
+    PER_NAME_FOCUS = args.per_name_focus
     mod = importlib.import_module(f"scripts.{args.script}")
     script, visuals = mod.SCRIPT, getattr(mod, "VISUALS", {})
     measured = ROOT / "out" / "audio" / args.script / "durations.json"
@@ -437,7 +475,7 @@ def main() -> int:
                 # says as a contiguous run simply cannot be located in time.
                 # Report it rather than skipping, or the clean-looking table
                 # is hiding however many reveals nobody timed.
-                label = (labels[0] or "?")[:26]
+                label = (next((x for x in labels if x), "") or "?")[:26]
                 print(f"{key:16s} {label:28s} {'':>7s} {'':>7s} {'':>7s}"
                       f"  NOT SAID VERBATIM, so not timed")
                 unchecked.append((key, labels[0]))
@@ -449,7 +487,7 @@ def main() -> int:
             if lead > args.tolerance:
                 flag = "  NAMED BEFORE IT IS DRAWN" + flag
                 problems.append((key, labels[0], lead))
-            label = (labels[0] or "?")[:26]
+            label = (next((x for x in labels if x), "") or "?")[:26]
             print(f"{key:16s} {label:28s} {drawn:7.1f} {said:7.1f} {lead:7.1f}{flag}")
 
     if unchecked:
