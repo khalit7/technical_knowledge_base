@@ -72,6 +72,52 @@ What the critique step changed:
     frame, which is where these videos die; in the take it is the thing a
     viewer should actually do differently.
 
+What the 23 September re-cut changed, and what it deliberately did not.
+The published cut had eleven reveals the narrator named before the animation
+drew them, the worst of them 39.9 seconds, and every one had passed every
+other check. Nothing above this paragraph moved: the map, its four shelves,
+the organising question, the beats, the take and every spoken word are as
+published, and the audio was not re-rendered. Only VISUALS changed, which is
+why this cost a manim render and no GPU.
+
+  - `map` gained a reserve of 6.0. That closes both its leads, because a
+    bigger reserve draws every column earlier, and it buys the finished board
+    about three seconds of standing still. It also fixes a render failure
+    nobody had hit: with no reserve, `spread` used the whole beat and the
+    park's two second settle then asked manim to wait zero seconds.
+  - `sees` and `allowed` were `compare` panels, which have exactly two
+    reveals however much is written on each side. On a 55.6 second beat that
+    is a column drawn 39.9 seconds after it is named, and the fit asks for a
+    reserve of fourteen against a still-frame ceiling of 5.5. They are points
+    lists now, five and six rows, each row placed at a moment the narration
+    actually names something. The cost is the spatial contrast: the two
+    extremes are now carried by the head and the order of the rows.
+  - `adapter` and `numbers` were bar charts, and this is the part of the
+    repair worth arguing with. A bars panel takes a row only by inventing a
+    value, and this page has no third ARC Prize number and no fourth Real-SWE
+    score, so the vocabulary's cheapest fix, add a row, is exactly the one
+    that is unavailable on the panel kind that most often runs out of rows.
+    The 62.7 against 99.9 gap survives as two figures a line apart, and the
+    three Real-SWE scores as a column in a grid, which is weaker than a bar.
+  - `cli` and `surfaces` kept their kind and gained two rows and one. The
+    surfaces table's fourth row has a blank left cell, which is safe in a
+    body row: it is the header row's blank corner that slides a table.
+  - `take` was a `claim`, which is one card and then nothing for half a
+    minute, scored at eighteen seconds of motionless frame. Seven pieces now,
+    and no `focus`, because the map has been fully lit since `sees`.
+  - `question` gained a reserve of 5.0 so its note arrives with the sentence
+    it paraphrases rather than eight seconds after it.
+
+Two things the check cannot see, recorded so the next reader does not have to
+re-derive them. A score written as a figure can never be timed, because the
+narration says "sixteen point two" and the squashed panel string is
+"sixteentwo": Fable 5.1 and GPT-5.6 Sol are hand-timed at 16.5 and 25.3
+seconds against reveals at 8.2 and 24.7. And `focus_on` plays one fade per
+handle rather than per row, so a beat carrying a focus against this
+four-column, sixteen-item map spends about five seconds before it draws
+anything, which `check_leads` does not model. Every reserve here was fitted
+against that five seconds as well as against the check.
+
 Beats deliberately not written, so the next person knows it was a decision.
 There is no contract beat: an overview builds the whole map on screen before
 explaining any of it, which is a stronger promise than a list of steps, and
