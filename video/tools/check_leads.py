@@ -26,6 +26,7 @@ beat to rewrite.
 from __future__ import annotations
 
 import argparse
+import re
 import importlib
 import json
 import sys
@@ -187,7 +188,11 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
     #    words in fourteen is specific enough to mean the item is being named;
     #    one word anywhere is not.
     for label in labels:
-        allsig = [w for w in (squashed(x) for x in str(label).split()) if len(w) >= 4]
+        # Split on anything that is not a letter or digit, not just on spaces:
+        # "on-policy" was one token that squashed to "onpolicy" and could
+        # never equal a narration word, since the line says "on policy".
+        allsig = [w for w in (squashed(x) for x in re.split(r"[^A-Za-z0-9.]+", str(label)))
+                  if len(w) >= 4]
         # Any starting word, not only the first. Requiring the label's first
         # significant word to appear before any other could match made
         # "ignore the 67x per dollar headline" untimeable while "ignore the
