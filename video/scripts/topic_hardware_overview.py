@@ -245,6 +245,19 @@ contiguous match, which means the narration has to say "A M D, M I three
 hundred X to M I four hundred" with nothing at all in between: an "up" in "up
 to" breaks the run and orphans the pill. Same for "NVLink and NVSwitch", which
 needs "N V Link and N V Switch" said back to back.
+
+Re-cut 2026-09-23, for timing only, audio byte-identical. The published cut was
+fitted before check_leads modelled the focus delay (0.25 s per map handle,
+seventeen handles, so 4.25 s off the front of chips, rack, grid and close).
+A fresh render found five leads, worst 8.5 s on `close`, a 6.0 s still on
+`close`, and thirteen untimed reveals. The repair: every row rewritten as the
+narration says it; the points heads on chips, rack, grid and close dropped,
+since on a focus beat a head only pushes every row one place later; `close`
+gained "three funded challengers" for a sentence that had nothing drawn under
+it; every reserve swept to the --reserves midpoint. Worst lead now 2.2 s on
+real word timestamps, worst still 4.1 s. The first NVL72 label, "one rack, one
+domain", matched a rack and a domain spoken twenty seconds earlier; keep
+labels to words that first appear in their own sentence.
 """
 
 A = "A"
@@ -453,7 +466,7 @@ VISUALS = {
     # into its headings, and the format's premise is that the viewer sees the
     # whole field before any part of it means anything. That leaves a
     # motionless tail of about three and a half seconds.
-    "map": {"kind": "columns", "park": True, "reserve": 7.5, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 6.2, "columns": [
         {"head": "per chip", "tone": "subject", "items": [
             "Nvidia: A100 to Rubin",
             "AMD: MI300X to MI400",
@@ -479,31 +492,29 @@ VISUALS = {
     #
     # No focus: the map was built one beat ago with all three columns lit, and
     # that is exactly the state a question about the whole board wants.
-    "question": {"kind": "claim", "reserve": 5.2,
+    "question": {"kind": "claim", "reserve": 2.8,
                  "text": "At what scale\nwas that measured?",
                  "note": "the chip, the rack, the grid connection"},
 
     # Toned `subject`: this is the first scale and the one the rest of the
     # episode keeps stepping away from.
-    "chips": {"kind": "points", "tone": "subject", "reserve": 5.5,
+    "chips": {"kind": "points", "tone": "subject", "reserve": 3.1,
               "focus": "per chip",
-              "head": "what one part still decides",
               "items": [
                   "memory, not arithmetic",
-                  "Groq: no HBM, 230 MB SRAM",
-                  "Cerebras: one 46,000 mm2 die",
-                  "Positron: $875M against HBM",
+                  "Groq: no HBM, 230 MB on chip",
+                  "Cerebras: 46,000 mm2 wafer",
+                  "Positron raised $875M vs HBM",
                   "Ironwood: 50%, Google's own",
               ]},
 
     # Toned `number`, matching the column it lights, because every line here is
     # a measured bandwidth or a measured capacity rather than a verdict.
-    "rack": {"kind": "points", "tone": "number", "reserve": 5.4,
+    "rack": {"kind": "points", "tone": "number", "reserve": 2.8,
              "focus": "the scale-up domain",
-             "head": "why the rack became the unit",
              "items": [
-                 "NVLink: 1.8 TB/s per GPU",
-                 "NVL72: 72 GPUs, one domain",
+                 "NVLink, 1.8 terabytes a second",
+                 "NVL72: 72 parts, one domain",
                  "outside: a twentieth of that",
                  "now contested three ways",
                  "or make the domain bigger",
@@ -516,11 +527,11 @@ VISUALS = {
     #
     # Cells are kept to sixteen characters, because a three-column table has to
     # fit the roughly seven point eight units left beside the parked map.
-    "rubin": {"kind": "table", "reserve": 5.5,
+    "rubin": {"kind": "table", "reserve": 3.0,
               "head": ["the claim", "measured how", "how to read it"],
               "rows": [
                   ["7x per megawatt", "pre-release", "Nvidia said 3x"],
-                  ["1.4x-3x per TCO", "at 60-100 tok/s", "use this one"],
+                  ["1.4x-3x per TCO", "at 60-100 tok/s", "the one to use"],
                   ["67x per dollar", "an extreme point", "an outlier"],
               ]},
 
@@ -528,14 +539,13 @@ VISUALS = {
     # that has to be paid for in time, power or money. The modelled profit line
     # is the exception and it sits here because it is denominated in gigawatts,
     # which is the point of the beat.
-    "grid": {"kind": "points", "tone": "cost", "reserve": 5.5,
+    "grid": {"kind": "points", "tone": "cost", "reserve": 3.6,
              "focus": "power and supply",
-             "head": "scale three: the substation",
              "items": [
                  "15 GW scheduled, maybe dark",
                  "transformers: 48-60 months",
-                 "$149.9B vs $105.3B per GW",
-                 "DRAM up 500% in a year",
+                 "per gigawatt: $149.9B profit",
+                 "DRAM prices, up 500%",
              ]},
 
     # The take, as five lines that unfold with it rather than one card held
@@ -546,15 +556,15 @@ VISUALS = {
     # megawatt line as `verified` would deliver a verdict the page does not:
     # the page says per-chip numbers stopped deciding who wins, not that they
     # stopped mattering.
-    "close": {"kind": "points", "tone": "subject", "reserve": 5.5,
+    "close": {"kind": "points", "tone": "subject", "reserve": 3.5,
               "focus": ["per chip", "the scale-up domain", "power and supply"],
-              "head": "how to read a hardware number",
               "items": [
                   "ask at what scale",
                   "per chip: what fits in memory",
                   "per rack: what you can split",
-                  "per megawatt: what it pays",
-                  "and who measured it",
+                  "three funded challengers",
+                  "per megawatt: what grids host",
+                  "measured by somebody neutral",
               ]},
 }
 
