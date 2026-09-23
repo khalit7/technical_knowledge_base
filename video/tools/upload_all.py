@@ -47,9 +47,32 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--go", action="store_true")
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--page", metavar="PAGE_ID",
+                    help="publish one episode that episodes.json does not map, "
+                         "a news issue above all: pass it with a single --only. "
+                         "Without this a news episode was silently skipped and "
+                         "the run printed '0 uploaded, 0 skipped'")
+    ap.add_argument("--index", metavar="EPISODE",
+                    help="print N for the 'Overview N of 22' commit title and exit")
     args = ap.parse_args()
 
     episodes = {e["episode"]: e for e in json.loads(episodes_file().read_text())}
+    if args.index:
+        topics = [e for e in episodes if e.startswith("topic_")]
+        if args.index not in topics:
+            raise SystemExit(f"{args.index} is not a topic_ entry of episodes.json")
+        print(f"Overview {topics.index(args.index) + 1} of {len(topics)}")
+        return 0
+    if args.page:
+        if not args.only or len(args.only) != 1:
+            raise SystemExit("--page needs exactly one --only episode")
+        episodes[args.only[0]] = {"episode": args.only[0], "page_id": args.page,
+                                  "title": args.only[0]}
+    if args.only:
+        unknown = [o for o in args.only if o not in episodes]
+        if unknown:
+            raise SystemExit(f"not in episodes.json: {', '.join(unknown)}. "
+                             f"A news issue is not mapped: pass --page <id>.")
     if "llms__comparisons_llm_architecture_gallery" in episodes:
         e = episodes.pop("llms__comparisons_llm_architecture_gallery")
         e["episode"] = "llms_architecture_gallery"
