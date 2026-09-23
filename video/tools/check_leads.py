@@ -44,6 +44,23 @@ SECONDS_PER_WORD = 0.40  # the series aggregate, tails and gaps included
 RUN_TIME = 0.45          # one FadeIn, from scene.spread
 
 
+def _n2w(n: int) -> str:
+    """A number as a squashed word, without a leading "one" before a scale.
+
+    num2words says "one hundred and forty-nine", the narration says "a
+    hundred and forty nine", so the figure on the card could never match what
+    was spoken. Dropping the leading "one" lets the run begin at "hundred",
+    which is a word boundary in both "a hundred" and "one hundred".
+    """
+    from num2words import num2words
+    w = num2words(n).replace(",", "")
+    for scale in ("hundred", "thousand", "million", "billion"):
+        if w.startswith("one " + scale):
+            w = w[4:]
+            break
+    return w.replace(" ", "").replace("-", "")
+
+
 def squashed(text: str) -> str:
     """Letters and digits only, lowercased, spaces gone. As check_structure."""
     import re
@@ -56,7 +73,7 @@ def squashed(text: str) -> str:
             whole, frac = token.split(".", 1)
             try:
                 from num2words import num2words
-                out.append(num2words(int(whole)).replace(" ", "").replace("-", ""))
+                out.append(_n2w(int(whole)))
                 out.append("point")
                 out += [num2words(int(d)) for d in frac]
                 continue
@@ -64,8 +81,7 @@ def squashed(text: str) -> str:
                 pass
         if token.isdigit():
             try:
-                from num2words import num2words
-                out.append(num2words(int(token)).replace(" ", "").replace("-", ""))
+                out.append(_n2w(int(token)))
                 continue
             except Exception:
                 pass
