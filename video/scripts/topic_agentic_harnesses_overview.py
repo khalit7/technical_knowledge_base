@@ -273,7 +273,16 @@ VISUALS = {
     # after the fact rather than watched. Resident agents are the cost colour
     # because the page's own framing of the category is risk: inputs anybody
     # can reach, actions that are usually irreversible.
-    "map": {"kind": "columns", "park": True, "columns": [
+    #
+    # The reserve is the one lever a parked map has, and raising it is a pure
+    # win here: it draws every column earlier, which closed the 3.8 and 7.1
+    # second leads on cloud and resident agents, and it buys the settle, which
+    # is spent out of the front of it. At 6.0 the finished board stands for
+    # about three seconds before it collapses into the corner. At 0.0, which
+    # is what this beat shipped with, `spread` used the whole beat and the
+    # settle asked manim to wait zero seconds, which is an outright render
+    # failure rather than a timing defect.
+    "map": {"kind": "columns", "park": True, "reserve": 6.0, "columns": [
         {"head": "terminal CLIs", "tone": "subject", "items": [
             "Claude Code", "Codex CLI", "OpenCode", "Goose", "Muse Code"]},
         {"head": "editors", "tone": "machinery", "items": [
@@ -284,18 +293,31 @@ VISUALS = {
             "OpenClaw", "Hermes Agent"]},
     ]},
 
-    "question": {"kind": "claim",
+    # A claim has two reveals and no more, so the note lands at the end of the
+    # drawing budget whatever else happens. The reserve is what decides how
+    # far before the line ends that is: at 0.0 the card arrived eight seconds
+    # after the sentence it paraphrases, and the panel sat motionless for the
+    # whole middle of the beat.
+    "question": {"kind": "claim", "reserve": 5.0,
                  "text": "what the model sees\nwhat it is allowed to do",
                  "note": "the harness decides both, the weights decide "
                          "neither"},
 
+    # Seven items, not five. Everything after Muse Code is named had nowhere
+    # to land, so the last three bets were drawn six, ten and fourteen seconds
+    # after the narration reached them. Two rows carrying the Muse Code
+    # consequence re-space every landing on the beat and close all three,
+    # which is the cheap fix: no words moved and no take re-rendered.
     "cli": {"kind": "points", "tone": "subject", "focus": "terminal CLIs",
+            "reserve": 4.5,
             "head": "what each one is betting on", "items": [
                 "Claude Code: extension",
                 "Codex: the kernel sandbox",
                 "OpenCode: any provider",
                 "Goose: the Linux Foundation",
                 "Muse Code: runs in the pipeline",
+                "nobody there to approve",
+                "approval becomes policy",
             ]},
 
     # A table rather than three compare columns. Three sides beside a parked
@@ -303,81 +325,121 @@ VISUALS = {
     # labels under the legibility floor; and the axis here genuinely is a
     # grid, one row per surface against one question. The narration has to
     # name the load-bearing column out loud, because the panel cannot mark it.
-    "surfaces": {"kind": "table",
+    #
+    # The resident surface is two rows now rather than one. It carries two
+    # facts, its inputs and its irreversibility, and with three data rows the
+    # cloud and resident rows were drawn four and ten seconds after they were
+    # named. The second of them has a blank left cell, which is safe in a body
+    # row: it is the header row's blank corner that slides a table sideways.
+    "surfaces": {"kind": "table", "reserve": 4.5,
                  "focus": ["editors", "cloud agents", "resident agents"],
-                 "head": ["surface", "what you can still check"],
+                 "head": ["surface", "what that leaves you"],
                  "rows": [
                      ["editor", "every edit, as it lands"],
                      ["cloud", "a pull request, later"],
-                     ["resident", "nothing: it already acted"],
+                     ["resident", "anybody can message it"],
+                     ["", "and it has already acted"],
                  ]},
 
+    # This was a `compare`, and a compare has exactly two reveals however much
+    # is written on each side. On a forty five second beat that drew the
+    # second column at the forty fifth second, seventeen seconds after the
+    # narration named it, and no reserve reaches that: the fit asked for
+    # fourteen against a still-frame ceiling of five and a half. The contrast
+    # is now carried by the head and by the order of the rows rather than by
+    # two columns, which costs the spatial argument and buys six landings that
+    # track the sentence.
+    #
     # The map goes back to neutral here and stays that way for the research
     # half. Without it the previous beat's highlight burns through four beats,
     # so the map says "we are discussing editors, cloud and resident agents"
     # while the narration is discussing none of them. Lighting everything is
-    # the honest reading: what follows is about harnesses generally.
-    "sees": {"kind": "compare",
+    # the honest reading: what follows is about harnesses generally. No tone,
+    # so the rows stay foreground: a single tone across a list that holds both
+    # extremes would award one of them a verdict the page does not give.
+    "sees": {"kind": "points", "reserve": 3.0,
              "focus": ["terminal CLIs", "editors", "cloud agents",
                        "resident agents"],
-             "sides": [
-        {"head": "more machinery", "tone": "machinery", "items": [
-            "a live Python session",
-            "state in four layers",
-            "rewrites its skills",
-            "30% to 95.5%"]},
-        {"head": "checked state", "tone": "verified", "items": [
-            "a state machine",
-            "checked transitions",
-            "a fixed agent inside",
-            "it also wins"]},
-    ]},
+             "head": "Prime Agent, and StateM", "items": [
+                 "state in four layers",
+                 "best of one: 30% to 95.5%",
+                 "StateM: a state machine",
+                 "it also wins",
+                 "a durable state layer",
+             ]},
 
-    # Two bars, one model, one task set, two harnesses. This is exactly the
-    # comparison bars are for, and the reason the values are given rather
-    # than the widths: the gap is the argument.
-    "adapter": {"kind": "bars", "head": "one model, one task set", "bars": [
-        {"label": "neutral harness", "value": 62.7, "text": "62.7%",
-         "tone": "context"},
-        {"label": "provider adapter", "value": 99.9, "text": "99.9%",
-         "tone": "verified"},
-    ]},
-
-    "allowed": {"kind": "compare", "sides": [
-        {"head": "detection", "tone": "cost", "items": [
-            "8 worlds, 16 days",
-            "none was resilient",
-            "noticed, kept talking",
-            "up to 46 hours"]},
-        {"head": "containment", "tone": "verified", "items": [
-            "never sees the token",
-            "the swap is outside",
-            "approvals via the OS",
-            "policy, not a person"]},
-    ]},
-
-    # The bars complete a little before the line does, so the last figure is
-    # not still arriving while the narrator has moved on to what it means.
-    "numbers": {"kind": "bars", "reserve": 9.0,
-                "head": "Real-SWE: ten private enterprise tasks", "bars": [
-                    {"label": "Fable 5.1", "value": 38.8, "text": "38.8%",
-                     "tone": "verified"},
-                    {"label": "GPT-6 Astra", "value": 33.8, "text": "33.8%"},
-                    {"label": "GPT-5.6 Sol", "value": 16.2, "text": "16.2%",
-                     "tone": "cost"},
+    # This was two bars, and two bars plus a head is three reveals on a forty
+    # second beat: the provider adapter bar was drawn twenty five seconds
+    # after the narration said the figure. A bar cannot be added without a
+    # value to put in it, and the page has no third comparable number, so the
+    # panel that could take rows had to take them instead. The gap survives as
+    # two figures a line apart; the proportional picture does not, and that is
+    # the real cost of this repair.
+    "adapter": {"kind": "points", "reserve": 3.0,
+                "head": "two scores for one model", "items": [
+                    "harness neutral: 62.7%",
+                    "provider adapter: 99.9%",
+                    "both on the leaderboard",
+                    "state inside the provider",
+                    "a class of capability",
                 ]},
 
-    # The closing frame lights the whole map again: the take is about all
-    # four shelves, and leaving one highlight burning would point at one of
-    # them while the line points at every one.
-    "take": {"kind": "claim",
-             "focus": ["terminal CLIs", "editors", "cloud agents",
-                       "resident agents"],
-             "text": "Choose the surface,\nthen tune the harness.",
-             "note": "a benchmark number with no named harness carries no "
-                     "information"},
-}
+    # The worst beat in the episode: a compare on fifty five seconds of
+    # narration, so containment was drawn thirty nine point nine seconds after
+    # it was named. Six rows, spaced to the six moments the narration actually
+    # names something, roughly nine seconds apart. No tone, because half these
+    # lines are the attack and half are the answer, and a `points` list takes
+    # one colour for all of them.
+    "allowed": {"kind": "points", "reserve": 4.0,
+                "head": "detection is not containment", "items": [
+                    "8 worlds, 16 days, attacked",
+                    "noticed, and kept talking",
+                    "assume the model gets fooled",
+                    "approvals as OS dialogs",
+                    "policy evaluated tool calls",
+                    "and a stop condition",
+                ]},
 
+    # Also a bar chart until this cut. Three bars and a head is four reveals,
+    # and the last seventeen seconds of the beat, the public benchmark and the
+    # failure mode, had nothing to land on at all. The reserve that closed it
+    # was sixteen seconds against a still-frame ceiling of five and a half,
+    # and the 9.0 it shipped with would now be scored as a nine second dead
+    # frame. Two rows for the trailing argument fix both.
+    #
+    # Note for the next author: a score written as a figure can never be timed
+    # by check_leads, because the narration has to say "sixteen point two" and
+    # the squashed panel string is "sixteentwo". The three product rows here
+    # are timed by hand, at 16.5, 21.8 and 25.3 seconds.
+    "numbers": {"kind": "table", "reserve": 4.5,
+                "head": ["Real-SWE, 10 private tasks", "what came back"],
+                "rows": [
+                    ["Fable 5.1", "38.8%"],
+                    ["GPT-6 Astra", "33.8%"],
+                    ["GPT-5.6 Sol", "16.2%"],
+                    ["on a public benchmark", "55.8%"],
+                    ["the dominant failure", "missed requirements"],
+                ]},
+
+    # A claim draws its headline first and its note last, which on a forty one
+    # second take meant one card, then nothing for half a minute, then a note
+    # ten seconds after the line that carries it. Seven pieces instead, which
+    # is what a closing beat wants.
+    #
+    # No `focus`. The map has been fully lit since `sees` and nothing has
+    # touched it since, so a focus naming all four columns would light what is
+    # already lit and spend five seconds of the beat's head doing it. That is
+    # a decision, not an omission.
+    "take": {"kind": "points", "reserve": 4.0,
+             "head": "choose the surface, then tune", "items": [
+                 "how much you can still check",
+                 "the thing you tune",
+                 "where the state layer lives",
+                 "the cost moves a lot",
+                 "no named harness, no information",
+                 "one model, the same tasks",
+             ]},
+}
 
 def word_count() -> int:
     return sum(len(line.split()) for turns in SCRIPT.values() for _, line in turns)
