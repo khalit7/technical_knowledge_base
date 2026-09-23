@@ -1,5 +1,11 @@
 # Topic: jax-and-tpu
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: jax-and-tpu: purity is the price; a compiler that shards a pod is the payoff](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/23160a67-8423-40cf-b753-eb4eb4d7c28a/topic_jax_and_tpu_overview.mp4)
+
 ⏱ 6 min read · +9h 15m resources
 
 The Google-side stack: JAX (functional array programming compiled through XLA), the
@@ -58,7 +64,7 @@ graph TD
 ### Map of the space
 
 - **JAX core**: `jax.numpy` plus composable transformations: `jit`
-  (traces the function into a jaxpr and compiles it with **XLA**, the Accelerated Linear Algebra compiler), `grad` (reverse-mode autodiff of a pure function, so gradients come back as a value with the same pytree shape as the parameters), `vmap` (auto-vectorisation), and `shard_map` (**SPMD**, single program multiple data: the body sees only this device's shard and you write the collectives). `pmap` is legacy. The
+  (traces the function into a jaxpr and compiles it with **XLA**, the Accelerated Linear Algebra compiler), `grad` (reverse-mode autodiff of a pure function, so gradients come back as a value with the same pytree shape as the parameters, a pytree being any nested container of arrays), `vmap` (auto-vectorisation), and `shard_map` (**SPMD**, single program multiple data: the body sees only this device's shard and you write the collectives). `pmap` is legacy. The
 
   price: functions must be pure, and state (params, optimiser, RNG) is threaded
 
@@ -114,7 +120,7 @@ graph TD
    scaling book; shard the LM with a Mesh (data first, then FSDP-style).
 
 5. [TPU architecture and Pallas](tpu-architecture-and-pallas.md): run on a real TPU
-   (Colab v5e, Kaggle v5e-8, then TRC), profile, optionally write one Pallas kernel.
+   (Colab v5e, Kaggle v5e-8, then TRC, the TPU Research Cloud), profile, optionally write one Pallas kernel.
 
 6. Read MaxText's decoder and train step end to end; skim Tunix's GRPO trainer.
 

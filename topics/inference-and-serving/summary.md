@@ -1,5 +1,11 @@
 # Topic: inference-and-serving
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: inference-and-serving: a serving stack is fast for exactly one reason at a time](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/9030dff8-8ddd-4482-b4b2-f05f120576e5/topic_inference_and_serving_overview.mp4)
+
 ⏱ 17 min read · +7h 30m resources
 
 The stack that turns model weights into tokens per second. Three layers matter: the **engine** (owns the GPU: batching, KV cache, kernels), the **server/orchestration** layer (routes requests across engines and nodes), and the **techniques** that both layers implement (PagedAttention, continuous batching, speculative decoding, ...).
@@ -71,6 +77,8 @@ graph TD
 **Cache economics decide what context length a vendor can actually offer**, and as of September 2026 that is a visible product decision rather than an implementation detail. MLA compresses what you cache. **GLM-5.3-Flash** reduces what you look up: an **IndexPool** step averages every four lookup vectors before selection, cutting the KV cache to **under a quarter** of its size at 1M context, on top of a **hybrid linear plus sparse attention** stack that cuts attention compute to roughly a third of GLM-5.3. That is what makes its advertised million-token window affordable to serve rather than merely available, and it shows in the price: 57 on the Artificial Analysis Intelligence Index at about $0.09 per task, against roughly $2.03 for a comparably placed closed model. (The Batch, 2026-09-04, with Z.ai's own release notes.) **DeepSeek V4.1-Flash** prunes and tiers what it keeps and pushes the cold part to SSD, the same direction vLLM took with disk-reaching KV offload; its own section is below. The models are covered on [Topic: llms](../llms/summary.md); what belongs here is that context length is priced by cache management, not by attention arithmetic.
 
 Underneath all of it is one piece of arithmetic: single-stream decode speed is roughly HBM bandwidth divided by bytes touched per token. Every technique above is either "move fewer bytes" or "amortise the same bytes over more tokens".
+
+Read as a taxonomy, that arithmetic gives **three places a request can be stuck, and no more**. **Prefill** is compute-bound: the prompt is read in one pass, so the levers are chunking it or splitting it off. **Decode** is bandwidth-bound: one token at a time, so the lever is bytes touched per token. **Batch size 1** is bound by neither, and what is left is kernel-launch overhead, which is why its two answers below sit outside the bytes-per-token framing entirely. Naming the regime first is what stops a technique from the wrong row being reached for: applying it is not a smaller win, it is no win at all.
 
 Baseten's **efficient frontier** is the framing worth carrying through all of it: latency, throughput and quality as one frontier rather than three independent knobs, separating the techniques that move a given deployment *along* it (batching policy, quantisation choice, speculative-decoding settings, the latency-throughput trade you pick at a given load) from those that push the frontier itself *outward* (better kernels, better KV management, a genuinely better serving architecture). Most inference write-ups blur that distinction, and it is the right test for whether a proposed change is a real win or a repositioning. [Baseten](https://www.baseten.co/blog/the-efficient-frontier-of-llm-inference/) (25 min)
 

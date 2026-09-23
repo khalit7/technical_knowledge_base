@@ -1,5 +1,11 @@
 # Topic: agentic-harnesses
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: agentic-harnesses: what the model sees, and what it is allowed to do](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/122925d8-0549-451f-9067-4efe10b2caf6/topic_agentic_harnesses_overview.mp4)
+
 ⏱ 21 min read · +12h 24m resources
 
 A **harness** is the product that wraps an LLM in an agent loop with tools: prompt assembly,
@@ -166,6 +172,8 @@ The principle is the transferable part, and it sits directly against the Emergen
 | Autonomy | synchronous pair vs async delegate | Aider vs Devin/Jules/Codex cloud; most now span both |
 | Surface | terminal, editor, cloud, or all three | Claude Code and Codex now span all three |
 | Residency | session-scoped vs resident daemon | All coding harnesses vs OpenClaw/Hermes |
+
+**Surface is the axis that decides what verification is still available**, which is why it is a first choice rather than a deployment detail. In an editor you see every edit as it lands; with a cloud agent you read a pull request afterwards, so the question becomes review; with a resident agent the action has usually already happened by the time you look. The other axes change what a harness costs and who you are locked to. This one changes what you can still catch.
 
 What differentiates harness quality (expanded in
 

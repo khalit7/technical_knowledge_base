@@ -1,5 +1,11 @@
 # Topic: pytorch-ecosystem
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: pytorch-ecosystem: two narrow interfaces, and everything else](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/74e196ca-e0a7-4b81-87a0-7c77707efe49/topic_pytorch_ecosystem_overview.mp4)
+
 ⏱ 7 min read · +2h 45m resources
 
 Last verified: 2026-09-22. Current stable: **PyTorch 2.13.0** (July 2026).
@@ -13,6 +19,8 @@ Map of the stack, in the order a tensor meets it, because the diagram below is o
 **Distributed** is built on **c10d**, the process-group layer over the NCCL and Gloo collective libraries, and on **DTensor**, a tensor carrying a device mesh plus a per-dimension placement. FSDP2, tensor parallel, pipelining and distributed checkpointing are all expressed in terms of DTensor, which is precisely why they compose with each other and with compile.
 
 **Performance** is the attention and precision layer (SDPA backend selection, FlexAttention, torchao) plus the profiling tools. **Training frameworks** wrap all of the above into a loop you do not have to write. **Deployment** is where a trained model leaves the ecosystem: ExecuTorch for on-device, ONNX export for other vendors' runtimes, vLLM for serving.
+
+Two of those pieces are load-bearing in a way the rest are not, and it is worth saying together what the paragraphs above say separately. **The dispatcher** and **DTensor** are this stack's two narrow interfaces: everything in Core hooks into the first, and everything in Distributed is expressed in the second, which is why the layers above them compose rather than collide. It is also a useful way to read the churn recorded below. The pieces other things are expressed **in** have been the stable ones; the pieces that merely wrap them are the ones that get deprecated or discontinued, which is the shape of FSDP1 giving way to `fully_shard`, and of torchtune and torchforge giving way to torchtitan.
 
 ```mermaid
 graph TD

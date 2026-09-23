@@ -1,5 +1,11 @@
 # Topic: swe-and-system-design
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: swe-and-system-design: where a model bends ordinary engineering](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/38625d0c-6d27-4e5d-9503-b373a7a10889/topic_swe_and_system_design_overview.mp4)
+
 ⏱ 6 min read · +44h resources
 
 The engineering substrate under every ML service. Three pillars: **system design**
@@ -72,6 +78,10 @@ The fundamentals matter in interviews mostly as justification: you defend a desi
 choice by naming the bottleneck (fsync latency, TCP slow start, page cache, GPU
 
 memory bandwidth) rather than by pattern-matching.
+
+The same order runs the other way in production: when a service misbehaves, the
+
+layer below the one you are looking at is usually where the explanation is.
 
 ### What the named ideas actually are
 

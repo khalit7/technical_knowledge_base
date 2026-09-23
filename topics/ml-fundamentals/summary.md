@@ -1,5 +1,11 @@
 # Topic: ml-fundamentals
 
+## Video
+
+A narrated 7-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: ml-fundamentals: ten pages, and the four threads that cut across them](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/65c3bd57-bb99-44b8-a409-dd9c8d876d9b/topic_ml_fundamentals_overview.mp4)
+
 ⏱ 6 min read · +24h 15m resources
 
 Core machine learning building blocks: the losses, activations, optimisers, normalisation, and metrics every network is assembled from, plus classical ML, contrastive/self-supervised learning, the pre-transformer sequence-model lineage, and a practical training-debugging cookbook. Mostly review material, formatted for fast refresh; genuinely modern developments (SwiGLU, RMSNorm, Muon, JEPA) are flagged inline with dates.
@@ -62,7 +68,7 @@ Each band below gets its orienting claim and whatever only becomes visible when 
 
 **Activations** are the ReLU family in hidden layers and task-specific at the output. The gated variants (SwiGLU, the transformer FFN default) are the same construction as an LSTM gate, two projections with one gating the other, so the effective slope is learned per neuron rather than fixed.
 
-**Regularisation** is penalty, dropout, augmentation or early stopping. Weight decay is the band's boundary case, a regulariser by intent and an optimiser property by implementation, which is exactly why AdamW exists.
+**Regularisation** is penalty, dropout, augmentation or early stopping. Weight decay is the band's boundary case, a regulariser by intent and an optimiser property by implementation, which is exactly why AdamW exists: it applies the decay to the weights directly, instead of letting Adam's per-parameter scaling rescale the penalty along with the gradient.
 
 **Optimisers** combine a momentum term with per-parameter adaptive scaling, while a schedule sets the base learning rate they scale relative to, so the two are always chosen together. The 2024-26 challengers (Muon, Shampoo/SOAP, Lion, schedule-free) change the update geometry or remove the schedule rather than tuning it.
 

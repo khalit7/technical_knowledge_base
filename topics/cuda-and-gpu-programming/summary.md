@@ -1,5 +1,11 @@
 # Topic: cuda-and-gpu-programming
 
+## Video
+
+A narrated 6-minute explainer derived from this page. The page stays canonical: the video is a derived representation, and every figure it states comes from here.
+
+[Topic: cuda-and-gpu-programming: three layers of one stack, and why it is nearly always memory](https://prod-files-secure.s3.us-west-2.amazonaws.com/13e79c56-ebab-4528-83aa-967a204b1f04/e6445091-dac6-4e3e-9cc7-be1bb5d5c087/topic_cuda_and_gpu_programming_overview.mp4)
+
 ⏱ 9 min read · +23h 13m resources
 
 CUDA is NVIDIA's platform for general-purpose GPU computing: a C++ language extension, a compiler stack, driver and runtime APIs, tuned libraries, and profiling tools. "Writing CUDA" usually means writing kernels in CUDA C++, but most ML performance work spans the whole stack, and four names are worth pinning down first.
@@ -90,6 +96,8 @@ graph TD
   literally run on it.
 
   See [CUTLASS, cuBLAS, cuDNN, and tensor cores](cutlass-and-libraries.md) (8 min read · +17h 15m resources).
+
+Two things the map does not say out loud. **Nearly all kernel optimisation is memory optimisation** because a GPU can perform far more arithmetic per second than it can fetch operands for, so the binding constraint is bytes moved rather than operations issued. And **the layers are a ladder you climb down, not up**: call the library first, write Triton when that is not enough, reach for Gluon when the compiler's heuristics cost you, and go down to CUDA C++ only when a profiler says that last 0-20% is worth ten times the code.
 
 Related topics: [Topic: hardware](../hardware/summary.md) for GPU architectures, [Topic: pytorch-ecosystem](../pytorch-ecosystem/summary.md) for torch.compile, [Topic: inference-and-serving](../inference-and-serving/summary.md) for kernels in production.
 
