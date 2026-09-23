@@ -69,6 +69,62 @@ Speakers:
 Names are spelled the way they should be said. Text to speech reads "AG2",
 "A2A" and "Mem0" badly, so the first two do not appear in a spoken line at
 all and the third is said as "Mem zero".
+
+The 23 September re-cut, which changed the timing and nothing else
+-----------------------------------------------------------------
+
+The published cut had eleven reveals named before they were drawn, the worst
+24.3 seconds, and two motionless frames, 22 seconds on `buy` and 15 on `take`.
+The axis, the map, the beats and the take are unchanged. What moved:
+
+  - Every beat now carries a fitted `reserve`, computed by `check_leads
+    --reserves` from the rendered durations rather than guessed. Only `buy`
+    had one before, and it was the cause of one of the two dead frames.
+  - The root cause of the worst leads is arithmetic and worth stating once,
+    because it is not obvious: the LAST reveal of a panel always lands at
+    `beat_length - reserve`, whatever n is. So a panel whose final element is
+    named two thirds of the way through a beat cannot be saved by a reserve,
+    because the still-frame cap limits the reserve to 5.5 on an ordinary beat
+    and 8.4 on a parked one. The fix is a row whose label is spoken near the
+    end of the line. That is why three panels grew a third part and two
+    changed kind, and why none of it is a change of argument.
+  - `swarm` and `loops` are three-sided compares. The third side is the last
+    thing each beat says: what the merge dropped, and what configuring rather
+    than writing inverts. `loops` also says "Move right" where it used to say
+    "On the right", because with three columns the middle one is no longer the
+    right-hand one.
+  - `converge` was two compare sides and is a six-row list. The narration
+    walks observability and then memory rather than setting them against each
+    other, so the list is the honest picture as well as the one that lands
+    with the words; the map stays lit on both columns.
+  - `buy` was a three step `flow` with a reserve of 22, which drew the axis in
+    fourteen seconds and then held for twenty two. Its three positions are all
+    named inside the first thirteen seconds, so no panel built from those
+    three alone can keep the frame moving. It is a list that carries what is
+    said after them. The arrows are the real loss. "a third position at the
+    right of the screen" became "a third position on that line", because
+    nothing sits at the right of a list.
+  - `take` was a `claim`, which is one card and a note. It is a head and five
+    rows, which is what the method prescribes for a closing beat and what
+    turns fifteen seconds of dead frame into five. The rule itself is the
+    head, not the first row: "that is the line on the screen" is spoken eight
+    seconds in and the first row lands at nine, which `check_references`
+    caught on the frame after the rest of the repair was done.
+  - `map` is the one beat whose words moved. Its memory column is named at
+    about two thirds of the beat and no legal reserve reaches that far, and a
+    fifth column would be a group the page does not have. "Only that first
+    layer is a real decision. The rest you add once the thing runs." used to
+    close the beat and now sits between the third layer and the fourth. The
+    position was picked by the arithmetic: in front of the gateways clause it
+    fixes memory and draws the gateways column sixteen seconds early instead.
+
+The worst remaining lead is 2.4 seconds, on `graph`, and it is structural:
+the head segment of a beat is shorter than the segments after it, so the last
+item is named a little after it is drawn. Four reveals cannot be timed by
+`check_leads` because the narration never says them as a contiguous run: the
+two gateways rows, hand-timed at 2.6 and 1.8 seconds early. A multi-word row
+is timed only if its FIRST significant word is one the narration also says,
+which "LiteLLM" is not, because the line spells it "Lite L L M".
 """
 
 A = "A"
@@ -98,10 +154,18 @@ SCRIPT["map"] = [
         "the Claude agent S D K."),
     (A, "Gateways, between your code and the providers: Lite L L M, a proxy "
         "you run; OpenRouter; Sakana's Fugu. Observability: Langfuse, "
-        "LangSmith, Braintrust, Arize Phoenix. And memory: Mem zero, which "
-        "files facts; Zep, which stores them as a graph; Letta, a runtime."),
-    (A, "Only the first layer is a real decision. The other three you add once "
-        "the thing runs."),
+        "LangSmith, Braintrust, Arize Phoenix."),
+    # This turn used to close the beat, and seventeen seconds of narration
+    # after the word "memory" is more than any legal reserve on a parked beat
+    # can hold back: `spread` lands the last column at `beat - reserve`. It
+    # sits between the third layer and the fourth instead. The same words,
+    # earlier, and the position was chosen by the arithmetic rather than by
+    # taste: put in front of the gateways clause it fixes the memory column
+    # and draws the gateways one sixteen seconds before anything names it.
+    (A, "Only that first layer is a real decision. The rest you add once the "
+        "thing runs."),
+    (A, "And the last of them is memory. Mem zero, which files facts; Zep, "
+        "which stores them as a graph; Letta, a runtime."),
 ]
 
 # -- the organising question -----------------------------------------------
@@ -152,7 +216,7 @@ SCRIPT["loops"] = [
         "rather than being raised at you. smolagents changes the action "
         "language: the model writes Python instead of a tool call, so several "
         "calls collapse into one step."),
-    (A, "On the right, you borrow it. The Claude agent S D K ships the whole "
+    (A, "Move right, and you borrow it. The Claude agent S D K ships the whole "
         "Claude Code loop as a library. Tools, compaction, permissions, "
         "hooks, subagents. You configure what it can see and do rather than "
         "writing the loop, which inverts everything to its left."),
@@ -194,8 +258,7 @@ SCRIPT["converge"] = [
 SCRIPT["buy"] = [
     (A, "Back to the line, and the thing that changed this month. Write the "
         "loop yourself. Configure a framework that writes it for you. And "
-        "since September, a third position at the right of the screen: buy "
-        "the loop."),
+        "since September, a third position on that line: buy the loop."),
     (A, "OpenAI's agents A P I runs the loop on their own infrastructure, "
         "with managed sessions and sandboxes. Anthropic's managed agents move "
         "permission evaluation onto the server."),
@@ -223,7 +286,7 @@ VISUALS = {
 
     # The home frame. Four layers, which is how the page groups the field, and
     # the two later beats that discuss a layer light its heading up.
-    "map": {"kind": "columns", "park": True, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 6.5, "columns": [
         {"head": "orchestration", "tone": "subject", "items": [
             "LangGraph", "CrewAI: roles", "Pydantic AI", "smolagents",
             "Claude Agent SDK"]},
@@ -235,11 +298,12 @@ VISUALS = {
             "Mem0: facts", "Zep: a graph", "Letta: a runtime"]},
     ]},
 
-    "question": {"kind": "claim",
+    "question": {"kind": "claim", "reserve": 2.5,
                  "text": "Not which framework.\nHow much of the loop is yours?",
                  "note": "until this month, that line had two ends"},
 
     "graph": {"kind": "points", "tone": "machinery", "focus": "orchestration",
+              "reserve": 4.5,
               "head": "what the checkpoint buys", "items": [
                   "a run that survives the process",
                   "a pause that waits days",
@@ -247,66 +311,116 @@ VISUALS = {
                   "none of it free in a while loop",
               ]},
 
-    "swarm": {"kind": "compare", "sides": [
+    # Three sides, not two. The last reveal always lands at `beat - reserve`,
+    # so with the successor as the final side its heading was drawn fifteen
+    # seconds after the line named it, and no reserve inside the still-frame
+    # cap could close that. Splitting what the merge kept from what it dropped
+    # gives the beat a third landing, at the words that actually close it.
+    "swarm": {"kind": "compare", "reserve": 3.0, "sides": [
         {"head": "AutoGen", "tone": "context", "items": [
             "a shared chat",
             "a manager picks next",
             "a code executor runs it"]},
         {"head": "its successor", "tone": "verified", "items": [
             "patterns kept",
-            "plumbing added",
-            "the swarm dropped"]},
+            "plumbing added"]},
+        {"head": "the swarm dropped", "tone": "cost", "items": [
+            "agent to agent messaging",
+            "undebuggable in production"]},
     ]},
 
-    "loops": {"kind": "compare", "sides": [
+    # A third side for the same reason as `swarm`: "borrow it" is spoken at
+    # twenty five seconds of a forty one second beat, so as the final reveal it
+    # was drawn fifteen seconds late. The inversion is the beat's punchline and
+    # is said last, so it earns the last landing. Both right-hand sides are
+    # machinery-toned: they are one position seen twice, not a verdict.
+    "loops": {"kind": "compare", "reserve": 4.5, "sides": [
         {"head": "own it", "tone": "subject", "items": [
             "Pydantic AI: type hints",
             "a failure goes back",
             "smolagents: writes Python"]},
         {"head": "borrow it", "tone": "machinery", "items": [
             "Claude Agent SDK",
-            "tools, compaction, hooks",
-            "you configure, not write"]},
+            "tools, compaction, hooks"]},
+        {"head": "what it inverts", "tone": "machinery", "items": [
+            "you configure, not write",
+            "everything to its left"]},
     ]},
 
-    "gateways": {"kind": "points", "focus": "gateways",
+    # A fifth row, because everything after the Stripe line had nothing left
+    # to land on: the acquisition was drawn nine seconds after it was named.
+    # The open question is the last thing said and now has a row of its own.
+    # The first two rows are respelled so `check_leads` can time them at all.
+    "gateways": {"kind": "points", "focus": "gateways", "reserve": 4.0,
                  "head": "model choice as configuration", "items": [
-                     "LiteLLM: one endpoint, a proxy you host",
+                     "LiteLLM: a proxy you host",
                      "virtual keys, budgets, a fallback chain",
                      "OpenRouter: 300+ models, one key",
                      "Stripe bought it in August, above $7B",
+                     "open question: stays neutral?",
                  ]},
 
-    "converge": {"kind": "compare", "focus": ["observability", "memory"],
-                 "sides": [
-        {"head": "observability", "tone": "verified", "items": [
-            "one trace per run",
-            "a tree of spans",
-            "tokens and cost",
-            "OpenTelemetry conventions"]},
-        {"head": "memory", "tone": "number", "items": [
-            "Mem0: layered facts",
-            "Zep: validity intervals",
-            "Letta: the agent pages"]},
-    ]},
+    # This was two compare sides, and a two-reveal panel cannot work here: the
+    # line says "memory" at thirty seconds and the second side was drawn at
+    # forty eight, an eighteen second lead that no reserve could reach. The
+    # narration walks the two layers one after the other rather than setting
+    # them against each other, so a list drawn in that order is both the
+    # honest picture and the one that lands with the words. The map stays lit
+    # on both columns, which is what carries the two-layer structure.
+    "converge": {"kind": "points", "focus": ["observability", "memory"],
+                 "reserve": 4.0, "head": "whatever loop you picked", "items": [
+                     "one trace per run",
+                     "spans carry tokens and cost",
+                     "OpenTelemetry conventions",
+                     "Mem0: files facts",
+                     "Zep: validity intervals",
+                     "Letta: the agent pages",
+                 ]},
 
-    # The three positions are named in the first sentence, so they are
-    # revealed in the first third of the beat rather than spread across all of
-    # it. Without the reserve the narrator points at "the right of the screen"
-    # twelve seconds before anything is drawn there.
-    "buy": {"kind": "flow", "tone": "machinery", "focus": "orchestration",
-            "reserve": 22, "head": "how much of the loop is yours",
-            "steps": ["write the loop", "configure a framework",
-                      "buy the loop"]},
+    # This was a three step `flow` with a reserve of 22, which drew the axis
+    # in the first fourteen seconds and then held a motionless frame for
+    # twenty two, the defect `check_timing` scores as `still`. The three
+    # positions are all named inside the first thirteen seconds of a thirty
+    # seven second beat, so no panel whose only reveals are those three
+    # positions can keep the frame moving: the arithmetic puts the last one at
+    # `beat - reserve` whatever the reserve is. A list can carry what is said
+    # after them as rows of its own, so the picture keeps arriving with the
+    # line. The arrows are the loss, and they are paid for with a frame that
+    # moves for the whole beat instead of a fifth of it.
+    "buy": {"kind": "points", "tone": "machinery", "focus": "orchestration",
+            "reserve": 1.5, "head": "how much of the loop is yours", "items": [
+                "write it, or configure a framework",
+                "buy the loop",
+                "managed sessions and sandboxes",
+                "permission evaluation on the server",
+                "own your control flow",
+                "the far end, not a fourth school",
+            ]},
 
     # The closing frame lights the whole map again: the take is about all
     # four layers, and leaving the last beat's single highlight burning would
     # point at one of them while the line points at every one.
-    "take": {"kind": "claim",
+    #
+    # It was a `claim`, and a claim has two reveals: the card and its note. On
+    # a thirty five second take that is one card drawn at the top of the beat
+    # and a note twenty four seconds after the words that name it, followed by
+    # fifteen seconds of a motionless frame. The skill names this as the
+    # closing beat's default defect and gives the fix: a head and six rows, a
+    # small reserve, something unfolding with every sentence of the take.
+    "take": {"kind": "points",
              "focus": ["orchestration", "gateways", "observability", "memory"],
-             "text": "Direct API calls first,\nbehind your gateway.",
-             "note": "adopt a framework when checkpoints, interrupts or "
-                     "replay would otherwise be hand-built"},
+             # The rule itself is the head rather than the first row, because
+             # the line "that is the line on the screen" is spoken eight
+             # seconds in and a row lands at nine. A head is drawn at the top
+             # of the beat, so the thing the line points at is there when it
+             # points. `check_references` is what found this, on the frame.
+             "reserve": 4.5, "head": "direct API calls, your gateway", "items": [
+                 "adopt a framework the moment",
+                 "checkpointed state, interrupts",
+                 "the far end, where you own none",
+                 "own your control flow",
+                 "something you choose to pay for",
+             ]},
 }
 
 
