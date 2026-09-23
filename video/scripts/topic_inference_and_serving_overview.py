@@ -219,6 +219,23 @@ all and a fragment the model welded onto it, so the transcript read "1850
 weights on chip". The figure now carries "tokens a second" and the fragment
 has a verb.
 
+Timing re-cut, 23 September 2026. VISUALS only; the audio and every spoken
+word are unchanged. The published cut had six reveals named before they were
+drawn, worst 7.9 seconds (the close's "which regime" row, with twenty words
+after it and nothing left to draw), plus two `check_leads` could not time and
+word timestamps exposed: the Cohere bar at 5.6 seconds and Cerebras at 3.6.
+Changes: `prefill` lost its head (the 4.5 second focus delay put it behind
+"compute bound" and pushed chunked prefill to reveal two) and gained a radix
+attention row; `decode` gained rows for vLLM becoming the default and for B
+naming speculative decoding; `overhead` lost its head, the only lever a
+two-bar chart has; `close` gained "nothing at batch size one" as its last
+row; two labels were reworded to what the line actually says so they can be
+timed. Reserves were swept to the `--reserves` suggestion except three, each
+checked against word timestamps rather than the linear estimate: `map` stays
+at 8.0 (7.8 moves the techniques column further behind its name, which the
+voice reaches earlier than a linear spread predicts), `question` at 5.0, and
+`overhead` at 5.0 (the suggestion ignores the untimed Cerebras bar).
+
 Speakers:
   A  narrator, owns the spine and the map
   B  the listener, two turns, each of which turns the beat
@@ -483,7 +500,7 @@ VISUALS = {
     #
     # The header's first cell is filled rather than blank: an empty corner
     # cell slid a whole header one column left in an earlier episode.
-    "question": {"kind": "table", "reserve": 5.5,
+    "question": {"kind": "table", "reserve": 5.0,
                  "head": ["stuck where", "bound by", "what you attack"],
                  "rows": [
                      ["prefill", "compute", "chunk it, split it"],
@@ -494,25 +511,39 @@ VISUALS = {
     # Lights techniques AND orchestration: chunked prefill and prefix caching
     # are technique-layer, and the P/D split genuinely is the orchestration
     # layer's job, which is the one honest reason to light two columns.
-    "prefill": {"kind": "points", "tone": "subject", "reserve": 5.0,
+    #
+    # Re-cut for timing, 23 September 2026: no head. The focus spends 4.5
+    # seconds lighting the map before anything is drawn, so the head could
+    # not land before "compute bound" was said and it pushed chunked prefill
+    # to reveal two, six seconds after its name. The regime is already on the
+    # question table. SGLang's radix attention gets the row it was spoken
+    # without, which spaces the last three landings out towards the end.
+    "prefill": {"kind": "points", "tone": "subject", "reserve": 5.3,
                 "focus": ["techniques", "orchestration"],
-                "head": "prefill: compute bound",
                 "items": [
                     "chunked prefill, on by default",
                     "60-90% of agent input shared",
                     "the biggest first token win",
+                    "SGLang: radix attention",
                     "P/D split: pools, KV over RDMA",
                 ]},
 
     # Toned `number`, matching the column it lights, because every line here
     # is a measured recovery or a measured ratio rather than a verdict.
-    "decode": {"kind": "points", "tone": "number", "reserve": 5.0,
+    #
+    # Re-cut for timing: two rows for sentences the beat already spoke with
+    # nothing to land on, vLLM becoming the default and B's question naming
+    # speculative decoding. Seven reveals put paged attention and continuous
+    # batching on screen within a second of their names.
+    "decode": {"kind": "points", "tone": "number", "reserve": 4.0,
                "focus": ["techniques", "engines"],
                "head": "decode: bandwidth bound",
                "items": [
                    "paged attention: 60-80% waste",
+                   "made vLLM the default",
                    "continuous batching: about 10x",
                    "MLA: 10-30x smaller per token",
+                   "speculative decoding",
                    "lossless, but it fades",
                ]},
 
@@ -521,8 +552,14 @@ VISUALS = {
     # baseline and cannot lie by arithmetic. Machinery for the software
     # answer, number for the hardware one: two neutral tones, because the page
     # takes no position on which is right.
+    #
+    # Re-cut for timing: no head. With it, the Cohere bar was reveal two of
+    # three and landed at 24.5 seconds against its name at 18.9 (word
+    # timestamps; the label is not said verbatim, so check_leads cannot time
+    # it). Bars cannot gain rows, so the head was the only thing to remove.
+    # The Cohere bar now arrives early, which is the tolerable direction.
     "overhead": {"kind": "bars", "reserve": 5.0, "focus": "engines",
-                 "head": "batch size one: two answers", "bars": [
+                 "bars": [
                      {"label": "Cohere megakernel", "text": "292 tok/s",
                       "value": 292, "tone": "machinery"},
                      {"label": "Cerebras, Qwen3.8-27B",
@@ -533,26 +570,28 @@ VISUALS = {
     # Toned `cost`, and every line earns it: each one is a reason a claimed
     # saving is not a saving. The heading draws in the subject colour whatever
     # the tone, which is a known limitation of `points` rather than a choice.
-    "objection": {"kind": "points", "tone": "cost", "reserve": 5.0,
+    "objection": {"kind": "points", "tone": "cost", "reserve": 3.4,
                   "focus": "techniques",
                   "head": "algorithmic, or systems-realisable",
                   "items": [
                       "evict a cache you already built",
                       "masked, not shortened",
-                      "unsupported in vLLM, SGLang",
+                      "unsupported in vLLM and SGLang",
                       "random beats learned eviction",
                   ]},
 
-    # The take, as four lines that unfold with it rather than one card held
-    # still for half a minute.
-    "close": {"kind": "points", "tone": "subject", "reserve": 4.5,
+    # The take, as five lines that unfold with it rather than one card held
+    # still for half a minute. The fifth row was added in the timing re-cut:
+    # twenty words followed "which regime" with nothing left to draw.
+    "close": {"kind": "points", "tone": "subject", "reserve": 3.4,
               "focus": ["engines", "orchestration", "techniques"],
               "head": "the test to carry out of here",
               "items": [
                   "one frontier, not three knobs",
-                  "along it, or pushing it out?",
+                  "along it, or push it outward?",
                   "most write ups blur the two",
                   "which regime was it measured in",
+                  "nothing at batch size one",
               ]},
 }
 
