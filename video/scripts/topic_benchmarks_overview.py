@@ -59,10 +59,11 @@ What the critique step changed:
   - The answer-key beat was a list of errata. Errata are a footnote; the
     claim worth four sentences is what they do to the reading of a gap, which
     inverts what a residual means and is the page's own point. The compare
-    panel is now assumption against finding, not benchmark against error rate.
+    panel is finding against assumption, not benchmark against error rate.
   - `system` carried four items, Phi-Bench included. Four is a list. Three,
     each scoring a different non-model thing, is an argument, so Phi-Bench
-    stays named on the map and off the panel.
+    stays named on the map and off the panel. The re-cut added a fourth row,
+    but it is the sentence the three arrive at rather than a fourth benchmark.
   - The take originally closed on "the constraint has moved to verification".
     That is a thesis about a week of news, not about this page, and the page
     does not say it. It closes on the three questions instead, which is the
@@ -111,6 +112,50 @@ SWE-rebench and decontamination by the calendar; the retrieval-index result
 (54% against 38.7% on identical weights); LiveCodeBench and the live/rolling
 family; AIME sampling protocol; HarnessDev; reward-hacking activation
 monitors; and the two vendor claims the page carries as unverifiable.
+
+The 2026-09-23 re-cut, which changed no spoken word. `check_leads` found six
+reveals named before they were drawn, worst 24.9 seconds, and a rebuilt
+`still` measurement in the scene base then found four beats holding a
+motionless frame for 12 to 18 seconds. Both had the same cause: reserves of
+12, 14, 16 and 18 seconds, written when `still` was structurally always zero
+and nothing could contradict them. Every reserve is now inside the still-frame
+cap and the leads are closed by giving the long beats more to reveal:
+
+  - `map` 0 -> 6.0 and `question` 0 -> 4.5, which is the whole fix on those
+    two. Raising a parked map's reserve draws every column earlier and buys
+    the finished board a still second as well.
+  - `rate` and `harness` were two-bar charts. A `bars` panel is its head plus
+    one reveal per bar, so a long beat has three reveals and its last bar
+    lands at `beat - reserve`, which is why both wanted a reserve three times
+    the cap. The only row `bars` accepts is another bar, and neither beat has
+    a third honest measurement. Both are tables now, which cost the gap drawn
+    as two lengths and bought a row for the two sentences that previously had
+    no picture at all.
+  - `answerkey` swapped its two compare sides into the order the narration
+    takes them. A compare has one reveal per side and the second lands at
+    `beat - reserve`; the findings are named at 28.6s of a 48.9 second beat,
+    so they have to be the side drawn first.
+  - `system` and `convergence` lost their `points` head and gained rows. A
+    head is a reveal of its own, drawn at t=0, so it pushes every item one
+    place later for the price of a single short framing line, and on `system`
+    that alone put MOLE nine seconds ahead of its row.
+  - `take` stopped being a `claim`. A claim draws its headline first and its
+    note last, so the note sat at the end of a 36 second beat against a line
+    that names the three questions 11.5s in. A head and five rows unfold with
+    the line, which is what the closing beat wanted anyway.
+
+Nothing here is a reserve chosen by taste: `--reserves` prints the smallest
+value that closes a beat and says outright when no value can, and the six it
+refused are the six that got rows instead.
+
+One cost the fit has to carry and nobody can see: `focus_on` plays one fade
+per registered handle, and `compact()` registers one per item as well as one
+per heading, so this three-column, sixteen-item map costs about 4.8 seconds at
+the head of any beat that focuses. That is four of the nine beats here. It
+comes out of the drawing budget rather than the reserve, so every reveal on
+those beats lands about five seconds later than the plain arithmetic says.
+`check_leads` models it as of c3ff2fc; the figures above were refitted against
+that and still hold.
 
 Speakers:
   A  narrator, owns the spine and the map
@@ -280,7 +325,13 @@ VISUALS = {
     # the finished ones: on screen, not what we are discussing, which is the
     # colour's exact meaning. Machinery for the third column, because what
     # those score is the apparatus around the model rather than the model.
-    "map": {"kind": "columns", "park": True, "columns": [
+    #
+    # The reserve is the parked floor plus a tail. `spread` puts the third
+    # column at `beat - reserve`, and the line names it at 44.4s of a 50.5s
+    # beat, so a reserve of zero drew it six seconds after it was spoken. Six
+    # buys 2.7 of settle and morph and leaves the finished board standing for
+    # about three seconds, which is the whole premise of the format.
+    "map": {"kind": "columns", "park": True, "reserve": 6.0, "columns": [
         {"head": "still discriminates", "tone": "verified", "items": [
             "HLE", "ARC-AGI-3", "FrontierMath Tier 4", "SWE-bench Pro",
             "Terminal-Bench-Science", "Real-SWE"]},
@@ -294,94 +345,143 @@ VISUALS = {
     # No focus. The map was just built with every column lit, and this beat
     # is about all of them, so re-lighting everything would cost a second of
     # delay to change nothing. The lit state is inherited deliberately.
-    "question": {"kind": "claim",
+    #
+    # A claim has two reveals and the note is the second, so it lands at
+    # `beat - reserve`. The note is the three concealments and the line names
+    # them 19.5s into a 25.7s beat, which wants 4.5 held back.
+    "question": {"kind": "claim", "reserve": 4.5,
                  "text": "Every score is a number\nattached to a setup.",
                  "note": "when it was measured · what it ran inside · whether "
                          "the key was right"},
 
-    # Two measurements of one benchmark seven days apart. The labels are
-    # models rather than dates, so the frame cannot be misread as one model
-    # improving, which is the thing bars genuinely cannot draw. Both columns
-    # are lit because the beat is about the crossing between them.
-    "rate": {"kind": "bars", "reserve": 12.0,
+    # Two measurements of one benchmark seven days apart, plus what the rate
+    # costs and the test it has already killed.
+    #
+    # This was a two-bar chart and the bars could not be kept. A `bars` panel
+    # is its head plus one reveal per bar, so three reveals on a 36.7 second
+    # beat, and the second score is named 17.6s in: closing that needs a
+    # reserve of sixteen seconds, which is sixteen seconds of dead frame. The
+    # only lever `bars` has is another bar, and there is no third honest
+    # measurement of Terminal-Bench-Science 0.1 in this line of argument. A
+    # table takes rows that are not bars, so the two sentences that had no
+    # picture at all, the headroom and the GPQA Diamond retirement, now each
+    # land on one. What is lost is the gap drawn as two lengths; the row
+    # saying twenty two points of headroom says it instead.
+    #
+    # Both model rows carry "Claude" deliberately. `check_leads` matches a
+    # label by its significant words in order, and "5.1" squashes to
+    # "fiveone", which is nothing the narration says as one word, so a row
+    # reading "Fable 5.1, 7 days on" cannot be timed at all and the silence
+    # reads exactly like a pass. With the family name on it the row times off
+    # the first Claude, earlier than it is really named, which is the
+    # conservative direction.
+    "rate": {"kind": "table", "reserve": 5.5,
              "focus": ["still discriminates", "finished"],
-             "head": "Terminal-Bench-Science 0.1, seven days apart", "bars": [
-                 {"label": "Claude Opus 5", "value": 30.0, "text": "30.0%",
-                  "tone": "context"},
-                 {"label": "Claude Fable 5.1", "value": 52.6, "text": "52.6%",
-                  "tone": "number"},
+             "rows": [
+                 ["Claude Opus 5, at launch", "30.0%"],
+                 ["Claude Fable 5.1, 7 days on", "52.6%"],
+                 ["22 points of headroom", "gone in a week"],
+                 ["GPQA Diamond", "dropped as saturated"],
              ]},
 
-    # One model, one task set, two harnesses. Exactly what bars are for, and
-    # the reason values are given rather than widths: the gap is the argument,
-    # so it has to be drawn by arithmetic. Reserved heavily because both
-    # figures are spoken two thirds of the way through the beat and the bars
-    # must be finished by then.
+    # One model, one task set, two harnesses, and then the mechanism.
     #
-    # Both bars are measured numbers, so the lower one is not dimmed and the
-    # higher one is not the verified colour. The frames from the silent
-    # preview made the case: drawn as context against verified, the picture
-    # says the adapter run is the real score, which is a ranking ARC Prize
-    # explicitly refuses. Machinery is what the adapter actually is, provider
-    # plumbing, and the colour then carries the distinction without the
-    # judgement.
-    "harness": {"kind": "bars", "reserve": 16.0, "focus": "still discriminates",
-                "head": "ARC-AGI-3: GPT-6 Astra, one task set", "bars": [
-                    {"label": "neutral harness", "value": 62.7, "text": "62.7%",
-                     "tone": "number"},
-                    {"label": "provider adapter", "value": 99.9, "text": "99.9%",
-                     "tone": "machinery"},
+    # Also a bar chart that could not stay one, and for a sharper reason than
+    # `rate`. The adapter figure is named at 32.7s of a 50.3 second beat, and
+    # whatever the bar count, the adapter is the last bar, so the last reveal
+    # lands at `beat - reserve` and wants fourteen seconds held back. The only
+    # fix inside `bars` is a bar named after it, and there is none. Moving the
+    # words would have worked and was refused: it means separating sixty two
+    # point seven from ninety nine point nine, and B's objection only lands
+    # because they are said back to back. The table keeps every word and gives
+    # the closing sentence, what the adapter actually keeps, a row of its own.
+    "harness": {"kind": "table", "reserve": 5.5, "focus": "still discriminates",
+                "head": ["ARC-AGI-3", "GPT-6 Astra"], "rows": [
+                    ["neutral, provider agnostic", "62.7%"],
+                    ["provider adapter", "99.9%"],
+                    ["the adapter keeps", "reasoning state, not notes"],
                 ]},
 
     # No focus, deliberately: HLE and the physics suites are in the same
     # column the previous beat lit, so the map is already saying the right
     # thing and a second focus would only delay this panel.
     #
-    # Assumption against finding, because the claim is not the errata, it is
-    # what the errata do to the reading of a gap. Items are kept near
+    # Finding against assumption, in the order the narration takes them. The
+    # sides used to run the other way, and the cost was eighteen seconds of
+    # still frame: a compare has one reveal per side, the second side lands at
+    # `beat - reserve`, and the findings are named 28.6s into a 48.9 second
+    # beat while the reading of a gap is named at 47.4. Putting the findings
+    # first lets both sides land where the words are. Items are kept near
     # twenty-two characters, which is what a compare side has room for beside
     # a parked map.
-    "answerkey": {"kind": "compare", "reserve": 18.0, "sides": [
-        {"head": "how a gap is read", "tone": "context", "items": [
-            "the model failed",
-            "the gap is the limit",
-            "the hard tail is real"]},
+    "answerkey": {"kind": "compare", "reserve": 5.0, "sides": [
         {"head": "what re-grading found", "tone": "cost", "items": [
             "~29% contradicted",
             "18% expert disagreement",
             "wrong keys, bad items"]},
+        {"head": "how a gap is read", "tone": "context", "items": [
+            "the model failed",
+            "the gap is the limit",
+            "the hard tail is real"]},
     ]},
 
-    # Three items, each naming what is actually being scored, short enough to
-    # stay large beside the parked map. The heading renders in the subject
-    # colour whatever the tone says, which is a known limitation of `points`;
-    # the items carry the machinery colour so the column and the beat match.
+    # Three benchmarks, each scoring a different non-model thing, and then the
+    # sentence they arrive at. The items carry the machinery colour so the
+    # column and the beat match.
+    #
+    # The head came off and a fourth row went on, both for the same arithmetic
+    # reason. A `points` head is a reveal of its own, drawn at t=0, so with a
+    # head the first benchmark was reveal two of four and landed 14.2s into
+    # the beat against a line that names it at 5.5. Dropping the head makes
+    # MOLE reveal one, and the closing row gives the last eleven seconds of
+    # narration something to arrive on instead of a frozen frame.
     "system": {"kind": "points", "tone": "machinery", "focus": "not the model",
-               "head": "what is actually being scored", "items": [
+               "reserve": 4.0, "items": [
                    "MOLE: the monitor",
-                   "Hyper-tau-bench: the pairing",
+                   "Hyper tau bench: the pairing",
                    "Emergence World: the duration",
+                   "detection, not containment",
                ]},
 
     # Back to neutral. The convergence is about every column, and leaving the
     # third one lit would point at it while the line points at all three.
-    "convergence": {"kind": "points", "tone": "verified", "reserve": 14.0,
+    #
+    # Five shared designs and the two aggregator facts that follow them. The
+    # aggregator sentences used to have no reveal at all, which left sixteen
+    # seconds of narration after the last row and forced a reserve of
+    # fourteen. They are rows now, and the head came off to keep the count
+    # from running to eight: five properties under a head that does not
+    # govern the last two is a heading telling a small lie.
+    "convergence": {"kind": "points", "tone": "verified", "reserve": 5.0,
                     "focus": ["still discriminates", "finished",
                               "not the model"],
-                    "head": "what the durable designs share", "items": [
+                    "items": [
                         "private or rotating sets",
                         "live sets pinned to dates",
                         "licensed private repos",
                         "interactive environments",
                         "paired human baselines",
+                        "the aggregators moved",
+                        "40% of the index weight",
                     ]},
 
     # No focus: the map is already neutral from the previous beat, which is
     # the state the take wants.
-    "take": {"kind": "claim",
-             "text": "Ask three questions\nof every benchmark number.",
-             "note": "when was it measured · what harness · who checked the "
-                     "key"},
+    #
+    # A claim draws its headline first and its note last, so the note landed
+    # at the end of a 36.4 second beat against a line that names the three
+    # questions 11.5s in: a twenty five second lead, the worst in the episode,
+    # and a card that sat there through the whole conclusion. A head and five
+    # rows unfold with the line instead, which is what a closing beat wants
+    # anyway.
+    "take": {"kind": "points", "reserve": 4.0,
+             "head": "Ask three questions", "items": [
+                 "when was it measured",
+                 "what harness did it run in",
+                 "who checked the answer key",
+                 "measurement, or marketing",
+                 "one model, one set of tasks",
+             ]},
 }
 
 
