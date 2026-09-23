@@ -309,6 +309,50 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
     return 0
 
 
+_HEARD: dict = {}
+DISAGREE = 3.0          # seconds between heard and estimated before a human looks
+
+
+def heard_words(script_name: str, key: str, device: str):
+    """What the voice actually said in a beat, with a time on every word.
+
+    The default estimate spreads a beat's words evenly across its clip, which
+    is out by about a second on a beat that opens with a slow run of names.
+    Two re-cuts in a row wrote their own word-timestamp script to settle a
+    lead that close to the line, one of them after an unnecessary re-voice.
+    """
+    if key not in _HEARD:
+        clip = ROOT / "out" / "audio" / script_name / f"{key}.wav"
+        if not clip.exists():
+            _HEARD[key] = None
+        else:
+            import torch  # noqa: F401  ctranslate2 needs libcublas loaded first
+            from check_references import word_times
+            _HEARD[key] = word_times(clip, device)
+    return _HEARD[key]
+
+
+def said_seconds(labels, words, D, heard):
+    """When the label is spoken, from real word times if we have them."""
+    at = said_at(words, labels)
+    estimate = None if at is None else at / max(len(words), 1) * D
+    if heard:
+        hat = said_at([w for w, _s, _e in heard], labels)
+        if hat is not None:
+            t = heard[hat][1]
+            # Trust the transcript for the second of drift it exists to fix,
+            # not for a jump. A far-later match usually means the transcriber
+            # mangled the first mention and the match landed on a later one,
+            # which would hide a real lead; so take the earlier figure and say
+            # it needs a human.
+            if estimate is not None and abs(t - estimate) > DISAGREE:
+                return min(t, estimate), "disagree"
+            return t, "heard"
+    if estimate is None:
+        return None, None
+    return estimate, "estimated"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -318,6 +362,9 @@ def main() -> int:
                     help="print the smallest reserve per beat that closes its leads")
     ap.add_argument("--seconds-per-word", type=float, default=SECONDS_PER_WORD,
                     help="rate used by --estimate; the planning figure is 0.42")
+    ap.add_argument("--words", action="store_true",
+                    help="time labels from real word timestamps (needs a GPU)")
+    ap.add_argument("--device", default="cuda")
     ap.add_argument("--estimate", action="store_true",
                     help="work from word counts, before any voice exists")
     args = ap.parse_args()
@@ -353,9 +400,11 @@ def main() -> int:
         words = " ".join(text for _speaker, text in script[key]).split()
         lit = focus_delay(visuals, spec)
         budget = max(0.0, D - reserve - lit)
+        heard = heard_words(args.script, key, args.device) if args.words else None
         for k, labels in enumerate(groups, start=1):
             drawn = lit + (RUN_TIME if n == 1 else (k - 1) / (n - 1) * budget)
-            at = said_at(words, labels)
+            said, source = said_seconds(labels, words, D, heard)
+            at = None if said is None else 0
             if at is None:
                 # Not checkable, and silence here reads exactly like a pass.
                 # The orphan check has a second route, a shared significant
@@ -368,11 +417,12 @@ def main() -> int:
                       f"  NOT SAID VERBATIM, so not timed")
                 unchecked.append((key, labels[0]))
                 continue
-            said = at / max(len(words), 1) * D
             lead = drawn - said
-            flag = ""
+            flag = {"estimated": "  (estimated)" if args.words else "",
+                    "disagree": "  (heard and estimated disagree: check by ear)",
+                    "heard": ""}[source]
             if lead > args.tolerance:
-                flag = "  NAMED BEFORE IT IS DRAWN"
+                flag = "  NAMED BEFORE IT IS DRAWN" + flag
                 problems.append((key, labels[0], lead))
             label = (labels[0] or "?")[:26]
             print(f"{key:16s} {label:28s} {drawn:7.1f} {said:7.1f} {lead:7.1f}{flag}")
