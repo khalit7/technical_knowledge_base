@@ -75,8 +75,19 @@ def main() -> int:
 
     durations = json.loads(
         (ROOT / "out" / "audio" / args.script / "durations.json").read_text())
-    timing_path = Path(args.timing) if args.timing else \
-        ROOT / "out" / f"timing_{args.script.replace('tech_news_', '')}.json"
+    # The render writes `timing_<episode>.json`, with the episode name whole.
+    # This used to strip a leading "tech_news_", from a naming scheme nothing
+    # writes any more, so every news edition's timing check died on a missing
+    # file while every overview passed. The old spelling is still accepted,
+    # because a file written under it would otherwise become unreadable.
+    if args.timing:
+        timing_path = Path(args.timing)
+    else:
+        timing_path = ROOT / "out" / f"timing_{args.script}.json"
+        if not timing_path.exists():
+            legacy = ROOT / "out" / f"timing_{args.script.replace('tech_news_', '')}.json"
+            if legacy.exists():
+                timing_path = legacy
     beats = json.loads(timing_path.read_text())
 
     print(f"{'beat':18s} {'starts':>8s} {'speaks':>7s} {'ends':>8s} {'wpm':>5s}   note")
