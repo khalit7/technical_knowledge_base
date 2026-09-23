@@ -187,6 +187,17 @@ text to speech reads "LLM", "lm-eval-harness", "O(n^2)", "75-85%" and
 and are gone: "METR" comes back as "meter" and neither name does work that
 "the safety institutes" does not.
 
+Timing re-cut, 23 September 2026, VISUALS only, audio byte-identical. The
+first cut had thirteen reveals named before they were drawn, worst 10.1s
+(promptfoo in `harnesses`), and two stills at exactly 6.0s. Every reserve was
+swept to the value `check_leads --reserves` suggests. `harnesses` and `judges`
+each gained two rows for sentences the beat already spoke with no reveal, near
+the end of the line, which re-spaced the earlier rows under their names:
+the "safe to ship" question and the fault line split into its two halves, and
+"answers each alone" and "bias has no channel left". The enclave's last row
+was re-pointed to the beat's last sentence, "Google's own enclave" and "no
+transcripts for anyone". After: no lead over 3s, worst still 5.2s.
+
 Length. 6 minutes 58 at 1080p and 4.61 MiB, which is the third 1080p rung.
 The six-minute target and the reveal-pacing arithmetic pull against each other
 on a page this dense: eight beats whose panels carry six or seven reveals each
@@ -264,10 +275,10 @@ SCRIPT["question"] = [
 ]
 
 # --- the middle column ----------------------------------------------------
-# Seven reveals, seven segments of roughly equal length, so harness k is named
-# about where row k is drawn. The sixth row exists to give the comparability
-# point a reveal of its own: without it, the closing clause would have to sit
-# in the reserve, and it is twice as long as the reserve can be.
+# Nine reveals: head, five harnesses, then three rows for the closing
+# sentences (safe to ship, and the fault line as two halves), so the last row
+# lands on the last sentence and the five harness rows space out under their
+# names. Seven reveals, as first cut, drew promptfoo ten seconds late.
 SCRIPT["harnesses"] = [
     (A, "The middle column, lit on the map. They all run a dataset through a "
         "model and score it. The difference is the unit of work."),
@@ -288,9 +299,12 @@ SCRIPT["harnesses"] = [
 ]
 
 # --- the judge, and how the grading mode fixes the bias -------------------
-# Seven reveals again, and the sixth item is the caveat rather than a second
-# claim, because the caveat is what stops the checklist line being an
-# overclaim and it needs a reveal of its own to be said late enough.
+# Nine reveals, and the last item is the caveat rather than a second claim,
+# because the caveat is what stops the checklist line being an overclaim and
+# it needs a reveal of its own to be said late enough. "answers each alone"
+# and "bias has no channel left" were added in the timing re-cut so the
+# checklist sentence has rows to land on; with seven reveals the first rows
+# were drawn five to seven seconds after they were named.
 SCRIPT["judges"] = [
     (A, "Second suspect. A judge is a measuring instrument that happens to be "
         "a model, and the grading mode fixes its bias profile."),
@@ -404,7 +418,7 @@ VISUALS = {
     # Cost for the three suspects, which is what the whole episode is about
     # and is the one column that names a failure. None is `context`, so every
     # column has somewhere to brighten from when a later beat lights it.
-    "map": {"kind": "columns", "park": True, "reserve": 4.5, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 6.0, "columns": [
         {"head": "what you can run", "tone": "verified", "items": [
             "static benchmarks",
             "LLM judges",
@@ -430,7 +444,7 @@ VISUALS = {
     # No focus: the map was built one beat ago with all three columns lit, and
     # that is exactly the state an attribution rule about the whole board
     # wants.
-    "question": {"kind": "claim", "reserve": 2.5,
+    "question": {"kind": "claim", "reserve": 4.1,
                  "text": "Three fallible parts.\nPin the delta on one before you act.",
                  "note": "most apparent model regressions are eval bugs first"},
 
@@ -441,7 +455,7 @@ VISUALS = {
     #
     # Cells are short because the free region beside a parked map is about 7.6
     # units and two text columns have to share it.
-    "harnesses": {"kind": "table", "focus": "what runs it", "reserve": 5.0,
+    "harnesses": {"kind": "table", "focus": "what runs it", "reserve": 2.8,
                   "head": ["harness", "one unit of work"],
                   "rows": [
                       ["lm-eval-harness", "a declarative task"],
@@ -449,17 +463,19 @@ VISUALS = {
                       ["lighteval", "a pretraining loop"],
                       ["HELM", "seven metrics at once"],
                       ["promptfoo", "an application config"],
-                      ["every harness", "likelihood, or generated text"],
+                      ["", "is this setup safe to ship?"],
+                      ["every harness", "likelihood of fixed options"],
+                      ["", "or the text the model generates"],
                   ]},
 
-    # Six reveals over the longest beat in the episode, which is right: this
+    # Nine reveals over the longest beat in the episode, which is right: this
     # is the page's own centre of gravity and the one place a viewer changes
     # what they do on Monday.
     #
     # The heading renders in the subject colour whatever the tone says, which
     # is a known limitation of this panel kind and is harmless here.
     "judges": {"kind": "points", "focus": "what can be lying",
-               "tone": "machinery", "reserve": 5.5,
+               "tone": "machinery", "reserve": 4.1,
                "head": "how it grades fixes how it is biased",
                "items": [
                    "pointwise: one score, and it drifts",
@@ -467,6 +483,8 @@ VISUALS = {
                    "rubric: which criterion failed",
                    "a jury of small judges beats one",
                    "checklist: 5 to 10 binary questions",
+                   "answers each alone",
+                   "bias has no channel left",
                    "but list-level: never one answer",
                ]},
 
@@ -479,7 +497,7 @@ VISUALS = {
     # Toned `cost` because every line here is a way the instrument is worse
     # than it looks. That is a verdict the page takes itself, in the sentence
     # that self-consistency certifies nothing.
-    "ceiling": {"kind": "points", "tone": "cost", "reserve": 5.5,
+    "ceiling": {"kind": "points", "tone": "cost", "reserve": 4.9,
                 "head": "the calibration certificate",
                 "items": [
                     "human labels on a gold slice",
@@ -495,13 +513,13 @@ VISUALS = {
     # `compare` has two reveals and this beat runs about forty five seconds,
     # so it would have been motionless for twenty of them. Head plus three
     # rows is four reveals, which walks with the narration.
-    "enclave": {"kind": "table", "focus": "what you can run", "reserve": 4.0,
+    "enclave": {"kind": "table", "focus": "what you can run", "reserve": 3.2,
                 "head": ["", "the lab", "the evaluator"],
                 "rows": [
                     ["puts in", "its weights", "its benchmark"],
                     ["never sees", "the prompts", "the weights"],
                     ["so", "no training on them", "the model never leaves"],
-                    ["but", "it is Google's enclave", "and nobody sees transcripts"],
+                    ["but", "Google's own enclave", "no transcripts for anyone"],
                 ]},
 
     # The take, as seven things that unfold with the line rather than one card
@@ -511,7 +529,7 @@ VISUALS = {
     # One tone throughout. Colouring the habits as `verified` and the MOLE
     # line as `cost` would deliver a verdict the page does not: the page
     # reports what MOLE found, it does not call the practice a mistake.
-    "close": {"kind": "points", "tone": "subject", "reserve": 2.0,
+    "close": {"kind": "points", "tone": "subject", "reserve": 4.0,
               "focus": ["what you can run", "what runs it",
                         "what can be lying"],
               "head": "attribute the delta, then act",
