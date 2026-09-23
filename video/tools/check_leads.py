@@ -150,22 +150,33 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
     #    words in fourteen is specific enough to mean the item is being named;
     #    one word anywhere is not.
     for label in labels:
-        sig = [w for w in (squashed(x) for x in str(label).split()) if len(w) >= 4]
-        if len(sig) < 2:
-            continue
-        for i in range(len(squashed_words)):
-            hits, j, k = [], i, 0
-            while j < min(i + WINDOW, len(squashed_words)) and k < len(sig):
-                # Exact, not substring: "gain" sits inside "against" and a
-                # substring test found a label four seconds into a beat that
-                # names it forty seconds later.
-                if squashed_words[j] == sig[k]:
-                    hits.append(j)
-                    k += 1
-                j += 1
-            if len(hits) >= 2:
-                best = hits[0] if best is None else min(best, hits[0])
+        allsig = [w for w in (squashed(x) for x in str(label).split()) if len(w) >= 4]
+        # Any starting word, not only the first. Requiring the label's first
+        # significant word to appear before any other could match made
+        # "ignore the 67x per dollar headline" untimeable while "ignore the
+        # headline 67x per dollar" timed, on word order alone, and nothing
+        # said so.
+        for drop in range(max(1, len(allsig) - 1)):
+            sig = allsig[drop:]
+            if len(sig) < 2:
                 break
+            for i in range(len(squashed_words)):
+                hits, j, k = [], i, 0
+                while j < min(i + WINDOW, len(squashed_words)) and k < len(sig):
+                    # Exact, not substring: "gain" sits inside "against", and
+                    # a substring test once found a label four seconds into a
+                    # beat that names it forty seconds later.
+                    if squashed_words[j] == sig[k]:
+                        hits.append(j)
+                        k += 1
+                    j += 1
+                if len(hits) >= 2:
+                    best = hits[0] if best is None else min(best, hits[0])
+                    break
+            if best is not None:
+                break
+        if best is not None:
+            break
     return best
 
 
@@ -192,12 +203,13 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
         if n < 2 or not D:
             continue
         words = " ".join(t for _s, t in script[key]).split()
-        want = 0.0
+        want, blind = 0.0, 0
         for k, labels in enumerate(groups, start=1):
             if k < 2:
                 continue
             at = said_at(words, labels)
             if at is None:
+                blind += 1
                 continue
             said = at / max(len(words), 1) * D
             want = max(want, D - (said + tolerance) * (n - 1) / (k - 1))
@@ -206,10 +218,16 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
         want = max(0.0, want)
         note = ""
         if want > cap:
-            note = "RESERVE CANNOT FIX IT: add a panel row, or move the words"
+            note = (f"RESERVE CANNOT FIX IT (wants {want:.1f}): re-point a note, "
+                    f"add a row, or move the words")
             over += 1
         elif want > now + 0.3:
             note = "raise it"
+        # A beat whose reveals could not be timed reports 0.0, which reads as
+        # "nothing to do here" and is the more dangerous of this tool's two
+        # outputs. Say how blind it is.
+        if blind:
+            note = (note + "  " if note else "") + f"[{blind} reveal(s) untimed]"
         print(f"{key:16s} {now:6.1f} {min(want, cap):10.1f} {cap:6.1f}   {note}")
     if over:
         print(f"\n{over} beat(s) need more reserve than the still-frame cap "
