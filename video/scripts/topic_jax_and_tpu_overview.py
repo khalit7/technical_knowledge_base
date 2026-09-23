@@ -235,17 +235,36 @@ second cap and 5.5 is the real ceiling. On the parked map `still` was
 by least squares from the rendered durations, so that reveal k lands about two
 seconds after the segment that names it.
 
-The weakest lead in the episode is `map`, where the fourth column is drawn
-about six seconds after the line says "and on the right, the hardware". The
-reserve is already at its cap, so the only remaining fix is to move words out of
-the fourth segment into the third and re-roll the beat, and the beat is
-otherwise clean at 127 words a minute. Left as it is, and recorded here rather
-than rediscovered: a four-column map names its last column in the last quarter
-of the beat, and four columns is one more than the number this vocabulary is
-comfortable with.
+Timing re-cut, 23 September 2026. Once `check_leads` learned to model the
+focus delay (0.25s per handle at the head of a focus beat, and this map has
+twenty handles, so five seconds), nine reveals were named before they were
+drawn, worst 6.0s. The repair kept the axis, the map, the beats, the take and
+all but one sentence's word order:
 
-Length: 6 minutes 41, 1080p, 4.24 MiB, on the third and last 1080p rung of the
-encode ladder. 148 words a minute overall. The trim lever, if a future cut needs
+  - `price`, `sharding` and `close` lost their `points` heads. A head is drawn
+    at the top and spends a reveal slot, and on top of five seconds of map
+    lighting that put every early row three to six seconds behind its line.
+  - Reserves swept to the midpoint `--reserves` suggests: `question` 4.0,
+    `price` 5.0, `sharding` 4.2, `hardware` 3.2, `stack` 5.0 (it was 1.5,
+    which left Flax Linen 4.2s early), `close` 5.0.
+  - Four items reworded so the check can time them rather than skip them:
+    the Mesh row, the ICI row, the pod row, Flax NNX and grain.
+  - The one spoken change, a pure reorder in `map`: "Then five libraries, which
+    is the training stack" rather than "Then the training stack, which is five
+    libraries". The parked reserve was at its cap and the third column was
+    still 3.1s early; every word is the same. Only `map` was re-voiced.
+
+What the check cannot see, measured by word timestamps on the new take: the
+fourth column's heading is "the TPU" while the line says "on the right, the
+hardware", so no label matches and the check times the column from "H B M and
+V mem". The real lead is about three seconds, down from 3.3 on the old take;
+the M X U itself is named after the column lands. The map's reserve sits at
+8.0, above the 6.7 the tool suggests, because on a parked map more reserve
+draws every column earlier and that pointer is the binding one.
+
+Length: 6 minutes 37 after the timing re-cut (6:41 before it), 1080p, 4.19
+MiB, on the third and last 1080p rung of the encode ladder. 140 words a minute
+overall by `check_timing`. The trim lever, if a future cut needs
 one, is `stack`: Equinox and Haiku are the two rows it does not have, and the
 close already carries the "which one do I use" conclusion.
 """
@@ -291,7 +310,7 @@ SCRIPT["map"] = [
     (A, "Next to it, sharding. You declare a device Mesh, and attach a Named "
         "Sharding to each array. A partitioner called G S P M D does the "
         "rest."),
-    (A, "Then the training stack, which is five libraries. Flax N N X and "
+    (A, "Then five libraries, which is the training stack. Flax N N X and "
         "Flax Linen, for the models themselves. Then optax, orbax and grain "
         "underneath them."),
     (A, "And on the right, the hardware. The M X U, where the arithmetic "
@@ -452,7 +471,7 @@ VISUALS = {
     # four and chosen over `cost`, which would deliver a verdict the page does
     # not take. None is `context`, so every column has somewhere to brighten
     # from when a later beat lights it.
-    "map": {"kind": "columns", "park": True, "reserve": 8.3, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 8.0, "columns": [
         {"head": "JAX core", "tone": "subject", "items": [
             "jit",
             "grad",
@@ -479,14 +498,17 @@ VISUALS = {
     # so they share their key words without either reading the other out.
     # No focus: the map was built one beat ago with all four columns lit, which
     # is exactly the state a claim about the whole board wants.
-    "question": {"kind": "claim", "reserve": 3.5,
+    "question": {"kind": "claim", "reserve": 4.0,
                  "text": "Give up mutable state.\n"
                          "Get a compiler that shards one program across a pod.",
                  "note": "everything else on the map follows from that trade"},
 
-    "price": {"kind": "points", "tone": "subject", "reserve": 5.5,
+    # No head. On a focus beat the map's lighting spends five seconds at the
+    # top of the beat, and a head spent one more reveal slot on top of that,
+    # so every row landed three to five seconds after the line named it. The
+    # opening line says "every function has to be pure" over the lighting.
+    "price": {"kind": "points", "tone": "subject", "reserve": 5.0,
               "focus": "JAX core",
-              "head": "the price: functions must be pure",
               "items": [
                   "state threaded by hand",
                   "jit traces, XLA compiles",
@@ -494,12 +516,13 @@ VISUALS = {
                   "vmap and shard_map compose",
               ]},
 
-    "sharding": {"kind": "points", "tone": "number", "reserve": 5.5,
+    # No head, for the same reason as `price`: it put the single device row
+    # six seconds behind the line naming it.
+    "sharding": {"kind": "points", "tone": "number", "reserve": 4.2,
                  "focus": "sharding",
-                 "head": "what the compiler buys",
                  "items": [
                      "you write a single-device program",
-                     "a Mesh, then a NamedSharding",
+                     "declare a Mesh + NamedSharding",
                      "GSPMD inserts the collectives",
                      "DP, FSDP, TP: the same program",
                      "shard_map is the escape hatch",
@@ -509,7 +532,7 @@ VISUALS = {
     # true sentence and the row is scannable. Toned `verified`, matching the
     # hardware column of the map, which is the one part of this board that
     # physically exists.
-    "hardware": {"kind": "points", "tone": "verified", "reserve": 3.6,
+    "hardware": {"kind": "points", "tone": "verified", "reserve": 3.2,
                  "focus": "the TPU",
                  "head": "the TPU: a chip, and a fabric",
                  # Seven rows rather than five. The beat's narration falls
@@ -521,14 +544,14 @@ VISUALS = {
                  "items": [
                      "MXU: a 128x128 systolic array",
                      "HBM staged through VMEM",
-                     "ICI: wired to your neighbours",
+                     "ICI: wired to its neighbours",
                      "a torus, and no switches",
-                     "a pod is one machine",
+                     "a pod: many chips, one machine",
                      "Pallas: kernels for TPU and GPU",
                      "lowering through Mosaic",
                  ]},
 
-    "stack": {"kind": "points", "tone": "machinery", "reserve": 1.5,
+    "stack": {"kind": "points", "tone": "machinery", "reserve": 5.0,
               "focus": "the training stack",
               # Not "the training stack": that is the map heading this beat
               # lights, and printing the same words twice on one frame makes
@@ -536,18 +559,19 @@ VISUALS = {
               # preview frame; no check looks at a `head`.
               "head": "what you write the model in",
               "items": [
-                  "Flax NNX: use this one",
+                  "Flax NNX: the recommended one",
                   "Flax Linen: what you will read",
                   "optax: optimisers as a chain",
                   "orbax: save a whole pod slice",
-                  "grain: resume mid-epoch",
+                  "grain: resumes mid-epoch",
               ]},
 
     # Lighting every column is how this vocabulary says no emphasis, and it is
     # also true: the close is about the whole board.
-    "close": {"kind": "points", "tone": "subject", "reserve": 5.5,
+    # No head: the five second focus lighting plus a head slot put all three
+    # of the first rows four to six seconds behind their lines.
+    "close": {"kind": "points", "tone": "subject", "reserve": 5.0,
               "focus": ["JAX core", "sharding", "the training stack", "the TPU"],
-              "head": "what the map is for",
               "items": [
                   "a translation track, not a rival",
                   "more explicit: you thread state",
