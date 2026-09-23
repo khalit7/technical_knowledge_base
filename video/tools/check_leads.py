@@ -240,6 +240,10 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
         if n < 2 or not D:
             continue
         words = " ".join(t for _s, t in script[key]).split()
+        # The main report models the focus delay and this did not, so on the
+        # beats carrying a focus, which are the ones needing the most help,
+        # every number here was out by up to five seconds.
+        lit = focus_delay(visuals, spec)
         want, blind = 0.0, 0
         for k, labels in enumerate(groups, start=1):
             if k < 2:
@@ -249,24 +253,31 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
                 blind += 1
                 continue
             said = at / max(len(words), 1) * D
-            want = max(want, D - (said + tolerance) * (n - 1) / (k - 1))
+            want = max(want, D - lit - (said + tolerance - lit) * (n - 1) / (k - 1))
         cap = PARKED_CAP if spec.get("park") else ORDINARY_CAP
         now = float(spec.get("reserve", 0.0) or 0.0)
         want = max(0.0, want)
+        # The caps are limits, not targets. Fitting a map to 8.3 rendered a
+        # 5.95s still frame against a 6.0s limit, which passes and is not a
+        # margin. Suggest the value furthest from both gates instead.
+        pick = want if want > cap else (want + cap) / 2
         note = ""
         if want > cap:
+            fix = ("add a column, which the page will not usually support, so "
+                   "move the words" if spec.get("kind") == "columns" else
+                   "add a row NAMED AT THE END of the line")
             note = (f"RESERVE CANNOT FIX IT (wants {want:.1f}): re-point a "
-                    f"note, add a row NAMED AT THE END of the line, add a "
-                    f"`compare` side (up to four), or move the words")
+                    f"note, {fix}, add a `compare` side (up to four), or move "
+                    f"the words")
             over += 1
-        elif want > now + 0.3:
-            note = "raise it"
+        elif abs(pick - now) > 0.3:
+            note = "move it here: midway between the lead floor and the cap"
         # A beat whose reveals could not be timed reports 0.0, which reads as
         # "nothing to do here" and is the more dangerous of this tool's two
         # outputs. Say how blind it is.
         if blind:
             note = (note + "  " if note else "") + f"[{blind} reveal(s) untimed]"
-        print(f"{key:16s} {now:6.1f} {min(want, cap):10.1f} {cap:6.1f}   {note}")
+        print(f"{key:16s} {now:6.1f} {min(pick, cap):10.1f} {cap:6.1f}   {note}")
     if over:
         print(f"\n{over} beat(s) need more reserve than the still-frame cap "
               f"allows. Adding a row changes n and re-spaces every landing, "

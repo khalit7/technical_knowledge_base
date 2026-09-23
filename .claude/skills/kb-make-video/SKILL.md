@@ -7,7 +7,7 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
-*This copy is the page as Notion last edited it, 2026-09-23 04:23:00 UTC. A procedure*
+*This copy is the page as Notion last edited it, 2026-09-23 04:56:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
 *The copy your skill loader served you can also be behind this file: if you were told*
@@ -189,6 +189,8 @@ uv run --group tts --group video python video/tools/check_leads.py --script <epi
 `spread` places n reveals evenly from the top of the beat to the end of its budget, so **reveal k of n lands at about ****`(k-1)/(n-1) x (beat_length - reserve)`**: the first is immediate, the last lands exactly `reserve` seconds before the line ends. So `reserve` is not a nudge, it decides **how long the finished panel sits motionless at the end of the beat**, and never reach for a bigger reserve to fix a reveal that lands too early: that makes the still frame worse, not better.
 
 **The six second cap is on ****`still`****, not on ****`reserve`****, and they are not the same number.** `check_timing` measures the rendered frame. **On an ordinary beat ****`still`**** is about ****`reserve + 0.4`**, measured across a whole episode's panel beats, so **5.5 is the reachable ceiling and 6.0 is not**, and that is the case which comes up seven times an episode. If the arithmetic asks for more, the answer is fewer words after the last reveal rather than a bigger reserve. **On a parked beat the park spends 2.0 seconds of settle and a 0.7 second morph out of the front of it, so ****`still`**** is about ****`reserve - 2.4`**, measured at 6.0 giving 3.65 and at 8.5 giving 6.15, which puts the parked ceiling near 8.3. A reserve of 6.0 on a map beat measured 3.65. Budget against `still` and work backwards, rather than treating five as a ceiling on the number you type.
+
+**Those caps are limits, not targets, and the difference costs a render.** Fitting a parked map to 8.3 produced a 5.95 second still frame against a 6.0 limit: it passes, and it is not a margin. The reserve has a floor set by the leads and a ceiling set by the still frame, so **take the value furthest from both**, which is what `--reserves` now suggests rather than the bare minimum that closes the leads.
 
 **On a fixed-reveal panel the reserve is the only lever, and "move the words" cannot work.** The last turn can hold about `reserve x wpm / 60` words, which at a reserve of 4.5 and 113 words a minute is **eight words**. Naming a map column's items takes more than eight, and lengthening that turn moves its start earlier, making the lead worse rather than better. So for `columns`, `stat`, `compare` or `table`, where the reveal count is fixed by the data, tune the reserve. **On a parked map, raising the reserve is a pure win**, worth stating because two rules here look like they forbid it: it draws every column earlier, closing leads, **and** buys still time, because the settle comes out of the front of it. The warning about a generous reserve collapsing the map mid-sentence is about where the settle sits, not how big the reserve is. **Raising it reduces a lead** generally, which is also worth saying because the intuition runs the other way: a bigger reserve shortens the drawing budget, so every reveal including the last one lands earlier, closer to the words that name it.
 
@@ -490,7 +492,7 @@ The toolchain lives in the GitHub mirror, under `video/`, and this page is mirro
 uv run python video/tools/check_structure.py --script <episode>
 ```
 
-1. Preview silently, then pull frames and look at them:
+1. Preview silently, then pull frames and look at them. The preview writes `out/<episode>.preview-l.mp4`, so it can no longer be mistaken for the delivery file, but **the episode still has to be rendered at full quality before it is published**:
 
 ```bash
 uv run video/build.py <episode> --skip-tts --quality l
@@ -616,6 +618,8 @@ Two more things follow. Measure a lead from the moment the **name** is spoken ra
 
 **It reports what it could not time, and that is not the same as a pass.** The orphan check has a second route, a shared significant word; this one does not, because a reveal has to be located at a *moment* and a common word turns up earlier in a beat for other reasons. Matching that way was tried and timed one genuinely clean episode as eighteen leads. So a label the narration never says as a contiguous run is listed as `NOT SAID VERBATIM, so not timed` and left alone. **Write every panel item as a phrase the line actually says**, and where that is impossible, time it by hand rather than reading the silence as clean.
 
+Concretely, an item is timeable if either the whole thing squashes to a run the narration says, which is how a spelled-out name matches (`pgvector` against "P G vector", `44.7%` against "forty four point seven"), or **two of its words of four or more characters appear as exact whole words, in order, within fourteen words**. That second route is what silently excludes an item built from short words: "cut" is three characters, and "3am" squashes to "threeam" against a line that says "three in the morning". Rewriting one item is usually cheaper than accepting an unchecked reveal.
+
 A second route catches the common paraphrase case: two or more of a multi-word item's significant words, in order, inside a fourteen word window, so "chunking moves quality most" is found in "chunking is still what moves quality most". It matches whole words rather than substrings, because "gain" sits inside "against" and a substring test once placed a label four seconds into a beat that names it forty seconds later. **A ****`points`**** list of paraphrased sentences is still the weak case**: one episode had 23 of 32 reveals unmatched, and hand-timing then found agentic RAG named 12.9 seconds before its row, chunking 8.8 and the reranker 7.1, all past every check. `columns`, `bars`, `stat`, `claim` and `table` time reliably; a `points` beat wants verbatim item strings or a hand check.
 
 ```bash
@@ -631,6 +635,8 @@ It wants the real durations for the final pass, so run it again after the voice.
 A corollary worth knowing before you fight it: if a closing claim has no reveal of its own to land on, it has to live in the reserve, and the reserve is not long enough. **Add a row to the panel** so the claim has something to arrive with.
 
 What each kind reveals: `stat` 2 (the number **with** its caption, which are one mobject, then the note), `compare` 2 (one per side), `claim` 1 or 2, `columns` one per column, `stack` one per layer, and `points`, `flow`, `bars`, `table` and `resources` one per row or step, plus one for the head where there is one.
+
+**A ****`columns`**** reveal is timed from whichever of its labels the narration says first**, head or item, not from the head. So moving the product names in front of the category name to buy runway buys nothing at all.
 
 **Two heads that behave differently, which is worth holding on to because it moves every landing on the beat.** A `columns` heading is drawn as part of its column and is **not** a reveal of its own, so a three column map is three reveals. A `table`'s head row **is** a reveal of its own, so a table with a head and three rows is four. A `points` head behaves the same way. Either is a **free** reveal: drawn at t=0, so it can never produce a lead, which is why a handful of untimed heads in the lead report is structurally fine rather than alarming, and excluded from the orphan check, so it carries no naming obligation either. **Free for itself, though, and it costs every item after it one place**, which is the part that bites: on one beat the head pushed the first real item from reveal 1 to reveal 2 and put it 8.7 seconds ahead of its row. Count it in n and then forget it. Count wrong and every reveal after it lands somewhere else. `claim` **and ****`stat`** draw their big line **first**, at the top of the beat, so neither can build towards its own headline: the headline is already on screen while you argue for it. If a beat's shape is an argument arriving at a statement, use a `stack` or `points` and let the statement be the last row. They also deserve their own warning: both have two reveals, the second of which is the `note`, so it lands at `beat_length - reserve` and **the sentence the note paraphrases has to be the last thing said in the beat.**
 
