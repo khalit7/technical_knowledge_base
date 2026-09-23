@@ -124,11 +124,22 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
         target = squashed(label)
         if len(target) < 4:
             continue
-        at = joined.find(target)
-        if at < 0:
-            continue
-        idx = max(i for i, st in enumerate(starts) if st <= at)
-        best = idx if best is None else min(best, idx)
+        # The run has to begin at a word start and end at a word end. It may
+        # still SPAN words, which is the whole point of squashing ("Lite L L
+        # M" is four words and one name), but it may not end inside one:
+        # REINFORCE sits inside "reinforcement", so saying "deep
+        # reinforcement learning" timed an entire map column from that word
+        # and reported a lead that was not there.
+        ends = {st + len(sw) for st, sw in zip(starts, squashed_words)}
+        at = -1
+        while True:
+            at = joined.find(target, at + 1)
+            if at < 0:
+                break
+            if at in starts and at + len(target) in ends:
+                idx = starts.index(at)
+                best = idx if best is None else min(best, idx)
+                break
     if best is not None:
         return best
 
