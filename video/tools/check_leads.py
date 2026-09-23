@@ -386,6 +386,13 @@ def aligned_time(words, heard, at):
         return heard[before[-1][1]][1]
     if before and after:
         (a0, b0), (a1, b1) = before[-1], after[0]
+        # An unmatched script run sits opposite an unmatched heard run, as
+        # "F S D P one" sits opposite "FSDP1". Map onto that heard run rather
+        # than interpolating times between the anchors, which put a label
+        # spoken at 16.1 seconds at 14.6, inside the previous word's gap.
+        if b1 - b0 > 1:
+            k = round((at - a0 - 1) * (b1 - b0 - 2) / max(a1 - a0 - 2, 1))
+            return heard[b0 + 1 + min(max(k, 0), b1 - b0 - 2)][1]
         t0, t1 = heard[b0][1], heard[b1][1]
         return t0 + (t1 - t0) * (at - a0) / max(a1 - a0, 1)
     return heard[(before[-1] if before else after[0])[1]][1]
