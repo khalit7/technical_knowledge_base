@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from check_structure import PANEL_FIELDS  # noqa: E402  (path set above)
 
 LEAD_TOLERANCE = 3.0     # seconds of pointing at nothing before it is a defect
+WINDOW = 14              # words a paraphrase may spread a label over
 SECONDS_PER_WORD = 0.40  # the series aggregate, tails and gaps included
 RUN_TIME = 0.45          # one FadeIn, from scene.spread
 
@@ -104,15 +105,20 @@ def reveals(spec: dict) -> list[list[str]]:
 def said_at(words: list[str], labels: list[str]) -> int | None:
     """Word index where the narration first names any of these labels.
 
-    Matched the way the orphan check matches, because that is the rule the
-    scripts are already written to: a squashed label appearing as a
-    contiguous run inside the squashed narration.
+    Two routes, both deliberately strict, because a reveal has to be located
+    at a MOMENT and a loose match invents one. Matching on a single shared
+    word was tried and backed out: a common word turns up earlier in a beat
+    for other reasons, and it timed a genuinely clean episode as eighteen
+    leads, which would have sent its author rewriting good beats.
     """
     squashed_words = [squashed(w) for w in words]
     joined, starts = "", []
     for sw in squashed_words:
         starts.append(len(joined))
         joined += sw
+
+    # 1. The whole label as a contiguous squashed run. This is how a product
+    #    name on a card is said, and how the orphan check matches.
     best = None
     for label in labels:
         target = squashed(label)
@@ -121,24 +127,34 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
         at = joined.find(target)
         if at < 0:
             continue
-        idx = max(i for i, s in enumerate(starts) if s <= at)
+        idx = max(i for i, st in enumerate(starts) if st <= at)
         best = idx if best is None else min(best, idx)
-    return best
+    if best is not None:
+        return best
 
-    # Second route, as the orphan check has: the earliest significant word of
-    # any label. Without this, a multi-word item like "Inductor: Triton, and
-    # now CuTe" squashes to a run the narration never says and the reveal goes
-    # untimed, which used to look exactly like a pass. One significant word is
-    # a weaker signal than the whole phrase and still puts the reveal within a
-    # word or two of where it is named.
+    # 2. For a multi-word item the narration paraphrases rather than quotes,
+    #    as a `points` list usually is: two or more of the label's significant
+    #    words, in order, inside a short window. "Chunking moves quality most"
+    #    is then found in "chunking is still what moves quality most". Two
+    #    words in fourteen is specific enough to mean the item is being named;
+    #    one word anywhere is not.
     for label in labels:
-        for piece in (squashed(w) for w in str(label).split()):
-            if len(piece) < 4:
-                continue
-            for i, sw in enumerate(squashed_words):
-                if piece in sw or sw in piece:
-                    best = i if best is None else min(best, i)
-                    break
+        sig = [w for w in (squashed(x) for x in str(label).split()) if len(w) >= 4]
+        if len(sig) < 2:
+            continue
+        for i in range(len(squashed_words)):
+            hits, j, k = [], i, 0
+            while j < min(i + WINDOW, len(squashed_words)) and k < len(sig):
+                # Exact, not substring: "gain" sits inside "against" and a
+                # substring test found a label four seconds into a beat that
+                # names it forty seconds later.
+                if squashed_words[j] == sig[k]:
+                    hits.append(j)
+                    k += 1
+                j += 1
+            if len(hits) >= 2:
+                best = hits[0] if best is None else min(best, hits[0])
+                break
     return best
 
 
