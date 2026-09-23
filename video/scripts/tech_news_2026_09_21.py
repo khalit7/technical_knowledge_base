@@ -24,6 +24,29 @@ Two decisions worth recording for whoever writes the next one:
     sitting in the corner through story four and the close would claim a
     relationship between them that does not exist.
 
+Re-cut 2026-09-23, to take fourteen reveals that were named before they were
+drawn (worst 21.9 seconds) down to none. The original shipped with no reserve
+anywhere, which is what put every panel's last row at the very end of its beat.
+Almost all of it was fixed without touching a spoken word:
+
+  - Every beat now carries a reserve, fitted from the rendered durations with
+    `check_leads --reserves`.
+  - A note or a caption lands at the end of its beat, so on `claim` and `stat`
+    it has to paraphrase the beat's LAST sentence. Five of them paraphrased a
+    sentence from the middle, and were re-pointed rather than re-spoken.
+  - `s2_credit` and `coda` lost their `points` heading. A heading is drawn at
+    t=0 but still takes a share of the drawing budget, so the first real row
+    always landed after the line that named it.
+  - `s2_cost` gained a third `compare` side, `s3_bugs` a fifth row and `coda`
+    a sixth, so each beat's closing sentence has something to arrive with.
+
+One beat needed words. `s1_horizon` says "twelve hours" nine seconds before
+the beat ends, and the last bar always lands at `beat - reserve`, so no reserve
+under the still-frame ceiling could reach it and no bar can be added below it
+without making "the bottom bar" point at the wrong one. Its closing sentence
+was trimmed by five words, which is lead-safe by construction: cutting after
+the last item is named shortens the beat without moving any name.
+
 Beats dropped deliberately, so the next person knows it was a decision. There
 is no question beat: a news edition answers a question per story, not one
 across the whole thing, and the structure check does not ask news for one.
@@ -79,8 +102,8 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
         (A, "Watch the bars. March twenty twenty four, Opus three, four "
             "minutes. March twenty twenty five, Sonnet three point seven, "
             "ninety minutes. March this year, Opus four point six, twelve hours."),
-        (A, "The bottom bar is a hundred and eighty times the top one. Work "
-            "taking a person weeks is projected for next year."),
+        (A, "The bottom bar is a hundred and eighty times the top. Weeks "
+            "are projected for next year."),
     ],
     "s1_leverage": [
         (A, "Three figures around it, and these are the ones people quoted."),
@@ -221,31 +244,37 @@ SCRIPT: dict[str, list[tuple[str, str]]] = {
 VISUALS = {
     "ident": {"kind": "title"},
 
-    "s1_open": {"kind": "claim",
+    "s1_open": {"kind": "claim", "reserve": 5.0,
                 "text": "Anthropic measured how much of its own\n"
                         "engineering its models now do.",
-                "note": "internal measurements, of its own models, on its own codebase"},
-    "s1_horizon": {"kind": "bars",
+                "note": "internal numbers, on its own models and its own codebase"},
+    "s1_horizon": {"kind": "bars", "reserve": 5.5,
                    "head": "task horizon: how long a job it finishes alone",
                    "bars": [
                        {"label": "Opus 3, Mar 2024", "text": "4 minutes", "value": 4},
                        {"label": "Sonnet 3.7, Mar 2025", "text": "90 minutes", "value": 90},
                        {"label": "Opus 4.6, Mar 2026", "text": "12 hours", "value": 720},
                    ]},
-    "s1_leverage": {"kind": "points", "head": "the leverage, as of May 2026",
+    "s1_leverage": {"kind": "points", "reserve": 4.5,
+                    "head": "the leverage, as of May 2026",
                     "items": [
                         "80%+ of merged production code, written by Claude",
                         "26% of their AI research work, led by the model",
                         "30,000+ internal agents running at any one time",
                     ]},
-    "s1_caveat": {"kind": "claim",
+    "s1_caveat": {"kind": "claim", "reserve": 5.0,
                   "text": "Self-reported, by the party\nthat benefits from the answer.",
-                  "note": "which is also why the numbers exist at all"},
+                  "note": "take the direction; hold each value loosely"},
 
-    "s2_open": {"kind": "claim",
+    "s2_open": {"kind": "claim", "reserve": 4.5,
                 "text": "Two labs produced machine-checked\nmathematics this month.",
-                "note": "written in Lean: the proof assistant accepts it, or it does not"},
-    "s2_cost": {"kind": "compare", "sides": [
+                "note": "it compiles, or the theorem is not proved"},
+    # A third side, added to fix a lead rather than to make a third claim:
+    # with two, the Anthropic side lands at the end of the beat, fifteen
+    # seconds after the narration names it. The third side is the sentence
+    # the beat already closes on, so it gives the tail something to arrive
+    # with and pulls the other two forward.
+    "s2_cost": {"kind": "compare", "reserve": 5.5, "sides": [
         {"head": "OpenAI, Navier-Stokes", "tone": "cost", "items": [
             "10,000 concurrent agents",
             "about 300 billion output tokens",
@@ -255,25 +284,35 @@ VISUALS = {
             "one model, working alone",
             "11 days",
             "about 6 billion output tokens",
-            "2% of the token spend",
+        ]},
+        {"head": "the difference", "tone": "number", "items": [
+            "about two percent of the token spend",
+            "not that one lab is cleverer",
         ]},
     ]},
     # No tone here on purpose: red means a cost or a failure in this series,
     # and two of these four lines are neither.
-    "s2_credit": {"kind": "points",
-                  "head": "the part to carry into a vendor decision",
+    # No head. A `points` heading is drawn at t=0 and still spends a share
+    # of the drawing budget, so the first real item landed eight seconds
+    # after the narration named it. The heading is now the last row, which
+    # is also where the line actually says it.
+    "s2_credit": {"kind": "points", "reserve": 5.0,
                   "items": [
                       "one run built on Buzzard's Imperial formalisation, and said so",
                       "the other paid to build the scaffolding as it went",
                       "then: did the model train on the complainant's own sessions?",
                       "answered only for the two months before the announcement",
+                      "the part to carry into a vendor decision",
                   ]},
 
-    "s3_open": {"kind": "stat", "big": "3.22x",
+    # The note is what lands at the end of the beat, so it has to be the
+    # sentence the beat ends on. The old one named the serving stack, which
+    # the narration says in its first ten seconds, and GLM-5.3, which the
+    # narration never says at all.
+    "s3_open": {"kind": "stat", "big": "3.22x", "reserve": 5.0,
                 "caption": "end-to-end throughput, in 13 days",
-                "note": "GLM-5.3 built the inference stack that now serves it, "
-                        "on 100,000+ Chinese accelerators"},
-    "s3_feedback": {"kind": "columns", "columns": [
+                "note": "shipped on more than a hundred thousand Chinese accelerators"},
+    "s3_feedback": {"kind": "columns", "reserve": 4.5, "columns": [
         {"head": "correctness", "tone": "verified",
          "items": ["compare results", "across execution paths"]},
         {"head": "system behaviour", "tone": "machinery",
@@ -281,34 +320,44 @@ VISUALS = {
         {"head": "performance", "tone": "number",
          "items": ["layered testing", "which constraint binds"]},
     ]},
-    "s3_bugs": {"kind": "points", "tone": "cost",
+    "s3_bugs": {"kind": "points", "tone": "cost", "reserve": 5.0,
                 "head": "two bugs an end-to-end metric never finds",
                 "items": [
                     "a TF32 precision bug, under particular parallelism strategies",
                     "a 20% slowdown that was the Python global interpreter lock",
                     "neither reads as anything but: it is a bit slow",
+                    # A fifth row, so the beat's closing sentence has
+                    # something to arrive with instead of overrunning it.
+                    "nothing told the model either bug existed",
                 ]},
 
-    "s4_open": {"kind": "stat", "big": "850,000", "tone": "cost",
-                "caption": "model calls, under attack",
-                "note": "eight worlds, ten agents each, sixteen days, "
-                        "prompt injection and exposed memory"},
-    "s4_finding": {"kind": "claim",
+    # The study's shape moves into the caption, which is drawn with the
+    # number at the top of the beat. As a note it landed twenty-three
+    # seconds in, twelve seconds after the line that names it.
+    "s4_open": {"kind": "stat", "big": "850,000", "tone": "cost", "reserve": 5.5,
+                "caption": "model calls: 8 worlds, 10 agents, 16 days, under attack",
+                "note": "everything else measures agents doing their job; "
+                        "this measures interference"},
+    "s4_finding": {"kind": "claim", "reserve": 5.0,
                    "text": "Detection is not containment.",
-                   "note": "systems recognised adversarial content and went on "
-                           "interacting with it, in some cases for another 46 hours"},
+                   "note": "a signal with nothing wired to it: 46 hours of "
+                           "interacting anyway"},
 
-    "coda": {"kind": "points", "head": "the rest of the week", "items": [
+    # No head, and the physics story split across two rows. The heading
+    # took the t=0 reveal that the first item needed, and the last row was
+    # named nine seconds before the beat had anything left to draw.
+    "coda": {"kind": "points", "reserve": 5.5, "items": [
         "Vera Rubin NVL72: up to 7x the tokens per megawatt of GB300",
-        "the 67x per dollar headline is an extreme point: use 1.4x to 3x",
+        "ignore the headline 67x per dollar: an extreme operating point",
         "Nvidia shipped GPU programming in Rust, in two tracks",
-        "Bonsai 2: 27B at 1.76 bits per weight, 98% of its scores",
+        "Bonsai 2 squeezed 27B to 1.76 bits, 98% of its scores",
         "six physics benchmarks re-graded: most failures were the test's fault",
+        "wrong answer keys, ambiguous questions, grader bugs",
     ]},
 
-    "close": {"kind": "claim",
+    "close": {"kind": "claim", "reserve": 5.0,
               "text": "Four stories. Unrelated, and that is normal.",
-              "note": "if you act on one, act on the fourth"},
+              "note": "most likely already sitting inside something you run"},
 }
 
 
