@@ -246,6 +246,23 @@ against a ceiling of five.
 Delivered: 6 minutes 47, 1080p, 4.64 MiB, on the third and last 1080p rung.
 143 words a minute overall, no beat above 155 by `check_timing`, every still
 under 5.7, no lead anywhere, layout audit clean.
+
+Re-cut 23 September 2026, for timing only. "No lead anywhere" above was true of
+the check as it then stood; once `check_leads` modelled the focus delay (five
+seconds at the head of every beat carrying `focus` against this twenty handle
+map) it found 11 reveals named before they were drawn, worst 8.2 seconds
+(Kueue), and 5 reveals it could not time at all. Every spoken word and every
+wav is unchanged; only `VISUALS` moved. The heads of `schedulers` and `close`
+went, because behind the focus delay each cost every row a place. `schedulers`
+split Volcano from the training operators, and its closing SLURM then
+Kubernetes sentence, into two rows each; `machines` split the glue from the
+S3 layout, and `watch` split its two trackers, so each beat's last reveal lands on its last sentence. Three heads
+and two `ray` items were reworded to words the line actually says, so every
+reveal is now timed. Reserves were swept to what `check_leads --reserves`
+suggests, except `schedulers` (5.0) and `pipelines` (4.5), which sit above it
+because `--words`, timing from the voice's own word timestamps, put their last
+reveals at 3.3 and 3.1 seconds on the suggested values. Worst lead after, by
+word timestamps: 2.7 seconds.
 """
 
 A = "A"
@@ -440,7 +457,7 @@ VISUALS = {
     # cloud row, the weakest of the four and chosen over `cost`, which would
     # deliver a verdict the page does not take. None is `context`, so every
     # column has somewhere to brighten from when a later beat lights it.
-    "map": {"kind": "columns", "park": True, "reserve": 8.0, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 7.7, "columns": [
         {"head": "who gets the GPUs", "tone": "subject", "items": [
             "SLURM",
             "Kubernetes + Kueue",
@@ -467,41 +484,45 @@ VISUALS = {
     # the full sentence, so they share their key words without either reading
     # the other out. No focus: the map was built one beat ago with all four
     # columns lit, which is the state a claim about the whole board wants.
-    "question": {"kind": "claim", "reserve": 5.0,
+    "question": {"kind": "claim", "reserve": 2.8,
                  "text": "Kubernetes is the platform\n"
                          "everything else is converging on.",
                  "note": "so why is the rest of this board still there?"},
 
-    # Five rows rather than four. The beat's narration falls into five
-    # natural segments after the head, and four reveals spread them so
-    # unevenly that Volcano and the training operators arrived nine seconds
-    # after the line naming them. Adding a row is a CPU-only change and it is
-    # what the reveal arithmetic asks for.
+    # Seven rows and no head. Re-cut 23 September 2026 for timing only: once
+    # check_leads modelled the five second focus delay, the head was pushing
+    # every row one place late and Kueue was named 8.2 seconds before it was
+    # drawn. Dropping the head and splitting Volcano from the training
+    # operators (a row after Kueue pulls Kueue earlier) closed all four leads
+    # on this beat with the audio untouched. The closing sentence is two rows,
+    # SLURM and then Kubernetes, because word timestamps put "Slurm still
+    # wins" 3.3 seconds ahead of a single row carrying both halves.
     "schedulers": {"kind": "points", "tone": "subject", "reserve": 5.0,
                    "focus": "who gets the GPUs",
-                   "head": "where the industry is moving",
                    "items": [
                        "SLURM: gang scheduling is native",
                        "raw Kubernetes is bad at batch ML",
                        "Kueue adds quota and gang admission",
-                       "Volcano, and the training operators",
-                       "SLURM pretrains; Kubernetes also serves",
+                       "Volcano does the same job",
+                       "Kubeflow Trainer and KubeRay",
+                       "SLURM still wins pretraining",
+                       "Kubernetes wins once you serve",
                    ]},
 
     # A fifth row so that the last thing said has a reveal of its own to land
     # on: with four, everything after KubeRay was named had to fit inside the
     # reserve, which is twelve seconds of narration against a ceiling of five.
-    "ray": {"kind": "points", "tone": "subject", "reserve": 5.0,
+    "ray": {"kind": "points", "tone": "subject", "reserve": 2.8,
             "head": "Ray: the third answer",
             "items": [
-                "a function becomes a task",
-                "a class becomes an actor",
+                "function: a stateless task",
+                "class: a stateful actor",
                 "Ray Data, Ray Train, Ray Serve",
                 "KubeRay runs it on Kubernetes",
                 "not for fixed-size pretraining",
             ]},
 
-    "pipelines": {"kind": "table", "tone": "machinery", "reserve": 5.0,
+    "pipelines": {"kind": "table", "tone": "machinery", "reserve": 4.5,
                   "focus": "what runs when",
                   # A filled corner cell, deliberately: a blank one in a header
                   # row slides the whole header a column to the left and the
@@ -515,34 +536,42 @@ VISUALS = {
                       ["Metaflow", "data scientist ergonomics"],
                   ]},
 
-    "machines": {"kind": "points", "tone": "number", "reserve": 5.0,
+    # Re-cut 23 September 2026: the head is now the words the line says, so
+    # it is timed, and "the glue" and the S3 layout are two rows, so the last
+    # reveal lands on the beat's last sentence rather than 3.6 seconds late.
+    "machines": {"kind": "points", "tone": "number", "reserve": 3.7,
                  "focus": "how it all exists",
-                 "head": "does the cluster outlive the job?",
+                 "head": "the cluster outlives the job?",
                  "items": [
                      "HyperPod: persistent, nodes replaced",
                      "training jobs: ephemeral, per job",
                      "Terraform: state, modules, workspaces",
                      "Enroot and Pyxis, or Apptainer",
-                     "S3 and Lambda: the glue, and the bill",
+                     "the glue decides your bill",
+                     "S3 layout, Lambda, EventBridge",
                  ]},
 
-    "watch": {"kind": "points", "tone": "verified", "reserve": 5.0,
+    # Re-cut 23 September 2026: head spoken verbatim so it is timed, and the
+    # two trackers split into two rows so MLflow has its own landing.
+    "watch": {"kind": "points", "tone": "verified", "reserve": 2.9,
               "focus": "how you know",
-              "head": "the row that gets skipped",
+              "head": "how you know it worked",
               "items": [
                   "DCGM, Prometheus, Grafana",
                   "throughput drops, NCCL stalls, node health",
-                  "Weights and Biases, or MLflow",
+                  "Weights and Biases, hosted",
+                  "MLflow: open source, a registry",
                   "resume the run, or repeat it",
               ]},
 
     # Lighting every column is how this vocabulary says no emphasis, and it is
     # also true: the close is about the whole board.
-    "close": {"kind": "points", "tone": "subject", "reserve": 4.0,
+    "close": {"kind": "points", "tone": "subject", "reserve": 4.4,
               "focus": ["who gets the GPUs", "what runs when",
                         "how it all exists", "how you know"],
-              "head": "what the map is for",
-              # Six rows and a small reserve. A closing `claim` draws one card
+              # No head since the 23 September re-cut: behind the five second
+              # focus delay it cost every row a place, five leads of 3.4 to 5.2
+              # seconds. Six rows and a small reserve. A closing `claim` draws one card
               # and then holds it for the length of the take, which is the
               # motionless frame every early overview in this series shipped.
               "items": [
