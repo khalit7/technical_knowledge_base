@@ -208,13 +208,28 @@ Two things read as defects and are not. The transcriber has no spelling for
 Qwen and produced "QN", "Quinn", "Kwon" and "Quen" across four takes; and it
 writes Zhipu as "Xipu". Both are its spelling of a correct sound.
 
-Reserves were left at 5.0 on every beat but the map, and that is a decision
-rather than an omission. `still` lands about 0.4 above the reserve on an
-ordinary beat, so 5.0 measures between 5.27 and 5.42 against a six second
-cap, and every lead `check_leads` reports is negative except one at 2.4
-seconds, which is inside its noise floor. The map's 7.5 measures 5.17 of
-still frame, because a parked beat spends the two second settle and the 0.7
-second morph out of the front of its reserve.
+Timing re-cut, 23 September 2026, `VISUALS` only: no word, beat, take or
+panel kind changed, and the audio is byte-identical. The first cut was fitted
+before `check_leads` modelled the focus delay (0.25 seconds per map handle,
+seventeen handles here, so 4.25 seconds at the head of `thinking`, `serving`
+and `convergence`). Re-measured, it had three reveals named before they were
+drawn: `close` "or whether the unit moves" 10.1s and "for predicting the next
+move" 6.8s, and `convergence` "not total parameters" 4.3s, which the old tool
+could not see. No reserve reaches either: `--reserves` asked for 14.5 and 11.3
+against a cap of 5.5. Both beats spoke sentences near the end with nothing
+drawn under them, so each gained two rows naming those sentences:
+`convergence` "the smallest active count" and "it keeps 98% of the score",
+`close` "Sakana: an orchestrator" and "which model stops mattering". Eight
+reveals each re-spaces every landing and puts the last two where the words
+are. Every reserve was then moved to the midpoint `--reserves` suggests
+between the lead floor and the still-frame cap: map 6.6, question 3.2,
+serving 3.3, convergence 2.8, close 3.9; thinking and leads stay 5.0. Worst
+timed lead is now 3.0s (thinking, unchanged) and the worst still frame 5.47s,
+against 5.6s before. One lead stays accepted rather than fixed: `serving`
+names DeepSeek and Zhipu five to six seconds before their rows, in the
+sentence that introduces each lab, while the claim each row carries (encoder
+decoder, nine cents a task) is spoken after the row appears. The tool cannot
+time those two rows at all, so that figure is by hand.
 
 Length. 5 minutes 58 at 1080p and 4.55 MiB, on the second of three 1080p
 rungs. That is the first episode in this series to come in under six minutes,
@@ -360,7 +375,8 @@ SCRIPT["leads"] = [
 ]
 
 # --- where the competition went -------------------------------------------
-# Six reveals. The convergence itself was said in `question`, so this beat is
+# Eight reveals since the 23 September re-cut. The convergence itself was
+# said in `question`, so this beat is
 # about the consequence instead: which number the labs now compete on, and
 # the two September releases that attack it from opposite ends.
 SCRIPT["convergence"] = [
@@ -382,7 +398,7 @@ SCRIPT["convergence"] = [
 ]
 
 # --- the take -------------------------------------------------------------
-# Six reveals on the closing beat, deliberately. Every overview in this series
+# Eight reveals on the closing beat, deliberately. Every overview in this series
 # before the still-frame check could fire ended on a card drawn once and then
 # held motionless for fifteen to thirty seconds.
 #
@@ -416,12 +432,12 @@ VISUALS = {
     # rather than beside anything, so twenty four characters is safe here. It
     # would not be on a later beat.
     #
-    # `reserve` is 7.5 rather than 3: a parked beat spends two seconds of
+    # `reserve` is 6.6 rather than 3: a parked beat spends two seconds of
     # settle and a 0.7 second morph out of the FRONT of its reserve, so this
-    # leaves a motionless finished board of about five seconds, which is the
+    # leaves a motionless finished board of about four seconds, which is the
     # format's premise. The value is checked against the rendered duration
     # below, not guessed.
-    "map": {"kind": "columns", "park": True, "reserve": 7.5, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 6.6, "columns": [
         {"head": "closed frontier", "tone": "subject", "items": [
             "OpenAI: GPT-6 Astra",
             "Anthropic: Fable 5.1",
@@ -445,7 +461,7 @@ VISUALS = {
     # the reasoning mode on top of it, and the attention change that a million
     # token context forced. Layer names are short because `panel_stack`'s pill
     # is a fixed five units wide and does not derive from the content.
-    "question": {"kind": "stack", "reserve": 5.0, "layers": [
+    "question": {"kind": "stack", "reserve": 3.2, "layers": [
         ("sparse MoE", "a few percent active per token"),
         ("a reasoning mode", "on a budget somebody sets"),
         ("sparse attention", "1M context is table stakes"),
@@ -466,7 +482,7 @@ VISUALS = {
 
     # Toned `machinery`, matching its column, and honestly: every line is a
     # piece of serving infrastructure rather than a capability claim.
-    "serving": {"kind": "points", "tone": "machinery", "reserve": 5.0,
+    "serving": {"kind": "points", "tone": "machinery", "reserve": 3.3,
                 "focus": "open weights",
                 "head": "what it costs to serve",
                 "items": [
@@ -492,22 +508,24 @@ VISUALS = {
               ]},
 
     # Toned `number`: every line here is a measured figure from the page.
-    "convergence": {"kind": "points", "tone": "number", "reserve": 5.0,
+    "convergence": {"kind": "points", "tone": "number", "reserve": 2.8,
                     "focus": ["closed frontier", "open weights",
                               "fully open, and small"],
                     "head": "which number they compete on",
                     "items": [
                         "not total parameters",
                         "Step 5: 600B, 27B active",
+                        "the smallest active count",
                         "V4 Pro: about 33x sparser",
                         "Bonsai 2: 1.76 bits a weight",
+                        "it keeps 98% of the score",
                         "and the two compose",
                     ]},
 
-    # The take, as five lines that unfold with it rather than one card held
+    # The take, as seven lines that unfold with it rather than one card held
     # still for half a minute. No line here is the spoken sentence: each is
     # its spine.
-    "close": {"kind": "points", "tone": "subject", "reserve": 5.0,
+    "close": {"kind": "points", "tone": "subject", "reserve": 3.9,
               "head": "what the map is for",
               "items": [
                   "not a ranking to pick from",
@@ -515,6 +533,8 @@ VISUALS = {
                   "bets outlast scores",
                   "watch who follows DeepSeek",
                   "or whether the unit moves",
+                  "Sakana: an orchestrator",
+                  "which model stops mattering",
               ]},
 }
 
