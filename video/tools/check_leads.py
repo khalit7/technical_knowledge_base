@@ -169,11 +169,64 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
     return best
 
 
+ORDINARY_CAP = 5.5       # still tracks reserve + 0.4, against a 6.0 limit
+PARKED_CAP = 8.4         # a parked beat spends 2.4 of it on settle and morph
+
+
+def suggest_reserves(script, visuals, durations, tolerance) -> int:
+    """The smallest reserve per beat that keeps every lead inside tolerance.
+
+    Reveal k is drawn at `(k-1)/(n-1) x (D - r)`, so requiring it to land no
+    later than tolerance after the words that name it rearranges to
+    `r >= D - (said + tol) x (n-1)/(k-1)`. The binding reveal is whichever
+    maximises that. Every author so far has written this same script by hand,
+    twice each when a re-render moved the durations, which is the smell this
+    page names about checks that are described instead of provided.
+    """
+    print(f"{'beat':16s} {'now':>6s} {'suggested':>10s} {'cap':>6s}   note")
+    over = 0
+    for key in script:
+        spec = visuals.get(key) or {}
+        groups = reveals(spec)
+        n, D = len(groups), durations.get(key)
+        if n < 2 or not D:
+            continue
+        words = " ".join(t for _s, t in script[key]).split()
+        want = 0.0
+        for k, labels in enumerate(groups, start=1):
+            if k < 2:
+                continue
+            at = said_at(words, labels)
+            if at is None:
+                continue
+            said = at / max(len(words), 1) * D
+            want = max(want, D - (said + tolerance) * (n - 1) / (k - 1))
+        cap = PARKED_CAP if spec.get("park") else ORDINARY_CAP
+        now = float(spec.get("reserve", 0.0) or 0.0)
+        want = max(0.0, want)
+        note = ""
+        if want > cap:
+            note = "RESERVE CANNOT FIX IT: add a panel row, or move the words"
+            over += 1
+        elif want > now + 0.3:
+            note = "raise it"
+        print(f"{key:16s} {now:6.1f} {min(want, cap):10.1f} {cap:6.1f}   {note}")
+    if over:
+        print(f"\n{over} beat(s) need more reserve than the still-frame cap "
+              f"allows. Adding a row changes n and re-spaces every landing, "
+              f"which is cheaper than rewriting and needs no GPU.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--script", required=True)
     ap.add_argument("--tolerance", type=float, default=LEAD_TOLERANCE)
+    ap.add_argument("--reserves", action="store_true",
+                    help="print the smallest reserve per beat that closes its leads")
+    ap.add_argument("--seconds-per-word", type=float, default=SECONDS_PER_WORD,
+                    help="rate used by --estimate; the planning figure is 0.42")
     ap.add_argument("--estimate", action="store_true",
                     help="work from word counts, before any voice exists")
     args = ap.parse_args()
@@ -187,12 +240,15 @@ def main() -> int:
         # 0.40 seconds a word is the measured aggregate across the series and
         # holds to about 3%, which is far inside the tolerance this check
         # cares about. Good enough to fix the writing before paying for voice.
-        durations = {k: round(sum(len(t.split()) for _s, t in turns) * SECONDS_PER_WORD, 2)
+        durations = {k: round(sum(len(t.split()) for _s, t in turns) * args.seconds_per_word, 2)
                      for k, turns in script.items()}
-        print(f"estimating from word counts at {SECONDS_PER_WORD} s/word; "
+        print(f"estimating from word counts at {args.seconds_per_word} s/word; "
               f"re-run after the voice for the real thing\n")
     else:
         durations = json.loads(measured.read_text())
+
+    if args.reserves:
+        return suggest_reserves(script, visuals, durations, args.tolerance)
 
     print(f"{'beat':16s} {'reveal':28s} {'drawn':>7s} {'said':>7s} {'lead':>7s}")
     problems, unchecked = [], []
