@@ -7,7 +7,7 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
-*This copy is the page as Notion last edited it, 2026-09-23 07:44:00 UTC. A procedure*
+*This copy is the page as Notion last edited it, 2026-09-23 07:55:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
 *The copy your skill loader served you can also be behind this file: if you were told*
@@ -42,7 +42,7 @@ Two limits on that freedom:
 
 **Judge a missing gloss against the page you are deriving from, not its subtree.** An acronym expanded on a deep dive below this page is still unexplained for somebody reading the parent, and a fetch of the parent cannot tell you either way. Check the page itself, and back-port there.
 
-**How to write into a page without rewriting it.** The repo copy is a generated mirror, so editing the file there changes nothing and is lost at the next sync. The back-port goes to Notion. For a **new** block in a known place, the reliable route is the API client in `tools/notion_mirror.py` and a raw `PATCH /blocks/{page_id}/children` with `after` set to an existing block. That client exposes **only GET helpers** (`page`, `block`, `children`, `db_rows`, `database`), so call `api._request("PATCH", ...)` directly and build the `rich_text` array by hand, then a re-read of the children to confirm where it landed.
+**How to write into a page without rewriting it.** The repo copy is a generated mirror, so editing the file there changes nothing and is lost at the next sync. The back-port goes to Notion. For a **new** block in a known place, the reliable route is the API client in `tools/notion_mirror.py` and a raw `PATCH /blocks/{page_id}/children` with `after` set to an existing block. That client exposes **only GET helpers** (`page`, `block`, `children`, `db_rows`, `database`), so call `api._request("PATCH", path, json={...})` directly, with the body passed as the `json=` keyword rather than positionally, and build the `rich_text` array by hand, then a re-read of the children to confirm where it landed.
 
 **Editing an existing block is a different call**, and the obvious one loses formatting. Use `PATCH /blocks/{block_id}` and round-trip the whole `rich_text` array, rebuilding each mention run as `{"type":"mention","mention":{"page":{"id": ...}}}`. Done that way bold and page links survive; done through the convenient MCP call they do not.
 
@@ -181,6 +181,20 @@ The one thing that is checked mechanically is the small set of roles each format
 ```bash
 uv run --group tts --group video python video/tools/check_leads.py --script <episode> --reserves
 ```
+
+#### Repairing a beat: the whole ladder in one place
+
+Every re-cut agent in the series asked for this, because the pieces were spread across the page. In order of cost:
+
+1. **Make every reveal timeable first.** An untimed reveal is unchecked, not passed, and making one timeable has turned up real leads of 9.7 and 12.6 seconds. Write each panel item as the narration says it: same spelling ("License" against "licence" breaks the match), and no label word spoken earlier for some other reason.
+2. **Drop a focus the previous beat makes redundant.** The first reveal draws only after the map finishes lighting, 0.25 seconds per handle, so a focus beat whose heading is spoken in its first words has a guaranteed lead that no reserve or row can touch. --reserves flags it as FIRST REVEAL LEADS.
+3. **Sweep each reserve** to the value --reserves suggests, midway between the lead floor and the still cap.
+4. **Add a row** for a sentence the beat already speaks with no reveal, near the end of the line.
+5. **Drop or move a heading,** which costs every item after it one place.
+6. **Re-point a note** on a two-reveal claim or stat to the beat's last sentence.
+7. **Re-panel** where the kind cannot fit the beat: compare takes up to four sides, an over-long compare wants points rather than table, and bars cannot gain rows at all.
+8. **Only then touch the words.**
+Steps 2 to 7 change only VISUALS and leave the audio byte-identical. Record a re-cut in Updates like a new video, titled "the <topic> video re-cut". The reasoning behind each step follows.
 
 **The one invariant that makes all of this tractable: reveal n always lands at ****`beat - reserve`****.** Everything else follows from it, including the corollary that saves the most time: **the last reveal's lead is set only by the words spoken after it is named.** Adding words *before* a reveal changes nothing, because the naming and the drawing move together; one author spent an hour on a map beat before seeing that the 42 words after the third column were the whole problem and the 81 before it were irrelevant. So a beat is fixable by reserve only if something is named in its final few seconds.
 
@@ -362,7 +376,7 @@ The narration and the visuals have to refer to each other out loud, or the viewe
 - Anything on screen that the narration never refers to should not be on screen. **The check does not see a ****`head`**** or a ****`caption`**: `panel_strings` collects `text`, `big`, `note`, `items`, `steps`, `layers`, column and side items, bars and rows, and nothing else. So a `stat` caption, a `points` heading, a `columns` column head or a **`table`****'s column headings** can assert something the narration never says and nothing complains, which is the exact rule this paragraph states. Read them by eye. The table headings matter most of the three, because "the claim", "measured how", "how to read it" are doing real work on screen and none of them is checked.
 The rest is checked now, by `check_structure.py`, because it breaks in one predictable place: **trimming for length**. Every cut to a spoken line orphans whatever its panel still says, the layout audit passes it because nothing overlaps, and the frame is left carrying a claim nobody makes. Run the check again after any pass that shortens narration.
 
-**How that check decides, because it shapes how an inventory beat is written.** A panel line passes if it shares one significant word with its beat's narration, or if its squashed spelling appears as a contiguous run inside the squashed narration. So a map item reading "AIME / MathArena" is an orphan unless the narration says those two names with nothing between them, because the word sets otherwise share nothing. **A table's row labels are checked as claims, which catches people out.** The left column of a comparison table is often grammar rather than content, "who", "on", "reported", "by", and the check rejected a beat with `nothing in the narration refers to what the panel says, "who"`. A cell made **entirely** of stop words fails outright, which is worth knowing because the opposite is easy to assume: "you own it" is rejected, "the programmer" passes on the one significant word in it. Either make a row label a word the narration actually says, or phrase the line so it does: "Who took which path?" reads better than the alternative anyway.
+**How that check decides, because it shapes how an inventory beat is written.** A panel line passes if it shares one significant word with its beat's narration, or if its squashed spelling appears as a contiguous run inside the squashed narration. So a map item reading "AIME / MathArena" is an orphan unless the narration says those two names with nothing between them, because the word sets otherwise share nothing. **A table's row labels are checked as claims, which catches people out.** Two traps sit on either side of that rule. **An opening line that lists the row labels ties every row to the start of the beat**: "how it works, what that buys, what it comes to" is natural signposting, and it made the lead check time all three rows from the first four seconds, a 16.7 second lead on the last. Drop the signpost or reword the labels. And the left column of a comparison table is often grammar rather than content, "who", "on", "reported", "by", and the check rejected a beat with `nothing in the narration refers to what the panel says, "who"`. A cell made **entirely** of stop words fails outright, which is worth knowing because the opposite is easy to assume: "you own it" is rejected, "the programmer" passes on the one significant word in it. Either make a row label a word the narration actually says, or phrase the line so it does: "Who took which path?" reads better than the alternative anyway.
 
 Either say an item exactly as the panel spells it, or spell the panel the way you are going to say it. This, rather than the field names, is what actually constrains the narration of an inventory beat.
 
