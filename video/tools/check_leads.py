@@ -207,10 +207,15 @@ def said_at(words: list[str], labels: list[str]) -> int | None:
                 while j < min(i + WINDOW, len(squashed_words)) and k < len(sig):
                     # Exact, not substring: "gain" sits inside "against", and
                     # a substring test once found a label four seconds into a
-                    # beat that names it forty seconds later.
-                    if squashed_words[j] == sig[k]:
+                    # beat that names it forty seconds later. And any LATER
+                    # label word counts, not only the next one: waiting for
+                    # the next meant one unspoken word stalled the whole
+                    # match, so "wired to your neighbours" never met "wired
+                    # straight to its neighbours" because "your" is not said.
+                    w = squashed_words[j]
+                    if w in sig[k:]:
                         hits.append(j)
-                        k += 1
+                        k = sig.index(w, k) + 1
                     j += 1
                 if len(hits) >= 2:
                     best = hits[0] if best is None else min(best, hits[0])
