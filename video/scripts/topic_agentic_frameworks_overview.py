@@ -120,11 +120,19 @@ The axis, the map, the beats and the take are unchanged. What moved:
 
 The worst remaining lead is 2.4 seconds, on `graph`, and it is structural:
 the head segment of a beat is shorter than the segments after it, so the last
-item is named a little after it is drawn. Four reveals cannot be timed by
-`check_leads` because the narration never says them as a contiguous run: the
-two gateways rows, hand-timed at 2.6 and 1.8 seconds early. A multi-word row
-is timed only if its FIRST significant word is one the narration also says,
-which "LiteLLM" is not, because the line spells it "Lite L L M".
+item is named a little after it is drawn. One reveal cannot be timed by
+`check_leads` at all, the OpenRouter row on `gateways`, because a multi-word
+row is timed only if its first significant word is one the narration also
+says, and the line spells that row's second figure out as words. Hand-timed,
+it is drawn 0.1 seconds after it is named.
+
+One thing worth carrying to the next repair. `check_leads` gained a model of
+the `focus` delay while this one was in flight, and it changed the answer: a
+focus costs 0.25 seconds per handle, `compact` registers a handle per item as
+well as per heading, and this map has nineteen of them, so every focus beat
+starts drawing 4.8 seconds in. That is what took the head off `buy`, whose
+first item is named at four seconds and therefore has to be the first reveal.
+Re-run the tools before believing a clean report from an hour ago.
 """
 
 A = "A"
@@ -387,8 +395,15 @@ VISUALS = {
     # after them as rows of its own, so the picture keeps arriving with the
     # line. The arrows are the loss, and they are paid for with a frame that
     # moves for the whole beat instead of a fifth of it.
+    #
+    # No head, and that is forced rather than chosen. A `focus` costs 0.25
+    # seconds per handle and `compact` registers one per item as well as per
+    # heading, so this map's nineteen handles delay the panel by 4.8 seconds.
+    # Nothing can be drawn before then, and this beat names its first item at
+    # four seconds, so the first item has to BE the first reveal. A head would
+    # take that slot and push the first item to ten seconds.
     "buy": {"kind": "points", "tone": "machinery", "focus": "orchestration",
-            "reserve": 1.5, "head": "how much of the loop is yours", "items": [
+            "reserve": 1.5, "items": [
                 "write it, or configure a framework",
                 "buy the loop",
                 "managed sessions and sandboxes",
