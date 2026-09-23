@@ -33,7 +33,7 @@ The outline that survived the revision step:
               out to be
     where     the levels you may write at, what you think in at each, and
               what each one costs you
-    rust      the two CUDA Rust tracks, which reproduce that table in a
+    rust      the two CUDA Rust tracks, which reproduce that ladder in a
               second language
     call      the layer most people should live in, and the profiler order
     close     the ladder, climbed down rather than up, and what would redraw
@@ -70,9 +70,17 @@ Lit state of the map, decided per beat rather than left to inherit:
 `memory` lights the machine, `where` lights where you write, `rust` inherits
 that rather than re-lighting it (the map is already correct and a redundant
 focus costs about a second of panel delay for no change on screen), `call`
-lights what you call, and `close` lights all three, which is how this
+lights what you call, and `close` lights every heading, which is how this
 vocabulary says "no emphasis". `question` inherits the fully lit map the
 build leaves behind, for the same reason.
+
+The profilers column is toned `context` and is therefore the one column that
+can never visibly brighten, since `context` is already the de-emphasis
+colour. That is deliberate rather than an oversight: the column's whole job
+is to read as the coda the narration makes it ("and the profilers") rather
+than as a fourth layer, and no beat's argument turns on lighting it. The
+price is that `call`, which does name Nsight out loud, cannot point at it on
+the map.
 
 No contract beat, deliberately: an overview's contract is the map itself,
 built whole before anything is explained, and the structure check exempts the
@@ -120,6 +128,72 @@ options.
 Speakers:
   A  narrator, owns the spine and the map
   B  the listener, three turns, and A does something different after each
+
+Re-cut 23 September 2026, for timing only. Not one spoken word changed, so
+the audio is byte identical to the first cut and nothing was re-rendered but
+the animation. Two defects, both of them arithmetic:
+
+  - Two reveals were named before they were drawn, worst 17.2 seconds. That
+    was the map's third column, said at 38.6s and drawn at 55.8s.
+  - Six beats held a motionless frame past the six second limit, worst 26.4
+    seconds. The `timing_*.json` on disk said two beats and 30.6, because it
+    predated the fix that measures `still` from the last thing that moved;
+    re-rendering the unchanged script was what produced the true figures, and
+    they are worse in count and better in the worst case.
+
+Both had one cause. Every reserve in the first cut was set to whatever made
+the last reveal land where the words were, which on a beat with too few
+reveals is twenty or twenty six seconds, and `still` tracks `reserve + 0.4`.
+So the reserves came down to the 5.5 ordinary ceiling and 8.2 parked, and
+every beat then needed enough reveals to keep its own leads closed at that
+reserve. Reveal n always lands at `beat - reserve`, so each beat also needed
+a last row named inside the final five seconds of its line: that, not the
+row count, is what decided most of these.
+
+  map       three columns to four. The fourth is the profilers, which the
+            narration already introduces as a coda rather than as a fourth
+            layer, so "three layers" is still true of what is said and of
+            what the tones show. No reserve could have fixed this: the fit
+            asked for 21.2 against a parked ceiling of 8.4.
+  question  reserve 8.0 to 5.0, and the note re-pointed. A `claim` has two
+            reveals and the note is the second, so it lands at
+            `beat - reserve` and must paraphrase the beat's LAST sentence.
+            The old note paraphrased one from the middle, which no reserve
+            can reach.
+  memory    four stack layers to six. The beat's last nineteen seconds are
+            its payoff, "every optimisation you read about is one idea", and
+            they had nothing to land on.
+  where     `table` to `points`. This is the loss in this re-cut and it is a
+            real one: the grid was the content, three things varying across
+            four levels. But a table is head plus one reveal a row, five for
+            four levels, and closing this beat's leads at a legal reserve
+            wants nine. There is no honest fifth level to put in a row, so
+            the grid gave way to six lines carrying the same facts a level at
+            a time.
+  rust      `compare` to `points`. A compare is one reveal a side, so two on
+            a 49 second beat, and the second side was drawn 16.6 seconds
+            after it was named. The skill says outright that `compare` is a
+            short beat's panel; this beat proved it. The pairing survives as
+            two blocks of four lines, but it is no longer spatial.
+  call      five items and a heading to eight items and none. The heading was
+            a reveal carrying one short framing sentence, and behind the
+            focus delay it pushed the first real row four seconds past the
+            line that named it. The three new lines are the profiling order,
+            which was twenty seconds of narration over a still frame.
+  close     four stack layers to seven. This was the worst beat in the
+            episode and it is the format's default failure: a take draws its
+            claim in one move and then has half a minute of speech left.
+
+Two panel strings are spelled for the timing checker as well as for the eye.
+`check_leads` locates a reveal by matching its label as a contiguous run of
+the narration, so "what torch.compile emits" could not be timed at all (the
+line says "torch dot compile") and became "also what torch.compile emits",
+which times on "also what"; and "Nsight Systems, then Compute" became
+"Nsight Systems, and Compute", because the line has no "then" between them.
+
+After: no lead over 3 seconds (worst 2.7), every reveal timed, no still frame
+over 6 seconds (worst 5.85, the parked map), 8 beats, 139 wpm overall, 1080p
+at 4.22 MiB.
 
 Names are spelled the way they should be said. Text to speech reads "CUDA",
 "nvcc", "cuBLAS", "HBM" and "mistral.rs" badly, so acronyms are spaced out
@@ -267,23 +341,28 @@ VISUALS = {
     "ident": {"kind": "title"},
 
     # The home frame, and the axis: three layers of one stack, not a field of
-    # competitors. Three columns rather than four, because the pill width is
-    # derived from the column count and a fourth takes the labels below what
-    # the delivery encode can show. Items are kept near twenty characters for
-    # the same reason.
+    # competitors. The fourth column is not a fourth layer: the narration
+    # names three layers and then adds "and the profilers" as a coda, and the
+    # column reproduces that grammar, toned `context` so it reads as the
+    # instruments rather than as another rung. It is here for timing as much
+    # as for sense. With three columns `spread` draws the last one 55.8s in
+    # while the line names it at 38.6s, a 17.2 second lead that no reserve can
+    # close: the fit asks for 21.2 against a parked ceiling of 8.4. A fourth
+    # reveal re-spaces every landing and takes the worst lead to 2.5s.
     #
     # Tones. Machinery for the machine, which is literally what it is:
     # hardware the narration points at but never asks you to change. Subject
     # for where you write, because that column is the choice the video is
     # about. Verified for what you call, libraries already written and already
-    # tuned. None of the three is toned `context`, so every one of them has
-    # somewhere to brighten from when a later beat lights it.
+    # tuned. Context for the profilers, which is the one column no beat ever
+    # focuses on, so nothing is lost by giving it the de-emphasis tone.
     #
-    # `reserve` is what makes the last line true. Without it the three columns
-    # finish drawing on the final word, and the park animation then runs after
-    # the line has stopped. At 7 seconds the map is complete just as the
-    # closing line starts, and morphs into the corner while it is spoken.
-    "map": {"kind": "columns", "park": True, "reserve": 7.0, "columns": [
+    # `reserve` is what makes the last line true, and on a parked beat it is
+    # also the only source of still time: the settle and the morph come out of
+    # its front, so `still` is about `reserve - 2.4`. At 8.2 the map stands
+    # finished for 5.8 seconds and morphs into the corner as the closing line
+    # is spoken.
+    "map": {"kind": "columns", "park": True, "reserve": 8.2, "columns": [
         {"head": "the machine", "tone": "machinery", "items": [
             "threads, warps, blocks",
             "registers, shared, L2",
@@ -297,7 +376,8 @@ VISUALS = {
         {"head": "what you call", "tone": "verified", "items": [
             "cuBLAS, cuBLASLt",
             "cuDNN",
-            "NCCL, Thrust, CUB",
+            "NCCL, Thrust, CUB"]},
+        {"head": "plus the profilers", "tone": "context", "items": [
             "Nsight Systems",
             "Nsight Compute"]},
     ]},
@@ -307,95 +387,115 @@ VISUALS = {
     # said aloud and deliberately kept off the screen, so nothing on screen is
     # read out verbatim.
     #
+    # The note is the second and last reveal, so it lands at `beat - reserve`
+    # and has to paraphrase the beat's LAST sentence. The first cut's note
+    # paraphrased a sentence from the middle, spoken at 9 to 16 seconds and
+    # drawn at 26, which no reserve can reach: the fix is to re-point the
+    # note, not to enlarge the reserve. It now compresses "every optimisation
+    # here is the same optimisation under a different name".
+    #
     # No focus: the map was built one beat ago with every column lit, which is
     # the state this beat wants.
-    "question": {"kind": "claim", "reserve": 8.0,
+    "question": {"kind": "claim", "reserve": 5.0,
                  "text": "How many bytes,\nnot how many operations.",
-                 "note": "arithmetic is cheap; fetching the operands is not"},
+                 "note": "one optimisation, under many names"},
 
     # A stack, because the vertical order IS the argument: everything else in
-    # the topic is about moving data up it and keeping it there. Reserved
-    # heavily, because the four levels are named one per line across the beat
-    # and each has to be drawn by the time it is said.
+    # the topic is about moving data up it and keeping it there. Six rows, not
+    # four. The last nineteen seconds of this beat are the payoff, "every
+    # optimisation you read about is one idea", and with four rows it had
+    # nothing to land on: the fourth level was drawn 13.6 seconds after it was
+    # named. The two extra rows are that payoff, and they are named late
+    # enough to hold the tail down to a legal reserve.
     "memory": {"kind": "stack", "tone": "machinery", "focus": "the machine",
-               "reserve": 20.0, "layers": [
+               "reserve": 5.0, "layers": [
                    ("registers", "one thread, very few"),
-                   ("shared memory", "a block of threads, still fast"),
+                   ("shared memory", "one block, still fast"),
                    ("L2", "the whole device"),
-                   ("HBM", "enormous, slow, and where you wait"),
+                   ("HBM", "enormous, slow, where you wait"),
+                   ("one idea", "get it up the list, work there"),
+                   ("tiling, coalescing", "fusion, and Flash Attention"),
                ]},
 
-    # The grid is the content: three things vary together across four levels,
-    # which is what a table is for. Rows draw top to bottom, so the narration
-    # walks them in that order rather than pairing CUDA against Triton.
-    "where": {"kind": "table", "focus": "where you write", "reserve": 20.0,
-              "head": ["level", "you think in", "what it costs"],
-              "rows": [
-                  ["CUDA C++", "threads", "10x the code"],
-                  ["CUTLASS / CuTe", "layouts, tiles", "template work"],
-                  ["Triton", "blocks", "0-20% off CUDA"],
-                  ["Gluon", "blocks + layouts", "the layouts again"],
+    # This was a table, and the grid genuinely was the content. It could not
+    # survive the timing. A table is head plus one reveal a row, so five for
+    # four levels, and on a 52 second beat that draws CUDA C++ at 11 seconds
+    # against a line that names it at 6.6, CUTLASS at 18 against 14.3 and
+    # Triton at 25 against 21.3. Closing that inside a 5.5 second reserve
+    # wants nine reveals, and there are only four levels to put in rows. So
+    # the grid gives way to six lines that carry the same three facts a level
+    # at a time, in the order the narration walks them, with the two lines
+    # that used to be silent tail now doing reveal work.
+    "where": {"kind": "points", "tone": "subject", "focus": "where you write",
+              "reserve": 5.3, "items": [
+                  "CUDA C++: you think in threads",
+                  "CUTLASS and CuTe: layouts, tiles",
+                  "Triton: you write whole blocks",
+                  "a tenth of the code",
+                  "also what torch.compile emits",
+                  "Gluon: the layouts, handed back",
               ]},
 
-    # Two positions side by side, because the claim is that these are the two
-    # ends of the table above, rebuilt in one language. No focus: the map is
-    # already lit on where you write, which is where both of these live.
-    # Items stay near twenty-two characters, which is what a compare side has
-    # room for beside a parked map.
+    # This was a `compare`, which was the right picture and the wrong panel: a
+    # compare is one reveal a side, so two on a 49 second beat, and the second
+    # side was drawn 16.6 seconds after the line named it. The skill is blunt
+    # that `compare` is a short beat's panel. The list keeps the two tracks
+    # adjacent and in the order the narration takes them, four lines each, so
+    # the pairing still reads even though it is no longer spatial.
     #
-    # Tones. The first draft drew cuda-oxide in the cost colour, because it is
-    # the early-alpha one, and the frame then said the tile track is the right
-    # answer and the thread track is a mistake. NVidia shipped both, published
-    # no performance numbers, and the page calls them two ambitions rather
-    # than a winner and a loser. Machinery is what cuda-oxide actually is, a
-    # compiler backend, and the colour then carries the distinction without
-    # the judgement.
-    "rust": {"kind": "compare", "reserve": 22.0, "sides": [
-        {"head": "cuda-oxide", "tone": "machinery", "items": [
-            "the thread track",
-            "rustc backend, to PTX",
-            "aliasing: compile error",
-            "early alpha"]},
-        {"head": "cutile-rs", "tone": "verified", "items": [
-            "the tile track",
-            "compiles via Tile IR",
-            "Rust ownership rules",
-            "Grout, mistral.rs"]},
+    # No focus: the map is already lit on where you write, which is where both
+    # of these live, and a redundant focus costs a second of panel delay for
+    # no change on screen.
+    "rust": {"kind": "points", "tone": "machinery", "reserve": 5.0, "items": [
+        "cuda-oxide: the thread track",
+        "a rustc backend, to PTX",
+        "aliasing is a compile error",
+        "early alpha",
+        "cutile-rs: the tile track",
+        "compiles through CUDA Tile IR",
+        "exclusive access, from ownership",
+        "two safety arguments, no numbers",
     ]},
 
-    # A points list rather than a second table: these do not vary along shared
-    # axes, they are five things with five jobs. The heading renders in the
-    # subject colour whatever the tone says, which is a known limitation of
-    # this panel kind.
+    # Eight lines rather than five, and no heading. The heading was a reveal
+    # of its own that carried one short framing sentence, and with the focus
+    # delay in front of it the panel's first row landed four seconds after the
+    # line that named it; dropping it is the cheapest row this beat could buy.
+    # The three new lines are the profiling order, which was twenty seconds of
+    # narration with nothing on screen moving.
     "call": {"kind": "points", "tone": "verified", "focus": "what you call",
-             "reserve": 26.0,
-             "head": "the layer to live in", "items": [
+             "reserve": 5.3, "items": [
                  "cuBLAS: the GEMM torch calls",
                  "cuBLASLt: search and fusion",
-                 "cuDNN: conv, norms, attention",
-                 "CUTLASS 4: kernels from Python",
-                 "Nsight: timeline, then kernel",
+                 "cuDNN: convolutions, attention",
+                 "CUTLASS 4: Python DSLs",
+                 "prototyped, not fought through",
+                 "then you profile, in order",
+                 "Nsight Systems, and Compute",
+                 "timeline first, always",
              ]},
 
-    # Reserve values across this episode were set from the rendered beat
-    # lengths rather than guessed, after `check_references` pulled a frame of
-    # "Above it, CUTLASS and Cute" showing only the CUDA C++ row. Reveals are
-    # spread evenly over what is left of the line, so a beat that names four
-    # things in its first half draws the fourth one in its second half unless
-    # the tail is held back. The tail that remains is the beat's closing
-    # argument spoken over a finished panel, which is what it should be.
-
-    # The take, as the one thing a viewer can use tomorrow. A stack again, and
-    # deliberately: it is the same three layers, reordered into the order you
-    # should try them in. Every column lit, which is how this vocabulary says
-    # no emphasis.
-    "close": {"kind": "stack", "tone": "subject", "reserve": 26.0,
-              "focus": ["the machine", "where you write", "what you call"],
+    # The take. Still the ladder, still climbed down rather than up, and still
+    # a stack because the order is the argument. Seven rows rather than four:
+    # a take that draws one card and then talks over it for half a minute is
+    # the default failure of this format, and this beat was the worst in the
+    # episode, 26.4 seconds of a motionless frame. The last three rows are the
+    # failure mode and the two things to watch, which were the part of the
+    # line that previously had nothing to land on.
+    #
+    # Every column lit, which is how this vocabulary says no emphasis. All
+    # four now, since the map has four headings.
+    "close": {"kind": "stack", "tone": "subject", "reserve": 5.4,
+              "focus": ["the machine", "where you write", "what you call",
+                        "plus the profilers"],
               "layers": [
                   ("call the library", "start here, often stop here"),
                   ("write Triton", "a tenth of the code"),
                   ("reach for Gluon", "when heuristics cost you"),
-                  ("drop to CUDA C++", "when the profiler says so"),
+                  ("drop to C++", "when the profiler says so"),
+                  ("the bottom rung", "where a week disappears"),
+                  ("the ladder gets taller", "CUTLASS 4, kernels in Python"),
+                  ("the tile track, in Rust", "the same bet, a second time"),
               ]},
 }
 
