@@ -39,7 +39,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from check_structure import PANEL_FIELDS  # noqa: E402  (path set above)
 
 LEAD_TOLERANCE = 3.0     # seconds of pointing at nothing before it is a defect
-WINDOW = 14              # words a paraphrase may spread a label over
+WINDOW = 8               # words a paraphrase may spread a label over
 SECONDS_PER_WORD = 0.40  # the series aggregate, tails and gaps included
 RUN_TIME = 0.45          # one FadeIn, from scene.spread
 
