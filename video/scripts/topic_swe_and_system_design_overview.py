@@ -90,8 +90,8 @@ What the critique step changed:
     traced back does not go in, and a video may add explanation but never a
     figure of its own.
 
-Length. Eight beats, thirty-two reveals, 986 words, planned at 0.42 seconds
-a word (the top of the measured range, because planning short costs nothing
+Length. Eight beats, thirty-two reveals, 1,009 words as shipped, planned at
+0.42 seconds a word (the top of the measured range, because planning short costs nothing
 and planning long drops the episode to 720p). The `fundamentals` beat carries
 six reveals and is deliberately the longest: six reveals is a sixty-five
 second beat and the episode has room for exactly one.
@@ -103,7 +103,9 @@ percent apart, exactly as the method warns. What reconciled them was cutting
 where it is free: trimming a beat AFTER its last reveal is named lowers every
 lead in that beat, while trimming before one raises the leads that follow, so
 the passes took words out of tails and out of the two beats whose leads had
-the most slack.
+the most slack. It delivered at 6:46 for 1,009 words, which is 0.402 seconds
+a word, the series median: planning at 0.42 over-predicted by eighteen
+seconds, in the direction that costs nothing.
 
 Reserves were placeholders until the voice existed and are now fitted to the
 rendered durations: for each beat, the smallest reserve that keeps every
