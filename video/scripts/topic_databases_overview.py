@@ -78,6 +78,49 @@ Every `reserve` here was computed from `out/timing_topic_databases_overview.json
 after the voice existed, using reveal k of n landing at (k-1)/(n-1) of
 `beat_length - reserve`, not guessed.
 
+Re-cut 2026-09-23, for timing only. The argument, the axis, the map, the beats
+and the take are the published ones. `check_leads` had not been written when
+this episode shipped, and the first run of it against this cut found eleven
+reveals named before they were drawn, the worst at 12.6 seconds, with ten more
+reveals it could not time at all because no panel item was a run the narration
+says. Two things the published cut could not have known: a `focus` beat spends
+0.25 seconds per handle lighting the parked map before it draws anything, which
+on this map is nineteen handles and 4.75 seconds off the front of `split`,
+`vector` and `convergence`; and a `points` head is a reveal of its own, which
+cost every row under it one place. Both are modelled now.
+
+What the re-cut changed, cheapest lever first:
+
+  - Reserves, everywhere. `map` to 7.5, `split` to 4.0, `vector` to 4.5,
+    `convergence` to 4.8, `close` from 2.0 to 4.5. `question` and `planner`
+    were already right. Each was picked by sweeping the reserve against both
+    gates at once and taking the value furthest from either, rather than by
+    fitting the leads and hoping: `still` runs about `reserve + 0.4` on an
+    ordinary beat and `reserve - 2.35` on this parked one, measured on this
+    episode's own render, and a bigger reserve always buys lead margin and
+    always spends still margin. The parked ceiling is 8.4 and `map` was tried
+    at 8.3 first, which rendered a 5.95 second still frame against a 6.0
+    second limit. That passes and is not a margin; 7.5 leaves 5.15 seconds of
+    still frame and still holds the beat's worst lead to 1.9.
+  - Rows, where the reserve could not reach. `split` 5 reveals to 7, `vector`
+    6 to 8, `convergence` 7 to 9. Every added row is a sentence the beat
+    already speaks that had nothing to land on, which is why the panels read
+    better than they did rather than merely checking clean.
+  - Two heads dropped. `vector` lost its heading outright and `convergence`
+    turned its heading into its last row, which is where the line says it.
+  - `planner`'s note re-pointed to the beat's closing clause, with the
+    method and the percentage moved up into the caption, which is drawn with
+    the number at t=0.
+  - Items rewritten to runs the narration actually says, so they can be timed.
+    Ten reveals were untimed before and one is now, the `close` heading, which
+    is drawn at t=0 and cannot lead by construction.
+
+Only `map` needed words moved, and nothing was cut: a `columns` panel has one
+reveal per column, so it cannot gain a row without gaining a column, and the
+axis is the episode. Ten words were added across two turns to give column two
+and column four enough runway. Everything else is `VISUALS`-only and the other
+seven takes are the published audio, byte for byte.
+
 Lit state of the map, decided for every beat rather than left to inherit.
 `question` inherits the fully lit map the build leaves behind, which is the
 state it wants. `split` lights `analytical`, because the whole beat is the
@@ -168,23 +211,36 @@ SCRIPT["ident"] = [
 ]
 
 # -- the inventory, named before anything is explained ---------------------
-# Four columns, four reveals, over about fifty five seconds. B's turn sits
+# Four columns, four reveals, over about sixty five seconds. B's turn sits
 # between column two and column three deliberately: it is what pushes the
 # naming of the last two columns late enough to meet the drawing.
+#
+# The 2026-09-23 re-cut moved words here, which it did nowhere else, because a
+# `columns` panel has exactly one reveal per column and the map's axis is not
+# up for renegotiation: there is no row to add, and reveal four lands at
+# `beat - reserve` however large n is. With the reserve already at the parked
+# ceiling the only lever left was the order of the words. Column four's
+# category name now arrives after its gloss rather than before it ("no server
+# at all ... we call that embedded"), which is eleven words of runway, and
+# column two gains a sentence of runway in front of it. Note that the column's
+# reveal is timed from the FIRST of its labels the narration says, head or
+# item, so naming the products first buys nothing: "S Q Lite" would simply
+# become the thing said too early.
 SCRIPT["map"] = [
     (A, "Here is the whole board, grouped the way the page groups it."),
     (A, "Operational stores first. Relational, Postgres and MySQL. Document, "
         "MongoDB. Wide column, Cassandra. Key value, Redis and DynamoDB."),
-    (A, "Then analytical, for the enormous scanning queries. Columnar is "
-        "ClickHouse, BigQuery and Snowflake. The lakehouse is Parquet on S "
-        "three, under Iceberg or Delta."),
+    (A, "The second column is a different job entirely. Analytical, for the "
+        "enormous scanning queries. Columnar is ClickHouse, BigQuery and "
+        "Snowflake. The lakehouse is Parquet on S three, under Iceberg or "
+        "Delta."),
     (B, "Some of those names turn up in more than one column."),
     (A, "They do. That turns out to be the most useful thing on the board."),
     (A, "Third, the specialised indexes. Vector, P G vector and Qdrant. "
         "Search, Elasticsearch. Time series, Prometheus. Graph, Neo four J."),
-    (A, "And fourth, embedded. No server at all, just a library in your "
-        "process. S Q Lite, Duck D B, Rocks D B. That is the whole board. It "
-        "goes in the corner now."),
+    (A, "And fourth, no server at all, just a library in your process. We "
+        "call that embedded. S Q Lite, Duck D B, Rocks D B. That is the whole "
+        "board. It goes in the corner now."),
 ]
 
 # -- the organising question, over the stack that answers it ---------------
@@ -333,7 +389,7 @@ VISUALS = {
     # literally apparatus bolted onto a store. Verified for embedded, the one
     # group with nothing to argue about. None is toned `context`, so every
     # column has somewhere to brighten from when a later beat lights it.
-    "map": {"kind": "columns", "park": True, "reserve": 4.5, "columns": [
+    "map": {"kind": "columns", "park": True, "reserve": 7.5, "columns": [
         {"head": "operational", "tone": "subject", "items": [
             "Postgres, MySQL",
             "MongoDB",
@@ -381,13 +437,24 @@ VISUALS = {
     #
     # Cells are kept short because the free region beside a parked map is
     # about 7.8 units and three text columns have to share it.
+    # Two rows the 2026-09-23 re-cut added, because five reveals over a
+    # fifty five second beat drew the second, third and fourth of them six to
+    # eleven seconds after the line that named them. Both are sentences the
+    # beat already speaks and had nothing to land on: the compression claim
+    # inside the scan turn, and the "so put it on a replica" conclusion that
+    # closes the beat. Seven reveals walk the beat at about seven and a half
+    # seconds each, which is what the narration does anyway. The blank cell is
+    # deliberate and safe in a BODY row: the page makes no claim about how
+    # hard a row store compresses, so the frame makes none either.
     "split": {"kind": "table", "focus": "analytical", "reserve": 4.0,
               "head": ["", "row store", "column store"],
               "rows": [
                   ["kept together", "the whole record", "each column"],
                   ["point lookup", "one page read", "a column trip"],
                   ["a big scan", "reads everything", "only what it needs"],
+                  ["compresses", "", "far harder"],
                   ["updates", "cheap", "rewrites blocks"],
+                  ["analytics", "not the primary", "on a replica"],
               ]},
 
     # Also not a compare, for the same arithmetic: this beat spends thirty
@@ -396,16 +463,30 @@ VISUALS = {
     # frame. Seven reveals over forty five seconds is one every six or seven,
     # which is what the narration actually does: it walks a single decision
     # from "what kind of thing is this" down to the threshold.
+    # No head, and eight rows rather than six. The head was the defect: it
+    # took reveal one, and the beat's first two claims are spoken inside the
+    # first eight seconds, so every real item was pushed five to thirteen
+    # seconds behind its line. Dropping it lets the opening claim land at the
+    # top of the beat, where it is said. The `focus` spends 4.75 seconds
+    # lighting the parked map's nineteen handles before anything is drawn,
+    # which is the rest of the story and is why eight rows rather than six.
+    #
+    # Every item is now a run the narration says verbatim, so `check_leads`
+    # can time it. Three of the old six could not be timed at all, which reads
+    # as a pass and is not one: "below ~10M: pgvector wins" shares no matchable
+    # word with "right below roughly ten million vectors", because the line
+    # spells the name "P G vector" for the voice model.
     "vector": {"kind": "points", "tone": "machinery",
-               "focus": "specialised index", "reserve": 3.0,
-               "head": "vector search, in one decision",
+               "focus": "specialised index", "reserve": 4.5,
                "items": [
                    "an index type, not a category",
-                   "recall tuned, not guaranteed",
+                   "build is the expensive step",
+                   "pgvector, the boring default",
                    "chunks need metadata, tenancy",
-                   "below ~10M: pgvector wins",
-                   "past ~100M: a dedicated store",
-                   "or a hard p99 under 10 ms",
+                   "below roughly ten million",
+                   "past a hundred million",
+                   "during graph traversal",
+                   "p99 under ten milliseconds",
                ]},
 
     # The page's real thesis, and the most valuable thirty seconds in the
@@ -416,17 +497,27 @@ VISUALS = {
     #
     # The heading renders in the subject colour whatever the tone says, which
     # is a known limitation of this panel kind and is harmless here.
-    "convergence": {"kind": "points", "tone": "verified", "reserve": 5.0,
+    # The heading became the last row, which is where the narration says it
+    # anyway ("the same physical trades, arriving from every direction"), and
+    # the list went from six rows to nine. A head is drawn at t=0 and still
+    # spends a share of the drawing budget, so it cost every item below it one
+    # place while carrying a sentence spoken at the very end of the beat.
+    # Nine rows at about five seconds each is the rate the narration actually
+    # names things at: this beat names eight separate systems in thirty
+    # seconds, and six rows could not keep up with it.
+    "convergence": {"kind": "points", "tone": "verified", "reserve": 4.8,
                     "focus": ["operational", "analytical",
                               "specialised index", "embedded"],
-                    "head": "the same trades, from every direction",
                     "items": [
-                        "JSONB: documents in Postgres",
-                        "pgvector: embeddings",
-                        "TimescaleDB, PostGIS, FTS",
-                        "InfluxDB v3 is Parquet now",
+                        "Postgres is absorbing the map",
+                        "JSONB: documents, joins",
+                        "pgvector, TimescaleDB, PostGIS",
+                        "InfluxDB is a Parquet engine",
                         "ClickHouse beats time-series",
+                        "Elasticsearch: dense vectors",
+                        "feature stores: two databases",
                         "one corpus, five engines",
+                        "the same physical trades",
                     ]},
 
     # The number, alone and large, late in the episode and attributed out
@@ -437,23 +528,38 @@ VISUALS = {
     # No focus: `convergence` lit all four columns, which is how this
     # vocabulary says no emphasis, and that is the state this beat wants. A
     # redundant focus redraws an identical frame and costs a second of delay.
+    # A `stat` has two reveals and the note is the second, so it lands at
+    # `beat - reserve` and can only paraphrase the LAST thing said. The old
+    # note led with "best-of-three", which is spoken at thirty six seconds
+    # against a card drawn at forty three, and it could not be timed at all
+    # because neither "best-of-three" nor "44.7%" survives as a matchable
+    # word. Both moved into the caption, which is drawn with the number at
+    # t=0, so the qualification is on screen for the whole beat rather than
+    # arriving late; the note now carries the beat's closing clause.
     "planner": {"kind": "stat", "reserve": 5.0, "big": "1.81x",
-                "caption": "geometric mean speedup over the Postgres planner",
-                "note": "best-of-three, 44.7% latency cut, zero regressions"},
+                "caption": "geometric mean speedup over the Postgres planner\n"
+                           "best of three rollouts, a 44.7% latency cut",
+                "note": "not one query came back slower"},
 
     # The take, as the thing a viewer can use tomorrow: the page's five
     # questions in the order it asks them, then the irreversible one. One tone
     # throughout, because colouring any of these as a cost would deliver a
     # verdict the page does not; it gives an ordering, not a condemnation.
-    "close": {"kind": "points", "tone": "subject", "reserve": 2.0,
+    # The reserve went from 2.0 to 4.5 and four of the six rows were rewritten
+    # to phrases the line actually says. At 2.0 the last row was drawn 5.0
+    # seconds after the narration named the partition key; four rows could not
+    # be timed at all, which is not the same as a pass. "who debugs it at 3am"
+    # squashes to "threeam" and the line says "three in the morning", so the
+    # row and the sentence shared nothing a checker could match.
+    "close": {"kind": "points", "tone": "subject", "reserve": 4.5,
               "head": "in this order",
               "items": [
                   "access patterns, not shape",
-                  "invariants across rows",
+                  "invariants: two rows, together",
                   "write volume and its shape",
                   "how much you know today",
-                  "who debugs it at 3am",
-                  "the partition key is one-way",
+                  "who debugs it at 3 in the morning",
+                  "one-way: partition, shard key",
               ]},
 }
 
