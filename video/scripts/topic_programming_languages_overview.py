@@ -505,20 +505,27 @@ VISUALS = {
                  "layers": [
                      ("0. setup", "the one organising idea"),
                      ("1. foundations", "correct small programs"),
-                     ("2. proficiency", "idiomatic, maintainable"),
+                     ("2. proficiency", "idiomatic code"),
                      ("3. advanced", "concurrency, memory, failure"),
                      ("4. expert", "explain it from the spec"),
                  ]},
 
     # Three items beside the parked map, each inside the thirty character
     # budget a `points` item has in the seven point eight units left over.
+    #
+    # Re-cut 2026-09-23, timing only. The items were paraphrases the lead
+    # check could not time; written as the line says them, the first was
+    # named 3.6 seconds before it was drawn (on word timestamps). The async
+    # item's last clause is now a row of its own, spoken as the beat's last
+    # words, so five reveals re-space the landings and row one draws on time.
     "python": {"kind": "points", "tone": "subject", "reserve": 5.0,
                "focus": "Python",
                "head": "the parts you can miss for years",
                "items": [
-                   "dunders, and descriptors",
-                   "hot bytecode specialises",
-                   "async IO, not CPU",
+                   "dunder protocols, descriptors",
+                   "hot bytecode, specialised",
+                   "async IO: one thread",
+                   "wrong for CPU work",
                ]},
 
     # The head row is a reveal of its own, so this is four reveals rather than
@@ -527,11 +534,19 @@ VISUALS = {
     #
     # The cells stay inside eighteen characters, which is what fits beside the
     # parked map.
+    #
+    # Re-cut 2026-09-23, timing only. Row one's cells read "the programmer"
+    # and "the compiler" while the line says "the programmer's", so the row
+    # was untimed; made timeable, it was a real 4.9 second lead. The fourth
+    # row, blank-labelled so it reads as the Rust half of row two and keeps
+    # "third row" true of the Miri row, is the fix: five reveals instead of
+    # four re-space every landing and draw row one at the words naming it.
     "systems": {"kind": "table", "reserve": 5.0, "focus": ["C++", "Rust"],
                 "head": ["the question", "C++", "Rust"],
                 "rows": [
-                    ["whose job it is", "the programmer", "the compiler"],
+                    ["whose job it is", "the programmer's", "the compiler's"],
                     ["what a bug means", "no defined meaning", "it will not build"],
+                    ["", "", "proved before it runs"],
                     ["a tool for the gap", "none", "Miri, on unsafe"],
                 ]},
 
@@ -551,19 +566,32 @@ VISUALS = {
 
     # Three answers to one question, and the grid is the content: what you
     # write, at what granularity, and how far along it is.
-    "frontier": {"kind": "table", "reserve": 5.5, "focus": "Rust",
+    #
+    # Re-cut 2026-09-23, timing only. Cuda oxide is named fifteen seconds in
+    # and was drawn at twenty one, a 6.1 second lead no reserve could close.
+    # The blank-labelled row under "in production" names where cutile-rs
+    # runs, which the line already says, and the fifth reveal re-spaces the
+    # landings so row one draws at seventeen.
+    "frontier": {"kind": "table", "reserve": 4.5, "focus": "Rust",
                  "head": ["what is new", "you write", "where it is"],
                  "rows": [
                      ["cuda-oxide", "a thread", "early alpha"],
                      ["cutile-rs", "a tile", "in production"],
+                     ["", "", "Grout, Mistral RS"],
                      ["Mojo", "one file, CPU+GPU", "open source, 1.0"],
                  ]},
 
     # The take, as four lines that unfold with it rather than one card held
     # still for the length of the conclusion.
-    "close": {"kind": "points", "tone": "subject", "reserve": 5.5,
+    #
+    # Re-cut 2026-09-23, timing only. The head, "what the map is for", was
+    # drawn first and pushed the first two lines 4.6 and 4.8 seconds behind
+    # the words naming them, and the beat held a 6.07 second still. Dropping
+    # it, and the reserve from 5.5 to 4.0, closes both. The focus stays: the
+    # previous beat leaves only Rust lit, so lighting all four is not
+    # redundant here.
+    "close": {"kind": "points", "tone": "subject", "reserve": 4.0,
               "focus": ["Python", "C++", "Rust", "JS and TS"],
-              "head": "what the map is for",
               "items": [
                   "five ladders, not five climbs",
                   "Python is where you work",
