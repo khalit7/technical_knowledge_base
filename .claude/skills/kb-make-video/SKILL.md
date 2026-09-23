@@ -7,7 +7,7 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
-*This copy is the page as Notion last edited it, 2026-09-23 07:55:00 UTC. A procedure*
+*This copy is the page as Notion last edited it, 2026-09-23 08:03:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
 *The copy your skill loader served you can also be behind this file: if you were told*
@@ -188,8 +188,8 @@ Every re-cut agent in the series asked for this, because the pieces were spread 
 
 1. **Make every reveal timeable first.** An untimed reveal is unchecked, not passed, and making one timeable has turned up real leads of 9.7 and 12.6 seconds. Write each panel item as the narration says it: same spelling ("License" against "licence" breaks the match), and no label word spoken earlier for some other reason.
 2. **Drop a focus the previous beat makes redundant.** The first reveal draws only after the map finishes lighting, 0.25 seconds per handle, so a focus beat whose heading is spoken in its first words has a guaranteed lead that no reserve or row can touch. --reserves flags it as FIRST REVEAL LEADS.
-3. **Sweep each reserve** to the value --reserves suggests, midway between the lead floor and the still cap.
-4. **Add a row** for a sentence the beat already speaks with no reveal, near the end of the line.
+3. **Sweep each reserve** to the value --reserves suggests, midway between the lead floor and the still cap. That can be **lower** than the reserve already there, and it is still right: a lower reserve is safe whenever the floor sits well below it.
+4. **Add a row** for a sentence the beat already speaks with no reveal, near the end of the line. Make the new label a **contiguous run of that sentence**: the matcher looks for a label anywhere in the beat, so any word it shares with an earlier sentence creates a fresh lead. "position bias" and "small judge" each matched an early sentence on one beat and would have produced leads of 8 to 35 seconds. Nine lines of `points` beside a parked map still read cleanly, so rows are not scarce.
 5. **Drop or move a heading,** which costs every item after it one place.
 6. **Re-point a note** on a two-reveal claim or stat to the beat's last sentence.
 7. **Re-panel** where the kind cannot fit the beat: compare takes up to four sides, an over-long compare wants points rather than table, and bars cannot gain rows at all.
@@ -633,6 +633,8 @@ Two more things follow. Measure a lead from the moment the **name** is spoken ra
 **It reports what it could not time, and that is not the same as a pass.** The orphan check has a second route, a shared significant word; this one does not, because a reveal has to be located at a *moment* and a common word turns up earlier in a beat for other reasons. Matching that way was tried and timed one genuinely clean episode as eighteen leads. So a label the narration never says as a contiguous run is listed as `NOT SAID VERBATIM, so not timed` and left alone. **Write every panel item as a phrase the line actually says**, and where that is impossible, time it by hand rather than reading the silence as clean.
 
 Concretely, an item is timeable if either the whole thing squashes to a run the narration says, which is how a spelled-out name matches (`pgvector` against "P G vector", `44.7%` against "forty four point seven"), or **two of its words of four or more characters appear as exact whole words, in order, within fourteen words**. The two words have to appear **in the order the label gives them**, so "a recorded trajectory" fails against "a trajectory recorded"; and a contraction in a label contributes a word the narration may never say, so "don't replace" against "not replace" is untimed. That second route is also what silently excludes an item built from short words: "cut" is three characters, and "3am" squashes to "threeam" against a line that says "three in the morning". Rewriting one item is usually cheaper than accepting an unchecked reveal.
+
+One collision the matcher cannot report: **a bare digit in a label squashes to a number word, which then matches a spoken year.** A label with "5" becomes "five" and times itself from "twenty twenty five" earlier in the beat. An early match overstates a lead rather than hiding one, so it produces false alarms, not missed defects; still, keep digits out of labels on a beat that says a year, or the report stops being trustworthy.
 
 A second route catches the common paraphrase case: two or more of a multi-word item's significant words, in order, inside a fourteen word window, so "chunking moves quality most" is found in "chunking is still what moves quality most". It matches whole words rather than substrings, because "gain" sits inside "against" and a substring test once placed a label four seconds into a beat that names it forty seconds later. **A ****`points`**** list of paraphrased sentences is still the weak case**: one episode had 23 of 32 reveals unmatched, and hand-timing then found agentic RAG named 12.9 seconds before its row, chunking 8.8 and the reranker 7.1, all past every check. `columns`, `bars`, `stat`, `claim` and `table` time reliably; a `points` beat wants verbatim item strings or a hand check.
 
