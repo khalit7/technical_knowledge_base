@@ -338,10 +338,14 @@ VISUALS = {
                 "caption": "model calls: 8 worlds, 10 agents, 16 days, under attack",
                 "note": "everything else measures agents doing their job; "
                         "this measures interference"},
-    "s4_finding": {"kind": "claim", "reserve": 5.0,
+    # The note is a claim's second reveal and lands at beat - reserve, so it
+    # paraphrases the beat's LAST sentence. It used to carry the forty six
+    # hours from mid-beat and was drawn 14.5 seconds after that was said.
+    # Its label words ("attached", "changes") first occur in that sentence,
+    # so neither the estimate nor the word timing can pair it earlier.
+    "s4_finding": {"kind": "claim", "reserve": 2.8,
                    "text": "Detection is not containment.",
-                   "note": "a signal with nothing wired to it: 46 hours of "
-                           "interacting anyway"},
+                   "note": "attached to no action, a warning changes nothing"},
 
     # No head, and the physics story split across two rows. The heading
     # took the t=0 reveal that the first item needed, and the last row was
