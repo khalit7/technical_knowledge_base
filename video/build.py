@@ -170,7 +170,12 @@ def main() -> int:
         raise SystemExit(f"no rendered file found under {scene_dir}")
     source = rendered[-1]
 
-    delivery = ROOT / "out" / f"{args.episode}.mp4"
+    # A preview must not be able to become the published file. `--quality l`
+    # renders from 480p15, and writing that to the delivery path meant anyone
+    # who previewed and then uploaded shipped a 480p-sourced video with no
+    # warning anywhere: `upload_all.py` reads exactly this name.
+    suffix = "" if args.quality == "h" else f".preview-{args.quality}"
+    delivery = ROOT / "out" / f"{args.episode}{suffix}.mp4"
     size = 0.0
     for height, crf, audio in PROFILES:
         run([FFMPEG, "-y", "-i", source,

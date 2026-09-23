@@ -255,8 +255,9 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
         want = max(0.0, want)
         note = ""
         if want > cap:
-            note = (f"RESERVE CANNOT FIX IT (wants {want:.1f}): re-point a note, "
-                    f"add a row, or move the words")
+            note = (f"RESERVE CANNOT FIX IT (wants {want:.1f}): re-point a "
+                    f"note, add a row NAMED AT THE END of the line, add a "
+                    f"`compare` side (up to four), or move the words")
             over += 1
         elif want > now + 0.3:
             note = "raise it"
