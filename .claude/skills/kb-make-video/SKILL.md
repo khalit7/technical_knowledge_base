@@ -7,7 +7,7 @@ description: Produce a narrated explainer video derived from a KB page. Three fo
 
 *Mirrored from Notion, where it is the source of truth. Edit it there:*
 *Me -> _AI -> Skills -> Produce technical explainer video. Changes here are overwritten by the next sync.*
-*This copy is the page as Notion last edited it, 2026-09-23 08:25:00 UTC. A procedure*
+*This copy is the page as Notion last edited it, 2026-09-23 08:34:00 UTC. A procedure*
 *that has moved on since then has moved on in Notion first, so if anything here*
 *contradicts what the tools actually do, re-run the sync before trusting this file.*
 *The copy your skill loader served you can also be behind this file: if you were told*
@@ -194,7 +194,7 @@ Every re-cut agent in the series asked for this, because the pieces were spread 
 6. **Re-point a note** on a two-reveal claim or stat to the beat's last sentence.
 7. **Re-panel** where the kind cannot fit the beat: compare takes up to four sides, an over-long compare wants points rather than table, and bars cannot gain rows at all.
 8. **Only then touch the words.**
-Steps 2 to 7 change only VISUALS and leave the audio byte-identical. **The gate before publishing is ****`check_leads --words`**, not the default estimate: one re-cut passed on the estimate, published, and then found a 3.6 second lead with `--words`, which cost a second render and upload. Iterate on the estimate because it is instant; publish on `--words`. Record a re-cut in Updates like a new video, titled "the <topic> video re-cut". The reasoning behind each step follows.
+Steps 2 to 7 change only VISUALS and leave the audio byte-identical. **The gate before publishing is ****`check_leads --words`**, not the default estimate: one re-cut passed on the estimate, published, and then found a 3.6 second lead with `--words`, which cost a second render and upload. Iterate on the estimate because it is instant; publish on `--words`. **Fit the final reserves with ****`--reserves --words`**** too**: a reserve fitted to the estimate failed the `--words` gate by three seconds on two beats whose names are read slowly, which is what the combination exists to prevent. Record a re-cut in Updates like a new video, titled "the <topic> video re-cut". The reasoning behind each step follows.
 
 **The one invariant that makes all of this tractable: reveal n always lands at ****`beat - reserve`****.** Everything else follows from it, including the corollary that saves the most time: **the last reveal's lead is set only by the words spoken after it is named.** Adding words *before* a reveal changes nothing, because the naming and the drawing move together; one author spent an hour on a map beat before seeing that the 42 words after the third column were the whole problem and the 81 before it were irrelevant. So a beat is fixable by reserve only if something is named in its final few seconds.
 

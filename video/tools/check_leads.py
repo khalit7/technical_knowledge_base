@@ -251,7 +251,7 @@ ORDINARY_CAP = 5.5       # still tracks reserve + 0.4, against a 6.0 limit
 PARKED_CAP = 8.4         # a parked beat spends 2.4 of it on settle and morph
 
 
-def suggest_reserves(script, visuals, durations, tolerance) -> int:
+def suggest_reserves(script, visuals, durations, tolerance, heard_for=None) -> int:
     """The smallest reserve per beat that keeps every lead inside tolerance.
 
     Reveal k is drawn at `(k-1)/(n-1) x (D - r)`, so requiring it to land no
@@ -274,6 +274,10 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
         # beats carrying a focus, which are the ones needing the most help,
         # every number here was out by up to five seconds.
         lit = focus_delay(visuals, spec)
+        # With --words the floor comes from what the voice actually said. The
+        # gate is --words, and a reserve fitted to the estimate was failing it
+        # by three seconds on beats whose names are read slowly.
+        heard = heard_for(key) if heard_for else None
         want, blind, head_lead = 0.0, 0, 0.0
         for k, labels in enumerate(groups, start=1):
             if k < 2:
@@ -282,15 +286,14 @@ def suggest_reserves(script, visuals, durations, tolerance) -> int:
                 # spoken in its first words that is a guaranteed lead of the
                 # whole lighting time, which this table used to skip entirely
                 # and then advise fixing with a row.
-                at = said_at(words, labels)
-                if lit and at is not None:
-                    head_lead = lit - at / max(len(words), 1) * D
+                said, _src = said_seconds(labels, words, D, heard)
+                if lit and said is not None:
+                    head_lead = lit - said
                 continue
-            at = said_at(words, labels)
-            if at is None:
+            said, _src = said_seconds(labels, words, D, heard)
+            if said is None:
                 blind += 1
                 continue
-            said = at / max(len(words), 1) * D
             want = max(want, D - lit - (said + tolerance - lit) * (n - 1) / (k - 1))
         cap = PARKED_CAP if spec.get("park") else ORDINARY_CAP
         now = float(spec.get("reserve", 0.0) or 0.0)
@@ -406,7 +409,9 @@ def main() -> int:
         durations = json.loads(measured.read_text())
 
     if args.reserves:
-        return suggest_reserves(script, visuals, durations, args.tolerance)
+        heard_for = ((lambda k: heard_words(args.script, k, args.device))
+                     if args.words else None)
+        return suggest_reserves(script, visuals, durations, args.tolerance, heard_for)
 
     print(f"{'beat':16s} {'reveal':28s} {'drawn':>7s} {'said':>7s} {'lead':>7s}")
     problems, unchecked = [], []
