@@ -44,7 +44,7 @@
 - **NVIDIA NeMo**: enterprise suite wrapping Megatron-Core: data prep (NeMo
   Curator), training, alignment (NeMo-RL), deployment (NIM); the default on
 
-  HyperPod-with-NVIDIA engagements (the stack Khalid's FinLLM training used:
+  HyperPod-with-NVIDIA engagements (the managed-cluster stack in practice:
 
   HyperPod + NeMo + SLURM).
 

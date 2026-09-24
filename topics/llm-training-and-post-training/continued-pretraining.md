@@ -21,11 +21,11 @@ full-parameter training, same objective. Use CPT when the knowledge gap is large
 
 (SFT/LoRA cannot inject bulk domain knowledge); skip it when a RAG system or
 
-fine-tune suffices. Khalid's FinLLM work followed this pattern: select a base
+fine-tune suffices. A domain-specific financial-services LLM Khalid worked on followed this pattern: select a base
 
 model by benchmark screening, CPT on domain + general mix, then post-train and
 
-evaluate on finance, general, and safety axes (AveniBench).
+evaluate on domain, general, and safety axes with a private in-house benchmark.
 
 ### The central problem: catastrophic forgetting
 

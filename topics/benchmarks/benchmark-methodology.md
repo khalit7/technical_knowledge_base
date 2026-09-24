@@ -131,7 +131,7 @@ semi-private, SWE-bench Pro), with the private split used to measure public-spli
 
 overfitting, plus independent rerunners (Epoch, HAL, Artificial Analysis) as auditors.
 
-Private in-house benchmarks (AveniBench: finance, general capabilities, safety) apply the same idea inside a company: they stay discriminative precisely because they are not in anyone's training data.
+Private in-house benchmarks (a domain suite alongside general-capability and safety axes, for example) apply the same idea inside a company: they stay discriminative precisely because they are not in anyone's training data.
 
 ### Elo arenas and their critiques
 

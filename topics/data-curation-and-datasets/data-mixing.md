@@ -96,7 +96,7 @@ general ability unless you replay general-corpus data. The replay ratio has usua
 
 heuristically (common folklore: 10-50% general data). The **CMR Scaling Law** paper (Gu et al. 2024,
 
-EMNLP; the reference used on the FinLLM project for balancing domain against general data in
+EMNLP; the reference Khalid has used professionally for balancing domain against general data in
 
 CPT) makes it predictive:
 
