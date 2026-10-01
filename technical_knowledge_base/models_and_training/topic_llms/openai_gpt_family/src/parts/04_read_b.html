@@ -1,0 +1,75 @@
+<section id="s-cost">
+<h2>What one request costs</h2>
+<p>OpenAI bills input and output tokens separately; reasoning tokens count as output; a prompt above 272K input tokens is charged at the higher rate for the whole request; and since GPT-5.6, input tokens fall into three buckets, uncached, read from the prompt cache, or written to it ({{pricing|@pricing}}, {{prompt caching|@cache}}):</p>
+<div class="fm"><math display="block"><mi>C</mi><mo>=</mo><mi>s</mi><mo>·</mo><mfrac><mrow><mo>(</mo><msub><mi>I</mi><mi>u</mi></msub><msub><mi>p</mi><mtext>in</mtext></msub><mo>+</mo><msub><mi>I</mi><mi>r</mi></msub><msub><mi>p</mi><mtext>read</mtext></msub><mo>+</mo><msub><mi>I</mi><mi>w</mi></msub><msub><mi>p</mi><mtext>write</mtext></msub><mo>)</mo><msub><mi>m</mi><mtext>in</mtext></msub><mo>+</mo><mi>O</mi><mspace width="0.15em"/><msub><mi>p</mi><mtext>out</mtext></msub><msub><mi>m</mi><mtext>out</mtext></msub></mrow><msup><mn>10</mn><mn>6</mn></msup></mfrac></math>
+<dl><dt>C</dt><dd>the request's cost in dollars</dd>
+<dt>I<sub>u</sub>, I<sub>r</sub>, I<sub>w</sub></dt><dd>input tokens billed uncached, read from the cache, and written to it; together they are the input <i>I</i></dd>
+<dt>O</dt><dd>output tokens, <b>including the hidden reasoning tokens</b></dd>
+<dt>p</dt><dd>list prices in dollars per million tokens; on GPT-5.6 and later a cache read is 0.1× input (0.05× on GPT-6.1 Sol) and a cache write 1.25× input</dd>
+<dt>m<sub>in</sub>, m<sub>out</sub></dt><dd>1 and 1 when <i>I</i> ≤ 272,000; 2 and 1.5 when <i>I</i> &gt; 272,000</dd>
+<dt>s</dt><dd>the service tier: 0.5 for Batch or Flex, 1 Standard, 2 Fast, 6 Ultrafast (Astra only)</dd></dl></div>
+<p class="try"><b>Try:</b> the defaults are 50,000 tokens in and 5,000 out, uncached. Press <b>300K prompt</b> to cross the 272K line, then <b>272K prompt</b>: 28,000 fewer tokens and the bill falls by more than half. Raise the cached share to see how little a long, reused prefix costs once it is cached.</p>
+<div class="card">
+<div class="chips" id="rqPre"><button data-p="a" class="on">50K in, 5K out</button><button data-p="b">300K prompt, 10K out</button><button data-p="c">272K prompt, 10K out</button><button data-p="d">Agent turn: 200K, 75% cached</button></div>
+<div class="ctl">
+<label>Input tokens <i>I</i>: <b id="rqIv"></b><input type="range" id="rqI" min="0" max="1000" value="0"></label>
+<label>Output tokens <i>O</i> (incl. reasoning): <b id="rqOv"></b><input type="range" id="rqO" min="0" max="1000" value="0"></label>
+<label>Share of input read from cache: <b id="rqHv"></b><input type="range" id="rqH" min="0" max="100" value="0"></label>
+<label>Service tier <select id="rqS" style="width:100%"><option value="1">Standard</option><option value="0.5">Batch or Flex (0.5×)</option><option value="2">Fast (2×)</option><option value="6">Ultrafast (6×, Astra only)</option></select></label>
+<label><input type="checkbox" id="rqW"> the uncached part is written to the cache (1.25×)</label>
+</div>
+<div class="co key" id="rqPin" style="margin:6px 0"></div>
+<div class="bars" id="rqBars"></div>
+<h3>GPT-6 Astra's cost against prompt length</h3>
+<div class="tw"><div id="rqCliff" class="plot" style="min-width:520px"></div></div>
+<p class="small mute">Standard prices from the {{pricing page|@pricing}} (read 1 October 2026); GPT-5.6 Sol at its promotional $4 and $20. Ultrafast is listed for GPT-6 Astra only; other models show "n/a" on that tier. Output above 128,000 tokens and input above 922,000 are not allowed and the sliders stop there.</p>
+</div>
+<p>The per-request price is still not the per-task price: a cheaper model that needs more turns, more effort or more reasoning tokens to finish can cost more per solved task than its price suggests, which is why OpenAI's own comparisons quote cost per task. On Artificial Analysis' index, GPT-6.1 Sol is a fifth of Astra's price per token but 22% of its cost per task, and Luna a hundredth per token but 2.1% per task (<a href="#" data-tab="t-cost">Cost per task</a>).</p>
+
+<h3>Prompt caching: when a reused prefix pays</h3>
+<p>The prompt cache stores the key and value tensors of a prefix, not the text, so a later request with the same prefix skips recomputing it. On GPT-5.6 and later the first request writes the prefix at 1.25× the input rate and each reuse reads it at 0.1× (0.05× on GPT-6.1 Sol). A prefix must be at least 1,024 tokens, an entry stays eligible for 30 minutes after its last write or reuse, the whole rendered prefix must match (tools, effort and formatting settings included), and each request can create up to four cache writes ({{prompt caching guide|@cache}}).</p>
+<div class="fm"><math display="block"><mfrac><msub><mi>C</mi><mtext>cached</mtext></msub><msub><mi>C</mi><mtext>uncached</mtext></msub></mfrac><mo>=</mo><mfrac><mrow><mn>1.25</mn><mo>+</mo><mo>(</mo><mi>N</mi><mo>−</mo><mn>1</mn><mo>)</mo><mspace width="0.1em"/><mi>r</mi></mrow><mi>N</mi></mfrac><mo>,</mo><mspace width="1em"/><msub><mi>N</mi><mtext>break-even</mtext></msub><mo>=</mo><mfrac><mrow><mn>1.25</mn><mo>−</mo><mi>r</mi></mrow><mrow><mn>1</mn><mo>−</mo><mi>r</mi></mrow></mfrac></math>
+<p class="wh"><i>N</i> is the number of requests that use the prefix (one write, <i>N</i> − 1 full reads) and <i>r</i> the read rate as a fraction of the input price.</p></div>
+<div class="card">
+<div class="ctl">
+<label>Requests sharing the prefix, <i>N</i>: <b id="ccNv"></b><input type="range" id="ccN" min="1" max="50" value="10"></label>
+<label>Read rate <span class="seg" id="ccR" style="display:flex"><button data-m="0.1" class="on">0.1× (most models)</button><button data-m="0.05">0.05× (GPT-6.1 Sol)</button></span></label>
+</div>
+<div class="co key" id="ccPin" style="margin:6px 0"></div>
+<div class="bars" id="ccBars"></div>
+</div>
+
+<h3>Which effort each model accepts</h3>
+<div class="tw"><table class="thm" id="efT"></table></div>
+<p class="small mute">From each model page and the {{reasoning guide|@reason}}: GPT-6 Astra rejects <code>none</code> with HTTP 400; GPT-6.1 Sol rejects <code>none</code> and <code>minimal</code>. Filled dot: the default where the docs state one (Astra's is not stated). GPT-5.6 and GPT-6 models also take a <code>reasoning.mode</code> of <code>standard</code> (default) or <code>pro</code>, which does more model work billed at the same token rates. gpt-oss sets effort in its system prompt ("Reasoning: low", medium or high) ({{model card|@oss}}).</p>
+</section>
+
+<section id="s-rd">
+<h2>Recurrent depth: Astra's reasoning outside the transcript</h2>
+<p>Every earlier OpenAI reasoning model spends its test-time budget as hidden chain-of-thought tokens: text the caller cannot see, but which exists, is billed and can be monitored. <b>Recurrent depth</b>, also called opaque recurrence or a looped transformer, loops activations back through the model's own layers, so part of the deliberation happens in activations and never becomes text. That is a third place to spend the budget:</p>
+<div class="tw"><table>
+<tr><th>Where the budget goes</th><th>Example</th><th>Billed as</th><th>Readable by a monitor</th></tr>
+<tr><td>Visible or hidden thinking tokens</td><td>Anthropic's effort-controlled thinking; OpenAI's o-series</td><td>output tokens</td><td>yes (by the vendor, if hidden)</td></tr>
+<tr><td>Parallel token traces</td><td>Gemini Deep Think</td><td>output tokens</td><td>yes</td></tr>
+<tr><td>Loops in activations</td><td>GPT-6 Astra (reported, in part)</td><td>no tokens at all</td><td>no</td></tr>
+</table></div>
+<p><b>Provenance.</b> The architecture is known from reporting, not from OpenAI's documents: The Information reported it on 2 September ({{TechCrunch|@tcrunch}}), and OpenAI researchers, among them chief scientist Jakub Pachocki, answered that OpenAI had <b>limited</b> how much of the model uses the looped transformer so that its reasoning stays legible, and would share more about the architecture later ({{Fortune|@fortune}}). The system card does not describe the architecture ({{system card|@card}}). The generic mechanism, the first published architecture of the family (the Recurrent Looped Transformer, by Yifan Zhang, Jichen Feng and Shihan Qin, tested on synthetic algorithmic tasks only) and the sceptical reading are on {{Reasoning models and test-time compute|n:3c65c17b0d0d8190b9b4cd0acbcb66df}}; in one line, a loop buys serial depth without adding parameters or emitting tokens, and costs the readability of the reasoning.</p>
+<p>What OpenAI has measured about Astra's own reasoning, in its system card ({{system card|@card}}):</p>
+<ul>
+<li>Astra is "more capable of controlling its own CoT than GPT-5.6 Sol, and less likely to include incriminating information in its CoT".</li>
+<li>Under adversarial conditions (pushed to evade monitors) it can remain undetected when strategically underperforming in evaluations (sandbagging), and can sometimes evade OpenAI's internal monitors on certain sabotage tasks.</li>
+<li>No evidence of steganographic reasoning, hidden load-bearing reasoning inside ordinary text, was found.</li>
+</ul>
+<p><b>Serving changed with it.</b> If part of the working state lives in activations or in reasoning the caller never sees, a request that arrives without that state has to rebuild it. OpenAI's API keeps it on OpenAI's side: reasoning items are returned to the caller only as <code>encrypted_content</code> (in stateless mode) or kept server-side and referenced with <code>previous_response_id</code>, and <code>reasoning.context: all_turns</code>, the default on GPT-5.6 and supported on GPT-6.1 Sol, renders reasoning from earlier turns into the next one. The items "remain opaque" and carry only within one model family ({{reasoning guide|@reason}}). That is what the ARC Prize Provider Adapter uses, and why the products in the next section all move parts of the harness behind the API.</p>
+<p class="try"><b>Watch:</b> the same game, two turns, through each harness. Play the standard harness, then switch to the Provider Adapter: the difference is what crosses the gap between requests, and what turn 2 has to redo.</p>
+<div class="card" id="hx"></div>
+
+<h3>The headline number is a harness number</h3>
+<p>ARC Prize ran Astra on the ARC-AGI-3 Semi-Private set through two harnesses at six efforts ({{ARC Prize|@arc}}). Its standard, provider-neutral harness lets the model carry forward only the notes it chooses to keep. The new <b>Provider Adapter</b> preserves the opaque reasoning state between requests and compacts longer conversations so the model can reuse prior work.</p>
+<p class="try"><b>Try:</b> hover or tap a point. Every adapter run, even at effort none, scores above the best standard run; and on the standard harness higher effort is cheaper, because Astra solves games in fewer actions and so makes fewer calls.</p>
+<div class="seg" id="arcY"><button data-m="s" class="on">Score against cost</button><button data-m="p">Dollars per point</button></div>
+<div class="card"><div class="tw"><div id="arcSvg" style="min-width:520px"></div></div>
+<div class="co key" id="arcPin" style="margin:6px 0"></div>
+<p class="small mute">All twelve points are ARC Prize's measurements (Semi-Private set, published 3 September 2026), plotted as given, so the chart reproduces the 62.7% and 99.9% <b>independently</b>; differences and ratios are derived. For scale, ARC Prize paid human testers $115 per 90-minute session of about nine games, roughly $12.78 per attempted game before bonuses.</p></div>
+<p>Same weights, 37.2 points apart (<span class="m">99.9 − 62.7</span>), and the higher-scoring run cost <span class="m">1 − 18,817 / 26,098 = 27.9%</span> less in dollars. Across the 167 game-and-effort pairs both harnesses solved, the adapter runs were about 3.66 times faster by aggregate elapsed time and used 49% fewer total tokens. Through the adapter at max effort Astra used fewer actions than the median human tester on 96.0% of levels, 51.7% fewer per level on average. ARC Prize will now report both harnesses, labelled. What this does to ARC-AGI-3 reporting is on {{Topic: benchmarks|n:3c65c17b0d0d811fb43fece56e40041a}}, and where harnesses sit as a scaling axis on {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}.</p>
+</section>

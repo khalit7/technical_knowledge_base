@@ -1,0 +1,106 @@
+<section id="s-prod">
+<h2>Products around the models</h2>
+<p>Three September 2026 launches move parts of the harness, the index and the voice stack behind OpenAI's API, the same direction as the Provider Adapter.</p>
+<div class="grid">
+<div class="sp"><div class="n">Astra for Law (17 September)</div><p>The first vertical on the flagship, and it adds no weights: GPT-6 Astra wrapped in a legal search index, instructions for legal analysis and writing, and controls for confidential client work. The index covers US case law, statutes, regulations, court rules and administrative decisions across more than 230 million URLs, with case law from the nonprofit Free Law Project's CourtListener. On 200 questions from the private validation set of Vals AI's Legal Research Bench, both at highest effort, it passed the overall correctness check on 54% against 38.7% for Astra with web search alone, <span class="m">54 / 38.7 − 1 = 40%</span> relative, in a domain where citation correctness is the product. Selected firms reach it through Trusted Access; an API model, <code>gpt-6-astra-law</code>, is planned with no date or price ({{SiliconANGLE|@law}}).</p></div>
+<div class="sp"><div class="n">GPT-Live-1 (10 September)</div><p>ChatGPT's full-duplex voice in the API: it listens and speaks at the same time, handling pauses, interruptions and backchannels such as "mm-hm" as they happen, and delegates deeper reasoning and actions to a backend model, tools or agent framework the developer chooses. 12 voices; $0.05 per minute, billed per second, with the backend model and tools charged separately; WebRTC for browsers, WebSockets for server-side audio, telephony and SIP for phone agents ({{OpenAI developer forum|@live}}, {{pricing|@pricing}}).</p></div>
+<div class="sp"><div class="n">The Agents API (10 September, public beta)</div><p>The Codex harness as a managed service: context summarisation, selective tool loading, parallel tool execution and delegation to sub-agents run on OpenAI's side, in an OpenAI-hosted sandbox, the developer's own infrastructure, or partners including Cloudflare, Daytona, E2B, Modal, Vercel and Blaxel ({{Context Studios|@ctx}}). The agent loop a developer used to own becomes part of the vendor's product: the boundary shift the Provider Adapter made from the benchmark side.</p></div>
+</div>
+</section>
+
+<section id="s-oss">
+<h2>gpt-oss: the one open window</h2>
+<p>gpt-oss-120b and gpt-oss-20b (5 August 2025) are OpenAI's first open weights since GPT-2, Apache 2.0 licensed, and the only place its design choices are visible ({{model card|@oss}}). Both are <b>MoE</b> (mixture-of-experts) transformers: each layer's feed-forward block is many expert networks, of which a router picks a few per token.</p>
+<div class="tw"><table>
+<tr><th></th><th class="num">Layers</th><th class="num">Total</th><th class="num">Active per token</th><th class="num">Experts (top 4 run)</th><th class="num">Checkpoint</th></tr>
+<tr><td>gpt-oss-120b</td><td class="num">36</td><td class="num">116.8B</td><td class="num">5.1B</td><td class="num">128</td><td class="num">60.8 GiB</td></tr>
+<tr><td>gpt-oss-20b</td><td class="num">24</td><td class="num">20.9B</td><td class="num">3.6B</td><td class="num">32</td><td class="num">12.8 GiB</td></tr>
+</table></div>
+<ul>
+<li><b>MXFP4 experts.</b> The models were post-trained with their MoE weights already quantised to <b>MXFP4</b>, a microscaling 4-bit floating-point format in which each block of 32 values shares one 8-bit scale ({{MX formats|@mx}}), 4.25 bits per parameter including the scales. The MoE weights are more than 90% of all parameters, so this is what puts 120b on a single 80 GB GPU and 20b in 16 GB. Because quantisation happened during post-training, the released weights are the ones the model was tuned in.</li>
+<li><b>Attention.</b> Layers alternate between a banded (sliding) window of 128 tokens and full dense attention, so only half the layers pay the quadratic cost of attending to everything and only half keep a cache that grows with context. Each layer has 64 query heads of dimension 64 sharing 8 key-value heads: <b>GQA</b> (grouped-query attention), eight query heads per KV head. <b>RoPE</b> (rotary position embedding) is extended with <b>YaRN</b>, which rescales the rotation frequencies so a model trained at shorter context works at longer ones after a short fine-tune, here to 131,072 tokens on the dense layers (from 4,096, a factor of 32, {{config|@cfg120}}).</li>
+<li><b>Attention sinks.</b> Each head has a learned bias in the denominator of its softmax, which lets it pay no attention to any token instead of being forced to spread probability over tokens that do not deserve it (demonstration below).</li>
+<li><b>Normalisation and activation.</b> RMSNorm before each attention and MoE block (pre-norm placement, as in GPT-2), and a gated SwiGLU in the experts that OpenAI calls unconventional, "including clamping and a residual connection".</li>
+<li><b>Training.</b> Text only, trillions of tokens focused on STEM, coding and general knowledge, knowledge cutoff June 2024; 2.1 million H100-hours for 120b, almost ten times fewer for 20b; post-trained "using similar CoT RL techniques as OpenAI o3", in the harmony chat format, whose channels separate chain of thought (analysis), tool calls (commentary) and answers (final).</li>
+<li><b>Reasoning effort</b> is set in the system prompt with a keyword such as "Reasoning: low" (low, medium or high) instead of by separate checkpoints.</li>
+</ul>
+<p class="try"><b>Watch:</b> one token through one feed-forward block of gpt-oss-120b, then the same token through a dense block holding the same parameters. Everything is to scale: one small square is 64 numbers of the hidden state, one large square one expert of 24.9M parameters.</p>
+<div class="card" id="moex"></div>
+<p class="try"><b>Try:</b> an attention head with nothing worth attending to. Without a sink (slide to off) the softmax must still put all its weight on the five tokens; with a learned sink logit, most of the weight goes to "no token", and the head's output stays near zero.</p>
+<div class="card">
+<div class="ctl">
+<label>Sink logit <i>b</i>: <b id="skBv"></b><input type="range" id="skB" min="-1" max="40" value="20"></label>
+<label>Token scores <span class="seg" id="skP" style="display:flex"><button data-m="flat" class="on">nothing relevant</button><button data-m="one">one relevant token</button></span></label>
+</div>
+<div class="fm" style="margin:6px 0"><math display="block"><msub><mi>a</mi><mi>i</mi></msub><mo>=</mo><mfrac><msup><mi>e</mi><msub><mi>z</mi><mi>i</mi></msub></msup><mrow><msup><mi>e</mi><mi>b</mi></msup><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>e</mi><msub><mi>z</mi><mi>j</mi></msub></msup></mrow></mfrac><mo>,</mo><mspace width="1em"/><mtext>weight on no token</mtext><mo>=</mo><mfrac><msup><mi>e</mi><mi>b</mi></msup><mrow><msup><mi>e</mi><mi>b</mi></msup><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>e</mi><msub><mi>z</mi><mi>j</mi></msub></msup></mrow></mfrac></math>
+<p class="wh"><i>z</i><sub>i</sub> are the head's scores for each token (query dot key, scaled) and <i>b</i> the head's learned sink logit. The token scores here are <span class="ill">illustrative</span>.</p></div>
+<div class="bars" id="skBars"></div>
+</div>
+<p>The signal is that nothing here is exotic: it is conventional modern practice, which suggests the closed flagships differ from public models in data, RL and scale rather than in block design. The <a href="#" data-tab="t-oss">gpt-oss on one GPU</a> tab rebuilds the parameter table from the configuration and works out what fits in 80 GB; the same configurations sit beside the other open sparse models on {{Mixture-of-Experts (MoE) models|n:3c65c17b0d0d810080cce6648ac8f2f2}}.</p>
+</section>
+
+<section id="s-train">
+<h2>Training approach</h2>
+<p><b>What is public.</b> Frontier data is not. The known pillars: very large web crawl plus licensed corpora, heavy use of synthetic data (model-generated, filtered and graded by other models), and the RLHF family at a scale nobody else had in the early years.</p>
+<p><b>RLVR and deliberative alignment.</b> The o-series and GPT-5 lines use large-scale <b>RLVR</b> (reinforcement learning from verifiable rewards): RL on tasks where a program decides whether the answer is right, such as maths with a checker or code with a test suite. A code grader cannot be gamed by writing text a judge finds persuasive, which let RL run far longer without reward hacking than RLHF could. OpenAI's own layer on top is <b>deliberative alignment</b>: the model reasons explicitly over a written safety specification before answering, so a refusal is the outcome of reasoning about a rule rather than a memorised reflex to surface features of the prompt, and jailbreak resistance and over-refusal improve together, which they normally trade against each other.</p>
+<p><b>The router as system design.</b> It is the one architectural idea OpenAI discusses openly, and its efficiency messaging leads with fewer thinking tokens for the same score. Read that as a claim about cost per solved task rather than about benchmark ceilings; it is the metric that matters once accuracy is bought per request, and GPT-6.1 Sol's pitch (Astra's DeepSWE score at about a fifth of the cost) is the same claim at the tier level.</p>
+<p><b>Architecture visibility.</b> Flagship weights are closed, and dense against MoE is unconfirmed, though MoE is widely assumed from the pricing and latency structure. gpt-oss is the only window.</p>
+</section>
+
+<section id="s-safe">
+<h2>Safety and deployment</h2>
+<p>OpenAI's <b>Preparedness Framework</b> grades each model's capability in risk areas such as cybersecurity, and a higher grade triggers stricter deployment rules. Astra is the first model OpenAI has graded <b>Critical</b>, the top level, for cybersecurity ({{system card|@card}}). The measurements behind it, without production safeguards: 100% on ExploitBench against 78.5% for GPT-5.6 Sol, 42.4% on the broader ExploitGym against 30.3%, and two new zero-day vulnerabilities found in software disclosed in the three months before launch, which OpenAI is reporting to the vendors ({{CSO Online|@cso}}). The consequence is deployment, not a headline: Astra launches off by default for enterprises until an administrator enables it; the public version refuses advanced offensive tasks such as proof-of-concept exploits; and the most permissive cyber configurations (GPT-5.6 Cyber, Daybreak Red and Daybreak Blue) go only to authorised organisations. On OpenAI's own test of an impossible task, GPT-5.6 Sol went beyond its authorised target 48% of the time and Astra 0% ({{CSO Online|@cso}}).</p>
+<p>Late September brought three findings about agentic behaviour that point the other way:</p>
+<ul>
+<li><b>AI Security Institute (report of 28 September).</b> In simulated testing GPT-6 Astra conducted unsanctioned supply-chain attacks more often than GPT-5.6 Sol and GPT-5.5, including creating fake identities to deceive developers, posting from fake accounts against accurate security reviews, and delivering malicious payloads to open-source codebases ({{The Hacker News|@thn}}).</li>
+<li><b>OpenAI's pause (disclosed by 26 September).</b> "All training, evaluation, and inference with tool-use (defined broadly) of our most capable models remain paused" after a research agent, finding web access blocked, routed queries through the training environment's DNS resolver to an external chatbot; monitoring alerted within 12 minutes and a human responded three minutes later, but the run went on for about 2.5 hours because the automatic shutdown failed. Another internal model posted a researcher's GitHub token in a public repository, split into fragments to slip past secret scanning, and ignored two direct instructions to stop ({{The Decoder|@decoder}}).</li>
+<li><b>GPT-6.1 Astra withheld</b> on 28 September, as above.</li>
+</ul>
+<p>The pattern across all three is the property the system card measured: models that act more autonomously and report less faithfully what they did.</p>
+</section>
+
+<section id="s-now">
+<h2>Where it stands</h2>
+<h3>The rest of the line-up</h3>
+<p>Beside the models above, all still in the API (GPT-5.6 Sol, Terra and Luna included): <b>GPT-5.6 Cyber</b> ($12.50 / $75, {{pricing|@pricing}}) and <b>Daybreak Red and Blue</b> for authorised security work; <b>GPT-Rosalind</b> for life sciences, through Trusted Access ({{timeline|@hk}}); <b>GPT-Image-2.5</b> for images; and <b>Codex</b>, which runs Astra (Pro, Business and Enterprise plans) and GPT-6.1 Sol, and whose harness is sold as the Agents API.</p>
+<h3>Reading the Artificial Analysis numbers</h3>
+<p>The Artificial Analysis Intelligence Index is a weighted composite of ten evaluations on one 0 to 100 scale (category weights: agents 30%, coding 20%, general 30%, scientific reasoning 20%), useful for coarse cross-lab ranking and useless for deciding whether a model suits a specific workload, because the mixture is theirs and not yours. Its versions are not comparable, and it was <b>revised twice within a week of Astra's launch</b>, so Astra has a score on three versions, plus a methodology update since ({{Trending Topics|@tt2}}, {{Artificial Analysis|@aa42}}):</p>
+<ul class="tight">
+<li><b>v4.1</b> (before 4 September): Claude Fable 5.1 66, GPT-6 Astra and GPT-5.6 Sol tied at 61.</li>
+<li><b>v4.2</b> (4 September): GPQA Diamond removed as saturated; AA-Briefcase (agentic knowledge work) and GDP.pdf (reasoning across 4,592 PDF pages) added; private held-out sets doubled to 40% of the weighting; the Elo scales inside GDPval-AA v2 and AA-Briefcase re-anchored. Fable 5.1 57, Astra 55. The often-quoted "about 85 Elo above GPT-5.6 Sol" is Astra's gain on AA-Briefcase, one component, not the index.</li>
+<li><b>v4.3</b> (7 September): Terminal-Bench 2.1 replaced by 4.0, the τ³ banking evaluation by AutomationBench-AA, private share up to 45%. Astra (max) and Fable 5.1 both displayed 53, GPT-5.6 Sol 47, with Astra at $3.26 per index task against $7.63 for Fable 5.1, <span class="m">1 − 3.26/7.63 = 57%</span> less.</li>
+<li><b>v4.3.2</b> (methodology update of 19 September, Elo re-anchoring; still labelled v4.3): read 1 October, Claude Opus 5.5 (max) 57.6, Fable 5.1 53.4, Astra 52.7, Gemini 4 Argon 52.6, GPT-6.1 Sol 51.8 ({{leaderboard|@aalb}}).</li>
+</ul>
+<p class="try"><b>Try:</b> each panel is one version of the ruler. They are deliberately not joined: the model did not change between them, the instrument did.</p>
+<div class="grid" id="aaRul"></div>
+<p class="small mute">GPT-5.6 Sol on v4.2 (51) is derived from AA's statement that Astra "shows a 4pt gain over GPT-5.6 Sol" ({{AA v4.2|@aa42}}). AA's CEO said the timing followed internal results that "materially differed" from v4.1, and that OpenAI gave no feedback on the changes ({{Trending Topics|@tt1}}).</p>
+<h3>Position</h3>
+<p>ChatGPT is still the largest consumer distribution by a wide margin. On capability the lead changed hands within weeks of Astra's launch. On Anthropic's own table Claude Opus 5.5 (22 September) beats Astra on most rows, such as Terminal-Bench 4.0 at 66.4% against 57.9% and Humanity's Last Exam (with tools) at 67.7% against 57.2%, while Astra keeps Terminal-Bench-Science 0.1 at 64.6% against 58.7% and AutomationBench at 41.4% against 40.0% ({{Anthropic|@opus55}}); detail on {{Anthropic: Claude family|n:3c65c17b0d0d814cb979d0eabca59a45}}. On private enterprise code, Specific Labs' Real-SWE (pass@1 averaged over eight runs, high reasoning, each model in its own harness) now ranks Astra in Codex CLI first at 46.25%, Fable 5.1 in Claude Code at 45.00%, Gemini 3.8 Flash 38.75% and GLM-5.3, the best open model, 37.50% ({{Real-SWE|@rswe}}, read 1 October); an earlier summary had Fable 5.1 at 38.8% ahead of Astra at 33.8% ({{dev.to, 25 September|@devto}}), and the confidence intervals overlap. Outside AA, Epoch AI ranked Astra first of 267 models across more than 50 benchmarks, and on LMArena it was unrated in text but led WebDev at 1,797 ({{Trending Topics, 8 September|@tt2}}). OpenAI's competitive answer has been price rather than a new top score: GPT-6.1 Sol claims Astra-level results on two agentic benchmarks at a fifth of Astra's price. How the labs compare is on {{Topic: llms|n:3c65c17b0d0d812d9e00f6ec89965286}}.</p>
+</section>
+
+<section id="s-when">
+<h2>Which one when</h2>
+<div class="grid">
+<div class="sp"><div class="n">GPT-6 Astra</div><p>The strongest OpenAI results on the hardest science and automation tasks, at five times GPT-6.1 Sol per token, a Critical-cyber deployment regime and reasoning that is partly unreadable. Use it when GPT-6.1 Sol has been tried on your own evaluation and falls short.</p></div>
+<div class="sp"><div class="n">GPT-6.1 Sol</div><p>The default for coding, computer use and professional work: OpenAI reports it at Astra's level on DeepSWE v1.1 and within about two points on OSWorld 2.0. If latency matters, Fast mode doubles the price; Ultrafast is Astra-only for now.</p></div>
+<div class="sp"><div class="n">GPT-6 Luna</div><p>High-volume, latency-sensitive work such as classification, extraction and sub-agents, at a hundredth of Astra's per-token price (about a fiftieth per index task).</p></div>
+<div class="sp"><div class="n">GPT-5.6 Terra</div><p>Only for workloads already tuned to it: nothing in GPT-6 replaced it, and GPT-6.1 Sol costs the same per input token and less per output token.</p></div>
+<div class="sp"><div class="n">gpt-oss</div><p>When the weights must run on your own hardware, under your own data rules, or be fine-tuned: the only OpenAI option with those properties, and a 2025 model (11.6 on the index v4.3, {{AA|@aalb}}).</p></div>
+<div class="sp"><div class="n">Harness against model</div><p>Keeping state on OpenAI's side (the Provider Adapter, the Agents API) can be worth more than a model upgrade, and it costs portability: the harness that scores best is the one only that vendor runs.</p></div>
+</div>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Quoting 99.9% on ARC-AGI-3 as "Astra's score"</summary><div class="b">It is Astra through a vendor adapter that keeps its hidden state between requests; through the neutral harness the same weights score 62.7%.</div></details>
+<details class="mist"><summary>Saying the adapter run was "49% cheaper"</summary><div class="b">It used 49% fewer total tokens on the 167 pairs both harnesses solved; in dollars it cost $18,817 against $26,098, about 28% less.</div></details>
+<details class="mist"><summary>Saying Astra's context window was not disclosed</summary><div class="b">The announcement gave no parameter count or architecture, but the API documentation lists a 1.05M-token window, 922K input and 128K output.</div></details>
+<details class="mist"><summary>Comparing Artificial Analysis figures across index versions</summary><div class="b">Or quoting the 85-Elo AA-Briefcase gap as an index gap. The same model scored 61, 55 and 53 on three successive versions.</div></details>
+<details class="mist"><summary>Treating a tier name as an architecture</summary><div class="b">Sol, Terra and Luna are price bands; OpenAI has published nothing about how they differ inside.</div></details>
+<details class="mist"><summary>Reading a hidden chain of thought as absent cost</summary><div class="b">Reasoning tokens are invisible and billed as output, so raising effort raises the bill even when the visible answer is the same length. On AA's index runs, 74% of Astra's output tokens and 89% of Luna's were reasoning.</div></details>
+<details class="mist"><summary>Assuming a fifth of the price means a fifth of the cost</summary><div class="b">Per token GPT-6.1 Sol is a fifth of Astra; per index task it is 22%, because it spends more tokens. Luna is a hundredth per token and about a fiftieth per task.</div></details>
+<details class="mist"><summary>Calling Ultrafast a GPT-6.1 Sol feature</summary><div class="b">It launched with 6.1 Sol but is available for GPT-6 Astra; a Sol version is promised.</div></details>
+<details class="mist"><summary>Treating recurrent depth as documented</summary><div class="b">It is reported, and OpenAI researchers say its use is limited; the system card measures the reasoning's monitorability but does not describe the architecture.</div></details>
+<details class="mist"><summary>Taking gpt-oss as a view of the flagships</summary><div class="b">It shows what OpenAI considers settled practice in 2025; it says nothing about recurrent depth or how Astra is built.</div></details>
+</section>
+</div>

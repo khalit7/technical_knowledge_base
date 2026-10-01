@@ -1,0 +1,53 @@
+<section id="s-stop">
+<h2>Where the scaling stops paying</h2>
+<ul>
+<li><b>Overthinking is real and measurable.</b> On some inputs, longer chains reduce accuracy: the model revisits a correct answer and argues itself out of it, or drifts towards distractors. {{Gema et al. (2025)|@gema}} built tasks where "extending the reasoning length of Large Reasoning Models (LRMs) deteriorates performance", with five failure modes across model families: Claude models increasingly distracted by irrelevant information, o-series models overfitting to problem framings, a shift from reasonable priors to spurious correlations, loss of focus on long deductions, and amplified concerning behaviour. This is the failure mode adaptive-depth work exists to fix, and it means "always think harder" is not a safe default.</li>
+<li><b>RLVR sharpens, it does not extend.</b> RLVR-trained models beat their base models at small k such as pass@1, but the base models reach a higher pass@k when k is large ({{Yue et al., 2025|@yue}}): the RL model concentrates probability on solutions the base model could already sample rather than acquiring new ones. In pass@k terms, RL raises p on problems where it was already above zero and can drive it to zero where it was small, and 1 − (1 − p)<sup>k</sup> rewards breadth at large k. Pretraining quality still bounds the ceiling, which is the most important thing to hold before assuming an RL stage will fix a capability gap. Whether newer, longer RL runs escape the pattern is debated on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}; the <a href="#" data-tab="t-curves">Published curves</a> tab plots Yue's own checkpoints.</li>
+</ul>
+<div class="card" id="sh">
+<div class="ctl"><label>sharpening: RL turns s samples' worth of chances into one <span class="ill">illustrative</span> <b id="shSv"></b><input type="range" id="shS" min="1" max="16" step="1" value="6"></label>
+<label>hardest problems RL drives to p = 0 <span class="ill">illustrative</span> <b id="shDv"></b><input type="range" id="shD" min="0" max="5" step="1" value="3"></label></div>
+<div id="shSvg" class="chart"></div>
+<div class="tw"><table id="shTab"></table></div>
+<div class="out" id="shOut"></div>
+<p class="small mute" style="margin:2px 0 0">Ten illustrative problems with base-model p from 0.6 down to 0.005. After RL, p becomes 1 − (1 − p)<sup>s</sup> on the problems it kept and 0 on the ones it dropped. pass@k is the mean of 1 − (1 − p)<sup>k</sup> over the ten. With nothing dropped there is no crossover: sharpening alone costs no coverage, which is why the crossover Yue et al. measured is evidence that RL narrows what the model samples.</p>
+</div>
+<ul>
+<li><b>Parallel scaling is capped by the selector.</b> Best-of-n gains track verifier quality; against a learned reward model they saturate and then reverse as n grows, as the fitted law above shows; majority voting stops improving once the vote is settled and makes things worse where a wrong answer is the most likely one.</li>
+<li><b>The economics are unfavourable by construction.</b> Cost and latency are linear in thinking tokens while accuracy is roughly logarithmic over a useful range (o1's published curves plot compute on a log axis, {{OpenAI|@o1}}) and then flattens, so every additional point costs more than the last. Sequential thinking is also unparallelisable, so interactive latency hits a wall hardware does not move.</li>
+</ul>
+</section>
+
+<section id="s-when">
+<h2>Which one when</h2>
+<div class="tw"><table class="cmp">
+<tr><th>Approach</th><th>Buys</th><th>Costs</th><th>Use it when</th></tr>
+<tr><td>Sequential thinking</td><td>Revision and backtracking inside one trace; no selector needed</td><td>Latency that cannot be parallelised away; a KV cache that grows with every token</td><td>n times the tokens is unaffordable or no selector exists, and later steps depend on earlier ones</td></tr>
+<tr><td>Parallel with a verifier</td><td>The full pass@k curve; parallelises across hardware</td><td>n times the tokens</td><td>A checker exists: code with tests, mathematics with a reference, formal proofs</td></tr>
+<tr><td>Majority voting</td><td>Verifier-free gains on answers with a canonical form</td><td>n times the tokens for a gain that stops once the vote is settled</td><td>Short, comparable answers; never open-ended text</td></tr>
+<tr><td>Best-of-n, learned reward model</td><td>Selection on open-ended tasks</td><td>Overoptimisation beyond a modest n</td><td>Keep n small, and prefer a larger reward model to a larger n</td></tr>
+<tr><td>Latent recurrence</td><td>Depth without tokens or emission latency</td><td>Readability, evaluability and serving simplicity</td><td>Never a caller's choice: it is a vendor's architecture decision</td></tr>
+<tr><td>Budgets, effort levels, routers</td><td>Decide how much of the above a request gets</td><td>A budget bounds cost most tightly (Anthropic's is a target, so <code>max_tokens</code> stays the hard ceiling); an effort level adapts within a coarse dial; a router minimises average cost at the price of predictability</td><td>Always: one of them is in front of every request</td></tr>
+</table></div>
+</section>
+
+<section id="s-cav">
+<h2>Caveats worth remembering</h2>
+<ul>
+<li><b>CoT is not a faithful window into the computation.</b> Models can reach an answer for reasons their stated reasoning does not reflect, and can state reasoning that did not drive the answer. Whether chains of thought stay monitorable enough to be useful for oversight is an open safety question, and one that gets harder as training rewards short, efficient traces. Recurrent depth is the sharper version: an unfaithful trace is a window that distorts, while latent deliberation is no window at all, the endpoint Greenblatt describes as "full-on opaque reasoning architectures with extreme depth".</li>
+<li><b>Reward hacking and verbosity bias are endemic.</b> Verifiable rewards remove the reward-model channel but not the checker channel, and length penalties and process reward models (scoring intermediate steps rather than only the final answer) only partially fix the resulting behaviours.</li>
+</ul>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Reading a pass@1 gain from RL as new capability</summary><div class="b">RLVR reliably converts pass@k into pass@1. Measure pass@k at large k against the base model before claiming the model can now solve problems it could not.</div></details>
+<details class="mist"><summary>Comparing test-time-compute results without the budget and the harness</summary><div class="b">A score is a point on a cost curve. The same weights scored 62.7% and 99.9% on ARC-AGI-3 through two harnesses; a comparison that omits thinking tokens, sample count or harness compares nothing.</div></details>
+<details class="mist"><summary>Assuming majority voting always helps</summary><div class="b">It amplifies the most likely answer. Where a systematic wrong answer is more likely than the right one, more votes lower accuracy (set p below the wrong answer's share in the selector chart above).</div></details>
+<details class="mist"><summary>Scaling best-of-n against a reward model without limit</summary><div class="b">Past the peak the proxy score keeps rising while true quality falls, and nothing in the proxy signals it.</div></details>
+<details class="mist"><summary>Treating the thinking budget as a hard cap, or truncating to enforce one</summary><div class="b">Anthropic's budget is a target, not a cap; truncation leaves a derivation with no conclusion. Enforce budgets with forced conclusions or budget-aware training.</div></details>
+<details class="mist"><summary>Reading the chain of thought as an explanation</summary><div class="b">It is output the model was trained to produce, correlated with its computation but not a faithful record of it, and with recurrent depth some of the computation leaves no text at all.</div></details>
+<details class="mist"><summary>Expecting thinking to add knowledge</summary><div class="b">More tokens reorganise what the weights and tools already hold. A factual gap needs retrieval or a better base model.</div></details>
+<details class="mist"><summary>Forgetting that sequential tokens are serial</summary><div class="b">Doubling the thinking budget doubles the time to the first answer token; no amount of hardware parallelism removes it.</div></details>
+</section>
+</div>
