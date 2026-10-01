@@ -12,14 +12,13 @@ The page also carries a narrated video (not in this repository; its HyperFrames 
 - `deepseek/`: DeepSeek
 - `google_deepmind_gemini_and_gemma/`: Google DeepMind: Gemini and Gemma
 - `llm_architecture_gallery/`: LLM Architecture Gallery (rasbt) and the architectural deltas that matter
-- `llm_release_history/`: LLM release history
 - `meta_llama_and_msl/`: Meta: Llama and Meta Superintelligence Labs
 - `minimax/`: MiniMax
 - `mistral_ai/`: Mistral AI
-- `mixture_of_experts_moe_models/`: Mixture-of-Experts (MoE) models
 - `moonshot_ai_kimi/`: Moonshot AI: Kimi
 - `openai_gpt_family/`: OpenAI: GPT family
 - `other_notable_providers/`: Other notable providers
-- `reasoning_models_and_test_time_compute/`: Reasoning models and test-time compute
 - `xai_spacexai_grok/`: xAI / SpaceXAI: Grok
 - `zhipu_glm/`: Zhipu: GLM
+
+Folded into this page on 2026-10-01 (their Notion pages are marked for deletion): Mixture-of-Experts (MoE) models (now the "Deeper: inside an MoE" tab plus Axis 2 of the Reading tab; scripts in `src/moe/`), Reasoning models and test-time compute (the "Deeper: test-time compute" tab plus Axis 1; `src/ttc/`), and LLM release history (the "Release history" tab plus "How we got here"; `src/history/`).
