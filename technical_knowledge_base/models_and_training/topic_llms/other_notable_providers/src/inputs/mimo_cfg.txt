@@ -1,0 +1,384 @@
+SOURCE: https://computingforgeeks.com/xiaomi-mimo-v2-6-pro-flash/
+
+
+MiMo-V2.6 Pro and Flash: Benchmarks, Price, Tested | ComputingForGeeks
+Skip to content 
+ ComputingForGeeks
+ Menu 
+Series
+Linux
+AI
+DevOps
+Databases
+Containers
+Kubernetes
+Security
+Cloud
+More
+Virtualization
+Networking
+OpenStack
+Monitoring
+Web Hosting
+ Home
+ /
+ AI
+ /
+ Xiaomi MiMo-V2.6 Pro and Flash Tested: Benchmarks, Pricing
+ AI
+Xiaomi MiMo-V2.6 Pro and Flash Tested: Benchmarks, Pricing
+ Josphat Mutai
+ Updated Sep 25, 2026 · 12 min read
+Only one of the three Kubernetes manifests MiMo-V2.6-Pro wrote for us actually served a page. The other two passed kubeconform and then crash-looped on a real cluster, which is the same trap that caught GPT-6 Luna last week. That is the most useful thing we can tell you about Xiaomi’s new open-weight flagship, and it does not show up in any benchmark table.Original content from computingforgeeks.com - post 171927
+Xiaomi MiMo-V2.6 ships as two MIT-licensed models, MiMo-V2.6-Pro and MiMo-V2.6-Flash, plus a 9B distilled model small enough for a laptop. This guide covers the specs and weight sizes read from the Hugging Face repos, MiMo-V2.6 pricing on the Xiaomi API, Xiaomi’s own benchmark table next to the independent Artificial Analysis score, and a same-prompt DevOps test graded by kubeconform, shellcheck, tofu validate, a live k3s cluster, and a behaviour test for every bash script. We used the exact prompts from our GPT-6 Sol and Luna test, so the numbers line up with GPT-6 and Claude Opus 5.5 directly. Every call ran on 25 September 2026 against Xiaomi’s own endpoint through OpenRouter, the manifests were deployed to k3s v1.36.4 on Ubuntu 26.04, and the 9B distill ran on llama.cpp on a 16 GB Apple M4.
+What Xiaomi shipped in MiMo-V2.6
+The weights went up on Hugging Face on 21 September 2026 (UTC) as MiMo-V2.6-Pro-RL and MiMo-V2.6-Flash-RL, alongside MiMo-V2.6-Distill-Qwen-9B, a Qwen3.5-9B fine-tune trained on MiMo-generated data. Both big models are sparse mixture-of-experts, take text, image, video and audio as input, and return text. The sizes below come from each repo’s config.json and safetensors file listing, not from the press release.
+ | Attribute
+ | MiMo-V2.6-Pro
+ | MiMo-V2.6-Flash
+ | Distill-Qwen-9B
+ | Parameters (total / active)
+ | 1.02T / 42B
+ | 309B / 15B
+ | 9B dense
+ | Routed experts (total / active)
+ | 384 / 8
+ | 256 / 8
+ | None
+ | Layers
+ | 70
+ | 48
+ | Qwen3.5-9B base
+ | Context window
+ | 1M tokens
+ | 1M tokens
+ | 262,144 tokens
+ | Input modalities
+ | Text, image, video, audio
+ | Text, image, video, audio
+ | Text and vision
+ | Weights on Hugging Face
+ | 566 GB, 130 shards, MXFP4
+ | 173 GB, 65 shards, MXFP4
+ | 18.8 GB BF16
+ | Licence
+ | MIT
+ | MIT
+ | MIT
+ | API model ID
+ | mimo-v2.6-pro
+ | mimo-v2.6-flash
+ | Not on the API
+The storage format matters if you plan to self-host. The quantization_config in both repos declares quant_method: fp8 with e4m3 and dynamic activation scaling, but also store_dtype: mxfp4 with a block size of 32, and the file sizes agree: 566 GB for 1.02 trillion parameters is about 4.4 bits per weight, where FP8 would be over 1 TB. There is no BF16 master in the repo to requantize from, and whether your engine and GPU generation can run MXFP4 weights natively is the first thing to check.
+Xiaomi also published the training side: the technical report, the RL framework (built on verl, uni-agent and mini-swe-agent), and more than 7,000 RL task environments. According to Xiaomi’s release post, the final RL stage ran live for under six days and cost roughly $850,000 for Flash and $2.62 million for Pro, with about 750,000 trajectories in total. Few labs publish the environments behind a release, and that is the part researchers will get the most out of.
+MiMo-V2.6 pricing and API access
+Prices did not move from the V2.5 series. Xiaomi publishes three tiers, and OpenRouter lists the same numbers for its Xiaomi and DeepInfra endpoints:
+ | USD per 1M tokens
+ | Pro
+ | Flash
+ | Pro UltraSpeed
+ | Input (cache miss)
+ | $0.435
+ | $0.14
+ | $4.35
+ | Input (cache hit)
+ | $0.0036
+ | $0.0028
+ | $0.036
+ | Output
+ | $0.87
+ | $0.28
+ | $8.70
+For scale, GPT-6 Sol is $2 in and $10 out, so Pro output is about 11 times cheaper per token. UltraSpeed is the same Pro weights served “up to 20x” faster at ten times the price, which makes it dearer than GPT-6 Sol on input. Cache hits are nearly free, and Artificial Analysis lists a 99% cache discount for Pro.
+Model IDs must be all lowercase (mimo-v2.6-pro, mimo-v2.6-flash, mimo-v2.6-pro-ultraspeed) on Xiaomi’s own platform. On OpenRouter they carry the xiaomi/ prefix. We pinned OpenRouter to the first-party Xiaomi endpoint with fallbacks disabled, so every call below hit Xiaomi’s servers and not a third-party host. Set the key once:
+export OPENROUTER_API_KEY="your-token-here"
+Then send a request. The provider block is what keeps the call on Xiaomi’s endpoint:
+curl -s https://openrouter.ai/api/v1/chat/completions \
+ -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+ -H "Content-Type: application/json" \
+ -d '{"model": "xiaomi/mimo-v2.6-pro", "provider": {"order": ["Xiaomi"], "allow_fallbacks": false}, "messages": [{"role": "user", "content": "Which kubectl command shows why a pod is in CrashLoopBackOff? One line, no markdown."}]}' \
+ | jq -r '"provider: \(.provider)", "answer: \(.choices[0].message.content)", "output tokens: \(.usage.completion_tokens)", "cost USD: \(.usage.cost)"'
+The reply printed the serving provider, the answer, the output token count (reasoning included), and the billed cost in dollars:
+provider: Xiaomi
+answer: kubectl logs <pod-name> --previous (and kubectl describe pod <pod-name> for exit codes and events)
+output tokens: 124
+cost USD: 0.00012006
+Reasoning is on by default, and it shows up in the token count even for a one-line answer (the same prompt returned 58 output tokens on an earlier call and 124 on this one). OpenRouter’s Xiaomi endpoint caps output at 131,072 tokens, while its DeepInfra endpoint allows 943,718.
+MiMo-V2.6 benchmarks: Xiaomi’s table and the independent score
+Xiaomi compares against Claude Opus 5, GPT-5.6 Sol and Claude Fable 5, which are one generation behind the frontier as of this week. The rows below are copied from the model card; the gaps are what stand out.
+ | Benchmark
+ | V2.6 Pro
+ | V2.6 Flash
+ | Claude Opus 5
+ | GPT-5.6 Sol
+ | Fable 5
+ | DeepSWE v1.1
+ | 71.9
+ | 67.9
+ | 74.0
+ | 73.0
+ | 70.0
+ | Terminal Bench 4.0
+ | 34.9
+ | 28.8
+ | 49.0
+ | 39.9
+ | 42.4
+ | Terminal Bench 2.1
+ | 89.9
+ | 87.6
+ | 89.1
+ | 88.8
+ | 84.3
+ | AutomationBench v1.0.6
+ | 53.1
+ | 52.3
+ | 50.3
+ | 45.8
+ | 46.2
+ | OSWorld-Verified
+ | 82.0
+ | 80.8
+ | 83.4
+ | 83.0
+ | 86.0
+ | ExploitBench
+ | 47.9
+ | 25.3
+ | 70.0
+ | 78.5
+ | 78.0
+ | SEC Bench Pro
+ | 66.3
+ | 47.5
+ | n/a
+ | 79.1
+ | n/a
+Pro wins AutomationBench and edges the older Terminal Bench 2.1, but loses the newer Terminal Bench 4.0 to Opus 5 by 14 points and trails every closed model on ExploitBench by 22 to 31 points. One inconsistency is worth knowing before you quote a number: the release post says Pro’s DeepSWE v1.1 score rose to 72.6 during RL, while the model card table prints 71.9. Flash is listed at 65.7 in the post and 67.9 in the table.
+The independent number is more modest. Artificial Analysis scores MiMo-V2.6-Pro at 46 on its Intelligence Index v4.3.2, first among the 115 open-weight models it compares, and exactly level with Grok 4.7 at xhigh. That is below GPT-6 Sol at max effort (48), GPT-6 Astra and Claude Fable 5.1 at 53, and Claude Opus 5.5 at 58. The price is where it pulls away: AA measured $0.13 per Intelligence Index task for Pro against $1.06 for GPT-6 Sol at max effort and $5.98 for Opus 5.5. The catch is speed. AA clocks Pro at 42 output tokens per second, less than half of GPT-6 Sol’s 98, and our own timings agreed.
+MiMo-V2.6 Pro and Flash on real DevOps tasks
+Each model got three tasks, three runs each, with the same system prompt and user prompts used in the GPT-6 test: a Kubernetes Deployment plus Service for nginx with probes, resource limits and runAsNonRoot; a set -euo pipefail bash script that dumps PostgreSQL, gzips it, uploads to S3 and prunes dumps older than seven days; and an AWS VPC, subnet, internet gateway, route table and security group in Terraform. Every artifact went through its linter, then the part that matters: manifests were applied to k3s and curled through the Service, and scripts were run against stubbed pg_dump and aws binaries with a missing-variable test, a real run, and a retention check using fake 10-day and 3-day-old dumps.
+ | Model
+ | K8s serves HTTP 200
+ | Bash behaves correctly
+ | tofu validate
+ | Output tokens (9 calls)
+ | Cost (9 calls)
+ | MiMo-V2.6-Pro
+ | 1 of 3
+ | 3 of 3
+ | 3 of 3
+ | 18,867
+ | $0.0171
+ | MiMo-V2.6-Flash
+ | 0 of 3
+ | 2 of 3
+ | 2 of 3
+ | 7,883
+ | $0.0024
+ | MiMo 9B distill (local, Q4_K_M)
+ | 0 of 3
+ | 1 of 3
+ | 0 of 3
+ | 5,599
+ | $0
+ | GPT-6 Sol
+ | 3 of 3
+ | 3 of 3
+ | 3 of 3
+ | 8,115
+ | $0.0841
+ | GPT-6 Luna
+ | 0 of 3
+ | 3 of 3
+ | 3 of 3
+ | 6,936
+ | $0.0036
+ | Claude Opus 5.5
+ | 3 of 3
+ | 3 of 3
+ | 3 of 3
+ | 13,225
+ | $0.2732
+All nine MiMo manifests, including the local model’s, passed kubeconform -strict, and all nine MiMo bash scripts passed shellcheck -S warning. All six API-generated Terraform files were also tofu fmt -check clean. Linters alone would have scored this as a clean sweep for MiMo, and it was not. Costs are list price from token counts for every model; Xiaomi’s cache discount billed Pro slightly less ($0.0167). Pro costs a fifth of GPT-6 Sol and a sixteenth of Opus 5.5 on these nine calls, but it produced more than twice Sol’s output tokens to get there. Flash undercuts even GPT-6 Luna on price, and matches Luna’s Kubernetes score of zero.
+Here is Pro’s first manifest running next to its second, applied side by side on the same cluster:
+Error: mkdir() “/var/cache/nginx/client_temp” failed (13: Permission denied)
+Five of the six API-generated manifests died with this line. The prompt asked for runAsNonRoot, so the models set runAsUser: 101 (the nginx user in the Alpine image). The stock image’s /var/cache/nginx belongs to root, so nginx as UID 101 cannot create its temp directories and exits. Pro’s second run and two of Flash’s set readOnlyRootFilesystem: false, which does not help, because the problem is ownership and not a read-only mount. We pulled kubectl logs --previous from all five, and every one ends on the same mkdir() line.
+The fix is to give nginx writable emptyDir volumes at /var/cache/nginx and /var/run, which is what Pro’s first run did. This is that manifest exactly as the model wrote it, and it is the one shown Running above:
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: web
+ labels:
+ app: web
+spec:
+ replicas: 3
+ selector:
+ matchLabels:
+ app: web
+ template:
+ metadata:
+ labels:
+ app: web
+ spec:
+ securityContext:
+ runAsNonRoot: true
+ runAsUser: 101
+ runAsGroup: 101
+ fsGroup: 101
+ seccompProfile:
+ type: RuntimeDefault
+ containers:
+ - name: web
+ image: nginx:1.27-alpine
+ imagePullPolicy: IfNotPresent
+ ports:
+ - name: http
+ containerPort: 80
+ protocol: TCP
+ resources:
+ requests:
+ cpu: 100m
+ memory: 128Mi
+ limits:
+ cpu: 250m
+ memory: 256Mi
+ securityContext:
+ runAsNonRoot: true
+ runAsUser: 101
+ runAsGroup: 101
+ allowPrivilegeEscalation: false
+ readOnlyRootFilesystem: true
+ capabilities:
+ drop:
+ - ALL
+ add:
+ - NET_BIND_SERVICE
+ readinessProbe:
+ httpGet:
+ path: /
+ port: 80
+ initialDelaySeconds: 5
+ periodSeconds: 10
+ timeoutSeconds: 3
+ failureThreshold: 3
+ successThreshold: 1
+ livenessProbe:
+ httpGet:
+ path: /
+ port: 80
+ initialDelaySeconds: 15
+ periodSeconds: 20
+ timeoutSeconds: 3
+ failureThreshold: 3
+ volumeMounts:
+ - name: cache
+ mountPath: /var/cache/nginx
+ - name: run
+ mountPath: /var/run
+ volumes:
+ - name: cache
+ emptyDir: {}
+ - name: run
+ emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: web
+ labels:
+ app: web
+spec:
+ type: ClusterIP
+ selector:
+ app: web
+ ports:
+ - name: http
+ protocol: TCP
+ port: 80
+ targetPort: 80
+Binding port 80 as UID 101 works here because containerd’s CRI plugin sets net.ipv4.ip_unprivileged_port_start=0 in the pod sandbox by default, not because of the NET_BIND_SERVICE capability Pro added (added capabilities do not take effect for a non-root UID without ambient capabilities). On a runtime without that default, port 80 fails too. The nginxinc/nginx-unprivileged image listens on 8080 and sidesteps both problems. None of the models suggested it, and none flagged that the prompt’s combination of port 80 and a non-root user needs extra work.
+Error: “backup.sh: line 48: DBUSER: unbound variable”
+Flash’s first backup script reads its credentials correctly into DB_USER, then prints a log line with ${DBUSER}. Under set -u that typo aborts the script before pg_dump runs, every time. shellcheck -S warning passed it clean. Dropping to the info level catches it:
+shellcheck -S info -f gcc backup.sh
+ShellCheck flags the misspelling as a note under rule SC2153 and exits non-zero:
+backup.sh:48:73: note: Possible misspelling: DBUSER may not be assigned. Did you mean DB_USER? [SC2153]
+Run ShellCheck at info level on anything a model writes. The warning level is tuned for human code, where a near-miss variable name is usually deliberate.
+Flash run 1 and Pro run 2 also default their dump directory to /var/backups/postgresql and fail with mkdir: Permission denied when run as a normal user. That is a defensible default for a root cron job, and both honour a DUMP_DIR override, so we scored them on behaviour with DUMP_DIR set. With that, Pro’s three scripts and two of Flash’s did everything asked, including deleting the 10-day-old dump and keeping the 3-day-old one.
+Error: invalid value for name (cannot begin with sg-)
+Flash’s second Terraform file named its security group sg-ssh-https-public. The AWS provider rejects names that start with sg-, the prefix AWS uses for group IDs, and tofu validate fails at line 63 before any API call. Pro’s three Terraform files validated clean.
+Pro is slow, and one call never came back
+Pro’s median wall time for the bash task was 88 seconds, against 18 seconds for GPT-6 Sol on the same prompt, and its slowest call took 108 seconds while it spent 4,612 tokens reasoning before returning a 104-line script. On our first pass, one Pro request to the Xiaomi endpoint sat for more than 600 seconds without returning and hit our client timeout. A clean rerun of all nine Pro calls finished without errors, and those are the numbers in the table. If you put Pro behind an agent loop, set a request timeout and a retry.
+Run the MiMo-V2.6 9B distill locally on a 16 GB Mac
+Pro and Flash are data-centre models, but the 9B distill runs on a laptop. Community GGUF builds appeared within hours of release, and llama.cpp loads them without patches because the distill keeps the Qwen3.5 architecture. On macOS, install llama.cpp from Homebrew:
+brew install llama.cpp
+Pull the Q4_K_M quant from bartowski’s repo. It is 5.84 GB, which leaves headroom on a 16 GB machine:
+mkdir -p ~/models && cd ~/models
+curl -L -o MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf \
+ https://huggingface.co/bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF/resolve/main/MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf
+Measure raw speed before you serve anything:
+llama-bench -m MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf -p 512 -n 128 -r 3
+On the base M4 with 16 GB, prompt processing ran at 163 tokens per second and generation at just under 11:
+| model | size | params | backend | threads | test | t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | ------: | --------------: | -------------------: |
+| qwen35 9B Q4_K - Medium | 5.43 GiB | 8.95 B | BLAS,MTL | 4 | pp512 | 163.41 ± 1.49 |
+| qwen35 9B Q4_K - Medium | 5.43 GiB | 8.95 B | BLAS,MTL | 4 | tg128 | 10.71 ± 0.48 |
+build: 7fe450e19 (11146)
+Start an OpenAI-compatible server with the model’s own chat template:
+llama-server -m MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf -c 32768 -ngl 99 --jinja --port 8089 --host 127.0.0.1
+We pointed the same nine prompts at http://127.0.0.1:8089/v1/chat/completions. With a browser and editor also open, macOS memory pressure pushed generation down to between 3 and 10 tokens per second, and the full set took about 16 minutes. Quality fell off harder than speed. None of the three Terraform files validated. Run 1 called a registry module, aws-terraform/terraform-aws-basics/aws, that does not exist. Run 2 leaked raw </parameter></tool_call> markup into the file and then started writing an unrelated Lambda and API Gateway config. Run 3 put availability_zone on a VPC and invented an aws_security_group_inbound_rule resource. Only run 2 of its three backup scripts behaved, once its own DB_BACKUP_DIR override was set, and it keeps no local copy, so the 7-day prune never got exercised. Run 1 references an unset ${DATE} and dies under set -u, and run 3 passes --cleanfile, which pg_dump 18.6 rejects with unrecognized option '--cleanfile' (our stubbed pg_dump accepted it, so the harness alone scored it as a pass). On Kubernetes, one manifest hit the same nginx mkdir crash, and two set runAsNonRoot with no user ID, which the kubelet refuses with container has runAsNonRoot and image will run as root.
+Xiaomi is upfront that this checkpoint is an SFT starting point for RL research, not a finished assistant, and our results agree. It is useful for private, offline drafts and for learning the llama.cpp workflow. Do not let it write infrastructure unattended. If a local model has to write IaC, a larger model on a real GPU is the better bet; our Ollama vs vLLM vs llama.cpp benchmark covers what each runtime gets out of the same card.
+What self-hosting MiMo-V2.6 Pro or Flash actually takes
+The MIT licence is the headline, but the weight files set the bill. Flash is 173 GB of weights before any KV cache, more than two 80 GB GPUs can hold, and its model card serves it with vLLM at --tensor-parallel-size 4 (SGLang at --tp 8). Pro is 566 GB. Xiaomi’s model card serves it with vLLM at --tensor-parallel-size 8, and its SGLang example spans two nodes with --tp 16 --ep 16 and DeepEP for expert parallelism. The card points to the existing MiMo-V2.5 recipes for both engines, and there is a prebuilt vllm/vllm-openai:mimov25-cu129 image.
+Against the API price, self-hosting Pro only makes sense for data that cannot leave your network: all nine Pro calls in our test cost under two cents, and the model card’s smallest serving example is a full eight-GPU node. Flash is the more realistic self-host target, and community GGUF, MLX and NVFP4 conversions of it were already on Hugging Face within a day of release. For a sense of how a trillion-parameter open model behaves on rented hardware, our Kimi K3 local run covers the same class of problem.
+So where does MiMo-V2.6 fit? Pro is the top open-weight model on the Artificial Analysis index today, and it is priced like a small model. Use it for high-volume agent work where a validator or a test suite checks every output, because in our runs it was right on bash and Terraform and wrong two times out of three on a Kubernetes manifest that looked perfect. Flash is cheaper than GPT-6 Luna and slightly less reliable, which makes it fine for drafts and not for merges. For anything that goes straight to a cluster without review, GPT-6 Sol and Opus 5.5 were the only models in this DevOps tests to pass every runtime check.
+ Josphat Mutai
+Founder of Computingforgeeks. Senior Systems Engineer with over a decade of hands-on experience building and managing production infrastructure. Core expertise in Linux/UNIX administration, cloud platforms (AWS, GCP, Azure), and Kubernetes ecosystems (EKS, GKE, OpenShift). Deep experience with virtualization (KVM, Proxmox, OpenStack), infrastructure as code (Terraform, Terragrunt, Ansible, Crossplane), GitOps workflows (ArgoCD, FluxCD), Nix/NixOS, and container orchestration at scale. Currently focused on integrating AI and LLMs into DevOps and platform engineering workflows. Every guide on this site is tested on real systems before publishing.
+Keep reading
+ AI
+ Ollama Models Cheat Sheet 2026 (gpt-oss, Qwen3-Coder, DeepSeek)
+ AI
+ Claude Code Cheat Sheet – Commands, Shortcuts, Tips
+ AI
+ OpenCode CLI Cheat Sheet – Commands and Workflows
+ AI
+ LLM VRAM Calculator: How Much VRAM Do You Need to Run an LLM?
+ AI
+ GGUF vs AWQ vs GPTQ vs FP8: LLM Quantization Tested on a 24GB GPU
+ AI
+ Install OpenCode on Linux (Ubuntu / Rocky Linux)
+Leave a Comment Cancel reply
+CommentName
+Email
+Website
+On this page
+What Xiaomi shipped in MiMo-V2.6
+MiMo-V2.6 pricing and API access
+MiMo-V2.6 benchmarks: Xiaomi's table and the independent score
+MiMo-V2.6 Pro and Flash on real DevOps tasks
+Run the MiMo-V2.6 9B distill locally on a 16 GB Mac
+What self-hosting MiMo-V2.6 Pro or Flash actually takes
+Practical guides for Linux, DevOps, Cloud, and Infrastructure. Written by engineers, for engineers - since 2014.
+Topics
+Linux
+DevOps
+Databases
+Containers
+Kubernetes
+Security
+Cloud
+Virtualization
+Monitoring
+Company
+About Us
+Contact
+Terms of Service
+Privacy Policy
+Affiliate Disclosure
+Support
+Donate via PayPal
+RSS Feed
+Sitemap
+ © 2014 - 2026 ComputingForGeeks. All rights reserved.
+ © 2026 ComputingForGeeks • Built with GeneratePress 
+Press ESC to close

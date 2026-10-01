@@ -1,0 +1,15 @@
+# MoE page: visualisation ideas (ranked)
+
+Scores: teaches (0-5) x needs interaction (0-3) x data quality (0-2); placement in brackets.
+
+1. **Routing animation, one batch through one layer** (score 30, Reading, inline). 32 tokens, 8 experts, top-2, three runs on the same illustrative logits: dense FFN (iso-FLOP, 2 expert-widths), top-2 with fixed buffers (CF 1.0 / 1.25 / 2.0: drops and padding), top-2 with DeepSeek-V3 bias balancing (b_i <- b_i - gamma sign(c_i - mean), 60 replays, gamma 0.01). Captions per step, counters, play/pause/step/scrub/speed, IntersectionObserver plus visible-tab gating, paused under reduced motion. Rules from Switch (arXiv 2101.03961), GShard, DeepSeek-V3 (arXiv 2412.19437). Model values in rtaModel (seeded): loads 20,7,0,17,3,8,8,1; CF 1.25 C = 10, 17 of 64 dropped, 2 tokens skip, 33 padded; after bias, busiest 10, 28 assignments moved. This is the general before/after view; lab pages keep their own MoE visuals (gpt-oss one-token animation, Mixtral against Mistral 7B, DeepSeek expert layouts), so this one is comparative and generic.
+2. **Total and active rebuilt from config.json** (score 27, own tab). 8 presets, formula P_total / P_active, stacked component bars, granularity slider (N and k times m, width over m), precision, embedding-counting toggle. Reproduces V3 671.0/37.6B, Mixtral 46.7/12.9B, Qwen3 235.1/22.2B, gpt-oss-120b 116.8/5.13B and 20b 20.9/3.61B (input embedding excluded, as OpenAI counts), Maverick 400.7/17.2B independently (recompute.py). Does not reproduce exactly: K2 1.03T vs 1.04T, GLM-5.2 743B vs 744B (indexer not counted).
+3. **Landscape scatter, total against active, log-log with constant-ratio diagonals** (score 24, own tab), with rank-by toggle (ratio, smallest active, total), detail card, table with sources per row. GLM-5.3-Flash row corrected from its config (34 of 45 layers KDA, 11 sparse attention with IndexPool). K2 ratio corrected to 32.5x (1.04T, K2 report).
+4. **Router card: softmax against sigmoid on the same logits** (score 20, inline). Defaults reproduce the page's worked example by construction; "add zero-logit experts" shows softmax dilution.
+5. **Decode arithmetic card** (score 18, inline): tokens per expert B k / N against dense B, all-to-all bytes; 6 presets incl. K3's 3,584-wide latent (config routed_expert_hidden_size).
+6. **Global-batch balancing toy** (score 16, inline): micro-batch vs global aux loss (default 2.08 alpha vs 1.00 alpha), from arXiv 2501.11873 and V3 report 4.5.3.
+7. Static figures: MoE layer anatomy, EP dispatch/combine (inline).
+
+Rejected: per-expert specialisation heatmap (no primary data we can reproduce); training-cost or price tabs (rule from DeepSeek); a second animation of one token through the router (OpenAI page already has it); timeline of sparsity by date (the scatter carries it with year colours, exact months for 2026 rows not sourced).
+
+Methodology gap: no rule for which embedding convention to use when labs count "active" differently (OpenAI excludes the input embedding); handled with a toggle and per-lab convention in the table.

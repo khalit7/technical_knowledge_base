@@ -1,0 +1,88 @@
+
+<section id="s-infra">
+<h2>The inference stack, built by the model that runs on it</h2>
+<p>"Toward Recursive Self-Improvement: How GLM Built Its Own Inference Infrastructure" (September 2026) is the second piece of infrastructure Zhipu has published rather than merely used, and the more interesting one ({{Z.ai|@infra}}). It reports a production serving system for GLM-5.3-Flash built from scratch on a cluster of more than 100,000 Chinese-made accelerators, taken from the first successful run to launch in 13 days, with a 3.22x end-to-end throughput gain from baseline to launch, much of the work done by an "Infra Agent powered by GLM-5.3". The constraints were hard: limited chip memory and bandwidth, a new architecture, a 1M-token context with multimodal requests, and immature kernels. Zhipu states plainly that "we have not yet reached recursive self-improvement" and that choosing objectives, setting boundaries and assessing risk remain human responsibilities, which is what makes the post worth reading rather than discounting.</p>
+<div class="card">
+<div id="infChart" class="plot"></div>
+<p class="small mute">End-to-end throughput relative to the W8A8 baseline, by development day, with the change made at each point. Values transcribed from the labels printed on Z.ai's Figure 1 ({{Z.ai|@infra}}). The launch post rounds the result to "a 3× improvement" ({{Z.ai docs|@dfl}}); the text of the infrastructure post says "less than two weeks" and "tripling".</p>
+</div>
+<p>The transferable finding is about feedback, not about self-improvement: the bottleneck was the feedback environment rather than the model, and the fix was turning sparse end-to-end results ("throughput missed the target") into local, cheap, objectively verifiable feedback. Engineers defined objectives and system boundaries and reviewed risky changes; the agent proposed hypotheses, changed code and ran experiments; the environment answered at three levels ({{Z.ai|@infra}}):</p>
+<ol>
+<li><b>Correctness</b>, by comparing numerical results across partitioned and unpartitioned execution paths. This surfaced a precision bug in the KDA kernel's context-parallel path, where a matrix product defaulted to TF32 even on FP32 inputs and errors accumulated over long contexts; it was visible only under that parallelism strategy.</li>
+<li><b>System behaviour</b>, by timeline analysis. Prefill plus KV transfer ran more than 20% slower than prefill alone in some scenarios; the timeline showed KV transfers never overlapping DeepEP's intra-node dispatch and combine, which held the Python global interpreter lock. Releasing the lock cut the gap below 1%.</li>
+<li><b>Performance</b>, by layered testing (kernel tests, microbenchmarks, end-to-end runs) that shows which constraint binds. For one KDA decode kernel the agent removed redundant per-tile normalisation and gating work for a 1.71x speedup, and validated techniques went into a reusable library of kernel skeletons.</li>
+</ol>
+<p>Neither bug would have surfaced from an end-to-end metric. The advice generalises past serving: audit what feedback an agent receives after a change, build cheap intermediate validation, define acceptance criteria numerically before starting, and let validated techniques accumulate in a reusable library. The serving stack itself, per the launch post: intra-node tensor parallelism for the linear attention and the output head, ReplaySSM (recomputing state to trade compute for memory), W8A8 weights, mixed INT8, FP8 and BF16 cache quantisation, Layer Split, and encode, prefill and decode disaggregated into separately scaled worker pools, reaching "per-token cost comparable to mainstream NVIDIA GPUs" by Zhipu's account ({{Z.ai docs|@dfl}}). Similar self-reported claims arrived from Anthropic and Tencent within the same month ({{Other notable providers|n:3c65c17b0d0d8154ba44e521a4ed8749}}).</p>
+</section>
+
+<section id="s-price">
+<h2>The pricing strategy is the product</h2>
+<p>Since GLM-4.5 in July 2025 the commercial move has been to put frontier-class weights under the MIT licence ({{Wikipedia|@wiki}}), the most permissive in common use (use, modify, redistribute and sell, with only attribution required), and to undercut everyone on hosted price. The target is not benchmark leadership; it is the economics of the subscription products the model is pointed at.</p>
+<p><b>The licence is no longer MIT everywhere.</b> GLM-4.5 to GLM-5.2, GLM-4.7-Flash and GLM-5.3-Flash are MIT ({{HF org|@hf}}). GLM-5.3 ships under a custom <i>GLM-5.3 License</i>: MIT-style permissions with attribution, plus one condition, that a company running a model-as-a-service business with more than 10 billion US dollars of revenue in any 12 consecutive months must pass Z.ai's security review before commercial use ({{licence|@lic53}}). The threshold excludes almost everyone except the largest cloud providers, which is the point. Check the licence of the checkpoint, not of the family.</p>
+<div class="card" id="pcCard">
+<div class="small mute">List prices on Z.ai's API, US dollars per million tokens ({{Z.ai pricing|@price}}), and what one agentic job costs on each. Move the sliders.</div>
+<div class="ctl">
+<label>Input tokens: <b id="pcInV"></b><input type="range" id="pcIn" min="1" max="50" step="1" value="10"></label>
+<label>Share of input served from cache: <b id="pcHitV"></b><input type="range" id="pcHit" min="0" max="95" step="5" value="80"></label>
+<label>Output tokens: <b id="pcOutV"></b><input type="range" id="pcOut" min="0.1" max="5" step="0.1" value="1"></label>
+</div>
+<div class="tw"><table id="pcTab"></table></div>
+<p class="small"><b>Worked example (the default).</b> 10M input tokens of which 8M are cache hits, plus 1M output. On GLM-5.3: 2 × 1.40 + 8 × 0.26 + 1 × 4.40 = 2.80 + 2.08 + 4.40 = $9.28. On GLM-5.3-Flash: 2 × 0.15 + 8 × 0.03 + 1 × 0.50 = 0.30 + 0.24 + 0.50 = $1.04, 8.9 times cheaper: the "one-tenth the price" Zhipu claims for a model it says beats GLM-5.2 across its own evaluation suite ({{Flash card|@cfl}}). A launch promotion had halved Flash's input price to $0.075 until 9 September 2026.</p>
+</div>
+<p><b>The GLM Coding Plan</b> is the subscription version of the same move. Its endpoint is compatible with Claude Code, Cline and OpenCode, so an existing agentic coding setup switches by changing a base URL and a key rather than rewriting a harness. Launch-era coverage put it at about $3 a month; the plan now starts at $18 a month (Lite), with Pro at $80 and Max at $168, and every tier serves GLM-5.3 and GLM-5.3-Flash, older model names being routed to these ({{Z.ai docs|@plan}}, {{MarkTechPost|@mtpfl}}). Usage is metered in credits per 5 hours and per week, and Flash gets 3 times GLM-5.3's quota ({{Z.ai docs|@dfl}}).</p>
+<p><b>GLM-5.3-Flash extends the move to multimodal:</b> image, video, text and file input with text output, a 1M-token context and up to 128K output tokens ({{Z.ai docs|@dfl}}), at $0.15 input and $0.50 output per million tokens, roughly a tenth of GLM-5.2's $1.40 and $4.40, at a claimed improvement over it, with weights on Hugging Face under MIT. The argument, unchanged for a year, is that a paid multimodal API tier is hard to defend against a model of that class that anyone can download and serve themselves. Self-hosting is not for everyone: the FP8 checkpoint is about 306 GiB of weights before any cache ({{MarkTechPost|@mtpfl}}; 314.4B FP8 plus 6.9B BF16 parameters in the {{checkpoint|@cfl}}). A faster hosted variant, GLM-5.3-FlashX, serves about 200 tokens a second at $0.37 and $1.25 ({{Z.ai docs|@dfl}}, {{pricing|@price}}).</p>
+</section>
+
+<section id="s-build">
+<h2>Who builds on GLM, and how GLM is launched</h2>
+<p>The strategy has a second-order effect the pricing alone does not capture: <b>GLM bases have become other labs' starting point.</b> <b>Atria Dawn Preview</b>, from the Shanghai Artificial Intelligence Laboratory, is a 744B agentic MoE "built on the 744B-parameter MoE GLM-5.2 foundation model" rather than trained from scratch, released under MIT with a 256K context; its weights appeared on Hugging Face on 11 September (BF16) and 12 September 2026 (FP8) with no launch announcement ({{GitHub|@atria}}, {{Hugging Face|@atriahf}}). A national laboratory reached frontier scale by specialising someone else's open weights.</p>
+<ul>
+<li><b>Method.</b> A "Verifiable Experience Pipeline that connects tool-mediated interactions to executable environments and externally verified outcomes", plus a human-collaboration study of 769 task records from 56 participants, who rated about one third of completed AI-assisted tasks as infeasible without AI ({{paper, 14 September|@atriap}}).</li>
+<li><b>Results.</b> The paper claims the highest reported score on five of 16 benchmarks without naming them in its abstract; the repository's table does name them: DeepSearchQA 96.0, BrowseComp 92.5, BFCL v4 77.0, AutomationBench 53.8 and CyberGym 86.5, the last against GLM-5.3's 84.5 ({{GitHub|@atria}}). The number to carry is the gap: 59.6% on SWE-bench Pro against Claude Opus 5's 74.7%. All figures are vendor-reported.</li>
+<li><b>Access.</b> Self-hosting means about 756 GB of FP8 weights or 1.5 TB in BF16 (753.3B parameters × 1 or 2 bytes, {{Hugging Face|@atriahf}}). A hosted API has since appeared, documented in the repository with Claude Code, Codex and Kimi Code set-ups ({{GitHub|@atria}}).</li>
+</ul>
+<p>Permissive licensing at the frontier turns the base model into infrastructure other people build products on, which is worth more strategically than the hosted margin it forgoes.</p>
+<p><b>The Ox Alpha episode</b> is worth remembering as a pattern rather than a fact about one model. GLM-5.3-Flash ran on OpenRouter and OpenCode as the unattributed stealth model "Ox Alpha" the week before launch, collecting third-party use and scores from people who did not know whose model they were rating, and was claimed once the numbers were in ({{SiliconANGLE|@sil}}, {{Z.ai docs|@dfl}}); Zhipu says it became the most-used model on both platforms, processing more than 62 trillion tokens in six days, all served on Chinese chips ({{Z.ai|@infra}}). Anonymous pre-release evaluation removes brand effects from human preference voting, and it also means a disappointing run can simply never be claimed, so treat "topped the arena as a stealth model" as a number selected after the fact.</p>
+</section>
+
+<section id="s-stand">
+<h2>Where GLM stands</h2>
+<p><b>On the aggregate index.</b> GLM-5.2 (June 2026) topped the open-weight division of the Artificial Analysis Intelligence Index at release, scoring 51 on v4.1 ({{Labellerr|@lab}}); the index is a composite of public benchmarks run by Artificial Analysis. That lead passed to Moonshot's Kimi K3 on the earlier versions of the index ({{Moonshot AI: Kimi|n:3c65c17b0d0d81f5abf5dbdbac821a12}}). On v4.3 (methodology v4.3.2, read 1 October 2026) the top open-weight score is Xiaomi's MiMo-V2.6-Pro at 46.3, with GLM-5.3 (max) at 44.8 and Kimi K3 (max) at 43.6 ({{Artificial Analysis|@aalb}}). Index versions do not compare: GLM-5.3-Flash's 57 at about $0.09 per task, quoted at launch, was on v4.1.1, before v4.2 ({{Z.ai docs|@dfl}}); on v4.3 it scores 41.8 at $0.25 per task ({{AA|@aafl}}).</p>
+<div class="card">
+<div class="small mute">Open-weight models on the Artificial Analysis Intelligence Index v4.3 against cost per index task (log scale), read 1 October 2026 ({{leaderboard|@aalb}}). GLM models in colour; the line joins the models no other is both cheaper and better than.</div>
+<div id="aaPlot" class="plot"></div>
+<div class="out" id="aaOut"></div>
+</div>
+<p><b>On cost per index point</b> GLM-5.3 is now only marginally ahead of Kimi K3 ($2.01 against $2.00 per task, for a 1.2-point higher score: $0.045 against $0.046 per point) and well behind MiMo-V2.6-Pro (46.3 at $0.13) and its own GLM-5.3-Flash (41.8 at $0.25) ({{GLM-5.3|@aa53}}, {{Kimi K3|@aak3}}, {{MiMo-V2.6-Pro|@aamimo}}).</p>
+<p><b>On private enterprise code</b> GLM-5.3 still leads open weights. Real-SWE, published in September 2026 by Specific Labs, scores model-and-harness combinations on ten tasks licensed from real companies' private codebases, eight runs each: GLM-5.3 in Claude Code resolved 28.8%, the best open-weight result, ahead of Kimi K3 in Kimi Code at 18.8%, with Claude Fable 5.1 in Claude Code first at 38.8% ({{Real-SWE|@rswe}}, {{summary|@rswed}}). The confidence intervals at the top overlap, and a harness changes the score of the same model.</p>
+<p><b>On Zhipu's own tables.</b> GLM-5.2 beat GPT-5.5 on FrontierSWE (open-ended engineering projects of hours to tens of hours, scored by Proximal as a "dominance" score) at 74.4 against 72.6, trailing Claude Opus 4.8's 75.1, at roughly one sixth of the cost ({{GLM-5.2 card|@c52}}, {{Labellerr|@lab}}), and led Design Arena and placed second in the frontend-code arena, human preference votes on generated interfaces ({{Labellerr|@lab}}). A dominance score depends on the field it is measured against: the GLM-5.3 card, scored as of 14 August, gives GLM-5.2 67.5 on the same benchmark ({{GLM-5.3 card|@c53}}). GLM-5.3's "roughly six times" coding gain is one benchmark, Terminal-Bench 3.0, rising from 4.6% to 28.3% (28.3 / 4.6 = 6.2) from a near-zero base; Zhipu's own headline is a 50% gain on its in-house Z.ai Code Bench, and it claims first place on CyberGym, an agentic security benchmark, at 84.5% ({{GLM-5.3 card|@c53}}).</p>
+</section>
+
+<section id="s-now">
+<h2>Current models</h2>
+<div class="tw"><table>
+<tr><th>Model</th><th>Total / active</th><th>Attention</th><th>Context</th><th>Licence</th><th>Price per Mtok (in / out)</th><th>Notes</th></tr>
+<tr><td><b>GLM-5.3</b></td><td>744B / 40B</td><td>MLA-256 + DSA, IndexShare</td><td>1M</td><td>GLM-5.3 License</td><td>$1.40 / $4.40</td><td>Flagship; post-training only on the GLM-5.2 base; open-weight leader on Real-SWE (28.8%)</td></tr>
+<tr><td><b>GLM-5.2</b></td><td>744B / 40B</td><td>MLA-256 + DSA, IndexShare</td><td>1M</td><td>MIT</td><td>$1.40 / $4.40</td><td>Base of GLM-5.3 and of Atria Dawn</td></tr>
+<tr><td><b>GLM-5.3-Flash</b></td><td>320B / 18B</td><td>34 KDA + 11 sparse MLA, IndexPool</td><td>1M</td><td>MIT</td><td>$0.15 / $0.50</td><td>Natively multimodal (image and video in); shipped 26 August 2026, ex-"Ox Alpha"</td></tr>
+<tr><td><b>GLM-5.3-FlashX</b></td><td>as Flash</td><td>as Flash</td><td>1M</td><td>hosted only</td><td>$0.37 / $1.25</td><td>Faster serving of Flash, about 200 tokens a second</td></tr>
+<tr><td><b>GLM-4.5-Air</b></td><td>106B / 12B</td><td>GQA</td><td>128K</td><td>MIT</td><td>$0.20 / $1.10</td><td>The cheap self-hostable tier</td></tr>
+<tr><td><b>GLM-4.7-Flash</b></td><td>30B / 3B</td><td>MLA</td><td>200K</td><td>MIT</td><td>free</td><td>The free API tier</td></tr>
+<tr><td><b>GLM Coding Plan</b></td><td>service</td><td></td><td></td><td>subscription</td><td>from $18 a month</td><td>Claude Code, Cline and OpenCode compatible agentic coding plan</td></tr>
+</table></div>
+<p class="small mute">Sources: {{pricing|@price}}, {{Z.ai docs|@dfl}}, {{HF org|@hf}} and configs, {{licence|@lic53}}, {{Coding Plan|@plan}}. GLM-4.7-Flash is "a 30B-A3B MoE model" (31.2B parameters in the checkpoint), with 64 experts of which 4 are active, MLA, and 202,752 positions ({{model card|@c47f}}). There is no GLM-4.7-Air: the cheap self-hostable tier is GLM-4.5-Air.</p>
+</section>
+
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>"GLM is a conventional MoE."</summary><div class="b">It was in GLM-4.5. GLM-5 added MLA and DSA, and GLM-5.3-Flash is a linear and sparse attention hybrid with mHC residual streams.</div></details>
+<details class="mist"><summary>"All GLM weights are MIT."</summary><div class="b">GLM-5.3 ships under a custom licence with a security-review condition above 10 billion dollars of model-as-a-service revenue.</div></details>
+<details class="mist"><summary>"GLM-5.3 was six times better at coding."</summary><div class="b">Six times is one benchmark, Terminal-Bench 3.0, rising from 4.6% to 28.3%. Zhipu's own headline is 50% on its in-house Code Bench.</div></details>
+<details class="mist"><summary>"IndexPool made Flash's cache 4.4 times smaller."</summary><div class="b">The 4.4x is the whole design against GLM-5.3, averaged per layer: 34 of 45 layers holding a fixed-size KDA state accounts for about 4.1x of it, dropping the rotary key 1.125x, and IndexPool about 1.18x. IndexPool's main target is the indexer's work, a quarter of the entries to score.</div></details>
+<details class="mist"><summary>"IndexShare makes inference 2.9 times faster."</summary><div class="b">It is 2.9 times fewer per-token FLOPs at a 1M context, not an end-to-end speedup, and the KV cache barely shrinks.</div></details>
+<details class="mist"><summary>"Sparse attention removes the cost of long context."</summary><div class="b">DSA makes the main attention read 2,048 entries, but every entry is still stored and the indexer still scores every earlier token, which is why IndexShare and IndexPool exist.</div></details>
+<details class="mist"><summary>"More heads means a bigger cache."</summary><div class="b">Only key-value heads are cached; GLM-4.5's 96 query heads share 8 key-value heads.</div></details>
+<details class="mist"><summary>"GLM-5.3-Flash scores 57."</summary><div class="b">That was on the Intelligence Index v4.1.1 at launch. On v4.3 it scores 41.8 at $0.25 per task; the two versions are different scales.</div></details>
+<details class="mist"><summary>"A stealth-model win is an unbiased result."</summary><div class="b">It removes brand bias but adds selection bias: only the runs that went well get claimed.</div></details>
+</section>

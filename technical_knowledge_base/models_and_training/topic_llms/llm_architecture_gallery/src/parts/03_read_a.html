@@ -1,0 +1,70 @@
+<section id="s-what">
+<h2>What it is and why it matters</h2>
+<p class="lead">Almost every open model released since 2023 is the same machine as GPT-2: a stack of identical decoder blocks, each doing attention (every token looks back at earlier tokens) and then a feed-forward network (FFN, a per-token multilayer perceptron), with normalisation and a residual connection around each, and a positional scheme telling attention where each token sits. What differs between models is a small number of choices inside that block, and nearly all of them are about <b>memory and compute efficiency rather than modelling power</b>.</p>
+<p>This page owns those generic mechanisms for the llms topic: the attention variants (MHA, MQA, GQA, MLA, sliding window, trained sparse, linear and hybrid), the MoE feed-forward in brief, normalisation placement, positional encoding and stack shape, each with what it buys and what it costs. The lab pages keep only what their own variant does differently, and carry their own animations of it: {{DeepSeek|n:3c65c17b0d0d81a2ae7ec6796947a235}} (MLA, DSA, V4.1-Flash), {{Qwen|n:3c65c17b0d0d81fd8c36ce06672bb235}} and {{Zhipu|n:3c65c17b0d0d81a88a84c2ca84b4daf4}} (hybrids), {{Moonshot AI: Kimi|n:3c65c17b0d0d81f5abf5dbdbac821a12}} (KDA) and {{Mistral AI|n:3c65c17b0d0d814a9882e6ebc326fa56}} (sliding window).</p>
+<p>The single number that ties the choices together is the <b>KV cache per token</b>: the bytes a model must keep in accelerator memory for every token of context it holds. It is set by the attention design, not by the parameter count, so two models of the same size can differ on it by an order of magnitude, and it decides whether long context and high concurrency are affordable. Learn to compute it and read it off a card, and most of what changed in a new model follows.</p>
+<div class="co key"><div class="t">The lookup table: Raschka's LLM Architecture Gallery</div>
+<p style="margin:2px 0">{{Sebastian Raschka's LLM Architecture Gallery|@gal}} is a side-by-side reference of more than 100 open(-ish) model architectures: a diagram per model plus a fact sheet with total and active parameters, decoder type (dense, sparse MoE, or a dense/sparse <i>hybrid</i>), attention mechanism and layer mix, context length, <b>KV-cache bytes per token</b> (its most useful headline number), positional encoding, licence, and links to configs and tech reports. Coverage runs from DeepSeek V3 to V4.1, Kimi K2 to K3, GLM-4.5 to 5.3, Qwen3 to 3.8, MiniMax M2 to M3, Mistral Large 3, Llama 4, gpt-oss and Gemma 3 and 4, down to OLMo, Phi-4, SmolLM3 and exotic entries (Nemotron 3 Nano, Kimi Linear, INTELLECT-3). Its metadata is a {{models.yml of per-model fact sheets|@repo}} under Apache 2.0. Make it the first stop whenever a new open model drops: the diagram plus the KV-cache and MoE numbers tell you most of what changed. The <a href="#" data-tab="t-cmp">Compare architectures</a> tab rebuilds its numbers from the configuration files themselves.</p></div>
+</section>
+
+<section id="s-def">
+<h2>Terms</h2>
+<dl class="kv">
+<dt>Decoder block</dt><dd>Attention, then an FFN, each wrapped as <span class="m"><b>x</b> ← <b>x</b> + <i>F</i>(Norm(<b>x</b>))</span> in the pre-norm layout most models use. A model is <span class="m"><i>L</i></span> of these stacked.</dd>
+<dt>Residual stream</dt><dd>The vector <span class="m"><b>x</b></span> each token carries through the stack; every sublayer reads it and adds its output back.</dd>
+<dt>Query, key, value</dt><dd>Per-token vectors made by learned projections of the residual stream. A token's query is compared with earlier tokens' keys to decide how much of each of their values to take.</dd>
+<dt>Head</dt><dd>One independent attention computation of dimension <span class="m"><i>d<sub>h</sub></i></span> (the <b>head dimension</b>, typically 64 to 256). A layer runs <span class="m"><i>H</i></span> query heads in parallel.</dd>
+<dt>KV heads</dt><dd>The number of distinct key and value projections a layer computes, <span class="m"><i>H<sub>kv</sub></i></span>: equal to <span class="m"><i>H</i></span> in classic multi-head attention, smaller in the variants below.</dd>
+<dt>KV cache</dt><dd>During generation, the keys and values of every earlier token, stored so they are not recomputed at each step. It grows by one entry per layer for every token of context.</dd>
+<dt>Prefill and decode</dt><dd>Prefill processes the whole prompt in parallel and is compute-bound; decode produces one token at a time and must read all the weights and the whole KV cache for each token, so it is <b>memory-bandwidth-bound</b>. A smaller cache means faster decode, not only more room.</dd>
+<dt>Dense and MoE</dt><dd>A dense model runs every FFN parameter for every token; a mixture-of-experts (MoE) model has many expert FFNs and a router that activates a few per token, so <b>total</b> parameters (memory) and <b>active</b> parameters (compute per token) differ.</dd>
+</dl>
+</section>
+
+<section id="s-kv">
+<h2>Attention and the KV cache</h2>
+<p>One attention head computes, for a sequence of <span class="m"><i>T</i></span> tokens:</p>
+<div class="fm"><div class="eq">Attention(<i>Q</i>, <i>K</i>, <i>V</i>) = softmax( <i>Q K</i><sup>⊤</sup> / √<i>d<sub>h</sub></i> + <i>M</i> ) <i>V</i></div>
+<dl><dt>Q, K, V</dt><dd><span class="m">∈ ℝ<sup><i>T</i> × <i>d<sub>h</sub></i></sup></span>: the query, key and value vector of every token, one per row, for this head</dd>
+<dt>Q K<sup>⊤</sup></dt><dd>the <span class="m"><i>T</i> × <i>T</i></span> matrix of dot products between every query and every key (the attention logits)</dd>
+<dt>√d<sub>h</sub></dt><dd>keeps the logits' spread roughly constant as the head dimension grows</dd>
+<dt>M</dt><dd>the mask: 0 where a query may look, −∞ where it may not (for a causal decoder, every later position)</dd>
+<dt>softmax</dt><dd>runs along each row, turning that query's logits into weights that sum to 1, which then average the rows of <span class="m"><i>V</i></span></dd></dl></div>
+<p>A layer runs <span class="m"><i>H</i></span> such heads and concatenates their outputs. At decode time only the newest token's query is new, but it needs the keys and values of all earlier tokens, which is why they are cached. The cache for one token, and the memory a deployment must hold, are:</p>
+<div class="fm"><div class="eq">KV bytes per token = 2 × <i>L</i> × <i>H<sub>kv</sub></i> × <i>d<sub>h</sub></i> × <i>b</i></div>
+<div class="eq">KV memory = KV bytes per token × <i>T</i><sub>ctx</sub> × <i>N</i><sub>concurrent</sub></div>
+<dl><dt>2</dt><dd>counts keys and values</dd><dt>L</dt><dd>the number of layers that keep a cache (all of them in a plain transformer)</dd><dt>H<sub>kv</sub></dt><dd>KV heads per layer, which is where the attention variant enters</dd><dt>d<sub>h</sub></dt><dd>the head dimension</dd><dt>b</dt><dd>bytes per stored element: 2 for BF16, 1 for FP8, 0.5 for FP4</dd><dt>T<sub>ctx</sub>, N<sub>concurrent</sub></dt><dd>the context held per request, and the number of requests resident at once</dd></dl></div>
+<p><b>Worked example: Llama 3.1 70B.</b> Its {{configuration|@l70}} has <span class="m"><i>L</i> = 80</span> layers, 64 query heads, <span class="m"><i>H<sub>kv</sub></i> = 8</span> KV heads and a hidden size of 8,192, so <span class="m"><i>d<sub>h</sub></i> = 8,192 / 64 = 128</span>. In BF16: per token <span class="m">2 × 80 × 8 × 128 × 2 = 327,680</span> bytes = 320 KiB; one request holding a 131,072-token (128K) context <span class="m">327,680 × 131,072 = 42,949,672,960</span> bytes = 40 GiB; eight such requests, 320 GiB of KV cache, more than twice the roughly 140 GB the 70 billion BF16 weights occupy (70 × 10<sup>9</sup> × 2 bytes). Had the same model used full multi-head attention (<span class="m"><i>H<sub>kv</sub></i> = 64</span>), every figure would be 8 times larger: 2,560 KiB per token and 320 GiB for a single 128K request. That factor is why the attention variant, not the parameter count, decides whether long context is affordable.</p>
+<div class="card" id="kvq">
+<p class="try"><b>Try:</b> the defaults are Llama 3.1 70B and reproduce 320 KiB, 40 GiB and 320 GiB. Set KV heads to 64 to see the MHA counterfactual, or FP8 to halve everything.</p>
+<div class="chips" id="kvqP"></div>
+<div class="ctl">
+<label>Layers <i>L</i>: <b id="kvqLv"></b><input type="range" id="kvqL" min="12" max="128" value="80"></label>
+<label>KV heads <i>H<sub>kv</sub></i>: <b id="kvqHv"></b><input type="range" id="kvqH" min="0" max="7" value="3"></label>
+<label>Head dimension <i>d<sub>h</sub></i>: <b id="kvqDv"></b><input type="range" id="kvqD" min="0" max="3" value="1"></label>
+<label>Context: <b id="kvqTv"></b><input type="range" id="kvqT" min="10" max="20" value="17"></label>
+<label>Concurrent requests: <b id="kvqNv"></b><input type="range" id="kvqN" min="1" max="64" value="8"></label>
+<label>Cache precision <select id="kvqB"><option value="2" selected>BF16 (2 bytes)</option><option value="1">FP8 (1 byte)</option><option value="0.5">FP4 (0.5 bytes)</option></select></label>
+</div>
+<div class="out" id="kvqOut"></div>
+</div>
+<div class="co warn"><div class="t">The gallery's headline does not credit sliding windows</div>
+<p style="margin:2px 0">The gallery quotes this per-token figure in BF16 for every model, using the same formula (with the MLA and linear-layer variants below), per its {{KV-cache calculation notes|@kvc}}: "the logical cache added by one token for one sequence", batch 1, 2 bytes per element, a logical estimate separate from measured serving memory (allocator padding, buffers and kernel layouts usually add more). A windowed layer is counted at full per-token cost: the window only limits how long entries are kept. So for a model with many windowed layers the long-context memory is much lower than the headline suggests (worked through under <a href="#s-swa">sliding windows</a>). The same notes count only layers that append to a growing cache: DeltaNet, Lightning Attention, Mamba-2 and xLSTM layers add 0 B per token and keep a fixed-size state instead.</p></div>
+</section>
+
+<section id="s-ladder">
+<h2>1. Attention: the ladder of what each token stores</h2>
+<p>The attention variants form a ladder of how much each token stores per layer, from everything (MHA) to a fixed-size summary that does not grow at all (linear attention). The animation runs one token through one layer of the same shape for every variant: 32 query heads of <span class="m"><i>d<sub>h</sub></i> = 128</span> (Llama 3.1 8B's shape), the same 16 earlier tokens already in context, and the same five steps. Pick a variant to see what it stores and what each query head reads; MHA's footprint stays drawn dashed behind every other variant, so each one is seen against the method it replaced.</p>
+<div class="card" id="atx">
+<div class="at-seg" id="atxM" role="group" aria-label="Attention variant"><button data-m="mha">MHA</button><button data-m="gqa" class="on">GQA (8 KV heads)</button><button data-m="mqa">MQA</button><button data-m="mla">MLA</button><button data-m="swa">Sliding window</button><button data-m="gdn">Gated DeltaNet</button><button data-m="kda">KDA</button></div>
+<div class="small mute">One cell is 256 numbers: one KV head's key and value (128 + 128). Cells are drawn to scale in every variant.</div>
+<div id="atxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="atxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="atxPlay" aria-label="Play" title="Play or pause" class="an-play">&#9654; Play</button><button id="atxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="atxScrub" min="0" max="500" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="atxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="atxStep"></div><p id="atxCap"></p></div>
+<div class="at-cnt" id="atxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Shapes: 32 query heads of 128 as {{Llama 3.1 8B|@l8}}; MLA at {{DeepSeek V3's|@dsv3cfg}} latent of 512 plus a 64-number RoPE key; the recurrent state is 32 heads of 128 × 128, the shape of both {{Qwen3-Next's Gated DeltaNet layers|@qncfg}} and {{Kimi Linear's KDA layers|@klcfg}}. The 16-token context and the 8-token window are <span class="ill">illustrative</span> (real windows run from 128 tokens in gpt-oss to 4,096 in OLMo 3); the 128K figures in step 5 use the formulas on this page. The animation stops when off screen, and starts paused, one step at a time, if your system asks for reduced motion.</p>
+</div>
+<p>Step 5 is the whole argument in four numbers per layer at 128K: MHA 2 GiB, GQA 512 MiB, MLA 144 MiB, MQA 64 MiB; a 4,096-token window caps at 16 MiB and a recurrent state stays at 1 MiB. The rest of this section takes each rung in turn.</p>
+</section>

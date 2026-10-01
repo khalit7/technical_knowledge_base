@@ -1,61 +1,43 @@
 # Operating instructions for agent sessions in this repo
 
-This repo does two things, and nothing else:
+This repository is the home of Khalid's Technical knowledge base. **It is the source of truth.** Notion only displays it: each migrated Notion page is one interactive HTML file built here, plus its video and child pages. Nothing is copied from Notion into this repo; when something exists only in Notion, it is brought here first and then published back.
 
-1. **Mirrors** Khalid's Notion "Technical knowledge base" into files.
-2. **Produces** the explainer videos derived from those pages.
+## Layout
 
-Everything else that used to live here now lives in Notion, which is where the
-knowledge actually is.
+| Folder | What it is |
+|---|---|
+| `technical_knowledge_base/` | The knowledge base, laid out exactly like the Notion tree: one folder per Notion heading (`models_and_training/`, ...), one folder per page inside it, a child page's folder inside its parent's. Names are snake_case slugs of the Notion titles; each folder's README and `pages.json` give the exact title and Notion id. |
+| `technical_knowledge_base/pages.json` | Manifest of every page: path, title, Notion id, status (`html_only` or `not_migrated`), `published_sha256` (what Notion holds now), video. |
+| `html_utils/` | Building and checking interactive pages: `checkpage.sh`, `tabshot.mjs`, `sync_status.py`, `templates/`, the page-agent brief, and `interactive-html-ideas.md` (every visualisation idea so far plus the methodology for choosing them). |
+| `video_utils/` | Narration (Chatterbox Turbo) and take checking for HyperFrames explainer videos; install notes in its README. |
+| `.claude/skills/` | The skills (below) plus the vendored HyperFrames skills. Real folders, no symlinks. |
 
-## Source of truth
+A migrated page folder holds `index.html` (the whole Notion page, built), `README.md`, `src/` (`build.sh`, `parts/`, `README.md`, `viz_ideas.md`, data scripts, `inputs/`) and, if it has one, `video/` (the HyperFrames project; renders are not committed).
 
-**Notion is the source of truth. This repo is the mirror and is never the origin
-of a fact.** Root page: "Technical knowledge base", id
-`3c65c17b-0d0d-81c7-b646-e548e65d9446`, a child of the personal "Me" page.
+## Skills (the only procedures that touch the knowledge base from here)
+- `create-interactive-html`: build or rebuild a page as an HTML-only page.
+- `create-explainer-video`: a narrated video of a page (HyperFrames + Chatterbox Turbo).
+- `sync-KB-github`: publish every changed page to Notion, then commit and push.
+The weekly Monday update (`update-KB`) still runs from Notion and has not been adapted to this model yet; Khalid will fix it. Do not run it from here.
 
-## One copy of every procedure
+## Notion facts worth knowing
+- Root page "Technical knowledge base", id `3c65c17b-0d0d-81c7-b646-e548e65d9446`; space id `13e79c56-ebab-4528-83aa-967a204b1f04`. Use the Notion MCP connector (fetch, create-file-upload, update-page).
+- The HTML block is a sandboxed iframe: no network of any kind.
+- `replace_content` only on pages without child pages or databases; otherwise small `update_content` edits that leave `<page>`, `<database>` and `<video>` tags untouched.
+- A fetched embed or video shows a signed S3 URL that never matches in `update_content`; match the stable `file://` form described in the `sync-KB-github` skill.
+- Video uploads need `content_type` `video/mp4`.
 
-The operating instructions and every procedure live in Notion, under
-`Me -> _AI`, and are **mirrored into this repo by the sync**:
-
-- `.claude/INSTRUCTIONS.md` is the Instructions page.
-- `.claude/skills/<command>/SKILL.md` is one skill page each, with its front
-  matter generated from the row's Command and Description so it loads here.
-
-**Those files are generated. Never edit them.** The next sync overwrites them.
-A change to a procedure is a change to the Notion page, and it reaches this
-repo the same way every other fact does. A skill whose Area is not "Technical
-knowledge base", or which has no Command, is not mirrored, because it governs
-some other part of Notion.
-
-The same rule holds for content: do not edit mirrored files expecting the
-change to reach Notion. If you find local edits Notion lacks, surface them to
-Khalid rather than overwriting either side.
-
-## The two jobs
-
-- `/kb-sync-from-notion` mirrors Notion into this repo, state-derived, deleting
-  files whose page is gone, driven by `tools/notion_mirror.py`. It needs a
-  Notion token.
-- `/kb-make-video` produces an episode from a page, using `video/`, with
-  `video/README.md` as the mechanics.
-
-Both of those skills are themselves mirrored from Notion.
-
-## Repo-only assets, never deleted by a sync
-
-`papers/*/paper.pdf` (Notion keeps the summaries and the arXiv links),
-`sources/`, `video/` and `tools/`.
+## Khalid's preferences
+- **Ask, don't assume**, when a decision is his.
+- **Animations** for explanations, often: before/after of the same input, like the DeepSeek MLA explainer (`technical_knowledge_base/models_and_training/topic_llms/deepseek/`).
+- Root `Topic: *` pages are short comparisons plus definitions; details live on child pages.
+- Do not launch a multi-agent Workflow without his explicit opt-in; plain subagents are fine, about four at a time.
 
 ## Writing
+No em-dashes anywhere: prose, HTML, captions, commit messages. Commas, colons, semicolons, parentheses; `--` for ranges.
 
-No em-dashes anywhere, in prose or in commit messages. Commas, colons,
-semicolons, parentheses. `--` for ranges.
+## Setup on a new machine
+`uv sync` (page data scripts), `cd html_utils && npm ci` (page checks), and for videos the steps in `video_utils/README.md`.
 
 ## Git
-
-Commit after a meaningful unit of work. A sync commits as
-`sync from notion YYYY-MM-DD`, and the newest such commit marks the last point
-the repo matched Notion. Push to main after syncing. On this machine, `git pull`
-first, always.
+`git pull` first, always. Commit after a meaningful unit of work; push to main. Never commit MP4s, PDFs or files over about 5 MB.

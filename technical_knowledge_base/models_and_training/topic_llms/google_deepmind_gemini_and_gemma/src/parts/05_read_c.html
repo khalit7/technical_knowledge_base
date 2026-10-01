@@ -1,0 +1,105 @@
+<section id="s-cost">
+<h2>What "works harder" costs</h2>
+<p>Cost per task is tokens per task times price per token, and a release can move either factor:</p>
+<div class="fm"><math display="block"><msub><mi>C</mi><mtext>task</mtext></msub><mo>=</mo><mfrac><mrow><msub><mi>T</mi><mtext>in</mtext></msub><mspace width="0.2em"/><msub><mi>p</mi><mtext>in</mtext></msub><mo>+</mo><msub><mi>T</mi><mtext>out</mtext></msub><mspace width="0.2em"/><msub><mi>p</mi><mtext>out</mtext></msub></mrow><msup><mn>10</mn><mn>6</mn></msup></mfrac></math>
+<dl><dt>C<sub>task</sub></dt><dd>dollar cost of one task</dd><dt>T<sub>in</sub>, T<sub>out</sub></dt><dd>input and output tokens the task consumes, summed over every turn and tool call; thinking tokens count in T<sub>out</sub></dd><dt>p<sub>in</sub>, p<sub>out</sub></dt><dd>prices per million input and output tokens (cached input is billed at its own, lower, price)</dd></dl></div>
+<p><b>Worked example: 3.7 Flash to 3.8 Flash.</b> The per-token prices are identical ($0.75 and $3.75 introductory), so the whole change is in <i>T</i>.</p>
+<ol>
+<li>On the Intelligence Index v4.3, both at high thinking, 3.8 Flash costs $1.24 per task and 3.7 Flash $0.93 ({{3.8 Flash|@aa38}}, {{3.7 Flash|@aa37}}): 1.24 / 0.93 ≈ 1.34, about a third more, for 40.9 on the index against 39.1.</li>
+<li>With identical prices the cost ratio is a token ratio, but a price-weighted one. Over the whole index run 3.8 Flash used 45% more input tokens (5.97B against 4.12B), 65% more output tokens (172M against 104M) and 2.3 times the reasoning tokens (136M against 60M). "Works harder" means more turns, and every turn re-reads the context.</li>
+<li>On 1 January 2027 both prices double, so the same task costs about 1.24 × 2 = $2.48 on 3.8 Flash ($2.49 from AA's unrounded $1.2428), with no change to the model.</li>
+<li>Even then it is well under Claude Fable 5.1's $7.63 per task at maximum effort, which is about 6.2 times the introductory figure.</li>
+</ol>
+<div class="card" id="wh"></div>
+<p>The lesson travels: compare models on cost per task, not on the price list, and expect a newer "cheap" tier to spend more tokens than its predecessor. The caller holds two levers: a lower <code>thinking_level</code> cuts <i>T</i><sub>out</sub>, and context caching, a tenth of the input price, cuts what the repeated input costs. The <a href="#" data-tab="t-cost">Cost per task</a> tab moves both.</p>
+</section>
+
+<section id="s-kv">
+<h2>Gemma attention: why memory stops growing</h2>
+<p>During generation a model keeps every earlier token's keys and values, the <b>KV cache</b>, so they are not recomputed. A sliding-window ("local") layer only ever looks back <i>W</i> tokens, so its cache stops growing at the window; a global layer keeps every token. For one sequence of <i>T</i> tokens:</p>
+<div class="fm"><math display="block"><mtext>KV</mtext><mo>=</mo><mrow><mo>(</mo><msub><mi>L</mi><mi>g</mi></msub><mspace width="0.2em"/><mi>T</mi><mspace width="0.2em"/><msub><mi>e</mi><mi>g</mi></msub><mo>+</mo><msub><mi>L</mi><mi>l</mi></msub><mspace width="0.2em"/><mo>min</mo><mo>(</mo><mi>T</mi><mo>,</mo><mi>W</mi><mo>)</mo><mspace width="0.2em"/><msub><mi>e</mi><mi>l</mi></msub><mo>)</mo></mrow><mo>×</mo><mi>b</mi><mspace width="2em"/><msub><mi>e</mi><mi>l</mi></msub><mo>=</mo><mn>2</mn><msub><mi>H</mi><mtext>kv</mtext></msub><msub><mi>d</mi><mi>h</mi></msub></math>
+<dl><dt>L<sub>g</sub>, L<sub>l</sub></dt><dd>number of global and local layers</dd><dt>e<sub>g</sub>, e<sub>l</sub></dt><dd>elements stored per token in one global or local layer: keys plus values, 2 × KV heads × head dimension (one copy instead of two where keys are reused as values)</dd><dt>W</dt><dd>the sliding window, 1,024 tokens on Gemma 3 and the larger Gemma 4 models</dd><dt>b</dt><dd>bytes per element: 2 for bf16, 1 for int8</dd></dl></div>
+<p>Past <i>T</i> = <i>W</i> only the global term grows, so long-context memory is set almost entirely by the global layers. Gemma 3's report puts the cache's share of inference memory at about 60% for a global-only model against under 15% with sliding windows of 1,024, measured with a 32K-token prefill ({{Gemma 3 report|@g3}}). The cost is that most layers cannot see distant tokens directly and depend on the global layers to carry them.</p>
+<div class="card" id="stp">
+<p class="try"><b>Try:</b> each cell is one layer of the chosen model; global layers are dark. The default, Gemma 3 27B at 128K tokens, reproduces about 10.4 GiB of cache against 62 GiB if every layer were global. Move the context below 1,024 tokens: the two layouts cost the same. Switch to Gemma 4 31B to see wider global heads paid for by reusing keys as values.</p>
+<div class="seg" id="stpM"><button data-m="g3" class="on">Gemma 3 27B</button><button data-m="g2">Gemma 3 27B with Gemma 2's 1:1, 4,096 layout</button><button data-m="g4">Gemma 4 31B</button></div>
+<div class="ctl"><label>Context: <b id="stpTv"></b><input type="range" id="stpT" min="0" max="8" value="7"></label></div>
+<div id="stpStrip" class="strip"></div>
+<div class="out" id="stpOut"></div>
+<p class="small mute">Gemma 3 27B: 62 layers (52 local, 10 global), 16 KV heads of dimension 128, so 8 KiB per layer per token in bf16, the gallery's 496 KiB per token if no window were credited ({{gallery|@gallery}}; {{LLM Architecture Gallery page|n:3c65c17b0d0d81be8a07f2562fa2030a}}). The middle option is <span class="ill">illustrative</span>: Gemma 3 27B's dimensions under Gemma 2's one-to-one layout with a 4,096 window. Gemma 4 31B from its {{config|@cfg31}}: 50 local layers with 16 KV heads of 256, 10 global layers with 4 KV heads of 512 and keys reused as values. GiB is 2<sup>30</sup> bytes.</p>
+</div>
+<p><b>Gemma 4's two global-layer savings.</b> Reusing keys as values stores one vector per global head instead of two. p-RoPE applies rotary position to only a fraction <i>p</i> = 0.25 of each global head's dimensions ({{config|@cfg31}}: <code>partial_rotary_factor</code> 0.25, base 1,000,000 against 10,000 on local layers). The report says these, "combined with KV cache sharing and the reuse of keys as values in global layers ... reduce the global KV cache footprint by up to 37.5%" ({{Gemma 4 report|@g4r}}), and does not show the arithmetic.</p>
+<div class="card" id="prp">
+<p class="try"><b>One accounting that gives exactly 37.5%</b> (<span class="ill">our reconstruction</span>): if the rotated part of each key must be stored separately from the unrotated value, a global head stores the value (<i>d</i>) plus the rotated fraction of the key (<i>p d</i>) instead of key and value (2<i>d</i>), a saving of (1 − <i>p</i>) / 2. Move <i>p</i>: at 0.25 it lands on the report's figure; at 1 (ordinary RoPE) sharing saves nothing; at 0 it saves half.</p>
+<div class="ctl"><label>Rotated fraction p: <b id="prpPv"></b><input type="range" id="prpP" min="0" max="100" value="25"></label></div>
+<div id="prpOut"></div>
+<p class="small mute">The report's own memory table, and the gallery's 840 KiB per token for the 31B, count one stored vector per global head, a 50% cut; recomputed from the config that reproduces the table's 1.10 GB cache at 32K (see <a href="#" data-tab="t-gemma">Gemma on one machine</a>). So the two figures in the report imply slightly different accounting.</p>
+</div>
+<p>The edge models go further and share KV caches across layers: in E2B the last 20 of 35 layers, and in E4B the last 18 of 42, reuse earlier layers' caches ({{Gemma 4 report|@g4r}}; <code>num_kv_shared_layers</code> in the configs). The generic mechanism of sliding windows, and the other attention variants, are on {{LLM Architecture Gallery and the architectural deltas that matter|n:3c65c17b0d0d81be8a07f2562fa2030a}}.</p>
+</section>
+
+<section id="s-moe">
+<h2>Gemma 4 on one machine: sparse against dense</h2>
+<p>Gemma 4 offers one quality band two ways, a 26B mixture of experts and a 31B dense model, and the choice is memory against compute. A transformer's forward pass costs about two floating-point operations per parameter that touches the token:</p>
+<div class="fm"><math display="block"><mi>F</mi><mo>≈</mo><mn>2</mn><mspace width="0.2em"/><msub><mi>N</mi><mtext>active</mtext></msub></math>
+<dl><dt>F</dt><dd>floating-point operations per generated token</dd><dt>N<sub>active</sub></dt><dd>parameters used for that token: all of them in a dense model, the routed experts plus the shared parts in an MoE</dd></dl></div>
+<p>Memory, by contrast, has to hold every parameter, active or not. <b>Worked example</b>, figures from the Gemma 4 report's memory table (text only, KV cache in int8 at a 32K context, {{Gemma 4 report|@g4r}}):</p>
+<ol>
+<li>Compute: 26B A4B has 3.8B active, so <i>F</i> ≈ 2 × 3.8 × 10<sup>9</sup> = 7.6 GFLOP per token; 31B has <i>F</i> ≈ 2 × 30.7 × 10<sup>9</sup> = 61.4 GFLOP. The MoE does about 8 times less arithmetic per token.</li>
+<li>Weights in bf16: 52.0 GB against 64.0 GB, only about 20% less (52 / 64 = 0.81), because every expert has to be resident. Both fit one 80 GB H100 unquantized ({{Google|@g4b}}).</li>
+<li>Weights at 4 bits (Q4_0): 16.2 GB against 19.2 GB, so both fit a 24 GB card, the MoE with more room to spare.</li>
+<li>KV cache at 32K: 0.28 GB against 1.10 GB; the MoE has 30 layers against the dense model's 60, and fewer, narrower KV heads.</li>
+<li>Decode reads the weights it uses for every token. The table gives the MoE's active weights as 7.6 GB in bf16 and 2.8 GB at 4 bits, against all 19.2 GB for the dense 31B at 4 bits, about 7 times less to read per token.</li>
+</ol>
+<p>So with memory to spare, the MoE generates far faster at a similar footprint. When memory is the constraint (a 16 GB card), neither fits at 4 bits, and the 12B Unified (24.0 GB in bf16, 7.65 GB at 4 bits) is the model that does. <a href="#" data-tab="t-gemma">Gemma on one machine</a> lets you set the memory, context and precision. The routing mechanism and the general trade are on {{Mixture-of-Experts (MoE) models|n:3c65c17b0d0d810080cce6648ac8f2f2}}.</p>
+</section>
+
+<section id="s-train">
+<h2>How Google trains</h2>
+<h3>Everything on TPUs</h3>
+<p>Google's model cards name only its own hardware and software. Gemini 3 Pro was trained on TPUs with <b>JAX</b> (a functional array library that traces Python into XLA-compiled programs, with sharding expressed as annotations on arrays rather than as a wrapper around a module tree) and <b>ML Pathways</b> (the orchestration layer that lets one program drive many TPU pods asynchronously) ({{model card|@mc3}}). Gemini 2.5 trained with synchronous data parallelism across multiple 8,960-chip TPU v5p pods in several datacenters, and its slice-granularity elasticity kept about 97% of throughput through local failures by continuing on fewer slices ({{Gemini 2.5 report|@g25}}). Gemma 4 trained on TPU v6e (4,096 chips for E2B up to 10,240 for the 31B), the 12B on 12,288 TPU v4 chips ({{Gemma 4 report|@g4r}}).</p>
+<p>It buys freedom from GPU supply, pricing and allocation politics, and a pod interconnect built for exactly this collective pattern. It costs transferability: essentially none of the stack carries to an outside practitioner the way PyTorch, FSDP and NCCL do, and the work is correspondingly hard to reproduce. Since 2026 the dependency also runs outward: Ironwood, the seventh TPU generation, is the first Google sells for other companies' workloads, and Anthropic's deal for up to a million TPUs runs on it ({{TPUs: systolic arrays and pod-scale machines|n:3c65c17b0d0d8151bbc2e0ceea196187}}); Alphabet's Q2 2026 results say Google Cloud "generates product revenues primarily from the sale of TPU systems" ({{Alphabet Q2 2026|@alpha}}). The software is on {{Topic: jax-and-tpu|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}.</p>
+<h3>Native multimodality from pretraining</h3>
+<p>Trained in from the start rather than added as an adapter, since 1.0: audio and video in, images out through integrated generation (the Nano Banana image models), all through one context window. Gemma 4's 12B Unified carries the idea to the open family by dropping the separate encoder altogether. Where this sits among shallow, modular and unified designs is on {{Multimodal LLM Architectures|n:3c65c17b0d0d8139bd6cd4137dd2a4d8}}.</p>
+<h3>One distillation pipeline, many products</h3>
+<p>In <b>knowledge distillation</b> a small student is trained to match a large teacher's whole next-token probability distribution, not just the single correct token, which carries more information per example. Storing a full distribution over a vocabulary of about 262,000 tokens for every training token is too expensive, so Google keeps part of it: Gemini 2.5 approximates the teacher "using a k-sparse distribution over the vocabulary" (only the most likely tokens) ({{Gemini 2.5 report|@g25}}), and Gemma 3 samples 256 logits per token weighted by the teacher's probabilities ({{Gemma 3 report|@g3}}). Flash and below have been distilled this way since Gemini 1.5, and Gemma is the open end of the same pipeline, which is why the open models track the closed ones so closely in behaviour.</p>
+<div class="card" id="dst">
+<p class="try"><b>Try:</b> how much teacher output one student run would have to store. The default is Gemma 3 27B's 14T tokens with 256 entries kept per token.</p>
+<div class="ctl"><label>Entries kept per token, k: <b id="dstKv"></b><input type="range" id="dstK" min="0" max="14" value="8"></label>
+<label>Training tokens <select id="dstN" style="width:100%"><option value="2e12">2T (Gemma 3 1B)</option><option value="4e12">4T (4B)</option><option value="12e12">12T (12B)</option><option value="14e12" selected>14T (27B)</option></select></label></div>
+<div class="out" id="dstOut"></div>
+<p class="small mute">Vocabulary 262,144 entries. Bytes per entry are <span class="ill">illustrative</span>: 4 bytes per probability for the full distribution, 4 for the probability plus 4 for the token id when only k entries are kept. Google does not publish how it stores them.</p>
+</div>
+<h3>Distribution is the strategic asset</h3>
+<p>Search (AI Overviews and AI Mode), Workspace, Android and Vertex all ship Gemini by default. The Gemini app had 950 million monthly active users, and Gemini models process 22 billion API tokens a minute, in Alphabet's Q2 2026 results ({{Alphabet Q2 2026|@alpha}}) Earlier reporting gave 750 million at the end of 2025; that figure is not in the Q2 release and its source is not confirmed here. It now reaches a rival's flagship surface: Apple's rebuilt Siri entered public beta on 14 September 2026 running on models "custom-built in collaboration with Google and its Gemini models", split between the device and Apple's Private Cloud Compute, with the EU excluded at launch and China awaiting regulatory approval ({{AI Weekly, citing Apple|@siri}}). Google supplies the assistant model on the phones it competes with: distribution bought rather than owned, and evidence that the training stack rather than the app is the durable asset.</p>
+</section>
+
+<section id="s-when">
+<h2>Which model when</h2>
+<div class="tw"><table class="lt">
+<tr><th>Need</th><th>Use</th></tr>
+<tr><td>Most production traffic, agents and coding on a budget</td><td>3.8 Flash at the default medium level; low for extraction and classification, high for multi-step planning. Measure cost per task, not per token, and cache repeated context.</td></tr>
+<tr><td>Highest volume, latency-bound (routing, tagging, short extraction)</td><td>3.1 Flash-Lite, the cheapest, or 3.5 Flash-Lite where you want the minimal level and faster output.</td></tr>
+<tr><td>The hardest reasoning through the open API</td><td>3.8 Flash at high: on the Intelligence Index v4.3 it scores 40.9 against 29.7 for 3.1 Pro, the Pro tier by name and still a preview ({{3.1 Pro|@aa31}}). Argon (52.6) is the frontier model, but only for those admitted.</td></tr>
+<tr><td>Long video, long audio or a stack of PDFs</td><td>Any 3.x model's 1M window; work out the token count first and keep media resolution at the default unless fine detail matters.</td></tr>
+<tr><td>Voice agents</td><td>3.8 Live, or Live Extended Thinking when the agent must reason and call tools mid-conversation.</td></tr>
+<tr><td>Vulnerability work</td><td>The Cyber models, through the Fairwind Program.</td></tr>
+<tr><td>Open weights on your own hardware</td><td>Gemma 4 26B A4B for speed when memory allows, 31B dense for the strongest single model, 12B Unified for a 16 GB laptop, E2B or E4B on a phone.</td></tr>
+<tr><td>Long input, short output, open weights</td><td>A T5Gemma 2 encoder-decoder.</td></tr>
+</table></div>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary><b>Comparing Flash generations on the per-token price.</b></summary><div class="b">3.6, 3.7 and 3.8 Flash have the same price list; 3.8 Flash costs about a third more per task ($1.24 against $0.93 on the Intelligence Index v4.3) because it spends more tokens.</div></details>
+<details class="mist"><summary><b>Sending one thinking configuration to every model.</b></summary><div class="b">Minimal is not supported on 3.8 Flash, 3.7 Flash or 3.1 Pro, defaults differ (medium, high or minimal), and <code>thinking_budget</code> belongs to an API that has moved.</div></details>
+<details class="mist"><summary><b>Assuming you pay only for the summary.</b></summary><div class="b">Thinking tokens are billed in full as output even when only a summary returns.</div></details>
+<details class="mist"><summary><b>Dropping thought signatures.</b></summary><div class="b">Rebuilding history without the thought blocks breaks multi-turn tool use.</div></details>
+<details class="mist"><summary><b>Taking "1M tokens" as "an hour of anything".</b></summary><div class="b">An hour of video is 342,000 tokens at the default resolution and over the limit at high.</div></details>
+<details class="mist"><summary><b>Planning around a preview model as if it were stable.</b></summary><div class="b">3 Pro Preview (18 November 2025) was shut down and redirected on 9 March 2026, within four months of launch.</div></details>
+<details class="mist"><summary><b>Taking the Pro tier for the strongest open-API model.</b></summary><div class="b">On the current index 3.1 Pro (29.7) sits below 3.8 Flash at high (40.9); tier names track size and price, not this year's scores.</div></details>
+<details class="mist"><summary><b>Reading E4B as a 4B checkpoint.</b></summary><div class="b">It is an 8B checkpoint with 4.5B effective parameters; the saving depends on running PLE outside accelerator memory.</div></details>
+<details class="mist"><summary><b>Choosing the MoE when memory is the constraint.</b></summary><div class="b">26B A4B is about 8 times cheaper in compute per token than 31B but only about 20% smaller in memory.</div></details>
+<details class="mist"><summary><b>Assuming Gemma carries its old licence.</b></summary><div class="b">Gemma 4 is Apache 2.0; Gemma 3 and earlier are under Google's Gemma terms.</div></details>
+</section>
+</div>

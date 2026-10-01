@@ -1,0 +1,49 @@
+<div class="tab" id="t-line" role="tabpanel" hidden>
+<h2>Lineage: every release and every turn, on one axis</h2>
+<p>Open-weight releases above the line, closed models and products below it, and the organisational events that explain the switch in their own lane. Filled dots are open weights, rings are closed. Click a dot for its card.</p>
+<div class="seg" id="lnR"><button class="on" data-m="all">2023 to 2026</button><button data-m="z">2025 to 2026</button></div>
+<div class="plot" id="lnSvg"></div>
+<p class="small mute">Read along the top lane for the Llama cadence (four generations in 26 months, then nothing for 16 months); read down at mid 2025 to see the organisation change before the models do.</p>
+<div id="lnCards"></div>
+</div>
+
+<div class="tab" id="t-fit" role="tabpanel" hidden>
+<h2>Run it yourself: parameters, memory and fit</h2>
+<p>Every open Meta model's parameter count rebuilt from its <code>config.json</code>, then weights plus key-value cache against the memory you have. Weights are parameters times bytes per parameter; the cache is <span class="m">2 × layers × KV heads × head size × bytes</span> per token for each layer that keeps the whole context, and a fixed window's worth for each local layer.</p>
+<div class="ctl">
+<label>Model<br><select id="ftM"></select></label>
+<label>Weight precision<br><select id="ftW"><option value="2">BF16 (2 bytes)</option><option value="1">FP8 or Int8 (1 byte)</option><option value="0.5">Int4 (half a byte)</option></select></label>
+<label>Hardware<br><select id="ftH"><option value="24">One 24 GB GPU (RTX 4090)</option><option value="32">One 32 GB GPU (RTX 5090)</option><option value="80" selected>One H100 (80 GB)</option><option value="640">One 8-GPU H100 host (640 GB)</option></select></label>
+<label>Context: <b id="ftCv"></b><input type="range" id="ftC" min="10" max="23.33" step="0.01" value="15"></label>
+</div>
+<div id="ftBar"></div>
+<div class="out" id="ftOut"></div>
+<div class="tw"><table class="ptab" id="ftTab"></table></div>
+<p class="repro" id="ftRep"></p>
+<h3>Every model at a glance</h3>
+<p class="small">Weights at the precision chosen above, cache at the context chosen above, on the hardware chosen above.</p>
+<div id="ftAll" class="bars"></div>
+<p class="small mute">Assumptions: half a byte per parameter for Int4 ignores the scales and the layers a real 4-bit build keeps at higher precision, so real files are a little larger (Glimmer's 4-bit build is 17 GB against the 14.8 GB computed here); the cache is BF16; activations, the vision encoder's work and framework overhead are not counted. Glimmer's 29.6B is reproduced only if its gated attention adds one gate matrix the size of the query projection per layer, an <span class="ill">assumption</span>: the card says "Gated attention: Yes" without the shape. Configs: {{Llama 3.1 8B|@c8}}, {{70B|@c70}}, {{405B|@c405}}, {{Scout|@sc4}}, {{Maverick|@mv4}} (Unsloth mirrors of Meta's gated repositories), {{Muse Glimmer|@glimcfg}}.</p>
+</div>
+
+<div class="tab" id="t-exp" role="tabpanel" hidden>
+<h2>Overtraining explorer: how long should a model be trained?</h2>
+<p>Chinchilla's answer counts training only. Count serving as well and the cheapest way to reach a given quality changes: fix the loss you need, then pick the size <i>N</i> and training tokens <i>D</i> on the curve of equal loss that minimise <span class="m">6<i>ND</i> + 2<i>NT</i></span> over a lifetime of <i>T</i> served tokens ({{Sardana et al.|@sard}}). Quality is the fitted loss law</p>
+<div class="fm"><math display="block"><mi>L</mi><mo>(</mo><mi>N</mi><mo>,</mo><mi>D</mi><mo>)</mo><mo>=</mo><mi>E</mi><mo>+</mo><mfrac><mi>A</mi><msup><mi>N</mi><mi>α</mi></msup></mfrac><mo>+</mo><mfrac><mi>B</mi><msup><mi>D</mi><mi>β</mi></msup></mfrac></math>
+<dl><dt>L</dt><dd>pre-training loss (nats per token on Chinchilla's data)</dd><dt>E</dt><dd>the irreducible loss</dd><dt>A, α</dt><dd>how fast loss falls with parameters</dd><dt>B, β</dt><dd>how fast loss falls with training tokens</dd></dl></div>
+<div class="ctl">
+<label>Quality to reach<br><select id="exQ"><option value="s4">Sardana et al. Table 2: loss 1.96, 5T served</option><option value="l8">Llama 3 8B on 15T</option><option value="l70">Llama 3 70B on 15T</option><option value="l1">Llama 1 7B on 1T</option><option value="l405">Llama 3.1 405B on 15.6T</option></select></label>
+<label>Fitted law<br><select id="exF"><option value="sard">Hoffmann, as used by Sardana et al. (α 0.336, β 0.283)</option><option value="hr">Hoffmann, rounded (α 0.34, β 0.28)</option><option value="hp">Hoffmann, precise (Besiroglu et al.)</option><option value="ep">Epoch replication (Besiroglu et al.)</option></select></label>
+<label>Lifetime tokens served T: <b id="exTv"></b><input type="range" id="exT" min="10" max="15" step="0.0001" value="12.699"></label>
+</div>
+<div class="plot" id="exSvg"></div>
+<div class="leg" id="exLeg"></div>
+<div class="out" id="exOut"></div>
+<p class="repro" id="exRep"></p>
+<h3>The optimum moves with demand</h3>
+<p class="small">Optimal tokens per parameter against lifetime tokens served, for the quality chosen above, under each fitted law; Meta's actual ratios are the dashed lines.</p>
+<div class="plot" id="exSvg2"></div>
+<div class="leg" id="exLeg2"></div>
+<div class="try"><b>Try:</b> start on the Sardana preset; the defaults reproduce their Table 2. Then choose "Llama 3 8B on 15T" and slide T: under Hoffmann's law Meta's 1,875 tokens per parameter is the optimum only for a lifetime around 10<sup>14</sup> served tokens. Switch to the Epoch fit and the same loss is reached sooner, so the optimum moves. Sardana et al. also trained models up to 10,000 tokens per parameter and found the law <i>overestimates</i> the gain from extra data at such extreme ratios, so read the far right as an upper bound on the benefit.</div>
+<p class="small mute">Loss values from a law fitted to Chinchilla's data are <span class="ill">illustrative</span> for Meta's models, which used other data and tokenizers; the explorer uses them to compare shapes, not to predict Llama's loss. Fits: {{Hoffmann et al. 2022|@chin}}; {{Sardana et al.|@sard}} (α = 0.336, β = 0.283, after De Vries); {{Besiroglu et al. 2024|@epoch}} (precise Hoffmann values and Epoch's refit). Hoffmann's own fit implies about 70 tokens per parameter at the training optimum; Epoch's refit about 20, matching how Chinchilla itself was trained.</p>
+</div>

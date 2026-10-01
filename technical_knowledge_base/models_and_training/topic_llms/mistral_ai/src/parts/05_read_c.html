@@ -1,0 +1,94 @@
+<section id="s-train">
+<h2>How Mistral trains</h2>
+<p>Mistral publishes weights first and papers rarely, so most of its recipes have to be inferred from the artefacts. Two things are documented, both in the {{Magistral paper|@magp}}.</p>
+<p><b>Distillation from its own larger models.</b> Magistral Small (24B, Apache 2.0) was cold-started with supervised fine-tuning of Mistral Small 3 on reasoning traces from Magistral Medium (correct traces from Medium's RL run, plus Medium's answers to OpenThoughts and OpenR1 code prompts, plus 10% general instruction data), then trained with reinforcement learning on top. That is distillation in the ordinary sense: the small model learns from the large one's outputs rather than from raw data alone.</p>
+<p><b>Magistral's RL recipe</b>, the one place the lab was genuinely open about method. Magistral Medium was trained from Mistral Medium 3 by <b>pure reinforcement learning with verifiable rewards</b> (RLVR): no learned reward model, and no reasoning traces distilled from someone else's reasoner. A rollout is scored by mechanically checking its final answer (a maths result by a rule-based checker with SymPy, or code against 20 unit tests), so style cannot game the reward the way it can game a preference model. The algorithm is <b>GRPO</b> (Group Relative Policy Optimisation: sample a group of answers to one prompt and score each against the group's mean instead of a learned critic; the full objective is on {{RL for LLMs: RLHF, GRPO, RLVR|n:3c65c17b0d0d818c9bcff7177325fe56}}), with Mistral's own changes:</p>
+<ul>
+<li><b>No KL penalty</b> to the starting model, so the policy may move as far as the reward pulls it; Mistral found the policy diverges regardless and the reference copy was not worth its compute.</li>
+<li><b>Clip-higher:</b> the upper clipping threshold <span class="m">ε<sub>high</sub></span> raised so rare but useful tokens can gain probability faster: tuned between 0.26 and 0.28 for Medium, 0.3 for Small. For scale, PPO's original setting is 0.2 on both sides ({{PPO paper|@ppo}}); the Magistral paper does not state its lower bound. A token at probability 0.01 may rise to 0.0128 in one update at 0.28, against 0.012 at 0.2.</li>
+<li><b>Length-normalised loss</b> over all tokens of all answers in a group, so long answers do not dominate; the advantage is simply <span class="m"><i>r<sub>i</sub></i> − μ</span> (no division by the group's spread), normalised again across each minibatch.</li>
+<li><b>Zero-advantage filtering:</b> groups where every answer got the same reward carry no learning signal and are dropped from the batch.</li>
+<li><b>Reward:</b> 0 if the format is wrong (one <code>&lt;think&gt;</code> block, the answer in <code>\boxed{}</code> or a fenced code block); otherwise 0.1 for the format, a further 0.9 for a correct answer, a soft length penalty of up to −0.1 that grows linearly once an answer passes <span class="m"><i>l</i><sub>max</sub> − <i>l</i><sub>cache</sub></span> (raised from 16k to 32k tokens during Medium's run), and 0.1 more when the problem, the reasoning and the answer are all in the same language (10% of problems were translated into French, Spanish, Italian, German, Chinese and Russian).</li>
+</ul>
+<p class="try"><b>Try:</b> one group of eight answers to the same problem. Toggle what each answer got right and watch the rewards, the advantages and the filter. Make every answer correct and the group is dropped.</p>
+<div class="card" id="gr">
+<div class="tw"><table id="grTab"></table></div>
+<div class="out" id="grOut"></div>
+<p class="small mute" style="margin:2px 0 0">Reward rules from the {{Magistral paper|@magp}}, section 2.2; the group of eight and the answers are illustrative (the paper does not state the group size). "Half into the penalty zone" is an answer halfway between <i>l</i><sub>max</sub> − <i>l</i><sub>cache</sub> and <i>l</i><sub>max</sub>. Standard GRPO divides by the group's standard deviation; Magistral does not, and normalises across the minibatch instead.</p></div>
+<p>The result, on the paper's own evaluation: AIME 2024 pass@1 went from 26.8% for Mistral Medium 3 to 73.6% for Magistral Medium (90.0% by majority vote over 64 samples), and Magistral Small reached 70.7%, against 65.4% with the distilled traces alone. The broader story of reasoning models and how their budgets are spent is on {{Reasoning models and test-time compute|n:3c65c17b0d0d8190b9b4cd0acbcb66df}}.</p>
+</section>
+
+<section id="s-lic">
+<h2>The licence ladder</h2>
+<p>What you may do with a Mistral model depends on which of four rungs it sits on, and the rung is a property of each model, not of the lab.</p>
+<div class="tw"><table class="lt"><thead><tr><th>Rung</th><th>What it allows</th><th>Current models on it</th></tr></thead><tbody>
+<tr><td>Apache 2.0</td><td>Download, fine-tune, serve and redistribute commercially; no usage-policy annex and no user cap. Redistribution keeps the licence and notices ({{Apache 2.0, section 4|@apache}}).</td><td>Large 3, Small 4, Ministral 3 (3B, 8B, 14B), Shieldstral, Voxtral Small, Voxtral Mini Transcribe Realtime; open weights also for Devstral Small 2 and Leanstral, now retired from the API</td></tr>
+<tr><td>Modified MIT</td><td>MIT terms, except that "you are not authorized to exercise any rights under this license if the global consolidated monthly revenue of your company (or that of your employer) exceeds $20 million", and that applies to derivatives too ({{licence|@m35lic}})</td><td>Medium 3.5; Devstral 2 (weights only, retired from the API)</td></tr>
+<tr><td>Non-commercial (CC BY-NC 4.0)</td><td>Open weights for research and personal use only</td><td>Voxtral TTS ({{Mistral|@vtts}})</td></tr>
+<tr><td>API only ("Premier")</td><td>Use through Mistral's API; no weights</td><td>Codestral 25.08, OCR 4.1, Codestral Embed, Mistral Embed, Mistral Moderation 2, Voxtral Mini Transcribe 2 ({{catalogue|@models}})</td></tr>
+</tbody></table></div>
+<p class="try"><b>Try:</b> describe your situation; each model shows whether you may use it and how.</p>
+<div class="card" id="lc">
+<div class="ctl" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))">
+<label><input type="checkbox" id="lcW" checked> I need the weights on my own hardware</label>
+<label><input type="checkbox" id="lcC" checked> The use is commercial</label>
+<label><input type="checkbox" id="lcR"> My company's monthly revenue is over $20M</label>
+</div>
+<div class="labs" id="lcGrid"></div>
+<p class="small mute" style="margin:6px 0 0" id="lcSum"></p></div>
+<p>Apache 2.0 is the rung that made Mistral's name. It matters as an engineering fact, not only a legal one: no acceptable-use annex and no user threshold of the kind in Meta's Llama community licence (which incorporates an acceptable use policy and requires a separate licence above 700 million monthly active users, {{Llama 3.1 licence|@llama}}), so a company can fine-tune the model and run it inside a product without asking anyone. It is also the wedge into government, defence and on-premises deals, where open weights under EU jurisdiction beat a few points of benchmark. But since 2025 the ladder has widened at both ends: the dense agentic flagships carry a revenue carve-out that bites at $20M a month, far below Llama's threshold; the voice model is non-commercial; and code completion, OCR and embeddings are API only. "Mistral is Apache 2.0" is true of its MoE flagship and its small models, not of the catalogue.</p>
+</section>
+
+<section id="s-biz">
+<h2>The business around the models</h2>
+<ul>
+<li><b>Products.</b> The consumer assistant Le Chat became <b>Vibe</b> on 28 May 2026 ("Le Chat is now Vibe", {{Mistral|@vibe}}); Vibe is also the name of Mistral's open-source (Apache 2.0) command-line coding agent, launched with Devstral 2. Developers use the API platform and AI Studio; enterprises building custom models use <b>Forge</b> (March 2026, {{Mistral|@forge}}). Since 11 August 2026 the platform offers regional endpoints that let customers choose Europe or the US for inference, a priority tier for critical workloads (public preview), and third-party open models beside Mistral's own ({{Mistral|@region}}; the {{catalogue|@models}} lists Z.ai GLM 5.3).</li>
+<li><b>Compute.</b> <b>Mistral Compute</b> (announced June 2025) is a private stack of GPUs, orchestration, APIs and services on Nvidia reference architectures, with "tens of thousands of GPUs" ({{Mistral|@compute}}). The aim of 1 GW of compute capacity in Europe by 2030 was stated on 11 August 2026 ({{Mistral|@region}}) and repeated after the Series D.</li>
+<li><b>Money.</b> A €1.7B Series C in September 2025, led by ASML, at an €11.7B post-money valuation (often quoted as about $14B) ({{Mistral|@raise}}). Then a €3B Series D on 8 September 2026, led by Samsung Electronics with EQT's Scaleup Europe Fund and PSG Equity as co-leads, at more than €21B post-money, which Mistral calls the largest equity round ever completed by a European technology company; the money goes to compute, infrastructure, commercial growth and international expansion ({{TechCrunch|@tc}}). It acquired Koyeb (a Paris start-up, February 2026, {{Wikipedia|@wiki}}) and Emmi AI (industrial engineering simulation, May 2026, {{Mistral|@emmi}}), and opened a Munich hub for industrial AI on 28 September 2026 ({{Mistral|@munich}}).</li>
+<li><b>Distribution.</b> Since 16 September 2026 Mistral Small 4 is one of the selectable models in Mozilla's <b>Firefox Smart Window</b> beta, starting in France and North America, with zero data retention agreed by Mistral ({{Mistral|@moz}}; {{Gigazine|@gig}}). It is the sovereignty argument reaching a consumer surface rather than a procurement one.</li>
+</ul>
+</section>
+
+<section id="s-cat">
+<h2>Current models</h2>
+<div class="tw"><table class="lt"><thead><tr><th>Model</th><th>Role</th><th>Size</th><th>Licence</th></tr></thead><tbody>
+<tr><td>Mistral Large 3</td><td>Flagship, multimodal</td><td>675B total, 41B active (MoE)</td><td>Apache 2.0</td></tr>
+<tr><td>Mistral Medium 3.5</td><td>Agentic and coding flagship, reasoning setting, multimodal</td><td>128B dense</td><td>Modified MIT</td></tr>
+<tr><td>Mistral Small 4</td><td>Instruct, reasoning and coding in one model, multimodal</td><td>119B total, 6B active (MoE)</td><td>Apache 2.0</td></tr>
+<tr><td>Ministral 3</td><td>Edge and on-device: base, instruct and reasoning</td><td>3B, 8B, 14B (3.4B, 8.4B and 13.5B of language model plus a 0.4B vision encoder, {{model card|@min14}})</td><td>Apache 2.0</td></tr>
+<tr><td>Codestral 25.08</td><td>Code completion with fill-in-the-middle, 128k context</td><td>Not stated</td><td>API only ({{docs|@cod2508}})</td></tr>
+<tr><td>Voxtral family</td><td>Speech understanding, transcription, text to speech</td><td>Small 24B, Mini 3B, Realtime 4B, TTS 4B</td><td>Apache 2.0 (Small, Realtime), CC BY-NC (TTS), API only (Transcribe 2)</td></tr>
+<tr><td>OCR 4.1</td><td>Document understanding (OCR 4 deprecated)</td><td>Not stated</td><td>API only ({{docs|@ocr41}})</td></tr>
+<tr><td>Shieldstral 1.0</td><td>Policy-adaptive safety classifier</td><td>3.8B (docs) or 3B (post)</td><td>Apache 2.0</td></tr>
+<tr><td>Robostral Navigate</td><td>Camera-and-language robot navigation</td><td>8B</td><td>Not stated</td></tr>
+</tbody></table></div>
+<p class="small mute">Retired from the API but with open weights: Devstral 2 (123B dense, modified MIT), Devstral Small 2 (24B, Apache 2.0), Leanstral and Leanstral 1.5 (119B total, 6B active, Apache 2.0). Sizes of the Voxtral models from their Hugging Face cards ({{Voxtral TTS|@vttshf}}, {{Voxtral Realtime|@vrthf}}, {{Voxtral|@vox}}).</p>
+<p><b>Position.</b> Not a frontier lab on capability ("we do not yet own the best language models", Mensch), but one of the leading Western open-weight providers and the EU's strategic champion. You choose it for the licence, the jurisdiction or the price per token (Small 4 lists at $0.15 per million input and $0.60 per million output tokens, Medium 3.5 at $1.50 and $7.50, Large 3 at $0.50 and $1.50; {{Mistral|@s4}}; {{docs|@m35doc}}; {{docs|@l3doc}}), not because it tops a leaderboard. Artificial Analysis's index shows how far:</p>
+<div class="card"><div id="aaSvg" class="plot"></div>
+<p class="small mute" style="margin:2px 0 0">Every open-weight model on the {{Artificial Analysis|@aalb}} Intelligence Index v4.3 (methodology 4.3.2), read 1 October 2026, against its measured cost per index task (log scale; three models without a cost are left out). Mistral's three sit near the bottom of the open-weight field (14.2, 11.3 and 9.3 against 46.3 for the leader), but Small 4 is the cheapest per task of any model listed, open or closed, at $0.015. Hover a dot for its name.</p></div>
+</section>
+
+<section id="s-when">
+<h2>Which Mistral model when</h2>
+<ul>
+<li><b>The most capable open weights you can run yourself under Apache 2.0:</b> Large 3, if you have a full eight-GPU node. It buys the best Mistral weights with no licence conditions, and costs 675 GB of FP8 weights.</li>
+<li><b>Cheap, fast and still multimodal with a reasoning switch:</b> Small 4. It buys 6B-active decode cost and a small cache, and costs memory for all 119B parameters.</li>
+<li><b>Agentic coding and tool use, self-hosted:</b> Medium 3.5, unless your company is over the $20M monthly revenue line, in which case Devstral Small 2 (Apache 2.0, 24B, weights only now) is the unencumbered option, or Medium 3.5 through the API.</li>
+<li><b>On a phone or laptop:</b> Ministral 3 at 3B or 8B.</li>
+<li><b>A guard model in front of any generator, Mistral's or not:</b> Shieldstral, with your policy written as text.</li>
+<li><b>Code completion inside an editor:</b> Codestral, through the API.</li>
+</ul>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes and misconceptions</h2>
+<details class="mist"><summary>"Mistral models use sliding-window attention."</summary><div class="b">Mistral 7B did; Mixtral, a few months later, already used full attention over 32k, and the current models use full grouped-query or latent attention. Treat SWA as a 2023 Mistral choice, not a family trait.</div></details>
+<details class="mist"><summary>"8x7B means 56B parameters."</summary><div class="b">Only the feed-forward networks are replicated; attention and embeddings are shared, so it is 46.7B total and 12.9B active.</div></details>
+<details class="mist"><summary>"Mixtral's experts are topic experts."</summary><div class="b">Mistral's own routing analysis found syntactic rather than topical specialisation, and strong repetition between consecutive tokens.</div></details>
+<details class="mist"><summary>"Everything Mistral ships is Apache 2.0."</summary><div class="b">Medium 3.5 and Devstral 2 are under a modified MIT licence with a $20M monthly revenue exception, Voxtral TTS is non-commercial, and Codestral, OCR and the embedding models have no public weights.</div></details>
+<details class="mist"><summary>"Magistral is Mistral's reasoning model."</summary><div class="b">It was; reasoning is now a setting on Small 4 and Medium 3.5, and every Magistral version is deprecated in the catalogue.</div></details>
+<details class="mist"><summary>"Magistral was all pure RL."</summary><div class="b">Magistral Medium was; Magistral Small started from Magistral Medium's traces.</div></details>
+<details class="mist"><summary>"The 131K reach means Mistral 7B handles 131K-token inputs."</summary><div class="b">It is a theoretical bound on how far information can propagate through 32 windowed layers; the model was trained on 8,192-token contexts.</div></details>
+<details class="mist"><summary>"Large 3 is a scaled-up Mixtral."</summary><div class="b">Its configuration is DeepSeek-V3's skeleton, latent attention and a shared expert included, with 128 experts instead of 256. Mixtral's design survives in the name "MoE", not in the shape.</div></details>
+</section>
+</div>

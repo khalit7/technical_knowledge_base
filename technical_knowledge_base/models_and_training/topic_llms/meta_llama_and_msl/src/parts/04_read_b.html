@@ -1,0 +1,101 @@
+<section id="s-ot">
+<h2>The overtraining bet, in numbers</h2>
+<p>The idea Meta contributed with Llama, and still the reason its small models exist, is a cost argument. Training compute for a dense transformer is approximately</p>
+<div class="fm">
+<math display="block"><mi>C</mi><mo>≈</mo><mn>6</mn><mi>N</mi><mi>D</mi></math>
+<dl>
+<dt>C</dt><dd>training compute in floating-point operations (FLOPs)</dd>
+<dt>N</dt><dd>number of parameters (for an MoE model, the active parameters per token)</dd>
+<dt>D</dt><dd>number of training tokens</dd>
+<dt>6</dt><dd>two FLOPs per parameter per token for the forward pass and four for the backward pass</dd>
+</dl></div>
+<p>Chinchilla's compute-optimal rule sets <span class="m"><i>D</i> ≈ 20<i>N</i></span>, so for a given budget the loss-optimal size is</p>
+<div class="fm">
+<math display="block"><msup><mi>N</mi><mo>*</mo></msup><mo>=</mo><msqrt><mfrac><mi>C</mi><mn>120</mn></mfrac></msqrt><mo>,</mo><mspace width="1.5em"/><msup><mi>D</mi><mo>*</mo></msup><mo>=</mo><mn>20</mn><msup><mi>N</mi><mo>*</mo></msup></math>
+<dl>
+<dt>N*, D*</dt><dd>the compute-optimal parameter count and token count</dd>
+<dt>120</dt><dd>6 times 20, from substituting <span class="m"><i>D</i> = 20<i>N</i></span> into <span class="m"><i>C</i> = 6<i>ND</i></span></dd>
+</dl></div>
+<p>Serving the model costs about two FLOPs per parameter per generated token, so over its life</p>
+<div class="fm">
+<math display="block"><msub><mi>C</mi><mtext>serve</mtext></msub><mo>≈</mo><mn>2</mn><mi>N</mi><mi>T</mi></math>
+<dl>
+<dt>C<sub>serve</sub></dt><dd>lifetime inference compute in FLOPs</dd>
+<dt>T</dt><dd>total number of tokens the model processes in deployment</dd>
+<dt>2</dt><dd>one multiply and one add per parameter per token in the forward pass</dd>
+</dl></div>
+<p>Training is paid once and scales with <span class="m"><i>ND</i></span>; serving is paid on every token and scales with <span class="m"><i>N</i></span> alone. Shrinking <span class="m"><i>N</i></span> and growing <span class="m"><i>D</i></span> moves cost from the bill that recurs to the bill that does not. The derivation of the Chinchilla rule itself is on {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}.</p>
+
+<h3>Watch the two choices: one budget, two shapes</h3>
+<p>The animation spends Llama 3 8B's training budget twice: once as Meta did, on an 8B model, and once on the Chinchilla-optimal model for the same budget. Height is parameters, width is FLOPs per parameter (6 per training token, then 2 per served token), so <b>area is compute</b>, to scale in both modes. Both rectangles of training have the same area; then each model serves the same 15T tokens.</p>
+<div class="card" id="ot">
+<div class="an-top"><div class="seg" id="otM" role="group" aria-label="Allocation"><button class="on" data-m="meta" aria-pressed="true">Meta: 8B on 15T</button><button data-m="chin" aria-pressed="false">Chinchilla: 77.5B on 1.55T</button></div></div>
+<div id="otSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="otBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="otPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="otFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="otScrub" min="0" max="500" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="otSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="otStep"></div><p id="otCap"></p></div>
+<div class="an-cnt" id="otCnt"></div>
+<p class="small mute">The loss figures in the last step use Chinchilla's fitted loss law as refitted by Sardana et al. (<a href="#" data-tab="t-exp">Overtraining explorer</a>); they are <span class="ill">illustrative</span>, since the law was fitted to Chinchilla's data, not Meta's.</p>
+</div>
+
+<h3>Worked example: Llama 3 8B against its compute-optimal twin</h3>
+<ol>
+<li><b>Tokens per parameter.</b> 15T tokens over 8B parameters is <span class="m">15×10<sup>12</sup> / 8×10<sup>9</sup> = 1,875</span>, about 94 times Chinchilla's 20. For comparison Llama 1 7B was at <span class="m">10<sup>12</sup> / 7×10<sup>9</sup> ≈ 143</span>, about 7 times.</li>
+<li><b>Training compute.</b> <span class="m"><i>C</i> = 6 × 8×10<sup>9</sup> × 15×10<sup>12</sup> = 7.2×10<sup>23</sup></span> FLOPs.</li>
+<li><b>The compute-optimal model for that same budget.</b> <span class="m"><i>N</i>* = √(7.2×10<sup>23</sup>/120) = √(6×10<sup>21</sup>) ≈ 7.75×10<sup>10</sup></span>, a 77.5B model on <span class="m"><i>D</i>* = 20 × 77.5B = 1.55T</span> tokens.</li>
+<li><b>Serving cost per generated token.</b> <span class="m">2 × 8×10<sup>9</sup> = 1.6×10<sup>10</sup></span> FLOPs for the 8B against <span class="m">2 × 7.75×10<sup>10</sup> = 1.55×10<sup>11</sup></span> for the 77.5B, a ratio of about 9.7.</li>
+<li><b>Result.</b> The same training budget buys either the lower-loss 77.5B model or an 8B model that is nearly ten times cheaper on every token it ever serves. Meta chose the second, because the 8B is good enough for most deployments and runs on one GPU. If the 8B serves 15T tokens over its life, <span class="m"><i>C</i><sub>serve</sub> = 2 × 8×10<sup>9</sup> × 15×10<sup>12</sup> = 2.4×10<sup>23</sup></span> FLOPs, a third of its training compute; the bet pays more the more the model is used.</li>
+</ol>
+<p><b>The flagship is the instructive counter-case.</b> The 405B on 15.6T tokens is at <span class="m">15.6×10<sup>12</sup> / 405×10<sup>9</sup> ≈ 38.5</span> tokens per parameter, close to compute-optimal, and <span class="m">6 × 405×10<sup>9</sup> × 15.6×10<sup>12</sup> = 3.79×10<sup>25</sup></span> FLOPs reproduces the report's 3.8×10<sup>25</sup> ({{Llama 3 paper|@l3h}}). Meta's own fitted scaling law, run on that budget, predicted "a 402B parameter model on 16.55T tokens" (about 41 tokens per parameter), and Meta trained 405B. The overtraining was in the small models, which are the ones served at volume; the largest model was sized to the budget.</p>
+<div class="co warn"><div class="t">Meta's prediction does not reproduce from its own published numbers</div>Two checks, both <span class="ill">derived</span> here. By <span class="m">6<i>ND</i></span>, 402B on 16.55T is 3.99×10<sup>25</sup> FLOPs, 5% over the stated budget (at 3.8×10<sup>25</sup> and 16.55T, 6<i>ND</i> gives 383B). And the paper's fitted law for the optimal token count, <span class="m"><i>D</i>*(<i>C</i>) = <i>A</i><i>C</i><sup>α</sup></span> with <span class="m">(α, <i>A</i>) = (0.53, 0.29)</span>, gives 10.5T at 3.8×10<sup>25</sup>, not 16.55T; even at the edges of the published rounding (α = 0.535, <i>A</i> = 0.295) it reaches only 14.3T. Meta presumably counted FLOPs differently (attention included, for example) and fitted with unrounded constants, but the paper does not say: <span class="unc">unconfirmed</span>.</div>
+</section>
+
+<section id="s-train">
+<h2>What Meta's training reports disclose</h2>
+<p><b>Why the Llama 3 report still matters more than the model.</b> It is still the most complete public end-to-end account of training a frontier-class model, and it maps onto the stack a practitioner already runs (the paper's own row is {{The Llama 3 Herd of Models|n:3c65c17b0d0d81aca58ccb9d720b474e}}). Five parts transfer directly; every figure below is from the {{Llama 3 paper|@l3h}}.</p>
+<div class="grid">
+<div class="sp"><div class="n">1. Data and annealing</div><p>Data curation and deduplication at 15T-token scale; a final mix of roughly 50% general knowledge, 25% mathematics and reasoning, 17% code and 8% multilingual tokens; and an <b>annealing</b> phase in which the learning rate is decayed linearly to zero over the last 40M tokens while high-quality code and maths are upsampled. Annealing raised the 8B's GSM8K and MATH validation scores by 24.0% and 6.4% and did almost nothing for the 405B. Meta also used annealing as a cheap data test: take a 50%-trained 8B, anneal it on 40B tokens that include a candidate dataset, and see whether it helps.</p></div>
+<div class="sp"><div class="n">2. Scaling laws to choose the mixture and the size</div><p>Run before the main run rather than guessed: IsoFLOPs curves between 6×10<sup>18</sup> and 10<sup>22</sup> FLOPs, a parabola fitted at each budget, and the minimums extrapolated to the flagship's budget. The 402B-on-16.55T prediction above came from them.</p></div>
+<div class="sp"><div class="n">3. 4D parallelism on 16K H100 GPUs</div><p>Tensor, context, pipeline and data parallelism composed on one device mesh, with the data-parallel dimension implemented as <b>FSDP (Fully Sharded Data Parallel)</b>, which shards parameters, gradients and optimiser state across ranks and re-gathers each layer just in time; each dimension absorbs a different bottleneck. It reached 38% to 43% model FLOPs utilisation in BF16 (explore the three configurations below). The general mechanisms are on {{Distributed PyTorch: DDP, FSDP2, DTensor, and friends|n:3c65c17b0d0d815e85aff8decd8f35ab}}.</p></div>
+<div class="sp"><div class="n">4. Post-training without PPO</div><p>Llama 3 replaced Llama 2's PPO with rounds of rejection sampling (typically 10 to 30 samples per prompt, the best kept by a reward model), supervised fine-tuning, and <b>DPO (Direct Preference Optimization)</b>, which fits preferences with a classification loss on the policy itself and so needs no RL loop, run with a learning rate of 10<sup>−5</sup> and β = 0.1. Meta "explored on-policy algorithms such as PPO, but found that DPO required less compute for large-scale models and performed better". The method family is on {{Alignment: SFT, RLHF, DPO Family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}}.</p></div>
+<div class="sp"><div class="n">5. Failure at scale, measured</div><p>In a 54-day snapshot the run had 466 interruptions: 47 planned (firmware upgrades, configuration or dataset updates) and 419 unexpected, about 78% of those attributed to confirmed or suspected hardware issues, and it still achieved more than 90% effective training time through checkpointing and automated restarts (the bars below).</p></div>
+<div class="sp"><div class="n">Long context</div><p>Context was extended in six stages from 8K to 128K tokens over about 800B tokens at the end of pretraining, each stage moving on once short-context performance had recovered and needle-in-a-haystack retrieval was solved at that length.</p></div>
+</div>
+
+<div class="card" id="pp">
+<h3 style="margin-top:0">The 405B's device mesh: three configurations from Table 4</h3>
+<p class="small">GPUs are grouped in the order tensor (TP), context (CP), pipeline (PP), data (DP, as FSDP); the product of the four is the GPU count. Pick a stage of the run.</p>
+<div class="seg" id="ppS"><button class="on" data-m="0">8,192 GPUs, 8K sequences</button><button data-m="1">16,384 GPUs, 8K sequences</button><button data-m="2">16,384 GPUs, 128K sequences</button></div>
+<div id="ppMesh"></div>
+<div class="out" id="ppOut"></div>
+<p class="small mute" id="ppHow"></p>
+</div>
+
+<div class="card" id="ir">
+<h3 style="margin-top:0">The 419 unexpected interruptions, by cause (Table 5)</h3>
+<div class="chips" id="irC"></div>
+<div id="irBars" class="bars"></div>
+<p class="small" id="irSum"></p>
+</div>
+
+<h3>Llama 4's training choices</h3>
+<p>A pretraining mixture of "more than 30 trillion tokens" of text, image and video across 200 languages (the model card gives about 40T tokens for Scout and 22T for Maverick); <b>early fusion</b>, image and text tokens entering the same backbone from the first layer rather than a vision encoder's output being projected in near the top, which lets the model learn cross-modal structure at every depth (the design space is on {{Multimodal LLM Architectures|n:3c65c17b0d0d8139bd6cd4137dd2a4d8}}); <b>FP8</b> pretraining, which for Behemoth on 32K GPUs reached 390 TFLOPs per GPU (FP8 numerics are on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}); <b>MetaP</b>, Meta's method for reliably setting "critical model hyper-parameters such as per-layer learning rates" and initialisation scales so that they transfer across batch size, width, depth and token count; codistillation of Maverick from Behemoth; and iRoPE for the extreme context claim ({{Llama 4 announcement|@l4}}).</p>
+<p><b>MSL-era training details are mostly undisclosed.</b> Muse Spark and its successors have no technical report, which is the concrete cost of the closed pivot for anyone who used Meta's reports as the field's reference documentation. Muse Glimmer's model card gives only the outline (logit distillation from Muse Spark, agent-focused mid-training, SFT and RL) and the full architecture, not the data, token count or compute ({{model card|@glim}}, {{VentureBeat|@vbglim}}).</p>
+</section>
+
+<section id="s-l4">
+<h2>Inside Llama 4: experts and iRoPE, layer by layer</h2>
+<p>The configuration files show what the announcement compresses. Both models have 48 layers of width 5,120 with 40 query heads sharing 8 key-value heads of 128 dimensions. <b>Scout puts an MoE block in every layer</b> (16 experts plus the shared one); <b>Maverick alternates</b>: odd layers are MoE with 128 experts plus the shared one, even layers are dense with a feed-forward block twice an expert's width ({{Scout config|@sc4}}, {{Maverick config|@mv4}}, read from Unsloth's mirrors because Meta's repositories are gated). So "alternates dense and MoE layers" is true of Maverick only.</p>
+<p>The context claim rests on <b>iRoPE (interleaved RoPE)</b>. Three layers in four use rotary position embeddings and attend only within chunks of 8,192 tokens; every fourth layer carries no positional encoding at all and attends to the whole context, so it is length-agnostic by construction (rotary embeddings themselves are on {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}). Those global layers also scale their queries by a temperature that grows with position, the "inference time temperature scaling of attention" of the announcement ({{Llama 4 announcement|@l4}}); in Hugging Face's implementation the factor is <span class="m">1 + 0.1 ln(1 + ⌊(<i>p</i>+1)/8192⌋)</span> at position <i>p</i>, after {{Nakanishi's scalable softmax|@ssmax}} ({{code|@hfl4}}). Sharper attention far into a long context keeps the softmax from flattening over millions of keys.</p>
+<div class="card" id="l4">
+<div class="an-top"><div class="seg" id="l4M"><button class="on" data-m="mav">Maverick (400B)</button><button data-m="sco">Scout (109B)</button></div></div>
+<div class="l4s" id="l4Strip"></div>
+<div class="leg"><span><i class="legsq" style="background:var(--acc)"></i>MoE layer</span><span><i class="legsq" style="background:var(--c5)"></i>dense layer</span><span><i class="legsq" style="background:var(--bad)"></i>global attention, no position encoding</span><span><i class="legsq" style="background:var(--soft);border:1px solid var(--line)"></i>chunked 8,192, RoPE</span></div>
+<label class="small">Position in the context: <b id="l4Pv"></b><input type="range" id="l4P" min="13" max="23.33" step="0.01" value="17"></label>
+<div class="out" id="l4Out"></div>
+<div class="tw"><table class="ptab" id="l4Tab"></table></div>
+<p class="repro" id="l4Rep"></p>
+</div>
+<p>Two consequences follow. Each token computes with the attention of all 48 layers plus two expert-sized blocks per layer (the shared expert and one routed one, or the dense block of the same total width), which is why both models are 17B active despite storing 109B and 400B. And the cache that grows with context belongs to 12 global layers only, a quarter of a dense design's; the <a href="#" data-tab="t-fit">Run it yourself</a> tab adds it to the weights. A claimed window is still not demonstrated quality at that length.</p>
+</section>

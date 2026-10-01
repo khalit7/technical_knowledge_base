@@ -1,0 +1,244 @@
+SOURCE: https://huggingface.co/CohereLabs/North-Small-Translate-1.0
+
+
+ CohereLabs/North-Small-Translate-1.0 · Hugging Face
+ Hugging Face 
+ Models 
+ Datasets 
+ Spaces 
+ Buckets new
+ Docs 
+ Enterprise 
+Pricing 
+Website 
+ Tasks 
+ HuggingChat 
+ Collections 
+ Languages 
+ Organizations 
+Community 
+ Blog 
+ Posts 
+ Daily Papers 
+ Hardware 
+ Learn 
+ Discord 
+ Forum 
+ GitHub 
+Solutions 
+ Team & Enterprise 
+ Hugging Face PRO 
+ Enterprise Support 
+ Inference Providers 
+ Inference Endpoints 
+ Storage Buckets 
+Log In 
+Sign Up 
+ CohereLabs 
+/ 
+North-Small-Translate-1.0 
+ Like 57 
+Follow Cohere Labs 3.77k 
+ Translation 
+ Transformers 
+ Safetensors 
+ 49 languages 
+ cohere2_moe 
+ text-generation 
+ conversational 
+ chat 
+ License: cc-by-nc-4.0 
+ Model card Files Files and versions 
+ xet Community 
+3 
+ Deploy 
+ Copy to bucket new 
+ Use this model 
+Instructions to use CohereLabs/North-Small-Translate-1.0 with libraries, inference providers, notebooks, and local apps. Follow these links to get started. 
+Libraries 
+ Transformers 
+How to use CohereLabs/North-Small-Translate-1.0 with Transformers: 
+# Use a pipeline as a high-level helper
+# Warning: Pipeline type "translation" is no longer supported in transformers v5.
+# You must load the model directly (see below) or downgrade to v4.x with:
+# 'pip install "transformers<5.0.0'
+from transformers import pipeline
+pipe = pipeline("translation", model="CohereLabs/North-Small-Translate-1.0")
+messages = [
+ {"role": "user", "content": "Who are you?"},
+]
+pipe(messages) 
+# Load model directly
+from transformers import AutoTokenizer, AutoModelForCausalLM
+tokenizer = AutoTokenizer.from_pretrained("CohereLabs/North-Small-Translate-1.0")
+model = AutoModelForCausalLM.from_pretrained("CohereLabs/North-Small-Translate-1.0", device_map="auto")
+messages = [
+ {"role": "user", "content": "Who are you?"},
+]
+inputs = tokenizer.apply_chat_template(
+ messages,
+ add_generation_prompt=True,
+ tokenize=True,
+ return_dict=True,
+ return_tensors="pt",
+).to(model.device)
+outputs = model.generate(**inputs, max_new_tokens=40)
+print(tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1]:])) 
+Notebooks 
+ Google Colab 
+ Kaggle 
+ You need to agree to share your contact information to access this model 
+This repository is publicly accessible, but you have to accept the conditions to access its files and content. 
+By submitting this form, you agree to the License Agreement and acknowledge that the information you provide will be collected, used, and shared in accordance with Cohere’s Privacy Policy. You’ll receive email updates about Cohere Labs and Cohere research, events, products and services. You can unsubscribe at any time.
+Log in or Sign Up to review the conditions and access this model content. 
+Model Card for North Small Translate 
+Model Summary 
+Model Details 
+Evaluation 
+Model Card Contact 
+Terms of Use: 
+Try it now: 
+ Model Card for North Small Translate
+ Model Summary
+North Small Translate is an open weights research release of a sparse Mixture-of-Experts model with 25 billion active parameters and 218 billion total parameters, specialized for high-quality machine translation across 50 languages.
+Developed by: Cohere and Cohere Labs
+Point of Contact: Cohere Labs
+License: CC BY-NC 4.0, requires also adhering to Cohere Lab's Acceptable Use Policy
+Model: North-Small-Translate-1.0
+Model Size: 25B active parameters, 218B total parameters
+Context length: 16K input & 16K output
+Try North Small Translate
+You can try out North Small Translate before downloading the weights in our hosted Hugging Face Space.
+Available quantizations
+The following quantizations are available, with example minimum GPU requirements.
+ | Quantization
+ | Blackwell
+ | Hopper
+ | BF16 (16-bit)
+ | 4 x B200
+ | 8 x H100
+ | FP8 (8-bit)
+ | 2 x B200
+ | 4 x H100
+ | NVFP4 W4A16 (4-bit weights)
+ | 1 x B200
+ | 2 x H100
+All three variants are the checkpoints Cohere serves in production for this model.
+Usage
+Please install transformers from the source repository that includes the necessary changes for this model. We recommend greedy decoding, which is what the production deployment of this model uses.
+On a node sized close to the minimum in the table above, such as 8 x H100, pass max_memory alongside device_map="auto". On its own, device_map="auto" fills each device with weights and leaves no room for the temporary buffers used to fuse the Mixture-of-Experts layers during loading, which can exhaust memory partway through:
+import torch
+model = AutoModelForCausalLM.from_pretrained(
+ model_id,
+ dtype="auto",
+ device_map="auto",
+ max_memory={i: "70GiB" for i in range(torch.cuda.device_count())},
+)
+Setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True in the environment further reduces fragmentation during loading.
+The model wraps its reply in structural markers such as <|START_TEXT|> and <|END_TEXT|>. These are deliberately not registered as special tokens, because the vLLM reasoning and tool-call parsers rely on seeing them, which also means skip_special_tokens=True does not remove them. generate additionally returns the prompt followed by the completion. Decoding the whole sequence therefore prints the system instructions and the markers back to you.
+Slice off the prompt and parse the remainder with Cohere's melody library, which is the same parser vLLM uses:
+# pip install transformers cohere_melody
+from cohere_melody import PyFilter, PyFilterOptions
+from transformers import AutoTokenizer, AutoModelForCausalLM
+model_id = "CohereLabs/North-Small-Translate-1.0"
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(model_id, dtype="auto", device_map="auto")
+# Format message with the North-Small-Translate-1.0 chat template
+messages = [{"role": "user", "content": "Translate everything that follows into Spanish:\n\nEnterprises rely on translation for some of their most sensitive and business-critical documents and cannot risk data leakage, compliance violations, or misunderstandings."}]
+input_ids = tokenizer.apply_chat_template(
+ messages,
+ tokenize=True,
+ add_generation_prompt=True,
+ return_tensors="pt",
+).to(model.device)
+gen_tokens = model.generate(
+ input_ids,
+ max_new_tokens=4096,
+ do_sample=False,
+)
+# Keep only the newly generated tokens, then strip the structural markers.
+completion = tokenizer.decode(gen_tokens[0][input_ids.shape[-1]:])
+# start_in_answer matches this template, which opens and closes the thinking
+# block in the generation prompt, so the completion begins in the answer.
+parser = PyFilter(PyFilterOptions().cmd4().start_in_answer())
+print(parser.process_full_text(completion).content)
+You can also use the model directly using the transformers pipeline abstraction. The pipeline removes the prompt for you, so the system instructions cannot leak, but the reply still carries its closing marker and is worth parsing the same way:
+from cohere_melody import PyFilter, PyFilterOptions
+from transformers import pipeline
+model_id = "CohereLabs/North-Small-Translate-1.0"
+pipe = pipeline(
+ "text-generation",
+ model=model_id,
+ dtype="auto",
+ device_map="auto",
+)
+messages = [
+ {"role": "user", "content": "Take the English text that follows and translate it into German. Only respond with the translated text.\n\nNorth Small Translate is available today for research use on Hugging Face."},
+]
+outputs = pipe(
+ messages,
+ max_new_tokens=300,
+ do_sample=False,
+)
+parser = PyFilter(PyFilterOptions().cmd4().start_in_answer())
+print(parser.process_full_text(outputs[0]["generated_text"][-1]["content"]).content)
+System instructions
+The chat template applies a default system instruction that names the model and sets its safety defaults. You can replace it by passing your own platform_instruction_override to apply_chat_template:
+input_ids = tokenizer.apply_chat_template(
+ messages,
+ platform_instruction_override="You are a professional translator. Preserve all formatting and markup exactly.",
+ tokenize=True,
+ add_generation_prompt=True,
+ return_tensors="pt",
+)
+Per-conversation instructions can also be supplied as an ordinary system message, which is appended after the default instruction rather than replacing it.
+vLLM
+You can also run the model in vLLM. Accurate response parsing requires installing Cohere's melody library.
+uv pip install vllm
+uv pip install cohere_melody>=0.9.0
+Then the vLLM server can be started with the following command:
+# This is for H100, adjust tp for your device
+vllm serve CohereLabs/North-Small-Translate-1.0 \
+ -tp 8 \
+ --max-model-len 32768 \
+ --tool-call-parser cohere_command4 \
+ --reasoning-parser cohere_command4 \
+ --enable-auto-tool-choice
+ Model Details
+Input: Text only.
+Output: Model generates text.
+Model Architecture: North Small Translate is a decoder-only sparse Mixture-of-Experts Transformer model. With 25B active parameters and 218B total parameters, it has 128 experts, of which 8 are activated per token, alongside shared experts applied to every token. The attention layers interleave sliding-window attention layers (window size 4096) using Rotary Positional Embeddings with global attention layers without positional embeddings, in a 3:1 ratio, as first introduced in Command A. The router applies a sigmoid activation over the expert logits and normalizes over the selected top-k. The model was post-trained specifically for translation quality.
+Languages covered: The model supports translation across 50 languages: English, Albanian, Arabic, Bulgarian, Bengali, Catalan, Czech, Danish, German, Greek, Spanish, Estonian, Persian, Finnish, Filipino, French, Irish, Hebrew, Hindi, Croatian, Hungarian, Indonesian, Icelandic, Italian, Japanese, Korean, Lithuanian, Latvian, Malay, Maltese, Dutch, Norwegian, Punjabi, Polish, Portuguese, Romanian, Russian, Slovak, Slovenian, Serbian, Swedish, Tamil, Telugu, Thai, Turkish, Ukrainian, Urdu, Vietnamese, Traditional Chinese, Simplified Chinese.
+Context Length: North Small Translate supports a context length of 16K input & 16K output.
+ Evaluation
+Figure 1. WMT26 performance across all evaluated languages. North Small Translate scores 83.60, increasing to 84.36 with the agentic multi-pass translation workflow. Figure and evaluation details are from the North Small Translate launch blog post.
+ Model Card Contact
+For errors or additional questions about details in this model card, contact labs@cohere.com.
+ Terms of Use:
+We hope that the release of this model will make community-based research efforts more accessible, by releasing the weights of a highly performant translation model to researchers all over the world. This model is governed by a CC BY-NC 4.0 License (Non-Commercial) with an acceptable use addendum, and also requires adhering to Cohere Lab's Acceptable Use Policy. If you are interested in commercial use, please contact Cohere's Sales team.
+ Try it now:
+You can use North Small Translate in our dedicated Hugging Face Space.
+Downloads last month 148 
+Safetensors 
+Model size 
+218B params 
+Tensor type 
+BF16 
+· 
+Chat template 
+Files info 
+ Inference Providers NEW 
+ Translation 
+This model isn't deployed by any Inference Provider. 🙋 Ask for provider support 
+ Model tree for CohereLabs/North-Small-Translate-1.0 
+Quantizations 
+ 2 models 
+ Space using CohereLabs/North-Small-Translate-1.0 1 
+CohereLabs/North-Small-Translate-1.0 
+ Collection including CohereLabs/North-Small-Translate-1.0 
+North Small Translate 1.0 
+ Collection 
+Machine translation across 50 languages. • 4 items • Updated 21 days ago • 3 
+ System theme 
+Company TOS Privacy About Careers 
+Website Models Datasets Spaces Pricing Docs

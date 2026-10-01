@@ -1,0 +1,41 @@
+// ---- Data mix tab: pool against mix per source, every stage (Olmo 3 report Tables 4, 5, 11; OLMo 2 report Tables 4, 13) ----
+(function(){
+  const G={web:['Web','var(--c1)'],pdf:['Science PDFs and papers','var(--c3)'],code:['Code','var(--c4)'],math:['Maths','var(--c5)'],qa:['QA (synthetic)','var(--c6)'],think:['Thinking traces (synthetic)','var(--c2)'],ins:['Instruction','var(--bad)'],ency:['Encyclopedic','var(--dim)'],mix:['Midtraining data, reused','var(--acc2)']};
+  // [name, group, pool tokens (B), mix tokens (B)]
+  const D={
+    o3p:{t:'Dolma 3 Mix: Olmo 3 pretraining',src:'Olmo 3 report, Table 4',pool:9310,mix:5930,rows:[['Common Crawl','web',8140,4510],['olmOCR science PDFs','pdf',972,805],['Stack-Edu (rebalanced)','code',137,409],['arXiv','pdf',21.4,50.8],['FineMath 3+','math',34.1,152],['Wikipedia and Wikibooks','ency',3.69,2.51]],
+      note:'Common Crawl is 87% of the pool and 76% of the mix: web is thinned and code, maths and papers are upsampled. Inside Common Crawl, Ai2 upsamples by quality and topic, at most 7x ("quality-aware upsampling", report section 3.4). The 7B trains on the full 5.93T; the 32B stops at 5.5T. A 150B version of the same mix is used for experiments.'},
+    o3m:{t:'Dolma 3 Dolmino Mix: Olmo 3 midtraining',src:'Olmo 3 report, Table 5',pool:2190,mix:99.95,rows:[['TinyMATH Mind','math',0.899,0.898],['TinyMATH PoT','math',0.241,0.241],['CraneMath','math',5.62,5.62],['MegaMatt','math',3.88,1.73],['Dolmino Math','math',10.7,10.7],['StackEdu (FIM)','code',21.4,10.0],['CraneCode (Python, synthetic)','code',18.8,10.0],['Reddit to Flashcards','qa',21.6,5.90],['Wiki to RCQA','qa',4.22,3.0],['Nemotron Synth QA','qa',487,5.0],['Math Meta-Reasoning','think',1.05,0.381],['Code Meta-Reasoning','think',1.27,0.459],['Program-Verifiable','think',0.438,0.159],['OMR Rewrite FullThoughts','think',0.850,0.850],['QWQ reasoning traces','think',4.77,1.87],['General Reasoning Mix','think',2.48,1.87],['Gemini reasoning traces','think',0.246,0.246],['Llama Nemotron reasoning traces','think',20.9,1.25],['OpenThoughts2 reasoning traces','think',5.6,1.25],['Tulu 3 SFT','ins',1.61,1.1],['Dolmino 1 Flan','ins',16.8,5.0],['olmOCR science PDFs (HQ subset)','pdf',240,4.99],['STEM-heavy crawl','web',5.21,4.99],['Common Crawl (HQ subset)','web',1320,22.4]],
+      note:'Web falls from 76% to 27%; maths, code, synthetic QA, thinking traces and instruction data make up most of the rest. Including thinking and instruction data helped even the base model before any post-training (report Table 10). The 32B runs this mix twice with different data orders and averages the two.'},
+    o3l:{t:'Dolma 3 Longmino Mix: Olmo 3 long-context extension (50B version)',src:'Olmo 3 report, Table 11',pool:639,mix:50.0,rows:[['olmOCR PDFs, 8K to 16K tokens','pdf',144,2.27],['olmOCR PDFs, 16K to 32K','pdf',115,1.85],['olmOCR PDFs, 32K to 64K','pdf',106,4.81],['olmOCR PDFs, 64K to 128K','pdf',96.0,0],['olmOCR PDFs, 128K to 256K','pdf',60.8,0],['olmOCR PDFs, 256K to 512K','pdf',35.1,0],['olmOCR PDFs, 512K to 1M','pdf',21.5,0],['olmOCR PDFs, over 1M','pdf',26.9,0],['PDFs plus synthetic CWE tasks, 32K to 64K','think',8.77,1.94],['PDFs plus synthetic REX tasks, 32K to 64K','think',24.1,6.08],['Midtraining data mix','mix',null,33.0]],
+      note:'Two thirds of the long-context mix is midtraining data, not long documents, and no document over 64K tokens is used although the pool has 240B tokens of them. The 32B uses a 100B version "with the same proportions". Length buckets are in Dolma 3 tokens.'},
+    o2p:{t:'OLMo 2 Mix 1124: OLMo 2 pretraining',src:'OLMo 2 report, Table 4',pool:3900,mix:null,rows:[['DCLM-Baseline','web',3710,null],['StarCoder (filtered)','code',83.0,null],['peS2o','pdf',58.6,null],['arXiv','pdf',20.8,null],['OpenWebMath','math',12.2,null],['Algebraic Stack','math',11.8,null],['Wikipedia and Wikibooks','ency',3.7,null]],
+      note:'Over 95% web. The 7B trained on 4T tokens, the 13B on 5.6T and the 32B on 6.6T in total; the report gives the mix itself, not per-model sampling factors, so this view shows shares only.'},
+    o2m:{t:'Dolmino Mix 1124: OLMo 2 midtraining',src:'OLMo 2 report, Table 13',sizes:{'50B':[3.23,47.2,50.0,16.6,100,2.45,5.15,5.85,100,7.11,100,20.8],'100B':[6.85,50.2,100,16.7,200,2.47,16.7,9.52,100,3.57,200,17.5],'300B':[20.78,51.9,200,11.3,400,1.68,100,19.4,400,4.86,400,10.8]},
+      base:[['Filtered DCLM','web',752],['Decontaminated FLAN','ins',17.0],['StackExchange Q&amp;A','qa',1.26],['peS2o','pdf',58.6],['Wikipedia and Wikibooks','ency',3.7],['Dolmino Math','math',10.7]],
+      note:'Table 13\'s "Source %" is the share of each source used; above 100 means repeats (400 = four copies). The 7B was annealed on 50B tokens three times and souped; the 13B and 32B on 100B three times plus one 300B run.'}};
+  let st='o3p',sz='100B';
+  const f=(v)=>v==null?'–':v>=1000?(v/1000).toFixed(v>=10000?1:2)+'T':v>=1?fmt(v,v>=100?0:v>=10?1:2)+'B':fmt(v*1000)+'M';
+  function draw(){
+    const d=D[st];let rows,mixTot,poolTot,shareOnly=false,fac;
+    if(st==='o2m'){const S=d.sizes[sz];rows=d.base.map((b,i)=>[b[0],b[1],b[2],null,S[2*i]/100,S[2*i+1]]);mixTot=parseFloat(sz);poolTot=d.base.reduce((a,b)=>a+b[2],0);rows.forEach(r=>r[3]=r[5]*mixTot/100)}
+    else{rows=d.rows.map(r=>[r[0],r[1],r[2],r[3],r[2]&&r[3]!=null?r[3]/r[2]:null]);mixTot=d.mix;poolTot=d.pool;shareOnly=d.mix==null}
+    $('mxSz').innerHTML=st==='o2m'?'<div class="seg" id="mxZ" role="group" aria-label="Mix size">'+['50B','100B','300B'].map(z=>'<button data-m="'+z+'" class="'+(z===sz?'on':'')+'">'+z+' mix</button>').join('')+'</div>':'';
+    if(st==='o2m')segBind('mxZ',v=>{sz=v;draw()});
+    const val=r=>shareOnly?r[2]:r[3];const sum=rows.reduce((a,r)=>a+(val(r)||0),0);
+    $('mxOut').innerHTML=stat('Stage',d.t.split(':')[1].trim(),d.t.split(':')[0])+stat(shareOnly?'Mix':'Pool',f(poolTot),shareOnly?'tokens':'tokens available')+(shareOnly?'':stat('Mix',f(mixTot),'tokens trained, '+(100*mixTot/poolTot).toFixed(mixTot/poolTot<0.05?1:0)+'% of the pool'))+stat('Sources',rows.length,'');
+    // composition bar by group
+    const g={};rows.forEach(r=>{g[r[1]]=(g[r[1]]||0)+(val(r)||0)});const gk=Object.keys(g).filter(k=>g[k]>0);
+    $('mxBar').innerHTML=gk.map(k=>'<span style="width:'+(100*g[k]/sum).toFixed(2)+'%;background:'+G[k][1]+'" title="'+G[k][0]+': '+(100*g[k]/sum).toFixed(1)+'%"></span>').join('');
+    $('mxLeg').innerHTML=gk.map(k=>'<span><i style="background:'+G[k][1]+'"></i>'+G[k][0]+' '+(100*g[k]/sum).toFixed(100*g[k]/sum<1?2:1)+'%</span>').join('');
+    const mx=Math.max(...rows.map(r=>Math.max(r[2]||0,val(r)||0)));const lg=v=>v>0?Math.max(1,100*Math.log10(1+v)/Math.log10(1+mx)):0;
+    let h='<div class="mixrow h"><span>Source</span><span class="tr" style="background:none">'+(shareOnly?'tokens (log scale)':'pool (grey) and mix (colour), log scale')+'</span><span class="v">'+(shareOnly?'tokens':'mix, share')+'</span><span class="f">'+(shareOnly?'share':'sampled')+'</span></div>';
+    rows.forEach(r=>{const share=100*(val(r)||0)/sum,fc=r[4];
+      h+='<div class="mixrow"><span class="nm" title="'+r[0]+'">'+r[0]+'</span><span class="tr">'+(shareOnly?'':'<span class="pl" style="width:'+lg(r[2]).toFixed(1)+'%"></span>')+'<span class="mx" style="width:'+lg(val(r)).toFixed(1)+'%;background:'+G[r[1]][1]+(shareOnly?';top:4px;height:8px':'')+'"></span></span><span class="v">'+(shareOnly?f(r[2]):f(r[3])+' · '+share.toFixed(share<1?2:1)+'%')+'</span><span class="f '+(fc>1.001?'up':'dn')+'">'+(shareOnly?share.toFixed(share<1?2:1)+'%':fc==null?'–':fc===0?'0x':fc.toFixed(fc<0.1?3:2)+'x')+'</span></div>'});
+    $('mxRows').innerHTML=h;
+    const tabTot=st==='o2m'?mixTot:shareOnly?poolTot:mixTot;
+    $('mxRep').innerHTML='<b>By construction</b> from the '+d.src+': rows sum to '+f(sum)+' against the table\'s total of '+f(tabTot)+(Math.abs(sum-tabTot)/tabTot>0.002?' (the difference is the table\'s rounding)':'')+'. '+(shareOnly?'Shares are derived: tokens ÷ total.':'Sampled = mix tokens ÷ pool tokens, derived'+(st==='o2m'?' from "Source %" ÷ 100; mix tokens = Mix % × mix size.':'; above 1x means repeated or upweighted.'));
+    $('mxNote').innerHTML=d.note;
+  }
+  segBind('mxS',v=>{st=v;draw()});onTab('t-mix',draw);
+})();

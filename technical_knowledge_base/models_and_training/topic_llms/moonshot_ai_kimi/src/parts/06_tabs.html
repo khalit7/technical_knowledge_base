@@ -1,0 +1,59 @@
+
+<div class="tab" id="t-par" role="tabpanel" hidden>
+<h2 style="margin-top:14px">Parameters and memory, rebuilt from config.json</h2>
+<p>Every number on this tab is computed in the page from the released configuration files ({{K3 config|@k3cfg}}, {{K2 config|@k2cfg}}) and the module shapes in K3's {{modeling code|@k3mod}}, then checked against what Hugging Face counts in the published safetensors ({{K3|@hfk3}}, {{K2|@hfk2}}) and what the reports state.</p>
+<div class="co key"><div class="t">What the defaults reproduce</div>
+<ul class="tight">
+<li>K3's routed experts, 92 MoE layers × 896 × 3 × 3,584 × 3,072 = <b>2,722,740,830,208</b>, equal to Hugging Face's count of MXFP4 parameters exactly (independent).</li>
+<li>K3 active per token, counting the output head but not the input-embedding lookup, <b>104.19B</b>, reproducing the report's 104.2B (independent). Including the lookup gives 105.4B.</li>
+<li>K3's checkpoint at MXFP4 experts plus BF16 for the rest, <b>1,560,860,324,864 bytes</b>, equal to the safetensors index total exactly (independent arithmetic on Hugging Face's per-dtype counts).</li>
+<li>K2's config sums to 1.0264T, equal to Hugging Face's 1,026,408,235,864. The report's 1.04T is <b>not</b> what the released config holds; adding the one multi-token-prediction module that K3's report lists for K2 gives 1.044T, a reconstruction (unconfirmed). K2's 32.6B active is not reproduced exactly: 31.7B without that module, 32.3B with it.</li>
+</ul></div>
+
+<h3 id="pp">Where the parameters live</h3>
+<div class="seg" id="ppM"><button class="on" data-m="k3">Kimi K3</button><button data-m="k2">Kimi K2</button></div>
+<div class="tw"><table id="ppTab"></table></div>
+<div id="ppBar"></div>
+<p class="small mute" id="ppNote"></p>
+
+<h3 id="pm">Weights in memory</h3>
+<p>Bytes are each part's parameters times its bits per weight over 8. MXFP4 is 4.25 bits (4-bit elements plus one 8-bit scale per 32); FP8 with K2's 128 × 128 block scales is about 8 bits.</p>
+<div class="seg" id="pmS"><button data-m="bf16">Everything BF16</button><button data-m="k2fp8">K2 release: FP8 blocks</button><button class="on" data-m="mx">K3 release: MXFP4 experts, BF16 rest</button><button data-m="allmx">Everything MXFP4 (the old estimate)</button></div>
+<div class="out" id="pmOut"></div>
+<div id="pmBar"></div>
+<p class="small mute" id="pmNote"></p>
+
+<h3 id="pc">Cache against context</h3>
+<p>Per sequence, a Gated MLA layer caches 576 numbers per token (the 512-number latent plus the 64-number shared key part; NoPE means it is not rotated) and a KDA layer holds a fixed 96 × 128 × 128 state plus 3 tokens of short-convolution state for its queries, keys and values. The cache is assumed BF16; the precision of the KDA state is <span class="ill">not stated</span> by Moonshot, so it is a switch.</p>
+<div class="ctl"><label>Context: <b id="pcT"></b><input type="range" id="pcCtx" min="10" max="20" step="0.05" value="17"></label><div><div class="seg" id="pcD"><button class="on" data-m="4">KDA state in FP32</button><button data-m="2">KDA state in BF16</button></div></div></div>
+<div id="pcSvg"></div>
+<div class="out" id="pcOut"></div>
+<p class="small mute">Defaults: the cut at 1,048,576 tokens is 73.8% with an FP32 state (limit 1 − 24/93 = 74.2%), matching the page's "about a 74% cut" by construction from the config. Kimi Linear's "up to 75%" is the same arithmetic at exactly 3:1. Counts per sequence, all heads, all layers.</p>
+</div>
+
+<div class="tab" id="t-line" role="tabpanel" hidden>
+<h2 style="margin-top:14px">Lineage</h2>
+<p>Every Moonshot model the page discusses, placed by release date and sized by total parameters (log scale; closed models and undisclosed sizes are rings on the baseline). Click a release for its card.</p>
+<div class="tw"><div id="lnSvg" style="min-width:560px"></div></div>
+<div id="lnCard" class="ln-card"></div>
+<h3>Config diff: the template and its descendants</h3>
+<p>Highlighted cells differ from DeepSeek-V3. DeepSeek-V3's column is the K2 report's Table 2; the others are read from each config.json.</p>
+<div class="tw"><table class="cfg">
+<tr><th>Setting</th><th>DeepSeek-V3</th><th>Kimi K2</th><th>Kimi Linear 48B</th><th>Kimi K3</th></tr>
+<tr><td>Layers</td><td>61</td><td>61</td><td class="d">27 (20 KDA + 7 MLA)</td><td class="d">93 (69 KDA + 24 MLA)</td></tr>
+<tr><td>Hidden size</td><td>7,168</td><td>7,168</td><td class="d">2,304</td><td>7,168</td></tr>
+<tr><td>Attention</td><td>MLA, RoPE + YaRN to 128k</td><td>MLA, RoPE + YaRN to 128k</td><td class="d">KDA 3:1 MLA, NoPE</td><td class="d">KDA 3:1 Gated MLA, NoPE, final MLA layer</td></tr>
+<tr><td>Attention heads</td><td>128</td><td class="d">64</td><td class="d">32</td><td class="d">96</td></tr>
+<tr><td>MLA latent + shared key</td><td>512 + 64</td><td>512 + 64</td><td>512 + 64</td><td>512 + 64</td></tr>
+<tr><td>Routed experts / active</td><td>256 / 8</td><td class="d">384 / 8</td><td>256 / 8</td><td class="d">896 / 16</td></tr>
+<tr><td>Expert hidden</td><td>2,048</td><td>2,048</td><td class="d">1,024</td><td class="d">3,072 in a 3,584 latent</td></tr>
+<tr><td>Shared experts</td><td>1</td><td>1</td><td>1</td><td class="d">2</td></tr>
+<tr><td>Dense layers</td><td>3</td><td class="d">1</td><td class="d">1</td><td class="d">1</td></tr>
+<tr><td>Expert grouping</td><td>yes</td><td class="d">no</td><td class="d">no</td><td class="d">no</td></tr>
+<tr><td>Residual</td><td>sum</td><td>sum</td><td>sum</td><td class="d">Block AttnRes, 12 layers per block</td></tr>
+<tr><td>Context</td><td>128k</td><td>128k</td><td class="d">1M</td><td class="d">1M</td></tr>
+<tr><td>Released weights</td><td>FP8</td><td>FP8 blocks</td><td class="d">BF16</td><td class="d">MXFP4 experts, BF16 rest</td></tr>
+<tr><td>Total / active</td><td>671B / 37B</td><td>1.04T / 32.6B</td><td>48B / 3B</td><td>2.78T / 104.2B</td></tr>
+</table></div>
+<p class="small mute">Sources: {{K2 report|@k2}} Table 2; {{K2 config|@k2cfg}}; {{Kimi Linear config|@klcfg}}; {{K3 config|@k3cfg}}. Kimi Linear's expert count and shared experts are read from its config (<span class="mono">num_experts</span>, <span class="mono">num_shared_experts</span>).</p>
+</div>
