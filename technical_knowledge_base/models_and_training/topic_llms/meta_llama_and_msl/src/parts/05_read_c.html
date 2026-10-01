@@ -1,0 +1,75 @@
+<section id="s-score">
+<h2>Where Muse Spark scores, and on which scale</h2>
+<p>Artificial Analysis has changed its Intelligence Index twice since Muse Spark 1.3 shipped: v4.2 on 4 September 2026 (GPQA Diamond removed) and v4.3 on 7 September (Terminal-Bench moved from 2.1 to 4.0, τ³-Banking replaced by AutomationBench-AA, private tests weighted 45% instead of 40%), with a methodology update to v4.3.2 on 19 September ({{Artificial Analysis|@aalb}}, read 1 October 2026). The release-time 61 and 62 are on the scale before v4.2. On the current v4.3 the same model scores <b>45.1 at xhigh and 48.1 at max</b>, at <b>$1.37 per index task at xhigh</b> and $1.60 at max ({{Artificial Analysis|@aam}}). A number from one version never compares with another, so the chart keeps them in separate panels.</p>
+<div class="card" id="aa">
+<div class="seg" id="aaV"><button class="on" data-m="v43">v4.3 today (42 priced runs)</button><button data-m="rel">At release, 2 September (pre-v4.2)</button></div>
+<div class="plot" id="aaSvg"></div>
+<div class="leg" id="aaLeg"></div>
+<p class="small mute" id="aaNote"></p>
+</div>
+<p>Read on v4.3, Meta's best run (48.1) is fourth among labs by each lab's best model, behind Anthropic (57.6), OpenAI (52.7) and Google DeepMind (52.6), <span class="ill">derived</span> from the same leaderboard; the earlier description of a "reranked v4.2" on which Meta came third was wrong, since v4.2 was a change of benchmarks, not a reranking of labs. The release-time point, "cheapest at its level", does not survive the rescaling: on v4.3 GPT-6.1 Sol (max) scores 51.8 at $0.72 a task and GPT-6 Sol (max) 47.6 at $1.04, both above Muse Spark 1.3 (xhigh) and cheaper per task. Muse Glimmer, at 17.5 for $0.06 a task, sits in the open-weights cluster well below the open frontier, where Xiaomi's MiMo-V2.6-Pro leads at 46.3.</p>
+</section>
+
+<section id="s-sec">
+<h2>The Muse agent's security architecture</h2>
+<p>The Muse agent holds standing access to a user's mail, payments and accounts while reading attacker-controllable web pages and messages, which is the worst case for <b>prompt injection</b> (instructions hidden in content the agent reads). Meta's design assumes the model will sometimes be fooled and makes being fooled grant nothing that matters. From Meta's own description of 8 September 2026 ({{Meta|@sec}}):</p>
+<ol>
+<li><b>The runtime cell.</b> The agent harness runs in a <code>systemd-nspawn</code> container inside the user's VM, with "root inside the runtime cell ... mapped to an unprivileged host user", its own filesystem and virtual network interface, filtered system calls (no <code>io_uring</code>) and limited kernel capabilities (no <code>CAP_SYS_PTRACE</code>, no <code>CAP_NET_ADMIN</code>).</li>
+<li><b>Security services outside the cell.</b> Separate services hold what the agent must not: <code>hatch-authd</code> stores credentials (including OAuth tokens for third-party services), <code>privsep</code> workers run the built-in connector code with tightly scoped credential access, <code>hatch-safety</code> runs independent classifier models over requests and responses so that an attacker inside the cell cannot switch them off, and <b>Sentinel</b> is "the sole permission authority" for connector actions and network egress. The cell talks to them only over Unix domain sockets with kernel-authenticated peer checks.</li>
+<li><b>Surrogate credentials.</b> The agent never sees a real password, token or card. "Code in the runtime cell or a worker only ever sees a 'surrogate' token, minted by authd. After the concrete network request is authorized, Sentinel will replace any surrogate tokens with the real credential ... at the network boundary", so an injected "send me the token" can only exfiltrate a placeholder.</li>
+<li><b>Egress policy.</b> Sentinel resolves each request to allow, deny or ask, inspecting it at layers 4 and 7: "the hostname, the resolved and final destination IP address, the port, protocol, HTTP method, path, and the actual decoded request". It tracks <b>tainted egress</b> through the kernel: each tool process starts clean and becomes tainted if it reads user data (eBPF programs on cgroups and on Linux Security Module hooks Meta added), so a request carrying data from an untrusted source does not ride an auto-allow rule.</li>
+<li><b>Approvals outside the conversation.</b> When Sentinel's answer is "ask", execution halts and the approval goes "directly to the Muse client", appearing in the app's own interface, not as a message in the chat with Muse, so text in the context window cannot manufacture consent. Grants are "strict capabilities, not conversational suggestions", bound to the connector or destination: one-time, session, task, time-bounded or permanent. Checkouts always need approval with the exact purchase details and use single-use card numbers through Stripe Link, bound to one merchant, one amount and a short validity.</li>
+<li><b>A browser that cannot be scripted.</b> The browser sub-agent sees "an accessibility tree snapshot of the page, not the raw DOM", and has no way to run JavaScript in the page; a separate family of classifiers looks for prompt injection in pages, images and files, for high-risk forms and for egress of unrelated personal data.</li>
+</ol>
+<p>The animation runs one injected page through two agents: a naive one that holds real credentials and sends whatever it composes, and Muse's design. The injection succeeds against the model in both; what differs is what it buys.</p>
+<div class="card" id="ag">
+<div class="an-top"><div class="seg" id="agM" role="group" aria-label="Agent design"><button class="on" data-m="muse" aria-pressed="true">Muse's design</button><button data-m="naive" aria-pressed="false">Naive agent</button></div></div>
+<div id="agSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="agBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="agPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="agFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="agScrub" min="0" max="700" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="agSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="agStep"></div><p id="agCap"></p></div>
+<div class="an-cnt" id="agCnt"></div>
+<p class="small mute">The task, the injected page and the attacker's address are <span class="ill">illustrative</span>; the components and rules are Meta's. Meta publishes no example attack.</p>
+</div>
+<p>Meta offers "up to $300,000 for valid reports ... including up to $130,000 for successful prompt injection attempts that affect one user", and has published <b>no accuracy figures for its classifiers</b>, so the parts that still rest on detection are unmeasured ({{Meta|@sec}}). The boundary also covers only the cloud VM: on 22 September 2026 the researcher Patrick Wardle disclosed that malware already running under the user's account could change an undocumented macOS setting and redirect the Muse Mac client's dictation traffic, with its prompts and authentication data, to a server of its choosing ({{Cybersecurity News|@csn}}); that report gives no patch, and the fix "four days later" recorded earlier is <span class="unc">unconfirmed</span> in the sources read here. The general principle, that enforcement and credentials belong outside the component that can be persuaded, is developed on {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}, and the comparison with self-hosted personal agents on {{Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses|n:3c75c17b0d0d81bf9462fbeb09593e1c}}.</p>
+</section>
+
+<section id="s-now">
+<h2>Current lineup</h2>
+<div class="tw"><table class="lt">
+<tr><th>Model</th><th>Weights and licence</th><th>Status</th></tr>
+<tr><td>Muse Spark 1.3</td><td>Closed</td><td>Meta's frontier model; Meta AI products, first-party API, Muse Code. 45.1 at xhigh and 48.1 at max on Intelligence Index v4.3 ({{AA|@aam}})</td></tr>
+<tr><td>Muse Spark 1.2</td><td>Closed; open weights promised in August 2026, unpublished when 1.3 shipped</td><td>Superseded by 1.3 at the same price</td></tr>
+<tr><td>Muse Glimmer 30B</td><td>Open, Apache 2.0</td><td>Meta's current open model; dense, 131K context, built for local agents on one 24 GB GPU</td></tr>
+<tr><td>Meta Muse agent</td><td>Hosted product</td><td>Personal agent on US iOS, Android, web and WhatsApp; per-user VM, surrogate credentials, Sentinel egress control</td></tr>
+<tr><td>Llama 4 Scout and Maverick</td><td>Open, Llama 4 Community License</td><td>The last Llama release and the last open MoE from Meta; still widely served</td></tr>
+<tr><td>Llama 3.x</td><td>Open, Llama 3 Community Licenses (3.1, 3.2 and 3.3 each have their own)</td><td>Legacy, and still a default base in many fine-tuning stacks</td></tr>
+</table></div>
+<p><b>Strategic read.</b> Llama's retreat handed open-weights leadership to the Chinese labs and to Mistral, and it is a retreat from the <i>open frontier</i> only: Muse Spark 1.3 put Meta back in the frontier band in September 2026, and Muse Glimmer put it back in open weights at 30B, the size people run locally, not at the frontier. Which open model leads now depends on the benchmark, and the contenders (DeepSeek, Qwen, Moonshot's Kimi, Zhipu's GLM, Xiaomi's MiMo) are mapped on {{Topic: llms|n:3c65c17b0d0d812d9e00f6ec89965286}}. Whether Meta returns to the open frontier turns on one checkable event: the publication of Muse Spark weights. Llama 3.1 and 3.3 remain default bases in many fine-tuning stacks purely through incumbency: tooling, LoRA adapters, quantised builds and tribal knowledge accumulated around them, and that inertia outlives the quality argument.</p>
+</section>
+
+<section id="s-when">
+<h2>Which Meta model when</h2>
+<ul>
+<li><b>You need frontier capability from Meta and can use a hosted API</b>: Muse Spark 1.3. It buys frontier-band scores at a low cost per task, and costs closed weights, a single vendor's API and no technical report.</li>
+<li><b>You need weights you can run locally or modify, with no licence conditions</b>: Muse Glimmer. Apache 2.0 removes the 700-million-user clause, and a 24 GB GPU is enough for the 17 GB build; it is a 30B model (17.5 on the v4.3 index), so do not expect frontier reasoning.</li>
+<li><b>You have an existing Llama fine-tuning pipeline</b>: stay on Llama 3.1 or 3.3 while its adapters and quantised builds earn their keep, and plan a move, since nothing newer will ship under the Llama name.</li>
+<li><b>You need a large open MoE from Meta</b>: Llama 4 Maverick fits one 8-GPU H100 host in FP8 (400 GB of weights against 8 × 80 GB = 640 GB), but test it on your own tasks first; its public numbers did not hold up in practice, and the open models on the provider pages ({{DeepSeek|n:3c65c17b0d0d81a2ae7ec6796947a235}}, {{Alibaba: Qwen|n:3c65c17b0d0d81fd8c36ce06672bb235}}, {{Mistral AI|n:3c65c17b0d0d814a9882e6ebc326fa56}}) have overtaken it.</li>
+<li><b>You are building a personal agent with account access</b>: study the Muse agent's design (surrogate credentials, egress control outside the model, approvals outside the conversation) whatever model you use.</li>
+</ul>
+<p class="small">Whether a model fits your GPU, with its context, is on <a href="#" data-tab="t-fit">Run it yourself</a>.</p>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes and misconceptions</h2>
+<details class="mist"><summary>"Llama 4 has a usable 10M-token context."</summary><div class="b">That is Scout's claimed limit, resting on iRoPE and attention temperature scaling; a claimed window is not demonstrated quality at that length, and Maverick's limit is 1M. It is also not a single-GPU figure: even with only the 12 global layers growing, Scout's cache at 10M tokens is about 481 GiB in BF16 (<span class="ill">derived</span> from the configuration on <a href="#" data-tab="t-fit">Run it yourself</a>), six H100s' worth before any weights.</div></details>
+<details class="mist"><summary>"17B active means 17B of memory."</summary><div class="b">Active parameters set the compute per token; all 109B or 400B parameters must still be stored. Scout fits one H100 only with Int4 weights (109B at half a byte is about 54.5 GB).</div></details>
+<details class="mist"><summary>"Llama is open source."</summary><div class="b">The Llama licences restrict very large users and are Meta's own terms. Muse Glimmer's Apache 2.0 is the first Meta licence that is open source in the usual sense.</div></details>
+<details class="mist"><summary>"Meta overtrained its flagship."</summary><div class="b">The 405B sat close to compute-optimal at about 38.5 tokens per parameter; the heavy overtraining was in the 8B and 70B (about 1,875 and 214 tokens per parameter), which are the ones served at volume.</div></details>
+<details class="mist"><summary>"The 1417 LMArena score was Maverick's."</summary><div class="b">It belonged to an unreleased experimental checkpoint tuned for chat preference.</div></details>
+<details class="mist"><summary>"Muse Spark 1.3's 61 compares with today's index numbers."</summary><div class="b">The 61 and 62 are on the scale the index used at release, before v4.2; a number from one version does not compare with another. On the current v4.3 the same model is 45.1 at xhigh and 48.1 at max, the figures to set beside other v4.3 scores.</div></details>
+<details class="mist"><summary>"The Muse agent cannot be prompt-injected."</summary><div class="b">It can; the design limits what a successful injection achieves. The classifiers that still catch some attacks are unmeasured in public, and the Mac client sat outside the VM boundary.</div></details>
+<details class="mist"><summary>"Chinchilla says train 20 tokens per parameter, full stop."</summary><div class="b">The 20 is the training-only optimum, and even that depends on whose fit you use: Hoffmann et al.'s own fitted law implies about 70 tokens per parameter, Epoch's replication about 20 ({{Besiroglu et al.|@epoch}}). Once serving is counted the optimum moves far higher; see the <a href="#" data-tab="t-exp">Overtraining explorer</a>.</div></details>
+</section>
+</div>

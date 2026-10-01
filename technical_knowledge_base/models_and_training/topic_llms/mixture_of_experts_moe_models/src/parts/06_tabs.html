@@ -1,0 +1,47 @@
+
+<div class="tab" id="t-par" role="tabpanel" hidden>
+<h2>Total and active parameters, rebuilt from configuration files</h2>
+<p>A model card's two numbers follow from its configuration file. Pick a model: every bar below is computed from that model's released <code>config.json</code> with the formula, then compared with the figure the lab publishes.</p>
+<div class="fm"><math display="block"><msub><mi>P</mi><mtext>total</mtext></msub><mo>=</mo><msub><mi>L</mi><mtext>moe</mtext></msub><mo>(</mo><mo>(</mo><mi>N</mi><mo>+</mo><msub><mi>N</mi><mi>s</mi></msub><mo>)</mo><msub><mi>P</mi><mi>E</mi></msub><mo>+</mo><msub><mi>d</mi><mtext>model</mtext></msub><mi>N</mi><mo>)</mo><mo>+</mo><msub><mi>P</mi><mtext>rest</mtext></msub></math><math display="block"><msub><mi>P</mi><mtext>active</mtext></msub><mo>=</mo><msub><mi>L</mi><mtext>moe</mtext></msub><mo>(</mo><mo>(</mo><mi>k</mi><mo>+</mo><msub><mi>N</mi><mi>s</mi></msub><mo>)</mo><msub><mi>P</mi><mi>E</mi></msub><mo>+</mo><msub><mi>d</mi><mtext>model</mtext></msub><mi>N</mi><mo>)</mo><mo>+</mo><msub><mi>P</mi><mtext>rest</mtext></msub></math>
+<p class="wh"><i>L</i><sub>moe</sub> is the number of MoE layers, <i>N<sub>s</sub></i> the shared experts, <i>P<sub>E</sub></i> = 3 <i>d</i><sub>model</sub> <i>d</i><sub>ff</sub> one SwiGLU expert, <i>d</i><sub>model</sub><i>N</i> the router, and <i>P</i><sub>rest</sub> everything dense: attention in every layer, embeddings and output head, and any dense FFN layers. Sparsity ratio = <i>P</i><sub>total</sub> / <i>P</i><sub>active</sub>. Small terms the formula leaves out (norms, biases, gpt-oss's attention sinks) are included in the computation.</p></div>
+<div class="chips" id="parPre"></div>
+<div class="ctl">
+<label>Split every expert into <b id="parMv"></b><input type="range" id="parM" min="0" max="3" step="1" value="0"><span class="q">N and k multiplied, expert width divided: the fine-grained move</span></label>
+<label>Weights stored at<br><select id="parPrec"><option value="2">BF16 (2 bytes)</option><option value="1">FP8 (1 byte)</option><option value="0.53125">MXFP4 (4.25 bits)</option><option value="0.5">4 bits</option></select></label>
+<label class="chk"><input type="checkbox" id="parEmb" checked> count the input embedding as active (a lookup, no multiply; OpenAI does not count it)</label>
+</div>
+<div id="parBars"></div>
+<div class="out" id="parOut"></div>
+<div class="q" id="parNote"></div>
+<h3>Every preset against its published figures</h3>
+<div class="tw"><table class="lt" id="parTab"></table></div>
+<p class="q" id="parRep"></p>
+<details class="mist"><summary>Worked example: DeepSeek-V3's 671B and 37B, step by step</summary><div class="b">
+<p>The released config ({{config.json|@v3cfg}}) gives <i>d</i><sub>model</sub> = 7,168, 61 layers of which the first 3 are dense (FFN width 18,432), expert width <i>d</i><sub>ff</sub> = 2,048, 256 routed experts with 8 active plus 1 shared, a 129,280-token vocabulary with an untied output head, and Multi-head Latent Attention (MLA) with 128 heads, query compression 1,536, key-value compression 512, and head dimensions 128 plus 64 for the rotary part.</p>
+<ol>
+<li>One expert: 3 × 7,168 × 2,048 = 44,040,192, about 44.0M parameters.</li>
+<li>One MoE layer: 257 × 44.04M + 7,168 × 256 (router) = 11,318.4M + 1.8M, about 11.32B. The router is 0.016% of it.</li>
+<li>All 58 MoE layers: about 656.6B.</li>
+<li>The dense parts: MLA at about 187.1M per layer times 61 is 11.41B; three dense FFNs at 3 × 7,168 × 18,432 each is 1.19B; input embedding plus output head at 2 × 129,280 × 7,168 is 1.85B. Together 14.46B.</li>
+<li>Total: 656.6 + 14.46 ≈ 671.0B. The 685B on the Hugging Face model card is this 671B plus the 14B multi-token-prediction module, which is not part of the main model ({{DeepSeek-V3 README|@v3gh}}).</li>
+<li>Active: each MoE layer runs 9 experts (8 routed plus 1 shared), 58 × (9 × 44.04M + 1.8M) = 23.09B, plus the same 14.46B dense, ≈ 37.6B.</li>
+<li>Sparsity ratio 671.0 / 37.6 ≈ 17.9. Weights: 1,342 GB at BF16, 671 GB at FP8, about 336 GB at 4 bits. Compute per token: that of a 37.6B dense model.</li>
+</ol>
+<p>Two things fall out. Experts (routed plus shared) are 98% of the total but 61% of the active count, so attention and embeddings, invisible in the total, are a large share of what a token costs. And the V3 report's 671B total and 37B activated are reproduced from the architecture alone.</p></div></details>
+<details class="mist"><summary>Worked example: why Mixtral 8x7B is 46.7B, not 56B</summary><div class="b">From the paper's Table 1 ({{Mixtral paper|@mixp}}): <i>d</i><sub>model</sub> = 4,096, 32 layers, <i>d</i><sub>ff</sub> = 14,336, 8 experts, top-2, grouped-query attention with 32 query and 8 key-value heads of dimension 128, vocabulary 32,000. One expert is 3 × 4,096 × 14,336 = 176.2M; experts total 32 × 8 × 176.2M = 45.1B; attention 32 × 41.9M = 1.34B; embeddings 0.26B. Total 46.7B, active 32 × 2 × 176.2M + 1.34 + 0.26 = 12.9B, ratio 3.6x. "8x7B" is not 56B because the experts share everything except the FFN.</div></details>
+</div>
+
+<div class="tab" id="t-land" role="tabpanel" hidden>
+<h2>The MoE landscape: total against active</h2>
+<p>Sparse MoE is the default for every frontier and near-frontier model, converged on high sparsity: many small experts, few active, usually with a shared expert alongside. Each model sits at its total (up) and active (across) parameters on log scales, so the diagonals are constant sparsity ratios. Click a point or a row for its layout and source.</p>
+<div class="seg" id="lnRank"><button class="on" data-m="ratio">Rank by ratio</button><button data-m="act">Rank by smallest active</button><button data-m="tot">Rank by total</button></div>
+<div class="plot" id="lnSvg"></div>
+<div class="leg" id="lnLeg"></div>
+<div id="lnCard" class="detail"></div>
+<h3 id="lnRankH"></h3>
+<div id="lnBars" class="bars"></div>
+<h3>The table</h3>
+<p class="q">Ratio is total divided by active, computed from the second column. Dates are first public release (<a href="#" data-to="lnTab" data-tab="t-land">sources per row</a>).</p>
+<div class="tw"><table class="lt" id="lnTab"></table></div>
+<p class="q">Weights at 4 bits take about total ÷ 2 GB (one byte holds two 4-bit weights), the floor on serving memory before any KV cache.</p>
+</div>

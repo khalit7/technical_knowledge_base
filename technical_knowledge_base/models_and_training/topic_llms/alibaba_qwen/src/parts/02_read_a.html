@@ -1,0 +1,142 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="nav">
+<a href="#s-strat">Strategy</a><a href="#s-def">Definitions</a><a href="#s-diff">Where Qwen differs</a><a href="#s-moe">MoE</a><a href="#s-att">Hybrid attention</a><a href="#s-qsa">QSA and Flash-Next</a><a href="#s-think">Thinking</a><a href="#s-data">Data and distillation</a><a href="#s-now">Models today</a><a href="#s-trade">Trade-offs</a><a href="#s-mist">Mistakes</a>
+</nav>
+
+<section id="s-strat">
+<h2>The strategy: breadth as the moat</h2>
+<p class="lead">Where DeepSeek optimises cost per served token and Moonshot optimises frontier capability per training run, Qwen optimises <i>coverage</i>.</p>
+<p>Every generation ships a full ladder of sizes, from sub-billion models that run on a phone, through mid-size dense models, to a sparse flagship. It ships in several modalities too: Coder, VL (vision-language), Audio, Math and Embedding.</p>
+<p>That compounds. A Qwen base exists at whatever size and licence a project needs, so Qwen bases became the default starting point for open research and for distillation, including DeepSeek's own R1 distillations. Being the substrate everyone else builds on is a position no benchmark win can buy. It also feeds Alibaba Cloud Model Studio, where the same models are the paid, hosted option.</p>
+<div class="co warn"><div class="t">The licence is not one licence: check the checkpoint, not the family</div>
+<p style="margin:2px 0">From Qwen3 to Qwen3.5, every open checkpoint was Apache 2.0, which permits commercial use and redistribution with essentially no conditions. The mid-size mainline still is: Qwen3.8-27B ships under Apache 2.0 ({{model card|@c27}}). Before Qwen3 and after Qwen3.5 the picture is mixed:</p>
+<ul class="tight">
+<li><b>Before Qwen3</b>, the largest sizes had Qwen's own licences.
+<ul class="tight">
+<li>The <b>Tongyi Qianwen License</b> (Qwen-7B and Qwen-72B, Qwen1.5, Qwen2-72B) requires a separate licence for a product with more than 100 million monthly active users. It also forbids using the model or its outputs to improve any other large language model ({{Qwen-72B licence|https://huggingface.co/Qwen/Qwen-72B/blob/main/LICENSE}}).</li>
+<li>Qwen2.5-72B kept the 100-million clause under the <b>Qwen License</b> ({{licence|https://huggingface.co/Qwen/Qwen2.5-72B-Instruct/blob/main/LICENSE}}).</li>
+<li>Qwen2.5-3B was <b>research only</b> ({{licence|https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE}}).</li>
+</ul></li>
+<li><b>Qwen3.8-2.4T-A95B</b>, the open-weight flagship, ships under the <b>Qwen3.8-Max License</b> ({{licence|@c24lic}}).
+<ul class="tight">
+<li>A product above 100 million monthly active users or 20 million US dollars of monthly revenue must display the model name.</li>
+<li>A licensee whose group runs a model-as-a-service or "AI work assistant" (coding or office productivity) business, with group revenue above 50 million US dollars in any twelve months, needs a separate licence.</li>
+<li>Internal use whose outputs never reach a third party is exempt.</li>
+</ul></li>
+<li><b>Qwen3.8-Flash-Next</b>, the Qwen4 architecture preview, ships under the <b>Qwen Community License 1.0</b> ({{licence|@fnlic}}). The attribution thresholds are the same, but any model-as-a-service or AI work assistant business needs a separate licence at any size. The same internal-use exemption applies.</li>
+<li><b>Qwen-Image-2.1</b> ships under the Qwen Research License Agreement: non-commercial only, and commercial use needs a separate, unpublished agreement ({{licence|@img21}}). Detail is on {{Topic: generative-and-multimodal|n:3c65c17b0d0d817ab6ade318917bff55}}.</li>
+</ul>
+<p style="margin:4px 0 0">The GitHub repository and the family name tell you nothing. Read the LICENSE file of the checkpoint you deploy. The <a href="#" data-tab="t-lic">Licences</a> tab checks a use case against about thirty checkpoints.</p></div>
+<p><b>Two caveats when reading benchmark claims.</b></p>
+<ul>
+<li>Arena placings (Text Arena, Vision Arena, Frontend Code Arena) are human pairwise-preference leaderboards. They measure which answer people prefer, not whether a task was completed correctly, and they move with formatting and verbosity as well as with capability.</li>
+<li>The current model changes every few months. The lineage and the model table therefore age faster than the architecture sections, which are the durable part.</li>
+</ul>
+</section>
+
+<section id="s-def">
+<h2>Definitions</h2>
+<dl class="dl2">
+<dt>Total and active parameters (the A-notation)</dt><dd>"235B-A22B" means 235 billion parameters stored and 22 billion used per token. Memory is priced on the first, decode speed on the second, and their ratio is the <b>sparsity ratio</b> (about 11 times here).</dd>
+<dt>Routed and shared experts</dt><dd>A mixture-of-experts (MoE) layer replaces one feed-forward network with many smaller ones (experts), plus a router that picks the top <i>k</i> experts for each token. A <b>shared expert</b> is an extra expert that every token passes through regardless of the router.</dd>
+<dt>Linear attention</dt><dd>Replaces softmax attention with a recurrence over a fixed-size state matrix, so memory per request does not grow with context. <b>Gated DeltaNet</b> (GDN) is the variant Qwen uses. Before writing a new value, it erases what the state stores under that key (the delta rule), and it decays the whole state by a learned per-token gate.</dd>
+<dt>Gated attention</dt><dd>Qwen's name for ordinary softmax attention with a learned sigmoid gate multiplied onto each head's output.</dd>
+<dt>Hybrid layout</dt><dd>A stack that interleaves linear-attention layers with full-attention layers. Qwen writes its layout as, for example, <code>12 × (3 × (Gated DeltaNet → MoE) → 1 × (Gated Attention → MoE))</code>.</dd>
+<dt>Qwen Sparse Attention (QSA)</dt><dd>A trained sparse attention in two passes. A small indexer first scores the context in micro-blocks of a few tokens; full attention then reads only the selected blocks.</dd>
+<dt>Thinking mode and thinking budget</dt><dd>A thinking mode is a long chain of thought before the answer. A thinking budget is a caller-set cap on how many tokens that chain may use.</dd>
+<dt>Snapshot id</dt><dd>A date suffix (Qwen3.8-Max-0902) naming one post-trained state of a model whose name otherwise stays fixed.</dd>
+</dl>
+</section>
+
+<section id="s-diff">
+<h2>Where Qwen differs from the standard design</h2>
+<p>Each row is one of Qwen's answers, against the design it replaces. The rest of the page explains them in this order (click a layer to jump to it).</p>
+<div class="tw"><table class="lt">
+<tr><th>Layer</th><th>Standard design</th><th>Qwen's answer</th><th>First shipped</th></tr>
+<tr><td><a href="#s-moe">Expert layout</a></td><td>Fine-grained routed experts plus a shared expert (DeepSeek's layout)</td><td>128 experts, top-8, no shared expert, balanced over the global batch</td><td>Qwen3</td></tr>
+<tr><td><a href="#s-moe2">Expert layout, from Next on</a></td><td>Tens to a few hundred experts</td><td>512 very small experts, 10 routed plus 1 shared</td><td>Qwen3-Next</td></tr>
+<tr><td><a href="#s-att">Token mixing</a></td><td>Softmax attention in every layer</td><td>Three Gated DeltaNet layers per full-attention layer</td><td>Qwen3-Next</td></tr>
+<tr><td><a href="#s-gat">Full-attention layers</a></td><td>Plain attention, full rotary embedding</td><td>Sigmoid output gate per head, head dimension 256, rotary embedding on a quarter of the dimensions</td><td>Qwen3-Next</td></tr>
+<tr><td><a href="#s-qsa">Long-context reads</a></td><td>Every query reads every key in the full-attention layers</td><td>QSA: an indexer picks 512 micro-blocks of 4 tokens; attention reads only those</td><td>Qwen3.8-Flash-Next</td></tr>
+<tr><td><a href="#s-fnx">Extra capacity</a></td><td>More experts or more layers</td><td>A 51B-parameter hashed n-gram embedding held off the accelerator, and a four-branch gated residual stream</td><td>Qwen3.8-Flash-Next</td></tr>
+<tr><td><a href="#s-think">Reasoning modes</a></td><td>Separate chat and reasoning models</td><td>One checkpoint with think and no-think modes and a thinking budget (later split again)</td><td>Qwen3</td></tr>
+<tr><td><a href="#s-data">Small models</a></td><td>The full post-training pipeline at every size</td><td>Strong-to-weak distillation from the flagship</td><td>Qwen3</td></tr>
+</table></div>
+<p>The flow behind the table is consistent: an experimental model tests an idea, the flagship adopts it, and the mainline inherits it.</p>
+<ul>
+<li>Qwen3-Next tested the 3:1 hybrid and the 512-expert layout in September 2025.</li>
+<li>Qwen3.5-397B, Qwen3.8-27B and Qwen3.8-2.4T-A95B all carry the same layout in their published configurations (see the <a href="#" data-tab="t-cfg">Configs and cache</a> tab).</li>
+<li>Flash-Next now tests QSA the same way.</li>
+</ul>
+<p class="small mute">Scope: {{Mixture-of-Experts (MoE) models|n:3c65c17b0d0d810080cce6648ac8f2f2}} and {{LLM Architecture Gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}} own the generic mechanisms: top-k routing, load-balancing losses, linear and sparse attention, and the KV cache. They are summarised here only as far as Qwen's variants need them; the variants themselves are explained here in full.</p>
+</section>
+
+<section id="s-moe">
+<h2>The MoE layer: from no shared expert to 512 tiny experts</h2>
+<p><b>Qwen3: 128 experts, top-8, no shared expert.</b> Qwen3-235B-A22B has 94 layers, each with 128 experts, of which the router picks 8 per token ({{Qwen3 report|@q3r}}, Table 2; {{config|@c235}}). The report states the two departures from its own predecessor directly:</p>
+<ul>
+<li>"Unlike Qwen2.5-MoE, the Qwen3-MoE design excludes shared experts."</li>
+<li>It adopts the <b>global-batch load-balancing loss</b> "to encourage expert specialization".</li>
+</ul>
+<p>DeepSeek, by contrast, routes 8 of 256 finer-grained experts <i>plus</i> a shared expert that every token passes through. The shared expert absorbs the common computation, so the routed experts can specialise. Qwen3 left it out and let the router handle everything. That is simpler and adds no fixed cost per token, at the risk that the routed experts each relearn general behaviour.</p>
+<h3 id="s-gbl">Global-batch balancing</h3>
+<p>This is the less visible half of the choice. The generic load-balancing loss (LBL) is explained on {{Mixture-of-Experts (MoE) models|n:3c65c17b0d0d810080cce6648ac8f2f2}}:</p>
+<div class="fm"><math display="block"><mtext>LBL</mtext><mo>=</mo><msub><mi>N</mi><mi>E</mi></msub><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><msub><mi>N</mi><mi>E</mi></msub></munderover><msub><mi>f</mi><mi>i</mi></msub><msub><mi>P</mi><mi>i</mi></msub></math>
+<dl><dt>N<sub>E</sub></dt><dd>number of experts</dd><dt>f<sub>i</sub></dt><dd>fraction of the batch's tokens routed to expert <i>i</i></dd><dt>P<sub>i</sub></dt><dd>the router's average probability for expert <i>i</i> over the same tokens</dd></dl>
+<p class="wh">The loss is smallest (1) when traffic is even. In practice it is usually computed per <b>micro-batch</b> and then averaged, and a micro-batch holds only a few sequences, often packed from one domain. So it forces even traffic <i>within</i> a handful of documents: a micro-batch of pure code is pushed to spread over experts that should not see code.</p></div>
+<p>Computing <i>f<sub>i</sub></i> and <i>P<sub>i</sub></i> over the whole global batch, synchronised across all data-parallel ranks, demands balance only over a diverse mix, so a code sequence may route to code experts.</p>
+<p>Qwen's own paper on it reports about 0.1 lower pre-training perplexity and about 2 points on benchmarks, and much stronger domain specialisation of experts. The extra communication step costs under 3% latency, because the synchronised statistic is just one number per expert. Its experiments go up to 42.8B total parameters on 400B tokens ({{Qiu et al., 2025|@gbl}}).</p>
+<div class="card" id="lb">
+<div class="ctl"><label>How specialised the router is: <b id="lbSv">100%</b> <span class="ill">illustrative</span><input type="range" id="lbS" min="0" max="100" value="100"></label></div>
+<div id="lbGrid"></div>
+<div class="out" id="lbOut"></div>
+<p class="try"><b>Try:</b> at 100% each domain sends its tokens to its own two experts. Measured micro-batch by micro-batch, that routing is penalised at 4 times the minimum. Measured over the global batch, the same routing is perfectly balanced. Slide towards 0% (uniform routing) and the two measures agree. The toy setting is illustrative: 8 experts, four single-domain micro-batches, and <i>P<sub>i</sub></i> equal to <i>f<sub>i</sub></i>. The formula is the paper's (eq. 2 and 3).</p>
+</div>
+<h3 id="s-moe2">From Qwen3-Next on: 512 experts, 10 routed plus 1 shared</h3>
+<p>Qwen3-Next reversed the no-shared-expert choice and pushed granularity much further ({{Qwen3-Next model card|@nxc}}, {{Qwen3-Next blog|@nxb}}, {{config|@nxcfg}}):</p>
+<ul>
+<li>512 experts;</li>
+<li>10 routed per token, plus 1 shared;</li>
+<li>each expert's hidden width only 512;</li>
+<li>the router's parameters normalised at initialisation, so no expert is favoured before training starts.</li>
+</ul>
+<p>Every later large Qwen keeps this layout: Qwen3.5-397B-A17B, Qwen3.8-2.4T-A95B and Qwen3.8-Flash-Next all route 10 of 512 plus 1 shared ({{Qwen3.5 card|@c35}}, {{Qwen3.8-2.4T card|@c24}}, {{Flash-Next card|@fn}}). So "Qwen has no shared expert" is true of the Qwen3 generation only.</p>
+<p>A token now uses 10 of 512 routed experts (1.95%), where Qwen3 used 8 of 128 (6.25%). That is what lets total parameters grow far faster than per-token compute.</p>
+<div class="card" id="eg">
+<div class="mlx-top"><div class="seg" id="egM" role="group" aria-label="Expert layout"><button class="on" data-m="q3" aria-pressed="true">Qwen3-235B-A22B</button><button data-m="q38" aria-pressed="false">Qwen3.8-2.4T-A95B</button></div><button id="egR" class="small">Route another token</button></div>
+<div id="egGrid"></div>
+<div class="out" id="egOut"></div>
+<p class="try"><b>Try:</b> each square is one expert in one layer, to scale against the other layout. Blue squares are the routed experts this token uses; green is the shared expert. Switch layouts: the lit share falls from 6.25% to 2.1% (counting the shared expert) while each expert grows. The routing pattern is random, as an illustration; the counts and parameter figures come from each config.json.</p>
+</div>
+<p><b>Where the parameters live.</b> Each expert is a SwiGLU feed-forward block with three weight matrices, so</p>
+<div class="fm"><math display="block"><msub><mi>P</mi><mtext>expert</mtext></msub><mo>=</mo><mn>3</mn><msub><mi>d</mi><mtext>model</mtext></msub><msub><mi>d</mi><mtext>ff</mtext></msub><mo>,</mo><mspace width="1em"/><msub><mi>P</mi><mtext>MoE, total</mtext></msub><mo>=</mo><mi>L</mi><mi>E</mi><msub><mi>P</mi><mtext>expert</mtext></msub><mo>,</mo><mspace width="1em"/><msub><mi>P</mi><mtext>MoE, active</mtext></msub><mo>=</mo><mi>L</mi><mi>k</mi><msub><mi>P</mi><mtext>expert</mtext></msub></math>
+<dl><dt>d<sub>model</sub></dt><dd>the model's hidden width</dd><dt>d<sub>ff</sub></dt><dd>the expert's hidden width</dd><dt>3</dt><dd>the gate, up and down projections</dd><dt>L</dt><dd>number of layers</dd><dt>E</dt><dd>experts stored per layer (routed plus shared)</dd><dt>k</dt><dd>experts each token passes through (routed plus shared)</dd></dl></div>
+<p><b>Worked example: Qwen3-235B-A22B.</b> <span class="m"><i>d</i><sub>model</sub> = 4,096</span> and <span class="m"><i>d</i><sub>ff</sub> = 1,536</span> ({{config|@c235}}), so <span class="m"><i>P</i><sub>expert</sub> = 3 × 4,096 × 1,536 = 18,874,368</span>.</p>
+<ul>
+<li>Stored: 94 × 128 × 18.87M = 227.1B, which is 97% of the 235B total.</li>
+<li>Active: 94 × 8 × 18.87M = 14.2B of the 22B. Attention, norms and embeddings make up the rest.</li>
+</ul>
+<p><b>Worked example: Qwen3.8-2.4T-A95B.</b> <span class="m"><i>d</i><sub>model</sub> = 8,192</span>, <span class="m"><i>d</i><sub>ff</sub> = 2,048</span>, 92 layers, and 513 experts stored per layer: 512 routed plus 1 shared of the same width ({{config|@c24cfg}}). So <span class="m"><i>P</i><sub>expert</sub> = 3 × 8,192 × 2,048 = 50,331,648</span>.</p>
+<ul>
+<li>Stored: 92 × 513 × 50.33M = 2.375T, reproducing the 2.4T headline.</li>
+<li>Active: 92 × 11 × 50.33M = 50.9B of the 95B. At this scale the attention and DeltaNet layers are a much larger share of per-token compute than in Qwen3.</li>
+</ul>
+<div class="tw"><table>
+<tr><th>Model</th><th class="num">Total / active</th><th class="num">Ratio</th><th>Experts per layer</th></tr>
+<tr><td>Qwen3-235B-A22B</td><td class="num">235B / 22B</td><td class="num">11x</td><td>128, top-8, no shared</td></tr>
+<tr><td>Qwen3-Next-80B-A3B</td><td class="num">80B / 3B</td><td class="num">27x</td><td>512, top-10, plus 1 shared</td></tr>
+<tr><td>Qwen3.5-397B-A17B</td><td class="num">397B / 17B</td><td class="num">23x</td><td>512, top-10, plus 1 shared</td></tr>
+<tr><td>Qwen3.8-2.4T-A95B</td><td class="num">2.4T / 95B</td><td class="num">25x</td><td>512, top-10, plus 1 shared</td></tr>
+<tr><td>Qwen3.8-Flash-Next</td><td class="num">125B / 6B</td><td class="num">21x</td><td>512, top-10, plus 1 shared</td></tr>
+</table></div>
+<p class="small mute">Ratio = total ÷ active, rounded (235/22 = 10.7, 80/3 = 26.7, 397/17 = 23.4, 2,400/95 = 25.3, 125/6 = 20.8). The <a href="#" data-tab="t-cfg">Configs and cache</a> tab recomputes every stored and active figure from config.json.</p>
+<p>Flash-Next's 21x is the most aggressive ratio among the flash-tier models on {{Mixture-of-Experts (MoE) models|n:3c65c17b0d0d810080cce6648ac8f2f2}}, though not in the open frontier as a whole: DeepSeek V4 Pro sits near 33x and Kimi K3 near 27x at flagship scale. What 6B active buys is the absolute figure rather than the ratio, since 6B active costs roughly what a 6B dense model costs to decode.</p>
+<p><b>High sparsity is not a free lunch.</b></p>
+<ul>
+<li>All experts must still be resident in memory.</li>
+<li>All-to-all traffic per token grows with the number of experts a token visits.</li>
+<li>Load imbalance worsens as experts get smaller.</li>
+<li>Fine-tuning or RL on a very sparse model is harder, because each expert sees fewer tokens.</li>
+</ul>
+<p>The shared expert's return in Next is one answer to the last point. At 512 experts each routed expert sees about one fiftieth of the token stream (10/512), and an always-on expert keeps the common computation in one well-trained place.</p>
+</section>

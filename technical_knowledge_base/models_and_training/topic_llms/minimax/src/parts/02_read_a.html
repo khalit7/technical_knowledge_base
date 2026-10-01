@@ -1,0 +1,75 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="nav">
+<a href="#s-what">What MiniMax is</a><a href="#s-bill">The bill</a><a href="#s-light">Lightning</a><a href="#s-hyb">7:1 hybrid</a><a href="#s-m2">M2's reversal</a><a href="#s-msa">MSA</a><a href="#s-anim">Three ways</a><a href="#s-arc">The arc</a><a href="#s-cispo">CISPO</a><a href="#s-moe">MoE</a><a href="#s-now">Models today</a><a href="#s-biz">Business</a><a href="#s-trade">Trade-offs</a><a href="#s-mist">Mistakes</a>
+</nav>
+
+<section id="s-what">
+<h2>What MiniMax is: one running experiment on attention</h2>
+<p class="lead">MiniMax is a Shanghai lab (founded December 2021, {{Wikipedia|@wiki}}) whose model line is defined by one running experiment: how far the quadratic softmax attention of a standard transformer can be replaced by something cheaper without losing frontier quality.</p>
+<p>It has shipped all three answers at production scale, one after another, and written up why it moved: <b>linear attention</b> in a hybrid (MiniMax-01 and M1), a public reversal to <b>full attention</b> (M2), and <b>trained block-sparse attention</b> (M3). That sequence, with the reasons attached, is unusually direct evidence on where efficient attention breaks, and for anyone deciding what to serve it is worth more than any one of the models.</p>
+<p>Where each generation sits against the standard design (click a row to jump to it):</p>
+<div class="tw"><table class="lt">
+<tr><th>Generation</th><th>Attention</th><th>What a decoded token stores and reads</th><th>Context</th></tr>
+<tr><td><a href="#s-light">MiniMax-01, M1</a></td><td>Lightning attention (linear) in 7 of every 8 layers, softmax GQA in the 8th</td><td>Linear layers: a fixed-size state, no cache. Softmax layers: a full KV cache, read in full</td><td>1M in training, 4M claimed at inference</td></tr>
+<tr><td><a href="#s-m2">M2, M2.x</a></td><td>Softmax GQA in every layer</td><td>A full KV cache in every layer, read in full</td><td>192K trained ({{M2 report|@pm2}}); 204,800 on the API ({{MiniMax docs|@tg}})</td></tr>
+<tr><td><a href="#s-msa">M3</a></td><td>Softmax GQA in every layer, plus MSA in every layer after the first three</td><td>A full KV cache in every layer, but each query reads only 16 selected blocks of 128 tokens</td><td>1M</td></tr>
+</table></div>
+<p class="small mute">Scope: the generic mechanisms (softmax attention and its KV cache, grouped-query attention, the linear-attention recurrence, trained sparse attention, top-k expert routing) are owned by {{LLM Architecture Gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}} and {{Mixture-of-Experts (MoE) models|n:3c65c17b0d0d810080cce6648ac8f2f2}}, and the PPO and GRPO objectives by {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}. Each is summarised here only as far as MiniMax's variant needs it; the variants themselves are explained here in full. Release dates are on the <a href="#" data-tab="t-line">Lineage</a> tab, and every cache and compute figure below is plotted against context on the <a href="#" data-tab="t-cost">Cost by context</a> tab.</p>
+</section>
+
+<section id="s-bill">
+<h2>The bill being attacked</h2>
+<p>Softmax attention for one head computes, over a sequence of <span class="m"><i>n</i></span> tokens,</p>
+<div class="fm"><math display="block"><mi>softmax</mi><mrow><mo>(</mo><mfrac><mrow><mi>Q</mi><msup><mi>K</mi><mo>⊤</mo></msup></mrow><msqrt><mi>d</mi></msqrt></mfrac><mo>)</mo></mrow><mi>V</mi></math>
+<dl><dt>Q, K, V</dt><dd>the <span class="m"><i>n</i> × <i>d</i></span> matrices of queries, keys and values for one head</dd><dt>d</dt><dd>the head dimension</dd></dl></div>
+<p>The softmax sits between the two matrix products, so the <span class="m"><i>n</i> × <i>n</i></span> score matrix must be formed: prefill costs on the order of <span class="m"><i>n</i><sup>2</sup><i>d</i></span> per head, and every decoded token must read the keys and values of every earlier token, which are kept in the <b>KV cache</b>. Per layer and per token that cache holds</p>
+<div class="fm"><math display="block"><msub><mtext>KV</mtext><mtext>layer</mtext></msub><mo>=</mo><mn>2</mn><mspace width="2px"/><msub><mi>H</mi><mi>kv</mi></msub><mspace width="2px"/><msub><mi>d</mi><mi>h</mi></msub><mspace width="2px"/><mi>b</mi><mtext>&#8202;bytes</mtext></math>
+<dl><dt>H<sub>kv</sub></dt><dd>the number of key/value heads</dd><dt>d<sub>h</sub></dt><dd>the head dimension</dd><dt>b</dt><dd>bytes per element (2 in BF16)</dd><dt>2</dt><dd>one key and one value</dd></dl></div>
+<p><b>GQA</b> (grouped-query attention) shrinks <span class="m"><i>H</i><sub>kv</sub></span> by letting several query heads share one key/value head; the {{Architecture Gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}} works through it and the other variants across the field. MiniMax has attacked the quadratic term, then given the attack up, then attacked the reads instead.</p>
+</section>
+
+<section id="s-light">
+<h2>Lightning attention (MiniMax-01, M1): linear attention computed in blocks</h2>
+<p><b>Linear attention</b> drops the softmax, so the product becomes associative and can be regrouped:</p>
+<div class="fm"><math display="block"><mrow><mo>(</mo><mi>Q</mi><msup><mi>K</mi><mo>⊤</mo></msup><mo>)</mo></mrow><mi>V</mi><mo>=</mo><mi>Q</mi><mrow><mo>(</mo><msup><mi>K</mi><mo>⊤</mo></msup><mi>V</mi><mo>)</mo></mrow></math>
+<p class="wh">The <span class="m"><i>n</i> × <i>n</i></span> matrix disappears and a <span class="m"><i>d</i> × <i>d</i></span> state takes its place. In recurrent form, with row vectors <span class="m"><b>q</b><sub><i>t</i></sub>, <b>k</b><sub><i>t</i></sub>, <b>v</b><sub><i>t</i></sub></span>,</p>
+<math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><msubsup><mi>𝐤</mi><mi>t</mi><mo>⊤</mo></msubsup><msub><mi>𝐯</mi><mi>t</mi></msub><mo>,</mo><mspace width="16px"/><msub><mi>𝐨</mi><mi>t</mi></msub><mo>=</mo><msub><mi>𝐪</mi><mi>t</mi></msub><msub><mi>S</mi><mi>t</mi></msub></math>
+<p class="wh">so decoding needs <b>no KV cache at all</b>, only the fixed-size state, whatever the context length. The gallery page owns this recurrence and its gated successors such as Gated DeltaNet.</p></div>
+<p><b>Lightning attention</b> is MiniMax's IO-aware way of computing it: a kernel contribution, not a new mathematical form ({{MiniMax-01 report, arXiv 2501.08313|@p01}}). Causal linear attention looks cheap, but computed token by token it is a cumulative sum along the sequence, which serialises the very dimension a GPU wants to parallelise. Lightning attention cuts the sequence into blocks of <span class="m"><i>B</i></span> tokens and splits each block's output in two: inside the block, the ordinary masked quadratic product (small and fully parallel, the report's "left product"); from all earlier blocks, one multiplication by the carried state (the "right product"). For block <span class="m"><i>i</i></span>:</p>
+<div class="fm"><math display="block"><msub><mi>O</mi><mi>i</mi></msub><mo>=</mo><mrow><mo>[</mo><mrow><mo>(</mo><msub><mi>Q</mi><mi>i</mi></msub><msubsup><mi>K</mi><mi>i</mi><mo>⊤</mo></msubsup><mo>)</mo></mrow><mo>⊙</mo><mi>M</mi><mo>]</mo></mrow><msub><mi>V</mi><mi>i</mi></msub><mo>+</mo><msub><mi>Q</mi><mi>i</mi></msub><msub><mi>S</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>,</mo><mspace width="16px"/><msub><mi>S</mi><mi>i</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><msubsup><mi>K</mi><mi>i</mi><mo>⊤</mo></msubsup><msub><mi>V</mi><mi>i</mi></msub></math>
+<dl><dt>Q<sub>i</sub>, K<sub>i</sub>, V<sub>i</sub></dt><dd>the queries, keys and values of the <i>B</i> tokens in block <i>i</i>, each <i>B</i> × <i>d</i></dd><dt>M</dt><dd>the <i>B</i> × <i>B</i> causal mask (1 where the key is at or before the query, 0 elsewhere); ⊙ is elementwise multiplication, so the first term is the <b>intra-block</b> part</dd><dt>S<sub>i−1</sub></dt><dd>the <i>d</i> × <i>d</i> state summing <b>k</b><sub><i>j</i></sub><sup>⊤</sup><b>v</b><sub><i>j</i></sub> over every token in blocks 1 to <i>i</i> − 1, so the second term is the <b>inter-block</b> part; the second equation carries the state on</dd></dl>
+<p class="wh">The cost per head is</p>
+<math display="block"><mi>O</mi><mrow><mo>(</mo><mi>n</mi><msup><mi>d</mi><mn>2</mn></msup><mo>+</mo><mi>n</mi><mi>B</mi><mi>d</mi><mo>)</mo></mrow></math>
+<p class="wh">where <i>nd</i><sup>2</sup> is the state updates and reads and <i>nBd</i> the intra-block products: linear in <i>n</i> for a fixed block size.</p></div>
+<p>MiniMax partitions sequences into blocks of 256 tokens, keeps each block's working set in on-chip SRAM in the spirit of {{FlashAttention|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}, and reports that lightning attention keeps a constant training speed as sequence length grows, the only linear model in its comparison to beat FlashAttention-2 ({{MiniMax-01 report|@p01}}, section 2.2 and appendix).</p>
+<p><b>Worked example (toy, one-dimensional head).</b> Four tokens with scalar <span class="m"><i>q</i> = (1, 2, 1, 3)</span>, <span class="m"><i>k</i> = (1, 1, 2, 1)</span>, <span class="m"><i>v</i> = (2, 1, 1, 3)</span>, so <span class="m"><i>k<sub>j</sub>v<sub>j</sub></i> = (2, 1, 2, 3)</span>. Token by token, <span class="m"><i>o<sub>t</sub></i> = <i>q<sub>t</sub></i> ∑<sub><i>j</i> ≤ <i>t</i></sub> <i>k<sub>j</sub>v<sub>j</sub></i></span>: the running sums are 2, 3, 5, 8, so <span class="m"><i>o</i> = (2, 6, 5, 24)</span>. In blocks of <span class="m"><i>B</i> = 2</span>: block 1 is intra-block only, <span class="m"><i>o</i><sub>1</sub> = 1 × 2 = 2</span> and <span class="m"><i>o</i><sub>2</sub> = 2 × (2 + 1) = 6</span>, leaving state <span class="m"><i>S</i><sub>1</sub> = 3</span>. Block 2: <span class="m"><i>o</i><sub>3</sub> = 1 × 2 + 1 × 3 = 5</span> (intra plus inter) and <span class="m"><i>o</i><sub>4</sub> = 3 × (2 + 3) + 3 × 3 = 24</span>. Same outputs, but each block's work is parallel and only one small state crosses the block boundary.</p>
+<p class="try"><b>Try:</b> step through the same four tokens both ways. Token by token, every output waits for the one before it; in blocks, the two outputs of a block are computed together and only the state (green) is handed on.</p>
+<div class="card" id="lt">
+<div class="seg" id="ltM"><button class="on" data-m="tok">Token by token (a running sum)</button><button data-m="blk">Lightning: blocks of B = 2</button></div>
+<div class="tw"><table class="toy" id="ltTab"></table></div>
+<div class="mlx-ctl"><button id="ltBack" aria-label="Previous step">&#9664;</button><button id="ltFwd" aria-label="Next step">&#9654; Next step</button><span class="small mute" id="ltCnt"></span></div>
+<p class="small" id="ltCap" style="min-height:3.2em;margin:4px 0 0"></p>
+</div>
+<p><b>Worked example (real scale).</b> One head with <span class="m"><i>d</i> = 128</span>, <span class="m"><i>B</i> = 256</span> and <span class="m"><i>n</i> = 1,048,576</span> tokens: softmax attention's <span class="m"><i>n</i><sup>2</sup><i>d</i> ≈ 1.41 × 10<sup>14</sup></span> against lightning's <span class="m"><i>nd</i>(<i>d</i> + <i>B</i>) = 1,048,576 × 128 × 384 ≈ 5.15 × 10<sup>10</sup></span>, a ratio of <span class="m"><i>n</i> / (<i>d</i> + <i>B</i>) ≈ 2,731</span> in multiply-adds (constant factors ignored). In serial terms, a token-by-token scan over that sequence is 1,048,576 dependent steps; in blocks of 256 it is 4,096.</p>
+</section>
+
+<section id="s-hyb">
+<h2>The 7:1 hybrid, and what the state costs</h2>
+<p>A fixed <span class="m"><i>d</i> × <i>d</i></span> state is a lossy summary of everything seen so far, so exact recall of one earlier token (a needle in a long document, a definition looked up in context, an identifier copied verbatim) degrades in a way perplexity does not show. The MiniMax-01 report says it plainly: pure linear attention matches the transformer at language modelling but "falls short in retrieval tasks". MiniMax-01 therefore shipped a <b>7:1 hybrid</b>: seven lightning-attention layers, then one softmax-attention layer, repeating. The linear layers do the cheap bulk mixing; the periodic softmax layers restore exact addressing.</p>
+<p>MiniMax-Text-01 has 80 layers, 64 query heads of dimension 128, and softmax layers using GQA with 8 key/value heads ({{config|@c01}}; its <code>attn_type_list</code> marks every eighth layer as softmax). So 10 layers keep a KV cache and 70 keep a state:</p>
+<ul class="tight">
+<li><b>KV cache per token</b>: <span class="m">10 × 2 × 8 × 128 × 2 = 40,960</span> bytes = 40 KiB, against 320 KiB if all 80 layers were softmax GQA. At a 1,048,576-token context that is 40 GiB per sequence instead of 320 GiB.</li>
+<li><b>State per sequence</b>: <span class="m">70 × 64 × 128 × 128 = 73,400,320</span> elements, fixed: 140 MiB at 2 bytes per element whatever the context (the report does not state the state's precision; in FP32 it doubles).</li>
+</ul>
+<p class="try"><b>Try:</b> click a model, move the context, and click any layer. Only the orange layers of MiniMax-01 grow with context; M2 caches in every layer; M3 caches in every layer at half M2's width per layer.</p>
+<div class="card" id="ls">
+<div class="layrow"><span><b>MiniMax-01</b><br><span class="mute">80 layers</span></span><div class="lay" id="lsA"></div></div>
+<div class="layrow"><span><b>M2</b><br><span class="mute">62 layers</span></span><div class="lay" id="lsB"></div></div>
+<div class="layrow"><span><b>M3</b><br><span class="mute">60 layers</span></span><div class="lay" id="lsC"></div></div>
+<div class="leg"><span><i style="background:var(--c3);height:10px"></i>lightning (state, no cache)</span><span><i style="background:var(--c2);height:10px"></i>softmax GQA, 8 KV heads</span><span><i style="background:var(--c5);height:10px"></i>full GQA, 4 KV heads</span><span><i style="background:var(--acc);height:10px"></i>MSA on GQA, 4 KV heads</span></div>
+<div class="ctl"><label>Context: <b id="lsTv"></b><input type="range" id="lsT" min="0" max="8" step="1" value="6" aria-label="Context length"></label></div>
+<div class="out" id="lsOut"></div>
+<p class="small mute" id="lsCap" style="margin:4px 0 0"></p>
+</div>
+<p>At 456B total parameters with 45.9B active, MiniMax describe Text-01 as the first successful large-scale implementation of linear attention. It was trained on contexts up to 1M tokens and extrapolated to 4M at inference, which is the source of the 4M-token claim ({{Text-01 model card|@k01}}).</p>
+</section>
