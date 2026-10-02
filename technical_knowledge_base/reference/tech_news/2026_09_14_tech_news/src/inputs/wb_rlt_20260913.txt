@@ -1,0 +1,62 @@
+SOURCE: https://web.archive.org/web/20260913000705id_/https://yifanzhang-pro.github.io/recurrent-looped-tranformer/
+
+ 
+ Recurrent Looped Transformer -- Yifan Zhang 
+ Skip to content 
+ RLT 
+ Abstract Overview Execution Citation Blog 
+ Architecture · Hardware · Reinforcement learning
+ Recurrent Looped
+Transformer
+ Latent reasoning with infinite temporal depth. 
+One recurrent computation across every prompt and response token.
+ Yifan Zhang 
+ Technical report  ·  September 12, 2026
+ English paper ↗ 中文论文 ↗ GitHub ↗ Cite this work 
+ Latent reasoning Hardware co-design RL co-design 
+ Abstract
+ Recurrent Looped Transformer (RLT) combines a causal encoder with a recurrent decoder that carries its final hidden state and layerwise sliding-window attention (SWA) cache across every prompt and response token. The encoder constructs global key–value memory; the decoder extends a continuous latent computation as the sequence grows.
+ The design brings together latent reasoning with unbounded temporal depth , model–hardware co-design , and model–RL algorithm co-design . Parallel encoder work, sequence batching, memory reuse, and checkpointing surround a recurrent core. Pretraining, SFT, sampling, and current-policy replay share the same complete-state transition.
+ Infinite depth refers to an extensible temporal path, not infinite work within a token. Realized reasoning gains, hardware efficiency, and RL scaling remain to be established.
+ Three design principles
+ 01 / REASONING Depth that grows with the sequence.
+ Each token extends the recurrent path through the full decoder. After \(t\) tokens, that path traverses \(tL_D\) decoder blocks while the per-token block count stays fixed.
+ 02 / HARDWARE Parallel work around a recurrent core.
+ Batch known-token encoder work and independent decoder updates. Reuse weights and memory, and checkpoint activations while preserving the reference computation.
+ 03 / RL One transition from sampling to replay.
+ Rebuild the full history under current parameters, including prompt states and decoder SWA KV. Keep recorded behavior probabilities tied to the actual sampler.
+ The complete state matters.
+ Causal encoder Known-token parallelism · global KV memory 
+ →
+ Recurrent decoder Encoder cross-attention · local decoder SWA 
+ Carry forward: recurrent output + decoder SWA KV The previous output enters the next merge. Each SWA layer reads its own recent keys and values.
+ Prompt and response share one state transition. Encoder memory is prefix-restricted; decoder attention respects its local window. Neither decoder state component resets at the serving boundary. 
+ \[H_t=(s_t,C_t^D),\qquad H_0=(s_\star,\varnothing).\]
+ \[(s_t,C_t^D)=D_\phi\!\left(\operatorname{Merge}(e_t,s_{t-1});M_{\le t},C_{t-1}^D,t\right).\]
+ \[p_\Theta(x_{t+1}\mid x_{1:t})=\operatorname{softmax}\!\left(W_o\operatorname{RMSNorm}_o(s_t)\right)_{x_{t+1}}.\]
+ Here \(M_{\le t}\) is global encoder memory, \(s_t\) is the recurrent output, and \(C_t^D\) contains layerwise decoder KV. A SWA window of \(W\) includes the current token and retains at most \(W-1\) historical entries for the next update.
+ The concrete configuration uses 48 encoder layers and 48 decoder layers , with compatible attention and FFN weights shared across stages. The temporal path traverses \(48t\) decoder blocks after \(t\) tokens. Each token executes 96 logical blocks; decoder cross-attention means these blocks do not all have equal FLOPs.
+ One execution across training and inference
+ Known tokens can be encoded in a causal batch. Decoder updates still proceed in token order, constructing both recurrent outputs and decoder SWA caches.
+ Reference execution schedules Mode Encoder Decoder 
+ Prompt prefill Causal batch Update complete state through every prompt token. 
+ Generation Incremental Sample from the preceding state, then consume each token exactly once. 
+ Pretraining Causal batch Full BPTT over all valid next-token targets. 
+ SFT Causal batch Assistant-target loss; all context tokens update differentiable state. 
+ RL replay Rebuild with current weights Replay the complete history and SWA caches; score each action before consuming it. 
+ Forward consistency and complete gradients are separate requirements. Full BPTT includes paths through recurrent outputs, decoder KV, and encoder memory. Detaching any of these changes the gradient. Parameter updates invalidate old caches for exact current-policy replay.
+ Behavior log-probabilities must describe the actual sampling distribution. Exact importance sampling additionally requires support coverage. Shared transitions remove structural prompt-boundary mismatch; numerical kernel parity and off-policy estimation remain separate concerns.
+ For the execution-level distinction, see the prefill–decode kernel mismatch note .
+ Read the full report ↗ 阅读中文论文 ↗ 
+ Citation
+ If you find this work useful, please cite:
+ @techreport{zhang2026recurrentlooped,
+ title = {Recurrent Looped Transformer},
+ author = {Zhang, Yifan},
+ year = {2026},
+ month = sep,
+ url = {https://github.com/yifanzhang-pro/recurrent-looped-tranformer}
+} 
+ Copy BibTeX 
+ Abstract  ·  Overview  ·  Citation  ·  GitHub  ·  Yifan's Blog 
+ © 2026 Yifan Zhang. All rights reserved.
