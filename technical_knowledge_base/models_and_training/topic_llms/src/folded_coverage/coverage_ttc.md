@@ -2,7 +2,7 @@
 
 Source: `reasoning_models_and_test_time_compute/src/` (parts, inputs, viz_ideas.md, recompute.py). Destinations:
 - **DEEP** = `parts/34_tab_ttc.html` (tab `t-ttc`) with `parts/34_js_ttc0_common.js` to `34_js_ttc4_lab.js`; section ids in brackets.
-- **DRAFT** = `drafts/axis1_from_ttc.html` (for Reading section `s-think`, merged by Khalid).
+- **DRAFT** = merged into the Reading section `s-think` in `src/parts/20_read.html`.
 - **PARENT** = already said in the parent; quoted.
 - **REPORT** = handed to Khalid in the agent's report for the parent's Further reading tab.
 - **DROPPED** = said why.
