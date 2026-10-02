@@ -1,0 +1,188 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-kn">Knowledge tasks</a><a href="#s-knr">Their results</a><a href="#s-ft">Fine-tuning</a><a href="#s-dm">Decision tasks</a><a href="#s-trust">Believe it?</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>By late 2022 two lines of language model work had matured separately ({{§1|ax:S1}}).</p>
+<ul>
+<li><b>Reasoning.</b> {{Chain-of-thought prompting|https://arxiv.org/abs/2201.11903}} (CoT) showed that a prompted model can reason step by step. But CoT is "a static black box": the model reasons only over its own internal representations, is not grounded in the world, and cannot look anything up. So it hallucinates facts and propagates early errors through the whole chain (Figure 1 (1b), {{§1|ax:S1}}).</li>
+<li><b>Acting.</b> Work such as {{WebGPT|https://arxiv.org/abs/2112.09332}}, {{SayCan|https://arxiv.org/abs/2204.01691}} and {{Inner Monologue|https://arxiv.org/abs/2207.05608}} used language models to emit actions in interactive environments. These systems did not reason abstractly about high-level goals or keep a working memory; Inner Monologue's "reasoning" only restates facts about the current state. WebGPT and dialogue agents also needed expensive human feedback or imitation and reinforcement learning ({{§1|ax:S1}}, {{§5|ax:S5}}).</li>
+</ul>
+<p class="lead"><b>The question:</b> can free-form reasoning and environment actions be interleaved in one loop, each improving the other, with nothing but a few-shot prompt?</p>
+</section>
+
+<section id="s-idea"><h2>Idea: thoughts are actions that touch nothing</h2>
+[[S2|§2]]
+<p>Take the usual agent setup. At step <i>t</i> the agent sees an observation <span class="m"><i>o<sub>t</sub></i></span> and picks an action <span class="m"><i>a<sub>t</sub></i></span> from a policy <span class="m"><i>π</i>(<i>a<sub>t</sub></i> | <i>c<sub>t</sub></i>)</span>, where the context <span class="m"><i>c<sub>t</sub></i> = (<i>o</i><sub>1</sub>, <i>a</i><sub>1</sub>, …, <i>o</i><sub><i>t</i>−1</sub>, <i>a</i><sub><i>t</i>−1</sub>, <i>o<sub>t</sub></i>)</span>. Learning that policy is hard when the mapping from context to action is "highly implicit and requires extensive computation" ({{§2|ax:S2}}).</p>
+<div class="fm"><div class="eq"><i>Â</i> = <i>A</i> ∪ <i>L</i>, &nbsp; a thought <i>â<sub>t</sub></i> ∈ <i>L</i> returns no observation: &nbsp; <i>c</i><sub><i>t</i>+1</sub> = (<i>c<sub>t</sub></i>, <i>â<sub>t</sub></i>)</div><div class="wh">The whole method, {{§2|ax:S2}}: add the space of language <i>L</i> to the action space <i>A</i>. A thought does not change the environment and gets no feedback; it only composes useful information from the context and appends it, to condition what comes next.</div></div>
+<p>The model decides for itself when to think and when to act. The paper lists the kinds of thought it saw ({{§2|ax:S2}}):</p>
+<ul class="tight"><li>decomposing the goal and making a plan;</li><li>injecting commonsense knowledge;</li><li>extracting the important part of an observation;</li><li>tracking progress and moving to the next subgoal;</li><li>handling exceptions and adjusting the plan.</li></ul>
+<p>The paper names the two directions of the synergy. <b>Reason to act:</b> thoughts create, maintain and adjust plans. <b>Act to reason:</b> actions bring outside information into the reasoning ({{§1|ax:S1}}). The animation below is Figure 1's question, run four ways. Toggle between Standard, CoT (reason only), Act (act only) and ReAct and watch where each one goes wrong. The {{Replay the traces|tab:t-run}} tab has five more of the paper's episodes.</p>
+<div class="card" id="rp">
+<div class="an-top"><div class="seg" id="rpM" role="group" aria-label="Prompting method"></div>
+<span class="small mute">{{Figure 1 (1)|ax:S1.F1}}, transcribed; green and red highlights are the paper's.</span></div>
+<div id="rpSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rpBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rpPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rpFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rpScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="rpSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rpStep"></div><p id="rpCap"></p></div>
+<div class="an-cnt" id="rpCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Word counts are of the text as printed. The exemplar counts are the words of the paper's six HotpotQA prompts for that method, counted from {{Appendix C.1|ax:A3.SS1}} by <code>recompute.py</code>. The animation stops when it is off screen, and starts paused if your system asks for reduced motion.</p>
+</div>
+<p><b>Dense or sparse thoughts.</b> On reasoning-heavy tasks every step is thought, action, observation ("dense" thought). On decision-making tasks a trajectory can run past 50 actions, and most steps need no deliberation. There the model places thoughts sparsely, where they help ({{§2|ax:S2}}).</p>
+<p>The paper claims four properties, all from the policy being one prompted language model ({{§2|ax:S2}}): <b>easy to design</b> (annotators type their thoughts on top of their actions; "No ad-hoc format choice, thought design, or example selection is used"), <b>general</b> (question answering, fact checking, a text game and web shopping with one recipe), <b>performant and robust</b> (one to six in-context examples, robust to which ones) and <b>controllable</b> (a person can read and edit a thought mid-run).</p>
+<p><b>The loop is a few lines of code.</b> The authors' released notebook generates "Thought <i>i</i>:" up to the next "Observation <i>i</i>:". It splits the text at "Action <i>i</i>:", runs the action against Wikipedia, appends all three to the prompt, and stops after a finish action or seven steps. When the split fails, it asks the model again for just the action and counts a "bad call" ({{hotpotqa.ipynb|https://github.com/ysymyth/ReAct/blob/master/hotpotqa.ipynb}}). Every agent framework since has wrapped that parse, act, append cycle (see Why it matters).</p>
+</section>
+
+<section id="s-kn"><h2>Knowledge-intensive tasks: setup</h2>
+[[S3.SS1|§3.1, §3.2]]
+<p><b>Tasks.</b> {{HotpotQA|https://arxiv.org/abs/1809.09600}} is multi-hop question answering over two or more Wikipedia passages. {{FEVER|https://arxiv.org/abs/1803.05355}} is fact verification: each claim is SUPPORTS, REFUTES or NOT ENOUGH INFO. Both run "question-only": the model gets no supporting paragraphs and must use its own knowledge or look things up ({{§3.1|ax:S3.SS1}}).</p>
+<p><b>A deliberately weak tool.</b> The Wikipedia API has three actions ({{§3.1|ax:S3.SS1}}):</p>
+<ul class="tight">
+<li><code>search[entity]</code> returns the first 5 sentences of the entity's page, or else the top-5 similar titles from Wikipedia search;</li>
+<li><code>lookup[string]</code> returns the next sentence on the page that contains the string, like Ctrl+F;</li>
+<li><code>finish[answer]</code> ends the task.</li>
+</ul>
+<p>The paper says this is "significantly weaker than state-of-the-art lexical or neural retrievers". The point is to imitate how a person browses and to force retrieval through explicit reasoning.</p>
+<p><b>Prompts.</b> The authors took 6 HotpotQA and 3 FEVER training questions at random and wrote ReAct trajectories for them by hand; more examples did not help (footnote 2). Thoughts in them decompose the question ("I need to search x, find y, then find z"). They also extract facts ("x was started in 1844"), do commonsense or arithmetic ("1844 &lt; 1989"), reformulate searches and synthesise the answer ({{§3.2|ax:S3.SS2}}, {{Appendix C|ax:A3}}).</p>
+<p><b>Baselines by deletion.</b> Every baseline prompt is the ReAct trajectories with parts removed, so a comparison isolates exactly what was deleted ({{§3.2|ax:S3.SS2}}):</p>
+<ul class="tight">
+<li><b>Standard:</b> all thoughts, actions and observations removed (question, then answer);</li>
+<li><b>CoT:</b> actions and observations removed, a reasoning-only baseline. <b>CoT-SC</b> (self-consistency) samples 21 CoT trajectories at temperature 0.7 and takes the majority answer;</li>
+<li><b>Act:</b> thoughts removed, loosely like WebGPT but prompted rather than trained.</li>
+</ul>
+<p>Deleting text changes the prompt's length as well as its content. In words, the six ReAct exemplars run to <span id="pwReact"></span>, against <span id="pwStd"></span> for Standard, <span id="pwCot"></span> for CoT and <span id="pwAct"></span> for Act (counted from {{Appendix C.1|ax:A3.SS1}}).</p>
+<p><b>Combining internal and external knowledge.</b> ReAct turned out more factual, while CoT is better at structuring the reasoning but hallucinates. So the paper backs off from one to the other ({{§3.2|ax:S3.SS2.SSS0.Px3}}):</p>
+<ul class="tight">
+<li><b>ReAct → CoT-SC:</b> if ReAct has not answered within 7 steps (HotpotQA) or 5 (FEVER), fall back to CoT-SC. More steps did not help: trajectories that needed exactly 7 or 5 steps were only 0.84% and 1.33% of the correct ones (footnote 3).</li>
+<li><b>CoT-SC → ReAct:</b> if the majority answer of the <i>n</i> CoT-SC samples appears fewer than <i>n</i>/2 times, so the model's own knowledge looks unsure, fall back to ReAct.</li>
+</ul>
+<p><b>Fine-tuning.</b> Writing reasoning traces by hand does not scale, so the paper bootstraps instead, as in {{STaR|https://arxiv.org/abs/2203.14465}}. It keeps 3,000 trajectories with correct answers generated by ReAct (and likewise by each baseline) and fine-tunes PaLM-8B and PaLM-62B on them. Batch size is 64. ReAct and Act train for 4,000 steps; Standard and CoT for 2,000 (8B) or 1,000 (62B), because they "degrade soon after finetuning" ({{§3.2|ax:S3.SS2.SSS0.Px4}}, {{Appendix B.1|ax:A2.SS1}}).</p>
+<p>Every main result uses one frozen model, PaLM-540B, prompted. Appendix A.1 adds GPT-3 (text-davinci-002) runs ({{§2|ax:S2}}, {{Appendix A.1|ax:A1.SS1}}).</p>
+</section>
+
+<section id="s-knr"><h2>Knowledge-intensive tasks: results</h2>
+[[S3.SS3|§3.3, Table 1, Table 2, Figure 2]]
+<div class="pred" id="pr-cot" data-ans="1"><div class="q">on HotpotQA, which scores higher: ReAct on its own, or chain-of-thought on its own?</div>
+<div class="opts"><button>ReAct, clearly: it can look facts up</button><button>CoT, slightly</button><button>They tie exactly</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>CoT, 29.4 exact match against 27.4 ({{Table 1|ax:S3.T1}}). Grounding fixes hallucination but costs reasoning flexibility, and a weak search tool makes it worse. On FEVER, where claims can differ by a single detail, ReAct leads 60.9 to 56.3. Toggle the task:</p>
+<div class="seg" id="t1mM" role="group" aria-label="Task"><button class="on" data-m="hq" aria-pressed="true">HotpotQA (EM)</button><button data-m="fv" aria-pressed="false">FEVER (accuracy)</button></div>
+<div class="bars" id="t1m"></div>
+<p class="small mute">{{Table 1|ax:S3.T1}}, PaLM-540B. The whiskers are ±1 standard error <i>assuming 500 questions</i>: the paper never says how many questions Table 1 used, and the released code runs 500 random dev questions. At that size the ReAct and CoT gap on HotpotQA (2.0 points) is smaller than one standard error of the difference (<span id="seHq"></span>).</p>
+</div></div>
+<p><b>ReAct beats Act on both tasks</b>, 27.4 against 25.7 on HotpotQA and 60.9 against 58.9 on FEVER. That is the value of reasoning to guide acting, "especially for synthesizing the final answer" ({{§3.3|ax:S3.SS3}}). In Figure 1, Act found the right page and then answered "yes".</p>
+<p><b>The failure analysis is the part most often cited.</b> The authors sampled 50 correct and 50 incorrect trajectories from each of ReAct and CoT on HotpotQA, 200 in all, and labelled them by hand ({{Table 2|ax:S3.T2.fig1}}):</p>
+<div id="t2m"></div>
+<ul class="tight">
+<li><b>Hallucination</b> causes 56% of CoT's failures and none of ReAct's. 14% of CoT's "successes" are false positives (right answer, hallucinated reasoning), against 6% for ReAct.</li>
+<li><b>ReAct's failures are mostly reasoning errors</b> (47%). The structure makes it less flexible in forming reasoning steps. The category includes a failure specific to ReAct: the model repeats its previous thought and action and cannot jump out of the loop. The authors suspect greedy decoding (footnote 6).</li>
+<li><b>Uninformative search</b> causes 23% of ReAct's failures: a bad search result derails the reasoning, and the model has a hard time recovering. The paper calls this "an expected trade-off between factuality and flexibility".</li>
+<li><b>Label ambiguity</b> (right answer, not an exact match to the label) is 29% of ReAct's failures and 28% of CoT's. Some HotpotQA labels are simply outdated. In {{Figure 4|ax:A1.F4}}, only ReAct gets the up-to-date answer, and exact match marks it wrong (replay it in {{the replay tab|tab:t-run}}).</li>
+</ul>
+<p><b>ReAct plus CoT-SC is the best prompting method.</b> On HotpotQA the best is ReAct → CoT-SC at 35.1; on FEVER, CoT-SC → ReAct at 64.6. Figure 2 plots both against the number of CoT-SC samples. The paper says the combinations beat CoT-SC at every sample count and reach CoT-SC's 21-sample score "using merely 3-5 samples" ({{§3.3|ax:S3.SS3}}, {{Figure 2|ax:S3.T1.fig2}}). Recovered from the figure's vector paths, that holds at 5 samples on HotpotQA. On FEVER, CoT-SC → ReAct needs 7 ({{Figure 2 rebuilt|tab:t-tables:f2}}).</p>
+<p>All prompting stays far below fully supervised systems: 67.5 on HotpotQA and 89.5 on FEVER ({{Table 1|ax:S3.T1}}). The authors read that gap as the case for fine-tuning.</p>
+</section>
+
+<section id="s-ft"><h2>Fine-tuning flips the ranking</h2>
+[[S3.F3|§3.3, Figure 3]]
+<div class="pred" id="pr-ft" data-ans="3"><div class="q">PaLM-8B, prompted with the same exemplars: which of the four methods does worst on HotpotQA?</div>
+<div class="opts"><button>Standard</button><button>CoT</button><button>Act</button><button>ReAct</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>ReAct, at about 5 exact match. A small model cannot learn to both reason and act from a handful of examples. Fine-tune it on 3,000 bootstrapped trajectories and it becomes the best of the four. Toggle the panel:</p>
+<div class="seg" id="f3mM" role="group" aria-label="Learning"><button class="on" data-m="prompt" aria-pressed="true">Prompted</button><button data-m="finetune" aria-pressed="false">Fine-tuned (3,000 trajectories)</button></div>
+<div id="f3m" class="plot"></div>
+<p class="small mute">{{Figure 3|ax:S3.F3}} rebuilt from the bar heights in the figure's vector graphics, measured against its own gridlines (to about 0.01 point). The paper prints no numbers for it. The 540B prompted bars match {{Table 1|ax:S3.T1}} to 0.05; no 540B model was fine-tuned.</p>
+</div></div>
+<p>Fine-tuned, the ordering changes ({{Figure 3|ax:S3.F3}}):</p>
+<ul class="tight">
+<li>PaLM-8B fine-tuned on ReAct (25.1) beats every prompted PaLM-62B method; the best of those is CoT at 23.5.</li>
+<li>PaLM-62B fine-tuned on ReAct (32.7) beats all four prompted PaLM-540B methods in the figure; the best is CoT at 29.4.</li>
+<li>Fine-tuning Standard or CoT does much worse. The paper's reading: those runs teach the model to memorise (possibly hallucinated) facts, while ReAct and Act runs teach it to act to get information, "a more generalizable skill" ({{§3.3|ax:S3.SS3.SSS0.Px4}}).</li>
+</ul>
+<p>Note what "all 540B prompting methods" means. It is the four methods of Figure 3. The 62B fine-tuned ReAct's 32.7 does not beat 540B CoT-SC (33.4) or either combination (34.2 and 35.1) from {{Table 1|ax:S3.T1}}.</p>
+</section>
+
+<section id="s-dm"><h2>Decision-making tasks</h2>
+[[S4|§4, Tables 3 and 4]]
+<p><b>ALFWorld</b> is a text game aligned with the embodied ALFRED benchmark: 6 task types (pick, clean, heat, cool, look, pick two), goals such as "examine paper under desklamp", games with more than 50 locations that take an expert more than 50 steps, and a premium on knowing where household objects usually are ({{§4|ax:S4.SS0.SSS0.Px1}}). The authors wrote three trajectories per task type with sparse thoughts (decompose the goal, track subgoals, pick the next one, reason about where things are); every ordered pair of two makes a prompt, so 6 prompts per type, and Act uses the same trajectories without thoughts. Evaluation: the 134 unseen games. The baseline, BUTLER, imitates 10<sup>5</sup> expert trajectories per task type; a GPT-2 fine-tuned on 3,553 games did much better but trained across task types, so it is left out (footnote 7, {{Micheli and Fleuret|https://arxiv.org/abs/2104.07972}}).</p>
+<p><b>WebShop</b> is a shopping site with 1.18M real Amazon products and 12k human instructions ("a nightstand with drawers ... nickel finish, and priced lower than $140"), scored on 500 test instructions by the average share of wanted attributes the bought product covers ("score") and the share of episodes meeting all of them (success rate, SR). ReAct gets one exemplar; the baselines are imitation learning (IL) on 1,012 human trajectories and IL+RL on a further 10,587 instructions ({{§4|ax:S4.SS0.SSS0.Px2}}, {{Yao et al. 2022|https://arxiv.org/abs/2207.01206}}).</p>
+<div class="pred" id="pr-alf" data-ans="0"><div class="q">ALFWorld runs six prompts per method. Does the worst ReAct prompt beat the best Act prompt?</div>
+<div class="opts"><button>Yes</button><button>No, they overlap</button><button>Only on some task types</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>Yes: the worst ReAct trial scored 48% and the best Act trial 45%. ReAct's advantage held in all six controlled trials, a relative gain of 33% to 90%, averaging 62% ({{§4|ax:S4.SS0.SSS0.Px3}}). Success over all 134 games:</p>
+<div class="bars" id="alfm"></div>
+<p class="small mute">{{Table 3|ax:S4.T4.fig1}}, the "All" column, plus the worst ReAct trial from the text. Whiskers: ±1 binomial standard error over 134 games. "Best of 6" picks the best prompt after seeing the test results, so the average ReAct prompt (57%) is the fairer single number. Act's average is not reported.</p>
+</div></div>
+<p><b>Results.</b> On ALFWorld the best ReAct trial reaches 71% against 45% for the best Act trial and 37% for BUTLER; without thoughts, Act fails to break goals into subgoals or loses track of the state ({{Table 3|ax:S4.T4.fig1}}). On WebShop one-shot Act already matches IL and IL+RL (30.1% against 29.1% and 28.7% success) and ReAct reaches 40.0%, "an absolute 10% improvement over the previous best success rate" (40.0 − 29.1 = 10.9; {{Table 4|ax:S4.T4.fig2}}), its thoughts bridging noisy observations and actions ("the item has options '39x18x18inch' and 'blue' and seems good to buy"). Human experts reach 59.6% by exploring more and reformulating queries ({{§4|ax:S4.SS0.SSS0.Px3}}). The abstract's "34% and 10%" over imitation and reinforcement learning are 71 − 37 and about 10.9.</p>
+<p><b>Is it the reasoning, or just more feedback?</b> Inner Monologue's monologue only restates the state and what remains to do; the paper argues it "does not truly comprise of inner thoughts", credits IM as the first closed loop, and calls ReAct the first to combine reasoning and acting with a language model in one ({{§4|ax:S4.SS0.SSS0.Px4}}, {{§5|ax:S5}}). The ablation re-annotates the same trajectories with dense IM-style thoughts limited to the current goal and subgoal (ReAct-IM, {{Appendix B.2|ax:A2.SS2}}). ReAct wins 71% to 53% (best trials), ahead on five of six task types; ReAct-IM misses when a subgoal is done, what comes next and where items are likely to be ({{§4|ax:S4.SS0.SSS0.Px4}}).</p>
+<p><b>Editing thoughts steers the agent.</b> In {{Figure 5|ax:A1.F5}} a ReAct run fails after a hallucinated thought. A person deletes one sentence and adds a hint to another, and the same model succeeds. Editing two thoughts replaces typing tens of actions. Act and reinforcement-learned policies offer nothing like this, since there is no thought to edit and changing a few actions does not change the rest ({{Appendix A.3|ax:A1.SS3}}). Replay it in {{the replay tab|tab:t-run}}.</p>
+<p><b>Another model.</b> GPT-3 (text-davinci-002, greedy) does better than PaLM-540B: 30.8 against 29.4 on a 500-question HotpotQA subset and 78.4% against 70.9% on ALFWorld with PaLM's best prompt set ({{Table 5|ax:A1.T5}}), possibly thanks to instruction tuning.</p>
+<p><b>Limits the authors state.</b> Tasks with large action spaces need more demonstrations than fit in a prompt; more high-quality human annotation is "the desiderata", and multi-task training plus reinforcement learning the next step ({{§6|ax:S6}}). The ethics statement flags the risk of giving a model real actions; here nothing can really be bought or edited.</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S3.T1|Tables 1 to 5, Figures 2 and 3]]
+<p><b>What holds up.</b></p>
+<ul class="tight">
+<li><b>The decision-making gaps are large.</b> ALFWorld best ReAct against best Act is 26 points with a standard error of about 5.8 (z ≈ 4.5). Against BUTLER it is 34 points (z ≈ 5.9). WebShop ReAct against IL is 10.9 points with a standard error of about 3.0 on 500 instructions (z ≈ 3.6). These are binomial standard errors that treat the runs as independent ({{gaps recomputed|tab:t-tables:t1}}).</li>
+<li><b>The ablations are controlled.</b> Every baseline prompt is the same trajectories with parts deleted, and on ALFWorld all six ReAct prompts beat the best Act prompt.</li>
+<li><b>It replicates on a second model family.</b> GPT-3 does as well or better ({{Table 5|ax:A1.T5}}). The prompts and code are public, and the pattern has since been reimplemented countless times. Everything in Why it matters below runs some form of this loop.</li>
+<li><b>The authors flag their own weaknesses.</b> ReAct trails CoT on HotpotQA, it gets stuck in loops, prompting sits far below supervised systems, and some labels are outdated. That counts in their favour.</li>
+</ul>
+<p><b>What to discount.</b></p>
+<ul class="tight">
+<li><b>HotpotQA and FEVER orderings are within the noise.</b> The paper does not say how many questions Table 1 used. With the 500 the released code runs, one score has a standard error of about 2 points, and ReAct against CoT on HotpotQA (−2.0), ReAct against Act (+1.7) and ReAct → CoT-SC against CoT-SC (+1.7) are all under one standard error of the difference. The FEVER gaps of 4 to 5 points are about 1.4 to 1.5. A paired test on the same questions would be tighter, but no per-question results are published. There is one greedy run per method and no error bars.</li>
+<li><b>"Best of 6" is chosen on the test games.</b> ALFWorld's 71% is the best of six prompts, picked after seeing results on the 134 evaluation games. The average ReAct prompt scores 57%, and Act is reported only as its best. BUTLER's numbers are best of 8, copied from its paper, with beam search where ReAct is greedy. Table 3's per-task "best" cells are each maximised on their own, so they average above the "All" column (ReAct's six task bests average 75.2 against an "All" of 71): compare only "All".</li>
+<li><b>Benchmarks and baselines from the same group.</b> WebShop and its IL and IL+RL baselines come from the first author's own earlier paper ({{Yao et al. 2022|https://arxiv.org/abs/2207.01206}}), and the numbers are copied from it rather than rerun.</li>
+<li><b>The numbers disagree with each other in places.</b>
+<ul class="tight">
+<li>Figure 2's FEVER panel puts CoT at 59.3 and 21-sample CoT-SC at 61.0, while Table 1 says 56.3 and 60.4 ({{Figure 2 rebuilt|tab:t-tables:f2}}).</li>
+<li>Table 5 gives PaLM-540B ReAct 29.4 on HotpotQA against Table 1's 27.4, though on a different 500-question subset.</li>
+<li>The code's README labels "PaLM-540B (paper)" with 29.4 on HotpotQA and 62.2 on FEVER, and GPT-3 with 30.4, where Table 5 says 30.8.</li>
+<li>Table 2's ReAct failure column (47, 23, 0, 29) adds to 99 and cannot come from 50 labelled examples, which would give even percentages (<code>recompute.py</code> finds no count up to 60 that rounds to it).</li>
+<li>The main text calls the ALFWorld table "Table 4" (it is Table 3), and the "Act" prompt printed in Table 7 ("No thoughts are provided") contains a <code>think:</code> line.</li>
+</ul>
+None of these changes a conclusion, but they mark a paper assembled quickly.</li>
+<li><b>Prompt length is not controlled.</b> The ReAct exemplars are about eight times the length of Standard's (<span id="pwRatio"></span>). Deleting the thoughts also removes most of the in-context text.</li>
+<li><b>The base model is closed.</b> PaLM-540B was never released, so nobody can rerun the main tables. The public code uses GPT-3, and that model has now been shut down ({{OpenAI deprecations|https://platform.openai.com/docs/deprecations}}: text-davinci-002, 4 January 2024).</li>
+</ul>
+<p class="co key"><b>Verdict.</b> Believe the mechanism and the decision-making results. Interleaved thoughts make an acting agent better, grounding cuts hallucination, and the ALFWorld and WebShop gains are several standard errors wide from one or two examples. Treat the knowledge-task orderings (ReAct against CoT, the combinations against CoT-SC) as suggestive, not shown. Read 71% as a best case: the typical prompt scores 57%.</p>
+<p class="small mute">The method itself is now standard, so instead of "What it takes to use this", the {{Then and now|tab:t-then}} tab follows what replaced each part of the 2022 recipe.</p>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="tag2">beyond the paper</span></h2>
+<p><b>It is the template of the modern agent loop.</b> Thought, tool call, observation, appended to the context and repeated until a finish action:</p>
+<ul class="tight">
+<li>LangChain's first agents (November 2022) prompted with a literal "Thought: / Action: / Action Input: / Observation:" format and parsed the text ({{mrkl/prompt.py|https://github.com/langchain-ai/langchain/blob/v0.0.100/langchain/agents/mrkl/prompt.py}}). The ReAct repository's README points readers to LangChain's "zero-shot ReAct Agent" ({{README|https://github.com/ysymyth/ReAct}}).</li>
+<li>{{AutoGPT|https://github.com/Significant-Gravitas/AutoGPT}} (2023) and open coding agents such as {{OpenHands|https://arxiv.org/abs/2407.16741}} (2024) run the same kind of loop.</li>
+<li>Today's harnesses describe theirs the same way: {{Claude Code|https://code.claude.com/docs/en/how-claude-code-works}} documents "the agentic loop", and the {{OpenAI Agents SDK|https://openai.github.io/openai-agents-python/running_agents/}} says "If the LLM produces tool calls, we run those tool calls, append the results, and re-run the loop".</li>
+<li>Anthropic's {{Building effective agents|https://www.anthropic.com/engineering/building-effective-agents}} (December 2024) defines agents as "LLMs using tools based on environmental feedback in a loop".</li>
+</ul>
+<p>The two directions the paper named, reason to act and act to reason, are still how agent design is discussed.</p>
+<p><b>Each piece of the 2022 recipe was later replaced by training.</b> The original was brittle. Actions were free text parsed with string splits, every task needed hand-written exemplars, it got stuck in the loops the paper documents, and the prompt carried hundreds of words of exemplars.</p>
+<ul class="tight">
+<li><b>Structured function calling</b> (OpenAI, {{13 June 2023|https://web.archive.org/web/20230614000000/https://openai.com/blog/function-calling-and-other-api-updates}}, then every provider) moved the action into a JSON object the model is trained to emit. That removed the parsing layer.</li>
+<li><b>Native tool-use training</b> baked the loop into the weights, with {{Toolformer|https://arxiv.org/abs/2302.04761}} (February 2023) as an early sketch, so no exemplar trajectories are needed.</li>
+<li><b>Reasoning models</b> turned the thought channel into reinforcement-learned reasoning tokens ({{DeepSeek-R1|n:3c65c17b0d0d813faca4f7a51eaa0c65}}, January 2025). They emit those tokens between tool calls: OpenAI's o3 can "agentically use and combine every tool within ChatGPT" ({{April 2025|https://web.archive.org/web/20250417000000/https://openai.com/index/introducing-o3-and-o4-mini/}}). Claude 4 added "extended thinking with tool use", alternating "between reasoning and tool use" ({{May 2025|https://www.anthropic.com/news/claude-4}}), and interleaved thinking lets Claude "think between tool calls within a single assistant turn" ({{docs|https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking}}). That is ReAct's dense-thought mode, learned end to end.</li>
+</ul>
+<p>The paper anticipated this arc. Its fine-tuning section shows the format works far better trained than prompted, and its conclusion calls for multi-task training and reinforcement learning ({{§6|ax:S6}}).</p>
+<p><b>It reframed retrieval.</b> Classic {{RAG|n:3c65c17b0d0d816c889decc342a7ad39}} retrieves once and then reads. In ReAct the model decides what to retrieve next from what it has already seen: iterative, agentic retrieval, now the norm for multi-hop and deep-research work.</p>
+<p><b>Its evaluation style stuck.</b> Hand-labelled taxonomies of success and failure (hallucination against reasoning error against bad search), and the trade-off between factuality and flexibility, remain the standard vocabulary for debugging agent trajectories.</p>
+<p><b>Direct follow-ups:</b> {{Reflexion|https://arxiv.org/abs/2303.11366}} (verbal self-reflection between attempts) and {{Tree of Thoughts|https://arxiv.org/abs/2305.10601}} (search over thoughts, same first author), both 2023.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="tight">
+<li>{{GPT-3|n:3c65c17b0d0d8193ac92c7648cfaca12}} (2020-05): the few-shot in-context learning that ReAct pushes to interactive tasks.</li>
+<li>{{RAG|n:3c65c17b0d0d816c889decc342a7ad39}} (2020-05): fixed retrieve-then-generate; ReAct is the model-directed, iterative alternative that agentic RAG descends from.</li>
+<li>{{InstructGPT|n:3c65c17b0d0d8180b958d8299996a063}} (2022-03): the RLHF machinery that later trained tool use natively, replacing ReAct-style prompting.</li>
+<li>{{DeepSeek-R1|n:3c65c17b0d0d813faca4f7a51eaa0c65}} (2025-01): reinforcement-learned reasoning tokens; interleaved thinking and tool calls are the trained descendant of ReAct's thought channel.</li>
+<li>Topics: {{agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}, {{agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}, {{rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}.</li>
+</ul>
+</section>
+</section>
