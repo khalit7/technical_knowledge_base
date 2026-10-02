@@ -1,0 +1,89 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-meth">Method</a><a href="#s-bias">Inductive bias</a><a href="#s-pos">Positions</a><a href="#s-train">Training</a><a href="#s-res">Results</a><a href="#s-data">Data scale</a><a href="#s-inside">Inside</a><a href="#s-why">Why it matters</a><a href="#believe">Believe?</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction, §2 Related work]]
+<p>By 2020 the Transformer was the default architecture in NLP, usually pre-trained on a large corpus and then fine-tuned, with models past 100B parameters and no sign of saturating ({{§1|ax:S1}}). Vision was still ruled by convolutional networks: ResNet-like models held the state of the art in large-scale image recognition ({{§1|ax:S1}}).</p>
+<p>Earlier attempts to bring self-attention to images either kept the CNN skeleton and added or swapped in attention blocks, or replaced convolutions with specialised attention patterns (local neighbourhoods, sparse approximations, blocks, one axis at a time) that "require complex engineering to be implemented efficiently on hardware accelerators" and so had not been scaled ({{§2|ax:S2}}). Plain global attention over pixels is quadratic in the pixel count: a 224 × 224 image is 50,176 pixels, about 2.5 billion pairs per layer and head.</p>
+<p class="lead"><b>The question:</b> can a plain, unmodified Transformer, with almost no image-specific inductive bias, compete with the best CNNs, and under what conditions?</p>
+<div class="pred" id="pr-tok" data-ans="2"><div class="q">ViT cuts a 224 × 224 image into 16 × 16 patches and treats each patch as one token. How long is the sequence the Transformer sees?</div>
+<div class="opts"><button>50,176 tokens, one per pixel</button><button>3,136 tokens</button><button>196 tokens (plus one class token)</button><button>14 tokens</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>(224 / 16)² = 14 × 14 = 196 patches; the paper adds one learnable class token, so 197 positions ({{§3.1|ax:S3.SS1}}). Attention pairs per layer and head fall from 50,176² ≈ 2.5 × 10⁹ to 197² ≈ 39,000, a factor of about 65,000. Smaller patches cost more: sequence length goes as 1/<i>P</i>², and attention pairs as 1/<i>P</i>⁴ ({{§4.1|ax:S4.SS1}}).</p>
+<p class="try"><b>Try:</b> move the patch size and the resolution. The grid is to scale; the counts are exact.</p>
+<div class="ctl"><label>Patch size <i>P</i> = <b id="pzPv">16</b><input type="range" id="pzP" min="0" max="5" step="1" value="4"></label><label>Image side = <b id="pzRv">224</b> px<input type="range" id="pzR" min="0" max="3" step="1" value="0"></label></div>
+<div id="pzSvg"></div>
+<div class="out" id="pzO"></div>
+<p class="small mute">Patch sizes are the paper's (14, 16, 32) plus three smaller ones for comparison (1 is pixel attention, 2 is the size Cordonnier et al. used, {{§2|ax:S2}}, and 8); resolutions are pre-training (224), fine-tuning (384) and the Table 2 fine-tuning resolutions for ViT-L/16 (512) and ViT-H/14 (518), {{§4.1|ax:S4.SS1}}. When the side is not a multiple of <i>P</i>, the remainder is dropped, as a stride-<i>P</i> convolution would.</p>
+</div></div>
+</section>
+
+<section id="s-idea"><h2>Idea</h2>
+[[S3|§3 Method]]
+<p>Turn the image into a sequence of tokens and run a completely standard Transformer encoder on it. "In model design we follow the original Transformer as closely as possible", so that scalable NLP architectures and their efficient implementations can be used almost out of the box ({{§3|ax:S3}}). Image patches are treated the same way as words: split the image into fixed-size patches, embed each linearly, add position embeddings, prepend a learnable classification token, and feed the sequence to the encoder ({{Figure 1|ax:S3.F1}}). The model is trained to classify images, supervised.</p>
+<p>The bet is about data, not architecture. Without the CNN's built-in assumptions the authors expect, and find, worse results on mid-sized datasets such as ImageNet; with 14M to 300M images "large scale training trumps inductive bias" ({{§1|ax:S1}}).</p>
+</section>
+
+<section id="s-meth"><h2>Method: from pixels to a class</h2>
+[[S3.SS1|§3.1, Eq. 1 to 4]]
+<p>An image <span class="m"><b>x</b> ∈ ℝ<sup><i>H</i>×<i>W</i>×<i>C</i></sup></span> becomes <span class="m"><i>N</i> = <i>HW</i>/<i>P</i>²</span> flattened <i>P</i> × <i>P</i> patches of <i>P</i>²·<i>C</i> numbers each; <i>N</i> is the sequence length, and <i>P</i> is 16 or 32 (14 for ViT-H). One trainable linear projection <b>E</b> maps each patch to the model width <i>D</i>, constant through all layers: the <b>patch embeddings</b> ({{§3.1|ax:S3.SS1}}, {{§4.1|ax:S4.SS1}}).</p>
+<div class="fm"><div class="eq"><b>z</b><sub>0</sub> = [<b>x</b><sub>class</sub>; <b>x</b><sub><i>p</i></sub><sup>1</sup><b>E</b>; <b>x</b><sub><i>p</i></sub><sup>2</sup><b>E</b>; …; <b>x</b><sub><i>p</i></sub><sup><i>N</i></sup><b>E</b>] + <b>E</b><sub>pos</sub>, &nbsp; <b>E</b> ∈ ℝ<sup>(<i>P</i>²·<i>C</i>)×<i>D</i></sup>, <b>E</b><sub>pos</sub> ∈ ℝ<sup>(<i>N</i>+1)×<i>D</i></sup></div>
+<div class="eq"><b>z′</b><sub>ℓ</sub> = MSA(LN(<b>z</b><sub>ℓ−1</sub>)) + <b>z</b><sub>ℓ−1</sub>, &nbsp; <b>z</b><sub>ℓ</sub> = MLP(LN(<b>z′</b><sub>ℓ</sub>)) + <b>z′</b><sub>ℓ</sub>, &nbsp; ℓ = 1 … <i>L</i></div>
+<div class="eq"><b>y</b> = LN(<b>z</b><sub><i>L</i></sub><sup>0</sup>)</div>
+<div class="wh">Equations 1 to 4 ({{Eq. 1|ax:S3.E1}}, {{Eq. 2|ax:S3.E2}}, {{Eq. 3|ax:S3.E3}}, {{Eq. 4|ax:S3.E4}}). MSA is standard multi-head <b>qkv</b> self-attention, softmax(<b>qk</b><sup>⊤</sup>/√<i>D<sub>h</sub></i>)<b>v</b> per head with <i>D<sub>h</sub></i> = <i>D</i>/<i>k</i> for <i>k</i> heads, outputs concatenated and projected ({{Appendix A, Eq. 5 to 8|ax:A1}}).</div></div>
+<ul class="lst">
+<li><b>Class token.</b> As with BERT's [class] token, a learnable embedding <span class="m"><b>z</b><sub>0</sub><sup>0</sup> = <b>x</b><sub>class</sub></span> is prepended; its state at the encoder output, <span class="m"><b>z</b><sub><i>L</i></sub><sup>0</sup></span>, is the image representation <b>y</b>. A classification head sits on it: an MLP with one hidden layer during pre-training, a single linear layer during fine-tuning ({{§3.1|ax:S3.SS1}}). The hidden layer uses tanh ({{App. D.3|ax:A4.SS3}}).</li>
+<li><b>Encoder.</b> Alternating multi-head self-attention and MLP blocks; LayerNorm before every block (pre-LN) and a residual connection after every block; the MLP has two layers with a GELU ({{§3.1|ax:S3.SS1}}).</li>
+<li><b>Sizes.</b> Taken from BERT: ViT-Base (12 layers, <i>D</i> = 768, MLP 3072, 12 heads, 86M parameters) and ViT-Large (24, 1024, 4096, 16 heads, 307M), plus a new ViT-Huge (32, 1280, 5120, 16 heads, 632M). ViT-L/16 means Large with 16 × 16 patches ({{Table 1|ax:S4.T1}}). The parameter counts are recounted from Eq. 1 to 4 in the {{tables tab|tab:t-tables:tb1}}.</li>
+<li><b>Hybrid.</b> The patches can instead come from a CNN feature map, here a ResNet50's, with 1 × 1 patches: flatten the map and project it to <i>D</i> ({{§3.1|ax:S3.SS1.SSS0.Px2}}, {{§4.1|ax:S4.SS1}}).</li>
+</ul>
+<p>The animation runs one image of this page's toy task through the trained toy ViT, with the class token's real attention at each layer, then through the toy ResNet, whose view grows one small square at a time (both models are described in {{Run a ViT|tab:t-run}}).</p>
+<div class="card" id="vx">
+<div class="an-top"><div class="seg" id="vxM" role="group" aria-label="Model"><button class="on" data-m="vit" aria-pressed="true">ViT</button><button data-m="cnn" aria-pressed="false">ResNet (CNN)</button></div>
+<span class="small mute">Same 28 × 28 image; the toy models' real sizes.</span></div>
+<div id="vxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="vxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="vxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="vxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="vxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="vxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="vxStep"></div><p id="vxCap"></p></div>
+<div class="an-cnt" id="vxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">ViT: 4 × 4 patches (49 tokens plus the class token), <i>D</i> = 32, 4 layers, 4 heads; the heat map is the class token's attention averaged over heads, from the shipped weights. ResNet: a BiT-style network (GroupNorm) with a stride-2 3 × 3 stem and three residual blocks; the square is the theoretical receptive field of one output position, computed from kernel sizes and strides. Multiply-adds are counted by formula. The animation stops off screen and starts paused if your system asks for reduced motion.</p>
+</div>
+</section>
+
+<section id="s-bias"><h2>Inductive bias, made explicit</h2>
+[[S3.SS1.SSS0.Px1|§3.1, Inductive bias; §3.2]]
+<p>CNNs build three assumptions into every layer: <b>locality</b>, <b>two-dimensional neighbourhood structure</b> and <b>translation equivariance</b>. In ViT only the MLP layers are local and translation-equivariant (they act on each token separately); self-attention is global from layer one ({{§3.1|ax:S3.SS1.SSS0.Px1}}).</p>
+<p>The image's 2D structure enters at exactly two points: cutting it into patches, and adjusting the position embeddings to a new resolution at fine-tuning. The position embeddings start with no information about where patches are, so every spatial relation is learned from scratch ({{§3.1|ax:S3.SS1.SSS0.Px1}}, {{§3.2|ax:S3.SS2}}): the network must learn from examples what a CNN is handed for free.</p>
+<div class="co key"><div class="t">Fine-tuning at a higher resolution</div>
+<p style="margin:2px 0">Pre-train on large data, then remove the pre-trained head and attach a zero-initialised <i>D</i> × <i>K</i> layer for the <i>K</i> downstream classes ({{§3.2|ax:S3.SS2}}). Fine-tuning at a higher resolution than pre-training helps; keep the patch size fixed, so the sequence gets longer (ViT-L/16 goes from 196 patches at 224 px to 576 at 384 and 1,024 at 512), and 2D-interpolate the pre-trained position embeddings to the new grid according to their location in the original image. This is now standard practice. In the appendix, the whole two-layer head is replaced on transfer, which "we found to be a little more robust than simply re-initializing the very last layer" ({{App. B.1.1|ax:A2.SS1.SSS1}}).</p></div>
+</section>
+
+<section id="s-pos"><h2>Position embeddings</h2>
+[[A4.SS4|§3.1, App. D.4, Table 8, Figure 7]]
+<p>ViT uses standard <b>learnable 1D position embeddings</b>, one vector per position in raster order ({{§3.1|ax:S3.SS1}}). The ablation on ViT-B/16 ({{Table 8|ax:A4.T8}}) compared no position information (a bag of patches), 1D, 2D (separate <i>X</i> and <i>Y</i> halves) and relative embeddings (an attention bias from the query-key offset), added at the stem or at every layer. No positions costs 2.82 points of 5-shot accuracy; every other variant lands within 0.33 points of the rest, because at patch level the grid is small (14 × 14, not 224 × 224) and any encoding learns it easily ({{App. D.4|ax:A4.SS4}}). The learned 1D embeddings recover the 2D grid on their own: nearby patches, and patches in the same row or column, get similar embeddings, sometimes with a sinusoidal pattern on larger grids, and the exact pattern depends on the hyperparameters ({{Figure 7, centre|ax:S4.F7}}, {{Figure 10|ax:A4.F10}}).</p>
+<div class="card" id="pec">
+<p class="try"><b>Try:</b> this is the toy ViT's own learned table, one tile per patch (7 × 7 grid); each tile shows that patch's cosine similarity to every other patch. Click a tile to enlarge it. Switch to the model trained on 2,000 images to compare.</p>
+<div class="ctl"><div class="seg" id="pecM" role="group" aria-label="Model"><button class="on" data-m="vit" aria-pressed="true">Trained on 64,000 images</button><button data-m="vit_small" aria-pressed="false">Trained on 2,000</button></div></div>
+<div class="cols2"><div id="pecA"></div><div id="pecB"></div></div>
+<div class="out" id="pecO"></div>
+<p class="small mute">Cosine similarity of the 49 patch position embeddings of the shipped weights (6-bit quantised; the float weights give the same grid score to within 0.002, <span class="mono">pos_check.py</span>). "Grid score" is the correlation, over all patch pairs, between embedding similarity and minus the distance between the two patches on the grid: 1 would mean similarity falls exactly with distance.</p>
+</div>
+<div class="pred" id="pr-pe" data-ans="1"><div class="q">Remove the position embeddings entirely, so the model sees an unordered bag of patches. On ViT-B/16 in the paper, how much accuracy does that cost?</div>
+<div class="opts"><button>Nothing measurable</button><button>A few points</button><button>About half the accuracy</button><button>It falls to chance</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>A few points: 61.4% against 64.2% 5-shot ({{Table 8|ax:A4.T8}}). Patches still carry a lot of information on their own: a bag of patches still knows which textures and parts are present. On this page's toy task the same ablation, trained the same way on 64,000 images, gets <b id="prPeNo"></b> of held-out images right against <b id="prPeYes"></b> with position embeddings. <span id="prPeWhy"></span></p></div></div>
+</section>
+
+<section id="s-train"><h2>Training and evaluation</h2>
+[[S4.SS1|§4.1, App. B]]
+<ul class="lst">
+<li><b>Data</b>: pre-training on ImageNet (1k classes, 1.3M images), ImageNet-21k (21k classes, 14M) or Google's in-house JFT-300M (18k classes, 303M), de-duplicated against the test sets; transfer to ImageNet (original and cleaned ReaL labels), CIFAR-10/100, Oxford-IIIT Pets, Oxford Flowers-102 and the 19-task VTAB suite (1,000 examples per task; Natural, Specialized, Structured) ({{§4.1|ax:S4.SS1}}).</li>
+<li><b>Baselines</b>: "ResNet (BiT)", ResNets with Group Normalization and standardised convolutions, which transfer better ({{§4.1|ax:S4.SS1}}).</li>
+<li><b>Pre-training</b>: every model, ResNets included, uses Adam (β<sub>1</sub> 0.9, β<sub>2</sub> 0.999), batch 4096, weight decay 0.1, linear warmup and decay, 224 px ({{§4.1|ax:S4.SS1}}, {{Table 3|ax:A2.T3}}); Adam beat SGD for the ResNets too ({{Table 7|ax:A4.T7}}). Strong regularisation was key from scratch on ImageNet ({{App. B.1|ax:A2.SS1}}).</li>
+<li><b>Fine-tuning</b>: SGD with momentum, batch 512, cosine decay, no weight decay, gradient clipping at norm 1, 384 px unless stated ({{Table 4|ax:A2.T4}}); for Table 2's ImageNet numbers 512 px (ViT-L/16) and 518 px (ViT-H/14) with Polyak averaging, factor 0.9999 ({{§4.1|ax:S4.SS1}}).</li>
+<li><b>Metrics</b>: fine-tuning accuracy, or <b>few-shot linear accuracy</b> (closed-form regularised least squares from frozen features to {−1, 1}<sup><i>K</i></sup> targets) for quick checks. Compute is in TPUv3-core-days: cores (2 per chip) times days ({{§4.1|ax:S4.SS1}}, {{§4.2|ax:S4.SS2}}).</li>
+</ul>
+</section>
