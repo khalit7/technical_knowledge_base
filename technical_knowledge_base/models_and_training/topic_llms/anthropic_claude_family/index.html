@@ -76,7 +76,7 @@ svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans
 .mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
 .mist[open] summary:before{content:"\2212"}
 .mist .b{padding:0 12px 9px 30px;font-size:13.5px}
-.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}.sbkey{grid-column:2;display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--mute);margin-top:-2px}.sbkey span{display:inline-flex;align-items:center;gap:5px}.sbkey i{width:10px;height:10px;border-radius:2px;display:inline-block}
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
 .tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
@@ -536,6 +536,13 @@ function logFrame(o){const {W,H,pl,pr,pt,pb}=o,lg=Math.log10;
   return {s,lx,ly}}
 // end labels for lines, pushed apart so they do not overlap
 function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.forEach(e=>{e.ly=Math.max(e.y,last+(gap||14));last=e.ly});ends.forEach(e=>{s+='<text x="'+x+'" y="'+(e.ly+4)+'" font-size="11" fill="'+e.c+'" style="cursor:help"><title>'+e.how+'</title>'+e.n+'</text>'});return s}
+// stacked split bars (.sb): a segment shows "label N%" when it fits, else "N%", else nothing; when any is shortened a key under the bar names every segment
+const sbSeg=(v,t,l,c,title)=>'<span style="width:'+(100*v/t).toFixed(1)+'%;background:'+c+'" data-l="'+l+'" data-p="'+Math.round(100*v/t)+'%" data-c="'+c+'" title="'+title+'">'+l+' '+Math.round(100*v/t)+'%</span>';
+function fitSb(box){if(!box)return;box.querySelectorAll('.sbkey').forEach(k=>k.remove());
+  box.querySelectorAll('.sb').forEach(sb=>{if(!sb.clientWidth)return;let short=false;
+    sb.querySelectorAll('span').forEach(sp=>{const d=sp.dataset;sp.textContent=d.l+' '+d.p;
+      if(sp.scrollWidth>sp.clientWidth+1){short=true;sp.textContent=d.p;if(sp.scrollWidth>sp.clientWidth+1)sp.textContent=''}});
+    if(short)sb.insertAdjacentHTML('afterend','<div class="sbkey">'+[...sb.querySelectorAll('span')].map(sp=>'<span><i style="background:'+sp.dataset.c+'"></i>'+sp.dataset.l+' '+sp.dataset.p+'</span>').join('')+'</div>')})}
 </script>
 <script>/* 11_js_read.js */
 // ---- Shared price list (pricing page, read 1 Oct 2026): input, output, cache read; $/MTok. old: previous tokenizer ----
@@ -684,8 +691,8 @@ function sessFixed(p,P,T,N,O){const w=1.25*p.i;return {write:P*w/1e6,read:T*P*p.
   $('weTab').innerHTML=h;
   // one turn split, Fable 5 against Fable 5.1
   let b='';[['Fable 5',PBY('Fable 5')],['Fable 5.1',PBY('Fable 5.1')]].forEach(([n,p])=>{const r=P*p.c/1e6,i=N*p.i/1e6,o=O*p.o/1e6,t=r+i+o;
-    b+='<span>'+n+' turn '+usd(t,3)+'</span><div class="sb">'+[[r,'cache read','var(--good)'],[i,'new input','var(--c1)'],[o,'output','var(--c4)']].map(([v,l,c])=>'<span style="width:'+(100*v/t).toFixed(1)+'%;background:'+c+'" title="'+l+' '+usd(v,3)+'">'+l+' '+Math.round(100*v/t)+'%</span>').join('')+'</div>'});
-  $('weBars').innerHTML=b;
+    b+='<span>'+n+' turn '+usd(t,3)+'</span><div class="sb">'+[[r,'cache read','var(--good)'],[i,'new input','var(--c1)'],[o,'output','var(--c4)']].map(([v,l,c])=>sbSeg(v,t,l,c,l+' '+usd(v,3))).join('')+'</div>'});
+  $('weBars').innerHTML=b;fitSb($('weBars'));onTab('t-read',()=>fitSb($('weBars')));addEventListener('resize',()=>fitSb($('weBars')));
 })();
 </script>
 <script>/* 12_js_sim.js */
@@ -971,7 +978,7 @@ const AA=[["Opus 5.5 (max)","Anthropic",57.6,5.982,10978320412,259888331,8708.2,
     const p=pv==='own'?{i:r.pi,o:r.po,c:r.pc}:PBY(pv);
     const out=r.O*p.o/1e6,cac=r.I*f*p.c/1e6,unc=r.I*(1-f)*p.i/1e6,tot=out+cac+unc;
     const parts=[[out,'output','var(--c4)'],[cac,'cached input','var(--good)'],[unc,'uncached input','var(--c1)']];
-    $('aaSplit').innerHTML='<span>'+r.n+'</span><div class="sb">'+parts.map(([v,l,c])=>'<span style="width:'+(100*v/tot).toFixed(1)+'%;background:'+c+'" title="'+l+' '+usd(v,0)+'">'+l+' '+Math.round(100*v/tot)+'%</span>').join('')+'</div>';
+    $('aaSplit').innerHTML='<span>'+r.n+'</span><div class="sb">'+parts.map(([v,l,c])=>sbSeg(v,tot,l,c,l+' '+usd(v,0))).join('')+'</div>';fitSb($('aaSplit'));
     const scale=tot/r.run;
     $('aaStats').innerHTML=stat('Cost to run the index',usd(tot,0),pv==='own'&&Math.abs(f-r.f)<0.00006?'Artificial Analysis: '+usd(r.run,0):'Artificial Analysis at its own prices: '+usd(r.run,0))+
       stat('Cost per task at these prices',usd(r.cpt*scale,2),'AA\'s '+usd(r.cpt,2)+' × '+scale.toFixed(2))+
@@ -985,7 +992,7 @@ const AA=[["Opus 5.5 (max)","Anthropic",57.6,5.982,10978320412,259888331,8708.2,
   }
   segBind('aaSet',m=>{set=m;plot()});
   $('aaRun').addEventListener('change',setRun);$('aaPrice').addEventListener('change',split);$('aaF').addEventListener('input',split);
-  onTab('t-aa',()=>{plot();split()});
+  onTab('t-aa',()=>{plot();split()});addEventListener('resize',()=>fitSb($('aaSplit')));
   $('aaRun').value=String(runs.findIndex(r=>r.n==='Opus 5.5 (medium)'));setRun();
 })();
 </script>

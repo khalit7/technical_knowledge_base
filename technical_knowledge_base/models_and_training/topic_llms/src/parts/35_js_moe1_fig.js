@@ -41,7 +41,7 @@
       card.innerHTML=svgEl(W,H,s,'An MoE layer, vertical: router, top two experts, shared expert, weighted sum, residual add')}
     card.insertAdjacentHTML('beforeend','<p class="q" style="margin:4px 0 0">One token through one MoE layer, with the gate weights of the router example below (top-2 of softmax gates). Attention, normalisation and the residual stream are untouched; only the FFN became a choice.</p>')}
   function ep(){const card=$('moeEpFig');if(!card)return;const W=Math.max(320,Math.min(760,card.clientWidth-28)),nar=W<560;
-    const G=4,gw=(W-20)/G,H=nar?300:270;let s='';
+    const G=4,gw=(W-20)/G,H=nar?286:256;let s='';
     // token home ranks and their chosen experts (2 experts per GPU, top-2): illustrative
     const tok=[[0,[0,5]],[1,[2,3]],[2,[1,6]],[3,[7,4]]];const col=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
     for(let gI=0;gI<G;gI++){const x=10+gI*gw;s+='<rect x="'+(x+3)+'" y="22" width="'+(gw-6)+'" height="'+(H-46)+'" rx="8" fill="var(--soft)" stroke="var(--line)"/>';
@@ -53,8 +53,7 @@
       s+='<rect x="'+(x-9)+'" y="'+yO+'" width="18" height="18" rx="3" fill="'+col[i]+'" fill-opacity=".45" stroke="'+col[i]+'"/>';
       ex.forEach(e=>{const gI=Math.floor(e/2),j=e%2,tx=10+gI*gw+8+j*(gw-16)/2+((gw-16)/2-4)/2;s+=L(tx,yE+35,x,yO-3,col[i],1.2,true)})});
     s+=T(W/2,yT+(yE-yT)/2+12,'dispatch all-to-all',{fs:11,w:1});s+=T(W/2,yE+35+(yO-yE-35)/2+4,'combine all-to-all',{fs:11,w:1});
-    s+=T(W/2,H-6,'Each token (a square on its home GPU) goes to its 2 experts and its weighted outputs come back',{fs:nar?9.5:11,c:'var(--mute)'});
-    card.innerHTML=svgEl(W,H,s,'Expert parallelism: four GPUs with two experts each; tokens are dispatched to their experts and the outputs combined back on the home GPU')+'<p class="q" style="margin:4px 0 0">Illustrative placement: 8 experts over 4 GPUs on 2 nodes, top-2. Cross-node arrows are the expensive ones, which is what node-limited routing caps.</p>'}
+    card.innerHTML=svgEl(W,H,s,'Expert parallelism: four GPUs with two experts each; tokens are dispatched to their experts and the outputs combined back on the home GPU')+'<p class="q" style="margin:4px 0 0">Each token (a square on its home GPU) goes to its 2 experts and its weighted outputs come back. Illustrative placement: 8 experts over 4 GPUs on 2 nodes, top-2. Cross-node arrows are the expensive ones, which is what node-limited routing caps.</p>'}
   let lw=0;const draw=()=>{layer();ep()};
   draw();addEventListener('resize',()=>{const c=$('moeLayerFig');if(c&&Math.abs(c.clientWidth-lw)>30){lw=c.clientWidth;draw()}});lw=($('moeLayerFig')||{}).clientWidth||0;
   onTab(draw);

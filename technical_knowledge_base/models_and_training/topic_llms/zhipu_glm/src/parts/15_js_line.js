@@ -26,7 +26,7 @@
   function cards(){$('lnCards').innerHTML=R.slice().reverse().map((r,i)=>{const id='ln'+(R.length-1-i);
     return '<div class="tl-item'+(sel===id?' sel':'')+'" id="'+id+'" style="border-left:4px solid '+LC[r.l]+'"><h3>'+r.n+'</h3><div class="dt">'+new Date(t(r.d)).toLocaleDateString('en-GB',r.mo?{month:'long',year:'numeric',timeZone:'UTC'}:{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'})
       +(r.p?' · '+fmt(r.p)+'B total'+(r.a&&r.a!==r.p?' / '+fmt(r.a)+'B active':''):'')+(r.ctx?' · '+r.ctx+' context':'')+(r.lic?' · '+r.lic:'')+'</div><p style="margin:4px 0;font-size:14px">'+r.x+'</p><div class="small mute">Sources: '+r.src+'</div></div>'}).join('')}
-  function draw(){const el=$('lnSvg'),W=el.clientWidth<520?360:680,nar=W<500,pl=nar?66:104,pr=14,lh=nar?40:44,H=24+LANES.length*lh+24;
+  function draw(){const el=$('lnSvg'),cw=el.clientWidth,W=cw<520?Math.max(300,cw):680,nar=W<500,pl=nar?Math.ceil(Math.max(...LANES.map(q=>textW(q[1],11))))+14:104,pr=14,lh=nar?40:44,H=24+LANES.length*lh+24;
     const a=zoom?t('2025-06-15'):t('2022-08-01'),b=t('2026-10-15'),x=v=>pl+(W-pl-pr)*(t(v)-a)/(b-a);
     let s='';LANES.forEach(([k,n],i)=>{const y=24+i*lh+lh/2;s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/><text x="'+(pl-8)+'" y="'+(y+4)+'" font-size="11" text-anchor="end" fill="var(--mute)">'+n+'</text>'});
     const yrs=zoom?['2025-07-01','2025-10-01','2026-01-01','2026-04-01','2026-07-01','2026-10-01']:['2023-01-01','2024-01-01','2025-01-01','2026-01-01'];
@@ -39,5 +39,5 @@
     el.querySelectorAll('.lnd').forEach(d=>d.addEventListener('click',()=>{sel=d.dataset.id;draw();cards();const c=$(sel);if(c)c.scrollIntoView({block:'nearest'})}))}
   const seg=$('lnR');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));zoom=b.dataset.m==='z';draw()}));
   onTab('t-line',()=>{draw();cards()});
-  let w=0;addEventListener('resize',()=>{const n=$('lnSvg').clientWidth<520;if(n!==w){w=n;if(!$('t-line').hidden)draw()}});
+  let w=0;addEventListener('resize',()=>{const n=$('lnSvg').clientWidth;if(n&&(Math.abs(n-w)>30||(n<520)!==(w<520))){w=n;if(!$('t-line').hidden)draw()}});
 })();
