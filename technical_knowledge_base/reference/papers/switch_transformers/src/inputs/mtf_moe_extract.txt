@@ -1,0 +1,28 @@
+Lines from https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/moe.py (fetched 2026-10-02), copied by sed
+               switch_policy_train="input_jitter",
+               switch_policy_eval="input_jitter",
+               switch_dropout=0.1,
+               switch_temperature=1.0,
+               switch_jitter=1e-2,
+  gate_inputs = mtf.to_float(inputs)
+
+  # Input perturbations
+  if train and policy == "input_jitter":
+    gate_inputs = mtf.layers.multiplicative_jitter(
+        gate_inputs, hparams.moe_switch_jitter)
+
+  outer_batch_dim = inputs.shape[0]
+  batch_dim = inputs.shape[1]
+  group_size_dim = inputs.shape[-2]
+  density_1 = mtf.reduce_mean(expert_mask, reduced_dim=group_size_dim)
+  density_1_proxy = mtf.reduce_mean(raw_gates, reduced_dim=group_size_dim)
+  if importance is not None:
+    expert_mask *= mtf.cast(mtf.equal(importance, 1.0), dtype=raw_gates.dtype)
+    expert_gate *= mtf.cast(mtf.equal(importance, 1.0), dtype=raw_gates.dtype)
+    density_1_proxy *= mtf.cast(
+        mtf.equal(importance, 1.0), dtype=raw_gates.dtype)
+  loss = (
+      mtf.reduce_mean(density_1_proxy * density_1) *
+      float(experts_dim.size * experts_dim.size))
+  if num_microbatches and num_microbatches > 1:
+    tf.logging.info("Dividing load-balance loss by num_microbatches={}".format(
