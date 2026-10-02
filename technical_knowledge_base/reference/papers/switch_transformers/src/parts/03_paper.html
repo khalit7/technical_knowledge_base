@@ -1,0 +1,201 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">One expert per token</a><a href="#s-cap">Capacity</a><a href="#s-bal">Balancing loss</a><a href="#s-prec">Precision and init</a><a href="#s-t1">Against top-2</a><a href="#s-scale">Scaling</a><a href="#s-down">Downstream</a><a href="#s-par">Parallelism</a><a href="#s-tri">Trillion scale</a><a href="#s-app">Appendices</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1, §2 intro, §7]]
+<p>Kaplan-era scaling said bigger dense models are better ({{Kaplan et al. 2020|n:3c65c17b0d0d81b08a1debb0c15cd252}}), but in a dense model every parameter is touched by every token, so parameter count and FLOPs per token grow together. Sparse Mixture-of-Experts layers (Shazeer et al. 2017; GShard, Lepikhin et al. 2020) had shown the two can be decoupled: many expert networks, a router picks a few per token. Yet MoE saw little adoption, for three reasons the paper names and attacks head-on ({{§1|ax:S1}}, {{§7|ax:S7}}):</p>
+<ul class="lst">
+<li><b>Complexity</b>: top-<i>k</i> routing with <i>k</i> of at least 2, separate auxiliary losses, capacity juggling.</li>
+<li><b>Training instability</b>, especially in bfloat16: GShard "trains with float32 precision throughout their MoE Transformer" ({{§2.4|ax:S2.SS4}}).</li>
+<li><b>Communication cost</b>: tokens have to travel to their experts on other devices and back.</li></ul>
+<p class="lead">The question: can MoE be made simple, stable and fast enough that <b>parameter count becomes a routine fourth scaling axis</b>, beside model size, data and compute, "while keeping the floating point operations (FLOPs) per example constant"? The hypothesis is that "the parameter count, independent of total computation performed, is a separately important axis on which to scale" ({{§2|ax:S2}}).</p>
+<p>Everything is built on {{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}: its encoder-decoder, its C4 corpus and its span-corruption objective (15% of tokens dropped, each span replaced by one sentinel); quality is negative log perplexity in nats, higher is better ({{§2.3|ax:S2.SS3}}). The generic MoE layer (routers, top-<i>k</i> styles, capacity, expert parallelism, current configurations) lives on {{Topic: llms, tab Deeper: inside an MoE|n:3c65c17b0d0d812d9e00f6ec89965286}}; this page covers what is specific to this paper.</p>
+</section>
+
+<section id="s-idea"><h2>Idea: one expert per token</h2>
+[[S2.SS1|§2.1, Figure 2, Eq. 1 and 2]]
+<p><b>The Switch layer.</b> Take T5 and replace the feed-forward network (FFN) in every other Transformer block with <i>N</i> expert FFNs plus a linear router <i>W</i><sub>r</sub> ({{Figure 2|ax:S2.F2}}). The router computes logits <i>h</i>(<i>x</i>) = <i>W</i><sub>r</sub> · <i>x</i>, a softmax turns them into gate values <i>p</i><sub>i</sub>(<i>x</i>) = e<sup><i>h</i>(<i>x</i>)<sub>i</sub></sup> / Σ<sub>j</sub> e<sup><i>h</i>(<i>x</i>)<sub>j</sub></sup> ({{Eq. 1|ax:S2.E1}}), and the token goes to the single expert with the largest one. The layer's output is that expert's output multiplied by its gate value, <i>y</i> = <i>p</i><sub>i</sub>(<i>x</i>) <i>E</i><sub>i</sub>(<i>x</i>), the <i>k</i> = 1 case of {{Eq. 2|ax:S2.E2}}. The multiplication is what keeps the router differentiable: the choice itself has no gradient, the gate value does.</p>
+<p><b>Top-1 is the core simplification.</b> Shazeer et al. (2017) "conjectured that routing to <i>k</i> &gt; 1 experts was necessary in order to have non-trivial gradients to the routing functions", intuiting that the router could not learn without comparing at least two experts; Ramachandran and Le (2018) found higher <i>k</i> mattered in lower layers. Switch routes to one and claims three benefits ({{§2.1|ax:S2.SS1}}): (1) less router computation; (2) each expert's batch, its <b>expert capacity</b>, "can be at least halved since each token is only being routed to a single expert"; (3) a simpler routing implementation and lower communication cost. The quality claim, that <i>k</i> = 1 "preserves model quality", is tested in Table 1 below.</p>
+<p>The animation runs one batch of 12 tokens through a 4-expert layer twice, with the same router probabilities: top-2 as in the MoE Transformer the paper compares against, and top-1 as Switch. The steps are the paper's own router function ({{Code Block 15|ax:A6.F15}}).</p>
+<div class="card" id="rta">
+<div class="an-top"><div class="seg" id="rtaM" role="group" aria-label="Routing"><button data-m="moe" aria-pressed="false">Top-2 (MoE)</button><button class="on" data-m="sw" aria-pressed="true">Top-1 (Switch)</button></div>
+<div class="seg" id="rtaCf" role="group" aria-label="Capacity factor"><span class="small mute" style="align-self:center;margin-right:4px">capacity factor</span><button data-cf="1">1.0</button><button class="on" data-cf="1.25">1.25</button><button data-cf="2">2.0</button></div></div>
+<div id="rtaSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rtaBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rtaPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rtaFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rtaScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="rtaSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rtaStep"></div><p id="rtaCap"></p></div>
+<div class="an-cnt" id="rtaCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Illustrative router probabilities (expert 1 is popular); the paper's rules: capacity from {{Eq. 3|ax:S2.E3}} rounded up, slots filled in batch order, first choices before second choices. One box per token slot. Pauses off screen; starts paused under reduced motion.</p>
+</div>
+<p>Try capacity factor 1.0 in both modes: top-2 computes 24 slots for 12 tokens, top-1 computes 12; top-2 loses only second choices, top-1 loses whole tokens. That trade is the paper's whole bet, and {{§2.3|tab:t-read:s-t1}} measures it.</p>
+</section>
+
+<section id="s-cap"><h2>Expert capacity, the capacity factor and dropped tokens</h2>
+[[S2.SS2|§2.2, Eq. 3, Figure 3]]
+<p>TPUs compile static shapes, but routing is decided at run time, so each expert gets a fixed buffer ({{§2.2|ax:S2.SS2}}):</p>
+<p class="fm" style="text-align:center"><span class="m">expert capacity = (tokens per batch / number of experts) × capacity factor</span> &nbsp; ({{Eq. 3|ax:S2.E3}})</p>
+<ul class="lst">
+<li>A capacity factor (CF) above 1.0 "creates additional buffer to accommodate for when tokens are not perfectly balanced", at the price of padding: unused slots are computed and communicated anyway, wasting compute and memory ({{Figure 3|ax:S2.F3}}).</li>
+<li>Tokens that overflow an expert are <b>dropped</b>: "computation is skipped and the token representation is passed directly to the next layer through the residual connection".</li>
+<li>"Ensuring lower rates of dropped tokens are important for the scaling of sparse expert-models", and the authors saw no dependence of the drop rate on the number of experts, "typically &lt;1%".</li>
+<li>Low capacity factors (1.0 to 1.25) are the sweet spot in Table 1, and they matter most at large scale, "where model memory is very scarce and the capacity factor will want to be made as small as possible" ({{§2.3|ax:S2.SS3}}).</li></ul>
+<p>The capacity rule and token dropping were inherited from GShard ({{Appendix B|ax:A2}}); what Switch changes is that with one expert per token the same capacity factor buys half the buffer.</p>
+</section>
+
+<section id="s-bal"><h2>One differentiable balancing loss</h2>
+[[S2.SS2|§2.2, Eq. 4 to 6, Code Block 14]]
+<p>Left alone, a router sends more tokens to whichever experts are already good, which then get better: imbalance, overflow and drops. For each Switch layer the paper adds one auxiliary loss to the training loss ({{Eq. 4|ax:S2.E4}}):</p>
+<p class="fm" style="text-align:center"><span class="m">loss = α · <i>N</i> · Σ<sub>i</sub> <i>f</i><sub>i</sub> · <i>P</i><sub>i</sub></span></p>
+<ul class="lst">
+<li><i>f</i><sub>i</sub> is the fraction of the batch's <i>T</i> tokens actually dispatched to expert <i>i</i>, an argmax count with no gradient ({{Eq. 5|ax:S2.E5}}).</li>
+<li><i>P</i><sub>i</sub> is the fraction of router probability given to expert <i>i</i>, averaged over the batch, which is differentiable ({{Eq. 6|ax:S2.E6}}). The paper's footnote warns of the easy confusion: <i>p</i><sub>i</sub>(<i>x</i>) is one token's probability, <i>P</i><sub>i</sub> the batch average.</li>
+<li>Both should be 1/<i>N</i>; the loss "is minimized under a uniform distribution". The factor <i>N</i> keeps it constant as the expert count changes, since uniform routing gives Σ <i>f</i><sub>i</sub><i>P</i><sub>i</sub> = 1/<i>N</i>.</li>
+<li>α = 10<sup>-2</sup> throughout, from a sweep of 10<sup>-1</sup> to 10<sup>-5</sup> in powers of 10: large enough to balance load quickly, small enough not to interfere with the cross-entropy objective.</li>
+<li>It replaces the separate load-balancing and importance-weighting losses of Shazeer et al. (2017), following the simplification of Mesh TensorFlow and GShard.</li></ul>
+<div class="pred" id="pr-aux" data-ans="2"><div class="q">a router collapses: every token goes to expert 1, with probability close to 1. With <i>N</i> = 8 experts, what does the loss become (in units of α)?</div>
+<div class="opts"><button>0, since nothing is spread out</button><button>1, the same as uniform</button><button>8, that is <i>N</i></button><button>1/8, that is 1/<i>N</i></button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div class="card" style="margin:8px 0"><div class="an-ctl"><label class="small" style="flex:1 1 160px">experts <i>N</i> <input type="range" id="auxN" min="2" max="64" step="1" value="8"> <span id="auxNv" class="mono"></span></label><label class="small" style="flex:1 1 200px">concentration on expert 1 <input type="range" id="auxC" min="0" max="100" step="1" value="100"> <span id="auxCv" class="mono"></span></label></div><div id="auxSvg"></div><p class="small mute" id="auxOut" style="margin:4px 0 0"></p></div>
+<p class="small">The loss runs from α at uniform routing to α · <i>N</i> at total collapse. Only <i>P</i> carries a gradient, and its gradient on expert <i>i</i> is α · <i>N</i> · <i>f</i><sub>i</sub>: probability is pushed off the experts that actually received the most tokens, which is how a non-differentiable count steers a differentiable router. The {{Train tab|tab:t-run}} shows what happens without it: in the toy (three seeds), α = 0 leaves the busiest expert with 4.6 times its share of tokens on average and drops 37% of them in training.</p></div></div>
+<details class="detail"><summary class="small">The pseudocode's version, and a typo in it</summary><p class="small">{{Code Block 14|ax:A6.F14}} computes it per core: the mean over experts of <i>f</i> · <i>P</i>, times "num_experts ^ 2", which is <i>N</i> · Σ <i>f</i><sub>i</sub><i>P</i><sub>i</sub>, the same as Eq. 4. Read literally as Python, <span class="mono">^</span> is a bitwise exclusive or (128 ^ 2 = 130); the real {{moe.py|https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/moe.py}} writes <span class="mono">float(experts_dim.size * experts_dim.size)</span>, a square.</p></details>
+</section>
+
+<section id="s-prec"><h2>Training tricks: a float32 router, a smaller initialisation, expert dropout</h2>
+[[S2.SS4|§2.4, Tables 2 to 4]]
+<p><b>Selective precision.</b> Routing makes "hard-switching" decisions in every Switch layer, and bfloat16 "can exacerbate issues in the softmax computation for our router" ({{§2.4|ax:S2.SS4}}). Pure bfloat16 diverged; pure float32 is stable but pays for float32 tensors in the all-to-all (1,160 examples a second against bfloat16's 1,390). The fix: cast the router's input to float32, compute only the router function in float32, locally on each device, and recast the dispatch and combine tensors to bfloat16 at the end of the function, so "no expensive float32 tensors are broadcast through all-to-all communication operations". Float32's stability at bfloat16's speed:</p>
+<div class="card" id="t2bars"></div>
+<div class="pred" id="pr-bf" data-ans="1"><div class="q">bfloat16 has the same exponent range as float32, so nothing overflows. Ten experts have router logits of 128 and one has 128.5. In float32 the top expert's probability is 0.142. In bfloat16 it is about</div>
+<div class="opts"><button>0.142, unchanged</button><button>0.091, the same as the other ten</button><button>0.5</button><button>1.0, after overflow</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div class="card" style="margin:8px 0"><div class="an-ctl"><label class="small" style="flex:1 1 180px">logit level <input type="range" id="bfL" min="2" max="9" step="0.01" value="7"> <span id="bfLv" class="mono"></span></label><label class="small" style="flex:1 1 180px">top expert's lead <input type="range" id="bfG" min="0.05" max="2" step="0.05" value="0.5"> <span id="bfGv" class="mono"></span></label><label class="small">others <select id="bfK"><option>3</option><option selected>10</option><option>63</option></select></label></div><div id="bfSvg"></div><p class="small" id="bfOut" style="margin:4px 0 0"></p></div>
+<p class="small">bfloat16 keeps 8 significant bits, so near 128 the representable numbers are 1.0 apart (0.5 apart between 64 and 128): 128.5 rounds to 128 and the router's lead vanishes. The default reproduces, independently, the example in ST-MoE's footnote 7, a later paper by the same group (0.142 to 0.091, "alter the softmax output by 36%", {{ST-MoE §3.4|https://arxiv.org/html/2202.08906v2#S3.SS4}}; beyond this paper). Rounding is done here exactly as hardware does it, round to nearest even, on a float32 bit pattern. Lower the logit level and the error disappears: small logits are why ST-MoE later added the router z-loss.</p></div></div>
+<p><b>A smaller initialisation.</b> Weights are drawn from a truncated normal with σ = √(<i>s</i>/<i>n</i>), <i>n</i> the fan-in, values beyond two standard deviations resampled. The paper recommends cutting T5's default scale <i>s</i> = 1.0 by ten, to 0.1: better quality and far less variance early in training ({{Table 3|ax:S2.T3}}: −2.72 ± 0.01 against −3.60 ± 0.68 after 3.5k steps, three seeds each), and the same scheme trained everything from the 223M baseline to over a trillion parameters.</p>
+<p><b>Expert dropout.</b> Fine-tuning tasks are small and a Switch model has far more parameters than its FLOP-matched dense twin, so overfitting is worse. Raising dropout everywhere hurts; dropout 0.1 outside the experts and <b>0.4 inside the experts' intermediate layer</b> is best ({{Table 4|ax:S2.T4}}):</p>
+<div class="card" id="t4bars"></div>
+</section>
+
+<section id="s-t1"><h2>Switch against the top-2 MoE (Table 1)</h2>
+[[S2.SS3|§2.3, Table 1]]
+<p>The head-to-head: T5-Base, T5-Large, a top-2 MoE-Base and Switch-Base, both sparse models with 128 experts in every other FFN layer, all on 32 TPUv3 cores, quality after 100k steps and hours to a negative log perplexity of −1.50 ({{Table 1|ax:S2.T1}}). Switch is FLOP-matched to T5-Base; the top-2 MoE runs two experts per token, so its FLOPs are larger.</p>
+<div class="card" id="t1plot"></div>
+<ul class="lst">
+<li><b>On wall-clock, Switch wins at low capacity factors</b>: 62.8 hours at CF 1.0 against 80.1 for MoE-Base, and 65.0 against 80.7 at 1.25. At CF 2.0 the order flips: MoE-Base reaches the threshold in 68.7 hours, Switch-Base in 72.8.</li>
+<li><b>Per step the two are within hundredths</b>: MoE-Base is ahead at CF 2.0 (−1.547 against −1.554), Switch at 1.25 and 1.0. Switch "perform[s] better at lower capacity factors".</li>
+<li><b>Switch-Base+</b> spends Switch's speed advantage on size (hidden 768 to 896 until it matches MoE's speed) and is best per step of all (−1.534).</li>
+<li>T5-Base never reaches −1.50 in 100k steps; T5-Large takes 131.1 hours.</li>
+<li>The authors' own caveat: MoE-Base slowing from 840 to 790 examples a second when its capacity factor drops from 2.0 to 1.25 "is unexpected", and speed "is both a function of the algorithm and the implementation details" (footnote 5).</li></ul>
+<p>The caption also says Switch-Base+ raises "the number of heads from 14 to 16"; Switch-Base has 12 heads in {{Table 9|ax:S5.T9}}, so one of the two is a misprint.</p>
+</section>
+
+<section id="s-scale"><h2>Scaling at fixed FLOPs per token</h2>
+[[S3|§3, Figures 4 to 6, Appendix D]]
+<p>With the C4 corpus (over 180B target tokens) the models are not data-bound, and the number of experts is "the most efficient dimension for scaling": compute per token stays nearly fixed because each token still sees one expert, and the router only adds a cost of <i>O</i>(<i>d</i><sub>model</sub> × experts) ({{§3|ax:S3}}).</p>
+<ul class="lst">
+<li><b>Step basis</b> ({{Figure 4|ax:S3.F4}}): doubling the experts from 2 up to 256 (14.7B parameters), all FLOP-matched to the 223M T5-Base, improves test loss every time. Switch-Base with 64 experts reaches at step 60k the quality T5-Base reaches at step 450k: a 7.5x step speedup. Larger models are also more sample efficient, as Kaplan et al. found.</li>
+<li><b>Time basis</b> ({{Figure 5|ax:S3.F5}}): routing costs communication and router compute, so steps are slower, but at a fixed budget on 32 TPUv3 cores Switch-Base 64 reaches T5-Base's quality "in one-seventh the time": the headline <b>7x</b>.</li>
+<li><b>Against a bigger dense model</b> ({{Figure 6|ax:S3.F6}}): Switch-Base is more sample efficient than T5-Large and 2.5x faster in wall-clock, although T5-Large applies 3.5x more FLOPs per token (425B against 124B per sequence in Table 9 is 3.4x). Switch-Large, FLOP-matched to T5-Large, then goes further.</li>
+<li><b>Few experts</b> ({{Appendix D|ax:A4}}, {{Figure 12|ax:A4.F12}}): as few as 2, 4 or 8 experts improve on T5-Base, fitting on ordinary GPUs or TPUs ("one expert per core" is the recommendation).</li></ul>
+<p>None of these figures has printed values: the 7x, 7.5x and 2.5x are the authors' readings of their curves, and this page repeats them rather than re-reading the curves. The {{Train tab|tab:t-run}} runs the expert-count sweep on a toy at equal FLOPs per token.</p>
+</section>
+
+<section id="s-down"><h2>Downstream: fine-tuning, distillation, 101 languages</h2>
+[[S4|§4, Tables 5 to 8, Figures 7 and 8]]
+<p><b>Fine-tuning</b> ({{§4.1|ax:S4.SS1}}). Baselines T5-Base (223M) and T5-Large (739M), each with a FLOP-matched Switch twin, all four pretrained for 576B tokens.</p>
+<details class="detail"><summary class="small">The protocol: data, steps, dropout, tasks and metrics</summary><p class="small">Pretraining with 2<sup>20</sup> (1,048,576) tokens per batch for 550k steps on an improved C4 with intra-example duplicates removed (Lee et al. 2021), so the baselines differ slightly from Raffel et al. Fine-tuning: dropout 0.1 except 0.4 in the Switch layers, batch 1M for 16k steps, validation every 200 steps, peak reported. Tasks: GLUE and SuperGLUE as token-proportional mixtures, CNNDM and XSum (Rouge-2), SQuAD and ARC, closed-book Natural Questions, Web Questions and TriviaQA (exact match), Winogrande and ANLI (accuracy).</p></details>
+<div class="card" id="t5bars"></div>
+<p>Switch beats its FLOP-matched T5 on 10 of 11 tasks at Base and 9 of 11 at Large, including SuperGLUE (+4.4 and +2.0) and large gains on Winogrande, closed-book TriviaQA and XSum. The exceptions are ARC: T5-Base wins the Challenge set and T5-Large the Easy set ({{Table 5|ax:S4.T5}}).</p>
+<p><b>Distillation</b> ({{§4.2|ax:S4.SS2}}). A trillion-parameter model is hard to deploy, so the sparse teacher is distilled into the dense T5-Base. Two tricks help: initialise the student's non-expert layers from the teacher (possible because the models are FLOP-matched, so those layers have the same shapes), and train on 0.25 of the teacher's probabilities mixed with 0.75 of the ground-truth label. Together they keep about 30% of the quality gain with about one-twentieth of the parameters ({{Table 6|ax:S4.T6}}; quality gain = the share of the gap between teacher and plain T5-Base). Across teachers of 1.1B to 14.7B parameters, 37% of the gain survives at 82% compression and 28% at 99% ({{Table 7|ax:S4.T7}}); a 7.4B Switch-Base fine-tuned on SuperGLUE distils into T5-Base keeping 30% (74.6 to 76.6 against the teacher's 81.3, {{Table 8|ax:S4.T8}}). The shares recompute exactly; three of the five compression percentages need the student counted as 0.2B rather than 223M ({{recomputed|tab:t-tables:tb67}}).</p>
+<p><b>Multilingual</b> ({{§4.3|ax:S4.SS3}}). mSwitch-Base against mT5-Base, pretrained 1M steps on mC4's 101 languages (107 tasks with script variants): negative log perplexity improves in all 101 languages ({{Figure 7|ax:S4.F7}}); the step speedup to mT5-Base's final quality averages 5x, and 91% of languages get 4x or more ({{Figure 8|ax:S4.F8}}; speedup = baseline steps divided by Switch steps to the same quality). Both figures are images only.</p>
+</section>
+
+<section id="s-par"><h2>Data, model and expert parallelism</h2>
+[[S5|§5, Figure 9, Eq. 7]]
+<p>More experts give diminishing returns, so §5 lays out how to also grow the dense dimensions (<i>d</i><sub>model</sub>, <i>d</i><sub>ff</sub>) by combining three ways of splitting work across <i>N</i> cores, arranged by Mesh TensorFlow as a logical mesh of <i>n</i> data-parallel by <i>m</i> model-parallel ways, <i>N</i> = <i>n</i> × <i>m</i>. The FFN, <i>h</i> = <i>x W</i><sub>in</sub> and <i>y</i> = ReLU(<i>h</i>) <i>W</i><sub>out</sub>, is the example; <i>B</i> tokens per batch, <i>E</i> experts of capacity <i>C</i>. The paper's {{Figure 9|ax:S5.F9}} is an image; here it is redrawn for 16 cores, with each strategy's communication from §5.1 to §5.5:</p>
+<div class="card" id="par">
+<div class="seg" id="parM" role="group" aria-label="Strategy" style="margin-bottom:6px"><button class="on" data-m="d">Data</button><button data-m="m">Model</button><button data-m="md">Model + data</button><button data-m="ed">Expert + data</button><button data-m="emd">Expert + model + data</button></div>
+<div id="parSvg"></div>
+<div class="an-cnt" id="parCnt" style="margin-top:6px"></div>
+<p class="small" id="parCap" style="margin:6px 0 0"></p>
+<p class="small mute" style="margin:4px 0 0">Same colour on several cores: a copy; distinct colours: distinct weights or tokens. Counters: the released Switch-Base FFN (<i>d</i><sub>model</sub> 768, ReLU, <i>d</i><sub>ff</sub> 3072, as many parameters as Table 9's GEGLU 2048), 2<sup>20</sup> tokens per batch, capacity factor 1.0, bfloat16, one FFN layer forward.</p>
+</div>
+<ul class="lst">
+<li><b>Expert and data parallelism</b> ({{§5.4|ax:S5.SS4}}) is Switch's native layout: all cores on the data dimension <i>n</i>, which is also the number of experts, one expert per core. Each core's router builds a binary dispatch tensor of shape [<i>n</i>, <i>B</i>/<i>n</i>, <i>E</i>, <i>C</i>], gathers its tokens with one einsum ({{Eq. 7|ax:S5.E7}}) into [<i>n</i>, <i>E</i>, <i>C</i>, <i>d</i><sub>model</sub>], and an all-to-all of size [<i>E</i>, <i>C</i>, <i>d</i><sub>model</sub>] reshards from the data dimension to the expert dimension; a second all-to-all brings the outputs back.</li>
+<li><b>Adding model parallelism</b> ({{§5.5|ax:S5.SS5}}) raises FLOPs per token by widening <i>d</i><sub>ff</sub>, but memory per core then forces <i>m</i> up, and with <i>N</i> fixed, <i>n</i> and the batch down; the all-to-all and model parallelism's all-reduces add up, and "the best mapping is empirically determined".</li>
+<li>Summing over a sharded dimension costs an all-reduce in each pass ({{§5.2|ax:S5.SS2}}); pure data parallelism communicates once, for the gradients ({{§5.1|ax:S5.SS1}}). The tensor-parallel layout is {{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}'s.</li></ul>
+</section>
+
+<section id="s-tri"><h2>Towards a trillion parameters</h2>
+[[S5.SS6|§5.6, Table 9, §8]]
+<p>Two large models, both trained on C4 ({{Table 9|ax:S5.T9}}):</p>
+<ul class="lst">
+<li><b>Switch-XXL</b>, 395B parameters, FLOP-matched to T5-XXL (6.3T FLOPs per sequence, <i>d</i><sub>model</sub> 4096, <i>d</i><sub>ff</sub> 10240 GEGLU, 64 heads, experts in every other layer), which uses model parallelism for its larger dimensions at the cost of extra communication. Table 9 says 64 experts, but 64 experts count to 201B; the released configuration has 128, which counts to 394.5B ({{recount|tab:t-tables:tb9}}).</li>
+<li><b>Switch-C</b>, 1.571T parameters: 2,048 experts in every FFN layer, 15 layers per stack, <i>d</i><sub>model</sub> 2080, <i>d</i><sub>ff</sub> 6144, expert and data parallelism only, so its dense dimensions are much smaller than T5-XXL's and it needs only 890B FLOPs per sequence. Its parameters recount to 1,571.3B and its FLOPs to 894B from the configuration alone.</li></ul>
+<p><b>Sample efficiency against T5-XXL.</b> After 250k steps, "both Switch Transformer variants" beat T5-XXL's −1.147 "by over 0.061", a gap worth noting because T5-XXL needed another 250k steps to gain 0.052; by 500k steps Switch-XXL leads by 0.087 (footnote 10: a lower bound, since T5-XXL trained on an easier C4 with duplicates). Recomputed from the same table, Switch-XXL's lead is 0.061 and Switch-C's 0.051, so "over 0.061" holds for one of the two. The abstract's 4x speedup over T5-XXL is stated for Switch-C in the caption of Table 9, "to a fixed perplexity (with the same compute budget)"; the table itself shows Switch-C at 250k steps level with T5-XXL at 500k (−1.096 against −1.095).</p>
+<p><b>Stability.</b> Switch-C "exhibits no training instability at all"; Switch-XXL, with "nearly 10x larger FLOPs per sequence", is sometimes unstable and was not trained for T5's full 1M steps. From Table 9, 6.3T / 890B is 7.1x, not nearly 10x.</p>
+<div class="pred" id="pr-c" data-ans="0"><div class="q">Switch-C has four times Switch-XXL's parameters (1,571B against 395B); Switch-XXL applies about seven times Switch-C's FLOPs per token. Fine-tuned on SQuAD, which scores higher?</div>
+<div class="opts"><button>Switch-XXL</button><button>Switch-C</button><button>A tie</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div class="card" id="prCbars" style="margin:8px 0"></div>
+<p class="small">Switch-XXL: 89.6 exact match against Switch-C's 87.7 "despite similar perplexities", which the authors call a "striking anomaly" suggesting "a poorly understood dependence between fine-tuning quality, FLOPS per token and number of parameters" ({{§8, item 2|ax:S8}}). Per step on C4 Switch-XXL is also ahead (−1.008 against −1.043 at 500k). Parameters bought pretraining perplexity; FLOPs per token still mattered for fine-tuning.</p></div></div>
+<details class="detail"><summary class="small">Fine-tuning a partly trained Switch-XXL: the numbers</summary><p class="small">Switch-XXL checkpoint after 503B tokens, about half of T5-XXL's; multi-task training for efficiency): SQuAD 89.7 against a state of the art of 91.3; SuperGLUE test 87.5 against T5's 89.3 and a state of the art of 90.0; ANLI 65.7 against a previous best of 49.4. On closed-book knowledge tasks without salient span masking it beats the previous best T5-XXL: Natural Questions 34.4 against 32.8, Web Questions 41.0 against 37.2, TriviaQA 47.5 against 42.9. Switch-XXL has the state-of-the-art upstream perplexity, but "its gains have not yet fully translated to SOTA downstream performance", and upstream gains carry better to knowledge tasks than to reasoning ({{Appendix E|ax:A5}}).</p></details>
+<p>In short: state-of-the-art upstream perplexity, state of the art on ANLI and closed-book knowledge tasks, still behind on SQuAD and SuperGLUE, with half of T5-XXL's training tokens.</p>
+</section>
+
+<section id="s-app"><h2>Appendices: what else was tried</h2>
+[[A1|Appendices A to F]]
+<p>Experts in attention help in float32 but diverge in bfloat16; rerouting overflow to a second-choice expert brings nothing; multiplicative jitter is the router's exploration noise; upstream quality predicts downstream quality, less well for Switch on reasoning at large scale.</p>
+<details class="detail"><summary class="small">Each appendix, with its numbers</summary>
+<ul class="lst small">
+<li><b>Switch for attention</b> ({{Appendix A|ax:A1}}, {{Table 10|ax:A1.T10}}): Switch layers replacing the query, key and value weight matrices (experts linear or FFN) improve quality in float32 (−1.524 against −1.548 at 100k steps with 32 experts) but diverge in bfloat16, so they were left for future work.</li>
+<li><b>No-Token-Left-Behind</b> ({{Appendix B|ax:A2}}, {{Figure 11|ax:A2.F11}}): overflowing tokens rerouted, iteratively, to their next-best expert, so almost nothing is dropped. No empirical benefit; the authors suspect that sending a token to a different expert than the one it is associated with hurts.</li>
+<li><b>Exploration</b> ({{Appendix C|ax:A3}}, {{Table 11|ax:A3.T11}}): the router never sees how an alternative expert would have done, a contextual-bandit exploration problem. Argmax −1.471, sampling from the softmax −1.570, input dropout −1.480, multiplicative input jitter −1.468; jitter is used throughout. In moe.py it multiplies the router's input by a uniform draw from 1 − 10<sup>-2</sup> to 1 + 10<sup>-2</sup>, a function documented as making models "more resilient to rounding errors introduced by bfloat16"; Code Block 15 instead adds the draw to the logits: a shift of about 1 that a softmax ignores, plus noise of at most 0.01. (Table 11's caption says "lower is better"; for negative log perplexity higher is better, as everywhere else in the paper.)</li>
+<li><b>Upstream to downstream</b> ({{Appendix E|ax:A5}}, {{Figure 13|ax:A5.F13}}): better pretraining means better fine-tuning for both families; at a fixed perplexity the dense model often does better on SuperGLUE, especially at large scale, while Switch does better on TriviaQA. "Further statistics ... would be necessary to confirm these observations."</li>
+<li><b>Pseudocode</b> ({{Appendix F|ax:A6}}): the load-balancing loss, the router and the distributed Switch layer in Mesh TensorFlow, the basis of this page's animation and toy.</li></ul></details>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S2.T1|Tables 1 to 11, Figures 4 to 8]]
+<p><b>What holds up.</b></p>
+<ul class="lst">
+<li><b>The mechanism.</b> One expert per token, the f · P loss, a float32 router and a smaller init are each simple and released as code ({{t5x|https://github.com/google-research/t5x}}, {{Mesh TensorFlow|https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/moe.py}}); the balancing loss and the higher-precision router are still in today's models ({{Then and now|tab:t-then}}).</li>
+<li><b>Big effects are well outside any plausible noise.</b> Selective precision against bfloat16 (−1.716 against a diverged −3.780), and Switch against FLOP-matched T5 on pretraining: 0.23 nats at Base and 0.15 at Large after 250k steps in Table 9, when the only seed spread the paper reports is 0.01 (Table 3, 0.1x init).</li>
+<li><b>The table arithmetic checks out</b> almost everywhere: every distillation share in Tables 6 to 8 recomputes, T5-Base's 223M and 124B FLOPs and Switch-C's 1,571B and 890B come out of the configurations alone ({{checks|tab:t-tables:tbChk}}).</li>
+<li>The authors flag their own weak spots (footnote 5 on speed, Switch-XXL's instability and reasoning transfer in §5.6 and §8, footnote 10 on T5-XXL's data), which counts in their favour.</li></ul>
+<p><b>What is weaker.</b></p>
+<ul class="lst">
+<li><b>Single runs with no error bars</b> for every quality comparison except Table 3, and Table 3 itself is thin: three seeds each, a mean gap of 0.88 nats with a standard error of 0.39 (t of about 2.2 on two degrees of freedom), so its clear finding is the variance (0.01 against 0.68), not the mean. Table 1's per-step differences between Switch and MoE are 0.006 to 0.011 nats; ST-MoE (beyond this paper) later measured top-2 at +0.004 over top-1 and called it a small gain ({{§5.2|https://arxiv.org/html/2202.08906v2#S5.SS2}}). Table 4's winning dropout setting leads on GLUE by 0.5 points and ties or trails elsewhere; Table 11's chosen jitter leads argmax by 0.003.</li>
+<li><b>The headline speedups are read off curves.</b> 7x, 7.5x, 2.5x, 5x and 91% come from Figures 4 to 8 with no printed values; the 4x over T5-XXL is a caption.</li>
+<li><b>Wall-clock comparisons are implementation-bound</b>: Table 1 mixes the algorithm with Mesh TensorFlow's TPUv3 kernels, and ST-MoE found the top-1 against top-2 speed gap "negligible" at 8x the scale.</li>
+<li><b>The fine-tuning protocol takes the best of 80 validation checkpoints</b> (every 200 steps for 16k) on validation sets, the same for both sides, so the comparison is fair but the absolute numbers are optimistic.</li>
+<li><b>Internal inconsistencies, all minor</b>: Table 9's 64 experts for Switch-XXL (128 in the released code, and only 128 gives 395B); "nearly 10x" FLOPs (7.1x); "over 0.061" for both large models (Switch-C is 0.051); "100x more parameters" in Table 6's caption (3.8B against 223M is 17x; the text says one-twentieth); 14 heads for Switch-Base in Table 1's caption (12 in Table 9); Table 11's "lower is better"; T5-Large's GEGLU row in Table 9 counts to 750M and 433B, while the released ReLU configuration gives 738M and 425B, matching the text's 739M and the table's FLOPs.</li></ul>
+<p class="lead"><b>Verdict.</b> Believe the engineering and the direction: sparse top-1 MoE with these fixes trains stably and beats FLOP-matched dense T5 by a wide margin, per step and per hour. Treat the exact multipliers as single-run readings, and the top-1 over top-2 conclusion as a statement about small TPU models in 2020: the margin is within noise, and the same group recommended top-2 a year later.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+[[S7|§7, released code]]
+<ul class="lst">
+<li><b>Code and weights</b>: JAX code and all checkpoints in {{t5x|https://github.com/google-research/t5x}} (Apache 2.0); model configurations as gin files in {{flaxformer|https://github.com/google/flaxformer/tree/main/flaxformer/t5x/configs/moe/models}}; the original Mesh TensorFlow layer in {{moe.py|https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/moe.py}}. Hugging Face hosts ports from switch-base-8 to {{switch-c-2048|https://huggingface.co/google/switch-c-2048}}.</li>
+<li><b>Hardware</b>: memory scales with total parameters, compute with active ones. The paper's own comparisons ran on 32 TPUv3 cores; "one expert per core" is its rule of thumb, and 2 to 8 experts already help on commodity accelerators (§7, Appendix D).</li>
+<li><b>Settings the released configurations use</b>: train capacity factor 1.25 (1.0 for Switch-C), evaluation capacity factor 2.0 (4.0 for Switch-XXL), α = 0.01, router in float32, experts in every other layer (every layer for Switch-C).</li>
+<li><b>When it pays</b>: pretraining at a fixed compute budget, and knowledge-heavy tasks. <b>When it buys less</b>: memory-bound deployment (distillation keeps only about 30% of the gain), reasoning-heavy fine-tuning at large scale (Appendix E), and GPU stacks with dropless kernels, which have since replaced capacity factors ({{Then and now|tab:t-then}}).</li></ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="small mute">(beyond the paper)</span></h2>
+[[S9|§9 Conclusion]]
+<p>This is the paper that made sparse MoE practical. It showed top-<i>k</i> with <i>k</i> &gt; 1 was not necessary, compressed MoE's losses into one balancing loss, showed bfloat16 sparse training works with a local float32 router, and named the vocabulary the field still uses: expert capacity, capacity factor, token dropping, expert parallelism, sparse against active parameters. It made parameter count a scaling axis separate from FLOPs, and Switch-C was the first trillion-parameter model with reported results: GShard had trained a 1T MoE in bfloat16 but "encountered several trainability issues with numerical stability, hence did not include the results" ({{GShard|https://arxiv.org/html/2006.16668v1}}).</p>
+<p>The lineage runs straight through GLaM (top-2 of 64 experts in every other layer, 1.2T parameters; {{GLaM|https://arxiv.org/abs/2112.06905}}) and ST-MoE (router z-loss, top-2 at capacity factor 1.25; {{ST-MoE|https://arxiv.org/abs/2202.08906}}) to {{Mixtral|n:3c65c17b0d0d81eba72af0ac91ddc6b3}} (top-2 of 8 coarse experts in every layer, open weights) and to DeepSeekMoE and {{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} (fine-grained plus shared experts, and auxiliary-loss-free bias balancing, which addresses the balance against quality tension the f · P loss introduced), and on to today's default frontier recipe of high-sparsity MoE (GPT-4-class models, Llama 4, Qwen3-MoE, Kimi K2; see {{Topic: llms|n:3c65c17b0d0d812d9e00f6ec89965286}}). Its pain points were as influential as its fixes: token dropping motivated dropless kernels ({{MegaBlocks|https://arxiv.org/abs/2211.15841}}: "never drops tokens"), and its instability at scale motivated the router z-loss line of work (ST-MoE). Line by line, with sources: {{Then and now|tab:t-then}}.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li>{{Mixtral of Experts|n:3c65c17b0d0d81eba72af0ac91ddc6b3}} (2024): the open-weights descendant that made the sparse FFN template mainstream; top-2 where Switch is top-1, no capacity-factor machinery on GPUs.</li>
+<li>{{DeepSeek-V3 Technical Report|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} (2024): modern high-sparsity MoE; its auxiliary-loss-free balancing is a direct response to the auxiliary loss introduced here.</li>
+<li>{{Scaling Laws for Neural Language Models|n:3c65c17b0d0d81b08a1debb0c15cd252}} (2020): the dense scaling results Switch extends with a fourth axis (parameters at fixed FLOPs).</li>
+<li>{{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}} (2019): tensor model parallelism, the technique Switch combines with expert and data parallelism in §5.</li>
+<li>{{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} (2017): the Transformer whose FFN sub-block the Switch layer replaces.</li>
+<li>{{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}} (2019): the baseline, corpus and objective.</li>
+<li>Topics: {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (expert parallelism, distributed training, distillation), {{Topic: llms|n:3c65c17b0d0d812d9e00f6ec89965286}} (MoE architecture lineage, and the Deeper: inside an MoE tab).</li></ul>
+</section>
+</section>
