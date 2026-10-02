@@ -10,6 +10,8 @@ Connections: every KB paper page is in technical_knowledge_base/pages.json (entr
 
 Live ingredient: choose by what the paper is (papers.md's table) and only if it teaches more than reading. A toy model trained with `uv run --with torch python src/train.py` (never add torch to pyproject.toml) must have its JS forward pass checked against PyTorch and its accuracy measured on held-out data; keep training under about 40 minutes of CPU (other agents are training in parallel). Weights and data count toward the page size: stay under about 300 KB unless the content truly needs more (say so).
 
+**What to keep in the repo.** Keep every file the page's own scripts need to rebuild and check it, including the exported weights `check_forward.py` loads. Leave out large intermediate training checkpoints (`model/ck/` and similar) unless a script needs them, and training data (regenerate it with a script). Keep each paper's `src/model/` under about 1 MB.
+
 **Long-running commands (important).** An agent that shows no progress for 600 seconds is killed, and several builders run at once on one machine. So:
 - Never run anything that can take more than about 4 minutes as one foreground command: model training, long screenshot loops, big fetch batches.
 - Start training with the Bash tool's `run_in_background`, write progress to a log file, and check the log with short commands every few minutes.
