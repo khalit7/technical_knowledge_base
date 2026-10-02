@@ -6,7 +6,7 @@ The page replaces the row page's body only; the database properties (Paper, Take
 
 ## Why papers need their own method
 
-A topic page compares things; a paper page explains one argument and its evidence. The reader's questions are different: what problem, what idea, does the evidence hold, what survived. So the page follows the paper's own structure, points into the paper at section, table and equation level, and, where it can, **runs the paper's mechanism** instead of illustrating it. Two ideas from outside shaped it: Polo Club's [Transformer Explainer](https://poloclub.github.io/transformer-explainer/) (a real model in the browser, every value inspectable) and Distill's [Communicating with Interactive Articles](https://distill.pub/2020/communicating-with-interactive-articles/) (ask the reader to predict before showing; details on demand; models and simulations as explanations).
+A topic page compares things; a paper page explains one argument and its evidence. The reader's questions are different: what problem, what idea, does the evidence hold, what survived. So the page follows the paper's own structure, points into the paper at section, table and equation level, and, where it can, **runs the paper's mechanism** instead of illustrating it. Three ideas from outside shaped it: a peer's static explainer of the Context Language Models paper (2026-10-02), whose "How much of this to believe" section, verdict up front and "What it takes to use this" were adopted here; Polo Club's [Transformer Explainer](https://poloclub.github.io/transformer-explainer/) (a real model in the browser, every value inspectable); and Distill's [Communicating with Interactive Articles](https://distill.pub/2020/communicating-with-interactive-articles/) (ask the reader to predict before showing; details on demand; models and simulations as explanations).
 
 ## Structure (tabs)
 
@@ -15,6 +15,27 @@ A topic page compares things; a paper page explains one argument and its evidenc
    - Then Problem, Idea, Method, Results, Why it matters, Connections. Every section carries an "in the paper" margin label (`[[S3.SS2|§3.2]]`) and every claim an inline link into the arXiv HTML (`{{§3.2.1|ax:S3.SS2.SSS1}}`). Find the real anchors by listing `id="S..."` in the HTML (sections `S3.SS2.SSS1`, tables `S6.T2`, figures `S3.F1`, equations `S3.E1`, appendix `Sx1.F3` or `A1`).
    - Two or three **predict-then-reveal** questions at the points where intuition usually fails (the widget in `11_js_ui.js`: options, a skip link, the reveal runs a live demo).
    - "Why it matters" is labelled "beyond the paper": each later claim gets its own source.
+   - **A verdict up front.** The headline card ends with one or two sentences on how far to trust the paper, for example: "Believe the idea; treat the size of the wins as provisional." It is the short form of the evidence section below and links to it.
+   - **How much of this to believe** (near the end of the Reading tab). This judges the paper's own evidence, not just whether our toy reproduces it.
+     - Start with what holds up and why: sample size, the gap in standard errors (computed where the paper gives enough to compute it), and baselines run from released code under the same budget.
+     - Then name the weaknesses concretely:
+       - comparisons that are not like for like (one side got retries, tools, tuning or a bigger budget the other did not);
+       - single runs with no seeds or error bars;
+       - margins smaller than the noise;
+       - benchmarks the authors built themselves;
+       - theoretical estimates presented as measurements (FLOPs, cost);
+       - an appendix that contradicts the main text;
+       - results that change sign across setups.
+     - Each point cites its section or table. End with a plain verdict.
+     - This matters most for recent agent, harness and benchmark papers, which are often single runs on small suites. For an old classic, later replication can carry it ("held up: every later model uses it"), sourced.
+     - Be fair: weaknesses the authors state themselves count in their favour, and say so.
+   - **What it takes to use this** (for papers recent enough that someone might still adopt the method):
+     - the code and its licence, and what is released or still "coming soon";
+     - the hardware and training budget the recipe needs;
+     - which model sizes or setups worked and which did not;
+     - when it pays off and when it buys little.
+
+     For classics whose method is now standard, "Then and now" covers this; skip it.
 2. **The live ingredient**, one tab, named for what the reader does ("Run a Transformer", "Simulate the scheduler", "Refit the curve", "Replay the trace"). See the table below.
 3. **The paper's tables (and figures), rebuilt**: every table that carries the argument, transcribed into `tables.json` with the printed precision kept, made interactive (sort, delta from baseline, toggle metric), with every derived number recomputed in `recompute.py` and a "defaults reproduce X, independently or by construction" line, and a plain "does not reproduce" box where it does not (the Transformer's 65M parameters come out 63.1M).
 4. **Then and now** (optional): what later work changed and what survived, or what it improved or previous work, or both, as a step-by-step morph with each step's paper and KB link. Worth it for papers whose design became a standard (architectures, training recipes, systems); skip it for a result paper.

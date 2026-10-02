@@ -14,4 +14,6 @@ Check: `sh html_utils/checkpage.sh <folder>` must end fail=0 with emdash 0, errb
 
 Never write to Notion, commit, edit pages.json, other papers' folders or shared html_utils files (put this paper's new idea rows in src/viz_ideas.md with ids P-<folder>.<k>; the orchestrator merges them; temporary scripts go in your own scratch space or src/).
 
-Reply as BRIEF_page_agent.md specifies, plus: the live ingredient chosen and why (or why none), what reproduces and what does not, corrections to the old summary, departures from papers.md and why, size, and the new idea rows.
+The paper tab ends with "How much of this to believe" (the paper's own evidence judged: what holds up, what is not like for like, single runs, error bars, appendix contradictions, a plain verdict) and, for papers recent enough to adopt, "What it takes to use this"; the headline card carries the one-line verdict (see papers.md).
+
+Reply as BRIEF_page_agent.md specifies, plus: the verdict and its main reasons, the live ingredient chosen and why (or why none), what reproduces and what does not, corrections to the old summary, departures from papers.md and why, size, and the new idea rows.
