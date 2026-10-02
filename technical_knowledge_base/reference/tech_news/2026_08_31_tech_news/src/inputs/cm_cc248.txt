@@ -1,0 +1,147 @@
+SOURCE: https://dev.classmethod.jp/en/articles/20260828-cc-updates-v2-1-248/
+FETCHED: 2026-10-02 HTTP 200
+
+Claude Code v2.1.248 Major Updates - Addition of --restricted to Limit Tools | DevelopersIO produced by Classmethod 
+ Original English 
+ Contents 
+ Claude Code v2.1.248 Major Updates - Addition of --restricted to Limit Tools
+ I tried the new --restricted feature in Claude Code v2.1.248. It is a convenient flag that can bulk-restrict command execution tools for use cases where you only want it to read, such as CI or code review. This update also includes plenty of bug fixes around session management, and I feel it is a release that greatly improves everyday usability.
+ Claude Claude Code セキュリティ アップデート 
+ 石川覚 
+ 2026.08.28 
+ This page has been translated by machine translation. View original 
+ This is Ishikawa from the Cloud Business Division. Claude Code v2.1.248 (released 2026-08-27) has been released. I feel that the newly added --restricted flag has expanded the options for situations where you want to limit usage to specific purposes. Today, I tried out --restricted.
+ The previous update article is here.
+ https://dev.classmethod.jp/articles/20260827-cc-updates-v2-1-247/ 
+ Update Summary
+ v2.1.248 includes 49 changes. In my classification, fixes account for the majority at 31, followed by 8 improvements, 6 new features, 3 security-related changes, and 1 breaking change. Fixes are concentrated around session management areas such as the agent view, hooks, MCP, and cloud sessions.
+ Notable Updates
+ Security
+ Addition of --restricted 
+ --restricted (also available via the environment variable CLAUDE_CODE_RESTRICTED=1 ) has been added. It removes built-in tools that execute commands or code and WebFetch , unless explicitly specified with --tools . It also limits file operation tools to within the working directory, rejects bypassPermissions , and ignores user, project, and local configuration files.
+ For use cases like CI or code review where you only want Claude Code to "read," I feel there are many situations where this single flag expresses the intent more clearly than writing out individual permission rules.
+ Fix for credential file uploads 
+ An issue was fixed where /ultrareview and cloud sessions seeded from local sources were uploading uncommitted edits to prod.env -format files, *.tfvars , and editor swap, temporary, and backup copies of credential files (such as key.pem.tmp , id_rsa.swo ). These will now remain local.
+ For those using /ultrareview , I feel this fix will be more impactful the more *.tfvars or prod.env -format files you have in the target repository.
+ New Features
+ Expanded cross-session messaging support 
+ Cross-session messaging on the same machine ( SendMessage / ListAgents ) is now available when using Bedrock, Vertex, or Foundry, and also when telemetry is disabled.
+ I feel that running multiple sessions in parallel has become more practical even for teams using Bedrock or Vertex.
+ Bug Fixes
+ Prompt cache misses in long-running sessions 
+ A prompt cache miss (and loss of extended thinking context) that occurred approximately once per hour in long-running sessions has been fixed. The cause was tool definitions being re-rendered after OAuth token refresh.
+ I think this is something that was causing silent losses for those who keep a single session open for many hours.
+ Sessions in Claude Desktop and Cowork disappearing after 30 days 
+ An issue where Claude Desktop and Cowork sessions disappeared after 30 days has been fixed. Transcript cleanup will now retain desktop-created sessions within the app (unless an organizational policy governs the retention period). The newly added desktopSessionCleanupPeriodDays setting allows you to cap this exception.
+ For those keeping work logs in Claude Desktop or Cowork, I feel it would be worth also checking the value of desktopSessionCleanupPeriodDays .
+ Checkout loss in backgrounded worktree sessions 
+ An issue where backgrounded worktree sessions lost their checkout has been fixed. Background sessions will now retain the worktree lock while running, keeping them out of scope for cleanup and git worktree remove .
+ For those running background sessions with worktrees checked out, I feel this is a subtle but impactful fix.
+ Update Details
+ Security
+ --restricted ( CLAUDE_CODE_RESTRICTED=1 ) has been added.
+ Fixed uploads of uncommitted edits to files that may contain credentials by /ultrareview and cloud sessions (as described above).
+ For cross-session messaging in Linux user namespaces, root-equivalent trust for unmapped owners has been restricted to legitimate system directories.
+ New Features
+ Cross-session messaging now supports Bedrock, Vertex, Foundry, and disabled telemetry (as described above).
+ experimental.cacheTtl ( "5m" or "1h" ) has been added to agent front matter. This is a per-agent prompt cache TTL used when subagents have no TTL setting.
+ Diagnostics for server-managed settings have been added. In addition to startup warnings on load failures, lines showing the reason for failure or why settings were not retrieved (Bedrock/Vertex/third-party providers, custom ANTHROPIC_BASE_URL ) are now displayed in /doctor and /status .
+ /usage-credits has been added. Members of Enterprise organizations billed via AWS Marketplace, self-serve Enterprise, and Enterprise trials can request that administrators raise their usage limits.
+ claude self-hosted-runner --client-label <label> ( SELF_HOSTED_RUNNER_CLIENT_LABEL ) has been added, allowing you to override the label the runner registers with (default is the hostname).
+ A warning has been added in /web-setup when the GitHub CLI token lacks the workflow scope.
+ Improvements
+ The Workflow tool description has been reduced from approximately 5.7k tokens to approximately 1k tokens, and the script authoring reference has been moved to the bundled workflow-authoring skill.
+ /loop 's self-paced (dynamic) mode and the promptless autonomous default are now always available, including for Bedrock/Vertex/Foundry.
+ Cross-session messaging now falls back to a per-user private /tmp directory when the default directory is unavailable. The directory name to address is shown in notifications and /status .
+ /ultrareview <PR#> now checks whether the connected GitHub account can access the repository before launching (previously it would fail after the cloud session started).
+ In managed settings, environment variables for client-side timeouts, MCP startup mode, and the stream watchdog no longer trigger settings approval prompts.
+ The PR badge in the prompt footer now queries GitHub less frequently while there are no changes in the pull request. It updates immediately upon push or when running gh pr commands.
+ Anthropic telemetry export failures are now logged at debug level as [Anthropic telemetry] (previously [3P telemetry] OTEL diag error ).
+ When a subagent sends SendMessage to another session, the result now explicitly states that replies are delivered to the parent session's conversation.
+ Fixes
+ Fixed prompt cache misses in long-running sessions (as described above)
+ Fixed session disappearance in Claude Desktop and Cowork (as described above)
+ Fixed checkout loss in backgrounded worktree sessions (as described above)
+ Fixed redirect to login screen on token refresh : When a session token expired while another Claude Code process held the token refresh lock, it would redirect to the login screen. It now fails as a retryable error.
+ Fixed trust confirmation skip in CI environments : claude agents was skipping the workspace trust confirmation prompt when the CI environment variable was set.
+ Fixed silent waiting caused by invalid hook responses : When PermissionRequest or PreToolUse hooks produced invalid output, background sessions would silently wait. The hook name and schema error are now displayed in the claude agents row.
+ Fixed suppression of JSON parse errors in hook output : When a {…} object written to standard output is not valid JSON, it is now reported as a hook error with a parse message instead of being treated as plain text.
+ Fixed scope display in /mcp : Entries declaring the claude.ai connector type in .mcp.json are now displayed under their correct scope rather than under the trusted "claude.ai" heading.
+ Fixed MCP headersHelper retry : When a server supplying an Authorization header receives a 401 response, it now re-runs the helper and retries the call instead of entering OAuth discovery.
+ Fixed session deletion refusal for worktree branches : claude agents and claude rm were refusing to delete when there were merged but unpushed commits on the default branch that was checked out, citing "unpushed commits."
+ Fixed freezing of VS Code chat tabs : Tabs for sessions that had never been saved no longer freeze with "No conversation found" and instead start a new conversation.
+ A subtly welcome fix : Model names in /model and fast mode switch notifications are now displayed as code, and suffixes like [1m] are displayed as-is rather than as links. I feel this is a subtly appreciated change for those who alternate between models with [1m] suffixes like the 1M context version.
+ In addition, numerous minor bugs have been fixed, including listing in claude agents , Remote Control, cloud session startup, terminal display corruption, and keyboard operations on Windows.
+ Breaking Changes
+ In the agent view dispatch input, shift+enter has been changed to insert a newline (same behavior as prompt input). Dispatching and attaching are now handled by ctrl+enter.
+ After the change (v2.1.248 and later)
+ shift+enter: Does not insert a newline (behavior differs from prompt input) → Inserts a newline (same behavior as prompt input)
+ ctrl+enter: Not documented in CHANGELOG → Dispatches and attaches to that session
+ The behavior prior to the change is not explicitly documented in the CHANGELOG. The above shows only what can be confirmed from the statement that "shift+enter now inserts a newline."
+ Note that there are no deprecated changes in this release.
+ Trying Out --restricted
+ I compared what is actually removed when --restricted is added against a normal startup. I launched both normal mode and --restricted in a temporary directory, and compared the list of tools and configuration loading status included in the startup events ( system / init ) of --output-format stream-json .
+ node !== this).map(node => node.textContent).join("");navigator.clipboard.writeText(textToCopy).then(() => {this.innerHTML = ` `; setTimeout(() => {this.innerHTML = ` `}, 1500)})"> # Normal mode 
+ claude -p "Please respond with only OK." --strict-mcp-config \ 
+ --output-format stream-json --verbose > normal.jsonl 
+ # --restricted (adding --strict-mcp-config to both so MCP presence doesn't affect the comparison) 
+ claude --restricted --strict-mcp-config -p "Please respond with only OK." \ 
+ --output-format stream-json --verbose > restricted.jsonl 
+ node !== this).map(node => node.textContent).join("");navigator.clipboard.writeText(textToCopy).then(() => {this.innerHTML = ` `; setTimeout(() => {this.innerHTML = ` `}, 1500)})"> $ diff <( grep -m1 '"subtype":"init"' normal.jsonl | jq -r '.tools[]' | sort ) \ 
+ <( grep -m1 '"subtype":"init"' restricted.jsonl | jq -r '.tools[]' | sort ) 
+ 1,2d0 
+ < Bash 
+ < CronCreate 
+ 8a7,8 
+ > Glob 
+ > Grep 
+ 10d9 
+ < Monitor 
+ 14d12 
+ < RemoteTrigger 
+ 23d20 
+ < WebFetch 
+ 25d21 
+ < Workflow 
+ < indicates tools that exist only in normal mode. In addition to Bash and WebFetch , CronCreate , Monitor , RemoteTrigger , and Workflow were also removed. The appearance of Glob and Grep only on the --restricted side is because lazy loading of tools is enabled in the normal mode configuration, and I believe this does not mean that --restricted gained additional functionality.
+ Let me also compare the configuration file loading status.
+ node !== this).map(node => node.textContent).join("");navigator.clipboard.writeText(textToCopy).then(() => {this.innerHTML = ` `; setTimeout(() => {this.innerHTML = ` `}, 1500)})"> $ for f in normal.jsonl restricted.jsonl ; do grep -m1 '"subtype":"init"' $f | jq -r " \" $f : permissionMode=\(.permissionMode) plugins=\(.plugins|length) skills=\(.skills|length) \" " ; done 
+ normal.jsonl: permissionMode=auto plugins= 6 skills= 91 
+ restricted.jsonl: permissionMode=default plugins= 0 skills= 17 
+ As documented, user settings are ignored: the permission mode reverts from auto to the default, no plugins are loaded, and only built-in skills remain.
+ The reason both commands above include --strict-mcp-config is that MCP servers remain present with --restricted alone. When I tried launching with only --restricted without it, MCP servers connected via the claude.ai connector remained connected in my environment, and their MCP tools appeared in the tool list. As described in claude --help , if you want to restrict external connections as well, you will need to use both flags together. Note that managed settings and --settings continue to apply even with --restricted .
+ I was able to confirm that simply adding --restricted removes command-execution tools like Bash and WebFetch from the list, and also prevents user configuration plugins and skills from being loaded. For use cases like CI or code review where you only want to "read," I feel this single flag is sufficient in many situations rather than writing out detailed permission rules.
+ Closing Thoughts
+ While v2.1.248 adds the straightforward entry point of --restricted , many of the fixes are concentrated in the underlying infrastructure of session management, hooks, and MCP, making this feel like a release that raises the floor of everyday usability. I also feel it's worth noting that it includes the kind of bugs that were causing silent losses—such as prompt cache misses and worktree checkout disappearance—without users being aware.
+ For those who use Claude Code regularly for work, I encourage you to update and try out the behavior of --restricted in your own environment.
+ References
+ https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md 
+ https://code.claude.com/docs/en/changelog 
+ https://dev.classmethod.jp/articles/20260827-cc-updates-v2-1-247/ 
+ Claudeならクラスメソッドにお任せください
+ クラスメソッドは、Anthropic社とリセラー契約を締結しています。各種製品ガイドから、業種別の活用法、フェーズごとのお悩み解決などサービス支援ページにまとめております。まずはご覧いただき、お気軽にご相談ください。
+ サービス詳細を見る 
+ Share this article
+ Classmethod, Inc. 
+ Main Categories
+ AWS Topics
+ AWS IAM Amazon Cognito Security Hub AWS Organizations Control Tower EC2 S3 S3 Tables AWS CDK QuickSight Redshift Amplify CloudFront Amazon Connect 
+ Trending Topics
+ Generative AI MCP ChatGPT Claude Amazon Bedrock RAG Amazon Q GitHub Copilot Devin Cursor Obsidian Modern Data Stack Python Security Project Management 
+ Products & Services
+ Google Cloud Microsoft Azure Zendesk Auth0 Tableau Snowflake Alteryx Informatica dbt DuckDB Cloudflare Splunk Vision One Notion LINE 
+ Features and Series
+ Google Cloud Next ’25 AWS re:Invent 2025 AWS Re-Introduction AWS Trend Check For Beginners AWS Technical Support AWS Certification Manufacturing Joined Classmethod Classmethod IT Team Thai Blog Vietnamese Blog 
+ Company
+ About Classmethod 
+ What is DevelopersIO 
+ Our Services 
+ Contact Us 
+ Download Brochures 
+ Official X (Twitter) 
+ YouTube Channel 
+ Facebook Page 
+ Official LinkedIn 
+ Privacy Policy 
+ © Classmethod, Inc. All rights reserved.
+ Trending AWS Claude Bedrock Google Cloud Azure Seminar Job fair study-club Case study Recruitment
