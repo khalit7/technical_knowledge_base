@@ -10,6 +10,13 @@ Connections: every KB paper page is in technical_knowledge_base/pages.json (entr
 
 Live ingredient: choose by what the paper is (papers.md's table) and only if it teaches more than reading. A toy model trained with `uv run --with torch python src/train.py` (never add torch to pyproject.toml) must have its JS forward pass checked against PyTorch and its accuracy measured on held-out data; keep training under about 40 minutes of CPU (other agents are training in parallel). Weights and data count toward the page size: stay under about 300 KB unless the content truly needs more (say so).
 
+**Long-running commands (important).** An agent that shows no progress for 600 seconds is killed, and several builders run at once on one machine. So:
+- Never run anything that can take more than about 4 minutes as one foreground command: model training, long screenshot loops, big fetch batches.
+- Start training with the Bash tool's `run_in_background`, write progress to a log file, and check the log with short commands every few minutes.
+- Call `torch.set_num_threads(2)` (or set `OMP_NUM_THREADS=2`) and train variants one after another, not all at once.
+- If `checkpage.sh` is slow because the machine is busy, run it in the background too.
+- Before training, look in `src/model/` for checkpoints an interrupted builder already produced, and reuse them if their config matches.
+
 Check: `sh html_utils/checkpage.sh <folder>` must end fail=0 with emdash 0, errbox 1 and clipped 0; look at the screenshots of every tab (crop them) and mid-animation frames; exercise every control with a script at 390 dark and 920 light (no errors, NaN, undefined, sideways scroll, text under 11 px, overlap). No em-dashes anywhere.
 
 Never write to Notion, commit, edit pages.json, other papers' folders or shared html_utils files (put this paper's new idea rows in src/viz_ideas.md with ids P-<folder>.<k>; the orchestrator merges them; temporary scripts go in your own scratch space or src/).
