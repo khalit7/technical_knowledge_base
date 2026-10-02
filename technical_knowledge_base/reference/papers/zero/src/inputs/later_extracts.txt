@@ -1,0 +1,121 @@
+(Em-dashes in the sources are written as " -- ".)
+Lines quoted from later sources (fetched 2026-10-02). Each block: source URL, then the extract.
+
+== https://arxiv.org/abs/2211.05100 (BLOOM, sec 3.4.2)
+Finally, the Zero Redundancy Optimizer (ZeRO; Rajbhandari et al., 2020) allows different
+processes to only hold a fraction of data (parameters, gradients, and optimizer states)
+20. github.com/bigscience-workshop/Megatron-DeepSpeed
+21. github.com/NVIDIA/Megatron-LM
+22. github.com/microsoft/DeepSpeed
+
+19
+
+BigScience Workshop
+
+required for a training step. We used ZeRO stage 1, meaning that only the optimizer states
+are sharded in this manner.
+
+== https://arxiv.org/abs/2412.19437 (DeepSeek-V3, sec 3.2)
+DeepSeek-V3 applies 16-way Pipeline Parallelism (PP) (Qi et al., 2023a), 64-way Expert Parallelism (EP) (Lepikhin et al., 2021) spanning 8 nodes, and ZeRO-1 Data Parallelism (DP) (Rajbhandari et al., 2020).
+
+== https://arxiv.org/abs/2407.21783 (Llama 3, sec 3.3.2)
+bottleneck for very long sequence length inputs. We use fully sharded data parallelism (FSDP; Rajbhandari
+et al., 2020; Ren et al., 2021; Zhao et al., 2023b), which shards the model, optimizer, and gradients while
+implementing data parallelism which processes data in parallel on multiple GPUs and synchronizes after each
+training step. Our use of FSDP for Llama 3 shards optimizer states and gradients, but for model shards we do
+not reshard after forward computation to avoid an extra all-gather communication during backward passes.
+
+== https://arxiv.org/abs/2201.11990 (MT-NLG 530B, sec 2.1.1 and 2.2)
+Memory Efficiency The memory requirements to train a 530 billion parameter model are far beyond what
+is available on a single GPU device. We refer to Rajbhandari et al. [56] for an analytical study of memory
+consumption during training.
+3
+
+Mixed precision training [41] typically stores weights and gradients in half precision formats (i.e., 2 bytes
+per parameter) for forward and backward propagations. It also keeps full-precision (4 bytes) copies in 32
+bit float format for numerical stability in the optimizer. Assuming training with the Adam optimizer [27],
+training consumess 20 bytes of memory per parameter:
+2
++ 4} + |2 {z
++ 4} + 4| {z
++ 4} = 20 bytes.
+| {z
+
+weights
+
+gradients
+
+Adam states
+
+Training a 530 billion parameter model thus requires over 10 terabytes of aggregate memory for the model
+weights, gradients, and optimizer states.
+affecting model quality.
+Memory Efficiency: Data parallelism replicates the model and optimizer across all workers, and therefore
+is not memory efficient. The Zero Redundancy Optimizer (ZeRO) [55] is a collection of optimizations that
+4
+
+improve the memory efficiency of data parallelism by partitioning the replicated data among data-parallel
+workers.
+technique has its own merits and can be used in a complementary fashion. To this end, we use 3D parallelism, which is a systematic combination of data, tensor, and pipeline parallelism that addresses both
+compute and memory efficiency simultaneously.
+
+2.2
+
+Software System  --  3D Parallelism with DeepSpeed and Megatron
+
+Our system software stack combines pipeline parallelism and data parallelism from DeepSpeed with tensorslicing from Megatron to create a flexible 3D-parallelism implementation. Data, tensor, and pipeline parallelism each play a specific role in improving memory and compute efficiency.
+Memory Efficiency: Transformer blocks are divided into pipeline stages, and the blocks of each stage are further divided via tensor parallelism. This 2D combination simultaneously reduces the memory consumed by
+the weights, gradients, optimizer states, and activations. However, we cannot partition the model indefinitely
+without losing compute efficiency.
+Compute Efficiency: To further accelerate training, we use data parallelism to scale to arbitrarily large
+
+== https://arxiv.org/abs/2304.11277 (PyTorch FSDP paper)
+This paper presents PyTorch [24] Fully Sharded Data Parallel
+(FSDP), which enables the training of large-scale models by sharding model parameters. The FSDP algorithm is motivated by the
+ZeroRedundancyOptimizer [27, 28] technique from DeepSpeed but
+with a revised design and implementation that is aligned with the
+other components of PyTorch. FSDP breaks down a model instance
+
+== https://arxiv.org/abs/2104.07857 (ZeRO-Infinity abstract and Figure 1)
+In this paper we present ZeRO-Infinity, a novel heterogeneous
+system technology that leverages GPU, CPU, and NVMe memory to
+allow for unprecedented model scale on limited resources without
+requiring model code refactoring. At the same time it achieves
+excellent training throughput and scalability, unencumbered by
+the limited CPU or NVMe bandwidth. ZeRO-Infinity can fit models
+with tens and even hundreds of trillions of parameters for training
+on current generation GPU clusters. It can be used to fine-tune
+trillion parameter models on a single NVIDIA DGX-2 node, making
+large models more accessible. In terms of training throughput and
+scalability, it sustains over 25 petaflops on 512 NVIDIA V100 GPUs
+(40% of peak), while also demonstrating super linear scalability. An
+open source implementation of ZeRO-Infinity is available through
+DeepSpeed1 .
+Figure 1: ZeRO-Infinity can train a model with 32 trillion parameters on 32 NVIDIA V100 DGX-2 nodes (512 GPUs), 50x
+larger than 3D parallelism, the existing state-of-the-art.
+
+== https://arxiv.org/abs/2101.06840 (ZeRO-Offload abstract)
+It can train models with over 13 billion parameters on a single GPU, a 10x increase in size compared to popular framework such as PyTorch ... ZeRO-Offload enables large model training by offloading data and compute to CPU.
+
+== https://arxiv.org/abs/2306.10209 (ZeRO++ abstract)
+block-quantization based all-gather ... data remapping that trades-off communication for more memory ... all-to-all based quantized gradient averaging ... reduces communication volume of ZeRO by 4x, enabling up to 2.16x better throughput at 384 GPU scale.
+
+== https://docs.pytorch.org/docs/2.14/fsdp.html (ShardingStrategy)
+class torch.distributed.fsdp.ShardingStrategy(value)[source]# This specifies the sharding strategy to be used for distributed training by FullyShardedDataParallel. FULL_SHARD: Parameters, gradients, and optimizer states are sharded. For the parameters, this strategy unshards (via all-gather) before the forward, reshards after the forward, unshards before the backward computation, and reshards after the backward computation. For gradients, it synchronizes and shards them (via reduce-scatter) after the backward computation. The sharded optimizer states are updated locally per rank. SHARD_GRAD_OP: Gradients and optimizer states are sharded during computation, and additionally, parameters are sharded outside computation. For the parameters, this strategy unshards before the forward, does not reshard them after the forward, and only reshards them after the backward computation. The sharded optimizer states are updated locally per rank. Inside no_sync(), the parameters are not resharded after the backward computation. NO_SHARD: Parameters, gradients, and optimizer states are not sharded but instead replicated across ranks similar to PyTorch\u2019s DistributedDataParallel API. For gradients, this strategy synchronizes them (via all-reduce) after the backward computation. The unsharded optimizer states are updated locally per rank. HYBRID_SHARD: Apply FULL_SHARD within a node, and replicate parameters across nodes. This results in reduced communication volume as expensive all-gathers
+
+== https://www.deepspeed.ai/2021/03/07/zero3-offload.html (DeepSpeed blog, March 7, 2021)
+Today we are announcing the release of ZeRO-3 Offload, a highly efficient and easy to use implementation of ZeRO Stage 3 and ZeRO Offload combined ... With 1 Trillion parameters, ZeRO-3 Offload sustains 25 PetaFlops in compute performance on 512 NVIDIA V100 GPUs, achieving 49 TFlops/GPU.
+
+== http://web.archive.org/web/20200228233212/https://www.microsoft.com/en-us/research/blog/turing-nlg-a-17-billion-parameter-language-model-by-microsoft/ (Turing-NLG blog, archived)
+We also compared the performance of the pretrained T-NLG model on standard language tasks such as WikiText-103 perplexity (lower is better) and LAMBADA next word prediction accuracy (higher is better). The table below shows that we achieve the new state of the art on both LAMBADA and WikiText-103. ... DeepSpeed with ZeRO allowed us to reduce the model-parallelism degree (from 16 to 4), increase batch size per node by fourfold, and reduce training time by three times.
+
+== https://docs.pytorch.org/docs/2.14/distributed.fsdp.fully_shard.html (FSDP2 fully_shard)
+ fully_shard(model) is as follows For model initialization, fully_shard converts model.parameters() from plain torch.Tensor to DTensor in-place. The parameters are moved to the appropriate device according to the device mesh. Before forward and backward passes, pre-forward/backward hooks are responsible for all-gathering the parameters and converting model.parameters() from DTensor to plain torch.Tensor. After forward and backward passes, post-forward/backward hooks free the unsharded parameters (no communication needed) and convert model.parameters() from plain torch.Tensor back to DTensor. For the optimizer, it must be initialized with the DTensor mo
+reshard_after_forward ( Optional [ Union [ bool , int ] ] ) – This controls the parameter behavior after forward and can trade off memory and communication: If True , then this reshards parameters after forward and re-all-gathers in backward. If False , then this keeps the unsharded parameters in memory after forward and avoids the all-gather in backward. For best performance, we usually set False for the root module, because the root module is typically required immediately when the backward pass begins. If None ,
+
+== https://arxiv.org/abs/2306.10209 (ZeRO++ section 1)
+Hierarchical Weight Partition for ZeRO (hpZ) Second, to reduce communication overhead of all-gather on weights during backward, we trade GPU memory for communication. More specifically,
+instead of spreading whole model weights across all the machines,
+we maintain a full model copy within each machine. At the expense
+of higher memory overhead, this allows us to replace the expensive
+cross-machine all-gather on weights with intra-machine all-gather,

@@ -1,0 +1,34 @@
+<section class="tab" id="t-then" role="tabpanel" hidden>
+<h2>Then and now</h2>
+<p>What the paper proposed in 2019, what was built, what it is called today, and which stage the big runs that cite it actually used. Every row quotes its source; the quoted lines are kept in the page's <code>src/inputs/later_extracts.txt</code>.</p>
+
+<h3>The stages, then and now</h3>
+<div class="tw"><table><thead><tr><th>In the paper</th><th>DeepSpeed</th><th>PyTorch FSDP (FSDP1)</th><th>FSDP2</th></tr></thead><tbody>
+<tr><td>Baseline DP: everything replicated, gradients all-reduced</td><td>ZeRO off</td><td><code>NO_SHARD</code>: "similar to PyTorch's DistributedDataParallel"</td><td>(plain DDP)</td></tr>
+<tr><td><i>P<sub>os</sub></i>: optimizer states partitioned</td><td>stage 1: "the optimizer states (e.g., for Adam optimizer, 32-bit weights, and the first, and second moment estimates) are partitioned"</td><td>none on its own</td><td>none on its own</td></tr>
+<tr><td><i>P<sub>os+g</sub></i>: plus gradients</td><td>stage 2: "the reduced 16-bit gradients ... are also partitioned"</td><td><code>SHARD_GRAD_OP</code>: gradients and optimizer states sharded; parameters "unshard[ed] before the forward", not resharded until after backward</td><td><code>fully_shard(..., reshard_after_forward=False)</code>: "keeps the unsharded parameters in memory after forward and avoids the all-gather in backward"</td></tr>
+<tr><td><i>P<sub>os+g+p</sub></i>: plus parameters (analysed, not built in the paper)</td><td>stage 3: "ZeRO-3 will automatically collect and partition them during the forward and backward passes"; released 7 March 2021</td><td><code>FULL_SHARD</code>: all-gather before forward, reshard after, all-gather before backward, reduce-scatter gradients</td><td><code>fully_shard</code> (default): parameters as DTensors, all-gathered in pre-forward and pre-backward hooks</td></tr>
+<tr><td>(not in the paper) shard within a node, replicate across nodes</td><td>ZeRO++'s hierarchical weight partition, hpZ (2023), for the backward all-gather</td><td><code>HYBRID_SHARD</code>, <code>_HYBRID_SHARD_ZERO2</code></td><td>a 2-D device mesh (HSDP)</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: {{DeepSpeed ZeRO tutorial|https://www.deepspeed.ai/tutorials/zero/}}, {{DeepSpeed ZeRO-3 Offload release, 7 March 2021|https://www.deepspeed.ai/2021/03/07/zero3-offload.html}}, {{FSDP ShardingStrategy docs (PyTorch 2.14)|https://docs.pytorch.org/docs/2.14/fsdp.html}}, {{FSDP2 fully_shard docs|https://docs.pytorch.org/docs/2.14/distributed.fsdp.fully_shard.html}}, {{FSDP paper (Zhao et al., 2023)|https://arxiv.org/abs/2304.11277}}, {{ZeRO++|https://arxiv.org/abs/2306.10209}}.</p>
+
+<h3>Which stage the big runs used</h3>
+<div class="tw"><table><thead><tr><th>Run</th><th>What its own report says</th><th>Stage</th></tr></thead><tbody>
+<tr><td>Turing-NLG 17B (Microsoft, 2020)</td><td>"DeepSpeed with ZeRO allowed us to reduce the model-parallelism degree (from 16 to 4), increase batch size per node by fourfold, and reduce training time by three times" ({{blog, archived|http://web.archive.org/web/20200228233212/https://www.microsoft.com/en-us/research/blog/turing-nlg-a-17-billion-parameter-language-model-by-microsoft/}}); trained with ZeRO-100B ({{§10.6|ax:S10.SS6}})</td><td>1 and 2, with MP 4</td></tr>
+<tr><td>BLOOM 176B (BigScience, 2022)</td><td>"We used ZeRO stage 1, meaning that only the optimizer states are sharded in this manner" ({{BLOOM §3.4.2|https://arxiv.org/abs/2211.05100}})</td><td>1, with tensor and pipeline parallelism</td></tr>
+<tr><td>MT-NLG 530B (Microsoft and NVIDIA, 2022)</td><td>trained with "3D parallelism ... using DeepSpeed and Megatron"; ZeRO is described as background and its stage is not stated. It counts <b>20 bytes per parameter</b>, not 16 (2 + 4 for weights, 2 + 4 for gradients, 4 + 4 for Adam): "over 10 terabytes" for 530B, <b id="thM20"></b> TB against <b id="thM16"></b> TB at 16 bytes ({{MT-NLG §2.1.1|https://arxiv.org/abs/2201.11990}})</td><td>not stated</td></tr>
+<tr><td>Llama 3 405B (Meta, 2024)</td><td>"Our use of FSDP for Llama 3 shards optimizer states and gradients, but for model shards we do not reshard after forward computation to avoid an extra all-gather communication during backward passes" ({{Llama 3 §3.3.2|https://arxiv.org/abs/2407.21783}})</td><td>2-like, with TP, CP and PP</td></tr>
+<tr><td>DeepSeek-V3 671B (DeepSeek, 2024)</td><td>"16-way Pipeline Parallelism (PP), 64-way Expert Parallelism (EP) spanning 8 nodes, and ZeRO-1 Data Parallelism (DP)" ({{DeepSeek-V3 §3.2|https://arxiv.org/abs/2412.19437}})</td><td>1, with PP and EP</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">What survived, and what did not</div>The accounting survived intact: 16 bytes per parameter (or 20 with fp32 gradients, as MT-NLG counts them) is still how a run is sized. The schedule survived too: reduce-scatter, update a shard, all-gather is how every sharded optimizer works. What did not become the default for the very largest runs is ZeRO-3 on its own: of the four frontier reports above, three pair a low ZeRO stage (1, or 2-like) with tensor, pipeline or expert parallelism, keeping parameters gathered to avoid stage 3's extra all-gather, much as §1 anticipated when it said MP still helps for activations and batch size. ZeRO-3 and <code>FULL_SHARD</code> keep the niche §10.4 argued for, large models with no model-code changes. This is this page's reading of five reports, not a survey.</div>
+
+<h3>The follow-up line</h3>
+<div class="tw"><table><thead><tr><th>Year</th><th>Work</th><th>What it added</th></tr></thead><tbody>
+<tr><td>2020</td><td>ZeRO (this paper), SC20</td><td>stages 1 and 2 plus ZeRO-R built and measured; stage 3 analysed</td></tr>
+<tr><td>2021</td><td>{{ZeRO-Offload|https://arxiv.org/abs/2101.06840}}</td><td>optimizer states and the update step on CPU: "over 13 billion parameters on a single GPU"</td></tr>
+<tr><td>2021</td><td>{{ZeRO-3 Offload release|https://www.deepspeed.ai/2021/03/07/zero3-offload.html}}</td><td>stage 3 shipped: "1 Trillion parameters ... 25 PetaFlops ... on 512 NVIDIA V100 GPUs"</td></tr>
+<tr><td>2021</td><td>{{ZeRO-Infinity|https://arxiv.org/abs/2104.07857}}</td><td>GPU, CPU and NVMe memory together: 32 trillion parameters on 512 V100s; "fine-tune trillion parameter models on a single NVIDIA DGX-2 node"</td></tr>
+<tr><td>2023</td><td>{{PyTorch FSDP|https://arxiv.org/abs/2304.11277}}</td><td>the algorithm "motivated by the ZeroRedundancyOptimizer technique from DeepSpeed", co-designed with PyTorch's tensors, dispatcher and caching allocator</td></tr>
+<tr><td>2023</td><td>{{ZeRO++|https://arxiv.org/abs/2306.10209}}</td><td>quantised weight all-gather, a node-local weight copy, quantised gradient averaging: "reduces communication volume of ZeRO by 4x", up to 2.16× throughput at 384 GPUs</td></tr>
+</tbody></table></div>
+</section>
