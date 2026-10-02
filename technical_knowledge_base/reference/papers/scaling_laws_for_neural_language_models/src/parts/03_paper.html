@@ -1,0 +1,158 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-meth">Method</a><a href="#s-laws">Three laws</a><a href="#s-over">Overfitting</a><a href="#s-curve">Training curves</a><a href="#s-alloc">Spending compute</a><a href="#s-res">Results</a><a href="#s-trust">Believe it?</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>In early 2020 nobody could say quantitatively how language model loss would improve if you spent 10× more compute, nor how to split that spend between a bigger model, more data and longer training. Architecture papers tuned shape (depth, width, heads) at a fixed scale; nobody had mapped the loss across orders of magnitude in model size <i>N</i>, dataset size <i>D</i> and compute <i>C</i>, or answered the budget question: given a fixed <i>C</i>, which <i>N</i>, <i>D</i>, batch size and step count give the lowest loss ({{§1|ax:S1}})?</p>
+</section>
+
+<section id="s-meth"><h2>Method</h2>
+[[S2|§2 Background and Methods, §3]]
+<p>Train a large family of decoder-only Transformers and fit power laws to the test loss, cross-entropy in nats per token over a 1024-token context ({{§2|ax:S2}}).</p>
+<ul class="lst">
+<li><b>Data:</b> WebText2, Reddit outbound links with at least 3 karma through October 2018: 20.3M documents, 96 GB, 2.29 × 10<sup>10</sup> tokens with GPT-2's byte-pair tokenizer (vocabulary 50,257), 6.6 × 10<sup>8</sup> held out; also tested on Books Corpus, Common Crawl, Wikipedia and Internet books ({{§2.3|ax:S2.SS3}}).</li>
+<li><b>Sweep:</b> <i>N</i> from 768 to 1.5B non-embedding parameters, <i>D</i> from 22M to 23B tokens, shape, context length, batch size (2<sup>19</sup> tokens for most runs); LSTMs and Universal Transformers for comparison ({{§3|ax:S3}}).</li>
+<li><b>Training:</b> Adam (Adafactor above 1B) for a fixed 2.5 × 10<sup>5</sup> steps, a 3000-step warmup then cosine decay to zero for every run, learning rate from a rule of thumb, LR(<i>N</i>) ≈ 0.003239 − 0.0001395 log <i>N</i> ({{§2.2|ax:S2.SS2}}, {{Eq. D.1|ax:A4.SS6}}).</li>
+</ul>
+<p>Two accounting choices turn out to be load-bearing ({{§2.1|ax:S2.SS1}}, {{Table 1|ax:S2.T1}}):</p>
+<div class="fm"><div class="eq"><i>N</i> ≈ 12 <i>n</i><sub>layer</sub> <i>d</i><sub>model</sub><sup>2</sup> &nbsp; and &nbsp; <i>C</i> ≈ 6<i>NBS</i> (= 6<i>ND</i> for one pass)</div><div class="wh"><b><i>N</i> counts non-embedding parameters only</b> (Eq. 2.1): with the token and position embeddings included, depth seems to matter; without them, models of every depth fall on one trend, except those under 2 layers or of extreme aspect ratio ({{Figure 6|ax:S3.F6}}). <b><i>C</i> counts non-embedding FLOPs</b>: 2<i>N</i> per token forward, twice that backward, batch <i>B</i> tokens, <i>S</i> steps; the attention term 2<i>n</i><sub>layer</sub><i>n</i><sub>ctx</sub><i>d</i><sub>model</sub> is dropped as small when <i>d</i><sub>model</sub> &gt; <i>n</i><sub>ctx</sub>/12 ({{Eq. 2.2|ax:S2.E2}}). One PF-day is 8.64 × 10<sup>19</sup> FLOPs ({{§1.3|ax:S1.SS3}}). The {{Table 1 calculator|tab:t-tables:tb1}} recounts any shape.</div></div>
+</section>
+
+<section id="s-laws"><h2>Three power laws</h2>
+[[S1.SS2|§1.2, §3]]
+<p>When only one factor is the bottleneck, test loss is a power law in it ({{§1.2|ax:S1.SS2}}). The constants depend on WebText2's tokenizer and have "no fundamental meaning"; the exponents are the transferable content.</p>
+<div class="fm"><div class="eq"><i>L</i>(<i>N</i>) = (<i>N</i><sub>c</sub>/<i>N</i>)<sup>0.076</sup>, &nbsp;<i>N</i><sub>c</sub> ≈ 8.8 × 10<sup>13</sup> parameters</div><div class="wh">{{Eq. 1.1|ax:S1.E1}}: trained to convergence with ample data.</div></div>
+<div class="fm"><div class="eq"><i>L</i>(<i>D</i>) = (<i>D</i><sub>c</sub>/<i>D</i>)<sup>0.095</sup>, &nbsp;<i>D</i><sub>c</sub> ≈ 5.4 × 10<sup>13</sup> tokens</div><div class="wh">{{Eq. 1.2|ax:S1.E2}}: a large (36, 1280) model on a fixed subset, stopped when test loss stops falling ({{§3.3|ax:S3.SS3}}).</div></div>
+<div class="fm"><div class="eq"><i>L</i>(<i>C</i><sub>min</sub>) = (<i>C</i><sub>c</sub><sup>min</sup>/<i>C</i><sub>min</sub>)<sup>0.050</sup>, &nbsp;<i>C</i><sub>c</sub><sup>min</sup> ≈ 3.1 × 10<sup>8</sup> PF-days</div><div class="wh">{{Eq. 1.3|ax:S1.E3}}: the best model size and a batch well below the critical batch. At the fixed batch actually used the raw trend is <i>C</i><sup>−0.057</sup> ({{Table 5|ax:A1.T5}}); <i>C</i><sub>min</sub> corrects for batch size (§5) and is the one to extrapolate.</div></div>
+<p>They hold across eight orders of magnitude in <i>C</i><sub>min</sub>, six in <i>N</i> and over two in <i>D</i>, with no bending at the top end, though they must flatten before zero loss ({{§1.2|ax:S1.SS2}}). Power laws fit much better than logarithms ({{Figure 23|ax:A4.F23}}); 1-layer models and unconverged giants are left out of the fits ({{§D.7|ax:A4.SS7}}).</p>
+
+<div class="pred" id="pr-dbl" data-ans="0"><div class="q">double the non-embedding parameters (and train to convergence). How much lower is the loss?</div>
+<div class="opts"><button>About 5%</button><button>About 25%</button><button>About half</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>2<sup>−0.076</sup> = <b id="dblV"></b>: 5% lower, at any size ({{§1.2|ax:S1.SS2}}). A small exponent means every fixed gain costs a constant <i>multiple</i> of resources. Drag the multiplier below for data and compute too.</p></div></div>
+
+<div class="card" id="law">
+<div class="an-top"><div class="seg" id="lawM" role="group" aria-label="Scale factor"><button class="on" data-m="N" aria-pressed="true">Parameters N</button><button data-m="D" aria-pressed="false">Data D</button><button data-m="C" aria-pressed="false">Compute C<sub>min</sub></button></div></div>
+<div class="ctl"><label>Multiply by <b id="lawKv">10</b>× <input type="range" id="lawK" min="0" max="30" step="1" value="10" aria-label="Multiplier, log scale"></label></div>
+<div id="lawSvg"></div>
+<div class="out p" id="lawO"></div>
+<p class="small mute">Figure 1 ({{Figure 1|ax:S1.F1}}) rebuilt from its fitted equations, solid over the stated fit range. The paper published no data points, so none are drawn; the {{toy sweep|tab:t-run}} has real points from real runs.</p>
+</div>
+
+<p><b>Shape barely matters:</b> at fixed <i>N</i>, the aspect ratio can vary 40× for a few percent of loss; (6, 4288) comes within 3% of GPT-2's (48, 1600) ({{Figure 5|ax:S3.F5}}), perhaps because deep networks behave like ensembles of shallower ones. <b>Transfer tracks in-distribution loss:</b> loss on Books, Common Crawl, Wikipedia and Internet books falls in parallel with WebText2's, a roughly constant offset, independent of training time and depth ({{§3.2.2|ax:S3.SS2.SSS2}}, {{Figure 8|ax:S3.F8}}). <b>Comparisons:</b> LSTMs match Transformers on early tokens of the context but not later ones ({{Figure 7|ax:S3.F7}}); recurrent Transformers do slightly better per parameter, worse per FLOP ({{Figure 17|ax:A4.F17}}); per-token loss is a power law in context position, and larger models improve faster on early tokens ({{§D.5|ax:A4.SS5}}).</p>
+</section>
+
+<section id="s-over"><h2>Overfitting: one equation for N and D</h2>
+[[S4|§4 The Infinite Data Limit and Overfitting]]
+<p>A single equation joins the two limits and the overfitting between them ({{Eq. 1.5|ax:S1.E5}}):</p>
+<div class="fm"><div class="eq"><i>L</i>(<i>N</i>, <i>D</i>) = [ (<i>N</i><sub>c</sub>/<i>N</i>)<sup>α<sub>N</sub>/α<sub>D</sub></sup> + <i>D</i><sub>c</sub>/<i>D</i> ]<sup>α<sub>D</sub></sup></div><div class="wh">Fitted on early-stopped runs with 10% dropout: α<sub>N</sub> = 0.076, α<sub>D</sub> = 0.103, <i>N</i><sub>c</sub> = 6.4 × 10<sup>13</sup>, <i>D</i><sub>c</sub> = 1.8 × 10<sup>13</sup> ({{Table 2|ax:S4.T2}}). Chosen so that a tokenizer change only rescales the loss, each limit is recovered, and overfitting has a series in 1/<i>D</i>, the expected scaling of a dataset's variance ({{§4.1|ax:S4.SS1}}); its real justification is that it fits.</div></div>
+<p>The overfitting penalty depends only on <i>N</i><sup>0.74</sup>/<i>D</i> ({{Eq. 4.3|ax:S4.E3}}, {{Figure 9|ax:S4.F9}}). With run-to-run seed variation of about 0.02, staying below it needs</p>
+<div class="fm"><div class="eq"><i>D</i> ≳ (5 × 10<sup>3</sup>) <i>N</i><sup>0.74</sup> tokens</div><div class="wh">{{Eq. 4.4|ax:S4.E4}}: an 8× bigger model needs 8<sup>0.74</sup> = 4.7×, "roughly 5×", the data, and models under 10<sup>9</sup> parameters fit on WebText2's 22B tokens. Recomputed: with Table 2's constants this is a 2.4% relative penalty, so the "0.02" works as a relative threshold.</div></div>
+<div class="card" id="ovf">
+<div class="ctl"><label>Dataset <i>D</i> = <b id="ovDv"></b> tokens <input type="range" id="ovD" min="70" max="110" step="1" value="90" aria-label="Dataset size, log scale"></label></div>
+<div id="ovSvg"></div>
+<div class="out p" id="ovO"></div>
+<p class="small mute">Figure 9 (left) rebuilt from Eq. 1.5 and Table 2: loss against <i>N</i> at the chosen <i>D</i> (solid) and with unlimited data (dashed); the dot is where the penalty reaches 2.4%.</p>
+</div>
+<p>The fit fails only for datasets cut to about 2 × 10<sup>7</sup> tokens, where an epoch is 40 updates; regularisation was not tuned across sizes ({{§4.2|ax:S4.SS2}}). Unlike Hestness et al. (2017), who found data must grow <i>super</i>linearly with model size, data here grows sublinearly ({{§7|ax:S7}}).</p>
+</section>
+
+<section id="s-curve"><h2>Training curves and the critical batch</h2>
+[[S5|§5 Model Size and Training Time]]
+<p>Following McCandlish et al. (2018), steps <i>S</i> and examples <i>E</i> = <i>BS</i> needed to reach a given loss trade off as (<i>S</i>/<i>S</i><sub>min</sub> − 1)(<i>E</i>/<i>E</i><sub>min</sub> − 1) = 1 ({{Eq. 5.1|ax:S5.E1}}), which defines a critical batch:</p>
+<div class="fm"><div class="eq"><i>B</i><sub>crit</sub>(<i>L</i>) = <i>E</i><sub>min</sub>/<i>S</i><sub>min</sub> ≈ (2 × 10<sup>8</sup> tokens) / <i>L</i><sup>1/0.21</sup></div><div class="wh">{{Eq. 5.3|ax:S5.E3}}: it depends only on the loss, not on <i>N</i>, and doubles for every 13% drop in loss (1 − 2<sup>−0.21</sup> = 13.5%) ({{Figure 10|ax:S5.F10}}). Below <i>B</i><sub>crit</sub> training is compute-efficient; above it, wall-clock time is bought with wasted FLOPs. Training at <i>B</i><sub>crit</sub> costs 2<i>S</i><sub>min</sub> steps and 2<i>E</i><sub>min</sub> examples, the compromise.</div></div>
+<div class="card" id="bcr">
+<div class="ctl"><label>Batch <i>B</i> = <b id="bcBv"></b> × <i>B</i><sub>crit</sub> <input type="range" id="bcB" min="-16" max="16" step="1" value="0" aria-label="Batch relative to the critical batch, log scale"></label></div>
+<div id="bcSvg"></div>
+<div class="out p" id="bcO"></div>
+<p class="small mute">Eq. 5.1 at <i>B</i> = <i>b</i> · <i>B</i><sub>crit</sub>: <i>S</i>/<i>S</i><sub>min</sub> = 1 + 1/<i>b</i>, <i>E</i>/<i>E</i><sub>min</sub> = 1 + <i>b</i>. Every point reaches the same loss.</p>
+</div>
+<p>The paper quotes "roughly 1-2 million tokens at convergence for the largest models" ({{§1.1|ax:S1.SS1}}); Eq. 5.3 gives 1.1M at a loss of 3.0 but 4.0M at 2.3, Eq. 1.1's loss for 1.5B parameters. Correcting each run to <i>S</i><sub>min</sub> = <i>S</i>/(1 + <i>B</i><sub>crit</sub>/<i>B</i>) and <i>C</i><sub>min</sub> = <i>C</i>/(1 + <i>B</i>/<i>B</i><sub>crit</sub>) ({{Eq. 5.4|ax:S5.E4}}, {{Eq. 5.5|ax:S5.E5}}), every learning curve after warmup fits</p>
+<div class="fm"><div class="eq"><i>L</i>(<i>N</i>, <i>S</i><sub>min</sub>) = (<i>N</i><sub>c</sub>/<i>N</i>)<sup>α<sub>N</sub></sup> + (<i>S</i><sub>c</sub>/<i>S</i><sub>min</sub>)<sup>α<sub>S</sub></sup></div><div class="wh">{{Eq. 1.6|ax:S1.E6}}, {{Table 3|ax:S5.T3}}: α<sub>N</sub> = 0.077, α<sub>S</sub> = 0.76, <i>N</i><sub>c</sub> = 6.5 × 10<sup>13</sup>, <i>S</i><sub>c</sub> = 2.1 × 10<sup>3</sup>; "imperfect" but "quite compelling". Since α<sub>S</sub> is the same for every size, the early part of a curve predicts its end, and larger models reach any loss in fewer steps and tokens, almost 100× fewer between the smallest and a very large model ({{Figure 2|ax:S1.F2}}, {{Figure 19|ax:A4.F19}}). It also bounds when to stop a data-limited run ({{Eq. 5.7|ax:S5.E7}}).</div></div>
+</section>
+
+<section id="s-alloc"><h2>Spending a compute budget</h2>
+[[S6|§6 Optimal Allocation, Appendix B]]
+<p>Substitute <i>S</i> = <i>C</i>/(6<i>NB</i><sub>crit</sub>) into Eq. 1.6 and minimise over <i>N</i> ({{Appendix B|ax:A2}}). The optimum stops a fixed α<sub>N</sub>/α<sub>S</sub> ≈ 10% above the model's converged loss ({{Eq. B.5|ax:A2.E5}}); usual practice, the paper says, was nearer 2% ({{§B.3|ax:A2.SS3}}).</p>
+
+<div class="pred" id="pr-conv" data-ans="1"><div class="q">reach the same loss two ways: (a) train a model to within 2% of its converged loss; (b) train a bigger model and stop at 10% above its converged loss. How does (b)'s compute compare with (a)'s?</div>
+<div class="opts"><button>About the same</button><button>About a third of it</button><button>About 3× more</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>About a third: 2.7× the parameters, 1/7.5 of the steps, 0.36× the compute (Eq. B.12 to B.14; the paper prints 2.7, 0.13, 0.35 and "7.7x fewer parameter updates", {{checked here|tab:t-tables:tb9}}). Play both runs below, to scale.</p></div></div>
+
+<div class="card" id="cvx">
+<div class="an-top"><div class="seg" id="cvxM" role="group" aria-label="Training strategy"><button class="on" data-m="eff" aria-pressed="true">Big model, stop early</button><button data-m="conv" aria-pressed="false">Small model, converge</button></div>
+<span class="small mute">Same target loss, 2.50 nats.</span></div>
+<div id="cvxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="cvxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="cvxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="cvxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="cvxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="cvxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="cvxStep"></div><p id="cvxCap"></p></div>
+<div class="an-cnt" id="cvxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Curves are Eq. B.1, <i>L</i> = (<i>N</i><sub>c</sub>/<i>N</i>)<sup>α<sub>N</sub></sup> + (<i>S</i><sub>c</sub>/<i>S</i>)<sup>α<sub>S</sub></sup>, against compute 6<i>N</i><i>B</i><sub>crit</sub>(<i>L</i>)<i>S</i> (Eq. B.3), Table 5's constants; sizes solve <i>L</i>(<i>N</i>, ∞) = 2.50/1.10 and 2.50/1.02. Fitted equations, not runs. The animation stops off screen and starts paused under reduced motion.</p>
+</div>
+
+<p>At every budget this gives the compute-efficient frontier, fitted to the runs ({{Figure 14|ax:S6.F14}}, {{Table 6|ax:A1.T6}}):</p>
+<div class="fm"><div class="eq"><i>N</i><sub>opt</sub> = 1.3 × 10<sup>9</sup> <i>C</i><sub>min</sub><sup>0.73</sup>, &nbsp;<i>B</i> ∝ <i>C</i><sub>min</sub><sup>0.24</sup>, &nbsp;<i>S</i><sub>min</sub> ∝ <i>C</i><sub>min</sub><sup>0.03</sup>, &nbsp;<i>D</i><sub>opt</sub> ∝ <i>C</i><sub>min</sub><sup>0.27</sup></div><div class="wh">{{Eq. 6.1|ax:S6.E1}}, {{Eq. 6.2|ax:S6.E2}}, <i>C</i><sub>min</sub> in PF-days. 10× compute means about 5× the model and 2× the data, and the extra data goes almost entirely into bigger batches, not more steps ({{Figure 3|ax:S1.F3}}). Minimising Eq. 1.6 predicts the exponents too: the paper prints α<sub>C</sub><sup>min</sup> ≈ 0.054 and <i>N</i> ∝ <i>C</i><sup>0.71</sup> ({{Eq. 6.4|ax:S6.E4}}, {{Eq. 6.5|ax:S6.E5}}); recomputed from its own exponents the formula gives <b id="acmV"></b> (as {{Eq. B.7|ax:A2.E7}} prints) and <i>C</i><sup><b id="pnV"></b></sup>, within 7% of the fit.</div></div>
+
+<div class="pred" id="pr-tenx" data-ans="1"><div class="q">by this rule, with 10× the compute, how much bigger should the model be?</div>
+<div class="opts"><button>10×: all of it into parameters</button><button>About 5×</button><button>About 3×</button><button>About 2×</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>10<sup>0.73</sup> = <b id="tenxK"></b>× the parameters and 10<sup>0.27</sup> = <b id="tenxD"></b>× the data. Chinchilla's later answer is 10<sup>0.5</sup> = 3.2× each; {{Then and now|tab:t-then}} walks both rules up to Llama 3's budget.</p></div></div>
+
+<p>Off-optimal sizes are cheap: 0.6× to 2.2× the optimal size costs at most 20% more compute, and the 2.2× model needs 45% fewer steps ({{§B.4|ax:A2.SS4}}, {{Figure 12|ax:S5.F12}}). Then <b>a contradiction</b>: compute-efficient data grows as <i>D</i> ≈ (4 × 10<sup>10</sup> tokens) <i>C</i><sub>min</sub><sup>0.26</sup> ({{Eq. 6.7|ax:S6.E7}}), but avoiding overfitting needs <i>D</i> ∝ <i>C</i><sub>min</sub><sup>0.54</sup> ({{Eq. 6.6|ax:S6.E6}}). Once data-limited, loss falls only as <i>C</i><sup>−0.03</sup>, so the two trends must cross, at roughly <i>C</i>* ~ 10<sup>4</sup> PF-days, <i>N</i>* ~ 10<sup>12</sup> parameters, <i>D</i>* ~ 10<sup>12</sup> tokens, <i>L</i>* ~ 1.7 nats/token, uncertain by an order of magnitude either way ({{Eq. 6.8|ax:S6.E8}}). The laws must break down by then; the conjecture is that <i>L</i>* estimates the entropy of language, where models have extracted all its reliable information ({{§6.3|ax:S6.SS3}}).</p>
+<div class="card" id="crs">
+<div class="ctl"><label>α<sub>C</sub><sup>min</sup> = <b id="crAv"></b> <input type="range" id="crA" min="40" max="60" step="1" value="50" aria-label="alpha C min"></label><label>α<sub>D</sub> = <b id="crDv"></b> <input type="range" id="crD" min="80" max="110" step="1" value="95" aria-label="alpha D"></label>
+<div class="seg" id="crP" role="group" aria-label="Data prefactor"><button class="on" data-m="p" aria-pressed="true">4 × 10<sup>10</sup> (Eq. 6.7 as printed)</button><button data-m="t" aria-pressed="false">2.2 × 10<sup>10</sup> (its formula, Table 6)</button></div></div>
+<div id="crSvg"></div>
+<div class="out p" id="crO"></div>
+<p class="small mute">Figure 15 ({{Figure 15|ax:S6.F15}}) rebuilt: Eq. 1.3 against the data-limited bound, Eq. 1.2 at Eq. 6.7's data. Eq. 6.7's own formula, 2<i>C</i><sub>min</sub>/(6<i>N</i>(<i>C</i><sub>min</sub>)), gives a prefactor of 2.2 × 10<sup>10</sup>, not the printed 4 × 10<sup>10</sup>; only the former lands near the paper's crossing.</p>
+</div>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S8|§8 Discussion, §1.1]]
+<ul class="lst">
+<li>Loss is a smooth power law in each of <i>N</i>, <i>D</i> and <i>C</i><sub>min</sub> over six to eight orders of magnitude, with no deviation at the top; shape and hyperparameters barely matter next to scale.</li>
+<li>Larger models are strictly more sample-efficient, so compute-efficient training means <b>very large models stopped far short of convergence</b>, the opposite of the then-standard practice of converging small models ({{§1.1|ax:S1.SS1}}).</li>
+<li>Loss on other distributions tracks WebText2 loss with a roughly constant offset, so in-distribution loss is a good proxy.</li>
+<li>Extrapolated, the compute and data trends meet near <i>C</i>* ~ 10<sup>4</sup> PF-days, <i>N</i>* ~ 10<sup>12</sup>, <i>L</i>* ~ 1.7 nats: where the laws must break down.</li>
+<li>The Discussion: "big models may be more important than big data", so model parallelism deserves work (wide layers split more easily than deep pipelines); the laws are likened to the ideal gas law awaiting a statistical mechanics, may hold for other generative tasks, and smooth loss may hide qualitative jumps in ability ({{§8|ax:S8}}).</li>
+</ul>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[A3|§2.2, §4.2, Appendix C]]
+<p><b>What holds up.</b> The measurements: a sweep over six orders of magnitude in <i>N</i> with its fit ranges and exclusions stated ({{§D.7|ax:A4.SS7}}), and a caveats list the authors volunteer, which counts in their favour ({{Appendix C|ax:A3}}): no theory for any law, little confidence in <i>B</i><sub>crit</sub> far outside the tested range, a poorly studied small-data regime, no regularisation experiments, compute that ignores the context term, possibly untuned hyperparameters, and no higher learning rates tried for short runs. Every later study reproduces the qualitative findings (power-law loss, weak shape dependence, large models' sample efficiency), and so does a toy sweep on this laptop ({{Refit the laws|tab:t-run}}).</p>
+<p><b>Where the evidence is weaker.</b></p>
+<ul class="lst">
+<li><b>The allocation rests on one schedule.</b> Every run used the same 2.5 × 10<sup>5</sup> steps, 3000-step warmup and cosine to zero ({{§2.2|ax:S2.SS2}}), and the frontier is read off intermediate checkpoints, whose learning rate has not decayed. The warmup alone, 3000 × 2<sup>19</sup> = 1.6 × 10<sup>9</sup> tokens, is near or above the optimal token count at many small budgets ({{Porian §3.3|https://arxiv.org/html/2406.19146v1#S3.SS3}}). Both push the frontier toward big models.</li>
+<li><b>An accounting choice moved an exponent.</b> Leaving the output layer out of <i>N</i> and <i>C</i> distorts small models most; counting it lowers the exponent by more than 0.1 ({{Porian §3.2|https://arxiv.org/html/2406.19146v1#S3.SS2}}).</li>
+<li><b>No error bars.</b> No fit has a confidence interval; seed variation is "roughly 0.02" in §4.2 but "at the level of 0.05" in {{Figure 22|ax:A4.F22}}, and most points are single runs.</li>
+<li><b>Small internal slips</b> ({{every number checked|tab:t-tables:tb9}}): α<sub>C</sub><sup>min</sup> is 0.054 in Eq. 6.4 and 0.052 in Eq. B.7 for one formula (0.052 is right); <i>N</i><sup>0.74</sup> is introduced from Eq. 1.1 and 1.2, which give 0.80 (0.74 is Table 2's); Eq. 6.7's 4 × 10<sup>10</sup> should be 2 × 10<sup>10</sup>; "Figure X" and "Figure Y" are left unnumbered in B.4. None changes a conclusion.</li>
+<li><b>Data reuse is not discussed:</b> a full run is 2.5 × 10<sup>5</sup> × 2<sup>19</sup> = 1.3 × 10<sup>11</sup> tokens, about 5.7 passes over WebText2 (derived). <b>Nothing was released</b>, so the fits cannot be redone; this page draws the paper's equations, never its curves.</li>
+</ul>
+<p><b>How it held up</b> <span class="mute small">(beyond the paper)</span>. The laws' form held; the allocation did not. Chinchilla's three methods put the size exponent at 0.46 to 0.50 ({{Chinchilla Table 2|https://arxiv.org/html/2203.15556v1#S3.T2}}), and Porian et al. reproduced Kaplan's 0.88 (raw) and 0.73 (adjusted) and removed the gap cause by cause ({{Then and now|tab:t-then}}).</p>
+<div class="co key"><div class="t">Verdict</div>Believe the measurements and the method: power-law loss in scale, weak dependence on shape, large models' sample efficiency, the L(N, D) overfitting law and the critical batch held up and remain the working toolkit. Do not plan a run with N ∝ C<sup>0.73</sup>: it is an artefact of one fixed schedule with a long warmup, uncounted output-layer compute and untuned optimisers, and was replaced by roughly equal growth of N and D.</div>
+</section>
+
+<section id="s-why"><h2>Why it matters</h2>
+[[S8|beyond the paper]]
+<p class="small mute">Beyond the paper: each later claim carries its own source.</p>
+<p>This paper made scale a quantitative engineering discipline. It shaped GPT-3, which cites it for training "much larger models on many fewer tokens than is typical": 300B tokens for every size up to 175B ({{GPT-3 Figure 2.2|https://arxiv.org/html/2005.14165v1#S2.F2}}, {{Table 2.1|https://arxiv.org/html/2005.14165v1#S2.T1}}). It made loss-against-compute extrapolation the planning tool for later frontier runs and popularised <i>C</i> ≈ 6<i>ND</i>, the critical batch and power-law fitting as standard vocabulary (Chinchilla budgets with Kaplan's 6<i>ND</i>, {{Chinchilla §3.3|https://arxiv.org/html/2203.15556v1#S3.SS3}}).</p>
+<p>Its headline allocation was revised. <b>Chinchilla (Hoffmann et al., 2022) redid the sweep with each cosine schedule matched to its run's length and found <i>N</i><sub>opt</sub> ∝ <i>C</i><sup>0.5</sup>, <i>D</i><sub>opt</sub> ∝ <i>C</i><sup>0.5</sup></b>: about 20 tokens per parameter, against Kaplan's <i>C</i><sup>0.73</sup> and <i>C</i><sup>0.27</sup>. For Gopher's budget the optimal model is about 4× smaller on 4× more tokens, and 70B Chinchilla on 1.4T tokens beat 280B Gopher at equal compute ({{Chinchilla §1|https://arxiv.org/html/2203.15556v1#S1}}); head to head at 10<sup>21</sup> FLOPs, its size beat Kaplan's 4.68B ({{Chinchilla D.4|https://arxiv.org/html/2203.15556v1#A4.SS4}}; reproduced here from Table 6 with <i>C</i><sub>min</sub> = <i>C</i>/2).</p>
+<p>Why the two disagreed has been corrected since. Chinchilla blamed Kaplan's fixed token count and schedule for all models and its mostly small (many under 100M) models ({{Chinchilla §2|https://arxiv.org/html/2203.15556v1#S2}}). Porian et al. (2024) found three causes: uncounted <b>output-layer</b> compute (not the input embeddings), a <b>warmup</b> too long for small models, and <b>optimiser settings</b> not retuned per size; and, against Chinchilla's hypothesis, that matching the learning-rate decay to the budget is <b>not</b> essential: with tuned hyperparameters even a constant rate gives Chinchilla's exponent ({{Porian §1|https://arxiv.org/html/2406.19146v1#S1}}). Pearce and Song (2024) independently found the last-layer effect ({{Porian §5.1|https://arxiv.org/html/2406.19146v1#S5.SS1}}). The corrections move the exponent from about 0.73 to 0.88 down to about 0.5.</p>
+<p><b>Using this today.</b> Start from Chinchilla's <i>D</i> ≈ 20<i>N</i> as the compute-optimal point, or overtrain past it when inference cost matters, as Llama 3 does for its 8B and 70B models ({{Llama 3 §1|https://arxiv.org/html/2407.21783v1#S1}}) while keeping 405B near its own fitted optimum ({{§3.2.1|https://arxiv.org/html/2407.21783v1#S3.SS2.SSS1}}). Count the output layer in <i>N</i> and <i>C</i>, scale warmup with model size, tune learning rate and batch per size (Porian et al.), and decay the learning rate at the planned budget, which still lowers the final loss at every scale even if it barely moves the exponent (Chinchilla Appendix B; {{Porian §4.1|https://arxiv.org/html/2406.19146v1#S4.SS1}}). Kaplan's other findings (the power-law form, shape insensitivity, large models' sample efficiency, the critical batch, the <i>L</i>(<i>N</i>, <i>D</i>) law) survived and remain the working toolkit.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li>{{Chinchilla|n:3c65c17b0d0d8116b7ddffba5c599f3f}} (2022): the direct successor; revises the compute-optimal allocation to equal <i>N</i> and <i>D</i> scaling (about 20 tokens per parameter).</li>
+<li>{{GPT-3|n:3c65c17b0d0d8193ac92c7648cfaca12}} (2020): the first frontier model built on these prescriptions (large <i>N</i>, 300B tokens, stopped short of convergence).</li>
+<li>{{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} (2017): the architecture whose parallelism made these compute scales reachable.</li>
+<li>{{Llama 3|n:3c65c17b0d0d81aca58ccb9d720b474e}} (2024) and {{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} (2024): the modern regime of deliberately overtraining far beyond compute-optimal to cheapen inference.</li>
+<li>Topics: {{llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (pretraining, batch size, learning-rate schedules), {{data-curation-and-datasets|n:3c65c17b0d0d811fa5ecda8d365ab00f}} (data requirements and scaling), {{ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}} (power-law fitting, overfitting).</li>
+</ul>
+</section>
+</section>

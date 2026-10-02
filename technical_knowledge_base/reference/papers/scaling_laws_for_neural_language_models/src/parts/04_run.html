@@ -1,0 +1,55 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2 id="runTop">Refit the laws on a toy sweep</h2>
+<p>The paper released no runs, so its curves cannot be refitted. Instead, this page ran its own sweep, in the paper's style but at toy scale, on a laptop CPU: <b id="rnN"></b> training runs of decoder-only Transformers from 1.5 thousand to 2.7 million non-embedding parameters, <b id="rnCPU"></b> of CPU in all. Every point below is a real held-out loss from those runs; every fit is computed in your browser from them.</p>
+<div class="tw"><table><thead><tr><th></th><th>The paper</th><th>This sweep</th></tr></thead><tbody>
+<tr><td>Model</td><td>decoder-only Transformer, <i>d</i><sub>ff</sub> = 4<i>d</i><sub>model</sub></td><td>the same, pre-LayerNorm, GELU, learned positions, heads of 16 dimensions</td></tr>
+<tr><td>Sizes <i>N</i> (Eq. 2.1)</td><td>768 to 1.5 × 10<sup>9</sup></td><td>1,536 to 2.65 × 10<sup>6</sup>, eight shapes (2, 8) to (6, 192)</td></tr>
+<tr><td>Data</td><td>WebText2, 2.29 × 10<sup>10</sup> BPE tokens (vocabulary 50,257)</td><td>{{WikiText-2 raw|https://huggingface.co/datasets/Salesforce/wikitext}}, 1.09 × 10<sup>7</sup> characters as byte-level tokens (vocabulary 96); test loss on a fixed 131,072-token slice of its validation split</td></tr>
+<tr><td>Context, batch</td><td>1024 tokens, 2<sup>19</sup> tokens</td><td>64 tokens, 2,048 tokens</td></tr>
+<tr><td>Schedule</td><td>Adam, 2.5 × 10<sup>5</sup> steps for every size, 3000-step warmup (1.2%), cosine to zero</td><td>Adam (β<sub>2</sub> = 0.95), 4,096 steps (8.4M tokens, no token seen twice) for every size, 1.2% warmup, cosine to zero</td></tr>
+<tr><td>Learning rate</td><td>LR(<i>N</i>) ≈ 0.003239 − 0.0001395 log <i>N</i> (Eq. D.1)</td><td>the same rule</td></tr>
+<tr><td>Extra</td><td></td><td>runs whose cosine ends at 1/4 and 1/16 of the budget (all but the largest size), a second seed for three sizes, and two 1/4-budget runs at 3× the learning rate</td></tr></tbody></table></div>
+<p class="small mute">Source: <code>src/train.py</code> and <code>src/prep_data.py</code>; the comparisons are recomputed by <code>src/mk_results.py</code>. Character-level losses are not comparable in value to the paper's BPE losses; exponents are the comparable part, and even they depend on the data.</p>
+
+<div class="card" id="fn"><h3>1. Refit <i>L</i>(<i>N</i>) (the paper's Eq. 1.1, Figure 6)</h3>
+<p class="try"><b>Try:</b> drop the smallest or largest models from the fit and watch the exponent move; switch to counting all parameters (embeddings included) and see the points leave the line, the paper's Figure 6 argument; switch to a law with an irreducible loss, as Chinchilla later fits.</p>
+<div class="ctl"><div class="seg" id="fnF" role="group" aria-label="Fit form"><button class="on" data-m="pure" aria-pressed="true">L = (N<sub>c</sub>/N)<sup>α</sup> (the paper)</button><button data-m="sat" aria-pressed="false">L = E + (N<sub>c</sub>/N)<sup>α</sup></button></div>
+<div class="seg" id="fnN" role="group" aria-label="Parameter count"><button class="on" data-m="ne" aria-pressed="true">non-embedding N</button><button data-m="tot" aria-pressed="false">all parameters</button></div>
+<label>Leave out the <b id="fnLov">0</b> smallest <input type="range" id="fnLo" min="0" max="3" step="1" value="0"></label><label>and the <b id="fnHiv">0</b> largest <input type="range" id="fnHi" min="0" max="3" step="1" value="0"></label></div>
+<div id="fnSvg"></div>
+<div class="fitbox" id="fnO"></div>
+<p class="small mute">Points: final test loss of each size's full-length run (seed 1). Hollow points are left out of the fit. Dashed: the fit extrapolated to 10× the largest model. Lower strip: residuals, log(loss) minus log(fit), in percent. The pure fit is least squares in log-log space; the saturating fit scans <i>E</i> and fits the rest in log space.</p>
+</div>
+
+<div class="card" id="lc"><h3>2. Learning curves and the compute frontier (Figure 1, left; Figure 13)</h3>
+<p class="try"><b>Try:</b> read the heavy line: at each compute, the lowest loss any run reached. Switch the compute accounting to include the output layer and attention, and see the small models move right.</p>
+<div class="ctl"><div class="seg" id="lcC" role="group" aria-label="Compute accounting"><button class="on" data-m="kap" aria-pressed="true">C = 6N per token (the paper)</button><button data-m="head" aria-pressed="false">+ output layer</button><button data-m="attn" aria-pressed="false">+ output layer + attention</button></div></div>
+<div id="lcSvg"></div>
+<div class="out p" id="lcO"></div>
+<p class="small mute">Every evaluation of every full-length run (seed 1), after warmup, plotted against training compute. The frontier is the lower envelope; its power-law fit is least squares in log-log space over the envelope's points.</p>
+</div>
+
+<div class="card" id="sch"><h3>3. A run whose schedule ends at the budget, against a checkpoint of a longer run</h3>
+<p>The paper reads its frontier off checkpoints of runs whose learning rate has not yet decayed; Chinchilla's criticism is that a run whose cosine ends at that budget would do better (its Appendix B). Measured here, for each size: the long run's loss when it has seen 1/4 (or 1/16) of its tokens, against a separate run with the same tokens, data order and initialisation whose schedule ends there.</p>
+<div class="ctl"><div class="seg" id="schM" role="group" aria-label="Budget"><button class="on" data-m="4" aria-pressed="true">1/4 of the budget (2.1M tokens)</button><button data-m="16" aria-pressed="false">1/16 (0.52M tokens)</button></div></div>
+<div id="schSvg"></div>
+<div class="out p" id="schO"></div>
+</div>
+
+<div class="card" id="al"><h3>4. Big model stopped early, or smaller model trained on everything?</h3>
+<p>The paper's allocation says that at a given compute a bigger model stopped early beats a smaller one trained longer. Each row below compares two neighbouring sizes at the same compute: the smaller one at the end of its full run, the bigger one at the point where it has spent that much compute, read from its long run (the paper's way) and from its matched runs (Chinchilla's way).</p>
+<div id="alSvg"></div>
+<div class="out p" id="alO"></div>
+<p class="small mute">Compute is 6<i>N</i> per token, as the paper counts. "Matched" interpolates the bigger size's three finished runs (1/16, 1/4, full) linearly in log tokens. The largest size has no matched runs (CPU budget).</p>
+</div>
+
+<div class="card" id="sd"><h3>5. How noisy is one run?</h3><div class="out p" id="sdO"></div></div>
+
+<div class="co" id="rnVerdict"><div class="t">What reproduces at toy scale, and what does not</div><div id="rnV"><ul class="lst">
+<li><b>Reproduces:</b> loss is a clean power law in non-embedding <i>N</i> over three decades, α<sub>N</sub> ≈ 0.08 against the paper's 0.076 (by coincidence of scale and data as much as anything: the tokens differ); counting all parameters bends the smallest models off the line (Figure 6); on the compute axis each size is best only for a stretch and bigger models take over at higher compute (Figures 1 and 2).</li>
+<li><b>Reproduces only after tuning:</b> Chinchilla's point that a schedule ending at the budget beats a checkpoint of a longer run. At the paper's learning-rate rule the opposite happens; at 3× the rule it holds (section 3). The paper's own caveat (short runs might want a larger rate) and Porian et al.'s finding (per-size tuning is what matters) both show up at toy scale.</li>
+<li><b>Cannot be tested here:</b> the allocation exponent. A bigger model stopped early never beats the smaller model trained on all the data inside this sweep, so the optimum is not located and no exponent is claimed (section 4).</li>
+<li><b>Noise:</b> one seed moves a tiny model's loss by up to 0.06 nats, as much as the gap between the two largest sizes (section 5). Single-run points, here as in the paper, carry that much uncertainty.</li></ul></div></div>
+
+<details class="mist"><summary>Every run</summary><div class="b"><div class="tw"><table class="runs" id="rnT"></table></div></div></details>
+</section>
