@@ -1,0 +1,172 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">In-context learning</a><a href="#s-model">Model</a><a href="#s-data">Data</a><a href="#s-train">Training and compute</a><a href="#s-eval">Evaluation</a><a href="#s-res">The scaling pattern</a><a href="#s-tasks">Task by task</a><a href="#s-synth">Synthetic tasks</a><a href="#s-cont">Contamination</a><a href="#s-lim">Limitations</a><a href="#s-impact">Broader impacts</a><a href="#s-trust">How much to believe</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>By 2020 the dominant recipe was BERT-style: pretrain one model, then fine-tune it on every new task. The architecture was task-agnostic, but every task still needed "a dataset of thousands to hundreds of thousands of examples specific to that task" ({{§1|ax:S1}}). The authors give three reasons to want to drop that requirement:</p>
+<ul class="lst">
+<li><b>Applicability.</b> Many useful tasks (correcting grammar, generating examples of a concept, critiquing a story) have no large labelled dataset, and collecting one per task does not scale.</li>
+<li><b>Spurious correlations.</b> A large model fine-tuned on a narrow distribution can exploit quirks of that distribution, so "the performance of fine-tuned models on specific benchmarks, even when it is nominally at human-level, may exaggerate actual performance on the underlying task".</li>
+<li><b>Humans do not need it.</b> "A brief directive in natural language" or "a tiny number of demonstrations" is usually enough for a person.</li></ul>
+<p>GPT-2 had hinted at the alternative: condition a language model on a task description and let it continue, which the paper names <b>in-context learning</b>. But results were "far inferior to fine-tuning": 4% on Natural Questions, and a 55 F1 on CoQA more than 35 points behind the state of the art ({{§1|ax:S1}}). <b>The bet:</b> in-context learning means absorbing many skills during pretraining and recognising the task at inference, and log loss improves smoothly with scale ({{Kaplan et al. 2020|n:3c65c17b0d0d81b08a1debb0c15cd252}}), so "it is plausible that in-context learning abilities might show similarly strong gains with scale". The paper tests it by training one model ten times larger than any dense language model before it, plus seven smaller ones to measure the trend.</p>
+</section>
+
+<section id="s-idea"><h2>Idea: the task goes in the prompt, the weights stay frozen</h2>
+[[S2|§2, Figures 1.1 and 2.1]]
+<p><b>There is deliberately no architectural novelty</b>; the contribution is scale plus a systematic study of a way of using the model ({{§2|ax:S2}}). A task is specified purely in the text: an optional natural-language instruction, then <i>K</i> demonstrations (context and completion pairs), then one final context the model must complete. No gradient updates, ever. Three regimes, as many examples as the context allows ({{§2|ax:S2}}):</p>
+<ul class="lst">
+<li><b>Few-shot</b>: <i>K</i> demonstrations, "typically 10 to 100", whatever fits in the 2,048-token window.</li>
+<li><b>One-shot</b>: one demonstration plus the instruction, the way a crowdworker is usually shown a task.</li>
+<li><b>Zero-shot</b>: the instruction alone; most convenient, sometimes "unfairly hard" because the format is ambiguous.</li></ul>
+<p>The authors call one-shot and zero-shot "the fairest comparisons to human performance". Fine-tuning GPT-3 was possible "in principle" but left to future work. The animation runs the paper's own Figure 2.1 example through both routes: the same three English to French pairs and the same test word, counted in GPT-3's real tokens.</p>
+<div class="card" id="ft">
+<div class="an-top"><div class="seg" id="ftM" role="group" aria-label="Method"><button class="on" data-m="icl" aria-pressed="true">In-context (GPT-3)</button><button data-m="ft" aria-pressed="false">Fine-tuning (before)</button></div>
+<span class="small mute">Figure 2.1's task: three examples, then "cheese =&gt;".</span></div>
+<div id="ftSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="ftBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="ftPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="ftFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="ftScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="ftSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="ftStep"></div><p id="ftCap"></p></div>
+<div class="an-cnt" id="ftCnt"></div>
+<p class="small mute" style="margin:6px 0 0">The context strip is drawn to scale against the 2,048-token window; token counts are exact under GPT-2's byte-level BPE, which GPT-3 reuses (counted with <span class="mono">tiktoken</span> r50k_base, <span class="mono">src/count_tokens.py</span>). Fine-tuning normally uses thousands of examples; three are shown to keep the two routes on the same input. Pauses off screen; starts paused under reduced motion.</p>
+</div>
+<p><b>Why call it learning.</b> The paper frames pretraining as an outer loop of gradient descent that produces an inner-loop learner: inside one forward pass the model adapts to the pattern in its context ({{Figure 1.1|ax:S1.F1}}). It names this "meta-learning" and stays agnostic on whether the inner loop learns the task "from scratch" or "simply recognizes patterns seen during training" (footnote 1, {{§1|ax:S1}}; the question returns in {{Limitations|tab:t-read:s-lim}}). The headline measurement is the in-context learning curve: accuracy against <i>K</i>, which on a symbol-removal task gets steeper with model size ({{Figure 1.2|ax:S1.F2}}).</p>
+</section>
+
+<section id="s-model"><h2>Model: GPT-2, scaled, in eight sizes</h2>
+[[S2.SS1|§2.1, Table 2.1]]
+<p>"The same model and architecture as GPT-2": a decoder-only Transformer with GPT-2's modified initialisation, pre-normalisation and reversible byte-level BPE tokenisation, with one change: "alternating dense and locally banded sparse attention patterns" in the layers, as in the Sparse Transformer ({{§2.1|ax:S2.SS1}}). Eight sizes span three orders of magnitude so that scaling can be measured, from 125M to 175B; every model has a 2,048-token context and <i>d</i><sub>ff</sub> = 4 <i>d</i><sub>model</sub>, and every one is trained for 300 billion tokens.</p>
+<p><b>GPT-3 175B</b>: 96 layers, <i>d</i><sub>model</sub> 12,288, 96 heads of 128 dimensions, batch 3.2M tokens, learning rate 0.6 × 10⁻⁴ ({{Table 2.1|ax:S2.T1}}). Larger models get a larger batch and a smaller learning rate, the batch guided by the measured gradient noise scale ({{§2.3|ax:S2.SS3}}). The shapes were chosen for "computational efficiency and load-balancing" across GPUs, since loss is "not strongly sensitive" to them. Counting the parameters from these shapes reproduces the appendix's counts within 0.3% for all eight, but only if the 13B model's printed <i>d</i><sub>model</sub> of 5,140 is read as 5,120 (40 heads × 128); and XL's 24 heads × 128 = 3,072 does not equal its <i>d</i><sub>model</sub> of 2,048 ({{the recount|tab:t-tables:tbP}}).</p>
+</section>
+
+<section id="s-data"><h2>Data: 300 billion tokens, sampled by quality, not size</h2>
+[[S2.SS2|§2.2, Table 2.2, Appendix A]]
+<p>Common Crawl alone ("nearly a trillion words") would be big enough to train the largest model without repeating a sequence, but unfiltered it is low quality. Three steps ({{§2.2|ax:S2.SS2}}, {{Appendix A|ax:A1}}):</p>
+<ul class="lst">
+<li><b>Filter</b> 41 monthly Common Crawl shards (2016 to 2019) with a classifier trained to tell curated text (WebText, Wikipedia, books) from raw crawl: 45 TB of compressed plaintext became 570 GB, "roughly equivalent to 400 billion" tokens.</li>
+<li><b>Fuzzy deduplication</b> at the document level, within and across datasets.</li>
+<li><b>Add curated corpora</b>: WebText2, two internet book corpora (Books1, Books2) and English Wikipedia ({{how each step works|tab:t-tables:tbFilt}}).</li></ul>
+<div class="card"><div id="mixSvg"></div>
+<p class="small mute" style="margin:4px 0 0">Top bar: tokens available in each source; bottom bar: its share of the 300B training tokens, both to scale ({{Table 2.2|ax:S2.T2}}). Common Crawl is 82% of the data but 60% of the mix. The epochs column does not all follow from the other two columns; see {{the recount|tab:t-tables:tbMix}}.</p></div>
+<p>So the mix is quality-weighted, not size-proportional: Common Crawl and Books2 are seen less than once (0.44 and 0.43 epochs), Wikipedia 3.4 times, "a small amount of overfitting in exchange for higher quality training data". By word count 93% of the data is English and 7% other languages ({{§3.3|ax:S3.SS3}}). A filter was meant to remove every overlap with the benchmarks' development and test sets, but "a bug in the filtering caused us to ignore some overlaps", and retraining was too expensive; {{Contamination|tab:t-read:s-cont}} measures the damage.</p>
+</section>
+
+<section id="s-train"><h2>Training and compute</h2>
+[[S2.SS3|§2.3, Appendix B, Appendix D]]
+<p><b>Recipe</b>: Adam (β<sub>2</sub> = 0.95), gradient clipping at 1.0, warmup then cosine decay to 10%, a batch-size ramp, weight decay 0.1, and full 2,048-token sequences with documents packed ({{every setting|tab:t-tables:tbRec}}). The model is split "within each matrix multiply and ... across the layers" (the first as in {{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}, the second pipeline-style), on V100 GPUs in "a high-bandwidth cluster provided by Microsoft" ({{§2.3|ax:S2.SS3}}).</p>
+<p><b>Compute</b> ({{Appendix D|ax:A4}}): training FLOPs = 6 × parameters × tokens (2 for the forward multiply-add, times 3 for the backward pass, ignoring attention). For 175B: <span class="m">6 × 174.6 × 10⁹ × 300 × 10⁹ = 3.14 × 10²³</span> FLOPs, or 3,637 petaflop/s-days (one is 8.64 × 10¹⁹ FLOPs), the paper's 3.64 × 10³. That is 9.5 times T5-11B's 382, which was trained on 1 trillion tokens with half its parameters active per token. Following the scaling laws, the authors "train much larger models on many fewer tokens than is typical": GPT-3 3B and RoBERTa-Large (355M) each took about 50 petaflop/s-days ({{Figure 2.2|ax:S2.F2}}).</p>
+<div class="card"><div id="cmpSvg"></div>
+<p class="small mute" style="margin:4px 0 0">Figure 2.2 rebuilt from Table D.1, log scale; every bar recomputed as multiplier × parameters × tokens and matching the printed value to the printed precision (independently). GPT-3 175B sees 1.7 tokens per parameter; Chinchilla later argued for about 20 ({{Why it matters|tab:t-read:s-why}}).</p></div>
+</section>
+
+<section id="s-eval"><h2>Evaluation: how a frozen model is scored</h2>
+[[S2.SS4|§2.4, Appendix G]]
+<ul class="lst">
+<li><b>Demonstrations</b> are drawn at random from the task's training set for each test example, separated by one or two newlines. LAMBADA and StoryCloze have no training set, so examples come from the development set; the original Winograd has one set, so they come from it ({{§2.4|ax:S2.SS4}}). <i>K</i> is tuned on the development set when a separate test set exists. Exact phrasings are in {{Appendix G|ax:A7}}.</li>
+<li><b>Multiple choice</b>: compare the likelihood of each completion, normalised per token. On ARC, OpenBookQA and RACE the authors instead divide by the completion's unconditional probability, <span class="m" style="white-space:normal">P(completion | context) / P(completion | answer_context)</span>, with answer_context the string "Answer: " or "A: ".</li>
+<li><b>Binary classification</b>: options get meaningful names ("True", "False") and are scored as multiple choice.</li>
+<li><b>Free-form answers</b>: beam search, width 4, length penalty α = 0.6, scored by F1, BLEU or exact match.</li>
+<li><b>Splits</b>: test sets when public; otherwise the development set, because the model was "too large to fit on the test server". Only SuperGLUE, TriviaQA and PIQA were submitted to test servers.</li></ul>
+</section>
+
+<section id="s-res"><h2>The scaling pattern, the paper's real result</h2>
+[[S3|§3, Figures 1.3 and 3.1]]
+<p>The headline pattern matters more than any single number. <b>Validation loss</b> keeps the {{Kaplan|n:3c65c17b0d0d81b08a1debb0c15cd252}} power law in compute "for an additional two orders of magnitude with only small deviations" ({{Figure 3.1|ax:S3.F1}}; its fitted line is printed as <span class="m">L = 2.57 · C<sup>−0.048</sup></span>, C in petaflop/s-days, embedding parameters excluded). Six extra-small models down to 100,000 parameters were added for that plot. And lower loss does turn into task performance: <b>zero-shot</b> accuracy grows steadily with size, but <b>few-shot</b> grows faster, so the gap widens ({{Figure 1.3|ax:S1.F3}}); "larger models are more proficient meta-learners".</p>
+<div class="pred" id="pGap" data-ans="2"><div class="q">Averaged over the 41 accuracy tasks of Table H.1, few-shot beats zero-shot by 1.8 points at 125M. By how much at 175B?</div>
+<div class="opts"><button>About the same: examples help every size equally</button><button>Less: a big model does not need examples</button><button>About eight times as much, near 15 points</button></div><div class="fb"></div>
+<div class="reveal" hidden><div id="gapSvg"></div><p class="small" id="gapNote"></p></div></div>
+<p>Figure 1.3 is itself "not ... a rigorous or meaningful benchmark", the authors warn, and they do not say which 42 tasks it averages ({{the check|tab:t-tables:tbChk}}). The {{Refit the scaling curves|tab:t-run}} tab replots any task, fits the seven smaller models and asks whether 175B was predictable from them.</p>
+</section>
+
+<section id="s-tasks"><h2>Task by task, in brief</h2>
+[[S3.SS1|§3.1 to §3.8, Tables 3.1 to 3.8]]
+<p>Nine groups of tasks, each in zero-, one- and few-shot at all eight sizes. "SOTA" is almost always a fine-tuned model, so a near miss is a different kind of system coming close. The full account, with every number the paper quotes, is beside {{Table H.1 in the tables tab|tab:t-tables:tbTasks}}.</p>
+<ul class="lst">
+<li><b>Language modelling and completion</b>: new state of the art on <b>PTB</b>, perplexity 20.5 against 35.8 ({{Table 3.1|ax:S3.T1}}), and <b>LAMBADA</b>, 86.4% few-shot, 18.4 points above the previous best; there the fill-in-the-blank prompt format ("Alice went to visit her friend ___. → Bob") is itself a demonstration of what prompting buys ({{Table 3.2|ax:S3.T2}}).</li>
+<li><b>Closed-book QA</b>: <b>TriviaQA</b> 71.2% few-shot beats not only fine-tuned closed-book T5 but also the fine-tuned open-domain RAG system that retrieves over 21M documents; <b>Natural Questions</b> stays well below, 29.9 against 36.6 closed-book (T5+SSM) and 44.5 open-domain ({{Table 3.3|ax:S3.T3}}).</li>
+<li><b>Translation</b>: few-shot into English beats prior unsupervised NMT by 5.4 BLEU on average (Fr→En 39.2, De→En 40.6, Ro→En 39.5) though translation was never trained for and only 7% of the data is not English; out of English it is much weaker ({{Table 3.4|ax:S3.T4}}).</li>
+<li><b>SuperGLUE</b>: 71.8 few-shot with 32 examples per task and no gradient updates, above fine-tuned BERT-Large (69.0), and "less than eight total examples per task" already pass it; still far below the fine-tuned SOTA of 89.0 ({{Table 3.8|ax:S3.T8}}).</li>
+<li><b>Clear failures</b>: <b>WiC</b> at 49.4%, chance; <b>ANLI</b> at chance for every model below 175B, which "shows signs of life" on Round 3 (40.2%); weak <b>QuAC</b> (44.3 F1), <b>RACE</b> (46.8%) and <b>DROP</b> (36.5 F1).</li></ul>
+<p><b>The consistent weak spot</b> is comparing two pieces of text: whether a word means the same in two sentences (WiC), whether one sentence implies another (ANLI, RTE, CB), plus several reading-comprehension sets ({{§3.7|ax:S3.SS7}}). The authors suspect the unidirectional decoder ({{Limitations|tab:t-read:s-lim}}).</p>
+</section>
+
+<section id="s-synth"><h2>Synthetic and qualitative tasks</h2>
+[[S3.SS9|§3.9, Tables 3.9 to 3.12]]
+<p>Tasks "designed especially to probe in-context learning", unlikely to appear verbatim in the training data ({{§3.9|ax:S3.SS9}}; every number in {{the detail|tab:t-tables:tbSyn}}).</p>
+<p><b>Arithmetic</b>: ten tests of 2,000 random problems, asked as "Q: What is 48 plus 76? A:", the answer generated exactly. Few-shot 175B gets 2-digit addition 100%, subtraction 98.9%, 3-digit addition 80.4% (the text says 80.2), 4-digit about 25%, 2-digit multiplication 29.2% ({{Table 3.9|ax:S3.T9}}). The jump is sharp: even 13B solves 2-digit addition and subtraction only about half the time (55.5% and 52.4%, {{Figure 3.10|ax:S3.F10}}).</p>
+<div class="pred" id="pAr" data-ans="2"><div class="q">Few-shot 3-digit addition: GPT-3 13B gets 8.4%. What does 175B get, with the same examples and no other change?</div>
+<div class="opts"><button>About 12%</button><button>About 30%</button><button>About 80%</button></div><div class="fb"></div>
+<div class="reveal" hidden><div class="seg" id="arM" role="group" aria-label="Setting"><button class="on" data-m="f" aria-pressed="true">Few-shot</button><button data-m="o" aria-pressed="false">One-shot</button><button data-m="z" aria-pressed="false">Zero-shot</button></div><div id="arSvg"></div><p class="small" id="arNote"></p></div></div>
+<p>Not memorised, the authors argue: only 17 of 2,000 three-digit addition problems (0.85%) and 2 of 2,000 subtraction problems appear in the training data, and wrong answers often forget to carry a 1. <b>Word manipulation</b> (unscrambling, removing inserted symbols) and <b>using a made-up word</b> after one definition also work for 175B and are near zero for small models; one-shot halves the word scores and zero-shot rarely solves any, which the authors read as learning at test time ({{Table 3.10|ax:S3.T10}}). <b>SAT analogies</b>: 65.2% few-shot against 57% for the average college applicant.</p>
+<p><b>Can people tell?</b> Given a real title and subtitle, 175B wrote news articles of about 200 words that people identified as machine-written at a mean of <b>52%</b> (95% interval 49 to 54%), "barely above chance", against 86% for a deliberately bad control model; for about 500-word articles, again 52% ({{Tables 3.11 and 3.12|ax:S3.T11}}, charted in {{the tables tab|tab:t-tables:tbHum}}).</p>
+</section>
+
+<section id="s-cont"><h2>Contamination: measured after the fact</h2>
+[[S4|§4, Appendix C, Table C.1, Figure 4.2]]
+<p>Because of the filtering bug, the authors measured how much the leftover overlap matters instead of preventing it ({{§4|ax:S4}}). For each benchmark they built a "clean" subset with every example that shares an <i>N</i>-gram with the training data removed (<i>N</i> is the 5th-percentile example length in words, at least 8 and at most 13; 2-grams for the short word tasks), deliberately over-flagging, and compared the score on the clean subset with the full score ({{Appendix C|ax:A3}}). The overlap was computed against the full corpus, though training used only about 40% of the filtered Common Crawl. Training curves show little overfitting even at 175B ({{Figure 4.1|ax:S4.F1}}), so contamination was expected to be frequent but weak.</p>
+<div class="pred" id="pCo" data-ans="1"><div class="q">In 9 of the 42 benchmarks of Table C.1, more than half the examples are flagged as possibly seen in training. What happens to the scores when only the clean examples are kept?</div>
+<div class="opts"><button>Most drop by 5 points or more</button><button>Most move by less than a couple of percent</button><button>Most go up</button></div><div class="fb"></div>
+<div class="reveal" hidden><div id="coSvg"></div><p class="small" id="coNote"></p></div></div>
+<p>Six groups were flagged and examined one by one ({{case by case|tab:t-tables:tbCases}}): in reading comprehension (over 90% flagged) the passages were in the training data but not the questions; the word-task flags were palindromes; <b>PIQA</b> (29% flagged, 3 points lower clean) and <b>Winograd</b> (45% flagged, 2.6% lower, 132 schemas really present) keep an asterisk; the Wikipedia language-modelling benchmarks and the Children's Book Test were almost entirely contained and are not reported.</p>
+<p>LAMBADA had "substantial genuine contamination", yet its clean subset scored within 0.5% of the full set. The stated weakness: a clean subset may not be drawn from the same distribution, so memorisation could be cancelled by an easier clean subset; "the sheer number of shifts close to zero suggests this is unlikely".</p>
+</section>
+
+<section id="s-lim"><h2>Limitations, as the authors state them</h2>
+[[S5|§5]]
+<ul class="lst">
+<li><b>Text synthesis</b>: samples "still sometimes repeat themselves semantically", lose coherence over long passages, contradict themselves, and include non sequiturs; 500 uncurated samples are released to show it. Informally, "common sense physics" is hard: "If I put cheese into the fridge, will it melt?"</li>
+<li><b>Comparison tasks</b> (WiC, ANLI, some reading comprehension) stay near chance. The design is autoregressive only, with no bidirectional architecture or denoising objective, so tasks that need "looking back and comparing two pieces of content" or re-reading a long passage may suffer; a large bidirectional model would probably fine-tune better.</li>
+<li><b>The objective</b> weights every token equally, with no notion of what matters, and only predicts text rather than taking "goal-directed actions"; there is no grounding in video or physical interaction. Suggested remedies: "learning the objective function from humans", reinforcement learning fine-tuning, more modalities.</li>
+<li><b>Sample efficiency</b>: pretraining sees far more text than a human does in a lifetime.</li>
+<li><b>Learning or recognising?</b> It is ambiguous whether few-shot prompting learns a task "from scratch" at inference or identifies one learned in pretraining, and it may differ by task: word scrambling and nonsense words seem learned on the spot, translation must come from pretraining.</li>
+<li><b>Cost</b>: 175B is "expensive and inconvenient to perform inference on"; distillation at this scale is untried.</li>
+<li><b>Shared with deep learning</b>: decisions are hard to interpret, predictions are not well calibrated on novel inputs, and the model inherits the biases of its data.</li></ul>
+</section>
+
+<section id="s-impact"><h2>Broader impacts</h2>
+[[S6|§6, Tables 6.1 and 6.2]]
+<p>Three concerns, studied briefly ({{the detail|tab:t-tables:tbImp}}). <b>Misuse</b>: text good enough to pass as human makes misinformation, spam and phishing cheaper; the authors found discussion but "no successful deployments" since GPT-2 ({{§6.1|ax:S6.SS1}}). <b>Bias</b>: "internet-trained models have internet-scale biases"; 83% of 388 occupations were more likely followed by a male word, and race and religion prompts drew skewed sentiment and stereotypes ({{§6.2|ax:S6.SS2}}). <b>Energy</b>: thousands of petaflop/s-days to train, but generating 100 pages costs "on the order of 0.4 kW-hr" ({{§6.3|ax:S6.SS3}}).</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[A8|§2.4, §4, Appendices C and H]]
+<p><b>What holds up.</b> The scaling pattern rests on eight models trained the same way and 63 evaluations of each in three settings, not on one benchmark: few-shot gains more from size than zero-shot on 36 of the 41 accuracy rows of Table H.1, and the average gap grows at every step ({{recomputed|tab:t-run}}). It has replicated in every large model family since: {{Gopher|https://arxiv.org/abs/2112.11446}} reports gains from scale on most of 152 tasks, {{PaLM|https://arxiv.org/abs/2204.02311}} "continued benefits of scaling" few-shot, and {{Chinchilla|https://arxiv.org/abs/2203.15556}} beats GPT-3 with 40% of its parameters on every task its Tables 7 to 9 share with it. The memorisation check on arithmetic and the contamination study are more than most 2020 papers did, and the authors volunteer their own weak points (the filtering bug, the asterisks, the dropped benchmarks), which counts in their favour.</p>
+<p><b>What to discount:</b></p>
+<ul class="lst">
+<li><b>One draw of examples, no error bars.</b> Each score is one prompt and one random draw of demonstrations; the only spread given is ANLI R3's "standard deviation of 1.2%" ({{Figure 3.9|ax:S3.F9}}). Table C.1 was run "with a different seed for the random examples", a free second draw: of 41 matching scores 25 are identical and the mean absolute difference is 0.4 points, but WiC moves 3.9, WSC 1.9, CB 1.7, BoolQ 1.5, RTE 1.4 ({{both draws|tab:t-tables:tbC1}}). Later work found the order of the same four examples alone moves GPT-3 2.7B from 54.3% to 93.4% on SST-2 ({{Zhao et al. 2021|https://arxiv.org/abs/2102.09690}}).</li>
+<li><b>Small sets.</b> Binomial standard errors at the paper's own scores: CB 5.1 points (56 examples), WSC 4.3, COPA 2.7, RTE 2.7, against TriviaQA's 0.5; CB few-shot goes 69.6, 67.9, 60.7, 66.1, 82.1 from XL to 175B.</li>
+<li><b>Not like for like.</b> The "SOTA" columns are fine-tuned systems, often on test sets, while most GPT-3 numbers are development-set scores ({{§2.4|ax:S2.SS4}}); Figure 3.8 calls its own reference lines "not directly comparable". <i>K</i> was tuned on development sets and WiC was tried in "a number of different phrasings", a mild prompt search the baselines did not get.</li>
+<li><b>Contamination is bounded, not excluded</b>: a clean subset may simply be easier, as the authors say; PIQA and Winograd keep asterisks.</li>
+<li><b>A loosely defined aggregate</b>: Figure 1.3 averages "42" unlisted tasks of very different scales (WiC zero-shot is 0.00 at every size in Table H.1, unexplained); the direction survives any reasonable choice, the exact curve does not.</li>
+<li><b>Small inconsistencies</b>: 80.2% against 80.4%, word-task scores quoted from the other draw, "200B" for the submitted model, ANLI R3 as a 1,500-example dev set against a 1,200-example test set, 13B's <i>d</i><sub>model</sub> 5,140 ({{every check|tab:t-tables:tbChk}}). None changes a conclusion.</li>
+<li><b>Estimates presented as measurements</b>: compute is the 6<i>ND</i> estimate, which ignores attention, not a measured FLOP count.</li></ul>
+<p class="co key"><b>Verdict.</b> Believe the qualitative claim firmly: in-context learning improves with scale faster than zero-shot ability, and a frozen model can be pointed at new tasks by text alone. Treat individual numbers as single draws good to a few points, and "competitive with fine-tuned SOTA" as true for a handful of tasks (TriviaQA, LAMBADA, PIQA, COPA, ReCoRD, CoQA) and false for most.</p>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+[[S8|§8 Conclusion]]
+<ul class="lst">
+<li><b>Prompting became the interface to NLP.</b> Before, every task meant a dataset and a fine-tuning run; after, one frozen model served arbitrary tasks specified in natural language. It shipped that way two weeks after the paper: the {{OpenAI API|https://web.archive.org/web/20200611150951/https://openai.com/blog/openai-api/}} (11 June 2020), "a general-purpose 'text in, text out' interface" on "weights from the GPT-3 family", programmed "by showing it just a few examples".</li>
+<li><b>It validated the scaling bet</b> at about 10 times the previous largest dense model (Turing-NLG, 17B) and set the template: {{Chinchilla's Table 1|https://arxiv.org/abs/2203.15556}} lists Jurassic-1 (178B), Gopher (280B) and MT-NLG (530B), all on about 300B tokens "following ... the training setup of GPT-3"; {{PaLM|https://arxiv.org/abs/2204.02311}} (540B) was built "to further our understanding of the impact of scale on few-shot learning".</li>
+<li><b>Zero-, one- and few-shot became the evaluation protocol</b> for base models (Chinchilla's Table 6 has GPT-3 at 43.9% on 5-shot MMLU), and data curation (filtering, deduplication, contamination analysis) became part of the method.</li>
+<li><b>Emergence, and its critique.</b> The sharp jumps seeded the "emergent abilities" literature ({{Wei et al. 2022|https://arxiv.org/abs/2206.07682}}); {{Schaeffer et al. 2023|https://arxiv.org/abs/2304.15004}} re-scored the GPT-3 family and found the jumps "appear due to the researcher's choice of metric", exact match being all or nothing.</li>
+<li><b>Closed weights.</b> Released only through the API, the pattern of frontier labs since; the base model <span class="mono">davinci</span> was shut down on 4 January 2024 and its replacement <span class="mono">davinci-002</span> on 28 September 2026 ({{OpenAI deprecations|https://platform.openai.com/docs/deprecations}}), so the model in this paper can no longer be run outside OpenAI.</li>
+<li><b>Its weaknesses set the next agenda.</b> GPT-3 did not follow instructions reliably or stay factual and harmless; {{InstructGPT|n:3c65c17b0d0d8180b958d8299996a063}} fixed that with RLHF on GPT-3 itself, and labelers preferred a 1.3B InstructGPT to the 175B GPT-3 "despite having over 100x fewer parameters". Its parameters-heavy, tokens-light recipe is what {{Chinchilla|n:3c65c17b0d0d8116b7ddffba5c599f3f}} corrected (chart).</li>
+<li><b>The open question is still open.</b> Randomly replacing the labels in the demonstrations "barely hurts performance" ({{Min et al. 2022|https://arxiv.org/abs/2202.12837}}), so examples convey format and label space more than the mapping; induction heads offer a mechanism for copying patterns from context ({{Olsson et al. 2022|https://arxiv.org/abs/2209.11895}}).</li></ul>
+<div class="card"><div id="tppSvg"></div>
+<p class="small mute" style="margin:4px 0 0">Training tokens per parameter, log scale. GPT-3 from Table 2.1; Chinchilla 70B on 1.4T and its Table 3 estimate that a compute-optimal 175B model needs 3.7T tokens ({{arXiv 2203.15556|https://arxiv.org/abs/2203.15556}}); LLaMA 65.2B on 1.4T and 6.7B on 1.0T ({{Table 2|https://arxiv.org/abs/2302.13971}}); Llama 3 405B on 15.6T ({{arXiv 2407.21783|https://arxiv.org/abs/2407.21783}}). At GPT-3's own budget of 3.14 × 10²³ FLOPs, Chinchilla's Table 3 interpolated (optimal size growing as compute<sup>0.50</sup>) gives about 50B parameters on about 1.06T tokens: derived here, not a number Chinchilla prints.</p></div>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li>{{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}: GPT-3 is the decoder half of the Transformer scaled about three orders of magnitude.</li>
+<li>{{Scaling Laws for Neural Language Models|n:3c65c17b0d0d81b08a1debb0c15cd252}}: the direct motivation (Kaplan is a co-author); GPT-3 extends the loss power law two more orders of magnitude and sized its models by it.</li>
+<li>{{Chinchilla|n:3c65c17b0d0d8116b7ddffba5c599f3f}}: showed 175B parameters on 300B tokens is heavily undertrained; rebalanced the parameters-to-tokens ratio GPT-3 popularised.</li>
+<li>{{BERT|n:3c65c17b0d0d81e5ad9bd09cbf18ad7c}}: the rival paradigm this paper displaced for generation tasks; the paper attributes its comparison-task failures partly to lacking bidirectionality.</li>
+<li>{{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}: the fine-tuned encoder-decoder road, and the closed-book QA and compute baseline here.</li>
+<li>{{InstructGPT|n:3c65c17b0d0d8180b958d8299996a063}}: RLHF on GPT-3 to fix the instruction-following and alignment gaps documented here.</li>
+<li>{{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}} and {{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}: the model-parallel and memory techniques that make 100B-plus dense training feasible.</li>
+<li>Topics: {{Topic: llms|n:3c65c17b0d0d812d9e00f6ec89965286}} (the GPT lineage), {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (pretraining at scale, scaling laws), {{Topic: data-curation-and-datasets|n:3c65c17b0d0d811fa5ecda8d365ab00f}} (Common Crawl filtering, deduplication, quality-weighted mixing, contamination), {{Topic: benchmarks|n:3c65c17b0d0d811fb43fece56e40041a}} (the zero-, one- and few-shot protocol).</li></ul>
+</section>
+</section>
