@@ -1,0 +1,64 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2 id="runTop">Train a LoRA in your browser</h2>
+<p>A real model, trained here by real arithmetic: a small Transformer block pretrained to count, and adapted, while you watch, to a task whose correct weight update is <b>known</b>. That lets this tab test the paper's claims directly: does a low-rank update suffice, on which matrices, and does LoRA find the true update's directions?</p>
+<details class="mist" open><summary>The toy, in five lines</summary><div class="b">
+<ul>
+<li><b>Model.</b> One Transformer block read out at position 0: embeddings (16 symbols plus a sink token) and positions, two-head attention (<i>W<sub>q</sub></i>, <i>W<sub>k</sub></i>, <i>W<sub>v</sub></i>, <i>W<sub>o</sub></i>, 32 × 32), a residual, a ReLU MLP (<i>W</i><sub>1</sub> 128 × 32, <i>W</i><sub>2</sub> 32 × 128), and an 11-way output. <span id="ruParams"></span> parameters.</li>
+<li><b>Pretraining.</b> Input: a query symbol, the sink, then 10 symbols; answer: how many times the query occurs (0 to 10). Trained with AdamW and label smoothing 0.1, then stored in 8 bits: <span id="ruPre"></span>.</li>
+<li><b>Downstream tasks are teachers.</b> Each task is the same base model with one matrix edited by a known Δ<i>W</i>* = <i>c</i> <i>U V</i><sup>⊤</sup> of known rank, and a sequence's label is the edited model's answer. So the update to find is known, and accuracy is agreement with the teacher.</li>
+<li><b>The four tasks.</b> <span id="ruTasks"></span></li>
+<li><b>Training</b> follows the paper: <i>W</i><sub>0</sub> frozen, <i>A</i> Gaussian and <i>B</i> zero, update scaled by α/<i>r</i> with α = 8 fixed, Adam with warmup and linear decay, batches of 64 fresh sequences, the teacher's output distribution as the target. Held-out sequences come from a seed the training stream never uses.</li>
+</ul></div></details>
+
+<div class="card" id="trCard">
+<div class="ctl">
+<div><div class="small mute">task</div><div class="seg" id="trTask"><button data-m="v1">Wv, rank 1</button><button class="on" data-m="v4">Wv, rank 4</button><button data-m="v32">Wv, dense</button><button data-m="mlp4">MLP W1, rank 4</button></div></div>
+<div><div class="small mute">method</div><div class="seg" id="trMeth"><button class="on" data-m="lora">LoRA</button><button data-m="ft">full fine-tuning</button></div></div>
+</div>
+<div class="ctl" id="trLoraCtl">
+<div><div class="small mute">adapt these matrices</div><div class="chips" id="trTg"><label><input type="checkbox" value="Wq" checked> W<sub>q</sub></label><label><input type="checkbox" value="Wk"> W<sub>k</sub></label><label><input type="checkbox" value="Wv" checked> W<sub>v</sub></label><label><input type="checkbox" value="Wo"> W<sub>o</sub></label><label><input type="checkbox" value="W1"> W<sub>1</sub></label><label><input type="checkbox" value="W2"> W<sub>2</sub></label></div></div>
+<label>rank <i>r</i> <select id="trR"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>16</option><option>32</option></select></label>
+<label>scale <select id="trSc"><option value="r" selected>α / r (the paper)</option><option value="sqrt">α / √r (rsLoRA)</option></select></label>
+</div>
+<div class="ctl">
+<label>learning rate <select id="trLr"><option>0.001</option><option>0.003</option><option selected>0.01</option><option>0.03</option></select></label>
+<label>steps <select id="trSt"><option>300</option><option selected>1000</option><option>2000</option></select></label>
+<label>seed <select id="trSeed"><option>1</option><option>2</option><option>3</option></select></label>
+<div><button id="trGo" class="an-play">&#9654; Train</button> <button id="trStop">Stop</button> <button id="trReset">Reset</button></div>
+</div>
+<p class="try"><b>Try:</b> the default (<i>W<sub>q</sub></i>, <i>W<sub>v</sub></i>, <i>r</i> = 4) on the rank-4 task; then <i>r</i> = 1 (too little rank: it plateaus); then <i>W<sub>q</sub></i> alone at <i>r</i> = 32 (plenty of rank on the wrong matrix); then the MLP task with attention-only LoRA.</p>
+<div class="cols2"><div id="trLoss"></div><div><div class="an-cnt" id="trCnt"></div><div class="res" id="trOut"></div></div></div>
+<div id="trAfter" hidden>
+<h3>After training: merge, then look inside ΔW</h3>
+<div class="res" id="trMerge"></div>
+<div class="cols2"><div id="trSpec"></div><div id="trPhi"></div></div>
+<p class="small mute" id="trSpecNote"></p>
+</div>
+</div>
+
+<h3 id="runSweep">The same experiment, every configuration, three seeds</h3>
+<p>Trained offline in PyTorch with the identical model, data and update rule ({{check: the browser engine reproduces PyTorch|tab:t-run:runHonest}}): 2,000 steps each; for each configuration the learning rate is picked from three values on a separate validation set with seed 0, as the paper tuned per method and dataset, and seeds 1 and 2 rerun at that rate. Points are means of the three seeds, bars span them. "Changed" counts only the sequences where the teacher disagrees with the base model: the part the update must learn.</p>
+<div class="ctl"><div class="seg" id="swTask"><button data-m="v1">Wv, rank 1</button><button class="on" data-m="v4">Wv, rank 4</button><button data-m="v32">Wv, dense</button><button data-m="mlp4">MLP W1, rank 4</button></div>
+<div class="seg" id="swMet"><button class="on" data-m="changed">changed</button><button data-m="acc">all sequences</button><button data-m="kept">unchanged</button></div></div>
+<div id="swSvg"></div>
+<p class="small mute" id="swNote"></p>
+<div class="cols2"><div><h4>One budget, spread differently (Table 5's question)</h4><div id="bdSvg"></div><p class="small mute">512 trainable numbers, the toy's equivalent of the paper's 18M: <i>r</i> = 8 on one 32 × 32 matrix, <i>r</i> = 4 on two, <i>r</i> = 2 on four; the MLP pair at <i>r</i> = 2 is 640 (its matrices are 32 × 128).</p></div>
+<div><h4>α/r against α/√r at one learning rate</h4><div id="scSvg"></div><p class="small mute" id="scNote"></p></div></div>
+
+<h3 id="runInside">Inside ΔW: the paper's Figures 3 and 4 and Table 7, on the toy</h3>
+<p>The same measurements as {{§7.2 and §7.3|ax:S7.SS2}}, on adapters trained above (<i>W<sub>q</sub></i>, <i>W<sub>v</sub></i>; seeds 1 and 2; rank 4 and 16), with one thing the paper could not have: the true update's directions.</p>
+<div class="ctl"><div class="seg" id="phTask"><button data-m="v1">Wv, rank 1</button><button class="on" data-m="v4">Wv, rank 4</button><button data-m="v32">Wv, dense</button></div>
+<div class="seg" id="phPair"><button class="on" data-m="r">r = 4 against r = 16 (Fig. 3)</button><button data-m="s">seed 1 against seed 2, r = 16 (Fig. 4)</button><button data-m="t">r = 16 against the true edit</button><button data-m="g">two random matrices</button></div>
+<div class="seg" id="phMat"><button class="on" data-m="Wv">ΔW<sub>v</sub></button><button data-m="Wq">ΔW<sub>q</sub></button></div></div>
+<div class="cols2"><div><div id="phSvg"></div><div class="res" id="phOut"></div></div><div><div id="ampSvg"></div><p class="small mute" id="ampNote"></p></div></div>
+<p class="small mute">Heatmap: <i>φ</i>(<i>i</i>, <i>j</i>) of Equation 4 between the top-<i>i</i> right-singular vectors of the first <i>A</i> and the top-<i>j</i> of the second, computed live (Jacobi SVD in plain JS, checked against NumPy). Bars: ‖<i>U</i><sup>⊤</sup><i>W V</i>‖<sub>F</sub> with <i>U</i>, <i>V</i> the top-<i>r</i> singular directions of Δ<i>W</i>, of <i>W</i> itself, or random, as in Table 7. Adapter weights are stored at 12 bits, which perturbs only the smallest singular values.</p>
+
+<h3>Is full fine-tuning's update low rank too?</h3>
+<p>The paper's hypothesis is about the update itself, so look at the update full fine-tuning finds when nothing constrains its rank: the singular values of Δ<i>W</i> = <i>W</i><sub>after</sub> − <i>W</i><sub>0</sub> for each matrix, seed 1.</p>
+<div class="ctl"><div class="seg" id="ftTask"><button data-m="v1">Wv, rank 1</button><button class="on" data-m="v4">Wv, rank 4</button><button data-m="v32">Wv, dense</button><button data-m="mlp4">MLP W1, rank 4</button></div></div>
+<div id="ftSvg"></div>
+<p class="small mute" id="ftNote"></p>
+
+<h3 id="runHonest">How far to trust the toy</h3>
+<ul class="small" id="ruHonest"></ul>
+</section>
