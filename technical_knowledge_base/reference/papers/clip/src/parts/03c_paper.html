@@ -1,0 +1,91 @@
+<section id="s-more"><h2>Humans, data overlap, and bias</h2>
+[[S4|§4, §5, §7]]
+<details class="mist"><summary>Against humans on Oxford-IIIT Pets (§4)</summary><div class="b">
+<p>Five people labelled each of the 3,669 test images of Oxford-IIIT Pets with one of 37 cat and dog breeds (or "I don't know"), with no examples, then with one and two examples per breed, and no internet search ({{§4|ax:S4}}). High accuracy on STL-10 (94%) and on attention-check images (97 to 100%) suggests the workers were trying.</p>
+<div id="t2Svg"></div>
+<p>Humans go from 54% to 76% with a single example per class, and a second adds almost nothing; the gain is almost entirely on images they were unsure of, so humans "know what they don't know". CLIP's few-shot methods do the opposite: its accuracy drops from zero-shot to a linear probe with one example. The authors read this as room for algorithms that use prior knowledge the way people do ({{Table 2|ax:S4.T2}}, {{§4|ax:S4}}). The hardest categories for CLIP are also hardest for humans, probably because of label noise and out-of-distribution images ({{Figure 16|ax:S4.F16}}).</p>
+</div></details>
+<details class="mist"><summary>Did the evaluation sets leak into the 400 million pairs? (§5)</summary><div class="b">
+<p>Rather than de-duplicate before training, which requires knowing every future evaluation, the authors measure overlap afterwards ({{§5|ax:S5}}):</p>
+<ol class="lst">
+<li>A purpose-built near-duplicate detector (a ResNet-50 trained with the same InfoNCE loss to match an image to augmented copies of itself, temperature fixed at 0.07, because CLIP's own embedding is too semantic: two different soccer balls look identical to it) splits each evaluation set into <b>Overlap</b> and <b>Clean</b> by a hand-tuned, high-precision threshold ({{Appendix C|ax:A3}}).</li>
+<li>Zero-shot RN50x64 accuracy on All minus Clean is the inflation due to contamination.</li>
+<li>A one-sided binomial test of Overlap against Clean, and 99.5% Clopper-Pearson intervals.</li>
+</ol>
+<p>Of 35 datasets, 9 have no detected overlap (MNIST, CLEVR and GTSRB are synthetic or specialised; ObjectNet and Hateful Memes postdate WIT). Median overlap is 2.2%, mean 3.2%. Overall accuracy moves by more than 0.1% on only 7 datasets, 2 of them significant after Bonferroni correction; the largest gain is 0.6% on Birdsnap (12.1% overlap). Country211 overlaps most, 21.5%, because it was built from YFCC100M, part of WIT, yet gains only 0.2%: the captions rarely mention the location ({{§5|ax:S5}}, {{Figure 17|ax:S4.F17}}). Caveats the authors give: the detector's recall cannot be checked over 400M images, and Overlap and Clean may differ in difficulty (Kinetics-700's "overlaps" are mostly black transition frames, hence an apparent 20% drop). Mahajan et al. and Kolesnikov et al. found similar rates and small effects, and Kolesnikov et al. found de-duplicating first made little difference ({{§5|ax:S5}}).</p>
+</div></details>
+<details class="mist"><summary>Bias, surveillance and class design (§7)</summary><div class="b">
+<p>Because anyone can "roll their own classifier" by writing classes, how classes are designed shapes both accuracy and harm ({{§7|ax:S7}}). The probes, which the authors call preliminary:</p>
+<ul class="lst">
+<li><b>FairFace.</b> A linear probe on CLIP beats FairFace's own model and an Instagram-pretrained ResNeXt on most race, gender and age tests; gender accuracy is above 95% for every race group ({{Table 3|ax:S7.T4}}, {{Table 5|ax:S7.T5}}). The authors stress that benchmark accuracy is not fairness, and that higher accuracy on under-represented groups can be used to justify deployments that harm them ({{§7.1|ax:S7.SS1}}).</li>
+<li><b>Denigration.</b> With "animal", "gorilla", "chimpanzee", "orangutan", "thief", "criminal" and "suspicious person" added to the classes, 4.9% of 10,000 FairFace images (CI 4.6 to 5.4%) were classified as non-human; images of Black people about 14% (12.6 to 16.4%), all other groups under 8%; people aged 0 to 20 most often, at 14%. 16.5% of men against 9.8% of women landed in crime classes, about 18% of under-20s. Adding a "child" class drastically reduced both for under-20s ({{Table 6|ax:S7.T6}}, {{Table 7|ax:S7.T7}}).</li>
+<li><b>Members of Congress.</b> 100% gender accuracy; but at a 0.5% label threshold "nanny" and "housekeeper" appear for women and "prisoner" and "mobster" for men; with the labels of commercial vision APIs, hair and appearance words go to women, "executive" and "doctor" to men, much as Schwemmer et al. found for Google Cloud Vision ({{Figure 18|ax:S7.F18}}).</li>
+<li><b>Surveillance.</b> On 515 CCTV images from 12 sequences, coarse scene classification is 91.8% top-1, falling to 51.1% when one "close" caption is added (it picks the close one 40.7% of the time); detecting small objects is near random. Zero-shot celebrity identification: 59.2% top-1 among 100 names, 43.3% among 1,000 ({{Table 8|ax:S7.T8}}). The authors judge the appeal for surveillance low where supervised systems exist, but note CLIP lowers the skill needed for niche uses ({{§7.2|ax:S7.SS2}}). OpenAI's model card puts any deployed use, and surveillance and facial recognition in all cases, out of scope ({{model card|https://github.com/openai/CLIP/blob/main/model-card.md}}).</li>
+</ul>
+</div></details>
+</section>
+
+<section id="s-lim"><h2>Limitations the authors list</h2>
+[[S6|§6]]
+<ul class="lst">
+<li><b>Far from the state of the art.</b> Zero-shot CLIP is on average only competitive with a linear probe on ResNet-50, itself well below the best results; the authors estimate about 1,000× more compute would be needed to reach the state of the art with this recipe, "infeasible to train with current hardware", so efficiency has to improve.</li>
+<li><b>Weak tasks.</b> Fine-grained classes (car models, flower species, aircraft variants), abstract or systematic tasks such as counting, and novel tasks like distance to the nearest car can be near chance.</li>
+<li><b>Truly out-of-distribution data.</b> 88% on MNIST handwritten digits, beaten by logistic regression on raw pixels; retrieval finds almost nothing MNIST-like in WIT. CLIP sidesteps brittle generalisation by hoping everything is in distribution, an assumption MNIST breaks.</li>
+<li><b>Fixed choices.</b> It can only choose among the concepts it is given, unlike a captioner; joint contrastive and generative training is suggested as a fix.</li>
+<li><b>Data efficiency.</b> 12.8 billion images over 32 epochs would take 405 years at one per second (recomputed: 400M × 32 ÷ seconds per year = <span data-rc="images_seen.years_at_1_per_s"></span> years).</li>
+<li><b>Methodology.</b> Full validation sets were queried repeatedly during development, "unrealistic for true zero-shot scenarios"; and the 27-dataset suite is "somewhat haphazardly assembled" and "undeniably co-adapted with the development and capabilities of CLIP". A benchmark designed for zero-shot transfer would help.</li>
+<li><b>Social biases</b> from uncurated web pairs (section 7), and concepts that are hard to specify in text; the zero-to-few-shot drop is the opposite of human learning ({{§6|ax:S6}}).</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="vtag">beyond the paper</span></h2>
+<p>CLIP made images and text directly comparable in one space, where a classifier is just text. That made classification open-vocabulary, brought prompt engineering into vision and recentred robustness evaluation on zero-shot transfer. It is in most of today's multimodal stack:</p>
+<ul class="lst">
+<li><b>Vision towers for language models.</b> LLaVA connects "the pre-trained CLIP visual encoder ViT-L/14" to an LLM ({{LLaVA|https://arxiv.org/abs/2304.08485}}); InternVL scales the vision side to 6 billion parameters, aligned "using web-scale image-text data" ({{InternVL|https://arxiv.org/abs/2312.14238}}); Qwen-VL adds a visual receptor to its language model ({{Qwen-VL|https://arxiv.org/abs/2308.12966}}). The old version of this page also traced "the lineage behind frontier multimodal models" to CLIP towers; closed models do not document their encoders, so that is unconfirmed.</li>
+<li><b>Generation.</b> Stable Diffusion conditions its U-Net on "the (non-pooled) text embeddings of a CLIP ViT-L/14 text encoder" ({{CompVis README|https://github.com/CompVis/stable-diffusion}}) through cross-attention layers ({{LDM|https://arxiv.org/abs/2112.10752}}; see the {{Latent Diffusion page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}); DALL-E 2 (unCLIP) generates a CLIP image embedding from a caption, then decodes it ({{unCLIP|https://arxiv.org/abs/2204.06125}}); CLIPScore rates captions without references ({{CLIPScore|https://arxiv.org/abs/2104.08718}}); CLIP-score guidance of generators is also common practice (not separately sourced here).</li>
+<li><b>Data curation.</b> LAION-400M and LAION-5B were filtered by CLIP similarity ({{LAION-400M|https://arxiv.org/abs/2111.02114}}, {{LAION-5B|https://arxiv.org/abs/2210.08402}}); DataComp and Data Filtering Networks made such filtering a research problem in itself, so CLIP-style models now curate the data their successors train on ({{DataComp|https://arxiv.org/abs/2304.14108}}, {{DFN|https://arxiv.org/abs/2309.17425}}).</li>
+<li><b>Successors.</b> ALIGN (Google, noisier data at a larger scale than "similar": 1.8B alt-text pairs, 4.5 times WIT, with minimal filtering; 76.4% zero-shot ImageNet, {{ALIGN|https://arxiv.org/abs/2102.05918}}), OpenCLIP's open reproductions and contrastive scaling laws ({{Cherti et al.|https://arxiv.org/abs/2212.07143}}), EVA-CLIP ({{EVA-CLIP|https://arxiv.org/abs/2303.15389}}), MetaCLIP ({{MetaCLIP|https://arxiv.org/abs/2309.16671}}), and the SigLIP line (2023), which replaces the batch softmax with a per-pair sigmoid to decouple the loss from the batch size ({{SigLIP|https://arxiv.org/abs/2303.15343}}); SigLIP 2 (2025) adds captioning and self-supervised losses; the old version of this page called it "today's default open vision tower", a claim about usage this page has not checked. Step through them in {{Then and now|tab:t-then}}.</li>
+<li><b>Retrieval.</b> The paper anticipates image search "given text, or relevant text given an image" ({{§7|ax:S7}}); LAION-400M was released with "their CLIP embeddings and kNN indices that allow efficient similarity search" ({{LAION-400M|https://arxiv.org/abs/2111.02114}}). That cross-modal search became "a commodity capability in vector databases", as the old version of this page put it, is unconfirmed here.</li>
+</ul>
+</section>
+
+<section id="s-con"><h2>Connections</h2>
+<ul class="lst">
+<li>{{ViT (2020)|n:3c65c17b0d0d811fa231cfcde6c1954d}}: supplies CLIP's best image encoder; CLIP is the main vehicle by which ViT reached multimodal models.</li>
+<li>{{GPT-3 (2020)|n:3c65c17b0d0d8193ac92c7648cfaca12}}: the zero-shot task transfer and prompt engineering CLIP imports into vision, and the WebText-style data behind WIT.</li>
+<li>{{Scaling Laws (2020)|n:3c65c17b0d0d81b08a1debb0c15cd252}}: CLIP's zero-shot error follows the same kind of smooth log-log trend in compute.</li>
+<li>{{Latent Diffusion (2021)|n:3c65c17b0d0d81bb98adc0daf8462cb6}}: the Stable Diffusion line, conditioned on CLIP text embeddings.</li>
+<li>Topics: {{generative-and-multimodal|n:3c65c17b0d0d817ab6ade318917bff55}}, {{ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}} (contrastive learning).</li>
+</ul>
+</section>
+
+<section id="believe"><h2>How much of this to believe</h2>
+<p><b>What holds up.</b></p>
+<ul class="lst">
+<li><b>The headline numbers are reproducible by anyone</b>, because the weights were released: 76.2% zero-shot ImageNet is a measurement on a 50,000-image test set (a binomial standard error of about √(0.76 × 0.24 / 50,000) ≈ 0.19 points), and open reproductions on public data reached and passed it: OpenCLIP's ViT-H/14 on LAION-2B scores 78.0% ({{OpenCLIP|https://github.com/mlfoundations/open_clip}}), DataComp-1B trains a ViT-L/14 to 79.2% with "the same training procedure and compute" ({{DataComp|https://arxiv.org/abs/2304.14108}}), and MetaCLIP's re-creation of WIT's curation beats WIT at ViT-B (70.8% against 68.3%) ({{MetaCLIP|https://arxiv.org/abs/2309.16671}}).</li>
+<li><b>The linear-probe comparison is as fair as such studies get</b>: one protocol, the same L2 search, every model's public weights, and the 12-dataset suite reported first to limit selection bias ({{§3.2|ax:S3.SS2}}). Recomputing from Tables 10 and 11 reproduces 16 of 27 wins (Figure 5), 21 of 27 (Figure 11), the 2.6-point margin, and a correlation of 0.81 against the printed 0.82 ({{tables tab|tab:t-tables}}).</li>
+<li><b>Contamination is measured, not assumed</b>, with significance tests, and is small ({{§5|ax:S5}}).</li>
+<li><b>The authors state most weaknesses themselves</b>: the Visual N-Grams comparison is "not a direct methods comparison", validation sets were queried during development, the 27-dataset suite is co-adapted with CLIP ({{§3.1.3|ax:S3.SS1.SSS3}}, {{§6|ax:S6}}). That counts in their favour.</li>
+</ul>
+<p><b>What to read with care.</b></p>
+<ul class="lst">
+<li><b>"Contrastive is 4× more efficient" is one comparison at one scale.</b> Figure 2 is single runs of a ResNet-50 up to 400M images processed (one of the 32 epochs), scored on zero-shot ImageNet, a metric on which contrastive models are known to scale better; it has no error bars. Later, with data, compute and capacity matched, captioners gave vision encoders "competitive with contrastively pretrained encoders" on classification and better on vision-language tasks, while still lagging on zero-shot classification with a gap that "becomes smaller with increasing scale" ({{CapPa, 2023|https://arxiv.org/abs/2306.07915}}).</li>
+<li><b>"Robust because zero-shot" is the authors' hypothesis, and they say so.</b> A controlled follow-up tested five causes (data size, training distribution, language at training, language at test, the contrastive loss) and found "the more diverse training distribution is the main cause", the others contributing little ({{Fang et al., 2022|https://arxiv.org/abs/2205.01397}}). The toy above shows the same split. The fine-tuning result also depends on the method: ensembling the weights of the zero-shot and fine-tuned models "provides large accuracy improvements under distribution shift, while preserving high accuracy on the target distribution" ({{WiSE-FT, 2021|https://arxiv.org/abs/2109.01903}}).</li>
+<li><b>Prompt engineering may be partly tuned to the test.</b> The paper does not say how the 80 ImageNet prompts and the per-dataset templates were chosen, and it says full validation sets were queried repeatedly during development ({{§6|ax:S6}}); some of the "almost 5 points" may be selection on the evaluation distribution.</li>
+<li><b>"Matches ResNet-50" compares unlike things</b>: zero-shot from the largest CLIP (ViT-L/14@336px, 12 days on 256 V100s plus a 336-pixel epoch) against the 2015 ResNet-50; at matched architecture CLIP's zero-shot RN50 scores 59.6% ({{Table 11|ax:A1.F22}}). The paper says this; summaries often do not.</li>
+<li><b>Single runs throughout.</b> No seeds or intervals for the training runs; the authors note individual zero-shot evaluations are noisy and cannot separate run-to-run variance from real effects ({{Figure 9|ax:S3.F9}}).</li>
+<li><b>Small inconsistencies in the paper's own numbers</b>: Figure 5 disagrees with Tables 10 and 11 on KITTI (−34.0 against −45.2) and UCF101 (+7.7 against +5.7); Figure 13 and Table 16 differ on ImageNet-A (77.1, 77.2); §2.4 gives a 49,152 vocabulary and Table 18 49,408; Table 9 lists Food-101 with 102 classes; the 3.8-point ObjectNet drop only matches Table 16 after removing the 2.3 points from ObjectNet's own class names ({{tables tab|tab:t-tables:tbChk}}). None changes a conclusion.</li>
+<li><b>Not a compositional model.</b> Contrastive training on web data rewards bag-of-words shortcuts; CLIP-like models "blunder when linking objects to their attributes" and lack order sensitivity ({{Yuksekgonul et al., 2022|https://arxiv.org/abs/2210.01936}}). The toy shows a version of this: its bag-of-words text encoder beat its Transformer.</li>
+</ul>
+<p class="lead"><b>Verdict:</b> believe the method and the measurements; they have been re-run more than almost any vision result. Treat the efficiency ratio as a 2021, ResNet-50-scale finding, and the robustness story as a statement about diverse data rather than about language or zero-shot inference.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul class="lst">
+<li><b>Code and licence.</b> {{openai/CLIP|https://github.com/OpenAI/CLIP}} releases the model code and weights under the MIT licence; not the training code and not WIT, which OpenAI said it will not release ({{model card|https://github.com/openai/CLIP/blob/main/model-card.md}}). OpenAI's model card scopes the models to research and calls any deployed use "currently out of scope". For training, {{OpenCLIP|https://github.com/mlfoundations/open_clip}} is the open implementation, with models trained on LAION and DataComp data.</li>
+<li><b>Budget.</b> The paper's largest runs took 3,072 (ViT-L/14) and 10,656 (RN50x64) V100-days at a batch of 32,768 ({{§2.5|ax:S2.SS5}}); the contrastive loss wants a big batch because the batch supplies the negatives, the reason SigLIP introduced a per-pair loss that "performs better at smaller batch sizes" ({{SigLIP|https://arxiv.org/abs/2303.15343}}). Most users never train one: they download a checkpoint.</li>
+<li><b>When it pays off.</b> Zero-shot or few-shot classification and retrieval over everyday web concepts; a frozen feature extractor; a filter for image-text data; a vision tower for a language model.</li>
+<li><b>When it buys little.</b> Specialised imagery (satellite, medical, traffic signs), counting and spatial relations, fine-grained categories rare on the web, and text in handwriting: there a supervised model or fine-tuning wins (section 6). Expect results to move with how classes are worded, and test the class design, as the bias probes show ({{§7.1|ax:S7.SS1}}).</li>
+</ul>
+</section>
+</section>
