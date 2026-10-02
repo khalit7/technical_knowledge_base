@@ -17,7 +17,7 @@ A topic page compares things; a paper page explains one argument and its evidenc
    - "Why it matters" is labelled "beyond the paper": each later claim gets its own source.
 2. **The live ingredient**, one tab, named for what the reader does ("Run a Transformer", "Simulate the scheduler", "Refit the curve", "Replay the trace"). See the table below.
 3. **The paper's tables (and figures), rebuilt**: every table that carries the argument, transcribed into `tables.json` with the printed precision kept, made interactive (sort, delta from baseline, toggle metric), with every derived number recomputed in `recompute.py` and a "defaults reproduce X, independently or by construction" line, and a plain "does not reproduce" box where it does not (the Transformer's 65M parameters come out 63.1M).
-4. **Then and now** (optional): what later work changed and what survived, as a step-by-step morph with each step's paper and KB link. Worth it for papers whose design became a standard (architectures, training recipes, systems); skip it for a result paper.
+4. **Then and now** (optional): what later work changed and what survived, or what it improved or previous work, or both, as a step-by-step morph with each step's paper and KB link. Worth it for papers whose design became a standard (architectures, training recipes, systems); skip it for a result paper.
 5. **Further reading**, generated from `paper.json`: the paper, the code, the page's resources plus the best interactive explainers, each with a time estimate; connected KB paper pages and topics; the parent Papers database.
 
 Tabs may merge when the content is thin (a short paper can put its tables in Reading) or rename to match what the reader does; say why in `src/README.md`.
@@ -68,3 +68,13 @@ Short papers with nothing to run take about 2 hours. Budget the 300 KB limit ear
 5. **Keep the Reading tab nearer the old length.** It came out at 14 minutes against the old page's 9, because the paper page owns every detail of the paper; the training bullet list could fold into a details block if Khalid prefers shorter.
 6. **Test with DOM clicks.** A sticky nav silently swallowed puppeteer's coordinate clicks; `check_page.mjs` now clicks through the DOM.
 7. **Pick the attention head by measurement, not by eye.** The averaged cross-attention looked messy; the page now draws the head whose weights best match the rule alignment and says which and how well (on the default sentence, over 90%), so the choice is reproducible.
+
+## Running it for many papers
+
+Give each paper to one subagent with `html_utils/BRIEF_paper_agent.md` (title, Notion id, folder), about four at a time. Then, for each finished page:
+1. Re-run `checkpage.sh` and look at the screenshots.
+2. Publish it with the `sync-KB-github` steps (the row page has no children: `replace_content` with the embed and the source line).
+3. Set its `pages.json` status to `html_only`, then `sync_status.py --record` it.
+4. Merge its `src/viz_ideas.md` rows into the ideas log, then commit.
+
+Progress is in `pages.json`. A paper whose status is `not_migrated` but whose folder already has an `index.html` was built and not yet published. One with only a README has not started.
