@@ -1,0 +1,87 @@
+Source: https://github.com/sgl-project/sglang/releases/tag/v0.5.18 (published 2026-08-22T00:09:15Z, via api.github.com)
+Fetched: 2026-10-02
+
+# Highlights
+
+*710 PRs from 212 contributors.*
+
+**New models in this release** (see the [cookbook](https://docs.sglang.io/cookbook) for all supported models):
+
+| Model | Type | PRs | Cookbook |
+|---|---|---|---|
+| Muse Glimmer | Autoregressive (Multimodal) | [#34262](https://github.com/sgl-project/sglang/pull/34262) | [link](https://docs.sglang.io/cookbook/autoregressive/Meta/MuseGlimmer) |
+| Intern-S2-Mobius | Autoregressive | [#33691](https://github.com/sgl-project/sglang/pull/33691) | [link](https://docs.sglang.io/cookbook/autoregressive/InternLM/Intern-S2-Mobius) |
+| SANA-Video | Diffusion | [#32921](https://github.com/sgl-project/sglang/pull/32921) | [link](https://docs.sglang.io/cookbook/diffusion/SANA-Video/SANA-Video) |
+| LingBot-Video-MoE | Diffusion | [#32341](https://github.com/sgl-project/sglang/pull/32341) | [link](https://docs.sglang.io/cookbook/diffusion/LingBot-Video/LingBot-Video-MoE) |
+| LTX-2.5 | Diffusion | [#34471](https://github.com/sgl-project/sglang/pull/34471) | [link](https://docs.sglang.io/cookbook/diffusion/LTX/LTX2.5) |
+| Cosmos3 Edge & Distilled | Diffusion | [#31590](https://github.com/sgl-project/sglang/pull/31590) | [link](https://docs.sglang.io/cookbook/diffusion/Cosmos/Cosmos3) |
+| LongCat-Image | Diffusion | [#23274](https://github.com/sgl-project/sglang/pull/23274) | |
+
+Plus cookbook recipes for the [Qwen3.8 family](https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8), [Ling-3.0](https://docs.sglang.io/cookbook/autoregressive/InclusionAI/Ling-3.0-flash), [Nemotron 3.5 Lightning](https://docs.sglang.io/cookbook/autoregressive/NVIDIA/Nemotron3.5-Lightning), [Dots3-Note](https://docs.sglang.io/cookbook/autoregressive/RedNote/Dots3-Note), and DeepSeek-V4-Pro-0813 ([#34809](https://github.com/sgl-project/sglang/pull/34809)).
+
+**Overlapped checkpoint staging at startup**: Checkpoint pages now stage from storage while CUDA graphs capture. Qwen3-32B on H100 starts **8.6-11.7% faster** than serial with prefetch, and **2.38x faster (35.6s vs 84.8s)** than the plain default. Opt in with `--startup-weight-load-mode overlap` ([#32017](https://github.com/sgl-project/sglang/pull/32017)).
+
+**TP LMHead with All-to-All**: The TP LMHead's allgather + scatter becomes a single all-to-all for pure-DP dp-attention. On DeepSeek-V4-Pro B200 decode, LMHead time drops **320us to 169us** and TPOT improves 36.97ms to 35.67ms ([#32313](https://github.com/sgl-project/sglang/pull/32313)).
+
+**FlashInfer MNNVL for pure allreduce**: Non-fused allreduce sites now reuse the FlashInfer MNNVL workspace instead of falling back to NCCL. DeepSeek-V4-Flash TP4 decode on Blackwell gains **up to +6.9% at small batches**. Auto-enabled for DeepSeek-V3/V3.2/V4; elsewhere `--enable-flashinfer-pure-allreduce` ([#30700](https://github.com/sgl-project/sglang/pull/30700)).
+
+**NVFP4 checkpoints run on AMD**: `--quantization quark_mxfp4` dequantizes ModelOpt and Quark NVFP4 weights and requantizes to MXFP4 at load, never holding a full-precision copy. 97.5-100.2% GSM8K recovery vs the NVFP4 reference across MiniMax-M2.7, GLM-5.1, Kimi-K2.6, Qwen3.5-397B, and DeepSeek-R1 ([#29328](https://github.com/sgl-project/sglang/pull/29328)).
+
+**Kimi K3 tuned for MI355X**: a grouped-head MLA verify kernel replaces the MHA-shaped split-KV path that re-read the shared latent once per head, for **1.37-1.77x throughput and 1.45-2.42x ITL** at concurrency 2-32; the AITER MLA prefill kernel now accepts K3's 12-head shape (TTFT up to -14.9%); a gfx950-tuned decode stage-1 geometry adds **46-73% ITL** at 68k input, opt-in via `SGLANG_MLA_DECODE_TUNE=1`. GSM8K holds at 0.951-0.957 ([#33981](https://github.com/sgl-project/sglang/pull/33981), [#34261](https://github.com/sgl-project/sglang/pull/34261), [#34837](https://github.com/sgl-project/sglang/pull/34837), [#34580](https://github.com/sgl-project/sglang/pull/34580)).
+
+
+**One compiled-kernel cache directory**: Triton, FlashInfer, Inductor, DeepGEMM, and CUDA driver caches all move under `SGLANG_CACHE_DIR`. The first launch after upgrading recompiles once; see Breaking Changes ([#32434](https://github.com/sgl-project/sglang/pull/32434)).
+
+**Dependencies**: torch 2.13.0 with triton 3.7.1 ([#28836](https://github.com/sgl-project/sglang/pull/28836)), flashinfer 0.6.17 ([#33997](https://github.com/sgl-project/sglang/pull/33997)), CuTeDSL 4.6.2, fixing an FA4 startup regression on Blackwell ([#34372](https://github.com/sgl-project/sglang/pull/34372)), DeepEP now installed from released `sgl-deep-ep` wheels ([#33932](https://github.com/sgl-project/sglang/pull/33932)), and sgl-kernel 0.4.6.post1 ([#33842](https://github.com/sgl-project/sglang/pull/33842)).
+
+*Full release notes by category below; breaking changes and known issues are at the end.*
+
+## Rust Server
+
+* [mm] rust-server: native multimodal processing for Qwen VL (integrate sglang-mm, e2e): [#32365](https://github.com/sgl-project/sglang/pull/32365)
+* refactor error responses into shared utils::response helpers: [#33894](https://github.com/sgl-project/sglang/pull/33894)
+* move the PD bootstrap registry under api_server::disaggregation: [#33895](https://github.com/sgl-project/sglang/pull/33895)
+
+=== Release in the issue window: https://github.com/sgl-project/sglang/releases/tag/v0.5.20 (published 2026-09-18T22:41:33Z)
+# Highlights
+
+*713 PRs from 237 contributors.*
+
+**New models in this release** (see the [cookbook](https://docs.sglang.io/cookbook) for all supported models):
+
+| Model | Type | PRs | Cookbook |
+|---|---|---|---|
+| GLM-5.3-Flash | Autoregressive | [#36507](https://github.com/sgl-project/sglang/pull/36507), [#38621](https://github.com/sgl-project/sglang/pull/38621) | [link](https://docs.sglang.io/cookbook/autoregressive/GLM/GLM-5.3-Flash) |
+| Hy4-Preview | Autoregressive | [#36805](https://github.com/sgl-project/sglang/pull/36805) | [link](https://docs.sglang.io/cookbook/autoregressive/Tencent/Hy4-Preview) |
+| Qwen3.8-Flash-Next | Autoregressive | [#37500](https://github.com/sgl-project/sglang/pull/37500) | [link](https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-Flash-Next) |
+| K2 Horizon | Autoregressive | [#37654](https://github.com/sgl-project/sglang/pull/37654), [#38033](https://github.com/sgl-project/sglang/pull/38033) | [link](https://docs.sglang.io/cookbook/autoregressive/IFM/K2-Horizon) |
+| Nanbeige4.2 | Autoregressive | [#32151](https://github.com/sgl-project/sglang/pull/32151) | |
+| SenseNova-U1.5-8B-MoT | Diffusion | [#36606](https://github.com/sgl-project/sglang/pull/36606) | [link](https://docs.sglang.io/cookbook/diffusion/SenseNova/SenseNova-U1.5-8B-MoT) |
+| FastH3 (4-step MiniMax-H3 distill) | Diffusion | [#37480](https://github.com/sgl-project/sglang/pull/37480) | [link](https://docs.sglang.io/cookbook/diffusion/MiniMax/MiniMax-H3) |
+| VDN-H3 (hybrid-attention MiniMax-H3 distill) | Diffusion | [#37903](https://github.com/sgl-project/sglang/pull/37903) | [link](https://docs.sglang.io/cookbook/diffusion/MiniMax/MiniMax-H3) |
+
+**Sampling masks for RL rollouts.** With `return_sampling_mask`, each decode step returns the exact token support the sampler drew from and the log-probability of the sampled token under it, so a trainer can replay the rollout without reconstructing top-k or top-p ([#36630](https://github.com/sgl-project/sglang/pull/36630)). Masks now run under overlap scheduling: on Qwen3-8B, decode throughput is 17% higher at batch 1 and 52% higher at batch 64 than the previous implementation. Capacity is set by `--sampling-mask-max-tokens` (default 4096) ([#36631](https://github.com/sgl-project/sglang/pull/36631)). `DisallowedTokensLogitsProcessor` is supported alongside masks ([#38279](https://github.com/sgl-project/sglang/pull/38279)).
+
+**Unified radix tree.** Branching-point caching for the SWA component keeps the sliding-window state at the point where requests fork from a shared prefix, so branches reuse it instead of recomputing. On DeepSeek-V4-Flash with a shared system prompt, token hit rate rises from 43.8% to 60.8% and mean TTFT falls from 1.57 s to 1.07 s ([#34565](https://github.com/sgl-project/sglang/pull/34565)). An opt-in external linker lets the tree address a shared global memory pool through Mooncake or UMBP ([#37381](https://github.com/sgl-project/sglang/pull/37381)).
+
+**DSpark under PD with decode context parallelism.** A DCP1 prefill can now transfer its DSpark draft KV to a DCP-N decode, so hybrid models such as Kimi-Linear run DSpark in disaggregated, context-parallel serving. Verified on 8x B300 over NIXL and Mooncake up to 256K input ([#37709](https://github.com/sgl-project/sglang/pull/37709)).
+
+**Responses API storage is opt-in.** `/v1/responses` no longer retains results in memory unless the server starts with `--enable-response-store`. Without it, retrieval, `previous_response_id` chaining, and background requests return 400; PD deployments cannot enable it ([#39122](https://github.com/sgl-project/sglang/pull/39122)).
+
+**SGLang Simulator.** A CPU-only simulator runs the real scheduler, radix cache, and hierarchical cache with a latency predictor in place of the model forward. Against measured serving traces it predicts TTFT within about 6% on most traces (up to 10% on the longest 32K to 128K ones) and prefix reuse within 0.05 percentage points, for cache and scheduling studies without GPUs ([#33824](https://github.com/sgl-project/sglang/pull/33824)).
+
+**Prefill context parallelism v1 removed.** The strategy-based implementation is now the only prefill CP path; the v1 runtime and its CLI options are gone. Prefill CP on HIP, NPU, and MUSA is rejected until those platforms are ported ([#36228](https://github.com/sgl-project/sglang/pull/36228)).
+
+**Faster model loading on ROCm.** Large pageable host-to-device copies are staged rather than pinned in place, which stops the driver from suspending GPU queues on every eviction. GLM-5.2 at TP4 on 4x MI355X loads in 40.4 s instead of 505.7 s ([#37720](https://github.com/sgl-project/sglang/pull/37720)).
+
+**Intel XPU joins the release images.** Every tagged release now builds and publishes `lmsysorg/sglang:vX.Y.Z-xpu` from the XPU Dockerfile, so Intel GPU users get a versioned image instead of relying on nightly builds ([#37340](https://github.com/sgl-project/sglang/pull/37340)).
+
+**DeepSeek-V4 on Blackwell.** TRT-LLM attention kernels now cover DeepSeek-V4's CSA and HCA layers on SM100 and SM103: about 1.2x faster prefill and 1.45x faster decode than FlashMLA at the kernel level on B200 ([#30805](https://github.com/sgl-project/sglang/pull/30805)). FlashInfer MegaMoE is available as `--moe-runner-backend flashinfer_megamoe`; on DeepSeek-V4-Flash NVFP4 at TP4/DP4 it adds up to 11.9% prefill throughput at 8192 tokens per rank, with decode within 2% of the trtllm runner at saturation ([#31470](https://github.com/sgl-project/sglang/pull/31470)).
+
+**DeepSeek-V4 on RTX PRO 6000.** On SM120 the sparse-MLA indexer now runs on DeepGEMM's paged-MQA kernel and the DeepGEMM FP4 MoE backend is enabled, replacing the torch fallback that was the only working path. On 4x RTX PRO 6000, DeepSeek-V4-Flash decode TPOT drops from 36.1 to 10.5 ms at batch 1 and TTFT falls 20% from 8K to 128K input. Opt-in through the environment flags in the PR ([#29927](https://github.com/sgl-project/sglang/pull/29927)).
+
+**Dependencies and images.** The CUDA 12 lane is retired; v0.5.19 was the last release with `-cu12x` wheels and images ([#38404](https://github.com/sgl-project/sglang/pull/38404)). sglang-kernel moves to 0.4.7 ([#39346](https://github.com/sgl-project/sglang/pull/39346)) and sgl-deep-gemm to 0.2.0 ([#39371](https://github.com/sgl-project/sglang/pull/39371)). New images: ROCm 10 for MI30x and MI35x with a matching kernel wheel ([#38763](https://github.com/sgl-project/sglang/pull/38763)), gfx1151 for Strix Halo / Ryzen AI MAX+ ([#33939](https://github.com/sgl-project/sglang/pull/33939)), and Moore Threads MUSA ([#36709](https://github.com/sgl-project/sglang/pull/36709)). ROCm 7.0 CI, images, and kernel wheel are retired ([#38632](https://github.com/sgl-project/sglang/pull/38632), [#38767](https://github.com/sgl-project/sglang/pull/38767)).
+
+*Full release notes by category below; breaking changes are at the end.*
+
+Other dates: v0.5.19 2026-09-05T02:27:42Z (786 PRs from 214 contributors); v0.5.21 2026-10-02T01:09:04Z (779 PRs from 227 contributors)

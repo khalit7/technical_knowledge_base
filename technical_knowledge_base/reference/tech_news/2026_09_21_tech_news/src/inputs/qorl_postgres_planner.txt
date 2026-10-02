@@ -1,0 +1,209 @@
+Source: https://rohanbansal.com/qorl (Rohan Bansal, "Training a 4B model to produce 81% faster query plans than Postgres", 16 Sep 2026)
+Fetched: 2026-10-02
+Extract: selected lines (setup, data, calibration, SFT, RL, results, costs).
+
+ Training a 4B model to produce 81% faster query plans than Postgres - Rohan Bansal rohan bansal Skip to article Training a 4B model to produce 81% faster query plans than Postgres
+ ...or how to make Qwen learn query optimization via agentic reinforcement learning
+ September 16, 2026 
+ A reinforcement-learning policy update
+Four RL rollouts commence for a single query. Qwen produces a candidate strategy per rollout and sends it off to
+ Postgres for measurement against its own default plan. Scalar rewards are assigned to each rollout, which flow
+ backwards to update Qwen's weights.
+ Weights nudged toward the faster plans.
+ How good are query optimizers, really? 
+ Inside a query optimizer 
+ A combinatorial explosion 
+ Estimating, not counting 
+ How to steer an elephant 
+ Formulating our problem 
+ Useful research 
+ A model and its harness 
+ Benchmarks 
+ The Join Order Benchmark 
+ The Cardinality Estimation Benchmark 
+ Train time, test time 
+ Query topology mapping 
+ How to muffle an elephant 
+ To fool an agent 
+ Tuning Postgres 
+ Baselines and metrics 
+ Geometric mean speedup 
+ Total workload speedup 
+ A frontier intelligence control 
+ The vanilla 4B baseline 
+ Off-policy distillation via supervised fine-tuning 
+ Rendering, loss masking, and unrolling 
+ Low-rank adaptation (LoRA) 
+ Teacher model selection 
+ Making the 4B model good at query optimization 
+ Agentic reinforcement learning 
+ Designing per-rollout rewards and relative advantages 
+ Training commences 
+ What the model learned 
+ Costs 
+ Conclusion 
+ Next steps 
+ Acknowledgements 
+ Code 
+ Citation 
+ References 
+ How good are query optimizers, really?
+Leis et al. asked this exact question in 2015. Then, they asked it again 10 years later.
+Despite an enormous body of research spanning a decade since their original exploration, they found that query optimizers continue to leave much to be desired.
+I was surprised when I first learned about this. A Postgres database should know everything about the stuff that lives in its tables, no? How hard can it be?
+As it turns out: enormously hard. In fact, one particular task a query optimizer needs to do, join ordering, is known to be NP-hard.
+So query optimizers are hard. What’s not as hard is verifying whether a query plan an optimizer picks is good or not. Put simply, a good query optimizer produces plans that run fast, and a bad one produces slow plans. Language models are particularly good at learning how to do tasks with easily verifiable outputs. Because there’s a single axis to optimize for—execution time of a query—the problem beautifully reduces to reinforcing the behaviors that guide a model to produce faster query plans.
+What follows is a breakdown of an experiment I ran to explore the question: can a small, open-weights model be post-trained via supervised fine-tuning (SFT) and agentic reinforcement learning (RL) to produce Postgres query plans that beat Postgres’s default plans?
+The answer to our question is a resounding yes. Highlights include:
+Attaining a 44.7% latency reduction across 113 join-heavy queries from a 4B model initially unable to produce a query plan for 99 of them
+Constructing a Postgres measurement rig that minimizes Linux page cache contention noise across concurrent containers
+Designing a custom GRPO variant for scoring RL rollouts in an inherently noisy environment
+Splitting RL across two machines: vLLM and the trainer on a rented 2x H100 node and four Postgres containers running on my desk
+Running off-policy distillation across half a thousand GPT-6 Astra agent trajectories
+Let’s start from the beginning.
+Inside a query optimizer
+Around the time I started this project, the Qwen 3.8 family of models was released, unfortunately without a 4B variant. However, I came across a Qwen 3.8 4B distillation from a small lab in Germany called Empero and was intrigued. They used Qwen 3.8’s 2.4T model as a teacher model to distill learnings into Qwen 3.5 4B, producing empero-ai/Qwen3.8-4B-Distill. This distilled model is not outright better than its base 3.5 model; it performs better on MMLU tasks and slightly worse on GSM8K tasks. In other words, this distillation performs better when evaluated on breadth of general knowledge, and slightly worse on multi-step mathematical reasoning. As to which is better for our task, I do not know; I decided to stick with the distilled model either way.
+With the model locked in, I built a lightweight agent harness, qo-agent, that would orchestrate hint production. It was given the following six tools:
+The Cardinality Estimation Benchmark
+Another relevant benchmark is the Cardinality Estimation Benchmark (CEB), introduced in Flow-loss: Learning Cardinality Estimates That Matter. It uses the same IMDb database and is a much larger benchmark consisting of ~13.6k synthetically generated queries organized across 16 query templates CEB’s definition of a template is looser than JOB's. Two CEB templates can share the same join graph, differing only in their selectivity predicates. In JOB, every template's join graph is unique. .
+Train time, test time
+Due to its size, CEB was a good fit for training the model. JOB would be used to validate the model’s performance.
+You might be wondering if it makes sense to both train and test on IMDb. If it works well, hasn’t the model just learned this specific database well?
+I would argue this is precisely the point. We want our model to learn IMDb well. Given our problem formulation, if this agent is continually getting used for a company’s analytic workloads across its specific databases, we need not generalize to all databases.
+The real issue is making sure we’re not overfitting to JOB query templates during training over CEB. The model should learn IMDb in a way where given any query, even for structural query families it hasn’t seen before, it’s still capable of producing a good plan. In practice, this means we need to prune CEB queries that have the same shape as any of the JOB queries.
+Query topology mapping
+Let’s define a query’s “topology” as its structural join-graph (de-aliased table names as nodes and joins as edges). The join graph excludes all selectivity predicates; we’re only interested in joins here.
+CEB queries sharing a topology with a JOB query would be removed from the training set. I wrote a small script to convert all JOB and CEB queries to their topologies and checked if there was any overlap. There wasn’t, so no filtering was required.
+ JOB: 113 queries, 33 templates, 33 topologies
+ JOB 1 · 4 queries · 5 
+tables
+ 1 
+ JOB 2 · 4 queries · 5 
+tables
+ 2 
+ JOB 3 · 3 queries · 4 
+If we run the exact same query on Postgres 20 times in a row, it won’t take the same amount of time each run. In day-to-day work, this isn’t a big deal. But the whole thesis, and the training process itself, relies on measuring whether one way of running a query is faster than the Postgres default. This means we need to do everything in our power to de-noise Postgres.
+First, I needed to understand just how noisy Postgres query executions are.
+I started by building a “calibration” capability into my experimentation workflow. The calibration process was simple: run NNN Docker containers built from a Postgres image, each given a fixed slice of CPU cores and RAM to use. I set N=4N = 4N=4 to begin; anything lower might make future training far too slow, and anything higher might lead to more CPU contention, which means more noise. Each container was given 4 cores to use and capped at 8 GB of memory.
+On startup, each container initialized Postgres with identical settings and loaded the IMDb data. Calibration then opened a thread pool of size four and pushed all 113 queries onto a shared queue. Whenever a container finished measuring a query, it pulled the next one off the queue.
+The actual measurement process had two phases:
+I focused on two memory-related settings Postgres exposes:
+shared_buffers decides how much of the database Postgres can keep in its own cache
+work_mem decides how much memory a single sort/hash operation can get before spilling to disk
+I ran four calibrations:
+shared_buffers | work_mem | No-op error rate (run 1 / 2) | p90 query | Median CV | Total runtime | 
+128 MB | 4 MB | 5.0% / 5.4% | 13% / 20% | 2.3% | 95 s | 
+2 GB | 4 MB | 1.8% / 1.2% | 1.3% / 0% | 1.1% | 60 s | 
+128 MB | 32 MB | 7.0% / 6.6% | 20% / 23% | 2.6% | 94 s | 
+2 GB | 32 MB | 1.7% / 1.3% | 0% / 0% | 1.2% | 60 s | 
+Surprisingly, work_mem had no effect on noise at all, and shared_buffers carried all of the weight!
+With 2 GB of shared_buffers, the median query ended warmup with its SRB counter at exactly zero: its working set was fully resident in Postgres’s own cache. The no-op error rate dropped by roughly 4x, and the 90th percentile query went from being fooled 13%–20% of the time to almost never. Our two-clump query, job-13b, went from a CV of 10.3% to 0.9%, with all 20 runs landing within 7 ms of each other.
+One neat benefit emerged that I wasn’t initially chasing: the default plans themselves got faster. The summed runtime of all 113 JOB queries fell from 95 seconds to 60 seconds, just from cache residency. In other words, actually taking our measurements for both candidates and defaults would now be significantly faster, meaning the training process would take less time.
+I locked in 2 GB shared_buffers and 4 MB work_mem for the rest of the project.
+Our 4B model has 4.66 billion tunable parameters. If we wanted to update all of these parameters in a single pass during SFT, we would need a GPU with at least 64 GB of VRAM. I wanted to test my hypotheses first on my consumer-grade RTX 3090s, each of which carries 24 GB of VRAM, so I needed something more parameter-efficient here.
+Low-rank adapters, or LoRAs, are the canonical way to do this. At a high-level, they work by freezing the model’s weights as they are, instead letting you train a much smaller pair of matrices that when multiplied together, result in an adjustment to selected weights in your original model.
+4.66 billion weights come in at 9.32 GB in bf16. The tiny LoRA I actually ended up training was only 42.5 MB and contained only 21.2 million trainable parameters.
+Teacher model selection
+I decided to try out SFT on the Astra traces. If performance suffered, I could explore trace inversion; if that didn’t work, I could rent beefier GPUs for training, bump our global context limit, and use Qwen 3.8 2.4T traces instead.
+I began by generating 120 Astra trajectories over a random slice of queries from CEB, with reasoning summaries enabled. 100 trajectories would be used for training, and 20 would be used as a held-out validation set. All trajectories were rendered via Prime Intellect’s renderers library into Qwen format, loss-masked appropriately and unrolled and packed into usable training demonstrations. I then used Prime Intellect’s prime-rl library to run SFT, training the smaller ~21 million parameter LoRA. 100 Astra trajectories became 382 training rows after unrolling and packing. I allowed training to run for just a single epoch, meaning every example was trained on exactly once, and used a batch size of one (each demonstration updated the weights). Finally, I evaluated the resulting LoRA over JOB:
+Checkpoint | Valid candidate Queries whose trajectory produced at least one valid candidate plan | Tasks scored | Sgeo​ Geometric mean speedup | Sworkload​ Total workload speedup | Wins | Regressions | 
+Vanilla 4B | 14/113 | 15/113 | 0.85x | 0.85x | 3 | 1 | 
+1 epoch | 48/113 | 44/113 | 0.72x | 0.76x | 5 | 16 | 
+ The one-epoch adapter against the untrained model on all 113 JOB queries. A query counts as scored when its trajectory ended with a measured candidate, a duplicate of the default plan, or the default itself. Wins and regressions are scored queries more than 5% faster or slower than the default.
+Promising! The adapter learned the harness.
+I could now either generate more fresh trajectories, or do more epochs over the dataset we already had. Given the latter is cheaper, I decided on more epochs.
+It was around this point that I got impatient and wanted the training process to run even faster, so I rented a 2x H100 node on Lambda.
+Now training on an H100 Switching to the H100 meant we had 80 GB VRAM at our disposal instead of 24 GB. We could have bumped the context token limit greatly, but I decided to barrel through with the roughly ~50k token limit we set. instead of a single RTX 3090, I did two more training runs Training runs were a lot faster on the H100. The first epoch took four hours on the RTX 3090; the second took only 45 minutes on the H100. over the existing LoRA; a second epoch and then a third:
+Checkpoint | Valid candidate Queries whose trajectory produced at least one valid candidate plan | Tasks scored | Sgeo​ Geometric mean speedup | Sworkload​ Total workload speedup | Wins | Regressions | 
+1 epoch | 48/113 | 44/113 | 0.72x | 0.76x | 5 | 16 | 
+2 epochs | 85/113 | 108/113 | 1.08x | 1.04x | 12 | 8 | 
+3 epochs | 57/113 | 99/113 | 0.82x | 0.89x | 9 | 15 | 
+ Two and three epochs over the same 100 Astra trajectories, evaluated on JOB. Before epochs two and three, the qo-agent harness was upgraded to allow the model to keep the default plan after a search, which is why many more queries are scored. The two- and three-epoch rows were evaluated under identical settings.
+Two epochs improved our results, but three epochs regressed them! This was especially interesting because validation loss didn’t budge at all during the second epoch:
+ Validation loss on the 20 held-out trajectories
+ 0.30 0.35 0.40 0.45 0.50 
+ 0.485 0.305 0.306 0.322 
+ 0 382 764 1,146 
+ epoch 1 epoch 2 epoch 3 
+ Optimizer updates, one per packed training row
+ Loss on the 20 held-out Astra trajectories, measured at the start and end of each epoch over the first 100-trajectory dataset. 
+A very good lesson that a flat validation loss doesn’t necessarily mean the model has stopped learning useful behavior.
+I still felt we had more to learn from SFT though before proceeding with RL. I did zero filtering on the training trajectory dataset, and hadn’t carefully audited if I was missing any capabilities. It turns out I was, mostly around the model’s ability to construct valid Leading trees.
+I generated another 320 Astra trajectories; 300 for training, and 20 for validation. I filtered out just six training trajectories where Astra opted to keep the default plan without even trying a single candidate. I did two more epochs in two separate runs:
+Checkpoint | Valid candidate Queries whose trajectory produced at least one valid candidate plan | Tasks scored | Sgeo​ Geometric mean speedup | Sworkload​ Total workload speedup | Wins | Regressions | 
+2 epochs on the first 100 | 85/113 | 108/113 | 1.08x | 1.04x | 12 | 8 | 
++ 1 epoch on the new 300 | 77/113 | 101/113 | 1.10x | 1.05x | 29 | 13 | 
++ 2 epochs on the new 300 | 71/113 | 107/113 | 1.16x | 1.06x | 20 | 5 | 
+ Continuing the two-epoch adapter on the 300 new trajectories, evaluated on JOB.
+Our 4B model not only learned the harness; it was now genuinely making good calls on various JOB queries! Fortunately, training on reasoning summaries didn’t harm performance.
+Making the 4B model good at query optimization
+The model now spoke the “language” of the qo-agent harness, and we got some free performance gains out of SFT too. It was time to make it very good at query optimization.
+The reward was updated as follows:
+ The quality of rollout i. Not to be confused with the previous reward algorithm's reward for a rollout i. This quality value is a component of the final advantage, calculated as part of the modified GRPO stepqi​=⎩⎨⎧​Anything within 5% of the default execution time counts as zero, and real gains/losses are shrunk by 0.05soft0.05​(lnThe speedup is clipped to [0.1x, 10x] before the log, so one extreme plan cannot dominate a groupclip(si​,0.1,10))soft0.05​(lnclip(If a candidate plan times out, rollout i is scored as if it took exactly the duration of the timeout amount. Because this is generous, we tack on an additional 0.1 fees^i​,0.1,10))−0.1If the rollout kept or finished with the default, the quality is exactly zero0Trajectories ending without valid candidates have no quality valuenone​measuredtimed outdefaultno valid candidate​
+Changes include clipping the speedup ratio to bound scalar reward values, soft-thresholding by 0.05 to account for measurement noise, and scoring zero if the agent called keep_default or finish(default). Trajectories ending without a valid candidate incurred a flat 0.1 fee instead of the previous 3.0, and candidate plans that fingerprinted to the default plan accrued small 0.02 fees.
+prime-rl-flavored GRPO was swapped out for a custom “anchored” variant:
+ The baseline score for rollout i (i.e. the number its quality is measured against). It's the max of zero and the rollout's siblings' mean quality, which ensures the rollout doesn't get credited for simply being the least badbi​The advantage: a positive value makes the sampled tokens more likely; negative less likelyAi​​=max​0,The mean quality of all rollouts in the group, excluding rollout i's quality itself, and any rollouts that did not get a quality score.∣V−i​∣1​j∈V−i​∑​qj​​={qi​−bi​−A small fee charged when rollout i selected a candidate that duplicated Postgres's own without explicitly calling keep_default0.02[dup]A fixed penalty for ending without a valid candidate−0.1​validinvalid​​
+Let’s take a look how our modified GRPO performs under the same four rollouts demonstrated above:
+ Hint What happened Quality Reference Advantage 
+ /*+ Leading((t cn) mc) */ not run t and cn never join directly, so the tree is rejected none — −0.10 
+ /*+ MergeJoin(t cn) */ not run a join method for two relations the query never joins none — −0.10 
+ /*+ NestLoop(t mc) */ 148 ms vs 118 ms · 0.80x a new plan, slower than Postgres’s own −0.18 +0.00 −0.18 
+ /*+ HashJoin(mc cn) */ 118 ms · 1.00x Postgres already chose this; same fingerprint as the default +0.00 +0.00 −0.02 
+ The same four rollouts under the reworked reward and anchored GRPO. Nothing is reinforced because none of the plans were good. 
+The modified GRPO successfully applies a negative advantage to all four of these poor rollouts, down-weighting their likelihood across the board.
+Training commences
+All measurements were run on the held Postgres container
+Finally, rollout results were sent to the second H100 to compute relative advantages and update weights
+Now training could start. I began by merging the final SFT adapter into the base model, creating a new base model in the process, and initialized a new adapter for RL training.
+I started with an extremely conservative learning rate of 1e-06, a batch size of 8, four rollouts per query, and did just 120 optimizer updates to prove out the mechanism.
+The trained LoRA was evaluated against JOB, and completely flopped:
+Checkpoint | Valid candidate Queries whose trajectory produced at least one valid candidate plan | Tasks scored | Sgeo​ Geometric mean speedup | Sworkload​ Total workload speedup | Wins | Regressions | 
+SFT, starting point | 71/113 | 107/113 | 1.16x | 1.06x | 20 | 5 | 
+RL, 120 updates | 71/113 | 106/113 | 1.14x | 0.99x | 21 | 7 | 
+ The first RL checkpoint against the SFT checkpoint it started from, evaluated on all 113 JOB queries.
+Either the reward design wasn’t good, modified GRPO wasn’t working, or we simply weren’t being aggressive enough.
+The latter was easiest to test. I increased the learning rate one order-of-magnitude from 1e-06 to 1e-05, bumped the batch size to 16 and the number of rollouts per query from four to eight, and decided to do 600 optimizer updates instead of just 120.
+Around this time, I learned that for a rollout, 92% of the rollout’s time was spent in vLLM inference! Given the increase in the number of optimizer updates, I needed to be smarter about this.
+I refactored the training process so that rollouts leased an available Postgres worker only for the times where measurements were needed. Because of this new async approach, I could saturate vLLM and the trainer much further, and was able to run 20 rollouts concurrently, each contending for the same four Postgres workers.
+ 4 Postgres workers on FLOPper, 240 seconds of wall time t = 0 s 
+ 0 200 400 600 800 1,000 1,200 
+ Optimizer updates
+ Measured plan faster than Postgres Positive advantage 
+ The training signal across both 600-update runs from the anchored credit assigned to every rollout that reached the
+trainer. Both the share of rollouts with plans beating Postgres and the share of rollouts with positive advantages
+steadily climb throughout the run.
+And the results from both checkpoints against JOB:
+Checkpoint | Valid candidate Queries whose trajectory produced at least one valid candidate plan | Tasks scored | Sgeo​ Geometric mean speedup | Sworkload​ Total workload speedup | Wins | Regressions | 
+SFT, starting point | 71/113 | 107/113 | 1.16x | 1.06x | 20 | 5 | 
+RL, 600 updates | 99/113 | 113/113 | 1.35x | 1.16x | 34 | 0 | 
+RL, 1,200 updates | 101/113 | 112/113 | 1.41x | 1.29x | 38 | 2 | 
+ Both 600-update checkpoints against the SFT checkpoint they descend from, evaluated on all 113 JOB queries.
+The valid candidate rate rose nicely, alongside both the geometric mean speedup and total workload speedup!
+I ran the final RL checkpoint against JOB again, this time doing three rollouts per query instead of just one. In other words, each query could produce up to 15 candidates max, and the best-of-15 was picked for each query This is roughly how I would expect someone trying to tune a workload of queries to use a model specially trained on this task. They would care more about the best candidate possible sampled from many rollouts, rather than just a single rollout. :
+Selection | Tasks scored | Sgeo​ Geometric mean speedup | Sworkload​ Total workload speedup | Wins | Regressions | 
+Model’s own choice, per trajectory | 339/339 | 1.40x | 1.24x | 119 | 7 | 
+Best feedback within each trajectory | 339/339 | 1.44x | 1.29x | 129 | 1 | 
+Best feedback across all three | 113/113 | 1.81x | 1.81x | 68 | 0 | 
+ The final 1,200-update RL checkpoint with three trajectories per JOB query. The first row averages the model’s own final selections over all 339 trajectories. The second applies a fixed rule within each trajectory, choosing the candidate with the best preliminary feedback if it beat 1.05x and the default otherwise. The third applies the same rule across a query’s three trajectories, so each query gets one answer chosen from up to 15 candidates.
+When taking the best feedback across three rollouts, we saw a 1.81x geometric mean speedup, and coincidentally a 1.81x total workload speedup too.
+What the model learned
+After all this training, what did the model actually learn?
+ How searches went 
+ The investigator 295 of 337 searches that submitted candidates first inspected a relation, column statistics, or the default plan 
+ The big spender 235 of 339 searches used all five candidate attempts 
+ The reasoner On job-01d (90x speedup), its reasoning read: "...the mi-index sequential scan, which is running a lossy filter at 575k with an 11ms timing. It looks like using a bitmap could be much faster." The model then actually forced a bitmap scan 
+ The model's preferred strategies 
+ Consistent favorites Of 1,347 actions, the model outputted scan hints 1,141 times, Leading trees 917 times and Parallel hints 572 times. Surprisingly, Rows corrections were used only 146 times 
+ Strong preferences Nested loops were forced over hash joins regularly, and index scans were preferred over bitmap or sequential scans 
+ Favorite settings The model regularly used enable_sort=off and random_page_cost=1.1 
+ What actually wins 
+ Three motifs win The model's usage of Leading to rewrite the join order, making a single scan fix without changing the join order, and using Parallel resulted in much of the gains 
+ An analysis of the traces from the final evaluation's 339 searches. 
+Costs
+This project would have been free Barring the price of electricity for continually running FLOPper when both GPUs were fully utilized, which at current rates costs about ~$9/day. had it not been for my impatience to get training results faster “What about the Astra traces?,” you might ask. I did not experiment with it, but I do think the 4B model could have eventually learned the harness language through just RL alone, as DeepSeek-R1-Zero showed. It might have just taken a lot more rollouts. . I paid ~$800 to rent a 2x H100 SXM node from Lambda for ~95 hours, and ~$400 in OpenAI API fees to generate the Astra trajectory demonstrations.
+Total cost: $1,200.
+Conclusion
+Via off-policy distillation and reinforcement learning, a tiny 4B model went from not being able to understand the harness it was wrapped in, to achieving a 1.81x geometric mean speedup and a summed latency decrease of 44.7% across a workload of join-heavy SQL queries Given three attempts per query in a best-of-15 measurement, as previously mentioned. .
+It’s easy to take tiny models for granted when 5T+ parameter behemoths exist. We shouldn’t.
+Frontier intelligence is extremely powerful; the distillation I did off Astra trajectories is proof enough that large models are not going anywhere.
+But I do believe this experiment proves out a hypothesis many companies are waking up to: they have the data; it’s not a far-cry to build out an RL environment and spend a small sum to train and inference open-weights models on niche, domain-specific tasks. I think small models will be increasingly used for this, as they are faster and cheaper to train.

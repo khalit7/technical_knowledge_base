@@ -1,0 +1,180 @@
+Source: https://nousresearch.com/refactoring-hermes-with-1393-agents (Nous Research, Teknium, September 2026)
+Fetched: 2026-10-02
+
+Refactoring Hermes with 1,393 agents
+Listen
+September 2026
+Share
+Contents
+Self-improvement (for real)
+Running the refactor
+Was the code easier to work with?
+Lessons learned
+Contents / 
+Self-improvement (for real)
+Self-improvement (for real)
+Running the refactor
+Was the code easier to work with?
+Lessons learned
+Or: How to get $1.8M of value from $19K of tokens
+TLDR: Hermes Agent autonomously plowed through about a million lines of unglamorous
+            cleanup, freeing up Teknium and team to continue pushing features to users.
+We had long been putting off a thorough cleanup of Hermes, our open-source agent, because
+            it meant taking engineers away from features and bug fixes. By September, the repository had
+            more than a million lines of non-test Python. 
+gateway/run.py
+ alone was 34,847
+            lines long. I wanted smaller files, shared helpers, and fewer enormous functions to work
+            through when something broke.
+On September 2nd, I asked my regular Hermes agent to do the cleanup. The main run lasted
+            about nineteen active hours and dispatched 1,393 subagents, reaching 218 running at once.
+            After a restart, a continuation session, and two rounds of community review and fixes, I
+            merged 
+the
+            PR
+ on September 4th. It reduced non-test Python source by 34.4%.
+The estimated model cost was about $19,300 for the main run, or roughly $25k including
+            follow-up sessions. That excludes human review time. Our rough staffing estimate for doing
+            the work manually was $150k-$1.8M for a small team working for two months to two years. We
+            couldn't justify scheduling it alongside everything else we needed to ship.
+I use Hermes Agent everyday to develop Hermes Agent. As we fix bugs and review changes
+            together, Hermes records what worked and updates its skills when I correct its approach or it
+            finds the right pathway to solve new problems. By the time I asked for this refactor, it had
+            learned my preferred procedures and standards and could apply them to a much larger job:
+I want a massive simplification set of PRs. or a single monolithic PR. I want LOC
+                to drop dramatically. Minimum 30% overall. I want god files broken up. I want
+                simplification across the board. I want unification of helpers and methods that can be
+                reused. I want less if-if-if-if-if-if-else routing. I want code legibility up. I want
+                interpretability of the codebase and how things connect to each other up. I want
+                elegance. I want superfluous excess bloat code cleaned up and removed. I want it all done
+                fully. No excuses. No waiting for my decisions. Get it all done, and present me a PR or
+                set of PRs when done.
+I used 
+/goal
+, which gives Hermes a standing objective and prompts it to
+            continue when it would otherwise stop.
+Self-improvement (for real)
+My 
+hermes-agent-dev
+ skill grew out of my everyday work on the repository.
+            When we worked out a procedure or I corrected a mistake, Hermes (automatically) noticed this
+            and saved the reusable lesson. Over time, it accumulated instructions about how to prepare a
+            PR, which shortcuts to avoid, and how to verify a change.
+Skills
+            are readable Markdown documents, with reference files and scripts where needed, that the
+            agent can load for later tasks. Hermes writes and revises them as it works.
+The current version of 
+hermes-agent-dev
+ includes this instruction for a
+            failing check:
+repro on 
+origin/main
+ HEAD in clean env to check whether it's
+                pre-existing
+In other words, run the failing test on unchanged code to help determine whether your
+            change caused it. Hermes used the same kind of comparison during the refactor: it established
+            a frozen baseline and checked failures against it as it integrated the workers' changes.
+I send that skill around to all our engineers. They can install it in their own Hermes
+            setups, so their agents can use procedures and corrections developed in my sessions. They get
+            the benefit of that work without having to repeat the sessions themselves, and their agents
+            can adapt the skill as they use it.
+Running the refactor
+The orchestrator measured the codebase and divided it into 36 non-overlapping groups. It
+            used my objective and the accumulated guidance to prepare written assignments, without my
+            having to brief each worker.
+Workers used git worktrees, separate checkouts where they could make changes without
+            overwriting one another's files. Their briefs identified the code to simplify, the interfaces
+            to preserve, and the checks required before committing.
+Some workers delegated parts of their assignments again. The tree reached three levels
+            below the original agent, which handled coordination rather than editing source files: it
+            wrote assignments and scripts, read worker reports, integrated branches, and ran checks.
+Hermes coordinated the agents in one Python process on an i7 desktop with 64 GB of RAM.
+            Their tools ran in local subprocesses, while Claude Fable 5.1 handled inference remotely.
+The agent checked specific interfaces against the original code. A tool's JSON schema had
+            to remain identical, for example, and a CLI command's 
+--help
+ output could be
+            compared byte for byte. Workers also had to commit after each verified step.
+About fifty minutes in, the provider's authentication token expired and the resulting
+            failures killed the run. The workers' commits and briefs survived. I used a separate Hermes
+            session to diagnose the failure and prepare a handoff, then supplied it to the resumed
+            session. Hermes sent workers back to inspect their saved changes, repair unfinished
+            extractions, and continue.
+For 
+gateway/run.py
+, our biggest file, workers separated message dispatch,
+            streaming, RPC, and lifecycle handling into modules. Elsewhere, they consolidated duplicate
+            helpers and replaced long name-based 
+if/elif
+ chains with dispatch tables.
+Reviewers caught public names that workers had removed because they had no callers inside
+            the repository, even though external plugins could import them. An automated rewrite of
+suppress()
+ calls also changed exception handling at roughly 65 sites. These were
+            real regressions the existing tests had missed. We fixed them before merge, over two rounds
+            of community review.
+Further
+            fixes followed after merge
+.
+Was the code easier to work with?
+The PR's before-and-after measurements showed how much the code had changed:
+Metric
+Before
+After
+Non-test Python lines (all directories)
+1,063,826
+698,363
+Files over 5,000 lines
+37
+6
+Functions over 300 lines
+192
+2
+Longest 
+if/elif
+ chain
+92 branches
+9
+gateway/run.py
+34,847 lines
+5,512
+Does code that's easier for humans to navigate also work better for agents? Splitting a
+            function makes its definition shorter, but may require the agent to follow calls into other
+            files. We tested one part of that question by simulating lookups of the same 4,000 symbols in
+            both versions. Each lookup searched for the definition, read a 60-line window, and continued
+            in 2,000-line windows only if the definition extended beyond it.
+The average tokens returned per lookup fell from 2,218 to 993. Lookups requiring another
+            read window fell from 628 to 184. Several functions that previously required reading tens of
+            thousands of tokens could now be read in a few thousand.
+These are lookup costs; we didn't measure agents completing engineering tasks. The median
+            lookup actually returned more tokens: with fewer comments and docstrings, a fixed window of
+            lines contained denser code. The average fell because the very large definitions got much
+            smaller.
+There were other costs. Splitting files increased the module count and import
+            dependencies, and some entry points took longer to import. The refactor made individual
+            pieces easier to read without resolving all the coupling between them. Six files still
+            exceeded 5,000 lines.
+The 
+benchmark
+            data
+ includes the lookup results and the dependency and runtime measurements.
+Lessons learned
+Running hundreds of workers exposed opportunities for improvement in Hermes itself. For
+            example, workers in separate worktrees had started roughly thirty copies of Pyright, a Python
+            language server, consuming about 8.7 GB. A follow-up change let the worktrees share one
+            server, with a live check that diagnostics still arrived from each. We also reduced
+            duplicated HTTP transports and fixed references that kept finished agents in memory.
+We changed the instructions and checks future workers would receive. The repository now
+            has guidance on file size, function complexity, and where new behavior belongs, split by area
+            so workers get the relevant rules when they need them. We also added a check that flags
+            removed public names and tests for review.
+My Hermes skills were automatically updated with lessons from this refactor, which I can
+            share with the team. All for 1% of the cost and 1% of the time we’d estimated it would
+            take if we attempted it manually.
+This was a great example of how Hermes is a superpower for teams: work through a problem
+            with Hermes, let it record what you learned, and make that experience available to the next
+            task and the next engineer. The next time we tackle a refactor, my Hermes and the engineers
+            using the updated skill can start with the lessons from this one.
+TE
+About the author
+Teknium

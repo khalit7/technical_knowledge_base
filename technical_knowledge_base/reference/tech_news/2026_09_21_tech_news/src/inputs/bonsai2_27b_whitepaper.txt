@@ -1,0 +1,322 @@
+Source: https://github.com/PrismML-Eng/Bonsai-demo/blob/main/bonsai-2-27b-whitepaper.pdf (text extracted with pdftotext; PDF not kept)
+Fetched: 2026-10-02
+
+Ternary Bonsai 2 27B
+             A 27B ternary reasoning model.
+
+
+
+
+  ∼9.1×             98.2%                 46.8 tok/s
+   smaller       intelligence retained          on laptop
+
+
+
+
+                 PrismML   ·   September 2026
+                                                                                     Ternary Bonsai 2 27B
+
+
+
+Contents
+1 Executive Summary                                                                                        2
+
+2 Ternary Bonsai 2 27B Model Summary                                                                      3
+  2.1 Ternary Weight Format . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .       3
+  2.2 Select full-precision tensors . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .     3
+  2.3 Storage Footprint . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .   4
+  2.4 Rotated Weight Basis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .    5
+
+3 Inference: Low-Bit Kernels for Hybrid-Attention Models                                                   5
+
+4 Benchmarks                                                                                               6
+
+5 Limitations and Roadmap                                                                                 8
+
+A Deployment and Kernel Reference                                                                         9
+  A.1 Backend Implementation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .        9
+  A.2 Executing the Rotated Basis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .       9
+
+B Benchmark Evaluation Methodology                                                                         9
+
+C All Benchmark Results                                                                                   11
+
+D Throughput and Energy Measurement Notes                                                                 12
+
+
+1. Executive Summary
+Bonsai 2 27B uses the same hybrid-attention architecture as Qwen3.8-27B [3]. Its matrix
+weights are ternary in a fixed rotated basis, taking values in {−1, 0, +1} with FP16 group scales.
+This gives an effective footprint of 1.76 bits per weight as shipped, or 5.93 GB, compared with
+53.8 GB in FP16.
+Conventional low-bit quantization methods fail qualitatively and unevenly. Long context rea-
+soning and coding deteriorate first, while surface fluency and short tool calls retain high per-
+formance. As such, the failure is easy to miss in casual testing and expensive to discover in
+production.
+Ternary Bonsai 2 27B averages 83.9 on the 20-benchmark suite of Section 4, retaining 98.2% of
+the Qwen3.8-27B FP16 baseline’s 85.4 and slightly exceeding the 83.6 average of Qwen3.6-
+27B, at roughly a ninth of their size. The suite spans reasoning, math, coding, instruction fol-
+lowing, tool calling and vision.
+This release also delivers on the roadmap set out in our initial Bonsai 27B release [2], where we
+identified long-horizon, tool-driven software engineering as a major next step. On Terminal-
+Bench 2.1, Ternary Bonsai 2 27B demonstrates strong capability at this footprint despite ag-
+gressive compression. See Section 4 for details.
+
+
+
+
+                                                     2
+                                                                                 Ternary Bonsai 2 27B
+
+
+
+2. Ternary Bonsai 2 27B Model Summary
+Ternary Bonsai 2 27B can be summarized by the following table. To be explicit about scope,
+Bonsai applies its ternary representation end-to-end across almost all of the language model’s
+parameters. The vision tower is packaged separately. The GGUF release uses a 4-bit represen-
+tation, while the MLX package retains it in full precision. Within the language model, 0.0976%
+of parameters are held above the low-bit representation, and that is counted in the advertised
+1.76 bits per weight budget.
+
+                                   Table 1. System specification.
+
+ Item
+                      Specification
+ Architecture model   Based on Qwen3.8-27B [3], a 27B hybrid-attention causal language model
+ Parameters           24.35B language (64 blocks) + 0.47B vision tower (27 blocks) + 2.54B
+                      embedding/lm-head = 27.36B total
+ Architecture         Hybrid attention (∼75% linear attention / ∼25% full attention), SwiGLU MLP,
+                      RoPE, RMSNorm
+ Context length       262K tokens (full-context capable, enabled by the predominantly linear-
+                      attention backbone)
+ Weight format        Ternary g128 (FP16 group-wise scaling)
+ Reasoning Efforts    xhigh or medium (Low does not reduce thinking)
+ Weight basis         Blockwise Hadamard rotation (block 1024, fixed ±1 signs)
+ Low-bit weights      Embeddings, attention and linear-attention projections, MLP projections, LM
+                      head
+ Backends             MLX (Python, Swift) and CUDA
+ License              Apache License
+
+
+
+2.1 Ternary Weight Format
+Each weight takes a value from {−1, 0, +1}, with one shared FP16 scale for every group of 128
+weights. The ternary weight in the rotated basis is
+
+                                 wi = sg · ti ,       ti ∈ {−1, 0, +1},
+
+where sg is the scale for group g. A ternary value carries log2 3 ≈ 1.585 bits of information, so
+with one FP16 scale per 128 weights the effective storage cost is
+                                                  16
+                              beff ≈ log2 3 +         ≈ 1.71 bits/weight,
+                                                  128
+That rate covers the ternary tensors only. Including the high-precision tensors of Section 2.2,
+the figure tabulated over all language-model parameters in Table 3 is 1.72 bits per weight, a
+reduction of ≈9.3× relative to FP16.
+
+2.2 Select full-precision tensors
+Ternary Bonsai 2 27B holds a small set of tensors above the low-bit representation, while the
+previous release ternarized these alongside everything else. They are neither rotated nor quan-
+tized, and are listed in the table below. The additional cost of this choice is 26.2 M parameters,
+which constitutes only 0.0976% of the language model, or 52 MB at bf16. It moves the ternary
+model from 1.71 to 1.72 bits per weight.
+
+
+                                                     3
+                                                                                               Ternary Bonsai 2 27B
+
+
+
+                                 Table 2. Tensors kept in full precision.
+
+       Tensor group                                 Shape            Layers           Params          Share
+      Recurrent state path (linear-attention layers)
+       in_proj_a.weight                             5120 × 48          48      11,796,480        0.0439%
+       in_proj_b.weight                             5120 × 48          48      11,796,480        0.0439%
+       conv1d.weight                                10240 × 4          48        1,966,080       0.0073%
+       A_log, dt_bias, norm.weight                  48, 48, 128        48             10,752    0.00004%
+      Normalization
+       input_/post_attention_layernorm, final       5120             64, 1          660,480      0.0025%
+       q_norm, k_norm                               256                16              8,192    0.00003%
+       Total high precision                                                    26,238,464        0.0976%
+
+
+2.3 Storage Footprint
+While the weights of Bonsai 2 27B can be represented using 1.72 bits per weight in princi-
+ple, practical deployment requires packing formats that support efficient inference kernels. We
+implement two such formats, PTQ1_0 and PQ2_0. PTQ1_0 has smaller footprint, while PQ2_0
+uses a simpler 2-bit representation that is cheaper to unpack. Neither format is uniformly faster.
+Section 3 compares their throughput.
+
+                Table 3. Storage footprint of the language model. Sizes are decimal GB.
+
+                           Format                 bpw         Size          Reduction
+                           FP16 (baseline)       16.0       53.80 GB          1.0×
+                           True Ternary          1.72       5.80 GB           ∼9.3×
+                              PTQ1_0             1.76       5.93 GB           ∼9.1×
+                              PQ2_0              2.16       7.25 GB           ∼7.4×
+
+
+Vision tower. The figures above refer to the language model alone, which is the only compo-
+nent required for text-only inference. The vision tower is an optional component used only for
+multimodal inputs.
+
+                Table 4. Shipped components of the GGUF releases. Sizes are on disk.
+
+        Component         Pack                                        Size    Use
+        Language model    ternary g128 (PTQ1_0)                   5.93 GB     text and multimodal inference
+        Language model    ternary g128 (PQ2_0)                    7.25 GB text and multimodal inference
+        Vision tower      mmproj HQQ 4-bit (Q8_0 container)       0.63 GB     multimodal input only
+        Vision tower      mmproj BF16 (reference)                 0.93 GB     multimodal input only
+
+
+
+MLX packaging. The MLX release uses a 2-bit, group-size-128 packing analogous to PQ2_0,
+but its block format stores both an FP16 scale and an FP16 bias per group. Bonsai’s ternary
+weights require only a scale: the bias is redundant and could be omitted. As a result, the MLX
+block costs 36 rather than 34 bytes per 128 weights, increasing the packed rate from 2.125 to
+2.250 bits per weight. Together with the full-precision vision tower and the small high-precision
+state path, this gives the published 8.49 GB package.
+
+
+                                                        4
+                                                                                  Ternary Bonsai 2 27B
+
+
+
+2.4 Rotated Weight Basis
+Ternary Bonsai 2 27B uses its weights with a fixed rotation. Ternary matrix weights W are stored
+in memory and then transformed blockwise by
+                                           1
+                                      R = √ Hn S,        n = 1024,
+                                            n
+
+where Hn is a Walsh–Hadamard matrix and S a fixed diagonal of ±1 signs [28]. Mathematically,
+inference at each layer is performed as follows, where x is the output of the previous layer:
+
+                                                     (︁ )︁
+                                            f (x) = W Rx
+
+
+3. Inference: Low-Bit Kernels for Hybrid-Attention Models
+A compact weight representation is useful only if the runtime can execute it directly. Existing
+low-bit inference paths primarily target standard full-attention transformers and do not cover
+the hybrid-attention structure of Qwen3.8-27B, which interleaves linear- and full-attention
+layers. Ternary Bonsai 2 27B therefore uses custom kernels for this hybrid backbone on Apple
+Silicon and CUDA. The kernels operate directly on the packed ternary weights, avoiding mate-
+rialization of dense FP16 weights. This is essential to realizing the representation’s memory-
+bandwidth advantage during inference. Implementation details for both backends are given in
+Appendix A.
+The rotated representation requires an activation-side Walsh–Hadamard transform at runtime.
+Its implementation, optimization, and backend-specific overhead are described in Appendix A.
+
+Cross-Platform Throughput We report throughput with the standardized tg128/pp512 mea-
+surements defined in Appendix D: tg128 is token-generation throughput over 128 generated
+tokens and pp512 is prompt-processing throughput over 512 input tokens, both in tokens per
+second. On the edge platforms, such as a laptop with 16GB of RAM, the full-precision base-
+line (54 GB) and even Q4_K_XL [8] (17.6 GB) do not fit. In contrast, both packings PTQ1_0 and
+PQ2_0 of Bonsai 2 27B defined in Section 2.3 fit and Table 5 reports throughputs for them.
+
+  Table 5. Cross-platform throughput and energy for the two Ternary Bonsai 2 27B packing formats.
+
+             Hardware                             PQ2_0                    PTQ1_0
+                                       TG128     PP512 mWh/tok   TG128     PP512 mWh/tok
+                                       (tok/s)   (tok/s)         (tok/s)   (tok/s)
+             RTX 5090 (32 GB)          142.5     4121   0.582    134.4     1901   0.609
+             RTX PRO 6000 Blackwell    140.6     4520   0.637    136.8     2290   0.642
+             H200 SXM (141 GB)         118.0     2818   0.708     89.5     1216   0.814
+             B200 (180 GB)             117.1     3112   0.830     91.9     1406   1.019
+             H100 NVL (94 GB)          106.4     2484   0.541     81.6     1098   0.647
+             H100 SXM (80 GB)          103.2     2467   0.584     77.3     1097   0.706
+             RTX 4090 (24 GB)           90.9     3134   0.714     96.7     1634   0.682
+             RTX 6000 Ada (48 GB)       84.8     2430   0.731     92.0     1627   0.701
+             L40S (48 GB)               74.6     2827   0.812     82.8     1601   0.743
+             A100 SXM (80 GB)           74.0     1328   0.776     54.6     703    0.932
+             L4 (24 GB, 72 W)           29.7     778    0.629     32.1     468    0.585
+             Laptop (M5 Pro, Metal)     27.7     397      —       27.1     369      —
+
+
+
+                                                    5
+                                                                                 Ternary Bonsai 2 27B
+
+
+
+The footprint advantage is most visible on edge hardware. On the M5 Pro, the ternary model
+sustains 27.7 tok/s, corresponding to ≈201 GB/s of weight traffic and indicating a decode path
+dominated by memory bandwidth. On an RTX 5090, the same model reaches 142.5 tok/s at
+0.582 mWh/token.
+The Apple row does not report energy per token because power measurements are not directly
+comparable across platforms. NVIDIA board power includes HBM/GDDR power, whereas Apple
+powermetrics does not include DRAM. Since batch-1 decoding is largely memory-bandwidth-
+bound, excluding memory power would systematically bias the Apple energy figure downward.
+We therefore report measured power directly rather than deriving a cross-platform energy-per-
+token comparison.
+For sustained plain-autoregressive decoding of the PQ2_0 pack on the M5 Pro, measured at
+27.0 tok/s over a longer window than the tg128 measurement in Table 5, powermetrics reports
+27.0 W on the GPU rail and 32.8 W across CPU and GPU. The corresponding idle floor is 0.17 W
+for the GPU and 1.47 W for the CPU. We report these values separately rather than subtracting
+them. Additional Apple Silicon measurements are given in Table 6. The measurement protocol
+and architecture-specific throughput discussion are provided in Appendix D.
+
+Table 6. Ternary Bonsai 2 27B throughput across Apple Silicon laptops using the llama.cpp Metal backend
+and PQ2_0 packing.
+
+                                                      TG128     PP512
+                                Platform
+                                                      (tok/s)   (tok/s)
+                                Laptop (M5 Max)        46.8      765
+                                Laptop (M5 Pro)        27.7      397
+                                Laptop (M4 Pro)        18.0      125
+
+
+On the wider M5 Max, the ternary model reaches approximately 47 tok/s in batch-1 decoding.
+On the M4 Pro, decode remains interactive at approximately 18 tok/s, while prompt processing
+at approximately 125 tok/s becomes the more relevant constraint for very long contexts. The M4
+Pro figures come from the earlier pre-rotation build and should therefore be interpreted primarily
+as indicators of scaling across Apple Silicon rather than as direct release-stack comparisons.
+The practical takeaway is not simply the throughput itself, but what it enables: interactive, fully
+on-device generation from a 27B-class model on an everyday laptop.
+
+
+4. Benchmarks
+We evaluate all models in thinking mode using EvalScope [4] with the vLLM [5] backend on
+NVIDIA H100 GPUs. The evaluation suite contains 20 benchmarks spanning knowledge and
+reasoning, math, coding, instruction following, agentic tool use, and vision. Category-level av-
+erages are reported in Table 8.
+All results in the present section refer to the xhigh reasoning effort. Full per-benchmark results
+at both xhigh and medium reasoning effort are reported in Appendix C.
+At 5.93 GB, Ternary Bonsai 2 27B achieves an average score of 83.9, retaining 98.2% of the
+Qwen3.8-27B FP16 baseline’s 85.4. Its average is also slightly above the 83.6 obtained by
+Qwen3.6-27B. The conventional IQ2_XXS [7] build achieves 75.2 at 7.3 GB, despite being
+1.23× larger.
+
+
+
+
+                                                  6
+                                                                            Ternary Bonsai 2 27B
+
+
+
+Table 7. Thinking-mode average across 20 benchmarks. Bpw is the average bit-width over all model
+weights for the packed checkpoint.
+
+                                          True           Thinking vs Qwen3.8
+               Variant                         Footprint
+                                          bpw              avg       FP16
+               Qwen3.8-27B FP16           16.0 53.80 GB        85.4    100%
+               Qwen3.6-27B FP16           16.0 53.80 GB        83.6    97.9%
+               Qwen3.8-27B IQ2_XXS [7]     2.2       7.3 GB    75.2    88.4%
+               Ternary Bonsai 2 27B       1.76       5.93 GB   83.9    98.2%
+
+
+The aggregate average understates where quality is preserved. IQ2_XXS degrades sharply on
+several reasoning-intensive tasks, falling, for example, to 78.6 on AIME26 and 70.05 on Live-
+CodeBench. Ternary Bonsai scores 95.83 and 90.07 on the same benchmarks.
+More importantly, Bonsai holds full-precision quality on the capabilities that matter most for
+reasoning and agentic use. Math reaches 96.57 compared with 97.06 for Qwen3.8 and 94.64
+for Qwen3.6, while coding reaches 81.58 compared with 82.17 and 82.57. Instruction following
+improves to 82.66, above both Qwen3.8 at 81.25 and Qwen3.6 at 74.53. Agentic and tool-
+calling performance holds at 77.57, compared with 79.74 for Qwen3.8 and 80.05 for Qwen3.6.
+
