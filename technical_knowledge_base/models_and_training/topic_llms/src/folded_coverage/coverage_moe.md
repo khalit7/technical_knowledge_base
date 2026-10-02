@@ -1,7 +1,7 @@
 # Coverage: the child page "Mixture-of-Experts (MoE) models" folded into Topic: llms
 
 Where every section and fact of `mixture_of_experts_moe_models/src/` now lives.
-Keys: **DEEP** = `src/parts/35_tab_moe.html` (tab "Deeper: inside an MoE", section id in brackets); **DRAFT** = `src/drafts/axis2_from_moe.html` (for s-serve and s-read); **LAND** = `src/drafts/moe_landscape_extra.md`; **PARENT** = already said in `src/parts/20_read.html` (quoted).
+Keys: **DEEP** = `src/parts/35_tab_moe.html` (tab "Deeper: inside an MoE", section id in brackets); **DRAFT** = merged into `src/parts/20_read.html` (s-serve and s-read); **LAND** = merged into the total-against-active scatter (`src/parts/22_js_scatter.js`); **PARENT** = already said in `src/parts/20_read.html` (quoted).
 
 ## Header, nav, tab bar (02_header.html, 00_top.html)
 - Title, subtitle, reading-time line, tab bar, Reading nav: dropped as instructed; DEEP has its own sub-nav (`#moeNav`) and a `.deepnote` pointing back to Cost to serve.

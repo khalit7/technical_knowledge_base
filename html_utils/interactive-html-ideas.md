@@ -242,7 +242,7 @@ Animation is one of the strongest tools available and should be used often. Khal
 The aim is a skill that makes all of these decisions on its own for any topic: what the page needs understood, which visuals would make that measurable, where to find ideas for them, and where to find and check their data. What remains to settle before it is written down as such is a tested set of search queries for when web search is available, and the requirement, already practised here, that every proposed visual comes with a recompute script whose defaults land on a published figure.
 
 
-Paper pages (P rows; `PT` is Attention Is All You Need, the first paper page and the template for the rest; recipe in its `src/PAPER_METHOD.md`):
+Paper pages (P rows; `PT` is Attention Is All You Need, the first paper page and the template for the rest; recipe in `html_utils/methods/papers.md`):
 
 | # | Page | Idea | What it shows, and what the reader does | Why it helps | Data and sources | Placement | Status |
 |---|---|---|---|---|---|---|---|
