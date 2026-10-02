@@ -1,0 +1,95 @@
+<section id="s-zs"><h2>Zero-shot transfer: a classifier written in words</h2>
+[[S3.SS1.SSS2|§3.1.1 to §3.1.3]]
+<p>In computer vision "zero-shot" usually means recognising unseen object categories. The paper uses it more broadly: transfer to <b>unseen datasets</b>, as a proxy for unseen tasks, and as a measure of what a model has learned to do rather than of its representation ({{§3.1.1|ax:S3.SS1.SSS1}}). On datasets such as CIFAR-10, whose "real" task is unclear, it is closer to a test of robustness to distribution shift. The inspiration is GPT-1 and GPT-2's zero-shot task learning ({{§3.1.1|ax:S3.SS1.SSS1}}).</p>
+<p>The recipe reuses the training task. Embed the image; embed every class name with the text encoder; take cosine similarities, scale by the temperature and apply a softmax. That is a multinomial logistic regression with L2-normalised inputs and weights, no bias and temperature scaling, in which the text encoder is a <b>hypernetwork</b> producing the classifier's weights from text. The classifier is computed once per dataset and cached, so its cost is amortised over every prediction. Seen this way, every training step optimises a randomly made proxy dataset with 32,768 classes, one example each ({{§3.1.2|ax:S3.SS1.SSS2}}).</p>
+<p>The animation builds one, with the toy CLIP, against the fixed softmax head a supervised model has. Adding a class to the supervised head means new labelled data and retraining; adding one to CLIP's means writing a sentence.</p>
+<div class="card" id="zs">
+<div class="an-top"><div class="seg" id="zsM" role="group" aria-label="Classifier"><button data-m="sup" aria-pressed="false">Supervised head</button><button class="on" data-m="zs" aria-pressed="true">Zero-shot from text</button></div>
+<span class="small mute">Same image; the toy models' real weights and scores.</span></div>
+<div id="zsSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="zsBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="zsPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="zsFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="zsScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="zsSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="zsStep"></div><p id="zsCap"></p></div>
+<div class="an-cnt" id="zsCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Zero-shot: six of the 36 colour-and-shape classes, each written as "a photo of a {class}" and embedded by the shipped toy CLIP (32 dimensions; each row is drawn as 32 cells). Supervised head: its rows are the class names' weights a supervised model would learn from labels; the toy has no such head shipped, so its rows are drawn as fixed, unlabelled cells and its scores are not shown. The animation stops off screen and starts paused if your system asks for reduced motion.</p>
+</div>
+<p><b>Against Visual N-Grams</b>, the only prior zero-shot result on standard datasets: 11.5% to 76.2% on ImageNet (top-5 95%, matching Inception-V4), 72.4% to 98.4% on aYahoo (a <span data-rc="t1.ayahoo_error_cut" data-f="pct0"></span> cut in errors; the paper says 95%), 23.0% to 58.5% on SUN ({{Table 1|ax:S3.T1}}). The authors call this context, not a fair comparison: 10× the data, nearly 100× the compute per prediction, probably over 1,000× the training compute. A CLIP ResNet-50 trained on YFCC100M itself matched Visual N-Grams' ImageNet result within one V100 GPU-day, from scratch ({{§3.1.3|ax:S3.SS1.SSS3}}). The evaluation then grows to over 30 datasets and more than 50 systems ({{Appendix A|ax:A1}}).</p>
+</section>
+
+<section id="s-prompt"><h2>Prompt engineering and ensembling</h2>
+[[S3.SS1.SSS4|§3.1.4, Figure 4]]
+<p>Datasets treat class names as an afterthought: most store numeric ids and a file mapping them to English, and Flowers102 and GTSRB did not appear to ship that mapping at all ({{§3.1.4|ax:S3.SS1.SSS4}}; Alec "learned much more about flower species and German traffic signs ... than he originally anticipated", footnote 2). Two problems follow:</p>
+<ul class="lst">
+<li><b>Polysemy.</b> A bare name has no context: ImageNet has both construction cranes and cranes that fly, and in Oxford-IIIT Pets "boxer" is a dog breed that a text encoder could read as an athlete.</li>
+<li><b>Distribution gap.</b> In WIT the text is rarely a single word, so "A photo of a {label}." is a better default; it alone adds 1.3% on ImageNet.</li>
+</ul>
+<p>Task-specific prompts help further: "A photo of a {label}, a type of pet." on Oxford-IIIT Pets, the type of food on Food101 and of aircraft on FGVC Aircraft, quotes around the text or number for OCR, and "a satellite photo of a {label}." for satellite images. <b>Ensembling</b> many prompts ("A photo of a big {label}", "A photo of a small {label}") is done in embedding space, not probability space, so the averaged text embeddings are cached and the ensemble costs the same as one classifier. On ImageNet 80 prompts add another 3.5%, so engineering plus ensembling add almost 5% ({{§3.1.4|ax:S3.SS1.SSS4}}). Across 36 datasets the gain is almost 5 points on average, about what four times the compute buys with bare names ({{Figure 4|ax:S3.F4}}).</p>
+<div class="co"><div class="t">The toy, honestly: prompt engineering barely matters there</div><div id="prToy"></div></div>
+</section>
+
+<section id="s-ana"><h2>How good is zero-shot CLIP?</h2>
+[[S3.SS1.SSS5|§3.1.5, Figures 5 to 9]]
+<p><b>Against a supervised baseline.</b> A fully supervised logistic regression on the canonical ResNet-50's features, across 27 datasets: zero-shot CLIP wins on 16, ImageNet included ({{Figure 5|ax:S3.F5}}). The bars are recomputed from Tables 10 and 11; hover for the numbers.</p>
+<div id="f5Svg"></div>
+<p class="small mute" id="f5Note"></p>
+<details class="mist"><summary>Where it wins and where it loses, by kind of task</summary><div class="b">
+<ul class="lst">
+<li><b>Fine-grained: a wide spread.</b> Stanford Cars and Food101 gain over 20 points; Flowers102 and FGVC Aircraft lose over 10; Oxford Pets and Birdsnap are close. The authors suspect varying amounts of per-task supervision in WIT against ImageNet ({{§3.1.5|ax:S3.SS1.SSS5}}).</li>
+<li><b>General objects</b> (ImageNet, CIFAR-10 and 100, STL10, Pascal VOC 2007): similar, with a slight edge to CLIP in every case; 99.3% on STL10 appears to be a new state of the art with no training examples.</li>
+<li><b>Actions in video</b>: +14.5 on Kinetics700 and +7.7 on UCF101, perhaps because language supervises verbs while ImageNet supervises nouns.</li>
+<li><b>Weak</b> on specialised, complex or abstract tasks: satellite images (EuroSAT, RESISC45), lymph-node tumours (PatchCamelyon), counting (CLEVRCounts), German traffic signs (GTSRB), distance to the nearest car (KITTI). Non-expert humans do several of these well; the authors doubt zero-shot is even a meaningful test for tasks nobody has prior experience of.</li>
+</ul>
+</div></details>
+<div class="pred" id="pr-shots" data-ans="2"><div class="q">Fit a logistic regression on CLIP's own features with <i>k</i> labelled ImageNet examples per class. How large must <i>k</i> be to match zero-shot CLIP?</div>
+<div class="opts"><button>1: one example beats a written name</button><button>4</button><button>16</button><button>184</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>About 16 on ImageNet. Zero-shot matches a 4-shot classifier on average over 20 datasets, and roughly the best 16-shot classifier of any public model, a BiT-M ResNet-152x2 trained on ImageNet-21k ({{Figure 6|ax:S3.F6}}). Per dataset the effective number of examples ranges from under one (Flowers102, EuroSAT: zero-shot loses to one-shot) to 184 (FER2013), with a median of 5.4 and a mean of 20.8, estimated by log-linear interpolation of 1, 2, 4, 8, 16-shot and fully supervised results ({{Figure 7|ax:S3.F7}}). Recomputed from the figure's labels: median <span data-rc="fig7.median"></span>, mean <span data-rc="fig7.mean"></span>, reproducing the printed values.</p>
+<div id="f7Svg"></div>
+<p>Why does a name beat one example? A written class is "communicated" directly; an example leaves many hypotheses open, since one image holds many concepts. Using the zero-shot weights as a prior for the few-shot classifier (an L2 penalty toward them) did not work well: the tuned penalty was so large that the result was "just" the zero-shot classifier ({{§3.1.5|ax:S3.SS1.SSS5}}). The toy reproduces the shape: see {{Run a tiny CLIP|tab:t-run:rnProbe}}.</p>
+</div></div>
+<p><b>Headroom.</b> Since the zero-shot classifier is also linear, a fully supervised linear probe on the same features roughly bounds it. Zero-shot sits 10 to 25 points below on most datasets; the two correlate at 0.82, and only on 5 datasets is the gap 3 points or less ({{Figure 8|ax:S3.F8}}). Recomputed from Tables 10 and 11: correlation <span data-rc="fig8.pearson"></span>, <span data-rc="fig8.within3.length"></span> datasets within 3 points, median gap <span data-rc="fig8.gap_median"></span> points ({{tables tab|tab:t-tables:tbF8}}).</p>
+<p><b>Scaling.</b> Average zero-shot error of the five ResNet CLIPs over 39 evaluations on 36 datasets follows a log-log linear trend in compute across a 44× range (6.1 to 265.9 GFLOPs: <span data-rc="fig9.range"></span>×), like the GPT family's; individual evaluations are much noisier, and the authors cannot tell run-to-run variance from genuinely non-monotonic tasks ({{Figure 9|ax:S3.F9}}).</p>
+</section>
+
+<section id="s-rep"><h2>Representation learning: linear probes</h2>
+[[S3.SS2|§3.2, Figures 10 to 12]]
+<p>The usual test of a representation: a linear classifier on frozen features, preferred to fine-tuning because fine-tuning can mask failures, because it mirrors the zero-shot classifier, and because 66 models on 27 datasets is already 1,782 evaluations ({{§3.2|ax:S3.SS2}}). The probe is scikit-learn's L-BFGS logistic regression, its L2 strength searched over 10⁻⁶ to 10⁶ on validation splits ({{Appendix A.3|ax:A1.SS3}}).</p>
+<ul class="lst">
+<li><b>On the 12 datasets of Kornblith et al.</b>, chosen first to limit selection bias: small CLIPs (ResNet-50 and 101) beat ImageNet-1k ResNets but lose to ImageNet-21k ones (BiT-M) and to EfficientNets of similar compute. CLIP scales well: RN50x64 slightly beats the best existing model, Noisy Student EfficientNet-L2, on score and compute. CLIP ViTs are about 3× more compute-efficient than CLIP ResNets, echoing the ViT paper. The best model, ViT-L/14@336px, beats the best existing model by 2.6% on average ({{Figure 10|ax:S3.F10}}; recomputed <span data-rc="fig10_k12.margin"></span> points).</li>
+<li><b>On all 27</b>, which add geo-localisation, OCR, facial emotion and action recognition: every CLIP model beats every other system on compute efficiency, and the margin grows to 5% (recomputed <span data-rc="fig10_all27.margin"></span> points). Self-supervised systems also look better here: SimCLRv2 loses to BiT-M on the 12 but wins on the 27, a sign that the 12 lean toward ImageNet-like tasks ({{§3.2|ax:S3.SS2}}).</li>
+</ul>
+<details class="mist"><summary>Per dataset, against the best ImageNet model (Figures 11 and 12)</summary><div class="b">
+<ul class="lst">
+<li><b>Per dataset</b>, CLIP's features beat Noisy Student EfficientNet-L2 on 21 of 27 ({{Figure 11|ax:S3.F11}}; recomputed 21 against the L2-475 row). The biggest gains are OCR (SST2, Hateful Memes), geo-localisation and scenes (Country211, SUN397), video activity (Kinetics700, UCF101), cars and traffic signs: +14.7 on GTSRB may reflect ImageNet's single label for all traffic and street signs. The EfficientNet wins on ImageNet, its own training set, slightly on low-resolution CIFAR (CLIP lacks scale augmentation), and on PatchCamelyon and CLEVRCounts, where both are weak ({{§3.2|ax:S3.SS2}}).</li>
+<li>On both suites, CLIP's transfer scores are higher than other models' at the same ImageNet accuracy, suggesting ImageNet-trained representations are "somewhat overfit to their task" ({{Figure 12|ax:S3.F12}}).</li>
+</ul>
+</div></details>
+<details class="mist"><summary>More tasks from Appendix E: retrieval, OCR, video, geo-localisation</summary><div class="b">
+<ul class="lst">
+<li><b>Retrieval</b>, the task CLIP pre-trains for: zero-shot CLIP matches or beats every prior zero-shot result on Flickr30k and MSCOCO and is competitive with the best fine-tuned Flickr30k text retrieval (R@1 88.0 against 88.7); fine-tuned systems win clearly on MSCOCO. Prepending "a photo of" adds 1 to 2 points of R@1 ({{Table 13|ax:A4.T13}}).</li>
+<li><b>OCR</b>: strong where text is rendered words (Hateful Memes, rendered SST-2, where a linear probe gets 80.5%, on par with a GloVe bag-of-words baseline at 80%); weak on digits: 51% on full-number SVHN, and zero-shot MNIST below logistic regression on raw pixels ({{Table 14|ax:A5.T14}}).</li>
+<li><b>Action recognition</b>: a linear probe on single centre frames matches the best prior UCF101 result; zero-shot Kinetics-700 is within 1% of a fully supervised I3D trained on 545,000 videos; RareAct improves 10 points over the prior state of the art ({{Table 15|ax:A5.T15}}).</li>
+<li><b>Geo-localisation</b> on IM2GPS by nearest neighbour over 1 million reference images: similar to several task-specific models, not to the state of the art; not zero-shot ({{Table 17|ax:A5.T17}}).</li>
+</ul></div></details>
+</section>
+
+<section id="s-rob"><h2>Robustness to natural distribution shift</h2>
+[[S3.SS3|§3.3, Figures 13 to 15]]
+<p>ImageNet models "exceeded human performance" on its test set in 2015 yet keep failing on new benchmarks, plausibly because they exploit correlations that hold only in their training distribution. Taori et al. (2020) measured them on 7 natural shifts (ImageNetV2, ImageNet Sketch, Youtube-BB, ImageNet-Vid, ObjectNet, ImageNet Adversarial, ImageNet Rendition): shifted accuracy rises predictably with ImageNet accuracy, linearly in logit space. <b>Effective robustness</b> is accuracy under shift above that trend; <b>relative robustness</b> is any improvement under shift. A ResNet-101 makes 5 times as many mistakes on these shifts as on ImageNet's validation set ({{§3.3|ax:S3.SS3}}).</p>
+<div class="pred" id="pr-rob" data-ans="3"><div class="q">A ResNet-101 trained on ImageNet and zero-shot CLIP both score 76.2% on ImageNet. On ImageNet-A, adversarially filtered natural images, the ResNet-101 scores 2.7%. CLIP?</div>
+<div class="opts"><button>About 2%: same ImageNet score, same weakness</button><button>About 10%</button><button>About 40%</button><button>About 77%</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>77.1%, as high as its ImageNet score ({{Figure 13|ax:S3.F13}}). The figure's own table, redrawn:</p>
+<div id="f13Svg"></div>
+<p>Every zero-shot CLIP model improves effective robustness by a large amount, shrinking the gap between ImageNet accuracy and accuracy under shift by up to 75% ({{Figure 13|ax:S3.F13}}). Zero-shot CLIP improves the state of the art on 5 of the 7 shifts, most on ImageNet-Vid and Youtube-BB (its flexible classes) and on ImageNet-R (creative content in its data) ({{Appendix E.5|ax:A5.SS5}}). Note one mismatch: Figure 13 prints 77.1 for ImageNet-A, Table 16 prints 77.2.</p>
+</div></div>
+<p><b>Is training on ImageNet the cause?</b> A zero-shot model cannot exploit correlations specific to a distribution it never trained on (though it can exploit ones shared between pre-training and test, footnote 4). The authors test it from the other side: adapting CLIP to ImageNet with an L2-regularised logistic regression adds 9.2% on ImageNet, to 85.4%, tying the 2018 state of the art and worth "roughly 3 years" of progress, yet average accuracy under shift slightly decreases ({{Figure 14|ax:S3.F14}}). Only ImageNetV2, built the way ImageNet was, gains; ImageNet-R loses 4.7, ObjectNet 3.8, Sketch 2.8, ImageNet-A 1.9; Youtube-BB and ImageNet-Vid barely move ({{§3.3|ax:S3.SS3}}).</p>
+<details class="mist"><summary>Custom classifiers, and few-shot in between (Figures 14 and 15)</summary><div class="b">
+<p><b>Custom classifiers</b> are a robustness tool too. Youtube-BB and ImageNet-Vid use super-classes of ImageNet's, which an ImageNet model must handle by max-pooling sub-classes (its "person" pools baseball player, bridegroom and scuba diver). CLIP just embeds each dataset's own class names: average effective robustness rises 5%, concentrated on a few datasets, and even ObjectNet gains 2.3% from its creators' names ({{§3.3|ax:S3.SS3}}).</p>
+<p><b>Few-shot sits in between.</b> On the best CLIP's features, 0-, 1-, 2-, 4- up to 128-shot and fully supervised classifiers show effective robustness that fades as more ImageNet data is used, mostly though not entirely gone when fully supervised; at equal ImageNet accuracy zero-shot is more robust than few-shot. "High effective robustness seems to result from minimizing the amount of distribution specific training data", at a cost in dataset-specific accuracy ({{Figure 15|ax:S3.F15}}). The authors stop short of a cause: the large, diverse data or language supervision could also explain it, and they ask the authors of the JFT and Instagram models to run the same test ({{§3.3|ax:S3.SS3}}).</p>
+</div></details>
+<div class="co key"><div class="t">The toy runs the paper's test, and a later paper's</div><div id="robToy"></div></div>
+</section>

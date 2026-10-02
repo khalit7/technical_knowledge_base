@@ -1,0 +1,33 @@
+# CLIP: visualisation ideas
+
+The question the paper keeps returning to: **what does learning "which caption goes with which image" buy, against predicting labels or words, and how far does the resulting zero-shot classifier transfer?** A visual earns its place when it makes one of those measurable: the cost of the objective, the classifier written in words, or the transfer under shift.
+
+Kind of paper (papers.md): a training-objective paper with a large empirical study. Live ingredient: a real toy CLIP trained offline with Figure 3's loss and run in the page, plus the paper's ablations as toy runs (Figure 2's objectives; Fang et al.'s data-diversity test); the empirical side gets its tables rebuilt and recounted.
+
+Scores: reproduces or is computable (double), parameter to move, shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere, animation; minus build cost.
+
+| # | Idea | Placement | Score | Status | Data and sources |
+|---|---|---|---|---|---|
+| P-clip.1 | **Run a tiny CLIP**: a ViT image encoder and a causal Transformer text encoder (41,761 parameters, 6-bit), trained on a toy web of 120,000 (image, caption) pairs from the page's own generator; classify any image (random, composed, photo or drawing) against any set of classes written in words, with bare, photo, drawing or ensembled prompts, a word-shuffle (bag-of-words) test, an in-browser test on fresh scenes, text-to-image search, the few-shot probe chart and every run's curves | Own tab | 2+2+2+2+2+2+1 = 13 | built | train.py, check_forward.py (PASS), overlap.py |
+| P-clip.2 | **Write the caption against pick the pair, animated** on four real toy pairs: the captioning side shows each word as one choice from the vocabulary and highlights filler words the picture cannot predict, with the bits the trained toy captioner still pays (from its log); the contrastive side fills the 4 × 4 similarity matrix from the shipped model, then row and column softmaxes and the symmetric loss | Reading, Objective | 2+2+2+2+2+1 = 11 | built | §2.3, Figure 2 and 3; toy logs |
+| P-clip.3 | **Figure 2 as toy runs**: four objectives with one image encoder (captioning Transformer as CLIP-AR, bag-of-words prediction, bag-of-words contrastive, Transformer contrastive), curves and images to reach 50% | Reading, predict reveal | 2+2+2+1 = 7 (does not reproduce the 4×, said) | built | train.py runs lm, bowpred, bowcon, clip |
+| P-clip.4 | **One batch's similarity matrix, live**: eight pairs through the toy CLIP, temperature slider (1 to 100, log), swap two captions, loss against ln N; Figure 3's pseudocode lines show their value on the batch | Reading, Objective | 2+2+2+1 = 7 | built | Figure 3 transcribed from the arXiv HTML SVG |
+| P-clip.5 | **Supervised head against zero-shot classifier, animated** on one image: fixed unnamed rows against rows written by the text encoder, then a new question ("small or big?") that only the text side can answer | Reading, Zero-shot | 2+2+2+1 = 7 | built | §3.1.2 |
+| P-clip.6 | **Figure 5 recomputed** from Table 11 minus Table 10, with mismatches marked (KITTI −45.2 against −34.0, UCF101 +5.7 against +7.7) | Reading and Tables | 2+2+2 = 6 | built | recompute.py |
+| P-clip.7 | **Predict, then reveal** three times: which objective learns fastest (Figure 2), how many labelled examples per class match zero-shot (Figure 7 labels, log bars), CLIP on ImageNet-A at equal ImageNet accuracy (Figure 13's printed table) | Reading | 2+2+1 = 5 each | built | Figures 2, 7, 13 labels |
+| P-clip.8 | **Toy robustness test**: supervised (photo labels), linear probe on CLIP features (photo labels), zero-shot CLIP with drawings in its web, zero-shot CLIP on photos only; photos against the same scenes as drawings | Reading, Robustness | 2+2+2+2 = 8 | built | runs sup, clipphoto, probe; Fang et al. 2022 |
+| P-clip.9 | **Toy few-shot against zero-shot** (Figures 6, 7, 14 at toy scale): logistic regression on frozen features with k = 1 to 16 labelled photos per class, 5 draws each, on photos and drawings | Run tab | 2+2+1 = 5 | built | train.py probe |
+| P-clip.10 | **Tables rebuilt**: any two of the 75 rows of Tables 10 and 11 dataset by dataset; Figure 8 scatter with correlation recomputed per CLIP model; Figure 10 averages on 12 and 27 datasets; Table 16 with the ObjectNet reconciliation; Tables 1, 2, 8, 12, 13, 14, 17; Tables 18 to 20 with the 63M text-encoder recount; a checks box | Own tab | 2+2+2+1 = 7 | built | mk_tables.py, recompute.py |
+| P-clip.11 | **Then and now recipe card**: five fields (data, image side, text side, loss, batch) changed one paper at a time (ALIGN, LiT, CoCa, OpenCLIP, SigLIP, DataComp, MetaCLIP, DFN, SigLIP 2) with each paper's zero-shot ImageNet number plotted by date, labelled not like for like | Own tab | 2+1+2+1 = 6 | built | later_abstracts.txt, modern_extracts.txt |
+| P-clip.12 | **Softmax against sigmoid on one toy batch**, animated: CLIP's row and column normalisation against SigLIP's independent cells with t = 10, b = −10 | Then and now | 2+2+1 = 5 | built | SigLIP §3.2 |
+| P-clip.13 | Scaling-law refit of Figure 9 | rejected | | | Figure 9 prints no values, only GFLOPs ticks; reading the curve is forbidden; the 44× range is recomputed instead |
+| P-clip.14 | Effective-robustness fits of Figure 13 (logit-linear trend) | rejected | | | the 200-odd model points exist only in the image |
+| P-clip.15 | A pretrained CLIP in the browser | rejected | | | far over the size limit; the toy shows the mechanism and is checkable |
+| P-clip.16 | Polysemy or prompt-engineering toy (a word with two senses) | rejected | | | would have to be designed to succeed; the toy's honest result (prompts barely matter there) is shown instead |
+| P-clip.17 | Bias-probe charts (Tables 3 to 7) | rejected | | | the numbers are quoted in a details block; a chart of race classification rates would add little and risks looking like an endorsement of the task, which the paper explicitly disclaims |
+
+## What the methodology lacked for this page
+
+- A rule for figures that print a few labels on otherwise unreadable plots: Figure 2's arrows join labelled x-axis ticks, so the 3× and 4× can be recomputed from the ticks without reading a curve. Worth adding: "arrows and annotations that join printed ticks may be recomputed from the ticks".
+- Anchors that the arXiv HTML numbers out of step with the paper (S7.T4 is Table 3, A1.F22 is Table 11): `mk_paper.py` now takes an override map; the shared copy could too.
+- Reading time: a long paper owns many details; this page counts closed `<details>` blocks separately in the header.
