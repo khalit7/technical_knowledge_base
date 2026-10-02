@@ -1,0 +1,132 @@
+Source: https://arxiv.org/pdf/2104.09864v2 (pdftotext -layout), lines 370-500: v2 (9 October 2021) added WMT, BERT pretraining, GLUE and Performer; GLUE described as 'comparable overall performance'
+on machine translation is investigated and reported in section 4.1. Then, we compare our RoPE
+implementation with BERT[8] during the pre-training stage in section 4.2. Based on the pre-trained
+model, in section 4.3, we further carry out evaluations across different downstream tasks from
+GLUE benchmarks[34]. In Addition, we experiment the proposed RoPE with linear attention in
+PerFormer[5] in section 4.4. By the end, additional tests on Chinese data are included in section 4.5.
+All the experiments are done on two cloud severs with 4 x V100 GPUs.
+
+4.1   Machine Translation
+
+We first demonstrate the performance of RoFormer on sequence-to-sequence language translation
+task. Details of dataset, baseline model, implementation and experiment results are discussed.
+
+Dataset We choose the standard WMT 2014 English-German dataset[2], which consists of approx-
+imately 4.5 million sentence pairs.
+
+Baseline The baseline is the Transformer-base model proposed by [37].
+
+Implementation details Build on top of the baseline model, we modify its self-attention block
+by incorporating RoPE, turning it into the RoFormer model. We replicate the setup of [37] for
+English-to-German translation with vocabulary of 37k based on a joint source and target byte pair
+encoding(BPE)[31]. During the evaluation, a single model is obtained by averaging the last 5
+checkpoints. The result uses beam search with a beam size of 4 and length penalty 0.6. We implement
+the experiment in PyTorch in the fairseq toolkit (MIT License)[24]. Our model is optimized with the
+Adam optimizer using β1 = 0.9, β2 = 0.98, learning rate is increased linearly from 1e − 7 to 5e − 4
+and then decayed proportionally to the inverse square root of the step number. Label smoothing with
+0.1 is also adopted. We report the BLEU[25] score on test set as the final metric.
+
+Results We train the baseline model and our RoFormer under the same settings and report the result
+in table 1. Our model achieves higher BLEU score comparing to the baseline Transformer.
+
+
+                                                     6
+Table 1: The proposed RoFormer achieves better BLEU score than Transformer[37] on the WMT
+2014 English-to-German translation task[2].
+
+                                               Model                                     BLEU
+                                               Transformer-base[37]                      27.3
+                                               RoFormer                                  27.5
+
+
+4.2           Pre-training of language modeling
+
+Our next experiment compares RoPE with the original sinusoidal position encoding implementation
+in BERT during pre-training.
+
+Dataset and metrics We use the BookCorpus[45] and the Wikipedia Corpus[10] from Huggingface
+Datasets library (Apache License 2.0) for pre-training. The corpus is further split into train and
+validation sets at 8:2 ratio. We record the masked language-modeling(MLM) loss throughout training
+and report it as the comparing metric.
+
+Baseline The well-known BERT[8] is adopted as our baseline model, specifically, we choose the
+BERT-base-uncased realization for comparison.
+
+Implementation details For RoFormer, we replace the sinusoidal position encoding in the self-
+attention block of the baseline model with our proposed RoPE and realizes self-attention according
+to eq. (16). We train both BERT and RoFormer with batch size 64 and maximum sequence length of
+512 for 100k steps. AdamW[22] is used as the optimizer with learning rate 1e-5.
+
+Results The MLM loss during pre-training is shown on the left plot of fig. 2. Compare to the
+vanilla BERT, RoFormer experiences faster convergence.
+
+
+              10                                      RoFormer                                                          PerFormer w/. RoPE
+                                                      BERT                                                              PerFormer w/o. RoPE
+              9                                                                3.0
+              8
+              7                                                                2.5
+
+   MLM Loss                                                          LM Loss
+              6
+              5                                                                2.0
+              4
+              3                                                                1.5
+              2
+                   0   50   100         150     200        250                       0          20    40           60          80         100
+                             Train Steps (K)                                                         Train Steps (K)
+
+Figure 2: Evaluation of RoPE in language modeling pre-training. Left: training loss for BERT and
+RoFormer. Right: training loss for PerFormer with and without RoPE.
+
+
+4.3           Fine-tuning on GLUE tasks
+
+Following previous experiment, we fine tune the pre-trained RoFormer model across various GLUE
+tasks in order to evaluate its generalization ability towards downstream NLP tasks.
+
+Dataset and metrics We look at several datasets from GLUE, i.e. MRPC[9], SST-2[35], QNLI[30],
+STS-B[1], QQP[4], MNLI[40]. We use F1-score for MRPC and QQP dataset, spearman correlation
+for STS-B, and accuracy for the remaining as the evaluation metrics.
+
+Implementation details We use Huggingface Transformers library (Apache License 2.0)[41] to
+fine tune each of the aforementioned downstream tasks for 3 epochs, with a maximum sequence
+length of 512, batch size of 32 and learning rates 2,3,4,5e-5. As has been done in the baseline model
+work[8], we report the best averaged results on the evalulation set.
+
+
+                                                                 7
+Results We table our results in table 2. The metrics show that RoFormer achieves comparable
+overall performance to BERT on various downstream tasks when fine tuned.
+
+          Table 2: Comparing RoFormer and BERT by fine tuning on downstream GLEU tasks.
+
+                 Model     MRPC        SST-2   QNLI    STS-B     QQP     MNLI(m/mm)
+                BERT[8]    88.9        93.5    90.5    85.8      71.2    84.6/83.4
+                RoFormer   89.5        90.7    88.0    87.0      86.4    80.2/79.8
+
+
+4.4       Performer with RoPE
+
+Performer[5] provide an alternative attention mechanism, the linear attention, which is designed to
+avoid quadratic computation cost that scales with input sequence length. As discussed in section 3.3,
+the proposed RoPE can be easily implemented in the PerFormer model to realize relative position en-
+coding while keeping its linearly scaled complexity in self-attention. We demonstrate its performance
+with pre-training task of language modeling.
+
+Dataset We carry out tests on the Enwik8 dataset[23], which is from English Wikipedia that
+includes markup, special characters and text in other languages in addition to English text.
+
+Implementation details Similar to experiments in previous sections, we incorporate RoPE into
+the 12 layer char-based PerFormer with 768 dimensions and 12 heads2 . The loss curves are reported
+from the pre-training for models with and without RoPE under the same settings, i.e. learning rate
+1e-4, batch size 128 and a fixed maximum sequence length of 1024, etc.
+
+Results As shown on the right plot of fig. 2, substituting RoPE into Performer leads to to rapid
+convergence and lower loss under the same amount of the training steps. This improvement as well
+as the linear complexity makes Performer more attractive.
+
+4.5       Evaluation on Chinese Data
+
+In addition to experiments on English data, we show additional results on Chinese data. Besides
+experiment with pre-training, to illustrate the performance of RoFormer on long texts, we choose a

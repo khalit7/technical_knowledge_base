@@ -1,0 +1,174 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-meth">Setup</a><a href="#s-a1">Approach 1</a><a href="#s-a2">Approach 2</a><a href="#s-a3">Approach 3</a><a href="#s-alloc">The answer</a><a href="#s-spend">Same budget</a><a href="#s-chin">Chinchilla</a><a href="#s-res">Results</a><a href="#s-trust">Believe it?</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction, §2]]
+<p>By early 2022 the largest language models were growing in parameters while their training data stayed put: five of the six biggest dense models had seen roughly 300 billion tokens ({{Table 1|ax:S1.T1}}).</p>
+<div class="tw"><table class="t1" id="rdT1"></table></div>
+<p>They followed Kaplan et al. (2020), whose fit said that with 10× more compute the model should grow 5.5× and the data only 1.8× (the paper's figures; Kaplan's exponents, <i>N</i><sub>opt</sub> ∝ <i>C</i><sup>0.73</sup> and <i>D</i><sub>opt</sub> ∝ <i>C</i><sup>0.27</sup>, give 5.4× and 1.9×) ({{§1|ax:S1}}). This paper asks the constrained question directly ({{Eq. 1|ax:S1.E1}}): given a fixed FLOP budget <i>C</i>, which model size <i>N</i> and token count <i>D</i> minimise the final pretraining loss <i>L</i>(<i>N</i>, <i>D</i>), subject to FLOPs(<i>N</i>, <i>D</i>) = <i>C</i>, where FLOPs ≈ 6<i>ND</i>?</p>
+
+<div class="pred" id="pr-10x" data-ans="1"><div class="q">You get 10× more compute. If parameters and tokens should grow equally, how much bigger should the model be?</div>
+<div class="opts"><button>About 5.4× (and data 1.9×)</button><button>About 3.2× (and data 3.2×)</button><button>10× (and the same data)</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Equal growth means <i>N</i> ∝ <i>C</i><sup>0.5</sup> and <i>D</i> ∝ <i>C</i><sup>0.5</sup>, so both grow by √10 = <b id="tenV"></b>×; their product, and so 6<i>ND</i>, grows 10×. Kaplan's 0.73 puts most of the extra compute into the model. The {{Scaling Laws page's Then and now tab|n:3c65c17b0d0d81b08a1debb0c15cd252}} animates both rules spending the same budgets, with the real models of 2020 to 2024 on the same axes; this page does not repeat it.</p></div></div>
+
+<p>The paper names two differences from Kaplan's method ({{§2|ax:S2}}):</p>
+<ul class="lst">
+<li><b>One learning-rate schedule for every run.</b> Kaplan trained each model with a cosine schedule to 130B tokens and read losses at earlier tokens <i>D</i>′ off the same run. A checkpoint partway down a long schedule has not had its learning rate decayed, so its loss overestimates what a run whose schedule ends at <i>D</i>′ would reach. That makes training on less data look worse than it is, and "eventually contributes to the conclusion that model size should increase faster than training data size" ({{§2|ax:S2}}, {{Figure A1|ax:A2.F1}}). The slider below shows how much learning rate is left.</li>
+<li><b>Bigger models.</b> Most runs here have over 500M parameters, up to 16B; most of Kaplan's had under 100M. The frontier curves slightly at the top end, so small models alone mislead ({{§2|ax:S2}}, {{Appendix E|ax:A5}}).</li>
+</ul>
+<div class="card" id="lr">
+<div class="ctl"><label>Cosine cycle = <b id="lrKv"></b> × the run's length <input type="range" id="lrK" min="0" max="5" step="1" value="5" aria-label="Cosine cycle length relative to the training length"></label></div>
+<div id="lrSvg"></div>
+<div class="out p" id="lrO"></div>
+<p class="small mute">The schedule this paper uses: cosine decay of the learning rate by 10× over the cycle, LR(<i>t</i>) = LR<sub>max</sub> (0.1 + 0.9 · ½(1 + cos π<i>t</i>/<i>T</i><sub>cycle</sub>)) ({{Appendix B|ax:A2}}). The slider steps through Figure A1's six cycle lengths, 1 to 5× the number of training steps; Figure A1 found clear losses once the cycle overshoots by more than 25%. Arithmetic only: no loss curves are invented here.</p>
+</div>
+<p>Later work found that this explanation is only part of the story: re-running Kaplan's setup, Porian et al. (2024) traced most of the gap to uncounted output-layer FLOPs, a long fixed warmup and untuned optimiser settings, and found matching the schedule mattered little ({{Porian §3|https://arxiv.org/html/2406.19146v1#S3}}). See {{Believe it?|tab:t-read:s-trust}}.</p>
+</section>
+
+<section id="s-meth"><h2>Setup</h2>
+[[S3|§3, Appendices A, B, D, F]]
+<ul class="lst">
+<li><b>Runs:</b> over 400 dense Transformer language models, from 70M (the configurations start at 44M, {{Table A9|ax:A10.T9}}) to over 16B parameters, on 5B to 500B tokens (the abstract; §1 says "over 400B"), each configuration trained for several horizons ({{§1|ax:S1}}).</li>
+<li><b>Data:</b> MassiveText, the Gopher corpus, with a slightly different mix ({{Table A1|ax:A1.T1}}). The paper treats every run as under one epoch, so the smoothed training loss is an unbiased estimate of test loss (footnote 2, {{§1|ax:S1}}).</li>
+<li><b>Schedule:</b> cosine decay by 10× (decaying to 0 is about the same, decaying by only 5× is clearly worse), cycle matched to the run's tokens; peak learning rate 2 × 10<sup>−4</sup> for the smallest models down to 1.25 × 10<sup>−4</sup> for the largest; training curves smoothed with a 10-step Gaussian window ({{Appendix B|ax:A2}}, {{§D.1|ax:A4.SS1}}).</li>
+<li><b>Counting:</b> <i>N</i> and <i>C</i> include the embedding matrices, unlike Kaplan's; forward FLOPs are counted term by term (embeddings, attention, dense block, logits) with backward twice forward, and land within a few percent of 6<i>ND</i> ({{Appendix F|ax:A6}}, {{Table A4|ax:A6.T4}}; the {{FLOP calculator|tab:t-tables:tbA4}} recounts it).</li>
+<li><b>Other hyperparameters</b> (batch size, width-to-depth) come from heuristics in earlier work; models are slightly shallower than Levine et al. (2020) suggest, for wall-clock speed on TPUs ({{§2|ax:S2}}).</li>
+</ul>
+<p>The same runs are then analysed three independent ways.</p>
+</section>
+
+<section id="s-a1"><h2>Approach 1: fix the model, vary the horizon</h2>
+[[S3.SS1|§3.1]]
+<p>For each model size from 70M to over 10B, train 4 runs whose cosine horizons span 16×. Smooth and interpolate every training curve, giving loss as a continuous function of FLOPs for each run. At 1,500 log-spaced FLOP values, take the run with the lowest loss: that is the lower envelope of all the curves, and it gives the best <i>N</i> and <i>D</i> for each budget. Fit power laws through those points: <i>N</i><sub>opt</sub> ∝ <i>C</i><sup>0.50</sup> and <i>D</i><sub>opt</sub> ∝ <i>C</i><sup>0.50</sup> ({{§3.1|ax:S3.SS1}}, {{Figure 2|ax:S3.F2}}).</p>
+<p>Every point picked for the envelope lies in the last 15% of its run, which is the evidence for the rule "decay 10× over about <i>D</i> tokens" (footnote 4). A head-to-head at 10<sup>21</sup> FLOPs tests it: Kaplan's rule says 4.68B parameters, Approach 1 says 2.86B; a 4.74B and a 2.80B model with the same depth-to-width ratio, batch 0.5M tokens and peak rate 1.5 × 10<sup>−4</sup> were trained, and the smaller one ended lower ({{§D.4|ax:A4.SS4}}, {{Figure A4|ax:A4.F4}}). This page recomputes both sizes: Kaplan's 4.68B from his Table 6, and 2.84B from the 10<sup>21</sup> IsoFLOP points below.</p>
+<p class="small mute">No envelope is drawn: the paper released no training curves, and this page never reads curves off a plot.</p>
+</section>
+
+<section id="s-a2"><h2>Approach 2: IsoFLOP profiles</h2>
+[[S3.SS2|§3.2]]
+<p>Fix 9 budgets from 6 × 10<sup>18</sup> to 3 × 10<sup>21</sup> FLOPs; at each, train a range of model sizes (up to 16B), each for exactly the tokens the budget leaves, <i>D</i> = <i>C</i>/6<i>N</i>, with the cosine cycle matched. Plot final loss against <i>N</i>: each budget gives a valley. Fit a parabola to each valley, take its minimum, then fit power laws through the minima: <i>a</i> = 0.49, <i>b</i> = 0.51 ({{§3.2|ax:S3.SS2}}, {{Figure 3|ax:S3.F3}}).</p>
+<div class="card" id="iso">
+<div class="ctl"><label class="small"><input type="checkbox" id="isoAll" checked> show all nine budgets</label> <label class="small">Highlight <select id="isoSel" aria-label="Budget to highlight"></select></label></div>
+<div id="isoSvg"></div>
+<div id="isoSvg2"></div>
+<div class="out p" id="isoO"></div>
+<p class="small mute">Figure 3 (left and centre) rebuilt from data, not from the paper's fits: these are the final losses Besiroglu et al. (2024) read out of the vector graphics of Figure 4 ({{their §2|https://arxiv.org/html/2404.10102v2#S2}}, {{data|https://github.com/epoch-research/analyzing-chinchilla/blob/main/data/svg_extracted_data.csv}}), assigned to a budget when within 0.08 decades of it (some are Approach 1 runs that happen to land near a budget). Loss values are good to about 0.01. The parabola is in log <i>N</i>, as in the paper; <code>fit.py</code> and the page agree.</p>
+</div>
+</section>
+
+<section id="s-a3"><h2>Approach 3: a parametric loss</h2>
+[[S3.SS3|§3.3, §D.2]]
+<p>Fit one function to every final loss from Approaches 1 and 2 ({{Eq. 2|ax:S3.E2}}):</p>
+<div class="fm"><div class="eq"><i>L̂</i>(<i>N</i>, <i>D</i>) = <i>E</i> + <i>A</i>/<i>N</i><sup>α</sup> + <i>B</i>/<i>D</i><sup>β</sup></div><div class="wh">A classical risk decomposition ({{§D.2|ax:A4.SS2}}, {{Eq. 9|ax:A4.E9}}): <b><i>E</i></b> is the Bayes risk, the loss of the ideal generative process, "the entropy of natural text"; <b><i>A</i>/<i>N</i><sup>α</sup></b> is what a perfectly trained Transformer of size <i>N</i> still loses (function approximation; theory for two-layer networks expects α near 1/2); <b><i>B</i>/<i>D</i><sup>β</sup></b> is what a finite number of single-epoch optimisation steps loses (stochastic approximation; first-order methods are bounded below by 1/<i>D</i><sup>1/2</sup>).</div></div>
+<p><b>Fitting.</b> Minimise the Huber loss (δ = 10<sup>−3</sup>, robust to outliers) between predicted and observed log loss, with the prediction written as a log-sum-exp of the three terms, by L-BFGS from a grid of 4,500 starts (α, β in 0 to 2, <i>e</i> in −1 to 1, log <i>A</i> and log <i>B</i> in 0 to 25) ({{Eq. 3|ax:S3.E3}}, {{Eq. 11|ax:A4.E11}}). Larger δ overfit the small-compute runs; smaller δ changed nothing. The result ({{Eq. 10|ax:A4.E10}}):</p>
+<div class="fm"><div class="eq"><i>L̂</i> = 1.69 + 406.4/<i>N</i><sup>0.34</sup> + 410.7/<i>D</i><sup>0.28</sup></div><div class="wh">Both exponents are below 1/2, "expected for the data-efficiency coefficient (but far from the known lower-bound)".</div></div>
+<p><b>The frontier in closed form.</b> Minimising <i>L̂</i> under 6<i>ND</i> = <i>C</i> balances the two reducible terms ({{Eq. 4|ax:S3.E4}}):</p>
+<div class="fm"><div class="eq"><i>N</i><sub>opt</sub> = <i>G</i> (<i>C</i>/6)<sup><i>a</i></sup>, &nbsp;<i>D</i><sub>opt</sub> = <i>G</i><sup>−1</sup> (<i>C</i>/6)<sup><i>b</i></sup>, &nbsp;<i>G</i> = (α<i>A</i>/β<i>B</i>)<sup>1/(α+β)</sup>, &nbsp;<i>a</i> = β/(α+β), &nbsp;<i>b</i> = α/(α+β)</div><div class="wh">So the model exponent comes from the <i>data</i> exponent and the other way round. The paper reports <i>a</i> = 0.46, <i>b</i> = 0.54 ({{Table 2|ax:S3.T2}}); the rounded α and β above give 0.452 and 0.548, the unrounded ones in the TeX source give 0.4565 ({{Besiroglu et al. Eq. 4|https://arxiv.org/html/2404.10102v2#S3.E4}}). At Gopher's budget the unrounded fit puts <i>N</i><sub>opt</sub> at <b id="a3N"></b>, the paper's "40B" ({{Figure 4|ax:S3.F4}}).</div></div>
+<p>Approach 3 predicts even smaller optimal models than Approaches 1 and 2. The paper's explanation: runs below 10<sup>21</sup> FLOPs have larger residuals, the Huber loss treats them as outliers, and with the frontier curving downward that lowers <i>N</i><sub>opt</sub> ({{§3.4|ax:S3.SS4}}). The 2024 replication found a simpler cause: the fit had not converged ({{see below|tab:t-read:s-trust}}; refit it yourself in the {{Refit tab|tab:t-run}}).</p>
+</section>
+
+<section id="s-alloc"><h2>The answer: scale both equally</h2>
+[[S3.SS4|§3.4]]
+<div class="tw"><table id="rdT2"></table></div>
+<p>All three approaches say parameters and tokens should grow in equal proportion with compute ("for every doubling of model size the number of training tokens should also be doubled", {{abstract|https://arxiv.org/abs/2203.15556}}; so doubling the budget grows each by √2 ≈ 1.41, and quadrupling it doubles both), against Kaplan's 0.73/0.27 ({{Table 2|ax:S3.T2}}; percentiles from 100 bootstraps of 80% of the data). The same IsoFLOP analysis on C4 gives 0.50/0.50 and on GitHub code 0.53/0.47 ({{Table A2|ax:A3.T2}}): the result does not depend on the dataset, as long as training stays under one epoch.</p>
+<p>What that means per model ({{Table 3|ax:S3.T3}}, Approach 1): about 20 tokens per parameter, roughly constant with scale. 1B parameters wants 20.2B tokens; 67B wants 1.5T (Gopher's budget); 175B wants 3.7T; 280B wants 5.9T; a 1-trillion-parameter model is only worth training above about 10<sup>26</sup> FLOPs, on 21.2T tokens. The {{Table 3 and A3 rebuild|tab:t-tables:tbT3}} checks every row against 6<i>ND</i> and finds one misprinted exponent.</p>
+<div class="co warn"><div class="t">The text and the tables disagree in places</div><p class="small">§3.4 says 175B needs 4.41 × 10<sup>24</sup> FLOPs and 4.2T tokens (Table 3: 3.85 × 10<sup>24</sup> and 3.7T); that a Gopher-sized 280B model is optimal at about 10<sup>25</sup> FLOPs on 6.8T tokens (Table 3: 5.9T, which is 20× Gopher's 300B; 6.8T would be 23×); and that 10<sup>26</sup> FLOPs is "over 250×" Gopher's compute (it is 174×; Table 3's 1.27 × 10<sup>26</sup> is 221×) ({{§3.4|ax:S3.SS4}}). None of these changes the conclusion.</p></div>
+</section>
+
+<section id="s-spend"><h2>Same budget, two allocations</h2>
+[[S4|§4, §D.2]]
+<p>Gopher spent 5.76 × 10<sup>23</sup> FLOPs on 280B parameters and 300B tokens. Chinchilla spent the same budget on 70B parameters and 1.4T tokens. The animation walks one budget through the loss decomposition for each allocation: pick <i>N</i>, the budget fixes <i>D</i>, and the two reducible terms trade off along the IsoFLOP curve.</p>
+<div class="card" id="spx">
+<div class="an-top"><div class="seg" id="spxM" role="group" aria-label="Allocation"><button class="on" data-m="gop" aria-pressed="true">Gopher: 280B on 300B</button><button data-m="chin" aria-pressed="false">Chinchilla: 70B on 1.4T</button></div><label>Fit <select id="spxFit" aria-label="Which fitted loss"><option value="epoch" selected>Besiroglu et al. 2024</option><option value="hoff">this paper (rounded)</option></select></label></div>
+<div id="spxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="spxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="spxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="spxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="spxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="spxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="spxStep"></div><p id="spxCap"></p></div>
+<div class="an-cnt" id="spxCnt"></div>
+<p class="small mute">Top: predicted loss along the 5.76 × 10<sup>23</sup> IsoFLOP line, <i>D</i> = <i>C</i>/6<i>N</i>, with its two reducible terms. Bottom: the loss split into <i>E</i>, the model-size term and the data term, drawn to one scale. The default fit is Besiroglu et al.'s refit of Approach 3 on the paper's own points (<i>E</i> 1.8172, <i>A</i> 482.01, <i>B</i> 2085.43, α 0.3478, β 0.3658, {{Eq. 3|https://arxiv.org/html/2404.10102v2#S3.E3}}); the paper's rounded fit is the alternative. Both are extrapolations: the largest fitted run had 16B parameters and 3 × 10<sup>21</sup> FLOPs. No loss is quoted for the real Gopher or Chinchilla runs, whose setups also differed (below).</p>
+</div>
+</section>
+
+<section id="s-chin"><h2>Chinchilla, the test</h2>
+[[S4.SS1|§4.1, Appendix G]]
+<p>All three approaches put Gopher's budget at a 40B to 70B model. The paper trained the larger end, 70B on 1.4T tokens, exactly 20 tokens per parameter, "due to both dataset and computational efficiency considerations" ({{§4|ax:S4}}).</p>
+<div class="tw"><table id="rdT4"></table></div>
+<p class="small mute">{{Table 4|ax:S4.T4}}; feed-forward size 4 <i>d</i><sub>model</sub>; batch doubled midway for both. The shapes give 64.7B and 258B parameters by the usual 12 <i>n</i><sub>layer</sub> <i>d</i><sub>model</sub><sup>2</sup> (plus embeddings); one more <i>d</i><sub>model</sub><sup>2</sup> per layer, as a Transformer-XL-style relative-position projection would add (Gopher uses relative encodings, {{Rae et al. 2021|https://arxiv.org/abs/2112.11446}}), lands on 70.1B and 279.7B, and the same count matches all 50 rows of {{Table A9|ax:A10.T9}} to within 0.8%. The paper does not state its count; this is a reconstruction.</p>
+<p>Same architecture and data as Gopher, except ({{§4.1|ax:S4.SS1}}, {{Appendix G|ax:A7}}):</p>
+<ul class="lst">
+<li>a slightly different MassiveText mix for the longer run ({{Table A1|ax:A1.T1}}): in 1.4T tokens MassiveWeb is seen 1.24 times and Wikipedia 3.40 times;</li>
+<li><b>AdamW instead of Adam</b>, which improves the language-modelling loss and downstream results after fine-tuning; an AdamW run only overtakes an Adam run about 80% of the way through the cosine cycle, but ends notably better ({{Figure A7|ax:A7.F7}});</li>
+<li>a SentencePiece tokenizer without NFKC normalisation, vocabulary 32,000, 94.15% of tokens shared with Gopher's; it helps mathematics and chemistry;</li>
+<li>forward and backward in bfloat16 with a float32 copy of the weights in the sharded optimiser state; together with AdamW this clearly beats Gopher's setup on a 680M model ({{Figure A6|ax:A7.F6}});</li>
+<li>peak learning rate 1 × 10<sup>−4</sup> against Gopher's 4 × 10<sup>−5</sup> ({{Table 4|ax:S4.T4}}).</li>
+</ul>
+<p>Trained on TPUv3 and TPUv4 with JAX and Haiku. The model card says it was trained once and will not be released ({{Table A8|ax:A9}}).</p>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S4.SS2|§4.2]]
+<p>Chinchilla beats Gopher (280B), GPT-3 (175B), Jurassic-1 (178B) and MT-NLG (530B) on nearly every evaluation, at the same or less training compute; being 4× smaller, it also costs about a quarter as much to fine-tune and to serve, so the gain is not only at training time ({{§4.2|ax:S4.SS2}}). Evaluation follows Rae et al. (2021) exactly ({{Table 5|ax:S4.T5}}).</p>
+<div class="card" id="tsk">
+<div class="an-top"><div class="seg" id="tskM" role="group" aria-label="Benchmark"><button class="on" data-m="mmlu" aria-pressed="true">MMLU, 57 tasks</button><button data-m="bb" aria-pressed="false">BIG-bench, 62 tasks</button></div></div>
+<div id="tskSvg"></div>
+<div class="out p" id="tskO"></div>
+<p class="small mute">Figures 6 and 7 rebuilt from {{Table A6|ax:A8.T6}} and {{Table A7|ax:A8.T7}}: Chinchilla's accuracy minus Gopher's, per task, sorted. Tap or hover a bar for its task.</p>
+</div>
+<ul class="lst">
+<li><b>MMLU</b> (exam questions, 57 subjects): 67.6% 5-shot average, against Gopher's 60.0%, GPT-3's 43.9%, average human raters' 34.5% and human experts' 89.8%; above the June 2023 forecast of 63.4% made by 73 professional forecasters (Steinhardt 2021). Better on 51 tasks, the same on 2, worse on 4 (college_mathematics, econometrics, moral_scenarios, formal_logic); above 90% on four tasks, which the paper believes no model had done ({{Table 6|ax:S4.T6}}, {{Figure 6|ax:S4.F6}}). The abstract says 67.5%.</li>
+<li><b>BIG-bench</b> (62 tasks): 65.1% against 54.4% (+10.7), better on 58 of 62 and worse on only crash_blossom, dark_humor_detection, mathematical_induction and logical_args ({{§4.2.4|ax:S4.SS2.SSS4}}). Recomputed from Table A7's 62 scores, the unweighted means are <span id="bbM"></span>: Gopher's 54.4 reproduces, Chinchilla's 65.1 does not, and the paper does not say how it averaged.</li>
+<li><b>Language modelling:</b> lower bits per byte than Gopher on every subset of The Pile, and lower than Jurassic-1 on all but dm_mathematics and ubuntu_irc ({{Figure 5|ax:S4.F5}}, {{Table A5|ax:A8.T5}}); WikiText-103 perplexity 7.16 against 7.75. The authors warn that 4× more training data raises the risk of train/test leakage here, and so lean on the other tasks ({{§4.2.1|ax:S4.SS2.SSS1}}).</li>
+<li><b>Reading comprehension:</b> LAMBADA 77.4% zero-shot (Gopher 74.5, MT-NLG 76.6); RACE-m 86.8 and RACE-h 82.3, over 10 points above Gopher (GPT-3 and MT-NLG used another prompt format, so are not comparable) ({{Table 7|ax:S4.T7}}).</li>
+<li><b>Common sense:</b> matches or beats Gopher and GPT-3 on HellaSwag, PIQA, Winogrande, SIQA and BoolQ, and MT-NLG on all but PIQA ({{Table 8|ax:S4.T8}}). <b>TruthfulQA:</b> 43.6%, 58.5%, 66.7% at 0, 5, 10 shots against Gopher's 29.5% (0-shot) and 43.7% (10-shot); the 14.1-point gain suggests better pretraining alone helps, against Lin et al.'s finding ({{§4.2.5|ax:S4.SS2.SSS5}}).</li>
+<li><b>Closed-book QA:</b> Natural Questions 31.5% 5-shot and 35.5% 64-shot, a new closed-book state of the art (Table 9 gives Gopher 24.5% and 28.2%; the text says 21% and 28%); TriviaQA beats Gopher on both versions, beats GPT-3 unfiltered and trails the open-book state of the art by 7.9 points filtered ({{Table 9|ax:S4.T9}}).</li>
+<li><b>Bias and toxicity:</b> Winogender coreference improves for every group, but by 3.2 points for male pronouns against 8.3 female and 9.2 neutral (10 on female "gotcha" examples), so the gains are uneven ({{Table 10|ax:S4.T10}}). Unprompted toxicity is unchanged: mean (median) PerspectiveAPI score 0.087 (0.066) against Gopher's 0.081 (0.064), 95th percentile 0.238 against 0.230, over 25,000 samples ({{§4.2.7|ax:S4.SS2.SSS7}}).</li>
+</ul>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S5|§5 Discussion, and later work]]
+<p><b>What holds up.</b> Two of the three methods, built on different subsets of the runs, agree on 0.49 to 0.50 with tight bootstrap intervals ({{Table 2|ax:S3.T2}}); the result repeats on C4 and GitHub ({{Table A2|ax:A3.T2}}); two head-to-heads go the predicted way, at 10<sup>21</sup> FLOPs with the confounders controlled ({{Figure A4|ax:A4.F4}}) and at Gopher scale. Later work reproduces the allocation: Approach 2 on the points Besiroglu et al. read off Figure 4 gives <i>a</i> = <b id="tr2"></b> on this page; Llama 3's own IsoFLOP sweep gives 0.47 ({{§3.2.1|https://arxiv.org/html/2407.21783v3#S3.SS2.SSS1}}); DeepSeek LLM gives 0.45 to 0.58 depending on the data ({{Table 4|https://arxiv.org/html/2401.02954v1#S3.T4}}). The {{Then and now tab|tab:t-then}} lists them.</p>
+<p><b>Weaknesses, concretely:</b></p>
+<ul class="lst">
+<li><b>Approach 3's fit did not converge.</b> Refitting the same functional form to 240 of the paper's own points, Besiroglu et al. (2024) get <i>E</i> 1.82, <i>A</i> 482, <i>B</i> 2085, α 0.348, β 0.366, so <i>a</i> = 0.51 and about 20 tokens per parameter, consistent with Approaches 1 and 2; the published constants imply about 70 tokens per parameter instead and fit the points worse, with residuals not centred on zero ({{their §3|https://arxiv.org/html/2404.10102v2#S3}}, {{Figure 5|https://arxiv.org/html/2404.10102v2#S3.F5}}). Two causes: β printed as 0.28 for 0.2849, which alone biases the data term by about 13% at 10<sup>11</sup> tokens; and, as one of the paper's authors confirmed, the Huber losses were averaged instead of summed, so the optimiser's loss scale made it stop early. This page reproduces the second: averaging stops the same search at <i>a</i> = <b id="trM"></b>, close to the published 0.454, while summing gives <b id="trS"></b> ({{try it|tab:t-run}}).</li>
+<li><b>Implausibly tight intervals.</b> Approach 3's 80% interval for <i>a</i>, 0.454 to 0.455, would need about 600,000 runs; bootstrapping the 240 points gives a standard error of 0.018, an interval 50× wider ({{Besiroglu §3.2|https://arxiv.org/html/2404.10102v2#S3.SS2}}). The early stopping explains this too: bootstrap fits barely moved from their start.</li>
+<li><b>One pair of large runs, single seeds.</b> Only Chinchilla and Gopher are compared at scale, with nothing in between, and Chinchilla was trained once (§5, {{model card|ax:A9}}). The authors state both.</li>
+<li><b>Not like for like.</b> Chinchilla also changed optimiser (AdamW), weight precision, tokenizer, data mix and peak learning rate, and the paper's own Figures A6 and A7 show the optimiser changes help by themselves ({{Appendix G|ax:A7}}). Some of the benchmark gain is not allocation.</li>
+<li><b>"The same budget" is approximate.</b> By the 6<i>ND</i> rule the paper uses for its frontier, Chinchilla's run costs 5.88 × 10<sup>23</sup> FLOPs and Gopher's 5.04 × 10<sup>23</sup>; the 5.76 × 10<sup>23</sup> is Gopher's own fuller count, and Appendix F's count gives 6.3 × 10<sup>23</sup> ({{Appendix F|ax:A6}}). Chinchilla's run had at least as much compute, not less.</li>
+<li><b>Single epoch, except the test.</b> The analysis assumes no repetition, but Chinchilla's own 1.4T-token run sees Wikipedia 3.4 times and MassiveWeb 1.24 times ({{Table A1|ax:A1.T1}}).</li>
+<li><b>A power-law frontier is assumed</b> though it curves at high compute ({{Appendix E|ax:A5}}), so large optimal models may still be overestimated (§5, stated by the authors). Repeated data, the case the paper leaves out, was modelled later by {{Muennighoff et al. (2023)|https://arxiv.org/abs/2305.16264}}.</li>
+<li><b>The explanation for Kaplan's numbers is partly wrong.</b> Porian et al. (2024) reproduce both exponents and find the schedule matters little next to output-layer FLOPs, warmup and tuning ({{Porian §3|https://arxiv.org/html/2406.19146v1#S3}}).</li>
+<li><b>Small inconsistencies:</b> the text against Tables 3 and A3 (above), a misprinted exponent in Table A3, 67.5% against 67.6% on MMLU, Gopher's Natural Questions score, and Table A4's FLOP ratios, which only reproduce if the embedding and logit terms Appendix F lists are left out ({{tables tab|tab:t-tables:tbChk}}).</li>
+</ul>
+<div class="pred" id="pr-ci" data-ans="2"><div class="q">Approach 3 reports an 80% interval for <i>a</i> of 0.454 to 0.455 from about 400 runs. Bootstrapping 240 of those runs gives a standard error of 0.018. How many runs would the published width need?</div>
+<div class="opts"><button>About 400</button><button>About 4,000</button><button>About 600,000</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>An 80% interval is 2 × 1.28 × 0.018 ≈ 0.05 wide, 50× the published 0.001. Standard errors shrink as 1/√<i>n</i>, so the width needs 50² = 2,500× the runs: 240 × 2,500 = <b id="ciV"></b> ({{Besiroglu §3.2|https://arxiv.org/html/2404.10102v2#S3.SS2}}). Run your own bootstrap in the {{Refit tab|tab:t-run}}.</p></div></div>
+<p><b>Verdict.</b> Believe the allocation: grow parameters and tokens together, about 20 tokens per parameter at these scales and with this kind of data. It rests on two independent analyses, a controlled small-scale test, a large-scale test and every later replication. Treat the size of Chinchilla's benchmark wins as allocation plus several other improvements, from one run each. Do not reuse the Approach 3 constants or intervals; refit them, or use a corrected fit.</p>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+[[S5|§5 Discussion]]
+<p>This paper reset how the field budgets pretraining. It ended the "parameters are all that matter" era: progress became data-bound, and dataset scale and quality became a first-class concern, as the authors foresaw ("scaling to larger and larger datasets is only beneficial when the data is high-quality", with more care for train/test overlap, toxicity, bias and privacy as corpora grow) ({{§5|ax:S5}}). That line runs to the 15T-token corpora of 2024 and 2025 and to data-curation research generally ({{Llama 3 §3.1|https://arxiv.org/html/2407.21783v3#S3.SS1}}). The deeper lessons outlived the constants: match the schedule to the run, run IsoFLOP sweeps of small models to choose (<i>N</i>, <i>D</i>) before the big run, and model loss as <i>E</i> + <i>A</i>/<i>N</i><sup>α</sup> + <i>B</i>/<i>D</i><sup>β</sup>, a form later work reuses constantly.</p>
+<p><b>Chinchilla-optimal is not deployment-optimal.</b> The law minimises training loss for a training budget and ignores inference. When lifetime inference dominates, a smaller model trained far past 20 tokens per parameter costs less overall ({{Sardana et al. §2|https://arxiv.org/html/2401.00448v2#S2}}), and loss keeps falling out to 10,000 tokens per parameter in their runs ({{§4|https://arxiv.org/html/2401.00448v2#S4}}). That is now standard practice: the loss curve in <i>D</i> flattens but keeps improving, so overtraining trades extra training compute for a permanently cheaper model.</p>
+<div class="pred" id="pr-tpp" data-ans="2"><div class="q">Llama 3 8B (2024) was trained on about 15T tokens. How many tokens per parameter is that?</div>
+<div class="opts"><button>About 20, Chinchilla-optimal</button><button>About 200</button><button>About 1,900</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>15 × 10<sup>12</sup> / 8 × 10<sup>9</sup> = <b id="tppV"></b>, over 90× the Chinchilla ratio; Llama 2 7B had 286, Gemma 2 9B 889 ({{Llama 3 §3|https://arxiv.org/html/2407.21783v3#S3}}, {{Llama 2 §2.1|https://arxiv.org/html/2307.09288v2#S2.SS1}}, {{Gemma 2 §3|https://arxiv.org/html/2408.00118v3#S3}}). Meta still used an IsoFLOP fit to size the 405B flagship, near compute-optimal at about 38 tokens per parameter. The {{Then and now tab|tab:t-then}} animates the inference-aware optimum.</p></div></div>
+<p><b>Using this today.</b> Read Chinchilla as the compute-optimal anchor from which you deviate toward more data once inference is counted. To plan a run, fit your own law: several IsoFLOP budgets with about ten sizes each and matched schedules, as Llama 3 and DeepSeek LLM did; the optimal ratio moves with data quality (higher-quality data favours bigger models, {{DeepSeek LLM §3.3|https://arxiv.org/html/2401.02954v1#S3.SS3}}). If you need constants, take Besiroglu et al.'s and treat them as specific to MassiveText. Mixture-of-experts models need their own treatment: the paper itself notes that routed-model scaling shared Kaplan's fixed-token flaw ({{§2|ax:S2}}).</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li>{{Scaling Laws for Neural Language Models|n:3c65c17b0d0d81b08a1debb0c15cd252}} (2020): the Kaplan result this paper corrects; its Then-and-now animation spends the same budgets by both rules, and its toy sweep shows why a CPU-sized sweep cannot find the IsoFLOP valley (its larger model never overtook the smaller one in 8.4M tokens, so this page does not reuse it).</li>
+<li>{{GPT-3|n:3c65c17b0d0d8193ac92c7648cfaca12}} (2020): the archetypal under-trained model by this paper's account, 175B on 300B tokens where Table 3 says 3.7T.</li>
+<li>{{The Llama 3 Herd of Models|n:3c65c17b0d0d81aca58ccb9d720b474e}} (2024): IsoFLOP-sized flagship, deliberately overtrained smaller models.</li>
+<li>{{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} (2024): heavily overtrained mixture of experts; MoE needs its own scaling treatment.</li>
+<li>{{Switch Transformers|n:3c65c17b0d0d81a8b541c9babbf40c94}} (2021): sparse models change the <i>N</i> in the FLOP accounting; the related work here flags that MoE scaling studies (Clark et al. 2022) shared Kaplan's fixed-token-count flaw ({{§2|ax:S2}}).</li>
+<li>Topics: {{llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (pretraining budgets, scaling laws) and {{data-curation-and-datasets|n:3c65c17b0d0d811fa5ecda8d365ab00f}} (the result that made dataset scale the binding constraint).</li>
+</ul>
+</section>
+</section>
