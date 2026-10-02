@@ -1,0 +1,57 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Run a toy BERT</h2>
+<p>A real BERT, built as {{§3|ax:S3}} says (learned token, position and segment embeddings; post-LN encoder layers with GELU and a 4<i>H</i> feed-forward; the masked-LM head tied to the token embeddings; a tanh pooler and NSP layer on <code>[CLS]</code>), at toy scale: <i>L</i> = 2, <i>H</i> = 24, <i>A</i> = 4, <span id="rParams"></span> parameters. It was pretrained on a made-up English with the paper's two objectives and masking rule, then fine-tuned with one output layer, and it runs here in plain JavaScript on its exported weights. Beside it, the same model pretrained left to right (the paper's "LTR &amp; No NSP"), so the paper's central ablation can be run on any sentence you build.</p>
+<div class="co"><div class="t">The toy language, and why it is built this way</div><p class="small" style="margin:2px 0">Eight names (austin, paris, jordan, sydney, florence, chelsea, victoria, georgia) are each a person or a place equally often, so the name alone says nothing. Context decides: a cue <b>before</b> the name ("we flew to <i>austin</i>", "i met <i>austin</i>") or a cue <b>after</b> it ("<i>austin</i> is a city", "<i>austin</i> has a cold"). Animal sentences fix the animal by a verb after it (dog barked, cat purred, duck quacked, cow mooed). Pretraining text comes in documents about one entity, so next sentence prediction has something to learn. The fine-tuning task tags each name PER or LOC, like CoNLL NER; half of every cue list is kept out of the labelled data (never out of pretraining), to test what pretraining transfers. Rules: <code>grammar.py</code>, copied in <code>21_js_lang.js</code>.</p></div>
+
+<h3 id="rcomp">Build a sentence</h3>
+<div class="ctl" id="rcCtl">
+<label>Kind <select id="rcK"><option value="R">Name, cue after it</option><option value="L">Name, cue before it</option><option value="A">Animal</option></select></label>
+<label id="rcNameL">Name <select id="rcName"></select></label>
+<label id="rcCueL">Cue <select id="rcCue"></select></label>
+<label id="rcPreL">Before <select id="rcPre"></select></label>
+<label id="rcSufL">After <select id="rcSuf"></select></label>
+<label id="rcAnL" hidden>Animal <select id="rcAn"></select></label>
+<label id="rcAdjL" hidden>Adjectives <select id="rcAdj"><option value="0">none</option><option value="1" selected>one</option><option value="2">two</option></select></label>
+<label id="rcTailL" hidden>Ending <select id="rcTail"><option value="0">none</option><option value="1" selected>at the farmer</option><option value="2">near the child</option></select></label>
+<div><button id="rcRand">Random sentence</button></div>
+</div>
+<p class="small mute">Cues marked "held out" never occurred in the labelled fine-tuning data; the models met them only in unlabelled pretraining text. Click a word below to hide it.</p>
+<div class="sent" id="rcSent" aria-label="The sentence; click a word to mask it"></div>
+
+<div class="cols2">
+<div class="card" id="rfill"><h3 style="margin-top:0">Fill in the hidden word</h3><div id="rfA"></div><div id="rfB"></div>
+<p class="small mute" style="margin:4px 0 0">Bidirectional: the pretrained BERT's masked-LM head at <code>[MASK]</code> (input "[CLS] sentence [SEP]"). Left to right: the pretrained LTR model's next-word head one position earlier, so it has read only the words to the left. Green is the word you hid.</p></div>
+<div class="card" id="rtag"><h3 style="margin-top:0">Tag the names</h3><div id="rtOut"></div>
+<p class="small mute" style="margin:4px 0 0">Both taggers were fine-tuned from their pretrained model with one new 3-way layer on every token, on the same 128 labelled sentences (seen cues only), learning rate chosen on dev as the paper does ({{§4.1|ax:S4.SS1}}). The left-to-right tagger keeps its causal mask, as in Table 5.</p></div>
+</div>
+
+<div class="card" id="ratt"><h3 style="margin-top:0">Where the name looks</h3>
+<div class="ctl"><label>Model <select id="raM"><option value="bert_tag">BERT tagger (fine-tuned)</option><option value="ltr_tag">Left-to-right tagger (fine-tuned)</option><option value="bert">BERT, pretrained only</option></select></label><label>Query word <select id="raQ"></select></label></div>
+<div id="raOut"></div>
+<p class="small mute" style="margin:4px 0 0">Attention weights from the query word to every position, for each of the 2 layers and 4 heads; the darker the cell, the more weight. In the left-to-right model everything to the right of the query is zero by construction.</p></div>
+
+<h3 id="rres">What fine-tuning reaches, measured</h3>
+<p>Each point is the mean of 3 fine-tuning seeds, each with the learning rate picked on a dev set from 3e-4, 1e-3 and 3e-3 ({{§4.1|ax:S4.SS1}}'s protocol at toy scale), tested on 2,000 sentences drawn from the whole grammar (every cue item, held out of the labels or not). Choose what to measure:</p>
+<div class="ctl"><label>Task <select id="rrT"><option value="tok">Tag the name (token-level, like NER or SQuAD spans)</option><option value="sent">Classify the sentence (sentence-level, like GLUE)</option></select></label>
+<label>Test subset <select id="rrS"><option value="all">all names</option><option value="R" selected>cue after the name</option><option value="R_unseen">cue after, held out of the labels</option><option value="L">cue before the name</option><option value="L_unseen">cue before, held out of the labels</option></select></label></div>
+<div id="rrChart"></div>
+<div class="tw" id="rrTab"></div>
+<div class="co key" id="rrRead"></div>
+
+<h3 id="rf5">Figure 5 at toy scale</h3>
+<p>The paper fine-tunes MNLI from checkpoints taken along pretraining ({{Figure 5|ax:A3.F5}}). Here the same is done for the tagging task (128 labelled sentences, 3 seeds, all names), from checkpoints of the toy BERT and the toy left-to-right model.</p>
+<div id="rf5Chart"></div>
+<p class="small mute" id="rf5Note"></p>
+
+<h3 id="rcur">Pretraining, from the training logs</h3>
+<div id="rcurChart"></div>
+<p class="small mute">Batch losses every 250 steps, unsmoothed, from <code>model/*.pt</code>. The masked-LM loss counts only the chosen 15% of positions; the left-to-right loss counts every position, so the two are not comparable in level.</p>
+<div class="out" id="rPre"></div>
+
+<h3 id="rtest">Test it in your browser</h3>
+<p class="small">Draws fresh sentences from the grammar in this page (a different random stream from the Python test set) and tags them with both shipped taggers.</p>
+<div class="ctl"><div><button id="tstGo">Tag 400 random sentences</button></div></div>
+<div class="out" id="tstOut"></div>
+
+<div class="co warn"><div class="t">How far to trust the toy</div><div id="rHonest" class="small"></div></div>
+</section>
