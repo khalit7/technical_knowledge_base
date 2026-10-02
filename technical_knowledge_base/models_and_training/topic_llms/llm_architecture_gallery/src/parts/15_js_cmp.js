@@ -39,11 +39,10 @@ const diffTxt='Config: 9 global layers × 4 KV heads × (192 key + 128 value) ×
     const lg=Math.log10,y0=lg(512),yT=lg(4*MiB),X=v=>pl+(W-pl-pr)*(Math.max(x0,v)-x0)/(x1-x0),Y=v=>v<=0?H-pb+0:pt+(H-pt-pb)*(1-(lg(Math.max(600,v))-y0)/(yT-y0));
     let s='';[[1*KiB,'1 KiB'],[10*KiB,'10 KiB'],[100*KiB,'100 KiB'],[1*MiB,'1 MiB']].forEach(([v,l])=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/><text x="'+(pl-5)+'" y="'+(Y(v)+4)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">'+l+'</text>'});
     [2024.5,2025,2025.5,2026,2026.5].forEach(v=>{s+='<text x="'+X(v)+'" y="'+(H-12)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+(v%1?'mid ':'')+Math.floor(v)+'</text>'});
-    s+='<text x="'+(pl+2)+'" y="'+(H-pb-4)+'" font-size="10" fill="var(--mute)">earlier models pinned at the left edge; 0 B (xLSTM) on the floor</text>';
     R.forEach(r=>{const v=ymode==='h'?(r.kv!=null?r.kv:r.gal):effKV(r,131072);if(v==null)return;const c=FAM[r.fam][1],on=sel===r.n;
       s+='<circle cx="'+X(r.y).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="'+(on?6:4)+'" fill="'+c+'" fill-opacity="'+(on?1:.75)+'" stroke="'+(on?'var(--ink)':'var(--bg)')+'" stroke-width="'+(on?2:1)+'" data-n="'+r.n+'" style="cursor:pointer"><title>'+r.n+' ('+r.dt+'): '+fmtBytes(v)+' per token</title></circle>'});
     s+='<text x="12" y="'+((pt+H-pb)/2)+'" font-size="11" text-anchor="middle" fill="var(--mute)" transform="rotate(-90 12 '+((pt+H-pb)/2)+')">KV per token, BF16 (log)</text>';
-    $('cmpSc').innerHTML=svgEl(W,H,s,'KV cache per token against release date')+'<div class="leg">'+Object.keys(FAM).map(k=>'<span><i style="background:'+FAM[k][1]+';height:8px;width:8px;border-radius:50%"></i>'+FAM[k][0]+'</span>').join('')+'</div>';
+    $('cmpSc').innerHTML=svgEl(W,H,s,'KV cache per token against release date')+'<div class="leg">'+Object.keys(FAM).map(k=>'<span><i style="background:'+FAM[k][1]+';height:8px;width:8px;border-radius:50%"></i>'+FAM[k][0]+'</span>').join('')+'</div><p class="small mute" style="margin:2px 0">Earlier models pinned at the left edge; 0 B (xLSTM) on the floor.</p>';
     $('cmpSc').querySelectorAll('circle').forEach(c=>c.addEventListener('click',()=>pick(c.dataset.n)))}
   // diff
   const opts=R.map(r=>'<option>'+r.n+'</option>').join('');$('cmpA').innerHTML=opts;$('cmpB').innerHTML=opts;

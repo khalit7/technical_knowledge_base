@@ -144,6 +144,6 @@ function sessFixed(p,P,T,N,O){const w=1.25*p.i;return {write:P*w/1e6,read:T*P*p.
   $('weTab').innerHTML=h;
   // one turn split, Fable 5 against Fable 5.1
   let b='';[['Fable 5',PBY('Fable 5')],['Fable 5.1',PBY('Fable 5.1')]].forEach(([n,p])=>{const r=P*p.c/1e6,i=N*p.i/1e6,o=O*p.o/1e6,t=r+i+o;
-    b+='<span>'+n+' turn '+usd(t,3)+'</span><div class="sb">'+[[r,'cache read','var(--good)'],[i,'new input','var(--c1)'],[o,'output','var(--c4)']].map(([v,l,c])=>'<span style="width:'+(100*v/t).toFixed(1)+'%;background:'+c+'" title="'+l+' '+usd(v,3)+'">'+l+' '+Math.round(100*v/t)+'%</span>').join('')+'</div>'});
-  $('weBars').innerHTML=b;
+    b+='<span>'+n+' turn '+usd(t,3)+'</span><div class="sb">'+[[r,'cache read','var(--good)'],[i,'new input','var(--c1)'],[o,'output','var(--c4)']].map(([v,l,c])=>sbSeg(v,t,l,c,l+' '+usd(v,3))).join('')+'</div>'});
+  $('weBars').innerHTML=b;fitSb($('weBars'));onTab('t-read',()=>fitSb($('weBars')));addEventListener('resize',()=>fitSb($('weBars')));
 })();
