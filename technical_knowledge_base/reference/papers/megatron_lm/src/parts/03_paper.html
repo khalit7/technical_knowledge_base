@@ -1,0 +1,194 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-mlp">MLP and f, g</a><a href="#s-att">Attention</a><a href="#s-emb">Embeddings and loss</a><a href="#s-dup">Duplicate, not send</a><a href="#s-hyb">With data parallel</a><a href="#s-train">Training</a><a href="#s-res">Results</a><a href="#s-bert">BERT and LayerNorm</a><a href="#s-believe">How much to believe</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S2.SS3|§1 Introduction, §2.3]]
+<p>By 2019 the useful frontier of language models (BERT-large at 336M parameters, GPT-2 at 1.5B) had reached the memory of a single accelerator. Training keeps the weights, their gradients and the Adam optimizer's extra state per parameter, plus the activations, and a 32 GB V100 was running out even with activation checkpointing, which recomputes activations in the backward pass instead of storing them ({{§1|ax:S1}}, {{§2.3|ax:S2.SS3}}). Data parallelism, the usual way to scale out, has a hard limit here: "the model must fit entirely on one worker" ({{§2.3|ax:S2.SS3}}). Sharing parameters across layers, as ALBERT does, shrinks the footprint but also the model's capacity.</p>
+<p>The existing ways to split a model across devices each had a cost ({{§2.3|ax:S2.SS3}}):</p>
+<ul class="lst">
+<li><b>Pipeline parallelism</b> (layers on different devices, in stages): with a parameter server (PipeDream and others) it suffers inconsistency; GPipe fixes that with synchronous gradient descent but needs extra logic to pipeline communication and computation, and pays either in pipeline bubbles that reduce efficiency or in changes to the optimizer that affect accuracy.</li>
+<li><b>Distributed tensor computation</b> (one operation split across devices): general, but FlexFlow and Mesh-TensorFlow are frameworks with their own language and compiler, and GPipe and Mesh-TensorFlow "require rewriting the model, and rely on custom compilers and frameworks that are still under development" ({{§1|ax:S1}}).</li></ul>
+<p>The calculator below makes the memory wall concrete with the Table 1 models. It counts 16 bytes per parameter for mixed-precision Adam (fp16 weights and gradients, fp32 master weights, momentum and variance, the accounting in {{ZeRO §3.1|https://arxiv.org/abs/1910.02054}}), divides it by the number of GPUs splitting each layer, and adds the activations that checkpointing after every layer still holds.</p>
+<div class="card" id="memx">
+<p class="try"><b>Try:</b> pick each model and find the fewest GPUs that bring it under the 32 GB line, then compare with the GPU count the paper used in {{Table 1|ax:S5.T1}}.</p>
+<div class="ctl"><label>Model (Table 1) <select id="memM"><option value="0">1.2B: hidden 1,536, 40 layers</option><option value="1">2.5B: hidden 1,920, 54 layers</option><option value="2">4.2B: hidden 2,304, 64 layers</option><option value="3" selected>8.3B: hidden 3,072, 72 layers</option></select></label>
+<label>GPUs splitting each layer <i>t</i> = <b id="memTv">8</b><input type="range" id="memT" min="0" max="4" step="1" value="3" aria-label="Tensor-parallel GPUs"></label></div>
+<div id="memSvg"></div>
+<div class="out" id="memO"></div>
+<p class="small mute">Per GPU: 16 × parameters / <i>t</i> for weights, gradients and Adam state; 2<i>sbh</i> bytes per layer for the checkpointed fp16 layer inputs (not split by Megatron); one layer's full activations during its recomputation, <i>sbh</i>(10 + 24/<i>t</i> + 5<i>as</i>/(<i>ht</i>)) bytes ({{Korthikanti et al. 2022, §4.1|https://arxiv.org/abs/2205.05198}}). Batch 8 and sequence 1,024 as in the paper's model-parallel scaling runs ({{§5.1|ax:S5.SS1}}). Ignores fragmentation and framework buffers. <span class="ill">Defaults reproduce:</span> the fewest GPUs that fit is 1, 2, 4 and 8 for the four models, Table 1's model-parallel GPU column, independently (recompute.py).</p>
+</div>
+<p class="lead"><b>The gap:</b> a way to split a transformer layer itself across GPUs that is simple enough to write in native PyTorch with a handful of communication calls: no new compiler, no new framework, and orthogonal to pipeline parallelism so the two can be combined ({{§1|ax:S1}}).</p>
+</section>
+
+<section id="s-idea"><h2>Idea: split each matrix the way that keeps nonlinearities local</h2>
+[[S3|§3, Eq. 1 to 3]]
+<p>The core idea is <b>intra-layer model parallelism</b>, now called <b>tensor parallelism (TP)</b>: partition the weight matrices of every transformer layer across GPUs, choosing the direction of each split so that no nonlinearity ever sees a partial sum. Then the GPUs only need to synchronise a few times per layer ({{§3|ax:S3}}).</p>
+<p>A transformer layer is a self-attention block followed by a two-layer MLP ({{Figure 2|ax:S2.F2}}). The MLP's first half is a matrix multiply (GEMM) followed by a GeLU:</p>
+<div class="fm"><div class="eq"><i>Y</i> = GeLU(<i>XA</i>)</div><div class="wh">Equation 1 ({{§3|ax:S3.E1}}). <i>X</i> is the batch of token vectors, <i>A</i> is <i>H</i> × 4<i>H</i>.</div></div>
+<p>There are two ways to split that GEMM across two GPUs:</p>
+<ol class="lst">
+<li><b>Split <i>A</i> by rows and <i>X</i> by columns</b>: <span class="m"><i>X</i> = [<i>X</i><sub>1</sub>, <i>X</i><sub>2</sub>], <i>A</i> = [<i>A</i><sub>1</sub>; <i>A</i><sub>2</sub>]</span>, so <span class="m"><i>XA</i> = <i>X</i><sub>1</sub><i>A</i><sub>1</sub> + <i>X</i><sub>2</sub><i>A</i><sub>2</sub></span> ({{Eq. 2|ax:S3.E2}}). Each GPU holds a partial sum of the whole output. Because GeLU is nonlinear, <span class="m">GeLU(<i>X</i><sub>1</sub><i>A</i><sub>1</sub> + <i>X</i><sub>2</sub><i>A</i><sub>2</sub>)</span> ≠ <span class="m">GeLU(<i>X</i><sub>1</sub><i>A</i><sub>1</sub>) + GeLU(<i>X</i><sub>2</sub><i>A</i><sub>2</sub>)</span>, so the GPUs must add their partials (an all-reduce) <b>before</b> the GeLU.</li>
+<li><b>Split <i>A</i> by columns</b>: <span class="m"><i>A</i> = [<i>A</i><sub>1</sub>, <i>A</i><sub>2</sub>]</span> gives <span class="m">[<i>Y</i><sub>1</sub>, <i>Y</i><sub>2</sub>] = [GeLU(<i>XA</i><sub>1</sub>), GeLU(<i>XA</i><sub>2</sub>)]</span> ({{Eq. 3|ax:S3.E3}}). Each GPU owns whole output columns, so GeLU applies to each shard independently: no synchronisation.</li></ol>
+<div class="pred" id="pr-split" data-ans="1"><div class="q">with option 1 (A split by rows), suppose each GPU applies GeLU to its own partial result and the outputs are summed afterwards, to save the synchronisation. How close is that to the true GeLU(XA)?</div>
+<div class="opts"><button>Identical: addition and GeLU can be swapped</button><button>Wrong by about as much as the values themselves</button><button>Off only by rounding error</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p class="try"><b>Try:</b> these are real matrices (seeded random, small enough to see every entry), multiplied in your browser. Switch the split and the nonlinearity: with no nonlinearity both splits are exact, because a matrix product is linear; with GeLU or ReLU only the column split is.</p>
+<div class="ctl"><div style="grid-column:1/-1"><span class="small mute">Split of <i>A</i></span><div class="seg" id="splS" role="group" aria-label="Split"><button class="on" data-m="col" aria-pressed="true">Columns (Megatron)</button><button data-m="row" aria-pressed="false">Rows, GeLU before the sum</button><button data-m="rowsync" aria-pressed="false">Rows, all-reduce then GeLU</button></div></div>
+<div><span class="small mute">Nonlinearity</span><div class="seg" id="splF" role="group" aria-label="Nonlinearity"><button class="on" data-m="gelu" aria-pressed="true">GeLU</button><button data-m="relu" aria-pressed="false">ReLU</button><button data-m="id" aria-pressed="false">None</button></div></div>
+<label>GPUs <select id="splT"><option>2</option><option>4</option></select></label><div><button id="splR">New random matrices</button></div></div>
+<div id="splSvg"></div>
+<div class="out" id="splO"></div>
+<p class="small mute"><i>X</i> is 3 × 8 (3 tokens, <i>H</i> = 8), <i>A</i> is 8 × 16 (4<i>H</i>), entries drawn from a normal distribution with a fixed seed. GeLU is the tanh approximation used by GPT-2 and BERT. The reference is GeLU(<i>XA</i>) computed on one device; the error is the largest absolute difference over all 48 outputs. Illustrative sizes; the equations are the paper's.</p>
+</div></div>
+<p>Megatron takes option 2 for the first GEMM (<b>column-parallel</b>) and then splits the second GEMM, <i>B</i> (4<i>H</i> × <i>H</i>), by rows (<b>row-parallel</b>): <span class="m"><i>B</i> = [<i>B</i><sub>1</sub>; <i>B</i><sub>2</sub>]</span>, so GPU <i>i</i> computes <span class="m"><i>Y<sub>i</sub>B<sub>i</sub></i></span> straight from its own GeLU output and the full result <span class="m"><i>Y</i><sub>1</sub><i>B</i><sub>1</sub> + <i>Y</i><sub>2</sub><i>B</i><sub>2</sub></span> is recovered by a single all-reduce before dropout ({{§3|ax:S3}}, {{Figure 3a|ax:S3.F3}}). The general recipe: <b>column-split the layer that feeds a nonlinearity, row-split the layer that follows it</b>, and the elementwise nonlinearity lives entirely between them with zero communication.</p>
+</section>
+
+<section id="s-mlp"><h2>Method: the f and g operators</h2>
+[[S3.F3|§3, Figure 3, Code 1]]
+<p>The MLP block is <span class="m"><i>Z</i> = Dropout(GeLU(<i>XA</i>)<i>B</i>)</span>, with <i>A</i>: <i>H</i> × 4<i>H</i> and <i>B</i>: 4<i>H</i> × <i>H</i>. The whole scheme is packaged as two conjugate autograd functions placed around each block ({{Figure 3|ax:S3.F3}}):</p>
+<div class="tw"><table><thead><tr><th>Operator</th><th>Where</th><th>Forward pass</th><th>Backward pass</th><th>Why</th></tr></thead><tbody>
+<tr><td><b><i>f</i></b></td><td>block input</td><td>identity</td><td>all-reduce of the gradient</td><td>every GPU needs the full <i>X</i>, and each contributes part of the gradient with respect to <i>X</i>, which must be summed</td></tr>
+<tr><td><b><i>g</i></b></td><td>block output</td><td>all-reduce</td><td>identity</td><td>sums the row-parallel partials <i>Y<sub>i</sub>B<sub>i</sub></i>; its gradient is already complete on every GPU</td></tr></tbody></table></div>
+<p>Each is a few lines of PyTorch. The paper prints <i>f</i> ({{Code 1|ax:S3}}); <i>g</i> swaps the two methods:</p>
+<pre class="code">class f(torch.autograd.Function):
+    def forward(ctx, x):
+        return x
+    def backward(ctx, gradient):
+        all_reduce(gradient)
+        return gradient</pre>
+<p>With one <i>g</i> and one <i>f</i> per block and two blocks per layer, a transformer layer needs exactly <b>4 all-reduces in total</b>: 2 in the forward pass (one <i>g</i> per block) and 2 in the backward pass (one <i>f</i> per block), covering both attention and the MLP ({{§3|ax:S3}}, {{Figure 4|ax:S3.F4}}). The {{Split a layer across GPUs|tab:t-run}} tab animates one layer on 2, 4 or 8 GPUs, forward and backward, against a split that synchronises after every GEMM.</p>
+</section>
+
+<section id="s-att"><h2>Method: self-attention, split by heads</h2>
+[[S3.F3|§3, Figure 3b]]
+<p>Multi-head attention is embarrassingly parallel over heads. The query, key and value projections are split by columns so that each GPU holds the full <i>Q</i>, <i>K</i> and <i>V</i> projections for a subset of heads; the softmax, attention dropout and the weighted sum over <i>V</i> for those heads then run entirely locally. The output projection is split by rows and consumes the local head outputs directly, followed by the <i>g</i> all-reduce: the same fused pair of GEMMs, the same single forward synchronisation ({{§3|ax:S3}}, {{Figure 3b|ax:S3.F3}}). It also means the number of heads must be divisible by the number of GPUs, and Appendix D shows the head count matters for speed: at 8.3B on 8 GPUs, 16 heads of 192 scale at 82%, 24 of 128 at 80% and 32 of 96 at 77%, because more heads mean smaller GEMMs and a larger softmax ({{Table 7|ax:A4.T7}}).</p>
+</section>
+
+<section id="s-emb"><h2>Method: embeddings and the loss</h2>
+[[S3|§3]]
+<p>The output embedding is <i>H</i> × <i>v</i> and GPT-2's vocabulary is 50,257 tokens, so it is worth splitting; and because the input and output embeddings share weights, both are split. The input embedding <span class="m"><i>E</i><sub><i>H</i>×<i>v</i></sub></span> is split along the vocabulary, <span class="m"><i>E</i> = [<i>E</i><sub>1</sub>, <i>E</i><sub>2</sub>]</span>: each GPU looks up the tokens in its slice and an all-reduce (<i>g</i>) merges them. For the output, the parallel GEMM <span class="m">[<i>Y</i><sub>1</sub>, <i>Y</i><sub>2</sub>] = [<i>XE</i><sub>1</sub>, <i>XE</i><sub>2</sub>]</span> gives each GPU the logits of its slice. All-gathering them for the loss would communicate <i>b</i> × <i>s</i> × <i>v</i> elements (batch × sequence × vocabulary), huge because <i>v</i> is large; instead the GEMM is fused with the cross-entropy, which reduces what is communicated to <i>b</i> × <i>s</i> ({{§3|ax:S3}}).</p>
+<div class="card" id="lgx">
+<div class="ctl"><label>batch <i>b</i> = <b id="lgBv">8</b><input type="range" id="lgB" min="0" max="6" step="1" value="3" aria-label="Batch"></label><label>sequence <i>s</i> <select id="lgS"><option>512</option><option selected>1024</option><option>2048</option></select></label><label>vocabulary <i>v</i> <select id="lgV"><option value="30720">30,720 (BERT, padded)</option><option value="51200" selected>51,200 (GPT-2, padded)</option><option value="128256">128,256 (Llama 3)</option></select></label></div>
+<div id="lgSvg"></div><div class="out" id="lgO"></div>
+<p class="small mute">fp16 logits at 2 bytes; losses and statistics at 4 bytes (fp32). Bars to scale on a log axis. The paper counts <i>b</i> × <i>s</i>; Megatron's current {{cross_entropy.py|https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/tensor_parallel/cross_entropy.py}} all-reduces three <i>b</i> × <i>s</i> tensors (the maximum logit, the target's logit and the sum of exponentials), which is still a factor <i>v</i>/3 smaller. Llama 3's vocabulary is from its {{paper|https://arxiv.org/abs/2407.21783}}.</p>
+</div>
+<p>The vocabulary is padded so each GPU's slice is a multiple of 128 for efficient GEMMs: for up to 8-way splits that means a multiple of 128 × 8 = 1,024, and 50,257 becomes <b>51,200</b> ({{§5.1|ax:S5.SS1}}).</p>
+</section>
+
+<section id="s-dup"><h2>Method: duplicate cheap work rather than communicate</h2>
+[[S3|§3, Appendix B.2]]
+<p>"Much of our model parallel approach can be characterized as techniques aimed at reducing communication and keeping the GPUs compute bound" ({{§3|ax:S3}}). LayerNorm, dropout and the residual connections are cheap, so instead of one GPU computing them and broadcasting the result, every GPU keeps a duplicate copy of the LayerNorm parameters and runs dropout and the residual on the output of the parallel region before feeding the next one. Each model-parallel worker optimises its own set of parameters; since every value is either local to a GPU or duplicated on all of them, no updated parameter values are ever communicated.</p>
+<p>Dropout needs care because some of it sits outside the parallel regions (before the residual connections) and some inside (attention dropout). Outside, the GPUs must drop the same elements, so all random number generators are seeded identically at the start; inside, each GPU must draw a different pattern, so a separate generator is kept for dropout in the parallel regions, seeded uniquely per worker ({{Appendix B.2|ax:A2.SS2}}).</p>
+</section>
+
+<section id="s-hyb"><h2>Method: combining with data parallelism</h2>
+[[A2.SS1|Appendix B.1, Figure 8]]
+<p>Tensor parallelism is orthogonal to data parallelism (and to pipeline parallelism), so they compose. Two or more GPUs in the same server form a <b>model-parallel group</b> holding one copy of the model; GPUs with the same position in every model-parallel group form a <b>data-parallel group</b>, whose weight gradients are all-reduced together, several such all-reduces running in parallel. The total GPU count is the product. For the 8.3B model: 8 GPUs per model-parallel group times 64-way data parallelism is 512 GPUs. All communication is PyTorch calling NCCL ({{Appendix B.1|ax:A2.SS1}}, {{Figure 8|ax:A2.F8}}). The 8-way groups sit inside one DGX-2H server, where NVSwitch gives 300 GB/s between GPUs, against 100 GB/s per server between servers ({{§5|ax:S5}}).</p>
+<div class="card" id="ggx">
+<p class="try"><b>Try:</b> pick a GPU. Its tensor-parallel group (blue, the 8 GPUs that split every layer and all-reduce activations 4 times per layer) stays inside one server; its data-parallel group (green, 64 GPUs holding the same weights and all-reducing gradients once per step) spans every server.</p>
+<div class="ctl"><label>GPU number = <b id="ggNv">1</b><input type="range" id="ggN" min="1" max="512" step="1" value="1" aria-label="GPU number"></label></div>
+<div id="ggSvg"></div><p class="small" id="ggO"></p>
+<p class="small mute">One block per DGX-2H server (16 V100s in two rows of 8), 32 servers, numbered as in {{Figure 8|ax:A2.F8}} (GPUs 1 to 8 form the first model-parallel group; 1, 9, ..., 505 a data-parallel group).</p>
+</div>
+</section>
+
+<section id="s-train"><h2>Setup: data, models and recipe</h2>
+[[S4|§4, §5.1]]
+<details><summary class="small">Data and training recipe (§4.1, §4.2)</summary>
+<p><b>Data</b> ({{§4.1|ax:S4.SS1}}): an aggregate of Wikipedia, CC-Stories, RealNews and OpenWebText, with the Wikipedia articles of the WikiText103 test set removed to avoid leakage and stray newlines removed from CC-Stories; BooksCorpus is added for BERT but excluded for GPT-2 because it overlaps with LAMBADA. Documents shorter than 128 tokens are dropped, near-duplicates (Jaccard similarity above 0.7) removed with locality-sensitive hashing: <b>174 GB</b> of deduplicated text.</p>
+<p><b>Recipe</b> ({{§4.2|ax:S4.SS2}}):</p>
+<ul class="lst">
+<li>Mixed precision with dynamic loss scaling, for the V100's Tensor Cores.</li>
+<li>Weights initialised from <span class="m">N(0, 0.02)</span>, and the weights just before each residual connection scaled by <span class="m">1/√(2<i>N</i>)</span>, <i>N</i> the number of transformer layers (0.083 for the 72-layer 8.3B model).</li>
+<li>Adam with weight decay λ = 0.01, global gradient-norm clipping at 1.0, dropout 0.1, activation checkpointing after every transformer layer.</li>
+<li><b>GPT-2</b>: sequences of 1,024 subword tokens, batch 512, 300k iterations; learning rate 1.5e-4 with 3k warmup iterations, then a single cosine decay over the remaining 297k, stopped at 1e-5.</li>
+<li><b>BERT</b>: largely ALBERT's procedure, the original 30,522-token BERT vocabulary, next-sentence prediction replaced by sentence-order prediction, whole-word n-gram masking (SpanBERT); batch 1,024, learning rate 1.0e-4 warmed up over 10,000 iterations and decayed linearly over 2 million.</li></ul>
+</details>
+<p><b>Hardware</b> ({{§5|ax:S5}}): up to 32 DGX-2H servers, 512 Tesla V100 SXM3 32 GB GPUs; 300 GB/s between GPUs in a server through NVSwitch, 100 GB/s between servers through 8 InfiniBand adapters per server.</p>
+<p><b>Scaling configurations</b> ({{§5.1|ax:S5.SS1}}, {{Table 1|ax:S5.T1}}): four GPT-2 models from 1.2B to 8.3B parameters, keeping the hidden size per head at 96 so attention GEMMs stay the same size; 1.2B fits on one GPU, 8.3B needs 8-way model parallelism. Model-parallel runs use a fixed batch of 8; model-plus-data-parallel runs a global batch of 512, which is 64-way data parallelism.</p>
+</section>
+
+<section id="s-res"><h2>Results: scaling</h2>
+[[S5.SS1.SSS1|§5.1.1, Figures 1 and 5]]
+<p>The baseline is the 1.2B model on a single GPU, a strong one: it sustains <b>39 TFLOP/s</b>, 30% of the theoretical peak of a V100 in a DGX-2H server ({{§5.1.1|ax:S5.SS1.SSS1}}), which makes the peak 130 TFLOP/s (39 / 0.30). Scaling is <b>weak scaling in model size</b>: about 1 billion parameters per GPU, so 2 GPUs train the 2.5B model and 8 the 8.3B ({{Figure 1|ax:S1.F1}}), rather than the usual weak scaling in batch size.</p>
+<div class="pred" id="pr-scale" data-ans="1"><div class="q">the 8.3B model on 8 GPUs (8-way tensor parallel, batch fixed at 8) against the 1.2B model on one GPU: what fraction of perfect linear scaling does it keep?</div>
+<div class="opts"><button>About 98%: NVSwitch makes communication free</button><button>About 77%</button><button>About 40%: splitting layers is mostly communication</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<div id="f5Svg"></div>
+<p class="small mute">Weak-scaling efficiency printed on {{Figure 5|ax:S5.SS1.SSS1}} (the chart is missing from the arXiv HTML; its labels are text in the {{PDF|https://arxiv.org/pdf/1909.08053v4}}, page 6). Each bar is achieved throughput divided by <i>n</i> × 39 TFLOP/s, so 74% at 512 GPUs is 14.8 PFLOP/s (derived).</p>
+</div></div>
+<p>The 8.3B model on 8 GPUs keeps <b>77%</b> of linear scaling. Adding data parallelism costs a little more, for the gradient all-reduces, and the 8.3B model on all 512 GPUs keeps <b>74%</b> by {{Figure 5|ax:S5.SS1.SSS1}} and the text beside it, sustaining up to <b>15.1 PFLOP/s</b> over the whole application ({{§1|ax:S1}}).</p>
+<div class="co warn"><div class="t">76% or 74%?</div>The abstract, introduction and this page's takeaway say <b>76%</b>; {{Figure 5 and §5.1.1|ax:S5.SS1.SSS1}} say <b>74%</b> for the same 512-GPU run. They come from different arithmetic: 15.1 PFLOP/s ÷ (512 × 39 TFLOP/s) = <b>75.6%</b>, which rounds to 76%; 74% of 512 × 39 TFLOP/s would be 14.8 PFLOP/s. The paper does not say which measurement each uses (15.1 is "up to"). Both are shown; neither is wrong by its own arithmetic (recompute.py).</div>
+<p>Model parallelism also speeds up a model that already fits (strong scaling): the 1.2B model at batch 8 runs 1.64 times faster on 2 GPUs, 2.34 on 4 and 2.98 on 8, with returns diminishing "as the per-GPU computation decreases and the memory bandwidth and communication overheads begin to dominate" ({{Appendix D.2|ax:A4.SS2}}, {{Table 8|ax:A4.T8}}). That is 82%, 59% and 37% of linear: tensor parallelism is for fitting big models, not for speeding up small ones.</p>
+
+<h2>Results: GPT-2</h2>
+[[S5.SS2|§5.2, Tables 2 and 3]]
+<p>Three GPT-2 models were trained ({{Table 2|ax:S5.T2}}): 355M (the size and shape of BERT-large), 2.5B (bigger than the previous largest GPT-2) and 8.3B ("larger than any left-to-right transformer language model ever trained, to the best of our knowledge"), the last with 24 heads rather than the 32 of the scaling study. An epoch is 68,507 iterations; for the 8.3B model on 512 GPUs it takes about two days (2.10). Larger models converge noticeably faster and to lower validation perplexity; the 8.3B reaches <b>9.27</b> ({{§5.2|ax:S5.SS2}}, {{Figure 6|ax:S5.F6}}).</p>
+<div class="tw"><table><thead><tr><th>Model</th><th class="num">WikiText103 perplexity ↓</th><th class="num">LAMBADA accuracy ↑</th></tr></thead><tbody>
+<tr><td>355M</td><td class="num">19.31</td><td class="num">45.18%</td></tr><tr><td>2.5B</td><td class="num">12.76</td><td class="num">61.73%</td></tr>
+<tr class="best"><td><b>8.3B</b></td><td class="num"><b>10.81</b></td><td class="num"><b>66.51%</b></td></tr><tr><td>Previous state of the art</td><td class="num">15.79</td><td class="num">63.24%</td></tr></tbody></table></div>
+<p class="small mute">Zero-shot, {{Table 3|ax:S5.T3}}; previous best from Khandelwal et al. 2019 (WikiText103) and GPT-2 (LAMBADA). The abstract rounds these to 10.8 against 15.8 and 66.5% against 63.2%.</p>
+<details><summary class="small">How the GPT-2 numbers were measured (Appendix E, leakage check, samples)</summary>
+<p>Two evaluation details matter for reading these numbers ({{Appendix E|ax:A5}}). WikiText103 perplexity is normalised by the test set's original word-level token count, <i>T<sub>o</sub></i> = 245,566, not the 270,329 subword tokens the model actually sees, so it is comparable with earlier word-level models; it is computed with overlapping 1,024-token windows that advance by 32 tokens ({{Eq. 4|ax:A5.E4}}). LAMBADA counts a word right only when every one of its subword tokens is predicted correctly. Test-set leakage was checked with 8-gram overlap, as GPT-2 did: at most 10.8% for WikiText103 (whose own training set already overlaps its test set by 9.09%) and 1.4% for LAMBADA ({{§5.2|ax:S5.SS2}}). Appendix C prints text samples from the 8.3B model ({{Appendix C|ax:A3}}), and v4 of the paper notes that Microsoft and NVIDIA have since trained the 17B Turing-NLG "using Megatron".</p></details>
+</section>
+
+<section id="s-bert"><h2>Results: BERT, and where the LayerNorm sits</h2>
+[[S5.SS3|§5.3, Figure 7, Tables 4 and 5]]
+<p>The often-forgotten second contribution. ALBERT had reported that BERT degrades when made larger than BERT-large's 336M parameters, and answered with parameter sharing ({{§5.3|ax:S5.SS3}}). This paper finds instead that the order of the layer normalisation and the residual connection is what matters: in {{Figure 7|ax:S5.F7}} a 752M BERT with the original arrangement (a) trains well for a while, then its loss jumps and does not recover, while the rearranged architecture (b) trains stably to a lower loss.</p>
+<div class="pred" id="pr-ln" data-ans="1"><div class="q">in Figure 7 both (a) and (b) already put a LayerNorm at the start of every sub-block. What is the change?</div>
+<div class="opts"><button>(b) adds a LayerNorm after the residual sum</button><button>(b) takes the residual from before the LayerNorm instead of after it</button><button>(b) removes dropout from the residual branch</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<div class="card" id="lnx" style="margin:6px 0">
+<div class="an-top"><div class="seg" id="lnxM" role="group" aria-label="Architecture"><button class="on" data-m="b" aria-pressed="true">(b) rearranged</button><button data-m="a" aria-pressed="false">(a) original BERT</button></div><span class="small mute">Four sub-blocks stacked; the residual path is drawn in colour.</span></div>
+<div id="lnxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="lnxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="lnxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="lnxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="lnxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="lnxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="lnxStep"></div><p id="lnxCap"></p></div>
+<div class="an-cnt" id="lnxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Structure as drawn in {{Figure 7|ax:S5.F7}}. The count is structural (how many LayerNorms sit on the path from a block's input to the top of the stack), not a measurement; why that path matters is beyond the paper ({{Xiong et al. 2020|https://arxiv.org/abs/2002.04745}}). The animation stops when off screen, and starts paused if your system asks for reduced motion.</p>
+</div></div></div>
+<p>In (a) the residual is taken from the LayerNorm's output, which, unrolled, is the original post-LN BERT, every block's output renormalised; in (b) it is taken from the block's input, the pre-LN arrangement GPT-2 already used. With (b), and the hidden size per head fixed at 64, three BERT models were trained ({{Table 4|ax:S5.T4}}): 336M (BERT-large's size), 1.3B (BERT-xlarge's configuration, which ALBERT had found worse than 336M) and 3.9B (wider and deeper); the first two for 2 million iterations, the 3.9B for 1.5 million and "still training". Validation perplexity on a 3% held-out set falls monotonically: 1.58, 1.30, 1.16 ({{§5.3|ax:S5.SS3}}).</p>
+<p>Fine-tuned as RoBERTa was (batch size and learning rate tuned, median of 5 seeds reported; {{Table 6|ax:A1.T6}} lists the settings), every downstream score improves with size, and the 3.9B model sets the best development-set results among BERT-style models on MNLI (91.4/91.4), QQP (92.7), SQuAD 1.1 (95.5/90.0) and SQuAD 2.0 (91.2/88.5) ({{Table 5|ax:S5.T5}}). On the RACE test set the single 3.9B model scores <b>89.5%</b> against ALBERT's 86.5%, and the 5-way ensemble <b>90.9%</b> against ALBERT's ensemble at 89.4%: the 90.9% the abstract quotes is the ensemble. Megatron's models also saw fewer training tokens (ratio 1 against 2 to 3 for the others).</p>
+<p>The headline meaning of the results: a model about 5.5 times GPT-2's size trained at good efficiency with only a few communication primitives added to plain PyTorch, and the extra scale turned straight into accuracy.</p>
+</section>
+
+<section id="s-believe"><h2>How much of this to believe</h2>
+[[S5|§5, Appendix D]]
+<p><b>What holds up, and why.</b></p>
+<ul class="lst">
+<li><b>The mechanism is exact.</b> Splitting <i>A</i> by columns and <i>B</i> by rows computes the same function as the unsplit layer; only the order of floating-point additions in the all-reduce changes ({{Eq. 3|ax:S3.E3}}; the {{split demo|tab:t-read:pr-split}} gives an error of 0 on real matrices). There is no accuracy trade-off to measure, which is why the paper does not need an ablation for it.</li>
+<li><b>The baseline is strong, not flattering.</b> Efficiency is measured against a single GPU already at 39 TFLOP/s, 30% of peak, over "the entire application" ({{§5.1.1|ax:S5.SS1.SSS1}}). A weak baseline would have inflated the 77%.</li>
+<li><b>The configurations check out.</b> Every parameter count in Tables 1, 2 and 4 is reproduced from its configuration, and the memory arithmetic reproduces Table 1's GPU counts ({{tables tab|tab:t-tables}}).</li>
+<li><b>It held up.</b> The same split, with the same <i>f</i> and <i>g</i>, is what MT-NLG, the PTD-P runs and Llama 3 use for tensor parallelism, citing this paper ({{Then and now|tab:t-then}}), and serving engines expose it as a standard option.</li></ul>
+<p><b>What to read with care.</b></p>
+<ul class="lst">
+<li><b>"76% scaling efficiency" is weak scaling in model size, not a speedup.</b> It compares the 1.2B model on 1 GPU with the 8.3B model on 512 ({{Figure 5|ax:S5.SS1.SSS1}}): different models, different GEMM shapes. With the model fixed (strong scaling), 8 GPUs give 2.98 times, 37% of linear ({{Table 8|ax:A4.T8}}). The authors say this themselves: model parallelism "is primarily designed to enable training models larger than what can fit" ({{Appendix D.2|ax:A4.SS2}}), which counts in their favour.</li>
+<li><b>The paper disagrees with itself on the headline.</b> 76% in the abstract and introduction, 74% in §5.1.1 and Figure 5, for the same run; 15.1 PFLOP/s ÷ (512 × 39) is 75.6% ({{box above|tab:t-read:s-res}}).</li>
+<li><b>How FLOPs are counted is not stated.</b> Neither 39 TFLOP/s nor 15.1 PFLOP/s says whether the recomputed forward pass of activation checkpointing, or attention, is counted; both are presented as measured throughput. Table 2's epoch time for the trained 8.3B model implies 13.8 PFLOP/s by a later paper's formula, about 9% under the headline, which was measured on a differently shaped (32-head) configuration ({{Table 2 rebuilt|tab:t-tables:tb2}}).</li>
+<li><b>Single runs.</b> Each pretraining run and each scaling point is one run, with no seeds or error bars ({{§5|ax:S5}}). Fine-tuning reports the median of 5 seeds but no spread ({{§5.3|ax:S5.SS3}}), so margins such as QQP's 92.7 against XLNet's 92.3 cannot be judged against noise.</li>
+<li><b>The state-of-the-art comparisons are not like for like.</b> The GPT-2 models were trained on a different, 174 GB corpus ({{§4.1|ax:S4.SS1}}); the WikiText103 baseline (15.79) is a nearest-neighbour language model (Khandelwal et al. 2019), the LAMBADA baseline GPT-2 itself ({{Table 3|ax:S5.T3}}). The 8-gram leakage check is reassuring but bounds overlap only at "at most" 10.8% and 1.4% ({{§5.2|ax:S5.SS2}}). The RACE record (90.9%) is a 5-way ensemble; the single model scores 89.5% ({{Table 5|ax:S5.T5}}). The BERT models saw fewer training tokens than RoBERTa, ALBERT or XLNet, which cuts the other way.</li>
+<li><b>An unfinished run.</b> The 3.9B BERT had been trained for 1.5 million iterations (the smaller two for 2 million) and "is still training" when its results were reported ({{§5.3|ax:S5.SS3}}).</li>
+<li><b>The LayerNorm finding rests on one pair of curves.</b> Figure 7 compares one 752M run of each arrangement, by training loss ({{Figure 7|ax:S5.F7}}). It held up: pre-norm became the default, and {{Xiong et al. 2020|https://arxiv.org/abs/2002.04745}} later gave a theoretical reason; but the paper itself shows one comparison, not a study.</li></ul>
+<p class="lead"><b>Verdict:</b> believe the method completely; it is exact and has been the standard for seven years. Treat "77%" and "76%" as "a 7 times larger model on 8 GPUs, and on 512, at about three quarters of the per-GPU throughput", not as a speedup, and treat the accuracy records as single runs on different data that showed scale helps, not as controlled comparisons.</p>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<ul class="lst">
+<li><b>Tensor parallelism became a standard axis.</b> The data, tensor, pipeline and expert (DP, TP, PP, EP) decomposition every training stack now uses, the "3D parallelism" framing ({{MT-NLG|https://arxiv.org/abs/2201.11990}}), takes its TP axis from this paper, and the column-then-row split with conjugate <i>f</i> and <i>g</i> is still the canonical formulation (Llama 3 cites it for TP, {{§3.3.2|https://arxiv.org/abs/2407.21783}}). The same recipe is the standard way to serve a model on several GPUs: {{vLLM|https://docs.vllm.ai/en/latest/serving/parallelism_scaling.html}} and {{TensorRT-LLM|https://nvidia.github.io/TensorRT-LLM/features/parallel-strategy.html}} call it tensor_parallel_size, SGLang tp_size ({{server_args.py|https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py}}).</li>
+<li><b>The codebase outlived the paper.</b> Megatron-LM grew into Megatron-Core, the {{repository|https://github.com/NVIDIA/Megatron-LM}} that NVIDIA's large-model training builds on, and trained or fed many large runs: Turing-NLG 17B (cited in the paper's own v4; Turing-NLG also used ZeRO, {{ZeRO abstract|https://arxiv.org/abs/1910.02054}}), {{MT-NLG 530B|https://arxiv.org/abs/2201.11990}} (DeepSpeed with Megatron's tensor slicing), NVIDIA's Nemotron models (the {{Nemotron-4 340B report|https://arxiv.org/abs/2406.11704}} gives Megatron-LM as its pretraining code), and forks such as Megatron-DeepSpeed.</li>
+<li><b>Follow-up work completed the picture.</b> {{Narayanan et al. 2021|https://arxiv.org/abs/2104.04473}} combined this TP with pipeline parallelism and an interleaved 1F1B schedule (PTD-P) and reached 502 PFLOP/s on 3,072 A100s, 52% of peak, on a 1-trillion-parameter model. The pair of papers defines the classic pre-training scaling playbook; {{Then and now|tab:t-then}} follows it to 2026.</li>
+<li><b>It fixed the mental model for communication cost.</b> TP's per-layer all-reduces on activations need a fast interconnect, which is why its degree is conventionally capped at the NVLink domain (8 GPUs per node) while DP and PP cross nodes. The rule comes from this paper's setup (8-way TP inside a 16-GPU server) and was stated as a measured result by Narayanan et al.: "tensor model parallelism is best within a node", with peak performance when "the tensor-parallel size is equal to the number of GPUs in a single node" ({{§5.4.1|https://arxiv.org/abs/2104.04473}}).</li>
+<li><b>Pre-LN.</b> The BERT result helped make pre-norm the default. It was not the first pre-LN transformer: {{GPT-2 §2.3|https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf}} had already moved LayerNorm to the input of each sub-block, and {{Xiong et al. 2020|https://arxiv.org/abs/2002.04745}} later explained why it trains more stably. What this paper showed is that the change is what lets BERT-style encoders scale.</li></ul>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li><b>Papers in this knowledge base:</b> {{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} (the layer being partitioned); {{BERT|n:3c65c17b0d0d81e5ad9bd09cbf18ad7c}} (the architecture whose LayerNorm placement this fixes); {{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}} (the contemporaneous memory-side alternative: it shards optimizer state, and later gradients and weights, under data parallelism instead of partitioning layers, and its abstract says it trains up to 13B "without requiring model parallelism"); {{GPT-3|n:3c65c17b0d0d8193ac92c7648cfaca12}} (trained with "a mixture of model parallelism within each matrix multiply and model parallelism across the layers", {{§2.3|https://arxiv.org/abs/2005.14165}}); {{The Llama 3 Herd of Models|n:3c65c17b0d0d81aca58ccb9d720b474e}} (4D parallelism, TP included, in a modern frontier run); {{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} (trains "without using costly Tensor Parallelism", with PP, EP and ZeRO-1, though it serves attention with 4-way TP).</li>
+<li><b>Topics:</b> {{llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (distributed training: the TP axis), {{inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} (TP as the default multi-GPU serving strategy), {{hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}} (NVLink and NVSwitch bandwidth as the TP constraint).</li></ul>
+</section>
+</section>

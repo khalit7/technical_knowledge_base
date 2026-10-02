@@ -1,0 +1,29 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Split a layer across GPUs</h2>
+<p>One MLP block, <span class="m"><i>Z</i> = Dropout(GeLU(<i>XA</i>)<i>B</i>)</span>, run forward and backward on 2, 4 or 8 GPUs, two ways. <b>Megatron</b> splits <i>A</i> by columns and <i>B</i> by rows, the paper's choice ({{§3|ax:S3}}). <b>Option 1</b> splits <i>A</i> by rows, the alternative the paper rejects because it needs a synchronisation before the GeLU ({{Eq. 2|ax:S3.E2}}). Each lane is one GPU; each bar is what that GPU holds for one token at that moment, drawn to scale (the lane's full width is 4<i>H</i>, so a bar of width <i>H</i> is a quarter of it).</p>
+<div class="ctl"><label>Model (Table 1) <select id="layP"><option value="0">1.2B: H 1,536</option><option value="1">2.5B: H 1,920</option><option value="2">4.2B: H 2,304</option><option value="3" selected>8.3B: H 3,072</option></select></label>
+<label>GPUs <i>t</i> <select id="layT"><option>2</option><option>4</option><option selected>8</option></select></label>
+<label>Link between the GPUs <select id="layL"><option value="300">NVSwitch, 300 GB/s (as the paper states)</option><option value="150" selected>NVSwitch, 150 GB/s each way</option><option value="6.25">InfiniBand, 100 GB/s per server ÷ 16 GPUs</option></select></label>
+<label>Micro-batch <i>b</i> = <b id="layBv">8</b><input type="range" id="layB" min="0" max="5" step="1" value="3" aria-label="Micro-batch"></label></div>
+<div class="card" id="lay">
+<div class="an-top"><div class="seg" id="layM" role="group" aria-label="Split"><button class="on" data-m="meg" aria-pressed="true">Megatron: columns then rows</button><button data-m="row" aria-pressed="false">Option 1: rows, sync before GeLU</button></div></div>
+<div id="laySvg" class="an-svg"></div>
+<div class="an-ctl"><button id="layBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="layPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="layFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="layScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="laySpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="layStep"></div><p id="layCap"></p></div>
+<div class="an-cnt" id="layCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Blue: this GPU's own slice, drawn at its position in the full tensor. Orange, dashed: a partial sum, full width but not yet the answer. Grey: the full tensor, identical on every GPU. Elements sent per GPU use the ring algorithm: an all-reduce of <i>n</i> elements sends 2(<i>t</i> − 1)/<i>t</i> × <i>n</i>, an all-gather (<i>t</i> − 1)/<i>t</i> × <i>n</i>, at 2 bytes (fp16) for <i>b</i> × 1,024 tokens. Time is elements ÷ link speed, with no overlap and no latency. Megatron's two collectives are the paper's ({{Figure 3a|ax:S3.F3}}); Option 1's backward collectives are derived here (the conjugate of each forward step), not given in the paper. The animation stops when off screen, and starts paused if your system asks for reduced motion.</p>
+</div>
+<p>The attention block has the same shape (heads split by columns, output projection by rows, one <i>g</i> and one <i>f</i>), so a whole Megatron layer is twice this: <b>4 all-reduces</b>, 2 forward and 2 backward ({{Figure 4|ax:S3.F4}}). With activation checkpointing, as the paper trains, each layer's forward pass runs a second time during the backward pass, and its 2 all-reduces with it: 6 per layer in practice (our reading of how checkpointing works; the paper counts 4).</p>
+
+<h3 id="scl-h">Does communication explain the lost efficiency?</h3>
+<p class="try"><b>Try:</b> the bars are what the paper measured; the lines are a model that charges only for communication, with every GEMM running at the single-GPU baseline's 39 TFLOP/s. Switch the link to InfiniBand to see why tensor parallelism stays inside one server.</p>
+<div class="ctl"><div><span class="small mute">Scaling</span><div class="seg" id="sclK" role="group" aria-label="Scaling"><button class="on" data-m="weak" aria-pressed="true">Weak (Figure 5: model grows with GPUs)</button><button data-m="strong" aria-pressed="false">Strong (Table 8: 1.2B fixed)</button></div></div>
+<label>Link <select id="sclL"><option value="300">NVSwitch, 300 GB/s</option><option value="150" selected>NVSwitch, 150 GB/s each way</option><option value="6.25">InfiniBand, 6.25 GB/s per GPU</option></select></label>
+<label><input type="checkbox" id="sclR" checked> count the recomputation all-reduces (6 per layer, not 4)</label></div>
+<div id="sclSvg"></div>
+<div class="out" id="sclO"></div>
+<p class="small mute">Per layer and iteration at batch 8, sequence 1,024: compute 96<i>bsh</i>²(1 + <i>s</i>/6<i>h</i>) FLOPs ÷ (<i>t</i> × 39 TFLOP/s), the forward, recomputed forward and backward GEMMs ({{Narayanan et al. 2021, Eq. 3|https://arxiv.org/abs/2104.04473}}, without the logit term); communication 4 or 6 all-reduces of <i>bsh</i> fp16 values. Weak-scaling efficiency is compute ÷ (compute + communication), since the 1-GPU baseline has no communication. Measured: {{Figure 5|ax:S5.SS1.SSS1}} model-parallel bars, {{Table 8|ax:A4.T8}} speedups ÷ <i>t</i>.</p>
+<div class="co warn"><div class="t">Does not reproduce</div><span id="sclNo"></span></div>
+</section>
