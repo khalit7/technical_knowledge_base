@@ -1,0 +1,191 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-fwd">Forward process</a><a href="#s-rev">Reverse process</a><a href="#s-eps">Predict the noise</a><a href="#s-simple">L<sub>simple</sub></a><a href="#s-train">Training and sampling</a><a href="#s-res">Results</a><a href="#s-abl">Ablation</a><a href="#s-prog">Progressive coding</a><a href="#s-believe">How much to believe</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>Diffusion probabilistic models ({{Sohl-Dickstein et al. 2015|https://arxiv.org/abs/1503.03585}}) were an elegant latent-variable model, a Markov chain trained by variational inference to turn noise into data, "straightforward to define and efficient to train", but "there has been no demonstration that they are capable of generating high quality samples" ({{§1|ax:S1}}). In Table 1 the original has only a likelihood bound (≤ 5.40 bits per dimension on CIFAR10) and no sample score ({{Table 1|ax:S4.T1}}).</p>
+<p>The field was split. GANs had the best samples but no likelihood, and are fragile to train (with limited data, training "typically leads to discriminator overfitting, causing training to diverge", {{Karras et al. 2020|https://arxiv.org/abs/2006.06676}}). Autoregressive models and flows had likelihoods but weaker samples: Gated PixelCNN has 3.03 bits per dimension and FID 65.93; the Sparse Transformer's 2.80 bits, the table's best, comes with no FID ({{Table 1|ax:S4.T1}}).</p>
+<p class="lead"><b>The question:</b> can a diffusion model, trained with plain variational inference, actually generate high-quality images, and what parameterisation makes that work?</p>
+</section>
+
+<section id="s-idea"><h2>Idea</h2>
+[[S2|§2 Background, Figure 2]]
+<p>Two Markov chains over <i>T</i> steps. The <b>forward</b> chain is fixed: it adds a little Gaussian noise at each step until the data is destroyed. The <b>reverse</b> chain is learned: it starts from noise and removes it step by step. When each forward step is small, its true reversal is close to Gaussian, so the learned steps can be Gaussians whose means the network supplies ({{§1|ax:S1}}, {{§2|ax:S2}}).</p>
+<p>The contribution is how to parameterise that mean: the network predicts the <b>noise</b> that was added, and the loss drops the bound's per-step weights. That gave the best samples, and shows the model is denoising score matching over many noise levels, sampled like annealed Langevin dynamics, an equivalence the authors count "one of our primary contributions" ({{§1|ax:S1}}).</p>
+<p>Below, one 2-D Swiss roll through both chains: the forward chain is exact arithmetic ({{Eq. 4|ax:S2.E4}}); the reverse chains are toy models trained for this page (the paper's recipe, and a variant Table 2 reports as failing), sampled live from the same noise.</p>
+<div class="card" id="dfx">
+<div class="an-top"><div class="seg" id="dfxM" role="group" aria-label="Which chain"><button class="on" data-m="fwd" aria-pressed="true">Forward q: add noise</button><button data-m="eps" aria-pressed="false">Reverse: predict ε, L<sub>simple</sub></button><button data-m="mu" aria-pressed="false">Reverse: predict μ̃, plain MSE</button></div>
+<span class="small mute">300 points; <i>T</i> = 1,000; the faint curve is the roll the data was drawn around.</span></div>
+<div id="dfxSvg" class="an-svg"></div>
+<div class="prog" id="dfxProg" hidden><i></i></div>
+<div class="an-ctl"><button id="dfxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="dfxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="dfxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="dfxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="dfxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="dfxStep"></div><p id="dfxCap"></p></div>
+<div class="an-cnt" id="dfxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Forward: each point keeps one fixed noise draw ε, so <span class="m"><i>x<sub>t</sub></i> = √ᾱ<sub><i>t</i></sub> <i>x</i><sub>0</sub> + √(1 − ᾱ<sub><i>t</i></sub>) ε</span> traces its path. Reverse: {{Algorithm 2|ax:S3.SS2.fig1}} with σ<sub><i>t</i></sub>² = β<sub><i>t</i></sub>, every one of the 1,000 steps computed by the toy network (seed 42; the JavaScript is checked against PyTorch, see the {{Sample tab|tab:t-run}}). "On the roll" is the share of points within 0.04 of the noiseless curve; real data from the same distribution scores <span id="dfxReal"></span>. The animation stops off screen and starts paused under reduced motion.</p>
+</div>
+</section>
+
+<section id="s-fwd"><h2>Method: the forward process</h2>
+[[S2|§2, Eq. 2 and 4; §3.1; §4]]
+<p>The forward or diffusion process is a fixed Markov chain that adds Gaussian noise under a variance schedule β<sub>1</sub>, …, β<sub><i>T</i></sub>:</p>
+<div class="fm"><div class="eq"><i>q</i>(<i>x<sub>t</sub></i> | <i>x</i><sub><i>t</i>−1</sub>) = 𝒩(<i>x<sub>t</sub></i>; √(1 − β<sub><i>t</i></sub>) <i>x</i><sub><i>t</i>−1</sub>, β<sub><i>t</i></sub> <b>I</b>)</div><div class="wh">Equation 2 ({{§2|ax:S2.E2}}). The √(1 − β<sub><i>t</i></sub>) keeps the variance from growing as noise is added.</div></div>
+<p>With α<sub><i>t</i></sub> = 1 − β<sub><i>t</i></sub> and ᾱ<sub><i>t</i></sub> = ∏<sub><i>s</i>≤<i>t</i></sub> α<sub><i>s</i></sub>, the chain collapses to a closed form, so any timestep can be reached in one jump:</p>
+<div class="fm"><div class="eq"><i>q</i>(<i>x<sub>t</sub></i> | <i>x</i><sub>0</sub>) = 𝒩(<i>x<sub>t</sub></i>; √ᾱ<sub><i>t</i></sub> <i>x</i><sub>0</sub>, (1 − ᾱ<sub><i>t</i></sub>) <b>I</b>), &nbsp; i.e. &nbsp; <i>x<sub>t</sub></i> = √ᾱ<sub><i>t</i></sub> <i>x</i><sub>0</sub> + √(1 − ᾱ<sub><i>t</i></sub>) ε, &nbsp; ε ~ 𝒩(0, <b>I</b>)</div><div class="wh">Equation 4 ({{§2|ax:S2.E4}}) and its reparameterisation ({{§3.2|ax:S3.SS2}}).</div></div>
+<p>Training is therefore cheap: pick a random <i>t</i> and noise <i>x</i><sub>0</sub> in one shot ({{§2|ax:S2}}). The paper fixes <i>T</i> = 1,000 (matching earlier work's number of evaluations) and β<sub><i>t</i></sub> linear from 10<sup>−4</sup> to 0.02: small against data in [−1, 1], so reverse steps stay nearly Gaussian, while ᾱ<sub><i>T</i></sub> ≈ 0, so <i>x<sub>T</sub></i> ≈ 𝒩(0, <b>I</b>) ({{§4|ax:S4}}). The β<sub><i>t</i></sub> could be learned; fixing them makes <i>q</i> parameter-free and <i>L<sub>T</sub></i> a constant ({{§3.1|ax:S3.SS1}}).</p>
+<p class="try"><b>Try:</b> drag <i>t</i>. The left chart is the schedule (signal √ᾱ<sub><i>t</i></sub> and noise √(1 − ᾱ<sub><i>t</i></sub>)); the right is <i>q</i>(<i>x<sub>t</sub></i> | <i>x</i><sub>0</sub>) for 600 roll points. Halfway, at <i>t</i> = 500, only √ᾱ = <span id="fqA500"></span> of the signal is left.</p>
+<div class="ctl"><label><i>t</i> = <b id="fqTv">100</b><input type="range" id="fqT" min="0" max="1000" step="10" value="100" aria-label="Timestep t"></label></div>
+<div class="pair"><div id="fqA"></div><div class="cv" id="fqB"><canvas aria-label="Samples of q(x_t | x_0)"></canvas></div></div>
+<div class="out" id="fqO"></div>
+<details><summary class="small">Recomputed: <i>L<sub>T</sub></i> ≈ 10<sup>−5</sup> bits per dimension</summary><p class="small mute">The defaults reproduce the paper's "<i>L<sub>T</sub></i> ≈ 10<sup>−5</sup> bits per dimension" ({{§4|ax:S4}}) by recomputation from the schedule: ᾱ<sub><i>T</i></sub> = <span id="fqAT"></span>, so KL(<i>q</i>(<i>x<sub>T</sub></i> | <i>x</i><sub>0</sub>) ‖ 𝒩(0, <b>I</b>)) per dimension is <span id="fqLT"></span> bits for a pixel at ±1 and <span id="fqLT2"></span> bits for an illustrative mean square <i>x</i><sub>0</sub>² = 0.25 (the paper does not give its pixels' mean square). The toy data's own <i>L<sub>T</sub></i> is <span id="fqLTt"></span> bits per dimension.</p></details>
+</section>
+
+<section id="s-rev"><h2>Method: the reverse process and the bound</h2>
+[[S2|§2, Eq. 1, 3, 5 to 7; §3.2]]
+<p>The reverse process is a Markov chain with learned Gaussian transitions, starting at <i>p</i>(<i>x<sub>T</sub></i>) = 𝒩(0, <b>I</b>):</p>
+<div class="fm"><div class="eq"><i>p</i><sub>θ</sub>(<i>x</i><sub><i>t</i>−1</sub> | <i>x<sub>t</sub></i>) = 𝒩(<i>x</i><sub><i>t</i>−1</sub>; μ<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>t</i>), Σ<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>t</i>))</div><div class="wh">Equation 1 ({{§2|ax:S2.E1}}); latents have the data's dimensionality.</div></div>
+<p>Training minimises the usual variational bound on −log <i>p</i><sub>θ</sub>(<i>x</i><sub>0</sub>) ({{Eq. 3|ax:S2.E3}}), rewritten for lower variance as a sum of per-step terms:</p>
+<div class="fm"><div class="eq"><i>L</i> = <i>L<sub>T</sub></i> + Σ<sub><i>t</i>&gt;1</sub> <i>L</i><sub><i>t</i>−1</sub> + <i>L</i><sub>0</sub>, &nbsp; <i>L</i><sub><i>t</i>−1</sub> = KL(<i>q</i>(<i>x</i><sub><i>t</i>−1</sub> | <i>x<sub>t</sub></i>, <i>x</i><sub>0</sub>) ‖ <i>p</i><sub>θ</sub>(<i>x</i><sub><i>t</i>−1</sub> | <i>x<sub>t</sub></i>)), &nbsp; <i>L</i><sub>0</sub> = −log <i>p</i><sub>θ</sub>(<i>x</i><sub>0</sub> | <i>x</i><sub>1</sub>)</div><div class="wh">Equation 5 ({{§2|ax:S2.E5}}); derivation in {{Appendix A|ax:A1}}. <i>L<sub>T</sub></i> = KL(<i>q</i>(<i>x<sub>T</sub></i> | <i>x</i><sub>0</sub>) ‖ <i>p</i>(<i>x<sub>T</sub></i>)).</div></div>
+<p>Each KL compares the model's step with the forward process posterior, which is Gaussian and known in closed form once <i>x</i><sub>0</sub> is given:</p>
+<div class="fm"><div class="eq"><i>q</i>(<i>x</i><sub><i>t</i>−1</sub> | <i>x<sub>t</sub></i>, <i>x</i><sub>0</sub>) = 𝒩(μ̃<sub><i>t</i></sub>, β̃<sub><i>t</i></sub><b>I</b>), &nbsp; μ̃<sub><i>t</i></sub> = (√ᾱ<sub><i>t</i>−1</sub> β<sub><i>t</i></sub> / (1 − ᾱ<sub><i>t</i></sub>)) <i>x</i><sub>0</sub> + (√α<sub><i>t</i></sub> (1 − ᾱ<sub><i>t</i>−1</sub>) / (1 − ᾱ<sub><i>t</i></sub>)) <i>x<sub>t</sub></i>, &nbsp; β̃<sub><i>t</i></sub> = ((1 − ᾱ<sub><i>t</i>−1</sub>) / (1 − ᾱ<sub><i>t</i></sub>)) β<sub><i>t</i></sub></div><div class="wh">Equations 6 and 7 ({{§2|ax:S2.E6}}): every KL in Eq. 5 compares two Gaussians in closed form ("Rao-Blackwellized"), not by high-variance Monte Carlo.</div></div>
+<p><b>The variances are fixed.</b> Σ<sub>θ</sub> = σ<sub><i>t</i></sub>²<b>I</b> with σ<sub><i>t</i></sub>² = β<sub><i>t</i></sub> (optimal for <i>x</i><sub>0</sub> ~ 𝒩(0, <b>I</b>)) or β̃<sub><i>t</i></sub> (optimal for one fixed <i>x</i><sub>0</sub>), the two extremes of reverse-process entropy; "both … had similar results" ({{§3.2|ax:S3.SS2}}). Learning a diagonal Σ<sub>θ</sub> was unstable ({{Table 2|ax:S4.T2}}). On the toy, β̃ gives slightly tighter samples but a worse bound (<span id="revBt"></span>).</p>
+</section>
+
+<section id="s-eps"><h2>Method: predict the noise</h2>
+[[S3.SS2|§3.2, Eq. 8 to 12]]
+<p>With fixed variances, each term of the bound is a weighted squared distance between means, plus a constant <i>C</i> that does not depend on θ:</p>
+<div class="fm"><div class="eq"><i>L</i><sub><i>t</i>−1</sub> = 𝔼<sub><i>q</i></sub>[ (1 / 2σ<sub><i>t</i></sub>²) ‖μ̃<sub><i>t</i></sub>(<i>x<sub>t</sub></i>, <i>x</i><sub>0</sub>) − μ<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>t</i>)‖² ] + <i>C</i></div><div class="wh">Equation 8 ({{§3.2|ax:S3.E8}}). The obvious choice is a network that predicts μ̃<sub><i>t</i></sub> directly: the "μ̃ prediction" baseline of Table 2.</div></div>
+<p>Substituting Eq. 4 into Eq. 7, the target is (1/√α<sub><i>t</i></sub>)(<i>x<sub>t</sub></i> − (β<sub><i>t</i></sub>/√(1 − ᾱ<sub><i>t</i></sub>)) ε) ({{Eq. 10|ax:S3.E10}}); <i>x<sub>t</sub></i> is an input, so only ε is unknown, and a network ε<sub>θ</sub> predicts it:</p>
+<div class="fm"><div class="eq">μ<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>t</i>) = (1/√α<sub><i>t</i></sub>) ( <i>x<sub>t</sub></i> − (β<sub><i>t</i></sub> / √(1 − ᾱ<sub><i>t</i></sub>)) ε<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>t</i>) )</div><div class="wh">Equation 11 ({{§3.2|ax:S3.E11}}). Then each term of the bound is a weighted MSE on the noise:</div>
+<div class="eq"><i>L</i><sub><i>t</i>−1</sub> − <i>C</i> = 𝔼<sub><i>x</i><sub>0</sub>, ε</sub>[ (β<sub><i>t</i></sub>² / (2σ<sub><i>t</i></sub>² α<sub><i>t</i></sub> (1 − ᾱ<sub><i>t</i></sub>))) ‖ε − ε<sub>θ</sub>(√ᾱ<sub><i>t</i></sub> <i>x</i><sub>0</sub> + √(1 − ᾱ<sub><i>t</i></sub>) ε, <i>t</i>)‖² ]</div><div class="wh">Equation 12 ({{§3.2|ax:S3.E12}}).</div></div>
+<p><b>Why this is score matching.</b> From Eq. 4, ∇ log <i>q</i>(<i>x<sub>t</sub></i> | <i>x</i><sub>0</sub>) = −ε / √(1 − ᾱ<sub><i>t</i></sub>) (one line, not printed in the paper), so ε<sub>θ</sub> is a scaled score estimate. Eq. 12 "resembles denoising score matching over multiple noise scales", the objective of {{NCSN|https://arxiv.org/abs/1907.05600}}, and sampling with Eq. 11,</p>
+<div class="fm"><div class="eq"><i>x</i><sub><i>t</i>−1</sub> = (1/√α<sub><i>t</i></sub>) ( <i>x<sub>t</sub></i> − ((1 − α<sub><i>t</i></sub>) / √(1 − ᾱ<sub><i>t</i></sub>)) ε<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>t</i>) ) + σ<sub><i>t</i></sub> <b>z</b>, &nbsp; <b>z</b> ~ 𝒩(0, <b>I</b>)</div><div class="wh">{{Algorithm 2|ax:S3.SS2.fig1}}, line 4 (1 − α<sub><i>t</i></sub> is β<sub><i>t</i></sub>).</div></div>
+<p>"resembles Langevin dynamics with ε<sub>θ</sub> as a learned gradient of the data density". Since Eq. 12 is one term of the bound for this sampler, denoising score matching here <i>is</i> variational inference on a sampling chain ({{§3.2|ax:S3.SS2}}). It is "just another parameterization", hence Table 2's test; predicting <i>x</i><sub>0</sub> instead gave worse samples early on. The {{score field|tab:t-run:scoreCard}} in the Sample tab draws the toy's learned score.</p>
+</section>
+
+<section id="s-simple"><h2>Method: the simplified objective, L<sub>simple</sub></h2>
+[[S3.SS4|§3.4, Eq. 14]]
+<p>The bound of Eqs. 12 and 13 trains fine, but dropping the weight of Eq. 12 was "beneficial to sample quality (and simpler to implement)":</p>
+<div class="fm"><div class="eq"><i>L</i><sub>simple</sub>(θ) = 𝔼<sub><i>t</i>, <i>x</i><sub>0</sub>, ε</sub>[ ‖ε − ε<sub>θ</sub>(√ᾱ<sub><i>t</i></sub> <i>x</i><sub>0</sub> + √(1 − ᾱ<sub><i>t</i></sub>) ε, <i>t</i>)‖² ], &nbsp; <i>t</i> ~ Uniform{1, …, <i>T</i>}</div><div class="wh">Equation 14 ({{§3.4|ax:S3.E14}}). <i>t</i> = 1 stands in for <i>L</i><sub>0</sub>, with the decoder's integral approximated by the Gaussian density times the bin width (ignoring σ<sub>1</sub>² and edge effects); <i>t</i> &gt; 1 is Eq. 12 unweighted, like NCSN's loss weighting; <i>L<sub>T</sub></i> does not appear because β<sub><i>t</i></sub> is fixed.</div></div>
+<p>It is a weighted bound that emphasises different aspects of reconstruction.</p>
+<div class="pred" id="pr-w" data-ans="1"><div class="q">compared with the true bound, which timesteps does L<sub>simple</sub> give relatively more weight to?</div>
+<div class="opts"><button>Small t: inputs that are almost clean</button><button>Large t: inputs that are mostly noise</button><button>Neither: it keeps the bound's emphasis, only rescaled</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Large <i>t</i>. With the paper's schedule the true bound's weight is largest at the smallest <i>t</i> and falls by a factor of about <span id="wRatio"></span> by <i>t</i> = 500; <i>L</i><sub>simple</sub> weights every <i>t</i> the same, so relative to the bound it "down-weight[s] loss terms corresponding to small <i>t</i>", which "train the network to denoise data with very small amounts of noise", and lets the network "focus on more difficult denoising tasks at larger <i>t</i>" ({{§3.4|ax:S3.SS4}}). The chart shows each objective's share of its total weight at each <i>t</i>, from the weight of Eq. 12.</p>
+<div class="ctl"><label>Reverse variance <select id="wSig"><option value="beta">σ<sub>t</sub>² = β<sub>t</sub></option><option value="btilde">σ² = β̃ (tilde)</option></select></label></div>
+<div id="wch"></div>
+<p class="small mute">Share at <i>t</i>: <i>w<sub>t</sub></i> / Σ<i>w</i>, <i>w<sub>t</sub></i> = β<sub><i>t</i></sub>² / (2σ<sub><i>t</i></sub>² α<sub><i>t</i></sub> (1 − ᾱ<sub><i>t</i></sub>)) for <i>t</i> ≥ 2 (Eq. 12); <i>L</i><sub>simple</sub>: 1/1,000 each. Only the shape matters.</p>
+</div></div>
+<p>The ablation below shows this reweighting is exactly what sample quality needs ({{§3.4|ax:S3.SS4}}, {{Table 2|ax:S4.T2}}).</p>
+</section>
+
+<section id="s-train"><h2>Method: training, sampling and the network</h2>
+[[S3.SS2.fig1|Algorithms 1 and 2; §3.3; §4; Appendix B]]
+<div class="pair"><div class="fm"><b class="small">Algorithm 1: training</b><ol class="small" style="margin:4px 0 0">
+<li>Take <i>x</i><sub>0</sub> from the data.</li><li><i>t</i> ~ Uniform{1, …, <i>T</i>}; ε ~ 𝒩(0, <b>I</b>).</li><li>Gradient step on ‖ε − ε<sub>θ</sub>(√ᾱ<sub><i>t</i></sub> <i>x</i><sub>0</sub> + √(1 − ᾱ<sub><i>t</i></sub>) ε, <i>t</i>)‖².</li><li>Repeat until converged.</li></ol></div>
+<div class="fm"><b class="small">Algorithm 2: sampling</b><ol class="small" style="margin:4px 0 0">
+<li><i>x<sub>T</sub></i> ~ 𝒩(0, <b>I</b>).</li><li>For <i>t</i> = <i>T</i>, …, 1: <b>z</b> ~ 𝒩(0, <b>I</b>) if <i>t</i> &gt; 1, else <b>z</b> = 0.</li><li><i>x</i><sub><i>t</i>−1</sub> = (1/√α<sub><i>t</i></sub>)(<i>x<sub>t</sub></i> − ((1 − α<sub><i>t</i></sub>)/√(1 − ᾱ<sub><i>t</i></sub>)) ε<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>t</i>)) + σ<sub><i>t</i></sub><b>z</b>.</li><li>Return <i>x</i><sub>0</sub>.</li></ol></div></div>
+<p>Training is one forward pass and one MSE per example; sampling is the expensive part, 1,000 sequential network evaluations per sample ({{Algorithms 1 and 2|ax:S3.SS2.fig1}}).</p>
+<ul class="lst">
+<li><b>Data and decoder</b> ({{§3.3|ax:S3.SS3}}): pixels 0 to 255 scaled to [−1, 1]; the last step <i>p</i><sub>θ</sub>(<i>x</i><sub>0</sub> | <i>x</i><sub>1</sub>) integrates 𝒩(μ<sub>θ</sub>(<i>x</i><sub>1</sub>, 1), σ<sub>1</sub>²) over each pixel's bin, outer bins to ±∞ ({{Eq. 13|ax:S3.E13}}), so the bound is a lossless codelength with no added noise or Jacobian. μ<sub>θ</sub>(<i>x</i><sub>1</sub>, 1) is displayed noiselessly; a stronger (autoregressive) decoder is left to future work.</li>
+</ul>
+<details><summary class="small">Network, training recipe and cost (§4, Appendix B)</summary><ul class="lst"><li><b>Network</b> ({{§4|ax:S4}}, {{Appendix B|ax:A2}}): a U-Net like an unmasked PixelCNN++ (itself a U-Net on a Wide ResNet), with group normalisation in place of weight normalisation; four feature-map resolutions (32 × 32 down to 4 × 4) for 32 × 32 images and six for 256 × 256; two convolutional residual blocks per resolution and self-attention at 16 × 16. Parameters are shared across time; <i>t</i> enters by adding the {{Transformer's sinusoidal position embedding|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} into each residual block. 35.7M parameters for CIFAR10, 114M for LSUN and CelebA-HQ, about 256M for a larger LSUN Bedroom variant.</li>
+<li><b>Recipe</b> ({{Appendix B|ax:A2}}): Adam at its standard settings, learning rate 2 × 10<sup>−4</sup> (2 × 10<sup>−5</sup> for 256 × 256 images, which "seemed unstable" at the larger rate), batch 128 (64 for large images), EMA of the weights with decay 0.9999, dropout 0.1 on CIFAR10 (swept over 0.1 to 0.4; without it samples showed overfitting artifacts) and 0 elsewhere, random horizontal flips (all datasets but LSUN Bedroom). The β schedule was chosen from constant, linear and quadratic ones with <i>L<sub>T</sub></i> ≈ 0; <i>T</i> = 1,000 was not swept. Hyperparameters were tuned for CIFAR10 sample quality and transferred.</li>
+<li><b>Cost</b> ({{Appendix B|ax:A2}}): a TPU v3-8 ("similar to 8 V100 GPUs"). CIFAR10 trains at 21 steps per second, 800k steps in 10.6 hours (800,000 / 21 / 3,600 = <span id="costH"></span> h, recomputed), and a batch of 256 samples takes 17 seconds (<span id="costMs"></span> ms per image). The 256 × 256 models train at 2.2 steps per second (CelebA-HQ 0.5M steps, LSUN Bedroom 2.4M, Cat 1.8M, Church 1.2M; that is <span id="costD"></span> days at that rate, derived) and take 300 seconds for 128 samples.</li></ul></details>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S4.SS1|§4.1, Table 1, Table 3]]
+<ul class="lst">
+<li><b>CIFAR10, unconditional</b>: FID 3.17 and Inception Score 9.46 ± 0.11 for the <i>L</i><sub>simple</sub> model, the best unconditional FID in Table 1 and better than most models in the literature "including class conditional models" (the conditional StyleGAN2 + ADA, at 2.67, is better) ({{Table 1|ax:S4.T1}}). FID is computed against the training set, as is standard; against the test set it is 5.24 ({{§4.1|ax:S4.SS1}}).</li>
+<li><b>Likelihood</b>: ≤ 3.75 bits per dimension (train 3.72) for the <i>L</i><sub>simple</sub> model; the model trained on the true bound gets the better ≤ 3.70 (3.69) but an FID of only 13.51. "Training our models on the true variational bound yields better codelengths … but the latter yields the best sample quality" ({{§4.1|ax:S4.SS1}}). Both beat the original diffusion model's ≤ 5.40 and the estimates reported for energy-based models and score matching, but not autoregressive models (Sparse Transformer 2.80) ({{§4.3|ax:S4.SS3}}).</li>
+<li><b>LSUN 256 × 256</b> ({{Table 3|ax:Ax1.T3}}): Church FID 7.89 (ProgressiveGAN 6.42, StyleGAN2 3.86), Bedroom 6.36 with the 114M model and 4.90 with the larger one (ProgressiveGAN 8.34, StyleGAN 2.65), Cat 19.75 (ProgressiveGAN 37.52, StyleGAN2 6.93): comparable to ProgressiveGAN, behind StyleGAN. CelebA-HQ 256 × 256 has samples ({{Figure 1|ax:S0.F1}}) but no score.</li>
+<li><b>Honest caveats</b> ({{§1|ax:S1}}, {{§4.3|ax:S4.SS3}}): log likelihoods are not competitive with strong autoregressive models, and sampling needs <i>T</i> = 1,000 sequential network evaluations.</li></ul>
+<p class="small">All four tables, sortable and with every derived number recomputed, are in the {{tables tab|tab:t-tables}}.</p>
+</section>
+
+<section id="s-abl"><h2>The ablation: what makes it work</h2>
+[[S4.SS2|§4.2, Table 2]]
+<p>Table 2 holds the network fixed and changes two things: what it predicts (μ̃ or ε) and what it is trained on (the true bound with learned or fixed variances, or a plain unweighted MSE) ({{Table 2|ax:S4.T2}}).</p>
+<div class="tw"><table class="dt"><thead><tr><th>Predicts</th><th>Trained on</th><th>IS</th><th>FID</th></tr></thead><tbody>
+<tr><td>μ̃ (baseline)</td><td><i>L</i>, learned diagonal Σ</td><td class="n">7.28 ± 0.10</td><td class="n">23.69</td></tr>
+<tr><td>μ̃</td><td><i>L</i>, fixed isotropic Σ</td><td class="n">8.06 ± 0.09</td><td class="n">13.22</td></tr>
+<tr><td>μ̃</td><td>‖μ̃ − μ̃<sub>θ</sub>‖²</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>ε (ours)</td><td><i>L</i>, learned diagonal Σ</td><td class="n">–</td><td class="n">–</td></tr>
+<tr><td>ε</td><td><i>L</i>, fixed isotropic Σ</td><td class="n">7.67 ± 0.13</td><td class="n">13.51</td></tr>
+<tr class="ours"><td>ε</td><td>‖ε̃ − ε<sub>θ</sub>‖² (<i>L</i><sub>simple</sub>)</td><td class="n"><b>9.46 ± 0.11</b></td><td class="n"><b>3.17</b></td></tr></tbody></table></div>
+<p class="small mute">Blank entries "were unstable to train and generated poor samples with out-of-range scores" ({{Table 2|ax:S4.T2}}). Lower FID is better; higher IS is better.</p>
+<p>So ({{§4.2|ax:S4.SS2}}): μ̃ works only on the true bound; learned variances are unstable; ε matches μ̃ on the bound (13.51 against 13.22) and is far better with <i>L</i><sub>simple</sub> (3.17), the recipe behind the headline.</p>
+<div class="pred" id="pr-mu" data-ans="2"><div class="q">train the μ̃-predicting network on the plain unweighted MSE ‖μ̃ − μ̃<sub>θ</sub>‖² instead of the bound. What happens?</div>
+<div class="opts"><button>About as good as the bound</button><button>It works, with a somewhat worse FID</button><button>Poor samples: it fails</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>It fails: that row of Table 2 is blank, unstable with poor samples. The toy models trained for this page show the same thing on the Swiss roll. Here are 300 samples from each, from the same starting noise, computed now in your browser:</p>
+<div class="pair"><div><h4>Predict ε, <i>L</i><sub>simple</sub> (the paper's recipe)</h4><div class="cv" id="abA"><canvas aria-label="Samples from the epsilon model"></canvas></div><div class="small mute" id="abAo"></div></div>
+<div><h4>Predict μ̃, plain MSE (Table 2, blank row)</h4><div class="cv" id="abB"><canvas aria-label="Samples from the mu MSE model"></canvas></div><div class="small mute" id="abBo"></div></div></div>
+<p class="small mute">On 2,000 samples in Python, on the roll: <span id="abM"></span>. <b>Not reproduced:</b> the paper's μ̃ + true bound works (FID 13.22); ours fails too (<span id="abMt"></span>). Our guess, not the paper's: a small MLP predicting μ̃ must output almost exactly its input plus a β-sized correction, while ε is order one. All four variants: {{Sample tab|tab:t-run}}.</p></div></div>
+</section>
+
+<section id="s-prog"><h2>Progressive coding: what the bits are spent on</h2>
+[[S4.SS3|§4.3, Algorithms 3 and 4, Eq. 15 and 16, Figures 5 to 7, Table 4]]
+<p>The train-test gap is at most 0.03 bits per dimension, so no overfitting; yet codelengths are poor while samples are excellent: "diffusion models have an inductive bias that makes them excellent lossy compressors" ({{§4.3|ax:S4.SS3}}). With <i>L</i><sub>1</sub> + … + <i>L<sub>T</sub></i> as rate and <i>L</i><sub>0</sub> as distortion, the best-sample model has rate 1.78 and distortion 1.97 bits per dimension (RMSE 0.95 of 255); 1.78 + 1.97 = 3.75, its whole codelength, so "more than half … describes imperceptible distortions" (<span id="rdShare"></span>, recomputed).</p>
+<p><b>A progressive code.</b> Algorithms 3 and 4 send <i>x<sub>T</sub></i>, then each <i>x<sub>t</sub></i>, then <i>x</i><sub>0</sub>, each in about KL(<i>q</i> ‖ <i>p</i>) bits (minimal random coding): total, exactly Eq. 5. The receiver can estimate at any time</p>
+<div class="fm"><div class="eq"><i>x</i><sub>0</sub> ≈ <i>x̂</i><sub>0</sub> = ( <i>x<sub>t</sub></i> − √(1 − ᾱ<sub><i>t</i></sub>) ε<sub>θ</sub>(<i>x<sub>t</sub></i>) ) / √ᾱ<sub><i>t</i></sub></div><div class="wh">Equation 15 ({{§4.3|ax:S4.E15}}), Eq. 4 solved for <i>x</i><sub>0</sub>. Figure 5 plots its distortion, √(‖<i>x</i><sub>0</sub> − <i>x̂</i><sub>0</sub>‖²/<i>D</i>), against the bits received so far.</div></div>
+<div class="pred" id="pr-rd" data-ans="2"><div class="q">after 900 of the 1,000 reverse steps, what share of the bits has the receiver been sent?</div>
+<div class="opts"><button>About 90%</button><button>About half</button><button>Under 10%</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Under 10%: <span id="rdBy900"></span> of the final 1.776 bits per dimension, while the distortion has already fallen from 67.6 to 12.0 (on 0 to 255). Most of the bits go to the last 100 steps, the fine detail. Figure 5, rebuilt from the printed values of {{Table 4|ax:Ax1.T4}} (the toy curve is this page's model, measured the same way):</p>
+<div class="ctl"><label>Plot <select id="rdX"><option value="rd">distortion against rate</option><option value="t">rate and distortion against reverse steps</option></select></label><label class="small"><input type="checkbox" id="rdToy" checked> the toy model too (its own 2-D data, rescaled to its final rate)</label></div>
+<div id="rdA"></div>
+<p class="small mute">CIFAR10 points are the ten rows of Table 4 (reverse time <i>T</i> − <i>t</i> + 1 = 100, 200, …, 1,000), joined by straight lines; Figure 5's full curves exist only as images, so they are not traced. The toy's rate and distortion are computed from its bound terms and from Eq. 15 on 2,000 held-out points every 10 steps (rd.py); its own final values are <span id="rdToyV"></span>.</p></div></div>
+
+<details><summary class="small">Progressive generation, diffusion as generalised autoregression, interpolation, and how it differs from NCSN (§4.3, §4.4, Appendix C)</summary>
+<p><b>Progressive generation.</b> Running Algorithm 2 and showing <i>x̂</i><sub>0</sub> along the way, large-scale features appear first and details last ({{Figure 6|ax:S4.F6}}). Freezing <i>x<sub>t</sub></i> and sampling <i>x</i><sub>0</sub> ~ <i>p</i><sub>θ</sub>(<i>x</i><sub>0</sub> | <i>x<sub>t</sub></i>) several times, CelebA-HQ samples share high-level attributes (gender, hair colour, eyewear, pose, expression) when the chain is split late and differ greatly when split at <i>x</i><sub>1000</sub>, "hints of conceptual compression" ({{Figure 7|ax:S4.F7}}, {{Appendix D|ax:A4}}). The {{Sample tab|tab:t-run}} can show <i>x̂</i><sub>0</sub> instead of <i>x<sub>t</sub></i> while it samples.</p>
+<p><b>A generalised autoregressive model.</b> The bound can be rewritten as Eq. 16 ({{§4.3|ax:S4.E16}}). Set <i>T</i> to the data dimension, let each forward step mask out one more coordinate, and the reverse process must copy the unmasked coordinates and predict the next one: training it <i>is</i> training an autoregressive model. Gaussian diffusion is then "a kind of autoregressive model with a generalized bit ordering that cannot be expressed by reordering data coordinates", and its length is free: <i>T</i> = 1,000 is less than the 3,072 or 196,608 dimensions of the 32 × 32 × 3 and 256 × 256 × 3 images, and can be shorter for speed or longer for expressiveness ({{§4.3|ax:S4.SS3}}).</p>
+<p><b>Interpolation.</b> Noise two images to <i>x<sub>t</sub></i> and <i>x</i>′<sub><i>t</i></sub> with the same noise, mix them linearly, and decode with the reverse process: the reverse process removes the artifacts of mixing, giving plausible interpolations of pose, skin tone, hairstyle, expression and background (but not eyewear) at <i>t</i> = 500, coarser and more varied ones at larger <i>t</i>, and novel samples at <i>t</i> = 1,000 ({{§4.4|ax:S4.SS4}}, {{Figure 8|ax:S4.F8}}).</p>
+<p><b>How it differs from NCSN</b> ({{Appendix C|ax:A3}}): a U-Net with self-attention rather than a RefineNet with dilated convolutions; every layer conditioned on <i>t</i>; the forward process scales the data down so the variance does not grow; the forward process destroys the signal (prior and aggregate posterior of <i>x<sub>T</sub></i> match) with very small β<sub><i>t</i></sub>, which prevents distribution shift when sampling; and the sampler's coefficients come from β<sub><i>t</i></sub> and are trained by variational inference, where NCSN's are set by hand after training.</p>
+</details>
+</section>
+
+<section id="s-believe"><h2>How much of this to believe</h2>
+[[A2|Appendix B, §4, Tables 1 and 2]]
+<p><b>What holds up, and why.</b></p>
+<ul class="lst">
+<li><b>Reproduced independently.</b> Improved DDPM ran the same setup (<i>T</i> = 1,000, linear schedule, <i>L</i><sub>simple</sub>) for 500K rather than 800K iterations: FID 3.29 and 3.73 bits per dimension against 3.17 and 3.75 ({{Nichol and Dhariwal 2021, Table 2|https://arxiv.org/abs/2102.09672}}). Code is released; scores use the standard Inception and TTUR FID code on 50,000 samples ({{Appendix B|ax:A2}}).</li>
+<li><b>The key experiment is controlled and the effect large.</b> Table 2 changes only parameterisation and objective: 13.51 to 3.17 FID, a factor of <span id="blvRatio"></span> ({{Table 2|ax:S4.T2}}).</li>
+<li><b>The authors state their weaknesses</b>, to their credit: uncompetitive likelihoods ({{§4.3|ax:S4.SS3}}), FID against the training set with the test-set 5.24 given ({{§4.1|ax:S4.SS1}}), 1,000 evaluations per sample.</li>
+<li><b>It held up</b>: ε-prediction with a plain MSE trains the whole line that followed ({{Then and now|tab:t-then}}), and works on this page's toy (<span id="blvToy"></span> of samples on the roll).</li></ul>
+<p><b>What to read with care.</b></p>
+<ul class="lst">
+<li><b>Single runs.</b> "Final experiments were trained once" ({{Appendix B|ax:A2}}), so the IS ± is not a spread over runs (the paper does not say what it is; the standard IS code reports the spread over 10 splits of the samples), and gaps like 13.51 against 13.22 cannot be judged against noise.</li>
+<li><b>Checkpoint chosen by the reported metric.</b> Scores "are reported on the minimum FID value over the course of training" ({{Appendix B|ax:A2}}), a training-set FID; and hyperparameters were tuned on CIFAR10 sample quality, the headline benchmark. The test-set 5.24 is the conservative reading.</li>
+<li><b>A thin, overtaken margin.</b> 3.17 against StyleGAN2 + ADA's 3.26 is <span id="blvM"></span> FID, single runs, baselines quoted from other papers ({{Table 1|ax:S4.T1}}); ADA's later version reports 2.92 ± 0.05 unconditional with tuning ({{Karras et al., v2|https://arxiv.org/abs/2006.06676v2}}); on LSUN the paper trails StyleGAN ({{Table 3|ax:Ax1.T3}}).</li>
+<li><b>Failures not analysed.</b> Table 2's blank rows have no numbers or diagnosis; Improved DDPM later made learned variances work ({{Nichol and Dhariwal 2021|https://arxiv.org/abs/2102.09672}}).</li>
+<li><b>The toy reproduces the main effect, not every row.</b> ε + <i>L</i><sub>simple</sub> works and μ̃ + MSE fails, as in the paper; but μ̃ + true bound fails on the toy, and the toy's ε + true bound gets nearly the same samples and a slightly <i>worse</i> bound (<span id="blvBd"></span> bits per dimension) where the paper's is better (3.70 against 3.75). At toy scale these say more about the toy than the paper.</li></ul>
+<p class="lead"><b>Verdict:</b> believe the recipe and the ablation's direction completely; they were reproduced and became the field's default. Read the 3.17 as one well-tuned run, selected on its own metric, that briefly led an unconditional benchmark by a margin a stronger GAN run later reversed; take the likelihoods as the paper does: honest, and not competitive.</p>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<p>It turned a dormant 2015 idea into the dominant generative paradigm by finding the parameterisation that works: a fixed forward process, ε-prediction, an unweighted MSE. Nearly everything since descends from it:</p>
+<ul class="lst">
+<li><b>Better DDPMs and guidance:</b> {{Improved DDPM|https://arxiv.org/abs/2102.09672}} (learned variances, fewer steps) and {{classifier guidance, "Diffusion Models Beat GANs"|https://arxiv.org/abs/2105.05233}} (Dhariwal and Nichol, FID 4.59 on ImageNet 256 × 256), then {{classifier-free guidance|https://arxiv.org/abs/2207.12598}}.</li>
+<li><b>Fast sampling:</b> {{DDIM|https://arxiv.org/abs/2010.02502}} keeps the same training and samples deterministically 10 to 50 times faster in wall-clock time.</li>
+<li><b>Text to image:</b> {{latent diffusion|n:3c65c17b0d0d81bb98adc0daf8462cb6}} (Stable Diffusion) moves the chain into a VAE latent space; {{Imagen|https://arxiv.org/abs/2205.11487}} and {{DALL-E 2|https://arxiv.org/abs/2204.06125}} do text-to-image with diffusion.</li>
+<li><b>New backbones:</b> {{DiT|https://arxiv.org/abs/2212.09748}} swaps the U-Net for a Transformer on latent patches; OpenAI's Sora report says diffusion transformers "scale effectively as video models as well" ({{OpenAI 2024, archived copy|https://web.archive.org/web/2024/https://openai.com/index/video-generation-models-as-world-simulators/}}).</li>
+<li><b>Reframed paths for few-step generation:</b> {{consistency models|https://arxiv.org/abs/2303.01469}}, {{flow matching|https://arxiv.org/abs/2210.02747}} and {{rectified flow|https://arxiv.org/abs/2209.03003}}.</li>
+<li><b>One framework:</b> the score-matching connection made explicit here was generalised by {{Song et al. 2021|https://arxiv.org/abs/2011.13456}} into the SDE framework that unifies DDPM and NCSN.</li>
+<li><b>Beyond images:</b> the training recipe (sample <i>t</i>, add noise, predict it, MSE) spread to audio ({{WaveGrad|https://arxiv.org/abs/2009.00713}}, {{DiffWave|https://arxiv.org/abs/2009.09761}}), video ({{Video Diffusion Models|https://arxiv.org/abs/2204.03458}}), molecules ({{equivariant diffusion for 3-D molecules|https://arxiv.org/abs/2203.17003}}), robot policies ({{Diffusion Policy|https://arxiv.org/abs/2303.04137}}) and text ({{Diffusion-LM|https://arxiv.org/abs/2205.14217}}; {{DiffusionGemma|n:3c65c17b0d0d818390bfd7969757211e}}).</li></ul>
+<p class="small">What changed and what survived, step by step: {{Then and now|tab:t-then}}.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li>{{Latent Diffusion (2021-12)|n:3c65c17b0d0d81bb98adc0daf8462cb6}}: runs this exact DDPM machinery in a compressed VAE latent space, making high-resolution text-to-image (Stable Diffusion) tractable.</li>
+<li>{{CLIP (2021-02)|n:3c65c17b0d0d8194a85dfc5f3bf3f799}}: supplies the text conditioning that later diffusion systems bolt onto the DDPM backbone.</li>
+<li>{{ViT (2020-10)|n:3c65c17b0d0d811fa231cfcde6c1954d}}: the DiT line replaces DDPM's U-Net with this Transformer architecture.</li>
+<li>{{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}: the sinusoidal embedding that tells DDPM's network the timestep.</li>
+<li>Topics: {{generative-and-multimodal|n:3c65c17b0d0d817ab6ade318917bff55}} (diffusion and flow), with the ELBO and score-matching maths grounded in {{math|n:3c65c17b0d0d81cdb851c0835b25a538}}.</li>
+<li>Before it: {{Sohl-Dickstein et al. 2015|https://arxiv.org/abs/1503.03585}} (diffusion probabilistic models) and {{Song and Ermon 2019|https://arxiv.org/abs/1907.05600}} (NCSN, score matching with annealed Langevin dynamics).</li></ul>
+</section>
+</section>
