@@ -1,0 +1,42 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Ask a trained toy RAG</h2>
+<p>A real RAG model, trained offline the way {{§2|ax:S2}} describes and run here in your browser: a retriever <i>p</i><sub>η</sub>(<i>z</i>|<i>x</i>) ∝ exp(<b>d</b>(<i>z</i>)<sup>⊤</sup><b>q</b>(<i>x</i>)) with separate query and document encoders, maximum inner product search over the whole index, a pretrained encoder-decoder generator reading each retrieved document concatenated with the question, and both marginalisations. Its non-parametric memory is a made-up encyclopedia of <b id="rNdocs"></b> short documents about 300 countries, 420 people and 150 authors, in two editions, "2016" and "2018", in which 120 of the 300 presidents differ. Every name is three syllables from a pool of 60, so an entity the model never saw in training is a new combination of familiar pieces.</p>
+<p class="try"><b>Try:</b> ask about a <b>held-out</b> country (its facts were never a training answer, so the model must read them). Then switch the index to 2016 and ask again: the same weights give the 2016 president. Then pick "novels by" for a held-out author and compare RAG-Token with RAG-Sequence. Or rewrite a document below and watch the answer follow it.</p>
+<div class="card" id="run">
+<div class="ctl">
+<label>Question <select id="rTask"><option value="president">who is the president of ...?</option><option value="capital">what is the capital of ...?</option><option value="born">where was ... born?</option><option value="novels" selected>novels by ...?</option></select></label>
+<label>About <select id="rEnt"></select></label>
+<label>Phrasing <select id="rTpl"><option value="0">first phrasing</option><option value="1">second phrasing</option></select></label>
+</div>
+<div class="ctl">
+<div class="seg" id="rModel" role="group" aria-label="Model"><button class="on" data-m="tok" aria-pressed="true">RAG-Token</button><button data-m="seq" aria-pressed="false">RAG-Sequence</button></div>
+<div class="seg" id="rIdx" role="group" aria-label="Index"><button class="on" data-m="2018" aria-pressed="true">2018 index</button><button data-m="2016" aria-pressed="false">2016 index</button></div>
+<label>Documents retrieved, <i>k</i> = <b id="rKv">5</b><input type="range" id="rK" min="1" max="10" step="1" value="5"></label>
+</div>
+<div class="out" id="rQ"></div>
+<div id="rOut"></div>
+<details class="mist" id="rEdit"><summary>Edit the non-parametric memory</summary>
+<div class="b"><p class="small">The document encoder re-embeds whatever you write, and the index changes with no retraining: the paper's "human-writable" memory ({{§5|ax:S5.SS0.SSS0.Px4}}). Pick a country and give it a new president, then ask who leads it.</p>
+<div class="ctl"><label>Country <select id="eC"></select></label><label>New president <select id="eP"></select></label><button id="eApply">Write it into the index</button><button id="eReset">Restore both indexes</button></div>
+<div class="out small" id="eOut"></div></div></details>
+</div>
+
+<h3>How good is it, measured</h3>
+<p>Exact match on held-out questions (entities whose facts never appeared as a training answer), recomputed when the weights were exported (6-bit weights, as shipped) for the two models in this page, and from the training logs for the variants that are not shipped. Retrieval recall is the share of questions whose gold document or documents are all in the top 5.</p>
+<div class="tw" id="resTab"></div>
+<p class="small mute" id="resNote"></p>
+<div class="ctl"><button id="tstGo">Re-run 100 held-out questions in your browser</button><span class="small mute" id="tstOut"></span></div>
+
+<h3>What reproduces and what does not</h3>
+<ul class="lst" id="repList"></ul>
+
+<h3>How it was built</h3>
+<ul class="lst">
+<li><b>Retriever</b> (BERT<sub>q</sub> and BERT<sub>d</sub> stand-ins): a bag of tokens with one learned weight per vocabulary token, plus a bag of ordered syllable pairs (the parts of one name) with one shared learned weight, normalised by length; one set of weights for questions, one for documents. "Pretrained" first, as DPR was, contrastively over the whole index on training questions of the three single-document kinds (never on "novels by"). A learned dense layer on top was tried and memorised the training entities (held-out recall at 5 fell to about 40%), so the encoders are closer to a learned BM25 than to DPR: the toy world has no paraphrases, which is where a dense encoder earns its keep.</li>
+<li><b>Generator</b> (BART stand-in): a post-LN encoder-decoder Transformer, 2 + 2 layers, <i>d</i> = 32, 4 heads, feed-forward 64, tied embeddings (<span id="rParams"></span> parameters), pretrained as BART is, by reconstructing every document of the 2018 index with one name masked. That pretraining stores little: the masked name was recovered for <span id="rBart"></span> of the masked documents, so the closed-book baseline knows almost nothing it was not fine-tuned on, much as a small model would (the paper's closed-book T5-11B has 11 billion parameters).</li>
+<li><b>RAG fine-tuning</b> ({{§2.4|ax:S2.SS4}}): the negative marginal log-likelihood, Adam, <i>k</i> = 5, the document encoder and index frozen, the query weights and the generator trained, 6,000 steps of 32 questions; the "frozen" variants keep the query weights fixed, the "BM25" variants use BM25 scores (k1 1.2, b 0.75) as the logits of <i>p</i>(<i>z</i>|<i>x</i>), as Table 6 does. Decoding as {{§2.5|ax:S2.SS5}}: greedy on the per-token mixture for RAG-Token, greedy per document plus Thorough Decoding for RAG-Sequence.</li>
+<li><b>Checked</b>: the JavaScript forward pass against PyTorch on the same 6-bit weights (<span id="rCheck"></span>). Training curves, from the logs:</li>
+</ul>
+<div id="curves"></div>
+<p class="small mute">Scripts: <code>src/world.py</code> (the encyclopedia and the questions), <code>src/train.py</code> (pretraining, fine-tuning, export), <code>src/check_forward.py</code> (JavaScript against PyTorch). The world is generated from a fixed seed; the in-browser test above draws the same held-out questions.</p>
+</section>
