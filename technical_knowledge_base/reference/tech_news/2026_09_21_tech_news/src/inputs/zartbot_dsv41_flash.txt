@@ -1,0 +1,409 @@
+Source: https://zartbot.github.io/blog/model_arch/dsv41flash_arch/en.html (zartbot, September 2026; formulas kept as LaTeX)
+Fetched: 2026-10-02
+
+TL;DR
+
+When DeepSeek-V4.1 Flash was released, I thought it might just be a post-training iteration version... but after using it for a while, I found it reached nearly 420 Tokens/s in speed, and then Cui said all DeepSeek-V4 Pro models would be taken offline... suddenly I felt this was no small matter... until the Technical Report 《DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression》[1] was fully released, only then did I realize it should be called DeepSeek-V5 Flash...
+
+As the paper title states, the purpose of DeepSeek-V4.1 Flash is to push KVCache compression to the extreme. The main reason is that Long-horizon Agent Workflows cause the Context to grow longer and longer, while various tool calls bring heavy prefill computation pressure. The storage pressure of KVCache in HBM and external SSD is very high, all of which are reasons that make Scaling impossible. Therefore, a series of optimizations were made on the model architecture, especially in the compression of KVCache and the computation optimization of Prefill.
+
+Prefill computation optimization: Drawing on YOCO, the entire model has 40 layers, and only 20 layers are needed during Prefill. Therefore, the Prefill activated parameters are only 8B, and the Decode activated parameters are 16B
+
+KVCache compression: Engineering-wise, KVCache compression is divided into several dimensions: head count compression similar to GQA, then block-based compression like CSA, and the cross-layer compression of CSA2 in this paper. At the same time, the indexer computation of Sparse Attention is also optimized. Finally, there are some numerical precision optimizations, for example DS41F adopts FP4 KVCache.
+
+ $\text{Total KV Cost} = \underbrace{d_{\text{entry}}}_{\text{entry size}} \times \underbrace{\frac{N}{m}}_{\text{sequence dim}} \times \underbrace{L_{\text{eff}}}_{\text{layer dim}}
+$ 
+
+Finally, under the premise of maintaining high-quality task completion by the model, KVCache is further compressed by 4x:
+
+In addition, the original writing of the paper is somewhat complex, especially the description of CED. In fact, if we redraw a diagram centered on KVCache and combined with the perspective of computer architecture, it seems to become clear all at once. It can be seen as a kind of Recursive Transformer architecture, a way of modifying Q and reusing KV during the recursive process.
+
+Regarding the Recursive Transformer architecture, you can refer to 《On the Future Transformer: Loops Are Not What You Need》. Next, we will conduct a detailed interpretation and analysis according to the chapter structure of the technical report. This article is the first in this series, analyzing the model architecture in detail, and the more critical content is in Chapter 3.
+
+1. Overview
+
+1.1 Why KVCache compression is needed
+
+First, the report states that in recent years Long-horizon Agents have made ultra-long-context processing an increasingly important model workload. Supporting this type of workload not only requires efficient processing of long sequences, but also requires persistent storage, reuse, and transfer of large KVCache. Therefore, KVCache management has become a fundamental capability of model deployment, while also bringing significant challenges in computation, storage, and communication.
+
+Then it goes on to introduce the DeepSeek-V4 architecture, which processes by combining a Sparse Attention that fully covers the context with a Sliding Window Attention (SWA) that covers the local window. Although advances related to Sparse Attention have significantly reduced the computational cost of long sequence processing, persistent storage and data movement have gradually become more prominent bottlenecks. In long contexts, the usage of the Global KV Cache $O(N)$ will dominate, and being persisted for prefix reuse, it will heavily occupy Host memory capacity and SSD capacity, and will also place high demands on the interconnect bandwidth for KVCache movement. These limit service throughput, increase deployment cost, and ultimately hinder the deployment and promotion of agents toward longer task spans and broader application scenarios.
+
+Therefore, further reducing the key-value cache footprint is crucial for alleviating storage and communication bottlenecks and reducing long-context serving costs. DeepSeek-V4.1-Flash is a multimodal mixture-of-experts model designed for more aggressive KVCache compression. DeepSeek-V4.1-Flash has a parameter scale of 552B, natively supports multimodal input, and supports contexts of up to 1 million tokens. It adopts a Causal Encoder-Decoder (CED) architecture, in which the Decoder's Global KVCache is obtained by projecting the Encoder's final hidden states. This design makes the model activate 8B parameters per token during the Prefill stage and 16B parameters during the Decoding stage, which is especially cost-effective for input-dominated Agent scenarios. Although DeepSeek-V4.1-Flash is significantly larger than DeepSeek-V4-Flash, at the same sequence length, its required runtime KVCache storage is only about 1/4 of the latter, and its persistent KVCache storage is only about 1/8 of the latter. In addition, the overall performance of DeepSeek-V4.1-Flash is superior to DeepSeek-V4-Flash.
+
+These compressions for KVCache mainly come from the joint optimization of model architecture, cache precision, and deployment strategy. For DSv4, it is a model with SWA as the backbone and enhanced by global compressed attention (CSA/HCA). Based on this perspective, the DeepSeek team carried out a series of optimizations. First, it is worth noting that they abandoned the block-based high-compression-ratio structure like HCA, and instead carried out more optimizations on CSA, forming CSA2. The main optimizations compress the KV Cache from three dimensions:
+
+In the channel dimension, a 512-dimensional latent vector is used to share the representation of the keys and values required by each attention head;
+
+In the sequence dimension, the Encoder merges 2 adjacent positions into 1 cache entry through channel-wise learned weights, while the Decoder retains per-position entries;
+
+In the layer dimension, multiple layers share the same global KV, and the whole network retains only 3 copies of Encoder cache and 1 copy of Decoder cache.
+
+Combined with FP4 quantization, the storage growth of the global main KV and the Indexer is about 890 bytes per token.
+
+1.2 Overview of model architecture
+
+The overall model architecture is as follows:
+
+The paper reports that the backbone parameters are about $552\text{B}$ , the Engram parameters are about $196\text{B}$ , and the activated parameters per token for prefill and decode are about $8\text{B}$ and $16\text{B}$ respectively. The core is to use CED to reduce long-context Prefill computation, use CSA2 to reduce attention and KV cache overhead, and then combine Engram conditional memory with DSpark speculative decoding.
+
+The model has $L=40$ layers in total, hidden dimension $d=5120$ , and vocabulary size $129280$ . Each layer contains attention and MoE, organized through mHC residual connections. The entire attention mechanism is divided into two modules, Encoder and Decoder, forming a Causal Encoder-Decoder (CED) architecture. The key of CED is that the Decoder's global KV comes from the Encoder's end representation, and subsequent Decoder layers share these KVs. Therefore, most positions of a long prompt only need to pass through the first 20 layers,
+
+The key CSA2 among them adopts a mechanism of local sliding window + global sparse retrieval + cross-layer KVCache reuse. The sliding window size is 128, attention uses $64$ Q heads, sharing a $512$ -dimensional KV latent, of which RoPE is $64$ -dimensional and NoPE is $448$ -dimensional. Q uses a low-rank projection of rank $1280$ , and the output projection is divided into $8$ groups, each of rank $1024$ . The relevant parameters of the entire model are as follows:
+
+Category | 
+Field | 
+Value | 
+Meaning | 
+
+Backbone | 
+dim | 
+5120 | 
+Hidden dimension $d$ | 
+n_layers | 
+40 | 
+ $L = 40$ 
+ First 20 layers are Encoder
+ Last 20 layers are Decoder | 
+n_mtp_layers | 
+3 | 
+DSpark three SWA-128 blocks | 
+vocab_size | 
+129280 | 
+— | 
+
+Attention | 
+n_heads | 
+64 | 
+ | 
+head_dim | 
+512 | 
+Latent dimension $d_c$ | 
+rope_head_dim | 
+64 | 
+RoPE component dimension 
+ NoPE component $512-64=448$ | 
+q_lora_rank | 
+1280 | 
+ | 
+o_lora_rank /
+ o_groups | 
+1024 / 8 | 
+Output projection divided into 8 groups, each of rank 1024 | 
+window_size | 
+128 | 
+SWA sliding window | 
+
+CSA2 | 
+compress_ratios | 
+[0,0, 2×18, 1×20, 0,0,0] | 
+Encoder layer compression ratio is 2 
+ Decoder layer compression ratio is 1 | 
+kv_source_layers | 
+[2,8,14,20] | 
+Full mode layers | 
+index_source_layers | 
+[2,8,14,20,24,28,32,36] | 
+Full + Reindex mode layers | 
+index_n_heads /
+ index_head_dim | 
+32 / 128 | 
+indexer scale | 
+index_topk | 
+512 | 
+Top-K count | 
+candidate_source_layer | 
+20 | 
+Candidate pool construction layer | 
+candidate_topk_blocks /
+ candidate_block_size | 
+2048 / 8 | 
+ $2048 \times 8 = 16384$ candidates | 
+
+RoPE | 
+original_seq_len | 
+65536 | 
+ | 
+rope_factor | 
+16 | 
+ $65536 \times 16 = 1\text{M}$ | 
+rope_theta /
+ compress_rope_theta | 
+10000 / 160000 | 
+MoE | 
+n_routed_experts /
+ n_activated_experts | 
+384 / 6 | 
+Top-6 of 384 | 
+moe_inter_dim | 
+2304 | 
+Expert intermediate dimension | 
+score_func | 
+sqrtsoftplus | 
+Continues to use sqrtsoftplus | 
+route_scale /
+ swiglu_limit | 
+1.5 / 10.0 | 
+— | 
+
+mHC | 
+hc_mult | 
+4 | 
+ $n = 4$ residual streams | 
+hc_sinkhorn_iters | 
+20 | 
+sk iterated 20 times | 
+
+Engram | 
+engram_layer_ids | 
+[1, 14] | 
+Injected at layer 1 and layer 14 | 
+engram_num_embeddings | 
+[384006168, 384016682] | 
+Number of rows of the two tables | 
+engram_max_ngram_size /
+ engram_n_heads | 
+4 / 8 | 
+N-gram orders $\{2,3,4\}$ , 8 heads | 
+engram_head_dim | 
+256 | 
+ $8 \times 256 = 2048$ , 
+total embedding dimension per order 2048 | 
+engram_vocab_size | 
+16000000 | 
+About 16M entries | 
+
+DSpark | 
+dspark_block_size | 
+5 | 
+Draft $\gamma = 5$ | 
+dspark_target_layer_ids | 
+[37,38,39] | 
+ | 
+dspark_n_routed_experts | 
+128 | 
+Draft layers use a smaller MoE | 
+
+Vision | 
+vision_n_layers / vision_dim | 
+32 / 1024 | 
+— | 
+vision_patch_size /
+ vision_downsample_ratio | 
+14 / 3 | 
+3×3 downsampling → 9x token reduction | 
+vision_max_n_token | 
+1024 | 
+Token upper limit per single image | 
+
+Among them:
+
+mHC: Each token maintains $4$ residual streams of $5120$ dimensions. The residual mixing matrix is constrained to an approximately doubly stochastic matrix through $20$ Sinkhorn iterations. The key of Single-Pass is to use the input mixing coefficients produced by the previous sub-layer, releasing the dependency of the current coefficient computation, facilitating kernel fusion and reducing memory read/write.
+
+DSpark: An additional $3$ SWA-128 draft blocks, each layer adopts a small-scale MoE with Top-3 out of $128$ routed experts. It reads the mean of the four residual streams at the entry of backbone network layers $37,38,39$ , computes $5$ draft positions in parallel at once, cooperates with a Markov head to model dependencies, and a confidence head assists in deciding the verification length.
+
+Vision branch: A ViT with $32$ layers and hidden dimension $1024$ , patch size $14$ . Features go through $3\times3$ pixel-unshuffle, reducing the number of tokens to $1/9$ of the original, then mapped to $5120$ dimensions by an MLP and inserted into the text sequence, with a maximum of $1024$ visual tokens per single image.
+
+Regarding CED and CSA2, we will introduce them in detail in Chapter 2. Finally, as the Context grows, the required computation of DeepSeek V4.1 Flash grows almost linearly within the 1M range, and the computation overhead is far less than that of previous generations of models
+
+
+...
+First, let us calculate why KVCache is 890B. DeepSeek-V4.1-Flash maintains two types of KV state per layer
+
+Global KV - the compressed full-context branch, containing two parts:
+
+main KV: the MLA latent vector produced by the compressor (compress_kv_cache).
+
+indexer K: the lightweight key used by the sparse indexer to score positions (k_cache).
+
+Local KV (SWA KV): the sliding window cache of the most recent $n_\text{win}=128$ tokens (window_kv_cache).
+
+What resides in HBM is the Global KV, that is:
+
+ $S_\text{global} = S_\text{main KV} + S_\text{indexer K}.
+$ 
+
+The parameter table used for the derivation is as follows:
+
+Symbol | 
+Meaning | 
+Value | 
+Source key | 
+
+ $L$ | 
+Number of backbone layers | 
+ $40$ (20 Encoder + 20 Decoder) | 
+num_hidden_layers | 
+
+ $D_\text{kv}$ | 
+Number of main KV latent vector channels | 
+ $512$ | 
+head_dim | 
+
+ $D_\text{idx}$ | 
+Number of indexer K channels | 
+ $128$ | 
+index_head_dim | 
+
+ $n_\text{win}$ | 
+SWA window | 
+ $128$ | 
+sliding_window | 
+
+ $\mathcal{F}$ | 
+KV source layers (Full mode) | 
+ $\{2, 8, 14, 20\}$ | 
+kv_source_layer_ids | 
+
+ $\mathcal{I}$ | 
+Index source layers | 
+ $\{2,8,14,20,24,28,32,36\}$ | 
+index_source_layer_ids | 
+
+ $m_\ell$ | 
+Compression ratio of the $\ell$ -th layer | 
+Encoder=2 / Decoder=1 | 
+compress_ratios | 
+
+Both global caches are stored with FP4 quantization-aware training. The storage cost of a single entry = (FP4 payload) + (scale factor metadata). For a $D$ -channel vector, with 1 byte of scale per $G$ channels, the general formula for the number of bytes per entry is:
+
+ $b(D, G) = \underbrace{D \cdot \tfrac{1}{2}}_{\text{E2M1 payload}} + \underbrace{\frac{D}{G} \cdot 1}_{\text{scale bytes}} \quad \text{[bytes]}.
+$ 
+
+Main KV entry ( $D_\text{kv}=512$ , $G_\text{kv}=16$ ):
+
+ $b_\text{kv} = 512 \cdot \tfrac{1}{2} + \frac{512}{16} = 256 + 32 = \boxed{288 \text{ bytes}}
+$ 
+
+Index K entry ( $D_\text{idx}=128$ , $G_\text{idx}=32$ ):
+
+ $b_\text{idx} = 128 \cdot \tfrac{1}{2} + \frac{128}{32} = 64 + 4 = \boxed{68 \text{ bytes}}
+$ 
+
+A layer with compression ratio $m$ stores one entry per $m$ tokens, so its storage per token = (bytes per entry) $/\, m$ . Summing over the
+Full mode source layers $\mathcal{F}$ :
+
+ $S_\text{global}
+= \sum_{\ell \in \mathcal{F}} \frac{b_\text{kv}}{m_\ell}
++ \sum_{\ell \in \mathcal{F}} \frac{b_\text{idx}}{m_\ell}
+= \big(b_\text{kv} + b_\text{idx}\big)\sum_{\ell \in \mathcal{F}} \frac{1}{m_\ell}.
+$ 
+
+The source layers are $\{2, 8, 14\}$ (at $m=2$ ) and $\{20\}$ (at $m=1$ ), so
+
+ $\sum_{\ell \in \mathcal{F}} \frac{1}{m_\ell}
+= \underbrace{\frac{1}{2}+\frac{1}{2}+\frac{1}{2}}_{\text{encoder, 3 layers}}
++ \underbrace{\frac{1}{1}}_{\text{decoder, 1 layer}}
+= \frac{3}{2} + 1 = 2.5 .
+$ 
+
+Main KV subtotal
+
+ $S_\text{main KV}
+= 3 \cdot \frac{288}{2} + 1 \cdot \frac{288}{1}
+= 3 \cdot 144 + 288
+= 432 + 288
+= \boxed{720 \text{ B/token}}.
+$ 
+
+Indexer K subtotal
+
+ $S_\text{indexer K}
+= 3 \cdot \frac{68}{2} + 1 \cdot \frac{68}{1}
+= 3 \cdot 34 + 68
+= 102 + 68
+= \boxed{170 \text{ B/token}}.
+$ 
+
+Total
+
+ $S_\text{global} = S_\text{main KV} + S_\text{indexer K}
+= 720 + 170 = \boxed{\mathbf{890 \text{ bytes / token}}}.
+$ 
+
+Summarized as follows:
+
+Module | 
+Layer | 
+Contribution | 
+ $m$ | 
+Bytes per entry | 
+Bytes per token | 
+
+Encoder | 
+2, 8, 14 | 
+Main KV | 
+2 | 
+288 | 
+ $3 \times 288/2 = 432$ | 
+2, 8, 14 | 
+Indexer K | 
+2 | 
+68 | 
+ $3 \times 68/2 = 102$ | 
+
+Decoder | 
+20 | 
+Main KV | 
+1 | 
+288 | 
+ $1 \times 288 = 288$ | 
+20 | 
+Indexer K | 
+1 | 
+68 | 
+ $1 \times 68 = 68$ | 
+
+Global KV Sum | 
+ | 
+ | 
+890 B/token | 
+
+By comparison with DeepSeek-V4-Flash, the V4-Flash backbone has 43 layers: 2 pure SWA layers, 21 CSA layers (sequence compression $m=4$ ), and 20 HCA layers ( $m=128$ ). Unlike V4.1, it is a CSA-HCA hybrid, and each layer independently holds its own global cache (no cross-layer reuse). The format per entry:
+
+Main KV entry: 448-channel non-RoPE FP8 (448 B) + 64-channel RoPE BF16 (128 B) + FP8 Scale (8 B) = 584 B
+
+CSA Indexer K: 128-dimensional MXFP4 = $128/2 + 128/32 = 68$ B. HCA has no Indexer.
+
+ $B_{4\text{-Flash}}
+= \underbrace{21 \cdot \frac{584 + 68}{4}}_{\text{CSA} = 3423\ (97.4\%)}
++ \underbrace{20 \cdot \frac{584}{128}}_{\text{HCA} = 91.25\ (2.6\%)}
+= 3514.25\ \text{B/token}.
+$ 
+
+Relative to DeepSeek-V4-Flash, the sources of the KV Cache savings gain are as follows:
+
+Step | 
+Change | 
+ $\sum 1/r$ or format | 
+B/token | 
+Factor | 
+
+V4-Flash | 
+41 layers independent (21 CSA $r{=}4$ + 20 HCA $r{=}128$ ) | 
+- | 
+3514 | 
+- | 
+
++ Cross-layer reuse | 
+Collapse into 4 storage sources (still $r{=}4$ , still V4 format) | 
+ $4 \times \tfrac14 = 1$ | 
+652 | 
+ $\div 5.39$ | 
+
+− Relax sequence compression | 
+ $r$ : 4 $\to$ 2 (Encoder) / 1 (Decoder) | 
+ $\tfrac32 + 1 = 2.5$ | 
+1630 | 
+ $\times 2.5$ | 
+
++ FP4 Main KV | 
+584 B $\to$ 288 B / entry | 
+- | 
+890 | 
+ $\div 1.83$ | 
+
+Net effect | 
+ | 
+890 | 
+ $\div 3.95$ | 
+
