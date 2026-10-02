@@ -1,0 +1,171 @@
+Quoted lines from sources beyond the paper, fetched 2026-10-03, used in Then and now and Why it matters.
+
+== FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (http://arxiv.org/abs/2307.08691v1)
+Authors: Tri Dao
+Abstract: Scaling Transformers to longer sequence lengths has been a major problem in the last several years, promising to improve performance in language modeling and high-resolution image understanding, as well as to unlock new applications in code, audio, and video generation. The attention layer is the main bottleneck in scaling to longer sequences, as its runtime and memory increase quadratically in the sequence length. FlashAttention exploits the asymmetric GPU memory hierarchy to bring significant memory saving (linear instead of quadratic) and runtime speedup (2-4$\times$ compared to optimized baselines), with no approximation. However, FlashAttention is still not nearly as fast as optimized matrix-multiply (GEMM) operations, reaching only 25-40\% of the theoretical maximum FLOPs/s. We observe that the inefficiency is due to suboptimal work partitioning between different thread blocks and warps on the GPU, causing either low-occupancy or unnecessary shared memory reads/writes. We propose FlashAttention-2, with better work partitioning to address these issues. In particular, we (1) tweak the algorithm to reduce the number of non-matmul FLOPs (2) parallelize the attention computation, even for a single head, across different thread blocks to increase occupancy, and (3) within each thread block, distribute the work between warps to reduce communication through shared memory. These yield around 2$\times$ speedup compared to FlashAttention, reaching 50-73\% of the theoretical maximum FLOPs/s on A100 and getting close to the efficiency of GEMM operations. We empirically validate that when used end-to-end to train GPT-style models, FlashAttention-2 reaches training speed of up to 225 TFLOPs/s per A100 GPU (72\% model FLOPs utilization).
+
+== FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision (http://arxiv.org/abs/2407.08608v2)
+Authors: Jay Shah, Ganesh Bikshandi, Ying Zhang, Vijay Thakkar, Pradeep Ramani, Tri Dao
+Abstract: Attention, as a core layer of the ubiquitous Transformer architecture, is the bottleneck for large language models and long-context applications. FlashAttention elaborated an approach to speed up attention on GPUs through minimizing memory reads/writes. However, it has yet to take advantage of new capabilities present in recent hardware, with FlashAttention-2 achieving only 35% utilization on the H100 GPU. We develop three main techniques to speed up attention on Hopper GPUs: exploiting asynchrony of the Tensor Cores and TMA to (1) overlap overall computation and data movement via warp-specialization and (2) interleave block-wise matmul and softmax operations, and (3) block quantization and incoherent processing that leverages hardware support for FP8 low-precision. We demonstrate that our method, FlashAttention-3, achieves speedup on H100 GPUs by 1.5-2.0$\times$ with FP16 reaching up to 740 TFLOPs/s (75% utilization), and with FP8 reaching close to 1.2 PFLOPs/s. We validate that FP8 FlashAttention-3 achieves 2.6$\times$ lower numerical error than a baseline FP8 attention.
+
+== FlashAttention-4: Algorithm and Kernel Pipelining Co-Design for Asymmetric Hardware Scaling (http://arxiv.org/abs/2603.05451v1)
+Authors: Ted Zadouri, Markus Hoehnerbach, Jay Shah, Timmy Liu, Vijay Thakkar, Tri Dao
+Abstract: Attention, as a core layer of the ubiquitous Transformer architecture, is the bottleneck for large language models and long-context applications. While FlashAttention-3 optimized attention for Hopper GPUs through asynchronous execution and warp specialization, it primarily targets the H100 architecture. The AI industry has rapidly transitioned to deploying Blackwell-based systems such as the B200 and GB200, which exhibit fundamentally different performance characteristics due to asymmetric hardware scaling: tensor core throughput doubles while other functional units (shared memory bandwidth, exponential units) scale more slowly or remain unchanged. We develop several techniques to address these shifting bottlenecks on Blackwell GPUs: (1) redesigned pipelines that exploit fully asynchronous MMA operations and larger tile sizes, (2) software-emulated exponential and conditional softmax rescaling that reduces non-matmul operations, and (3) leveraging tensor memory and the 2-CTA MMA mode to reduce shared memory traffic and atomic adds in the backward pass. We demonstrate that our method, FlashAttention-4, achieves up to 1.3$\times$ speedup over cuDNN 9.13 and 2.7$\times$ over Triton on B200 GPUs with BF16, reaching up to 1613 TFLOPs/s (71% utilization). Beyond algorithmic innovations, we implement FlashAttention-4 entirely in CuTe-DSL embedded in Python, achieving 20-30$\times$ faster compile times compared to traditional C++ template-based approaches while maintaining full expressivity.
+
+== PyPI flash-attn-4 (https://pypi.org/project/flash-attn-4/)
+Latest version 4.0.0b33 uploaded 2026-09-30; first 4.0.0 beta 4.0.0b3 uploaded 2026-03-05; summary: Flash Attention CUTE (CUDA Template Engine) implementation
+
+== PyPI flash-attn (https://pypi.org/project/flash-attn/): latest 2.8.3.post1 (fetched 2026-10-03)
+
+== Dao-AILab/flash-attention README (https://github.com/Dao-AILab/flash-attention)
+## FlashAttention-3 beta release
+FlashAttention-3 is optimized for Hopper GPUs (e.g. H100). 
+
+Blogpost: https://tridao.me/blog/2024/flash3/
+
+Paper: https://tridao.me/publications/flash3/flash3.pdf
+
+![FlashAttention-3 speedup on H100 80GB SXM5 with FP16](assets/flash3_fp16_fwd.png)
+
+This is a beta release for testing / benchmarking before we integrate that with
+the rest of the repo.
+
+Currently released:
+- FP16 / BF16 forward and backward, FP8 forward
+
+Requirements: H100 / H800 GPU, CUDA >= 12.3.
+
+We highly recommend CUDA 12.8 for best performance.
+
+To install:
+```sh
+cd hopper
+python setup.py install
+```
+To run the test:
+```sh
+export PYTHONPATH=$PWD
+pytest -q -s test_flash_attn.py
+```
+Once the package is installed, you can import it as follows:
+```python
+from flash_attn_3 import flash_attn_interface
+flash_attn_interface.flash_attn_func()
+```
+
+To install using `uv`, in your `pyproject.toml`:
+
+```toml
+[project]
+dependencies = [
+    "flash-attn-3"
+]
+
+[tool.uv]
+no-build-isolation = true
+
+[tool.uv.sources]
+flash-attn-3 = { git = "https://github.com/Dao-AILab/flash-attention", subdirectory = "hopper" }
+```
+
+## FlashAttention-4 (CuTeDSL)
+
+FlashAttention-4 is written in CuTeDSL and optimized for Hopper and Blackwell GPUs (e.g. H100, B200).
+
+To install:
+```sh
+pip install flash-attn-4
+```
+
+If you're on CUDA 13, we recommend installing with the `cu13` extra for best performance:
+```sh
+pip install "flash-attn-4[cu13]"
+```
+
+Once installed, you can use it as follows:
+```python
+from flash_attn.cute import flash_attn_func
+
+out = flash_attn_func(q, k, v, causal=True)
+```
+LICENSE: BSD 3-Clause License
+
+== usage.md (https://github.com/Dao-AILab/flash-attention/blob/main/usage.md)
+# FlashAttention adoption
+
+We've been very happy to see FlashAttention being adopted by many organizations
+and research labs to speed up their training / inference.
+This page contains a partial list of places where FlashAttention is being used.
+If you'd like to add links to your organization / product / codebase, please open a
+PR or email us. We'd very much like to hear from you!
+
+## Integrated into machine learning frameworks
+
+- Pytorch: [integrated](https://github.com/pytorch/pytorch/pull/81434) into core Pytorch in nn.Transformer.
+
+- Huggingface's [transformers](https://github.com/huggingface/transformers) library.
+  [On-going](https://github.com/huggingface/transformers/pull/18439), blogpost
+  coming soon.
+
+- Microsoft's [DeepSpeed](https://github.com/microsoft/DeepSpeed):
+  FlashAttention is [integrated](https://github.com/microsoft/DeepSpeed/blob/ec13da6ba7cabc44bb4745a64a208b8580792954/deepspeed/ops/transformer/inference/triton_ops.py) into DeepSpeed's inference engine.
+
+- Nvidia's [Megatron-LM](https://github.com/NVIDIA/Megatron-LM/pull/267). This
+  library is a popular framework on training large transformer language models at scale.
+
+- MosaicML [Composer](https://github.com/mosaicml/composer)
+  [library](https://www.mosaicml.com/blog/gpt-3-quality-for-500k). Composer is a
+  library for efficient neural network training.
+  
+- EleutherAI's [GPT-NeoX](https://github.com/EleutherAI/gpt-neox/pull/725). This is a research library for training large language transformer models at scale based on NVIDIA's Megatron-LM and Microsoft's DeepSpeed.
+
+- PaddlePaddle: integrated into the framework with [API](https://github.com/PaddlePaddle/Paddle/blob/develop/python/paddle/nn/functional/flash_attention.py) `paddle.nn.functional.flash_attention`.
+
+## MLPerf benchmarks
+
+[MLPerf](https://mlcommons.org/en/) is a competitive machine learning performance benchmark. FlashAttention
+yields the fastest BERT training on cloud instances in MLPerf training 2.0 (June
+2022) and MLPerf training 2.1 (November 2022).
+
+- MLPerf 2.0: [IEEE Spectrum](https://spectrum.ieee.org/mlperf-rankings-2022) and [Forbes](ttps://www.forbes.com/sites/moorinsights/2022/07/12/google-dethrones-nvidia-in-latest-artificial-intelligence-benchmarking-tests/) articles about our submission to the MLPerf 2.0 benchmark using FlashAttention.
+
+- MLPerf 2.1 -
+  collaboration
+  between [Azure and Hazy Research](https://techcommunity.microsoft.com/t5/azure-high-performance-computing/azure-collaborates-with-hazy-research-and-nvidia-to-achieve/ba-p/3667511): for the first time, we can train MLPerf BERT
+  in under 2 minutes on 16 nodes.
+
+- MLPerf 2.1 -
+  [Nvidia](https://developer.
+
+
+== PyTorch 2.0 SDPA docs (https://docs.pytorch.org/docs/2.0/generated/torch.nn.functional.scaled_dot_product_attention.html)
+There are currently three supported implementations of scaled dot product attention: FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness Memory-Efficient Attention A PyTorch implementation defined in C++ matching the above formulation T
+
+== PyTorch 2.0 release blog (https://pytorch.org/blog/pytorch-2.0-release/)
+...rsions of PyTorch, you had to rely on third-party implementations and install separate packages to take advantage of memory-optimized algorithms like FlashAttention . With PyTorch 2.0, all these implementations are readily available by default. These implementations include FlashAttention from HazyResearch, Memory-Efficient Atte
+
+== vLLM attention backends (https://docs.vllm.ai/en/latest/design/attention_backends.html), backend table rows (name, version, dtypes, ..., compute capability)
+FLASH_ATTN FA2* fp16, bf16 auto , float16 , bfloat16 %16 Any ❌ ✅ ❌ ✅ All ≥8.0 FLASH_ATTN FA3* fp16, bf16 auto , float16 , bfloat16 , fp8 , fp8_e4m3 %16 Any ✅ ✅ ❌ ✅ All 9.x FLASH_ATTN FA4* fp16, bf16 auto , float16 , bfloat16 , fp8 , fp8_e4m3 %16 Any ✅ ✅ ❌ ✅ All ≥10.0 FLASH_ATTN_DIFFKV fp16, bf16 auto Any Any ❌ ❌ ❌ ✅ Decoder Any FLEX_ATTENTION fp16, bf16, fp32 auto , float16 , bfloat16 %16 Any ❌ ✅ ✅ ❌ Decoder, Encoder
+
+== cuDNN frontend Attention docs (https://github.com/NVIDIA/cudnn-frontend/blob/main/docs/operations/Attention.md)
+This operation computes the scaled dot product attention (SDPA), as $\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V$ using the FlashAttention-2 algorithm as described in the paper [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning](https://arxiv.org/abs/2307.08691).
+
+== PyTorch blog, FlexAttention (https://pytorch.org/blog/flexattention/), August 7, 2024
+In theory, Attention is All You Need. In practice, however, we also need optimized attention implementations like FlashAttention. Although these fused attention implementations have substantially improved performance and enabled long contexts, this efficiency has come with a loss of flexibility. You can no longer try out a new attention variant by writing a few PyTorch operators – you often need to write a new custom kernel! This operates as a sort of “software lottery” for ML researchers – if your attention variant doesn’t fit into one of the existing optimized kernels, you’re doomed to slow runtime and CUDA OOMs. For some examples of attention variants, we have Causal, Relative Positional 
+
+== FlashAttention-2 arXiv HTML v1 (https://arxiv.org/html/2307.08691v1), quoted sentences
+- Only at the every end of the loop do we scale the final \tilde{\mathbf{O}}^{(\mathrm{last})} by \mathrm{diag}(\ell^{(\mathrm{last})})^{-1} to get the right output.
+- We see that the outer loop (over sequence length) is embarrassingly parallel, and we schedule them on different thread blocks that do not need to communicate with each other.
+- This is referred to as the “split-K” scheme.
+- We propose to parallelize both the forward pass and backward pass along the sequence length dimension, in addition to the batch and number of heads dimension.
+- We only need to store the logsumexp L^{(j)}=m^{(j)}+\log(\ell^{(j)}) .
+- We do not have to rescale both terms of the output update by \mathrm{diag}(\ell^{(2)})^{-1} : \mathbf{O}^{(2)}=\mathrm{diag}(\ell^{(1)}/\ell^{(2)})^{-1}\mathbf{O}^{(1)}+\mathrm{diag}(\ell^{(2)})^{-1}e^{\mathbf{S}^{(2)}-m^{(2)}}\mathbf{V}^{(2)}.
+- We see that the outer loop (over sequence length) is embarrassingly parallel, and we schedule them on different thread blocks that do not need to communicate with each other.
+
+== Mamba arXiv HTML v2 (https://arxiv.org/html/2312.00752v2), quoted sentences
+- We address this with three classical techniques: kernel fusion, parallel scan, and recomputation.
+- We carefully apply the classic technique of recomputation to reduce the memory requirements: the intermediate states are not stored but recomputed in the backward pass when the inputs are loaded from HBM to SRAM.
+- As a result, the fused selective scan layer has the same memory requirements as an optimized transformer implementation with FlashAttention.
+
+== FlashAttention-3 arXiv HTML v2 (https://arxiv.org/html/2407.08608v2), quoted sentence on incoherent processing
+- ... choose M to be the product of random diagonal matrices of ±1 and a Hadamard matrix, which can be multiplied in O(d log d) instead of O(d^2), and can also be fused with the rotary embedding at no extra computation cost.

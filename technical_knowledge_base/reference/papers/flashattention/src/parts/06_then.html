@@ -1,0 +1,29 @@
+<section class="tab" id="t-then" role="tabpanel" hidden>
+<h2>Then and now</h2>
+<p>The math of FlashAttention has not changed since 2022: exact attention, tiles, online softmax, recomputation. What changed four times is how it is mapped onto each new GPU, because each generation moved the bottleneck. Step through the versions; each card says what the previous one left on the table and quotes the paper that fixed it.</p>
+<div class="seg" id="thM" role="group" aria-label="Version"><button class="on" data-m="0" aria-pressed="true">2022: FlashAttention</button><button data-m="1" aria-pressed="false">2023: FA-2</button><button data-m="2" aria-pressed="false">2024: FA-3</button><button data-m="3" aria-pressed="false">2026: FA-4</button></div>
+<div class="card" id="thCard"></div>
+<p class="small mute">Speedups are each paper's own, on its own target GPU, against the previous version or the vendor library; they are not comparable across cards. Abstracts and quoted sentences are saved in <span class="mono">src/inputs/later_extracts.txt</span>.</p>
+
+<h3>Where it runs now</h3>
+<div class="tw"><table>
+<tr><th>Stack</th><th>What it uses</th><th>Source</th></tr>
+<tr><td>PyTorch</td><td>Since 2.0, FlashAttention is one of three implementations behind <span class="mono">torch.nn.functional.scaled_dot_product_attention</span>, chosen automatically; "readily available by default"</td><td>{{SDPA docs (2.0)|https://docs.pytorch.org/docs/2.0/generated/torch.nn.functional.scaled_dot_product_attention.html}}, {{PyTorch 2.0 release|https://pytorch.org/blog/pytorch-2.0-release/}}</td></tr>
+<tr><td>NVIDIA cuDNN</td><td>Its scaled dot product attention computes "using the FlashAttention-2 algorithm", for training and inference, also in FP8</td><td>{{cuDNN frontend docs|https://github.com/NVIDIA/cudnn-frontend/blob/main/docs/operations/Attention.md}}</td></tr>
+<tr><td>vLLM</td><td>The FLASH_ATTN backend runs FA2 on compute capability 8.0 and up, FA3 on 9.x (Hopper), FA4 on 10.0 and up (Blackwell)</td><td>{{attention backends|https://docs.vllm.ai/en/latest/design/attention_backends.html}}</td></tr>
+<tr><td>HuggingFace transformers, DeepSpeed, Megatron-LM, MosaicML Composer, GPT-NeoX, PaddlePaddle</td><td>Integrations listed by the authors, mostly from 2022</td><td>{{usage.md|https://github.com/Dao-AILab/flash-attention/blob/main/usage.md}}</td></tr>
+<tr><td>MLPerf</td><td>The authors report the fastest BERT training on cloud instances in MLPerf training 2.0 (June 2022) and 2.1 (November 2022)</td><td>{{usage.md|https://github.com/Dao-AILab/flash-attention/blob/main/usage.md}} (the authors' own claim)</td></tr>
+</table></div>
+
+<h3>Compiling IO-aware attention instead of hand-writing it</h3>
+<p>The paper's first limitation was that every attention variant needs its own CUDA kernel ({{§5|ax:S5}}). That became a research direction: Triton and torch.compile attention templates; <b>FlexAttention</b>, whose announcement names the problem directly ("You can no longer try out a new attention variant by writing a few PyTorch operators: you often need to write a new custom kernel!", {{PyTorch blog, August 2024|https://pytorch.org/blog/flexattention/}}) and which vLLM now lists as a backend of its own; and FA-4 itself, written in the CuTe DSL embedded in Python with 20 to 30× faster compile times than C++ templates.</p>
+
+<h3>Using it today</h3>
+<ul>
+<li><b>Most people never call it directly:</b> PyTorch's built-in attention and the serving engines above pick a FlashAttention kernel when the GPU and the shapes allow.</li>
+<li><b>The library</b> is {{Dao-AILab/flash-attention|https://github.com/Dao-AILab/flash-attention}}, BSD 3-Clause. <span class="mono">pip install flash-attn</span> gives FlashAttention-2 (version 2.8.3.post1 on {{PyPI|https://pypi.org/project/flash-attn/}} on 3 October 2026), needing CUDA or ROCm, PyTorch 2.2 or later and Linux.</li>
+<li><b>FA-3</b> is still described in the README as a beta for Hopper (H100, H800; CUDA 12.3 or later, 12.8 recommended), installed from the <span class="mono">hopper</span> folder: FP16 and BF16 forward and backward, FP8 forward.</li>
+<li><b>FA-4</b> installs with <span class="mono">pip install flash-attn-4</span> for Hopper and Blackwell, but every release on {{PyPI|https://pypi.org/project/flash-attn-4/}} is still a beta: 4.0.0b3 in March 2026 to 4.0.0b33 on 30 September 2026.</li>
+<li><b>When it buys little:</b> the paper's own numbers show the gain shrinking with head dimension 128 and on GPUs with less SRAM (T4), and vanishing against an already fused kernel at short lengths (within ±8% of Apex FMHA up to 512, {{Table 7|ax:A5.T7}}). The win is largest when N is long relative to d, which is the long-context regime.</li>
+</ul>
+</section>
