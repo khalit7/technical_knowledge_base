@@ -1,0 +1,40 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Run the kernel</h2>
+<p>One attention computation, forward pass, run three ways on the same random input: standard attention ({{Algorithm 0|ax:alg0}}), FlashAttention ({{Algorithm 1|ax:alg1}}, K and V in the outer loop) and the loop order {{FlashAttention-2|https://arxiv.org/abs/2307.08691}} switched to (Q in the outer loop). The arithmetic is real: the page computes every tile, every running maximum and every rescaling in your browser, and at the end compares the output with the plain formula. Everything is drawn to one scale, one small square per value: the top band is HBM, the bottom band is the on-chip SRAM, and blocks fly between them as they are read and written.</p>
+<p class="try"><b>Try:</b> play standard attention first and watch S and P fill: two N × N matrices written to HBM, each read back. Then switch to FlashAttention: the N × N area stays an outline, only tiles light up on chip, and the HBM counter ends at about half (a third with masking and dropout ticked). Change the block size to 4 and the advantage nearly vanishes; to 16 and it grows. That is Theorem 2 in miniature.</p>
+<div class="card" id="kx">
+<div class="an-top"><div class="seg" id="kxM" role="group" aria-label="Algorithm"><button class="on" data-m="std" aria-pressed="true">Standard</button><button data-m="fa" aria-pressed="false">FlashAttention</button><button data-m="fa2" aria-pressed="false">FlashAttention-2 order</button></div>
+<label class="small">Block size <select id="kxB"><option value="4">4</option><option value="8" selected>8</option><option value="16">16</option></select></label>
+<label class="small"><input type="checkbox" id="kxMd"> masking and dropout</label>
+<button id="kxNew" class="small">New random input</button></div>
+<div id="kxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="kxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="kxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="kxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="kxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="kxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="kxStep"></div><p id="kxCap"></p></div>
+<div class="an-cnt" id="kxCnt"></div>
+<p class="small" id="kxRow"></p>
+<p class="small mute" style="margin:6px 0 0">Toy sizes, chosen so the whole picture fits: N = 32 rows, head dimension d = 4, square blocks (B_r = B_c); real kernels use N in the thousands, d = 64 or 128 and blocks of 64 to 256 rows, which the panel below handles. Counts are values moved across the HBM boundary, read or written, exactly as the algorithms' load and write lines say; standard attention's "by blocks" matrix multiplies are counted as one read of each input, as in the proof of {{Theorem 2|ax:A3}}. Inputs are Gaussian, Q and K scaled by 1.5 so that the running maxima move. The animation runs only while it is on screen, and starts paused, one step at a time, if your system asks for reduced motion.</p>
+</div>
+
+<h3 id="kx-scale">The same counters at the paper's scale</h3>
+<p>The counts the animation keeps, as formulas from Algorithms 0 to 4, for forward and backward together, at any size. The defaults are {{Figure 2|ax:S3.F2}}'s GPT-2 medium workload: N = 1024, d = 64, 16 heads × batch 64, fp16, with the A100's 192 KB of SRAM per streaming multiprocessor ({{§2.1|ax:S2.SS1}}) setting the block size by Algorithm 1's rule B_c = ⌈M / 4d⌉.</p>
+<div class="ctl">
+<label>Sequence length N = <b id="scNv">1,024</b><input type="range" id="scN" min="7" max="16" step="1" value="10"></label>
+<label>Head dimension d <select id="scD"><option value="32">32</option><option value="64" selected>64</option><option value="128">128</option></select></label>
+<label>SRAM per SM, M = <b id="scMv">192 KB</b><input type="range" id="scM" min="1" max="16" step="1" value="12"></label>
+<label>Block size B_c <select id="scB"><option value="0" selected>Algorithm 1's rule</option><option value="64">64</option><option value="128">128</option><option value="256">256</option><option value="512">512</option></select></label>
+<label>Heads × batch <select id="scH"><option value="1024" selected>16 × 64 (Figure 2)</option><option value="128">8 × 16 (Appendix E.6 benchmarks)</option><option value="1">1 (one head)</option></select></label>
+<label>Block density s = <b id="scSv">1</b> (block-sparse below 1)<input type="range" id="scS" min="1" max="20" step="1" value="20"></label>
+</div>
+<div id="scSvg"></div>
+<div class="out" id="scO"></div>
+<p class="small" id="scRep"></p>
+<p class="small mute">GB is 10<sup>9</sup> bytes at 2 bytes per value. "Time at bandwidth" divides bytes by the A100's 1.5 TB/s ({{§2.1|ax:S2.SS1}}) and "time at peak" divides the matrix-multiply FLOPs by the A100's 312 TFLOPS fp16 tensor-core peak ({{NVIDIA A100 datasheet|https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf}}); both are lower bounds, not predictions. The block-sparse density s scales the T_c passes, as in {{Proposition 4|ax:Thmtheorem4}}.</p>
+
+<h3 id="kx-blocks">Why bigger blocks stop helping</h3>
+<p>{{Figure 2|ax:S3.F2}} (middle) sweeps the block size B_c and reports that the forward runtime falls as blocks grow, until about 256, after which "the runtime is then bottlenecked by other factors (e.g., arithmetic operations)" ({{§3.2|ax:S3.SS2}}). The figure prints no values, so nothing here reproduces it; what can be drawn is the reason. Runtime can be no shorter than either the time to move the forward pass's HBM bytes or the time to do its matrix multiplies. The first falls as B_c grows; the second does not move.</p>
+<div class="ctl"><label>Matrix-multiply efficiency (share of the 312 TFLOPS peak actually reached) = <b id="bkEv">35%</b><input type="range" id="bkE" min="10" max="90" step="5" value="35"></label></div>
+<div id="bkSvg"></div>
+<p class="small mute" id="bkRep"></p>
+</section>
