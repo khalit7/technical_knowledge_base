@@ -5,14 +5,14 @@
   function go(){const sh=+$('ropeS').value,o=+$('ropeO').value,m=3+sh,n=m+o,a=m*th,b=n*th;
     $('ropeSv').textContent=sh+' (m = '+m+', n = '+n+')';$('ropeOv').textContent=o;
     const q=[Math.cos(a),Math.sin(a)],k=[Math.cos(b),Math.sin(b)],dot=q[0]*k[0]+q[1]*k[1];
-    const C=95,cx=110,cy=110,P=v=>[cx+C*v[0],cy-C*v[1]];const pq=P(q),pk=P(k);
+    const C=95,cx=180,cy=116,P=v=>[cx+C*v[0],cy-C*v[1]];const pq=P(q),pk=P(k);
     let s='<circle cx="'+cx+'" cy="'+cy+'" r="'+C+'" fill="none" stroke="var(--line)"/><line x1="'+(cx-C-6)+'" y1="'+cy+'" x2="'+(cx+C+6)+'" y2="'+cy+'" stroke="var(--line)"/><line x1="'+cx+'" y1="'+(cy-C-6)+'" x2="'+cx+'" y2="'+(cy+C+6)+'" stroke="var(--line)"/>';
     // arc from q to k
     const r=34,steps=24;let d='';for(let i=0;i<=steps;i++){const t=a+(b-a)*i/steps;d+=(i?'L':'M')+(cx+r*Math.cos(t)).toFixed(1)+' '+(cy-r*Math.sin(t)).toFixed(1)}
     s+='<path d="'+d+'" fill="none" stroke="var(--c5)" stroke-width="2"/>';
-    s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+pq[0].toFixed(1)+'" y2="'+pq[1].toFixed(1)+'" stroke="var(--c1)" stroke-width="2.5" marker-end="MARK"/><text x="'+(pq[0]+(q[0]>=0?6:-6)).toFixed(1)+'" y="'+(pq[1]-4).toFixed(1)+'" font-size="12" fill="var(--c1)"'+(q[0]<0?' text-anchor="end"':'')+'>q at m = '+m+'</text>';
-    s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+pk[0].toFixed(1)+'" y2="'+pk[1].toFixed(1)+'" stroke="var(--c2)" stroke-width="2.5" marker-end="MARK"/><text x="'+(pk[0]+(k[0]>=0?6:-6)).toFixed(1)+'" y="'+(pk[1]+14).toFixed(1)+'" font-size="12" fill="var(--c2)"'+(k[0]<0?' text-anchor="end"':'')+'>k at n = '+n+'</text>';
-    $('ropeSvg').innerHTML=svgEl(220,220,s,'Query and key rotated by RoPE');
+    s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+pq[0].toFixed(1)+'" y2="'+pq[1].toFixed(1)+'" stroke="var(--c1)" stroke-width="2.5" marker-end="MARK"/><text x="'+(pq[0]+(q[0]>=0?6:-6)).toFixed(1)+'" y="'+(pq[1]-4).toFixed(1)+'" font-size="13.5" fill="var(--c1)"'+(q[0]<0?' text-anchor="end"':'')+'>q at m = '+m+'</text>';
+    s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+pk[0].toFixed(1)+'" y2="'+pk[1].toFixed(1)+'" stroke="var(--c2)" stroke-width="2.5" marker-end="MARK"/><text x="'+(pk[0]+(k[0]>=0?6:-6)).toFixed(1)+'" y="'+(pk[1]+14).toFixed(1)+'" font-size="13.5" fill="var(--c2)"'+(k[0]<0?' text-anchor="end"':'')+'>k at n = '+n+'</text>';
+    $('ropeSvg').innerHTML=svgEl(360,232,s,'Query and key rotated by RoPE');
     $('ropeOut').innerHTML='<div class="kv"><dt>q rotated by '+a.toFixed(1)+' rad</dt><dd>('+q[0].toFixed(4)+', '+q[1].toFixed(4)+')</dd><dt>k rotated by '+b.toFixed(1)+' rad</dt><dd>('+k[0].toFixed(4)+', '+k[1].toFixed(4)+')</dd><dt>q · k</dt><dd><b>'+dot.toFixed(4)+'</b></dd><dt>cos((n − m) θ)</dt><dd>'+Math.cos(o*th).toFixed(4)+'</dd></div><p class="small mute" style="margin:2px 0">θ = 0.5 rad per token is illustrative; real pairs run from 1 rad per token down to millionths.</p>'}
   ['ropeS','ropeO'].forEach(i=>$(i).addEventListener('input',go));go();
 })();

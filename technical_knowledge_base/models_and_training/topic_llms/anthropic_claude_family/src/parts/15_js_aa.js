@@ -32,7 +32,7 @@
     const p=pv==='own'?{i:r.pi,o:r.po,c:r.pc}:PBY(pv);
     const out=r.O*p.o/1e6,cac=r.I*f*p.c/1e6,unc=r.I*(1-f)*p.i/1e6,tot=out+cac+unc;
     const parts=[[out,'output','var(--c4)'],[cac,'cached input','var(--good)'],[unc,'uncached input','var(--c1)']];
-    $('aaSplit').innerHTML='<span>'+r.n+'</span><div class="sb">'+parts.map(([v,l,c])=>'<span style="width:'+(100*v/tot).toFixed(1)+'%;background:'+c+'" title="'+l+' '+usd(v,0)+'">'+l+' '+Math.round(100*v/tot)+'%</span>').join('')+'</div>';
+    $('aaSplit').innerHTML='<span>'+r.n+'</span><div class="sb">'+parts.map(([v,l,c])=>sbSeg(v,tot,l,c,l+' '+usd(v,0))).join('')+'</div>';fitSb($('aaSplit'));
     const scale=tot/r.run;
     $('aaStats').innerHTML=stat('Cost to run the index',usd(tot,0),pv==='own'&&Math.abs(f-r.f)<0.00006?'Artificial Analysis: '+usd(r.run,0):'Artificial Analysis at its own prices: '+usd(r.run,0))+
       stat('Cost per task at these prices',usd(r.cpt*scale,2),'AA\'s '+usd(r.cpt,2)+' × '+scale.toFixed(2))+
@@ -46,6 +46,6 @@
   }
   segBind('aaSet',m=>{set=m;plot()});
   $('aaRun').addEventListener('change',setRun);$('aaPrice').addEventListener('change',split);$('aaF').addEventListener('input',split);
-  onTab('t-aa',()=>{plot();split()});
+  onTab('t-aa',()=>{plot();split()});addEventListener('resize',()=>fitSb($('aaSplit')));
   $('aaRun').value=String(runs.findIndex(r=>r.n==='Opus 5.5 (medium)'));setRun();
 })();

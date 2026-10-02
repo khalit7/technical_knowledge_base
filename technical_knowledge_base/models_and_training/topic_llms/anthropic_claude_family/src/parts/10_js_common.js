@@ -27,3 +27,10 @@ function logFrame(o){const {W,H,pl,pr,pt,pb}=o,lg=Math.log10;
   return {s,lx,ly}}
 // end labels for lines, pushed apart so they do not overlap
 function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.forEach(e=>{e.ly=Math.max(e.y,last+(gap||14));last=e.ly});ends.forEach(e=>{s+='<text x="'+x+'" y="'+(e.ly+4)+'" font-size="11" fill="'+e.c+'" style="cursor:help"><title>'+e.how+'</title>'+e.n+'</text>'});return s}
+// stacked split bars (.sb): a segment shows "label N%" when it fits, else "N%", else nothing; when any is shortened a key under the bar names every segment
+const sbSeg=(v,t,l,c,title)=>'<span style="width:'+(100*v/t).toFixed(1)+'%;background:'+c+'" data-l="'+l+'" data-p="'+Math.round(100*v/t)+'%" data-c="'+c+'" title="'+title+'">'+l+' '+Math.round(100*v/t)+'%</span>';
+function fitSb(box){if(!box)return;box.querySelectorAll('.sbkey').forEach(k=>k.remove());
+  box.querySelectorAll('.sb').forEach(sb=>{if(!sb.clientWidth)return;let short=false;
+    sb.querySelectorAll('span').forEach(sp=>{const d=sp.dataset;sp.textContent=d.l+' '+d.p;
+      if(sp.scrollWidth>sp.clientWidth+1){short=true;sp.textContent=d.p;if(sp.scrollWidth>sp.clientWidth+1)sp.textContent=''}});
+    if(short)sb.insertAdjacentHTML('afterend','<div class="sbkey">'+[...sb.querySelectorAll('span')].map(sp=>'<span><i style="background:'+sp.dataset.c+'"></i>'+sp.dataset.l+' '+sp.dataset.p+'</span>').join('')+'</div>')})}
