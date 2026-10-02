@@ -1,6 +1,6 @@
 # Attention Is All You Need (Transformer): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81999af7f16f8ed8ee9e, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. This is the first paper page and the **template for the other 62**: `PAPER_METHOD.md` is the recipe, and the section "Reusing this skeleton" below says which files carry over unchanged.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81999af7f16f8ed8ee9e, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. This is the first paper page and the **template for the other 62**: `html_utils/methods/papers.md` is the recipe, and the section "Reusing this skeleton" below says which files carry over unchanged.
 
 ## Tabs
 
@@ -26,7 +26,7 @@ Why these tabs: the five suggested ones fitted the content as they were. "Run a 
 - `mk_coverage.py`: writes `coverage.json` (every fact of `live.md` with where the HTML carries it) and verifies each against the built page.
 - `save_live.py` copied the Notion fetch verbatim from the session transcript into `live.md`; `extract_paper.py` turned the arXiv HTML into `inputs/paper_v7.txt` and `inputs/table_*.txt`.
 - `inputs/`: the paper text and tables, `modern_configs.json` (Hugging Face configs for tied embeddings and FFN ratios), `modern_extracts.txt` (the lines quoted from GPT-2, GPT-3, PaLM, Liu et al., Xiong et al., RMSNorm, GLU variants, GQA), `recompute.json`.
-- `viz_ideas.md`: the visualisations chosen and rejected, with scores; `PAPER_METHOD.md`: the recipe for every paper page.
+- `viz_ideas.md`: the visualisations chosen and rejected, with scores; `html_utils/methods/papers.md`: the recipe for every paper page.
 
 ## Parts
 
@@ -35,7 +35,7 @@ JS: `10_js_common` (page copy of the shared helpers, tick text raised to 11 px),
 
 ## Reusing this skeleton for another paper
 
-Copy the folder layout and these unchanged: `build.sh` (edit only the HTML and JS lists), `mk_paper.py`, `check_page.mjs` (update the import depth if the folder depth differs, and the animation ids it steps), `parts/00_top.html` (title), `01_css.html`, `05z_errbox.js.html`, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, `save_live.py`, `extract_paper.py`, `mk_coverage.py` (replace the item list). Write new: `paper.json`, `tables.json`, `recompute.py`, the tab HTML parts and their JS, and the paper's own live ingredient (a toy model like `train.py` here, a simulation, or refitted figures; see `PAPER_METHOD.md`). The card, Further reading, margin labels, arXiv links and predict widgets then come for free.
+Copy the folder layout and these unchanged: `build.sh` (edit only the HTML and JS lists), `mk_paper.py`, `check_page.mjs` (update the import depth if the folder depth differs, and the animation ids it steps), `parts/00_top.html` (title), `01_css.html`, `05z_errbox.js.html`, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, `save_live.py`, `extract_paper.py`, `mk_coverage.py` (replace the item list). Write new: `paper.json`, `tables.json`, `recompute.py`, the tab HTML parts and their JS, and the paper's own live ingredient (a toy model like `train.py` here, a simulation, or refitted figures; see `html_utils/methods/papers.md`). The card, Further reading, margin labels, arXiv links and predict widgets then come for free.
 
 ## Checks (2 October 2026)
 
