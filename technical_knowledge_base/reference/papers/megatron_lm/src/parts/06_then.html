@@ -1,0 +1,27 @@
+<section class="tab" id="t-then" role="tabpanel" hidden>
+<h2>Then and now: tensor parallelism from 2019 to 2026</h2>
+<p>Each step is one later training run or system, with the parallel layout its paper reports. The box is one server (its GPUs coloured by the axis that lives inside it); the bars are the degree of each axis across the whole run, on a log scale. A degree the paper does not state is drawn dashed and marked "not stated".</p>
+<div class="card" id="thx">
+<div class="an-top"><span class="small mute">How runs combine tensor (TP), pipeline (PP), data (DP), context (CP) and expert (EP) parallelism.</span></div>
+<div id="thxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="thxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="thxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="thxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="thxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="thxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="thxStep"></div><p id="thxCap"></p></div>
+<div class="an-cnt" id="thxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Degrees and GPU counts are as each paper states them; the captions quote or link the line. The animation stops when off screen, and starts paused if your system asks for reduced motion.</p>
+</div>
+<h3>What changed</h3>
+<div class="tw"><table><thead><tr><th>Change</th><th>2019</th><th>Later</th><th>Source</th></tr></thead><tbody>
+<tr><td>TP plus pipeline</td><td>TP inside a server, DP across</td><td>TP inside a server, PP across servers, DP on top (PTD-P, "3D")</td><td>{{Narayanan et al. 2021|https://arxiv.org/abs/2104.04473}}; {{MT-NLG|https://arxiv.org/abs/2201.11990}} (8-way TP, 35-way PP per 280-GPU replica)</td></tr>
+<tr><td>Sequence parallelism</td><td>LayerNorm and dropout duplicated on every TP rank; <i>g</i> is an all-reduce</td><td>they run on a slice of the sequence; <i>g</i> becomes an all-gather and its conjugate a reduce-scatter, the same bytes; together with selective recomputation, activation memory falls 5×</td><td>{{Korthikanti et al. 2022|https://arxiv.org/abs/2205.05198}}</td></tr>
+<tr><td>Context parallelism</td><td>whole sequence on every rank</td><td>the sequence split across GPUs for long-context training (CP 16 at 131,072 tokens)</td><td>{{Llama 3, Table 4|https://arxiv.org/abs/2407.21783}}</td></tr>
+<tr><td>Sharded data parallelism</td><td>each data-parallel rank keeps full optimizer state for its TP shard</td><td>ZeRO and FSDP shard optimizer state, gradients and weights across data-parallel ranks</td><td>{{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}; Llama 3 uses FSDP; DeepSeek-V3 ZeRO-1</td></tr>
+<tr><td>Expert parallelism</td><td>dense models only</td><td>MoE experts spread across GPUs; DeepSeek-V3 trains with EP 64 and no TP</td><td>{{DeepSeek-V3 §3.2|https://arxiv.org/abs/2412.19437}}</td></tr></tbody></table></div>
+<h3>What survived</h3>
+<ul class="lst">
+<li><b>The split itself:</b> column-parallel then row-parallel, with conjugate <i>f</i> and <i>g</i>, is still how every TP implementation splits attention and the MLP; sequence parallelism keeps the pair and only changes what <i>g</i> does.</li>
+<li><b>The placement rule:</b> TP of 8 inside one NVLink server, in Megatron-LM (8 of 16 GPUs), PTD-P, MT-NLG and Llama 3 ("Within each machine, the high NVLink bandwidth enables the use of tensor parallelism", {{Llama 3 §3.3.2|https://arxiv.org/abs/2407.21783}}).</li>
+<li><b>Vocabulary-parallel embeddings and the fused cross-entropy</b>, unchanged in Megatron-Core's {{cross_entropy.py|https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/tensor_parallel/cross_entropy.py}}.</li>
+<li><b>Serving:</b> TP is how a model too large for one GPU is served across a server ({{vLLM|https://docs.vllm.ai/en/latest/serving/parallelism_scaling.html}}, {{TensorRT-LLM|https://nvidia.github.io/TensorRT-LLM/features/parallel-strategy.html}}); even DeepSeek-V3, which trains without it, serves attention with TP 4.</li></ul>
+</section>
