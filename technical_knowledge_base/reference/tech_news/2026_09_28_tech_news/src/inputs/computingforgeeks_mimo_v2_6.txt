@@ -1,0 +1,49 @@
+https://computingforgeeks.com/xiaomi-mimo-v2-6-pro-flash/ (updated 2026-09-25; read 2026-10-02)
+ /
+ Xiaomi MiMo-V2.6 Pro and Flash Tested: Benchmarks, Pricing
+ AI
+Xiaomi MiMo-V2.6 Pro and Flash Tested: Benchmarks, Pricing
+ Josphat Mutai
+ Updated Sep 25, 2026 · 12 min read
+Only one of the three Kubernetes manifests MiMo-V2.6-Pro wrote for us actually served a page. The other two passed kubeconform and then crash-looped on a real cluster, which is the same trap that caught GPT-6 Luna last week. That is the most useful thing we can tell you about Xiaomi’s new open-weight flagship, and it does not show up in any benchmark table.Original content from computingforgeeks.com - post 171927
+Xiaomi MiMo-V2.6 ships as two MIT-licensed models, MiMo-V2.6-Pro and MiMo-V2.6-Flash, plus a 9B distilled model small enough for a laptop. This guide covers the specs and weight sizes read from the Hugging Face repos, MiMo-V2.6 pricing on the Xiaomi API, Xiaomi’s own benchmark table next to the independent Artificial Analysis score, and a same-prompt DevOps test graded by kubeconform, shellcheck, tofu validate, a live k3s cluster, and a behaviour test for every bash script. We used the exact prompts from our GPT-6 Sol and Luna test, so the numbers line up with GPT-6 and Claude Opus 5.5 directly. Every call ran on 25 September 2026 against Xiaomi’s own endpoint through OpenRouter, the manifests were deployed to k3s v1.36.4 on Ubuntu 26.04, and the 9B distill ran on llama.cpp on a 16 GB Apple M4.
+What Xiaomi shipped in MiMo-V2.6
+The weights went up on Hugging Face on 21 September 2026 (UTC) as MiMo-V2.6-Pro-RL and MiMo-V2.6-Flash-RL, alongside MiMo-V2.6-Distill-Qwen-9B, a Qwen3.5-9B fine-tune trained on MiMo-generated data. Both big models are sparse mixture-of-experts, take text, image, video and audio as input, and return text. The sizes below come from each repo’s config.json and safetensors file listing, not from the press release.
+ | Attribute | MiMo-V2.6-Pro | MiMo-V2.6-Flash | Distill-Qwen-9B
+ | Parameters (total / active) | 1.02T / 42B | 309B / 15B | 9B dense
+ | Routed experts (total / active) | 384 / 8 | 256 / 8 | None
+ | Layers | 70 | 48 | Qwen3.5-9B base
+ | Context window | 1M tokens | 1M tokens | 262,144 tokens
+ | Input modalities | Text, image, video, audio | Text, image, video, audio | Text and vision
+ | Weights on Hugging Face | 566 GB, 130 shards, MXFP4 | 173 GB, 65 shards, MXFP4 | 18.8 GB BF16
+ | Licence | MIT | MIT | MIT
+ | API model ID | mimo-v2.6-pro | mimo-v2.6-flash | Not on the API
+The storage format matters if you plan to self-host. The quantization_config in both repos declares quant_method: fp8 with e4m3 and dynamic activation scaling, but also store_dtype: mxfp4 with a block size of 32, and the file sizes agree: 566 GB for 1.02 trillion parameters is about 4.4 bits per weight, where FP8 would be over 1 TB. There is no BF16 master in the repo to requantize from, and whether your engine and GPU generation can run MXFP4 weights natively is the first thing to check.
+Xiaomi also published the training side: the technical report, the RL framework (built on verl, uni-agent and mini-swe-agent), and more than 7,000 RL task environments. According to Xiaomi’s release post, the final RL stage ran live for under six days and cost roughly $850,000 for Flash and $2.62 million for Pro, with about 750,000 trajectories in total. Few labs publish the environments behind a release, and that is the part researchers will get the most out of.
+MiMo-V2.6 pricing and API access
+Prices did not move from the V2.5 series. Xiaomi publishes three tiers, and OpenRouter lists the same numbers for its Xiaomi and DeepInfra endpoints:
+ | USD per 1M tokens | Pro | Flash | Pro UltraSpeed
+ | Input (cache miss) | $0.435 | $0.14 | $4.35
+ | Input (cache hit) | $0.0036 | $0.0028 | $0.036
+ | Output | $0.87 | $0.28 | $8.70
+For scale, GPT-6 Sol is $2 in and $10 out, so Pro output is about 11 times cheaper per token. UltraSpeed is the same Pro weights served “up to 20x” faster at ten times the price, which makes it dearer than GPT-6 Sol on input. Cache hits are nearly free, and Artificial Analysis lists a 99% cache discount for Pro.
+Model IDs must be all lowercase (mimo-v2.6-pro, mimo-v2.6-flash, mimo-v2.6-pro-ultraspeed) on Xiaomi’s own platform. On OpenRouter they carry the xiaomi/ prefix. We pinned OpenRouter to the first-party Xiaomi endpoint with fallbacks disabled, so every call below hit Xiaomi’s servers and not a third-party host. Set the key once:
+export OPENROUTER_API_KEY="your-token-here"
+Then send a request. The provider block is what keeps the call on Xiaomi’s endpoint:
+curl -s https://openrouter.ai/api/v1/chat/completions \
+ -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+ -H "Content-Type: application/json" \
+ -d '{"model": "xiaomi/mimo-v2.6-pro", "provider": {"order": ["Xiaomi"], "allow_fallbacks": false}, "messages": [{"role": "user", "content": "Which kubectl command shows why a pod is in CrashLoopBackOff? One line, no markdown."}]}' \
+ | jq -r '"provider: \(.provider)", "answer: \(.choices[0].message.content)", "output tokens: \(.usage.completion_tokens)", "cost USD: \(.usage.cost)"'
+The reply printed the serving provider, the answer, the output token count (reasoning included), and the billed cost in dollars:
+provider: Xiaomi
+answer: kubectl logs <pod-name> --previous (and kubectl describe pod <pod-name> for exit codes and events)
+output tokens: 124
+cost USD: 0.00012006
+Reasoning is on by default, and it shows up in the token count even for a one-line answer (the same prompt returned 58 output tokens on an earlier call and 124 on this one). OpenRouter’s Xiaomi endpoint caps output at 131,072 tokens, while its DeepInfra endpoint allows 943,718.
+MiMo-V2.6 benchmarks: Xiaomi’s table and the independent score
+Xiaomi compares against Claude Opus 5, GPT-5.6 Sol and Claude Fable 5, which are one generation behind the frontier as of this week. The rows below are copied from the model card; the gaps are what stand out.
+ | Benchmark | V2.6 Pro | V2.6 Flash | Claude Opus 5 | GPT-5.6 Sol | Fable 5
+ | DeepSWE v1.1 | 71.9 | 67.9 | 74.0 | 73.0 | 70.0
+ | Terminal Bench 4.0 | 34.9 | 28.8 | 49.0 | 39.9 | 42.4
+ | Terminal Bench 2.1 | 89.9 | 87.6 | 89.1 | 88.8 | 84.3
