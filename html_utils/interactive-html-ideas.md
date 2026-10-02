@@ -290,3 +290,17 @@ Paper pages (P rows; `PT` is Attention Is All You Need, the first paper page and
 | P-t5.5 | **Checks on the paper's own tables**: bold marks against the stated rule, main tables against the appendix, parameter recount against checkpoints | Tables tab | Found the Large 737.7M against printed 770M mismatch and three main/appendix disagreements. |
 | P-t5.6 | Toy encoder-decoder trained with each objective | The paper's gaps among denoising variants are fractions of a point at 220M; a toy would show noise and invite over-reading. |
 | P-t5.7 | Then and now morph to T5 1.1 / Flan-T5 | Four small changes; a sourced paragraph in "Why it matters" carries them. |
+| P-bert.1 | **Run a toy BERT**: a real BERT (L=2, H=24, A=4, 18,668 parameters) and the same model pretrained left to right, both in plain JS on 6-bit weights; build a sentence, hide any word (fill-in from both heads), tag names PER/LOC with the fine-tuned taggers, attention per layer and head | Own tab | train.py, grammar.py; JS checked against PyTorch (check_forward.json) |
+| P-bert.2 | Leak animation: two attention layers, lines that can carry the target word coloured, three modes (masked LM, left to right, both ways with no mask), live probabilities from the toy models in the last step | Reading, Idea | §3.1 |
+| P-bert.3 | Predict-then-reveal: "the big ___ ... purred": how sure can a left-to-right model be? Reveal runs both toy models with a verb selector | Reading, Idea | toy models |
+| P-bert.4 | Figure 2 redrawn with the toy's real token, segment and position vectors and their sum | Reading, Model and input | toy weights |
+| P-bert.5 | Masking demo: draw the paper's rule on a pretraining pair, toy predictions at every chosen position, tally over 10,000 draws | Reading, Masked LM | §3.1, A.1 |
+| P-bert.6 | Predict: the LTR tagger on right-cue names (reveal: measured accuracy) | Reading, Fine-tuning | finetune.json |
+| P-bert.7 | Predict: removing NSP or going left to right, which costs more SQuAD F1? Reveal: Table 5 differences as bars | Reading, Ablations | Table 5 |
+| P-bert.8 | Fine-tuning accuracy against labelled-set size for five pretraining variants, two tasks, five test subsets, mean ± sd of 3 seeds | Run tab | finetune.json |
+| P-bert.9 | Toy Figure 5: fine-tune from checkpoints along pretraining, MLM against LTR | Run tab | finetune.json fig5 |
+| P-bert.10 | Pretraining curves from the training logs; in-browser test on uniformly sampled sentences | Run tab | logs.json |
+| P-bert.11 | Tables 1 to 8 and Figure 5 rebuilt (Figure 5 decoded from the arXiv HTML's SVG coordinates), parameters recounted from released configs | Tables tab | tables.json, recompute.py |
+| P-bert.12 | Then and now: BERT-Base to ModernBERT-base one sourced change at a time, recounted at each step, landing on 149M | Own tab | hf_configs.json, ModernBERT §2 |
+| P-bert.13 | Noise check in "How much of this to believe": binomial standard errors of the Table 1 test gains and Table 5 / Table 8 dev differences from GLUE split sizes | Reading, How much to believe | glue_sizes.json, recompute.py |
+| P-bert.14 | Pretraining-seed repeat of the toy NSP ablation (bert and nonsp pretrained again with seed 8, fine-tuned identically), to tell an effect from seed noise | Run tab, reading note | seed2.json |

@@ -99,3 +99,4 @@ Give each paper to one subagent with `html_utils/BRIEF_paper_agent.md` (title, N
 4. Merge its `src/viz_ideas.md` rows into the ideas log, then commit.
 
 Progress is in `pages.json`. A paper whose status is `not_migrated` but whose folder already has an `index.html` was built and not yet published. One with only a README has not started.
+- 2026-10-02 (BERT): fine-tuning seeds all share one pretrained model, so they hide pretraining-seed noise. Before reporting a toy ablation gap, repeat the pretraining with a second seed. A toy result can also be caused by the toy's own data (BERT's toy made next sentence prediction look useful because true pairs always shared a name); say so when it happens.
