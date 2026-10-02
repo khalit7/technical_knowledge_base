@@ -1,6 +1,6 @@
 ---
 name: create-interactive-html
-description: Turn a Technical knowledge base page into an HTML-only page, one self-contained interactive HTML file that is the whole Notion page, with a Reading tab (explanation with inline visualisations and animations), one tab per standalone visualisation, and a Further reading tab. Use when Khalid asks for a page to be converted, built or rebuilt.
+description: Turn a Technical knowledge base page (topic, child page, tech news issue, paper, ...) into an HTML-only page, one self-contained interactive HTML file that is the whole Notion page, with a Reading tab (explanation with inline visualisations and animations), one tab per standalone visualisation, and a Further reading tab. Use when Khalid asks for a page to be converted, built or rebuilt.
 ---
 
 # create-interactive-html
@@ -11,9 +11,10 @@ Each knowledge base page is one interactive HTML file. Its source lives in this 
 Khalid asks for a page (or a whole topic) to be made HTML-only, or for an existing page's HTML to be changed or rebuilt. Narrated videos are the `create-explainer-video` skill.
 
 ## Read first
+- `html_utils/methods/README.md`, then the method for this kind of page if there is one (`topic_pages.md`, `tech_news.md`, `papers.md`): the shape Khalid approved for that kind, why, and its reference folder. **They are suggestions, not templates**: take what fits the page's content, change or drop what does not, and give a page that fits none of them a shape of its own, saying why in its `src/README.md`. Never force content into a method's shape. When Khalid approves a new shape or changes his mind, update or add a method file.
 - `html_utils/BRIEF_page_agent.md`: the full model, fail-safe build and steps. A subagent building a page is given this brief.
 - `html_utils/interactive-html-ideas.md`: every visualisation idea built or rejected so far, and the Methodology for choosing visualisations (scoring, tab versus inline, recompute scripts, independent versus by-construction reproduction, conflicting primary sources side by side, index version and date beside every score, matched precision, never splicing metrics, where to look for ideas and data, animation guidance). Add the page's ideas to its table when you finish.
-- A finished example, e.g. `technical_knowledge_base/models_and_training/topic_llms/anthropic_claude_family/`.
+- A finished example: the method's reference folder, or for a deep-dive child page `technical_knowledge_base/models_and_training/topic_llms/anthropic_claude_family/`.
 
 ## The page model
 - **The HTML is the page.** The old Notion text is deleted, so the HTML must carry every piece of knowledge the page had, self-contained. Child pages, databases and a video stay on the Notion page under the HTML and are linked from it.

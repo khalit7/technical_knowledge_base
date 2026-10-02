@@ -8,7 +8,7 @@ This repository is the home of Khalid's Technical knowledge base. **It is the so
 |---|---|
 | `technical_knowledge_base/` | The knowledge base, laid out exactly like the Notion tree: one folder per Notion heading (`models_and_training/`, ...), one folder per page inside it, a child page's folder inside its parent's. Names are snake_case slugs of the Notion titles; each folder's README and `pages.json` give the exact title and Notion id. |
 | `technical_knowledge_base/pages.json` | Manifest of every page: path, title, Notion id, status (`html_only` or `not_migrated`), `published_sha256` (what Notion holds now), video. |
-| `html_utils/` | Building and checking interactive pages: `checkpage.sh`, `tabshot.mjs`, `sync_status.py`, `templates/`, the page-agent brief, and `interactive-html-ideas.md` (every visualisation idea so far plus the methodology for choosing them). |
+| `html_utils/` | Building and checking interactive pages: `checkpage.sh`, `tabshot.mjs`, `sync_status.py`, `templates/`, `methods/` (one file per kind of page: the approved shape, as suggestions, not templates), the page-agent brief, and `interactive-html-ideas.md` (every visualisation idea so far plus the methodology for choosing them). |
 | `video_utils/` | Narration (Chatterbox Turbo) and take checking for HyperFrames explainer videos; install notes in its README. |
 | `.claude/skills/` | The skills (below) plus the vendored HyperFrames skills. Real folders, no symlinks. |
 

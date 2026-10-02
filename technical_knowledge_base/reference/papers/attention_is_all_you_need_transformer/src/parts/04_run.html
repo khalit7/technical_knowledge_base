@@ -1,0 +1,55 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2 id="runTop">Run a Transformer: a real model, built and trained like the paper's</h2>
+<p>This is not an illustration. A tiny encoder-decoder Transformer built exactly as {{§3|ax:S3}} describes (post-LN residual blocks, sinusoidal positional encoding, multi-head scaled dot-product attention, a ReLU feed-forward network with a 4× expansion, masked decoder self-attention, cross-attention, and one embedding matrix shared by both inputs and the output projection, scaled by √<i>d</i><sub>model</sub>) was trained offline with PyTorch, and its weights are inside this page. Your browser runs its forward pass in plain JavaScript, so every translation and every attention map below is computed live from the real weights. Inspired by Polo Club's {{Transformer Explainer|https://poloclub.github.io/transformer-explainer/}}, which runs GPT-2 in the browser; Notion's sandbox has no network, so this model has to be small enough to ship inside the page.</p>
+<div class="out" id="runFacts"></div>
+<details class="mist"><summary>The task: English into Lindu, a made-up language whose word order differs</summary><div class="b">
+<p>Lindu is invented for this page so the task is exactly known and every answer can be checked by rule (grammar.py and 21_js_lang.js). It is verb-final, like Japanese or the German subordinate clause: subject, then any place phrase, then the object marked with <span class="mono">su</span>, then the verb. Adjectives follow the noun in mirrored order, the article comes last, and prepositions become postpositions. So the alignment between the languages crosses itself, as English-German translation does, and a model that ignores word order cannot translate it.</p>
+<div id="runRule"></div>
+<p class="small mute">Vocabulary: 2 articles, 5 adjectives, 8 nouns, 4 places, 5 verbs, 3 prepositions, and their 27 Lindu words plus <span class="mono">su</span>; 58 entries in one shared vocabulary with the start, end and padding symbols, as the paper shares one BPE vocabulary between English and German ({{§5.1|ax:S5.SS1}}). The grammar generates 540.8 million distinct sentences; training drew 2,048,000 sentences, 1,231,511 of them distinct, and the 2,000 test sentences behind the accuracies on this page were drawn the same way but never occur in that stream (overlap.py, train.py).</p></div></details>
+
+<h3>Compose a sentence</h3>
+<div class="an-top"><div class="seg" id="runV" role="group" aria-label="Model"><button class="on" data-m="full" aria-pressed="true">Full model</button><button data-m="nope" aria-pressed="false">No positional encoding</button><button data-m="h1" aria-pressed="false">One head</button></div><span class="small mute" id="runVacc"></span></div>
+<div class="sent" id="runSrc" aria-live="polite"></div>
+<div class="chipbar" id="runChips"></div>
+<div class="an-ctl"><button id="runUndo">Undo word</button><button id="runClear">Clear</button><button id="runRand">Random sentence</button><label class="small">Examples <select id="runEx"><option value="">choose…</option><option>the big red dog chased a small cat near the tree</option><option>the dog chased the cat</option><option>the cat chased the dog</option><option>a happy child helped the young woman behind the car</option><option>the small fish saw a big happy bird under the house</option><option>a man liked the horse</option></select></label></div>
+
+<h3>The model's translation</h3>
+<div id="runOut"></div>
+
+<h3>Watch it decode, one word at a time</h3>
+<p>Greedy decoding: at each step the decoder sees the source (through cross-attention) and only the words it has already written (through masked self-attention), and picks the most probable next word. The paper uses beam search with beam 4; on this task greedy is enough. The bars under the source are the cross-attention of the step's query in the chosen layer: where the model is looking to choose that word.</p>
+<div class="card" id="dec">
+<div class="an-top"><label class="small">Cross-attention shown: <select id="decL"><option value="1" selected>layer 2</option><option value="0">layer 1</option></select></label><label class="small"><select id="decH"><option value="-1" selected>heads averaged</option></select></label></div>
+<div id="decSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="decBack" aria-label="Previous word">&#9664;&#9664;</button><button id="decPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="decFwd" aria-label="Next word">&#9654;&#9654;</button><input type="range" id="decScrub" min="0" max="1" value="0" step="1" aria-label="Decoding step"><label class="small">Speed <select id="decSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="decStep"></div><p id="decCap"></p></div>
+</div>
+
+<h3 id="runAtt">Every attention map, for real</h3>
+<p>Pick the kind of attention, the layer and the head. Rows are queries, columns are the keys they attend to; each row sums to 1. Cross-attention rows are labelled by the Lindu word being chosen; the dots mark the English word that the rules say it translates. Encoder self-attention is what the paper's appendix visualises for its own model ({{Figures 3 to 5|ax:Sx1.F3}}).</p>
+<div class="an-top"><div class="seg" id="attK" role="group" aria-label="Attention kind"><button class="on" data-m="crs" aria-pressed="true">Cross (decoder to encoder)</button><button data-m="enc" aria-pressed="false">Encoder self</button><button data-m="self" aria-pressed="false">Decoder masked self</button></div></div>
+<div class="an-top"><div class="seg" id="attL" role="group" aria-label="Layer"><button data-m="0" aria-pressed="false">Layer 1</button><button class="on" data-m="1" aria-pressed="true">Layer 2</button></div><div class="seg" id="attH" role="group" aria-label="Head"></div><label class="chk"><input type="checkbox" id="attDots" checked> rule alignment dots</label></div>
+<div id="attSvg"></div>
+<p class="small mute" id="attNote"></p>
+
+<h3 id="runCmp">Before and after: what breaks without positions, and with one head</h3>
+<p>The same architecture trained three times on the same data with the same seed: the full model, the model with the positional encoding removed, and the model with one head of 24 instead of four heads of 6 (same parameter count). Accuracy is exact-match sentences on 2,000 held-out test sentences, measured in PyTorch on the weights this page ships (check_forward.py confirms the browser gives the same translations).</p>
+<div id="cmpTab"></div>
+<div class="an-ctl"><button id="cmpShuf">Shuffle the source words</button><button id="cmpBack">Back to the sentence</button><span class="small mute" id="cmpNote"></span></div>
+<div id="cmpShufOut"></div>
+<div class="co key"><div class="t">What breaks without positions</div><p>Without positions the encoder cannot tell "the dog chased the cat" from "the cat chased the dog": attention is a weighted sum over a set, so reordering the source words reorders the encoder's outputs and leaves cross-attention's sums unchanged. The decoder still gets the shape of a Lindu sentence right (it gets <span id="cmpTok"></span> of words right) because its own causal mask leaks position: a word can count how many earlier words it sees, as {{Haviv et al. 2022|https://arxiv.org/abs/2203.16634}} found in language models trained without positional encodings. But it has to guess which noun is the subject and which adjective belongs to which noun, so only <span id="cmpSent"></span> of sentences come out right. One head is enough on this task (it scores the same as four), unlike the paper's 0.9 BLEU loss on real translation ({{Table 3 (A)|ax:S6.T3}}); its attention maps are blunter, as the maps above show.</p></div>
+
+<h3>Test it yourself</h3>
+<p>Translate fresh random sentences with all three models in your browser and score them against the rules. Sentences are drawn uniformly over all 540.8 million distinct sentences (fixed seed), so they run longer than the training mix, and only 0.2% of such sentences occur in the training stream. For comparison, PyTorch on 2,000 such sentences that are not in training: full model 100%, no positions 0.7%, one head 100% (overlap.py).</p>
+<div class="an-ctl"><button id="tstGo">Translate 300 random sentences with each model</button><span class="small mute" id="tstMsg"></span></div>
+<div id="tstOut"></div>
+
+<h3>How it was trained</h3>
+<div class="cols2"><div><div id="trSvg"></div><p class="small mute">Training loss (label-smoothed cross-entropy) every 1,000 steps, from train.py's log. The dashed line is the smallest loss label smoothing 0.1 allows over 58 words, <span id="trFloor"></span>: the full and one-head models reach it; without positions the model stalls far above.</p></div>
+<div><ul class="lst small">
+<li><b>Model</b>: <i>d</i><sub>model</sub> 24, <i>h</i> 4 (<i>d<sub>k</sub></i> = <i>d<sub>v</sub></i> = 6), <i>d</i><sub>ff</sub> 96, 2 encoder and 2 decoder layers; 35,184 parameters (the paper's base model has 65 million).</li>
+<li><b>Training</b>: 16,000 steps of 128 sentences generated on the fly; Adam β<sub>1</sub> 0.9, β<sub>2</sub> 0.98, ε 10<sup>−9</sup>; Equation 3's schedule with warmup 4,000; residual and embedding dropout 0.1; label smoothing 0.1; seed 7; about 11 minutes per model on a laptop CPU.</li>
+<li><b>Shipping</b>: matrices quantised to 6 bits per weight with one scale per row (one base64 character per weight), vectors in float16: 38,858 characters per model, 117 KB for all three, inside this page. Quantising cost nothing measurable: full and one-head models 100.0% before and after, no positions 3.55% before and 3.65% after (train.py export).</li>
+<li><b>Check</b>: on 200 held-out sentences the JavaScript forward pass and PyTorch on the same weights give identical translations for all three models, logits within 1.1 × 10<sup>−5</sup> and attention weights within 1.2 × 10<sup>−6</sup> (check_forward.py).</li>
+<li><b>Differences from the paper</b>: greedy decoding instead of beam 4, no checkpoint averaging, synthetic data, and toy sizes; everything else follows {{§3|ax:S3}} and {{§5|ax:S5}}.</li></ul></div></div>
+</section>
