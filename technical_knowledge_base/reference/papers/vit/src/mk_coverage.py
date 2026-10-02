@@ -1,0 +1,97 @@
+"""Write coverage.json: every fact, number, mechanism step, caveat and link of live.md (the Notion page
+before migration) with where the HTML carries it, and verify each item's check strings against the built
+index.html (tags stripped, scripts kept, whitespace normalised).
+usage: python3 mk_coverage.py   (after build.sh)"""
+import html, json, re, sys
+
+raw = open('../index.html', encoding='utf-8').read()
+txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
+txt = re.sub(r'\s+', ' ', txt)
+R = 'The paper tab'
+C = [
+ # header
+ ('Reading time line "8 min read, +~3h 20m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Authors (12) and lab Google Research, Brain Team', R + ', headline card', ['Alexey Dosovitskiy', 'Lucas Beyer', 'Alexander Kolesnikov', 'Dirk Weissenborn', 'Xiaohua Zhai', 'Thomas Unterthiner', 'Mostafa Dehghani', 'Matthias Minderer', 'Georg Heigold', 'Sylvain Gelly', 'Jakob Uszkoreit', 'Neil Houlsby', 'Google Research, Brain Team']),
+ ('Date: October 2020 (ICLR 2021)', R + ', headline card', ['October 2020', 'ICLR 2021']),
+ ('Link arXiv (~1h)', 'card and Further reading', ['https://arxiv.org/abs/2010.11929', '(1h)']),
+ ('Link code and pretrained models (repo, ~20 min for the README and entry path)', 'card and Further reading', ['https://github.com/google-research/vision_transformer', 'about 20 minutes for the README and entry path', 'pre-trained models']),
+ ('Link Google AI blog (~15 min), same as best resource 1', 'Further reading, Best resources', ['https://research.google/blog/transformers-for-image-recognition-at-scale/', '(15 min)']),
+ # resources
+ ('Blog: the authors own condensed account of the architecture and the data-scale story', 'Further reading', ["the authors' own condensed account of the architecture and the data-scale story"]),
+ ('Yannic Kilcher walkthrough (~1h): good intuition on inductive bias vs scale', 'Further reading', ['https://www.youtube.com/watch?v=TrdevFK_am4', 'intuition on inductive bias against scale']),
+ ('lucidrains/vit-pytorch (~20 min): minimal implementation plus dozens of variants; how little code', 'Further reading', ['https://github.com/lucidrains/vit-pytorch', 'dozens of ViT variants', 'how little code the model needs']),
+ ('AI Summer: How the Vision Transformer works (~25 min): patch embedding, class token, position embeddings', 'Further reading', ['https://theaisummer.com/vision-transformer/', '(25 min)', 'patch embedding, the class token and position embeddings']),
+ # problem
+ ('By 2020 Transformers default in NLP; vision ruled by CNNs', R + ', Problem', ['the Transformer was the default architecture in NLP', 'Vision was still ruled by convolutional networks']),
+ ('Prior attempts kept CNN skeleton and swapped in attention blocks', R + ', Problem', ['kept the CNN skeleton and added or swapped in attention blocks']),
+ ('or used specialised local/sparse attention patterns hard to run efficiently on accelerators', R + ', Problem', ['specialised attention patterns', 'require complex engineering to be implemented efficiently on hardware accelerators']),
+ ('Naive global attention over pixels quadratic in pixel count, infeasible', R + ', Problem; patch explorer', ['quadratic in the pixel count', '50,176 pixels']),
+ ('Open question: can a plain unmodified Transformer with almost no image-specific inductive bias compete, and under what conditions', R + ', Problem', ['can a plain, unmodified Transformer, with almost no image-specific inductive bias, compete with the best CNNs, and under what conditions?']),
+ # method
+ ('Turn image into token sequence, run a standard encoder, reuse NLP architectures and implementations', R + ', Idea', ['run a completely standard Transformer encoder', 'almost out of the box']),
+ ('Patch embedding: x in R^(HxWxC) into N = HW/P^2 flattened patches of P^2*C', R + ', Method', ['flattened <i>P</i> × <i>P</i> patches of <i>P</i>²·<i>C</i> numbers', '<i>N</i> = <i>HW</i>/<i>P</i>²']),
+ ('P = 16 or 32, 14 for ViT-H', R + ', Method', ['<i>P</i> is 16 or 32 (14 for ViT-H)']),
+ ('Single trainable linear projection E to width D; patch embeddings are the tokens', R + ', Method', ['One trainable linear projection <b>E</b>', 'patch embeddings']),
+ ('Sequence length scales as 1/P^2; smaller patches cost more', R + ', Problem predict reveal; Table 1 recount', ['sequence length goes as 1/<i>P</i>²', 'Smaller patches cost more']),
+ ('Class token as in BERT; z_L^0 is the image representation', R + ', Method', ["As with BERT's [class] token", 'is the image representation <b>y</b>']),
+ ('MLP head: one hidden layer for pre-training, single linear layer for fine-tuning', R + ', Method', ['an MLP with one hidden layer during pre-training, a single linear layer during fine-tuning']),
+ ('Learnable 1D position embeddings added', R + ', Position embeddings', ['learnable 1D position embeddings']),
+ ('2D-aware variants gave no measurable gain', R + ', Position embeddings; Table 8 chart', ['every other variant lands within 0.33 points of the rest']),
+ ('1D embeddings learn the 2D grid topology (row/column structure in cosine similarities)', R + ', Position embeddings; toy reproduction (does not reproduce clearly, said so)', ['The learned 1D embeddings recover the 2D grid on their own', 'patches in the same row or column']),
+ ('Encoder: alternating MSA and GELU MLP blocks, pre-LayerNorm, residual after every block', R + ', Method', ['Alternating multi-head self-attention and MLP blocks', 'LayerNorm before every block (pre-LN)', 'a residual connection after every block', 'GELU']),
+ ('Variants mirror BERT: Base 12/768/86M, Large 24/1024/307M, Huge 32/1280/632M', R + ', Method; Table 1 recount', ['ViT-Base (12 layers, <i>D</i> = 768', '86M parameters', 'ViT-Large (24, 1024', '307M', 'ViT-Huge (32, 1280', '632M']),
+ ('Notation ViT-L/16 = Large with 16x16 patches', R + ', Method', ['ViT-L/16 means Large with 16 × 16 patches']),
+ ('CNNs bake locality, 2D neighbourhood structure, translation equivariance into every layer', R + ', Inductive bias', ['<b>locality</b>', '<b>two-dimensional neighbourhood structure</b>', '<b>translation equivariance</b>']),
+ ('In ViT only the MLP is local and translation-equivariant; self-attention global from layer one', R + ', Inductive bias; animation', ['In ViT only the MLP layers are local and translation-equivariant', 'self-attention is global from layer one']),
+ ('2D structure enters at exactly two points: patching and position-embedding interpolation at higher resolution', R + ', Inductive bias', ["The image's 2D structure enters at exactly two points"]),
+ ('Everything else about spatial relations is learned from data', R + ', Inductive bias', ['every spatial relation is learned from scratch']),
+ ('Fine-tune at higher resolution: keep patch size, longer sequence, 2D-interpolate position embeddings; standard and improves results', R + ', Inductive bias box', ['keep the patch size fixed, so the sequence gets longer', '2D-interpolate the pre-trained position embeddings', 'This is now standard practice']),
+ ('Hybrid: ResNet feature map into the patch projection', R + ', Method', ['The patches can instead come from a CNN feature map']),
+ ('Hybrid helps at small compute; gap vanishes at scale', R + ', Results against compute', ['Hybrids slightly beat pure ViTs at small budgets, but the gap vanishes for larger models']),
+ # data scale
+ ('ImageNet alone (1.3M): ViT underperforms comparable ResNets; ViT-Large worse than ViT-Base', R + ', Data scale; predict question and chart', ['ViT-Large is <i>worse</i> than ViT-Base', 'BiT ResNets beat ViT pre-trained on ImageNet', '1.3M']),
+ ('ImageNet-21k (14M): on par', R + ', Data scale', ['on ImageNet-21k they are similar', '14M']),
+ ('JFT-300M (303M): ViT wins outright; larger ViTs keep pulling ahead', R + ', Data scale', ['only on JFT-300M does the larger model pay off', 'ViT overtakes on the larger sets', '303M']),
+ ('Few-shot JFT subsets 9M to 300M: crossover; ResNets better below roughly 90M and plateau; ViT overtakes beyond and keeps improving', R + ', Data scale (corrected: the paper says ViT-B/32 is much worse on 9M and better from 90M up; where between 9M and 90M the curves cross is only readable off Figure 4)', ['much worse on 9M but better from 90M up', 'ResNets do better with little data but plateau sooner', 'where between 9M and 90M the curves cross is only readable off the plot']),
+ ('Large-scale training trumps inductive bias; learning spatial structure from data sufficient, even beneficial', R + ', Idea and Data scale', ['large scale training trumps inductive bias', 'sufficient, even beneficial']),
+ ('ViT reaches the same transfer accuracy with roughly 2-4x less pre-training compute', R + ', Results against compute; recount in Tables tab', ['approximately 2 to 4× less compute to attain the same performance']),
+ ('No saturation within the range tried', R + ', Results against compute', ['appear not to saturate within the range tried']),
+ # results
+ ('ViT-H/14 on JFT-300M: 88.55% ImageNet, 90.72% ReaL, 94.55% CIFAR-100, 77.63% VTAB', R + ', headline card and Results', ['88.55% ImageNet top-1', '90.72% ImageNet-ReaL', '94.55% CIFAR-100', '77.63% on the 19 VTAB tasks']),
+ ('State of the art or matching across the board', R + ', Results', ['best or matching on every column except Flowers']),
+ ('Compute: ViT-H/14 2.5k TPUv3-core-days vs 9.9k BiT-L (ResNet152x4) and 12.3k Noisy Student (EfficientNet-L2)', R + ', card and Results', ['2.5k TPUv3-core-days, against 9.9k for BiT-L and 12.3k for Noisy Student', 'ResNet152x4', 'EfficientNet-L2']),
+ ('ViT-L/16 on JFT needs 0.68k core-days and beats BiT-L on every dataset', R + ', Results (corrected: level on ReaL, 0.01 behind on VTAB; the paper says all tasks)', ['ViT-L/16 on JFT needed 0.68k', 'level on ImageNet-ReaL (90.54 against 90.54) and 0.01 behind on VTAB']),
+ ('Public data: ViT-L/16 on ImageNet-21k 85.30%, 8-core TPUv3 about 30 days', R + ', Results', ['reaches 85.30% on ImageNet', 'could be trained using a standard cloud TPUv3 with 8 cores in approximately 30 days']),
+ ('Interpretability: some heads attend across most of the image in the lowest layers, others local like early convs; distance grows with depth', R + ', Inside the model; toy attention-distance chart', ['some heads attend across most of the image already in the lowest layers, others stay local', 'early convolutions', 'distance grows with depth']),
+ ('Self-supervision: masked patch prediction gets ViT-B/16 to 79.9%, 2% above scratch, 4% behind supervised; contrastive left to future work', R + ', Self-supervision', ['<b>79.9%</b>', 'about 2 points above training from scratch', 'about 4 behind supervised pre-training', 'Contrastive pre-training was left to future work']),
+ # why it matters
+ ('Ended CNN dominance in vision at scale', R + ', Why it matters', ['ended CNN dominance in vision at scale']),
+ ('Lesson: inductive bias is a substitute for data; with enough data a generic architecture wins', R + ', Why it matters (softened to "catches up", with the CNN counter-evidence in How much to believe)', ['hand-designed inductive bias stands in for data']),
+ ('Aligned vision with the NLP scaling playbook; unified both fields on one architecture', R + ', Why it matters', ["NLP's scaling playbook and one architecture under both"]),
+ ('CLIP, ALIGN, SigLIP use ViT image encoders', R + ', Why it matters (corrected: ALIGN uses EfficientNet, sourced)', ['ALIGN, often listed with them, uses an EfficientNet, not a ViT', 'SigLIP']),
+ ('VLMs (LLaVA, Qwen-VL, InternVL, Gemini-class) bolt a ViT-derived tower onto an LLM', R + ', Why it matters (each sourced; Gemini marked unconfirmed)', ['the pre-trained CLIP visual encoder ViT-L/14', "OpenCLIP's ViT-bigG", 'InternViT', 'Gemini-class closed models', '(unconfirmed)']),
+ ('Masked patch prediction foreshadowed MAE and BEiT; DINO/DINOv2 built self-distillation on ViT', R + ', Why it matters', ['BEiT', 'MAE', 'DINO and DINOv2 built self-distillation on ViT backbones']),
+ ('DiT replaced U-Nets with ViT-style backbones on latent patches; behind SD3, Flux, Sora-style generators', R + ', Why it matters (SD3 sourced; Sora cited but not re-checked; Flux unconfirmed)', ['Diffusion Transformer (DiT)', 'Stable Diffusion 3', 'Sora', 'Flux']),
+ ('Patchify-then-Transformer default for grid modalities (images, video, audio spectrograms)', R + ', Why it matters', ['Patchify-then-Transformer became the default', 'ViViT', 'audio spectrograms']),
+ ('Fine-tuning tricks (resolution increase, position-embedding interpolation) still standard', R + ', Why it matters', ['a higher resolution with interpolated position embeddings, are still standard']),
+ # connections
+ ('Attention Is All You Need (2017-06): the encoder ViT reuses', 'Connections; Further reading', ['3c65c17b0d0d81999af7f16f8ed8ee9e', 'the encoder ViT reuses nearly unchanged']),
+ ('BERT (2018-10): class token, model sizing, masked-prediction idea', 'Connections; Further reading', ['3c65c17b0d0d81e5ad9bd09cbf18ad7c', 'the [class] token, the model sizing and the masked-prediction pre-training idea']),
+ ('Scaling Laws (2020-01): the NLP scaling story whose vision counterpart this establishes', 'Connections; Further reading', ['3c65c17b0d0d81b08a1debb0c15cd252', 'the NLP scaling story whose vision counterpart this paper begins']),
+ ('CLIP (2021-02): ViT image encoder plus text encoder; main vehicle to multimodal', 'Connections; Further reading', ['3c65c17b0d0d8194a85dfc5f3bf3f799', 'the main route by which ViT reached multimodal models']),
+ ('DDPM (2020-06) and Latent Diffusion (2021-12): later swapped U-Net for DiT', 'Connections; Further reading', ['3c65c17b0d0d811481e4e36333454f7a', '3c65c17b0d0d81bb98adc0daf8462cb6', '(2020-06)', '(2021-12)']),
+ ('KB topics: generative-and-multimodal', 'Connections; Further reading, Topics', ['3c65c17b0d0d817ab6ade318917bff55', 'generative-and-multimodal']),
+ ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Split images into 16x16 patches and feed them to a vanilla Transformer']),
+]
+norm = lambda s: re.sub(r'\s+', ' ', s)
+out, miss = [], []
+for fact, where, checks in C:
+    found = [c for c in checks if norm(c) in txt or c in raw]
+    ok = len(found) == len(checks)
+    if not ok: miss.append((fact, [c for c in checks if c not in found]))
+    out.append({'fact': fact, 'where': where, 'checks': checks, 'verified': ok})
+json.dump({'source': 'live.md (Notion page as of 2026-09-20)', 'items': len(out), 'verified': sum(o['verified'] for o in out),
+           'dropped': [o['fact'] for o in out if o['where'].startswith('dropped')], 'items_list': out}, open('coverage.json', 'w'), indent=1, ensure_ascii=False)
+print('coverage items', len(out), 'verified', sum(o['verified'] for o in out))
+for f, m in miss: print('MISSING', f[:60], m)
+sys.exit(1 if miss else 0)
