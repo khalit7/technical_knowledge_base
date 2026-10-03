@@ -1,0 +1,9 @@
+Source of the interactive HTML on the Notion page "Reward Hacking" (deep-dive child of Topic: llm-training-and-post-training).
+
+Build: `python3 recompute.py` (writes `parts/20_js_data.js` and `inputs/derived.json`, prints every check), then `sh build.sh` (writes `../index.html`; `rtime.py` fills the reading time and sums the Best resources). Checks: `sh html_utils/checkpage.sh <page folder>` and, from the repo root, `node <page folder>/src/check_page.mjs` (every control in both themes, NaN / undefined / errors, link targets).
+
+Data: `inputs/research_gao.md`, `inputs/research_coding.md`, `inputs/research_chat.md` are the verified source notes (verbatim quotes, URLs, what is unconfirmed) the prose and data were written from. `live.md` is the old Notion page; `coverage.json` maps every fact in it.
+
+Shape: built from the brief (no method file for deep-dive child pages), like its sibling Alignment page. Reading tab by question: what it is, the curve, patterns in chat models, verifier gaming in coding agents, agents and evaluations, detection, mitigations with evidence, why it matters more now, common mistakes. Two tabs: Over-optimisation curves (Gao et al. by reward-model size) and Case gallery (25 documented cases, filterable). Further reading last. The KL-leash animation and the per-stage failure table stay on the parent and are linked, not rebuilt.
+
+Parts: `20_read_a/b/c.html` Reading; `30_tab_gao.html` + `30_js_gao.js`; `31_tab_cases.html` + `31_js_cases.js`; `39_tab_more.html`; JS `20_js_data.js` (generated), `21_js_common.js` (the parent's RD.anim controller, copied), `22_js_bon.js` (best-of-n example), `23_js_charts.js` (length, format, PAR, misalignment charts), `24_js_trace.js` (buggy-test transcript animation, RL hack code), `25_js_cot.js` (CoT monitor animation), `99_js_tabs.js`.
