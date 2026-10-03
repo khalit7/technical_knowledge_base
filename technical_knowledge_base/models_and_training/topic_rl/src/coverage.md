@@ -1,70 +1,63 @@
 # Coverage: Topic: rl (root page) and its earlier embed
 
-Sources checked: `src/live.md` (the Notion page as fetched on 2026-10-03, text as of 2026-09-30) and `src/inputs/old_embed_topic-rl.html` (the page's earlier interactive embed, built outside the repo; its rendered text and its JavaScript strings were read in full, including the locked Explore tab, the flashcards and the quiz). Section ids are in the Reading tab (`#t-read`) unless another tab is named. "Kept" means the fact is stated; "rebuilt" means a visual of the old embed was rebuilt as a live one.
+Sources: `src/live.md` (the Notion page, text as of 2026-09-30) and `src/inputs/old_embed_topic-rl.html` (the earlier interactive embed; rendered text and JavaScript strings read in full).
+
+Since Khalid's instruction of 2026-10-04 the Reading tab is a short intuitive overview. Every fact is either still in the root (section id in `#t-read`, or a root tab), or **moved to a child page**, in which case the full text and widget are archived for that child's builder in `src/for_children/reading_full/` (the long Reading tab, ids as listed) with its checks in `src/for_children/reading_full_checks/`. "Archive" below means that folder.
 
 ## The Notion page (live.md)
 
-| # | Fact or block in live.md | Where it is now |
+| # | Fact or block | Where it is now |
 |---|---|---|
-| 1 | Embed "Interactive: Topic: rl" | Replaced by this page's `index.html` |
-| 2 | Video "Topic: rl: one line from Bellman to verifiers" (7 min, 23 Sept 2026) and its note on what it does not cover | Not carried: Khalid will delete the video (his instruction) |
-| 3 | "18 min read · +38h resources" | Superseded: Reading tab about 60 min (word count 13,500 at 230 wpm); resources and times in `#t-more` |
-| 4 | RL defined: trial and error, agent, environment, scalar reward, maximise total reward; nobody says the correct action; outcome often many steps later | `rd-over` lead |
-| 5 | Scored but not demonstrated: games, control, LLM post-training since InstructGPT 2022, reward model or verifier scores whole responses | `rd-over` lead |
-| 6 | Three layers: classical core (MDP, Bellman; DP with a model; MC, TD, SARSA, Q-learning from samples), deep RL (DQN, PG, PPO, AlphaZero, MuZero), RL for LLMs (RLHF, GRPO, RLVR; trivial environment, expensive reward) | `rd-over` list |
-| 7 | One idea: every method estimates the expected return the Bellman equation describes; methods differ in what stands in for the expectation | `rd-over` key box (the page's spine) |
-| 8 | Taxonomy diagram: value-based (VI, SARSA, Q-learning, DQN), policy-based (REINFORCE, GRPO), actor-critic (A2C/A3C, TRPO, PPO, DDPG, SAC, AlphaZero, MuZero); model-free list; model-based (DP given, AlphaZero rules, MuZero learned); on-policy (SARSA, REINFORCE, A2C, PPO*, GRPO*), off-policy (Q-learning, DQN, DDPG, SAC); *nearly on-policy note | `rd-agent` three-axis list and table (every method placed); full treatment in `#t-tax`, every method in `#t-atlas` |
-| 9 | Axes independent; definitions of V, Q, actor and critic; model given or learned; RLHF reward model not model-based; on/off-policy and replay; DP outside the on/off axis | `rd-agent` |
-| 10 | Examples: DQN value-based, model-free, off-policy; PPO actor-critic, model-free, approx on-policy; GRPO policy-based, model-free, approx on-policy; AlphaZero model-based with self-play networks | `rd-agent` note under the table |
-| 11 | Bellman expectation equation with symbol definitions (V_π, R_{t+1}, S_{t+1}, γ weights a reward k steps ahead by γ^k, E_π) | `rd-val` (derivation and expectation equations); `rd-ret` (γ^k) |
-| 12 | Incremental update V ← V + α(target − V), α ∈ (0, 1], target a stand-in for the expectation | `rd-samp` formula box |
-| 13 | Policy gradient ∇J = E[Σ ∇ log π · Â], definitions; "raising the log-probability ... is the whole of policy-gradient RL" | `rd-pg` |
-| 14 | Table "what stands in for the expectation": DP, MC, TD(0)/SARSA/Q-learning, n-step/TD(λ)/GAE, DQN, REINFORCE, actor-critic/PPO, GRPO, RLVR, AlphaZero/MuZero, with needs and bias/variance | `rd-over` spine table, all ten rows verbatim in substance, each row linked to its section |
-| 15 | n-step return and λ-return formulas; past the end = full return; λ = 0 TD, λ = 1 MC; finite-episode weights (1 − λ)λ^{n−1} and remaining λ^{T−t−1} | `rd-dial` formula box |
-| 16 | "Why there is a dial" paragraph, including GRPO taking the MC end because a per-token critic is as large as the policy | `rd-dial` key box |
-| 17 | Worked example: episode, γ 0.9, rewards 0, 0, 1, V 0.2/0.4/0.7, α 0.1; MC 0.81 and update 0.261; TD 0.36 and 0.216; two-step 0.567; λ 0.5 → 0.52425; DP 0.288 with p 0.8; REINFORCE 0.61; δ 0.16; GRPO 1,0,0,0 → mean 0.25, std 0.433, +1.732, −0.577 on every token; "targets from 0.36 to 0.81" | `rd-dial` list (verbatim numbers) and the live widget `#rd-one` (every target stepped, sliders); checked by `read/recompute.py` |
-| 18 | MDP definition and Markov property; Bellman as fixed point; link to RL foundations | `rd-mdp`, `rd-loop`, `rd-val` (RL foundations is folded in) |
-| 19 | DP: policy iteration, value iteration; needs full model and small state space; the ideal others approximate | `rd-plan` |
-| 20 | MC unbiased, high variance, waits for termination; TD bias for variance, online, non-terminating; TD(λ) the dial; SARSA on-policy; Q-learning off-policy, legitimises replay | `rd-samp`, `rd-dial` |
-| 21 | Deep RL as stabilisation tricks; DQN replay (correlation) and frozen target network | `rd-fa`, `rd-dqn` |
-| 22 | Policy gradients, REINFORCE, baseline keeps gradient unbiased, V(s) baseline gives advantage, critic makes actor-critic, A3C asynchronous, A2C synchronous batched and structurally the LLM RL loop | `rd-pg` (plus the correction that a baseline alone is not actor-critic) |
-| 23 | TRPO KL constraint, second-order; PPO clip, objective flat past the clip, several epochs of minibatch SGD safe; SAC entropy bonus, continuous control default | `rd-ppo`, `rd-cont` |
-| 24 | AlphaZero MCTS as policy improvement, improved move distribution as target; MuZero learned latent dynamics, plans inside | `rd-mb` |
-| 25 | Token generation MDP: deterministic transition, vocabulary-sized actions, single end reward; credit assignment is the hard part | `rd-llm` opening |
-| 26 | RLHF (RM + PPO + per-token KL to frozen reference), GRPO (value model deleted, group mean baseline), RLVR (verifier replaces RM), R1, 2025-2026 GRPO corrections (Dr. GRPO, DAPO, GSPO, off-policy corrections) | `rd-llm` |
-| 27 | Alignment pipeline (SFT, RM training, DPO family) on the Alignment page | `rd-llm` DPO paragraph; `#t-more` |
-| 28 | "Two deletions" lineage | `rd-llm` RLVR paragraph |
-| 29 | Mercor with SkyRL, 397B: token accounting, async RL, environment robustness, harness design matter as much as the algorithm; figures on RL for LLMs, recipe on the training topic | `rd-llm` (marked reported, linked to RL for LLMs); `#t-more` (training topic "the Mercor with SkyRL recipe in full") |
-| 30 | Trade-offs: known small model DP; known huge model search; no model but planning pays MuZero; small discrete Q-learning vs SARSA; DQN family; PPO; SAC/TD3 (with DDPG and TD3 expansions); language models; the bias-variance dial | `rd-when` table and decision tree |
-| 31 | Seven common mistakes (model-based = learned; RM makes RLHF model-based; on-policy = online; GRPO new; deep RL different theory; token generation hard environment; higher reward better model) | `rd-wrong` (all seven, among eighteen) |
-| 32 | Deep dives in reading order with coverage and "why at this point" | `#t-more` "Pages under this one" (order stated); RL foundations noted as folded in |
-| 33 | Related papers: InstructGPT (2022-03), DeepSeekMath (2024-02), DeepSeek-R1 (2025-01) | `#t-more` paper pages, plus DPO, Constitutional AI, Learn What's Left |
-| 34 | Related topics: Alignment, Reward Hacking | `#t-more` |
-| 35 | Best resources: Silver (~15h), Sutton and Barto (~14h), Spinning Up (~3h core), Lambert RLHF Book (~6h) | `#t-more` with the same times |
+| 1 | Embed | Replaced by `index.html` |
+| 2 | Video and its note | Not carried: Khalid will delete the video |
+| 3 | "18 min read · +38h resources" | Superseded: Reading tab about 16 min (3,600 words at 230 wpm); resources in `#t-more` |
+| 4 | RL definition; scored not demonstrated; InstructGPT 2022 | `rd-over` |
+| 5 | Three layers | `rd-over` |
+| 6 | The one idea (through-line) | `rd-over` key box, `rd-idea` |
+| 7 | Taxonomy diagram and the three axes, with every method placed | Three axes stated in `rd-fam` intro; placements in `#t-atlas`; all axes in `#t-tax`; the long placement table is in the archive (`rd-agent`) for the children |
+| 8 | DQN, PPO, GRPO, AlphaZero axis examples | `#t-atlas` (every method placed); archive `rd-agent` |
+| 9 | Bellman expectation equation with symbols | `rd-idea` (equation and 𝔼 gloss); γ gloss in `rd-loop` |
+| 10 | Incremental update V ← V + α(target − V) | `rd-idea` |
+| 11 | Policy gradient formula with Â; "the whole of policy-gradient RL" | Intuition in `rd-f-pg` ("make the actions that turned out well more likely, in proportion"); formula moved to child Policy gradients and actor-critic (archive `rd-pg`) |
+| 12 | Table of what stands in for the expectation (10 rows) | `rd-idea` spine table, all ten rows (needs column folded into the text) |
+| 13 | n-step and λ-return formulas, finite-episode weights | Intuition in the spine table and the widget (λ step shows the weights); formulas moved to child Model-free prediction and control (archive `rd-dial`) |
+| 14 | "Why there is a dial" | `rd-idea` |
+| 15 | Worked example (0.81, 0.261, 0.36, 0.216, 0.567, 0.52425, 0.288, 0.61, 0.16, GRPO +1.732 and −0.577, "0.36 to 0.81") | `#rd-one` widget and its caption (every number; 0.261 and 0.216 updates are computed by the engine and checked, shown in the archive version only) |
+| 16 | MDP and Markov property; Bellman as fixed point | `rd-loop`, `rd-idea` |
+| 17 | DP: policy and value iteration; needs model and small space; the ideal | `rd-f-plan` |
+| 18 | MC, TD, TD(λ), SARSA on-policy, Q-learning off-policy and replay | `rd-f-samp` |
+| 19 | Deep RL as stabilisation; DQN replay and target network | `rd-f-dqn` |
+| 20 | Policy gradients, REINFORCE, baseline, advantage, actor-critic, A3C/A2C (A2C as the shape of LLM RL loops) | `rd-f-pg` (A2C/A3C named); "A2C is the LLM loop's shape" moved to child Policy gradients and actor-critic (archive `rd-pg`) |
+| 21 | TRPO KL constraint; PPO clip and several epochs; SAC entropy | `rd-f-pg` |
+| 22 | AlphaZero MCTS as policy improvement; MuZero latent model | `rd-f-mb` |
+| 23 | Token-generation MDP; credit assignment | `rd-llm` |
+| 24 | RLHF, GRPO, RLVR, R1, 2025 to 2026 GRPO corrections | `rd-llm` (corrections named in the Go deeper note; detail on RL for LLMs) |
+| 25 | Alignment pipeline, DPO | `rd-llm`, `#t-more` |
+| 26 | Two deletions | `rd-llm` |
+| 27 | Mercor with SkyRL 397B: token accounting, async, environment robustness, harness | Moved to child RL for LLMs (it carries the figures) and `#t-more` (training topic: "the Mercor with SkyRL recipe in full"); archive `rd-llm` |
+| 28 | Trade-offs: which family when (all cases) | `rd-when` tree and table |
+| 29 | Seven common mistakes | `rd-wrong` (all seven, among ten) |
+| 30 | Deep dives in order with coverage | `#t-more` children (approved eight-page structure) |
+| 31 | Related papers and topics | `#t-more` |
+| 32 | Best resources with times | `#t-more` |
 
-## The earlier embed (inputs/old_embed_topic-rl.html)
+## The earlier embed
 
 | # | Element | Where it is now |
 |---|---|---|
-| E1 | Read tab: the same text as live.md, with a three-layer SVG and a "targets" SVG showing how many real rewards each target uses | Text as above; the targets SVG is rebuilt live as `#rd-one` (real rewards in green, trusted estimates in blue, every target on one number line) |
-| E2 | "Recompute the example" sliders (γ, λ, R₃, V(S₁), V(S₂)) with MC, TD, two-step, λ-return, δ, REINFORCE weight and a λ-return-against-λ chart | Rebuilt and extended in `#rd-one` (ten sliders, nine targets including DP and GRPO) |
-| E3 | Predict box: "A critic that is badly wrong: should λ go up or down?" with its answer | `#rd-dlQ` (verbatim answer) |
-| E4 | Explore tab "dial": illustrative three-step chain, rewards Bernoulli 0.5, γ 0.9, critic off by a set error, exact bias, variance and MSE over all 8 outcomes against λ | Rebuilt as `#rd-dl` (same model; checked by `read/recompute.py`) |
-| E5 | Explore tab decision tree ("Do you have the environment's model?", "Can the answers be checked?", "Is a per-token critic affordable?", "Does the exploring agent's performance matter?") | Rebuilt and extended as `#rd-tree` (13 leaves) with the table under it |
-| E6 | Explore tab: clickable map of deep dives with a reading tick per page; "follow one target from the Bellman equation to a verifier" | Map: `#t-more` children list; one target: the spine table and `#rd-one`. The reading tick (local storage) is dropped |
-| E7 | Explore tab: "place a method on the three axes, then check" quiz (methods with per-axis answers, including that the page does not place AlphaZero and MuZero on the on/off axis) | Not rebuilt in Reading: the placements are in the `rd-agent` table (AlphaZero and MuZero now placed: own self-play data); the full classification is the Taxonomy and Method atlas tabs |
-| E8 | Glossary strings (MDP, MRP, Bellman, return, γ, V and Q, target, step size, DP, policy and value iteration, MC, TD, TD error, n-step, λ-return, GAE, SARSA, Q-learning, on/off-policy, replay buffer, target network, policy gradient, baseline, advantage, actor-critic, A2C/A3C, TRPO, PPO, SAC, DDPG/TD3, search, RLHF, GRPO, RLVR, GLIE, DPO, reward hacking) | Every term defined where it is introduced (sections 2 to 18) |
-| E9 | 13 flashcards and a 9-question quiz with explanations (e.g. "+0.75 would be the reward minus the mean without dividing by the standard deviation"; "TD(0) inherits the critic's error most"; "λ-return weights 0.5, 0.25, 0.25 = 0.18 + 0.14175 + 0.2025") | Every answer is stated in the text (the 0.18 + 0.14175 + 0.2025 split is in `rd-dial`; the +0.75 point is the Dr. GRPO mode of `#rd-gr`); the card and quiz widgets are not rebuilt |
-| E10 | Key takeaways (six bullets) | `rd-over` (spine box and layers) and the section structure |
-| E11 | Video note (23 September, predates through-line, trade-offs, mistakes, GRPO/SARSA/REINFORCE placement) | Not carried (video to be deleted) |
-| E12 | "Go further" resource list with times | `#t-more` |
+| E1 | Read tab text and the "targets" SVG | Text as above; the SVG is the live `#rd-one` |
+| E2 | "Recompute the example" sliders | `#rd-one` (γ, λ, R₃, V(S₁), V(S₂)) |
+| E3 | Predict box (λ up when the critic is wrong) | The principle is in `rd-idea` ("short targets win when the estimate is good, long ones when it is poor"); the box and answer are archived (`rd-dlQ`) for child Model-free prediction and control |
+| E4 | Explore "dial" (exact bias, variance, MSE against λ) | Moved to child Model-free prediction and control (archive `rd-dl`, checks in `reading_full_checks`) |
+| E5 | Decision tree | `#rd-tree` (13 leaves) |
+| E6 | Deep-dive map with reading ticks; "follow one target" | `#t-more` children; spine table and `#rd-one`; ticks dropped |
+| E7 | Place-a-method-on-the-axes quiz | `#t-tax` and `#t-atlas` |
+| E8 | Glossary | Terms defined where introduced in `#t-read`; full definitions in `#t-tax` and the children |
+| E9 | Flashcards and quiz | Not rebuilt; every answer is in `#t-read` or `#t-atlas` |
+| E10 | Key takeaways | `rd-over`, `rd-idea` |
+| E11 | Video note | Not carried |
+| E12 | Go-further list | `#t-more` |
 
-## Corrections and changes made against the old page
+## Corrections kept visible in the root
 
-- Christiano et al. 2017 optimised with A2C and TRPO; PPO arrived with Ziegler et al. 2019 (now stated; the old page implied RLHF meant PPO from the start).
-- A2C matched or beat A3C; a learned baseline alone does not make a method actor-critic (Sutton and Barto §13.5): REINFORCE with a baseline, RLOO and GRPO are policy-based. The old page's "actor-critic (A2C/A3C ...)" placement is kept; GRPO stays policy-based as it was.
-- DQN's target network arrived in the 2015 Nature paper; the 2013 version used replay only (stated).
-- RLVR: named by Tülu 3 (November 2024), optimised there with PPO and a value model (stated); the old page did not date it.
-- R1-Zero's AIME 2024 pass@1 is 77.9% in the Nature/v2 paper and 71.0% in the January 2025 preprint; both stated, not mixed.
-- "$294K for R1" is post-training (RL plus SFT data generation) on top of V3-Base's 2.788M GPU-hours (stated).
-- InstructGPT truthfulness and toxicity figures, DeepSeekMath's missing PPO baseline and the k3 gradient direction: carried from the verified paper pages in correction boxes.
+A baseline alone is not actor-critic (Sutton and Barto §13.5; `rd-wrong`); DQN's target network arrived in 2015, the 2013 version had replay only (`rd-f-dqn`); RLVR named by Tülu 3 (`rd-llm`); R1-Zero AIME 71.0% in the preprint, 77.9% in the Nature version, both stated (`rd-llm`, consistent with `#t-miles`). Further corrections (Christiano's A2C and TRPO, InstructGPT truthfulness and toxicity, DeepSeekMath's missing PPO baseline, k3's gradient, R1's $294K as post-training, Silver's Q*(Pub) 8.4 against 9.4) moved with their sections to the archive for the children.
