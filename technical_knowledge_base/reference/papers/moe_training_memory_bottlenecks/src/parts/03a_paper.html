@@ -1,0 +1,45 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-axes">Four live sets</a><a href="#s-llep">Dispatch</a><a href="#s-ring">Vocabulary</a><a href="#s-sco">Checkpoints</a><a href="#s-osa">Optimizer</a><a href="#s-comp">Composition</a><a href="#s-res">Results</a><a href="#s-lim">Limits</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
+
+<div class="co warn"><div class="t">This row, corrected</div>
+<p>The row's earlier summary was written from a newsletter abstract (TLDR AI, 23 September 2026), not from the paper, and said so: no numbers, baselines, scales or ablations, nothing to quote as measured. This page is written from the full paper, titled on arXiv "Flattening Every Memory Peak in Long-Context Mixture-of-Experts Training". Its claim holds (four bottlenecks bounded by scheduling, not approximation), with three corrections: everything is measured on H200 nodes with 2 TB of host memory, 16 to 64 GPUs end to end, not on "a fixed pair of consumer cards" ({{Table 5|ax:A1.T5}}, {{§7|ax:S7}}); two of the four operators <i>are</i> offload, scheduled (it excludes quantisation and approximate routing, not offload, {{§1|ax:S1}}); and it builds on ZeRO-3 and on Megatron's vocabulary sharding rather than sitting beside them ({{§3.5|ax:S3.SS5}}).</p></div>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p class="lead">A training step dies when <b>any one</b> component's peak memory exceeds the device, so a plan that lowers three peaks and leaves the fourth free to grow "buys nothing at the point where the workload grows" ({{§1|ax:S1}}).</p>
+<p>Mixture-of-experts (MoE) models are now trained at long context or large batch, and when adding GPUs is not an option, memory is bought with time. Every standard trade charges it: gradient checkpointing recomputes, state sharding (ZeRO, FSDP) communicates, and optimizer offload serialises the update on the host CPU ({{§1|ax:S1}}). Peak memory is a maximum over <b>live sets</b>, the groups of tensors that must be resident at the same moment, and the paper picks four that the parallelism plans in common use leave unbounded:</p>
+<ol>
+<li><b>Expert dispatch</b>, which grows with the routing matrix the router draws: how many token copies land on one GPU.</li>
+<li><b>The vocabulary projection</b>, which grows with tokens times vocabulary: the logits.</li>
+<li><b>Gradient-checkpoint boundaries</b>, which grow with depth times sequence length.</li>
+<li><b>Optimizer state</b> (AdamW), which grows with parameter count.</li>
+</ol>
+<p>They grow at different rates, so which runs out first depends on the configuration: logits at large vocabulary and long context, dispatch at high routing imbalance, boundaries at depth, optimizer state at large parameter count on few devices ({{§1|ax:S1}}). Lowering the largest only exposes the next, so the paper bounds all four, each switchable on its own.</p>
+<p><b>The constraint it sets itself:</b> change only the order and granularity of computation and data movement. No low-rank adapters, no quantised state, no approximate routing or attention, so the model, parameterisation, optimizer, precision and loss stay those of standard full-parameter BF16 training, and the memory and throughput numbers are comparable with it ({{§1|ax:S1}}).</p>
+</section>
+
+<section id="s-axes"><h2>The four live sets</h2>
+[[S2|§2 Four Scaling Axes, Table 1]]
+<p>Notation ({{§2|ax:S2}}): Θ trainable parameters, <i>W</i> devices, <i>N</i> tokens resident per rank, <i>H</i> hidden width, <i>V</i> vocabulary, <i>b</i> bytes per activation value. AdamW ordinarily needs 16Θ bytes (working weights, gradients, fp32 master weights and two moments, as in {{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}). ZeRO-3 shards that persistent state, sequence parallelism cuts attention activations and expert parallelism partitions expert weights, but none bounds the four live sets of {{Table 1|ax:S2.T1}}, whose heights follow the workload rather than the sharding degrees:</p>
+<div class="tw"><table class="lt">
+<tr><th>Live set</th><th>Unbounded size, and what sets it</th><th>Streamed along</th><th>Bounded working set</th><th>Operator</th></tr>
+<tr><td>Expert dispatch</td><td><span class="m">2<i>R<sub>d</sub>Hb</i></span>: the realised routing matrix</td><td>token chunks</td><td><span class="m">2<i>E<sub>p</sub>qHb</i></span>, <span class="m"><i>q</i> = <i>kc</i><sub>eff</sub></span></td><td>{{PipelinedLLEP|tab:t-run:dsx}}</td></tr>
+<tr><td>Vocabulary projection</td><td><span class="m">O(<i>NVb</i>)</span> logits: tokens × vocabulary</td><td>vocabulary blocks</td><td><span class="m">O(<i>NVb</i>/<i>P</i>)</span></td><td>{{Ring-DTP|tab:t-run:rgx}}</td></tr>
+<tr><td>Checkpoint boundaries</td><td><span class="m">Σ<sub>ℓ∈S</sub> <i>N<sub>ℓ</sub>Hb</i></span> in HBM: depth × length</td><td>decoder depth</td><td><span class="m">≤ 2<i>N</i><sub>max</sub><i>Hb</i></span> in HBM</td><td>{{SCO|tab:t-run:scx}}</td></tr>
+<tr><td>Offloaded AdamW</td><td>serial host update of <span class="m">12Θ/<i>W</i></span> bytes</td><td>parameter buckets</td><td><span class="m">O(β)</span> in HBM</td><td>{{OffloadStreamAdamW|tab:t-run:osx}}</td></tr>
+</table></div>
+<p class="small mute"><i>R<sub>d</sub></i> routes received by destination <i>d</i>, <i>E<sub>p</sub></i> expert-parallel degree, <i>k</i> experts per token, <i>c</i><sub>eff</sub> tokens a source puts in one chunk, <i>P</i> the vocabulary group size, <i>S</i> the offloaded layer set, <i>N</i><sub>max</sub> the per-rank token ceiling, β the optimizer bucket size. The fourth row is different in kind: offload already removes optimizer state from the GPU, and what stays unbounded is the <i>time</i> of the serial host update.</p>
+<p>Each operator must return the forward values and gradients of what it replaces, change only the order of computation, and keep its bound through checkpoint recomputation, since a checkpointed step peaks inside backward ({{§2|ax:S2}}); that rules out keeping anything sized by the routing matrix.</p>
+
+<h3 id="pk">Which peak runs out first?</h3>
+<p class="try"><b>Try:</b> pick a model and slide the tokens per rank. Each bar is one live set on one GPU, against the H200's 141 GB. Then switch on one operator at a time and watch the next bar become the problem; that is the paper's argument for building all four.</p>
+<div class="card" id="pkCard">
+<div class="ctl"><label>Model and GPUs <select id="pkM"><option value="oss20">gpt-oss-20b, 8 GPUs (component tests)</option><option value="m120">120B, 16 GPUs</option><option value="m241">241B, 32 GPUs</option><option value="m667" selected>667B, 64 GPUs</option></select></label>
+<label>Tokens per rank <i>N</i> = <b id="pkNv">65,536</b><input type="range" id="pkN" min="0" max="7" step="1" value="5" aria-label="Tokens per rank"></label></div>
+<div class="small"><label class="chk"><input type="checkbox" id="pk_disp"> PipelinedLLEP</label><label class="chk"><input type="checkbox" id="pk_logit"> Ring-DTP</label><label class="chk"><input type="checkbox" id="pk_bnd"> SCO</label><label class="chk"><input type="checkbox" id="pk_state"> offload + OffloadStreamAdamW</label></div>
+<div id="pkSvg"></div>
+<p class="small" id="pkTxt" aria-live="polite"></p>
+<p class="small mute"><span class="ill">Illustrative.</span> The paper gives only Table 1's formulas; the constants are those its measurements show (hover a bar for its formula). Rough peak = state + boundaries + the larger of dispatch and logits; attention activations and buffers are left out. The end-to-end runs split one sequence over <i>D</i> = 2 to 16 ranks, set by context length ({{Appendix A|ax:A1}}); a 1M-token sequence over <i>D</i> = 16 is 65,536 tokens per rank, the default here.</p>
+</div>
+</section>

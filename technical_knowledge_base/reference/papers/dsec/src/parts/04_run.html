@@ -1,0 +1,36 @@
+
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Place a burst of sandboxes</h2>
+<p>When a rollout job asks for tens of thousands of sandboxes at once, which node gets each one? DSec's placement engine samples <i>k</i> eligible nodes at random and takes the least loaded; each engine instance adds its own recent placements to the watcher's last snapshot; and the edge on each node can still refuse a sandbox it has no room for, sending the request elsewhere ({{§3.2|ax:S3.SS2}}, {{§7|ax:S7}}). The paper says this avoids "herding". This tab runs that algorithm, and three alternatives, on the same burst, so you can see what herding is and what each piece of the design buys.</p>
+<p class="try"><b>Try:</b> play "Least loaded" first: every engine sees the same stale snapshot, so all of them pour each refresh window's requests onto the same few nodes, which overflow and reject. Then the paper's design. Shorten the refresh interval and least-loaded herds less, which shows that herding comes from staleness. Then set <i>k</i> to 8 with a 3 s refresh: power of <i>k</i> without the overlay starts to herd too, and the overlay pulls it back; with 16 engines each one knows only its own sixteenth of the placements, so the overlay helps less.</p>
+<div class="card" id="pb">
+<div class="an-top"><div class="seg" id="pbM" role="group" aria-label="Placement policy"><button class="on" data-m="pko" aria-pressed="true">Power of k + overlay (DSec)</button><button data-m="pk" aria-pressed="false">Power of k, no overlay</button><button data-m="rnd" aria-pressed="false">Random</button><button data-m="least" aria-pressed="false">Least loaded</button></div></div>
+<div id="pbSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="pbBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="pbPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="pbFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="pbScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="pbSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="pbStep"></div><p id="pbCap"></p></div>
+<div class="an-cnt" id="pbCnt"></div>
+<div class="ctl">
+<label>Burst: <b id="pbBv"></b> sandboxes<input type="range" id="pbB" min="0" max="5" step="1" value="3"></label>
+<label>Creation rate: <b id="pbRv"></b> a second<input type="range" id="pbR" min="0" max="4" step="1" value="3"></label>
+<label>Nodes: <b id="pbNv"></b><input type="range" id="pbN" min="0" max="3" step="1" value="2"></label>
+<label><i>k</i>, nodes sampled per placement: <b id="pbKv"></b><input type="range" id="pbK" min="1" max="8" step="1" value="2"></label>
+<label>Placement-engine instances: <b id="pbEv"></b><input type="range" id="pbE" min="1" max="16" step="1" value="4"></label>
+<label>Watcher refresh interval: <b id="pbPv"></b><input type="range" id="pbP" min="0" max="6" step="1" value="3"></label>
+<label>Already running before the burst: <b id="pbLv"></b> of capacity<input type="range" id="pbL" min="0" max="8" step="1" value="4"></label>
+<label>Unevenness of that starting load: ± <b id="pbSv"></b><input type="range" id="pbS" min="0" max="5" step="1" value="2"></label>
+<div><button id="pbSeed">New random draw</button> <span class="small mute" id="pbSeedV"></span></div>
+</div>
+<p class="small mute">Each bar is one node, to scale against its capacity line (3,200 sandboxes, the container density the paper reports running stably, {{§4.3|ax:S4.SS3}}). Grey is what was running before the burst, colour what this burst added. Requests reach the engines round-robin at the creation rate; each engine sees the watcher's last snapshot, plus, with the overlay, its own placements since. An edge refuses a sandbox that would take its node over capacity, and the engine picks again (up to 8 tries). Published inputs: about 160 nodes, bursts up to 32K, over 5,000 creations a second, 3,200 per node. <b>Illustrative inputs</b>, which the paper does not give: <i>k</i>, the number of engine instances, the refresh interval and the starting load. The numbers below are properties of the algorithm on these inputs, not measurements of DSec.</p>
+</div>
+<h3>The same burst under all four policies</h3>
+<div class="tw"><table><thead><tr><th>Policy</th><th class="num">Fullest node</th><th class="num">Emptiest node</th><th class="num">Fullest minus emptiest</th><th class="num">Spread (sd)</th><th class="num">Refusals by edges</th><th class="num">Not placed</th></tr></thead><tbody id="pbTab"></tbody></table></div>
+<p class="small mute" id="pbTheory"></p>
+<h3>What this shows, and what it cannot</h3>
+<ul>
+<li><b>Herding is a staleness effect.</b> A "least loaded" rule that sees only a snapshot sends every request in a refresh window to the same node; several engines with the same snapshot pile on together. Sampling <i>k</i> nodes spreads requests across all nodes even when the view is stale, which is why power-of-<i>k</i> is robust here ({{Mitzenmacher, Richa and Sitaraman|https://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf}} discuss stale information).</li>
+<li><b>Small <i>k</i> is what makes staleness harmless.</b> With <i>k</i> = 2 the snapshot hardly matters; the larger <i>k</i>, the closer the rule comes to "least loaded" and the more it herds on a stale view. The overlay helps exactly there, without coordination, because each engine at least knows its own recent placements; its help shrinks as the number of engine instances grows. The edge's admission check catches what the views still miss, at the price of a retry.</li>
+<li><b>What it cannot show:</b> the paper reports no placement measurements (no load spread, rejection rate or placement latency), so nothing here can be compared with DSec's real behaviour. It also leaves out filtering by backend and hardware, user isolation (which "bounds the blast radius" at some cost in density), sandboxes ending during the burst, and cloud bursting above 80% utilisation ({{§7|ax:S7}}, {{§3.4|ax:S3.SS4}}).</li>
+</ul>
+</section>

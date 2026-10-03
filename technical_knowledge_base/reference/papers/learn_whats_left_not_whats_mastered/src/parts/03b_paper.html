@@ -1,0 +1,95 @@
+<section id="s-setup"><h2>Experimental setup</h2>
+[[S5.SS1|§5.1, §5.2]]
+<p>Training ({{§5.1|ax:S5.SS1}}): verl with vLLM for sampling; <i>G</i> = 8 answers per question, global batch 256 questions, 3 epochs, answers capped at 4,096 tokens. Math and adaptive reasoning train on DeepScaleR-Preview, about 40K competition problems (40,315 in the {{released dataset|https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset}}). Evaluation: temperature 0.6, top-p 0.95, up to 4,096 tokens (2,048 for code), 16 samples per problem, average pass@1. "Base" is the model before RL. The baseline throughout is GDPO with the same data, rewards and hyperparameters; only the advantage differs.</p>
+<p>The rewards, all rule-based ({{§5.2|ax:S5.SS2}}, {{§5.3|ax:S5.SS3}}, {{§5.4|ax:S5.SS4}}):</p>
+<ul>
+<li><b>Correctness</b>: 1 if the extracted final answer equals the ground truth, else 0.</li>
+<li><b>Length (binary)</b>: 1 if the answer has at most <i>l</i> = 4,000 tokens, else 0. With answers capped at 4,096 tokens in training, only an answer in its last 96 allowed tokens, in practice a truncated one, scores 0 (derived from the two settings).</li>
+<li><b>Format</b>: 1 if the answer matches <code>^&lt;think&gt;.*?&lt;/think&gt;\n&lt;answer&gt;.*?&lt;/answer&gt;$</code> with exactly one opening and one closing answer tag, else 0.</li>
+<li><b>Length (graded)</b>, adaptive reasoning only: 1 up to <i>B</i><sub>min</sub> = 1,024 tokens, falling linearly to 0 at <i>B</i><sub>max</sub> = 2,048, so it has an explicit saturation region: below 1,024 tokens, shortening earns nothing.</li>
+<li><b>Code</b>: pass rate (passed test cases over all test cases) and executability (1 if the program compiles and runs without errors).</li>
+</ul>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S5.T1|§5.2 to §5.4, Tables 1 to 3]]
+<h3>Math reasoning: 12 of 15</h3>
+<p>Qwen2.5-3B-Instruct and Qwen2.5-7B-Instruct, with correctness plus binary length (two objectives) or plus format as well (three). The 7B model was trained only in the three-objective setting ({{Table 1|ax:S5.T1}}). SA-MRPO beats GDPO on accuracy in <b>12 of 15</b> benchmark comparisons, 4 of 5 in each setting: up to +5.0 points on AIME24 (7B: 11.5% to 16.5%) and +3.5 on MATH500 (64.2% to 67.7%) ({{§5.2|ax:S5.SS2}}). Exceed, the share of answers over the 4,000-token budget, stays small, though it rises more often than it falls: on 4 of 5 benchmarks for 3B with two objectives (from 0.0% to between 0.1% and 0.6%; equal on Minerva). Each bar below is one training run; the grey band is ±2 standard errors of the <i>evaluation</i> sampling alone (16 samples of each problem; an upper bound for that source, computed at SA-MRPO's score), which leaves out training-seed noise entirely:</p>
+<div class="card" id="t1card"><div class="seg" id="t1M" role="group" aria-label="Metric"><button class="on" data-m="acc" aria-pressed="true">Accuracy, SA-MRPO minus GDPO</button><button data-m="ex" aria-pressed="false">Exceed, SA-MRPO minus GDPO</button></div><div id="t1Svg" style="margin-top:8px"></div>
+<p class="small mute" style="margin:4px 0 0">{{Table 1|ax:S5.T1}} as printed; differences and bands by recompute.py. Benchmark sizes from the public test splits (AIME24 30 problems, AMC23 40, MATH500 500, Minerva 272, OlympiadBench 674; the paper does not say which versions it used). The AIME24 gain of 5.0 points is 1.5 of 30 problems on average.</p></div>
+<p>The base scores are low for these models: Qwen2.5-7B-Instruct scores 50.0% on MATH500 here, against 75.5% on MATH in {{Qwen's own report|https://arxiv.org/html/2412.15115v2#S5.T8}} (3B: 26.3% here, 65.9% there, {{Table 9|https://arxiv.org/html/2412.15115v2#S5.T9}}). The benchmarks differ (MATH500 is a 500-problem subset), so this is indicative only, but much of the RL gain over Base is probably learning this prompt's answer format, which both methods share.</p>
+
+<h3>Adaptive reasoning: +3.8 on average</h3>
+[[S5.SS3|§5.3, Table 2]]
+<p>DeepSeek-R1-Distill-Qwen-7B with correctness and the graded length reward, the setting built to show the mechanism ({{§5.3|ax:S5.SS3}}). SA-MRPO beats GDPO on all five benchmarks, by 3.8 points on average (26.6% against 22.8%) and up to 9.2 on AMC23 (28.3% to 37.5%, 3.7 of 40 problems). Its answers are longer, 459 against 333 tokens on average, and the paper reads this as intended: both averages sit under <i>B</i><sub>min</sub> = 1,024, where shortening earns nothing, so the extra tokens are spent on correctness ({{Table 2|ax:S5.T2}}).</p>
+<div class="card" id="t2card"><div id="t2Svg"></div>
+<p class="small mute" style="margin:4px 0 0">{{Table 2|ax:S5.T2}} as printed (no Base row). Dashed marks: the released R1-Distill-Qwen-7B, 55.5% on AIME 2024 and 92.8% on MATH-500 ({{DeepSeek-R1, Table 5|https://arxiv.org/html/2501.12948v1#S3.T5}}, evaluated with up to 32,768 tokens, so not like for like). Both runs here end far below the released model.</p></div>
+<p>Two qualifiers. The averages hide the spread: on AIME24 SA-MRPO's answers average 804 tokens, close enough to 1,024 that part of them probably pays a length penalty; the paper reports no distribution. And both runs compress a model that normally reasons for thousands of tokens into a few hundred, at a large cost in accuracy against the released model; the +3.8 is measured inside that heavily compressed regime, and Table 2 has no Base row to show how much each method lost.</p>
+
+<h3>Code: 3 of 4</h3>
+[[S5.SS4|§5.4, Table 3]]
+<p>Qwen2.5-7B-Instruct on Eurus-2-RL with pass rate and executability ({{§5.4|ax:S5.SS4}}). SA-MRPO's pass rate is higher on 3 of 4 benchmarks, by 0.6 (APPS), 1.4 (CodeContests) and 2.3 points (Codeforces), and 0.4 lower on TACO. Its bug rate is equal or higher on all four (+1.4, 0.0, +0.4, +1.4 points), though both methods roughly halve the bug rate against Base, or better ({{Table 3|ax:S5.T3}}). "Comparable executability" is fair; "maintained" is slightly generous.</p>
+</section>
+
+<section id="s-gamma"><h2>The saturation exponent γ</h2>
+[[S5.SS5|§5.5, Figure 2, Table 4]]
+<p>Qwen2.5-3B and 7B-Instruct trained with correctness and binary length for γ = 0, 0.25, 0.5, 0.75 and 1 ({{§5.5|ax:S5.SS5}}). In the training curves ({{Figure 2|ax:S5.F2}}, one smoothed run per γ), positive γ generally gives higher correctness reward, and the length reward falls as γ grows, most for 0.75 and 1. Downstream, for 3B only ({{Table 4|ax:S5.T4}}): every γ &gt; 0 beats γ = 0 on average accuracy, γ = 0.5 is best on average (28.0% against 26.4%) and on AIME24 and AMC23, and larger γ raises Exceed. The paper's reading: γ directly sets the trade between pushing correctness and protecting the saturated objective, and moderate values balance best.</p>
+<div class="card" id="t4card"><div id="t4Svg"></div>
+<p class="small mute" style="margin:4px 0 0">{{Table 4|ax:S5.T4}} averaged over its five benchmarks (recompute.py). Average accuracy rises from 26.4% at γ = 0 to 28.0% at 0.5 then eases; average Exceed rises from 0.04% to 0.48%.</p></div>
+<div class="pred" id="pr-start" data-ans="2"><div class="q">In these γ runs, the length reward is 1 for answers within 4,000 tokens. Where did the batch's length score stand at the very first training step, out of 100?</div>
+<div class="opts"><button>About 50: half the answers were too long</button><button>About 80</button><button>Above 97</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Above 97. Figure 2's length panels span only 97.5 to 100 (3B) and 98.0 to 100 (7B) on their printed axes, with every curve, faint raw lines included, inside them from the first step: the "saturated" objective was saturated before training started, because Qwen2.5-Instruct rarely writes 4,000 tokens and the training cap is 4,096. So in the binary-budget runs (Tables 1 and 4) there was almost nothing for GDPO to waste on length: its loud but rare signal (see the 7-of-8 question above) touched a few percent of groups. SA-MRPO's downweighting then mostly <i>removes</i> a small constraint, and Exceed creeps up as γ grows, exactly as Table 4 shows:</p>
+<div id="startSvg"></div>
+<p class="small">Bars: the share of groups of 8 in which a binary objective varies at all, for a per-answer failure rate <i>p</i>, 1 − (1 − <i>p</i>)<sup>8</sup> − <i>p</i><sup>8</sup> (derived). Marked: Table 1's GDPO Exceed rates for 3B with two objectives (0.0% to 0.1% at evaluation, used here as a stand-in for the unreported training rate).</p></div></div>
+<p>Two details of the ablation matter for the evidence. Table 4's caption says its γ = 0.25 column "corresponds to the SA-MRPO<sub>2obj</sub> result in Table 1", and its γ = 0 column is identical, cell for cell, to Table 1's GDPO<sub>2obj</sub>. So the main table's 3B two-objective result used γ = 0.25, not the recommended 0.5, and the recommended value was chosen by looking at the same test benchmarks the results are reported on. The γ used for the 7B, three-objective, adaptive and code runs is not stated. And §5.5 says these runs were trained "for one epoch", while §5.1 says all models train for 3 epochs, which Table 1 inherits: the same numbers cannot be both, so either Table 1's 3B two-objective runs were one epoch or Table 4's two columns were not one-epoch runs (one epoch of 40,315 problems at batch 256 is 157 steps; Figure 2's step axes reach about 120 for 3B and 150 for 7B).</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S5|§4, §5, Tables 1 to 4, Figures 1 and 2]]
+<p><b>What holds up.</b> The mechanism is simple, fully specified (Algorithm 1) and correct: Figure 1 recomputes from its printed rewards, the special cases hold (γ = 0 is GDPO; this page checks its implementation of all three recipes against PyTorch to 1e-15, {{the check|tab:t-run:runCheck}}), and the ratio and sign-reversal claims are exact algebra. The direction of the results is consistent: 12 of 15 math cells, 5 of 5 adaptive, 3 of 4 code, and a γ ablation where every γ &gt; 0 beats γ = 0 on average. The authors state the method's two limits themselves (§4.2), and the comparison with GDPO uses the same data, rewards and hyperparameters.</p>
+<p><b>What is weaker, concretely:</b></p>
+<ul class="chk">
+<li><span class="vd no">single runs</span> Every cell of every table is one training run: no seeds, no error bars, no confidence intervals. Small benchmarks make that matter: the AIME24 gain of 5.0 points is 1.5 of 30 problems, the AMC23 gain of 9.2 is 3.7 of 40. Evaluation sampling alone gives a standard error of up to 2.4 points for a difference on AIME24 and 2.8 on AMC23 (upper bounds, derived), before any training-seed noise, which on AIME-sized benchmarks is known to move RL results by several points ({{Hochlehnert et al., 2025|https://arxiv.org/abs/2504.07086}}).</li>
+<li><span class="vd no">within the noise</span> Many Table 1 margins are about a point or less: Minerva +0.6, +0.4, +1.2; MATH500 +1.1, +0.6; Olympiad +0.8. Table 4's best γ (0.5) beats the main table's γ (0.25) by 0.5 points of average accuracy. With one run each, these do not separate the methods.</li>
+<li><span class="vd no">missing baseline</span> SA-MRPO only changes the relative weight of the easy objective, so the obvious rival is GDPO with a smaller fixed weight on it. GDPO's own paper studied exactly that (length weights 1.0 to 0.25, and a length reward conditioned on correctness), and found that weights must be cut a lot before behaviour changes ({{GDPO §4.2.1|https://arxiv.org/abs/2601.05242}}). This paper never runs it. In this page's toy, a fixed weight matched or beat SA-MRPO at the same length reward ({{the frontier|tab:t-run:runFront}}).</li>
+<li><span class="vd mid">tuned on test</span> γ = 0.5 is recommended because it scored best on the five test benchmarks (Table 4); no validation split is mentioned. The main 3B two-objective result used γ = 0.25 (Table 4's caption); the other runs' γ is unstated.</li>
+<li><span class="vd mid">internal mismatch</span> §5.5 trains the γ runs "for one epoch"; §5.1 trains everything for 3 epochs; Table 4's γ = 0 and 0.25 columns equal Table 1's two-objective columns cell for cell. Figure 1's advantages match γ = 1 without the paper's own Eq. 1 step, and its rewards are fractions of 100 while every reward the experiments use is binary or a pass rate.</li>
+<li><span class="vd mid">weak baselines</span> Both methods start from low base scores (Qwen2.5-7B-Instruct 50.0% on MATH500 here; 75.5% on MATH in Qwen's report) and, in Table 2, end far below the released R1-Distill-Qwen-7B (MATH500 47.1% and 51.5% against 92.8%). Gains inside a degraded regime may not carry to a well-tuned one. No other multi-reward method (DVAO, GD2PO, SAW, Focal Reward) is compared.</li>
+<li><span class="vd mid">no code</span> Nothing is released, so none of it can be rerun; the method is easy to reimplement on top of GDPO's open code.</li>
+</ul>
+<p>This page's toy ({{Train the toy|tab:t-run}}) adds two data points. Where the easy objective is saturated from the start (the binary-budget setting of Tables 1 and 4), SA-MRPO changed nothing measurable: under GDPO the length objective drew under 4% of the advantage at the start and under 0.3% at the end, so there was little to reallocate. Where the easy objective starts unsaturated (the graded setting of Table 2), SA-MRPO did trade length for accuracy as the paper says, but simply lowering the fixed length weight reached a better trade at every matched length reward. A toy of 200 question types cannot test what happens inside a 7B model's shared parameters, so it does not refute the paper; it shows the gain is not automatic and names the experiment that would settle it.</p>
+<p><b>Verdict.</b> Believe the diagnosis, which is useful on its own: per-group standardisation makes a nearly solved objective loud in the few groups where it fails, and fixed weights never adapt. Treat "SA-MRPO beats GDPO" as plausible but unproven: one run per cell, margins near the noise, γ chosen on the test sets, and no comparison against simply lowering the easy objective's weight.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+[[S4.SS1|Algorithm 1]]
+<ul>
+<li><b>Code:</b> none released. The change is about ten lines in the advantage step of a GDPO implementation: per objective, one batch mean, <i>s<sub>k</sub></i>, a weight multiplied by (1 − <i>s<sub>k</sub></i>)<sup>γ</sup>. GDPO itself is open (Apache-2.0) for {{verl, TRL and NeMo RL|https://github.com/NVlabs/GDPO}} and, per its README, built into verl, NeMo RL and Axolotl.</li>
+<li><b>Requirements:</b> every objective needs known reward bounds. That is trivial for 0/1 and fraction rewards and ill-defined for unbounded learned reward-model scores, so this is an RLVR technique, not a general RLHF one. Decide how a group with zero spread is handled (the paper does not say; an ε in the denominator gives zero advantage).</li>
+<li><b>Budget:</b> no extra compute beyond GDPO. The paper's runs are 3B and 7B models with 8 answers per question, batch 256, answers up to 4,096 tokens, 3 epochs over 40K problems; it reports no GPU count or time.</li>
+<li><b>Default:</b> γ = 0.5 per Table 4, with the caveat that it was picked on test benchmarks. Watch the saturated objective: larger γ lets it erode (Table 4's Exceed).</li>
+<li><b>Pays off</b> when an auxiliary objective is only partly saturated and genuinely competes with correctness (the graded-length setting). <b>Buys little</b> when the auxiliary objective is satisfied from the start (a length budget the model never approaches), because it then carries almost no share of the update anyway. A fixed smaller weight, or a reward conditioned on correctness as in GDPO, is a simpler alternative worth trying first.</li>
+</ul>
+<p>The two failure modes are useful diagnostics even without the method: if a format reward sits at 0.99 while correctness is flat, check what share of the advantage the format term draws; per-group standardisation can make it larger than its mean suggests.</p>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="small mute">(beyond the paper)</span></h2>
+<ul>
+<li><b>Multi-reward aggregation is now a design axis of reasoning RL.</b> Once format or length shaping enters, a GRPO loop has several rewards, and 2026 produced a family of ways to combine them: GDPO ({{2601.05242|https://arxiv.org/abs/2601.05242}}), DVAO ({{2605.25604|https://arxiv.org/abs/2605.25604}}), GD2PO ({{2606.16771|https://arxiv.org/abs/2606.16771}}), SAW ({{2606.07705|https://arxiv.org/abs/2606.07705}}), Focal Reward ({{2605.26579|https://arxiv.org/abs/2605.26579}}) and multi-task GRPO ({{2602.05547|https://arxiv.org/abs/2602.05547}}). SA-MRPO's formulation is the simplest of them to state: allocation by remaining attainable reward range rather than by variance or gradient agreement.</li>
+<li><b>The silent tax is real, its size is not.</b> The paper's argument that "weighted sum, then standardise" spends update on solved objectives is a sound diagnostic. How large that tax is depends on how often the solved objective still fails within a group, which can be measured in any training log before adopting a fix.</li>
+<li><b>Length control is where it bites.</b> Efficient-reasoning work trains long-thinking models to answer shorter with length rewards; GDPO's own experiments show the model "often maximizes the easier objective at the cost of the more challenging one" ({{GDPO §4.2.1|https://arxiv.org/abs/2601.05242}}). Any rule that relaxes the length pressure once it is met, whether a decaying weight like this one or a conditioned reward, addresses the same problem.</li>
+</ul>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li>{{DeepSeekMath (GRPO)|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}: the group-relative advantage and clipped surrogate that SA-MRPO keeps unchanged.</li>
+<li>{{DeepSeek-R1|n:3c65c17b0d0d813faca4f7a51eaa0c65}}: the RLVR regime with rule-based verifiable rewards this method assumes; R1-style recipes with format plus correctness rewards are exactly Figure 1's scenario.</li>
+<li>{{DPO|n:3c65c17b0d0d818bb1d8cafd30e20f9e}}: the offline route from preferences to a policy; multi-objective preference methods weight objectives there, this paper does it online inside GRPO.</li>
+<li>GDPO ({{arXiv 2601.05242|https://arxiv.org/abs/2601.05242}}, about 45 min): the reward-decoupled baseline that SA-MRPO generalises (its γ = 0 case).</li>
+<li>DVAO ({{arXiv 2605.25604|https://arxiv.org/abs/2605.25604}}, about 45 min) and GD2PO ({{arXiv 2606.16771|https://arxiv.org/abs/2606.16771}}, about 45 min): concurrent multi-reward GRPO variants driven by reward variance and by advantage conflict rather than saturation.</li>
+<li>Knowledge base topics: {{Topic: rl|n:3c65c17b0d0d8195a6c6c11ad093c16e}} (RL for LLMs, RLVR, GRPO) and {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (alignment, reward shaping).</li>
+</ul>
+</section>
+</section>

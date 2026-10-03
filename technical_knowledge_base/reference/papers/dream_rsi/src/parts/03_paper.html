@@ -1,0 +1,60 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-meth">Method</a><a href="#s-pol">The policy</a><a href="#s-setup">Setup</a><a href="#s-r1">Lasso</a><a href="#s-r2">Maths</a><a href="#s-r3">Kernels</a><a href="#s-r4">Analysis</a><a href="#s-trust">Believe it?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+<p class="small mute">Added to the knowledge base on 21 September 2026, a week after the preprint. The first summary was written from the abstract and results; this page is built from the arXiv HTML (v1, the only version), its vector figures decoded point by point, the SimpleTES paper whose numbers it reuses, the project page and the GitHub repository, and corrects that summary where the details change the reading (listed under {{How much to believe|tab:t-read:s-trust}}). On Hugging Face the paper had 250 upvotes on 3 October 2026, sixth in its week and fourth on its day ({{papers API|https://huggingface.co/api/papers/2609.14858}}); the first summary called it the most-upvoted paper of the week, which may have been true when written but is unconfirmed now.</p>
+
+<section id="s-prob"><h2>Problem: exploration is the expensive part to improve</h2>
+[[S1|§1 Introduction]]
+<p>An <b>agentic discovery loop</b> proposes a candidate (a program, a construction, a kernel), evaluates it, learns from the result and proposes again. AlphaEvolve and its successors run such loops over algorithm design, open mathematical problems and systems code, and the hardest targets now take "thousands of proposal–evaluation cycles" ({{§1|ax:S1}}). Every cycle costs a model call plus an evaluation: compiling and benchmarking a GPU kernel, or running an optimisation to convergence.</p>
+<p>What decides whether those cycles are well spent is the <b>exploration policy</b>: which directions to pursue, which candidates to refine, how many branches to run in parallel, and when to stop. In most systems it is written by hand and stays fixed for the whole run, so it "may repeatedly allocate computation to ineffective search directions" ({{§1|ax:S1}}). Improving it online is costly for two reasons the paper names:</p>
+<ul class="tight">
+<li><b>Feedback is delayed and expensive at the meta level.</b> Judging a policy means watching it steer a whole discovery run over many cycles, not scoring one candidate.</li>
+<li><b>The meta-policy space is vast.</b> Most policies you might try are bad, and each costs a long online rollout to find that out.</li>
+</ul>
+<p>EvoX ({{Liu et al. 2026a|https://arxiv.org/abs/2602.23413}}) optimises the search strategy online and pays exactly this cost. Dream-RSI asks whether the policy can be improved without paying it.</p>
+</section>
+
+<section id="s-idea"><h2>Idea: the history you already paid for is a simulator</h2>
+[[S2|§2 Motivation]]
+<p>A finished discovery run is not just text to reread. It is a <b>tree</b>: every attempt, the attempt it continued from, and the outcome it actually produced when executed and scored. An exploration policy does one thing: given what it has seen, choose which attempts to continue next. So a different policy can be "run" on the recorded tree by walking it differently (other branches, another order, other parallel groupings, earlier stopping) and simply <i>reading</i> the outcomes already on disk. No agent call, no evaluation. In the authors' words, "accumulated discovery history can serve as a replay simulator over the realized search space" ({{abstract|https://arxiv.org/abs/2609.14858}}).</p>
+<p>The analogy is model-based reinforcement learning ({{§2|ax:S2}}): Sutton's Dyna (1990) and the Dreamer family learn a model of the environment and improve a policy on imagined experience. Here the "model" is not learned at all; it is the record itself, exact where the record goes and silent everywhere else. The paper calls evaluating policies in it <b>dreaming</b> and the recorded trees <b>worlds</b> (footnote 1, {{§1|ax:S1}}).</p>
+<div class="flow" aria-label="The Dream-RSI loop"><span class="fb2"><b>1 Online explore</b><br>policy π<sub>t</sub> steers the coding agent; a new tree 𝒯<sub>t</sub> is recorded</span><span class="fa">→</span><span class="fb2"><b>2 Build the simulator</b><br>history ℋ<sub>t</sub> = ℋ<sub>t−1</sub> ∪ {𝒯<sub>t</sub>}</span><span class="fa">→</span><span class="fb2"><b>3 Dream</b><br>a development agent writes M policy versions; each is replayed on every recorded tree</span><span class="fa">→</span><span class="fb2"><b>4 Redeploy</b><br>π<sub>t+1</sub> = the best version; back to 1</span></div>
+<p class="small mute">The loop of {{Figure 1|ax:S1.F1}}. Only the policy's code changes; the coding agent (Gemini CLI), the evaluator and the models stay fixed, and no weights are trained ({{§3|ax:S3}}).</p>
+<p>The cost argument is simple. One expensive online run supports many cheap offline evaluations of other policies ({{Figure 2|ax:S1.F2}}), so the meta-level search that EvoX pays for in rollouts is paid for here in reads. The catch is equally simple: a policy can only be judged where history went. The {{Dream over a recorded tree|tab:t-run}} tab runs this on illustrative worlds so you can see both sides.</p>
+</section>
+
+<section id="s-meth"><h2>Method: trees, replay and one score</h2>
+[[S3|§3 Dream-RSI]]
+<h3>The tree and the decision interface</h3>
+<p>A discovery tree has a root r (the starting workspace). Every other node has one parent, where its attempt began: the agent resumes the parent's saved workspace and its accumulated observations, makes a new attempt, and the node stores the resulting files, the artifact, the evaluator's diagnostics and a score s<sub>v</sub>, larger is better ({{§3, Discovery trees|ax:S3.SS0.SSS0.Px1}}). At each decision the policy may continue from the root (open a new branch) or from any current leaf: the eligible set is A(𝒯) = {r} ∪ {leaves}. With W parallel workers it picks a batch C ⊆ A(𝒯) of at most W nodes, so one choice fixes both where to continue and how many attempts run at once.</p>
+<h3>Online rollout</h3>
+<p>At outer iteration t, policy π<sub>t</sub> grows a fresh tree from the root for at most K<sub>1</sub> rounds, with the earlier history available as context. Each selected node gets one new child per round; the step is stochastic because the agent may produce something different from the same workspace. The rollout ends on an empty batch or after K<sub>1</sub> rounds, and the finished tree joins the history ({{§3, Online rollout|ax:S3.SS0.SSS0.Px2}}).</p>
+<h3>Offline replay</h3>
+<p>With the history fixed, each policy version is replayed on every recorded tree separately ({{§3, Offline evaluation|ax:S3.SS0.SSS0.Px3}}). Replay starts from the bare root and reveals the tree only as the policy asks:</p>
+<ul class="tight">
+<li>selecting a revealed leaf reveals its <b>one recorded child</b>, if it has one;</li>
+<li>selecting the root opens the <b>earliest-created unopened branch</b>;</li>
+<li>nothing beyond the recorded tree is ever generated; replay stops on an empty batch, after K<sub>2</sub> rounds, or when everything is revealed.</li>
+</ul>
+<p>So replay can test how far to pursue each branch, how to group attempts into batches, and when to open another branch or stop. It cannot test a different attempt: every branch is traversed in its recorded order.</p>
+<h3>The replay score</h3>
+[[S3.E1|Eq. 1]]
+<div class="fm"><div class="eq">V = max<sub>v revealed</sub> s<sub>v</sub> − β<sub>1</sub> N + β<sub>2</sub> · N / max(1, k*)</div>
+<dl><dt>max s<sub>v</sub></dt><dd>discovery quality: the best score among revealed nodes</dd><dt>N</dt><dd>revealed non-root nodes: the generation–evaluation requests this trajectory would have cost</dd><dt>k*</dt><dd>decision rounds used; N / k* is the average batch size</dd><dt>β<sub>1</sub>, β<sub>2</sub></dt><dd>fixed coefficients: a charge per attempt and a bonus for batching. Their values are never given.</dd></dl></div>
+<p>A policy version's score is its average V over all t recorded trees. The development agent (a fixed LLM) reads the replay trajectories and scores of the current version, revises the policy's code, and repeats M times; the next online policy is the best-scoring of the M versions. Because the current policy is one of them, the chosen one is "no worse than the current policy" on the history ({{§3, Policy improvement|ax:S3.SS0.SSS0.Px5}}). That guarantee is in-sample: it says nothing about the next online run, which is the point the toy in the {{second tab|tab:t-run}} measures.</p>
+<div class="co warn"><div class="t">What the method section leaves out</div><p>No value is given for β<sub>1</sub>, β<sub>2</sub>, M, K<sub>1</sub>, K<sub>2</sub> or the number of replay workers, so the procedure cannot be rerun as written. And the objective in the authors' own policy-development prompt ({{Appendix B.2|ax:A2.SS2}}) is not Eq. 1: it ranks a policy by "pareto.reward = pareto.auc − lambda × parallel_penalty", swept over a "beta" knob, where the penalty is effective sequential rounds over total probes. The prompt also lets one batch open several roots, while §3's batch is a set containing the root at most once (so §3 would open one new branch per round). Which objective produced the reported results is not said.</p></div>
+</section>
+
+<section id="s-pol"><h2>What the policy and the agent actually see</h2>
+[[A2|Appendix B]]
+<p>The exploration policy is a Python class with a <code>solve()</code> method that the development agent rewrites. Its prompt ({{Appendix B.2|ax:A2.SS2}}) describes the world as "a frozen, irregular branch×attempt grid" and sets hard rules:</p>
+<ul class="tight">
+<li><b>Prefix only.</b> Decisions may use revealed observations, structural metadata and helper signals, never unrevealed scores, a known optimum, hard-coded cell ids or absolute score targets.</li>
+<li><b>Read each branch as a trajectory</b> (its best successful result, trend, regressions, failure and repair sequence) and classify failures as hard-unrecoverable, repairable implementation failure, weak but underexplored, or repeatedly unpromising. Correctness mismatches, shared-memory limits and shape errors are "normally repairable".</li>
+<li><b>Batch as a portfolio</b> of up to W independent cells: strong refinements, new roots or underexplored branches, and at most one recovery of a repairable failure; never random, never a fixed widen-all or deepen-all schedule, never a parent and its child together.</li>
+<li><b>One knob, beta</b>, fixed within an episode: high beta means wider, more patient, weaker pruning. The default is moved by about 0.1 to 0.2 between live cycles from evidence (raise it on a plateau if the sweep shows higher beta reaches more; lower it if high beta only adds work).</li>
+<li><b>Plan the next grid</b> with <code>plan_grid()</code>: how many branches and refinements the next live run gets, chosen from earlier live manifests. A plan beyond the recorded tree's width or depth "is out of support and cannot earn replay reward".</li>
+</ul>
+<p>The coding agent itself gets a separate prompt ({{Appendix B.1|ax:A2.SS1}}): read every earlier proposal and its measured score in full ("trust the measured result over what the proposal claims"), find why failures failed, avoid "another small tweak" on a saturated direction, then write a proposal and the program. That prompt is the same for Dream-RSI and the fixed baseline.</p>
+<div class="co"><div class="t">Why the coding agent's prompt matters for replay</div><p>Because each new attempt reads every sibling attempt and the history, what the agent produced at a node depended on what else had been tried by then. Replay assumes a node's recorded outcome would have been the same under a policy that visited the tree in another order or skipped some siblings. The paper does not discuss this; it is the usual gap between a log and a simulator.</p></div>
+</section>

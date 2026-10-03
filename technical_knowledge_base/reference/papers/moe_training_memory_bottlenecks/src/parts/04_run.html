@@ -1,0 +1,60 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Run the four schedules</h2>
+<p>Each of the paper's four operators, run on one input twice or more: the schedule it replaces and its own, drawn to the same scale, one step at a time, with counters. Two of them compute for real in your browser (the dispatch replay on the paper's routing profiles, the ring's exact loss); the other two are timelines built from the paper's measured sizes and times. The animations stop when off screen and start paused if your system asks for reduced motion.</p>
+<nav class="nav"><a href="#dsx">Expert dispatch</a><a href="#rgx">Vocabulary ring</a><a href="#scx">Checkpoint offload</a><a href="#osx">Optimizer stream</a></nav>
+
+<h3>1. Expert dispatch: LLEP against PipelinedLLEP</h3>
+<p>One MoE layer at the paper's 65K shape ({{Table 5|ax:A1.T5}}): 8 ranks, each with 65,536 tokens, 128 experts, top-8, routed by one of the paper's synthetic profiles ({{B.2|ax:A2.SS2}}) and assigned by LLEP's released plan (capacity factor 1.0, the setting that reproduces Table 8). Each bar is the number of routes one destination rank receives at that moment, summed over the 8 senders; the dashed line is Eq. 1's guarantee for a chunk. The grid is the send matrix of the current chunk: sender rows, destination columns, darker means more.</p>
+<p class="try"><b>Try:</b> profile 50/4 with contiguous chunks, then strided: the same routes in total, but contiguous chunks pile onto a few destinations (send ratio 6.00) while strided ones spread evenly (2.29), the numbers in {{Table 8|ax:A2.T8}}. Then LLEP's whole batch, to scale: ten times taller.</p>
+<div class="card" id="dsx">
+<div class="an-top"><div class="seg" id="dsxM" role="group" aria-label="Method"><button class="on" data-m="str" aria-pressed="true">PipelinedLLEP, strided</button><button data-m="cont" aria-pressed="false">Contiguous chunks</button><button data-m="llep" aria-pressed="false">LLEP, whole batch</button></div>
+<label>Profile <select id="dsxP"><option value="0">Balanced</option><option value="1">95% / 16</option><option value="2">80% / 16</option><option value="3" selected>50% / 4</option><option value="4">30% / 16</option></select></label></div>
+<div id="dsxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="dsxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="dsxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="dsxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="dsxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="dsxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="dsxStep"></div><p id="dsxCap"></p></div>
+<div class="an-cnt" id="dsxCnt"></div>
+<p class="small mute" id="dsxNote"></p>
+</div>
+
+<h3>2. Vocabulary projection: dense logits against the Ring-DTP ring</h3>
+<p>Four ranks (<i>P</i> = 4), each with its own batch of 2 tokens (<i>X<sub>j</sub></i>, hidden width 3) and one quarter of a 12-word vocabulary (<i>W<sub>r</sub></i>, 3 columns). The numbers are real: random weights and activations, a fixed seed. Each box is one rank; the grid inside is the logit strip it forms this round; the three columns on the right are each token's running state (<i>m</i>, <i>z</i>, <i>y<sub>t</sub></i>), the target's logit filled in when its shard passes.</p>
+<p class="try"><b>Try:</b> step through "move weights" and watch the weight shards hop while the batches stay; then "move activations", where batches and their states travel and need one hop home. Either way every token's loss ends equal to the dense log-softmax, while only one strip per rank ever exists.</p>
+<div class="card" id="rgx">
+<div class="an-top"><div class="seg" id="rgxM" role="group" aria-label="Method"><button class="on" data-m="wts" aria-pressed="true">Ring, move weights</button><button data-m="act" aria-pressed="false">Ring, move activations</button><button data-m="dense" aria-pressed="false">Dense logits</button></div></div>
+<div id="rgxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rgxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rgxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rgxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rgxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="rgxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rgxStep"></div><p id="rgxCap"></p></div>
+<div class="an-cnt" id="rgxCnt"></div>
+</div>
+
+<h3>3. Checkpoint boundaries: checkpointing against SCO</h3>
+<p>gpt-oss-20b as in {{Table 3|ax:S3.T3}}: 47 checkpoint boundaries of 0.3735 GiB each per GPU (557,056 tokens / 8 ranks × hidden 2,880 × 2 bytes). The top row is device memory, the bottom pinned host memory; forward fills them left to right, backward empties them right to left, restoring one boundary ahead.</p>
+<p class="try"><b>Try:</b> compare "off" with "8 GiB": 21 boundaries go to the host and come back two at a time. The counters show boundary memory only; the measured peak, which includes everything else, is beside them.</p>
+<div class="card" id="scx">
+<div class="an-top"><div class="seg" id="scxM" role="group" aria-label="Method"><button class="on" data-m="b8" aria-pressed="true">SCO, 8 GiB host</button><button data-m="b16" aria-pressed="false">SCO, 16 GiB</button><button data-m="full" aria-pressed="false">SCO, unlimited</button><button data-m="off" aria-pressed="false">Checkpointing only</button></div></div>
+<div id="scxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="scxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="scxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="scxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="scxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="scxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="scxStep"></div><p id="scxCap"></p></div>
+<div class="an-cnt" id="scxCnt"></div>
+</div>
+
+<h3>4. Optimizer step: CPU Adam against OffloadStreamAdamW</h3>
+<p>One optimizer step on one GPU's share of gpt-oss-20b (about 2.6B parameters, 26 buckets of up to 142M, {{Table 14|ax:A5.T14}}), on one time axis. CPU Adam updates everything on the host in one serial pass (3.95 s measured). The stream copies each bucket's fp32 master weights, moments and gradient to the GPU (16 bytes per parameter), updates it there, and writes 12 bytes per parameter back, with <i>s</i> staging slots limiting how many buckets are in flight.</p>
+<p class="try"><b>Try:</b> one slot, then two: with one slot each bucket waits for the previous write-back and the step is nearly serial; two slots overlap upload, update and write-back and approach the transfer floor; a third buys almost nothing, as Table 14 measured (1.930 against 1.951 s).</p>
+<div class="card" id="osx">
+<div class="an-top"><div class="seg" id="osxM" role="group" aria-label="Method"><button class="on" data-m="s2" aria-pressed="true">Stream, 2 slots</button><button data-m="s1" aria-pressed="false">Stream, 1 slot</button><button data-m="s3" aria-pressed="false">Stream, 3 slots</button><button data-m="cpu" aria-pressed="false">CPU Adam</button></div></div>
+<div id="osxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="osxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="osxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="osxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="osxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="osxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="osxStep"></div><p id="osxCap"></p></div>
+<div class="an-cnt" id="osxCnt"></div>
+<p class="small mute"><span class="ill">Illustrative timing.</span> Bucket times are not printed. Upload and write-back times are set in proportion to bytes (16 : 12), the update to a quarter of the upload, and scaled so that two slots take the measured 1.93 s under Eq. 5; one and three slots then follow from the same times. The CPU bar is the measured 3.95 s.</p>
+</div>
+</section>

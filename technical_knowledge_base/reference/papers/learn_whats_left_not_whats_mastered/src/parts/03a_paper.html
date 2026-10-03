@@ -1,0 +1,72 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">One group</a><a href="#s-meth">Method</a><a href="#s-fail">Failure modes</a><a href="#s-setup">Setup</a><a href="#s-res">Results</a><a href="#s-gamma">γ</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1, §3]]
+<p>Reinforcement learning with verifiable rewards (RLVR) trains a reasoning model on answers a rule can check. GRPO, its standard algorithm, samples a group of answers to the same question and scores each one against the group ({{§3|ax:S3}}; the algorithm comes from {{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}). It assumes one scalar reward per answer. In practice a reasoning model is rarely judged on one axis: an answer must be correct, and also respect a length budget, a format, a safety rule or, for code, simply run ({{§1|ax:S1}}).</p>
+<p>The standard recipe <b>scalarises</b>: add the rewards with fixed weights, <i>r</i><sub>sum</sub> = Σ<sub><i>k</i></sub> <i>w<sub>k</sub> r<sub>k</sub></i>, then standardise the sum within each group as GRPO does. The paper names two failure modes of that recipe ({{§1|ax:S1}}, {{§4|ax:S4}}):</p>
+<ol>
+<li><b>Scalarisation loses reward resolution.</b> Different reward profiles can collapse to the same scalar and get the same advantage. With equal weights, (1, 0) and (0, 1) are indistinguishable, so an answer with perfect format and zero correctness is reinforced as strongly as the reverse.</li>
+<li><b>Fixed weights ignore saturation.</b> Each objective keeps its share of the update all through training, however close it is to its ceiling. Easy auxiliary objectives (format, length) saturate early yet keep drawing the same share, so training keeps polishing what is already solved while correctness, the hard objective, still has most of its headroom.</li>
+</ol>
+<p><b>GDPO</b> (group reward-decoupled normalisation, {{Liu et al., 2026|https://arxiv.org/abs/2601.05242}}) fixes the first: it standardises each reward separately within the group, then sums. The paper's point is that the second survives decoupling, because GDPO's weights are still fixed. Concurrent methods adapt the weights by other signals: DVAO by reward variance, GD2PO by conflicts between reward-specific advantages, SAW by reward variability, Focal Reward by saturation of rubric criteria ({{§2|ax:S2}}). None, the authors argue, ties the allocation directly to the fraction of the attainable reward range still unrealised.</p>
+<p class="lead">The proposal, <b>SA-MRPO</b> (Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization): keep GDPO's per-objective standardisation, and multiply each objective's weight by (1 − <i>s<sub>k</sub></i>)<sup>γ</sup>, where <i>s<sub>k</sub></i> is how much of that objective's reward range the current batch already achieves. Nothing else about the GRPO update changes.</p>
+</section>
+
+<section id="s-idea"><h2>The idea on one group of four answers</h2>
+[[S4.F1|§4, Figure 1]]
+<p>The paper's {{Figure 1|ax:S4.F1}} shows four answers to one question, scored on a format objective that is nearly solved (saturation 0.98) and a correctness objective that is nearly unsolved (0.02). The rewards are printed as fractions of 100. Watch the same group go through each recipe; the toggle switches between them:</p>
+<div class="card" id="adv">
+<div class="an-top"><div class="seg" id="advM" role="group" aria-label="Recipe"><button data-m="grpo" aria-pressed="false">GRPO: sum, then standardise</button><button data-m="gdpo" aria-pressed="false">GDPO: standardise each, then sum</button><button class="on" data-m="sa" aria-pressed="true">SA-MRPO: and discount by saturation</button></div></div>
+<div class="ctl" style="margin-top:6px"><label>γ <b id="advGv"></b><input type="range" id="advG" min="0" max="2" step="0.05" value="1"></label><label class="small"><input type="checkbox" id="advN"> apply the final batch standardisation (Eq. 1)</label></div>
+<div id="advSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="advBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="advPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="advFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="advScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="advSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="advStep"></div><p id="advCap"></p></div>
+<div class="an-cnt" id="advCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Bars are drawn to one scale across all three recipes. Defaults reproduce the printed Figure 1 independently: GRPO −1.41, 0, 0, +1.41; GDPO −2.07, +0.20, +0.61, +1.25; SA-MRPO −0.74, −0.23, −0.69, +1.65, which come out (to within 0.005) only at <b>γ = 1 and without</b> the batch standardisation of Eq. 1 (with it: −0.76, −0.23, −0.70, +1.70; {{recomputed|tab:t-tables:tbFig1}}). The paper's main recommendation is γ = 0.5, and the figure does not say which γ it used.</p>
+</div>
+<p>Three things to see. GRPO gives answers 2 and 3 the same advantage, zero, because both sum to 100: that is the resolution loss. GDPO separates them but ranks answer 3 (perfect format, zero correctness) <i>above</i> answer 2 (one point of correctness), because per-group standardisation stretches the format objective's tiny spread (97 to 100) to the same unit scale as correctness. SA-MRPO shrinks the format term to almost nothing, and the ranking follows correctness.</p>
+<div class="pred" id="pr-flip" data-ans="2"><div class="q">Under GDPO, answer 3 (perfect format, zero correctness) gets +0.61. With the format objective at saturation 0.98 and correctness at 0.02, what does SA-MRPO give it at the paper's recommended γ = 0.5?</div>
+<div class="opts"><button>A smaller positive advantage, about +0.2</button><button>About zero</button><button>A negative advantage</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Negative: −0.53 at γ = 0.5 (before Eq. 1). The weight ratio of format to correctness is (0.02 / 0.98)<sup>γ</sup>, 0.14 at γ = 0.5, and answer 3's correctness term (−0.73) then outweighs its format term (+1.34 × 0.14). The paper's claim that reweighting can <b>reverse the sign</b> of an update, not just rescale it ({{§4|ax:S4}}), holds here for every γ above <b id="flipG"></b> (derived: the γ where 0.02<sup>γ</sup> × 1.34 equals 0.98<sup>γ</sup> × 0.73). Slide γ:</p>
+<div id="flipSvg"></div></div></div>
+</section>
+
+<section id="s-meth"><h2>Method</h2>
+[[S4.SS1|§4.1, Algorithm 1, Eq. 1]]
+<p>Setup ({{§3|ax:S3}}): a batch of <i>B</i> questions, <i>G</i> ≥ 2 answers to each from the frozen sampling policy, <i>n</i> rule-based objectives with known bounds [<i>r</i><sub>min</sub><sup>(<i>k</i>)</sup>, <i>r</i><sub>max</sub><sup>(<i>k</i>)</sup>] and prescribed weights <i>w<sub>k</sub></i> ≥ 0. Four steps ({{§4.1|ax:S4.SS1}}, {{Algorithm 1|ax:S4.SS1}}):</p>
+<div class="fm"><div class="eq"><i>A<sub>k</sub></i><sup>(<i>i</i>,<i>j</i>)</sup> = ( <i>r<sub>k</sub></i><sup>(<i>i</i>,<i>j</i>)</sup> − <i>μ<sub>k</sub></i><sup>(<i>i</i>)</sup> ) / <i>σ<sub>k</sub></i><sup>(<i>i</i>)</sup></div>
+<p class="wh"><b>1. Per-objective group advantage</b> (the GDPO part): each objective standardised within its group of <i>G</i> answers, with the group's mean and population standard deviation. This keeps the per-objective resolution that summing destroys.</p></div>
+<div class="fm"><div class="eq"><i>s</i><sup>(<i>k</i>)</sup> = ( <i>r̄</i><sup>(<i>k</i>)</sup> − <i>r</i><sub>min</sub><sup>(<i>k</i>)</sup> ) / ( <i>r</i><sub>max</sub><sup>(<i>k</i>)</sup> − <i>r</i><sub>min</sub><sup>(<i>k</i>)</sup> ) ∈ [0, 1]</div>
+<p class="wh"><b>2. Saturation ratio</b> (the new part): <i>r̄</i><sup>(<i>k</i>)</sup> is objective <i>k</i>'s mean reward over all <i>B</i> × <i>G</i> answers in the batch. Nothing is estimated: for bounded rule-based rewards the bounds come with the reward function.</p></div>
+<div class="fm"><div class="eq"><i>w̃<sub>k</sub></i> = <i>w<sub>k</sub></i> (1 − <i>s</i><sup>(<i>k</i>)</sup>)<sup>γ</sup>, &nbsp; <i>Ã</i><sup>(<i>i</i>,<i>j</i>)</sup> = Σ<sub><i>k</i></sub> <i>w̃<sub>k</sub> A<sub>k</sub></i><sup>(<i>i</i>,<i>j</i>)</sup></div>
+<p class="wh"><b>3. Saturation-aware aggregation</b>, with exponent γ ≥ 0, the method's one new hyperparameter.</p></div>
+<div class="fm"><div class="eq"><i>Â</i><sub>SA</sub><sup>(<i>i</i>,<i>j</i>)</sup> = ( <i>Ã</i><sup>(<i>i</i>,<i>j</i>)</sup> − mean(𝒜) ) / std(𝒜) &nbsp; (Eq. 1)</div>
+<p class="wh"><b>4. Re-standardise over the whole batch</b>, so the advantage's scale stays stable while the saturations drift. <i>Â</i><sub>SA</sub> then goes into the standard clipped GRPO surrogate unchanged; the KL term is omitted as independent of the reward construction ({{§3|ax:S3}}).</p></div>
+<p>Properties ({{§4.1|ax:S4.SS1}}):</p>
+<ul>
+<li><b>Special cases.</b> γ = 0 gives <i>w̃<sub>k</sub></i> = <i>w<sub>k</sub></i>, which is GDPO's advantage exactly (GDPO also standardises over the batch at the end, {{GDPO §3.1|https://arxiv.org/abs/2601.05242}}). With one objective it reduces further to GRPO; since every group's advantages already average zero, Eq. 1 then only rescales the batch by one positive number (derived). So SA-MRPO strictly generalises both.</li>
+<li><b>γ is the single knob.</b> For two objectives, <i>w̃<sub>a</sub></i> / <i>w̃<sub>b</sub></i> = (<i>w<sub>a</sub></i> / <i>w<sub>b</sub></i>) · ((1 − <i>s<sub>a</sub></i>) / (1 − <i>s<sub>b</sub></i>))<sup>γ</sup>, strictly decreasing in γ when <i>a</i> is the more saturated. Because Eq. 1 rescales the whole batch, only these ratios matter: the overall size of the weights cancels.</li>
+<li><b>Cost.</b> One batch mean per objective and one multiply; the paper reports no timing, but the extra work is negligible beside sampling (derived).</li>
+</ul>
+<div class="pred" id="pr-loud" data-ans="2"><div class="q">Why does saturation still matter after GDPO's decoupling? Take a group of 8 answers where 7 meet a binary length budget and 1 does not. What advantage does GDPO's length term give the one long answer?</div>
+<div class="opts"><button>About −0.13: one answer in eight, a small signal</button><button>−1, one standard deviation</button><button>About −2.6</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>−2.65, and +0.38 to each of the other seven: per-group standardisation gives an objective unit spread in every group where it varies at all, however rare the failures. A nearly solved objective is therefore silent in most groups (zero spread; the paper does not say how a zero standard deviation is handled, and implementations add a small ε, which makes the advantage 0) and loud in the few where it fails. Move the number of answers that pass:</p>
+<div class="ctl"><label>answers that pass, out of 8 <b id="loudV"></b><input type="range" id="loudN" min="1" max="7" step="1" value="7"></label></div>
+<div id="loudSvg"></div>
+<p class="small">How much of the update that is depends on how often groups fail. With equal weights, the length objective's share of the advantage's sum of squares is the share of groups where it varies, among all groups where either objective varies (derived: every varying group contributes exactly <i>G</i>). A 0.2% failure rate puts it in <b id="loudS1"></b> of groups; if 60% of groups vary in correctness, length gets about <b id="loudS2"></b> of the update. That is the budget SA-MRPO can reallocate in the paper's binary-budget runs, and why the toy finds little to gain there ({{the toy|tab:t-run:runShare}}).</p></div></div>
+</section>
+
+<section id="s-fail"><h2>What it does not promise</h2>
+[[S4.SS2|§4.2, Eq. 2]]
+<p>The authors state two limits themselves ({{§4.2|ax:S4.SS2}}), which counts in their favour.</p>
+<ul>
+<li><b>No retention guarantee.</b> With <i>g<sub>k</sub></i> the gradient of objective <i>k</i>'s surrogate and update direction <i>d</i> = Σ<sub><i>k</i></sub> <i>w̃<sub>k</sub> g<sub>k</sub></i>, objective <i>a</i> changes to first order by <i>w̃<sub>a</sub></i>‖<i>g<sub>a</sub></i>‖² + Σ<sub><i>k</i>≠<i>a</i></sub> <i>w̃<sub>k</sub> g<sub>a</sub></i>ᵀ<i>g<sub>k</sub></i>, and it <b>decreases</b> whenever Σ<sub><i>k</i>≠<i>a</i></sub> <i>w̃<sub>k</sub> g<sub>a</sub></i>ᵀ<i>g<sub>k</sub></i> &lt; −<i>w̃<sub>a</sub></i>‖<i>g<sub>a</sub></i>‖² ({{Eq. 2|ax:S4.E2}}). Shrinking <i>w̃<sub>a</sub></i> as <i>a</i> saturates deliberately weakens the self-improvement term that protects it, so a conflicting gradient from a less saturated objective can erode an objective already learned. SA-MRPO is "an adaptive objective allocation rule rather than a constrained multi objective method"; whether the gain outweighs the erosion is an empirical question.</li>
+<li><b>Nominal, not achievable, headroom.</b> 1 − <i>s<sup>(k)</sup></i> is the unrealised fraction of the prescribed range, exactly observable, but not a certificate that the model can realise it. The paper does not count this as a failure of the measure, since the unreachable part is imposed by the policy class.</li>
+</ul>
+</section>

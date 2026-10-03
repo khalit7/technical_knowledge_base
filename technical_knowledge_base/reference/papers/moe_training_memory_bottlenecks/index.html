@@ -1,0 +1,1038 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Flattening Every Memory Peak (MoE training)</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#t-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+
+
+a{color:var(--acc)}a:visited{color:var(--acc)}
+@media (max-width:520px){h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+
+/* additions */
+math{font-family:"Cambria Math","STIX Two Math",math}
+.fm math[display=block]{font-size:17px;margin:4px 0 6px}
+.m{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:1.06em;white-space:nowrap}
+.m b{font-weight:700}
+.fm .wh{font-size:13px;margin:4px 0 0}
+.lt td:first-child{white-space:nowrap;font-weight:600}
+.lt a{color:var(--acc);text-decoration:none}
+.box{fill:var(--soft);stroke:var(--line)}.boxa{fill:var(--acc2);stroke:var(--acc)}.boxc{fill:var(--open2);stroke:var(--open)}.boxo{fill:var(--bg);stroke:var(--line);stroke-dasharray:3 3}
+.lbl{font-size:12px}.lbls{font-size:10.5px;fill:var(--mute)}
+.eg{display:grid;gap:3px;margin:8px 0}
+.eg span{aspect-ratio:1;border-radius:2px;background:var(--soft);border:1px solid var(--line)}
+.eg span.on{background:var(--acc);border-color:var(--acc)}
+.eg span.sh{background:var(--good);border-color:var(--good)}
+.mx{border-collapse:collapse;font-size:12.5px;margin:6px 0;width:auto}
+.mx td{width:56px;height:30px;text-align:center;border:1px solid var(--bg);padding:0;font-variant-numeric:tabular-nums}
+.mx td.s{background:none;color:var(--mute);font-size:11.5px;border:0}
+.gr{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.gr button{min-width:44px;font-weight:600}
+.gr button.r1{background:var(--open2);border-color:var(--open)}
+.tl-item{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0;scroll-margin-top:10px}
+.tl-item.sel{outline:2px solid var(--acc);outline-offset:1px}
+.tl-item h3{margin:0 0 2px;font-size:15px}.tl-item .dt{font-size:12.5px;color:var(--mute)}
+.tl-item ul{margin:6px 0 0}.tl-item li{font-size:14px}
+.pbar{display:grid;grid-template-columns:5.5em minmax(0,1fr) 7.5em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.pbar .track{height:12px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.pbar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+.leg i{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+@media (max-width:520px){.lt td:first-child{white-space:normal;min-width:6.5em}.fm math[display=block]{font-size:14.5px}.mx td{width:44px;height:26px;font-size:11.5px}}
+
+.strip .cells{display:grid;gap:2px;margin:8px 0 2px}.strip .cells span{height:24px;border-radius:2px}.strip .g{background:var(--acc)}.strip .l{background:var(--acc2)}
+table.thm{width:auto;min-width:520px}table.thm td,table.thm th{padding:4px 8px}table.thm .pk{background:var(--acc2)}
+.thm .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--acc);vertical-align:middle}.thm .dot.df{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--ink)}
+.thm tr.rej td:first-child{text-decoration:line-through;color:var(--bad)}
+.tl-item.o{border-left:4px solid var(--open)}.tl-item.c{border-left:4px solid var(--closed)}
+.fm .wh{font-size:13px}.wh{margin:6px 0 0}
+#gmRep,#gmTok{min-width:600px}#mdBar svg{min-width:0}
+
+/* animation frame (shared with the lab pages) */
+.seg{flex-wrap:wrap;max-width:100%}.chk{white-space:normal;display:inline-block;max-width:100%}
+.an-top{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px}
+.an-svg{margin:4px 0;min-height:60px}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:6px 0}
+.an-ctl input[type=range]{flex:1 1 150px;width:auto;min-width:0}.an-ctl select{padding:3px 6px}
+.an-play{min-width:6.6em}
+.an-cap{min-height:5.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+.an-cap .t{font-weight:600;font-size:14px}.an-cap p{margin:2px 0;font-size:13.5px}
+.an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:6px}
+/* paper page */
+.crumb{font-size:12.5px;color:var(--mute);margin:0 0 2px}
+.hero{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0 6px;background:var(--soft)}
+.hero-k{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;font-weight:600}.hero-k a{text-transform:none}
+.hero h1{margin:4px 0 4px}.hero .au{font-size:13px;line-height:1.45}
+.hero .tk{font-size:15.5px;margin:10px 0}
+.hn{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px;margin:8px 0}
+.hn .stat .v{font-size:24px}.hn .stat .u{font-size:13px;font-weight:500;color:var(--mute)}
+.hero-l{font-size:13px;margin-top:6px}
+.where{float:right;clear:right;margin:3px 0 6px 12px;font-size:11.5px;line-height:1.3;color:var(--mute);border:1px solid var(--line);border-radius:5px;padding:1px 6px;text-decoration:none;background:var(--bg);max-width:15em;text-align:right}
+.where.nolink:before{content:""}
+a.where{color:var(--mute)}a.where:hover{color:var(--acc);border-color:var(--acc)}
+.where:before{content:"in the paper: ";opacity:.75}
+h2 .where{margin-top:4px}
+.pred{border:1px dashed var(--acc);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--bg)}
+.pred .q{font-weight:600;font-size:14px;color:var(--ink);margin-bottom:6px}.pred .q:before{content:"Predict first: ";color:var(--acc)}
+.pred .opts{display:flex;flex-wrap:wrap;gap:6px}.pred .opts button{font-size:13px;text-align:left}
+.pred .opts button.right{background:var(--open2);border-color:var(--open)}.pred .opts button.wrong{background:var(--hl);border-color:var(--bad)}
+.pred .fb{font-size:13.5px;margin-top:6px}
+.reveal[hidden]{display:none}
+.chipbar{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.chipbar button{font-size:13px;padding:2px 10px;border-radius:99px}
+.chipbar button.k-det{border-color:var(--dim)}.chipbar button.k-adj{border-color:var(--c5)}.chipbar button.k-noun,.chipbar button.k-place{border-color:var(--c1)}.chipbar button.k-verb{border-color:var(--c2)}.chipbar button.k-prep{border-color:var(--c3)}
+.sent{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:34px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:14.5px}
+.sent .w{padding:1px 7px;border-radius:5px;background:var(--soft);border:1px solid var(--line)}
+.sent .w.bad{background:var(--hl);border-color:var(--bad)}.sent .w.cur{outline:2px solid var(--acc)}
+.sent .w small{display:block;font-size:11px;color:var(--mute);line-height:1.1}
+.sent .ph{color:var(--mute);font-size:13px}
+.vtag{display:inline-block;font-size:12px;border-radius:99px;padding:0 8px;border:1px solid var(--line)}
+.hm2 text{font-size:11px}
+.ok{color:var(--good);font-weight:600}.no{color:var(--bad);font-weight:600}
+.cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px}
+.cols2>div{min-width:0}
+.blk text{font-size:11.5px}
+table.t3 td,table.t3 th{white-space:nowrap}table.t3 td.chg{white-space:normal;min-width:9em}
+table.t3 tr.basec td{font-weight:600;background:var(--soft)}
+.dbar{display:inline-block;height:10px;border-radius:2px;vertical-align:middle}
+.lst li b{font-weight:600}
+@media (max-width:520px){.where{float:none;display:inline-block;margin:0 0 4px;max-width:none;text-align:left}.hn .stat .v{font-size:21px}}
+.pred .skip{margin-top:6px;font-size:12px;background:none;border:0;color:var(--mute);text-decoration:underline;padding:2px 0}
+/* ZeRO page additions */
+.legend-i{display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12.5px}.legend-i i{display:inline-block;width:12px;height:12px;border-radius:2px}
+table.t1 td,table.t1 th{text-align:right;white-space:nowrap}table.t1 td.fit{background:var(--open2)}table.t1 td.bold{font-weight:700}table.t1 td.tr{color:var(--bad)}
+.chk td.okc{color:var(--good);font-weight:600}.chk td.noc{color:var(--bad);font-weight:600}
+.pair{display:grid;grid-template-columns:1fr;gap:4px}
+.cnt2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px}
+.cnt2 .stat .v{font-size:16px}
+.an-top label{font-size:13px;margin-left:8px}
+/* MoE memory page additions */
+.ckt td.okc{color:var(--good);font-weight:600}.ckt td.noc{color:var(--bad);font-weight:600}.ckt td{font-size:12.5px}
+.lt td{font-size:13px}
+</style>
+</head><body><div class="w">
+<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> · 2026 · <span id="rt">⏱ About 23 min to read The paper tab · +4h 45m of resources.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">The paper</button><button role="tab" data-t="t-run" aria-selected="false">Run the four schedules</button><button role="tab" data-t="t-tables" aria-selected="false">The paper's tables, rebuilt</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<section class="tab" id="t-read" role="tabpanel">
+<div class="hero" id="hero">
+<div class="hero-k">Paper · arXiv preprint · <a href="https://arxiv.org/abs/2609.14306" target="_blank" rel="noopener noreferrer">arXiv 2609.14306</a></div>
+<h1>Flattening Every Memory Peak in Long-Context Mixture-of-Experts Training</h1>
+<div class="au">Shrey Pandit, Xuan-Phi Nguyen (equal contribution), Yiran Zhao, Shafiq Joty</div>
+<div class="au mute">Salesforce AI Research · 13 September 2026 (arXiv v1)</div>
+<div class="au mute">Listed in the Papers database as "Bounding the memory bottlenecks of large mixture-of-experts training"; the arXiv title is above.</div>
+<p class="tk"><b>In one line:</b> Bounds the four main memory bottlenecks of large-MoE training inside a fixed GPU memory budget by scheduling rather than by approximating the computation, across expert dispatch, vocabulary projection, activation checkpointing and optimiser state.</p>
+<div class="hn">
+<div class="stat"><div class="v">59.3% <span class="u">lower peak</span></div><div class="k">expert dispatch against LLEP, 65,536 tokens per rank, top-8</div><div class="d">at 1.01 to 1.10 times LLEP's speed, forward pass · <a href="https://arxiv.org/html/2609.14306v1#S3.F2" target="_blank" rel="noopener noreferrer">Figure 2</a></div></div>
+<div class="stat"><div class="v">86.6% <span class="u">lower peak</span></div><div class="k">vocabulary projection, 32,768 tokens per GPU, V = 200,000</div><div class="d">79.5 to 10.6 GiB for 4.4% more time, exact loss · <a href="https://arxiv.org/html/2609.14306v1#S3.T2" target="_blank" rel="noopener noreferrer">Table 2</a></div></div>
+<div class="stat"><div class="v">1M <span class="u">token context</span></div><div class="k">120B, 241B and 667B MoE models on 16 to 64 H200s</div><div class="d">8 to 32 times the reach of a tuned FSDP2 baseline · <a href="https://arxiv.org/html/2609.14306v1#S4.F7" target="_blank" rel="noopener noreferrer">Figure 7</a></div></div>
+</div>
+<div class="hero-l"><a href="https://arxiv.org/html/2609.14306v1" target="_blank" rel="noopener noreferrer">read it (arXiv HTML)</a> · <a href="https://arxiv.org/pdf/2609.14306v1" target="_blank" rel="noopener noreferrer">PDF</a> · <a href="https://github.com/SalesforceAIResearch/LeastLoadedEP" target="_blank" rel="noopener noreferrer">no code for this paper; LLEP's code</a> · <a href="#" data-tab="t-run">run the four schedules</a></div>
+<p class="tk" style="margin-top:10px"><b>How far to trust it:</b> Believe the mechanisms and the component memory numbers: the operators are exact by construction, and the checkpoint, optimizer-staging and projection numbers recompute from the configuration, as does Table 8 from our replay. Treat the end-to-end multiples as a result for the whole MoP stack against a weak FSDP2 baseline: single runs, no ablation of which operator buys what, and two printed multiples that contradict the text. <a href="#" data-tab="t-read" data-to="s-trust">The evidence, judged</a>.</p>
+</div>
+
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-axes">Four live sets</a><a href="#s-llep">Dispatch</a><a href="#s-ring">Vocabulary</a><a href="#s-sco">Checkpoints</a><a href="#s-osa">Optimizer</a><a href="#s-comp">Composition</a><a href="#s-res">Results</a><a href="#s-lim">Limits</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
+
+<div class="co warn"><div class="t">This row, corrected</div>
+<p>The row's earlier summary was written from a newsletter abstract (TLDR AI, 23 September 2026), not from the paper, and said so: no numbers, baselines, scales or ablations, nothing to quote as measured. This page is written from the full paper, titled on arXiv "Flattening Every Memory Peak in Long-Context Mixture-of-Experts Training". Its claim holds (four bottlenecks bounded by scheduling, not approximation), with three corrections: everything is measured on H200 nodes with 2 TB of host memory, 16 to 64 GPUs end to end, not on "a fixed pair of consumer cards" (<a href="https://arxiv.org/html/2609.14306v1#A1.T5" target="_blank" rel="noopener noreferrer">Table 5</a>, <a href="https://arxiv.org/html/2609.14306v1#S7" target="_blank" rel="noopener noreferrer">§7</a>); two of the four operators <i>are</i> offload, scheduled (it excludes quantisation and approximate routing, not offload, <a href="https://arxiv.org/html/2609.14306v1#S1" target="_blank" rel="noopener noreferrer">§1</a>); and it builds on ZeRO-3 and on Megatron's vocabulary sharding rather than sitting beside them (<a href="https://arxiv.org/html/2609.14306v1#S3.SS5" target="_blank" rel="noopener noreferrer">§3.5</a>).</p></div>
+
+<section id="s-prob"><h2>Problem</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§1 Introduction</a>
+<p class="lead">A training step dies when <b>any one</b> component's peak memory exceeds the device, so a plan that lowers three peaks and leaves the fourth free to grow "buys nothing at the point where the workload grows" (<a href="https://arxiv.org/html/2609.14306v1#S1" target="_blank" rel="noopener noreferrer">§1</a>).</p>
+<p>Mixture-of-experts (MoE) models are now trained at long context or large batch, and when adding GPUs is not an option, memory is bought with time. Every standard trade charges it: gradient checkpointing recomputes, state sharding (ZeRO, FSDP) communicates, and optimizer offload serialises the update on the host CPU (<a href="https://arxiv.org/html/2609.14306v1#S1" target="_blank" rel="noopener noreferrer">§1</a>). Peak memory is a maximum over <b>live sets</b>, the groups of tensors that must be resident at the same moment, and the paper picks four that the parallelism plans in common use leave unbounded:</p>
+<ol>
+<li><b>Expert dispatch</b>, which grows with the routing matrix the router draws: how many token copies land on one GPU.</li>
+<li><b>The vocabulary projection</b>, which grows with tokens times vocabulary: the logits.</li>
+<li><b>Gradient-checkpoint boundaries</b>, which grow with depth times sequence length.</li>
+<li><b>Optimizer state</b> (AdamW), which grows with parameter count.</li>
+</ol>
+<p>They grow at different rates, so which runs out first depends on the configuration: logits at large vocabulary and long context, dispatch at high routing imbalance, boundaries at depth, optimizer state at large parameter count on few devices (<a href="https://arxiv.org/html/2609.14306v1#S1" target="_blank" rel="noopener noreferrer">§1</a>). Lowering the largest only exposes the next, so the paper bounds all four, each switchable on its own.</p>
+<p><b>The constraint it sets itself:</b> change only the order and granularity of computation and data movement. No low-rank adapters, no quantised state, no approximate routing or attention, so the model, parameterisation, optimizer, precision and loss stay those of standard full-parameter BF16 training, and the memory and throughput numbers are comparable with it (<a href="https://arxiv.org/html/2609.14306v1#S1" target="_blank" rel="noopener noreferrer">§1</a>).</p>
+</section>
+
+<section id="s-axes"><h2>The four live sets</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S2" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§2 Four Scaling Axes, Table 1</a>
+<p>Notation (<a href="https://arxiv.org/html/2609.14306v1#S2" target="_blank" rel="noopener noreferrer">§2</a>): Θ trainable parameters, <i>W</i> devices, <i>N</i> tokens resident per rank, <i>H</i> hidden width, <i>V</i> vocabulary, <i>b</i> bytes per activation value. AdamW ordinarily needs 16Θ bytes (working weights, gradients, fp32 master weights and two moments, as in <a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO</a>). ZeRO-3 shards that persistent state, sequence parallelism cuts attention activations and expert parallelism partitions expert weights, but none bounds the four live sets of <a href="https://arxiv.org/html/2609.14306v1#S2.T1" target="_blank" rel="noopener noreferrer">Table 1</a>, whose heights follow the workload rather than the sharding degrees:</p>
+<div class="tw"><table class="lt">
+<tr><th>Live set</th><th>Unbounded size, and what sets it</th><th>Streamed along</th><th>Bounded working set</th><th>Operator</th></tr>
+<tr><td>Expert dispatch</td><td><span class="m">2<i>R<sub>d</sub>Hb</i></span>: the realised routing matrix</td><td>token chunks</td><td><span class="m">2<i>E<sub>p</sub>qHb</i></span>, <span class="m"><i>q</i> = <i>kc</i><sub>eff</sub></span></td><td><a href="#" data-tab="t-run" data-to="dsx">PipelinedLLEP</a></td></tr>
+<tr><td>Vocabulary projection</td><td><span class="m">O(<i>NVb</i>)</span> logits: tokens × vocabulary</td><td>vocabulary blocks</td><td><span class="m">O(<i>NVb</i>/<i>P</i>)</span></td><td><a href="#" data-tab="t-run" data-to="rgx">Ring-DTP</a></td></tr>
+<tr><td>Checkpoint boundaries</td><td><span class="m">Σ<sub>ℓ∈S</sub> <i>N<sub>ℓ</sub>Hb</i></span> in HBM: depth × length</td><td>decoder depth</td><td><span class="m">≤ 2<i>N</i><sub>max</sub><i>Hb</i></span> in HBM</td><td><a href="#" data-tab="t-run" data-to="scx">SCO</a></td></tr>
+<tr><td>Offloaded AdamW</td><td>serial host update of <span class="m">12Θ/<i>W</i></span> bytes</td><td>parameter buckets</td><td><span class="m">O(β)</span> in HBM</td><td><a href="#" data-tab="t-run" data-to="osx">OffloadStreamAdamW</a></td></tr>
+</table></div>
+<p class="small mute"><i>R<sub>d</sub></i> routes received by destination <i>d</i>, <i>E<sub>p</sub></i> expert-parallel degree, <i>k</i> experts per token, <i>c</i><sub>eff</sub> tokens a source puts in one chunk, <i>P</i> the vocabulary group size, <i>S</i> the offloaded layer set, <i>N</i><sub>max</sub> the per-rank token ceiling, β the optimizer bucket size. The fourth row is different in kind: offload already removes optimizer state from the GPU, and what stays unbounded is the <i>time</i> of the serial host update.</p>
+<p>Each operator must return the forward values and gradients of what it replaces, change only the order of computation, and keep its bound through checkpoint recomputation, since a checkpointed step peaks inside backward (<a href="https://arxiv.org/html/2609.14306v1#S2" target="_blank" rel="noopener noreferrer">§2</a>); that rules out keeping anything sized by the routing matrix.</p>
+
+<h3 id="pk">Which peak runs out first?</h3>
+<p class="try"><b>Try:</b> pick a model and slide the tokens per rank. Each bar is one live set on one GPU, against the H200's 141 GB. Then switch on one operator at a time and watch the next bar become the problem; that is the paper's argument for building all four.</p>
+<div class="card" id="pkCard">
+<div class="ctl"><label>Model and GPUs <select id="pkM"><option value="oss20">gpt-oss-20b, 8 GPUs (component tests)</option><option value="m120">120B, 16 GPUs</option><option value="m241">241B, 32 GPUs</option><option value="m667" selected>667B, 64 GPUs</option></select></label>
+<label>Tokens per rank <i>N</i> = <b id="pkNv">65,536</b><input type="range" id="pkN" min="0" max="7" step="1" value="5" aria-label="Tokens per rank"></label></div>
+<div class="small"><label class="chk"><input type="checkbox" id="pk_disp"> PipelinedLLEP</label><label class="chk"><input type="checkbox" id="pk_logit"> Ring-DTP</label><label class="chk"><input type="checkbox" id="pk_bnd"> SCO</label><label class="chk"><input type="checkbox" id="pk_state"> offload + OffloadStreamAdamW</label></div>
+<div id="pkSvg"></div>
+<p class="small" id="pkTxt" aria-live="polite"></p>
+<p class="small mute"><span class="ill">Illustrative.</span> The paper gives only Table 1's formulas; the constants are those its measurements show (hover a bar for its formula). Rough peak = state + boundaries + the larger of dispatch and logits; attention activations and buffers are left out. The end-to-end runs split one sequence over <i>D</i> = 2 to 16 ranks, set by context length (<a href="https://arxiv.org/html/2609.14306v1#A1" target="_blank" rel="noopener noreferrer">Appendix A</a>); a 1M-token sequence over <i>D</i> = 16 is 65,536 tokens per rank, the default here.</p>
+</div>
+</section>
+
+<section id="s-llep"><h2>Expert dispatch: PipelinedLLEP</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S3.SS1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.1, Figures 1 and 2, Appendix B</a>
+<p>Under expert parallelism a token routed to an expert travels to the GPU (rank) that owns it, its destination <i>d</i>; the routes <i>R<sub>d</sub></i> arriving there size its dispatch buffers and grow with batch size, top-<i>k</i> and routing imbalance (<a href="https://arxiv.org/html/2609.14306v1#S3.SS1" target="_blank" rel="noopener noreferrer">§3.1</a>). The authors' earlier <b>LLEP</b> (Least-Loaded Expert Parallelism, <a href="https://arxiv.org/abs/2601.17111" target="_blank" rel="noopener noreferrer">arXiv 2601.17111</a>) removes the third: it moves a popular expert's overflow, and that expert's weights, onto ranks that would otherwise sit idle, without changing any token's expert choice. But LLEP still materialises the rank's whole routed batch in one all-to-all tensor.</p>
+<p><b>PipelinedLLEP</b> cuts the batch into chunks with a per-source token budget <i>c</i>: each sending rank puts at most <i>c</i> of its own tokens into any one chunk (<a href="https://arxiv.org/html/2609.14306v1#S3.E1" target="_blank" rel="noopener noreferrer">Eq. 1</a>):</p>
+<div class="fm"><div class="eq"><i>K</i> = min(⌈<i>N</i>/<i>c</i>⌉, <i>K</i><sub>max</sub>), &nbsp; <i>c</i><sub>eff</sub> = ⌈<i>N</i>/<i>K</i>⌉, &nbsp; <i>R<sub>d</sub></i><sup>(<i>i</i>)</sup> ≤ <i>E<sub>p</sub> k c</i><sub>eff</sub></div>
+<p class="wh">Each of the <i>E<sub>p</sub></i> senders puts at most <i>c</i><sub>eff</sub> tokens in chunk <i>i</i>, each token makes <i>k</i> routes, so no destination can receive more than <i>E<sub>p</sub>kc</i><sub>eff</sub> routes in a chunk, whatever the router does, and no token is dropped to make it hold. The buffers then take at most <span class="m">2<i>E<sub>p</sub>kcHb</i></span> bytes; past <i>N</i> = <i>cK</i><sub>max</sub> the chunk count stops at <i>K</i><sub>max</sub> and each buffer is capped at 1/<i>K</i><sub>max</sub> of the batch. Either way the limit is known before launch, and deriving <i>K</i> from <i>c</i> absorbs micro-batches of varying length without running out of memory.</p></div>
+<p><b>Why overlap alone is not enough.</b> The chunks run through a dispatch, expert-matmul, combine pipeline, as in FasterMoE or Tutel, which pick the chunk count for speed; this paper picks it to cap memory (<a href="https://arxiv.org/html/2609.14306v1#S3.SS1" target="_blank" rel="noopener noreferrer">§3.1</a>). And a loop that calls the expert layer per chunk keeps every chunk's autograd graph alive until backward, so the peak would not fall in training. So each chunk's expert matmul is wrapped in a <b>reentrant</b> checkpoint nested inside the decoder layer's non-reentrant one, which lets the outer checkpoint drop the inner tensors (<a href="https://arxiv.org/html/2609.14306v1#A2.SS1" target="_blank" rel="noopener noreferrer">B.1</a>). The price: the expert matmul runs three times per update instead of twice; route payload is unchanged.</p>
+<p><b>Exactness.</b> Only the expert-weight gradient changes summation order (it is the one sum split across chunks); at <i>K</i> = 1 it is bitwise identical to LLEP's (<a href="https://arxiv.org/html/2609.14306v1#A2.SS1" target="_blank" rel="noopener noreferrer">Eq. 7</a>).</p>
+
+<div class="pred" id="pr-chunk" data-ans="1"><div class="q">LLEP decides which rank serves a route from the token's position in the expert's global token list. Cut a rank's 65,536 tokens into 10 chunks of consecutive positions, or into 10 strided chunks (positions <i>i</i>, <i>i</i>+10, <i>i</i>+20, ...). Same tokens, same destinations. What changes?</div>
+<div class="opts"><button>Nothing: the same routes are sent either way</button><button>How evenly each chunk spreads over the destinations</button><button>Strided chunks send fewer routes in total</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p><b>The spread within a chunk.</b> Consecutive positions share a destination under LLEP's plan, so a chunk that covers the relocated tail of a popular expert sends almost everything to one helper rank, and the imbalance LLEP removed comes back chunk by chunk (<a href="https://arxiv.org/html/2609.14306v1#S3.F1" target="_blank" rel="noopener noreferrer">Figure 1c</a>). Strided chunks spread each chunk over the destinations. The paper measures the largest send to one destination over the mean send in a chunk (<a href="https://arxiv.org/html/2609.14306v1#A2.T8" target="_blank" rel="noopener noreferrer">Table 8</a>); the bars below put its numbers beside <b>our replay</b>, which runs the paper's own synthetic routing profiles (<a href="https://arxiv.org/html/2609.14306v1#A2.SS2" target="_blank" rel="noopener noreferrer">B.2</a>) through LLEP's released assignment plan in your browser:</p>
+<div id="ckSvg"></div>
+<p class="small" id="ckTxt"></p>
+<p class="small mute">The replay ports <code>compute_llep_lpt_plan</code> from <a href="https://github.com/SalesforceAIResearch/LeastLoadedEP" target="_blank" rel="noopener noreferrer">LLEP's code</a> (65,536 tokens per rank, 128 experts, top-8, 8 ranks, <i>K</i> = 10). With the code's default capacity factor of 1.1 it does not match; with 1.0 (every rank capped at exactly the mean load) all eight send ratios match to the printed precision, so the paper evidently ran at 1.0. Strided chunks run 1.03 to 1.35 times faster with up to 1.37 GiB less peak memory (<a href="https://arxiv.org/html/2609.14306v1#A2.T8" target="_blank" rel="noopener noreferrer">Table 8</a>). Step through it chunk by chunk in <a href="#" data-tab="t-run" data-to="dsx">Run the four schedules</a>.</p></div></div>
+
+<p><b>Results</b> (one node of eight H200s, identical input for every system, <a href="https://arxiv.org/html/2609.14306v1#S3.F2" target="_blank" rel="noopener noreferrer">Figure 2</a>, <a href="https://arxiv.org/html/2609.14306v1#A2.T6" target="_blank" rel="noopener noreferrer">Table 6</a>). At 65,536 tokens per rank, <i>H</i> = 7,168, 128 experts, top-8 and <i>K</i> = 10, PipelinedLLEP's peak is <b>56.9 to 59.3% below LLEP's</b> (about 53 GiB down to 21.4 to 22.9) at 1.01 to 1.10 times its forward speed, unchanged with backward included (<a href="https://arxiv.org/html/2609.14306v1#A2.T9" target="_blank" rel="noopener noreferrer">Table 9</a>); standard expert parallelism runs out of memory on every skewed profile (95/16 sends 95% of tokens to the 16 hottest experts). On a smaller shape (32,768 tokens, top-4, <i>K</i> = 3) the saving is 24.6 to 26.9%. Standard EP is fastest only when there is no skew to correct.</p>
+<p><b>Choosing <i>c</i>.</b> Peak falls with the chunk count at a decaying rate and latency does not follow it, so <i>c</i> is picked from a measured curve (<a href="https://arxiv.org/html/2609.14306v1#A2.F8" target="_blank" rel="noopener noreferrer">Figure 8</a>); deriving <i>K</i> from the budget matters for short micro-batches, where a fixed <i>K</i> = 10 runs at under half LLEP's speed (<a href="https://arxiv.org/html/2609.14306v1#A2.T7" target="_blank" rel="noopener noreferrer">Table 7</a>). Details, and the bimodal latency behind "fastest of three", are in <a href="#" data-tab="t-tables" data-to="tbK">the tables tab</a>.</p>
+</section>
+
+<section id="s-ring"><h2>Vocabulary projection: Ring-DTP</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S3.SS2" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.2, Figure 3, Appendix C</a>
+<div class="pred" id="pr-lse" data-ans="1"><div class="q">To compute one token's exact cross-entropy over a 200,000-word vocabulary, visiting the vocabulary one block at a time, how many numbers per token must you carry between blocks?</div>
+<div class="opts"><button>One: the running loss</button><button>Three</button><button>One per block</button><button>All 200,000 logits</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p><b>Three:</b> the running maximum <i>m</i>, the running sum of exponentials <i>z</i>, and the target's logit <i>y<sub>t</sub></i> once its block passes. Each new block rescales the old sum to the new maximum (<a href="https://arxiv.org/html/2609.14306v1#S3.E3" target="_blank" rel="noopener noreferrer">Eq. 3</a>), and at the end the loss is <span class="m"><i>m</i> + log <i>z</i> − <i>y<sub>t</sub></i></span>. This is the online softmax that <a href="https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381" target="_blank" rel="noopener noreferrer">FlashAttention</a> also uses. One token, 24 random logits, folded block by block:</p>
+<div class="ctl"><label>Blocks <b id="lsKv">4</b><input type="range" id="lsK" min="1" max="8" step="1" value="4" aria-label="Number of vocabulary blocks"></label><label>Seed <b id="lsSv">1</b><input type="range" id="lsS" min="1" max="9" step="1" value="1" aria-label="Random seed"></label></div>
+<div class="tw"><table id="lsT"></table></div><p class="small" id="lsTxt"></p></div></div>
+<p>Fused cross-entropy kernels (Cut Cross-Entropy, Liger) already do this on one device; here both the batch and the projection weight are sharded across ranks (<a href="https://arxiv.org/html/2609.14306v1#S3.SS2" target="_blank" rel="noopener noreferrer">§3.2</a>). Rank <i>r</i> holds its own batch <i>X<sub>r</sub></i> (<i>N</i> × <i>H</i>) and owns the vocabulary slice <i>W<sub>r</sub></i> of <i>V</i>/<i>P</i> columns. <a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron's</a> vocabulary-parallel loss uses the same weight split but needs <i>every rank to hold the same batch</i>, which shrinks the effective batch and hurts long context. <b>Ring-DTP</b> (ring data-tensor-parallel) keeps a data-parallel layout, distinct batches per rank, and runs <i>P</i> ring rounds in which every batch meets every shard exactly once. Each meeting forms only the strip <span class="m"><i>Y<sub>j,r</sub></i> = <i>X<sub>j</sub>W<sub>r</sub></i></span> (<i>N</i> × <i>V</i>/<i>P</i>), folds it into the per-token state <span class="m"><i>S<sub>j</sub></i> = (<i>m<sub>j</sub></i>, <i>z<sub>j</sub></i>, <i>y<sub>t<sub>j</sub></sub></i>)</span>, and frees it, so logit memory is <span class="m">O(<i>NVb</i>/<i>P</i>)</span> (<a href="https://arxiv.org/html/2609.14306v1#S3.E2" target="_blank" rel="noopener noreferrer">Eq. 2</a>). Exactly one shard contains each target, so exactly one meeting supplies <i>y<sub>t</sub></i>. Backward replays the same rounds from the saved normaliser and forms the softmax residual one strip at a time, so neither pass stores a full logit or logit-gradient tensor (<a href="https://arxiv.org/html/2609.14306v1#A3" target="_blank" rel="noopener noreferrer">Appendix C</a>).</p>
+<p><b>Which tensor travels.</b> Either the activations or the weight shard can move. A hop costs O(<i>NH</i>) bytes if activations move and O(<i>HV</i>/<i>P</i>) if weights move, so Ring-DTP moves weights exactly when <i>N</i> &gt; <i>V</i>/<i>P</i>. Moving weights keeps each batch and its state at home, so forward needs no return hop (<a href="https://arxiv.org/html/2609.14306v1#A3.F9" target="_blank" rel="noopener noreferrer">Figure 9</a>). The cost is <i>P</i> − 1 sequential hops per pass, so the paper takes the smallest <i>P</i> whose strip fits.</p>
+<p><b>Results</b> (<a href="https://arxiv.org/html/2609.14306v1#S3.T2" target="_blank" rel="noopener noreferrer">Table 2</a>, <i>P</i> = 8, <i>H</i> = 7,168, <i>V</i> = 200,000, FP32, forward plus backward, one measured pass each): at <i>N</i> = 16,384 per GPU (activations move) the peak falls from 42.462 to 7.322 GiB, <b>82.8%</b>, for 5.1% more time; at <i>N</i> = 32,768 (weights move) from 79.521 to 10.622 GiB, <b>86.6%</b>, for 4.4%. Doubling <i>N</i> nearly doubles the standard peak but moves Ring-DTP's only from 7.3 to 10.6 GiB, so the saving widens with context, which is what keeps the vocabulary head on the device at 1M tokens. The standard reference's extra memory is <b>exactly three N × V FP32 tensors</b> (logits, log-softmax and their gradient: 3 × 12.207 = 36.621 GiB against the measured 36.6212, <a href="https://arxiv.org/html/2609.14306v1#A3.T10" target="_blank" rel="noopener noreferrer">Table 10</a>), and the shards are exactly 1/4 and 1/8 of the 5.3406 GiB weight; see <a href="#" data-tab="t-tables" data-to="tbChk">the checks</a>.</p>
+</section>
+
+<section id="s-sco"><h2>Checkpoint boundaries: SCO</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S3.SS3" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.3, Figure 4, Appendix D</a>
+<p>Gradient checkpointing throws a layer's internals away after forward and recomputes them in backward, but one tensor per checkpointed layer survives: its input <i>h<sub>ℓ</sub></i> (<i>N<sub>ℓ</sub></i> × <i>H</i>), held from forward until that layer is recomputed. That is the <b>checkpoint boundary</b>, and with many layers and long sequences the boundaries add up (<a href="https://arxiv.org/html/2609.14306v1#S3.SS3" target="_blank" rel="noopener noreferrer">§3.3</a>). <b>SCO</b> (selective checkpoint offload) walks the layers in forward order and copies each boundary that still fits a pinned host-memory budget to the CPU, asynchronously, then frees the device copy; layers that do not fit keep theirs. In backward, while layer ℓ recomputes from <i>h<sub>ℓ</sub></i>, the next boundary <i>h</i><sub>ℓ−1</sub> comes back on a separate stream, so at most two restored boundaries are on the device at once (<a href="https://arxiv.org/html/2609.14306v1#S3.E4" target="_blank" rel="noopener noreferrer">Eq. 4</a>):</p>
+<div class="fm"><div class="eq"><i>M</i><sub>HBM</sub><sup>SCO</sup> ≤ 2<i>N</i><sub>max</sub><i>Hb</i>, &nbsp;&nbsp; <i>M</i><sub>host</sub> ≤ |<i>S</i>| <i>N</i><sub>max</sub><i>Hb</i></div></div>
+<p>The host cap is a correctness condition: a rank failing an allocation while the others enter a collective would deadlock the job, so the cap is set at or above |<i>S</i>|<i>N</i><sub>max</sub><i>Hb</i> and is per micro-batch (<a href="https://arxiv.org/html/2609.14306v1#A4" target="_blank" rel="noopener noreferrer">Appendix D</a>).</p>
+<div class="pred" id="pr-sco" data-ans="1"><div class="q">On gpt-oss-20b (8 H200s, 47 boundaries), an 8 GiB host budget takes 21 boundaries, about 7.8 GiB per GPU, off the device. How much does the measured peak HBM fall?</div>
+<div class="opts"><button>Not at all: the peak is elsewhere</button><button>About 6.2 GiB</button><button>About 7.8 GiB, all of it</button><button>About 17.5 GiB</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p><b>6.2 GiB</b>, from 139.790 to 133.546 GiB (<a href="https://arxiv.org/html/2609.14306v1#S3.T3" target="_blank" rel="noopener noreferrer">Table 3</a>). Each step of the budget lowers the peak by somewhat less than the payload it offloads, because the peak includes the restored boundaries and everything else live at that moment. The boundary size itself recomputes from the configuration alone: (557,056 tokens / 8 ranks) × 2,880 hidden × 2 bytes = 0.3735 GiB, so 8 GiB holds 21 and 16 GiB holds 42, exactly the paper's counts.</p>
+<div id="scoSvg"></div>
+<p class="small mute">Bars: Table 3's peak HBM; the darker part is the boundary payload still on the device (47 minus the offloaded count, times 0.3735 GiB). Throughput moves by 1.9% with no trend; node RAM rises by about what is pinned (190.9 GiB against 8 × 23.5). Step through it in <a href="#" data-tab="t-run" data-to="scx">Run the four schedules</a>.</p></div></div>
+<p><b>Results</b> (<a href="https://arxiv.org/html/2609.14306v1#S3.T3" target="_blank" rel="noopener noreferrer">Table 3</a>, <a href="https://arxiv.org/html/2609.14306v1#A4.T12" target="_blank" rel="noopener noreferrer">Tables 12 and 13</a>; 24 layers exposing 47 boundaries, sequence and expert parallelism of degree 8, 556,432 tokens per step at a ceiling of 557,056, ten steps with two warm-up): offloading everything lowers the peak from 139.790 to 123.728 GiB, and the largest batch that completes all ten steps rises from 557,056 to 655,360 tokens, <b>17.65%</b>. Two numbers in the text do not match the tables; see <a href="#" data-tab="t-read" data-to="s-trust">How much to believe</a>.</p>
+</section>
+
+<section id="s-osa"><h2>Optimizer: OffloadStreamAdamW</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S3.SS4" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.4, Figure 5, Appendix E</a>
+<p>Offloading AdamW's fp32 master weights and moments to CPU memory (ZeRO-Offload, ZeRO-Infinity) frees 12 bytes per parameter on the GPU, but the CPU update is slow, and while it runs the GPU is idle and, having released its activations, nearly empty (<a href="https://arxiv.org/html/2609.14306v1#S3.SS4" target="_blank" rel="noopener noreferrer">§3.4</a>). <b>OffloadStreamAdamW</b> uses that idle GPU as the update engine: each rank's state is cut into buckets of at most β parameters that rotate through <i>s</i> staging slots and three streams: copy master weights, moments and final gradients to the GPU; run a fused AdamW update and refresh the BF16 working weights; write the updated fp32 state back (<a href="https://arxiv.org/html/2609.14306v1#S3.E5" target="_blank" rel="noopener noreferrer">Eq. 5</a>):</p>
+<div class="fm"><div class="eq"><i>T</i><sub>stream</sub> = <i>G</i> · max(<i>T</i><sub>H2D</sub>, <i>T</i><sub>update</sub>, <i>T</i><sub>D2H</sub>) + O(<i>T</i><sub>H2D</sub> + <i>T</i><sub>update</sub> + <i>T</i><sub>D2H</sub>), &nbsp; <i>M</i><sub>stage</sub> = O(<i>s</i>β)</div>
+<p class="wh">For <i>G</i> buckets the step costs about one bucket's slowest stage per bucket, plus one pipeline fill. The floor for any offloaded optimizer is the host-link round trip of 12Θ/<i>W</i> bytes (116 GiB per rank at Θ = 10<sup>12</sup>, <i>W</i> = 96, <a href="https://arxiv.org/html/2609.14306v1#S3.F5" target="_blank" rel="noopener noreferrer">Figure 5</a>), so the design hides the update and the write-back behind that transfer.</p></div>
+<p><b>Results</b> (<a href="https://arxiv.org/html/2609.14306v1#S3.T4" target="_blank" rel="noopener noreferrer">Table 4</a>, gpt-oss-20b on 8 H200s, the same fp32 state in host memory on both sides): the step takes <b>1.93 s against 3.95 s</b> for ZeRO-Offload's AVX CPU Adam, <b>2.05 times faster</b>, with 4.234 GiB of staging per GPU. A 100M-parameter bucket with two slots wins; a third slot is within 1.1% and adds a bucket's worth of staging, which the paper reads as the pipeline being transfer-bound (<a href="https://arxiv.org/html/2609.14306v1#A5.T14" target="_blank" rel="noopener noreferrer">Table 14</a>). The staging column recomputes exactly as slots × largest bucket × 16 bytes (fp32 master, two moments, gradient) in every row. Exactness has one condition: a bucket can only start once its gradient is final and any cross-bucket transform is known, so global gradient clipping must wait for the global norm; per-bucket or predictive clipping would change the update rule and sits outside the exactness claim (<a href="https://arxiv.org/html/2609.14306v1#A5" target="_blank" rel="noopener noreferrer">Appendix E</a>).</p>
+</section>
+
+<section id="s-comp"><h2>Composition and the per-rank budget</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S3.SS5" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3.5, Eq. 6</a>
+<p>The four operators bound disjoint live sets (dispatch temporaries inside MoE layers, logit strips at the head, boundaries spanning layers, optimizer state at update time), none needs another, and each can be enabled alone (<a href="https://arxiv.org/html/2609.14306v1#S3.SS5" target="_blank" rel="noopener noreferrer">§3.5</a>). For the full system they sit inside the authors' <b>Mixture-of-Parallelisms</b> (MoP) layout (<a href="https://arxiv.org/abs/2607.01844" target="_blank" rel="noopener noreferrer">arXiv 2607.01844</a>): ZeRO-3 for dense weights, a sequence-to-head all-to-all for attention (Ulysses-style), and expert-parallel placement for experts. The same <i>W</i> ranks form overlapping sub-groups of sizes <i>D</i> (sequence), <i>E<sub>p</sub></i> (experts) and <i>P</i> (vocabulary), chosen independently rather than as factors of <i>W</i> = <i>d</i> · <i>t</i> · <i>p</i>. The per-rank budget is then (<a href="https://arxiv.org/html/2609.14306v1#S3.E6" target="_blank" rel="noopener noreferrer">Eq. 6</a>):</p>
+<div class="fm"><div class="eq"><i>M</i><sub>peak</sub> = 4Θ/<i>W</i> + O(<i>s</i>β) + O(<i>NHb</i>) + O(<i>E<sub>p</sub>qHb</i>) + O(<i>NVb</i>/<i>P</i>) + O(<i>NHb</i>)</div>
+<p class="wh">Weights and gradients, optimizer staging, attention, dispatch, logit strips, boundaries. Every term is fixed by the model and launch configuration once <i>N</i> ≤ <i>N</i><sub>max</sub>, so feasibility can be checked before launch. Two savings meet in the first terms: host offload takes persistent state from 16Θ/<i>W</i> to 4Θ/<i>W</i> (ZeRO-Offload's contribution), and OffloadStreamAdamW reduces the time that offload costs.</p></div>
+</section>
+
+<section id="s-res"><h2>Results end to end</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S4" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§4, Figures 6 and 7, Appendix A</a>
+<p>All four together inside MoP train three MoE models of <b>120B, 241B and 667B</b> parameters on 16, 32 and 64 H200s, from scratch (<a href="https://arxiv.org/html/2609.14306v1#S4" target="_blank" rel="noopener noreferrer">§4</a>, <a href="https://arxiv.org/html/2609.14306v1#A1" target="_blank" rel="noopener noreferrer">Appendix A</a>). The models share one architecture and differ only in depth (7, 14 and 39 layers): hidden width 7,168, dense FFN width 18,432, 384 routed experts of width 2,048, top-8, vocabulary 200,000, the widths of <a href="https://huggingface.co/moonshotai/Kimi-K2-Instruct/blob/main/config.json" target="_blank" rel="noopener noreferrer">Kimi K2</a> (which has 61 layers). Routing is dropless, balanced by <a href="https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81" target="_blank" rel="noopener noreferrer">DeepSeek-V3's</a> auxiliary-loss-free bias, with <i>E<sub>p</sub></i> = <i>W</i>, <i>P</i> = 8 and <i>D</i> from 2 to 16 by context length. The baseline, <b>FSDP2-best</b>, is the highest-throughput fit from a sweep of FSDP2 with tensor, context and expert parallelism and optimizer CPU offload on a TorchTitan-based stack, at the same model and GPU count.</p>
+<p>FSDP2-best runs out of memory past 128K, 32K and 64K tokens at the three scales; the stack trains at <b>1M at all three, 8, 32 and 16 times</b> the reach (<a href="https://arxiv.org/html/2609.14306v1#S4.F7" target="_blank" rel="noopener noreferrer">Figure 7</a>). Where both run, it is <b>7.6 times</b> faster at 128K on 120B and <b>10.4 times</b> at 64K on 667B (<a href="https://arxiv.org/html/2609.14306v1#S4.F6" target="_blank" rel="noopener noreferrer">Figure 6</a>). Its TFLOP/s rises with context as attention work per token grows, from 91 to 110 at 128K to 213 to 233 at 1M (9 to 11% and 21.5 to 23.6% of the H200's 989.5 dense BF16 TFLOP/s, derived), while FSDP2-best stays below 40. The largest global batch is 1.5M, 1.8M and 3M tokens, <b>12, 7 and 3 times</b> the baseline's. For quality, fine-tuning gpt-oss-20b on Nemotron-Math at 128K gives 59.8% Avg@8 on AIME 2025 on the stack against 59.6% on FSDP2 with the same recipe (45.2% before fine-tuning, <a href="https://arxiv.org/html/2609.14306v1#A1" target="_blank" rel="noopener noreferrer">Appendix A</a>).</p>
+<p class="try"><b>Try:</b> pick a model. Every number drawn is printed on the paper's figures; the baseline's own values are not printed, so its curve is shown only as where it runs out of memory.</p>
+<div class="card"><div class="seg" id="e2eM" role="group" aria-label="Model"><button class="on" data-m="0" aria-pressed="true">120B, 16 GPUs</button><button data-m="1" aria-pressed="false">241B, 32 GPUs</button><button data-m="2" aria-pressed="false">667B, 64 GPUs</button></div>
+<div id="e2eSvg"></div><p class="small" id="e2eTxt"></p>
+<p class="small mute">Rebuilt from the printed labels of Figures 6 and 7 (transcribed from the e-print's PNGs; no point is read off a curve). The stack was run only at 128K and 1M. Full list in <a href="#" data-tab="t-tables" data-to="tbE2e">the tables tab</a>.</p></div>
+</section>
+
+<section id="s-lim"><h2>Related work and limits</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#S5" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§5 Related Work, §7 Limitations</a>
+<p><b>Related work</b> (<a href="https://arxiv.org/html/2609.14306v1#S5" target="_blank" rel="noopener noreferrer">§5</a>). FasterMoE, Lina, PipeMoE and ScheMoE also chunk dispatch, but size the chunks for bandwidth, so buffers still follow the realised load; placement methods (FlexMoE, SmartMoE, LLEP) move skew around and compose with the budget. Cut Cross-Entropy and Liger assume one device, Megatron's vocabulary-parallel loss a replicated batch, Ring Attention a ring where only one operand can move. DeepSpeed and PyTorch offload whole checkpoint regions where SCO offloads a budgeted subset; 8-bit optimizers and Adam-mini shrink optimizer state by changing numerics, which this paper excludes.</p>
+<p><b>Limits the authors state</b> (<a href="https://arxiv.org/html/2609.14306v1#S7" target="_blank" rel="noopener noreferrer">§7</a>): all-to-all and ring traffic assume a fast interconnect, and the cheap extra chunks measured on intra-node NVLink may not be cheap on a slower fabric; a smaller budget tightens the bound but raises the chunk count by the same factor, and forward time is flat only over part of that range, so <i>c</i> comes from a measured curve; checkpoint and optimizer streaming spend host memory and link bandwidth, which binds on nodes with less than the 2 TB used here; topology sensitivity and automatic choice of (<i>D</i>, <i>E<sub>p</sub></i>, <i>P</i>, <i>c</i>, β) remain open.</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<a class="where" href="https://arxiv.org/html/2609.14306v1#A1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">Appendix A, Tables 2 to 14</a>
+<p><b>What holds up.</b> The operators only reorder work, so they are exact by construction up to floating-point summation order. And the component memory numbers are unusually checkable, because they follow from the configuration (<a href="#" data-tab="t-tables" data-to="tbChk">all checks</a>):</p>
+<ul>
+<li>SCO's boundary counts (21 and 42 of 47) and payloads come out of 557,056 / 8 × 2,880 × 2 bytes alone.</li>
+<li>All eight staging sizes of <a href="https://arxiv.org/html/2609.14306v1#A5.T14" target="_blank" rel="noopener noreferrer">Table 14</a> are slots × largest bucket × 16 bytes.</li>
+<li>The projection baseline is exactly three <i>N</i> × <i>V</i> FP32 tensors, and the shards exactly 1/<i>P</i> of the weight (<a href="https://arxiv.org/html/2609.14306v1#A3.T10" target="_blank" rel="noopener noreferrer">Table 10</a>).</li>
+<li>Our replay of the paper's routing profiles through LLEP's released plan reproduces all eight send ratios of <a href="https://arxiv.org/html/2609.14306v1#A2.T8" target="_blank" rel="noopener noreferrer">Table 8</a>.</li>
+<li>Dispatch peaks repeat to the milli-GiB over three runs, and every component comparison runs on identical input in the same execution (<a href="https://arxiv.org/html/2609.14306v1#A1" target="_blank" rel="noopener noreferrer">Appendix A</a>). The authors state their limits plainly, which counts in their favour.</li>
+</ul>
+<p><b>What is weaker:</b></p>
+<ul>
+<li><b>The vocabulary baseline is the naive one.</b> Ring-DTP's 82.8% and 86.6% are against a projection that materialises full logits (<a href="https://arxiv.org/html/2609.14306v1#S3.T2" target="_blank" rel="noopener noreferrer">Table 2</a>), not against Cut Cross-Entropy or Liger, which already avoid them on one device (CCE: Gemma 2 2B's loss memory from 24 GB to 1 MB, <a href="https://arxiv.org/abs/2411.09009" target="_blank" rel="noopener noreferrer">its abstract</a>), nor Megatron's vocabulary-parallel loss. Ring-DTP's own addition, sharding the weight while each rank keeps its batch, is argued rather than measured against them. The benchmark is FP32; training is BF16.</li>
+<li><b>Dispatch is measured against the authors' own LLEP on synthetic routing</b> (<a href="https://arxiv.org/html/2609.14306v1#A2.SS2" target="_blank" rel="noopener noreferrer">B.2</a>), with the 65K latencies the fastest of three repeats. "Without losing throughput" fails at the 32K shape with <i>K</i> = 10 (0.87 to 0.90 times LLEP, <a href="https://arxiv.org/html/2609.14306v1#A2.T9" target="_blank" rel="noopener noreferrer">Table 9</a>). The guarantee 2<i>E<sub>p</sub>kcHb</i> grows with <i>E<sub>p</sub></i>: at the end-to-end scale (<i>E<sub>p</sub></i> = 64, <i>c</i> = 4,096) it is 56 GiB, so the saving comes from strided chunks realising the even share, not from the bound. Our replay shows contiguous chunks reaching 42% of the bound on the 30/16 profile, which Table 8 leaves out.</li>
+<li><b>SCO's text and tables disagree.</b> §3.3 claims "17.65% of HBM consumption" saved; the peak falls 11.5% (139.790 to 123.728 GiB), and 17.65% is <a href="https://arxiv.org/html/2609.14306v1#A4.T13" target="_blank" rel="noopener noreferrer">Table 13</a>'s batch gain. Its "35.71%" for "the largest batch that runs without an out-of-memory error" compares runs without allocator warnings. The baseline was run above its largest clean batch, which probably explains why throughput <i>rises</i> slightly with offload.</li>
+<li><b>The end-to-end numbers are mostly MoP's, and thin.</b> The <a href="https://arxiv.org/abs/2607.01844" target="_blank" rel="noopener noreferrer">MoP paper</a> already reports 4.7 to 8.2 times FSDP2's throughput and 1M-token context; no ablation removes one operator from the stack. One run per point, the stack run only at 128K and 1M, so the 667B "10.4 times at 64K" divides its 128K throughput by the baseline's 64K, and 241B shares no length at all. The baseline is weak: under 40 TFLOP/s, about 4% of the H200's dense BF16 peak.</li>
+<li><b>Two printed multiples contradict the text.</b> Figure 6's "1.8x" (120B, 91 TFLOP/s) and "2.2x" (667B, 107) imply baselines of 50.6 and 48.6 TFLOP/s, above §4's "below 40 anywhere in its sweep".</li>
+<li><b>The quality check is one fine-tuning run each</b>, on gpt-oss-20b, not the 120B to 667B models (those report throughput only). On AIME 2025's 30 problems × 8 samples, one sample is 0.42 points, so 59.8% against 59.6% is under half an answer; and 59.8% and 45.2% are not whole numbers of 240, so Avg@8 was counted some way the paper does not state.</li>
+</ul>
+<p class="lead"><b>Verdict.</b> Believe the four mechanisms and the component memory numbers: exact by construction, and where the configuration fixes them they recompute to the printed digit. Read the speeds as single, favourable runs against the authors' own LLEP and a naive projection. Treat "1M context, 8 to 32 times the reach, up to 10.4 times the throughput" as a result for the whole MoP stack against a weak baseline, with no measure of which operator buys what.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>Code:</b> none released for PipelinedLLEP, Ring-DTP, SCO, OffloadStreamAdamW or MoP (paper and GitHub checked 3 October 2026). LLEP, the base of the dispatch operator, is public (<a href="https://github.com/SalesforceAIResearch/LeastLoadedEP" target="_blank" rel="noopener noreferrer">SalesforceAIResearch/LeastLoadedEP</a>, Apache-2.0).</li>
+<li><b>Hardware:</b> measured only on 8-GPU H200 nodes with NVLink inside the node and 2 TB of host memory; SCO and the optimizer offload consume host memory (node RAM rose 191 GiB with full SCO on gpt-oss-20b) and host-link bandwidth (<a href="https://arxiv.org/html/2609.14306v1#S7" target="_blank" rel="noopener noreferrer">§7</a>).</li>
+<li><b>What was tested:</b> components on gpt-oss-20b and synthetic MoE shapes; the composed stack on 120B to 667B pre-training throughput at 16 to 64 GPUs; fine-tuning quality on gpt-oss-20b only.</li>
+<li><b>When it pays:</b> long context or large vocabularies (logits and boundaries grow with tokens), skewed routing (dispatch), and large models on few GPUs (optimizer offload made fast). Each operator can be enabled alone, so a run pays only for its own peaks.</li>
+<li><b>When it buys little:</b> balanced routing, where standard expert parallelism is fastest (<a href="https://arxiv.org/html/2609.14306v1#A2.T6" target="_blank" rel="noopener noreferrer">Table 6</a>); small micro-batches, where below about 8,192 tokens per rank the dispatch buffers are small next to the expert weights (9 to 17% saving, <a href="https://arxiv.org/html/2609.14306v1#A2.T7" target="_blank" rel="noopener noreferrer">Table 7</a>); a single device, where a fused cross-entropy kernel already removes the logits; slow interconnects, untested.</li>
+<li><b>Pieces you can use today:</b> fused cross-entropy (Liger, Cut Cross-Entropy) for the logits on one device, PyTorch and DeepSpeed CPU checkpoint offload (whole regions rather than a budget), and ZeRO-Offload for the optimizer.</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<p>The useful idea is the framing more than any single operator: peak memory is a maximum over live sets, each live set has its own growth law, and a bounded schedule turns each into a term fixed at launch, so a configuration's feasibility can be checked before it runs (<a href="https://arxiv.org/html/2609.14306v1#S3.E6" target="_blank" rel="noopener noreferrer">Eq. 6</a>). That matters because long-context training is now a normal stage: DeepSeek-V3, for example, added two training phases to grow its context from 4K to 32K and then 128K, cutting the batch from 1,920 to 480 sequences for the second (<a href="https://arxiv.org/html/2412.19437v2#S4.SS3" target="_blank" rel="noopener noreferrer">DeepSeek-V3 §4.3</a>), the batch-for-context trade this paper's Figure 7 is about. The vocabulary term keeps growing too: the paper's models use 200,000 tokens, and gpt-oss-20b's configuration has 201,088 (<a href="https://huggingface.co/openai/gpt-oss-20b/blob/main/config.json" target="_blank" rel="noopener noreferrer">config</a>).</p>
+</section>
+
+<section id="s-con"><h2>Connections</h2>
+<ul>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO</a>: the 16 bytes per parameter, sharded; the composed stack uses ZeRO-3 for dense weights and speeds up ZeRO-Offload's optimizer step. Where ZeRO partitions state, this paper schedules when transient tensors exist.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron-LM</a>: vocabulary-parallel cross-entropy with a replicated batch, the layout Ring-DTP relaxes.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81a8b541c9babbf40c94" target="_blank" rel="noopener noreferrer">Switch Transformers</a> and <a href="https://app.notion.com/p/3c65c17b0d0d81eba72af0ac91ddc6b3" target="_blank" rel="noopener noreferrer">Mixtral of Experts</a>: expert-parallel MoE layers and their routing; Switch caps expert load by dropping overflow tokens, PipelinedLLEP caps buffers and drops none.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81" target="_blank" rel="noopener noreferrer">DeepSeek-V3</a>: the auxiliary-loss-free balancing used in the end-to-end runs and the fine-grained top-8 MoE shape.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381" target="_blank" rel="noopener noreferrer">FlashAttention</a>: the online softmax behind Ring-DTP's three-scalar fold.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f" target="_blank" rel="noopener noreferrer">PagedAttention</a>: memory won by managing where and when tensors live, at serving time.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671" target="_blank" rel="noopener noreferrer">QLoRA</a>: the approximate route (quantised weights and optimizer state) this paper rules out.</li>
+<li>Topics: <a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a> (where this row is integrated) and <a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a>.</li>
+</ul>
+</section>
+</section>
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Run the four schedules</h2>
+<p>Each of the paper's four operators, run on one input twice or more: the schedule it replaces and its own, drawn to the same scale, one step at a time, with counters. Two of them compute for real in your browser (the dispatch replay on the paper's routing profiles, the ring's exact loss); the other two are timelines built from the paper's measured sizes and times. The animations stop when off screen and start paused if your system asks for reduced motion.</p>
+<nav class="nav"><a href="#dsx">Expert dispatch</a><a href="#rgx">Vocabulary ring</a><a href="#scx">Checkpoint offload</a><a href="#osx">Optimizer stream</a></nav>
+
+<h3>1. Expert dispatch: LLEP against PipelinedLLEP</h3>
+<p>One MoE layer at the paper's 65K shape (<a href="https://arxiv.org/html/2609.14306v1#A1.T5" target="_blank" rel="noopener noreferrer">Table 5</a>): 8 ranks, each with 65,536 tokens, 128 experts, top-8, routed by one of the paper's synthetic profiles (<a href="https://arxiv.org/html/2609.14306v1#A2.SS2" target="_blank" rel="noopener noreferrer">B.2</a>) and assigned by LLEP's released plan (capacity factor 1.0, the setting that reproduces Table 8). Each bar is the number of routes one destination rank receives at that moment, summed over the 8 senders; the dashed line is Eq. 1's guarantee for a chunk. The grid is the send matrix of the current chunk: sender rows, destination columns, darker means more.</p>
+<p class="try"><b>Try:</b> profile 50/4 with contiguous chunks, then strided: the same routes in total, but contiguous chunks pile onto a few destinations (send ratio 6.00) while strided ones spread evenly (2.29), the numbers in <a href="https://arxiv.org/html/2609.14306v1#A2.T8" target="_blank" rel="noopener noreferrer">Table 8</a>. Then LLEP's whole batch, to scale: ten times taller.</p>
+<div class="card" id="dsx">
+<div class="an-top"><div class="seg" id="dsxM" role="group" aria-label="Method"><button class="on" data-m="str" aria-pressed="true">PipelinedLLEP, strided</button><button data-m="cont" aria-pressed="false">Contiguous chunks</button><button data-m="llep" aria-pressed="false">LLEP, whole batch</button></div>
+<label>Profile <select id="dsxP"><option value="0">Balanced</option><option value="1">95% / 16</option><option value="2">80% / 16</option><option value="3" selected>50% / 4</option><option value="4">30% / 16</option></select></label></div>
+<div id="dsxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="dsxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="dsxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="dsxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="dsxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="dsxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="dsxStep"></div><p id="dsxCap"></p></div>
+<div class="an-cnt" id="dsxCnt"></div>
+<p class="small mute" id="dsxNote"></p>
+</div>
+
+<h3>2. Vocabulary projection: dense logits against the Ring-DTP ring</h3>
+<p>Four ranks (<i>P</i> = 4), each with its own batch of 2 tokens (<i>X<sub>j</sub></i>, hidden width 3) and one quarter of a 12-word vocabulary (<i>W<sub>r</sub></i>, 3 columns). The numbers are real: random weights and activations, a fixed seed. Each box is one rank; the grid inside is the logit strip it forms this round; the three columns on the right are each token's running state (<i>m</i>, <i>z</i>, <i>y<sub>t</sub></i>), the target's logit filled in when its shard passes.</p>
+<p class="try"><b>Try:</b> step through "move weights" and watch the weight shards hop while the batches stay; then "move activations", where batches and their states travel and need one hop home. Either way every token's loss ends equal to the dense log-softmax, while only one strip per rank ever exists.</p>
+<div class="card" id="rgx">
+<div class="an-top"><div class="seg" id="rgxM" role="group" aria-label="Method"><button class="on" data-m="wts" aria-pressed="true">Ring, move weights</button><button data-m="act" aria-pressed="false">Ring, move activations</button><button data-m="dense" aria-pressed="false">Dense logits</button></div></div>
+<div id="rgxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rgxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rgxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rgxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rgxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="rgxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rgxStep"></div><p id="rgxCap"></p></div>
+<div class="an-cnt" id="rgxCnt"></div>
+</div>
+
+<h3>3. Checkpoint boundaries: checkpointing against SCO</h3>
+<p>gpt-oss-20b as in <a href="https://arxiv.org/html/2609.14306v1#S3.T3" target="_blank" rel="noopener noreferrer">Table 3</a>: 47 checkpoint boundaries of 0.3735 GiB each per GPU (557,056 tokens / 8 ranks × hidden 2,880 × 2 bytes). The top row is device memory, the bottom pinned host memory; forward fills them left to right, backward empties them right to left, restoring one boundary ahead.</p>
+<p class="try"><b>Try:</b> compare "off" with "8 GiB": 21 boundaries go to the host and come back two at a time. The counters show boundary memory only; the measured peak, which includes everything else, is beside them.</p>
+<div class="card" id="scx">
+<div class="an-top"><div class="seg" id="scxM" role="group" aria-label="Method"><button class="on" data-m="b8" aria-pressed="true">SCO, 8 GiB host</button><button data-m="b16" aria-pressed="false">SCO, 16 GiB</button><button data-m="full" aria-pressed="false">SCO, unlimited</button><button data-m="off" aria-pressed="false">Checkpointing only</button></div></div>
+<div id="scxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="scxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="scxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="scxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="scxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="scxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="scxStep"></div><p id="scxCap"></p></div>
+<div class="an-cnt" id="scxCnt"></div>
+</div>
+
+<h3>4. Optimizer step: CPU Adam against OffloadStreamAdamW</h3>
+<p>One optimizer step on one GPU's share of gpt-oss-20b (about 2.6B parameters, 26 buckets of up to 142M, <a href="https://arxiv.org/html/2609.14306v1#A5.T14" target="_blank" rel="noopener noreferrer">Table 14</a>), on one time axis. CPU Adam updates everything on the host in one serial pass (3.95 s measured). The stream copies each bucket's fp32 master weights, moments and gradient to the GPU (16 bytes per parameter), updates it there, and writes 12 bytes per parameter back, with <i>s</i> staging slots limiting how many buckets are in flight.</p>
+<p class="try"><b>Try:</b> one slot, then two: with one slot each bucket waits for the previous write-back and the step is nearly serial; two slots overlap upload, update and write-back and approach the transfer floor; a third buys almost nothing, as Table 14 measured (1.930 against 1.951 s).</p>
+<div class="card" id="osx">
+<div class="an-top"><div class="seg" id="osxM" role="group" aria-label="Method"><button class="on" data-m="s2" aria-pressed="true">Stream, 2 slots</button><button data-m="s1" aria-pressed="false">Stream, 1 slot</button><button data-m="s3" aria-pressed="false">Stream, 3 slots</button><button data-m="cpu" aria-pressed="false">CPU Adam</button></div></div>
+<div id="osxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="osxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="osxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="osxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="osxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="osxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="osxStep"></div><p id="osxCap"></p></div>
+<div class="an-cnt" id="osxCnt"></div>
+<p class="small mute"><span class="ill">Illustrative timing.</span> Bucket times are not printed. Upload and write-back times are set in proportion to bytes (16 : 12), the update to a quarter of the upload, and scaled so that two slots take the measured 1.93 s under Eq. 5; one and three slots then follow from the same times. The CPU bar is the measured 3.95 s.</p>
+</div>
+</section>
+<section class="tab" id="t-tables" role="tabpanel" hidden>
+<h2>The paper's tables, rebuilt</h2>
+<p>Every table that carries the argument, transcribed from the <a href="https://arxiv.org/html/2609.14306v1" target="_blank" rel="noopener noreferrer">arXiv HTML</a> with the printed precision kept (each cell is checked against the extract by <code>mk_tables.py</code>), and every number this page derives recomputed by <code>recompute.py</code>. <b id="tbSum"></b></p>
+
+<h3 id="tbF2">Figure 2, from Table 6: expert dispatch as routing skew grows</h3>
+<p class="try"><b>Try:</b> switch to the 65K shape: standard expert parallelism runs out of memory on every skewed profile, LLEP holds about 53 GiB whatever the skew, and PipelinedLLEP about 22 GiB. Then latency: LLEP and PipelinedLLEP are close; standard EP slows as skew grows.</p>
+<div class="card"><div class="an-top"><div class="seg" id="f2S" role="group" aria-label="Shape"><button class="on" data-m="1" aria-pressed="true">65K tokens, top-8, K = 10</button><button data-m="0" aria-pressed="false">32K tokens, top-4, K = 3</button></div>
+<div class="seg" id="f2V" role="group" aria-label="Metric"><button class="on" data-m="1" aria-pressed="true">Peak memory</button><button data-m="0" aria-pressed="false">Forward latency</button></div></div>
+<div id="f2Svg"></div><p class="small mute">One execution per cell; at 65K the paper reports the repeat with the fastest PipelinedLLEP of three, with that repeat's own LLEP (<a href="https://arxiv.org/html/2609.14306v1#A2.T6" target="_blank" rel="noopener noreferrer">Table 6</a>, <a href="https://arxiv.org/html/2609.14306v1#A2.SS5" target="_blank" rel="noopener noreferrer">B.5</a>). On the balanced profile LLEP does no relocation, so it equals standard EP.</p></div>
+
+<h3 id="tbK">Choosing the token budget, and two latency modes</h3>
+<p>Peak falls monotonically with the chunk count but with decaying return: at the 65K shape the first ten chunks remove 38.4 GiB and the next ten 2.4 GiB. Latency does not follow: at 65K, <i>K</i> of 2, 3 and 5 are slower and larger than <i>K</i> = 10 while 10 to 20 is flat within 6%; at 32K latency rises past <i>K</i> = 3. A single chunk holds 8.3 GiB <i>more</i> than LLEP, since it adds a copy of the route-shaped tensors and partitions nothing (<a href="https://arxiv.org/html/2609.14306v1#A2.F8" target="_blank" rel="noopener noreferrer">Figure 8</a>). A fixed <i>K</i> = 10 on a 128-token micro-batch pays ten collective rounds for about one token each (0.45 to 0.48 times LLEP's speed), where the budget derives <i>K</i> = 1 and runs 1.60 to 2.96 times faster than LLEP; the saving tracks the live set, from 9.0% at 128 tokens to 65.9% at 131,072 (<a href="https://arxiv.org/html/2609.14306v1#A2.T7" target="_blank" rel="noopener noreferrer">Table 7</a>).</p>
+<p>Forward latency at the 65K shape is bimodal: in the fast mode every profile repeats within 0.5%, the slow mode adds 12 to 56%, and which mode a run enters depends on the chunk count and the host-side launch pattern, not the routing (<i>K</i> = 10 was slow in 2 of 56 measurements, <i>K</i> = 16 in 21 of 84). Hence Table 6 reports the fastest of three repeats, and <i>K</i><sub>max</sub> = 10 keeps the schedule where the slow mode is rare (<a href="https://arxiv.org/html/2609.14306v1#A2.SS5" target="_blank" rel="noopener noreferrer">B.5</a>). Under the hood: the inner checkpoint must be reentrant because a non-reentrant one would keep the stacked expert weights alive through Python references for O(<i>KL</i>) cross-layer time; every chunk accumulates into one expert-weight gradient, so the weight-transfer backward fires once per layer; and the collective launches grow linearly with <i>K</i> (<a href="https://arxiv.org/html/2609.14306v1#A2.SS1" target="_blank" rel="noopener noreferrer">B.1</a>).</p>
+
+<h3>The tables</h3>
+<p class="try"><b>Try:</b> pick a table; click a column heading to sort by it.</p>
+<div class="ctl"><label>Table <select id="tbSel"><option value="t2">Table 2: vocabulary projection</option><option value="t10">Table 10: projection per tensor</option><option value="t11">Table 11: projection latency</option><option value="t6">Table 6: routing-skew sweep</option><option value="t7">Table 7: micro-batch ladder</option><option value="t8" selected>Table 8: chunk membership, with our replay</option><option value="t9">Table 9: forward and backward</option><option value="t3">Tables 3 and 12: SCO sweep</option><option value="t13">Table 13: SCO capacity</option><option value="t4">Tables 4 and 14: optimizer stream</option></select></label></div>
+<p class="small" id="tbTitle"></p>
+<div class="tw"><table id="tbT"></table></div>
+<p class="small mute" id="tbNote"></p>
+
+<h3 id="tbChk">Every number checked</h3>
+<p>Each row: what was computed, our value, the paper's, where it is, and whether it reproduces independently, is derived (the paper prints no such number), or does not reproduce. Four do not: the SCO HBM saving the text claims, the replay at the released code's default factor, the end-to-end TFLOP/s multiples, and the AIME counts.</p>
+<div class="seg" id="ckF" role="group" aria-label="Filter"><button class="on" data-m="all" aria-pressed="true">All</button><button data-m="reproduces" aria-pressed="false">Reproduces</button><button data-m="derived" aria-pressed="false">Derived</button><button data-m="does not reproduce" aria-pressed="false">Does not reproduce</button></div>
+<div class="tw"><table id="ckT" class="ckt"></table></div>
+
+<h3 id="tbE2e">Figures 6 and 7: every printed label</h3>
+<p>The end-to-end figures are images whose FSDP2 curves carry no values, so only the printed labels are transcribed (from the PNGs in the arXiv e-print); nothing is read off a curve.</p>
+<div class="tw"><table class="lt">
+<tr><th>Model, GPUs</th><th>FSDP2-best reach</th><th>Stack at 128K: tok/s/GPU, TFLOP/s</th><th>Stack at 1M</th><th>Printed multiples</th><th>Largest batch: FSDP2, stack</th></tr>
+<tr><td>120B, 16</td><td>128K</td><td>1,355; 91</td><td>642; 221</td><td>7.6× tok/s and 1.8× TFLOP/s at 128K; 8× reach</td><td>128K; 1.5M (12×)</td></tr>
+<tr><td>241B, 32</td><td>32K</td><td>866; 110</td><td>314; 213</td><td>32× reach; no shared length</td><td>256K; 1.8M (7×)</td></tr>
+<tr><td>667B, 64</td><td>64K</td><td>316; 107</td><td>124; 233</td><td>10.4× tok/s and 2.2× TFLOP/s "at 64K"; 16× reach</td><td>1M; 3M (3×)</td></tr>
+</table></div>
+<p class="small mute">The stack's points are labelled with configuration names (32A, 31B, 25B, 26B, 33A, 33B) that the paper does not define. The TFLOP/s panel has a dashed "10% MFU" line at about 99 TFLOP/s, consistent with the H200's 989.5 dense BF16 TFLOP/s.</p>
+</section>
+<section class="tab" id="t-more" hidden>
+<h2>Further reading</h2>
+<p class="small mute">Every link opens in a new tab. Reading time of the resources below: 4h 45m.</p>
+<h3>The paper</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://arxiv.org/html/2609.14306v1" target="_blank" rel="noopener noreferrer">Flattening Every Memory Peak in Long-Context Mixture-of-Experts Training (arXiv HTML v1)</a></div><p>arXiv preprint, the paper itself; the HTML version has the anchors this page links to. <a href="https://arxiv.org/abs/2609.14306" target="_blank" rel="noopener noreferrer">abstract page</a>, <a href="https://arxiv.org/pdf/2609.14306v1" target="_blank" rel="noopener noreferrer">PDF</a>.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/SalesforceAIResearch/LeastLoadedEP" target="_blank" rel="noopener noreferrer">LLEP code</a></div><p>no code is released for this paper&#x27;s four operators or for the MoP stack (checked 3 October 2026); this is the authors&#x27; earlier Least-Loaded Expert Parallelism, Apache-2.0, whose assignment plan the dispatch replay on this page ports (about 20 minutes for the README and the plan function).</p><p class="rt">(20 min)</p></div>
+</div><h3>Best resources</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2601.17111" target="_blank" rel="noopener noreferrer">Least-Loaded Expert Parallelism (LLEP)</a></div><p><span class="mute">Nguyen, Pandit, Xu, Xiong, Joty, arXiv 2601.17111:</span> the authors&#x27; earlier paper that PipelinedLLEP extends: reroute an overloaded expert&#x27;s excess tokens, and its weights, to the least-loaded ranks.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2607.01844" target="_blank" rel="noopener noreferrer">Mixture-of-Parallelisms (MoP)</a></div><p><span class="mute">Nguyen, Pandit, Zhao, Yavuz, Savarese, Joty, arXiv 2607.01844:</span> the rank layout the four operators are composed in; it already reports 4.7 to 8.2 times FSDP2&#x27;s throughput and 1M-token context, which matters for reading this paper&#x27;s end-to-end numbers.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2411.09009" target="_blank" rel="noopener noreferrer">Cut Your Losses in Large-Vocabulary Language Models (Cut Cross-Entropy)</a></div><p><span class="mute">Wijmans et al., ICLR 2025, arXiv 2411.09009:</span> the single-device fused cross-entropy that never forms the logit matrix; Ring-DTP is its multi-rank counterpart.</p><p class="rt">(30 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1805.02867" target="_blank" rel="noopener noreferrer">Online normalizer calculation for softmax</a></div><p><span class="mute">Milakov and Gimelshein, 2018, arXiv 1805.02867:</span> the three-scalar running maximum and sum that Ring-DTP folds strips into (Eq. 3), and that FlashAttention also rests on.</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2101.06840" target="_blank" rel="noopener noreferrer">ZeRO-Offload: Democratizing Billion-Scale Model Training</a></div><p><span class="mute">Ren et al., USENIX ATC 2021, arXiv 2101.06840:</span> the CPU optimizer offload and AVX CPU Adam that OffloadStreamAdamW replaces as the update engine.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook" target="_blank" rel="noopener noreferrer">The Ultra-Scale Playbook</a></div><p><span class="mute">Hugging Face (nanotron):</span> the clearest walkthrough of activation recomputation, ZeRO, context and expert parallelism, the components this paper schedules around (the relevant sections).</p><p class="rt">(1h)</p></div>
+</div><h3>Connected papers in this knowledge base</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO</a></div><p>2019: the 16 bytes per parameter and the sharding of model state; the composed stack uses ZeRO-3 for dense weights, and OffloadStreamAdamW speeds up its offload descendant.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron-LM</a></div><p>2019: vocabulary-parallel cross-entropy shards the output weight but needs the same batch on every rank; Ring-DTP keeps the shard and lets each rank keep its own batch.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a8b541c9babbf40c94" target="_blank" rel="noopener noreferrer">Switch Transformers</a></div><p>2021: the expert-parallel MoE layer whose dispatch all-to-all and routing skew PipelinedLLEP bounds; Switch dropped overflow tokens with a capacity factor, this paper drops none.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81eba72af0ac91ddc6b3" target="_blank" rel="noopener noreferrer">Mixtral of Experts</a></div><p>2024: a top-2 sparse MoE trained at 32K context; the kind of model whose dispatch and logits this paper&#x27;s bounds are about.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81" target="_blank" rel="noopener noreferrer">DeepSeek-V3 Technical Report</a></div><p>2024: the auxiliary-loss-free bias balancing used in this paper&#x27;s end-to-end runs, and the fine-grained MoE shape (top-8 of many small experts) its benchmarks use.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381" target="_blank" rel="noopener noreferrer">FlashAttention</a></div><p>2022: the same online-softmax trick applied to attention; Ring-DTP applies it to the vocabulary projection across ranks.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f" target="_blank" rel="noopener noreferrer">PagedAttention</a></div><p>2023: another memory paper whose gain comes from when and where tensors live rather than from changing the arithmetic, at serving time.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671" target="_blank" rel="noopener noreferrer">QLoRA</a></div><p>2023: the approximate route (4-bit weights, paged 8-bit optimizer state) this paper deliberately excludes so its results stay comparable with full BF16 training.</p></div>
+</div><h3>Topics</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a></div><p>where this row is integrated; distributed training, memory and long-context training.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>the row&#x27;s second topic: sizing a run against the hardware you have.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81f5abf5dbdbac821a12" target="_blank" rel="noopener noreferrer">Moonshot AI: Kimi</a></div><p>the end-to-end models share Kimi K2&#x27;s widths (hidden 7,168, 384 experts of width 2,048, top-8).</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d814abf90d5b9e567d72f" target="_blank" rel="noopener noreferrer">OpenAI: GPT family</a></div><p>gpt-oss-20b, the model behind the SCO and optimizer benchmarks and the training-quality check.</p></div>
+</div><p class="small mute">This page is one row of the <a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> database; its properties (Paper, Takeaway, Topics, Year) live there.</p>
+</section>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 10_js_common.js */
+// ---- Shared helpers ----
+const $=id=>document.getElementById(id);
+window.TAB_RENDER=window.TAB_RENDER||{};
+const onTab=(id,f)=>{(TAB_RENDER[id]=TAB_RENDER[id]||[]).push(f)};
+const fmt=(v,d)=>v.toLocaleString('en-GB',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+const GiB=2**30, MiB=2**20, KiB=1024;
+function fmtBytes(b){if(b>=GiB)return (b/GiB).toFixed(b/GiB>=100?0:(b/GiB>=10?1:2))+' GiB';if(b>=MiB)return (b/MiB).toFixed(b/MiB>=100?0:1)+' MiB';if(b>=KiB)return (b/KiB).toFixed(1)+' KiB';return fmt(b,b%1?1:0)+' B'}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function segBind(id,cb){const el=$(id);el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset.m)}))}
+const svgEl=(w,h,inner,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="100%" role="img" aria-label="'+(label||'')+'"><defs><marker id="ah'+w+h+'" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>'+inner.replace(/MARK/g,'url(#ah'+w+h+')')+'</svg>';
+const bx=(x,y,w,h,cls,lines,fs)=>{let s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" class="'+cls+'"/>';const n=lines.length,lh=(fs||12)+3;lines.forEach((t,i)=>{s+='<text x="'+(x+w/2)+'" y="'+(y+h/2+(i-(n-1)/2)*lh+4)+'" text-anchor="middle" font-size="'+(fs||12)+'"'+(i>0?' fill="var(--mute)"':'')+'>'+t+'</text>'});return s};
+const ar=(x1,y1,x2,y2,dash)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.4" marker-end="MARK"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+const sup=n=>String(n).replace(/[-0-9]/g,c=>'⁻⁰¹²³⁴⁵⁶⁷⁸⁹'['-0123456789'.indexOf(c)]);
+const sci=(v,d)=>{if(!v)return '0';const e=Math.floor(Math.log10(Math.abs(v))+1e-9);return (v/10**e).toFixed(d==null?2:d)+' × 10'+sup(e)};
+const usd=(v,d)=>'$'+fmt(v,d==null?(v<0.1?3:v<100?2:0):d);
+const flp=v=>v>=1e12?(v/1e12).toFixed(2)+' TFLOP':(v/1e9).toFixed(v<1e10?2:v<1e11?1:0)+' GFLOP';
+const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+const A=(u,t)=>'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+t+'</a>';
+// log-log (or log-y) frame: returns the SVG so far and the two scale functions
+function logFrame(o){const {W,H,pl,pr,pt,pb}=o,lg=Math.log10;
+  const lx=o.xlin?(v=>pl+(W-pl-pr)*(v-o.x[0])/(o.x[1]-o.x[0])):(v=>pl+(W-pl-pr)*(lg(v)-lg(o.x[0]))/(lg(o.x[1])-lg(o.x[0])));
+  const ly=v=>pt+(H-pt-pb)*(1-(lg(v)-lg(o.y[0]))/(lg(o.y[1])-lg(o.y[0])));
+  let s='';o.yt.forEach(([v,l])=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+ly(v)+'" y2="'+ly(v)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(ly(v)+4)+'" font-size="11" text-anchor="end" fill="var(--mute)">'+l+'</text>'});
+  o.xt.forEach(([v,l])=>{s+='<line x1="'+lx(v)+'" x2="'+lx(v)+'" y1="'+(H-pb)+'" y2="'+(H-pb+4)+'" stroke="var(--mute)"/><text x="'+lx(v)+'" y="'+(H-pb+16)+'" font-size="11" text-anchor="middle" fill="var(--mute)">'+l+'</text>'});
+  if(o.xl)s+='<text x="'+((pl+W-pr)/2)+'" y="'+(H-4)+'" font-size="11" text-anchor="middle" fill="var(--mute)">'+o.xl+'</text>';
+  if(o.yl)s+='<text x="12" y="'+((pt+H-pb)/2)+'" font-size="11" text-anchor="middle" fill="var(--mute)" transform="rotate(-90 12 '+((pt+H-pb)/2)+')">'+o.yl+'</text>';
+  return {s,lx,ly}}
+// end labels for lines, pushed apart so they do not overlap
+function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.forEach(e=>{e.ly=Math.max(e.y,last+(gap||14));last=e.ly});ends.forEach(e=>{s+='<text x="'+x+'" y="'+(e.ly+4)+'" font-size="11" fill="'+e.c+'" style="cursor:help"><title>'+e.how+'</title>'+e.n+'</text>'});return s}
+
+</script>
+<script>/* _gen_data.js */
+// Generated by mk_paper.py from paper.json, tables.json and inputs/recompute.json.
+window.PAPER={"meta":{"title":"Flattening Every Memory Peak in Long-Context Mixture-of-Experts Training","short":"PipelinedLLEP, Ring-DTP, SCO, OffloadStreamAdamW","arxiv":"2609.14306","arxiv_v":"v1","ax":"https://arxiv.org/html/2609.14306v1"},"tables":{"t2":{"id":"S3.T2","name":"Table 2","title":"Vocabulary projection at P = 8, H = 7,168, V = 200,000, FP32 (forward + backward)","cols":["N","Schedule","Standard peak (GiB)","Ring-DTP peak (GiB)","Saved","Standard (ms)","Ring-DTP (ms)","Cost"],"rows":[["16,384","move-activations","42.462","7.322","82.8%","1001.2","1052.2","+5.1%"],["32,768","move-weights","79.521","10.622","86.6%","2065.2","2155.8","+4.4%"]]},"t10":{"id":"A3.T10","name":"Table 10","title":"Vocabulary projection peak as the Ring-DTP group grows (N = 16,384)","cols":["P","Metric","Standard","Ring-DTP","Change"],"rows":[["4","Projection weight","5.3406","1.3351","75.0% lower"],["4","Resident weight + input","5.8409","1.8353","68.6% lower"],["4","Projection F+B peak","42.4620","11.5194","72.9% lower"],["4","Increment over resident","36.6212","9.6841","73.6% lower"],["8","Projection weight","5.3406","0.6676","87.5% lower"],["8","Resident weight + input","5.8409","1.1678","80.0% lower"],["8","Projection F+B peak","42.4620","7.3222","82.8% lower"],["8","Increment over resident","36.6212","6.1545","83.2% lower"]],"unit":"GiB"},"t11":{"id":"A3.T11","name":"Table 11","title":"Matched forward latency at the shape of Table 10","cols":["Local batch","P","Standard (ms)","Ring-DTP (ms)","Slowdown"],"rows":[["16,384","4","989.8","1035.7","4.6%"],["16,384","8","1001.2","1052.2","5.1%"]]},"t3":{"id":"S3.T3","name":"Table 3 with Table 12","title":"SCO host-budget sweep on gpt-oss-20b, 8 H200s, 556,432 tokens per step","cols":["Host budget","Boundaries","Logical (GiB)","Pinned (GiB)","Peak HBM (GiB)","Node RAM (GiB)","Step (s)","Throughput (tok/s/GPU)","Largest 10-step batch"],"rows":[["Off","0 / 47","0","0","139.790","402.517","26.3412","2,641","557,056"],["8 GiB","21 / 47","7.82-7.84","10.5","133.546","487.990","25.8415","2,692","589,824"],["16 GiB","42 / 47","15.63-15.69","21.0","125.677","573.473","25.8806","2,687","622,592"],["Full","47 / 47","17.49-17.55","23.5","123.728","593.410","25.8844","2,687","655,360"]]},"t13":{"id":"A4.T13","name":"Table 13","title":"SCO capacity on a 32,768-token search grid","cols":["Policy","Largest clean","Largest completion","First failure","Marginal gain","Failed alloc."],"rows":[["Off","458,752","557,056","589,824","-","27.61 GiB"],["8 GiB","557,056","589,824","622,592","5.88%","29.03 GiB"],["16 GiB","557,056","622,592","655,360","11.76%","30.59 GiB"],["Full","622,592","655,360","688,128","17.65%","32.17 GiB"]]},"t4":{"id":"S3.T4","name":"Table 4 with Table 14","title":"Offloaded optimizer step on gpt-oss-20b, 8 H200s (CPU Adam of ZeRO-Offload: 3.95 s)","cols":["Requested bucket","Slots","Groups","Actual maximum","Time (s)","Staging (GiB)"],"rows":[["100M","2","26","142.076M","1.930","4.234"],["100M","3","26","142.076M","1.951","6.351"],["150M","2","14","208.431M","2.204","6.212"],["150M","3","14","208.431M","2.225","9.318"],["200M","2","14","244.938M","2.240","7.300"],["200M","3","14","244.938M","2.252","10.950"],["250M","2","10","308.586M","2.282","9.197"],["250M","3","10","308.586M","2.282","13.795"]]},"t6":{"id":"A2.T6","name":"Table 6","title":"Routing-skew sweep: mean forward latency (ms) / peak allocated memory (GiB)","cols":["Shape","Routing","Standard EP","LLEP","PipelinedLLEP","Speed vs LLEP","Peak saved"],"rows":[["32K, top-4, K = 3","Balanced","40.82 / 21.347","47.95 / 24.101","44.74 / 17.606","1.07×","26.9%"],["32K, top-4, K = 3","30% / 16","89.39 / 32.549","53.14 / 24.476","51.44 / 18.460","1.03×","24.6%"],["32K, top-4, K = 3","50% / 16","143.12 / 45.351","53.74 / 24.476","54.57 / 18.460","0.98×","24.6%"],["32K, top-4, K = 3","80% / 16","225.06 / 64.556","53.89 / 24.664","53.90 / 18.553","1.00×","24.8%"],["32K, top-4, K = 3","95% / 16","267.08 / 74.154","54.34 / 24.664","53.93 / 18.553","1.01×","24.8%"],["32K, top-4, K = 3","30% / 4","107.28 / 36.885","53.49 / 24.664","52.27 / 18.554","1.02×","24.8%"],["32K, top-4, K = 3","50% / 4","157.39 / 48.445","53.61 / 24.664","53.97 / 18.554","0.99×","24.8%"],["65K, top-8, K = 10","Balanced","177.82 / 52.660","177.82 / 52.660","161.00 / 21.430","1.10×","59.3%"],["65K, top-8, K = 10","30% / 16","OOM","182.97 / 52.906","176.62 / 22.772","1.04×","57.0%"],["65K, top-8, K = 10","50% / 16","OOM","186.07 / 52.906","182.64 / 22.773","1.02×","57.0%"],["65K, top-8, K = 10","80% / 16","OOM","189.14 / 52.988","180.30 / 22.861","1.05×","56.9%"],["65K, top-8, K = 10","95% / 16","OOM","182.13 / 52.988","178.57 / 22.855","1.02×","56.9%"],["65K, top-8, K = 10","30% / 4","OOM","185.78 / 52.906","180.59 / 22.774","1.03×","57.0%"],["65K, top-8, K = 10","50% / 4","OOM","186.79 / 52.906","184.69 / 22.778","1.01×","57.0%"]]},"t7":{"id":"A2.T7","name":"Table 7","title":"Micro-batch ladder at the 65K shape: budget c = 4,096 (K_max = 10) against a fixed K = 10","cols":["Tokens N","K","Budget: speedup","Budget: peak saved","Fixed K: speedup","Fixed K: peak saved"],"rows":[["128","1","1.60-2.96×","9.0-11.0%","0.45-0.48×","9.4-11.4%"],["1,024","1","1.35-2.17×","10.4-11.1%","0.47-0.56×","14.0-15.6%"],["8,192","2","0.98-1.09×","14.3-17.0%","0.80-0.82×","28.6%"],["32,768","8","1.02-1.09×","44.9-47.6%","0.98-1.06×","47.2-49.4%"],["65,536","10","1.04-1.10×","56.9-59.3%","coincides","coincides"],["131,072","10","1.07-1.10×","63.4-65.9%","coincides","coincides"]]},"t8":{"id":"A2.T8","name":"Table 8","title":"Chunk membership at 65,536 tokens per rank, K = 10","cols":["Routing","Latency strided (ms)","Latency contig. (ms)","Peak strided (GiB)","Peak contig. (GiB)","Send ratio strided","Send ratio contig."],"rows":[["Balanced","161.2","218.2","21.430","21.464","1.00","1.02"],["95% / 16","178.6","184.9","22.855","23.575","1.35","2.63"],["80% / 16","180.6","209.7","22.861","23.514","2.40","4.00"],["50% / 4","190.8","217.0","22.778","24.151","2.29","6.00"]]},"t9":{"id":"A2.T9","name":"Table 9","title":"Forward and backward together, K = 10, balanced / 80% / 16","cols":["Shape","LLEP (GiB)","PipelinedLLEP (GiB)","Peak saved","Speedup"],"rows":[["65K tok, H = 7168, top-8","52.660 / 52.988","21.430 / 22.861","59.3 / 56.9%","1.11 / 1.04×"],["32K tok, H = 4096, top-4","23.850 / 24.413","14.902 / 15.382","37.5 / 37.0%","0.87 / 0.90×"]]}},"rc":{"checks":[{"key":"k65","what":"Chunks at 65,536 tokens, c = 6,554","ours":"K = 10, c_eff = 6554","paper":"K = 10","where":"Figure 2, Table 5","verdict":"reproduces","note":""},{"key":"k32","what":"Chunks at 32,768 tokens, c = 10,923","ours":"K = 3, c_eff = 10923","paper":"K = 3","where":"Table 6","verdict":"reproduces","note":""},{"key":"ladder","what":"Table 7 chunk counts at c = 4,096, K_max = 10","ours":"128: 1, 1024: 1, 8192: 2, 32768: 8, 65536: 10, 131072: 10","paper":"1, 1, 2, 8, 10, 10","where":"Table 7","verdict":"reproduces","note":"the ceiling binds above c K_max = 40,960 tokens"},{"key":"bound65","what":"Dispatch bound 2 E_p k c_eff H b at the 65K shape (BF16)","ours":"11.20 GiB","paper":"not printed","where":"Eq. 1","verdict":"derived","note":"the worst case any router could force; one chunk at the even share is 1/E_p of it, 1.40 GiB"},{"key":"whole65","what":"Unchunked dispatch buffers 2 R_d H b, balanced (R_d = k N = 524,288)","ours":"14.00 GiB","paper":"not printed","where":"Table 1","verdict":"derived","note":"LLEP to PipelinedLLEP saves 31.23 GiB measured, more than these buffers, so combine buffers and expert intermediates are in the live set too"},{"key":"bound_ep64","what":"The same bound at the end-to-end scale, E_p = 64, c = 4,096","ours":"56.0 GiB","paper":"not printed","where":"Appendix A (E_p = W = 64, c swept 4,096 to 32,768)","verdict":"derived","note":"the guarantee grows with E_p: at E_p = 64 it is about half of an H200 even at the smallest c swept; what is realised under strided chunks is 1/E_p of it"},{"key":"saved_65K balanced","what":"Peak saved vs LLEP, 65K balanced","ours":"59.3%","paper":"59.3%","where":"Table 6","verdict":"reproduces","note":""},{"key":"saved_65K 80/16","what":"Peak saved vs LLEP, 65K 80/16","ours":"56.9%","paper":"56.9%","where":"Table 6","verdict":"reproduces","note":""},{"key":"saved_32K balanced","what":"Peak saved vs LLEP, 32K balanced","ours":"26.9%","paper":"26.9%","where":"Table 6","verdict":"reproduces","note":""},{"key":"saved_32K 30/16","what":"Peak saved vs LLEP, 32K 30/16","ours":"24.6%","paper":"24.6%","where":"Table 6","verdict":"reproduces","note":""},{"key":"lat65","what":"Speed vs LLEP, 65K balanced: 177.82 / 161.00 ms","ours":"1.10x","paper":"1.10x","where":"Table 6","verdict":"reproduces","note":""},{"key":"t9_32k","what":"Forward and backward at 32K, K = 10","ours":"0.87 / 0.90x","paper":"0.87 / 0.90x","where":"Table 9","verdict":"reproduces","note":"PipelinedLLEP is slower than LLEP here: the abstract's \"without losing throughput\" holds for the 65K shape and for a budget-derived K, not for every K"},{"key":"t8_Balanced","what":"Table 8 send ratio, Balanced (strided / contiguous)","ours":"1.00 / 1.02","paper":"1.00 / 1.02","where":"Table 8","verdict":"reproduces","note":"our replay: B.2 profiles + LLEP's released plan at capacity factor 1.0 (sim_dispatch.py)"},{"key":"t8_95% / 16","what":"Table 8 send ratio, 95% / 16 (strided / contiguous)","ours":"1.35 / 2.63","paper":"1.35 / 2.63","where":"Table 8","verdict":"reproduces","note":"our replay: B.2 profiles + LLEP's released plan at capacity factor 1.0 (sim_dispatch.py)"},{"key":"t8_80% / 16","what":"Table 8 send ratio, 80% / 16 (strided / contiguous)","ours":"2.40 / 4.00","paper":"2.40 / 4.00","where":"Table 8","verdict":"reproduces","note":"our replay: B.2 profiles + LLEP's released plan at capacity factor 1.0 (sim_dispatch.py)"},{"key":"t8_50% / 4","what":"Table 8 send ratio, 50% / 4 (strided / contiguous)","ours":"2.29 / 6.00","paper":"2.29 / 6.00","where":"Table 8","verdict":"reproduces","note":"our replay: B.2 profiles + LLEP's released plan at capacity factor 1.0 (sim_dispatch.py)"},{"key":"t8_frac","what":"Largest receive as a share of the Eq. 1 bound (strided, contiguous 50%/4)","ours":"12.5%, 17.1%","paper":"12.5%, 17.1%","where":"B.3 text after Table 8","verdict":"reproduces","note":""},{"key":"t8_f11","what":"Same replay with the released code's default capacity factor 1.1, 80%/16","ours":"1.60 / 2.00","paper":"2.40 / 4.00","where":"Table 8","verdict":"does not reproduce","note":"so the paper ran LLEP at factor 1.0 (inferred: only 1.0 matches)"},{"key":"t8_3016","what":"Contiguous chunks on the 30%/16 profile (not in Table 8)","ours":"42.2% of the bound","paper":"not reported","where":"Table 8 omits it","verdict":"derived","note":"contiguous chunks can concentrate far more than the 17.1% the paper reports as its worst; strided stays at 12.5%"},{"key":"w_full","what":"Projection weight H x V in FP32","ours":"5.3406 GiB","paper":"5.3406 GiB","where":"Table 10","verdict":"reproduces","note":""},{"key":"w_p4","what":"Weight shard at P = 4 / P = 8","ours":"1.3351 / 0.6676 GiB","paper":"1.3351 / 0.6676 GiB","where":"Table 10","verdict":"reproduces","note":""},{"key":"logits3","what":"Standard increment = three N x V FP32 tensors (logits, log-softmax, their gradient)","ours":"36.6211 GiB","paper":"36.6212 GiB","where":"Table 10","verdict":"reproduces","note":"one N x V tensor at N = 16,384 is 12.207 GiB; the measured increment is exactly three of them"},{"key":"strips","what":"Ring-DTP increment in strips of N x V/P","ours":"4.03 strips at P = 8, 3.17 at P = 4","paper":"O(NVb/P)","where":"Table 10, Eq. 2","verdict":"derived","note":"the constant in Eq. 2 is about 3 to 4 strips, not 1"},{"key":"t2_16384","what":"Peak saved at N = 16,384","ours":"82.8%","paper":"82.8%","where":"Table 2","verdict":"reproduces","note":""},{"key":"t2_32768","what":"Peak saved at N = 32,768","ours":"86.6%","paper":"86.6%","where":"Table 2","verdict":"reproduces","note":""},{"key":"t2_cost","what":"Time cost, both rows","ours":"+5.1%, +4.4%","paper":"+5.1%, +4.4%","where":"Table 2","verdict":"reproduces","note":"the intro's \"under 5% more time\" describes the 86.6% row; the other row costs 5.1%"},{"key":"t2_std32","what":"Standard peak at N = 32,768 from weight + input + three N x V tensors","ours":"79.46 GiB","paper":"79.521 GiB","where":"Table 2","verdict":"reproduces","note":"within 0.1%"},{"key":"mode","what":"Auto-mode threshold V/P at P = 8","ours":"25000","paper":"25,000","where":"Table 2 caption","verdict":"reproduces","note":""},{"key":"hop","what":"Bytes per hop at N = 16,384, P = 8: move activations / move weights","ours":"0.44 / 0.67 GiB","paper":"O(NH) / O(HV/P)","where":"§3.2","verdict":"derived","note":""},{"key":"sco_b","what":"One checkpoint boundary on gpt-oss-20b: (557,056 / 8 ranks) x 2,880 x 2 bytes","ours":"0.3735 GiB","paper":"not printed","where":"Table 12 (implied)","verdict":"derived","note":""},{"key":"sco_n","what":"Boundaries that fit 8 / 16 GiB","ours":"21 / 42","paper":"21 / 42","where":"Table 3","verdict":"reproduces","note":"independently, from the config alone"},{"key":"sco_log","what":"Logical payload of 21, 42, 47 boundaries at the ceiling","ours":"7.84, 15.69, 17.56 GiB","paper":"upper ends 7.84, 15.69, 17.55 GiB (ranges 7.82-7.84, 15.63-15.69, 17.49-17.55)","where":"Table 12","verdict":"reproduces","note":"the upper ends reproduce; the lower ends would be a rank holding about 0.2% fewer tokens than 557,056 / 8"},{"key":"sco_hbm","what":"Peak HBM drop, off to full","ours":"16.06 GiB = 11.5%","paper":"the text says \"saving 17.65% of HBM\"","where":"§3.3, Table 3","verdict":"does not reproduce","note":"17.65% is Table 13's batch gain (655,360 / 557,056); the HBM peak falls 11.5%"},{"key":"sco_ram","what":"Node RAM rise, off to full, against 8 ranks x 23.5 GiB pinned","ours":"190.9 vs 188.0 GiB","paper":"about the same amount","where":"§3.3, Table 12","verdict":"reproduces","note":""},{"key":"sco_gain","what":"Largest batch gain: marginal completions / clean runs","ours":"17.65% / 35.71%","paper":"17.65% (intro 17.7%) / 35.71%","where":"Table 13, §1, §3.3","verdict":"reproduces","note":"two different gains: §3.3 calls the 35.71% \"the largest batch that runs without an out-of-memory error\", but it compares runs without allocator warnings"},{"key":"sco_tp","what":"Throughput spread","ours":"1.9%","paper":"1.9%","where":"§3.3","verdict":"reproduces","note":"and it rises with offload, consistent with the baseline running at its memory edge (allocator warnings at this batch, Table 13)"},{"key":"sco_tok","what":"Tokens per step from throughput x 8 GPUs x step time (off)","ours":"556,537","paper":"556,432","where":"Table 12","verdict":"reproduces","note":""},{"key":"osa_sp","what":"Speedup 3.95 / 1.93 s","ours":"2.05x","paper":"2.05x","where":"Table 4","verdict":"reproduces","note":""},{"key":"stage_142_2","what":"Staging = slots x largest bucket x 16 bytes (142M, 2 slots)","ours":"4.234 GiB","paper":"4.234 GiB","where":"Table 14","verdict":"reproduces","note":"16 bytes = fp32 master weight, two fp32 moments and an fp32 gradient"},{"key":"stage_142_3","what":"Staging = slots x largest bucket x 16 bytes (142M, 3 slots)","ours":"6.351 GiB","paper":"6.351 GiB","where":"Table 14","verdict":"reproduces","note":"16 bytes = fp32 master weight, two fp32 moments and an fp32 gradient"},{"key":"stage_208_2","what":"Staging = slots x largest bucket x 16 bytes (208M, 2 slots)","ours":"6.212 GiB","paper":"6.212 GiB","where":"Table 14","verdict":"reproduces","note":"16 bytes = fp32 master weight, two fp32 moments and an fp32 gradient"},{"key":"stage_244_3","what":"Staging = slots x largest bucket x 16 bytes (245M, 3 slots)","ours":"10.950 GiB","paper":"10.950 GiB","where":"Table 14","verdict":"reproduces","note":"16 bytes = fp32 master weight, two fp32 moments and an fp32 gradient"},{"key":"stage_308_3","what":"Staging = slots x largest bucket x 16 bytes (309M, 3 slots)","ours":"13.795 GiB","paper":"13.795 GiB","where":"Table 14","verdict":"reproduces","note":"16 bytes = fp32 master weight, two fp32 moments and an fp32 gradient"},{"key":"osa_groups","what":"Parameters per rank / 26 buckets","ours":"101M","paper":"100M requested","where":"Table 14","verdict":"reproduces","note":"gpt-oss-20b has 21B parameters (model card), 2.6B per rank"},{"key":"osa_bw","what":"Implied host-link traffic per GPU over 1.93 s","ours":"21.8 GB/s to the GPU, 16.3 GB/s back","paper":"not printed","where":"Table 4 (derived)","verdict":"derived","note":"the paper calls the step transfer-bound but prints no bandwidth; eight GPUs together move about 305 GB/s to and from host memory"},{"key":"fig5","what":"12 Theta / W at Theta = 10^12, W = 96","ours":"116.4 GiB","paper":"116 GiB","where":"Figure 5","verdict":"reproduces","note":""},{"key":"reach_120","what":"Context reach 120B: 1M / 128K","ours":"8x","paper":"8x","where":"Figure 7b","verdict":"reproduces","note":""},{"key":"reach_241","what":"Context reach 241B: 1M / 32K","ours":"32x","paper":"32x","where":"Figure 7b","verdict":"reproduces","note":""},{"key":"reach_667","what":"Context reach 667B: 1M / 64K","ours":"16x","paper":"16x","where":"Figure 7b","verdict":"reproduces","note":""},{"key":"par_120","what":"Routed experts alone, 7 layers x 384 x 3 x 7,168 x 2,048","ours":"118.4B","paper":"120B","where":"Appendix A","verdict":"derived","note":"leaves 1.6B for embeddings (1.4B per 200,000 x 7,168 matrix), attention and routers, which the paper does not itemise; consistent"},{"key":"par_241","what":"Routed experts alone, 14 layers x 384 x 3 x 7,168 x 2,048","ours":"236.8B","paper":"241B","where":"Appendix A","verdict":"derived","note":"leaves 4.2B for embeddings (1.4B per 200,000 x 7,168 matrix), attention and routers, which the paper does not itemise; consistent"},{"key":"par_667","what":"Routed experts alone, 39 layers x 384 x 3 x 7,168 x 2,048","ours":"659.5B","paper":"667B","where":"Appendix A","verdict":"derived","note":"leaves 7.5B for embeddings (1.4B per 200,000 x 7,168 matrix), attention and routers, which the paper does not itemise; consistent"},{"key":"mfu","what":"MFU of the composed stack (TFLOP/s / 989.5 dense BF16)","ours":"120B 128K 9.2%, 241B 128K 11.1%, 667B 128K 10.8%, 120B 1M 22.3%, 241B 1M 21.5%, 667B 1M 23.5%","paper":"\"10% MFU\" dashed line near 99","where":"Figure 6 bottom","verdict":"derived","note":""},{"key":"tp_base","what":"Baseline throughput implied by the printed multiples","ours":"1355 / 7.6 = 178 (120B, 128K); 316 / 10.4 = 30 (667B)","paper":"not printed","where":"Figure 6 top","verdict":"derived","note":"at 667B the stack has no point at 64K; the 10.4x divides its 128K throughput by the baseline's 64K"},{"key":"tf_base","what":"Baseline TFLOP/s implied by the printed multiples","ours":"91 / 1.8 = 50.6 (120B); 107 / 2.2 = 48.6 (667B)","paper":"\"FSDP2-best stays below 40 anywhere\"","where":"Figure 6 bottom, §4","verdict":"does not reproduce","note":"both implied baselines exceed 40, so the 1.8x and 2.2x multiples and the \"below 40\" sentence cannot all hold"},{"key":"batch","what":"Batch multiples 1.5M / 128K, 1.8M / 256K, 3M / 1M","ours":"11.7x, 7.0x, 3.0x","paper":"12x, 7x, 3x","where":"Figure 7a","verdict":"reproduces","note":"within rounding of the printed 1.5M and 1.8M"},{"key":"aime","what":"AIME 2025 Avg@8 as correct samples out of 30 x 8 = 240","ours":"59.8% = 143.52, 59.6% = 143.04, 45.2% = 108.48","paper":"59.8 / 59.6 / 45.2","where":"Appendix A, Training quality","verdict":"does not reproduce","note":"59.8 and 45.2 are not whole numbers of 240 samples (143/240 = 59.58, 144/240 = 60.00); the paper does not say how Avg@8 was counted. The 0.2-point gap is under half of one sample (0.42 points)"}],"sim_dispatch":{"factor_1.0":{"Balanced":{"strided":{"send_ratio":1.0,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":1.016,"max_recv_frac_of_bound":0.1269},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":1.0},"95% / 16":{"strided":{"send_ratio":1.35,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":2.628,"max_recv_frac_of_bound":0.1581},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":7.6},"80% / 16":{"strided":{"send_ratio":2.4,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":4.0,"max_recv_frac_of_bound":0.1563},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":6.4},"50% / 4":{"strided":{"send_ratio":2.29,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":6.001,"max_recv_frac_of_bound":0.1712},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":4.387},"30% / 16":{"strided":{"send_ratio":1.411,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":4.0,"max_recv_frac_of_bound":0.4219},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":2.4},"50% / 16":{"strided":{"send_ratio":2.073,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":3.0,"max_recv_frac_of_bound":0.25},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":4.0},"30% / 4":{"strided":{"send_ratio":2.285,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":5.998,"max_recv_frac_of_bound":0.1975},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":2.942}},"factor_1.1":{"Balanced":{"strided":{"send_ratio":1.0,"max_recv_frac_of_bound":0.1251},"contiguous":{"send_ratio":1.016,"max_recv_frac_of_bound":0.1269},"gpu_loads_over_mean":1.0,"std_ep_load_over_mean":1.0},"95% / 16":{"strided":{"send_ratio":1.9,"max_recv_frac_of_bound":0.1375},"contiguous":{"send_ratio":2.0,"max_recv_frac_of_bound":0.1562},"gpu_loads_over_mean":1.1,"std_ep_load_over_mean":7.6},"80% / 16":{"strided":{"send_ratio":1.6,"max_recv_frac_of_bound":0.1375},"contiguous":{"send_ratio":2.0,"max_recv_frac_of_bound":0.1719},"gpu_loads_over_mean":1.1,"std_ep_load_over_mean":6.4},"50% / 4":{"strided":{"send_ratio":1.518,"max_recv_frac_of_bound":0.1376},"contiguous":{"send_ratio":2.002,"max_recv_frac_of_bound":0.1875},"gpu_loads_over_mean":1.1,"std_ep_load_over_mean":4.387},"30% / 16":{"strided":{"send_ratio":1.2,"max_recv_frac_of_bound":0.1375},"contiguous":{"send_ratio":4.0,"max_recv_frac_of_bound":0.4688},"gpu_loads_over_mean":1.1,"std_ep_load_over_mean":2.4},"50% / 16":{"strided":{"send_ratio":1.5,"max_recv_frac_of_bound":0.1375},"contiguous":{"send_ratio":3.0,"max_recv_frac_of_bound":0.2812},"gpu_loads_over_mean":1.1,"std_ep_load_over_mean":4.0},"30% / 4":{"strided":{"send_ratio":1.323,"max_recv_frac_of_bound":0.1376},"contiguous":{"send_ratio":2.002,"max_recv_frac_of_bound":0.25},"gpu_loads_over_mean":1.1,"std_ep_load_over_mean":2.942}}},"mfu":{"120B 128K":9.2,"241B 128K":11.1,"667B 128K":10.8,"120B 1M":22.3,"241B 1M":21.5,"667B 1M":23.5}}};
+
+</script>
+<script>/* 11_js_ui.js */
+// ---- Paper-page helpers (reusable): width-measured drawing, the step animation controller, predict-then-reveal ----
+const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+// fit(el, draw): call draw(width) now if visible and again whenever the element's width changes.
+// Charts are laid out in CSS pixels at the measured width, so an 11 px font is 11 px on screen.
+function fit(el,draw){if(!el)return;el.__draw=draw;el.__lw=-1;
+  const go=()=>{const w=Math.floor(el.clientWidth);if(w>0&&w!==el.__lw){el.__lw=w;el.__draw(w)}};
+  if(!el.__obs){el.__obs=1;let q=0;const later=()=>{if(!q){q=1;requestAnimationFrame(()=>{q=0;go()})}};if('ResizeObserver' in window)new ResizeObserver(later).observe(el);else addEventListener('resize',later)}go()}
+const refit=el=>{if(el&&el.__draw){el.__lw=-1;const w=Math.floor(el.clientWidth);if(w>0){el.__lw=w;el.__draw(w)}}};
+const svgW=(w,h,inner,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'" style="max-width:100%;height:auto">'+inner+'</svg>';
+const tx=(x,y,t,o)=>{o=o||{};return '<text x="'+(+x).toFixed(1)+'" y="'+(+y).toFixed(1)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+(o.c?' fill="'+o.c+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+t+'</text>'};
+const rc=(x,y,w,h,f,o)=>{o=o||{};return '<rect x="'+(+x).toFixed(1)+'" y="'+(+y).toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="'+(o.r==null?4:o.r)+'" fill="'+f+'"'+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1)+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+'/>'};
+const ln2=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+(+x1).toFixed(1)+'" y1="'+(+y1).toFixed(1)+'" x2="'+(+x2).toFixed(1)+'" y2="'+(+y2).toFixed(1)+'" stroke="'+c+'" stroke-width="'+(o.sw||1.2)+'"'+(o.op!=null?' opacity="'+o.op+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+'/>'};
+const G=(op,s)=>op<=0?'':op>=1?s:'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
+const cl01=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
+
+// makeAnim: one input animated step by step, with modes (old method and new) sharing one scale.
+// o = {id, modes:{m:[{t,c}...]}, mode, draw(svgHost, mode, k, e, width), counters(mode,k,e) -> html, dur}
+// Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cap, #<id>Cnt and a .seg #<id>M.
+function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.dur||3000,MOVE=.65;
+  const st={m:o.mode,k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
+  const steps=()=>o.modes[st.m];
+  function draw(){const host=$(id+'Svg'),w=host.clientWidth;if(!w)return;st.w=w;const e=RM?1:ease(cl01(st.t/MOVE));
+    host.innerHTML=o.draw(st.m,st.k,e,w);
+    if(st.lk!==st.k||st.lm!==st.m){const S=steps()[st.k];$(id+'Step').innerHTML='Step '+(st.k+1)+' of '+steps().length+': '+S.t;$(id+'Cap').innerHTML=S.c;st.lk=st.k;st.lm=st.m}
+    $(id+'Cnt').innerHTML=o.counters(st.m,st.k,e);
+    const n=steps().length,sc=$(id+'Scrub');sc.max=n*100;sc.value=Math.round((st.k+Math.min(1,st.t))*100);
+    const pb=$(id+'Play'),end=st.k===n-1&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play')}
+  const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
+    st.t+=dt*st.spd/DUR;const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
+    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
+  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
+  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
+  $(id+'Play').addEventListener('click',()=>{if(st.play)pause();else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
+  $(id+'Fwd').addEventListener('click',()=>{pause();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
+  $(id+'Back').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
+  $(id+'Scrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);if(st.k===n-1&&v>=n*100)st.t=1;draw()});
+  $(id+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
+  const seg=$(id+'M');if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
+    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&!RM){st.started=true;st.play=true}kick()},{threshold:.15}).observe(card)}else st.vis=true;
+  document.addEventListener('visibilitychange',kick);
+  fit($(id+'Svg'),()=>draw());
+  return {draw,st,kick}}
+
+// Predict, then reveal: <div class="pred" data-ans="i"> with .opts buttons, .fb and a hidden .reveal.
+// The reveal (the details and the live demo) opens after any answer; window.PRED_REVEAL[id] runs then.
+window.PRED_REVEAL=window.PRED_REVEAL||{};
+document.querySelectorAll('.pred').forEach(p=>{const bs=[...p.querySelectorAll('.opts button')],ans=+p.dataset.ans;
+  const sk=document.createElement('button');sk.className='skip small';sk.textContent='Skip: just show me';p.querySelector('.opts').after(sk);
+  sk.addEventListener('click',()=>{const r=p.querySelector('.reveal');const was=r.hidden;r.hidden=false;sk.remove();if(was&&PRED_REVEAL[p.id])try{PRED_REVEAL[p.id]()}catch(e){__jsErr(e.message)}});
+  bs.forEach((b,i)=>b.addEventListener('click',()=>{bs.forEach((x,j)=>{x.classList.toggle('right',j===ans);x.classList.toggle('wrong',j===i&&i!==ans)});
+    p.querySelector('.fb').innerHTML=i===ans?'<span class="ok">Right.</span> Here is why, live:':'<span class="no">Not quite:</span> the answer is <b>'+bs[ans].textContent+'</b>. See it live:';
+    sk.remove();const r=p.querySelector('.reveal');const was=r.hidden;r.hidden=false;if(was&&PRED_REVEAL[p.id])try{PRED_REVEAL[p.id]()}catch(e){__jsErr(e.message)}}))});
+// placeLabels: put each point's label beside it without overlapping other labels or points.
+// pts: [{x,y,t,fs}] -> each gets lx, ly, la (text-anchor). Width is estimated at 0.58 em per character.
+function placeLabels(pts,W,H){const boxes=[],dots=pts.map(p=>({x:p.x-6,y:p.y-6,w:12,h:12}));
+  const hit=(b)=>b.x<0||b.x+b.w>W||b.y<0||b.y+b.h>H||boxes.concat(dots).some(o=>b.x<o.x+o.w&&o.x<b.x+b.w&&b.y<o.y+o.h&&o.y<b.y+b.h);
+  pts.forEach(p=>{const fs=p.fs||11,w=p.t.replace(/<[^>]+>/g,'').length*fs*.58,h=fs+2;
+    const C=[[p.x+8,p.y-h/2,'start'],[p.x-8-w,p.y-h/2,'end'],[p.x-w/2,p.y-8-h,'middle'],[p.x-w/2,p.y+8,'middle'],[p.x+8,p.y-h-4,'start'],[p.x+8,p.y+4,'start'],[p.x-8-w,p.y-h-4,'end'],[p.x-8-w,p.y+4,'end']];
+    let c=C.find(([x,y])=>!hit({x,y,w,h}))||C[0];boxes.push({x:c[0],y:c[1],w,h});
+    p.la=c[2];p.lx=c[2]==='start'?c[0]:c[2]==='end'?c[0]+w:c[0]+w/2;p.ly=c[1]+h-3});return pts}
+const exp10=e=>'10<tspan dy="-5" font-size="11">'+e+'</tspan>';
+const legend=(items,x,y,w)=>{let s='',cx=x,cy=y;items.forEach(([n,c,da])=>{const lw=n.length*6.4+30;if(cx+lw>x+w&&cx>x){cx=x;cy+=16}s+=ln2(cx,cy-4,cx+16,cy-4,c,{sw:2.2,da})+tx(cx+20,cy,n,{fs:11});cx+=lw});return {s,h:cy-y+16}};
+
+</script>
+<script>/* 12_js_model.js */
+// ---- The four live sets as formulas (Table 1), shared by the Reading calculator and the live tab ----
+// Sizes in bytes per rank. Every input is from the paper (Appendix A, Tables 2, 5, 10, 14) or a model config;
+// the constants that turn Table 1's O() into numbers are stated beside each term and labelled illustrative on the page.
+const HBM=141e9; // H200 SXM: 141 GB (NVIDIA product page)
+const MODELS={
+  oss20:{n:'gpt-oss-20b, 8 GPUs',H:2880,V:201088,k:4,L:24,nb:47,Th:21e9,W:8,src:'gpt-oss-20b config: hidden 2,880, 24 layers, top-4; 47 checkpoint boundaries (Table 5); 21B parameters (model card)'},
+  m120:{n:'120B, 16 GPUs',H:7168,V:200000,k:8,L:7,nb:14,Th:120e9,W:16,src:'Appendix A: H = 7,168, 384 experts, top-8, V = 200,000, 7 layers'},
+  m241:{n:'241B, 32 GPUs',H:7168,V:200000,k:8,L:14,nb:28,Th:241e9,W:32,src:'Appendix A: the same widths, 14 layers'},
+  m667:{n:'667B, 64 GPUs',H:7168,V:200000,k:8,L:39,nb:78,Th:667e9,W:64,src:'Appendix A: the same widths, 39 layers'}
+};
+const BF=2, F32=4, PGRP=8, CBUD=6554, STAGE=2*142.076e6*16;
+// before: the unbounded live set; after: the operator's bounded working set
+function liveSets(m,N){const M=MODELS[m];return [
+  {id:'disp',n:'Expert dispatch',sn:'Dispatch',c:'var(--c1)',op:'PipelinedLLEP',
+   b:2*M.k*N*M.H*BF, a:2*M.k*Math.min(N,CBUD)*M.H*BF,
+   hb:'2 R<sub>d</sub> H b with R<sub>d</sub> = kN, one destination\'s share under balanced routing (a skewed router under standard EP can multiply it)',
+   ha:'one chunk of c = 6,554 tokens per source at the even share 2 k c H b (Table 8: strided chunks realise exactly that); the guarantee is E<sub>p</sub> times it'},
+  {id:'logit',n:'Vocabulary projection',sn:'Logits',c:'var(--c2)',op:'Ring-DTP',
+   b:3*N*M.V*F32, a:4*N*(M.V/PGRP)*F32,
+   hb:'three N × V FP32 tensors (logits, log-softmax, their gradient), which is exactly what Table 10 measures',
+   ha:'about four strips of N × V/P at P = 8, as Table 10 measures (6.15 GiB at N = 16,384)'},
+  {id:'bnd',n:'Checkpoint boundaries',sn:'Boundaries',c:'var(--c3)',op:'SCO',
+   b:M.nb*N*M.H*BF, a:2*N*M.H*BF,
+   hb:'one N × H BF16 tensor per checkpoint boundary held from forward to backward',
+   ha:'every boundary in host memory, at most two restored on the device (Eq. 4)'},
+  {id:'state',n:'Model state',sn:'Model state',c:'var(--c4)',op:'offload + OffloadStreamAdamW',
+   b:16*M.Th/M.W, a:4*M.Th/M.W+STAGE,
+   hb:'16 bytes per parameter (§2), sharded over W ranks',
+   ha:'4Θ/W of BF16 weights and gradients, plus 4.23 GiB of staging (two 142M-parameter buckets, Table 14)'}]}
+// a rough peak: resident state + held boundaries + the larger of the two transients (they do not coexist)
+const roughPeak=(S,on)=>{const v=id=>{const s=S.find(x=>x.id===id);return on[id]?s.a:s.b};return v('state')+v('bnd')+Math.max(v('disp'),v('logit'))};
+
+</script>
+<script>/* 12b_js_route.js */
+// ---- Dispatch replay (same algorithm as src/sim_dispatch.py): the paper's routing profiles (Appendix B.2),
+// LLEP's released assignment plan (compute_llep_lpt_plan, capacity factor 1.0), and the per-chunk send matrices
+// of contiguous and strided chunk membership (§3.1). Shape of Table 5: 8 ranks x 65,536 tokens, 128 experts, top-8, K = 10.
+const RT={N:65536,E:128,k:8,ep:8,K:10,H:7168,b:2,factor:1.0,minGemm:1024,
+  profiles:[['Balanced','balanced'],['95% / 16',[.95,16]],['80% / 16',[.80,16]],['50% / 4',[.50,4]],['30% / 16',[.30,16]]],cache:{}};
+RT.c=Math.ceil(RT.N/RT.K);RT.bound=RT.ep*RT.k*RT.c;
+function rtRoutes(p){const {N,E,k}=RT,R=new Int32Array(N*k);
+  if(p==='balanced'){for(let i=0;i<N;i++)for(let j=0;j<k;j++)R[i*k+j]=(i+j)%E;return R}
+  const [r,h]=p,hot=Math.floor(r*N);
+  for(let i=0;i<N;i++)for(let j=0;j<k;j++)R[i*k+j]=i<hot?(j%h):h+((i+j)%(E-h));return R}
+function rtPlan(counts){const {ep,E}=RT,nloc=E/ep,total=counts.reduce((a,b)=>a+b,0);
+  const maxt=Math.max(Math.floor(RT.factor*Math.floor(total/ep)),1),pend=new Array(ep).fill(0),asg=new Array(ep).fill(0),plan={};
+  for(let e=0;e<E;e++)pend[Math.floor(e/nloc)]+=counts[e];
+  const ord=[...Array(E).keys()].sort((a,b)=>counts[b]-counts[a]||a-b);
+  const eff=g=>asg[g]+pend[g];
+  const others=g0=>[...Array(ep).keys()].filter(g=>g!==g0).map(g=>[g,eff(g),maxt-eff(g)]).sort((a,b)=>a[1]-b[1]);
+  for(const e of ord){const n=counts[e];if(!n)continue;const g0=Math.floor(e/nloc);pend[g0]-=n;const av=maxt-eff(g0),a=[];
+    if(av>=n){a.push([g0,0,n]);asg[g0]+=n}
+    else if(av>0){a.push([g0,0,av]);asg[g0]+=av;let rem=n-av,off=av;
+      while(rem>0){const oth=others(g0);let done=false;
+        for(const [g,,ag] of oth){if(ag<=0)continue;const ch=Math.min(rem,ag);if(ch<RT.minGemm&&rem>ch)continue;a.push([g,off,off+ch]);asg[g]+=ch;off+=ch;rem-=ch;done=true;break}
+        if(!done){const g=oth[0][0];a.push([g,off,off+rem]);asg[g]+=rem;rem=0}}}
+    else{const oth=others(g0);let rem=n,off=0;
+      for(const [g,,ag] of oth){if(rem<=0)break;if(ag<=0)continue;const ch=Math.min(rem,ag);if(ch<RT.minGemm&&rem>ch)continue;a.push([g,off,off+ch]);asg[g]+=ch;off+=ch;rem-=ch}
+      if(rem>0){const g=oth[0][0];a.push([g,off,off+rem]);asg[g]+=rem}}
+    plan[e]=a}
+  return plan}
+// send matrices: S.str[i][src][dst], S.cont[i][src][dst], S.whole[src][dst]
+function rtData(pi){if(RT.cache[pi])return RT.cache[pi];
+  const {N,E,k,ep,K,c}=RT,nloc=E/ep,R=rtRoutes(RT.profiles[pi][1]),cnt=new Array(E).fill(0);
+  for(let f=0;f<R.length;f++)cnt[R[f]]++;
+  const plan=rtPlan(cnt.map(x=>x*ep));
+  const st=[0];for(let e=0;e<E;e++)st.push(st[e]+cnt[e]);
+  const order=new Int32Array(R.length),fill=st.slice(0,E);for(let f=0;f<R.length;f++)order[fill[R[f]]++]=f; // stable: ascending flat index within an expert
+  const z=()=>Array.from({length:ep},()=>new Array(ep).fill(0));
+  const S={str:Array.from({length:K},z),cont:Array.from({length:K},z),whole:z()};
+  const dest=new Int32Array(R.length);
+  for(let r=0;r<ep;r++){
+    for(let f=0;f<R.length;f++)dest[f]=Math.floor(R[f]/nloc);
+    for(const e in plan){const a=plan[e];if(a.length===1){for(let q=st[e];q<st[+e+1];q++)dest[order[q]]=a[0][0];continue}
+      const g0=cnt[e]*r;for(let q=st[e];q<st[+e+1];q++){const pos=g0+q-st[e];for(const [g,s,t] of a)if(pos>=s&&pos<t){dest[order[q]]=g;break}}}
+    for(let f=0;f<R.length;f++){const t=(f/k)|0,d=dest[f];S.str[t%K][r][d]++;S.cont[(t/c)|0][r][d]++;S.whole[r][d]++}}
+  const ratio=M=>Math.max(...M.map(row=>{const s=row.reduce((a,b)=>a+b,0);return s?Math.max(...row)/(s/ep):0}));
+  const recv=M=>M[0].map((_,d)=>M.reduce((a,row)=>a+row[d],0));
+  S.ratio={str:Math.max(...S.str.map(ratio)),cont:Math.max(...S.cont.map(ratio)),llep:ratio(S.whole)};
+  S.maxRecv={str:Math.max(...S.str.map(M=>Math.max(...recv(M)))),cont:Math.max(...S.cont.map(M=>Math.max(...recv(M)))),llep:Math.max(...recv(S.whole))};
+  S.recv=recv;return RT.cache[pi]=S}
+
+</script>
+<script>/* 13_js_read.js */
+// ---- The paper tab: which peak runs out first, chunk membership replay, the three-scalar fold, SCO bars, end-to-end labels ----
+(function(){
+const GB=v=>v>=1e12?(v/1e12).toFixed(2)+' TB':(v/1e9).toFixed(v<10e9?1:0)+' GB';
+// 1. Which peak runs out first
+const NS=[2048,4096,8192,16384,32768,65536,131072,262144];
+function pk(){const m=$('pkM').value,N=NS[+$('pkN').value];$('pkNv').textContent=fmt(N);
+  const on={};['disp','logit','bnd','state'].forEach(id=>on[id]=$('pk_'+id).checked);
+  const S=liveSets(m,N),peak=roughPeak(S,on);
+  fit($('pkSvg'),w=>{const lw=w<600?84:150,pr=8,gw=w-lw-pr,rh=30,top=18;
+    const vals=S.map(s=>on[s.id]?s.a:s.b);
+    const mx=Math.max(HBM*1.25,peak*1.05,...S.map(s=>s.b));const X=v=>lw+gw*Math.min(1,v/mx);
+    let s='';const rows=S.concat([{id:'peak',n:'Rough peak',sn:'Rough peak',c:'var(--ink)'}]);
+    rows.forEach((r,i)=>{const y=top+i*rh,isP=r.id==='peak',v=isP?peak:vals[i],full=isP?null:r.b;
+      s+=tx(lw-6,y+15,w<600?r.sn:r.n,{fs:12,a:'end',w:isP?600:null});
+      if(!isP&&on[r.id])s+=rc(lw,y+4,X(full)-lw,16,r.c,{op:.18,r:2});
+      s+=rc(lw,y+4,X(v)-lw,16,r.c,{op:isP?.55:.9,r:2});
+      const lab=GB(v),lx=X(v)+4;
+      s+=lx+70<w?tx(lx,y+16,lab,{fs:11}):tx(X(v)-4,y+16,lab,{fs:11,a:'end',c:'var(--bg)'});
+      if(!isP)s+='<rect x="'+lw+'" y="'+(y+2)+'" width="'+gw+'" height="20" fill="transparent"><title>'+(on[r.id]?'With '+r.op+': '+r.ha.replace(/<[^>]+>/g,''):r.hb.replace(/<[^>]+>/g,''))+'</title></rect>'});
+    const hx=X(HBM),H0=top+rows.length*rh;
+    s+=ln2(hx,top-6,hx,H0,'var(--bad)',{da:'4 3',sw:1.5})+tx(hx+(hx>w-90?-4:4),top-6,'H200: 141 GB',{fs:11,c:'var(--bad)',a:hx>w-90?'end':null});
+    $('pkSvg').innerHTML=svgW(w,H0+6,s,'Per-GPU size of the four live sets')});
+  const order=S.map((s,i)=>[s.n,on[s.id]?s.a:s.b]).sort((a,b)=>b[1]-a[1]);
+  $('pkTxt').innerHTML='Largest now: <b>'+order[0][0]+'</b> ('+GB(order[0][1])+'), next '+order[1][0]+' ('+GB(order[1][1])+'). Rough peak '+GB(peak)+(peak>HBM?', <span class="no">over the H200\'s 141 GB</span>':', <span class="ok">fits in 141 GB</span>')+'. '+MODELS[m].src+'.'}
+['pkM','pkN','pk_disp','pk_logit','pk_bnd','pk_state'].forEach(id=>{$(id).addEventListener('input',pk);$(id).addEventListener('change',pk)});
+onTab('t-read',pk);
+
+// 2. Chunk membership: Table 8 against the replay
+PRED_REVEAL['pr-chunk']=function(){const T8={'Balanced':[1.00,1.02],'95% / 16':[1.35,2.63],'80% / 16':[2.40,4.00],'50% / 4':[2.29,6.00]},names=Object.keys(T8);
+  const R=names.map(n=>{const i=RT.profiles.findIndex(p=>p[0]===n),S=rtData(i);return [n,S.ratio.str,S.ratio.cont]});
+  fit($('ckSvg'),w=>{const lw=Math.min(78,w*.2),gw=w-lw-18,gh=56,top=8,X=v=>lw+gw*v/8;let s='';
+    R.forEach(([n,a,b],i)=>{const y=top+i*gh;s+=tx(lw-6,y+24,n,{fs:12,a:'end'});
+      [[a,T8[n][0],'strided','var(--c3)'],[b,T8[n][1],'contiguous','var(--c2)']].forEach(([v,p,lab,c],j)=>{const yy=y+4+j*22;
+        s+=rc(lw,yy,X(v)-lw,16,c,{r:2,op:.85})+ln2(X(p),yy-2,X(p),yy+18,'var(--ink)',{sw:2});
+        const t=(w<600?'':lab+' ')+v.toFixed(2)+' (paper '+p.toFixed(2)+')',xe=X(Math.max(v,p))+5;
+        s+=xe+t.length*6.3<w?tx(xe,yy+13,t,{fs:11}):tx(X(Math.min(v,p))-5,yy+13,t,{fs:11,a:'end',c:'var(--bg)',w:600})})});
+    if(w<600)s+=tx(lw,top+R.length*gh+44,'upper bar strided, lower bar contiguous',{fs:11,c:'var(--mute)'});
+    const y0=top+R.length*gh;[1,2,4,6,8].forEach(v=>{s+=ln2(X(v),y0,X(v),y0+4,'var(--mute)')+tx(X(v),y0+16,v+'×',{fs:11,a:'middle',c:'var(--mute)'})});
+    s+=tx(lw+gw/2,y0+30,w<600?'largest send ÷ mean send':'largest send to one destination ÷ mean send, worst chunk',{fs:11,a:'middle',c:'var(--mute)'});
+    $('ckSvg').innerHTML=svgW(w,y0+(w<600?52:36),s,'Send ratio, replay against Table 8')});
+  const ok=R.every(([n,a,b])=>Math.abs(a-T8[n][0])<.006&&Math.abs(b-T8[n][1])<.006);
+  $('ckTxt').innerHTML='Bars: our replay; black ticks: the paper. '+(ok?'<span class="ok">All eight reproduce to the printed two decimals.</span>':'<span class="no">Some do not reproduce.</span>')+' The largest receive per destination is 12.5% of the Eq. 1 bound under strided chunks on every profile and '+(100*rtData(3).maxRecv.cont/RT.bound).toFixed(1)+'% under contiguous chunks on 50/4, the paper\'s 12.5% and 17.1%.'};
+
+// 3. The three-scalar fold, one token, 24 logits
+function ls(){const K=+$('lsK').value,seed=+$('lsS').value;$('lsKv').textContent=K;$('lsSv').textContent=seed;
+  const rnd=mulberry32(seed*7919),V=24,y=Array.from({length:V},()=>(rnd()+rnd()+rnd()-1.5)*4),t=Math.floor(rnd()*V);
+  const mx=Math.max(...y),lse=mx+Math.log(y.reduce((a,v)=>a+Math.exp(v-mx),0)),dense=lse-y[t];
+  let m=-Infinity,z=0,yt=null,rows='<tr><th>Block</th><th class="num">Words</th><th class="num">Running max m</th><th class="num">Running sum z</th><th class="num">Target logit</th></tr>';
+  const B=Math.ceil(V/K);for(let b=0;b<K;b++){const lo=b*B,hi=Math.min(V,lo+B);if(lo>=hi)continue;const blk=y.slice(lo,hi),m2=Math.max(m,...blk);
+    z=(m===-Infinity?0:Math.exp(m-m2)*z)+blk.reduce((a,v)=>a+Math.exp(v-m2),0);m=m2;if(t>=lo&&t<hi)yt=y[t];
+    rows+='<tr><td>'+(b+1)+'</td><td class="num">'+lo+' to '+(hi-1)+'</td><td class="num">'+m.toFixed(4)+'</td><td class="num">'+z.toFixed(4)+'</td><td class="num">'+(yt===null?'not yet':yt.toFixed(4))+'</td></tr>'}
+  $('lsT').innerHTML=rows;const ring=m+Math.log(z)-yt;
+  $('lsTxt').innerHTML='Target word '+t+'. Folded: m + log z − y<sub>t</sub> = <b>'+ring.toFixed(10)+'</b>; dense log-softmax: <b>'+dense.toFixed(10)+'</b>; difference '+Math.abs(ring-dense).toExponential(1)+'. Three numbers per token crossed every block boundary, whatever the number of blocks.'}
+['lsK','lsS'].forEach(id=>$(id).addEventListener('input',ls));PRED_REVEAL['pr-lse']=ls;
+
+// 4. SCO: measured peak HBM and the boundary payload still on the device
+PRED_REVEAL['pr-sco']=function(){const rows=[['Off',0,139.790],['8 GiB',21,133.546],['16 GiB',42,125.677],['Full',47,123.728]],bnd=557056/8*2880*2/GiB;
+  fit($('scoSvg'),w=>{const lw=56,gw=w-lw-10,rh=30,X=v=>lw+gw*v/150;let s='';
+    rows.forEach(([n,k,p],i)=>{const y=6+i*rh,dev=(47-k)*bnd;s+=tx(lw-6,y+15,n,{fs:12,a:'end'})+rc(lw,y+3,X(p)-lw,18,'var(--c3)',{r:2,op:.35})+rc(X(p)-(X(dev)-lw),y+3,X(dev)-lw,18,'var(--c3)',{r:2,op:.9});
+      s+=tx(lw+6,y+16,fmt(p,3)+' GiB'+(i?' (−'+(139.790-p).toFixed(2)+')':''),{fs:11,w:600})});
+    const y0=6+rows.length*rh;[0,50,100,150].forEach(v=>{s+=ln2(X(v),y0,X(v),y0+4,'var(--mute)')+tx(X(v),y0+16,v+' GiB',{fs:11,a:'middle',c:'var(--mute)'})});
+    $('scoSvg').innerHTML=svgW(w,y0+22,s,'Peak HBM by host budget')})};
+
+// 5. End to end, printed labels only
+const E2E=[{n:'120B, 16 GPUs',base:128,ours:[[128,1355,91],[1024,642,221]],tp:'7.6× faster at 128K',tf:'1.8× more TFLOP/s at 128K',reach:'8×',batch:['128K','1.5M (12×)']},
+  {n:'241B, 32 GPUs',base:32,ours:[[128,866,110],[1024,314,213]],tp:'FSDP2 out of memory at 32K: no shared length',tf:'no shared length',reach:'32×',batch:['256K','1.8M (7×)']},
+  {n:'667B, 64 GPUs',base:64,ours:[[128,316,107],[1024,124,233]],tp:'10.4× faster at 64K (the stack has no 64K point)',tf:'2.2× more TFLOP/s at 64K',reach:'16×',batch:['1M','3M (3×)']}];
+let e2eI=0;
+function e2e(){const M=E2E[e2eI];
+  fit($('e2eSvg'),w=>{const pl=46,pr=26,pt=14,ph=150,gap=46,lg=Math.log2,X=k=>pl+(w-pl-pr)*(lg(k)-lg(4))/(lg(1024)-lg(4));let s='';
+    [['tokens/s per GPU',1,1500],['TFLOP/s per GPU',2,250]].forEach(([lab,ix,ymax],pI)=>{const y0=pt+pI*(ph+gap),Y=v=>y0+ph*(1-v/ymax);
+      s+=rc(X(M.base),y0,X(1024)-X(M.base)+4,ph,'var(--dim)',{r:0,op:.45});
+      s+=tx(X(M.base)+4,y0+12,'FSDP2-best out of memory',{fs:11,c:'var(--mute)'});
+      [0,ymax/2,ymax].forEach(v=>{s+=ln2(pl,Y(v),w-pr,Y(v),'var(--line)')+tx(pl-4,Y(v)+4,fmt(v),{fs:11,a:'end',c:'var(--mute)'})});
+      if(ix===2)s+=ln2(pl,Y(98.95),w-pr,Y(98.95),'var(--mute)',{da:'4 3'})+tx(pl+4,Y(98.95)-4,'10% MFU',{fs:11,c:'var(--mute)'});
+      s+=tx(pl,y0-4,lab,{fs:11,c:'var(--mute)'});
+      const P=M.ours.map(o=>[X(o[0]),Y(o[ix])]);s+=ln2(P[0][0],P[0][1],P[1][0],P[1][1],'var(--c5)',{sw:2,da:'5 3'});
+      M.ours.forEach((o,j)=>{s+='<path d="M'+P[j][0]+','+(P[j][1]-6)+'l6,6l-6,6l-6,-6z" fill="var(--c5)" stroke="var(--ink)" stroke-width=".8"/>'+tx(P[j][0]+(j?-9:9),P[j][1]+(o[ix]>ymax*.8?16:-8),fmt(o[ix]),{fs:11,a:j?'end':null,w:600})});
+      [4,16,64,256,1024].forEach(k=>{s+=tx(X(k),y0+ph+14,k===1024?'1M':k+'K',{fs:11,a:'middle',c:'var(--mute)'})})});
+    $('e2eSvg').innerHTML=svgW(w,pt+2*ph+gap+18,s,'End-to-end throughput, printed labels')});
+  $('e2eTxt').innerHTML='<b>'+M.n+'.</b> Throughput: '+M.tp+'. FLOP rate: '+M.tf+'. Context reach '+M.reach+'; largest global batch '+M.batch[0]+' for FSDP2-best against '+M.batch[1]+' for the stack. Diamonds: the composed stack (printed values); grey: lengths where no FSDP2 configuration fits.'}
+segBind('e2eM',m=>{e2eI=+m;$('e2eM').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.classList.contains('on')?'true':'false'));e2e()});
+onTab('t-read',e2e);
+})();
+
+</script>
+<script>/* 14_js_dsx.js */
+// ---- Live 1: expert dispatch, chunk by chunk, on the replayed send matrices ----
+(function(){
+let pi=3;
+const T6={0:[52.660,21.430,21.464],1:[52.988,22.855,23.575],2:[52.988,22.861,23.514],3:[52.906,22.778,24.151],4:[52.906,22.772,null]};
+const modes={str:[],cont:[],llep:[]};
+const pname=()=>RT.profiles[pi][0];
+function build(){const S=rtData(pi),K=RT.K;
+  const ch=(m,i)=>{const r=S.recv(S[m][i]),mx=Math.max(...r);return {mx,arg:r.indexOf(mx)}};
+  ['str','cont'].forEach(m=>{const A=modes[m];A.length=0;const lab=m==='str'?'strided':'contiguous';
+    A.push({t:'LLEP plans the layer',c:'Every rank counts its routes per expert; LLEP\'s plan (capacity factor 1.0) splits each overloaded expert\'s global token list across helper ranks by position. Profile '+pname()+'. Nothing is in flight yet. Each rank will put at most c = '+fmt(RT.c)+' of its tokens in a chunk, so K = '+K+' chunks, chosen '+(m==='str'?'in strided order: positions i, i + 10, i + 20, ...':'as consecutive positions')+'.'});
+    for(let i=0;i<K;i++){const q=ch(m,i);A.push({t:'Chunk '+(i+1)+' of '+K+' ('+lab+')',c:'The '+fmt(RT.c)+' '+lab+' tokens of each rank go out; destination '+q.arg+' receives the most, '+fmt(q.mx)+' routes, '+(100*q.mx/RT.bound).toFixed(1)+'% of the guarantee E<sub>p</sub>kc<sub>eff</sub> = '+fmt(RT.bound)+'. '+(i===0?'Chunk 1 is computing while chunk 2 is dispatched; the previous chunk\'s buffers are freed before the next allocates its own.':'Worst sender in this chunk: '+Math.max(...S[m][i].map(r=>{const s=r.reduce((a,b)=>a+b,0);return s?Math.max(...r)/(s/RT.ep):0})).toFixed(2)+'× its mean send.')})}
+    A.push({t:'Done',c:'All '+fmt(RT.N*RT.k)+' routes of every rank delivered, no token dropped. Worst send ratio '+S.ratio[m].toFixed(2)+' (Table 8 for this profile: '+({0:'1.00 / 1.02',1:'1.35 / 2.63',2:'2.40 / 4.00',3:'2.29 / 6.00'}[pi]||'not measured')+', strided / contiguous); the busiest destination never held more than '+fmt(S.maxRecv[m])+' routes at once.'})});
+  const A=modes.llep;A.length=0;const w=S.recv(S.whole),mx=Math.max(...w);
+  A.push({t:'LLEP plans the layer',c:'The same plan, profile '+pname()+'. LLEP balances the load across ranks, but dispatches each rank\'s routed batch in one all-to-all.'});
+  A.push({t:'The whole batch at once',c:'Every route is live at once: the busiest destination receives '+fmt(mx)+' routes, '+(mx/Math.max(1,S.maxRecv.str)).toFixed(1)+' times what strided chunks ever put there. LLEP balanced it, so this is the even share k N; standard expert parallelism without LLEP would pile more on the hot experts\' owners.'});
+  A.push({t:'Done',c:'Same routes, same destinations, same result; the difference is only how many routes were live at once.'});
+  const T=T6[pi];$('dsxNote').innerHTML='Measured at this shape and profile ('+A_AX('A2.T6','Table 6')+', '+A_AX('A2.T8','Table 8')+'): peak allocated memory LLEP '+T[0]+' GiB, PipelinedLLEP strided '+T[1]+' GiB'+(T[2]?', contiguous '+T[2]+' GiB':'')+'. The counters here count dispatch buffers only (2 R H b at H = 7,168, BF16); the measured peaks also hold combine buffers, expert intermediates and weights.'}
+const A_AX=(a,t)=>'<a href="'+PAPER.meta.ax+'#'+a+'" target="_blank" rel="noopener noreferrer">'+t+'</a>';
+const mat=(m,k)=>{const S=rtData(pi);if(m==='llep')return k===1?S.whole:null;return k>=1&&k<=RT.K?S[m][k-1]:null};
+const peakTo=(m,k)=>{const S=rtData(pi);let p=0,r=0;for(let j=1;j<=k;j++){const M=mat(m,j);if(!M)continue;p=Math.max(p,...S.recv(M));r=Math.max(r,...M.map(row=>{const s=row.reduce((a,b)=>a+b,0);return s?Math.max(...row)/(s/RT.ep):0}))}return {p,r}};
+function draw(m,k,e,w){const S=rtData(pi),M=mat(m,k),ymax=Math.max(...S.recv(S.whole))*1.12,wide=w>=600;
+  const bw=wide?Math.floor(w*.56):w,bh=170,pl=50,pt=16,gx=wide?bw+16:0,gy=wide?0:bh+44,cs=Math.min(26,Math.floor(((wide?w-bw-16:w)-80)/8));
+  const Y=v=>pt+bh*(1-v/ymax),slot=(bw-pl-6)/RT.ep;let s='';
+  [0,ymax/2.24,ymax/1.12].forEach(v=>{s+=ln2(pl,Y(v),bw-4,Y(v),'var(--line)')+tx(pl-4,Y(v)+4,v>=1e3?fmt(v/1e3)+'K':fmt(v),{fs:11,a:'end',c:'var(--mute)'})});
+  s+=tx(4,pt-4,'routes held by each destination now',{fs:11,c:'var(--mute)'});
+  s+=ln2(pl,Y(RT.bound),bw-4,Y(RT.bound),'var(--bad)',{da:'5 3',sw:1.4})+tx(bw-6,Y(RT.bound)-4,'Eq. 1 guarantee per chunk',{fs:11,a:'end',c:'var(--bad)'});
+  const r=M?S.recv(M):new Array(RT.ep).fill(0),col=m==='llep'?'var(--c2)':m==='cont'?'var(--c5)':'var(--c3)';
+  r.forEach((v,d)=>{const x=pl+d*slot+slot*.15,ww=slot*.7,h=(Y(0)-Y(v))*e;s+=rc(x,Y(0)-h,ww,h,col,{r:2});
+    if(v&&e>.5)s+=tx(x+ww/2,Y(0)-h-3,v>=1e4?Math.round(v/1e3)+'K':fmt(v),{fs:11,a:'middle'});s+=tx(x+ww/2,Y(0)+14,'d'+d,{fs:11,a:'middle',c:'var(--mute)'})});
+  // send matrix of this chunk
+  const gx0=gx+52,gy0=gy+22;s+=tx(gx,gy+10,'send matrix: sender rows, destination columns',{fs:11,c:'var(--mute)'});
+  const mx=M?Math.max(1,...M.flat()):1;
+  for(let i=0;i<RT.ep;i++){s+=tx(gx0-6,gy0+i*cs+cs/2+4,'src '+i,{fs:11,a:'end',c:'var(--mute)'});
+    for(let d=0;d<RT.ep;d++){const v=M?M[i][d]:0;s+=rc(gx0+d*cs,gy0+i*cs,cs-2,cs-2,v?col:'var(--soft)',{r:2,op:v?(.12+.88*v/mx)*e+(1-e)*.1:1})}
+    if(M){const row=M[i],sm=row.reduce((a,b)=>a+b,0);if(sm)s+=tx(gx0+RT.ep*cs+4,gy0+i*cs+cs/2+4,'×'+(Math.max(...row)/(sm/RT.ep)).toFixed(1),{fs:11})}}
+  const H=Math.max(pt+bh+20,gy0+RT.ep*cs+6);return svgW(w,H,s,'Dispatch buffers per destination and the send matrix')}
+function counters(m,k,e){const S=rtData(pi),M=mat(m,k),now=M?Math.max(...S.recv(M)):0,pk=peakTo(m,k),B=v=>fmtBytes(2*v*RT.H*RT.b);
+  return stat('Busiest destination now',fmt(now)+' routes',B(now)+' of dispatch buffers')+stat('Peak so far',fmt(pk.p)+' routes',B(pk.p)+(m==='llep'?'':'; '+(100*pk.p/RT.bound).toFixed(1)+'% of the Eq. 1 bound'))+stat('Worst send ratio so far',pk.r?pk.r.toFixed(2)+'×':'none yet','largest send to one destination ÷ the sender\'s mean')}
+build();
+const an=makeAnim({id:'dsx',modes,mode:'str',draw,counters,dur:2400});
+$('dsxP').addEventListener('change',e=>{pi=+e.target.value;build();if(an){an.st.lk=-1;an.st.k=Math.min(an.st.k,modes[an.st.m].length-1);an.draw()}});
+})();
+
+</script>
+<script>/* 15_js_rgx.js */
+// ---- Live 2: Ring-DTP on real numbers, P = 4 ranks, 2 tokens each, H = 3, V = 12 (Algorithm 2) ----
+(function(){
+const P=4,N=2,Hh=3,V=12,VP=V/P,rnd=mulberry32(20260913),gs=()=>(rnd()+rnd()+rnd()-1.5)*1.6;
+const X=Array.from({length:P},()=>Array.from({length:N},()=>Array.from({length:Hh},gs)));
+const W=Array.from({length:Hh},()=>Array.from({length:V},gs));
+const T=Array.from({length:P},()=>Array.from({length:N},()=>Math.floor(rnd()*V)));
+const strip=(j,q)=>X[j].map(x=>Array.from({length:VP},(_,c)=>x.reduce((a,v,h)=>a+v*W[h][q*VP+c],0)));
+const dense=j=>X[j].map(x=>Array.from({length:V},(_,c)=>x.reduce((a,v,h)=>a+v*W[h][c],0)));
+const denseNLL=j=>dense(j).map((y,n)=>{const m=Math.max(...y);return m+Math.log(y.reduce((a,v)=>a+Math.exp(v-m),0))-y[T[j][n]]});
+function fold(S,Y,j,q){return S.map((s,n)=>{const m2=Math.max(s.m,...Y[n]),z=(s.m===-Infinity?0:Math.exp(s.m-m2)*s.z)+Y[n].reduce((a,v)=>a+Math.exp(v-m2),0);
+  const t=T[j][n],y=(t>=q*VP&&t<(q+1)*VP)?Y[n][t-q*VP]:s.y;return {m:m2,z,y}})}
+const S0=()=>Array.from({length:N},()=>({m:-Infinity,z:0,y:null}));
+// precompute every round: who holds what, the strip, the states
+function rounds(mode){const R=[];let st=Array.from({length:P},S0);
+  for(let i=0;i<P;i++){const rows=[];for(let r=0;r<P;r++){const j=mode==='wts'?r:(r-i+P)%P,q=mode==='wts'?(r-i+P)%P:r,Y=strip(j,q);st[j]=fold(st[j],Y,j,q);rows.push({r,j,q,Y,S:st[j].map(o=>({...o}))})}R.push(rows)}
+  return {R,final:st}}
+const RW=rounds('wts'),RA=rounds('act');
+const nllOf=st=>st.map(S=>S.map(s=>s.m+Math.log(s.z)-s.y));
+const DN=Array.from({length:P},(_,j)=>denseNLL(j));
+const maxDiff=st=>Math.max(...nllOf(st).flat().map((v,i)=>Math.abs(v-DN.flat()[i])));
+const modes={
+ wts:[0,1,2,3].map(i=>({t:i?'Round '+(i+1)+': the weight shards hop':'Round 1: every rank meets its own shard',c:i?'Each rank sends its current shard to the next rank and receives the previous one (rank r now holds W<sub>'+'(r − '+i+') mod 4</sub>). It forms the 2 × 3 strip X<sub>r</sub>W, folds it into its own tokens\' (m, z, y<sub>t</sub>) and frees it. The batches never move.':'Rank r forms X<sub>r</sub>W<sub>r</sub>, a 2 × 3 strip of logits, folds it into the running state of its two tokens (Eq. 3) and frees it. If a token\'s target word is in this shard, its logit y<sub>t</sub> is recorded.'})).concat([{t:'Done: exact losses, at home',c:'After 4 meetings every batch has met every shard once. Each token\'s loss is m + log z − y<sub>t</sub>, equal to the dense log-softmax to floating-point precision, and no rank ever held more than one 2 × 3 strip. Forward needs no return hop, since the states never left.'}]),
+ act:[0,1,2,3].map(i=>({t:i?'Round '+(i+1)+': batches and their states hop':'Round 1: every rank meets its own batch',c:i?'Each rank passes the batch it holds, its targets and its partial state S̃ to the next rank, receives the previous rank\'s, and folds X<sub>j</sub>W<sub>r</sub> with its own fixed shard. Chosen when N ≤ V/P, because a hop then moves N × H numbers instead of H × V/P.':'Rank r forms X<sub>r</sub>W<sub>r</sub> and folds it into the state of its tokens, exactly as in the other schedule.'})).concat([{t:'Return hop, then done',c:'The batches have met every shard, but each state sits one rank away from home, so one more hop sends it back (line 21 of Algorithm 2). The losses equal the dense ones.'}]),
+ dense:[{t:'Each rank holds the whole weight',c:'The standard reference keeps the full H × V projection weight on every rank (4 times the shard here; 5.34 GiB against 0.67 GiB at the paper\'s shape with P = 8).'},
+   {t:'Form all the logits',c:'Each rank forms its tokens\' full 2 × 12 logit matrix at once; then log-softmax, and in backward its gradient, three tensors of that size (Table 10).'},
+   {t:'Done: the same losses',c:'The same numbers as either ring schedule, with four times the live logits at P = 4, or eight times at the paper\'s P = 8.'}]};
+const C={wts:'var(--c3)',act:'var(--c1)',dense:'var(--c2)'};
+const f2=v=>v===null||v===undefined?'·':Math.abs(v)>=10?v.toFixed(1):v.toFixed(2);
+function cellCol(v){const t=Math.max(-1,Math.min(1,v/4));return t>=0?'rgba(194,112,58,'+(.15+.6*t)+')':'rgba(47,111,181,'+(.15-.6*t)+')'}
+function box(x,y,bw,bh,r,hold,Y,S,fresh,e,mode){let s=rc(x,y,bw,bh,'var(--soft)',{s:'var(--line)'});
+  s+=tx(x+8,y+16,'rank '+r,{fs:12,w:600})+tx(x+62,y+16,'holds '+hold,{fs:11,c:'var(--mute)'});
+  const cols=Y?Y[0].length:VP,cw=Math.min(32,(bw-16-104)/cols),ch=20,sx=x+8,sy=y+40;
+  for(let n=0;n<N;n++)for(let c=0;c<cols;c++){const v=Y?Y[n][c]:0;s+=rc(sx+c*cw,sy+n*(ch+2),cw-2,ch,Y?cellCol(v):'var(--bg)',{r:2,op:Y?e:1,s:'var(--line)'});
+    if(Y&&cw>=27&&e>.6)s+=tx(sx+c*cw+cw/2-1,sy+n*(ch+2)+14,f2(v),{fs:11,a:'middle'})}
+  const ox=x+bw-100;s+=tx(ox,sy-4,'m',{fs:11,c:'var(--mute)'})+tx(ox+33,sy-4,'z',{fs:11,c:'var(--mute)'})+tx(ox+66,sy-4,'yₜ',{fs:11,c:'var(--mute)'});
+  if(S)S.forEach((o,n)=>{[o.m===-Infinity?null:o.m,o.m===-Infinity?null:o.z,o.y].forEach((v,i)=>{s+=tx(ox+i*33,sy+n*(ch+2)+14,f2(v),{fs:11,w:fresh?600:null})})});
+  return s}
+function draw(m,k,e,w){const cols=w>=760?4:w>=420?2:1,gap=8,bw=(w-gap*(cols-1))/cols,bh=92;let s='';
+  for(let r=0;r<P;r++){const x=(r%cols)*(bw+gap),y=Math.floor(r/cols)*(bh+gap);
+    if(m==='dense'){const Y=k>=1?dense(r):null,S=k>=1?dense(r).map((y,n)=>{const mx=Math.max(...y);return {m:mx,z:y.reduce((a,v)=>a+Math.exp(v-mx),0),y:y[T[r][n]]}}):null;
+      s+=box(x,y,bw,bh,r,'X'+r+' and all of W',Y,S,k>=1,k===1?e:1,m)}
+    else{const RR=m==='wts'?RW:RA,last=k>=P,row=RR.R[Math.min(k,P-1)][r];
+      let S=row.S,hold=(m==='wts'?'X'+r:'X'+row.j)+' · W'+row.q;
+      if(last){S=RR.final[r];hold='X'+r+', state home'}
+      s+=box(x,y,bw,bh,r,hold,last?null:row.Y,S,!last,last?1:e,m)}}
+  const rowsN=Math.ceil(P/cols);return svgW(w,rowsN*(bh+gap),s,'Ring-DTP ranks, strips and running states')}
+function counters(m,k,e){const live=m==='dense'?N*V:N*VP,hop=m==='wts'?Hh*VP:m==='act'?N*Hh+4*N:0;
+  let fin='';if(m==='dense'&&k>=1||m!=='dense'&&k>=P){const st=m==='wts'?RW.final:m==='act'?RA.final:null;fin=st?'max diff '+maxDiff(st).toExponential(1):'the reference'}
+  return stat('Live logits per rank',live+' numbers',m==='dense'?'N × V':'one strip, N × V/P')+stat('Sent per hop',hop?hop+' numbers':'no hops',m==='wts'?'a 3 × 3 weight shard (H × V/P)':m==='act'?'a 2 × 3 batch, its 2 targets and 3 numbers of state per token':'every rank holds the whole weight')+stat('Loss against dense log-softmax',fin||'not finished',fin?'all 8 tokens':'')}
+makeAnim({id:'rgx',modes,mode:'wts',draw,counters,dur:2600});
+window.__ringCheck=()=>({wts:maxDiff(RW.final),act:maxDiff(RA.final)});
+})();
+
+</script>
+<script>/* 16_js_scx.js */
+// ---- Live 3: SCO on gpt-oss-20b's 47 checkpoint boundaries (Table 3, Algorithm 3) ----
+(function(){
+const NB=47,BG=557056/8*2880*2/GiB,OFF={off:0,b8:21,b16:42,full:47},PEAK={off:139.790,b8:133.546,b16:125.677,full:123.728},
+  BUD={off:'none',b8:'8 GiB',b16:'16 GiB',full:'unlimited'};
+// forward in 4 groups, backward in 4 groups (reverse), then the end of the step. Per boundary: on device (d), restored (r), on host (h)
+const FW=[[0,12],[12,24],[24,36],[36,47]],BW=[[35,47],[23,35],[11,23],[0,11]];
+function state(m,k){const n=OFF[m];if(k<0)return Array.from({length:NB},()=>({d:false,r:false,h:false}));return Array.from({length:NB},(_,i)=>{
+  if(k<4){const c=i<FW[k][1];return {d:c&&i>=n,r:false,h:c&&i<n}}
+  if(k<8){const a=BW[k-4][0],pr=i>=a,re=i===a-1&&i<n;return {d:(!pr&&i>=n)||re,r:re,h:i<n}}
+  return {d:false,r:false,h:false}})}
+const cnt=(s,f)=>s.filter(f).length;
+function steps(m){const n=OFF[m],A=[];
+  FW.forEach(([a,b],g)=>A.push({t:'Forward: boundaries '+(a+1)+' to '+b,c:(n===0?'Each layer\'s input stays on the device until backward recomputes the layer.':a>=n?'The host budget is full ('+n+' boundaries, '+(n*BG).toFixed(2)+' GiB): these inputs stay on the device.':'Each input that still fits the '+BUD[m]+' budget is copied to pinned host memory on a copy stream, then freed on the device'+(b>n?'; from boundary '+(n+1)+' on, the budget is full and the rest stay on the device.':'.'))+' At the end of forward the device holds '+((NB-Math.min(n,NB))*BG).toFixed(2)+' GiB of boundaries.'}));
+  BW.forEach(([a,b],g)=>A.push({t:'Backward: boundaries '+b+' down to '+(a+1),c:'Backward visits the layers in reverse, recomputing each from its boundary and then freeing it. '+(n===0?'Nothing to restore: every boundary was on the device all along.':b<=n?'These were offloaded: while one layer recomputes, the next boundary is copied back on a separate stream, so at most two restored boundaries are on the device at once (Eq. 4).':a<n?'The device-resident ones are used and freed; the offloaded ones start coming back one layer ahead.':'These stayed on the device and are used and freed in place.')}));
+  A.push({t:'Step done',c:'The pinned host memory is released at the end of the step. Measured peak HBM for this setting: '+PEAK[m].toFixed(3)+' GiB (Table 3), throughput within 1.9% of the others.'});return A}
+const modes={b8:steps('b8'),b16:steps('b16'),full:steps('full'),off:steps('off')};
+function draw(m,k,e,w){const s0=k?state(m,k-1):state(m,-1),s1=state(m,k),pl=74,cw=(w-pl-6)/NB,ch=Math.max(12,Math.min(26,cw*2.2)),y1=22,y2=y1+ch+30;let s='';
+  s+=tx(pl-6,y1+ch/2+4,'GPU HBM',{fs:11,a:'end'})+tx(pl-6,y2+ch/2+4,'host, pinned',{fs:11,a:'end'});
+  s+=tx(pl,12,'boundaries 1 to 47, 0.3735 GiB each',{fs:11,c:'var(--mute)'});
+  for(let i=0;i<NB;i++){const a=s0[i],b=s1[i],x=pl+i*cw,mix=(p,q)=>(p?1-e:0)+(q?e:0);
+    s+=rc(x,y1,cw-1,ch,'var(--soft)',{r:1})+rc(x,y2,cw-1,ch,'var(--soft)',{r:1});
+    const dOp=Math.min(1,mix(a.d,b.d)),hOp=Math.min(1,mix(a.h,b.h));
+    if(dOp>0)s+=rc(x,y1,cw-1,ch,b.r||a.r?'var(--acc)':'var(--c3)',{r:1,op:dOp});
+    if(hOp>0)s+=rc(x,y2,cw-1,ch,'var(--c4)',{r:1,op:hOp})}
+  const n=OFF[m];if(n>0&&n<NB)s+=ln2(pl+n*cw-.5,y1-4,pl+n*cw-.5,y2+ch+4,'var(--bad)',{da:'3 3'})+tx(Math.min(w-4,pl+n*cw+3),y2+ch+16,'host budget '+BUD[m],{fs:11,c:'var(--bad)',a:pl+n*cw+120>w?'end':null});
+  // to-scale bar of boundary memory on device
+  const yb=y2+ch+30,dev=cnt(s1,q=>q.d)*BG,X=v=>pl+(w-pl-6)*v/(NB*BG);
+  s+=tx(pl-6,yb+12,'on GPU',{fs:11,a:'end'})+rc(pl,yb,w-pl-6,16,'var(--soft)',{r:2})+rc(pl,yb,X(dev)-pl,16,'var(--c3)',{r:2})+tx(Math.min(X(dev)+4,w-70),yb+12,dev.toFixed(2)+' GiB',{fs:11});
+  return svgW(w,yb+24,s,'Checkpoint boundaries on device and host')}
+function counters(m,k){const s=state(m,k),dev=cnt(s,q=>q.d)*BG,host=cnt(s,q=>q.h)*BG;let pk=0;for(let j=0;j<=k;j++)pk=Math.max(pk,cnt(state(m,j),q=>q.d)*BG);
+  return stat('Boundaries on the GPU now',dev.toFixed(2)+' GiB',(cnt(s,q=>q.r)?'1 restored ahead, ':'')+cnt(s,q=>q.d)+(cnt(s,q=>q.d)===1?' boundary':' boundaries'))+stat('In pinned host memory',host.toFixed(2)+' GiB',cnt(s,q=>q.h)+' boundaries, kept until the step ends')+stat('Boundary peak so far',pk.toFixed(2)+' GiB','measured whole-GPU peak '+PEAK[m].toFixed(3)+' GiB')}
+makeAnim({id:'scx',modes,mode:'b8',draw,counters,dur:2400});
+})();
+
+</script>
+<script>/* 17_js_osx.js */
+// ---- Live 4: the offloaded optimizer step, CPU Adam against the bucket stream (Eq. 5, Algorithm 4) ----
+(function(){
+const G=26,TCPU=3.95,BMAX=142.076e6,NSTEP=8;
+// per-bucket stage times in units of the upload: up 1, update 0.25, write-back 0.75 (bytes 16 : 12); scaled so 2 slots take 1.93 s
+function sim(s,a){const up=a,ud=.25*a,dn=.75*a,h=[],u=[],d=[];
+  for(let g=0;g<G;g++){const slot=g>=s?d[g-s][1]:0,h0=Math.max(g?h[g-1][1]:0,slot);h.push([h0,h0+up]);
+    const u0=Math.max(h[g][1],g?u[g-1][1]:0);u.push([u0,u0+ud]);const d0=Math.max(u[g][1],g?d[g-1][1]:0);d.push([d0,d0+dn])}
+  return {h,u,d,T:d[G-1][1]}}
+const A0=1.93/sim(2,1).T,R={s1:sim(1,A0),s2:sim(2,A0),s3:sim(3,A0)};
+const lanes={s1:1,s2:2,s3:3};
+function steps(m){const A=[];for(let i=1;i<=NSTEP;i++){const T=m==='cpu'?TCPU:R[m].T,t=T*i/NSTEP;
+  A.push({t:(i<NSTEP?'Up to t = ':'Done at ')+t.toFixed(2)+' s',c:m==='cpu'?(i<NSTEP?'The host CPU runs AdamW over all of this GPU\'s 2.6B parameters in one serial pass (ZeRO-Offload\'s AVX kernel). The GPU has released its activations and waits, nearly empty.':'3.95 s, measured (Table 4). The GPU was idle for all of it.'):
+   i<NSTEP?(m==='s1'?'One staging slot: bucket g+1 cannot upload until bucket g has been written back, so upload, update and write-back take turns and the link is busy only half the time.':'Bucket g+1 uploads while bucket g is updated and bucket g−1 is written back; the upload stream is never idle, so the step runs at the transfer floor.'):
+   'Done: '+R[m].T.toFixed(2)+' s'+(m==='s2'?', the measured 1.93 s by construction.':m==='s3'?', the same as two slots up to the fill (Table 14 measured 1.951 s against 1.930).':', about twice the two-slot time: the overlap, not the GPU, is what buys the speed. (One slot was not measured.)')})}
+  return A}
+const modes={s2:steps('s2'),s1:steps('s1'),s3:steps('s3'),cpu:steps('cpu')};
+function draw(m,k,e,w){const T=m==='cpu'?TCPU:R[m].T,t=T*(k+e)/NSTEP,pl=92,X=v=>pl+(w-pl-8)*v/4.2,lh=22;let s='',y=8;
+  [0,1,2,3,4].forEach(v=>{s+=ln2(X(v),4,X(v),4+lh*4+8,'var(--line)')+tx(X(v),lh*4+26,v+' s',{fs:11,a:'middle',c:'var(--mute)'})});
+  const bar=(row,a,b,c,lab)=>{if(t<=a)return '';const bb=Math.min(b,t);return rc(X(a),8+row*lh,Math.max(1,X(bb)-X(a)-.6),lh-6,c,{r:1,op:.9})};
+  const lab=(row,n)=>tx(pl-6,8+row*lh+12,n,{fs:11,a:'end'});
+  if(m==='cpu'){s+=lab(0,'CPU AdamW')+lab(1,'GPU')+bar(0,0,TCPU,'var(--c2)')+(t>0?tx(X(Math.min(t,TCPU))-4,8+lh+12,'idle',{fs:11,a:'end',c:'var(--mute)'}):'')}
+  else{const r=R[m];s+=lab(0,'to GPU')+lab(1,'GPU AdamW')+lab(2,'to host');
+    for(let g=0;g<G;g++){const c=g%2?'var(--c1)':'var(--c6)';s+=bar(0,r.h[g][0],r.h[g][1],c)+bar(1,r.u[g][0],r.u[g][1],c)+bar(2,r.d[g][0],r.d[g][1],c)}}
+  s+=ln2(X(1.93),4,X(1.93),lh*4+12,'var(--good)',{da:'3 3'})+tx(X(1.93)-3,lh*3+18,'1.93 s measured',{fs:11,a:'end',c:'var(--good)'});
+  s+=ln2(X(TCPU),4,X(TCPU),lh*4+12,'var(--bad)',{da:'3 3'})+tx(X(TCPU)-3,lh*3+18,'3.95 s',{fs:11,a:'end',c:'var(--bad)'});
+  s+=ln2(X(t),4,X(t),lh*4+12,'var(--ink)',{sw:1.5});
+  return svgW(w,lh*4+32,s,'Optimizer step timeline')}
+function counters(m,k,e){const T=m==='cpu'?TCPU:R[m].T,t=T*(k+e)/NSTEP;
+  const done=m==='cpu'?(t>=TCPU?G:0):R[m].d.filter(x=>x[1]<=t+1e-9).length,busy=m==='cpu'?0:R[m].u.reduce((a,x)=>a+Math.max(0,Math.min(t,x[1])-x[0]),0);
+  return stat('Elapsed',t.toFixed(2)+' s',m==='cpu'?'serial host update':'of '+R[m].T.toFixed(2)+' s')+stat('Buckets written back',m==='cpu'?(t>=TCPU?'all':'0 until the end'):done+' of '+G,'about 100M parameters each')+stat('GPU staging memory',m==='cpu'?'0 GiB':fmtBytes(lanes[m]*BMAX*16),m==='cpu'?'nothing on the GPU':lanes[m]+' slots × 142.076M × 16 bytes'+(m==='s2'?' = Table 14\'s 4.234 GiB':m==='s3'?' = 6.351 GiB':''))}
+makeAnim({id:'osx',modes,mode:'s2',draw,counters,dur:2000});
+window.__osaCheck=()=>({s1:R.s1.T,s2:R.s2.T,s3:R.s3.T});
+})();
+
+</script>
+<script>/* 18_js_tables.js */
+// ---- The tables tab: Figure 2 from Table 6, the tables with sorting, the checks ----
+(function(){
+const TB=PAPER.tables,CK=PAPER.rc.checks,AX=a=>PAPER.meta.ax+'#'+a;
+const cnt=v=>CK.filter(c=>c.verdict===v).length;
+$('tbSum').textContent=CK.length+' numbers checked: '+cnt('reproduces')+' reproduce, '+cnt('derived')+' are derived where the paper prints none, '+cnt('does not reproduce')+' do not reproduce.';
+// Figure 2
+let f2s=1,f2v=1;
+function f2(){const rows=TB.t6.rows.filter(r=>r[0].startsWith(f2s?'65K':'32K')),sys=[['Standard EP',2,'var(--c2)'],['LLEP',3,'var(--c1)'],['PipelinedLLEP',4,'var(--c3)']];
+  const val=c=>c==='OOM'?null:+c.split(' / ')[f2v];
+  const mx=Math.max(...rows.flatMap(r=>sys.map(s=>val(r[s[1]])||0)))*1.1;
+  fit($('f2Svg'),w=>{const lw=62,gw=w-lw-10,gh=3*13+12,top=4,X=v=>lw+gw*v/mx;let s='';
+    rows.forEach((r,i)=>{const y=top+i*gh;s+=tx(lw-6,y+24,r[1],{fs:11,a:'end'});
+      sys.forEach(([n,ix,c],j)=>{const v=val(r[ix]),yy=y+j*13;
+        if(v===null)s+=tx(lw+4,yy+11,'out of memory',{fs:11,c:'var(--bad)'});else s+=rc(lw,yy+2,X(v)-lw,10,c,{r:1})+tx(X(v)+4,yy+11,fmt(v,f2v?1:0),{fs:11})})});
+    const y0=top+rows.length*gh,L=legend(sys.map(x=>[x[0],x[2]]),lw,y0+16,gw);
+    s+=tx(lw,y0+2,f2v?'peak allocated memory, GiB (max across ranks)':'mean forward latency, ms',{fs:11,c:'var(--mute)'})+L.s;
+    $('f2Svg').innerHTML=svgW(w,y0+16+L.h,s,'Figure 2 rebuilt from Table 6')})}
+segBind('f2S',m=>{f2s=+m;f2()});segBind('f2V',m=>{f2v=+m;f2()});
+// tables
+const NOTE={t2:'Saved and Cost recompute from the printed peaks and latencies (82.8%, 86.6%, +5.1%, +4.4%). The standard peak at N = 32,768 is weight + input + three N × V FP32 tensors = 79.46 GiB against 79.521 measured.',
+ t10:'Independently reproduced: the weight H × V × 4 bytes = 5.3406 GiB and its shards 1.3351 and 0.6676; the standard increment 36.6212 GiB = three N × V FP32 tensors. Ring-DTP\'s increment is 3.2 strips of N × V/P at P = 4 and 4.0 strips at P = 8, the constant behind Eq. 2.',
+ t11:'Slowdowns recompute from the latencies.',
+ t6:'Peak saved and speed recompute from the cells. The 65K rows are the fastest of three repeats.',
+ t7:'Chunk counts reproduce from Eq. 1: K = min(⌈N / 4096⌉, 10) gives 1, 1, 2, 8, 10, 10.',
+ t8:'The last two columns are our replay (sim_dispatch.py, and the same code in this page): the paper\'s routing profiles through LLEP\'s released plan at capacity factor 1.0. All eight send ratios reproduce independently. At the code\'s default factor 1.1 they do not (80% / 16 gives 1.60 / 2.00).',
+ t9:'At 32K and K = 10, forward plus backward is slower than LLEP (0.87 to 0.90 times).',
+ t3:'Boundaries 21 and 42 and the logical payloads reproduce independently: one boundary is (557,056 / 8) × 2,880 × 2 bytes = 0.3735 GiB. Peak HBM falls 16.06 GiB (11.5%), not the "17.65% of HBM" of §3.3. Node RAM rises 190.9 GiB against 8 × 23.5 pinned.',
+ t13:'Marginal gain = largest completion over the baseline\'s 557,056 (Full: 17.65%). §3.3\'s 35.71% is Full\'s largest clean run over the baseline\'s (622,592 / 458,752).',
+ t4:'CPU Adam (ZeRO-Offload\'s AVX kernel) takes 3.95 s; the selected row (100M, 2 slots) is 2.05 times faster. Staging reproduces independently in every row as slots × actual maximum × 16 bytes.'};
+let sortC=-1,sortD=1;
+const num=v=>{const m=String(v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?+m[0]:NaN};
+function tb(){const k=$('tbSel').value,T=TB[k];let cols=T.cols.slice(),rows=T.rows.map(r=>r.slice());
+  if(k==='t8'){const R={'Balanced':0,'95% / 16':1,'80% / 16':2,'50% / 4':3};cols=cols.concat(['Replay strided','Replay contig.']);rows=rows.map(r=>{const S=rtData(R[r[0]]);return r.concat([S.ratio.str.toFixed(2),S.ratio.cont.toFixed(2)])})}
+  if(sortC>=0&&sortC<cols.length)rows.sort((a,b)=>{const x=num(a[sortC]),y=num(b[sortC]);return (isNaN(x)||isNaN(y)?String(a[sortC]).localeCompare(String(b[sortC])):x-y)*sortD});
+  $('tbTitle').innerHTML='<a href="'+AX(T.id)+'" target="_blank" rel="noopener noreferrer">'+T.name+'</a>: '+T.title+(T.unit?' ('+T.unit+')':'');
+  $('tbT').innerHTML='<tr>'+cols.map((c,i)=>'<th class="'+(i?'num':'')+'" style="cursor:pointer" data-c="'+i+'">'+c+(i===sortC?(sortD>0?' ▲':' ▼'):'')+'</th>').join('')+'</tr>'+rows.map(r=>'<tr>'+r.map((c,i)=>'<td class="'+(i?'num':'')+'">'+c+'</td>').join('')+'</tr>').join('');
+  $('tbT').querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{const c=+th.dataset.c;if(c===sortC)sortD=-sortD;else{sortC=c;sortD=1}tb()}));
+  $('tbNote').textContent=NOTE[k]||''}
+$('tbSel').addEventListener('change',()=>{sortC=-1;tb()});
+// checks
+let ckf='all';
+function ck(){const V={'reproduces':'okc','does not reproduce':'noc','derived':''};
+  $('ckT').innerHTML='<tr><th>What</th><th>Ours</th><th>Paper</th><th>Where</th><th>Verdict</th></tr>'+CK.filter(c=>ckf==='all'||c.verdict===ckf).map(c=>'<tr><td>'+c.what+(c.note?'<br><span class="small mute">'+c.note+'</span>':'')+'</td><td>'+c.ours+'</td><td>'+c.paper+'</td><td>'+c.where+'</td><td class="'+V[c.verdict]+'">'+c.verdict+'</td></tr>').join('')}
+segBind('ckF',m=>{ckf=m;ck()});
+onTab('t-tables',()=>{f2();tb();ck()});
+})();
+
+</script>
+<script>/* 90_js_tabs.js */
+// ---- Tabs: Reading opens by default; charts in a tab draw when it is shown ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  function show(id){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){console.error(e)}});
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t)}});
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
+  show('t-read');
+})();
+
+</script>
+</div></body></html>
