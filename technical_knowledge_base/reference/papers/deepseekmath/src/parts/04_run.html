@@ -1,0 +1,50 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Train all six methods on one toy</h2>
+<p>The paper puts SFT, RFT, Online RFT, DPO, PPO and GRPO in one formula ({{the unified view|tab:t-read:s-uni}}) but runs only four of them, with different reward functions. Here all of them train from the same base model, on the same questions, with the same rule reward and the same number of samples per step, in your browser. Everything is exact and seeded: the same settings give the same curves every time.</p>
+<div class="co"><div class="t"><b>The toy</b></div>
+<p class="small" style="margin:4px 0">100 questions <i>a</i> + <i>b</i> with digits 0 to 9. An answer is three tokens: a scratch digit (a correct process writes the units digit of the sum), then the sum as two digits. The reward is a rule: 1 if the two answer digits make the sum. The policy is one small network (an MLP with 64 hidden units, <b id="npTxt"></b> parameters) shared by the three positions; it sees <i>a</i> and <i>b</i> as thermometer codes and the tokens written so far.</p>
+<p class="small" style="margin:4px 0"><b>The base ("Instruct") model</b> is that network trained from scratch for <span id="sftSteps"></span> steps on careless demonstrations: four per question, all right without a carry, but forgetting the carry (7 + 7 answered "04") in one of four when the sum is 10 to 14, three of four when it is 15 or 16, and all four when it is 17 or 18. It answers correctly with probability <b id="baseAcc"></b> on average (Pass@1 at temperature 1), forgets the carry <b id="baseForget"></b> of the time on carry questions, Maj@64 <b id="baseMaj"></b>, Pass@64 <b id="basePass"></b>.</p>
+<p class="small" style="margin:4px 0"><b>Metrics are exact</b>: the page enumerates all 1,000 possible outputs of every question, so accuracy is the mean probability of a right answer, and KL is the exact sequence-level KL(π ‖ π<sub>ref</sub>). Maj@K uses 400 seeded simulated votes per question.</p></div>
+
+<div class="card" id="runCard">
+<div class="chips" id="runMeth" role="group" aria-label="Methods to train"></div>
+<div class="ctl">
+<label>steps <b id="runStepsV"></b><input type="range" id="runSteps" min="100" max="1200" step="100" value="400"></label>
+<label>learning rate (Adam) <select id="runLr"><option>0.0003</option><option>0.001</option><option selected>0.003</option><option>0.01</option></select></label>
+<label>G, samples per question <select id="runG"><option>2</option><option>4</option><option selected>8</option><option>16</option></select></label>
+<label>β, KL coefficient (PPO, GRPO) <select id="runBeta"><option>0</option><option>0.01</option><option selected>0.04</option><option>0.1</option></select></label>
+<label>λ, PPO's GAE <select id="runLamS"><option>0</option><option>0.5</option><option selected>0.95</option><option>1</option></select></label>
+<label>β for DPO <select id="runDB"><option selected>0.1</option><option>0.5</option></select></label>
+<label>seed <select id="runSeed"><option selected>5</option><option>6</option><option>7</option></select></label>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button id="runGo" class="an-play">▶ Train</button><button id="runStop">Stop</button><button id="runReset">Defaults</button><span class="small mute" id="runStatus"></span></div>
+<p class="try">Try: the defaults first (about 25 seconds for all eight). Then β = 0 for GRPO (does the KL term matter here?), G = 2 against G = 16 at the same 64 samples per step (the batch shrinks as G grows), λ = 0 for PPO (a critic-only advantage), and DPO at learning rate 0.0003.</p>
+<div class="seg" id="runX" role="group" aria-label="x axis"><button class="on" data-m="step" aria-pressed="true">x: training steps</button><button data-m="samp" aria-pressed="false">x: samples drawn</button></div>
+<div id="runSvg" style="margin-top:6px"></div>
+<div class="tw"><table class="lt" id="runTab"></table></div>
+<p class="small mute" id="runRepro"></p>
+</div>
+
+<h3 id="runHeatH">Where the errors are</h3>
+<div class="card" id="runHeat"><div class="seg" id="runHeatM" role="group" aria-label="Model"></div><div id="runHeatSvg" style="margin-top:6px"></div>
+<p class="small mute" style="margin:2px 0 0">Probability of a right answer for every question, rows <i>a</i>, columns <i>b</i>. The base model's errors sit in the lower right, where the demonstrations forgot the carry; the three cells with sums of 17 and 18 never saw a right answer.</p></div>
+
+<h3 id="runPKH">Maj@K and Pass@K, as in the paper's Figure 7</h3>
+<div class="card" id="runPK"><div class="seg" id="runPKM" role="group" aria-label="Method"></div><div id="runPKSvg" style="margin-top:6px"></div>
+<p class="small mute" style="margin:2px 0 0" id="runPKTxt"></p></div>
+
+<h3 id="runSweepH">Three seeds, and the knobs (toy_sweep.mjs)</h3>
+<div class="card" id="runSweep"><div id="runSweepTab" class="tw"></div>
+<p class="small" id="runSweepTxt"></p></div>
+<div class="card" id="runLam"><div id="runLamTab" class="tw"></div></div>
+
+<h3 id="runCheckH">Checks</h3>
+<div class="card" id="runCheck"><p class="small" id="runCheckTxt"></p></div>
+
+<div class="co warn"><div class="t"><b>What the toy can and cannot test</b></div>
+<ul class="small" style="margin:4px 0 0 0;padding-left:18px">
+<li><b>Can:</b> the gradient coefficients of Table 10 on identical data; online against offline sampling; a critic against a group baseline; the KL term; Maj@K against Pass@K; the share of groups with no signal.</li>
+<li><b>Cannot:</b> long outputs (three tokens, so GAE's λ and Dr. GRPO's length bias have nothing to act on); a learned reward model that can be gamed (the reward is a rule, which removes the paper's Rule-against-Model confound by design); generalisation to questions RL never saw (a held-out split was tried first, <code>heldout_trial.mjs</code>: trained on 70 questions, every method lowered accuracy on the other 30, from 79.9% to between 40.6% for SFT and 72.7% for GRPO, because this small network learns sums largely one by one; so the toy trains and evaluates on all 100 questions, and the paper's out-of-domain gains cannot be tested here); scale.</li>
+<li><b>Iterative RL</b> retrains a reward model; with a rule reward there is nothing to retrain, so it is not in the toy.</li>
+</ul></div>
+</section>
