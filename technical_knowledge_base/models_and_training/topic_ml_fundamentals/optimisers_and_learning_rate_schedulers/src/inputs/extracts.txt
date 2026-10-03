@@ -1,0 +1,297 @@
+Optimisers and learning-rate schedulers: source extracts
+Checked 2026-10-03. Quotes are verbatim from the primary source (LaTeX from arXiv HTML kept as rendered text; PDF ligatures normalised). Where a source line contained an em-dash it is shown as "--" or the quote was trimmed to avoid it.
+
+## C1: AdaGrad (Duchi, Hazan, Singer 2011, JMLR): per-coordinate step divided by sqrt of sum of squared gradients; good for sparse features
+URL: https://jmlr.org/papers/v12/duchi11a.html (PDF: https://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf, section 1.1 "The Adaptive Gradient Algorithm")
+QUOTE: "Thus we specialize the update to x_{t+1} = Pi_X^{diag(G_t)^{1/2}} (x_t - eta diag(G_t)^{-1/2} g_t). Both the inverse and root of diag(G_t) can be computed in linear time. Moreover, as we discuss later, when the gradient vectors are sparse the update above can often be performed in time proportional to the support of the gradient."
+QUOTE: "Informally, our procedures give frequently occurring features very low learning rates and infrequent features high learning rates, where the intuition is that each time an infrequent feature is seen, the learner should 'take notice.'"
+VERDICT: confirmed
+NOTE: Citation on JMLR page: "John Duchi, Elad Hazan, Yoram Singer; 12(61):2121-2159, 2011." G_t is the sum of outer products of past (sub)gradients, so diag(G_t) is the per-coordinate sum of squared gradients. The paper also defines the full-matrix version (G_t^{-1/2}) which is "computationally impractical in high dimensions".
+
+## C2: RMSProp origin: Hinton, Coursera lecture 6e (2012); decaying average of squared gradients, typical 0.9
+URL: https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf (resolves, HTTP 200; slide headed "Lecture 6e: rmsprop: Divide the gradient by a running average of its recent magnitude")
+QUOTE: "rmsprop: Keep a moving average of the squared gradient for each weight. MeanSquare(w, t) = 0.9 MeanSquare(w, t-1) + 0.1 (dE/dw (t))^2. Dividing the gradient by sqrt(MeanSquare(w, t)) makes the learning work much better (Tijmen Tieleman, unpublished)."
+VERDICT: confirmed
+NOTE: The slides credit the idea to Tijmen Tieleman (unpublished); Adam paper cites it as "RMSProp (Tieleman & Hinton, 2012)". The slide deck is hosted on Tijmen Tieleman's CSC321 page; the Coursera course was "Neural Networks for Machine Learning" (2012).
+
+## C3: AdaDelta (Zeiler 2012, arXiv 1212.5701): no global learning rate; units correction via running average of past updates
+URL: https://arxiv.org/html/1212.5701 (abstract; section 3.2 https://arxiv.org/html/1212.5701#S3.SS2)
+QUOTE (abstract): "We present a novel per-dimension learning rate method for gradient descent called ADADELTA. The method dynamically adapts over time using only first order information and has minimal computational overhead beyond vanilla stochastic gradient descent. The method requires no manual tuning of a learning rate and appears robust to noisy gradient information..."
+QUOTE (3.2 "Idea 2: Correct Units with Hessian Approximation"): "When considering the parameter updates, Delta x, being applied to x, the units should match. That is, if the parameter had some hypothetical units, the changes to the parameter should be changes in those units as well. When considering SGD, Momentum, or ADAGRAD, we can see that this is not the case."
+VERDICT: confirmed
+NOTE: The numerator of the final ADADELTA update is RMS[Delta x]_{t-1}, a running (exponentially decaying) average of past squared updates, divided by RMS[g]_t.
+
+## C4: Adam (Kingma and Ba, arXiv 1412.6980): defaults; bias correction; what happens without it when beta2 near 1
+URL: https://arxiv.org/abs/1412.6980 (arXiv HTML is only a PDF wrapper for this paper; quotes from PDF v9, Algorithm 1, sections 3, 5, 6.4)
+QUOTE (Algorithm 1 caption): "Good default settings for the tested machine learning problems are alpha = 0.001, beta1 = 0.9, beta2 = 0.999 and epsilon = 10^-8."
+QUOTE (section 3, Initialization bias correction): "What is left is the term (1 - beta2^t) which is caused by initializing the running average with zeros. In algorithm 1 we therefore divide by this term to correct the initialization bias. In case of sparse gradients, for a reliable estimate of the second moment one needs to average over many gradients by chosing a small value of beta2; however it is exactly this case of small beta2 where a lack of initialisation bias correction would lead to initial steps that are much larger."
+QUOTE (section 5, on RMSProp): "RMSProp also lacks a bias-correction term; this matters most in case of a value of beta2 close to 1 (required in case of sparse gradients), since in that case not correcting the bias leads to very large stepsizes and often divergence, as we also empirically demonstrate in section 6.4."
+QUOTE (section 6.4 / Figure 4, VAE): "In Figure 4, values beta2 close to 1 indeed lead to instabilities in training when no bias correction term was present, especially at first few epochs of the training. The best results were achieved with small values of (1 - beta2) and bias correction"
+VERDICT: confirmed
+NOTE: Note the paper's own wording: "small value of beta2" in section 3 means small (1 - beta2), i.e. beta2 close to 1 ("chosing a small value of beta2" is a slip in the paper; sections 5 and 6.4 say "beta2 close to 1"). Figure 4 caption: "Effect of bias-correction terms (red line) versus no bias correction terms (green line) after 10 epochs (left) and 100 epochs (right) on the loss ... when learning a Variational Auto-Encoder (VAE)". Grid: beta1 in [0, 0.9], beta2 in [0.99, 0.999, 0.9999], log10(alpha) in [-5, ..., -1].
+
+## C5: AdamW (Loshchilov and Hutter, arXiv 1711.05101): L2 and weight decay equivalent for SGD (with rescaling) but not for adaptive methods
+URL: https://arxiv.org/html/1711.05101 (abstract; section 1 https://arxiv.org/html/1711.05101#S1)
+QUOTE (abstract): "L2 regularization and weight decay regularization are equivalent for standard stochastic gradient descent (when rescaled by the learning rate), but as we demonstrate this is not the case for adaptive gradient algorithms, such as Adam."
+QUOTE (section 1): "L2 regularization and weight decay are not identical. The two techniques can be made equivalent for SGD by a reparameterization of the weight decay factor based on the learning rate; however, as is often overlooked, this is not the case for Adam."
+VERDICT: confirmed
+NOTE: Section 2 adds the intuition: with L2 inside Adam, "parameters theta_i with a large inverse preconditioner s_i (which in practice would be caused by historically large gradients in dimension i) are regularized relatively more than they would be with L2 regularization".
+
+## C6: Nesterov momentum: Sutskever et al. 2013 formulation, and PyTorch SGD nesterov=True pseudocode
+URL: https://proceedings.mlr.press/v28/sutskever13.html (PDF http://proceedings.mlr.press/v28/sutskever13.pdf, section 2, Eqs. 3-4)
+QUOTE (Sutskever et al. 2013, section 2): "Specifically, as shown in the appendix, the NAG update may be rewritten as: v_{t+1} = mu v_t - eps grad f(theta_t + mu v_t) (3); theta_{t+1} = theta_t + v_{t+1} (4)"
+QUOTE (2.1): "But while CM computes the gradient update from the current position theta_t, NAG first performs a partial update to theta_t, computing theta_t + mu v_t, which is similar to theta_{t+1}, but missing the as yet unknown correction."
+URL: https://docs.pytorch.org/docs/stable/generated/torch.optim.SGD.html (redirects to the current version, here https://docs.pytorch.org/docs/2.14/generated/torch.optim.SGD.html)
+QUOTE (PyTorch pseudocode, momentum/nesterov lines): "if mu != 0: if t > 1: b_t <- mu b_{t-1} + (1 - tau) g_t; else: b_t <- g_t; if nesterov: g_t <- g_t + mu b_t; else: g_t <- b_t; theta_t <- theta_{t-1} - gamma g_t" ... "Nesterov momentum is based on the formula from On the importance of initialization and momentum in deep learning."
+QUOTE (PyTorch note): "The implementation of SGD with Momentum/Nesterov subtly differs from Sutskever et al. and implementations in some other frameworks. ... v_{t+1} = mu * v_t + g_{t+1}, p_{t+1} = p_t - lr * v_{t+1} ... This is in contrast to Sutskever et al. and other frameworks which employ an update of the form v_{t+1} = mu * v_t + lr * g_{t+1}, p_{t+1} = p_t - v_{t+1}. The Nesterov version is analogously modified."
+VERDICT: confirmed
+NOTE: PyTorch's nesterov=True evaluates the gradient at the current point and uses g + mu*b (the "lookahead" reparameterisation), not a gradient at theta + mu v. Rendered pseudocode uses "if lambda != 0" / "if mu != 0" (the HTML text extraction drops the "not equal" sign). Default signature in 2.14 docs: SGD(params, lr=0.001, momentum=0, dampening=0, weight_decay=0, nesterov=False, ...). Momentum buffer initialised to the first gradient, not zeros.
+
+## C7: Lion (Chen et al. 2023, arXiv 2302.06675): update rule, betas, LR 3-10x smaller, WD 3-10x larger, one state; where competitive and not
+URL: https://arxiv.org/html/2302.06675 (Program 1 / section 2; section 5 https://arxiv.org/html/2302.06675#S5; section 6 https://arxiv.org/html/2302.06675#S6)
+QUOTE (Program 1): "update = interp(gradient, momentum, beta1); update = sign(update); momentum = interp(gradient, momentum, beta2)" ... "Discovered optimizer Lion. beta1=0.9 and beta2=0.99 by default are derived from Program. It only tracks momentum and uses the sign operation to compute the update."
+QUOTE (abstract): "It is more memory-efficient than Adam as it only keeps track of the momentum. Different from adaptive optimizers, its update has the same magnitude for each parameter calculated through the sign operation."
+QUOTE (section 5): "Based on our experience, a suitable learning rate for Lion is typically 3-10x smaller than that for AdamW." ... "Since the effective weight decay is lr * lambda ... the value of lambda used for Lion is 3-10x larger than that for AdamW in order to maintain a similar strength."
+QUOTE (abstract, wins): "On image classification, Lion boosts the accuracy of ViT by up to 2% on ImageNet and saves up to 5x the pre-training compute on JFT. ... On diffusion models, Lion outperforms Adam by achieving a better FID score and reducing the training compute by up to 2.3x. For autoregressive, masked language modeling, and fine-tuning, Lion exhibits a similar or better performance compared to Adam."
+QUOTE (section 6, Limitations of Lion): "There are also several tasks where Lion performs similarly to AdamW, including: (1) the Imagen text-to-image base model, (2) the perplexity of autoregressive language model trained on the large-scale internal dataset, ... and (3) masked language modeling on C4." ... "Though people often scale up the batch size to enable more parallelism, it is likely that Lion performs no better than AdamW if the batch size is small (< 64)." Also: "The performance gain brought by Lion decreases when strong augmentations are utilized." and "On vision tasks, the discrepancies between Lion, AdamW, and momentum SGD are pretty small on ResNets".
+VERDICT: confirmed
+NOTE: "interp(a, b, beta)" = (1-beta)*a + beta*b, so update = sign(beta1*m + (1-beta1)*g), m = beta2*m + (1-beta2)*g. Section 5 also: for language-modelling stability runs they used beta1=0.95, beta2=0.98 for Lion.
+
+## C8: Shampoo (Gupta, Koren, Singer 2018, arXiv 1802.09568): L and R, exponent -1/4 for matrices, -1/(2k) for order k; vector case = full-matrix AdaGrad
+URL: https://arxiv.org/html/1802.09568 (Algorithm 1 in section 1 https://arxiv.org/html/1802.09568#S1; section 1.2; section 4.2 https://arxiv.org/html/1802.09568#S4.SS2)
+QUOTE (Algorithm 1, matrix case): "W_{t+1} = W_t - eta L_t^{-1/4} G_t R_t^{-1/4}"
+QUOTE: "To recap more formally, Shampoo maintains two different matrices: an m x m matrix L_t^{1/4} to precondition the rows of G_t and R_t^{1/4} for its columns. The 1/4 exponent arises from our analysis; intuitively, it is a sensible choice as it induces an overall step-size decay rate of O(1/sqrt(t)), which is common in stochastic optimization methods."
+QUOTE (4.2, order-k): "It maintains a separate preconditioning matrix H_t^i (of size n_i x n_i) corresponding to for each dimension i in [k] of the gradient. On step t, the i'th mode of the gradient G_t is then multiplied by the matrix (H_t^i)^{-1/2k} through the tensor-matrix product operator x_i."
+QUOTE (1.2): "Shampoo can be viewed as an efficient, practical and provable apparatus for approximately and implicitly using the full AdaGrad preconditioner, without falling back to diagonal matrices."
+VERDICT: confirmed (vector case: derivable, not stated verbatim)
+NOTE: The paper does not explicitly write "for k=1 Shampoo is full-matrix AdaGrad", but it follows from Algorithm 2: k=1 gives H_t = sum g g^T and the step H_t^{-1/2} g, which is exactly full-matrix AdaGrad (Duchi et al.'s G_t^{-1/2}). Safe wording: "for a vector (order 1) the exponent -1/(2k) becomes -1/2, which is full-matrix AdaGrad".
+
+## C9: SOAP (Vyas et al. 2024, arXiv 2409.11321): "Adam in the eigenbasis of Shampoo's preconditioner"; headline numbers; extra hyperparameter
+URL: https://arxiv.org/html/2409.11321 (abstract; section 6.1 https://arxiv.org/html/2409.11321#S6.SS1; 6.3 for small batch)
+QUOTE (abstract): "This work establishes a formal connection between Shampoo (implemented with the 1/2 power) and Adafactor ... showing that Shampoo is equivalent to running Adafactor in the eigenbasis of Shampoo's preconditioner. This insight leads to the design of a simpler and computationally efficient algorithm: ShampoO with Adam in the Preconditioner's eigenbasis (SOAP)."
+QUOTE (abstract): "Furthermore, since SOAP is equivalent to running Adam in a rotated space, it introduces only one additional hyperparameter (the preconditioning frequency) compared to Adam. We evaluate SOAP on language model pre-training, with experiments on 360m and 660m sized models. In the large batch regime, SOAP reduces the number of iterations by over 40% and wall clock time by over 35% compared to AdamW, with approximately 20% improvements in both metrics compared to Shampoo."
+QUOTE (6.1): "In Figure 1 (left and middle) and Figure 3 we show train loss curves for AdamW, Shampoo, and SOAP on 360m and 660m models with 2m token batch size and 'chinchilla-optimal' i.e. 20x model size number of tokens. ... (when batch size is set to 2m and preconditioning frequency to 10)"
+QUOTE (6.3, small batch): "SOAP outperforms both Shampoo and AdamW, reducing the number of iterations by 25% compared to AdamW, and by approximately 10% compared to Shampoo. Furthermore, ... SOAP also achieves a wall-clock time improvement of >= 15% over AdamW and around 10% over Shampoo." (batch 256k tokens, preconditioning frequency 80)
+VERDICT: confirmed
+NOTE: Precisely: >=40% fewer iterations and >=35% less wall clock vs AdamW; ~20% vs Shampoo; 360M and 660M models; 2M-token batch; precond frequency 10. Paper also notes Shampoo won AlgoPerf "reducing wall-clock time by 28% (MLCommons, 2024)".
+
+## C10: AlgoPerf 2024: Distributed Shampoo won external tuning; Schedule-Free AdamW won self-tuning; scores and speed-ups
+URL: https://arxiv.org/html/2502.15015 (section 1 https://arxiv.org/html/2502.15015#S1; Figure 1 in section 3 https://arxiv.org/html/2502.15015#S3)
+QUOTE (section 1): "The winning submission in the external tuning ruleset, based on Distributed Shampoo (Anil et al., 2020; Shi et al., 2023), demonstrates that non-diagonal preconditioning methods can outperform currently popular diagonal methods, such as Adam (Kingma & Ba, 2015), in terms of wall-clock training time. Across eight deep learning workloads, this submission achieved on average a ~28% faster model training compared to the baseline, which used NadamW"
+QUOTE (section 1): "In the self-tuning ruleset, the winning submission based on Schedule Free AdamW (Defazio et al., 2024) was the only entry surpassing the baseline, providing ~8% faster average training. It was also ~10% faster than the external tuning baseline across the seven base benchmark workloads both algorithms trained successfully, without any hyperparameters or parallel tuning"
+QUOTE (Figure 1a, external tuning leaderboard): "PyTorch Distributed Shampoo 0.7784 | Schedule Free AdamW 0.7077 | Generalized Adam 0.6383 | Cyclic LR 0.6301 | NadamP 0.5909 | Baseline 0.5707 | Amos 0.4918 | CASPR Adaptive 0.4722 | LAWA Queue 0.3699 | LAWA EMA 0.3384 | Schedule Free Prodigy 0"
+QUOTE (Figure 1c, self-tuning leaderboard): "Schedule Free AdamW 0.8542 | Baseline 0.8194 | NadamW Sequential 0.3308 | Sinv6 75 0.1420 | Sinv6 0.0903 | AdamG 0"
+VERDICT: confirmed
+NOTE: Caption: "Higher scores indicate faster training. Note, scores are not comparable between rulesets." Scores are normalised area under performance profiles (1.0 = fastest on every workload). The external-tuning baseline is NAdamW. Schedule Free AdamW also placed 2nd in external tuning.
+
+## C11: Schedule-free (Defazio et al. 2024, arXiv 2405.15682); NeurIPS 2024 oral; repo README guidance
+URL: https://arxiv.org/html/2405.15682 (section 2 https://arxiv.org/html/2405.15682#S2; Algorithm 1 in section 4.4)
+QUOTE (section 2, Eqs. 3-5): "y_t = (1-beta) z_t + beta x_t, (3) z_{t+1} = z_t - gamma grad f(y_t, zeta_t), (4) x_{t+1} = (1 - c_{t+1}) x_t + c_{t+1} z_{t+1}, (5) where c_{t+1} = 1/(t+1) and z_1 = x_1 is the initial point."
+QUOTE (section 2): "Values of beta similar to standard momentum values beta ~ 0.9 appear to work well in practice."
+QUOTE (Algorithm 1, Schedule-Free AdamW): "gamma_t = gamma sqrt(1 - beta2^t) min(1, t/T_warmup)  [LR includes warmup and Adam bias-correction] ... c_{t+1} = gamma_t^2 / sum_{i=1}^t gamma_i^2 ... x_{t+1} = (1 - c_{t+1}) x_t + c_{t+1} z_{t+1}  [Update weighted iterate average]"
+QUOTE: "Schedule-Free AdamW is the core algorithm behind our winning entry to the MLCommons 2024 AlgoPerf Algorithmic Efficiency Challenge Self-Tuning track."
+URL (oral): https://neurips.cc/virtual/2024/oral/98003 (page title "NeurIPS Oral The Road Less Scheduled"; Oral Session 1C, Wed 11 Dec 2024)
+URL (repo): https://github.com/facebookresearch/schedule_free (README)
+QUOTE (README, How to Use): "This is done by calling optimizer.train() at the same place you call model.train() and optimizer.eval() at the same place you call model.eval(). The optimizer should also be placed in eval mode when storing checkpoints."
+QUOTE (README, Caveats): "Training is more sensitive to the choice of beta than you may expect from standard momentum. Our default of 0.9 works on most problems but it may be necessary to increase the value to 0.95 or 0.98 particularly for very long training runs." / "Using learning rate warmup is recommended. This is supported through the warmup_steps parameter." / "For SGD, a learning rate 10x-50x larger than classical rates seems to be a good starting point." / "For AdamW, learning rates in the range 1x-10x larger than with schedule-based approaches seem to work."
+VERDICT: confirmed
+NOTE: README also: "If your code supports PyTorch Optimizer step closures, you can use the closure forms of the optimizers, which do not require the .train() and .eval() calls." and BatchNorm needs extra handling.
+
+## C12: Muon (Keller Jordan blog): NS quintic coefficients, 5 steps, Nesterov 0.95, 2-D hidden only, AdamW for embeddings/head/scalars; records; FLOP overhead
+URL: https://kellerjordan.github.io/posts/muon/
+QUOTE (code): "def newtonschulz5(G, steps=5, eps=1e-7): ... a, b, c = (3.4445, -4.7750, 2.0315)"
+QUOTE: "We use an ad-hoc gradient based approach and end up with the coefficients (3.4445, -4.7750, 2.0315), which is what we use for the final design of Muon."
+QUOTE: "By design, Muon only applies to 2D parameters (and convolutional filters via flattening), so the remaining scalar and vector parameters in a network must be optimized using a standard method (e.g., AdamW). Empirically, we find that it is also important to optimize input and output parameters using AdamW, even though these are typically 2D. In particular, when training transformers, AdamW should be used for the embedding and final classifier head layers in order to attain the best performance."
+QUOTE: "Another purely empirical result is that using Nesterov-style momentum for Muon works a bit better than normal SGD-momentum in every case we have tested. We have therefore made this the default in the public Muon implementation."
+QUOTE (results): "Improved the speed record for training to 94% accuracy on CIFAR-10 from 3.3 to 2.6 A100-seconds. Improved the speed record for training to 3.28 val loss on FineWeb (a competitive task known as NanoGPT speedrunning) by a factor of 1.35x. ... Trained a 1.5B parameter transformer to GPT-2 XL level performance on HellaSwag in 10 8xH100-hours. Using AdamW to achieve the same result takes 13.3 hours."
+QUOTE: "switching from AdamW to Muon set a new NanoGPT training speed record on 10/15/24, where Muon improved the training speed by 35%."
+QUOTE (overhead): "Therefore, the FLOP overhead of Muon is at most Tm/B, where m is the model dimension, B is the batch size in tokens, and T is the number of NS iteration steps (typically T=5). ... For the current NanoGPT speedrunning record, the model dimension is m=768, and the number of tokens per batch is B=524288. Therefore, the overhead is 5*768/524288 = 0.7%. For Llama 405B training ... 5*16384/16000000 = 0.5%. We conclude that for typical LM training scenarios, at both the small and large scale, Muon has a FLOP overhead below 1%."
+VERDICT: confirmed
+NOTE: Momentum 0.95 is not stated in blog prose; it is the default in the reference implementation https://github.com/KellerJordan/Muon/blob/master/muon.py: "def muon_update(grad, momentum, beta=0.95, ns_steps=5, nesterov=True)" and "def __init__(self, params, lr=0.02, weight_decay=0, momentum=0.95)". Blog: "Muon (MomentUm Orthogonalized by Newton-Schulz)".
+
+## C13: Muon is Scalable (Liu et al. 2025, Moonshot, arXiv 2502.16982): ~2x compute efficiency, 52% of FLOPs; weight decay; 0.2*sqrt(max(A,B)); distributed
+URL: https://arxiv.org/html/2502.16982 (abstract; section 1 https://arxiv.org/html/2502.16982#S1; 2.2 https://arxiv.org/html/2502.16982#S2.SS2; 2.3 https://arxiv.org/html/2502.16982#S2.SS3)
+QUOTE (abstract): "We identify two crucial techniques for scaling up Muon: (1) adding weight decay and (2) carefully adjusting the per-parameter update scale. These techniques allow Muon to work out-of-the-box on large-scale training without the need of hyper-parameter tuning. Scaling law experiments indicate that Muon achieves ~2x computational efficiency compared to AdamW with compute optimal training."
+QUOTE (section 1): "Based on the scaling law results, Muon achieves comparable performance to AdamW trained counterparts while requiring only approximately 52% of the training FLOPs."
+QUOTE (2.2): "We propose to match Muon's update RMS to be similar to that of AdamW. From empirical observations, AdamW's update RMS is usually around 0.2 to 0.4. Therefore, we scale Muon's update RMS to this range by the following adjustment: W_t = W_{t-1} - eta_t (0.2 . O_t . sqrt(max(A,B)) + lambda W_{t-1})"
+QUOTE (section 1): "Efficient Distributed Implementation: We develop a distributed version of Muon with ZeRO-1 (Rajbhandari et al., 2020) style optimization, achieving optimal memory efficiency and reduced communication overhead while preserving the mathematical properties of the algorithm."
+VERDICT: confirmed
+NOTE: Released model: Moonlight (3B/16B MoE, 5.7T tokens).
+
+## C14: Kimi K2 (arXiv 2507.20534): MuonClip with QK-Clip, 15.5T tokens, zero loss spikes, tau=100; LR schedule
+URL: https://arxiv.org/html/2507.20534 (abstract; section 2.1 https://arxiv.org/html/2507.20534#S2.SS1; section 2.5 https://arxiv.org/html/2507.20534#S2.SS5)
+QUOTE (abstract): "We propose the MuonClip optimizer, which improves upon Muon with a novel QK-clip technique to address training instability while enjoying the advanced token efficiency of Muon. Based on MuonClip, K2 was pre-trained on 15.5 trillion tokens with zero loss spike."
+QUOTE (2.1): "The core idea of QK-Clip is to rescale W_k, W_q whenever S_max^h exceeds a target threshold tau."
+QUOTE (Figure 2 caption): "Right: Maximum logits for Kimi K2 with MuonClip and tau = 100 over the entire training run. The max logits rapidly increase to the capped value of 100, and only decay to a stable range after approximately 30% of the training steps"
+QUOTE (2.5): "We pre-trained the model with a 4,096-token context window using the MuonClip optimizer (Algorithm 1) and the WSD learning rate schedule [26], processing a total of 15.5T tokens. The first 10T tokens were trained with a constant learning rate of 2e-4 after a 500-step warm-up, followed by 5.5T tokens with a cosine decay from 2e-4 to 2e-5."
+QUOTE (2.5): "The batch size was kept constant at 67M tokens, while the learning rate was decayed from 2e-5 to 7e-6. In this phase, the model was trained on 400 billion tokens with a 4k sequence length, followed by an additional 60 billion tokens with a 32k sequence length."
+VERDICT: confirmed (schedule: WSD, peak 2e-4, 500-step warmup, constant to 10T, cosine to 2e-5 over 5.5T, then anneal 2e-5 to 7e-6 over 400B+60B)
+NOTE: Per-head QK-Clip (gamma_h = min(1, tau/S_max^h)); for MLA only unshared head components are clipped. Weight decay and "consistent update RMS scaling" from Moonlight are also used.
+
+## C15: GLM-4.5 (arXiv 2508.06471): which parameters use Muon
+URL: https://arxiv.org/html/2508.06471#S2.SS4 (section 2.4 Hyper-Parameters)
+QUOTE: "We employed the Muon optimizer [21; 24] for all parameters except word embedding, bias, and weights for RMSNorm. For hyperparameters, we set the Newton-Schulz iteration steps N to 5, momentum mu to 0.95, and scaled Muon's update RMS to 0.2. We observed that the Muon optimizer can accelerate convergence and tolerate larger batch sizes."
+QUOTE (same paragraph, schedule): "We used cosine decay schedule for learning rate, instead of warmup-stable-decay (WSD) schedule [17]. Our early experiments showed that models trained with the WSD schedule perform worse on general benchmarks (SimpleQA, MMLU), indicating underfitting in the stable stage. The learning rate went through a warm-up stage from 0 to 2.5e-4 and a decaying stage to 2.5e-5 until the end of mid-training."
+VERDICT: confirmed
+NOTE: Useful counterpoint for the WSD section: GLM-4.5 chose cosine over WSD on benchmark evidence.
+
+## C16: Independent re-evaluations of the challengers
+(a) Wen et al. 2025, "Fantastic Pretraining Optimizers and Where to Find Them"
+URL: https://arxiv.org/html/2509.02046 (abstract; section 1 https://arxiv.org/html/2509.02046#S1; 3.3, 3.4)
+QUOTE (abstract): "Through our thorough investigation, we find that all the fastest optimizers such as Muon and Soap, use matrices as preconditioners. ... However, the speedup of matrix-based optimizers is inversely proportional to model scale, decreasing from 1.4x over AdamW for 0.1B parameter models to merely 1.1x for 1.2B parameter models."
+QUOTE (section 1): "Against our well-tuned AdamW baseline, the speedup of alternative optimizers does not exceed 1.4x (Figure 3). Furthermore, while new optimizers such as Muon and Soap show 1.3x speedups for small models (0.1B), the speedups diminish to around 1.1x for 1.2B parameter models at 8x Chinchilla Ratio"
+QUOTE (section 1): "After proper tuning, all scalar-based optimizers achieve similar optimization speeds to AdamW, with an average speedup ratio of less than 1.2x. Matrix-based optimizers (e.g., Kron, Muon, Soap, etc.) ... all deliver approximately a 1.3x speedup over AdamW (Figure 1, bottom right) for models under 520M parameters."
+QUOTE (3.3): "within matrix-based optimizers, Muon performs the best at 1-4x Chinchilla ratio but is overtaken by Soap and Kron when the Chinchilla ratio increases."
+QUOTE (section 1): "Up to a 2x speedup is achievable by tuning a single hyperparameter (learning rate) in the GPT-3 recipe Brown et al. (2020) for a 100M model"
+VERDICT: confirmed (abstract says 1.4x at 0.1B to 1.1x at 1.2B; body says Muon/Soap ~1.3x at 0.1B; both phrasings exist)
+NOTE: 11 optimizers, 4 data-to-model ratios (1x-8x Chinchilla), up to 1.2B params, 128 TPU-v5lite chips. They attribute the disagreement with Semenov et al. mostly to batch size (Semenov's most-tuned runs use 0.1M and 0.02M-token batches; theirs >= 0.4M).
+
+(b) Semenov et al. 2025, "Benchmarking Optimizers for Large Language Model Pretraining"
+URL: https://arxiv.org/html/2509.01440 (section 4.1 https://arxiv.org/html/2509.01440#S4.SS1; 4.2)
+QUOTE (Takeaway 1): "(I) AdEMAMix consistently achieves state-of-the-art performance and robust scaling with training duration; (II) sign-based methods (Signum, Lion), and MARS greatly benefit from the increased batch size; (III) Sophia diverges in the small-batch setting, when trained beyond the Chinchilla optimal horizon, even with sufficiently small learning rate; (IV) SOAP show a surprisingly consistent performance in both settings."
+QUOTE (Takeaway 5): "As usual, a warmup duration in LLM pretraining is around 2k steps. However, we reveal that the warmup duration is optimizer-dependent and should be tuned"
+QUOTE (Takeaway 6): "A choice of the learning rate scheduler is also optimizer-related. For most methods, the cosine scheduler dominates."
+QUOTE (Takeaway 8): "Decaying the learning rate further than 10% of the maximal significantly improves the results. However, for different schedulers, the best final learning rate is different."
+QUOTE (720M, 1M batch): "AdEMAMix and MARS are the best optimizers in this setup, with a noticable gap in performance compared to other methods."
+VERDICT: confirmed (key findings as quoted)
+NOTE: Repo https://github.com/epfml/llm-optimizer-benchmark. Also: "as training on more tokens, AdamW narrows the gap with SOAP and D-Muon, while AdEMAMix emerges as the best-performing method".
+
+(c) Kaddour et al. 2023, "No Train No Gain"
+URL: https://arxiv.org/html/2307.06440 (abstract)
+QUOTE: "In this work, we revisit three categories of such algorithms: dynamic architectures (layer stacking, layer dropping), batch selection (selective backprop, RHO loss), and efficient optimizers (Lion, Sophia). When pre-training BERT and T5 with a fixed computation budget using such methods, we find that their training, validation, and downstream gains vanish compared to a baseline with a fully-decayed learning rate."
+VERDICT: confirmed (relevant: Lion and Sophia gains vanish vs fully-decayed AdamW baseline on BERT/T5)
+
+(d) Essential AI 2025, "Practical Efficiency of Muon for Pretraining"
+URL: https://arxiv.org/html/2505.02222 (abstract; section 1 https://arxiv.org/html/2505.02222#S1)
+QUOTE (abstract): "We demonstrate that Muon, the simplest instantiation of a second-order optimizer, explicitly expands the Pareto frontier over AdamW on the compute-time tradeoff. We find that Muon is more effective than AdamW in retaining data efficiency at large batch sizes, far beyond the so-called critical batch size, while remaining computationally efficient, thus enabling more economical training."
+QUOTE (section 1): "We back our findings through extensive experiments, varying the model size up to 4 billion parameters and batch size up to 16 million tokens"
+VERDICT: confirmed
+NOTE: Also shows muP transfers with Muon up to 3.7B and proposes a "telescoping" hyperparameter sweep.
+
+(e) Sophia (Liu et al. 2023)
+URL: https://arxiv.org/html/2305.14342 (abstract; section 1 https://arxiv.org/html/2305.14342#S1)
+QUOTE (abstract): "On language modeling with GPT models of sizes ranging from 125M to 1.5B, Sophia achieves a 2x speed-up compared to Adam in the number of steps, total compute, and wall-clock time, achieving the same perplexity with 50% fewer steps, less total compute, and reduced wall-clock time."
+VERDICT: confirmed (claimed 2x)
+NOTE: Re-evaluations disagree: Kaddour et al. find Sophia's gains vanish vs a fully-decayed baseline; Semenov et al. find Sophia diverges in small-batch long runs; Wen et al. list Sophia's claim as 2x vs their max observed 1.4x.
+
+## C17: torch.optim.Muon (since 2.9) and optax.contrib.muon
+URL: https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html (resolves; versioned page https://docs.pytorch.org/docs/2.9/generated/torch.optim.Muon.html returns 200, https://docs.pytorch.org/docs/2.8/generated/torch.optim.Muon.html returns 404)
+QUOTE (signature): "class torch.optim.Muon(params, lr=0.001, weight_decay=0.1, momentum=0.95, nesterov=True, ns_coefficients=(3.4445, -4.775, 2.0315), eps=1e-07, ns_steps=5, adjust_lr_fn=None)" ... "Implements Muon algorithm."
+QUOTE: "Note that Muon is an optimizer for 2D parameters of neural network hidden layers. Other parameters, such as bias, and embedding, should be optimized by a standard method such as AdamW."
+QUOTE: "We provide these options for the learning rate adjustment: 'original', which follows Keller's implementation, 'match_rms_adamw', which refers to Moonshot's implementation, and 'spectral_unclamped', which matches Bernstein's implementation. If adjust_lr_fn is not specified, the default is 'original'."
+URL: https://optax.readthedocs.io/en/latest/api/contrib.html
+QUOTE: "muon(learning_rate[, ns_coeffs, ns_steps, ...]) Muon: Momentum Orthogonalized by Newton-schulz." (also optax.contrib.MuonState, optax.contrib.scale_by_muon)
+VERDICT: confirmed (PyTorch: first appears in 2.9 docs; Optax: optax.contrib.muon)
+NOTE: "Since 2.9" is inferred from the versioned-docs check (2.8 page 404, 2.9 page 200), not from an explicit "added in" note.
+
+## C18: Hägele et al. 2024 (arXiv 2405.18392): 1-sqrt cooldown, 20% cooldown matches cosine, predictable scaling, SWA
+URL: https://arxiv.org/html/2405.18392 (abstract; 3.2 https://arxiv.org/html/2405.18392#S3.SS2; 4.1 https://arxiv.org/html/2405.18392#S4.SS1; 5 https://arxiv.org/html/2405.18392#S5)
+QUOTE (abstract): "We investigate the training behavior of a direct alternative, constant learning rate and cooldowns, and find that it scales predictably and reliably similar to cosine. Additionally, we show that stochastic weight averaging yields improved performance along the training trajectory, without additional training costs, across different scales." [abstract uses an em-dash before "constant"; replaced with a comma here]
+QUOTE (Takeaway 2): "We find a cooldown form (1-sqrt) that consistently performs better than linear decay."
+QUOTE (Takeaway 3): "The constant learning rate with a short cooldown (< 20% of total training steps) can achieve the same final loss as cosine, and only outperforms for a longer fraction of cooldown steps. For long training runs, our results suggest that the cooldown length can be less than 20% to match cosine if it is enough in absolute steps"
+QUOTE (Takeaway 5, SWA): "Irrespective of the schedule and without additional overhead, SWA improves performance along the training trajectory and provides better models during training. While it does not match the cooldown, it reduces the gap without the need for a separate decay phase."
+QUOTE (Takeaway 6): "Scaling experiments can be done with significantly reduced compute and GPU hours by utilizing fewer but reusable training runs with a constant learning rate and ad-hoc cooldowns."
+VERDICT: confirmed (nuance: 20% cooldown matches cosine; longer cooldowns outperform it; shorter can suffice for long runs)
+NOTE: Section 4.2 also tests schedule-free (SFO): "strong (but not optimal) performance". Figure 13: scaling laws for "a factor of 1/2 or less" of the compute.
+
+## C19: Bergsma et al. 2025 "Straight to Zero" (arXiv 2502.15938): D2Z vs 10x; 60% savings; the 10% heuristic; nearer zero vs downstream
+URL: https://arxiv.org/html/2502.15938 (abstract; section 1)
+QUOTE (abstract): "LLMs are commonly trained with a learning rate (LR) warmup, followed by cosine decay to 10% of the maximum (10x decay). In a large-scale empirical study, we show that under an optimal peak LR, a simple linear decay-to-zero (D2Z) schedule consistently outperforms other schedules when training at compute-optimal dataset sizes."
+QUOTE (abstract): "In experiments, a 610M-parameter model trained for 80 tokens-per-parameter (TPP) using D2Z achieves lower loss than when trained for 200 TPP using 10x decay, corresponding to an astonishing 60% compute savings. Models such as Llama2-7B, trained for 286 TPP with 10x decay, could likely have saved a majority of compute by training with D2Z."
+QUOTE (section 1): "Moreover, the relative benefit of D2Z over 10x (in terms of training, validation and downstream loss) increases with TPP."
+VERDICT: confirmed (D2Z and 60% at 80 vs 200 TPP, 610M model)
+Sources for the "~10% of peak" heuristic:
+URL: https://arxiv.org/html/2307.09288#S2.SS2 (Llama 2)
+QUOTE: "We use a cosine learning rate schedule, with warmup of 2000 steps, and decay final learning rate down to 10% of the peak learning rate. We use a weight decay of 0.1 and gradient clipping of 1.0."
+URL: https://arxiv.org/html/2203.15556#A2 (Chinchilla, Appendix B)
+QUOTE: "One key assumption is made on the cosine cycle length and the corresponding learning rate drop (we use a 10x learning rate decay in line with Rae et al. (2021)). We find the difference between decaying by 10x and decaying to 0.0 (over the same number of steps) to be small, though decaying by a factor of 10x to be slightly more performant. Decaying by less (5x) is clearly worse."
+NOTE on Llama 3: 405B decays 8e-5 to 8e-7, i.e. to 1% of peak (not 10%); see C22.
+Claim "nearer zero improves loss but can hurt some downstream benchmarks": VERDICT: unconfirmed. No source found stating this. Bergsma et al. report the opposite for downstream ("Finding 6: Trends in validation loss also hold for downstream evaluation", appendix C.1 https://arxiv.org/html/2502.15938#A3.SS1). Semenov et al. (2509.01440, Figure 15) find decaying to 0.01x peak beats decaying all the way to zero for loss ("decreasing the learning rate to moderate 0.01 x gamma_max value is a better choice than decreasing it down to zero"), and Chinchilla found 10x slightly better than 0.0. Closest related evidence for a benchmark trade-off is GLM-4.5's statement (C15) that WSD hurt SimpleQA/MMLU, which is about schedule shape, not final LR. Suggest rewording to "the optimal final LR is somewhere between 0 and 10% of peak and depends on the schedule".
+
+## C20: MiniCPM (arXiv 2404.06395): WSD definition, ~10% decay share, exponential decay
+URL: https://arxiv.org/html/2404.06395 (section 4.2 / 4.3 https://arxiv.org/html/2404.06395#S4.SS3; section 6.2 https://arxiv.org/html/2404.06395#S6.SS2)
+QUOTE: "We name it as the Warmup-Stable-Decay (WSD) LRS. Especially, the WSD LRS contains three stages: the warmup stage (whose end step is denoted by W), the stable training stage (whose end step is denoted by T), and the remaining decay stage."
+QUOTE: "10% Steps are Enough. ... among all three stable training checkpoints in 40N, 60N, and 80N training data, having a decay of 10% of the total tokens is sufficient to achieve the best results, while a decay of 2.5% of total tokens falls short. Therefore, in the subsequent training experiments, we use a decay of about 10% to ensure full convergence."
+QUOTE (6.2): "For the specific annealing form of the WSD scheduler, we employ exponential annealing, i.e. f(s-T) = 0.5^{(s-S)/T}, in which T is set to be 5000 steps (20B tokens)."
+VERDICT: confirmed
+NOTE: Section 6.2 also: "Since we use the exponential decay, the loss still drops after the learning rate drops below 10% of the max learning rate."
+
+## C21: DeepSeek-V3 (arXiv 2412.19437) LR schedule and AdamW settings
+URL: https://arxiv.org/html/2412.19437#S4.SS2 (section 4.2, "Training Hyper-Parameters")
+QUOTE: "We employ the AdamW optimizer (Loshchilov and Hutter, 2017) with hyper-parameters set to beta1=0.9, beta2=0.95, and weight_decay=0.1. We set the maximum sequence length to 4K during pre-training, and pre-train DeepSeek-V3 on 14.8T tokens. As for the learning rate scheduling, we first linearly increase it from 0 to 2.2 x 10^-4 during the first 2K steps. Then, we keep a constant learning rate of 2.2 x 10^-4 until the model consumes 10T training tokens. Subsequently, we gradually decay the learning rate to 2.2 x 10^-5 in 4.3T tokens, following a cosine decay curve. During the training of the final 500B tokens, we keep a constant learning rate of 2.2 x 10^-5 in the first 333B tokens, and switch to another constant learning rate of 7.3 x 10^-6 in the remaining 167B tokens."
+VERDICT: confirmed (all values match)
+
+## C22: ERNIE 4.5 WSD; SmolLM3 WSD decay share; Llama 3 405B schedule
+URL: https://ernie.baidu.com/blog/publication/ERNIE_Technical_Report.pdf (section 3.3 "Pre-Training Recipe")
+QUOTE: "All models use the Warmup-Stable-Decay learning rate schedule (Hu et al., 2024) during pre-training, with configurations specific to each model."
+VERDICT: confirmed (ERNIE 4.5 uses WSD; Hu et al. 2024 = MiniCPM)
+URL: https://huggingface.co/blog/smollm3
+QUOTE: "We use a global batch size of 2.36M tokens with 4096 sequence length, a learning rate of 2e-4, and the AdamW optimizer (beta1: 0.9, beta2: 0.95) with weight decay of 0.1 and gradient clipping of 1. We use the WSD (Warmup-Stable-Decay) scheduler, with 2000 warmup steps, and a linear decay to 0 in the final 10% training steps."
+VERDICT: confirmed (WSD, linear decay to 0 over final 10%)
+URL: https://arxiv.org/html/2407.21783 (section 3.4.1 Initial Pre-Training, https://arxiv.org/html/2407.21783#S3.SS4.SSS1)
+QUOTE: "We pre-train Llama 3 405B using AdamW with a peak learning rate of 8 x 10^-5, a linear warm up of 8,000 steps, and a cosine learning rate schedule decaying to 8 x 10^-7 over 1,200,000 steps."
+VERDICT: confirmed
+NOTE: 8e-7 is 1% of the 8e-5 peak (100x decay), not the 10% used by Llama 2.
+
+## C23: RAdam (Liu et al. 2019, arXiv 1908.03265): warmup explained by large variance of adaptive LR early
+URL: https://arxiv.org/html/1908.03265 (abstract)
+QUOTE: "The learning rate warmup heuristic achieves remarkable success in stabilizing training, accelerating convergence and improving generalization for adaptive stochastic optimization algorithms like RMSprop and Adam. Pursuing the theory behind warmup, we identify a problem of the adaptive learning rate -- its variance is problematically large in the early stage, and presume warmup works as a variance reduction technique."
+VERDICT: confirmed
+NOTE: The "--" above is the paper's own double hyphen in the abstract. Section 3.1 is titled "Warmup as Variance Reduction".
+
+## C24: Smith LR range test (1506.01186 s3.3); super-convergence / 1cycle (1708.07120); SGDR (1608.03983); Snapshot Ensembles (1704.00109)
+URL: https://arxiv.org/html/1506.01186#S3.SS3
+QUOTE: "3.3 How can one estimate reasonable minimum and maximum boundary values? There is a simple way to estimate reasonable minimum and maximum boundary values with one training run of the network for a few epochs. It is a 'LR range test'; run your model for several epochs while letting the learning rate increase linearly between low and high LR values."
+QUOTE: "Whenever one is starting with a new architecture or dataset, a single LR range test provides both a good LR value and a good range."
+URL: https://arxiv.org/html/1708.07120 (abstract; section 3)
+QUOTE: "In this paper, we describe a phenomenon, which we named 'super-convergence', where neural networks can be trained an order of magnitude faster than with standard training methods. ... One of the key elements of super-convergence is training with one learning rate cycle and a large maximum learning rate."
+QUOTE: "always use one cycle that is smaller than the total number of iterations/epochs and allow the learning rate to decrease several orders of magnitude less than the initial learning rate for the remaining iterations. We named this learning rate policy '1cycle'"
+URL: https://arxiv.org/html/1608.03983 (abstract)
+QUOTE: "In this paper, we propose a simple warm restart technique for stochastic gradient descent to improve its anytime performance when training deep neural networks. We empirically study its performance on the CIFAR-10 and CIFAR-100 datasets, where we demonstrate new state-of-the-art results at 3.14% and 16.21%, respectively."
+URL: https://arxiv.org/html/1704.00109 (title "Snapshot Ensembles: Train 1, get M for free"; abstract)
+QUOTE: "In this paper, we propose a method to obtain the seemingly contradictory goal of ensembling multiple neural networks at no additional training cost."
+VERDICT: confirmed (all four)
+
+## C25: Hugging Face Trainer default lr_scheduler_type "linear", warmup default 0
+URL: https://huggingface.co/docs/transformers/main_classes/trainer (TrainingArguments)
+QUOTE: "lr_scheduler_type (str or SchedulerType, optional, defaults to "linear") -- The learning rate scheduler type to use."
+QUOTE: "warmup_steps (int or float, optional, defaults to 0) -- Number of steps for a linear warmup from 0 to learning_rate. ... Can be: An integer: exact number of warmup steps; A float in range [0, 1): interpreted as ratio of total training steps"
+VERDICT: confirmed
+NOTE: In current docs warmup_steps accepts a float ratio (older docs had a separate warmup_ratio, default 0.0). Default learning_rate is 5e-05; default optim "adamw_torch" (for torch>=2.8 "adamw_torch_fused").
+
+## C26: Transformer (arXiv 1706.03762) Eq. 3, warmup 4000, Adam 0.9/0.98, eps 1e-9
+URL: https://arxiv.org/html/1706.03762#S5.SS3 (section 5.3 Optimizer)
+QUOTE: "We used the Adam optimizer [20] with beta1=0.9, beta2=0.98 and epsilon=10^-9. We varied the learning rate over the course of training, according to the formula: lrate = d_model^-0.5 . min(step_num^-0.5, step_num . warmup_steps^-1.5) (3). This corresponds to increasing the learning rate linearly for the first warmup_steps training steps, and decreasing it thereafter proportionally to the inverse square root of the step number. We used warmup_steps=4000."
+VERDICT: confirmed
+
+## C27: Adafactor (arXiv 1804.04235) O(n+m); 8-bit Adam (arXiv 2110.02861) memory
+URL: https://arxiv.org/html/1804.04235 (abstract; section 3 https://arxiv.org/html/1804.04235#S3)
+QUOTE (abstract): "Specifically, by tracking moving averages of the row and column sums of the squared gradients for matrix-valued variables, we are able to reconstruct a low-rank approximation of the exponentially smoothed accumulator at each training step that is optimal with respect to the generalized Kullback-Leibler divergence. For an n x m matrix, this reduces the memory requirements from O(nm) to O(n+m)."
+VERDICT: confirmed
+URL: https://arxiv.org/html/2110.02861 (section 1 https://arxiv.org/html/2110.02861#S1; 1.1)
+QUOTE: "This is a significant missed opportunity since these optimizer states use 33-75% of the total memory footprint during training."
+QUOTE: "For 32-bit states, Momentum and Adam consume 4 and 8 bytes per parameter. That is 4 GB and 8 GB for a 1B parameter model. Our 8-bit non-linear quantization reduces these costs to 1 GB and 2 GB."
+QUOTE: "8-bit Adam can be used as a simple drop-in replacement for 32-bit Adam, with no hyperparameter changes."
+VERDICT: confirmed (Adam state 8 bytes/param to 2 bytes/param, i.e. 75% less optimizer-state memory)
+
+## C28: Chinchilla cosine-length artefact: cycle >25% longer than steps leads to clear drops
+URL: https://arxiv.org/html/2203.15556#A2 (Appendix B "Optimal cosine cycle length", Figure A1)
+QUOTE (Figure A1 caption): "Grid over cosine cycle length. We show 6 curves with the cosine cycle length set to 1, 1.1, 1.25, 1.5, 2, and 5x longer than the target number of training steps. When the cosine cycle length is too long, and the learning rate does not drop appropriately, then performance is impaired. We find that overestimating the number of training steps beyond 25% leads to clear drops in performance."
+QUOTE (main text, section 3.1): "In contrast, we find that setting the learning rate schedule to approximately match the number of training tokens results in the best final loss regardless of model size"
+VERDICT: confirmed
+NOTE: Footnote in Appendix B: "We find that when the cosine cycle overshoots the number of training steps by more than 25%, performance is noticeably degraded". This is the explanation Chinchilla gives for Kaplan et al.'s different conclusion (Kaplan used a fixed schedule length for intermediate checkpoints).
+
+## C29: Resource links resolve
+URL: https://www.ruder.io/optimizing-gradient-descent/ (HTTP 200; title "An overview of gradient descent optimization algorithms")
+URL: https://distill.pub/2017/momentum/ (HTTP 200; title "Why Momentum Really Works", Gabriel Goh, Distill 2017)
+URL: https://jeremybernste.in/writing/deriving-muon (HTTP 200; title "Deriving Muon", "Boston, 7 Mar 2025")
+QUOTE (Bernstein): "What makes Muon particularly special to me is that we derived the core numerical methods from an exact theoretical principle. This is in contrast to popular optimizers like Adam, which have more heuristic origins and often converge slower than Muon."
+VERDICT: confirmed for Ruder and Distill; corrected for Bernstein: use https://jeremybernste.in/writing/deriving-muon (note the domain spelling "jeremybernste.in"). The guessed URLs https://jeremybernstein.github.io/posts/deriving-muon/ and https://jeremybernstein.com/posts/deriving-muon/ return 404.
+NOTE: Also alive: https://kellerjordan.github.io/posts/muon/, https://github.com/facebookresearch/schedule_free, https://github.com/KellerJordan/Muon, https://github.com/epfml/llm-optimizer-benchmark.
+
+## C30: Polyak 1964 heavy ball; Nesterov 1983
+URL: http://proceedings.mlr.press/v28/sutskever13.pdf (reference list, used as the citation source)
+QUOTE: "Polyak, B.T. Some methods of speeding up the convergence of iteration methods. USSR Computational Mathematics and Mathematical Physics, 4(5):1-17, 1964."
+QUOTE: "Nesterov, Y. A method of solving a convex programming problem with convergence rate O(1/sqr(k)). Soviet Mathematics Doklady, 27:372-376, 1983."
+VERDICT: confirmed (citations)
+NOTE: Sutskever et al. (section 2): "Polyak (1964) showed that CM can considerably accelerate convergence to a local minimum, requiring sqrt(R) times fewer iterations than steepest descent to reach the same level of accuracy, where R is the condition number". The O(1/sqr(k)) in the title means O(1/k^2).

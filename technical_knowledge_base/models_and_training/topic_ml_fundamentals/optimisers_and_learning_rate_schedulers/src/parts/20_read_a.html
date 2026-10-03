@@ -1,0 +1,56 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" aria-label="Sections"><a href="#s-one">In one screen</a><a href="#s-land">Landscape</a><a href="#s-mom">Momentum</a><a href="#s-adapt">Per-parameter steps</a><a href="#s-pre">Preconditioning</a><a href="#s-muon">Muon and Lion</a><a href="#s-evid">The evidence</a><a href="#s-sched">Schedules</a><a href="#s-ann">"Annealing"</a><a href="#s-free">Decay-free</a><a href="#s-mist">Mistakes</a></nav>
+
+<section id="s-one">
+<h2>In one screen</h2>
+<p class="lead">An optimiser turns the gradient of the loss into a change of the weights. Three choices are made together: how the gradient is smoothed over steps (momentum), how each parameter's step is scaled (adaptive methods and preconditioners), and how the base learning rate &eta; moves over the run (the schedule). Adaptive methods only rescale relative to &eta;, so an optimiser and a schedule are always chosen as a pair.</p>
+<div class="tw"><table>
+<thead><tr><th>Optimiser</th><th>Update, in one line</th><th class="num">state per parameter</th><th>What it fixed</th><th>Its catch</th></tr></thead>
+<tbody>
+<tr><td>SGD (mini-batch)</td><td>&theta; &larr; &theta; &minus; &eta;g</td><td class="num">0</td><td>the baseline</td><td>one step size for every direction</td></tr>
+<tr><td>Momentum (heavy ball), Nesterov</td><td>v &larr; &beta;v + g; &theta; &larr; &theta; &minus; &eta;v (Nesterov: gradient at the look-ahead)</td><td class="num">1</td><td>zig-zag across ravines; speed along them</td><td>still one step size</td></tr>
+<tr><td>AdaGrad</td><td>divide by &radic;(sum of all past g&sup2;)</td><td class="num">1</td><td>per-parameter steps; sparse features</td><td>the sum only grows, so the rate dies</td></tr>
+<tr><td>RMSProp</td><td>divide by &radic;(decaying average of g&sup2;)</td><td class="num">1</td><td>AdaGrad's dying rate</td><td>no momentum, no bias correction</td></tr>
+<tr><td>AdaDelta</td><td>no global rate; step scaled by a running average of past updates</td><td class="num">2</td><td>choosing &eta;</td><td>rarely used now</td></tr>
+<tr><td>Adam</td><td>momentum m and RMSProp's v, both bias-corrected</td><td class="num">2</td><td>a robust default</td><td>L2 in the loss is rescaled per parameter</td></tr>
+<tr><td>AdamW</td><td>Adam plus decoupled decay &theta; &larr; &theta; &minus; &eta;&lambda;&theta;</td><td class="num">2</td><td>uniform weight decay; the LLM default</td><td>two buffers of state</td></tr>
+<tr><td>Adafactor</td><td>Adam's v factored into row and column sums</td><td class="num">about 0</td><td>optimiser memory</td><td>a coarser second moment</td></tr>
+<tr><td>Lion</td><td>sign of an interpolated momentum</td><td class="num">1</td><td>memory; found by program search</td><td>needs a smaller rate and larger decay</td></tr>
+<tr><td>Shampoo, SOAP</td><td>precondition rows and columns with L<sup>&minus;1/4</sup>, R<sup>&minus;1/4</sup>; SOAP runs Adam in their eigenbasis</td><td class="num">2 + factors</td><td>directions that are not coordinates</td><td>memory and matrix roots; one more knob</td></tr>
+<tr><td>Muon</td><td>orthogonalise the momentum of each hidden matrix (5 Newton-Schulz steps)</td><td class="num">1</td><td>updates dominated by a few directions</td><td>matrices only; the rest stays on AdamW</td></tr>
+<tr><td>Schedule-free</td><td>constant rate; gradient at an interpolation; iterates averaged</td><td class="num">1 or 2</td><td>knowing the run's length</td><td>evaluate at the average, not at the training point</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">The takeaway, as of October 2026</div>AdamW with warmup and a decaying schedule (cosine, or WSD when the run's length may change) is still the safe default. Muon on hidden matrices, with AdamW for everything else, is the challenger with frontier-scale evidence: it trained the 1T-parameter Kimi K2 and the GLM-4.5 family (<a href="#s-muon">below</a>). But every independent re-tuning finds the challengers' speed-ups smaller than their papers report, and shrinking with model size: about 1.1&times; at 1.2B parameters against a well-tuned AdamW ({{Wen et al. 2025|https://arxiv.org/html/2509.02046}}; <a href="#s-evid">The evidence</a>).</div>
+<div class="deepnote"><b>Already on the parent page, not repeated here:</b> {{Topic: ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}} has, on its <b>Reading</b> tab (section 5, Update), one real gradient turned into an update by SGD, Adam and Muon's Newton-Schulz iterations, and the schedule chart with a movable end (step, inverse square root, cosine, WSD); in thread 4, Adam with L2 against AdamW on the same noise. Its <b>Training lab</b> trains five of these optimisers live on a small network, and <b>Defaults across models</b> lists what 21 landmark models actually used. This page owns the details: every rule, the evidence, and the schedule family.</div>
+</section>
+
+<section id="s-land">
+<h2>1 &middot; The landscape the optimiser walks</h2>
+<ul>
+<li><b>Local optimum:</b> the gradient is zero and moving in <i>any</i> direction increases the loss.</li>
+<li><b>Saddle point:</b> the gradient is zero, but the loss decreases along some directions and increases along others (a horse saddle); the second derivative says it is neither a maximum nor a minimum. Saddles are frequent in high dimensions but are not a big problem in practice: the descending direction is there to be found, and momentum, mini-batch noise and even floating-point rounding push the optimiser off. Try the {{Saddle|#t-race}} in the race: starting 0.001 off the ridge, plain SGD needs 15 steps to leave, while Adam, AdaGrad and RMSProp leave on the first step, because they divide the tiny gradient by its own size.</li>
+<li><b>All parameters update simultaneously.</b> J(&theta;<sub>0</sub>, &theta;<sub>1</sub>) is always evaluated at the previous parameters: compute every gradient first, then update every weight. Updating &theta;<sub>0</sub> and then using the new &theta;<sub>0</sub> to compute &theta;<sub>1</sub>'s gradient is a different (coordinate-descent) algorithm.</li>
+<li><b>Conditioning sets the pace.</b> When the loss curves 100 times more sharply across a valley than along it (condition number 100), the largest stable step for the steep direction is tiny for the shallow one, and gradient descent crawls. The mathematics (Hessian, eigenvalues, the stable-rate bound 2/&lambda;<sub>max</sub>) is on {{Calculus and optimisation for ML|n:3c65c17b0d0d81eb8b49ed6a0f897f3b}}; every method below is a different answer to it.</li>
+</ul>
+<h3>How much data per gradient</h3>
+<div class="tw"><table>
+<thead><tr><th>Variant</th><th>Gradient computed on</th><th>Trade-off</th></tr></thead>
+<tbody>
+<tr><td>Batch gradient descent</td><td>the entire training set</td><td>deterministic descent to a (local) minimum, but slow and expensive per step</td></tr>
+<tr><td>Stochastic gradient descent (SGD)</td><td>one random example</td><td>cheap and fast, but noisy; may never settle at the minimum</td></tr>
+<tr><td>Mini-batch gradient descent</td><td>a small batch</td><td>standard in practice: efficient, less noisy than one example, hardware-friendly. "SGD" in code (<code>torch.optim.SGD</code>) almost always means this</td></tr>
+</tbody></table></div>
+<p>The noise matters for the schedule: with a noisy gradient a constant rate cannot converge, only hover in a region whose size grows with the rate (<a href="#s-sched">section 7</a>).</p>
+</section>
+
+<section id="s-mom">
+<h2>2 &middot; Momentum: smooth the gradient over steps</h2>
+<div class="fm"><div class="eq">v<sub>t</sub> = &beta; v<sub>t&minus;1</sub> + g<sub>t</sub>, &nbsp; &theta;<sub>t</sub> = &theta;<sub>t&minus;1</sub> &minus; &eta; v<sub>t</sub></div>
+<dl><dt>g<sub>t</sub></dt><dd>the gradient of the loss at &theta;<sub>t&minus;1</sub> (on the current mini-batch)</dd><dt>v<sub>t</sub></dt><dd>the velocity: a running sum of past gradients, each older one weighted by a further factor &beta; (usually 0.9)</dd><dt>&eta;</dt><dd>the learning rate</dd></dl></div>
+<ul>
+<li><b>Heavy ball</b> ({{Polyak 1964|https://doi.org/10.1016/0041-5553(64)90137-5}}). Gradients that agree from step to step add up, so the step grows along a consistent direction (up to 1/(1 &minus; &beta;) = 10 times at &beta; = 0.9); gradients that flip sign, as they do across a ravine, cancel. On a quadratic with condition number R, tuned momentum needs about &radic;R times fewer iterations than steepest descent ({{Sutskever et al. 2013, section 2|http://proceedings.mlr.press/v28/sutskever13.pdf}}).</li>
+<li><b>The formula above is PyTorch's</b> ({{torch.optim.SGD|https://docs.pytorch.org/docs/stable/generated/torch.optim.SGD.html}}, dampening 0). Many papers write v<sub>t</sub> = &beta;v<sub>t&minus;1</sub> + (1 &minus; &beta;)g<sub>t</sub> instead, an average rather than a sum; it traces the same path only with a learning rate 1/(1 &minus; &beta;) = 10 times larger, so a learning rate never transfers between the two conventions without that factor.</li>
+<li><b>Nesterov (NAG)</b> ({{Nesterov 1983|http://proceedings.mlr.press/v28/sutskever13.pdf}}, in Sutskever et al.'s form): take the gradient at the look-ahead point &theta; &minus; &eta;&beta;v<sub>t&minus;1</sub>, where momentum is about to carry you, so the step is corrected before it is taken. PyTorch implements the equivalent rewrite &theta; &larr; &theta; &minus; &eta;(g<sub>t</sub> + &beta;v<sub>t</sub>), which needs no second gradient evaluation.</li>
+</ul>
+<p class="try"><b>Try</b> the {{Ravine, axis-aligned|#t-race}} in the Optimiser race: at their best rates, plain SGD is still above 10<sup>&minus;3</sup> after 150 steps, momentum 0.9 gets below it at step 89 and Nesterov at step 24. Momentum 0.9 is not the optimum for this valley; the &radic;R speed-up needs momentum tuned to the curvature, which nobody knows for a network, so 0.9 is the habit.</p>
+</section>
