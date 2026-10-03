@@ -5,7 +5,7 @@ import puppeteer from 'puppeteer';
 import path from 'node:path';
 
 const [file, tab, scheme = 'light', width = '920', out = 'tab.png', click] = process.argv.slice(2);
-const b = await puppeteer.launch({ headless: true, executablePath: process.env.CHROME_PATH || undefined,
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined,
   args: process.platform === 'linux' ? ['--no-sandbox'] : [] });
 const p = await b.newPage();
 const errs = [];
