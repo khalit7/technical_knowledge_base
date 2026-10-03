@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer';
 import path from 'node:path';
 
 const [file, scheme = 'dark', width = '390'] = process.argv.slice(2);
-const b = await puppeteer.launch({ headless: true, executablePath: process.env.CHROME_PATH || undefined,
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined,
   args: process.platform === 'linux' ? ['--no-sandbox'] : [] });
 const p = await b.newPage();
 await p.setViewport({ width: +width, height: 900 });
