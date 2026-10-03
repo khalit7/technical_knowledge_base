@@ -1429,3 +1429,26 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | S10 | RNN against self-attention parallelism animation | | none | rejected | Exists on the Attention paper page; linked |
 | S11 | Luong's dot / general / concat scores compared on the toy | 5 | none | rejected | Would need three more trained models for a difference the papers show is small; one sentence carries it |
 | S12 | Character-level RNN text generation (Karpathy) | 6 | none | rejected | A live char-RNN worth reading needs far more weights than the page budget; linked as a resource |
+
+### Evaluation metrics (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_ml_fundamentals/evaluation_metrics/src/viz_ideas.md`.
+
+| # | Idea | Param | Repro x2 | Computable x2 | Beyond a sentence | Misconception | Central | Absent elsewhere | Anim | Cost | Score | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| EM1 | **Threshold lab**: real SST-2 scores of three classifiers (LR, naive Bayes, NB + isotonic), threshold slider, confusion matrix with the sentences in each cell, accuracy, P, R, F1, F2, F0.5, specificity, MCC, balanced accuracy, ROC / PR / reliability with the current point, all or rare positives, best-F1 / best-MCC buttons, probability or log-odds histogram | 2 | 2 (x2) (scikit-learn, exact) | 2 (x2) | 2 | 2 (accuracy on imbalance; F1 and MCC want different thresholds) | 2 | 1 (root has a binormal toy, no confusion matrix) | 0 | -2 | 15 | built, own tab |
+| EM2 | **Calibration before/after animation**: 872 real NB predictions as dots, binned, gaps, isotonic map slides every dot, re-binned, LR for reference; counters accuracy, AUC, log-loss, Brier, ECE | 1 | 2 (x2) | 2 (x2) | 2 | 2 (the more accurate model is the worse forecaster) | 2 | 2 | 1 | -1 | 16 | built, Reading section 3 |
+| EM3 | **Macro / micro / weighted** on a real imbalanced 6-class confusion matrix (UCI Glass, CV logistic regression), bar width = class weight | 1 | 2 (x2) | 2 (x2) | 1 | 2 (micro = accuracy; a class with F1 0 vanishes) | 1 | 2 | 0 | 0 | 14 | built, Reading section 4 |
+| EM4 | **One sentence pair through five scorers, animated** (BLEU n-gram by n-gram with clipping and BP, ROUGE-L's LCS, METEOR's stages and chunks, chrF's character orders, BERTScore's real similarity matrix and greedy matches), 7 candidates | 1 | 2 (x2) (sacrebleu, rouge-score, NLTK, bert-score) | 2 (x2) | 2 | 2 | 2 | 2 | 1 | -2 | 17 | built, Reading section 5 |
+| EM5 | **Paraphrase against one-word negation** on seven scores | 0 | 2 (x2) | 2 (x2) | 2 | 2 (overlap and embeddings miss negation) | 2 | 2 | 0 | 0 | 16 | built, Reading section 5 |
+| EM6 | **Text metrics lab**: editable reference and candidate, BLEU, chrF, ROUGE-1/2/L/S*, METEOR live; all presets table with BERTScore and METEOR + WordNet | 2 | 2 (x2) (150 random pairs match) | 2 (x2) | 1 | 1 | 2 | 2 | 0 | -2 | 14 | built, own tab |
+| EM7 | **Perplexity token by token under three tokenizers** (GPT-2, SmolLM2-135M, Qwen2.5-0.5B real log-probs), width = bytes, height = bits per byte, area = bits; counters per token and per byte; summary table with per-word perplexity | 2 | 1 (x2) (Pile's BPB rationale, by construction) | 2 (x2) | 2 | 2 (per-token perplexity is not comparable) | 2 | 2 | 1 | -1 | 16 | built, Reading section 6 |
+| EM8 | **Paired against unpaired bootstrap** of the NB minus LR accuracy difference, test-size slider | 2 | 1 (x2) (NumPy bootstrap, to tolerance) | 2 (x2) | 2 | 2 (a 1-point gap on 872 is noise; pairing halves the interval) | 2 | 1 (bootstraps exist on paper pages, not for a basic metric) | 0 | -1 | 14 | built, Reading section 8 |
+| EM9 | Accuracy trap table (always negative against LR at 0.5 and at best MCC, rare positives) | 0 | 2 (x2) | 2 (x2) | 1 | 2 | 1 | 2 | 0 | 0 | 14 | built, Reading section 1 |
+| EM10 | ROC against PR as prevalence changes | 2 | 2 | 2 | 2 | 2 | 1 | 0 (root `rd-pr`) | 0 | -1 | 9 | rejected: built on the root; linked, and the real-data version lives in EM1's "rare positives" |
+| EM11 | Entropy / CE / KL widget | 1 | 1 | 2 | 1 | 1 | 1 | 0 (root thread 1) | 0 | -1 | 6 | rejected: built on the root; summarised and linked |
+| EM12 | MoverScore on the presets | 0 | 1 | 1 | 1 | 0 | 1 | 2 | 0 | -2 | 4 | rejected: needs corpus idf and an optimal-transport solve; would add a second embedding score with the same blind spot (negation) |
+| EM13 | Live BERTScore on the reader's own text | 2 | 2 | 0 | 1 | 1 | 1 | 2 | 0 | -3 | n/a | rejected: roberta-large (355M) cannot run in a sandboxed page; presets precomputed instead |
+| EM14 | METEOR WordNet stage in JS | 1 | 1 | 1 | 0 | 0 | 0 | 2 | 0 | -3 | 1 | rejected: WordNet is megabytes; NLTK's values shown for presets, with the stem-then-synonym quirk explained |
+| EM15 | ECE bin-count sensitivity slider | 2 | 0 | 2 | 1 | 1 | 0 | 2 | 0 | -1 | 7 | rejected for now: one sentence says ECE depends on binning; would crowd the calibration card |
+| EM16 | pass@k unbiased estimator | 2 | 2 | 2 | 1 | 1 | 0 | 0 | 0 | -1 | 6 | rejected: belongs to benchmarks / test-time compute pages (Topic: llms R3) |
