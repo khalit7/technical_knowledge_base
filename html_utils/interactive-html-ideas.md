@@ -1374,3 +1374,58 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_ml_fundamentals/src/viz_ideas.md`.
 
+### Loss functions (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_ml_fundamentals/loss_functions/src/viz_ideas.md`.
+
+| # | Idea | Score | Data and formulas | Placement | Status |
+|---|---|---|---|---|---|
+| LF1 | **Outlier before/after animation**: Anscombe III and the CYG OB1 stars, MSE against Huber / MAE / log-cosh side by side, 6 steps (clean fit, outliers arrive, pulls to one scale, line moves, balance), counters (slope, outliers' share of pull and of lever, error on the clean points) | 14 | Anscombe 1973 (R datasets), robustbase starsCYG; exact fits; reproduces y = 3.00 + 0.500x | Reading, Outliers | built |
+| LF2 | **Fit a line lab**: six losses, δ and τ, four real datasets plus tap-to-edit points, per-point pull and lever bars, exact fits table | 12 | same; LP vertex enumeration for L1 / pinball / MAPE, IRLS for Huber / log-cosh | Own tab | built |
+| LF3 | **Which number each loss picks** on 141 real river lengths: mean, median, τ-quantile, Huber, log-cosh, MAPE's β-median; toggle a 0.5-mile river to collapse MAPE | 12 | R rivers (USGS); Gneiting 2011 (MAPE consistent for median of order -1) | Reading, Regression | built |
+| LF4 | **Loss shapes**: regression ρ, ψ and second derivative against u; classification φ and pull against the margin; focal factor with Lin et al.'s 100x / 1000x reproduced; conditional-risk minimum for any η (hinge sign only, focal pulled to 0.5) | 11 | Bartlett et al. 2006 Examples 1 to 3, Theorem 6; Lin et al. 2017 | Own tab | built |
+| LF5 | **z-loss on real logits**: GPT-2, SmolLM2-135M, Qwen2.5-0.5B on one sentence; shift c: CE constant, z-loss and bf16 damage move | 10 | real_logits.py (float32 logits, torch.bfloat16 rounding); PaLM z-loss 1e-4 log²Z | Reading, On the logits | built |
+| LF6 | **GAN generator gradient**, minimax against non-saturating, against D(G(z)) | 8 | Goodfellow et al. 2014 section 3; derivatives by hand, autograd-checked | Reading, Adversarial | built |
+| LF7 | Interactive "which loss" chooser | 6 | | none | rejected: a static table with sources ("In one screen") says the same thing faster; a quiz adds clicks, not knowledge |
+| LF8 | MAPE asymmetry widget on its own | 6 | | none | rejected as a separate widget: the asymmetry is two derived numbers in prose, and MAPE's bias is shown live in LF3 |
+| LF9 | Train a toy network with z-loss to show logit drift | 6 | | none | rejected: Wortsman et al. need high learning rates and long runs to show divergence; a toy in budget would show nothing, and the parent's Training lab owns live training |
+| LF10 | Rebuild the CE / label smoothing / focal explorer or entropy + KL bars | | | none | rejected: on the parent root, linked by name |
+| LF11 | Preference-loss or InfoNCE visual | | | none | rejected: owned by Alignment and the Contrastive sibling |
+
+### Optimisers and learning-rate schedulers (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers/src/viz_ideas.md`.
+
+| # | Idea | Param | Repro x2 | Computable x2 | Beyond a sentence | Misconception | Central | Absent elsewhere | Anim | Cost | Score | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| O1 | **Optimiser race**: 13 exact update rules (SGD, momentum, Nesterov, AdaGrad, RMSProp, Adam, AdamW, Lion, Shampoo order-1, SOAP, Muon on a 1x2 matrix, schedule-free SGD and AdamW) on 5 surfaces (ravine, rotated ravine, Rosenbrock, saddle, noisy ravine), tuned rates, LR multiplier, schedule, seed; checked against PyTorch | 2 | 1 (x2) | 2 (x2) | 2 | 2 (diagonal adaptivity needs axis-aligned curvature; constant LR has a noise floor) | 2 | 1 (common in blogs, never with exact checked rules or rotation) | 1 | -2 | 15 | built, own tab |
+| O2 | **Adam bias correction, before/after**: three gradient streams through 40 steps with and without correction, beta2 0.999 or 0.95, bars to scale, counters, step/lr chart | 1 | 2 (x2: the 3.16, 6.57 at t=12, 3.24 at 100 numbers and the paper's section 6.4 warning) | 2 (x2) | 2 | 2 (correction removes bias, not variance: warmup still needed) | 2 | 2 | 1 | -1 | 17 | built, Reading section 3 |
+| O3 | **Optimiser state memory** from four real config.json files (SmolLM3, OLMo 2, Llama 3.1 405B, Kimi K2) for 8 optimisers incl. SOAP with soap.py defaults | 1 | 2 (x2: ZeRO's 16 bytes by construction; parameter recounts reproduce published totals independently) | 2 (x2) | 2 | 2 (SOAP's state is 9x K2's parameters; Muon saves close to half, not exactly) | 1 | 2 | 0 | -1 | 14 | built, Reading section 4 |
+| O4 | **Three endpoints, three ways** (cosine re-run per length, WSD branches, schedule-free) on the exact noisy quadratic model, step counter 1,750 / 1,150 / 1,000 | 1 | 1 (x2: exact expectation, Monte Carlo check against torch and schedulefree) | 2 (x2) | 2 | 1 | 2 | 2 | 1 | -1 | 14 | built, Reading section 7 |
+| O5 | **Claimed against independent speed-ups** (Muon, SOAP, Shampoo, schedule-free, Sophia, Lion) with AlgoPerf scores, Wen et al., Semenov et al., Kaddour et al. | 0 | 1 (x2) | 2 (x2) | 1 | 2 | 2 | 2 | 0 | 0 | 13 | built, Reading section 6 (table with bars) |
+| O6 | **Schedule sparklines** for all 13 shapes, PyTorch-checked | 0 | 1 (x2) | 2 (x2) | 1 | 0 | 1 | 1 | 0 | 0 | 8 | built, in the shapes table |
+| O7 | LR range test (Smith) on a toy trained live | 2 | 0 | 2 | 1 | 1 | 1 | 2 | 0 | -2 | 7 | rejected: a toy range test checks nothing published, and the parent's Training lab already lets a reader sweep rates; described in text with Smith's words |
+| O8 | Muon's singular values through Newton-Schulz | 1 | 2 | 2 | 2 | 1 | 2 | 0 (parent root) | 1 | -1 | n/a | rejected: on the parent page; linked |
+| O9 | Schedules with a movable end (cosine against WSD) | 2 | 0 | 2 | 2 | 1 | 2 | 0 (parent root, WSM page) | 0 | -1 | n/a | rejected: on the parent page and the WSM page; O4 adds the compute side |
+| O10 | Adam L2 against AdamW on noise | 1 | 2 | 2 | 2 | 2 | 1 | 0 (parent root thread 4) | 1 | -1 | n/a | rejected: on the parent page; linked |
+| O11 | Schedule-free against cosine on a real small network (digits MLP), several seeds | 2 | 0 | 2 | 1 | 1 | 2 | 2 | 0 | -2 | 8 | rejected for O4: the exact NQM gives expectations without seed noise and is checkable; a toy MLP would show seed noise larger than the effect at this scale |
+| O12 | WSM merge weights calculator | 1 | 2 | 2 | 1 | 0 | 1 | 0 (WSM page) | 0 | -1 | n/a | rejected: owned by the WSM paper page |
+
+### Sequence models: the pre-transformer lineage (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer/src/viz_ideas.md`.
+
+| # | Idea | Score | Placement | Status | Data, formulas, sources |
+|---|---|---|---|---|---|
+| S1 | **LSTM gate by gate against GRU and plain RNN on one sequence** (remember the first symbol across distractors), real trained weights, gate-by-gate sub-steps at key, first distractor and "?", "answer if asked now" line, counters: forget-gate product on the read-out unit (LSTM), keep-share product (GRU), Jacobian-product norm (RNN); fourth mode: plain RNN trained on short sequences, which latches at any length | 1+0+2×2+2+2+2+2+2 = 15, cost 1 | Reading, LSTM | built | `model/train_memory.py` (H = 8, 3 cells, 3,000 Adam steps, clip 1); JS cells checked against PyTorch to 7.5e-8 (`check_cells.py`) |
+| S2 | **Who learns to remember, measured**: accuracy against test length (5 to 200) for each cell trained up to 10, 20, 50, 100, best of 3 learning rates, 3 seeds; second view: gradient reaching the key at initialisation | 1+0+2×2+2+2+2+2+0 = 13 | Reading, Measured | built | 108 runs; plain RNN 6/9 within training up to 10, 0/18 at 50 and 100; LSTM 35/36, GRU 36/36; gradient 50 steps back untrained 1e-11.8 / 1e-9.6 / 1e-6.1 |
+| S3 | **Seq2seq with one fixed vector against attention on the same digits** (copy task), encoder columns to scale, lines to the current output (weights or the single vector), alignment matrix built row by row, counters (numbers the decoder can read: 32 against 32 × L) | 2+1×2+2×2+2+2+2+1+2 = 17, cost 1 | Reading, Attention | built | `model/train_seq2seq.py` (GRU, E = 16, H = 32, 6,000 steps, lengths 3 to 20, int8 in page); JS identical to PyTorch on 8 references (outputs equal, max diff 6e-6) |
+| S4 | **Accuracy against input length** for fixed, fixed with reversed source, attention (2 seeds), three views (whole string, per digit, by position at 20 digits) | 1+1×2+2×2+2+2+2+1+0 = 14 | Reading, Attention | built | Reproduces qualitatively Bahdanau Fig. 2 / Table 1 and Sutskever §3.3 (reversal helps), not their numbers; adds: attention degrades past the training length |
+| S5 | **Real GloVe vectors**: neighbours, analogies with and without excluding the question words, in-page test on a stratified 560-question sample, full-vocabulary results offline, country-capital projection with the 50-d pair-offset cosine | 2+0+2×2+2+2+1+1+0 = 12 | Own tab, Word vectors | built | GloVe 6B 50d (gensim-data mirror), 2,000 words int8 (max cosine error 1e-4), `glove_subset.py`; 46.2% / 30.4% / 49.7%; page test recomputed by `recompute.py` (54.5% / 29.6%) |
+| S6 | **WaveNet dilated against plain causal stack**, one output traced back layer by layer, to the same scale, receptive-field counters (samples, ms at 16 kHz), block calculator (1 + 1,023 × blocks) | 2+2×2+2×2+1+0+1+1+2 = 15, cost 0 | Reading, WaveNet | built | Reproduces Figure 2 (5) and §2.1 (1,024 per block) independently from 1 + (k − 1)Σd |
+| S7 | Skip-gram with negative sampling trained live on a tiny corpus | 2+0+1×2+1+0+1+0+1 = 7 | none | rejected | A tiny corpus gives noisy, unconvincing vectors; real GloVe teaches more about what embeddings are, and Alammar's Illustrated Word2vec already animates the training loop |
+| S8 | Trained-network gradient-through-time view | | none | rejected after building | After training, the LSTM's gradient with respect to h at distractor steps is small because it has learned to ignore them (the cell path is what matters), so the chart invited a wrong reading; only the untrained view kept |
+| S9 | Rebuilding the parent's scalar BPTT slider | | none | rejected | Exists on the parent root (thread 3); linked |
+| S10 | RNN against self-attention parallelism animation | | none | rejected | Exists on the Attention paper page; linked |
+| S11 | Luong's dot / general / concat scores compared on the toy | 5 | none | rejected | Would need three more trained models for a difference the papers show is small; one sentence carries it |
+| S12 | Character-level RNN text generation (Karpathy) | 6 | none | rejected | A live char-RNN worth reading needs far more weights than the page budget; linked as a resource |
