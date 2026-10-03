@@ -1,0 +1,1738 @@
+Source: https://arxiv.org/html/2603.16413v1 (extracted by extract_paper.py)
+
+
+Trained Persistent Memory for Frozen Encoder–Decoder LLMs:
+Six Architectural Methods
+
+Hong Jeong
+
+Affiliation: Inha University in Tashkent, Uzbekistan
+
+Email: hjeong@postech.ac.kr
+
+Abstract
+
+Frozen encoder–decoder language models are stateless: the latent
+representation is discarded after every forward pass, so no information
+persists across sessions. This paper presents a proof-of-concept
+pilot study showing that persistent memory in the continuous
+latent space of a frozen LLM is feasible—even under severe resource
+constraints (a single frozen Flan-T5-XL backbone, small trainable
+adapters, a single dataset). We implement six architectural methods
+spanning three injection points and four write mechanisms; unlike
+text-level memory systems, every write and read is a differentiable
+operation on dense vectors. After training only the adapter, the memory
+bank continues to accumulate at inference time without gradients,
+enabling conversational learning. Under a forgetting-curve
+evaluation on LoCoMo at two capacity scales (1 $\times$ and
+10 $\times$ ), the stateless baseline scores exactly zero; at
+10 $\times$ all six trained adapters produce positive memory-recall
+curves; at 1 $\times$ three methods collapse, revealing capacity as a
+critical design parameter. Because the memory bank is a compact
+numerical array, it can be scaled to arbitrarily large capacity
+without altering the backbone. We argue that full end-to-end training
+with larger models, larger data, and orders-of-magnitude larger memory
+will yield substantially stronger results; this pilot study establishes
+the feasibility baseline and design-space taxonomy that such
+efforts require.
+
+1 Introduction
+
+Consider a frozen encoder–decoder model such as Flan-T5 built on a
+T5-style backbone [1]. The forward pass is:
+
+ $Z_{t}=E_{\mathrm{frozen}}(x_{t}),\qquad\hat{y}_{t}=D_{\mathrm{frozen}}(Z_{t}),$ 	
+
+(1)	
+
+where $E_{\mathrm{frozen}}$ and $D_{\mathrm{frozen}}$ are fixed pre-trained weights,
+ $x_{t}$ is the input at turn  $t$ , $Z_{t}\in\mathbb{R}^{n\times d}$ is the encoder
+output, and $\hat{y}_{t}$ is the generated text. This system is
+stateless: $Z_{t}$ is discarded after each forward pass and the
+model has no recollection of previous turns. If a user says “I like
+reading” in session 1 and asks “What do I like?” in session 3, the
+model cannot answer—there is no state that survives across sessions.
+This inter-session memory problem is the concrete target of
+persistent memory.
+
+Existing long-term memory solutions such as MemGPT and MemoryBank
+operate at the text level: they store, summarize, and retrieve
+natural-language passages through an external database. This paper
+works at a fundamentally different level—the latent space
+of the frozen model. The memory bank $P_{t}\in\mathbb{R}^{n_{P}\times d}$ 
+holds continuous encoder representations, not strings, so writing and
+reading are differentiable operations embedded inside the forward pass
+rather than pre- or post-processing steps around it.
+
+A persistent bank built directly from frozen encoder outputs is not
+enough. The decoder’s cross-attention was pre-trained to read current
+encoder states, not arbitrarily accumulated cache states, so a naive
+memory path tends to dilute attention rather than sharpen retrieval as
+history grows. Recent attention-coupled latent-memory work shows that
+learned structure inside the memory pathway can instead induce functional
+specialization and controlled routing [6, 7].
+For frozen encoder–decoder LLMs, this suggests that a small trainable
+adapter is the minimal mechanism needed to write memory in a form the
+frozen decoder can use.
+
+This paper takes the necessary next step: we allow training for
+a small memory adapter  $\theta_{\mathrm{Mem}}$ while keeping both encoder and
+decoder frozen. We augment the stateless system with a
+persistent memory bank
+ $P_{t}\in\mathbb{R}^{n_{P}\times d}$ that persists across turns and sessions:
+
+ $Z_{t}=E_{\mathrm{frozen}}(x_{t}),\qquad P_{t}=\mathrm{Write}(P_{t-1},Z_{t}),\qquad\hat{y}_{t}=D_{\mathrm{frozen}}\!\bigl(\mathrm{Read}(Z_{t},P_{t-1})\bigr).$ 	
+
+(2)	
+
+The Write operation updates  $P$ from the current latent; the
+Read operation injects historical context from  $P$ into the decoder.
+The learned parameters  $\theta_{\mathrm{Mem}}$ enable the adapter to learn
+how to write memory in a format that the frozen decoder’s existing
+cross-attention can discriminate—the capability that zero-training
+methods provably lack.
+
+This paper is deliberately designed as a low-budget pilot study:
+we use a single frozen backbone, a single evaluation dataset, and
+minimal adapter parameters. The goal is not to achieve
+state-of-the-art recall but to demonstrate feasibility—that
+persistent latent-space memory can be installed in an existing frozen
+LLM with inexpensive adapters, and that the resulting system
+exhibits non-trivial, capacity-dependent memory behaviour. Full
+end-to-end training with unfrozen, larger-scale LLMs, bigger
+datasets, and memory banks orders of magnitude larger than ours lies
+beyond the scope of this pilot but is the natural industrial-scale
+follow-up that our results motivate.
+
+Empirically, even under these constrained conditions the six designs
+separate clearly. At 10 $\times$ capacity all trained adapters rise
+above the zero baseline on the forgetting curve; at 1 $\times$ three
+methods collapse. M.2 XAttn and M.6 Slot dominate at low capacity,
+while M.4 Hebbian leads at high capacity—revealing memory-bank size
+as a critical design parameter.
+
+After training, $\theta_{\mathrm{Mem}}$ is frozen but $P_{t}$ continues to
+accumulate at inference time without gradients. We call this
+conversational learning: each new session enriches  $P$ , so a
+fact stated in session 1 (“I am John Doe”) can be recalled in session 10
+(“Who am I?”) without re-stating it and without million-token context
+windows—the relevant inter-session history is compressed into  $P$ .
+
+The analogy to human cognition is deliberate. Human brains accumulate
+knowledge through complementary memory systems [8]:
+episodic memory records specific events (“Alice mentioned a trip
+to Paris”), semantic memory distills general facts (“Alice likes
+travel”), procedural memory encodes how-to skills, and
+working memory holds the active conversational context. All of
+these are linked through associative retrieval: a cue in working
+memory can trigger recall from any long-term store. The persistent memory
+bank  $P$ in our framework plays an analogous role: the write rule
+determines what is stored (episodic vs. semantic), the read rule
+implements associative retrieval, and the capacity of  $P$ constrains how
+much can be retained—mirroring the interplay of encoding, consolidation,
+and retrieval in biological memory. A successful method must demonstrate
+not merely storage but remembering (retrieving the right fact),
+generalisation (answering questions phrased differently from the
+original statement), and abstraction (combining multiple facts
+into a coherent response)—the hallmarks of genuine learning from
+experience.
+
+The six methods differ along three orthogonal design dimensions:
+(i) where $P$ enters the forward pass (before the encoder,
+between encoder and decoder, or inside the decoder),
+(ii) how $P$ is written (attention-coupled update, Hebbian outer
+product, gated cross-attention, or sparse slot addressing), and
+(iii) how many parameters are added (all modest relative to the
+3B-parameter backbone).
+A crucial constraint across all methods is that the frozen decoder is
+calibrated exclusively for encoder outputs. Let $\mathcal{M}_{E}$ denote
+the set of representations the encoder can produce; any method that
+replaces  $Z$ with $H\notin\mathcal{M}_{E}$ will degrade the decoder.
+All six methods preserve the frozen encoder–decoder route through  $Z_{t}$ 
+and ensure that memory influence enters through controlled, learnable
+pathways.
+
+Our core evaluation is simple: how much does each method
+remember? Every condition—baseline and all six memory methods—sees
+only the current turn  $x_{t}$ ; no method receives the conversation history.
+The baseline is deliberately short-sighted and retains nothing. Each
+memory method must accumulate facts into  $P$ through its write rule and
+retrieve them through its read path. By probing the same factual
+questions across increasing evidence lag, we measure a
+forgetting curve: the fraction of available headroom that the
+method’s persistent state fills, normalised so that 100% means
+memory brings F1 to the gold standard and 0% means memory adds
+nothing. The stateless baseline has no persistent state and is
+therefore identically zero; stronger methods start higher at short lag
+and decay more slowly as the evidence recedes into the past.
+
+A secondary question is whether the frozen decoder’s cross-attention
+queries—trained only on encoder outputs—have enough
+representational slack to attend usefully to memory entries
+projected by the trained adapter. If not, even perfectly trained
+ $\theta_{\mathrm{Mem}}$ will not help, implying that the frozen decoder itself is
+the bottleneck.
+
+Contributions.
+
+1. 
+
+Latent-space persistent memory.
+We formulate the problem of adding persistent memory that lives entirely
+in the continuous latent space of a frozen encoder–decoder LLM.
+Unlike text-level memory systems (MemGPT, MemoryBank) that store and
+retrieve natural-language strings outside the model, our memory bank
+ $P_{t}\in\mathbb{R}^{n_{P}\times d}$ holds dense encoder representations; every
+write and read is a differentiable operation inside the forward pass.
+
+2. 
+
+Six architectural methods.
+We design, implement, and release six trained memory adapters that span
+three injection points (before the encoder, between encoder and decoder,
+inside the decoder) and four write mechanisms (attention-coupled update,
+Hebbian outer product, gated cross-attention, sparse slot addressing).
+All methods keep every encoder and decoder weight frozen and add only a
+small set of learnable parameters  $\theta_{\mathrm{Mem}}$ .
+
+3. 
+
+Headroom-normalised forgetting-curve evaluation.
+We introduce an evaluation protocol that measures the fraction of
+available answer-quality headroom filled by a method’s persistent
+state, as a function of evidence lag. The metric is normalised to a
+0–100% scale (100% = perfect recall, 0% = no memory
+contribution), giving intuitive and comparable scores. The stateless
+baseline is identically zero by construction.
+
+4. 
+
+Empirical findings.
+Under this protocol on LoCoMo, we test at two capacity scales
+(1 $\times$ and 10 $\times$ ). At 10 $\times$ all six trained adapters
+produce positive memory-recall curves; at 1 $\times$ three methods
+collapse, revealing capacity as a critical design parameter.
+M.2 XAttn and M.6 Slot dominate at low capacity; M.4 Hebbian leads
+at high capacity. Knowledge accumulation curves confirm that the best
+methods steadily accumulate facts over 30 sessions.
+
+2 Related Work
+
+Persistent memory is adjacent to, but distinct from, several existing lines of
+work. Application-level long-term memory systems such as
+MemGPT [2] and
+MemoryBank [3] demonstrate that explicit memory can
+improve LLM behaviour over extended interactions, but they operate at the
+text level: facts are stored as natural-language strings, retrieval is
+a search over those strings, and the language model itself is unchanged.
+LoCoMo [5] provides a
+public benchmark targeted specifically at very long-term conversational memory
+and motivates the multi-session evaluation setting adopted here.
+
+The present paper operates at a fundamentally different level—the
+latent space of the frozen model. Our persistent memory bank stores
+continuous encoder representations, not text; reading and writing are
+differentiable operations inside the forward pass rather than pre- or
+post-processing steps. Rather than proposing a single end-to-end memory
+agent, we define a taxonomy of six architectural alternatives for
+latent-space persistent memory, formalize their read and write paths, and
+specify a public-dataset protocol for comparing them against a stateless
+baseline under a shared released backbone.
+
+Parameter-efficient adaptation.
+
+Several of our six methods adapt ideas originally proposed for
+parameter-efficient fine-tuning or memory-augmented architectures.
+Prefix tuning [11] prepends learnable soft tokens to
+the input; M.1 extends this idea to a persistent memory bank.
+Flamingo [12] inserts gated cross-attention
+layers into a frozen decoder for visual grounding; M.2 and M.5 adopt the
+same parallel-branch topology for memory injection.
+Memorizing Transformers [13] extend the decoder KV
+cache with retrieved past representations; M.3 follows the same KV
+concatenation principle. Linear Transformers and fast weight
+programmers [14] accumulate an outer-product
+associative matrix updated at every step; M.4 uses the same Hebbian
+write rule. Neural Turing Machines [15] maintain
+addressable memory slots with content-based sparse writes; M.6 inherits
+this slot-addressing mechanism. Crucially, none of these prior methods were designed for persistent
+latent-space memory that accumulates across sessions inside a frozen
+encoder–decoder model. Our contribution is not the individual read or
+write primitive but the controlled comparison—under a single frozen
+backbone and a common forgetting-curve evaluation—of how these
+primitives perform as latent-space persistent memory for inter-session
+recall.
+
+Attention-coupled latent memory.
+
+Recent arXiv work on attention-coupled latent memory explores richer
+structured bank dynamics than the minimal adapters studied here.
+Inhibitory cross-talk across paired banks can drive functional
+lateralization [6], while a miniature brain-transformer
+architecture adds thalamic gating, amygdaloid salience, hippocampal
+lateralization, and prefrontal working memory to shape routing and
+consolidation [7]. The present paper is narrower: it
+compares six simpler trainable memory adapters under a fixed frozen
+encoder–decoder backbone and a common forgetting-curve evaluation.
+
+Cognitive memory systems.
+
+Our taxonomy is informed by the cognitive science of human memory.
+Tulving’s distinction between episodic and semantic
+memory [8] maps onto our design choices:
+methods with high-capacity slot banks (M.6) store episode-like snapshots,
+while Hebbian associative memory (M.4) naturally distils
+co-occurrence statistics akin to semantic memory. The content-gated
+method (M.5) resembles working-memory gating, selectively admitting
+relevant information. Modern complementary learning systems
+theory [9, 10] argues that fast
+episodic binding and slow semantic consolidation are both necessary;
+our experiment measures whether any single-mechanism method suffices
+or whether the task demands a composite architecture.
+
+3 Problem Setting and Notation
+
+Figure 3 shows the stateless frozen encoder–decoder pipeline
+used as the control architecture throughout the paper.
+
+ $x_{t}$ $E_{\mathrm{frozen}}$ $Z_{t}$ $D_{\mathrm{frozen}}$ $\hat{y}_{t}$ ephemeral—discarded after each turn
+
+Figure 1: Frozen encoder–decoder baseline used as the stateless
+control. The latent representation is consumed within the current turn and then
+discarded.
+
+The encoder maps $x_{t}$ to $Z_{t}\in\mathbb{R}^{n\times d}$ (sequence length  $n$ ,
+hidden dimension  $d$ ). The decoder uses cross-attention to read  $Z_{t}$ at every
+layer. Both $E_{\mathrm{frozen}}$ and $D_{\mathrm{frozen}}$ are frozen; only the persistent
+memory $P$ and (optionally) a small set of adapter
+parameters $\theta_{\mathrm{Mem}}$ are modified.
+
+4 Trained Alternatives
+
+These methods introduce a small set of learnable parameters
+ $\theta_{\mathrm{Mem}}$ trained via backpropagation; at inference time (Type 2),
+ $P$ continues to accumulate without gradients.
+
+Every method uses content-based addressing—deciding what to store
+or retrieve based on the semantic content of the current turn rather than
+fixed positions.
+Table 1 gives the complete read and write operations for
+all six methods; the baseline (M.0) is included for reference.
+
+Table 1: Read and write operations for each method.
+ $A=\operatorname{softmax}(Z_{t}W_{Q}(PW_{K})^{\top}/\sqrt{d})$ .
+Delegated read means the frozen decoder cross-attention selects from
+the concatenated KV; explicit read means the adapter performs its own
+retrieval before passing to the decoder.
+
+Method	
+Write rule ( $P_{t}\leftarrow$ )	
+Read rule (inject into decoder)	
+Type	
+
+0	
+Baseline	
+—	
+ $D(Z_{t})$ 	
+—	
+
+1	
+Prefix	
+ $\gamma P+A^{\top}V$ ,  $V{=}Z_{t}W_{V}$ 	
+ $[Z_{t};\;P\,W_{P}]\to D$ (extra KV)	
+Delegated	
+
+2	
+XAttn	
+ $\gamma P+A^{\top}V$ ,  $V{=}Z_{t}W_{V}$ 	
+ $\operatorname{softmax}(s\,W_{Q}^{m}(P\,W_{K}^{m})^{\top}\!/\!\sqrt{d})\,(P\,W_{V}^{m})$ 	
+Explicit	
+
+3	
+KV Extension	
+ $\gamma P+A^{\top}V$ ,  $V{=}Z_{t}W_{V}$ 	
+ $K{=}[K_{Z};\,PW_{K,m}],\;V{=}[V_{Z};\,PW_{V,m}]$ 	
+Delegated	
+
+4	
+Hebbian	
+ $\gamma M+(Z_{t}W_{K,H})^{\top}(Z_{t}W_{V,H})$ 	
+ $(Z_{t}W_{Q,H})\,M\to W_{\mathrm{Mem}}\to D$ (extra KV)	
+Explicit	
+
+5	
+Gated	
+ $\gamma P+A^{\top}V$ ,  $V{=}Z_{t}W_{V}$ 	
+ $g_{t}\odot\mathrm{XAttn}(s,P)$ ,  $g_{t}{=}\sigma(W_{g}[s;c]+b_{g})$ 	
+Explicit	
+
+6	
+Slot	
+top- $k$ : $\gamma P[s]+(1{-}\gamma)\,\bar{z}_{t}W_{u}$ 	
+ $K{=}[K_{Z};\,PW_{K,m}],\;V{=}[V_{Z};\,PW_{V,m}]$ 	
+Delegated	
+
+Delegated-read methods (M.1, M.3, M.6) project all of  $P$ into
+the decoder’s KV cache and let the frozen cross-attention select relevant
+entries. Explicit-read methods (M.2, M.4, M.5) perform their own
+content-based retrieval before passing the result to the decoder. This
+distinction has implications for trainability: explicit-read methods
+introduce more parameters but give the adapter direct control over
+retrieval; delegated-read methods rely on the decoder’s pre-trained
+attention patterns, which are already tuned for cross-attention selection.
+
+4.1 M. 1: Memory as Encoder-Input Prefix
+
+Persistent memory is compressed into $m$ soft tokens and prepended to the
+encoder input, extending the prefix-tuning idea [11] from
+static task prompts to a dynamic, accumulating memory bank.
+The encoder integrates memory and current input through
+self-attention and produces a valid $Z\in\mathcal{M}_{E}$ . The decoder
+remains entirely untouched. Concretely,
+
+ $\displaystyle S_{t}$ 	
+ $\displaystyle=U_{P}P_{t-1}W_{P}\in\mathbb{R}^{m\times d},$ 	
+
+(3)	
+
+ $\displaystyle\tilde{x}_{t}$ 	
+ $\displaystyle=\bigl[\;\underbrace{S_{t}}_{\text{$m$ soft tokens}};\;x_{t}\;\bigr]\in\mathbb{R}^{(m+n)\times d},$ 	
+
+(4)	
+
+ $\displaystyle\tilde{Z}_{t}$ 	
+ $\displaystyle=E_{\mathrm{frozen}}(\tilde{x}_{t}),\qquad Z_{t}=\tilde{Z}_{t}[m{:}],$ 	
+
+(5)	
+
+ $\displaystyle\hat{y}_{t}$ 	
+ $\displaystyle=D_{\mathrm{frozen}}(Z_{t}),$ 	
+
+(6)	
+
+where $U_{P}\in\mathbb{R}^{m\times n_{P}}$ mixes the $n_{P}$ memory rows into $m$ prefix
+slots and $W_{P}\in\mathbb{R}^{d\times d}$ is a learnable feature projection. If
+ $n_{P}=m$ , one may set $U_{P}=I$ , reducing the prefix to
+ $S_{t}=P_{t-1}W_{P}$ .
+
+Memory is updated via an attention-coupled write rule that injects the
+current turn’s content into the memory bank:
+
+ $\displaystyle Q$ 	
+ $\displaystyle=Z_{t}W_{Q},\quad K=P_{t-1}W_{K},\quad V=Z_{t}W_{V},$ 	
+
+ $\displaystyle A_{t}$ 	
+ $\displaystyle=\operatorname{softmax}\!\bigl(QK^{\top}\!/\!\sqrt{d}\bigr),\qquad P_{t}=\gamma P_{t-1}+A_{t}^{\top}V.$ 	
+
+(7)	
+
+ $Q$ and $K$ perform content-based addressing between the current latent  $Z_{t}$ 
+and the existing memory  $P_{t-1}$ . Crucially, values  $V$ are drawn from
+ $Z_{t}$ , not from  $P$ ; $A_{t}^{\top}V$ aggregates the current turn’s content into
+ $n_{P}$  memory rows, weighted by the addressing scores. This ensures that new
+information enters memory at every turn—without it, an all-zero
+initialisation would remain zero indefinitely.
+
+Figure 4.1 illustrates how memory is projected into a soft prefix
+before the frozen encoder, with the current latent driving a write-back update.
+
+ $P_{t-1}$ $S_{t}=U_{P}P_{t-1}W_{P}$ $[S_{t};x_{t}]$ $E_{\mathrm{frozen}}$ $Z_{t}$ $D_{\mathrm{frozen}}$ $\hat{y}_{t}$ $A_{t}^{\top}V$ write $P_{t}$ $Z_{t}\in\mathcal{M}_{E}$ ✓
+
+Figure 2: M. 1 injects persistent memory as an encoder-input prefix
+and writes the current latent back into memory through an attention-coupled
+update.
+
+The trainable read-side parameters are $\{W_{P}\}$ ;
+the write-side projections $\{W_{Q},W_{K},W_{V}\}$ and decay  $\gamma$ are frozen
+(Sec. 5).
+Under Type 1 training, $\theta_{\mathrm{Mem}}$ is optimised via
+ $\nabla_{\theta_{\mathrm{Mem}}}\mathcal{L}$ ; under Type 2, $P_{t}$ accumulates at
+inference with $\theta_{\mathrm{Mem}}$ frozen.
+
+4.2 M. 2: Parallel Decoder Cross-Attention
+
+A parallel cross-attention layer is inserted in each decoder block to attend
+to  $P$ independently of the frozen pathway, following the Flamingo
+architecture [12] which showed that interleaved
+cross-attention can inject external information into a frozen LM. The
+original $Z$  route is untouched; memory influence is additive via a
+zero-initialised coefficient. This method requires source-level access to
+the decoder blocks of an open-weight model. Here frozen means that
+the original decoder weights are not updated; it does not mean that
+intermediate layers are inaccessible.
+
+At decoder layer  $\ell$ with hidden state $s_{t}^{(\ell)}$ :
+
+ $\displaystyle c_{\mathrm{Mem}}^{(\ell)}$ 	
+ $\displaystyle=\mathrm{XAttn}_{\mathrm{Mem}}^{(\ell)}\!\bigl(s_{t}^{(\ell)},\;P_{t-1}\bigr),$ 	
+
+(8)	
+
+ $\displaystyle s_{t}^{(\ell)\prime}$ 	
+ $\displaystyle=s_{t}^{(\ell)}+\mathrm{XAttn}_{\mathrm{frozen}}^{(\ell)}\!\bigl(s_{t}^{(\ell)},\,Z_{t}\bigr)+\underbrace{\beta^{(\ell)}}_{\text{init}=0}\,c_{\mathrm{Mem}}^{(\ell)}.$ 	
+
+(9)	
+
+At initialisation $\beta^{(\ell)}=0$ , so the model falls back exactly to
+the frozen baseline. Memory is updated with the same attention-coupled
+write rule as M.1:
+
+ $Q=Z_{t}W_{Q},\;K=P_{t-1}W_{K},\;V=Z_{t}W_{V},\quad P_{t}=\gamma\,P_{t-1}+A_{t}^{\top}V,$ 	
+
+(10)	
+
+where $A_{t}=\operatorname{softmax}(QK^{\top}/\sqrt{d})$ and $V$ is sourced from  $Z_{t}$ 
+so that new content enters memory regardless of  $P$ ’s current state.
+Figure 4.2 illustrates the frozen
+cross-attention path running in parallel with the additive memory branch.
+
+ $E_{\mathrm{frozen}}(x_{t})$ $Z_{t}$ XAttn ${}_{\mathrm{frozen}}(s,Z_{t})$ $\beta^{(\ell)}\!\cdot$ XAttn ${}_{\mathrm{Mem}}(s,P_{t-1})$ $s^{\prime}=s+$ frozen $+$ mem $Z_{t}$ pathway   untouched ✓
+
+Figure 3: M. 2 preserves the frozen cross-attention route over the
+current encoder latent and adds a parallel decoder memory branch scaled by a
+learned coefficient.
+
+The per-layer parameters are
+ $\theta_{\mathrm{Mem}}=\{W_{Q}^{\mathrm{Mem}},W_{K}^{\mathrm{Mem}},W_{V}^{\mathrm{Mem}},O^{\mathrm{Mem}},\beta^{(\ell)}\}$ ,
+totalling ${\sim}16.8$ M (0.6%); the cross-attention projections are shared
+across layers and $\beta^{(\ell)}$ adds one scalar per layer.
+
+Implementation note.
+Because injecting into each frozen decoder block requires per-layer
+hooks, our implementation approximates the per-layer read by computing
+ $\mathrm{XAttn}_{\mathrm{Mem}}$ once using $Z_{t}$ as a proxy for internal decoder
+states and blending with $\bar{\beta}=\mathrm{mean}(\beta^{(\ell)})$ .
+The result is passed as additional encoder positions, so the frozen
+decoder’s own per-layer projections provide implicit layer
+specialisation.
+
+4.3 M. 3: Decoder KV Extension
+
+Persistent memory is projected into additional key–value pairs that are
+concatenated alongside  $Z$ in the decoder’s cross-attention, following the
+KV-extension principle of Memorizing
+Transformers [13], and leaving the original
+ $Z$  positions byte-for-byte preserved.
+A shared zero-initialised projection maps $P$ into pseudo-encoder hidden
+states; the frozen decoder then applies its own per-layer
+ $W_{K}^{(\ell)}$ , $W_{V}^{(\ell)}$ to both the original $Z$ positions and the
+memory extension:
+
+ $\displaystyle H_{\mathrm{Mem}}$ 	
+ $\displaystyle=P_{t-1}\,W_{\mathrm{Mem}}\in\mathbb{R}^{n_{P}\times d},$ 	
+
+(11)	
+
+ $\displaystyle K^{(\ell)}$ 	
+ $\displaystyle=W_{K}^{(\ell)}\bigl[\,Z_{t}\;;\;H_{\mathrm{Mem}}\,\bigr]\in\mathbb{R}^{(n+n_{P})\times d_{k}},$ 	
+
+(12)	
+
+ $\displaystyle V^{(\ell)}$ 	
+ $\displaystyle=W_{V}^{(\ell)}\bigl[\,Z_{t}\;;\;H_{\mathrm{Mem}}\,\bigr]\in\mathbb{R}^{(n+n_{P})\times d_{v}},$ 	
+
+(13)	
+
+ $\displaystyle\hat{y}_{t}$ 	
+ $\displaystyle=D_{\mathrm{frozen}}\!\bigl(Q^{(\ell)},\,K^{(\ell)},\,V^{(\ell)}\bigr).$ 	
+
+(14)	
+
+Queries $Q^{(\ell)}$ use the frozen $W_{Q}^{(\ell)}$ .
+Zero-initialised $W_{\mathrm{Mem}}$ ensures no-regression at init; the frozen
+per-layer projections provide implicit layer specialisation without extra
+learned parameters.
+The write rule is the same attention-coupled update as M.1
+(Eq. (7)):
+
+ $Q=Z_{t}W_{Q},\quad K=P_{t-1}W_{K},\quad V=Z_{t}W_{V},\quad P_{t}=\gamma P_{t-1}+\operatorname{softmax}\!\bigl(QK^{\top}\!/\!\sqrt{d}\bigr)^{\top}V.$ 	
+
+(15)	
+
+Figure 4.3 shows decoder keys and values extended with
+memory-derived entries while the current encoder positions remain unchanged.
+
+ $E_{\mathrm{frozen}}(x_{t})$ $Z_{t}$ $P_{t-1}$ $K{=}[K_{Z};K_{P}]$ , $V{=}[V_{Z};V_{P}]$ $D_{\mathrm{frozen}}(Q,K,V)$ $Z$ positions      unchanged ✓
+
+Figure 4: M. 3 extends decoder keys and values with learned
+projections of persistent memory while keeping the current encoder tokens on
+their original path.
+
+The trainable read-side parameter is $W_{\mathrm{Mem}}\in\mathbb{R}^{d\times d}$ ;
+the write-side projections $\{W_{Q},W_{K},W_{V}\}$ and decay  $\gamma$ are frozen
+(Sec. 5). Total added: ${\sim}4.2$ M (0.1%).
+
+4.4 M. 4: Hebbian / Associative Memory
+
+An outer-product Hebbian rule—the same write primitive used in linear
+transformers and fast weight
+programmers [14]—accumulates associative structure
+in a matrix $M_{t}$ , and the full read path is made explicit by injecting
+the recalled memory through decoder KV extension. This yields a
+complete, experimentally realizable architecture rather than a generic
+“inject somehow” formulation.
+Let $d_{h}$ denote the associative-memory dimension:
+
+ $\displaystyle\tilde{M}_{t}$ 	
+ $\displaystyle=\gamma M_{t-1}+\frac{1}{n}(Z_{t}W_{K,H})^{\top}(Z_{t}W_{V,H}),$ 	
+
+ $\displaystyle M_{t}$ 	
+ $\displaystyle=\tilde{M}_{t}\big/\max\!\bigl(\lVert\tilde{M}_{t}\rVert_{F},\,1\bigr)\;\in\mathbb{R}^{d_{h}\times d_{h}},$ 	
+
+(16)	
+
+ $\displaystyle R_{t}$ 	
+ $\displaystyle=(Z_{t}W_{Q,H})M_{t-1}\in\mathbb{R}^{n\times d_{h}},$ 	
+
+(17)	
+
+ $\displaystyle H_{\mathrm{Mem}}$ 	
+ $\displaystyle=R_{t}\,W_{\mathrm{Mem}}\in\mathbb{R}^{n\times d},$ 	
+
+(18)	
+
+ $\displaystyle\hat{y}_{t}$ 	
+ $\displaystyle=D_{\mathrm{frozen}}\!\Bigl(Q^{(\ell)},\;W_{K}^{(\ell)}\bigl[Z_{t};\;H_{\mathrm{Mem}}\bigr],\;W_{V}^{(\ell)}\bigl[Z_{t};\;H_{\mathrm{Mem}}\bigr]\Bigr).$ 	
+
+(19)	
+
+Figure 4.4 shows the Hebbian matrix being read by the current latent
+and exposed to the decoder as extra key-value memory.
+
+ $E_{\mathrm{frozen}}(x_{t})$ $Z_{t}$ $M_{t-1}$ $R_{t}=(Z_{t}W_{Q,H})M_{t-1}$ $[K_{Z};K_{M}],[V_{Z};V_{M}]$ $D_{\mathrm{frozen}}$ $M_{t}=\mathrm{norm}\!\bigl(\gamma M+\tfrac{1}{n}(ZW_{K,H})^{\top}ZW_{V,H}\bigr)$ 
+
+Figure 5: M. 4 stores associative structure in a Hebbian memory
+matrix that is queried by the current latent and passed to the decoder as
+additional memory.
+
+The trainable parameters are
+ $\theta_{\mathrm{Mem}}=\{W_{Q,H},W_{\mathrm{Mem}}\}$ ;
+the Hebbian write projections $\{W_{K,H},W_{V,H}\}$ and decay  $\gamma$ are
+frozen (Sec. 5).
+ $W_{\mathrm{Mem}}$ (the read projection from $d_{h}$ back to $d$ ) is zero-initialised so
+that the memory branch is silent at startup (safe startup).
+ $W_{Q,H}$ uses small random initialisation, $\mathcal{N}(0,0.02)$ :
+because $W_{\mathrm{Mem}}$ is zero, the gradient signal for $W_{Q,H}$ comes from the
+loss through $W_{\mathrm{Mem}}$ once it becomes non-zero, and conversely the gradient
+for $W_{\mathrm{Mem}}$ requires $R_{t}\neq 0$ , i.e. $W_{Q,H}\neq 0$ .
+Zero-initialising both $W_{Q,H}$ and $W_{\mathrm{Mem}}$ would create a
+gradient deadlock.
+
+4.5 M. 5: Context-Gated Decoder Memory Branch
+
+Rather than modifying encoder outputs, a lightweight memory branch is inserted
+inside the decoder, using a content-dependent gate inspired by
+Flamingo’s tanh-gated cross-attention [12].
+The branch reads from  $P$ , and the gate controls how strongly its output
+affects the decoder hidden state:
+
+ $\displaystyle c_{\mathrm{Mem}}^{(\ell)}$ 	
+ $\displaystyle=\mathrm{XAttn}_{\mathrm{Mem}}^{(\ell)}\!\bigl(s_{t}^{(\ell)},\,P_{t-1}\bigr),$ 	
+
+(20)	
+
+ $\displaystyle g_{t}^{(\ell)}$ 	
+ $\displaystyle=\sigma\bigl(W_{g}^{(\ell)}[s_{t}^{(\ell)};c_{\mathrm{Mem}}^{(\ell)}]+b_{g}^{(\ell)}\bigr),$ 	
+
+(21)	
+
+ $\displaystyle s_{t}^{(\ell)\prime}$ 	
+ $\displaystyle=s_{t}^{(\ell)}+\mathrm{XAttn}_{\mathrm{frozen}}^{(\ell)}\!\bigl(s_{t}^{(\ell)},Z_{t}\bigr)+g_{t}^{(\ell)}\odot c_{\mathrm{Mem}}^{(\ell)}.$ 	
+
+(22)	
+
+With $b_{g}^{(\ell)}4.5 illustrates the decoder-side
+branch whose contribution is controlled by the learned context gate.
+
+ $E_{\mathrm{frozen}}(x_{t})$ $Z_{t}$ XAttn ${}_{\mathrm{frozen}}(s,Z_{t})$ $P_{t-1}$ XAttn ${}_{\mathrm{Mem}}(s,P)$ $g_{t}\odot c_{\mathrm{Mem}}$ $s^{\prime}$ $g\to 0\Rightarrow$ decoder path unchanged ✓
+
+Figure 6: M. 5 adds a memory read branch inside the decoder and
+lets a learned gate decide when the auxiliary memory signal should influence
+the frozen path.
+
+The trainable parameters are
+ $\theta_{\mathrm{Mem}}=\{W_{Q}^{\mathrm{Mem}},W_{K}^{\mathrm{Mem}},W_{V}^{\mathrm{Mem}},W_{g},b_{g}\}$ ;
+the write-side projections $\{W_{Q},W_{K},W_{V}\}$ and decay  $\gamma$ are frozen
+(Sec. 5).
+
+Implementation note.
+As with M.2, the per-layer decoder injection is approximated by computing
+the gated memory read once with $Z_{t}$ as proxy for decoder hidden states
+and passing the result as additional encoder positions.
+The write rule is the same attention-coupled update as M.1
+(Eq. (7)):
+
+ $Q=Z_{t}W_{Q},\quad K=P_{t-1}W_{K},\quad V=Z_{t}W_{V},\quad P_{t}=\gamma P_{t-1}+\operatorname{softmax}\!\bigl(QK^{\top}\!/\!\sqrt{d}\bigr)^{\top}V.$ 	
+
+(23)	
+
+4.6 M. 6: Slot-Based Memory with Sparse Write
+
+Memory is organised as $S$  fixed-size slots $P\in\mathbb{R}^{S\times d}$ ,
+adopting the addressable-slot design of Neural Turing
+Machines [15]. At each turn, only the top- $k$ 
+addressed slots are updated; the read path is an explicit decoder KV
+extension:
+
+ $\displaystyle\bar{z}_{t}$ 	
+ $\displaystyle=\frac{1}{n}\sum_{i=1}^{n}Z_{t}[i,:],$ 	
+
+(24)	
+
+ $\displaystyle a_{t}$ 	
+ $\displaystyle=\operatorname{softmax}\!\bigl(\bar{z}_{t}W_{a}P_{t-1}^{\top}/\sqrt{d}\bigr)\in\mathbb{R}^{S},$ 	
+
+(25)	
+
+ $\displaystyle m_{t}[s]$ 	
+ $\displaystyle=\mathbf{1}[s\in\operatorname{top\text{-}k}(a_{t},k)],$ 	
+
+(26)	
+
+ $\displaystyle u_{t}$ 	
+ $\displaystyle=\bar{z}_{t}W_{u}\in\mathbb{R}^{d},$ 	
+
+(27)	
+
+ $\displaystyle P_{t}[s]$ 	
+ $\displaystyle=(1-m_{t}[s])P_{t-1}[s]+m_{t}[s]\bigl(\gamma P_{t-1}[s]+(1-\gamma)u_{t}\bigr),$ 	
+
+(28)	
+
+ $\displaystyle H_{\mathrm{Mem}}$ 	
+ $\displaystyle=P_{t}\,W_{\mathrm{Mem}},$ 	
+
+(29)	
+
+ $\displaystyle K^{(\ell)}$ 	
+ $\displaystyle=W_{K}^{(\ell)}\bigl[Z_{t};\;H_{\mathrm{Mem}}\bigr],\quad V^{(\ell)}=W_{V}^{(\ell)}\bigl[Z_{t};\;H_{\mathrm{Mem}}\bigr].$ 	
+
+(30)	
+
+Figure 4.6 shows sparse writes into a fixed slot bank that is later
+read by the decoder as structured episodic memory.
+
+ $Z_{t}$ $s_{1}$ $s_{2}$ $s_{3}$ $s_{4}$ $s_{5}$ $s_{6}$ $s_{7}$ $s_{8}$ $P_{t-1}$ : $S$ slots $D_{\mathrm{frozen}}$ address + top- $k$ writeKV read all slotsred = updated this turn
+
+Figure 7: M. 6 writes to a fixed set of memory slots sparsely and
+exposes the slot bank to the decoder as an explicit episodic memory.
+
+The trainable read-side parameter is $W_{\mathrm{Mem}}\in\mathbb{R}^{d\times d}$ ;
+the write-side projections $\{W_{a},W_{u}\}$ and decay  $\gamma$ are frozen
+(Sec. 5).
+
+5 Training and Inference
+
+Each of the six methods introduces learnable parameters  $\theta_{\mathrm{Mem}}$ 
+trained while both encoder and decoder remain frozen. Training
+proceeds in two phases.
+
+Gradient flow through frozen networks.
+
+“Frozen” means that $E$ and  $D$ receive no weight updates—it does
+not mean that gradients cannot flow through them. Both networks
+act as fixed differentiable functions: in the backward pass the chain
+rule propagates the loss gradient through the frozen decoder (and, for
+M. 1, also through the frozen encoder) to reach  $\theta_{\mathrm{Mem}}$ . This
+is the same principle underlying prefix tuning, LoRA, and adapter
+methods—the only parameters that receive gradient updates are those
+belonging to the memory adapter. The frozen backbone’s role is to
+provide both a fixed forward computation and a fixed gradient signal
+that the adapter must learn to exploit.
+
+In the first phase (Type 1: supervised learning), gradients flow
+from the decoder loss through the read pathway and update $\theta_{\mathrm{Mem}}$ ,
+thereby learning how to read and write memory effectively:
+
+ $\theta_{\mathrm{Mem}}\leftarrow\theta_{\mathrm{Mem}}-\eta\nabla_{\theta_{\mathrm{Mem}}}\mathcal{L}\bigl(D_{\mathrm{frozen}}(\mathrm{Read}(Z_{t},P)),\;y_{t}\bigr).$ 	
+
+(31)	
+
+Write projections as fixed random maps.
+
+During Type 1 training the write rule
+ $P_{t}=\mathrm{Write}(P_{t-1},Z_{t})$ executes without gradients to
+prevent the computation graph from growing across the full conversation
+history. Consequently, the write-side projections ( $W_{Q},W_{K},W_{V}$ in most
+methods) receive no gradient updates and remain at their random
+initialisation throughout training. These projections act as fixed random
+maps that nonetheless preserve pairwise distances in the input
+(Johnson–Lindenstrauss property), ensuring that distinct encoder outputs
+produce distinguishable memory entries. The read-side parameters
+( $W_{P}$ , $W_{\mathrm{Mem}}$ , cross-attention heads, gates) are therefore the only
+parameters that receive gradient updates; they learn to decode whatever
+structure the fixed write rule deposits in  $P$ . Excluding the write-side
+projections from the optimiser prevents unnecessary weight decay and avoids
+misleading parameter counts.
+
+In the second phase (Type 2: conversational learning),
+ $\theta_{\mathrm{Mem}}$ is frozen but $P_{t}$ continues to accumulate. Each
+conversation enriches  $P$ , improving the system’s responses without any
+gradient computation:
+
+ $P_{t}=\mathrm{Write}(P_{t-1},Z_{t})\quad\text{with $\theta_{\mathrm{Mem}}$ fixed.}$ 	
+
+(32)	
+
+This is the mechanism we call conversational learning: the system
+becomes more knowledgeable and personalised with every conversation, exactly
+through repeated online updates while the frozen model weights remain fixed.
+Figure 5 contrasts the two phases.
+
+Frozen $E$ , $D$ + Memory adapterType 1: Train $\theta_{\mathrm{Mem}}$ (backprop, offline)Type 2: Update $P_{t}$ (no grad, every turn) $\nabla_{\theta}\mathcal{L}$ update $\theta_{\mathrm{Mem}}$ $Z_{t}$ update $P_{t}$ 
+
+Figure 8: Two learning phases. Type 1 updates memory
+adapter parameters offline by backpropagation, whereas Type 2 updates the
+persistent memory online at each turn with frozen model weights.
+
+Table 2 consolidates the six methods along key design
+dimensions.
+
+Table 2: Six trained persistent-memory methods compared across key design
+dimensions. “Primary-path safe” means the original frozen
+encoder–decoder route through $Z_{t}$ is preserved, even if an auxiliary
+decoder-side memory branch is added. “Memory cost” is per turn.
+
+Method	
+Injection point	
+Primary-path safe	
+New params	
+Mem. cost	
+Write mechanism	
+
+1	
+Encoder-input prefix	
+Before $E$ 	
+✓	
+4.2M	
+const.	
+ $A_{t}^{\top}V$ 	
+
+2	
+Parallel decoder XAttn	
+Inside $D$ 	
+✓	
+16.8M	
+const.	
+ $A_{t}^{\top}V$ 	
+
+3	
+Decoder KV extension	
+Inside $D$ xattn	
+✓	
+4.2M	
+const.	
+ $A_{t}^{\top}V$ 	
+
+4	
+Hebbian / associative	
+Decoder KV	
+✓	
+1.0M	
+ $O(d_{h}^{2})$ 	
+Hebbian outer prod.	
+
+5	
+Context-gated decoder branch	
+Inside $D$ 	
+✓	
+21.0M	
+const.	
+ $A_{t}^{\top}V$ 	
+
+6	
+Slot-based sparse write	
+Decoder KV	
+✓	
+4.2M	
+ $O(Sd)$ 	
+Top- $k$ overwrite	
+
+6 Evaluation
+
+The preceding sections specify how each method reads and writes
+persistent memory; this section specifies what we measure and
+how we measure it.
+
+6.1 Forgetting-Curve Hypothesis
+
+If persistent memory genuinely converts a stateless model into one that
+retains conversation-specific information, the effect should be
+measurable as a function of how far in the past the supporting evidence was
+written. We therefore formalise evaluation around a forgetting
+curve rather than a bag of unrelated scalar metrics.
+
+For a question  $q$ asked after $T$ conversational turns, let $E_{q}$ denote the
+set of supporting evidence turns and define the evidence lag by the oldest
+required support:
+
+ $\ell_{q}=T-\min(E_{q}).$ 	
+
+(33)	
+
+For each trained method  $m$ , we compare two answers to the same question: one
+with the learned persistent state intact, $\hat{y}^{\mathrm{mem}}_{q}(m)$ , and
+one from the same trained model with its persistent memory state forced to
+zero, $\hat{y}^{0}_{q}(m)$ . The memory recall rate is
+
+ $\rho_{q}(m)=\frac{\max\!\bigl(0,\;\operatorname{F1}(\hat{y}^{\mathrm{mem}}_{q}(m),y_{q})-\operatorname{F1}(\hat{y}^{0}_{q}(m),y_{q})\bigr)}{\max\!\bigl(1-\operatorname{F1}(\hat{y}^{0}_{q}(m),y_{q}),\;\varepsilon\bigr)},$ 	
+
+(34)	
+
+where $y_{q}$ is the gold answer and $\varepsilon>0$ is a small constant
+that prevents division by zero. The numerator is the F1 gain attributable
+to persistent memory; the denominator is the headroom, i.e. the maximum
+possible gain given the zero-memory baseline of that model. The score is
+therefore 100% when memory brings the answer to perfect F1, and 0% when
+memory adds nothing.
+
+For the stateless baseline, there is no persistent state to ablate, so
+the memory recall rate is identically zero for every question:
+
+ $\rho_{q}(\text{baseline})=0.$ 	
+
+(35)	
+
+For an effective stateful system, the memory recall rate should be
+largest at short lag and should gradually decrease as the relevant evidence
+lies further in the past:
+
+ $\rho_{q}(m)\text{ should decrease as }\ell_{q}\text{ increases.}$ 	
+
+(36)	
+
+The central experimental prediction is therefore a family of forgetting
+curves: the baseline is flat at zero by construction, while stronger
+trained persistent-memory methods start higher at short lag and decay more
+slowly at long lag. Without learned memory control, recall-rate curves
+collapse toward zero in the stateless limit; the test is whether trained
+adapter parameters  $\theta_{\mathrm{Mem}}$ can produce large and durable positive
+curves.
+
+6.2 Benchmarks and Protocol
+
+Equal-input principle.
+
+To isolate the effect of persistent memory, every condition—baseline
+and all six memory methods—receives exactly the same encoder input  $x_{t}$ at
+each turn: the current conversational turn only. No method is given the full
+history $[x_{0},x_{1},\ldots,x_{t}]$ . The baseline is therefore intentionally
+short-sighted: it encodes only the present turn and decodes an answer
+with no access to prior sessions. Memory methods receive the same  $x_{t}$ but
+additionally condition the decoder on the persistent state  $P_{t-1}$ 
+accumulated from all earlier turns. Any non-zero memory recall rate is thus
+attributable solely to the persistent state  $P$ .
+
+All conditions use the same released frozen encoder–decoder backbone, the same
+tokenizer, and the same decoding rule. Each example is processed turn by turn:
+after every conversational turn the method-specific write rule updates  $P_{t}$ ;
+when a question is asked the model answers using the current query and the
+persistent memory state  $P_{t-1}$ . The stateless baseline uses the identical
+backbone but no persistent memory. Only
+ $\theta_{\mathrm{Mem}}$ is optimised on the public training split with
+teacher-forced answer loss; the encoder and decoder remain frozen throughout.
+No method may use an external
+summarizer, a different retriever, or a different pretrained model.
+
+Implementation details.
+
+The frozen backbone is Flan-T5-XL (3B parameters) in bfloat16.
+All memory adapters are trained with AdamW (learning rate $10^{-4}$ ,
+weight decay $10^{-2}$ , linear warmup of 200 steps, gradient norm clipped
+at 1.0) for 10 epochs with batch size 2 and gradient accumulation 8
+(effective batch 16). Write-rule updates are detached from the
+computation graph; truncated backpropagation through time uses a window
+of $k{=}8$  turns. Shared memory hyper-parameters are: bank size
+ $n_{P}{=}64$ , write decay $\gamma{=}0.95$ . M.4 uses associative dimension
+ $d_{h}{=}256$ ; M.6 uses $S{=}64$ slots with top- $k{=}8$ writes per turn.
+All experiments use a single seed (42) and a single NVIDIA GPU.
+
+The primary benchmark is LoCoMo [5], a
+long-term conversational-memory dataset with explicit QA supervision and
+annotated evidence turns. Those evidence annotations are the key ingredient
+for the rebuilt evaluation: they let us place every question at a precise lag
+in the past. We do not use MSC [4] as a primary
+score in this paper, because MSC lacks per-answer evidence locations and
+therefore cannot support a clean forgetting curve.
+
+6.3 Forgetting-Curve Evaluation
+
+We evaluate one quantity only: the forgetting curve, expressed in
+terms of the headroom-normalised memory recall rate. For a
+LoCoMo QA pair $q$ with gold answer $y_{q}$ and annotated evidence turns
+ $E_{q}$ , let
+
+ $\ell_{q}=T-\min E_{q}$ 	
+
+(37)	
+
+denote the lag in turns from the oldest required fact to the end of the
+conversation.
+
+For each method $m$ , we compute two answers to the same question:
+
+ $\displaystyle\hat{y}^{\mathrm{mem}}_{q}(m)$ 	
+ $\displaystyle=\text{answer from method $m$ after writing the conversation into }P,$ 	
+
+(38)	
+
+ $\displaystyle\hat{y}^{0}_{q}(m)$ 	
+ $\displaystyle=\text{answer from the same trained method with its persistent state forced to zero.}$ 	
+
+(39)	
+
+The memory recall rate of question $q$ is then
+
+ $\rho_{q}(m)=\frac{\max\!\bigl(0,\;F1(\hat{y}^{\mathrm{mem}}_{q}(m),y_{q})-F1(\hat{y}^{0}_{q}(m),y_{q})\bigr)}{\max\!\bigl(1-F1(\hat{y}^{0}_{q}(m),y_{q}),\;\varepsilon\bigr)}.$ 	
+
+(40)	
+
+The numerator is the F1 gain from persistent memory; the denominator is
+the headroom—the maximum possible gain given the zero-memory
+baseline. The score therefore lies on a 0–100% scale: 100% means
+memory brings the answer to perfect F1, 0% means memory adds nothing.
+This is not baseline-relative. It is a method-internal
+quantity: how much of the available improvement room is filled by that
+method’s own memory. The stateless baseline has no persistent state at all, so
+
+ $\rho_{q}(\text{M.0})=0\qquad\text{for all questions }q.$ 	
+
+(41)	
+
+We bucket lags into five ranges,
+ $[0,32)$ , $[32,64)$ , $[64,128)$ , $[128,256)$ , and $[256,\infty)$ turns, average
+ $\rho_{q}(m)$ inside each bucket, and then fit a weighted non-increasing isotonic
+curve across buckets. The isotonic fit suppresses finite-sample noise while
+preserving the forgetting prior that memory recall should not improve as
+lag increases. A stronger method therefore has a higher intercept at short lag
+and a slower downward decay.
+
+6.4 Results
+
+Figure 9 is the primary empirical result. We
+evaluate two memory-capacity scales: 1 $\times$ ( $n_{p}\!=\!64$ ,
+ $d_{h}\!=\!256$ , $n_{\text{slots}}\!=\!64$ ) and 10 $\times$ 
+( $n_{p}\!=\!640$ , $d_{h}\!=\!810$ , $n_{\text{slots}}\!=\!640$ ). The
+short-lag height measures write effectiveness: how much
+conversation-specific information is available immediately after
+storage. The slope measures resistance to overwrite and interference:
+how slowly that information decays as the relevant evidence recedes
+into the past.
+
+ $0$ – $31$ $32$ – $63$ $64$ – $127$ $128$ – $255$ $256+$ $0$ $5$ $10$ $15$ $20$ Evidence lag (turns)Memory recall rate (%)1 $\times$ capacityBaselineM.1 PrefixM.2 XAttnM.3 KV ExtM.4 HebbianM.5 GatedM.6 Slot $0$ – $31$ $32$ – $63$ $64$ – $127$ $128$ – $255$ $256+$ $0$ $5$ $10$ $15$ $20$ Evidence lag (turns)10 $\times$ capacityBaselineM.1 PrefixM.2 XAttnM.3 KV ExtM.4 HebbianM.5 GatedM.6 Slot
+
+Figure 9: Forgetting curves on LoCoMo at two memory-capacity scales. Each
+point is the memory recall rate from
+Eq. (40), smoothed by a weighted
+non-increasing isotonic fit. Left
+(1 $\times$ ): three methods (M.1, M.3, M.5) collapse; M.2 XAttn
+and M.6 Slot dominate. Right
+(10 $\times$ ): all six methods produce non-trivial curves;
+M.4 Hebbian is strongest at long lag. Higher and flatter
+curves indicate stronger memory.
+
+Table 3: Memory recall rate (%) by lag bucket on LoCoMo (smoothed,
+non-increasing isotonic fit) at two capacity scales. The baseline is
+identically zero by construction. $n$ gives the number of QA pairs
+per bucket. Higher $\to$ stronger memory retention.
+
+Lag bucket (turns)	
+
+Method	
+0–31	
+32–63	
+64–127	
+128–255	
+256+	
+Mean	
+
+ $n$ (samples)	
+28	
+24	
+62	
+130	
+395	
+
+1 $\times$ capacity ( $n_{p}\!=\!64$ , $d_{h}\!=\!256$ )	
+
+M.0 Baseline	
+0.00	
+0.00	
+0.00	
+0.00	
+0.00	
+0.00	
+
+M.1 Prefix	
+0.02	
+0.02	
+0.02	
+0.02	
+0.02	
+0.02	
+
+M.3 KV Ext	
+0.00	
+0.00	
+0.00	
+0.00	
+0.00	
+0.00	
+
+M.5 Gated	
+0.36	
+0.10	
+0.10	
+0.10	
+0.09	
+0.15	
+
+M.4 Hebbian	
+9.51	
+9.51	
+9.23	
+9.23	
+9.23	
+9.34	
+
+M.6 Slot	
+17.21	
+13.91	
+7.08	
+7.08	
+7.08	
+10.47	
+
+M.2 XAttn	
+17.85	
+14.65	
+9.02	
+9.02	
+9.02	
+11.91	
+
+10 $\times$ capacity ( $n_{p}\!=\!640$ , $d_{h}\!=\!810$ )	
+
+M.0 Baseline	
+0.00	
+0.00	
+0.00	
+0.00	
+0.00	
+0.00	
+
+M.5 Gated	
+11.22	
+7.62	
+7.62	
+7.62	
+7.62	
+8.34	
+
+M.1 Prefix	
+10.75	
+10.75	
+9.30	
+9.30	
+9.20	
+9.86	
+
+M.2 XAttn	
+11.90	
+11.90	
+9.88	
+9.88	
+9.88	
+10.69	
+
+M.3 KV Ext	
+15.58	
+15.58	
+9.69	
+9.69	
+9.69	
+12.05	
+
+M.6 Slot	
+13.85	
+10.60	
+10.60	
+10.21	
+9.66	
+10.99	
+
+M.4 Hebbian	
+15.86	
+11.19	
+10.32	
+10.32	
+10.32	
+11.60	
+
+Interpretation.
+
+The evaluation isolates persistent memory itself rather than generic
+question-answering ability. A method receives credit only for answer quality
+that vanishes when its own persistent state is ablated, normalised by
+the headroom available to that method. The baseline is
+therefore exactly flat at zero, while trained memory methods show positive
+short-lag recall followed by gradual decay.
+Because the score is headroom-normalised, it sits on a 0–100% scale
+and directly measures what fraction of the remaining improvement room
+the persistent memory fills.
+
+The figure separates two properties that were conflated by the previous
+multi-metric protocol. Short-lag height measures whether a method writes
+useful content into memory at all. Long-lag decay measures whether that
+content survives overwriting and interference. A stronger architecture is one
+whose curve stays higher for longer.
+
+1 $\times$ capacity.
+
+At the smaller scale (Figure 9, left;
+Table 3, upper block), the methods separate into two
+tiers. M.2 XAttn and M.6 Slot dominate with short-lag recall above
+17% and long-lag scores around 9% and 7%, respectively.
+M.4 Hebbian is the most stable: its curve is nearly flat at
+ ${\sim}9.3\%$ across all buckets, indicating strong resistance to
+overwrite. In contrast, M.1 Prefix, M.3 KV Ext, and M.5 Gated
+collapse to near-zero—their small memory banks cannot sustain useful
+state. The 1 $\times$ ordering is therefore
+M.2 XAttn $>$ M.6 Slot $>$ M.4 Hebbian $\gg$ M.5 Gated $>$ 
+M.1 Prefix $\approx$ M.3 KV Ext $\approx$ Baseline.
+
+10 $\times$ capacity.
+
+At the larger scale (Figure 9, right;
+Table 3, lower block), all six methods produce
+non-trivial forgetting curves. M.4 Hebbian now leads with the
+highest long-lag score (10.3%) and the best mean (11.6%).
+M.3 KV Ext, which was dead at 1 $\times$ , achieves the highest
+short-lag recall (15.6%) and a strong mean (12.0%). M.6 Slot
+remains consistently strong across all buckets. M.5 Gated, which
+collapsed at 1 $\times$ , now reaches 11.2% short-lag recall.
+
+The capacity effect is the most striking result: three methods
+(M.1, M.3, M.5) fail completely at 1 $\times$ but succeed at
+10 $\times$ , demonstrating that memory bank size is a critical
+hyperparameter—not just a scaling convenience. The methods that
+succeed at both scales (M.2, M.4, M.6) employ write mechanisms
+that are inherently more selective: attention-coupled writes,
+associative updates, or sparse top- $k$ slot addressing.
+
+The fact that all six trained adapters produce non-trivial
+memory-recall curves at sufficient capacity answers the secondary
+question posed in the introduction: the frozen decoder’s
+cross-attention does possess sufficient representational slack to
+attend usefully to memory entries projected by a trained
+adapter—the bottleneck is the quality of the write and read
+pathway and the capacity of the memory bank.
+
+6.5 Cumulative Knowledge Curve
+
+The forgetting curve measures how well memory resists decay after
+information is written. A complementary question is whether persistent
+memory enables knowledge accumulation: does the model know
+progressively more as additional sessions are processed?
+
+We formalise this as a cumulative knowledge curve. Let
+ $\mathcal{S}_{1},\mathcal{S}_{2},\ldots,\mathcal{S}_{n}$ denote the sessions
+in a LoCoMo conversation. After writing all turns in sessions
+ $\mathcal{S}_{1}$ through  $\mathcal{S}_{s}$ , we probe every QA pair whose
+annotated evidence sessions are fully contained within the processed
+sessions, i.e. $E_{q}^{\mathrm{sess}}\subseteq\{1,\ldots,s\}$ . The
+session-level knowledge score is
+
+ $K_{s}=\frac{1}{|Q_{\leq s}|}\sum_{q\in Q_{\leq s}}\operatorname{F1}\!\bigl(\hat{y}_{q}^{\mathrm{mem}},y_{q}\bigr),$ 	
+
+(42)	
+
+where $Q_{\leq s}$ is the set of answerable questions at session  $s$ .
+The net knowledge gain is summarised by
+
+ $\Delta K=K_{n}-K_{1},$ 	
+
+(43)	
+
+which is positive when the memory accumulates knowledge and zero (or
+negative) when it merely decays. For the stateless baseline, every
+probed answer is produced without access to prior context, so $K_{s}$ is
+approximately constant across sessions. A rising $K_{s}$ curve therefore
+provides direct visual evidence of knowledge growth that is impossible
+in a memoryless system.
+
+Knowledge-accumulation results (1 $\times$ capacity).
+
+Table 4 reports the terminal knowledge
+ $K_{30}$ and net gain $\Delta K$ for each method. The stateless
+baseline accumulates a surprising $\Delta K=5.6\%$ —a ceiling
+effect from the frozen encoder’s raw QA ability improving as more
+context is injected into the current prompt. Among memory methods,
+M.6 Slot achieves the highest $\Delta K=9.7\%$ and the highest
+terminal $K_{30}=9.7\%$ , followed by M.4 Hebbian ( $\Delta K=7.8\%$ ) and M.2 XAttn ( $\Delta K=7.3\%$ ). These are the same
+three methods that succeed on the forgetting curve at 1 $\times$ 
+capacity, confirming that write quality determines both retention
+and accumulation. M.1 Prefix, M.3 KV Ext, and M.5 Gated show
+near-zero knowledge growth ( $\Delta K
+Table 4: Knowledge accumulation on LoCoMo (1 $\times$ capacity).
+ $K_{30}$ is the terminal knowledge score after all 30 sessions;
+ $\Delta K=K_{30}-K_{1}$ measures net knowledge gain.
+Higher values indicate stronger persistent memory.
+
+Method	
+ $K_{30}$ (%)	
+ $\Delta K$ (%)	
+
+M.0 Baseline	
+5.57	
+5.57	
+
+M.1 Prefix	
+0.00	
+0.00	
+
+M.3 KV Ext	
+0.00	
+0.00	
+
+M.5 Gated	
+0.17	
+0.17	
+
+M.2 XAttn	
+11.04	
+7.34	
+
+M.4 Hebbian	
+10.62	
+7.84	
+
+M.6 Slot	
+9.71	
+9.71	
+
+7 Discussion
+
+7.1 Why training is necessary
+
+If persistent memory is built entirely from frozen encoder outputs and
+exposed to the decoder without learned projections, the decoder receives
+states that were never optimised for selective long-range retrieval.
+The failure is structural: as more history is concatenated or cached,
+useful entries compete with irrelevant ones inside the same softmax,
+attention mass disperses, and the contribution of any single remembered
+fact shrinks. The frozen encoder manifold  $\mathcal{M}_{E}$ matches the
+pre-trained cross-attention interface, but it provides no mechanism for
+deciding what to retain, compress, or foreground across long lags.
+
+The forgetting-curve results confirm this analysis. At 1 $\times$ 
+capacity, methods whose projections are closer to the raw encoder
+output (M.1 Prefix, M.3 KV Ext) collapse entirely, while methods
+with learned selective writes (M.2 XAttn, M.4 Hebbian, M.6 Slot)
+achieve recall rates above 9%. At 10 $\times$ capacity, even the
+weaker methods recover, but the gap remains: methods with richer
+write rules consistently outperform simpler ones. Training is
+therefore necessary—and so is sufficient memory capacity: the
+adapter must learn to map persistent state back into a representation
+the frozen decoder can use, and the bank must be large enough to
+store it.
+
+7.2 Adapter interference
+
+A trained memory adapter modifies the decoder’s cross-attention pathway.
+Even when the persistent memory is empty—immediately after a reset, or
+before any conversation has begun—the adapter’s projections inject into
+the decoder and may displace the pre-trained knowledge that the frozen
+backbone already possesses. We quantify this risk with two complementary
+metrics.
+
+Adapter tax.
+
+Let $\widetilde{F}_{\text{base}}$ be the raw token-F1 of the stateless
+baseline (no adapter, no memory) and let
+ $\widetilde{F}^{0}_{m}$ be the F1 of method  $m$ with its adapter
+attached but its memory state forced to zero. The adapter tax is
+
+ $\text{Tax}_{m}=\widetilde{F}_{\text{base}}-\widetilde{F}^{0}_{m}.$ 	
+
+(44)	
+
+Positive values mean that the adapter degrades the model below
+its unmodified stateless performance, negative values mean the adapter
+happens to help even without any stored memory.
+
+Net benefit.
+
+The quantity reviewers ultimately care about is whether adding persistent
+memory gives a net improvement over the original model:
+
+ $\text{Benefit}_{m}=\widetilde{F}^{\mathrm{mem}}_{m}-\widetilde{F}_{\text{base}}.$ 	
+
+(45)	
+
+A method is worthwhile if and only if $\text{Benefit}_{m}>0$ , i.e. the
+memory’s contribution outweighs any adapter interference.
+
+Why interference should be small.
+
+Because the backbone is 100% frozen, the adapter’s only effect on the
+decoder is through the additional cross-attention entries it provides.
+When the memory bank is zeroed, these entries carry near-zero magnitude;
+a well-trained softmax distributes negligible attention mass to them,
+leaving the decoder’s original computation approximately intact. Methods
+with explicit gating (M.5, M.6) can learn to suppress the memory pathway
+entirely when memory is uninformative. The adapter tax is therefore
+expected to be small, and the net benefit should track the forgetting-curve
+results closely.
+
+Both metrics are computed from the same $\text{F1}_{\text{mem}}$ and
+ $\text{F1}_{\text{zero}}$ values that the forgetting-curve evaluation
+already records, so no additional experiments are required.
+Table 5 reports the mean adapter tax, net benefit,
+and raw F1 scores across lag buckets.
+
+Table 5: Adapter interference analysis.
+Tax $>0$ means the adapter degrades baseline knowledge when memory is
+empty; Benefit $>0$ means memory helps more than the adapter hurts.
+Baseline mean F1 = 6.44% at both scales (stateless, independent of
+adapter capacity).
+
+1 $\times$ capacity	
+10 $\times$ capacity	
+
+Method	
+Tax (%)	
+Benefit (%)	
+Tax (%)	
+Benefit (%)	
+
+M.1 Prefix	
++2.38	
+ $-$ 6.42	
++4.23	
++4.00	
+
+M.2 XAttn	
++3.39	
++6.76	
++3.39	
++5.09	
+
+M.3 KV Ext	
++2.38	
+ $-$ 6.44	
++4.23	
++6.26	
+
+M.4 Hebbian	
++3.39	
++3.10	
++3.39	
++5.46	
+
+M.5 Gated	
++3.39	
+ $-$ 6.30	
++3.39	
++1.83	
+
+M.6 Slot	
++2.38	
++5.75	
++4.23	
++5.22	
+
+Empirical observations.
+
+At 1 $\times$ capacity, three methods (M.1 Prefix, M.3 KV Ext,
+M.5 Gated) show negative net benefit—the adapter hurts more
+than the memory helps, consistent with the capacity collapse observed in
+the forgetting curves. In contrast, M.2 XAttn (+6.76%), M.6 Slot
+(+5.75%), and M.4 Hebbian (+3.10%) produce positive net benefit even
+at low capacity. At 10 $\times$ capacity, all six methods yield
+positive net benefit (range +1.8–6.3%), confirming that sufficient
+memory capacity overcomes the adapter tax. The tax itself is modest
+(2–4% across all conditions), validating the theoretical prediction
+that frozen-backbone adapters introduce only minor interference.
+
+7.3 Limitations and scope
+
+This work is an intentionally constrained pilot study. All six methods
+are instantiated on a single frozen encoder–decoder backbone
+(Flan-T5-XL, 3B parameters) with a single evaluation dataset (LoCoMo)
+and minimal compute. Whether the same architectural principles transfer
+to decoder-only, encoder-only, or other-scale models must be validated
+separately. Absolute recall rates remain modest (up to $\approx$ 12%),
+which is expected given that 100% of backbone weights are frozen and
+the adapter budget is small.
+
+Critically, these limitations are by design: the purpose of the
+pilot is to demonstrate feasibility under worst-case resource constraints,
+not to optimise absolute performance. We expect that relaxing any of
+the following constraints will yield substantially stronger results:
+
+1. 
+
+Unfreezing the backbone. End-to-end training would
+allow the encoder to learn what to write and the decoder to
+learn how to read persistent memory, rather than forcing
+the adapter alone to bridge both gaps.
+
+2. 
+
+Larger models. Bigger LLMs (e.g. 70B+ decoder-only)
+possess richer internal representations; persistent memory injected
+into these representations should carry more information per slot.
+
+3. 
+
+Larger and more diverse data. Training on corpora
+beyond a single multi-session dialogue benchmark will improve
+generalisation of the write and read operations.
+
+4. 
+
+Larger memory banks. Our 10 $\times$ scale uses
+ $n_{P}=640$ slots. Because the memory bank is a numerical array
+decoupled from the backbone, it can be scaled by orders of
+magnitude—potentially millions of slots—with no change to
+per-turn inference cost.
+
+Pursuing these directions requires industrial-scale compute and is
+beyond the scope of this study, but the design-space taxonomy and
+evaluation protocol established here provide the foundation for
+such work.
+
+7.4 Broader implications
+
+End-to-end training and conversational learning.
+
+This pilot study trains only a minimal memory adapter ( $\theta_{\mathrm{Mem}}$ )
+while the entire backbone remains frozen. This is the most
+resource-constrained setting possible, and it already demonstrates
+non-trivial memory recall. The full potential of persistent
+latent-space memory would be realised when the entire LLM is
+trained end-to-end with its memory bank, learning simultaneously what
+to store and how to use it. An industrial-scale effort—training a
+70B+ model on diverse multi-session corpora with a persistent memory
+bank millions of slots large—would couple the backbone’s representation
+power with the memory’s persistence, a combination that our frozen
+setup deliberately excludes. We expect such a system to outperform our
+pilot results by a wide margin; our contribution is to show that the
+underlying mechanism is sound and to map the design space that
+large-scale training should explore.
+
+More broadly, persistent memory opens the door to conversational
+learning: every interaction updates the bank, and the model becomes
+more informed with each turn, driven by ordinary dialogue rather than
+curated datasets or reward signals. Existing LLMs can be
+retrofitted by installing a memory adapter and retraining—the
+backbone architecture need not change.
+
+Scalability.
+
+A latent memory bank is a compact numerical array whose capacity can
+grow without increasing the per-turn inference cost of the backbone.
+Our experiments use at most $n_{P}=640$ slots ( $\approx$ 5 MB at
+float32); in principle the bank can scale to millions
+of slots at modest storage cost, far exceeding the lifetime of any
+human conversation. Unlike text-level memory systems that must
+retokenise growing text stores—incurring cost proportional to memory
+size—latent memory is read through a fixed-dimension attention
+operation, so per-turn inference cost is independent of how much
+history has been stored.
+
+Latent-space memory as a cognitive substrate.
+
+Biological brains do not retain verbatim transcripts; they maintain
+distributed, continuously updated representations that support
+recognition, abstraction, and generalisation. Persistent latent-space
+memory mirrors this organisation more closely than text-level retrieval,
+and connects naturally to neuroscience-inspired architectures such as
+complementary learning systems [10] and
+attention-coupled lateralised memory [6].
+Because LLMs already represent knowledge as continuous activations, a
+persistent memory that operates in the same latent space is a more
+natural substrate for core cognitive operations—reading, updating,
+generalisation, and compositional extension—than a symbolic or
+textual buffer.
+
+8 Conclusion
+
+This paper presents a proof-of-concept pilot study: persistent memory
+that lives entirely in the latent space of a frozen
+encoder–decoder LLM (Flan-T5-XL, 3B parameters), with only small
+trainable memory adapters and minimal compute. Under these deliberately
+severe constraints, we show that the idea works: six adapter
+architectures spanning three injection points and four write mechanisms
+all produce non-trivial memory-recall curves at 10 $\times$ capacity,
+while three collapse at 1 $\times$ —revealing capacity as a critical
+design parameter. M.2 XAttn and M.6 Slot dominate at low capacity;
+M.4 Hebbian leads at high capacity. The cumulative knowledge curve
+confirms that the strongest methods accumulate knowledge steadily over
+30 sessions ( $\Delta K$ up to 9.7%), while collapsed methods show no
+growth.
+
+The broader implication is that latent-space persistent memory is not
+one mechanism but a design space—one whose dimensions (write
+rule, read path, capacity) have measurable consequences that would be
+invisible in text-level memory systems. Our pilot maps this design
+space under worst-case conditions; the natural next step is
+industrial-scale exploration: end-to-end training of large LLMs
+(70B+) with memory banks scaled to millions of slots and diverse
+multi-session corpora. Because the memory bank is a compact numerical
+array decoupled from the backbone, existing pre-trained models can be
+retrofitted with persistent memory by installing an adapter and
+retraining—no architectural redesign is required. We believe that
+full-scale training will show dramatically stronger results; this study
+establishes the feasibility, the taxonomy, and the evaluation protocol
+that such efforts need.
+
+Acknowledgements
+
+The author thanks Inha University in Tashkent for research support.
+This work reflects the author’s ongoing inquiry into nature and human cognition.
+
+References
+
+[1]
+
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang,
+Michael Matena, Yanqi Zhou, Wei Li, and Peter J. Liu.
+
+Exploring the limits of transfer learning with a unified
+text-to-text transformer.
+
+JMLR, 21(140):1–67, 2020.
+
+[2]
+
+Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil,
+Ion Stoica, and Joseph E. Gonzalez.
+
+MemGPT: towards LLMs as operating systems.
+
+arXiv preprint arXiv:2310.08560, 2024.
+
+[3]
+
+Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang.
+
+MemoryBank: enhancing large language models with long-term memory.
+
+In AAAI, 2024.
+
+[4]
+
+Jing Xu, Arthur Szlam, and Jason Weston.
+
+Beyond goldfish memory: Long-term open-domain conversation.
+
+In ACL, 2022.
+
+[5]
+
+Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal,
+Francesco Barbieri, and Yuwei Fang.
+
+Evaluating very long-term conversational memory of LLM agents.
+
+In Proceedings of the 62nd Annual Meeting of the ACL, 2024.
+
+[6]
+
+Hong Jeong.
+
+Inhibitory cross-talk enables functional lateralization in
+attention-coupled latent memory.
+
+arXiv:2603.03355 [q-bio.NC], 2026.
+
+https://arxiv.org/abs/2603.03355.
+
+[7]
+
+Hong Jeong.
+
+A miniature brain transformer: Thalamic gating, hippocampal
+lateralization, amygdaloid salience, and prefrontal working memory in
+attention-coupled latent memory.
+
+arXiv:2603.07217 [q-bio.NC], 2026.
+
+https://arxiv.org/abs/2603.07217.
+
+[8]
+
+Endel Tulving.
+
+Episodic and semantic memory.
+
+In E. Tulving and W. Donaldson, editors,
+Organization of Memory, pages 381–403. Academic Press, 1972.
+
+[9]
+
+James L. McClelland, Bruce L. McNaughton, and Randall C. O’Reilly.
+
+Why there are complementary learning systems in the hippocampus
+and neocortex: insights from the successes and failures of connectionist
+models of learning and memory.
+
+Psychological Review, 102(3):419–457, 1995.
+
+[10]
+
+Dharshan Kumaran, Demis Hassabis, and James L. McClelland.
+
+What learning systems do intelligent agents need? Complementary
+learning systems theory updated.
+
+Trends in Cognitive Sciences, 20(7):512–534, 2016.
+
+[11]
+
+Xiang Lisa Li and Percy Liang.
+
+Prefix-tuning: Optimizing continuous prompts for generation.
+
+In ACL–IJCNLP, 2021.
+
+[12]
+
+Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech,
+Iain Barr, Yana Hasson, Karel Lenc, Arthur Mensch, Katie Millican,
+Malcolm Reynolds, Roman Ring, Eliza Rutherford, Serkan Cabi,
+Tengda Han, Zhitao Gong, Sina Samangooei, Marianne Monteiro,
+Jacob Menick, Sebastian Borgeaud, Andrew Brock, Aida Nematzadeh,
+Sahand Sharifzadeh, Mikolaj Binkowski, Ricardo Barreira,
+Oriol Vinyals, Andrew Zisserman, and Karen Simonyan.
+
+Flamingo: a visual language model for few-shot learning.
+
+In NeurIPS, 2022.
+
+[13]
+
+Yuhuai Wu, Markus N. Rabe, DeLesley Hutchins, and Christian Szegedy.
+
+Memorizing transformers.
+
+In ICLR, 2022.
+
+[14]
+
+Imanol Schlag, Kazuki Irie, and Jürgen Schmidhuber.
+
+Linear transformers are secretly fast weight programmers.
+
+In ICML, 2021.
+
+[15]
+
+Alex Graves, Greg Wayne, and Ivo Danihelka.
+
+Neural Turing machines.
+
+arXiv preprint arXiv:1410.5401, 2014.
+
