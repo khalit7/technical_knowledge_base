@@ -1549,3 +1549,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | CS7 | Real I-JEPA forward pass | 6 | | none | rejected: smallest released I-JEPA is ViT-H (about 2.5 GB); its output is vectors with nothing to show beyond the schematic |
 | CS8 | Temperature sweep toy (uniformity-tolerance curve) | 7 | | none | rejected as a separate visual: CS1's loss-against-τ curve and hardest-negative share carry the hardness argument on real data |
 | CS9 | Rebuild CLIP's 8 × 8 batch or softmax-against-sigmoid | | | none | rejected: on the CLIP paper page, linked |
+
+### Topic: rl (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_rl/src/viz_ideas.md`.
+

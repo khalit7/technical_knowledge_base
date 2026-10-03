@@ -1,0 +1,22 @@
+# Milestones and benchmarks (t-miles): visualisation ideas
+
+Question the tab answers: what has RL actually achieved, at what cost, and how far can the headline benchmark numbers be trusted when compared?
+
+Scoring as in `html_utils/interactive-html-ideas.md` section 2 (reproduces a figure x2, computable from printed data x2, shows what a sentence cannot, corrects a misconception, measures the central question, animation point; minus build cost).
+
+| # | Idea | What it shows | Score | Status |
+|---|---|---|---|---|
+| MS-1 | **Timeline by domain** (games, control, robotics, language), broken axis 1991 to 1993 and 2013 to 2026, hollow dots where a correction applies, filters by domain and "only with a correction", click a dot for the full card (achieved, method linked to Deep RL or RL for LLMs, compute or samples, printed results, correction, sources) | The whole subject on one time axis; where the field moved from games to robots to language | 9 | built |
+| MS-2 | **Atari-57, one printed table at a time**: source-table selector (11 tables), protocol selector (57 or 49 games, no-op or human starts; unavailable ones disabled), median or mean (disabled when the table prints none), as printed or by value; log bars with the human line; frames under each name; orange bars and notes where a reprint differs or a label does not match | Never splices tables or protocols; makes visible that a "median" belongs to a table | 11 | built |
+| MS-3 | **The climb, animated, headline medians**: the first printed 57-game no-op median of ten agents (DQN to Agent57), step by step, each naming its fix, with counters for median, frames (x the 200M standard) and games above human (printed or derived, labelled) | Khalid's suggestion; shows that the 4x jump at Ape-X arrives with 114x the frames, and that Agent57's median falls | 10 | built |
+| MS-4 | **All 57 games, animated** (before/after of the same input): 57 dots, one per game, sorted by score, morphing Ape-X, R2D2, MuZero, Agent57; median line; the games below human for all three earlier agents in orange; derived median, mean, capped mean, games above human, checked against the printed values | What a median hides: the hard-exploration tail stays near zero until Agent57 | 12 | built |
+| MS-5 | **Atari 100k** as a separate view: SPR, EfficientZero and BBF tables; median, mean, IQM (BBF only); linear scale, human = 1.0 | Sample efficiency kept off the Atari-57 axis; Agarwal et al.'s caveats | 8 | built |
+| MS-6 | **Same agent, different numbers**: DQN's six medians, MuZero 2,041.1 vs 2,381.51, Rainbow 223 vs 231.1, Prioritized 140 vs 123.7 vs 128, C51 178 vs 164, Agent57's median moved 42 points by baseline rounding, EfficientZero's three medians, R2D2 | Corrects splicing; carries the finding that Agent57's per-game table mistypes two MuZero scores (reproduced in recompute.py) | 11 | built |
+| MS-7 | Corrections list linking back to each card | One place for every corrected claim | 6 | built |
+| MS-8 | Compute across milestones on one axis (PF-days, TPU-days, GPU-hours, years of experience) | Rejected: the units differ and converting needs rates the sources do not state; the rule is never to put different kinds of figure on one axis. Compute stays in each card, in the source's own unit. | | rejected |
+| MS-9 | Learning curves (Rainbow ablations, R1-Zero AIME curve, AlphaZero Elo) redrawn | Rejected: printed only as figures; reading curves is forbidden. R1's curve is decoded on its paper page. | | rejected |
+| MS-10 | Human-starts median per agent for MuZero (2,281.9% from Table S2) | Rejected for the charts: derivable exactly from printed per-game values, but no paper prints it as a summary and it is not needed for the comparison; kept in recompute notes only. | | rejected |
+| MS-11 | Atari-57 "state of the art over time" line chart across papers | Rejected: a line implies one continuous measurement; the source tables differ in seeds, snapshot rules and budgets. The climb animation shows the same values as discrete, labelled steps instead. | | rejected |
+| MS-12 | LLM RLVR results (AIME) on one chart across o1, R1, DAPO | Rejected: different models, sampling (pass@1, avg@32, cons@64), AIME versions and graders; kept as printed numbers in the cards. | | rejected |
+
+What the methodology lacked here: a rule for reprinted numbers. Adopted: a reprint is shown in the table that prints it, flagged when it differs from the original; a reprinted per-game table is recomputed and compared value by value (that is how the Agent57 typo was found).
