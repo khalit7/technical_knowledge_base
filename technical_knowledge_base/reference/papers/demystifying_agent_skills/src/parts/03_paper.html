@@ -1,0 +1,249 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-meth">Method</a><a href="#s-r1">Skills vs memory</a><a href="#s-r2">Failure modes</a><a href="#s-r3">Labels and transfer</a><a href="#s-r4">Retrieval</a><a href="#s-trust">Believe it?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+<p class="small mute">Added to the knowledge base on 24 August 2026, when the {{2026-08-24 tech news issue|n:3c65c17b0d0d81ca8c8af3c2fc0c3ced}} listed it in its Research section as "an empirical study of when packaged agent skills help and where they stop transferring". The paper's own finding is narrower: transfer is the part that worked (see {{Labels and transfer|tab:t-read:s-r3}}); where skills stop helping is misapplication and retrieval.</p>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>A <b>skill</b> is a packaged piece of procedural knowledge an agent can load at run time: a folder holding a <code>SKILL.md</code> file (a name, a one-line description, then steps, checks and pitfalls) and any scripts it needs. Anthropic popularised the format ({{Anthropic engineering, 16 October 2025|https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills}}). The agent first sees only each skill's name and description, and reads the body when it judges the skill relevant ("progressive disclosure"). Claude Code, Codex and Gemini CLI all load skills this way, and the paper's protocol does the same: skills are "placed in the execution environment as reusable procedural resources rather than fully incorporated into the initial context" ({{§3.2|ax:S3.SS2}}).</p>
+<p>Skills are usually judged by aggregate task success: load the skill, count how many more tasks pass ({{§1|ax:S1}}). That says skills matter but not why. It does not show:</p>
+<ul class="tight">
+<li>what changes in the agent's behaviour when a skill is loaded;</li>
+<li>which parts of execution get stabilised;</li>
+<li>why the same skill helps one task and hurts another;</li>
+<li>whether a gain comes from the distilled procedure itself, or from outcome labels, retrieval quality or coupling to one framework.</li>
+</ul>
+<p>So skills are "written, retrieved, and revised through heuristic iteration, prompt tuning, or benchmark-specific trial and error" ({{§1|ax:S1}}).</p>
+<p class="lead"><b>The question:</b> when do skills help, why do they work, and where do they fail? The authors treat skill use as a controlled transformation of prior agent experience, not as a black-box prompt add-on ({{§3.1|ax:S3.SS1}}).</p>
+</section>
+
+<section id="s-idea"><h2>Idea: hold the experience fixed, change only its packaging</h2>
+[[S3.SS3|§3.3, Figure 1]]
+<p>Run an agent on a task several times and keep the trajectories, some successful and some failed. That pool of experience can be handed to the next run in two forms ({{§3.3|ax:S3.SS3}}, {{Table 5|ax:A1.T5}}):</p>
+<ul class="tight">
+<li><b>Workflow Memory:</b> the trajectories, cleaned and structured but keeping their procedural flow, appended to the task instruction (the representation of {{Agent Workflow Memory|https://arxiv.org/abs/2409.07429}}, Wang et al. 2024).</li>
+<li><b>Skill:</b> the same trajectories distilled by a model into one standardised <code>SKILL.md</code>, placed in the environment.</li>
+</ul>
+<p>Both are compared with Raw, the agent with no prior experience. Because Workflow Memory and Skill come from the identical pool, any difference between them is the packaging, not the experience. This is the paper's central control.</p>
+<p>Here is the paper's own worked example ({{Appendix A.3|ax:A1.SS3}}): one SkillsBench task, <code>react-performance-debugging</code>, under the 1s4f setting (the skill and the memory were built from one successful and four failed trajectories). Toggle the three arms. The service latencies are the task's own ({{server.ts|https://github.com/benchflow-ai/skillsbench/blob/main/tasks/react-performance-debugging/environment/api-simulator/src/server.ts}}), so the timelines are to scale. The {{Replay the paired run|tab:t-run}} tab has the full excerpts and lets you schedule the calls yourself.</p>
+<div class="card" id="rp">
+<div class="an-top"><div class="seg" id="rpM" role="group" aria-label="Arm"><button data-m="raw" aria-pressed="false">Raw</button><button data-m="wf" aria-pressed="false">Workflow Memory</button><button data-m="skill" class="on" aria-pressed="true">Skill</button></div>
+<span class="small mute">{{Appendix A.3|ax:A1.SS3}}, quoted; latencies from the public task.</span></div>
+<div id="rpSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rpBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rpPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rpFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rpScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="rpSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rpStep"></div><p id="rpCap"></p></div>
+<div class="an-cnt" id="rpCnt"></div>
+<p class="small mute" style="margin:6px 0 0">The verifier's two checkout tests are from the task's {{test_outputs.py|https://github.com/benchflow-ai/skillsbench/blob/main/tasks/react-performance-debugging/verifier/test_outputs.py}}: under 800 ms, and at least 400 ms so that the external services are proved to be called. Measured times are the paper's. The paper does not show Raw's checkout code; its 7 ms means no external call was made. The animation stops when it is off screen, and starts paused if your system asks for reduced motion.</p>
+</div>
+<p>One detail the paper does not mention: the Workflow Memory arm's "final checkout patch" is, line for line, the route the task ships with ({{route.ts|https://github.com/benchflow-ai/skillsbench/blob/main/tasks/react-performance-debugging/environment/website/src/app/api/checkout/route.ts}}). The memory-guided agent left this endpoint as it found it: wait for the slower of user (400 ms) and config (600 ms), then fetch profile (300 ms), 600 + 300 = 900 ms. The skill's rule, "start promises early, await late", gives max(400 + 300, 600) = 700 ms, the same schedule as the task's reference solution ({{solve.sh|https://github.com/benchflow-ai/skillsbench/blob/main/tasks/react-performance-debugging/oracle/solve.sh}}).</p>
+<p><b>The skill-creator prompt.</b> Skills were written by a model from the trajectories with a fixed template ({{Appendix B.1|ax:A2.SS1}}): "Use This Skill When", "Preconditions", numbered "Steps", "Common Failure Modes To Avoid", "If A Failure Happens" and "Verify", with rules such as "Produce exactly ONE skill", "general enough to apply to similar tasks" and "Do not include task-specific file paths or data". Toggle the no-hint version used for the outcome-label ablation ({{Appendix B.2|ax:A2.SS2}}) to see the only lines that change.</p>
+<div class="card" id="scr">
+<div class="seg" id="scrM" role="group" aria-label="Prompt version"><button data-m="normal" class="on">Outcomes visible (B.1)</button><button data-m="nohint">No-hint (B.2)</button></div>
+<div id="scrBody" class="mono small" style="white-space:pre-wrap;line-height:1.45"></div>
+</div>
+</section>
+
+<section id="s-meth"><h2>Method</h2>
+[[S3.SS2|§3.2, Appendix A]]
+<p><b>Four research questions</b> ({{§3.1|ax:S3.SS1}}):</p>
+<ul class="tight">
+<li><b>RQ1, representation:</b> does the same experience behave differently as Workflow Memory or as a Skill?</li>
+<li><b>RQ2, outcome labels:</b> do skills help because of the procedures, or because the skill creator knew which runs succeeded?</li>
+<li><b>RQ3, transfer:</b> do skills built in one agent framework still help in another?</li>
+<li><b>RQ4, retrieval:</b> what happens when the skill must be found in a growing, confusable library?</li>
+</ul>
+<p><b>Agents, models, benchmarks</b> ({{§3.2|ax:S3.SS2}}, {{Appendix A.1|ax:A1.SS1}}):</p>
+<ul class="tight">
+<li>Two agent and model pairings: Codex + GPT-5.3-Codex and Gemini CLI + Gemini-3.1-Pro-Preview.</li>
+<li>Three benchmarks: Terminal-Bench 2.0 (89 tasks), the 200-task public split of Terminal-Bench-Pro (400 tasks in 8 domains), and SkillsBench (86 tasks in 11 domains, with native task-to-skill annotations).</li>
+<li>Harbor's evaluation workflow, n = 5 trials per task, parallelism 20.</li>
+<li>RQ1 and RQ2 use controlled subsets of tasks; this page recovers their sizes from the printed rates in the {{tables tab|tab:t-tables:tb1}} (for Codex 31, 24 and 33 tasks; for Gemini 26, 21 and 26).</li>
+</ul>
+<p><b>The composition grid (RQ1, RQ2).</b> For each task the authors kept tasks whose raw runs both succeeded and failed, collected runs until each had a balanced pool, then built artifacts from six fixed-budget mixtures of five trajectories: 5s0f (five successes, no failures), 4s1f, 3s2f, 2s3f, 1s4f, 0s5f ({{§3.3|ax:S3.SS3}}, {{Appendix A.4|ax:A1.SS4}}). For every mixture, Workflow Memory and Skill are built from the same five trajectories. The no-hint variant hides the success and failure labels from the skill creator only ({{Appendix A.5|ax:A1.SS5}}).</p>
+<p><b>Transfer (RQ3).</b> Artifacts built from Codex trajectories are evaluated in Gemini CLI against Gemini's own Raw baseline ({{Appendix A.6|ax:A1.SS6}}).</p>
+<p><b>The contrastive taxonomy</b> ({{§4|ax:S4}}, {{Appendix A.2|ax:A1.SS2}}):</p>
+<ul class="tight">
+<li>8,135 trial records normalised into one manifest, 7,837 of them with transcripts ({{Table 7|ax:A1.T7}}).</li>
+<li>Open coding of 240 stratified trajectories by Claude Sonnet 4.6, tools and session memory disabled, with fixed transcript budgets (instruction and skill 3,000 characters each, transcript head 6,000 and tail 12,000). 238 valid unique labels came back.</li>
+<li>A two-round batched induction merges them: batches of about 60 propose 8 to 14 modes each, then a merge prompt asks for 9 to 14 global modes. It produced 12, in 3 categories:
+<ul class="tight">
+<li><b>SC1, guided success:</b> skill-guided, workflow-guided, autonomous;</li>
+<li><b>SC2, execution and verification failures:</b> environment or infrastructure, output format or schema mismatch, background-service lifecycle, shell corruption, algorithmic logic error, static verification without runtime;</li>
+<li><b>SC3, invocation and boundary failures:</b> timeout or budget exhaustion, skill guidance misapplied or ignored, capability or safety limit.</li>
+</ul></li>
+<li>A human check: for each of the 238 labels, three supporting trajectories (714 checks), all confirmed; the human's independent mapping of the 238 labels to the 12 modes agrees with the LLM's 95.8% of the time, Cohen's κ = 0.952 ({{Table 3|ax:S4.T3}}).</li>
+<li>The unit of analysis is a <b>paired triple</b>: raw, workflow and skill runs of the same task and mixture. There are 528 (SkillsBench 144, Terminal-Bench 2.0 186, Terminal-Bench-Pro 198), giving 1,584 arm-level labels. For each triple the judge also names a mechanism: procedural_anchor, knowledge_injection, failure_warning, none or counterproductive ({{Table 2|ax:S3.T2}}).</li>
+</ul>
+<p><b>Retrieval (RQ4)</b> ({{§5.5|ax:S5.SS5}}, {{Appendix A.7|ax:A1.SS7}}):</p>
+<ul class="tight">
+<li>Each SkillsBench task gets a candidate pool of its ground-truth skill plus k − 1 real distractors, k ∈ {5, 10, 20, 50, 100}, drawn three ways: random, semantically similar (embedding near-neighbours) or dissimilar.</li>
+<li><b>Arm 1:</b> embedding retrieval with Qwen3-Embedding-0.6B, top-1 by cosine similarity.</li>
+<li><b>Arm 2:</b> the agent explicitly selects skills without running the task.</li>
+<li><b>Arm 3:</b> the full pool is placed in the environment, the task runs, and the skills the agent inspected or invoked are parsed from the trajectory.</li>
+<li>Outputs are never passed between arms. Arms 2 and 3 use Gemini CLI + Gemini-3.1-Pro-Preview and Codex + GPT-5.4, because GPT-5.3-Codex was no longer available; the authors therefore compare only within this study.</li>
+</ul>
+</section>
+
+<section id="s-r1"><h2>Result 1: skills beat workflow memory, not clearly raw</h2>
+[[S5.SS1|§5.1, Tables 9, 10, 12]]
+<div class="pred" id="pr1" data-ans="1"><div class="q">In the 528 paired triples, which difference is clearly above zero?</div>
+<div class="opts"><button>Skill over Raw</button><button>Skill over Workflow Memory</button><button>Workflow Memory over Raw</button></div><div class="fb"></div>
+<div class="reveal" hidden><div id="ciPlot" class="plot"></div><p class="small mute">Mean paired difference and 95% bootstrap interval, {{Table 10|ax:A1.T10}}; success counts from {{Table 9|ax:A1.T9}}.</p></div></div>
+<p>Oracle-status success (the benchmark verifier's reward) is 61.9% for Skill (327 of 528), 59.1% for Raw (312) and 55.9% for Workflow Memory (295) ({{Table 9|ax:A1.T9}}). The robust paired effect is Skill over Workflow Memory: +6.06 points, 95% bootstrap interval [+0.76, +11.36] over 1,000 resamples. Skill over Raw is +2.84 [−2.27, +7.95], and Workflow Memory sits below Raw at −3.22 [−8.14, +2.08] ({{Table 10|ax:A1.T10}}). Same trajectories, different packaging: the paper's reading is that representation itself is doing the work ({{§5.1|ax:S5.SS1}}).</p>
+<p><b>Not just any short hint.</b> On 26 Terminal-Bench-2 tasks with Gemini (130 trials per condition), two compact baselines injected as plain text do worse ({{Table 12|ax:A1.T12}}): an instruction-derived short plan of three to five steps reaches 47.7%, a workflow-derived test-first template 59.2%, against Raw 50.0%, Workflow Memory 62.3% and Skill 79.2%. Those Raw, Workflow and Skill figures equal Table 1's Gemini Terminal-Bench-2 cells at 5s0f, the mixture where skills did best, so the baselines were measured against skills at their best.</p>
+<p><b>The full runs tell a more mixed story.</b> Table 1 holds every condition's success over all five trials per task (the 528 triples use one trial per arm). Below, Skill minus Workflow Memory for every setup and mixture, with a binomial interval from the trial counts this page recovers.</p>
+<div class="card"><div id="dPlot" class="plot"></div>
+<p class="small mute">Bars are 95% intervals (±1.96 standard errors, treating trials as independent; trials of one task are correlated, so these are too narrow if anything). Trial counts are the smallest n for which every printed four-decimal rate is a whole number of successes ({{Table 1|ax:S1.T1}}; <code>recompute.py</code>).</p></div>
+<ul class="tight">
+<li>Codex on Terminal-Bench-2 carries the result: workflow memory drags Codex below its Raw 0.5935 in all six mixtures (down to 0.2710), while skills sit at 0.68 to 0.78 in five.</li>
+<li>Gemini on Terminal-Bench-Pro goes the other way: Workflow Memory beats Skill in five of six mixtures.</li>
+<li>Across all 36 cells Skill wins <span id="wins"></span>.</li>
+</ul>
+<p><b>Mechanism labels.</b> The judge's mechanism labels say how skills help: procedural_anchor accounts for 65.7% of skill mechanism labels, knowledge_injection for 4.5% ({{§5.1|ax:S5.SS1}}). Skills stabilise action (setup order, tool sequences, intermediate checks, known pitfalls) rather than supply missing facts. Under the taxonomy, skill arms land in the successful-procedure class in 61.7% of triples, raw in 59.1% and workflow in 55.7%. skill_guided_success is 61.6% of skill-arm labels and workflow_guided_success 54.5% of workflow-arm labels, so workflow memory also guides: raw traces "often contain reusable commands, parameter choices, and debugging evidence". It just keeps more incidental process, failed attempts and task-specific detail.</p>
+<div class="pred" id="pr2" data-ans="0"><div class="q">Skills are "compressed" experience. Per task, which representation used more input tokens?</div>
+<div class="opts"><button>Skill</button><button>Workflow Memory</button><button>About the same</button></div><div class="fb"></div>
+<div class="reveal" hidden><div id="tokPlot" class="plot"></div><p class="small mute">Per-task averages on the 83 tasks where all three arms have usable token data, equal task weighting ({{Table 13|ax:A1.T13}}).</p></div></div>
+<p>Skill runs used 511.7K input tokens per task against 417.9K for Workflow Memory (+93.8K, about 22% more) and 541.5K for the Raw row. Its success was 69.6% against 64.8% and 64.1%. The paper calls Skill "the more effective representation and Workflow Memory the more token-efficient one" ({{Appendix A.9|ax:A1.SS9}}). The extra tokens come from the run, not from the artifact: the skill is read from the environment, and skill runs then do more work. The Raw row of this table is described as "full prior traces", which contradicts Raw's definition everywhere else (no prior experience); see {{How much to believe|tab:t-read:s-trust}}.</p>
+</section>
+
+<section id="s-r2"><h2>Result 2: what skills fix, and the failure they add</h2>
+[[S5.SS2|§5.2, §5.3, Table 11, Figure 2]]
+<p>The taxonomy splits the 528 triples by failure mode. Tap a group to see its modes; counts are out of 528 per arm.</p>
+<div class="card"><div class="seg" id="txM" role="group" aria-label="Category"><button data-m="SC2" class="on">SC2 execution and verification</button><button data-m="SC3">SC3 invocation and boundary</button><button data-m="SC1">SC1 success</button></div>
+<div id="txPlot" class="plot"></div>
+<p class="small mute">{{Table 11|ax:A1.T11}} percentages; the counts are this page's decoding of {{Figure 2|ax:S0.F2}}'s vector bars, which match all 36 cells of Table 11.</p></div>
+<p><b>Execution-layer failures fall</b> ({{§5.2|ax:S5.SS2}}). SC2 modes are 37.3% of raw labels, 33.3% of workflow labels and 23.5% of skill labels (197, 176 and 124 of 528). The clearest:</p>
+<ul class="tight">
+<li>environment_infrastructure_failure: 5.3% raw, 1.7% workflow, 0.2% skill. "Environment and tooling problems are highly skillable": once a reliable setup sequence, dependency workaround or path convention is found, it can be written down.</li>
+<li>output_format_schema_mismatch: 7.4% to 3.2%.</li>
+<li>background_service_lifecycle_failure: 2.7% to 0.8%.</li>
+<li>shell_code_corruption: 1.1% to 0.2%.</li>
+</ul>
+<p>These failures arise when the agent fails to keep concrete constraints active, not from missing high-level reasoning.</p>
+<p><b>Reasoning failures do not.</b> algorithmic_logic_error stays at 8.3%, 11.0% and 7.4%; static_verification_without_runtime at 12.5%, 12.5% and 11.7%. Skills do not repair a wrong algorithm or force runtime checking against the oracle.</p>
+<p><b>A new failure surface</b> ({{§5.3|ax:S5.SS3}}). skill_guidance_misapplied_or_ignored is 10.0% of skill-arm labels against 0.8% raw and 0.4% workflow. The skill is present and plausible, but the agent applies it mechanically, misses a condition, or carries over assumptions that no longer hold. "A skill is not self-executing": the agent still has to decide whether it applies, which parts to follow, how to adapt it and when to drop it.</p>
+<p><b>Workflow memory fails by overload.</b> timeout_budget_exhaustion is 10.6% of workflow runs, against 4.4% with skills and 1.7% raw. Verbose traces carry failed branches and debugging noise that distract from the decisive procedure. So skill use is a pipeline: experience must be distilled at the right level, retrieved for a compatible context, invoked, and adapted.</p>
+</section>
+
+<section id="s-r3"><h2>Result 3: outcome labels matter once failures enter; transfer works</h2>
+[[S5.SS4|§5.4, Figures 4 and 5, Table 16]]
+<p><b>Outcome labels</b> ({{§5.4|ax:S5.SS4}}). The no-hint skill creator sees the same five trajectories but not which succeeded. Pick a setup:</p>
+<div class="card"><div class="seg" id="nhM" role="group" aria-label="Setup"></div>
+<div id="nhPlot" class="plot"></div>
+<p class="small mute">{{Table 16|ax:A3.T16}} (the "normal" rows equal Table 1's Skill column); dashed line: that setup's Raw. Bars: ±1.96 binomial standard errors at the recovered trial counts.</p></div>
+<p>The paper's summary: withholding labels "has little effect when the source pool contains only successful trajectories, but its impact grows sharply once failed trajectories are introduced". The headline case is Gemini on Terminal-Bench-2 at 3s2f, 0.7462 with labels against 0.4000 without, and the same ordering holds for every completed Gemini Terminal-Bench-2 and SkillsBench mixture. Labels guide what the distillation keeps. Two qualifications from the same table:</p>
+<ul class="tight">
+<li>At 5s0f the effect is not small for Gemini: 0.7923 against 0.4231 on Terminal-Bench-2 and 0.7429 against 0.6190 on SkillsBench. Codex fits the summary.</li>
+<li>On Terminal-Bench-Pro the no-hint skill is better in four cells: Codex at 5s0f (0.8364 against 0.7455) and Gemini at 3s2f, 2s3f and 0s5f. The summary's careful wording leaves Terminal-Bench-Pro out.</li>
+</ul>
+<p><b>Mostly-failure pools make poor skills.</b> At 0s5f the Skill arm falls below Raw in all six setups of Table 1, and Workflow Memory in four.</p>
+<p><b>Transfer</b> (RQ3, {{Figure 4|ax:S3.F4}}). Skills distilled from Codex trajectories improve Gemini CLI over its own Raw baseline (56%) in every mixture and beat transferred Workflow Memory, so distillation is "the more portable representation" ({{§3.3|ax:S3.SS3}}). The paper gives no numbers in the text; the figure's printed labels are below.</p>
+<div class="card"><div id="trPlot" class="plot"></div>
+<p class="small mute">Values are {{Figure 4|ax:S3.F4}}'s printed labels (the bar tops decoded from the vector figure agree). The figure does not say which benchmark or how many trials. All 13 values are even whole percentages, which 50 trials (10 tasks × 5) would force; the error bars assume that and are labelled derived.</p></div>
+</section>
+
+<section id="s-r4"><h2>Result 4: finding the skill and using it are different things</h2>
+[[S5.SS5|§5.5, Figure 3, Table 4]]
+<div class="pred" id="pr3" data-ans="2"><div class="q">The pool grows from 5 to 100 candidate skills. What happens to downstream task success in Arm 3?</div>
+<div class="opts"><button>Falls sharply</button><button>Falls a little</button><button>Stays about flat (rises slightly)</button></div><div class="fb"></div>
+<div class="reveal" hidden><div id="rtPlot" class="plot"></div><p class="small mute">Averages over the random, similar and dissimilar pools ({{Table 4|ax:S5.T4}}); Arms 2 and 3 also average the two agents ({{Figure 3|ax:S3.F3}}).</p></div></div>
+<p>As pools grow from 5 to 100 ({{§5.5|ax:S5.SS5}}):</p>
+<ul class="tight">
+<li>embedding top-1 precision falls from 88.3% to 76.9%, and explicit agent selection from 70.0% to 63.7%;</li>
+<li>parsed actual-use precision collapses from 29.6% to 3.3%: Gemini from 16.9% to 0.7%, Codex from 42.3% to 5.9%;</li>
+<li>yet success moves from 36.4% to 39.3%: Gemini stays around 36 to 39%, Codex rises from 35.4% to 42.0%.</li>
+</ul>
+<p>Arm 3 recall stays at 54.3% to 73.6% at k = 100 while precision is 0.7% to 8.1%. Agents inspect or invoke several candidates without restricting themselves to the annotated skill. Hence "exact ground-truth invocation is neither sufficient nor necessary": agents succeed with related non-ground-truth skills and fail with the right one in hand.</p>
+<p><b>Confusable distractors are the main stressor</b> for the offline arms. Embedding top-1 on similar pools falls from 70.5% at k = 5 to 53.4% at k = 100, against 97.7% to 84.1% for random and 96.6% to 93.2% for dissimilar pools. Agent selection on similar pools is 54.3% (Gemini) and 51.9% (Codex) at k = 5, and 55.4% and 31.9% at k = 100. Selection recall at k = 100 stays at 70.5% to 85.2%: agents tend to pick the right skill together with distractors rather than miss it ({{Table 15|ax:A3.T15}}).</p>
+<p class="co"><b>What the precision collapse measures.</b> Two facts in the paper's own tables, derived on this page:</p>
+<ul class="tight">
+<li>Every SkillsBench task here has exactly one ground-truth skill: in all 27 cells of {{Table 14|ax:A3.T14}}, top-3 precision is recall ÷ 3 and top-5 precision is recall ÷ 5.</li>
+<li>With one gold skill, a run that touches m skills and finds the gold one has precision 1/m. Gemini's Arm 3 precision tracks recall ÷ k at every pool size (at k = 100, 0.7% against 66.0 ÷ 100). Recall ÷ precision suggests Gemini touches about 88 to 95 of 100 skills, Codex about 8 to 22.</li>
+</ul>
+<p>So for Gemini the "collapse" mostly counts how many skills it opens or lists, not how well it discriminates. The {{retrieval explorer|tab:t-tables:rt}} overlays that "opens everything" line.</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[A1.T10|Tables 1, 9 to 16, Figures 2 and 4]]
+<p><b>What holds up.</b></p>
+<ul class="tight">
+<li><b>The control is the right one.</b> Workflow Memory and Skill are built from the same five trajectories per task and mixture, so the comparison isolates packaging. Few skill papers do this.</li>
+<li><b>Skill beats Workflow Memory in most of the full data.</b> In Table 1, Skill wins <span id="wins2"></span>. The biggest gaps are many standard errors wide (Codex Terminal-Bench-2, Gemini Terminal-Bench-2 and SkillsBench).</li>
+<li><b>The failure-mode shifts are large where it matters.</b> skill_guidance_misapplied_or_ignored at 53 of 528 against 4 is far beyond judge noise, as is environment failures at 28 against 1.</li>
+<li><b>The numbers check.</b> This page reproduces Tables 9 to 11, the SC totals, the §5.5 averages and Table 4 from Tables 14 and 15 (44 of 45 cells exactly, one 0.1 off), and decodes Figure 2 to counts that match Table 11 in all 36 cells ({{checks|tab:t-tables:chk}}).</li>
+<li><b>The authors state limits themselves</b> ({{§7|ax:S7}}): terminal and tool benchmarks only, few agent and model configurations, and a taxonomy induced from a sample of about 3% of records. The appendix adds that the triple labels are LLM-assisted, not exhaustively human-coded, and that one trial per arm is used. That counts in their favour.</li>
+</ul>
+<p><b>What to discount.</b></p>
+<ul class="tight">
+<li><b>The +6.06 rests on one trial per arm on 88 Codex tasks, and its interval treats correlated triples as independent.</b> The triple counts per benchmark (144, 186, 198) are six times Codex's task counts (24, 31, 33), not Gemini's, and the judge prompt names transcripts <code>codex.txt</code>; so the taxonomy and the +6.06 are Codex + GPT-5.3-Codex only. Each task contributes six triples, one per mixture. The Raw run is literally the same trajectory in all six: Raw succeeds on 52 of 88 tasks in every mixture of Figure 2, and 312 = 6 × 52. The bootstrap resamples the 528 triples as if they were independent. Move the slider to let a task's six paired differences be correlated:
+<div class="card" id="deff"><label class="small">Correlation within a task's six triples, ρ: <b id="rhoV"></b><input type="range" id="rho" min="0" max="0.5" step="0.01" value="0"></label><div id="deffPlot" class="plot"></div><p class="small mute" id="deffTxt"></p></div>
+Derived: the interval's standard error is about 0.027 (normal approximation), and a design effect of 1 + 5ρ for clusters of six puts the lower bound at zero from ρ ≈ 0.06. The six per-mixture differences are +6, +10, +1, +9, +11 and −5 tasks of 88.</li>
+<li><b>The result changes sign across setups.</b> Gemini on Terminal-Bench-Pro favours Workflow Memory in five of six mixtures, and Codex on Terminal-Bench-Pro is a tie. One trial per cell and no seeds; Table 1 has no error bars.</li>
+<li><b>One LLM judge, with visible noise.</b> Every mode and mechanism label comes from Claude Sonnet 4.6. The human check validates the label vocabulary (238 labels), not the 1,584 paired assignments. Two signs of noise come from the paper's own Figure 2:
+<ul class="tight">
+<li>The same 88 raw trajectories, judged six times beside different companions, get different label mixes: at least <span id="relab"></span> of 88 change label between two mixtures.</li>
+<li>The judge calls <span id="rawsg"></span> raw runs per mixture "skill-guided success" (55 of 528, 10.4%), though Raw had no skill.</li>
+</ul>
+Differences of a few points between modes (algorithmic errors 8.3 against 7.4) are within that noise.</li>
+<li><b>Procedural anchoring is not what separates skills from memory.</b> A commented-out draft paragraph in the arXiv source reports anchoring for 72% of workflow effects and 66% of skill effects, with workflow carrying 12% counterproductive attributions. The published text reports only the skill share. Both representations anchor; the difference is noise and overload. (From the LaTeX source, not the published text.)</li>
+<li><b>Retrieval: the metric and the missing control.</b> Arm 3 precision mostly measures how many skills an agent touches (see Result 4). Arm 3 never runs without skills or with only the gold skill, so "success stays flat" cannot tell whether skills help at all at any pool size. The Codex pairing also changed model (GPT-5.4), which the authors flag.</li>
+<li><b>Small or unstated samples.</b> Figure 4's transfer result gives no benchmark or trial count; its values fit 50 trials, where one standard error is about 7 points. The compact baselines use 26 tasks and were compared at skills' best mixture. Table 1's caption says Terminal-Bench-Pro uses 130 trials per condition; Codex's cells fit 165.</li>
+<li><b>Inconsistencies.</b>
+<ul class="tight">
+<li>Table 13 calls Raw "full prior traces".</li>
+<li>Retrieval uses 88 queries (every top-1 value is k/88), though the text says SkillsBench has 86 tasks; SkillsBench itself now lists 87.</li>
+<li>Table 7's skill-arm trials and failed trials are both 3,594; both rows add up to 8,135, so either could be right.</li>
+<li>The LaTeX source shows the study was redesigned: a Claude Code pairing ("not presented in this version"), a 241-task retrieval study with Qwen3.6 and a cross-task transfer RQ were dropped.</li>
+</ul>
+None of these changes a conclusion's direction.</li>
+</ul>
+<p class="co key"><b>Verdict.</b> Believe the direction and the qualitative failure modes. Distilled skills usually beat the same experience pasted in as traces, mainly by cutting setup, format and service mistakes and avoiding trace overload, and they add a real misapplication failure. Treat "+6.06 points" and the mechanism percentages as one judge's labels on one trial per arm for one agent: the interval would not survive modest clustering, and one setup reverses. On retrieval, believe that confusable near-duplicates hurt offline identification; do not read the precision collapse as evidence that retrieval does not matter.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul class="tight">
+<li><b>Code:</b> none released. The appendix mentions "released artifacts" without an address (checked 3 October 2026). The skill-creator prompts ({{Appendix B|ax:A2}}) are printed in full and are the reusable part.</li>
+<li><b>Format and tooling:</b> SKILL.md folders as in {{anthropics/skills|https://github.com/anthropics/skills}}; Agent Skills became an open standard on 18 December 2025 ({{Anthropic|https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills}}). Evaluation used {{Harbor|https://github.com/harbor-framework/harbor}} on public benchmarks.</li>
+<li><b>Budget:</b> Skill runs averaged 521.5K tokens per task, 95.3K more than Workflow Memory but 34.2K fewer than the Raw row ({{Table 13|ax:A1.T13}}). Building a skill needs five prior runs of the task plus one creator call.</li>
+<li><b>Where it paid off:</b> repeated execution-layer trouble (environment setup, output formats, background services), and Codex on Terminal-Bench-2, where raw traces actively hurt.</li>
+<li><b>Where it bought little or hurt:</b>
+<ul class="tight">
+<li>tasks needing a different algorithm or real runtime verification;</li>
+<li>skills distilled from mostly failed runs (below Raw in all six setups at 0s5f);</li>
+<li>Gemini on Terminal-Bench-Pro.</li>
+</ul></li>
+<li><b>Practical reading</b> (the paper's implications, as the old page put them):
+<ul class="tight">
+<li>write skills as procedural anchors (setup sequences, checklists, verification steps, pitfalls), not fact sheets;</li>
+<li>distil rather than paste raw session transcripts into memory, since verbose traces measurably cause timeouts;</li>
+<li>keep success and failure labels attached when generating skills from mixed experience;</li>
+<li>expect skills to transfer across harnesses;</li>
+<li>worry less about perfect retrieval than about confusable near-duplicate skills in the library and about the agent's judgment in applying a retrieved skill.</li>
+</ul></li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="tag2">beyond the paper</span></h2>
+<p>It is the first mechanistic account of why the SKILL.md pattern works, and it bears directly on how to write and manage skills for harnesses like Claude Code (practical points above). It also reframes evaluation for self-evolving agents: aggregate pass rates hide that skills trade execution-layer failures for a new class of misapplication failures. Skill pipelines need lifecycle-level evaluation (generate, retrieve, invoke, adapt), not only end-to-end success ({{§6|ax:S6}}).</p>
+<p>The outside evidence points the same way:</p>
+<ul class="tight">
+<li>{{SkillsBench|https://arxiv.org/abs/2602.12670}}'s own paired evaluation (87 tasks, 18 model and harness configurations) finds curated skills raise the average pass rate from 33.9% to 50.5%. Focused skills with at most three modules beat larger bundles.</li>
+<li>{{SWE-Skills-Bench|https://arxiv.org/abs/2603.15401}} finds 39 of 49 public skills give no gain on real repositories (+1.2% on average). Three hurt "due to version-mismatched guidance conflicting with project context": the misapplication mode, seen from outside.</li>
+</ul>
+<p>The validated LLM-judge taxonomy pipeline (open coding, batched induction, a human check of grounding and aggregation, paired comparisons) is a reusable pattern for agent evaluation. Its weak spot, the per-trajectory labels themselves, is the part this page could test.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="tight">
+<li>{{ReAct|n:3c65c17b0d0d816b9a24c28de8f08ea8}} (2022-10): the baseline acting paradigm these agents run; skills sit on top as reusable procedural memory.</li>
+<li>{{Agent Workflow Memory|https://arxiv.org/abs/2409.07429}} (Wang et al., 2024, arXiv 2409.07429): the direct-workflow-memory representation used as the contrast arm.</li>
+<li>{{SkillsBench|https://arxiv.org/abs/2602.12670}} (Li et al., 2026, arXiv 2602.12670) and {{Terminal-Bench|https://arxiv.org/abs/2601.11868}} (Merrill et al., 2026, arXiv 2601.11868): the benchmarks. SkillsBench supplies the task-to-skill ground truth for the retrieval study.</li>
+<li>{{SWE-Skills-Bench|https://arxiv.org/abs/2603.15401}} (Han et al., 2026, arXiv 2603.15401): marginal utility of skill documents in real software engineering, at the success-rate level; this paper adds the mechanism layer.</li>
+<li>{{Anthropic Agent Skills|https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills}} (2025): the skill format and usage protocol under study.</li>
+<li>In this knowledge base: {{StateM|n:3c65c17b0d0d81899098d8153e100691}} (the same week's harness result), {{Repo-To-Skill|n:3d45c17b0d0d818bacfeda8a40caddb2}}, {{Just-in-Time Memory|n:3e95c17b0d0d818f89b3f066f816727b}}, and the {{2026-08-24 tech news issue|n:3c65c17b0d0d81ca8c8af3c2fc0c3ced}} that covered it.</li>
+<li>Topics: {{agentic harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} (Claude Code, Codex and Gemini CLI skill systems), {{agentic frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}, {{benchmarks|n:3c65c17b0d0d811fb43fece56e40041a}}, {{evaluation and LLM judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}} (the validated LLM-judge taxonomy pipeline is a reusable pattern).</li>
+</ul>
+</section>
+</section>

@@ -1,0 +1,8 @@
+# Inputs
+
+- `paper_v1.txt`, `tables_v1.txt`, `anchors.txt`: the arXiv HTML v1 of 2608.14036 (the only version, 14 August 2026), extracted by `../extract_paper.py`.
+- `fig2_decoded.json`, `fig4_decoded.json`: Figures 2 and 4 read from the vector PDFs in the arXiv e-print (`assets/taxonomy_per_setting.pdf`, `assets/fig_cross_agent_transfer.pdf`) by `../decode_figs.py`, calibrated on the gridlines and tick labels.
+- `skillsbench_react_performance_debugging/`: small extracts of the public SkillsBench task used in the paper's Appendix A.3 example, from https://github.com/benchflow-ai/skillsbench/tree/main/tasks/react-performance-debugging (Apache-2.0; last commit touching the task 9a1f4dd, 23 July 2026, fetched 3 October 2026): `task.md`, the service simulator `server.ts` (latencies), the shipped checkout `route.ts`, the head of the verifier `test_outputs.py`, and the checkout fix of the reference `solve.sh`.
+- `recompute.json`: written by `../recompute.py`.
+- Facts from outside the paper quoted on the page (fetched 3 October 2026): the Anthropic engineering post (published 16 October 2025; open standard 18 December 2025; progressive disclosure), the abstracts of SkillsBench (arXiv 2602.12670: 87 tasks, 18 configurations, 33.9% to 50.5%), SWE-Skills-Bench (2603.15401: 39 of 49 skills no gain, +1.2% average, three degrade), Agent Workflow Memory (2409.07429) and Terminal-Bench (2601.11868: 89 tasks).
+- The LaTeX source's commented-out draft (procedural anchoring 72% of workflow effects and 66% of skill effects, 12% counterproductive for workflow; "Claude Code results are not presented in this version"; the dropped RQ designs) was read from `acl_latex.tex` in the e-print; the e-print itself is not kept (about 1 MB of PDFs).
