@@ -1,0 +1,47 @@
+{
+ "reward_model": {
+  "spec": "the bench reward spec \u2014 performance class, BOUNDED log form",
+  "name": "reward_md_log_speedup_v2_oracle_zero",
+  "formula": "reward = min(1.0, ln(speedup/ref_speedup)/ln(ref_speedup)) if speedup > ref_speedup else 0.0; range [0,1]",
+  "speedup_definition": "baseline_bpb / candidate_val_bpb  (held-out bits-per-byte at a FIXED wall-clock training budget; lower bpb is better, so the ratio is >1 only when the candidate beats the baseline recipe)",
+  "metric_kind": "quality_at_fixed_budget",
+  "metric_name": "val_bpb",
+  "metric_direction": "lower_is_better",
+  "timing_measured": false,
+  "semantic_caveat": "`speedup` / `ref_speedup` carry a QUALITY ratio, not a wall-clock ratio. Nothing in the reward is timed (the wall-clock is the fixed RESOURCE, not the metric). reward.md's bounded log envelope is ratio-agnostic; only the variable name says latency. The field names are kept for schema compatibility and are described by metric_kind / metric_name / metric_direction / timing_measured.",
+  "baseline_bpb": 1.9550684328299388,
+  "baseline_bpb_status": "CALIBRATED ON H20 2026-07-27: median of 5 runs of the SHIPPED starter through the shipped harness (values [1.962770085976607, 1.9510982056023425, 1.9526446798517447, 1.9550684328299388, 1.986950471502198]), spread 0.035852 bpb (1.834%), cv 0.00755. FROZEN constant; the scorer never runs the baseline.",
+  "baseline_cv": 0.007548522919998558,
+  "baseline_runs": 5,
+  "ref_speedup": 1.533747535323529,
+  "ref_speedup_status": "CALIBRATED ON H20 2026-07-27: baseline median / oracle median = 1.533748 from 5 baseline and 5 oracle runs, INTERLEAVED A/B in one session. Oracle values [1.277821048895357, 1.2779210097368356, 1.2681276407338593, 1.2747002931075853, 1.263267699635585], spread 0.014653 bpb (1.150%), cv 0.00508. Clears reward.md's 1.15 authoring floor; worst-case pairing under the observed spread is 1.526775. FROZEN constant; the oracle is NOT in the image and is NEVER run at scoring time.",
+  "ref_speedup_authoring_floor": 1.15,
+  "oracle_runs": 5,
+  "oracle_bpb_median": 1.2747002931075853,
+  "oracle_in_image": false,
+  "fail_closed": "when baseline_bpb or ref_speedup is absent / <= 1 / below the authoring floor the run is a HARD FAIL with reason `ref_speedup_invalid_or_missing`; it is NEVER silently treated as 1.0.",
+  "baseline_spread_abs": 0.03585226589985546,
+  "oracle_cv": 0.00507533872459635,
+  "oracle_spread_abs": 0.014653310101250705,
+  "ref_speedup_worst_case_pairing": 1.5267752785472517,
+  "hardware_and_data_caveat": "baseline_bpb=1.9550684328299388 \u4e0e ref_speedup=1.533747535323529 \u5747\u5728 H20 \u4e0a\u3001\u4e14\u5728 task/environment/Dockerfile \u91cc\u90a3\u4efd WikiText-103-raw + SentencePiece-BPE-8192 \u8bed\u6599\u4e0a\u6807\u5b9a\u3002 \u82e5\u4f60\u7684 GPU \u4e0d\u662f H20,\u6216\u91cd\u5efa\u8bed\u6599\u7684\u6307\u7eb9(build \u65e5\u5fd7\u91cc\u6253\u5370\u7684 tokenizer.model / train.bin sha256)\u4e0e\u5df2\u77e5\u826f\u597d\u6784\u5efa\u4e0d\u4e00\u81f4,\u8fd9\u4e24\u4e2a\u5e38\u91cf\u5c31\u4e0d\u518d\u53ef\u6bd4 \u2014\u2014 \u8bf7\u6309 recalibrate_howto \u91cd\u65b0\u6807\u5b9a\u540e\u518d\u8ba1\u5206\u3002 \u53c2\u8003\u5b9e\u73b0:\u5f3a\u57fa\u7ebf task/solution/baseline_dense_floor/,oracle task/solution/oracle_grouped_moe/(reviewer-only,\u4e0d\u8fdb\u955c\u50cf)\u3002"
+ },
+ "budget": {
+  "wallclock_sec": 600,
+  "kind": "WALL-CLOCK SECONDS of training (the fixed RESOURCE, not the metric). Enforced EXTERNALLY by tests/timer.sh: the training entry is started in its own session and the whole PROCESS GROUP is SIGTERM'd at the cap and SIGKILL'd 8 s later, so a detached background trainer cannot outlive the budget. Nothing is trusted from the candidate \u2014 no in-loop timer, no self-reported step or token count.",
+  "note": "The wall-clock is the resource under which MoE throughput becomes the lever: more optimizer steps in T => lower bpb."
+ },
+ "quality_gate": {
+  "param_floor": 150000000,
+  "param_floor_note": "The A3 CAPACITY FLOOR (the MoE-forcing constraint). The model MUST have >= param_floor TOTAL parameters, re-counted by the harness from the loaded module with weight-tie deduplication. At this capacity a DENSE model costs ~2*P_total FLOPs/token and is step-starved in T, while a sparse top-k MoE trains far more steps at the SAME total capacity \u2014 IF the sparsity is realized as real single-card throughput.",
+  "min_param_count": 1000000,
+  "min_plausible_val_bpb": 0.9,
+  "min_plausible_val_bpb_note": "ANTI-SPOOF / ANTI-CONTAMINATION floor, tightened from 0.50. No honest recipe trained from scratch inside this wall-clock budget at this capacity reaches 0.90 bpb on the held-out split (the demonstrated in-budget ceiling is ~1.22), so a value below the floor means a forged loss or held-out contamination, not a better model. Firing this check is reported as `anti_cheat_triggered`.",
+  "max_plausible_val_bpb": 3.0,
+  "ood_loss_ratio": 0.7,
+  "logits_position_variance_floor": 0.0001,
+  "logits_loss_agreement_tol": 0.05,
+  "expected_total_checks": 6,
+  "note": "capacity floor (A3 MoE-forcing) + anti-spoof kit lifted verbatim from the parameter-golf task family: a real LM scores real held-out text << arbitrary ids, forward(x,y) loss == CE(forward(x),y), logits vary across positions, >=1M params, val_bpb inside a plausibility band. A TRUNCATED suite (fewer than expected_total_checks) can never score above 0 (`gate_suite_incomplete`)."
+ }
+}
