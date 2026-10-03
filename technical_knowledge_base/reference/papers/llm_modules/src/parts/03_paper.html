@@ -1,0 +1,153 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-method">Method</a><a href="#s-train">Training</a><a href="#s-leak">The leak</a><a href="#s-res">Results</a><a href="#s-toy">The toy</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<p class="small mute">Konstantin Kolomeitsev (independent, Almaty, Kazakhstan). {{arXiv 2502.08213|https://arxiv.org/abs/2502.08213}}, 12 February 2025, one version. {{Code and weights (Hugging Face, access on request)|https://huggingface.co/kkolomeitsev/llm-modules}}; the same code openly on {{GitHub|https://github.com/k-kolomeitsev/LLM-Modules}}; the author's {{blog post|https://k-kolomeitsev.github.io/LLM-Modules/}}. Added to this knowledge base on 2026-09-01 from a blog entry. Topics: llm-training-and-post-training, llms.</p>
+
+<div class="co warn"><div class="t">Read this as a small proof of concept, not as a result.</div>Single author, tiny models, one dataset, no baseline sweep, and an evaluation of two prompts. It is filed here because the architectural idea, a frozen large model read by a small trainable one, is worth knowing, not because the evidence is strong. Reading the released code (below) makes the evidence weaker still, and this page's toy shows why.</div>
+
+<section id="s-prob"><h2>Problem: getting a large model's capability into a small one</h2>
+[[S1|§1, §2]]
+<p>The usual way to put a large model's capability into a small, cheap one is <b>distillation</b> ({{Hinton et al., 2015|https://arxiv.org/abs/1503.02531}}): generate the teacher's outputs, then train the student to imitate them. DistilBERT and TinyBERT, which the paper cites ({{§2|ax:S2}}), shrink BERT this way. It needs a large training run, and the student ends up as one fused artifact with the teacher's knowledge baked in irreversibly: to change the knowledge you distill again.</p>
+<p>The paper's alternative: leave the large model <b>frozen</b> and let a small trainable model read its internal representations directly, so the pair works as <b>two composable modules</b> rather than one distilled model ({{§1|ax:S1}}). It promises that training "significantly reduces training costs while remaining effective for solving specific business tasks", and ({{§2|ax:S2}}) that, unlike classic distillation, it preserves "a larger portion of the original model's information" and handles "longer input sequences (e.g., 128K tokens in Qwen2 versus 2K tokens in GPT-Neo)". That last claim does not survive the code: see {{the context claim|tab:t-tables:ev-ctx}}.</p>
+</section>
+
+<section id="s-idea"><h2>Idea: a knowledge source and a generation module</h2>
+[[S3.SS1|§3.1]]
+<ul>
+<li><b>Knowledge source</b>: <b>Qwen2-1.5B</b>, frozen. It reads the query and its <i>hidden representations</i> are passed on, not its output text ({{§3.1|ax:S3.SS1}}). It never receives gradients, so training fits on modest hardware.</li>
+<li><b>Generation module</b>: <b>GPT-Neo-125M</b>, trainable. It receives those representations "via Enhanced Cross-Attention layers and, combining them with its own computations, generates a coherent response".</li>
+<li><b>Only the small side trains</b>: the connecting layers and the small model. The framing is modular: the frozen model is a reusable knowledge source, and different small heads could in principle attach to it for different tasks. That composability is the structural difference from distillation.</li>
+</ul>
+<p>The picture below is the model as the released <code>model.py</code> builds it, not as the paper's prose suggests it; the two differ. Click a box for its code and parameter count (recounted in {{The evidence, rebuilt|tab:t-tables:ev-params}}).</p>
+<div class="card" id="ar">
+<div id="arSvg"></div>
+<p class="small" id="arOut" aria-live="polite"></p>
+<p class="small mute">Widths and counts from the Hugging Face configs of {{Qwen2-1.5B|https://huggingface.co/Qwen/Qwen2-1.5B/blob/main/config.json}} and {{GPT-Neo-125M|https://huggingface.co/EleutherAI/gpt-neo-125m/blob/main/config.json}} and from {{model.py|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/model.py}}; computed by <code>recompute.py</code>.</p>
+</div>
+<div class="pred" id="pr-size" data-ans="2"><div class="q">The point was a small deployable model. To answer one question, how many parameters does the trained CombinedModel run?</div>
+<div class="opts"><button>About 125 million (GPT-Neo)</button><button>About 1.5 billion (Qwen2)</button><button>About 1.76 billion</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>About <b>1.76 billion</b>, 1.14 times the frozen Qwen2-1.5B alone. Every generated token runs the whole frozen Qwen2 (1,543,714,304 parameters), the bridge (16.4 million), GPT-Neo's twelve blocks and positions (86.6 million) and a new output layer of 768 × 151,646 = 116.5 million. The pair is cheaper to <i>train</i> than Qwen2 (only 219.5 million parameters get gradients), but it is not a small model to <i>run</i>: it is the large model plus a head. Distillation's student, by contrast, runs alone. The paper never says which of the two costs it is saving; the abstract's "trained on limited computational resources" is the training one.</p><div id="prSizeBars"></div></div></div>
+</section>
+
+<section id="s-method"><h2>Method: Enhanced Cross-Attention</h2>
+[[S3.SS2|§3.2, §4.1]]
+<p>The paper describes its connecting layer in three parts ({{§3.2|ax:S3.SS2}}): <b>linear projections</b> that convert the large model's width (1536) to the small model's (768); an <b>adapter block</b>, an extra non-linear transformation; and a <b>gating mechanism</b> that "dynamically blends the original representations with the external knowledge". Read from the code, one layer is:</p>
+<div class="fm"><div class="eq">a = Adapter( CrossAttn( Q = g W<sub>q</sub>, K = h W<sub>k</sub>, V = h W<sub>v</sub> ) ), &nbsp; z = σ( [g, a] W<sub>z</sub> ), &nbsp; g ← g + ( z ⊙ a + (1 − z) ⊙ g )</div>
+<dl><dt>h</dt><dd>Qwen2's last hidden state at every position, after a trainable 1536 × 1536 projection (<code>pre_proj</code>), LayerNormed</dd><dt>g</dt><dd>the stream that becomes GPT-Neo's input, 768 wide, LayerNormed before the query projection</dd><dt>Adapter</dt><dd>768 → 256 → GELU → 768, LayerNorm, plus a residual (the bottleneck adapter of {{Houlsby et al., 2019|https://arxiv.org/abs/1902.00751}})</dd><dt>z</dt><dd>a sigmoid gate per position and per channel, computed from the stream and the adapter's output</dd></dl>
+<div class="wh">8 heads of 96 dimensions, scores scaled by 1/√96, dropout 0.1 on the attention weights ({{model.py lines 19 to 130|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/model.py}}).</div></div>
+<p>Where the layers sit is the part the prose gets wrong. The paper ({{§4.1|ax:S4.SS1}}) and the old version of this page say the cross-attention is inserted into GPT-Neo's stack. In the code it sits <b>in front of it</b>, inside the module called <code>ModifiedQwenWithCrossAttention</code>:</p>
+<ol>
+<li>Qwen2 runs on the query; its last hidden state goes through <code>pre_proj</code>.</li>
+<li>The stream g starts as an MLP of that same state (1536 → 1152 → 768). So the queries are not GPT-Neo's own states: both sides of the "cross"-attention are views of Qwen2's last layer, computed before GPT-Neo runs.</li>
+<li>Two Enhanced Cross-Attention layers update g; a separate linear projection of the Qwen2 state (1536 → 768) is added at the end.</li>
+<li>The result enters GPT-Neo as its input embeddings. GPT-Neo's own token embeddings are never used, and its positional embeddings are zeroed at the start (they still train).</li>
+<li>A new output layer maps 768 to Qwen2's 151,646 tokens, because the pair uses Qwen2's tokenizer ({{§4.1|ax:S4.SS1}}).</li>
+</ol>
+<p>Two more things the paper does not say. GPT-Neo is built with <code>GPTNeoForCausalLM(gptneo_config)</code> (line 220): from its configuration, with <b>random weights</b>, never loaded from the pretrained GPT-Neo-125M. So "the small model" brings an architecture, not knowledge; the paper's "GPT-Neo-125M-clean" control (trained from scratch) is the honest comparison for it. And the line meant to freeze the embedding layers sets an attribute on the module, not on its parameters, so it freezes nothing; it does not matter, because those embeddings are never used.</p>
+</section>
+
+<section id="s-train"><h2>Training: what the code actually trained on</h2>
+[[S4.SS2|§4.2]]
+<p>The paper's description ({{§4.2|ax:S4.SS2}}): <b>Bespoke-Stratos-17k</b>, examples longer than 4,096 tokens filtered out "to avoid memory overflow errors", dynamic padding, a random train and validation split, AdamW and early stopping. {{Bespoke-Stratos-17k|https://huggingface.co/datasets/bespokelabs/Bespoke-Stratos-17k}} is 16,710 questions (math, code, science and puzzles) with <b>DeepSeek-R1's reasoning traces and answers</b>. So the CombinedModel is itself trained on a teacher's outputs: what the paper offers instead of distillation is a different student architecture, not a different source of knowledge.</p>
+<p>The code adds the rest ({{model.py, main and train_model|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/model.py}}): 15 epochs, batch size 1, learning rate 1e-4 for the bridge and 5e-5 for GPT-Neo, gradient clipping at 1.0, mixed precision, patience 5. Each epoch uses a <b>30% subset</b>, redrawn with a new seed whenever the last validation loss was below 1.8. The author's blog adds one NVIDIA L4 GPU (4 vCPUs, 32 GB), about 5 hours and under 10 dollars ({{blog|https://k-kolomeitsev.github.io/LLM-Modules/}}). Running the code's data pipeline on the dataset with Qwen2's tokenizer (<code>stratos_stats.py</code>; {{details|tab:t-tables:ev-data}}):</p>
+<div class="out" id="trStats"></div>
+<ul>
+<li><b>Most long traces never reach their end.</b> GPT-Neo has 2,048 positions, so the code cuts every sequence there; 58% of the examples that pass the 4,096 filter are longer, so 22% of all kept tokens (the end of the reasoning and the final solution) are never trained on.</li>
+<li><b>The loss includes the system prompt.</b> Labels are the input tokens, so the same 246-token instruction counts in every example: 13% of all loss tokens are a fixed text the model can learn by heart.</li>
+<li><b>The validation set is mostly old training data</b> once the reshuffle starts, because each epoch redraws train and validation from the whole dataset. If it starts after epoch 1, 99.6% of the last epoch's validation examples were trained on earlier.</li>
+</ul>
+</section>
+
+<section id="s-leak"><h2>The leak: the cross-attention can see the answer</h2>
+<span class="where nolink">model.py lines 64 to 73</span>
+<p>A language model is trained by teacher forcing: the whole training text goes in at once and every position predicts the next token. That only works if no position can see the tokens after it, which is what a causal mask guarantees. Qwen2 and GPT-Neo are both causal. The cross-attention between them is not: it masks padding only (<code>mask = attention_mask.unsqueeze(1).unsqueeze(2)</code>, shape [batch, 1, 1, length]). So during training, position <i>t</i> can attend to Qwen2's state at position <i>t</i> + 1, which encodes token <i>t</i> + 1, the very token it must predict. At generation time the future does not exist yet, and that shortcut is gone.</p>
+<div class="pred" id="pr-leak" data-ans="1"><div class="q">Trained on reasoning traces with this mask, the toy below reaches a training loss of almost zero and a validation loss far below the honest model's. How often does it get the answer right when it actually generates?</div>
+<div class="opts"><button>More often than the honest (causal) model</button><button>Almost never</button><button>About as often</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Almost never: <b>%%released_gen%%</b> of held-out problems against <b>%%causal_gen%%</b> for the same model with a causal mask (mean of 3 seeds each). Its teacher-forced loss on the held-out traces is %%released_loss%% against %%causal_loss%%, and its final training loss %%released_trainloss%% against %%causal_trainloss%%, although the operands in each prompt are drawn at random and no honest model can predict them. It looks far better on the number the paper reports and is useless when run. At the answer step it puts %%released_fut_eq%% of its first-layer cross-attention on later positions, %%released_ans_eq%% on the answer token alone. The animation shows why on one problem.</p></div></div>
+<div class="card" id="lk">
+<div class="an-top"><div class="seg" id="lkM" role="group" aria-label="Mask"><button class="on" data-m="released" aria-pressed="true">As released: padding mask only</button><button data-m="causal" aria-pressed="false">Fixed: causal mask</button></div></div>
+<div id="lkSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="lkBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="lkPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="lkFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="lkScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="lkSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="lkStep"></div><p id="lkCap"></p></div>
+<div class="an-cnt" id="lkCnt"></div>
+<p class="small mute">The real cross-attention weights of this page's trained toy (first layer, mean of 4 heads; line thickness is the weight), teacher-forced on a held-out problem, computed in your browser. Red lines read positions that come later. Stops off screen; starts paused under reduced motion.</p>
+</div>
+<p>Two cautions. The toy may make the shortcut easier than it is in Qwen2. There, the last hidden state at <i>t</i> + 1 is tuned to predict token <i>t</i> + 2, though it is computed from token <i>t</i> + 1 and probably still carries much of it (unconfirmed: not measured here); how much the real run used the shortcut cannot be measured without running the 7.2 GB checkpoint. And the real CombinedModel does produce coherent text, so it also learned the honest path; the toy's released variant mostly did not. What the leak does settle: the paper's evidence of learning, a loss falling "from 13.8 to 2.3 in the first epoch and to 1.1" ({{§5.3|ax:S5.SS3}}), is measured with the shortcut open on both training and validation data, so it cannot show how well the model predicts text it has not seen.</p>
+</section>
+
+<section id="s-res"><h2>Results: two prompts</h2>
+[[S5|§5, Table 1]]
+<p>Seven models are compared ({{§5.1|ax:S5.SS1}}): DeepSeek-R1 671B; DeepSeek-R1-Distill-Qwen-1.5B (GGUF, 32-bit) as "a distilled model"; Qwen2-1.5B-Instruct (GGUF, 16-bit) as "the knowledge source model"; GPT-Neo-125M; GPT-Neo-125M-fine-tuned (with a 2,048-token limit); GPT-Neo-125M-clean, trained from scratch; and the CombinedModel. The evaluation is two prompts ({{§5.2|ax:S5.SS2}}):</p>
+<ol>
+<li><b>"sum of 5 and 5"</b>: "All small models produced a set of incoherent text. Large pre-trained models generated the correct answer; however, the Qwen2 model did not provide any 'reasoning' even when instructed. The CombinedModel demonstrated detailed reasoning comparable to large 'reasoning' models."</li>
+<li><b>"find the remainder by dividing 7 by 4"</b>: "The CombinedModel generated a response with a step-by-step explanation of the calculation, indicating the presence of a 'reasoning' component."</li>
+</ol>
+<p>{{Table 1|ax:S5.T1}} summarises the responses in words: DeepSeek R1 671B, the distilled 1.5B and the CombinedModel get "[Detailed reasoning] [Brief structured answer]"; Qwen2 1.5B "[Brief structured answer, without reasoning]"; both GPT-Neo controls "[Lack of reasoning and coherent answer]". The other observations ({{§5.3|ax:S5.SS3}}): the loss fell from 13.8 to 2.3 in the first epoch and to 1.1 later, "confirming the successful convergence of the model"; the CombinedModel improved significantly on the original small models; transferring knowledge via Enhanced Cross-Attention "enables the combined model to produce more structured and logically coherent outputs". Code and pretrained weights are released.</p>
+<p>The released transcripts ({{compare-responses-from-models.md|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/compare-responses-from-models.md}}, all eleven graded in {{The evidence, rebuilt|tab:t-tables:ev-tr}}) add what the table hides:</p>
+<ul>
+<li><b>One sample per model and prompt</b>, drawn with temperature 0.9 and no seed, so the same prompt could give a different answer on the next run.</li>
+<li><b>The second prompt was given to the CombinedModel only.</b> Its answer, 3, is right, but its working includes false steps ("7 - 4*3 = 7 -12 = -5, but since the remainder has to be positive, it's 3").</li>
+<li><b>The prompts differ between models</b>: DeepSeek-R1 got the bare question, the GPT-Neo models a different template, and the GPT-Neo-clean run and one GPT-Neo-fine-tuned run were primed with the opening reasoning marker.</li>
+<li><b>The "knowledge source" in the table is Qwen2-1.5B-Instruct</b>, a chat-tuned model, while the CombinedModel reads the base Qwen2-1.5B. And the comparison is against DeepSeek's released distilled model (trained on 800,000 R1 samples from Qwen2.5-Math-1.5B, per the {{DeepSeek-R1 paper|https://arxiv.org/abs/2501.12948}}), not against a distillation run of the author's under the same budget.</li>
+</ul>
+<p>The paper's discussion ({{§6|ax:S6}}) lists the advantages (lower cost than full fine-tuning of large models, adapting to a task by training on only the needed data, "the potential for exponential improvement in generation quality through the combination of representations from various architectures") and future work: combining other model types (a CNN with an LLM), studying different cross-attention configurations, and applying the method to business tasks. The blog frames the frozen model as a "database" whose "tables" the small model learns to use.</p>
+</section>
+
+<section id="s-toy"><h2>The toy: what reproduces</h2>
+<span class="where nolink">this page, not the paper</span>
+<p>Nobody outside can rerun the paper's comparison cheaply, so this page rebuilds the architecture exactly, at toy scale, and runs the comparisons the paper did not. A frozen "large" model (2 blocks, width 48, 60,432 parameters) is pretrained on 560 arithmetic facts (sums of numbers up to 19, remainders by 2 to 9) in a brief format, <code>7 + 5 = 12</code>, so it plays Qwen2's role: it knows the answer, and never reasons. The finetuning data play Bespoke-Stratos's role: reasoning traces such as <code>Q sum 7 5 T 7 + 5 = 12 ; 12 - 5 = 7 ok A 12</code>, for only 25% of the facts. Every variant then sees the same 140 traces; 364 problems that appear in no trace are the test (training details in {{Run the modules|tab:t-run}}).</p>
+<div class="tw"><table id="toyTab"></table></div>
+<p class="small mute">Mean of 3 seeds (range in brackets); each variant at its own best learning rate from {1e-4, 3e-4, 1e-3, 3e-3}, picked on 56 validation problems. "Generates right" is free-running greedy decoding from the prompt; "teacher-forced" reads the true trace; "future scrambled" replaces every token after the first "=" with a random number.</p>
+<ul>
+<li><b>The architecture works once the mask is fixed.</b> The causal CombinedModel answers %%causal_gen%% of problems it never saw a trace for: it learned the trace format from the 140 examples and reads each answer from the frozen model. The small model alone, trained on the same traces, gets %%small_gen%%: it has the format but not the knowledge. That is the paper's qualitative claim, and at toy scale it holds.</li>
+<li><b>As released, it does not.</b> %%released_gen%% right when generating, while its teacher-forced loss is the lowest of all. Scrambling the future drops its teacher-forced accuracy at the answer from %%released_tf%% to %%released_scr%%; the causal model does not move (%%causal_tf%% and %%causal_scr%%), as it cannot.</li>
+<li><b>The like-for-like control does worse here, for a reason worth knowing.</b> Fine-tuning the frozen model itself on the same 140 traces (what DeepSeek did to make its distilled model) gets %%bigft_gen%%: after 2,500 steps on so few traces it forgets facts it was not shown (its brief-format answers on the test facts fall from %%big_brief%% to %%bigft_brief%%), while the frozen model inside the pair cannot forget. That is a point in the paper's favour that the paper never measured; a gentler fine-tune (fewer steps, or LoRA) was not tried here and might close the gap.</li>
+<li><b>"Enhanced" is not shown to matter.</b> Plain cross-attention, without the adapter and gate, gets %%plain_gen%% against %%causal_gen%%; a single trained linear layer on the frozen states gets %%head_gen%%, so the trained decoder is needed to produce the trace format.</li>
+</ul>
+<p>What the toy cannot test: scale, real language, and whether the real run's coherent outputs came despite the leak. It tests the mechanism and the comparisons, nothing more.</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<span class="where nolink">judged by this page</span>
+<p><b>What holds up.</b> The architecture is reasonable and fully released: code, weights and outputs, under the MIT licence, enough to check every claim, which is how the problems below were found. The one comparison that carries information is the CombinedModel against GPT-Neo trained alone on the same data: the alone versions produce mostly incoherent text (one sample states 5 plus 5 is 10 inside an invented riddle, then answers 25/8), the pair produces coherent traces with right answers on two prompts. Since the pair's small part also starts from random weights, the coherence must come from Qwen2's states, which supports the core idea that a frozen model's last layer can be read by a trained module. The author states the limits plainly in the blog ("I had no illusions of obtaining a fully reasoning model"), which counts in his favour.</p>
+<p><b>What does not:</b></p>
+<ul>
+<li><b>No measurement.</b> Two prompts, one sample each, graded by the author ({{§5.2|ax:S5.SS2}}); no benchmark, no accuracy, no error bars. "Comparable in quality to models obtained by distillation" (abstract) rests on one arithmetic prompt both models get right.</li>
+<li><b>The loss curve cannot show learning.</b> The cross-attention sees later tokens during training and validation (above), 13% of the loss is a fixed system prompt, and, once the reshuffle starts, the validation examples are mostly earlier training examples. "Confirming the successful convergence" ({{§5.3|ax:S5.SS3}}) is not supported by these numbers.</li>
+<li><b>Not like for like.</b> The baseline "distilled model" is DeepSeek's, trained on 800,000 samples from a math-tuned Qwen2.5; the "knowledge source" row is the Instruct model, not the base model the pair reads; prompts differ between models; the second prompt was given to one model. The obvious control, fine-tuning Qwen2-1.5B (or a LoRA on it) on the same 17k traces, is missing. On the toy, a full fine-tune run as long as the pair's training does worse (%%bigft_gen%% against %%causal_gen%%) because it forgets, so the answer is not a foregone conclusion either way; it has to be measured.</li>
+<li><b>The method is not what the text says.</b> The small model is not pretrained GPT-Neo; the cross-attention is not inside its stack; the context is 2,048 tokens, not 128K.</li>
+<li><b>The cost claim is half the story.</b> Training is cheap (about 5 hours on one L4), but inference runs 1.14 times Qwen2-1.5B's parameters; the paper's "small model" framing does not apply to deployment.</li>
+</ul>
+<p><b>Verdict.</b> An idea worth knowing, with no evidence that it beats the simple alternative. Believe that a trainable module can read a frozen model's last hidden states and learn a new output format from few examples (the toy confirms it, once the mask is fixed). Do not believe the paper's comparison with distillation, its loss curve, or its context and size claims.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>Code</b>: one file, {{model.py|https://github.com/k-kolomeitsev/LLM-Modules/blob/main/model.py}}, MIT licence, Hugging Face Transformers and PyTorch; the 7.2 GB checkpoint (every weight in 32-bit, frozen Qwen2 included) behind an access request on {{Hugging Face|https://huggingface.co/kkolomeitsev/llm-modules}}. No commits after 13 February 2025 (checked 3 October 2026).</li>
+<li><b>Fix before using</b>: add a causal mask to <code>CrossAttentionLayer</code> (line 70: combine the padding mask with a lower-triangular one); load the pretrained GPT-Neo if that is what you want; mask the system prompt out of the labels; keep a fixed validation set; mind the 2,048-token cut.</li>
+<li><b>Budget</b>: training needs the frozen model in memory plus about 220 million trainable parameters and their optimizer state; the author used one NVIDIA L4. Inference needs the whole frozen model every token, plus the head.</li>
+<li><b>When it might pay off</b>: when you cannot change the large model (shared, certified or served elsewhere) but can read its hidden states, and need a new output behaviour; when several heads should share one frozen backbone. <b>When it buys little</b>: when you could fine-tune the large model, a LoRA or {{QLoRA|n:3c65c17b0d0d815a8f4edc33f9583671}} on a 1.5B model fits easily on one GPU (QLoRA fine-tunes a 65B model on one 48 GB GPU, {{QLoRA abstract|https://arxiv.org/abs/2305.14314}}) and keeps inference at 1.0 times the model; and when you need a genuinely small model at inference, which only distillation gives.</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters</h2>
+<span class="where nolink">beyond the paper</span>
+<p>The idea belongs to a real family: <b>freeze the big model, train a small module that reads its internals</b>. It is attractive whenever you want capability without owning or retraining the large model. The family's serious members differ from this paper in instructive ways:</p>
+<div class="tw"><table id="famTab"></table></div>
+<p>What this paper does not establish is whether its version works at any useful scale. A 1.5B teacher and a 125M-sized student on 17k examples cannot tell you whether the approach survives at 70B, whether it beats a well-tuned distillation run under equal compute, or how it behaves when the frozen model's representations are out of distribution. Treat the architecture as a pointer to the literature above and the results as anecdotal.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li><b>The serious versions of this idea</b>: Flamingo's gated cross-attention into a frozen language model ({{Flamingo §2.2|https://arxiv.org/html/2204.14198#S2.SS2}}), CALM's composition of an anchor with an augmenting model ({{CALM §3.1|https://arxiv.org/html/2401.02412v1#S3.SS1}}), and the adapter and parameter-efficient fine-tuning literature: {{adapters|https://arxiv.org/abs/1902.00751}}, {{LoRA|n:3c65c17b0d0d81018f15edd19fa5c28a}}, {{QLoRA|n:3c65c17b0d0d815a8f4edc33f9583671}}.</li>
+<li><b>Contrast with actual distillation</b>, under {{llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}: {{DeepSeek-R1|n:3c65c17b0d0d813faca4f7a51eaa0c65}} distilled its reasoning into Qwen and Llama models by fine-tuning on 800,000 samples, the same kind of traces this paper trains on.</li>
+<li><b>Adjacent in this batch</b>: {{Bitune|n:3ce5c17b0d0d8173af14ed0caa19d6db}} and {{Trained Persistent Memory|n:3ce5c17b0d0d81978137dd8f8cab1c74}}, also frozen-backbone-plus-adapter designs.</li>
+<li><b>The pieces</b>: cross-attention and the causal mask come from {{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}; the paper also cites {{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}} for transfer learning.</li>
+</ul>
+</section>
+</section>
