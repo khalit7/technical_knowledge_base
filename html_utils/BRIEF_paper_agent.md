@@ -28,3 +28,5 @@ Never write to Notion, commit, edit pages.json, other papers' folders or shared 
 The paper tab ends with "How much of this to believe" (the paper's own evidence judged: what holds up, what is not like for like, single runs, error bars, appendix contradictions, a plain verdict) and, for papers recent enough to adopt, "What it takes to use this"; the headline card carries the one-line verdict (see papers.md).
 
 Reply as BRIEF_page_agent.md specifies, plus: the verdict and its main reasons, the live ingredient chosen and why (or why none), what reproduces and what does not, corrections to the old summary, departures from papers.md and why, size, and the new idea rows.
+
+- **Puppeteer checks launch Chrome with `headless: 'shell'`** (the default headless mode times out on screenshots).

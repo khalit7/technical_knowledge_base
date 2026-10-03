@@ -27,3 +27,11 @@ If the page is still in its old written form in Notion, fetch it and save the fu
 
 ## Reply with
 Child pages, databases or video found (with exact tags); the tabs and Reading outline; the visualisations built and why each earns its place (and rejected ones); which defaults reproduce which figures; coverage counts; stale claims corrected; anything you could not source; reading length; file size; check results.
+
+## Rules learned on the training topic (2026-10-03)
+- **Child page: read the parent root first** (its `index.html` and `src/`) and the sibling child pages already built. Link the root's grid, axis sections and data tabs by name (the root's Notion URL, naming the tab) rather than rebuilding them. Check `technical_knowledge_base/reference/papers/` for paper pages on the same mechanism: link their live toys and animations, build what is missing, and use their verified, corrected facts. Part B of `html_utils/methods/topic_pages.md` is the child-page method.
+- **Research is not limited to the old page:** it is the floor, not the scope. Check every claim against primary sources, add what the subject needs, and prefer real data (real logits, weights, configs, chat templates) computed offline with `uv run --with torch --with transformers`, threads capped at 2, in the background.
+- **Puppeteer checks launch Chrome with `headless: 'shell'`** (the default headless mode times out on screenshots). If needed: `CHROME_PATH=$(ls -d ~/.cache/puppeteer/chrome-headless-shell/*/chrome-headless-shell-*/chrome-headless-shell | head -1)`.
+- **Name the first Reading part `20_read_a.html`, never `20_read.html`,** or list the parts explicitly in `build.sh`: in this locale the shell glob sorts `20_read_b.html` before `20_read.html`.
+- **Long-running commands** (training, downloads) go in the background with `run_in_background`; write large files in pieces. A subagent with no progress for 600 s is killed.
+- **Do not edit** `pages.json`, `html_utils/interactive-html-ideas.md` or another page's folder; the orchestrator records the page after publishing (`python3 html_utils/page_finalize.py <page folder>`).
