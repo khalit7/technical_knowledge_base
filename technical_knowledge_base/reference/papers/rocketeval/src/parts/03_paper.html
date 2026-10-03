@@ -1,0 +1,228 @@
+
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-diag">Diagnosis</a><a href="#s-meth">Method</a><a href="#s-res">Results</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a><a href="#s-note">Note to self</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>Human preference is the usual gold standard for judging chat models, and Chatbot Arena collects it at scale, but it takes long-running crowds and is hard to reproduce or interpret ({{§1|ax:S1}}). Automated evaluation comes in three kinds. Multiple-choice and keyword benchmarks are quick but cannot judge open-ended answers. <b>LLM-as-a-judge</b> prompts a strong model, usually a proprietary one such as GPT-4o, to grade responses; it is the method that scales to open-ended tasks, and benchmarks such as MT-Bench, AlpacaEval, Arena-Hard and WildBench use it. <b>Fine-tuned judges</b> (Prometheus, TIGERScore and others) train a small open model on evaluation data; they are cheaper and more transparent, but fine-tuning can erode the small model's other abilities, and they need retraining as base models move on ({{§1|ax:S1}}).</p>
+<p>The frontier judge has three costs. It is expensive: one GPT-4o pass over WildBench uses about 1.84M input and 220k output tokens, $3.40 at the batch prices the paper uses, so a thousand model versions cost $3,400 ({{Table 4|ax:S4.T4}}). It sends private prompts to a third party. And it is irreproducible when the judge is a moving proprietary endpoint. At $3,400 a sweep nobody gates every commit on it.</p>
+<p>The obvious fix, swapping in a small open-weight judge, fails badly: with the benchmarks' own chain-of-thought prompts, judges under about 4B agree with human votes on MT-Bench barely better than chance (Gemma-2-2B 37.9%, Qwen2-1.5B 30.4%, against 33.3% for a random three-way pick) ({{Table 2|ax:S4.T2}}, {{Figure 1|ax:S0.F1}}). <b>The question:</b> why do small judges fail, and can the task be reshaped so that they do not?</p>
+</section>
+
+<section id="s-diag"><h2>The diagnosis, which is half the contribution</h2>
+[[S2|§2 How lightweight LLMs perform as a judge]]
+<p>Section 2 runs the experiments that make the method non-obvious. The two benchmarks: <b>MT-Bench</b>, 80 two-turn questions graded by GPT-4, with expert human votes on six models' answers; and <b>WildBench</b>, 1,024 real user queries, each with a hand-revised checklist, graded by GPT-4o ({{§2.1|ax:S2.SS1}}). Both ask the judge to write an analysis and then a score from 1 to 10, which is a chain-of-thought (CoT) process. Pairwise verdicts come from comparing two point-wise scores; a difference under 0.1 counts as a tie, as in WildBench.</p>
+<h3>Capability decides agreement, not prompting</h3>
+<p>Across 30-odd judges, agreement with MT-Bench's human votes tracks the judge's general ability (its Open LLM Leaderboard 2 average): from the human-to-human level down to below random ({{Figure 1|ax:S0.F1}}, {{§2.2|ax:S2.SS2}}). The figure's legend prints human-to-human agreement as 64.8% and GPT-4o as 66.7%; Table 2 prints the same two as 64.7% and 66.6%.</p>
+<h3>Small judges cannot analyse, but they can apply an analysis</h3>
+[[S2.SS3|§2.3, Table 1]]
+<p>The paper splits judging into analysis and scoring, and grades WildBench responses three ways: <b>CoT</b> (write the analysis, then the score), <b>Direct</b> (score with no analysis) and <b>CoT with GPT-4o's analysis</b> (GPT-4o's analysis pasted in, the small model only scores). Scores are averaged per model to rank 12 test models, and pairs of scores are turned into pairwise verdicts and compared with a strong judge's ({{§2.3|ax:S2.SS3}}).</p>
+<div class="pred" id="pr-t1" data-ans="2"><div class="q">Qwen2-1.5B grades WildBench responses. Which setting agrees best with GPT-4o's verdicts?</div>
+<div class="opts"><button>Write its own analysis first (CoT)</button><button>Score directly, no analysis</button><button>Score after reading GPT-4o's analysis</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<div class="seg" id="t1M" role="group" aria-label="Reference judge"><button class="on" data-m="g" aria-pressed="true">Agreement with GPT-4o</button><button data-m="c" aria-pressed="false">Agreement with Claude-3.5-Sonnet</button></div>
+<div id="t1Bars" class="plot"></div>
+<p class="small mute">{{Table 1|ax:S2.T1}}, transcribed. GPT-4o and Claude-3.5-Sonnet agree with each other 60.7% of the time. Spearman correlations of the resulting rankings with Arena Elo, printed as labels in {{Figure 3|ax:S2.F3}}: Qwen2-1.5B goes from 0.035 with its own analysis to between 0.958 and 0.979 with GPT-4o's (the figure's labels for the five open judges in that panel are 0.958 and four times 0.979).</p>
+</div></div>
+<p>Asking a 1.5B model to reason first makes it <i>worse</i> (36.4% against 40.1% directly); handing it GPT-4o's analysis lifts it to 70.3%. The paper concludes that the small model can apply a judgment criterion but cannot construct one: its weakness is comprehension and analysis of hard queries and long responses, not scoring ({{§2.3|ax:S2.SS3}}).</p>
+<div class="co warn"><div class="t">Read the 70.3% with care</div>That number is agreement with <b>GPT-4o</b>, measured after the small judge read <b>GPT-4o's own analysis</b>, so part of it is the reference grading itself. Measured against Claude-3.5-Sonnet instead, the same lift is from 40.6% to 58.2%, about where GPT-4o and Claude agree with each other (60.7%). The conclusion survives; the size of the jump is inflated by the choice of reference.</div>
+<h3>Why: uncertainty and position bias</h3>
+[[S2.SS4|§2.4, Figures 4 and 5]]
+<p>To look inside the analysis, the paper turns it into a series of yes/no questions: each item of WildBench's checklist ("Does the response correctly identify ...?") is asked on its own, and the judge answers Yes or No ({{§2.4|ax:S2.SS4}}). Two experiments follow.</p>
+<ul>
+<li><b>Uncertainty.</b> Sample each answer several times and count the items whose answers disagree. For Qwen2-1.5B, 56% of items get a different answer somewhere in three samples; Llama-3-8B 18%, Qwen2-7B 7%, Llama-3-70B 4%, Qwen2-72B 3% ({{Figure 4|ax:S2.F5}}; the text says "Figure 5" here, but the sampling experiment is Figure 4).</li>
+<li><b>Position bias.</b> Ask the items one after another in a conversation, force every earlier answer to Yes or to No, and count how often the current answer changes between the two. The flip rate rises with every earlier item, for every model: by the seventh item it is 73% for Qwen2-1.5B, 70% for Qwen2-7B and 56% for Qwen2-72B, against 32% for Llama-3-8B and 21% for Llama-3-70B ({{Figure 5|ax:S2.F5}}). Earlier answers contaminate later ones. Llama-3 models are more consistent than Qwen2 models, and size helps within a family, though Qwen2-72B is still more swayable than Llama-3-8B.</li></ul>
+<div class="card" id="figBias">
+<div class="seg" id="fbM" role="group" aria-label="Which figure"><button class="on" data-m="pos" aria-pressed="true">Figure 5: answers flip with earlier answers</button><button data-m="smp" aria-pressed="false">Figure 4: answers disagree across samples</button></div>
+<div id="fbSvg" class="plot"></div>
+<p class="small mute">Bar heights read from the vector PDFs in the arXiv source (<code>decode_figs.py</code>), calibrated on the figures' printed gridlines; the paper prints no numbers for these figures. Position 1 and one sample are zero by construction. The figures also carry error bars, not shown.</p>
+</div>
+<p>So the design goal follows: never ask the small model to analyse. Ask it only closed questions whose analysis has been done for it, one at a time, and keep its uncertainty as a number instead of letting it pick a token ({{§2.4|ax:S2.SS4}}).</p>
+</section>
+
+<section id="s-meth"><h2>Method: three stages</h2>
+[[S3|§3 Methodology, Figure 2]]
+<p>A powerful model writes a checklist for each query, once; a small model grades every item for every response; the item grades are combined into a score, either by a plain mean or by a predictor fitted to labelled data ({{§3|ax:S3}}, {{Figure 2|ax:S1.F2}}). The animation runs one real WildBench response through the CoT judge the benchmarks use and through RocketEval; its numbers are the released ones.</p>
+<div class="card" id="anx">
+<div class="an-top"><div class="seg" id="anxM" role="group" aria-label="Judging method"><button class="on" data-m="re" aria-pressed="true">RocketEval</button><button data-m="cot" aria-pressed="false">CoT judge (the benchmarks' prompt)</button></div>
+<span class="small mute">Same query, same response (Llama 3 8B's answer to a WildBench poem request).</span></div>
+<div id="anxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="anxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="anxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="anxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="anxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="anxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="anxStep"></div><p id="anxCap"></p></div>
+<div class="an-cnt" id="anxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Prompt length is WildBench's average, 3,402 tokens ({{Table 5|ax:A1.T5}}); the CoT judge's output, about 232 tokens per response, is the mean over GPT-4o's released WildBench gradings. The seven items, the 3B judge's probabilities and GPT-4o's grade of 8 are the released data for this response. The animation stops when off screen and starts paused under reduced motion.</p>
+</div>
+
+<h3>1. Checklist creation (a powerful model, once per query)</h3>
+[[S3.SS1|§3.1, Appendix A.1]]
+<p>GPT-4o turns each query into an instance-specific list of <b>binary</b> questions, prompted for three things: relevance to the query, the ability to tell responses apart, and independence from each other. The prompt asks for concise questions that carry the key content (keywords, formats, correct counts and values) and gives an example: ask "Is this response contain the correct answer ..." rather than "Is this response's answer correct?" ({{§3.1|ax:S3.SS1}}, {{Appendix A.1|ax:A1.SS1}}). Questions like "Does the response include the correct final answer as X?" are a distillation of the big model's knowledge into the small judge's context.</p>
+<p>Two properties matter. The checklist is generated once per query and reused for every model and every rerun on that benchmark, so its cost is amortised; and it is a durable, inspectable artifact that can be versioned and reviewed, with the criteria written down in advance instead of improvised per response. It is conditioned on the query <i>and on a reference answer</i>: the creation prompt includes one ({{Appendix A.1|ax:A1.SS1}}; for WildBench the dataset's GPT-4 answer), though never on the responses being graded.</p>
+<p>The paper says 5 to 10 questions per query. The released WildBench checklists range from 3 to 25 items: 813 of 1,000 have 5 to 10, 168 have more than 10 and 19 fewer than 5; the mean is 8.8 (counted by <code>recompute.py</code>).</p>
+
+<h3>2. Checklist grading (a small model, per response)</h3>
+[[S3.SS2|§3.2, Eq. 1]]
+<p>The small judge answers each item <b>independently</b>, in its own prompt: query, response, one question, "You can only answer 'Yes' or 'No'" ({{Appendix A.1|ax:A1.SS1}}). This takes several calls per response, but they share the query-and-response prefix, so prefix caching (vLLM's, built on PagedAttention) keeps the cost low ({{§3.2|ax:S3.SS2}}). Because no item sees the answers to the others, position and anchoring bias have no path to propagate: the reformulation removes the bias channel rather than correcting for it afterwards.</p>
+<p>The score of an item is read from the probabilities of the two answer tokens, not from the token the model happens to emit:</p>
+<div class="fm"><div class="eq"><i>p̂</i>(<b><i>x</i></b>, <b><i>y</i></b>, <b><i>c</i></b>) = <i>p</i><sub>θ</sub>(Yes | <b><i>x</i></b>, <b><i>y</i></b>, <b><i>c</i></b>) / [ <i>p</i><sub>θ</sub>(Yes | <b><i>x</i></b>, <b><i>y</i></b>, <b><i>c</i></b>) + <i>p</i><sub>θ</sub>(No | <b><i>x</i></b>, <b><i>y</i></b>, <b><i>c</i></b>) ]</div>
+<dl><dt>x</dt><dd>the query with its conversation history; <b><i>y</i></b> the response; <b><i>c</i></b> one checklist item</dd><dt>p̂</dt><dd>the conditional normalised score, between 0 and 1 ({{Eq. 1|ax:S3.E1}})</dd></dl></div>
+<p>A hedged 0.55 stays 0.55 instead of collapsing into a hard Yes, so the judge's uncertainty, the problem of Figure 4, is kept as a number and weighs less in the final score ({{§3.2|ax:S3.SS2}}). In the released code a local judge is also constrained with vLLM's <code>allowed_token_ids</code>, so it can only answer Yes or No ({{README|https://github.com/Joinn99/RocketEval-ICLR}}).</p>
+<div class="card" id="rpl">
+<h3 style="margin-top:0">Replay a real grading</h3>
+<p class="try"><b>Try:</b> pick a query and a judge, then switch between the probability (Eq. 1) and the hard Yes/No token. These are released gradings of Llama 3 8B's answers by two small judges, beside GPT-4o's grade of the same answer. The first query is the instructive failure: the checklist does not say who the right YouTuber is, so the 3B judge cannot tell that the answer is invented.</p>
+<div class="chipbar" id="rplQ"></div>
+<div class="an-top"><div class="seg" id="rplJ" role="group" aria-label="Judge"><button class="on" data-m="p3" aria-pressed="true">Qwen2.5-3B judge</button><button data-m="p05" aria-pressed="false">Qwen2.5-0.5B judge</button></div>
+<div class="seg" id="rplS" role="group" aria-label="Item score"><button class="on" data-m="soft" aria-pressed="true">Probability p̂</button><button data-m="hard" aria-pressed="false">Hard Yes/No</button></div></div>
+<div id="rplBody"></div>
+<h3>All 1,000 responses: soft against hard</h3>
+<p class="small">Each point is one response, its RocketEval score (mean of the items, rescaled to 1 to 10 as the released code does) against GPT-4o's grade of the same response. The correlation is the instance-level agreement between the small judge and GPT-4o.</p>
+<div class="seg" id="scJ" role="group" aria-label="Released grading"></div>
+<div id="scSvg" class="plot"></div>
+<div class="out" id="scOut"></div>
+<p class="small mute">Released files <code>wildbench/judgment/*</code> of {{Joinn/RocketEval|https://huggingface.co/datasets/Joinn/RocketEval}}: Qwen2.5-0.5B and Qwen2.5-3B grading Llama 3 8B's answers, Llama-3-8B grading GPT-4 Turbo's; GPT-4o's grades from <code>wildbench/score/gpt-4o</code>. Points are jittered vertically so the integer grades do not stack. 132 of the 0.5B judge's 8,785 item grades are missing in the release and are skipped, as the code's <code>nanmean</code> does.</p>
+</div>
+
+<h3>3. Score prediction, and reweighting items with labels</h3>
+[[S3.SS3|§3.3, Eq. 2 to 4]]
+<p>Unsupervised, the score of a response is the arithmetic mean of its item scores <span class="m"><i>p̂</i>(<b><i>x</i></b>, <b><i>y</i></b>, <b><i>c</i></b><sub><i>i</i></sub>)</span> ({{§3.3|ax:S3.SS3}}). Equation 2 is printed as a sum, Σ<sub><i>i</i>=1..<i>N</i></sub> <i>p̂</i>, although the text calls it the mean; the code takes the mean and rescales it to the 1 to 10 range, <span class="m">9 · mean + 1</span> ({{score.py|https://github.com/Joinn99/RocketEval-ICLR/blob/main/src/rocketeval/process/score.py}}). A plain sum would favour queries with long checklists.</p>
+<p>Where labelled data exist, the item scores become features and the labels targets, and a predictor learns which items matter: the paper uses Extremely Randomized Trees (Geurts et al., 2006), a robust ensemble for few labels of unknown distribution ({{§3.3|ax:S3.SS3}}). Some queries are too easy, too hard or too vague, so every test model gets about the same label and the predictor learns nothing useful; the paper therefore trusts the supervised predictor in proportion to how spread out the labels are:</p>
+<div class="fm"><div class="eq"><i>α</i><sub><b><i>r</i></b></sub> = ( <i>ε</i> − KL(<i>P</i><sub><b><i>r</i></b></sub> ‖ <i>P</i><sub>ideal</sub>) ) / <i>ε</i>, &nbsp; <i>s</i><sub>sup</sub> = (1 − <i>α</i><sub><b><i>r</i></b></sub>) <i>s</i><sub>unsup</sub> + <i>α</i><sub><b><i>r</i></b></sub> <i>f</i><sub>sup</sub>(<b><i>p</i></b>)</div>
+<dl><dt>P<sub>r</sub></dt><dd>the histogram of the labels for this query</dd><dt>P<sub>ideal</sub></dt><dd>the uniform distribution over the score range (1 to 10), standing for labels that span every rubric level</dd><dt>ε</dt><dd>the largest possible KL divergence from it ({{Eq. 3|ax:S3.E3}}, {{Eq. 4|ax:S3.E4}})</dd></dl>
+<p class="wh">With 10 score levels, KL(<i>P</i> ‖ uniform) = ln 10 − <i>H</i>(<i>P</i>) and <i>ε</i> = ln 10, so <i>α</i> is simply the label histogram's entropy divided by ln 10: 0 when all labels are equal, 1 only when ten labels are all different (derived; the code's <code>kl_uniform_weight</code> computes exactly this).</p></div>
+<p><b>What the labels are, in practice.</b> The paper speaks of "annotations from humans and powerful LLMs". In the released code and data the labels are <b>GPT-4o's grades</b>, and the predictor is fitted <b>per query</b> on the responses of ten training models (for WildBench: GPT-4o, Claude 3.5 Sonnet, Command R+ and seven smaller ones), with 10 trees of depth 2 ({{score.py|https://github.com/Joinn99/RocketEval-ICLR/blob/main/src/rocketeval/process/score.py}}, <code>config/rankings/wildbench_train.json</code>). The supervised variant is distillation of GPT-4o's grading into item weights, from ten examples per query.</p>
+<div class="pred" id="pr-alpha" data-ans="0"><div class="q">on one query, GPT-4o gives all ten training models the same grade, 8. How much weight α does the supervised predictor get there?</div>
+<div class="opts"><button>None: α = 0, the plain mean decides</button><button>About half</button><button>All of it: α = 1</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p class="try"><b>Try:</b> set the ten training models' GPT-4o grades with the buttons (or draw a real WildBench query) and watch α, the entropy of their histogram over ln 10.</p>
+<div class="ctl"><div><button id="alR">Draw a real query's spread</button> <button id="alS">All equal</button> <button id="alU">All different</button></div></div>
+<div id="alLab" class="gr"></div>
+<div class="out" id="alOut"></div>
+<div id="alHist" class="plot"></div>
+<p class="small mute">The histogram is α for all 1,015 WildBench queries where the ten training models have GPT-4o grades, computed from the released grades by <code>mk_data.py</code> with the code's formula. "Draw a real query's spread" samples one of those queries' patterns of how many distinct grades the ten models got.</p>
+</div></div>
+<p>On the real WildBench labels, α averages 0.46 (median 0.47); 32 of 1,015 queries have all ten grades equal and α = 0. Ten models rarely span ten grades: most queries see three to five distinct grades. So the supervised score is usually about half the plain mean and half the tree ensemble.</p>
+<p>The paper's reweighting example (a thick-walled cylinder problem) shows what the trees learn: the item that checks the value of the radial stress, the core of the answer, gets weight 0.296; the item that checks the inner radius, simple and hard to get wrong, 0.069, against a default of one over the number of items ({{Figure 8|ax:S4.F8}}, {{§4.3|ax:S4.SS3}}).</p>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S4|§4 Experiments, Appendix A.3]]
+<p>Judges: 13 open models from 0.5B to 12B (Mistral-Nemo), plus Llama-3-70B and Qwen2-72B as large open references. Baselines: GPT-4o and GPT-4 with CoT, Direct scoring, the fine-tuned judge Prometheus-7B-v2.0, Claude-3.5-Sonnet in the diagnosis, and a <b>Fixed</b> checklist of six generic questions taken from MT-Bench's prompt (helpfulness, relevance, accuracy, depth, creativity, detail) to test whether per-query checklists matter ({{§4.1|ax:S4.SS1}}, {{Appendix A.2|ax:A1.SS2}}).</p>
+<div class="card" id="resx">
+<div class="seg" id="resM" role="group" aria-label="Level"><button class="on" data-m="list" aria-pressed="true">Ranking 12 models (Table 3)</button><button data-m="inst" aria-pressed="false">Single verdicts (Table 2)</button></div>
+<div class="seg" id="resB" role="group" aria-label="Compare against"><button class="on" data-m="cot" aria-pressed="true">from CoT</button><button data-m="direct" aria-pressed="false">from Direct</button><button data-m="fixed" aria-pressed="false">from Fixed</button></div>
+<div id="resSvg" class="plot"></div>
+<p class="small mute" id="resNote"></p>
+</div>
+<h3>Ranking a field of models: where it wins</h3>
+[[S4.T3|Table 3, Figure 6]]
+<p>On WildBench the ranking of 12 test models is compared with Chatbot Arena's Elo (hard prompts, English). With RocketEval, Gemma-2-2B reaches a Spearman correlation of <b>0.965</b> against GPT-4o's own 0.979; Mistral-Nemo reaches <b>0.986</b>, above GPT-4o, and Llama-3-8B ties it at 0.979. Gemma-2-2B also beats Qwen2-72B with CoT (0.958) and Prometheus-7B-v2.0 (0.949) ({{Table 3|ax:S4.T3}}). Small judges also agree with each other far more under RocketEval than under CoT ({{Figure 6|ax:S4.F6}}). The supervised variant never ranks worse than the unsupervised one and helps most for the weakest judges (Llama-3.2-1B from −0.357 to 0.846); for Gemma-2-2B both give 0.965.</p>
+<div class="pred" id="pr-pairs" data-ans="1"><div class="q">12 models make 66 pairs. GPT-4o orders 3 of them differently from Arena Elo. How many does Gemma-2-2B with RocketEval get wrong (Spearman 0.965 against 0.979)?</div>
+<div class="opts"><button>About 10</button><button>4</button><button>Over 20</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>Kendall's τ for 12 models without ties is (66 − 2<i>d</i>)/66 with <i>d</i> discordant pairs, so one extra discordant pair costs 0.030; for Spearman, one swap of neighbours costs 0.007. Table 3's Kendall values translate exactly: GPT-4o 0.909 is 3 pairs, Gemma-2-2B 0.879 is 4, Mistral-Nemo 0.939 is 2 ({{Table 3|ax:S4.T3}}; <code>recompute.py</code>). "Comparable to GPT-4o" and "above GPT-4o" are each one pair of 66. The {{Re-rank the leaderboard|tab:t-run}} tab reruns GPT-4o's ranking from its released grades and shows how much one query sample moves it.</p>
+<div id="pairsGrid" class="plot"></div>
+</div></div>
+<p>The same holds on three more benchmarks with 10 to 12 test models each (MT-Bench, AlpacaEval, Arena-Hard): RocketEval lifts small judges' correlations close to GPT-4o's, and on Arena-Hard several reach 1.000 ({{Table 6|ax:A1.T6}}). Score distributions under RocketEval spread out like GPT-4o's, where small CoT judges pile up on a few values ({{Figure 10|ax:A1.F10}}). On Arena-Hard, Elo ratings fitted from the judges' pairwise verdicts (Bradley-Terry, bootstrap intervals, the Chatbot Arena procedure) over 50 test models follow the human ratings, with the largest deviations all in the Llama series, a hint of bias towards one response style ({{Figure 11|ax:A1.F11}}).</p>
+
+<h3>Single verdicts: the honest weak spot</h3>
+[[S4.T2|Table 2]]
+<p>On MT-Bench's human votes, RocketEval lifts every small judge over its CoT score (13 of 13), by 13 points on average: Gemma-2-2B from 37.9% to <b>57.9%</b>, Qwen2.5-0.5B from 24.9% to 54.3%. It still stays short of GPT-4o (66.6%) and of the 64.7% at which humans agree with each other. The supervised variant does not fix this (Gemma-2-2B 57.3%; below the unsupervised score for 8 of 13 judges), and the Fixed checklist helps no one, falling below CoT for 6 of 13 judges ({{Table 2|ax:S4.T2}}). Two sentences of the text overstate the table: "Llama-3-8B and Mistral-Nemo achieve over 64%" is true only of Mistral-Nemo's supervised score (64.2%; unsupervised 63.8% and 63.2%), and "smaller-sized LLMs ... over 60%, outperforming GPT-4" holds for two of them (Phi-3-mini 61.2%, Qwen2.5-1.5B 60.7%; GPT-4 single-answer grading 59.6%) ({{§4.1|ax:S4.SS1}}).</p>
+<p>That split is the finding to remember. A 2B judge can rank a leaderboard almost exactly like a frontier judge while disagreeing with humans on individual responses far more often than humans disagree with each other. Ranking a field of models is a much easier statistical problem than adjudicating one response: per-response noise averages out over hundreds of queries and only the systematic part survives. The {{Re-rank the leaderboard|tab:t-run}} tab makes this measurable on the released grades.</p>
+
+<h3>Cost</h3>
+[[S4.SS2|§4.2, Table 4]]
+<p>Responses are assumed pre-generated. GPT-4o and GPT-4o-mini are priced from token counts; open judges run on rented NVIDIA RTX A5000 GPUs under vLLM in batch mode at RunPod's $0.36 an hour per GPU, priced by measured run time. RocketEval pays once for the checklists (1.38M input and 228k output tokens on GPT-4o, $2.87) and then per run ({{§4.2|ax:S4.SS2}}, {{Table 4|ax:S4.T4}}).</p>
+<div class="card" id="costx">
+<p class="try"><b>Try:</b> move the number of runs (one run grades every WildBench query for one model version) and switch the OpenAI prices between the batch prices the paper used and the standard ones. Where does a small judge with RocketEval become cheaper than GPT-4o-mini with CoT?</p>
+<div class="ctl"><label>Runs <i>N</i> = <b id="cNv">1,000</b><input type="range" id="cN" min="0" max="40" step="1" value="30"></label>
+<div><div class="seg" id="cP" role="group" aria-label="OpenAI prices"><button class="on" data-m="batch" aria-pressed="true">Batch API prices (paper)</button><button data-m="std" aria-pressed="false">Standard prices</button></div></div></div>
+<div id="cSvg" class="plot"></div>
+<div class="out" id="cOut"></div>
+<p class="small mute" id="cNote"></p>
+</div>
+<p>At 1,000 runs, Gemma-2-2B costs $27.7 against $3,400: 123 times cheaper, 0.8% of the cost; Llama-3-8B $71.4, 48 times cheaper (2.1%). The abstract's "over 50-fold" fits Gemma-2-2B (Llama-3-8B is 48-fold); the introduction's "2% of the evaluation cost", said of Gemma-2-2B, is Llama-3-8B's figure (Gemma-2-2B's is 0.8%). Because the checklists cost about one GPT-4o run, RocketEval beats GPT-4o from the first run; against GPT-4o-mini with CoT ($0.20 a run) it only pays off after about 16 runs.</p>
+
+<h3>Ablations and the checklists themselves</h3>
+[[A1.SS4|Appendix A.4, Tables 7 and 8]]
+<p>Removing the normalised score (using the decoded Yes/No) costs 10.8 points of human agreement on average over 13 judges, and up to 25 points (Qwen2-1.5B, 56.2% to 31.2%). Removing independent grading (items asked in one conversation) costs only 1.5 points on average and helps three judges; the authors say so, suggest the position bias is diluted by the later scoring stage, and keep independence because a multi-turn conversation cannot be batched ({{Table 7|ax:A1.T7}}, {{Appendix A.4|ax:A1.SS4}}). Setting α to 1 (trusting the trees completely) hurts single verdicts but gives the best rankings ({{Table 8|ax:A1.T8}}).</p>
+<p>The checklists' verbs follow the tasks: "include" and "provide" dominate, "calculate" and "specify" mark quantitative and advisory questions, "handle" belongs to coding ({{Figure 7|ax:S4.F8}}, {{Appendix A.5|ax:A1.SS5}}). WildBench's five task groups (Math and Data Analysis, Coding and Debugging, Creative Tasks, Information/Advice Seeking, Planning and Reasoning) each get their own reweighting examples, such as the forward, backward and loss structure in a coding task, or deducing diabetic ketoacidosis before a treatment in a reasoning task ({{Figures 14 to 17|ax:A1.F14}}).</p>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up.</b></p>
+<ul>
+<li><b>The diagnosis.</b> The three experiments of §2 point the same way, across two model families and four sizes, and the mechanism is plausible on its face. Figure 5's flip rate rises with every earlier item for all five models (read from the vector figure).</li>
+<li><b>The baseline reproduces from released data.</b> GPT-4o's released WildBench grades of the 12 test models, averaged over the 1,013 queries all twelve share, give Kendall 0.909 and Spearman 0.979 against the released Elo ratings: Table 3's GPT-4o row, independently. Its three discordant pairs are Reka Core and Mistral Large, Llama 3 8B and DBRX, Gemma 7B and Llama 2 7B, all neighbours.</li>
+<li><b>The cost arithmetic.</b> Five of Table 4's six rows reproduce independently from the stated token counts, prices and GPU seconds (GPT-4o-mini within 2%). The 1.84M input tokens per run reproduce from the released GPT-4o gradings to the thousand (mean 1,840,175 per 1,000 queries); output comes to 232k against the printed 220k.</li>
+<li><b>The probability readout.</b> In the released gradings the soft score tracks GPT-4o better than the hard token for all three judges (correlation 0.29 against 0.24 for Qwen2.5-0.5B, 0.41 against 0.39 for Qwen2.5-3B, 0.47 against 0.46 for Llama-3-8B), the same direction as the paper's ablation, and largest for the most uncertain judge, which leaves 67% of its items between 0.3 and 0.7.</li>
+<li><b>Fair reporting.</b> The authors report their weak instance-level numbers, the near-null effect of independent grading, and the judges that fail (Llama-3.2-1B's unsupervised ranking is negative).</li></ul>
+<p><b>What to discount.</b></p>
+<ul>
+<li><b>"Comparable to GPT-4o" is one ranking of 12 models, without error bars.</b> 0.965 against 0.979 is one discordant pair of 66; Mistral-Nemo's "above GPT-4o" is one pair the other way. No seeds, bootstrap or confidence intervals are reported for any of these correlations ({{Table 3|ax:S4.T3}}). Resampling WildBench's queries moves GPT-4o's own Spearman across roughly 0.95 to 0.99 at 100 queries (the {{Re-rank|tab:t-run}} tab).</li>
+<li><b>The test models were chosen to be easy to rank.</b> The authors replaced WildBench's model set with one whose Arena Elo intervals do not overlap ({{Appendix A.3.1|ax:A1.SS3.SSS1}}); that makes the ground truth cleaner, and also makes a high correlation easier, since neighbours are 13 to 39 Elo apart. One overlap remains in the released list (Claude 3 Sonnet's interval starts 0.5 Elo below Reka Core's upper bound). The footnote names 14 models for a set described as 12.</li>
+<li><b>The supervised variant is fitted to GPT-4o.</b> Its labels are GPT-4o grades of ten other models' answers (code and data), so "Ours (Sup.)" partly distils the frontier judge it is compared with; and the diagnosis's 70.3% is agreement with GPT-4o after reading GPT-4o's analysis (above).</li>
+<li><b>Single-verdict agreement cannot be checked independently.</b> Gradings are released for only 3 of MT-Bench's 6 human-judged models and 2 judges. On the one pair with every grade available (GPT-4 against Claude-v1, 200 votes, standard error about 3.5 points), Qwen2.5-3B with RocketEval agrees with humans 43.0% of the time, GPT-4's own single-answer grades 43.5%, and humans with each other 61.5% (117 vote pairs; <code>mk_data.py</code>). That is consistent with the paper's claim that small judges with checklists approach GPT-4, on a hard pair; it is not Table 2.</li>
+<li><b>Internal slips.</b> Table 4's Llama-3-70B row: 3,760 s at $1.44 an hour is $1.50 a run, but its totals ($15.1, $125, $1,224) imply $1.22, about 3,053 s. Human-to-human agreement is 64.8% in the text and Figure 1, 64.7% in Table 2 (GPT-4o 66.7% and 66.6%). Equation 2 is a sum where a mean is meant. WildBench is 1,024 queries in Table 5 and a 1,000-query subset in the released data. The "5 to 10" questions are 3 to 25 in the released checklists.</li>
+<li><b>Prices.</b> The $3,400 uses OpenAI's Batch API prices for gpt-4o-2024-08-06 ($1.25 and $5.00 per million tokens, half the standard $2.50 and $10.00, per the {{archived pricing page|https://web.archive.org/web/20240908234425/https://openai.com/api/pricing/}}); at standard prices it is $6,800. The ratio to a small judge is about the same either way, since the checklists are priced the same way.</li></ul>
+<p><b>Verdict.</b> Believe the diagnosis, the direction of every result, and the cost arithmetic. Treat "a 2B judge is as good as GPT-4o" as true for ranking a well-separated field of models on chat benchmarks, within the noise of one ranking; for single responses the small judges are far from human agreement, so act on aggregates, not on verdicts.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>Code and data.</b> {{RocketEval-ICLR|https://github.com/Joinn99/RocketEval-ICLR}} is MIT-licensed: checklist creation, grading (offline through vLLM with prefix caching and <code>allowed_token_ids</code>, or through any OpenAI-compatible API, in batch or instant mode), score prediction and rankings, plus a Colab notebook. The {{Hugging Face dataset|https://huggingface.co/datasets/Joinn/RocketEval}} has queries, checklists, responses and GPT-4o labels for MT-Bench, AlpacaEval, Arena-Hard and WildBench, but small-judge gradings for only a few examples.</li>
+<li><b>Hardware.</b> One RTX A5000 per small judge; WildBench took 248 s per run for Gemma-2-2B and 685 s for Llama-3-8B; Llama-3-70B needed four GPUs and AWQ quantisation ({{Table 4|ax:S4.T4}}).</li>
+<li><b>Which judges work.</b> Unsupervised, every judge of 2B and up ranks WildBench's 12 models at a Spearman correlation between 0.874 (Mistral-7B) and 0.986 (Mistral-Nemo). Below 2B it depends on the model, not the size: Qwen2.5-1.5B 0.923 and Qwen2.5-0.5B 0.811, but Qwen2-1.5B 0.622, InternLM2.5-1.8B 0.748 and Llama-3.2-1B −0.357 ({{Table 3|ax:S4.T3}}). Validate your judge on your own data.</li>
+<li><b>Two prerequisites.</b> A strong model must see every query (and, in the paper's prompt, a reference answer) to write the checklists, so the privacy argument covers the responses, not the queries. And the judge's runtime must expose token probabilities: vLLM does; {{Ollama|https://github.com/ollama/ollama/releases/tag/v0.12.11}} does since v0.12.11 (November 2025); OpenAI's Chat Completions return up to 20 {{top_logprobs|https://platform.openai.com/docs/api-reference/chat/create}}; some hosted APIs return none, and without them the most important part of the method is lost.</li>
+<li><b>When it pays.</b> When one fixed benchmark is graded many times (many checkpoints, decoding settings or prompt variants) and the decision rests on an aggregate. It buys little for a one-off evaluation, for a single verdict (a per-PR gate on one case, an RLAIF preference label), or outside English chat-style benchmarks, which are all the paper tests.</li></ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<p>It makes a continuously run evaluation affordable. At $27 a sweep you can gate every merge; at $3,400 you sweep quarterly and argue about the results. And because the judge is a small open-weight model reading a frozen checklist, the evaluation becomes reproducible in a way a proprietary endpoint never is: same weights, same checklist, same numbers next year. The checklist itself is reviewable by a human, which is more than can be said for a frontier judge's opinion.</p>
+<p>The deeper lesson is about where to spend capability. The frontier model is used only for the part that needs judgment, deciding what would make an answer good, and its output is a durable artifact. The small model does bounded, verifiable classification against that artifact, and the aggregate of many such classifications is better than any one of them. It is the same division of labour as a rubric handed to a junior grader, and the same reason rubrics exist.</p>
+<p><b>What the paper does not establish.</b></p>
+<ol>
+<li>That the pipeline is cheap end to end without a frontier model: checklist creation still needs one (here proprietary), so the cheap pipeline has an expensive prerequisite, and the privacy argument holds for the response side only.</li>
+<li>That a small judge can replace a frontier judge for <b>instance-level</b> decisions: on these numbers it cannot, so anything acting on a single verdict is out of scope.</li>
+<li>That it holds outside English, or outside chat-style open-ended response evaluation: all four benchmarks are English chat benchmarks.</li>
+<li>That any small model works: below about 2B results depend on the model (Qwen2.5-0.5B works, Llama-3.2-1B does not), so there is a floor, but it is not a size.</li>
+<li>That the supervised reweighting is available in practice: it needs labels (in the paper, GPT-4o's grades of ten other models per query) that most private benchmarks do not have, and the unsupervised variant carries the headline result anyway.</li></ol>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li><b>{{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}</b> ({{evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}}): a concrete answer to the position, verbosity and self-preference bias catalogue, removing the channel rather than debiasing after the fact. It sits next to the juries (PoLL) result: both say many cheap decisions beat one expensive one.</li>
+<li><b>Production eval engineering</b> (evaluation-and-llm-judges): the cost profile is what makes a per-commit regression gate realistic; the instance-level number is why you gate on aggregates, not single cases.</li>
+<li><b>{{Constitutional AI|n:3c65c17b0d0d815a9b31e9443961c700}}</b> (Papers): the same shape one level up, a written rubric standing in for human judgment at training time rather than evaluation time.</li>
+<li><b>{{Demystifying Agent Skills|n:3c65c17b0d0d81249a3cf5fda4de5d92}}</b> (Papers): a checklist here is a procedural anchor there. Both find that writing the procedure down is what transfers, and that the artifact beats the model's improvisation.</li>
+<li><b>{{StateM|n:3c65c17b0d0d81899098d8153e100691}}</b> and <b>{{JIT-Agent|n:3cd5c17b0d0d81148227fbd67dc4b3ee}}</b> (Papers): the same "expensive artifact, cheap execution" economics in the harness layer, where an expensive run produces a runbook or a synthesised harness that a cheaper model executes.</li>
+<li><b>Speculative decoding</b> ({{inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}): the same economics inverted, a cheap model proposes and an expensive process verifies, rather than an expensive model specifying and a cheap model executing.</li></ul>
+</section>
+
+<section id="s-note"><h2>Note to self</h2>
+<div class="co key"><div class="t">Khalid, 2026-08-30. In his words:</div>
+<p>"And make a note to self on the page of the paper saying this could be use more generally for using a bigger model to guide the small model on how to do the task exactly. My example use case for this is using fable as an orchestrator to local ollama models or cheaper api models"</p>
+<p>The general pattern, stated plainly: <b>a bigger model writes an exact specification of the task, and a smaller model executes that specification.</b> Checklist grading is one instance of it; the evaluation framing is incidental. Intended use case: <b>Fable as the orchestrator, writing the spec, over local Ollama models or cheaper API models that execute it.</b></p></div>
+<p class="small mute"><i>Everything above in the callout is Khalid's. The commentary below is Claude's, added when the page was written on 2026-08-31, with two updates on 2026-10-03 (marked).</i></p>
+<h3>Where the pattern transfers</h3>
+<p>The paper supplies the conditions, and they are more restrictive than the idea sounds.</p>
+<ul>
+<li><b>The task must decompose in advance into small, independent, verifiable sub-questions.</b> Independence is not a nicety; it is what removes the bias channel and what lets each sub-answer be cheap. If the orchestrator cannot write the decomposition before seeing the executor's work, there is nothing to hand over.</li>
+<li><b>The sub-decisions should be binary or low-cardinality</b>, so the runtime can expose a calibrated probability instead of a sampled token. Ollama exposes log probabilities (since v0.12.11, 12 November 2025, {{release notes|https://github.com/ollama/ollama/releases/tag/v0.12.11}}), so the P(Yes)/(P(Yes)+P(No)) trick is available locally. Hosted chat APIs vary: OpenAI's returns top log probabilities, others return none; where they are missing, the single most important part of the method quietly disappears (<i>updated 2026-10-03</i>: the paper's ablation puts that part at about 11 points of agreement on average, 25 for the weakest judge).</li>
+<li><b>The expensive artifact must be reused across many cheap calls.</b> This is the whole economic argument. Per query, per benchmark, it amortises over every model and every rerun. A spec written fresh for each request amortises over nothing, and you have paid the big model plus the small model to do one job (against GPT-4o-mini, RocketEval's checklists only pay off after about 16 runs).</li>
+<li><b>Expect aggregate quality to exceed per-item quality.</b> 0.965 list-level correlation out of 57.9% item agreement is the shape to plan for: design the system so the answer you act on is an aggregate.</li></ul>
+<h3>Where it does not</h3>
+<ul>
+<li><b>Tasks that cannot be decomposed ahead of time</b>, which includes most open-ended generation. There is no equivalent of a Yes/No logit for "write this well", and no checklist that specifies a good essay without writing it.</li>
+<li><b>Tasks where the executor cannot answer the sub-questions even given the spec.</b> The 70.3% from importing GPT-4o's analysis is a ceiling, not 100% (and it is agreement with GPT-4o itself, so the real ceiling is lower: 58.2% against Claude; <i>updated 2026-10-03</i>). A spec does not confer a capability the small model lacks; it only removes the need for one it lacks. The replay above shows the failure: a checklist that does not name the right answer cannot stop a small judge from accepting a confident wrong one.</li>
+<li><b>Anything acting on a single verdict.</b> The instance-level result is the direct warning against this shape for per-item gating or for generating preference labels.</li>
+<li><b>Cases where the orchestrator has to see each input anyway</b> to write the spec. Then the big model is already paying per item and the small model is overhead.</li></ul>
+<h3>Neighbours already in this knowledge base</h3>
+<p>Worth reading together, because they are the same "expensive artifact, cheap execution" shape at different layers: <b>{{StateM|n:3c65c17b0d0d81899098d8153e100691}}</b> (an expensive adaptation run produces a versioned state-machine runbook that a cheap model follows to frontier scores at 1/38 the cost, per its page), <b>{{JIT-Agent|n:3cd5c17b0d0d81148227fbd67dc4b3ee}}</b> (a trained 27B model synthesises a harness that a cheaper executor runs), <b>{{Demystifying Agent Skills|n:3c65c17b0d0d81249a3cf5fda4de5d92}}</b> (the written procedure as procedural anchor, including its 10% misapplication failure mode, the failure to expect from a spec the executor half understands), and <b>distillation</b> in {{llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}, the weights-level version of the same trade: pay the big model once, run the small one forever. The difference worth holding onto: distillation moves the capability into the weights, where it cannot be inspected or edited afterwards, while a checklist or a runbook stays a text artifact you can read, diff and fix.</p>
+<p class="small mute">The old page's header said "Added to the KB 2026-08-31".</p>
+</section>
+</section>
