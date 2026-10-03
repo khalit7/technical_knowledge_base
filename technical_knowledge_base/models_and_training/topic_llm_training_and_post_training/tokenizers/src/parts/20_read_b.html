@@ -1,0 +1,51 @@
+<section id="rd-alg">
+<h2>The algorithms</h2>
+<p>All three learn a vocabulary from a training corpus that has first been <b>pre-tokenized</b>: split into words by a fixed rule (spaces, punctuation, digits), so that no token can cross a word boundary. Counting happens over distinct words with their frequencies, not over the raw text.</p>
+<div class="alg3">
+<div><h4>BPE (Byte-Pair Encoding)</h4><p class="small">Start from characters (or bytes) and repeatedly merge the most <b>frequent</b> adjacent pair into a new token until the target vocabulary size. It guarantees no OOV, since the worst case falls back to characters or bytes; the cost is that unfamiliar words shatter into many small fragments. Encoding applies the learned merges in order. Originally a compression algorithm, brought to translation by {{Sennrich, Haddow and Birch|https://arxiv.org/abs/1508.07909}} to make the model "capable of open-vocabulary translation by encoding rare and unknown words as sequences of subword units".</p></div>
+<div><h4>Byte-level BPE</h4><p class="small">BPE over the 256 raw byte values (GPT-2 onward, Llama 3, every tiktoken vocabulary). Any Unicode input is representable with zero OOV and no normalisation headaches. GPT-2's implementation maps each byte to a printable character, which is why a space shows up as <code>Ġ</code> in its vocabulary files and why a Hindi character shows up as two or three odd Latin symbols.</p></div>
+<div><h4>WordPiece</h4><p class="small">BERT's method. Same skeleton as BPE, different merge criterion: merge the pair maximising freq(ab) / (freq(a) × freq(b)), a likelihood ratio (pointwise mutual information up to a constant) rather than raw frequency. A pair of common parts scores low even if it is frequent. Encoding is greedy longest-match-first with <code>##</code> continuation prefixes. The original criterion was the language-model likelihood gain of each candidate unit ({{Schuster and Nakajima 2012|https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/37842.pdf}}); the score above is the Hugging Face course's reconstruction, because "Google never open-sourced its implementation of the training algorithm" ({{course|https://huggingface.co/learn/llm-course/chapter6/6}}).</p></div>
+<div><h4>Unigram LM</h4><p class="small">Kudo's method runs the other way: start with a large candidate vocabulary, fit a unigram language model (each token has a probability, a word's probability is the product of its tokens'), and repeatedly <b>prune</b> the tokens whose removal least hurts corpus likelihood, 10% or 20% at a time, never single characters, until the target size. A string is tokenized by its highest-probability segmentation (Viterbi). Because it is a probabilistic model it can also <b>sample</b> other segmentations, which Kudo used as training-time augmentation ("subword regularization", {{Kudo 2018|https://arxiv.org/abs/1804.10959}}).</p></div>
+<div><h4>SentencePiece</h4><p class="small">A <b>toolkit</b>, not an algorithm. Language-agnostic: it treats raw text as a stream of characters including whitespace, which it writes as the meta symbol <code>▁</code> (U+2581), so it needs no pre-tokenization and round-trips losslessly: "Hello▁world." becomes [Hello] [▁wor] [ld] [.] and decodes by replacing ▁ with a space ({{SentencePiece §3.1|https://arxiv.org/abs/1808.06226}}). It trains either BPE or Unigram underneath. Used by T5, LLaMA 1 and 2, Gemma and many multilingual models.</p></div>
+</div>
+</section>
+
+<section id="rd-train">
+<h2>Train three tokenizers on one text</h2>
+<div class="card" id="trn">
+<p class="try"><b>The same corpus, three algorithms, step by step.</b> Each row is one distinct word of the corpus (×N is how often it occurs), cut into its current tokens; the outlined tokens were created by this step. The table shows the candidates the algorithm weighed. <b>Try</b> switching from BPE to WordPiece at the first step: BPE takes the most frequent pair, WordPiece skips frequent pairs of common parts. Then Unigram, which starts from 300 candidates and only removes. Edit the text and retrain to use your own corpus.</p>
+<div class="seg" id="trnMode"><button data-m="bpe" class="on">BPE (byte-level)</button><button data-m="wp">WordPiece</button><button data-m="ug">Unigram</button></div>
+<details style="margin:4px 0"><summary class="small">Edit the training text and the sizes</summary>
+<textarea id="trnText" spellcheck="false" aria-label="Training corpus, one text per line"></textarea>
+<div class="ctlrow"><label>BPE merges <input type="number" id="trnBpeN" min="1" max="300" value="25" style="width:5em"></label><label>WordPiece target vocabulary <input type="number" id="trnWpN" min="10" max="600" value="70" style="width:5em"></label><label>Unigram target vocabulary <input type="number" id="trnUgN" min="20" max="600" value="100" style="width:5em"></label><button id="trnGo">Retrain</button><button id="trnReset">Course corpus</button></div>
+<p class="small mute" id="trnInfo"></p>
+</details>
+<div class="an-ctl" id="trnCtl"></div>
+<div class="an-cap" id="trnCap"></div>
+<div class="an-cnt" id="trnCnt"></div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr))">
+<div><div class="panelt">Corpus, as the model would now see it</div><div class="scroll" id="trnWords" style="max-height:300px"></div></div>
+<div><div class="panelt" id="trnTabT">Candidates this step</div><div class="tw" id="trnTab"></div></div>
+</div>
+<p class="small mute" id="trnNote"></p>
+</div>
+<p class="small">Defaults reproduce published lists, independently: on the Hugging Face course's four-sentence corpus, the page's WordPiece learns exactly the course's 25 new tokens (<code>ab</code>, <code>##fu</code>, <code>Fa</code>, <code>Fac</code>, ... <code>##ut</code>), its Unigram starts at the course's loss of 413.10 and tokenizes "This is the Hugging Face course." exactly as the course prints, and its BPE gives the same merges as the Hugging Face <code>tokenizers</code> library's own BpeTrainer. All three were checked on four corpora (36 of 36 comparisons identical, including accents, emoji, Cyrillic and Japanese; <code>check_algos.mjs</code>). The course's printed BPE list differs from the library's at ties, as the course itself notes: when two pairs are equally frequent the course takes the first one it meets, the library the one whose token ids are smallest. The library has no WordPiece trainer of its own (its WordPieceTrainer runs BPE with <code>##</code> prefixes), and its Unigram trainer is SentencePiece's EM algorithm, so for those two the course's code is the reference; the page's Unigram is the course's simplified version (probabilities from substring counts, no EM re-estimation, exact removal losses).</p>
+</section>
+
+<section id="rd-enc">
+<h2>Encoding is a different algorithm</h2>
+<p>Training builds the vocabulary once; encoding runs on every request, and each method encodes differently. <b>BPE</b> replays its merges in the order learned (the library does it as "apply the lowest-ranked merge present, repeat", which gives the same result). <b>WordPiece</b> stores no merges, only the vocabulary, and takes the longest vocabulary entry that matches from the left; if any part of a word cannot be matched, the whole word becomes <code>[UNK]</code>. <b>Unigram</b> finds the segmentation with the highest product of token probabilities by dynamic programming (Viterbi). So the same vocabulary entry can be reached differently: the course's example vocabulary tokenizes "hugs" as <code>hug ##s</code> by longest match, while BPE replaying the same merges gives <code>hu ##gs</code> ({{course|https://huggingface.co/learn/llm-course/chapter6/6}}).</p>
+<div class="card" id="encBox">
+<p class="try"><b>Encode any text with the three tokenizers you just trained</b> (the corpus and sizes above). Words the corpus never contained show the difference best.</p>
+<input type="text" id="encIn" value="Hopefully the tokenizer understands hugging." aria-label="Text to encode">
+<div id="encOut"></div>
+</div>
+<p>Before any of this, production tokenizers run a <b>pre-tokenizer</b>, usually a regular expression, and its rules matter as much as the vocabulary. They decide, for example, how numbers are cut, read here from each tokenizer's own files:</p>
+<div class="tw"><table class="wide">
+<thead><tr><th>Tokenizer</th><th>Digit rule</th><th>"12345678" becomes</th><th>Source</th></tr></thead><tbody>
+<tr><td>GPT-2 (r50k_base)</td><td>Any run of digits, then BPE merges inside it</td><td><code>123|45|678</code></td><td>{{GPT-2 encoder.py|https://github.com/openai/gpt-2/blob/master/src/encoder.py}} (pattern <code> ?\p{N}+</code>)</td></tr>
+<tr><td>GPT-4 (cl100k), GPT-4o (o200k), Llama 3 and 4, DeepSeek-V3</td><td>Groups of 1 to 3 digits, from the left</td><td><code>123|456|78</code></td><td>Pattern <code>\p{N}{1,3}</code> in {{tiktoken|https://github.com/openai/tiktoken/blob/main/tiktoken_ext/openai_public.py}} and the models' <code>tokenizer.json</code></td></tr>
+<tr><td>LLaMA 1 and 2, Gemma 1 to 4, Qwen3, Qwen3.5</td><td>Every digit on its own</td><td><code>1|2|3|4|5|6|7|8</code></td><td>"we split all numbers into individual digits" ({{LLaMA §2.1|https://arxiv.org/abs/2302.13971}}); Gemma "splits digits" ({{Gemma §4.1|https://arxiv.org/abs/2403.08295}}, {{Gemma 3 §2.2|https://arxiv.org/abs/2503.19786}}; Gemma 4 measured here); Qwen pattern <code>\p{N}</code> ({{tokenizer.json|https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer.json}})</td></tr>
+</tbody></table></div>
+<p class="small mute">Computed offline with each real tokenizer; what this does to arithmetic is under {{Failure modes|#rd-fail}}. The {{Same text, ten tokenizers|#t-lang}} tab shows a Python snippet: GPT-2 has no tokens for runs of spaces, so each four-space indent costs three single-space tokens before the fourth space joins the next word (45 tokens for the snippet against 28 for GPT-4's cl100k, which added whitespace-run tokens for code).</p>
+</section>
