@@ -1,0 +1,59 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-fam">Family</a><a href="#s-pre">Pre-training</a><a href="#s-base">Base results</a><a href="#s-post">Post-training</a><a href="#s-fuse">Mode fusion</a><a href="#s-budget">Budget</a><a href="#s-distill">Distillation</a><a href="#s-stages">Stage effects</a><a href="#s-res">Results</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<div class="co"><div class="t">What this page builds, and what it links</div>
+<p>The {{Alibaba: Qwen|n:3c65c17b0d0d81fd8c36ce06672bb235}} lab page already explains Qwen's architecture choices (no shared expert, QK-Norm), animates the global-batch load-balancing loss against the micro-batch one, has a thinking-budget strip and the Table 21 bars, and carries the whole lineage after this report. This page links those and builds what only this report has: thinking mode fusion in one checkpoint (tested on a toy Qwen3 trained three ways), the thinking-budget results read exactly from Figure 2, strong-to-weak distillation, the stage-by-stage evidence, and every table rebuilt with its claims checked.</p></div>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>By early 2025 open models came in two kinds. Chat models such as Qwen2.5-Instruct (and, among closed ones, GPT-4o) answer at once; reasoning models such as QwQ-32B and DeepSeek-R1 think at length first. A user had to route each request to the right model and had no control over how many reasoning tokens to pay for ({{abstract|https://arxiv.org/abs/2505.09388}}, {{§1|ax:S1}}).</p>
+<p>Small open models were also expensive to make good: running a full reasoning-RL pipeline for every size does not amortise. Qwen3 targets three gaps at once:</p>
+<ul>
+<li><b>One model, two modes, a budget.</b> A single checkpoint that both thinks and answers directly, switched by a flag, with the thinking capped at a user-set number of tokens.</li>
+<li><b>A ladder of sizes built cheaply.</b> Small models trained from the flagships by distillation instead of their own reinforcement learning.</li>
+<li><b>Languages.</b> From Qwen2.5's 29 languages and dialects to 119.</li>
+</ul>
+<p class="lead"><b>The question:</b> can one set of weights serve both quick answers and long reasoning, with reasoning depth as a dial, and can the small models inherit all of it without their own RL?</p>
+</section>
+
+<section id="s-fam"><h2>The family and its architecture</h2>
+[[S2|§2, Tables 1 and 2]]
+<p>Eight models, all open under Apache 2.0: six dense (0.6B, 1.7B, 4B, 8B, 14B, 32B) and two mixture-of-experts, Qwen3-30B-A3B and the flagship Qwen3-235B-A22B, 235B parameters in total with 22B active per token ({{§2|ax:S2}}).</p>
+<ul>
+<li><b>Dense blocks are Qwen2.5's</b>: grouped-query attention, SwiGLU, rotary position embeddings, RMSNorm before each sub-layer. Two changes: the QKV bias of Qwen2 is removed and <b>QK-Norm</b> is added, an RMSNorm on each head's queries and keys before the dot product, "to ensure stable training".</li>
+<li><b>MoE layers</b> have 128 fine-grained experts with 8 active per token and, unlike Qwen2.5-MoE, <b>no shared expert</b>. The balancing loss is computed over the global batch instead of each micro-batch "to encourage expert specialization" (animated on the {{lab page|n:3c65c17b0d0d81fd8c36ce06672bb235}}).</li>
+<li><b>Tokenizer</b>: Qwen's byte-level BPE with 151,669 tokens (the released embedding is padded to 151,936 rows).</li>
+<li><b>Context</b>: Table 1 gives 32K for 0.6B and 1.7B and 128K for the rest. The model cards say 32,768 natively and 131,072 with YaRN at factor 4 for 4B and up ({{Qwen3-8B card|https://huggingface.co/Qwen/Qwen3-8B}}); the release blog lists Qwen3-4B as 32K, Table 1 as 128K.</li>
+</ul>
+<div class="tw"><table><thead><tr><th>Model</th><th class="num">Layers</th><th class="num">Q / KV heads</th><th class="num">Experts</th><th class="num">Parameters (recount)</th><th class="num">KV cache per token</th></tr></thead><tbody id="archT"></tbody></table></div>
+<p class="small mute">Layers, heads and experts are {{Table 1|ax:S2.T1}} and {{Table 2|ax:S2.T2}}. The parameter column is recounted here from each released config.json (attention with QK-Norm, SwiGLU or experts plus router, two RMSNorms per layer, embeddings tied for 0.6B, 1.7B and 4B): every count lands within rounding of its model card (8.19B against the card's 8.2B, 30.53B with 3.35B active against 30.5B and 3.3B). KV cache is 2 × layers × KV heads × 128 × 2 bytes in BF16.</p>
+</section>
+
+<section id="s-pre"><h2>Pre-training: 36T tokens in three stages</h2>
+[[S3.SS1|§3.1 and §3.2]]
+<p><b>Data.</b> Twice Qwen2.5's tokens (36T against 18T, per the {{release blog|https://qwenlm.github.io/blog/qwen3/}}) in 119 languages and dialects, "three times more" than Qwen2.5's 29 (119 ÷ 29 = 4.1 times as many). The extra comes from three pipelines ({{§3.1|ax:S3.SS1}}):</p>
+<ul>
+<li><b>PDF-like documents read by a model.</b> A fine-tuned Qwen2.5-VL recognises the text, Qwen2.5 refines it: "trillions" of extra tokens.</li>
+<li><b>Synthetic data.</b> Qwen2.5, Qwen2.5-Math and Qwen2.5-Coder write textbooks, question-answer pairs, instructions and code in dozens of domains, again "trillions" of tokens.</li>
+<li><b>More multilingual data</b>, for the new languages.</li>
+</ul>
+<p>A multilingual annotation system labels over 30T tokens by educational value, field, domain and safety. The mixture is then optimised <b>per instance, not per source or domain</b>, by ablations on small proxy models that use those labels. The report gives no labels, weights or proxy results.</p>
+<p><b>Three stages</b> ({{§3.2|ax:S3.SS2}}):</p>
+<ol>
+<li><b>General (S1):</b> over 30T tokens at 4,096-token sequences, all 119 languages.</li>
+<li><b>Reasoning (S2):</b> about 5T higher-quality tokens with more STEM, coding, reasoning and synthetic data, still at 4,096, with "accelerated" learning-rate decay.</li>
+<li><b>Long context:</b> hundreds of billions of tokens at 32,768; 75% of the long-context text is 16,384 to 32,768 tokens long, 25% is 4,096 to 16,384. The RoPE base rises from 10,000 to 1,000,000 (ABF), and at inference YaRN and Dual Chunk Attention give "a four-fold increase in sequence length capacity".</li>
+</ol>
+<p>As for Qwen2.5, in-house scaling laws set the learning-rate schedule and batch size for each model and stage; none of the laws or values are published.</p>
+</section>
+
+<section id="s-base"><h2>Base-model results</h2>
+[[S3.SS3|§3.3, Tables 3 to 8]]
+<p>The base models were scored on 15 benchmarks in four groups (general knowledge, math and STEM, coding, multilingual), all "using the same evaluation pipeline" for Qwen3 and the baselines ({{§3.3|ax:S3.SS3}}). The headline: <b>Qwen3-235B-A22B-Base beats DeepSeek-V3-Base on 14 of 15 benchmarks</b> with about a third of its total and two thirds of its active parameters, losing only INCLUDE ({{Table 3|ax:S3.T3}}). It beats Llama-4-Maverick-Base (402B, 1.7 times its size; the text says "about twice") on 14 of 15 as well, and Qwen2.5-72B-Base on all 15.</p>
+<p>The second claim is a <b>tier shift</b>: each Qwen3 dense base model is "comparable" to the next Qwen2.5 size up (1.7B to 3B, 4B to 7B, 8B to 14B, 14B to 32B, 32B to 72B), and the MoE bases match the dense ones with a fifth of the active parameters. Count the benchmarks each Qwen3 model wins against its larger Qwen2.5 counterpart:</p>
+<div class="card"><div id="tierC"></div></div>
+<p class="small mute">Wins out of the 15 benchmarks, ties counted as not won, from {{Tables 4 to 8|ax:S3.T4}}. Qwen2.5-3B-Base appears only in Table 7, so the 1.7B pair compares Table 8's column with Table 7's. The report's "comparable" holds: every pair wins at least 8 of 15; the 4B against the 7B wins 14.</p>
+<p>One claim in the text does not match its table: Qwen3-32B-Base "significantly outperforms" Llama-4-Scout-Base "on all 15 benchmarks", but {{Table 4|ax:S3.T4}} has Scout ahead on INCLUDE (68.09 against 67.87). The {{tables tab|tab:t-tables:chk}} checks every such count.</p>
+</section>
+
