@@ -1,0 +1,52 @@
+<section class="tab" id="t-fp8" role="tabpanel" hidden>
+<h2>Quantise and accumulate</h2>
+<p>The two numerical ideas of {{§3.3.2|ax:S3.SS3.SSS2}}, run in your browser with exact arithmetic: how a tensor is <b>scaled</b> before it is rounded to FP8, and how the tensor core <b>adds up</b> FP8 products. Each runs the method V3 replaced and the one it adopted on the same input. The simulator is a line-by-line port of <span class="mono">fp8_sim.py</span>; <span class="mono">check_fp8.mjs</span> runs this page's code against it and the two agree exactly on all <span id="fpN">283</span> numbers compared. Inputs are illustrative random matrices, not V3's tensors.</p>
+<div class="co"><div class="t">The two FP8 formats</div>
+<p class="small" style="margin:0"><b>E4M3</b>: 4 exponent bits, 3 mantissa bits, largest value 448, smallest normal 2<sup>−6</sup>, smallest subnormal 2<sup>−9</sup>: about 2<sup>18</sup> of range, rounding error up to 1/16 of a value. <b>E5M2</b>: largest 57,344, smallest normal 2<sup>−14</sup>, smallest subnormal 2<sup>−16</sup>: 2<sup>32</sup> of range, twice the rounding error. Below the smallest normal a value is <b>subnormal</b> and keeps fewer mantissa bits; below half the smallest subnormal it becomes zero. Rounding is to nearest, ties to even; values above the maximum saturate.</p></div>
+
+<h3 id="sx-h">1. Scaling: one scale per tensor, per 1×128 tile, or per 128×128 block</h3>
+<p>Before rounding, each group of values is divided by a scale chosen so that the group's largest magnitude lands on the format's largest value (448 for E4M3), computed online from the group itself ({{§3.3.2|ax:S3.SS3.SSS2}}). The matrix is 32 tokens × 512 channels of unit-variance values (sums of 12 uniforms), with outliers multiplied in.</p>
+<p class="try"><b>Try:</b> play the per-tensor run with outliers of 10<sup>5</sup>: about half the matrix turns red (zero) and most of the rest yellow (subnormal). Switch to 1×128 tiles: only the tiles that contain an outlier channel suffer. Then set the outliers on <b>tokens</b> and pick 128×128 blocks: the blocks span every token, so one bad token ruins its whole block, the mechanism {{Appendix B.2|ax:A2.SS2}} blames for the divergence it saw. Finally switch the format to E5M2: nothing is lost to range, but every value carries twice the rounding error.</p>
+<div class="card" id="sx">
+<div class="an-top"><div class="seg" id="sxM" role="group" aria-label="Scaling granularity"><button class="on" data-m="tensor" aria-pressed="true">Per tensor</button><button data-m="tile" aria-pressed="false">1×128 tiles (V3)</button><button data-m="block" aria-pressed="false">128×128 blocks</button></div></div>
+<div class="ctl">
+<label>Outliers on <select id="sxKind"><option value="channels" selected>two channels (every token)</option><option value="tokens">two tokens (every channel)</option><option value="none">nowhere</option></select></label>
+<label>Outlier size = <b id="sxMagV">10⁵</b> × typical<input type="range" id="sxMag" min="0" max="5" step="1" value="5"></label>
+<label>Format <select id="sxFmt"><option value="e4m3" selected>E4M3 (V3, everywhere)</option><option value="e5m2">E5M2 (gradients, older recipes)</option></select></label>
+</div>
+<div id="sxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="sxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="sxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="sxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="sxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="sxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="sxStep"></div><p id="sxCap"></p></div>
+<div class="an-cnt" id="sxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">One pixel column per channel, one row per token. Colours in the last two steps: step 3 grey kept at full FP8 precision, yellow subnormal (fewer mantissa bits), red flushed to zero; step 4 white to red by relative error. Weights would use 128×128 blocks in V3; only activations are shown. The animation runs only while on screen and starts paused if your system asks for reduced motion.</p>
+</div>
+
+<h3 id="ax-h">2. Accumulation: 14 bits in the tensor core, or promoted to FP32 every 128</h3>
+<p>The paper's description of the H800 ({{§3.5.2|ax:S3.SS5.SSS2}}, v2): each MMA instruction aligns 32 products to the largest exponent, keeps "the highest 14 bits of each mantissa product", truncates the rest, and accumulates into registers "also" at 14-bit precision. V3's fix copies the partial sum into an FP32 register on the CUDA cores every N<sub>C</sub> = 128 elements ({{Figure 7b|ax:S3.F7}}). The description admits two readings, both simulated: <b>A</b>, the running sum joins the alignment of each group of 32, so as it grows the incoming products lose their low bits (the v1 text's "fixed-point accumulation"); <b>B</b>, the 32 products are aligned among themselves and their sum is added to a register that keeps 14 significant bits (the FP22 accumulator {{others measured|https://main-horse.github.io/posts/minor-points-on-precision/}} on Ada). Both truncate toward zero.</p>
+<p class="try"><b>Try:</b> play the tensor-core-only run at K = 4,096 with reading A: the error climbs steadily because every addition throws away the bits below the accumulator's 14-bit window. Switch to promotion: the window restarts every 128 elements and the error stays flat. Then try reading B and Gaussian inputs, and compare the chart below with the paper's "nearly 2%".</p>
+<div class="card" id="ax">
+<div class="an-top"><div class="seg" id="axM" role="group" aria-label="Accumulation"><button class="on" data-m="tc" aria-pressed="true">Tensor core only (14-bit)</button><button data-m="pr" aria-pressed="false">Promote every 128 (V3)</button></div></div>
+<div class="ctl">
+<label>Reading of §3.5.2 <select id="axR"><option value="A" selected>A: running sum in the alignment</option><option value="B">B: 14-bit register (FP22)</option></select></label>
+<label>Inner dimension K <select id="axK"><option value="1024">1,024</option><option value="4096" selected>4,096 (the paper's test)</option><option value="8192">8,192</option></select></label>
+<label>Inputs <select id="axD"><option value="uniform" selected>uniform on [0, 1)</option><option value="gauss">Gaussian, mixed signs</option></select></label>
+</div>
+<div id="axSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="axBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="axPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="axFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="axScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="axSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="axStep"></div><p id="axCap"></p></div>
+<div class="an-cnt" id="axCnt"></div>
+<p class="small mute" style="margin:6px 0 0">One dot product of length K; inputs rounded to E4M3, so every product is exact and the true sum is known exactly. The chart is the relative error of the running sum against the exact running sum; for Gaussian inputs, whose running sum crosses zero, the error is divided by the sum of the products' magnitudes instead.</p>
+</div>
+
+<h3 id="ax-k">Error against K, both readings, both modes</h3>
+<p>Each point is 16 dot products of length K; for uniform inputs the largest relative error among them, for Gaussian inputs (whose sums can sit near zero) the error relative to the size of the outputs, ‖error‖ / ‖exact‖.</p>
+<div class="ctl"><label>Inputs <select id="akD"><option value="uniform" selected>uniform on [0, 1)</option><option value="gauss">Gaussian, mixed signs</option></select></label></div>
+<div id="akSvg"></div>
+<p class="small" id="akNote"></p>
+<div class="co warn"><div class="t">What reproduces, and what does not</div>
+<p class="small" style="margin:0">Reproduces: the error of 14-bit accumulation grows with K, roughly in proportion for positive inputs, and promotion every 128 elements removes most of it (with uniform inputs at K = 4,096, from 6.8% to 0.05% under reading A, from 0.28% to 0.012% under B). Does not reproduce exactly: the paper's "maximum relative error of nearly 2%" at K = 4,096. The paper gives neither the input distribution nor the error metric, and its two versions describe the hardware differently; the two readings bracket 2% (0.28% and 6.8%) without either hitting it. Fine-grained scaling's benefit reproduces as the mechanism the paper names (outliers pushing ordinary values below E4M3's range), not as a training-loss number, which needs a real training run.</p></div>
+</section>
