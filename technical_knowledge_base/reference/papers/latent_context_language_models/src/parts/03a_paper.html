@@ -1,0 +1,61 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-arch">Architecture</a><a href="#s-pipe">Two pipelines</a><a href="#s-train">Training</a><a href="#s-search">Architecture search</a><a href="#s-res">Results</a><a href="#s-agent">Agent</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1, §2]]
+<p>Long-context inference is bottlenecked by memory, because the <b>KV cache grows with context length</b> ({{§1|ax:S1}}). For the decoder used throughout this paper, Qwen3-4B-Instruct-2507 (36 layers, 8 key-value heads of 128 dimensions), every token of context costs <span id="kvTok"></span> of keys and values in bf16, so a 256K-token prompt needs <span id="kv256"></span> of cache before the model writes a word (<span class="mute">derived from the released {{decoder config|https://huggingface.co/latent-context/0.6b-4b-LCLM-16x/tree/main/decoder}}: 2 × 36 × 8 × 128 × 2 bytes</span>).</p>
+<p>The established fix is <b>KV cache compression</b>: prefill normally, then evict entries by some heuristic (SnapKV, Expected Attention, KVzip, Attention Matching; {{§2|ax:S2}}, {{Appendix B|ax:A2}}). It has four practical problems the paper is blunt about:</p>
+<ul class="tight">
+<li><b>The expensive part still happens.</b> Most methods need the full context to fit in the window and to be prefilled first; some need prefill passes two to three times longer than the input (KVzip reconstructs the context to score it; {{§2|ax:S2}}).</li>
+<li><b>Query-dependent caches do not survive a second turn.</b> SnapKV in its query-aware form keeps what one question attended to, so the cache is tuned to that question.</li>
+<li><b>Non-uniform eviction cannot shrink the sequence.</b> Methods that evict different entries in different heads and layers (KVzip) cannot cut the sequence-length dimension, so they <i>mask</i> evicted positions instead and forfeit the memory and throughput benefit in a paged-attention engine (see the {{PagedAttention page|n:3c65c17b0d0d81bf8b90ca93fee19f5f}}).</li>
+<li><b>Engines do not run them.</b> They are largely unsupported in vLLM and SGLang.</li>
+</ul>
+<p>The paper adds a distinction worth keeping: <b>algorithmic or theoretical cache reduction</b> (entries masked or subsampled from a full cache, non-uniform per head) is not <b>systems-realisable cache reduction</b>, which needs kernels that "have not been released or even implemented" ({{§6.1|ax:S6.SS1}}).</p>
+<p>The alternative is <b>soft-token compression</b>: an encoder turns raw tokens into a much shorter sequence of continuous embeddings, which the decoder reads in place of the context. In principle this is better shaped: compression is parallelisable, it works in standard inference engines, and it can extend the decoder past its native context length. In practice the existing methods (gist tokens, ICAE, AutoCompressor, xRAG, REFRAG and others) either degraded the base model noticeably or only worked after task-specific finetuning, so they lost to KV cache compression on the accuracy-efficiency frontier; none was tested on information-dense long-context suites such as RULER ({{§1|ax:S1}}, {{§2|ax:S2}}).</p>
+<p class="lead"><b>The question:</b> is that loss intrinsic to the encoder-decoder shape, or did nobody train one properly? Can a general, task-agnostic compressor keep a strong model's abilities?</p>
+<div class="pred" id="pq1" data-ans="2">
+<div class="q">At a 4K-token prompt, which reaches the first output token sooner?</div>
+<div class="opts"><button>KVzip-style cache compression (prefill, score, evict)</button><button>About the same</button><button>Not compressing at all</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>Not compressing. Every KV method first does the full prefill and then adds scoring work on top, so its time to first token (TTFT) can only be at or above the uncompressed model's. These are the paper's own measurements on one H200 at one sample, read from the vector paths of {{Figure 4|ax:S5.F4}} (method in the {{Tables tab|tab:t-tables:fig4}}); move the context length:</p>
+<div class="ctl"><label>Context length <b id="q1L"></b><input type="range" id="q1R" min="0" max="8" step="1" value="0" aria-label="Context length"></label></div>
+<div id="q1Bars" class="bars"></div>
+<p class="small mute">KV methods' times do not depend on the target ratio (one bar each). A method is missing where the paper's runs stopped: every KV method and the uncompressed decoder stop at 256K. The LCLM is the only method faster than not compressing, because it shortens the sequence <i>before</i> the decoder's prefill.</p>
+</div></div>
+</section>
+
+<section id="s-arch"><h2>Architecture</h2>
+[[S3|§3, Eq. 1]]
+<p>An LCLM is three trained parts in a row ({{§3|ax:S3}}, {{Figure 3 left|ax:S4.F3}}):</p>
+<ol class="tight">
+<li>An <b>encoder</b> reads the input in <b>windows</b> of <i>W</i> tokens: <i>I</i> = ⌈<i>T</i>/<i>W</i>⌉ windows, each processed in its own forward pass ({{Eq. 1|ax:S3.E1}}).</li>
+<li>A <b>pooling operator</b> turns each contiguous <b>block</b> of <i>N</i> tokens into one <b>latent token</b>: a window of |<i>w<sub>i</sub></i>| tokens yields <i>M<sub>i</sub></i> = ⌈|<i>w<sub>i</sub></i>|/<i>N</i>⌉ latents. <i>N</i> is the compression ratio.</li>
+<li>An <b>adapter</b> projects each latent from the encoder's width to the decoder's, and the <b>decoder</b> reads the projected latents <i>s</i><sub>1:<i>M</i></sub> in place of the original tokens.</li>
+</ol>
+<p><b>The encoder window <i>W</i> is a separate knob from the ratio <i>N</i>.</b> With <i>W</i> = <i>N</i>, as in prior work (REFRAG, the work of Liao et al.), each forward pass sees only the block it compresses. With <i>W</i> = <i>T</i> the encoder reads the whole input at once. The paper settles on <i>W</i> = 1,024 at <i>N</i> = 16: each latent summarises 16 tokens that were read in the context of up to 1,024. The three pooling operators of the search ({{Appendix D.1|ax:A4.SS1}}):</p>
+<ul class="tight">
+<li><b>Token pooling</b> (EOS or CLS): append one learned pooling token per latent to the window and keep its final hidden state (Eq. 2 to 3). Most prior work does this.</li>
+<li><b>Mean pooling</b>: average the hidden states over each block of <i>N</i> (Eq. 4 to 5). Common in vision and multimodal models.</li>
+<li><b>Concatenation</b>: stack the <i>N</i> hidden states into one vector of width <i>N</i>·<i>d</i><sub>enc</sub>, and widen the adapter's first layer to match (Eq. 6), like Qwen's patch merger.</li>
+</ul>
+<div class="card" id="kn">
+<div class="try"><b>Try:</b> click a latent (the squares below the strip) to see which input tokens it can depend on. Then switch <i>W</i> from <i>N</i> to the full window, and the mask from causal to bidirectional.</div>
+<div class="ctl">
+<div><span class="small">Ratio <i>N</i></span><br><div class="seg" id="knN"><button data-m="4">4</button><button data-m="8">8</button><button class="on" data-m="16">16</button></div></div>
+<div><span class="small">Window <i>W</i></span><br><div class="seg" id="knW"><button data-m="N">W = N</button><button data-m="32">32</button><button class="on" data-m="64">64 (all)</button></div></div>
+<div><span class="small">Encoder mask</span><br><div class="seg" id="knM"><button class="on" data-m="causal">causal</button><button data-m="bidir">bidirectional</button></div></div>
+<div><span class="small">Pooling</span><br><div class="seg" id="knP"><button class="on" data-m="mean">mean</button><button data-m="concat">concat</button><button data-m="eos">token (EOS)</button></div></div>
+</div>
+<div id="knSvg" class="plot"></div>
+<div id="knOut" class="out"></div>
+<p class="small mute">Drawn with 64 input tokens so every token is visible. The paper's default is <i>N</i> = 16 and <i>W</i> = 1,024, which is 64 blocks per window: much wider, relative to the block, than the "64 (all)" setting here. Which tokens can influence a latent follows from the mask and the window; how much they do is learned.</p>
+</div>
+<p>The <b>adapter</b> is the LLaVA-style projector: RMSNorm, then a two-layer MLP with GELU, applied to each latent on its own, <i>s<sub>m</sub></i> = <i>W</i><sub>2</sub> GELU(<i>W</i><sub>1</sub> RMSNorm(<i>z<sub>m</sub></i>) + <i>b</i><sub>1</sub>) + <i>b</i><sub>2</sub> ({{Eq. 7 to 8|ax:A4.SS2}}). In the released 16x checkpoint it maps 1,024 dimensions to 2,560 through a hidden width of 2,560: <span id="adP"></span> parameters (shapes from the {{adapter weights' header|https://huggingface.co/latent-context/0.6b-4b-LCLM-16x/tree/main/adapter}}). The attention-based alternative adds one self-attention layer over the latents before the MLP (Eq. 9 to 11).</p>
+</section>
+
+<section id="s-pipe"><h2>One long prompt, two pipelines</h2>
+<p>The structural reason this can beat KV compression on speed: KV methods compress <i>after</i> the decoder has paid for the whole prefill, while an LCLM compresses <i>before</i>, so a higher ratio directly removes decoder work ({{§6.2|ax:S6.SS2}}). The {{Simulate a long prompt tab|tab:t-run}} animates the same prompt through both pipelines and through the uncompressed decoder, from 4K to 1M tokens, with the KV cache computed from the released configuration and the time and memory the paper measured.</p>
+</section>

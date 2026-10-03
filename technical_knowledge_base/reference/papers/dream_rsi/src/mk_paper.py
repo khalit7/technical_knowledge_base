@@ -1,0 +1,92 @@
+"""Generate the data-driven parts of a paper page from paper.json and tables.json.
+
+  python3 mk_paper.py        (build.sh runs it first)
+
+Writes parts/_gen_card.html (the headline card at the top of "The paper"), parts/_gen_more.html
+(the Further reading tab) and parts/_gen_data.js (window.PAPER: metadata, the transcribed tables and
+recompute.py's results). The same script serves every paper page: only paper.json and tables.json change.
+"""
+import html, json, os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+P = json.load(open(os.path.join(HERE, 'paper.json')))
+TB = json.load(open(os.path.join(HERE, 'tables.json')))
+RC = json.load(open(os.path.join(HERE, 'inputs', 'recompute.json'))) if os.path.exists(os.path.join(HERE, 'inputs', 'recompute.json')) else {}
+AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
+A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)
+N = lambda i: 'https://app.notion.com/p/' + i
+
+
+def card():
+    h = ['<div class="hero" id="hero">',
+         '<div class="hero-k">Paper · %s · %s</div>' % (P['venue'], A('https://arxiv.org/abs/' + P['arxiv'], 'arXiv ' + P['arxiv'])),
+         ('<h1>%s</h1>' % html.escape(P['title'])) if P['title'].startswith(P['short']) else '<h1>%s <span class="mute">(%s)</span></h1>' % (html.escape(P['title']), html.escape(P['short'])),
+         '<div class="au">%s</div>' % html.escape(P['authors']),
+         '<div class="au mute">%s · %s</div>' % (html.escape(P['lab']), html.escape(P['date'])),
+         '<p class="tk"><b>In one line:</b> %s</p>' % html.escape(P['takeaway']),
+         '<div class="hn">']
+    for x in P['headline']:
+        h.append('<div class="stat"><div class="v">%s <span class="u">%s</span></div><div class="k">%s</div><div class="d">%s · %s</div></div>'
+                 % (x['v'], x['u'], x['k'], x['d'], A(AX + '#' + x['at'], where_label(x['at']))))
+    h.append('</div>')
+    h.append('<div class="hero-l">%s · %s · %s · <a href="#" data-tab="%s">%s</a></div>'
+             % (A(AX, 'read it (arXiv HTML)'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), ('no code released; ' + A(P['code']['url'], P['code']['link_label'])) if P['code'].get('link_label') else A(P['code']['url'], 'code (' + P['code']['title'] + ')'), P.get('run_tab', 't-run'), P.get('run_label', 'run it')))
+    if P.get('verdict'):
+        h.append('<p class="tk" style="margin-top:10px"><b>How far to trust it:</b> %s <a href="#" data-tab="t-read" data-to="s-trust">The evidence, judged</a>.</p>' % html.escape(P['verdict']))
+    h.append('</div>')
+    return '\n'.join(h)
+
+
+def where_label(at):
+    """Turn an arXiv HTML anchor into the paper's own name for it: S3.SS2.SSS1 -> §3.2.1, S6.T2 -> Table 2.
+    paper.json's "labels" overrides it (this paper's HTML numbers tables by figure environment: S4.T5 is Table 4)."""
+    import re
+    if at in P.get('labels', {}): return P['labels'][at]
+    m = re.fullmatch(r'S(\d+)\.T(\d+)', at)
+    if m: return 'Table ' + m.group(2)
+    m = re.fullmatch(r'(?:S\d+|Sx\d+)\.F(\d+)', at)
+    if m: return 'Figure ' + m.group(1)
+    m = re.fullmatch(r'S\d+\.E(\d+)', at)
+    if m: return 'Eq. ' + m.group(1)
+    nums = re.findall(r'\d+', at)
+    return '§' + '.'.join(nums)
+
+
+def more():
+    h = ['<section class="tab" id="t-more" hidden>', '<h2>Further reading</h2>',
+         '<p class="small mute">Every link opens in a new tab. Reading time of the resources below: RES_TIME.</p>',
+         '<h3>The paper</h3><div class="grid">']
+    h.append('<div class="sp"><div class="n">%s</div><p>%s, the paper itself; the HTML version has the anchors this page links to. %s, %s.</p><p class="rt">(%s)</p></div>'
+             % (A(AX, P['title'] + ' (arXiv HTML ' + P['arxiv_v'] + ')'), html.escape(P['venue']), A('https://arxiv.org/abs/' + P['arxiv'], 'abstract page'), A('https://arxiv.org/pdf/' + P['arxiv'] + P['arxiv_v'], 'PDF'), P['paper_time']))
+    h.append('<div class="sp"><div class="n">%s</div><p>%s.</p><p class="rt">(%s)</p></div>' % ('Code: ' + P['code']['title'] + '. ' + A(P['code']['url'], P['code'].get('link_label', P['code']['title'])), html.escape(P['code']['note']), P['code']['time']))
+    h.append('</div><h3>Best resources</h3><div class="grid">')
+    for r in P['resources']:
+        n = html.escape(r['n'])
+        h.append('<div class="sp"><div class="n">%s</div><p><span class="mute">%s:</span> %s</p><p class="rt">(%s)</p></div>' % (A(r['u'], html.escape(r['t'])), html.escape(r['by']), n, r['time']))
+    h.append('</div><h3>Connected papers in this knowledge base</h3><div class="grid">')
+    for k in P['kb']:
+        h.append('<div class="sp"><div class="n">%s</div><p>%s</p></div>' % (A(N(k['id']), html.escape(k['t'])), html.escape(k['n'])))
+    h.append('</div><h3>Topics</h3><div class="grid">')
+    for k in P['topics']:
+        h.append('<div class="sp"><div class="n">%s</div><p>%s</p></div>' % (A(N(k['id']), html.escape(k['t'])), html.escape(k['n'])))
+    h.append('</div><p class="small mute">This page is one row of the %s database; its properties (Paper, Takeaway, Topics, Year) live there.</p>' % A(N(P['parent']['id']), P['parent']['title']))
+    h.append('</section>')
+    return '\n'.join(h)
+
+
+def data():
+    meta = {k: P[k] for k in ('title', 'short', 'arxiv', 'arxiv_v')}
+    meta['ax'] = AX
+    CS = json.load(open(os.path.join(HERE, 'inputs', 'check_sim.json')))
+    for c in RC.get('checks', []):
+        if c['where'][:1] in 'SA': c['wl'] = where_label(c['where'])
+    js = json.dumps({'meta': meta, 'tables': TB, 'rc': RC, 'cs': CS}, separators=(',', ':'), ensure_ascii=False)
+    js = js.replace('\u2014', ', ').replace('\u2013', '-').replace('</', '<\\/')
+    return '// Generated by mk_paper.py from paper.json, tables.json and inputs/(recompute, check_sim).json.\nwindow.PAPER=' + js + ';\n'
+
+
+if __name__ == '__main__':
+    open(os.path.join(HERE, 'parts', '_gen_card.html'), 'w').write(card() + '\n')
+    open(os.path.join(HERE, 'parts', '_gen_more.html'), 'w').write(more() + '\n')
+    open(os.path.join(HERE, 'parts', '_gen_data.js'), 'w').write(data())
+    print('mk_paper: card, further reading and data written')

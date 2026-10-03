@@ -1,0 +1,25 @@
+# EnvHarness: visualisation ideas
+
+The question the paper keeps returning to: does reshaping a frozen environment against a policy's weaknesses teach more than the environment as built, and is the evidence bigger than its noise? Ranked by how much interacting teaches over reading (1 to 5), with data source and placement.
+
+| id | Idea | Score | Data | Placement | Status |
+|---|---|---|---|---|---|
+| P-envharness.1 | **One episode, two worlds**: the released EnvHarness, Setup, Rules and Link ported to JS over a toy household from the paper's running example; the same scripted policy and seed animated in the static and the wrapped world side by side, the layer stack lit per step (blocked or rewritten action, rewritten response or observation, Stage replay, Chain handoff), counters for steps, blocks, wasted actions and the original verifiers' verdicts; Stage, Contract hooks, Chain and the nesting order are toggles | 5 | release source (`envharness/core/envharness.py`, `harnesses/setup.py`, `rules.py`, `link.py`); household illustrative; `check_world.mjs` checks the contracts | own tab | built |
+| P-envharness.2 | **Order swap**: Stage outside Contract makes the Contract block the Stage's own replayed "go to" actions, so the mug is never hidden; shows Eq. 5's non-commutativity as a concrete failure, and that the release fixes the order (Rules outside Setup) | 5 | `build_env_stack` in `runner.py` | own tab (toggle of .1) | built |
+| P-envharness.3 | **K-rollout validation and a scripted designer loop**: run K fresh rollouts of both worlds under the release prompt's band rule and watch ACCEPT/REFINE flip on noise; a 400-rollout estimate with the binomial chance of landing in the band; the Observe, Diagnose, Write, Validate loop on a fixed ladder of the paper's components | 4 | live toy rollouts; Table 8; `experiments/swebench/corpus.yaml` | own tab | built |
+| P-envharness.4 | **Every gain against its noise**: the 14 improvements of Tables 2 and 3 with ±2 standard errors from the printed three-run standard deviations, Welch t per column (3 of 14 reach p < 0.05) | 5 | Tables 2, 3 | inline, predict reveal | built |
+| P-envharness.5 | **Figure 5 in tasks**: decoded from the vector SVG (every point a whole number of 407 issues), toggle between percent and tasks, gap annotated at 100 and 300 (11 tasks both times): the originals gain 9 tasks from 100 to 300 like EnvHarness, contrary to "flatten" | 5 | Figure 5 vector paths; Figure 1 right panel | inline, predict reveal | built |
+| P-envharness.6 | **The band ceiling**: chance that K rollouts measure a rate inside [0.4, 0.6] against the true rate, for K = 5 and 10, with Table 12's 80% line above the 65.6% maximum; K = 3 can never land in the band | 5 | binomial; Table 12; release configs | inline, predict reveal | built |
+| P-envharness.7 | Stack diagram: one step() going down through Chain, Contract, Stage to the frozen base environment and back up, evaluate() passing straight through | 3 | §2.2, Appendix C.3 | inline | built |
+| P-envharness.8 | EnvRigger loop diagram with the refine arrow and the 5-round cap | 2 | §3.2, Table 8 | inline | built |
+| P-envharness.9 | Cross-model bars with an SR/AS toggle (Table 9, Figure 6 decoded to the same numbers) | 3 | Table 9, Figure 6 | inline | built |
+| P-envharness.10 | Figure 1 left on two axes (from 43 as printed, from 0) | 3 | Figure 1 vector paths | tables tab | built |
+| P-envharness.11 | Table 8 against the released configs (rollouts per candidate, rounds, band, acceptance rule per benchmark) | 4 | six `corpus.yaml` files | tables tab | built |
+| P-envharness.12 | Port the release's Toy24 24-game environment instead of a household | 3 | `bridges/toy24` | none | rejected: the authors' project page already has a live Toy24 playground (Pyodide); the household follows the paper's own running example and shows all three components, including Chain |
+| P-envharness.13 | Replay real EnvRigger trajectories (designer reasoning, rollouts) | 4 | none released | none | rejected: no traces are released; the appendices give components and skills only |
+| P-envharness.14 | Skill-bank timeline per co-evolution round (components to skills, F.2) as an animation | 2 | Appendix F.2 | none | rejected: a list reads as well; no numbers per round are given |
+
+Methodology notes:
+- For agent and environment papers whose code is released but whose traces are not, porting the released wrapper semantics onto a toy world small enough to animate lets the reader see the mechanism (and its failure modes, such as layer order) without inventing any of the paper's numbers. Check the port against the release's stated contracts in a script.
+- When a paper accepts candidates by a success-rate band measured with K rollouts, compute the binomial ceiling: it bounds any "share of tasks in band" claim, and small K can make a band unreachable.
+- Read the released configs against the paper's hyperparameter table; acceptance rules and rollout counts can differ per benchmark.

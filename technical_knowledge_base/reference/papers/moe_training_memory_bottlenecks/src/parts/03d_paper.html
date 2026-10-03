@@ -1,0 +1,51 @@
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[A1|Appendix A, Tables 2 to 14]]
+<p><b>What holds up.</b> The operators only reorder work, so they are exact by construction up to floating-point summation order. And the component memory numbers are unusually checkable, because they follow from the configuration ({{all checks|tab:t-tables:tbChk}}):</p>
+<ul>
+<li>SCO's boundary counts (21 and 42 of 47) and payloads come out of 557,056 / 8 × 2,880 × 2 bytes alone.</li>
+<li>All eight staging sizes of {{Table 14|ax:A5.T14}} are slots × largest bucket × 16 bytes.</li>
+<li>The projection baseline is exactly three <i>N</i> × <i>V</i> FP32 tensors, and the shards exactly 1/<i>P</i> of the weight ({{Table 10|ax:A3.T10}}).</li>
+<li>Our replay of the paper's routing profiles through LLEP's released plan reproduces all eight send ratios of {{Table 8|ax:A2.T8}}.</li>
+<li>Dispatch peaks repeat to the milli-GiB over three runs, and every component comparison runs on identical input in the same execution ({{Appendix A|ax:A1}}). The authors state their limits plainly, which counts in their favour.</li>
+</ul>
+<p><b>What is weaker:</b></p>
+<ul>
+<li><b>The vocabulary baseline is the naive one.</b> Ring-DTP's 82.8% and 86.6% are against a projection that materialises full logits ({{Table 2|ax:S3.T2}}), not against Cut Cross-Entropy or Liger, which already avoid them on one device (CCE: Gemma 2 2B's loss memory from 24 GB to 1 MB, {{its abstract|https://arxiv.org/abs/2411.09009}}), nor Megatron's vocabulary-parallel loss. Ring-DTP's own addition, sharding the weight while each rank keeps its batch, is argued rather than measured against them. The benchmark is FP32; training is BF16.</li>
+<li><b>Dispatch is measured against the authors' own LLEP on synthetic routing</b> ({{B.2|ax:A2.SS2}}), with the 65K latencies the fastest of three repeats. "Without losing throughput" fails at the 32K shape with <i>K</i> = 10 (0.87 to 0.90 times LLEP, {{Table 9|ax:A2.T9}}). The guarantee 2<i>E<sub>p</sub>kcHb</i> grows with <i>E<sub>p</sub></i>: at the end-to-end scale (<i>E<sub>p</sub></i> = 64, <i>c</i> = 4,096) it is 56 GiB, so the saving comes from strided chunks realising the even share, not from the bound. Our replay shows contiguous chunks reaching 42% of the bound on the 30/16 profile, which Table 8 leaves out.</li>
+<li><b>SCO's text and tables disagree.</b> §3.3 claims "17.65% of HBM consumption" saved; the peak falls 11.5% (139.790 to 123.728 GiB), and 17.65% is {{Table 13|ax:A4.T13}}'s batch gain. Its "35.71%" for "the largest batch that runs without an out-of-memory error" compares runs without allocator warnings. The baseline was run above its largest clean batch, which probably explains why throughput <i>rises</i> slightly with offload.</li>
+<li><b>The end-to-end numbers are mostly MoP's, and thin.</b> The {{MoP paper|https://arxiv.org/abs/2607.01844}} already reports 4.7 to 8.2 times FSDP2's throughput and 1M-token context; no ablation removes one operator from the stack. One run per point, the stack run only at 128K and 1M, so the 667B "10.4 times at 64K" divides its 128K throughput by the baseline's 64K, and 241B shares no length at all. The baseline is weak: under 40 TFLOP/s, about 4% of the H200's dense BF16 peak.</li>
+<li><b>Two printed multiples contradict the text.</b> Figure 6's "1.8x" (120B, 91 TFLOP/s) and "2.2x" (667B, 107) imply baselines of 50.6 and 48.6 TFLOP/s, above §4's "below 40 anywhere in its sweep".</li>
+<li><b>The quality check is one fine-tuning run each</b>, on gpt-oss-20b, not the 120B to 667B models (those report throughput only). On AIME 2025's 30 problems × 8 samples, one sample is 0.42 points, so 59.8% against 59.6% is under half an answer; and 59.8% and 45.2% are not whole numbers of 240, so Avg@8 was counted some way the paper does not state.</li>
+</ul>
+<p class="lead"><b>Verdict.</b> Believe the four mechanisms and the component memory numbers: exact by construction, and where the configuration fixes them they recompute to the printed digit. Read the speeds as single, favourable runs against the authors' own LLEP and a naive projection. Treat "1M context, 8 to 32 times the reach, up to 10.4 times the throughput" as a result for the whole MoP stack against a weak baseline, with no measure of which operator buys what.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>Code:</b> none released for PipelinedLLEP, Ring-DTP, SCO, OffloadStreamAdamW or MoP (paper and GitHub checked 3 October 2026). LLEP, the base of the dispatch operator, is public ({{SalesforceAIResearch/LeastLoadedEP|https://github.com/SalesforceAIResearch/LeastLoadedEP}}, Apache-2.0).</li>
+<li><b>Hardware:</b> measured only on 8-GPU H200 nodes with NVLink inside the node and 2 TB of host memory; SCO and the optimizer offload consume host memory (node RAM rose 191 GiB with full SCO on gpt-oss-20b) and host-link bandwidth ({{§7|ax:S7}}).</li>
+<li><b>What was tested:</b> components on gpt-oss-20b and synthetic MoE shapes; the composed stack on 120B to 667B pre-training throughput at 16 to 64 GPUs; fine-tuning quality on gpt-oss-20b only.</li>
+<li><b>When it pays:</b> long context or large vocabularies (logits and boundaries grow with tokens), skewed routing (dispatch), and large models on few GPUs (optimizer offload made fast). Each operator can be enabled alone, so a run pays only for its own peaks.</li>
+<li><b>When it buys little:</b> balanced routing, where standard expert parallelism is fastest ({{Table 6|ax:A2.T6}}); small micro-batches, where below about 8,192 tokens per rank the dispatch buffers are small next to the expert weights (9 to 17% saving, {{Table 7|ax:A2.T7}}); a single device, where a fused cross-entropy kernel already removes the logits; slow interconnects, untested.</li>
+<li><b>Pieces you can use today:</b> fused cross-entropy (Liger, Cut Cross-Entropy) for the logits on one device, PyTorch and DeepSpeed CPU checkpoint offload (whole regions rather than a budget), and ZeRO-Offload for the optimizer.</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the paper)</span></h2>
+<p>The useful idea is the framing more than any single operator: peak memory is a maximum over live sets, each live set has its own growth law, and a bounded schedule turns each into a term fixed at launch, so a configuration's feasibility can be checked before it runs ({{Eq. 6|ax:S3.E6}}). That matters because long-context training is now a normal stage: DeepSeek-V3, for example, added two training phases to grow its context from 4K to 32K and then 128K, cutting the batch from 1,920 to 480 sequences for the second ({{DeepSeek-V3 §4.3|https://arxiv.org/html/2412.19437v2#S4.SS3}}), the batch-for-context trade this paper's Figure 7 is about. The vocabulary term keeps growing too: the paper's models use 200,000 tokens, and gpt-oss-20b's configuration has 201,088 ({{config|https://huggingface.co/openai/gpt-oss-20b/blob/main/config.json}}).</p>
+</section>
+
+<section id="s-con"><h2>Connections</h2>
+<ul>
+<li>{{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}: the 16 bytes per parameter, sharded; the composed stack uses ZeRO-3 for dense weights and speeds up ZeRO-Offload's optimizer step. Where ZeRO partitions state, this paper schedules when transient tensors exist.</li>
+<li>{{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}: vocabulary-parallel cross-entropy with a replicated batch, the layout Ring-DTP relaxes.</li>
+<li>{{Switch Transformers|n:3c65c17b0d0d81a8b541c9babbf40c94}} and {{Mixtral of Experts|n:3c65c17b0d0d81eba72af0ac91ddc6b3}}: expert-parallel MoE layers and their routing; Switch caps expert load by dropping overflow tokens, PipelinedLLEP caps buffers and drops none.</li>
+<li>{{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}}: the auxiliary-loss-free balancing used in the end-to-end runs and the fine-grained top-8 MoE shape.</li>
+<li>{{FlashAttention|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}: the online softmax behind Ring-DTP's three-scalar fold.</li>
+<li>{{PagedAttention|n:3c65c17b0d0d81bf8b90ca93fee19f5f}}: memory won by managing where and when tensors live, at serving time.</li>
+<li>{{QLoRA|n:3c65c17b0d0d815a8f4edc33f9583671}}: the approximate route (quantised weights and optimizer state) this paper rules out.</li>
+<li>Topics: {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (where this row is integrated) and {{Topic: ml-infra-and-orchestration|n:3c65c17b0d0d81b5925bfd1d8665dd4b}}.</li>
+</ul>
+</section>
+</section>
