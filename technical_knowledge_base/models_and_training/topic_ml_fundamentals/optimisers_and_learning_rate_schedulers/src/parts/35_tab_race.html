@@ -1,0 +1,31 @@
+<div class="tab" id="t-race" role="tabpanel" hidden>
+<h2>Optimiser race: thirteen update rules on five surfaces</h2>
+<p>Each optimiser starts from the same point on the same two-parameter loss surface and takes the steps its published update rule prescribes. Nothing is simulated loosely: every rule is the line-by-line update of the implementation named under it, run in double precision, and <code>checks/torch_ref.py</code> reruns all 350 combinations (13 optimisers, 5 surfaces, 3 schedules, 2 learning rates) in PyTorch: they agree to 10<sup>&minus;13</sup>, or, where a run is chaotic (Rosenbrock at large rates), to within what PyTorch itself moves when its start is nudged by 10<sup>&minus;12</sup>.</p>
+<p>The surfaces are toys with two parameters, chosen because each isolates one difficulty: a badly conditioned valley, the same valley rotated, a curved valley, a saddle, and noise. They teach the geometry of each rule; they do not rank optimisers for networks with billions of parameters (that evidence is in the Reading tab's {{The evidence|#t-read}} section).</p>
+<div class="co"><div class="t">How each starting rate was chosen</div>Every optimiser starts at its own best rate for that surface: the best of a log grid (10<sup>k/4</sup>, from 10<sup>&minus;4</sup> to 10) by the average of log<sub>10</sub>(loss) over the run, among rates whose path never leaves the picture, with a constant schedule (the noisy surface averages seeds 1 to 5). Computed by <code>checks/tune.mjs</code>. The slider multiplies every optimiser's rate by the same factor, so you can see how sensitive each one is.</div>
+<div class="card" id="rc-card">
+<div class="seg" id="rc-surf"></div>
+<div class="optpick" id="rc-pick"></div>
+<div class="ctl2">
+<label>Learning rate &times; tuned rate: <b id="rc-mulv">&times; 1</b><input type="range" id="rc-mul" min="-8" max="8" step="1" value="0"></label>
+<label>Schedule<br><span class="seg" id="rc-sch"><button data-v="const" class="on">constant</button><button data-v="cosine">cosine</button><button data-v="wsd">WSD</button></span></label>
+<label id="rc-seedl">Noise seed <select id="rc-seed"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+</div>
+<p class="try" id="rc-note"></p>
+<div class="cv" style="border:0;text-align:center"><canvas id="rc-cv" aria-label="Loss surface with optimiser paths"></canvas></div>
+<p class="small mute">Shading and contour lines: log<sub>10</sub> of the loss, one line per half decade. Ring: the start. Triangle: the minimum. Dot: where each optimiser is at the step shown.</p>
+<div class="an-ctl" id="rc-ctl"></div>
+<div class="an-cap" id="rc-cap"></div>
+<div class="plot"><svg id="rc-loss" role="img" aria-label="Loss against step"></svg></div>
+<div class="tw" id="rc-leg"></div>
+</div>
+<h3>What each surface shows</h3>
+<ul class="tight">
+<li><b>Ravine, axis-aligned</b> (condition number 100). The textbook case for momentum: Polyak's heavy ball needs about &radic;100 = 10 times fewer steps than gradient descent when its rate and momentum are tuned for the problem ({{Sutskever et al. 2013, section 2|http://proceedings.mlr.press/v28/sutskever13.pdf}}). With the common momentum 0.9 rather than the optimum for this valley, momentum reaches 10<sup>&minus;3</sup> in 89 steps and Nesterov in 24, while plain SGD has not after 150. Per-coordinate methods do best of all here, because the valley's axes are the coordinates.</li>
+<li><b>Ravine, rotated 45&deg;</b>. The same valley; SGD, momentum and Nesterov behave identically (their updates are rotation-invariant), AdaGrad and RMSProp no longer reach 10<sup>&minus;3</sup> in 150 steps, and Shampoo, the one rotation-invariant preconditioner here, is unchanged. This is the whole case for non-diagonal preconditioning (Shampoo, SOAP), in two dimensions.</li>
+<li><b>Rosenbrock</b>. The classic curved valley ({{Rosenbrock 1960|https://doi.org/10.1093/comjnl/3.3.175}}). Speed along a curving floor needs momentum that turns with it.</li>
+<li><b>Saddle</b>. The gradient across the ridge starts at about 0.001; anything that divides by the gradient's own scale leaves at once.</li>
+<li><b>Noisy ravine</b>. With noise, a constant rate does not converge: the iterate wanders in a region whose size grows with the rate. Over seeds 1 to 20, plain SGD's loss over its last 60 steps averages 0.103 at its tuned constant rate, and cosine decay of the same peak rate ends at 0.062 on average; Adam's floor is 0.031 and cosine brings it to 0.011 (<code>checks/race_facts.mjs</code>). That is the reason schedules decay.</li>
+</ul>
+<div class="co warn"><div class="t">What two dimensions cannot show</div>Muon is defined for weight matrices: it replaces the momentum matrix with the nearest semi-orthogonal one. A 1 &times; 2 matrix has one singular value, so here Muon reduces to normalised Nesterov momentum (a fixed-length step in the momentum's direction), which is why it hovers at a distance set by its rate unless the schedule decays. Its real effect, flattening the singular values of a 64 &times; 176 gradient, is drawn on {{Topic: ml-fundamentals, Reading tab, section 5 (Update)|n:3c65c17b0d0d81d796ccc0a293218c57}}. Similarly, SOAP and Shampoo here precondition a 2-vector with a 2 &times; 2 matrix; for a vector, Shampoo's exponent &minus;1/(2k) with k = 1 gives &minus;1/2, which is full-matrix AdaGrad (derived from {{Gupta et al. 2018, section 4.2|https://arxiv.org/html/1802.09568#S4.SS2}}). And SOAP skips its first step by design (its code builds the eigenbasis before using it).</div>
+</div>
