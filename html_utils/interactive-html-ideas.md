@@ -1306,3 +1306,25 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | Chat template token-by-token with loss masks | Owned and built by the Alignment page; linked. |
 | Price-per-language calculator in dollars | Prices change per model and date; the premium is the stable quantity, and dollar figures would invite a price tab Khalid removed elsewhere. |
 | Llama 3's 3.17 to 3.94 chars/token reproduction | Meta's English sample is not public; measured on FLORES English instead and both shown with the different gains (24% against 15%). |
+
+### Training Infrastructure (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/training_infrastructure/src/viz_ideas.md`.
+
+| Where | Visual | Consequence here |
+|---|---|---|
+| Llama 3 paper page, Reading | Table 5 bars with the 30.1% misprint found; predict "how often did the job stop" | Linked; Reading lists the counts in one sentence and carries the corrected 64.0% |
+| Llama 3 paper page, Run the 16K-GPU job | 54-day replay at 466/54 per day with checkpoint interval, restart and pause sliders, automated against manual (+2 h); I* = √(2s/λ); 4D rank mapper with the 3,072-GPU pods | Linked. The animation here is one day across four recovery designs, and the calculator varies cluster size and failure rate, which the replay fixes at Llama 3 |
+| Root, What goes wrong table | One row: 419 interruptions, >90% effective time | Linked; this page owns the detail |
+| Root, Price list and Scaling calculator | Dollars, GPU-hours, FLOPs | Linked; the calculator here converts lost ETTR into GPU-hours only |
+| Distributed Training | Parallelism animation, layout calculator, framework list by parallelism | Linked; the framework list here is about operating a job |
+| # | Idea | Q | R×2 | C×2 | S | M | X | A | N | −B | Total | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **Goodput calculator**: GPUs (log, 64 to 262,144), failure rate per 1,000 server-days (Llama 3 3.79 derived, Meta RSC-1 6.50, RSC-2 2.34), checkpoint pause (presets 5 min, 148.8 s, 10 s, 6.3 s), restart, optimal or fixed interval; MTBF, Young/Daly interval, ETTR, GPU-hours lost split into pauses, rework, restarts; ETTR against GPUs (your settings, 5 min, 10 s; Llama 3 and ByteRobust points) and against interval; checkpoint size and write floor | 2 | 4 (Meta's 1.8 h and 0.23 h independently; Llama 3's 419 by construction; >90% by construction; Meta's 12,000-GPU "~10 s" sentence for restarts of 5 to 10 min) | 4 | 2 | 2 (MTBF is a property of the job; restart, not checkpoint, dominates at 131K) | 2 | 1 (the Llama page fixes N and the rate) | 0 | −2 | 15 | **built, own tab** ("across all cluster sizes, how does goodput change") |
+| 2 | **One day of a 16,384-GPU run, four ways**: the same 8 seeded failures (Llama 3 rate, causes drawn from Table 5) through synchronous, asynchronous, in-memory plus hot spare, and torchft replica groups; lanes to scale on 24 h, lost work recoloured red when a failure hits, zoom on each failure, counters per design, a caption per failure naming each lane's checkpoint and loss | 1 | 2 (simulated day lands near the formula's 69.5 / 85.3 / 93.2 / 99.8%) | 4 | 2 | 2 (async is not free: a failure during the background write falls back one checkpoint) | 2 | 2 | 2 | −2 | 15 | **built, Reading** (the before/after) |
+| 3 | **The stack, with one failure walked through it**: eight clickable layers (what each owns, sourced), a 7-step walk of an HBM3 error, toggle to torchft where steps 3 to 7 change | 0 | 0 | 2 | 2 | 1 (gang scheduling; all GPUs stop, not one) | 1 | 2 | 2 | −1 | 9 | **built, Reading**, compact; no numbers, so no timings invented |
+| 4 | Table 5 as an interactive chart | 1 | 2 | 4 | 1 | 1 | 1 | 0 (built twice on the Llama 3 page) | 0 | −1 | 9 | rejected: duplicate; linked |
+| 5 | Cluster topology to scale (NVLink domain, 3,072-GPU pods, 1:7 oversubscription; rail-optimised fabric) | 1 | 2 | 4 | 2 | 0 | 0 (not the central question) | 0 (Llama page rank mapper draws the pods) | 0 | −2 | 7 | rejected: belongs to Topic: hardware and the Llama 3 page |
+| 6 | Framework comparison matrix | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | rejected: a list reads as well (as on Distributed Training) |
+| 7 | 54-day replay at any cluster size | 2 | 2 | 4 | 1 | 1 | 2 | 0 | 1 | −2 | 11 | rejected: the Llama page replays 54 days; #1 covers scale analytically and #2 shows the mechanism |
+| 8 | Async checkpoint timeline per rank (D2H copy, background write, overlapping persists) | 1 | 2 (IBM 148.8 → 6.3 s) | 2 | 1 | 1 | 1 | 1 | 1 | −1 | 9 | folded into #2 (the persist window) and the Reading text |

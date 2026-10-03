@@ -1,0 +1,62 @@
+<div class="tab" id="t-calc" role="tabpanel" hidden>
+<style>
+#t-calc .seg{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+#t-calc .seg button{font-size:12.5px;padding:2px 9px;border-radius:99px}
+#t-calc .ck{display:flex;align-items:center;gap:6px;font-size:13px}
+#t-calc .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-calc .leg i{display:inline-block;width:14px;height:3px;margin-right:4px;vertical-align:3px}
+#t-calc svg text{font-size:11px}
+#t-calc .repro li{margin:4px 0;font-size:13.5px}
+#t-calc .nl{display:inline-block;font-style:normal;font-size:10.5px;line-height:1.35;font-weight:600;border-radius:4px;padding:0 4px;margin:0 2px;border:1px solid currentColor;vertical-align:1px;white-space:nowrap}
+#t-calc .nl.d{color:var(--c1)}#t-calc .nl.i{color:var(--bad)}#t-calc .nl.r{color:var(--c4)}
+#t-calc input[type=number]{width:7em}
+</style>
+<section id="s-calc">
+<h2>Goodput calculator: failures and checkpoints at any scale</h2>
+<p>How much of a synchronous run's wall-clock time becomes training, for any cluster size, failure rate, checkpoint pause and restart time. It uses the two formulas from Reading ({{Failures are routine|#t-read}}): job MTBF = 1 / (servers × failure rate per server-day), and Meta's long-job ETTR with the Young and Daly interval. <b>Try:</b> start at Llama 3 (90.6%), then press 131,072: at the same failure rate a 10-minute restart costs more than the checkpoints do, and even a 10-second pause leaves about half the time. Then lower the restart to 1 minute, which is what in-memory recovery and replica groups buy.</p>
+<div class="card">
+<div class="ctl">
+<label>GPUs in the job: <b id="cGv"></b><input type="range" id="cG" min="0" max="1000" step="1" aria-label="GPUs in the job"></label>
+<div><div class="small">Presets</div><div class="seg" id="cGp"><button data-g="9600">ByteRobust 9,600</button><button data-g="12000">Meta's 12,000</button><button data-g="16384">Llama 3 16,384</button><button data-g="131072">131,072</button></div></div>
+</div>
+<div class="ctl">
+<div><div class="small">Failure rate per 1,000 server-days (8 GPUs a server)</div><div class="seg" id="cRp"><button data-r="3.79">Llama 3: 3.79</button><button data-r="6.5">Meta RSC-1: 6.50</button><button data-r="2.34">Meta RSC-2: 2.34</button></div>
+<label>Rate: <b id="cRv"></b><input type="range" id="cR" min="0" max="1000" step="1" aria-label="Failure rate per thousand server-days"></label></div>
+<div><div class="small">Training pause per checkpoint <i>w</i></div><div class="seg" id="cWp"><button data-w="300">5 min (Meta's assumption)</button><button data-w="148.8">148.8 s (IBM, 7B, sync)</button><button data-w="10">10 s (Meta's target)</button><button data-w="6.3">6.3 s (IBM, 7B, async)</button></div>
+<label>Pause: <b id="cWv"></b><input type="range" id="cW" min="0" max="1000" step="1" aria-label="Checkpoint pause"></label></div>
+</div>
+<div class="ctl">
+<label>Restart overhead <i>u</i><sub>0</sub> (detect, replace, reload): <b id="cUv"></b><input type="range" id="cU" min="1" max="60" step="1" aria-label="Restart overhead in minutes"></label>
+<div><label class="ck"><input type="checkbox" id="cOpt" checked> Use the optimal interval √(2 <i>w</i> · MTBF)</label>
+<label>Checkpoint interval: <b id="cIv"></b><input type="range" id="cI" min="0" max="1000" step="1" aria-label="Checkpoint interval"></label></div>
+</div>
+<div class="out" id="cOut"></div>
+<div id="cSplit"></div>
+<h3>Effective training time against cluster size</h3>
+<div class="leg"><span><i style="background:var(--acc);height:5px;opacity:.55"></i>your settings (wide line)</span><span><i style="background:var(--bad)"></i>5-minute pause</span><span><i style="background:var(--good)"></i>10-second pause</span><span>(same failure rate and restart; each at its optimal interval)</span></div>
+<div id="cChartN"></div>
+<p class="small mute">Points: Llama 3, over 90% on up to 16,384 GPUs (drawn at 90% with an arrow: the paper gives only the bound); ByteRobust, 97% for three months on 9,600 GPUs. Both are runs on their own failure rates and designs, not inputs to the curves. The formula is for a long job and turns negative where restarts alone would exceed the time between failures; the chart stops at zero.</p>
+<h3>Effective training time against checkpoint interval</h3>
+<div class="leg"><span><i style="background:var(--acc)"></i>ETTR at your settings</span><span><i style="background:var(--mute)"></i>optimal interval</span><span><i style="background:var(--c5)"></i>interval in use</span></div>
+<div id="cChartI"></div>
+<p class="small mute">Too short an interval and the pauses dominate; too long and each failure throws away half an interval of work. The optimum sits where the two costs are equal.</p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">What a checkpoint weighs</h3>
+<p class="small">A floor for the synchronous pause: bytes to write over the storage fabric's bandwidth. Real pauses are longer (serialisation, metadata, the slowest rank): IBM's 7B checkpoint took 148.8 s, an effective 0.56 GB/s if it saved 12 bytes per parameter <i class="nl d">derived</i>.</p>
+<div class="ctl">
+<label>Parameters (billions) <input type="number" id="kP" min="0.1" max="10000" step="any" value="405.853" aria-label="Parameters in billions"></label>
+<label>Saved state <select id="kB" aria-label="Bytes saved per parameter"><option value="12" selected>12 B: fp32 master + Adam m and v</option><option value="14">14 B: plus bf16 weights</option><option value="2">2 B: bf16 weights only (eval snapshot)</option></select></label>
+<label>Storage write bandwidth (TB/s) <input type="number" id="kS" min="0.001" max="100" step="any" value="2" aria-label="Storage bandwidth in terabytes per second"></label>
+</div>
+<div class="out" id="kOut"></div>
+<p class="small mute">Defaults: Llama 3 405B (405,853,388,800 parameters, config) and Tectonic's sustained 2 TB/s (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS1" target="_blank" rel="noopener noreferrer">§3.3.1</a>). The per-GPU share uses the GPU count above; Llama 3 reports 1 MB to 4 GB per GPU, because ranks hold different parts of the model.</p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Defaults reproduce</h3>
+<ul class="repro" id="cRepro"></ul>
+</div>
+</section>
+</div>

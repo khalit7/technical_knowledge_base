@@ -1,0 +1,133 @@
+# Quoted extracts from sources fetched for this page (2026-10-03)
+
+## Llama 3 (arXiv 2407.21783v3), from the Llama 3 page's saved text
+Llama 3 405B is trained on up to 16K H100 GPUs, each running at 700W TDP with 80GB HBM3, using Meta’s Grand Teton AI server platform (Matt Bowman, 2022). Each server is equipped with eight GPUs and two CPUs. Within a server, the eight GPUs are connected via NVLink. Training jobs are scheduled using MAST (Choudhury et al., 2024), Meta’s global-scale training scheduler.
+Tectonic (Pan et al., 2021), Meta’s general-purpose distributed file system, is used to build a storage fabric (Battey and Gupta, 2024) for Llama 3 pre-training. It offers 240 PB of storage out of 7,500 servers equipped with SSDs, and supports a sustainable throughput of 2 TB/s and a peak throughput of 7 TB/s. A major challenge is supporting the highly bursty checkpoint writes that saturate the storage fabric for short durations. Checkpointing saves each GPU’s model state, ranging from 1 MB to 4 GB per GPU, for recovery and debugging. We aim to minimize GPU pause time during checkpointing and increase checkpoint frequency to reduce the amount of lost work after a recovery.
+ Note that we use only up to 16K of these 24K GPUs for Llama 3 pre-training. connected by a three-layer Clos network (Lee et al., 2024). At the bottom layer, each rack hosts 16 GPUs split between two servers and connected by a single Minipack2 top-of-the-rack (ToR) switch. In the middle layer, 192 such racks are connected by Cluster Switches to form a pod of 3,072 GPUs with full bisection bandwidth, ensuring no oversubscription. At the top layer, eight such pods within the same datacenter building are connected via Aggregation Switches to form a cluster of 24K GPUs. However, network connectivity at the aggregation layer does not maintain full bisection bandwidth and instead has an oversubscription ratio of 1:7. Our model parallelism methods (see Section 3.3.2) and training job scheduler (Choudhury et al., 2024) are all optimized to be aware of network topology, aiming to minimize network communication across pods.
+The complexity and potential failure scenarios of 16K GPU training surpass those of much larger CPU clusters that we have operated. Moreover, the synchronous nature of training makes it less fault-tolerant--a single GPU failure may require a restart of the entire job. Despite these challenges, for Llama 3, we achieved higher than 90% effective training time while supporting automated cluster maintenance, such as firmware and Linux kernel upgrades (Vigraham and Leonhardi, 2024), which resulted in at least one training interruption daily. The effective training time measures the time spent on useful training over the elapsed time.
+During a 54-day snapshot period of pre-training, we experienced a total of 466 job interruptions. Of these, 47 were planned interruptions due to automated maintenance operations such as firmware upgrades or operator-initiated operations like configuration or dataset updates. The remaining 419 were unexpected interruptions, which are classified in Table 5.
+Approximately 78% of the unexpected interruptions are attributed to confirmed hardware issues, such as GPU or host component failures, or suspected hardware-related issues like silent data corruption and unplanned individual host maintenance events. GPU issues are the largest category, accounting for 58.7% of all unexpected issues. Despite the large number of failures, significant manual intervention was required only three times during this period, with the rest of issues handled by automation.
+To increase the effective training time, we reduced job startup and checkpointing time, and developed tools for fast diagnosis and problem resolution. We extensively use PyTorch’s built-in NCCL flight recorder (Ansel et al., 2024), a feature that captures collective metadata and stack traces into a ring buffer, and hence allowing us to diagnose hangs and performance issues quickly at scale, particularly with regard to NCCLX. Using this, we efficiently record every communication event and the duration of each collective operation, and also automatically dump tracing data on NCCLX watchdog or heartbeat timeout. We enable more computationally intensive tracing operations and metadata collection selectively as needed live in production through online configuration changes (Tang et al., 2015) without needing a code release or job restart.
+Debugging issues in large-scale training is complicated by the mixed use of NVLink and RoCE in our network. Data transfer over NVLink typically occurs through load/store operations issued by CUDA kernels, and failures in either the remote GPU or NVLink connectivity often manifest as stalled load/store operations within CUDA kernels without returning a clear error code. NCCLX enhances the speed and accuracy of failure detection and localization through a tight co-design with PyTorch, allowing PyTorch to access NCCLX’s internal state and track relevant information. While stalls due to NVLink failures cannot be completely prevented, our system monitors the state of the communication library and automatically times out when such a stall is detected. Additionally, NCCLX traces the kernel and network activities of each NCCLX communication and provides a snapshot of the failing NCCLX collective’s internal state, including finished and pending data transfers between all ranks. We analyze this data to debug NCCLX scaling issues.
+Sometimes, hardware issues may cause still-functioning but slow stragglers that are hard to detect. Even a single straggler can slow down thousands of other GPUs, often appearing as functioning but slow communications. We developed tools to prioritize potentially problematic communications from selected process groups. By investigating just a few top suspects, we were usually able to effectively identify the stragglers.
+One interesting observation is the impact of environmental factors on training performance at scale. For Llama 3 405B , we noted a diurnal 1-2% throughput variation based on time-of-day. This fluctuation is the result of higher mid-day temperatures impacting GPU dynamic voltage and frequency scaling.
+During training, tens of thousands of GPUs may increase or decrease power consumption at the same time, for example, due to all GPUs waiting for checkpointing or collective communications to finish, or the startup or shutdown of the entire training job. When this happens, it can result in instant fluctuations of power consumption across the data center on the order of tens of megawatts, stretching the limits of the power grid. This is an ongoing challenge for us as we scale training for future, even larger Llama models.
+
+## Gemini SOSP 2023 (Wang et al.), pdftotext
+that enables fast failure recovery for large model training by                            
+checkpointing to CPU memory of the host machines with                                     
+much larger aggregated bandwidth. However, two challenges                                 
+prevent naïvely checkpointing to CPU memory. First, the                                   
+availability of checkpoints in CPU memory cannot be guaran-                               
+teed when failures occur. Second, since the communication                                 
+traffic for training and checkpointing share the same net-                                
+work, checkpoint traffic can interfere with training traffic and
+harm training throughput. To address these two challenges,                                
+this paper proposes: 1) a provably near-optimal checkpoint                                
+placement strategy to maximize the probability of failure                                 
+recovery from checkpoints in CPU memory; and 2) a check-                                  
+point traffic scheduling algorithm to minimize, if not elimi-                             
+nate, the interference of checkpoint traffic on model training.                           
+Our evaluation shows that overall Gemini achieves a faster                                
+failure recovery by more than 13× than existing solutions.                                
+                                                                                          
+                                                                                          
+∗ Work done during Zhuang’s internship at Amazon Web Services.
+                                                                                          
+                                                                                          
+        tem usage. They checkpoint the model states at a particular
+        frequency and persist checkpoints in a remote persistent
+        storage system [48, 65]. In common practice, existing solu-
+        tions checkpoint model states at a low frequency, e.g., every
+        three hours in BLOOM training [3], to reduce the required
+        storage capacity. A few hours of computation resources are
+        wasted when a failure occurs. Considering thousands of
+        GPUs involved in training and hundreds of failures experi-
+        enced during training, the total computation resource waste
+        is significant, and the training time slowdown can be up to
+        43% [44]. It is infeasible to arbitrarily increase the checkpoint
+        frequency because checkpoint frequency is bottlenecked by
+        the bandwidth of the remote persistent storage [28]. For ex-
+        ample, it takes 42 minutes to checkpoint the model states
+        of MT-NLG [68] to the remote persistent storage when the
+        bandwidth is 20Gbps. According to Equation (1), the average
+        wasted time for failure recovery is 105 minutes, which makes
+        the training system less efficient.
+
+
+## Flight Recorder tutorial (raw rst)
+
+Flight Recorder, as the name suggests, captures diagnostics information as collectives run. The captured diagnostic
+information is used to help identify the root causes of issues when jobs become stuck.
+Flight Recorder consists of two core parts:
+
+- The collection portion: when enabled, information about collectives is recorded in an in-memory circular buffer. Upon job timeout, or on demand, the in-memory buffer can be retrieved or dumped to file.
+
+- An analyzer script is available in the `torch/distributed/flight_recorder <https://github.com/pytorch/pytorch/tree/main/torch/distributed/flight_recorder>`__ directory (details below).
+   The analyzer script runs known heuristics using the collected data and attempts to automatically identify the underlying issue that caused the job to stall.
+
+Enabling Flight Recorder
+------------------------
+There are three required environment variables to get the initial version of Flight Recorder working.
+
+- ``TORCH_NCCL_TRACE_BUFFER_SIZE = (0, N)``: Setting ``N`` to a positive number enables collection.
+  ``N`` represents the number of entries that will be kept internally in a circular buffer.
+  We recommended to set this value at *2000*. The default value is ``2000``.
+- ``TORCH_NCCL_DUMP_ON_TIMEOUT = (true, false)``: Setting this to ``true`` will write out diagnostic files to disk on job timeout.
+  If enabled, there will be one file per rank output in the job's running directory. The default value is ``false``.
+- ``TORCH_FR_DUMP_TEMP_FILE``: Setting the path where the flight recorder will be dumped with file prefix. One file per
+  rank. The default value is ``/tmp/nccl_trace_rank_``.
+
+**Optional settings:**
+
+## DCP docs (raw md)
+# Distributed Checkpoint - torch.distributed.checkpoint
+
+Distributed Checkpoint (DCP) supports loading and saving models from multiple ranks in parallel.
+It handles load-time resharding which enables saving in one cluster topology and loading into another.
+
+DCP is different than `torch.save` and `torch.load` in a few significant ways:
+
+- It produces multiple files per checkpoint, with at least one per rank.
+
+## Kokolis et al., arXiv 2410.21680v2 (WebFetch quotes)
+"the mean-time-to-failure (MTTF) of 1024-GPU jobs is 7.9 hours"
+"we project the MTTF for 16384 GPU jobs to be 1.8 hours and for 131072 GPU jobs to be 0.23 hours"
+RSC-1: 6.50 failures per thousand node-days; RSC-2: 2.34
+"rf≈5×10−3 failures per GPU node-day of runtime, wcp≈5 mins", "u0≈5−20 mins"
+E[ETTR] ≈ (1 − N_nodes r_f (u0 + Δt_cp/2)) / (1 + w_cp/Δt_cp)
+"checkpoint write time overhead needs to be on the order of ~10 seconds or failure rate needs to dramatically improve from 6.50 to ~1."
+
+## PyTorch blog, Reducing checkpointing times (2024-11-13)
+"7B model 'down time' for a checkpoint goes from an average of 148.8 seconds to 6.3 seconds, or 23.62x faster."
+"The first phase copies the data from each gpu/rank from GPU to CPU. This is the visible downtime to the user and can take from 6 – 14 seconds for 7B-13B model sizes."
+"We avoided this scenario by initializing a separate process group for async checkpointing."
+
+## torchtitan paper (arXiv 2410.06511) §2.3.1
+"TorchTitan utilizes DCP's asynchronous checkpointing to reduce the checkpointing overhead by 5-15x compared to synchronous distributed checkpointing for the Llama 3.1 8B model"
+
+## torchft blog (2025-06-20)
+300 L40S, 30 hosts x 10 GPUs, Llama 3 1B; Run 1: failure every 60 s, 6249 steps, 5145 committed (82.3%), 29.6 groups avg, training efficiency 81.2%. Run 2: failure on average every 15 s, 18.9 of 30 healthy, 268 of first 888 steps committed (30.2%), "training efficiency of just 13.4%".
+
+## MegaScale (arXiv 2402.15627), via WebFetch summary
+12,288 GPUs, 55.2% MFU, 1.34x Megatron-LM; two-stage checkpoint: host memory "within several seconds", then HDFS asynchronously; one worker per DP group reads and broadcasts; over 90% effective training time; over 100 restarts in a multi-week production job; detection under 10 min, catch-up within 15 min; about 0.5% of machines stragglers.
+
+## ByteRobust (arXiv 2509.16293), via WebFetch summary
+"97% ETTR for a three-month training job on 9,600 GPUs"; 38,236 explicit and 5,948 implicit failures; CUDA errors 36.1%, hangs 9.9%, CPU overload 11.0%, CPU OOM 10.1%; every-step in-memory checkpointing under 0.9% overhead; hot update 11.04x faster than requeue; warm standby 10.87x faster; network issues detected in 30 s, GPU driver hangs in 10 s, against ~30-minute timeout.
+
+## Gemini report (arXiv 2312.11805)
+"the overall goodput for the largest-scale training job increased from 85% to 97%"; "redundant in-memory copies of the model state, and on any unplanned hardware failures, we rapidly recover directly from an intact model replica"; "we can expect SDC events to impact training every week or two"; "deterministic replay to isolate incorrect computations, combined with proactive SDC scanners on idle machines and hot standbys".
+
+## OPT (arXiv 2205.01068v4) §2.5
+"trained OPT-175B on 992 80GB A100 GPUs"; "hardware failures contributed to at least 35 manual restarts and the cycling of over 100 hosts over the course of 2 months."
+
+## SLURM sbatch --requeue
+"Specifies that the batch job should be eligible for requeuing. The job may be requeued explicitly by a system administrator, after node failure, or upon preemption by a higher priority job."
+
+## HyperPod auto-resume docs
+Automatic node recovery "reboots or replaces faulty nodes automatically"; runs on issues "from health-monitoring agent, basic health checks, and deep health checks"; auto-resume restarts "from the last saved checkpoint"; "If the HMA detects a hardware fault, the node is marked for drain regardless of job-level status"; "If you use auto-resume, the nodes are always replaced (no reboots)".
+
+## READMEs (2026-10-03)
+torchtune: "Torchtune is no longer actively maintained: torchtune development wound down in 2025".
+NeMo docs: "For the NeMo Framework container, starting with 26.02, refer to Megatron-Bridge's documentation and release notes."; components: AutoModel, Curator, Evaluator, Export and Deploy, Megatron Bridge, RL, Run.
+torchtitan: "[2026/08] TitanRL ..."; features incl. MXFP8, NVFP4, async DCP, TorchFT, Flight Recorder, deterministic SDC replay, HF conversion.
