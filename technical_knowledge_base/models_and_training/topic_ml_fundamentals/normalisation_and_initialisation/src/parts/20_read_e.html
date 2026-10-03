@@ -1,0 +1,33 @@
+
+<section id="s-now">
+<h2>9 · In production now</h2>
+<p>The released models measured on this page, read from their <code>config.json</code> files and module types (<code>src/inputs/configs_norm_init.json</code>, <code>src/real/real_streams.py</code>); the full survey of 21 landmark models, with each lab's stated init, is the parent's <b>Defaults across models</b> tab.</p>
+<div class="tw"><table>
+<thead><tr><th>Model</th><th>Norm</th><th>Placement</th><th class="num">&epsilon;</th><th>Attention logit control</th><th class="num">initializer_range</th></tr></thead>
+<tbody>
+<tr><td>BERT base (2018)</td><td>LayerNorm</td><td>post</td><td class="num">10<sup>&minus;12</sup></td><td>none</td><td class="num">0.02</td></tr>
+<tr><td>GPT-2 (2019)</td><td>LayerNorm</td><td>pre, plus final</td><td class="num">10<sup>&minus;5</sup></td><td>none</td><td class="num">0.02</td></tr>
+<tr><td>Llama 3.1 8B, Mistral 7B v0.3</td><td>RMSNorm</td><td>pre</td><td class="num">10<sup>&minus;5</sup></td><td>none</td><td class="num">0.02</td></tr>
+<tr><td>SmolLM2-135M</td><td>RMSNorm</td><td>pre</td><td class="num">10<sup>&minus;5</sup></td><td>none</td><td class="num">0.0417</td></tr>
+<tr><td>Qwen3-0.6B</td><td>RMSNorm</td><td>pre</td><td class="num">10<sup>&minus;6</sup></td><td>QK-norm</td><td class="num">0.02</td></tr>
+<tr><td>Gemma 3 270M</td><td>RMSNorm (gain 1 + &gamma;)</td><td>peri (pre and post)</td><td class="num">10<sup>&minus;6</sup></td><td>QK-norm (Gemma 2: soft-cap)</td><td class="num">0.02</td></tr>
+<tr><td>OLMo 2 1B</td><td>RMSNorm</td><td>output norm</td><td class="num">10<sup>&minus;6</sup></td><td>QK-norm</td><td class="num">0.02</td></tr>
+</tbody></table></div>
+<p>Kimi K2 keeps pre-norm and controls logits with qk-clip in the optimiser instead (section 6); {{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} initialises with &sigma; = 0.006. The trend since 2023: RMSNorm everywhere, pre-norm as the base, and a second norm (QK-norm, an output norm or both) added for stability at scale.</p>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Fitting the scaler on all the data</summary><div class="b">Mean, standard deviation, minimum and maximum come from the training set only, then are applied unchanged to validation and test data; a pipeline object does this for you (section 1).</div></details>
+<details class="mist"><summary>Scaling inputs for a tree model, or not scaling them for kNN, SVM, PCA or a regularised linear model</summary><div class="b">Trees split one feature at a time and are unaffected; anything that measures distance, variance or a penalty on all weights at once is not (section 1: 75.9% against 94.4% for kNN on two wine features).</div></details>
+<details class="mist"><summary>Evaluating a BatchNorm network in training mode, or training it with tiny batches</summary><div class="b">In training mode, outputs depend on the other examples in the batch; at batch size 2, every output is &plusmn;1. Call <code>model.eval()</code> before evaluating, use GroupNorm or synchronised BatchNorm when the per-device batch is small, and recompute the running statistics after fine-tuning on new data (section 3).</div></details>
+<details class="mist"><summary>Copying BatchNorm's momentum between PyTorch and Keras</summary><div class="b">PyTorch's 0.1 and Keras's 0.99 mean the same thing, from opposite sides: the weight on the new batch against the weight on the old estimate (section 3).</div></details>
+<details class="mist"><summary>Calling OLMo 2's or Gemma's norm "post-norm"</summary><div class="b">Both keep the residual stream unnormalised; they normalise the branch output (and Gemma also its input). The 2017 post-norm normalises the stream itself (section 5).</div></details>
+<details class="mist"><summary>Assuming QK-norm caps attention logits at &radic;d<sub>h</sub></summary><div class="b">Only with unit gains. Trained gains are large: Qwen3-0.6B's ceilings run from 184 to 12,897; what QK-norm removes is growth through the projection weights and the stream (section 6).</div></details>
+<details class="mist"><summary>Assuming PyTorch layers are He-initialised</summary><div class="b"><code>nn.Linear</code> and the convolutions use U(&plusmn;1/&radic;n<sub>in</sub>), a sixth of He's variance; a deep plain ReLU MLP needs <code>kaiming_normal_</code> explicitly (section 7).</div></details>
+<details class="mist"><summary>Using Xavier with ReLU, or He with tanh</summary><div class="b">Xavier halves the ReLU signal's second moment at every layer (0.5 per layer, 7.8 &times; 10<sup>&minus;7</sup> after 20 layers, measured); He doubles a tanh signal near 0. The init is chosen for the activation (section 7; the parent's thread 2).</div></details>
+<details class="mist"><summary>Reading &sigma; = 0.02 as a variance-preserving init</summary><div class="b">At width 4,096 it grows the second moment by 1.64 per linear layer and at 768 shrinks it by 0.31; it works because the norms re-scale every branch input (section 8).</div></details>
+<p class="small mute">Loss spikes, NaNs and their fixes (QK-norm, z-loss, OLMo 2's init change, clipping) are diagnosed in the parent page's <b>When training goes wrong</b> tab ({{Topic: ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}}), which replaced the old "Debugging training" page.</p>
+</section>
+<div class="foot">Built from the old Notion page "Normalisation and initialisation" (last edited 22 September 2026, fetched 3 October 2026; saved verbatim in <code>src/live.md</code>), with every claim rechecked against the linked sources on 3 October 2026. Every norm is checked against <code>torch.nn</code> (<code>src/checks/norms_ref.py</code>), the placement toy against PyTorch autograd (<code>src/checks/toy_ref.py</code>), the init numbers and QK-norm ceilings in <code>src/recompute.py</code>, the wine numbers in <code>src/scaling.py</code>, and the six released models in <code>src/real/real_streams.py</code>.</div>
+</div>

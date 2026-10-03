@@ -1,0 +1,56 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" aria-label="Sections"><a href="#s-one">In one screen</a><a href="#s-scale">Feature scaling</a><a href="#s-axes">Which axes</a><a href="#s-bn">BatchNorm</a><a href="#s-ln">LayerNorm, RMSNorm</a><a href="#s-place">Placement</a><a href="#s-qk">QK-norm</a><a href="#s-init">Initialisation</a><a href="#s-deep">Depth-aware init</a><a href="#s-now">In production</a><a href="#s-mist">Mistakes</a></nav>
+
+<section id="s-one">
+<h2>In one screen</h2>
+<p class="lead">Training works best when the numbers flowing through a network stay on a scale of about 1: features on comparable scales, activations whose variance does not grow or shrink from layer to layer, gradients that reach the first layer at a usable size. Three tools enforce that at three moments. <b>Feature scaling</b> fixes the inputs once, before training. <b>Initialisation</b> chooses the scale of the random starting weights so the signal is preserved at step zero. <b>Normalisation layers</b> re-impose a fixed scale inside the network at every step, which is why a normalised network is far less sensitive to its initial scale.</p>
+<div class="tw"><table>
+<thead><tr><th>Tool</th><th>Averages over</th><th>Learned</th><th>Training against inference</th><th>Where it lives</th></tr></thead>
+<tbody>
+<tr><td>Standardisation (z-score)</td><td>each input feature, over the training set</td><td>nothing</td><td>statistics fixed from the training set</td><td>inputs of distance-based and gradient-trained models</td></tr>
+<tr><td>Min-max scaling</td><td>each feature's range, over the training set</td><td>nothing</td><td>as above</td><td>inputs that need a bounded range</td></tr>
+<tr><td>BatchNorm (2015)</td><td>each feature (channel), over the batch (and positions)</td><td>&gamma;, &beta; per feature</td><td><b>different</b>: batch statistics in training, running averages at inference</td><td>CNNs</td></tr>
+<tr><td>LayerNorm (2016)</td><td>each example (token), over its features</td><td>&gamma;, &beta; per feature</td><td>identical</td><td>the 2017 transformer, BERT, GPT-2</td></tr>
+<tr><td>RMSNorm (2019)</td><td>as LayerNorm, without subtracting the mean</td><td>&gamma; only</td><td>identical</td><td>essentially every current LLM</td></tr>
+<tr><td>GroupNorm, InstanceNorm (2018, 2016)</td><td>each example, over a group of channels (or one channel) and the pixels</td><td>&gamma;, &beta; per channel</td><td>identical</td><td>detection and segmentation with small batches; style transfer</td></tr>
+<tr><td>QK-norm</td><td>each query and key head vector</td><td>&gamma;</td><td>identical</td><td>attention in many 2024 to 2026 LLMs</td></tr>
+</tbody></table></div>
+<div class="tw"><table>
+<thead><tr><th>Initialisation</th><th>Var(w)</th><th>Keeps the variance for</th></tr></thead>
+<tbody>
+<tr><td>Xavier (Glorot)</td><td>2 / (n<sub>in</sub> + n<sub>out</sub>)</td><td>tanh and sigmoid, roughly linear near 0</td></tr>
+<tr><td>He (Kaiming)</td><td>2 / n<sub>in</sub></td><td>ReLU and its family</td></tr>
+<tr><td>LeCun</td><td>1 / n<sub>in</sub></td><td>linear units; SELU (self-normalising networks)</td></tr>
+<tr><td>Small fixed, residual-scaled</td><td>&sigma; = 0.02; residual output layers &divide; &radic;(2L)</td><td>transformers, which lean on their norms</td></tr>
+</tbody></table></div>
+<p>The parent page already shows the whole picture at the level of one training step: its Reading tab sends {{one batch through five 16-layer networks|n:3c65c17b0d0d81d796ccc0a293218c57}} (step 2, "Watch the variance, layer by layer") and draws each layer's activation spread and gradient size, and its thread 2 is the "variance pact" between activation, initialisation and normalisation; its {{Training lab|n:3c65c17b0d0d81d796ccc0a293218c57}} tab swaps the initialisation and the norm (and pre against post placement) in a network trained live; its {{Defaults across models|n:3c65c17b0d0d81d796ccc0a293218c57}} tab lists the norm type, placement, epsilon, init scheme and standard deviation of 21 landmark models. This page goes one level down: which numbers each norm averages, what BatchNorm does at inference, why the placement decides how deep a network can go, and where each initialisation formula comes from.</p>
+<p class="small mute">Labels: <span class="nl d">derived</span> computed here from a stated formula; <span class="nl m">measured</span> computed here on real data or a real released model; <span class="nl i">illustrative</span> seeded toy inputs; <span class="nl r">reported</span> the authors' own figure; <span class="nl u">unconfirmed</span>. Everything else carries its source link.</p>
+</section>
+
+<section id="s-scale">
+<h2>1 · Feature scaling: the inputs, once</h2>
+<p><b>Why.</b> A model that measures distance (k-nearest neighbours, SVMs with an RBF kernel, k-means), projects variance (PCA) or penalises weights uniformly (ridge, lasso) treats a unit of every feature the same, so a feature measured in thousands silently outvotes one measured in fractions. Gradient descent suffers too: unequal scales stretch the loss surface into a narrow ravine, so the step size that is safe along the steep feature is tiny along the flat one, and convergence slows (rounder contours after scaling). Tree models split one feature at a time on thresholds and do not care.</p>
+<div class="tw"><table>
+<thead><tr><th>Method</th><th>Formula</th><th>Result</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Standardisation (z-score)</td><td>z = (x &minus; &mu;) / &sigma;</td><td>mean 0, standard deviation 1</td><td>the default; scikit-learn's <a href="https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.StandardScaler.html" target="_blank" rel="noopener noreferrer">StandardScaler</a> uses the population &sigma; (no n &minus; 1)</td></tr>
+<tr><td>Min-max normalisation</td><td>x&prime; = (x &minus; x<sub>min</sub>) / (x<sub>max</sub> &minus; x<sub>min</sub>)</td><td>range [0, 1]</td><td>one outlier squeezes every other value into a sliver</td></tr>
+<tr><td>Robust scaling</td><td>(x &minus; median) / IQR</td><td>median 0, interquartile range 1</td><td>for features with outliers (<a href="https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.RobustScaler.html" target="_blank" rel="noopener noreferrer">RobustScaler</a>)</td></tr>
+</tbody></table></div>
+<p>The statistics (&mu;, &sigma;, minimum, maximum) are fitted on the <b>training set only</b> and then applied unchanged to validation and test data; fitting them on all the data leaks the test set into training (<a href="https://scikit-learn.org/stable/common_pitfalls.html" target="_blank" rel="noopener noreferrer">scikit-learn, common pitfalls</a>).</p>
+
+<div class="card" id="sc-card">
+<h3>Same wines, same neighbours rule: raw units against standardised</h3>
+<p class="try"><b>Try:</b> press Play. The 178 wines of the <a href="https://archive.ics.uci.edu/dataset/109/wine" target="_blank" rel="noopener noreferrer">UCI Wine data</a> are plotted on two features, <i>proline</i> (278 to 1,680 mg/L) and <i>hue</i> (0.48 to 1.71), first in raw units drawn to the same scale on both axes, then standardised. One test wine asks its 20 nearest training wines to vote on its cultivar. Switch to min-max to compare.</p>
+<div class="modes" id="sc-modes"><button data-m="std" class="on">Standardise</button><button data-m="mm">Min-max</button></div>
+<div class="an-ctl" id="sc-ctl"></div>
+<div class="an-cap" id="sc-cap"></div>
+<div class="cv"><svg id="sc-svg" viewBox="0 0 600 340" role="img" aria-label="Scatter of wines by proline and hue"></svg></div>
+<div class="legend" id="sc-leg"></div>
+<div class="an-cnt" id="sc-cnt"></div>
+<p class="small mute">k-nearest neighbours with k = 20, a 70/30 split with <code>random_state=42</code>, scaler fitted on the 124 training wines, exactly as in scikit-learn's <a href="https://scikit-learn.org/stable/auto_examples/preprocessing/plot_scaling_importance.html" target="_blank" rel="noopener noreferrer">Importance of Feature Scaling</a> example. Test accuracy computed in your browser over the 54 test wines; <code>src/scaling.py</code> gets the same numbers from scikit-learn 1.9.1: 75.93% raw, 94.44% standardised, 94.44% min-max <span class="nl m">measured</span>.</p>
+</div>
+
+<p><b>The size of the effect, on all 13 features</b> <span class="nl m">measured</span> (<code>src/scaling.py</code>): kNN with k = 20 scores 77.78% on raw features, 96.30% standardised and 98.15% min-max scaled. For least squares on the same data (predicting alcohol from the other 12 features), the condition number of the Hessian X<sup>T</sup>X/n, the ratio of the steepest to the flattest direction of the loss and so roughly how many more steps gradient descent needs, is 1.6 &times; 10<sup>8</sup> raw, 690 min-max scaled and 45 standardised.</p>
+<div class="co corr"><div class="t">Correction: scikit-learn's own example overstates the gap</div>Its example reports that PCA to two components then logistic regression scores 35.19% unscaled against 96.30% standardised. Rerunning its code reproduces both numbers exactly, but the example passes <b>one</b> <code>PCA</code> object to both pipelines, so fitting the standardised pipeline refits the PCA that the unscaled pipeline then uses on raw data. With a PCA of its own, the unscaled pipeline scores 74.07% (log-loss 0.497, against 1.18) <span class="nl m">measured</span>. Scaling still wins clearly (96.30%, log-loss 0.0739); the gap is 22 points, not 61 (<code>src/scaling.py</code>).</div>
+</section>
