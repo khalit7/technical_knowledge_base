@@ -1,0 +1,45 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Run a toy Qwen3</h2>
+<p class="lead">The report says answering from cut-off thinking "is not explicitly trained but emerges naturally" from thinking mode fusion, and never tests it. This tab tests it on a model small enough to train three ways and run in the page: fused as stage 3 describes, thinking-only (the stage-2 model before fusion), and fused plus explicit training on cut-off thinking (what the report says it did not need).</p>
+
+<details class="mist" open><summary><b>The toy</b>: task, format, model, training, and how it was checked</summary><div class="b">
+<ul>
+<li><b>Task.</b> A question is a list of 1 to 12 digits; the answer is their sum mod 10. Thinking writes the running sum after each digit, so each step is one small addition and the last one is the answer. Answering directly needs the whole sum in one forward pass, which a small model does badly for long lists: the same shape as the report's claim that thinking helps on hard problems and costs tokens.</li>
+<li><b>Format</b>, Table 9's template in tokens: <code>&lt;u&gt; 3 9 4 /think &lt;a&gt; &lt;think&gt; 3 2 6 &lt;/think&gt; 6</code> for thinking and <code>&lt;u&gt; 3 9 4 /no_think &lt;a&gt; &lt;think&gt; &lt;/think&gt; 6</code> for non-thinking (empty block kept). A quarter of the thinking samples carry no flag, since thinking is the default.</li>
+<li><b>Model.</b> A Qwen3 decoder at <span class="tv" data-k="params"></span> parameters: 3 layers, width 32, 4 query heads sharing 2 key-value heads (grouped-query attention), QK-Norm, rotary embeddings, SwiGLU, pre-norm RMSNorm, no QKV bias, tied embeddings.</li>
+<li><b>Training</b>, identical for all three variants (6,000 steps of 256 sequences, AdamW, warm-up then cosine, one seed); only the mix differs: <b>fused</b> is half thinking, half non-thinking; <b>thinking-only</b> is all thinking; <b>budget-trained</b> is the fused mix plus a quarter of samples whose thinking stops at a random step, followed by <code>&lt;/think&gt;</code> and the correct answer. The budget inserts <code>&lt;/think&gt;</code> alone: the toy has no words, so the report's stop sentence cannot be imitated (a real difference, discussed below).</li>
+<li><b>Checked.</b> The page runs the exported 6-bit weights in plain JavaScript; <span class="tv" data-k="check"></span>. Every number on this tab comes from the held-out test set (200 problems per length, drawn with their own seed). Short lists repeat across any sample (there are only 10 one-digit questions), so <span class="tv" data-k="overlap"></span> of test problems also occurred in training; for lists of 6 or more digits overlap is negligible.</li>
+</ul></div></details>
+
+<h3>Ask the toy</h3>
+<div class="card" id="tq">
+<div class="ctl"><label>Digits <input id="tqD" type="text" inputmode="numeric" value="3 9 4 7 1 8 2 6 5" aria-label="Digits, separated by spaces" style="width:12em"></label><button id="tqR">Random problem</button></div>
+<div class="seg" id="tqV" role="group" aria-label="Model"><button class="on" data-m="fused" aria-pressed="true">Fused</button><button data-m="think" aria-pressed="false">Thinking-only</button><button data-m="budget" aria-pressed="false">Budget-trained</button></div>
+<div class="seg" id="tqM" role="group" aria-label="Mode"><button class="on" data-m="think" aria-pressed="true">/think</button><button data-m="default" aria-pressed="false">no flag</button><button data-m="nothink" aria-pressed="false">/no_think</button></div>
+<div class="ctl"><label>Thinking budget <b id="tqBv"></b><input type="range" id="tqB" min="0" max="13" step="1" value="13" aria-label="Thinking budget in tokens"></label></div>
+<div id="tqSvg"></div>
+<div class="out" id="tqOut"></div>
+<p class="try"><b>Try:</b> keep the nine digits and drag the budget down to 4 with the fused model: the thinking stops at the fourth running sum and the model answers that sum, which is not the answer. Switch to /no_think: with no thinking at all it gets this one right. Then try the budget-trained model: at budget 4 it no longer copies the last sum (here it is still wrong), and at budget 0 it answers as it does with /no_think.</p>
+<p class="small mute">The strip shows the response the model writes, token by token; orange is the <code>&lt;/think&gt;</code> the page inserts when the budget is reached. Under it, the correct running sums. The row of shaded cells is where the position that writes the answer looks in the last layer (attention averaged over the 4 heads), over the whole sequence.</p>
+</div>
+
+<h3>Accuracy against the thinking budget: the toy's Figure 2</h3>
+<div class="card" id="tb2">
+<div class="seg" id="tb2M" role="group" aria-label="Model"><button class="on" data-m="fused" aria-pressed="true">Fused</button><button data-m="think" aria-pressed="false">Thinking-only</button><button data-m="budget" aria-pressed="false">Budget-trained</button><button data-m="all" aria-pressed="false">All three</button></div>
+<div id="tb2Svg"></div>
+<div class="out" id="tb2Out"></div>
+<p class="small mute">Held-out test set, 2,400 problems, budgets of 0 to 12 thinking tokens. The lower part of each bar (the model's colour) is problems whose thinking finished inside the budget, always right for all three models; the gold part is cut-off answers that were right. The dashed line is the same model's /no_think accuracy (the thinking-only model has none: it ignores the flag and thinks).</p>
+<div class="ctl"><button id="tb2Live">Check live: 120 fresh problems</button><span class="small mute" id="tb2LiveOut"></span></div>
+</div>
+<div id="tbTxt"></div>
+
+<h3>What the toy shows, and what it cannot</h3>
+<div id="toyConc"></div>
+
+<h3 id="dsh">Distillation against RL, at toy scale</h3>
+<div class="card" id="dsRun"></div>
+
+<h3>Training curves</h3>
+<div class="card"><div id="tcC"></div></div>
+<p class="small mute">From each run's log: training loss every 250 steps (log scale) and, every 1,000 steps, accuracy on 360 sampled problems in /think and /no_think mode. Unsmoothed.</p>
+</section>
