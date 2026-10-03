@@ -1,0 +1,39 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" aria-label="Sections"><a href="#s-over">In one screen</a><a href="#s-why">Why a nonlinearity</a><a href="#s-sat">Sigmoid and tanh</a><a href="#s-relu">The ReLU family</a><a href="#s-dead">Dead units</a><a href="#s-smooth">Smooth ReLUs</a><a href="#s-glu">Gated units</a><a href="#s-width">The 2/3 rule</a><a href="#s-inside">Inside real models</a><a href="#s-out">The output layer</a><a href="#s-mist">Mistakes</a></nav>
+
+<section id="s-over">
+<h2>In one screen</h2>
+<p class="lead">An activation function is the elementwise nonlinearity between two linear maps. It decides three things: whether the gradient survives many layers (<b>saturation</b>), whether units can switch off for good (<b>dead units</b>), and, at the output, what the numbers mean (<b>probabilities, or a value</b>). In 2026 the answer for hidden layers of a language model is a <b>gated</b> unit, almost always SwiGLU; GELU survives in vision transformers and older encoders; the ReLU family in convolutional networks and a few efficiency-minded LLMs; sigmoid and tanh only inside gates and at outputs.</p>
+<p>This page owns the details. The parent topic places the activation in one training step and has three live pieces this page links rather than repeats: "one batch through five networks" (sigmoid with Xavier, ReLU with 1/<i>n</i>, ReLU with He, BatchNorm residual, pre-RMSNorm SwiGLU, with the variance and the gradient of every layer) in step 2 of the {{Reading tab of Topic: ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}}; the {{Training lab|n:3c65c17b0d0d81d796ccc0a293218c57}} tab, which trains the same network with six activations swapped live; and the {{Defaults across models|n:3c65c17b0d0d81d796ccc0a293218c57}} tab, which lists the activation and FFN width of twenty-one models from AlexNet to Kimi K2, each with its source.</p>
+<div class="tw"><table class="choose">
+<tr><th>Family</th><th>Members</th><th>Where it lives now</th><th>What goes wrong</th></tr>
+<tr><td>Saturating</td><td>sigmoid, tanh</td><td>gates (LSTM, GRU), binary outputs</td><td>slope near 0 on both sides: gradients vanish through many layers (<a href="#s-sat">below</a>)</td></tr>
+<tr><td>Rectified</td><td>ReLU, leaky ReLU, PReLU, ELU, SELU, squared ReLU</td><td>convolutional networks; OPT (ReLU), Nemotron-4 (squared ReLU)</td><td>ReLU units can die: zero output and zero gradient on every input (<a href="#s-dead">measured below</a>)</td></tr>
+<tr><td>Smooth rectifiers</td><td>GELU (exact or tanh form), SiLU (Swish), Mish</td><td>BERT, GPT-2, GPT-3, ViT</td><td>several "GELU"s that are not interchangeable in a trained checkpoint (<a href="#s-smooth">below</a>)</td></tr>
+<tr><td>Gated</td><td>GLU, bilinear, ReGLU, GEGLU, SwiGLU</td><td>the feed-forward block of nearly every LLM since PaLM and Llama</td><td>a third weight matrix: the hidden width is cut to keep the parameter count (<a href="#s-width">the 2/3 rule</a>)</td></tr>
+<tr><td>Output</td><td>sigmoid, softmax, none (linear)</td><td>the last layer, chosen by the task</td><td>must match the loss, which in PyTorch usually wants the raw logits (<a href="#s-out">below</a>)</td></tr>
+</table></div>
+<p class="small mute">Every function on this page, with its derivative, the region where it saturates and the region where its slope is exactly zero, is drawn in the {{Activation atlas|#t-atlas}} tab; what these functions actually output inside OPT-125m, GPT-2 and SmolLM2-135M is the {{Inside real models|#t-real}} tab.</p>
+</section>
+
+<section id="s-why">
+<h2>Why a nonlinearity, and what it must be</h2>
+<ul>
+<li><b>Non-linear,</b> or the stack collapses: <i>W</i><sub>2</sub>(<i>W</i><sub>1</sub><i>x</i>) = (<i>W</i><sub>2</sub><i>W</i><sub>1</sub>)<i>x</i>, one linear map however many layers there are.</li>
+<li><b>Not a polynomial,</b> which is the precise condition for a one-hidden-layer network to approximate any continuous function: "a standard multilayer feedforward network with a locally bounded piecewise continuous activation function can approximate any continuous function to any degree of accuracy if and only if the network's activation function is not a polynomial" (<a href="https://doi.org/10.1016/S0893-6080(05)80131-5" target="_blank" rel="noopener noreferrer">Leshno, Lin, Pinkus and Schocken 1993</a>). <i>x</i><sup>2</sup> alone would not do; squared ReLU, max(0, <i>x</i>)<sup>2</sup>, is piecewise and is not a polynomial, so it qualifies.</li>
+<li><b>Differentiable almost everywhere</b> is enough for gradient descent: ReLU has no derivative at exactly 0 and frameworks simply pick one (PyTorch's autograd uses 0 there; this page's derivatives agree with autograd everywhere else, <code>src/recompute.py</code>).</li>
+</ul>
+<p>Everything else is a trade between four properties: slope near 1 over a wide range (gradients survive depth), outputs centred on zero (updates do not zig-zag), cheap to compute, and smooth (the optimiser sees a smooth surface). No function has all four; the history below is the field trading one for another.</p>
+</section>
+
+<section id="s-sat">
+<h2>Sigmoid and tanh: saturation</h2>
+<div class="tw"><table>
+<tr><th>Activation</th><th>Formula</th><th>Range</th><th>Largest slope</th><th>Good at</th><th>Trouble</th></tr>
+<tr><td>Sigmoid σ</td><td>1 / (1 + e<sup>&minus;<i>x</i></sup>)</td><td>(0, 1)</td><td>0.25, at <i>x</i> = 0</td><td>an output read as a probability; a gate that opens between 0 and 1</td><td>saturates on both sides; outputs always positive, not zero-centred</td></tr>
+<tr><td>Tanh</td><td>tanh <i>x</i> = 2σ(2<i>x</i>) &minus; 1</td><td>(&minus;1, 1)</td><td>1, at <i>x</i> = 0</td><td>zero-centred: outputs, and so the next layer's updates, can have either sign</td><td>still saturates: slope below 0.01 once |<i>x</i>| &gt; 3.0 <i class="nl d">derived</i></td></tr>
+</table></div>
+<p><b>Saturation.</b> Backpropagation multiplies the gradient by the activation's slope at every layer. A sigmoid's slope is at most 0.25, so even at its best a gradient shrinks by 4 per layer, and in a saturated unit (|<i>x</i>| large) the slope is close to 0: the slope of the sigmoid is below 0.01 once |<i>x</i>| &gt; 4.6 <i class="nl d">derived from σ(1 &minus; σ) = 0.01</i>. On the parent's "one batch through five networks", the first layer of the 16-layer sigmoid network receives a gradient about 2 billion times smaller than the last (step 2 of the {{Reading tab of Topic: ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}}). Tanh is a rescaled sigmoid (the identity above), with four times the slope at 0, which is why it was preferred for hidden layers before ReLU.</p>
+<p><b>Why zero-centred matters.</b> A unit's weight gradient is its input times one shared error term. If every input is positive (a sigmoid layer's output always is), every weight of that unit moves in the same direction at each step, so reaching a target that needs some weights up and others down takes a zig-zag. LeCun et al. recommend inputs with mean close to zero for this reason, and a scaled tanh, 1.7159 tanh(2<i>x</i>/3), for hidden units (<a href="http://yann.lecun.com/exdb/publis/pdf/lecun-98b.pdf" target="_blank" rel="noopener noreferrer">Efficient BackProp, 1998</a>, sections 4.3 and 4.4).</p>
+<p><b>Where they still live.</b> Inside gates, where a value between 0 and 1 is the point: the LSTM's forget, input and output gates are sigmoids and its cell candidate a tanh ({{Sequence models: the pre-transformer lineage|n:3c65c17b0d0d818da4ded61ace6847ce}}); the gated units below are this idea moved into the feed-forward block. And at the output, for a binary or multilabel probability.</p>
+</section>

@@ -1,0 +1,327 @@
+==== Shazeer 2020, GLU Variants Improve Transformer, sections 2-3 and Table 1 (2002.05202.txt lines 60-110)
+                            GEGLU(x, W, V, b, c) = GELU(xW + b) ⊗ (xV + c)                                (5)
+                          SwiGLU(x, W, V, b, c, β) = Swishβ (xW + b) ⊗ (xV + c)
+
+    In this paper, we propose additional variations on the Transformer FFN layer which use GLU or one of
+its variants in place of the first linear transformation and the activation function. Again, we omit the bias
+terms.
+
+
+                               FFNGLU (x, W, V, W2 ) = (σ(xW ) ⊗ xV )W2
+                             FFNBilinear (x, W, V, W2 ) = (xW ⊗ xV )W2
+                            FFNReGLU (x, W, V, W2 ) = (max(0, xW ) ⊗ xV )W2                               (6)
+                            FFNGEGLU (x, W, V, W2 ) = (GELU(xW ) ⊗ xV )W2
+                            FFNSwiGLU (x, W, V, W2 ) = (Swish1 (xW ) ⊗ xV )W2
+
+    All of these layers have three weight matrices, as opposed to two for the original FFN. To keep the
+number of parameters and the amount of computation constant, we reduce the number of hidden units df f
+(the second dimension of W and V and the first dimension of W2 ) by a factor of 32 when comparing these
+layers to the original two-matrix version.
+
+
+3     Experiments on Text-to-Text Transfer Transformer (T5)
+We test the FFN variants we have described on the transfer-learning setup from [Raffel et al., 2019]. An
+encoder-decoder transformer model [Vaswani et al., 2017] is trained on a denoising objective of predicting
+missing text segments, and subsequently fine-tuned on various language understanding tasks.
+
+3.1    Model Architecture
+We use the same code base, model architecture, and training task as the base model from [Raffel et al.,
+2019]. The encoder and decoder each consist of 12 layers, with dmodel = 768. For the attention layers,
+h = 12 and dk = dv = 64. The FFN layers have hidden size df f = 3072. As we describe above, for the
+GLU-variant-based FFN layers, which have thee weight matrices instead of two, we reduce the hidden layer
+to df f = 2048, so as to maintain the same parameter and operation counts as the base model.
+
+Table 1: Heldout-set log-perplexity for Transformer models on the segment-filling task from [Raffel et al.,
+2019]. All models are matched for parameters and computation.
+
+                               Training Steps        65,536           524,288
+                               FFNReLU (baseline)    1.997 (0.005)    1.677
+                               FFNGELU               1.983 (0.005)    1.679
+                               FFNSwish              1.994 (0.003)    1.683
+                               FFNGLU                1.982 (0.006)    1.663
+                               FFNBilinear           1.960 (0.005)    1.648
+                               FFNGEGLU              1.942 (0.004)    1.633
+                               FFNSwiGLU             1.944 (0.010)    1.636
+                               FFNReGLU              1.953 (0.003)    1.645
+
+
+
+
+                                                     2
+3.2      Pre-Training and Perplexity Results
+Identically to [Raffel et al., 2019], we pre-train for 524,288 steps on the span-filling objective on the C4
+
+==== Shazeer 2020, section 3.2 (2002.05202.txt lines 112-125)
+output of 114 tokens, the output containing multiple spans of tokens which were deleted from the input2 .
+Similarly to [Raffel et al., 2019], we use the Adafactor optimizer [Shazeer and Stern, 2018] and an inverse-
+square-root learning-rate schedule. We also decay the learning rate linearly for the final 10 percent of the
+training steps. Our main departure from [Raffel et al., 2019] is that we use no dropout during pre-training.
+We find this to produce superior results. We compute the log-perplexity on the training objective on a
+heldout shard of C4, which we believe to be a good indicator of model quality. For each model architecture,
+we also trained four models for a shorter period (65,536 steps) to measure inter-run variability. The results
+are listed in table 1. The GEGLU and SwiGLU variants produce the best perplexities.
+
+3.3      Fine-Tuning
+We then fine-tune each fully-trained model once on an examples-proportional mixture of the Stanford
+Question-Answering Dataset (SQuAD) [Rajpurkar et al., 2016] and all the language understanding tasks
+in the GLUE [Wang et al., 2018] and SuperGlue [Wang et al., 2019] benchmarks.3 Fine-tuning consists of
+131072 steps with a learning rate of 10−3 . As in training, the input sequences for each step have a combined
+
+==== Shazeer 2020, Conclusions (2002.05202.txt lines 176-186)
+  FFNGLU                   73.95    80.95   77.26     83.93   73.00     76.07      39.03        74.22    73.50   84.12   67.71   87.50
+  FFNGEGLU                 73.96    81.19   82.09     87.50   72.00     77.43      41.03        75.28    74.60   83.39   67.08   83.65
+  FFNBilinear              73.81    81.53   82.49     89.29   76.00     76.04      40.92        74.97    74.10   82.67   69.28   78.85
+  FFNSwiGLU                74.56    81.19   82.39     89.29   73.00     75.56      38.72        75.35    74.55   85.20   67.24   86.54
+  FFNReGLU                 73.66    80.89   86.37     91.07   67.00     75.32      40.50        75.07    74.18   84.48   67.40   79.81
+  [Raffel et al., 2019]    71.36    76.62   91.22     91.96   66.20     66.13      25.78        69.05    68.16   75.34   68.04   78.56
+  ibid. stddev.            0.416    0.365   3.237     2.560   2.741     0.716      1.011        0.370    0.379   1.228   0.850   2.029
+
+
+
+                                     Table 4: SQuAD [Rajpurkar et al., 2016] v1.1 (dev).
+
+==== Voita et al. 2023, abstract (2309.04827.txt lines 1-60)
+                                                    Neurons in Large Language Models: Dead, N-gram, Positional
+
+                                                            Elena Voita1Javier Ferrando2∗      Christoforos Nalmpantis1
+                                                                                    1
+                                                                                      Meta AI
+                                                           2
+                                                             TALP Research Center, Universitat Politècnica de Catalunya
+                                                  {lenavoita, christoforos}@meta.com, javier.ferrando.monsonis@upc.edu
+
+
+
+                                                                  Abstract                      workings of these large language models (LLMs)
+                                                                                                and, specifically, their evolution with scale. Unfor-
+                                            We analyze a family of large language models
+                                                                                                tunately, scaling also increases the entry threshold
+                                            in such a lightweight manner that can be done
+                                            on a single GPU. Specifically, we focus on the      for interpretability researchers since dealing with
+
+
+
+
+arXiv:2309.04827v1 [cs.CL] 9 Sep 2023
+                                            OPT family of models ranging from 125m to           large models requires a lot of computational re-
+                                            66b parameters and rely only on whether an          sources. In this work, we analyze a family of OPT
+                                            FFN neuron is activated or not. First, we find      models up to 66b parameters and deliberately keep
+                                            that the early part of the network is sparse and    our analysis very lightweight so that it could be
+                                            represents many discrete features. Here, many       done using a single GPU.
+                                            neurons (more than 70% in some layers of the
+                                                                                                   We focus on neurons inside FFNs, i.e. individual
+                                            66b model) are “dead”, i.e. they never acti-
+                                            vate on a large collection of diverse data. At      activations in the representation between the two
+                                            the same time, many of the alive neurons are        linear layers of the Transformer feedforward blocks
+                                            reserved for discrete features and act as token     (FFNs). Differently from e.g. neurons in the resid-
+                                            and n-gram detectors. Interestingly, their corre-   ual stream, FFN neurons are more likely to repre-
+                                            sponding FFN updates not only promote next          sent meaningful features: the elementwise nonlin-
+                                            token candidates as could be expected, but also     earity breaks the rotational invariance of this repre-
+                                            explicitly focus on removing the information
+                                                                                                sentation and encourages features to align with the
+                                            about triggering them tokens, i.e., current in-
+                                            put. To the best of our knowledge, this is the      basis dimensions (Elhage et al., 2021). When such
+                                            first example of mechanisms specialized at re-      a neuron is activated, it updates the residual stream
+                                            moving (rather than adding) information from        by pulling out the corresponding row of the second
+                                            the residual stream. With scale, models become      FFN layer; when it is not activated, it does not up-
+                                            more sparse in a sense that they have more dead     date the residual stream (Figure 6).1 Therefore, we
+                                            neurons and token detectors. Finally, some neu-     can interpret functions of these FFN neurons in two
+                                            rons are positional: them being activated or not    ways: (i) by understanding when they are activated,
+                                            depends largely (or solely) on position and less
+                                                                                                and (ii) by interpreting the corresponding updates
+                                            so (or not at all) on textual data. We find that
+                                            smaller models have sets of neurons acting as       coming to the residual stream.
+                                            position range indicators while larger models          First, we find that in the first half of the network,
+                                            operate in a less explicit manner.                  many neurons are “dead”, i.e. they never activate
+                                                                                                on a large collection of diverse data. Larger models
+                                                                                                are more sparse in this sense: for example, in the
+                                        1   Introduction                                        66b model more that 70% of the neurons in some
+                                                                                                layers are dead. At the same time, many of the
+                                        The range of capabilities of language models ex-        alive neurons in this early part of the network are
+                                        pands with scale and at larger scales models be-        reserved for discrete features and act as indicator
+                                        come so strong and versatile that a single model can    functions for tokens and n-grams: they activate if
+                                        be integrated into various applications and decision-   and only if the input is a certain token or an n-gram.
+
+==== Mirzadeh et al. 2023, introduction (2310.04564.txt lines 36-48)
+                                        weight sparsification [20, 15]. Among these techniques, achieving activation sparsity offers a compelling advantage
+                                        by providing a favorable balance between accuracy and speedup, especially on modern hardware like GPUs [51].
+                                        Notably, employing the Rectified Linear Unit (ReLU) activation function [22] in neural networks is recognized for
+                                        inducing sparse activations and has been adopted in various prior works [27, 44, 48, 69]. To reaffirm this property,
+                                        we employ the OPT model [80], utilizing ReLU, and measure the sparsity of activations in the Feed Forward Network
+                                        (FFN) between the fully connected layers. As illustrated in Fig. 1a, all layers exhibit sparsity exceeding 90%. On
+                                        average, across all layers, this activation sparsity results in substantial weight transfer (I/O) savings between the GPU
+                                        and CPU, impacting 95% of the rows of the down projection layer’s weights (Fig. 1b). This reduction directly translates
+                                        to computation savings, as for these rows, the result of the matrix multiplication operation will be zero. Furthermore,
+                                        unlike unstructured sparsity (e.g., weight pruning), this type of sparsity is more hardware-friendly due to zeroing
+                                        more extensive and structured chunks, such as rows or columns [36, 51]. For OPT models, this sparsity reduces the
+                                        computation required for inference from 6.6G FLOPS (Floating Point Operations Per Second) to 4.5G FLOPS per
+                                        token, resulting in a 32% computation saving (Fig. 1c).
+
+==== PaLM, SwiGLU (2204.02311.txt lines 246-253)
+each timestep can only attend to itself and past timesteps), with the following modifications:
+
+    • SwiGLU Activation – We use SwiGLU activations (Swish(xW ) · xV ) for the MLP intermediate
+      activations because they have been shown to significantly increase quality compared to standard ReLU,
+      GeLU, or Swish activations (Shazeer, 2020). Note that this does require three matrix multiplications in
+      the MLP rather than two, but Shazeer (2020) demonstrated an improvement in quality in compute-
+      equivalent experiments (i.e., where the standard ReLU variant had proportionally larger dimensions).
+    • Parallel Layers – We use a “parallel” formulation in each Transformer block (Wang & Komatsuzaki,
+
+==== PaLM, dff (2204.02311.txt lines 309-311)
+Table 1: Model architecture details. We list the number of layers, dmodel , the number of attention heads and
+attention head size. The feed-forward size dff is always 4 × dmodel and attention head size is always 256.
+
+
+==== Nemotron-4 15B, architecture (2402.16819.txt lines 108-114)
+2                  Architecture Details
+Nemotron-4 uses a standard decoder-only Transformer architecture (Vaswani et al., 2017), with causal at-
+tention masks. Exact hyper-parameters affecting size are shown in Table 1. Nemotron-4 has 3.2 billion
+embedding parameters and 12.5 billion non-embedding parameters. We use Rotary Position Embeddings
+(RoPE) (Su et al., 2021), SentencePiece tokenizer (Kudo and Richardson, 2018), squared ReLU activations
+in the MLP layers, no bias terms, dropout rate of zero, and untied input-output embeddings. We use grouped
+
+
+==== Primer, squared ReLU (2109.08668.txt lines 308-325)
+of our proposed modifications.
+
+Squared ReLU: The most effective modification is the improvement from a ReLU activation to
+a squared ReLU activation in the Transformer’s feed forward block. Rectified polynomials of varying
+degrees have been studied in the context of neural network activation functions [36], but are not
+commonly used; to the best of our knowledge, this is the first time such rectified polynomial activations
+are demonstrated to be useful in Transformers. Interestingly, the effectiveness of higher order
+polynomials [37] can also be observed in other effective Transformer nonlinearities, such as GLU [38]
+variants like ReGLU [39] (y = U x max(V x, 0) where is anpelement-wise product) and point-wise
+activations like approximate GELU [40] (y = 0.5x(1 + tanh( 2/π(x + 0.044715x3 )))). However,
+squared ReLU has drastically different asymptotics as x −      → ∞ compared to the most commonly
+used activation functions: ReLU, GELU and Swish (Figure 5 left side). Squared ReLU does have
+significant overlap with ReGLU and in fact is equivalent when ReGLU’s U and V weight matrices
+are the same and squared ReLU is immediately preceded by a linear transformation with weight
+matrix U . This leads us to believe that squared ReLUs capture the benefits of these GLU variants,
+while being simpler, without additional parameters, and delivering better quality (Figure 5 right side).
+
+       4
+
+==== GELU, motivation (1606.08415.txt lines 48-60)
+
+                                        2       GELU F ORMULATION
+                                        We motivate our activation function by combining properties from dropout, zoneout, and ReLUs.
+                                        First note that a ReLU and dropout both yield a neuron’s output with the ReLU deterministi-
+                                        cally multiplying the input by zero or one and dropout stochastically multiplying by zero. Also,
+                                        a new RNN regularizer called zoneout stochastically multiplies inputs by one (Krueger et al.,
+                                        2016). We merge this functionality by multiplying the input by zero or one, but the values of
+                                        this zero-one mask are stochastically determined while also dependent upon the input. Specif-
+                                        ically, we can multiply the neuron input x by m ∼ Bernoulli(Φ(x)), where Φ(x) = P (X ≤
+                                            ∗
+                                                Work done while the author was at TTIC. Code available at github.com/hendrycks/GELUs
+
+
+
+==== GELU, approximations and SiLU (1606.08415.txt lines 90-101)
+                                                            1h               √ i
+                    GELU(x) = xP (X ≤ x) = xΦ(x) = x ·         1 + erf(x/ 2) .
+                                                            2
+We can approximate the GELU with
+                                              p
+                             0.5x(1 + tanh[       2/π(x + 0.044715x3 )])
+or
+                                            xσ(1.702x),
+if greater feedforward speed is worth the cost of exactness.
+We could use different CDFs. For example we could use Logistic Distribution CDF σ(x) to get
+what we call the Sigmoid Linear Unit (SiLU) xσ(x). We could use the CDF of N (µ, σ 2 ) and have
+µ and σ be learnable hyperparameters, but throughout this work we simply let µ = 0 and σ = 1.
+
+==== Swish, definition and SiL (1710.05941.txt lines 255-270)
+large models across a variety of tasks.
+
+
+4        S WISH
+
+To recap, Swish is defined as x · σ(βx), where σ(z) = (1 + exp(−z))−1 is the sigmoid function
+and β is either a constant or a trainable parameter. Figure 4 plots the graph of Swish for different
+values of β. If β = 1, Swish is equivalent to the Sigmoid-weighted Linear Unit (SiL) of Elfwing
+et al. (2017) that was proposed for reinforcement learning. If β = 0, Swish becomes the scaled
+linear function f (x) = x2 . As β → ∞, the sigmoid component approaches a 0-1 function, so
+Swish becomes like the ReLU function. This suggests that Swish can be loosely viewed as a smooth
+function which nonlinearly interpolates between the linear function and the ReLU function. The
+degree of interpolation can be controlled by the model if β is set as a trainable parameter.
+
+ 3                            Swish                          1.2                           Swish first derivatives
+          β = 0. 1                                                     β = 0. 1
+
+==== Swish, abstract (1710.05941.txt lines 20-30)
+                                                     a combination of exhaustive and reinforcement learning-based search, we dis-
+                                                     cover multiple novel activation functions. We verify the effectiveness of the
+                                                     searches by conducting an empirical evaluation with the best discovered activa-
+                                                     tion function. Our experiments show that the best discovered activation function,
+                                                     f (x) = x · sigmoid(βx), which we name Swish, tends to work better than ReLU
+                                                     on deeper models across a number of challenging datasets. For example, simply
+                                                     replacing ReLUs with Swish units improves top-1 classification accuracy on Im-
+                                                     ageNet by 0.9% for Mobile NASNet-A and 0.6% for Inception-ResNet-v2. The
+                                                     simplicity of Swish and its similarity to ReLU make it easy for practitioners to
+                                                     replace ReLUs with Swish units in any neural network.
+
+
+==== PReLU init (1502.01852.txt lines 100-108)
+ai = 0, it becomes ReLU; when ai is a learnable parameter,                     to zero, and thus biases PReLU toward ReLU. Even without
+we refer to Eqn.(1) as Parametric ReLU (PReLU). Figure 1                       regularization, the learned coefficients rarely have a magni-
+shows the shapes of ReLU and PReLU. Eqn.(1) is equiva-                         tude larger than 1 in our experiments. Further, we do not
+lent to f (yi ) = max(0, yi ) + ai min(0, yi ).                                constrain the range of ai so that the activation function may
+   If ai is a small and fixed value, PReLU becomes the                         be non-monotonic. We use ai = 0.25 as the initialization
+Leaky ReLU (LReLU) in [20] (ai = 0.01). The motiva-                            throughout this paper.
+tion of LReLU is to avoid zero gradients. Experiments in
+[20] show that LReLU has negligible impact on accuracy                         Comparison Experiments
+compared with ReLU. On the contrary, our method adap-                          We conducted comparisons on a deep but efficient model
+
+==== Mish definition (1908.08681.txt lines 185-192)
+
+3    Mish
+Mish, as visualized in Fig. 1 (a), is a smooth, continuous, self regularized, non-monotonic
+activation function mathematically defined as:
+                       f (x) = x tanh(so f t plus(x)) = x tanh(ln(1 + ex ))                       (3)
+Similar to Swish, Mish is bounded below and unbounded above with a range of [≈ -0.31,
+∞). The 1st derivative of Mish, as shown in Fig. 1 (b), can be defined as:
+                                                       ex ω
+
+==== ELU definition (1511.07289.txt lines 305-312)
+The exponential linear unit (ELU) with 0 < α is
+                                                                             
+                     x                 if x > 0                   0               1            if x > 0
+         f (x) =                                       ,   f (x) =                                      .         (15)
+                     α (exp(x) − 1) if x ≤ 0                                      f (x) + α    if x ≤ 0
+The ELU hyperparameter α controls the value to which an ELU saturates for negative net inputs
+(see Fig. 1). ELUs diminish the vanishing gradient effect as rectified linear units (ReLUs) and leaky
+ReLUs (LReLUs) do. The vanishing gradient problem is alleviated because the positive part of these
+
+
+
+def llama3_base_models() -> list[Model]:
+    return [
+        Model(
+            core_model_id=CoreModelId.llama3_8b,
+            description="Llama 3 8b model",
+            huggingface_repo="meta-llama/Llama-3-8B",
+            arch_args={
+                "dim": 4096,
+                "n_layers": 32,
+                "n_heads": 32,
+                "n_kv_heads": 8,
+                "vocab_size": LLAMA3_VOCAB_SIZE,
+                "ffn_dim_multiplier": 1.3,
+                "multiple_of": 1024,
+                "norm_eps": 1e-05,
+                "rope_theta": 500000.0,
+                "use_scaled_rope": False,
+            },
+            pth_file_count=1,
+            w1 (ColumnParallelLinear): Linear transformation for the first layer.
+            w2 (RowParallelLinear): Linear transformation for the second layer.
+            w3 (ColumnParallelLinear): Linear transformation for the third layer.
+
+        """
+        super().__init__()
+        hidden_dim = int(2 * hidden_dim / 3)
+        # custom dim factor multiplier
+        if ffn_dim_multiplier is not None:
+            hidden_dim = int(ffn_dim_multiplier * hidden_dim)
+        hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
+
