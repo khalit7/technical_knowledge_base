@@ -1,0 +1,131 @@
+
+<section id="rd-thr">
+<h2>Four threads that cross the stages</h2>
+<p>Followed one stage at a time, the components look like separate menus. Four threads run through several stages at once, and they are the reason the choices come in matched sets.</p>
+
+<div class="rd-thr" id="rd-t1">
+<h3>1 · Everything is cross entropy</h3>
+<p>Entropy <i>H</i>(<i>P</i>) = &minus;Σ <i>P</i> log <i>P</i> is the average cost of encoding samples from <i>P</i> with <i>P</i>'s own best code; cross entropy <i>H</i>(<i>P</i>, <i>Q</i>) = &minus;Σ <i>P</i> log <i>Q</i> is the cost with a code built for <i>Q</i>; their difference is the KL divergence, <i>D</i><sub>KL</sub>(<i>P</i>&#8214;<i>Q</i>) = <i>H</i>(<i>P</i>, <i>Q</i>) &minus; <i>H</i>(<i>P</i>) = Σ <i>P</i> log(<i>P</i>/<i>Q</i>), the extra paid for using the wrong code. KL is asymmetric and breaks the triangle inequality, so it is distance-like, not a distance. Since <i>H</i>(<i>P</i>) does not depend on the model, minimising cross entropy and minimising KL are the same thing, and that one fact runs through four stages:</p>
+<ul class="tight">
+<li><b>The loss</b> (step 3): with a one-hot label <i>H</i>(<i>P</i>) = 0, so cross entropy = KL = the negative log-likelihood of the right class. Label smoothing and distillation make <i>P</i> soft, so <i>H</i>(<i>P</i>) &gt; 0 sets a floor the loss cannot go below; distillation's choice of forward or reverse KL decides where a small student is allowed to be wrong ({{Distillation and Small Language Models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}).</li>
+<li><b>The anchor</b>: the same KL keeps a VAE's latent code near its prior and an RLHF policy near its reference model ({{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}, Axis 4).</li>
+<li><b>Contrastive learning</b>: InfoNCE is cross entropy over a batch, a classification of the one matching pair among <i>N</i> candidates (<a href="#rd-beyond">below</a>).</li>
+<li><b>The measurement</b> (step 7): perplexity is exp(cross entropy) per token, and a log-loss on held-out data is the same number the step minimised, now read as a score.</li>
+</ul>
+<p class="try"><b>Try:</b> pick a target, then slide how much probability the model puts on the right answer. The bar is cross entropy split into the part no model can remove (<i>H</i>(<i>P</i>)) and the part training removes (KL).</p>
+<div class="card" id="rd-ce">
+<div class="rd-pre" id="rd-ceB" role="group" aria-label="Target"></div>
+<label class="small" style="display:block">Model's probability on the right answer, <i>q</i> = <b id="rd-ceQv"></b><input type="range" id="rd-ceQ" min="1" max="99" value="40" aria-label="Model probability on the right answer"></label>
+<div class="rd-svg" id="rd-ceSvg"></div>
+<div class="an-cnt" id="rd-ceN"></div>
+<p class="small mute" id="rd-ceX"></p>
+</div>
+</div>
+
+<div class="rd-thr" id="rd-t2">
+<h3>2 · Keep the variance constant: the pact between initialisation, activation and normalisation</h3>
+<p>Initialisation (step 1) and normalisation (step 2) chase one invariant: activation and gradient variance roughly constant from layer to layer, at step zero and for the rest of training. Initialisation sets it for step zero, and only for the activation it was derived for; normalisation re-imposes it at every step, which is why deep normalised networks are far less sensitive to the initial scale. So the three are chosen as a set:</p>
+<div class="tw"><table class="rd-t">
+<tr><th>Activation</th><th>Initialisation that keeps the variance</th><th>Normalisation it is usually paired with</th></tr>
+<tr><td>Sigmoid, tanh</td><td>Xavier, 2/(<i>n</i><sub>in</sub> + <i>n</i><sub>out</sub>)</td><td>none (pre-2015 networks), or the LSTM's own gates</td></tr>
+<tr><td>ReLU family</td><td>He, 2/<i>n</i><sub>in</sub></td><td>BatchNorm in CNNs</td></tr>
+<tr><td>SELU</td><td>LeCun, 1/<i>n</i><sub>in</sub></td><td>none: the activation itself pulls activations towards mean 0, variance 1</td></tr>
+<tr><td>GELU, SwiGLU in transformers</td><td>small fixed or fan-in scale, residual outputs scaled down</td><td>LayerNorm, now RMSNorm, before each block; QK-norm in attention</td></tr>
+</table></div>
+<p>Load the matching pairs into the step 2 animation and compare:</p>
+<div class="rd-chips" id="rd-t2C"><button data-m="1" data-g="2">ReLU: 1/<i>n</i> against He's 2/<i>n</i></button><button data-m="0" data-g="2">Sigmoid with Xavier against ReLU with He</button><button data-m="3" data-g="4">BatchNorm residual against pre-RMSNorm residual</button></div>
+</div>
+
+<div class="rd-thr" id="rd-t3">
+<h3>3 · Vanishing gradients, seen four ways</h3>
+<p>One failure shows up in four stages, and each stage has its own fix. In every case the gradient reaching an early layer is a product of per-layer (or per-time-step) factors:</p>
+<ol>
+<li><b>Activation saturation</b> (step 2): a sigmoid's slope is at most 0.25, so each layer shrinks the gradient by at least 4. The fix is the ReLU family. <button class="rd-ld" data-m="0" data-g="4">Show it</button></li>
+<li><b>Initialisation scale</b> (step 1): a variance below the activation's balance point shrinks the signal at every layer, above it grows it. The fix is the matching scheme. <button class="rd-ld" data-m="1" data-g="2">Show it</button></li>
+<li><b>Normalisation and placement</b> (step 2): with the norm after the residual sum, every layer rescales the path the gradient travels; with it before the branch, the residual stream is an identity path. <button class="rd-ld" data-m="3" data-g="4">Show it</button></li>
+<li><b>The product of Jacobians through time</b> (backpropagation through time): a recurrent network applies the same weights at every step, so the gradient from step <i>T</i> back to step <i>T</i> &minus; <i>k</i> multiplies <i>k</i> copies of the same factor. The LSTM's fix is its cell state, updated by addition, <i>C<sub>t</sub></i> = <i>f<sub>t</sub></i> &odot; <i>C</i><sub><i>t</i>&minus;1</sub> + <i>i<sub>t</sub></i> &odot; <i>C̃<sub>t</sub></i>: along it the gradient is multiplied only by the forget gate, which the network can hold near 1. It is a skip connection through time.</li>
+</ol>
+<p class="try"><b>Try:</b> the fourth way, on one 60-step input sequence. Move the recurrent weight: the tanh network's gradient vanishes for every value, small weights shrinking it directly and large ones saturating the tanh, whose slope then shrinks it. The LSTM's cell path keeps its gradient alive while the forget gate stays near 1; lower its bias and it vanishes too.</p>
+<div class="card" id="rd-bp">
+<div class="rd-sl">
+<label>Recurrent weight <i>w</i> = <b id="rd-bpWv"></b><input type="range" id="rd-bpW" min="30" max="300" value="100" aria-label="Recurrent weight"></label>
+<label>Forget-gate bias <i>b<sub>f</sub></i> = <b id="rd-bpFv"></b><input type="range" id="rd-bpF" min="-20" max="60" value="30" aria-label="Forget gate bias"></label>
+</div>
+<div class="leg"><span><i class="ln" style="background:var(--c2)"></i>tanh RNN, gradient on its state k steps back</span><span><i class="ln" style="background:var(--c3)"></i>LSTM, gradient along the cell state</span></div>
+<div class="rd-svg" id="rd-bpSvg"></div>
+<div class="an-cnt" id="rd-bpN"></div>
+<p class="small mute">A scalar tanh RNN, <i>a<sub>t</sub></i> = tanh(<i>w a</i><sub><i>t</i>&minus;1</sub> + <i>x<sub>t</sub></i>), whose factor per step is <i>w</i>(1 &minus; <i>a<sub>t</sub></i><sup>2</sup>); and an LSTM cell path whose factor is the forget gate <i>f<sub>t</sub></i> = σ(<i>b<sub>f</sub></i> + <i>x<sub>t</sub></i>), on the same seeded inputs <i>x<sub>t</sub></i> ~ N(0, 0.5<sup>2</sup>) <i class="nl i">illustrative</i>; the products are exact. Exploding gradients need the factor to stay above 1, which a saturating unit resists; they appear in larger networks and are handled by clipping (step 4). Initialising the forget bias to 1 or more is a standard recommendation (<a href="https://proceedings.mlr.press/v37/jozefowicz15.pdf" target="_blank" rel="noopener noreferrer">Jozefowicz et al. 2015</a>).</p>
+</div>
+<p>All four are why "fix vanishing gradients" never has one answer, and why a symptom in the loss curve has to be traced back through every stage ({{When training goes wrong|#t-debug}}).</p>
+</div>
+
+<div class="rd-thr" id="rd-t4">
+<h3>4 · Weight decay: a regulariser by intent, an optimiser property by implementation</h3>
+<p>Weight decay is meant as a regulariser (step 6): pull every weight towards zero a little at each step. It can be implemented two ways. As <b>L2 in the loss</b>, &lambda;/2 &middot; &#8214;<i>w</i>&#8214;<sup>2</sup> adds &lambda;<i>w</i> to the gradient, which then goes through the optimiser. As <b>decoupled decay</b>, the update itself shrinks the weights, <i>w</i> &larr; <i>w</i> &minus; η&lambda;<i>w</i>, beside the gradient step. For plain SGD the two are identical. For Adam they are not: the L2 term is divided by √<i>v̂</i> like every other gradient component, so weights whose gradients are large and noisy are barely decayed, while weights with tiny gradients are pulled to zero at full speed. Decoupling restores the same decay for every weight, and that is the whole of AdamW (<a href="https://arxiv.org/abs/1711.05101" target="_blank" rel="noopener noreferrer">Loshchilov and Hutter 2017</a>).</p>
+<p class="try"><b>Try:</b> six weights start at 1 and receive pure noise as their gradient, from tiny to large; the only thing that should move them on average is the decay. Play both optimisers on the same noise.</p>
+<div class="card" id="rd-wd">
+<div class="seg" id="rd-wdM" role="group" aria-label="Optimiser"><button data-m="l2" class="on">Adam, L2 in the loss</button><button data-m="adamw">AdamW, decoupled</button></div>
+<div class="leg"><span><i style="background:var(--c2)"></i>Adam, L2 in the loss</span><span><i style="background:var(--c1)"></i>AdamW</span><span><i style="background:var(--dim)"></i>the other one, same step</span><span><i class="ln" style="background:var(--c3)"></i>decay alone, (1 &minus; η&lambda;)<sup>t</sup></span></div>
+<div class="rd-svg" id="rd-wdSvg"></div>
+<div class="an-ctl" id="rd-wdC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rd-wdT"></div><p id="rd-wdP"></p></div>
+<div class="an-cnt" id="rd-wdN"></div>
+<p class="small mute">Adam with β = (0.9, 0.999), ε = 10<sup>&minus;8</sup>, learning rate 10<sup>&minus;3</sup>, &lambda; = 0.1, 3,000 steps; gradients are seeded Gaussian noise with the standard deviation under each bar <i class="nl i">illustrative</i>. Grey bars: the other optimiser at the same step. Matches torch.optim.Adam and AdamW to 10<sup>&minus;8</sup>.</p>
+</div>
+</div>
+</section>
+
+<section id="rd-beyond">
+<h2>Beyond one network</h2>
+<p>The step above is supervised deep learning. Three neighbouring paradigms reuse its parts and add one idea each.</p>
+<h3>Classical ML: still the default on tables</h3>
+<div class="tw"><table class="rd-t">
+<tr><th>Task</th><th>Canonical methods</th></tr>
+<tr><td>Regression</td><td>linear and polynomial regression by least squares (MSE), ridge, lasso, elastic net; trees and gradient boosting</td></tr>
+<tr><td>Classification</td><td>logistic regression (a linear model, a sigmoid and binary cross entropy), naive Bayes (a cheap strong baseline for text), SVM, kNN, trees and ensembles</td></tr>
+<tr><td>Clustering</td><td>k-means (pick <i>k</i>; spherical clusters; use k-means++), hierarchical, DBSCAN (any shape, labels noise), Gaussian mixtures fitted by EM</td></tr>
+<tr><td>Anomaly detection</td><td>isolation forest, one-class SVM, density or reconstruction thresholds; judged with precision-recall, since labels are rare</td></tr>
+<tr><td>Dimensionality reduction</td><td>PCA (top eigenvectors of the covariance; standardise first), t-SNE and UMAP for pictures (distances and cluster sizes in them mean little), autoencoders</td></tr>
+</table></div>
+<p><b>Gradient-boosted trees</b> (XGBoost, LightGBM, CatBoost) remain the strong default on tabular data, generally ahead of deep networks there (<a href="https://arxiv.org/abs/2207.08815" target="_blank" rel="noopener noreferrer">Grinsztajn et al. 2022</a>), though tabular foundation models now report beating tuned boosted trees on datasets of up to 10,000 samples <i class="nl r">reported</i> (<a href="https://www.nature.com/articles/s41586-024-08328-6" target="_blank" rel="noopener noreferrer">TabPFN v2, Nature 2025</a>). Bagging (random forests: trees on bootstrap samples with random feature subsets, out-of-bag error for free) cuts variance; boosting (each tree fits the gradient of the loss, the residuals for MSE) cuts bias. Its machinery keeps resurfacing in deep learning: the <b>hinge loss</b> and the <b>kernel trick</b> of SVMs (a maximum-margin classifier whose dot products are replaced by a kernel, so only the support vectors matter; strong up to about 10<sup>5</sup> samples); <b>nearest neighbours</b> as the ancestor of vector retrieval ({{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}); and boosting's <b>second-order step</b>, which is why XGBoost wants a loss with a usable second derivative (log-cosh rather than Huber, step 3). For tuning, <b>random search beats grid search</b> at equal budget, because the few hyperparameters that matter each get many distinct values (<a href="https://jmlr.org/papers/v13/bergstra12a.html" target="_blank" rel="noopener noreferrer">Bergstra and Bengio 2012</a>); Bayesian optimisation (Optuna, Hyperopt) suits expensive trials, and successive halving (Hyperband, ASHA) suits deep learning, where a partly trained run already says something.</p>
+<div class="deepnote"><b>Go deeper (optional):</b> every method's one-liner and caveat on {{Classical ML|n:3c65c17b0d0d81ffb886ff30176bc6ce}}.</div>
+
+<h3>Contrastive and self-supervised learning: the objective makes the embedding model</h3>
+<p>Self-supervised learning takes its labels from the data itself; contrastive learning does it by pairing: two augmentations of one image, an image and its caption. The workhorse loss, <b>InfoNCE</b>, is cross entropy again (thread 1): for each item, a softmax over its similarity (cosine, divided by a temperature τ) to the one positive and to the <i>N</i> &minus; 1 other items in the batch (<a href="https://arxiv.org/abs/1807.03748" target="_blank" rel="noopener noreferrer">van den Oord et al. 2018</a>), and it maximises a lower bound on the mutual information between the views. A model that knows nothing scores ln <i>N</i>: ln 32,768 = 10.4 for CLIP's batch <i class="nl d">derived</i> ({{CLIP|n:3c65c17b0d0d8194a85dfc5f3bf3f799}}, whose page runs a tiny CLIP and its similarity matrix live).</p>
+<div class="tw"><table class="rd-t">
+<tr><th>Method</th><th>Positive pair</th><th>Negatives</th><th>What it adds</th></tr>
+<tr><td>SimCLR (<a href="https://arxiv.org/abs/2002.05709" target="_blank" rel="noopener noreferrer">2020</a>)</td><td>two augmentations of an image</td><td>the rest of the batch</td><td>strong augmentation, a projection head, a big batch</td></tr>
+<tr><td>MoCo (<a href="https://arxiv.org/abs/1911.05722" target="_blank" rel="noopener noreferrer">2019</a>)</td><td>the same</td><td>a queue from a momentum encoder</td><td>negatives no longer tied to batch size</td></tr>
+<tr><td>BYOL, SimSiam (<a href="https://arxiv.org/abs/2006.07733" target="_blank" rel="noopener noreferrer">2020</a>)</td><td>the same</td><td>none</td><td>a predictor and a stop-gradient (plus an EMA target in BYOL) avoid collapse without negatives</td></tr>
+<tr><td>CLIP (2021)</td><td>an image and its caption</td><td>the batch, in both directions</td><td>cross-modal; zero-shot classification by writing the classes as text; the vision encoder behind most multimodal LLMs</td></tr>
+<tr><td>DINO, DINOv2 (<a href="https://arxiv.org/abs/2104.14294" target="_blank" rel="noopener noreferrer">2021</a>, <a href="https://arxiv.org/abs/2304.07193" target="_blank" rel="noopener noreferrer">2023</a>)</td><td>views of one image</td><td>none</td><td>self-distillation: a student matches a momentum teacher; DINOv2's frozen features are the default backbone for dense vision tasks, and DINOv3 (2025) scales it further</td></tr>
+<tr><td>MAE (<a href="https://arxiv.org/abs/2111.06377" target="_blank" rel="noopener noreferrer">2021</a>)</td><td colspan="2">not contrastive: mask 75% of a ViT's patches and reconstruct the pixels with a light decoder</td><td>BERT-style pretraining for vision ({{ViT|n:3c65c17b0d0d811fa231cfcde6c1954d}})</td></tr>
+<tr><td>I-JEPA, V-JEPA (<a href="https://arxiv.org/abs/2301.08243" target="_blank" rel="noopener noreferrer">2023</a>, 2024)</td><td colspan="2">predict the <i>representations</i> of masked blocks from a context block, in latent space: no negatives, no pixels</td><td>LeCun's proposed path to world models; V-JEPA 2 (2025) extends it to video</td></tr>
+</table></div>
+<p>The trend: joint-embedding methods (contrastive, self-distillation, JEPA) against masked generative ones (MAE), with prediction in latent space increasingly favoured for semantic features. And the architecture follows the objective: a contrastive objective wants one vector per input, so it produces <b>encoders</b> (CLIP's towers, sentence embedders, rerankers); a generative objective must emit sequences, so it needs a decoder. {{BERT|n:3c65c17b0d0d81e5ad9bd09cbf18ad7c}} sits between, an encoder trained by masked-token prediction, whose raw embeddings are poor for similarity until contrastively fine-tuned (<a href="https://arxiv.org/abs/2104.08821" target="_blank" rel="noopener noreferrer">SimCSE</a>). In 2026 contrastive training is the standard recipe that turns any backbone, increasingly a decoder-only LLM with pooling (E5-Mistral, NV-Embed, Qwen3-Embedding), into an embedding model: the objective, not the backbone, makes it one.</p>
+<div class="co corr"><div class="t">Correction</div>The old page said batch size matters in contrastive learning "so much there and nowhere else in this topic". It matters elsewhere too: BatchNorm's statistics get noisy with small batches (step 2), and batch size sets the gradient noise of every optimiser. What is special to InfoNCE is that the batch is the set of negatives, so its size changes the task itself (chance is ln <i>N</i>), which is why MoCo built a queue.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> the objectives, the landmark methods and why contrastive training yields encoders on {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}}; the paper pages {{CLIP|n:3c65c17b0d0d8194a85dfc5f3bf3f799}} and {{ViT|n:3c65c17b0d0d811fa231cfcde6c1954d}}.</div>
+
+<h3>Sequence models before the transformer: what the transformer kept</h3>
+<p>The pre-transformer lineage earns its place because the transformer is what is left of it.</p>
+<div class="tw"><table class="rd-t">
+<tr><th>Year</th><th>Model</th><th>Idea, and what survived</th></tr>
+<tr><td>1980s</td><td>RNN</td><td><i>a<sub>t</sub></i> = <i>f</i>(<i>Ux<sub>t</sub></i> + <i>Wa</i><sub><i>t</i>&minus;1</sub>), weights shared across time, trained by backpropagation through time; long-range gradients vanish or explode (thread 3)</td></tr>
+<tr><td>1997</td><td>LSTM (<a href="https://www.bioinf.jku.at/publications/older/2604.pdf" target="_blank" rel="noopener noreferrer">Hochreiter and Schmidhuber</a>)</td><td>sigmoid gates (forget, input, output) around an additively updated cell state: a skip connection through time; its gating is the ancestor of SwiGLU</td></tr>
+<tr><td>2013, 2014</td><td>word2vec (<a href="https://arxiv.org/abs/1301.3781" target="_blank" rel="noopener noreferrer">Mikolov et al.</a>), GloVe (<a href="https://nlp.stanford.edu/pubs/glove.pdf" target="_blank" rel="noopener noreferrer">Pennington et al.</a>)</td><td>one static vector per word, predicted from context (skip-gram, CBOW, negative sampling) or fitted to log co-occurrence counts; king &minus; man + woman &asymp; queen; superseded by contextual embeddings (ELMo, BERT)</td></tr>
+<tr><td>2014</td><td>GRU (<a href="https://arxiv.org/abs/1406.1078" target="_blank" rel="noopener noreferrer">Cho et al.</a>)</td><td>two gates, cell and hidden state merged, <i>h<sub>t</sub></i> = (1 &minus; <i>z<sub>t</sub></i>) &odot; <i>h</i><sub><i>t</i>&minus;1</sub> + <i>z<sub>t</sub></i> &odot; <i>h̃<sub>t</sub></i>: the same additive trick with about a quarter fewer parameters</td></tr>
+<tr><td>2014</td><td>seq2seq (<a href="https://arxiv.org/abs/1409.3215" target="_blank" rel="noopener noreferrer">Sutskever et al.</a>)</td><td>an encoder RNN squeezes the source into one vector for a decoder RNN; quality collapses on long inputs (the bottleneck)</td></tr>
+<tr><td>2014, 2015</td><td>attention (<a href="https://arxiv.org/abs/1409.0473" target="_blank" rel="noopener noreferrer">Bahdanau et al.</a>, <a href="https://arxiv.org/abs/1508.04025" target="_blank" rel="noopener noreferrer">Luong et al.</a>)</td><td>keep every encoder state; at each output step, score them against the decoder state, softmax, take the weighted sum: the bottleneck disappears</td></tr>
+<tr><td>2016</td><td>WaveNet (<a href="https://arxiv.org/abs/1609.03499" target="_blank" rel="noopener noreferrer">van den Oord et al.</a>)</td><td>dilated causal convolutions, a receptive field growing exponentially with depth and no recurrence; its gated unit tanh &odot; σ prefigures the GLU family</td></tr>
+<tr><td>2017</td><td>Transformer</td><td>drops recurrence and keeps only attention, fully parallel over the sequence ({{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}); everything after it is {{Topic: llms|n:3c65c17b0d0d812d9e00f6ec89965286}} and {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}</td></tr>
+<tr><td>2023 to 2026</td><td>state-space models</td><td>recurrence partly returns: Mamba and hybrid SSM-attention stacks get RNN-like constant cost per generated token with parallel training ({{Mamba|n:3c65c17b0d0d8179984fc3a1fee4c36a}})</td></tr>
+</table></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the LSTM gate by gate, GRU, BPTT and seq2seq with attention on {{Sequence models: the pre-transformer lineage|n:3c65c17b0d0d818da4ded61ace6847ce}}.</div>
+</section>
+
+<section id="rd-wrong">
+<h2>When it goes wrong</h2>
+<p>Every training failure lands on one of the seven stages, which is why debugging reads as the step run backwards from the symptom: a loss that is flat from the start points at the update or the backward pass (a rate off by 10, frozen layers, a loss that does not match the output activation), a loss that turns to not-a-number at numerics in the loss, oscillation at the learning rate or batch size, a plateau at vanishing gradients or dead ReLUs, training loss falling while validation loss rises at regularisation, good accuracy that is useless on the minority class at the metric. The symptom-to-cause-to-fix tables (fit problems, gradient pathologies, loss-curve shapes, imbalanced data) and the standing checklist are in {{When training goes wrong|#t-debug}}; the {{Training lab|#t-lab}} lets you cause each failure on purpose.</p>
+</section>
+<p class="foot">Built from the old page "Topic: ml-fundamentals" (last edited 22 September 2026, fetched 3 October 2026) and its ten child pages, with every figure rechecked against its source on 3 October 2026; the page "Debugging training" is folded into this page. Toy computations: <code>src/read/recompute.py</code> (PyTorch and NumPy) and <code>src/read/check_engine.mjs</code>.</p>
+</div>
