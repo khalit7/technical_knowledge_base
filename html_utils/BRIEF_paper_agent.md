@@ -14,7 +14,7 @@ Live ingredient: choose by what the paper is (papers.md's table) and only if it 
 
 **What to keep in the repo.** Keep every file the page's own scripts need to rebuild and check it, including the exported weights `check_forward.py` loads. Leave out large intermediate training checkpoints (`model/ck/` and similar) unless a script needs them, and training data (regenerate it with a script). Keep each paper's `src/model/` under about 1 MB.
 
-**Long-running commands (important).** An agent that shows no progress for 600 seconds is killed, and several builders run at once on one machine. So:
+**Long-running commands (important).** An agent that shows no progress for 600 seconds is killed, and that includes one stuck writing a very large file in a single call: write big files (paper.json, long HTML parts, long scripts) in several smaller pieces. Also, and several builders run at once on one machine. So:
 - Never run anything that can take more than about 4 minutes as one foreground command: model training, long screenshot loops, big fetch batches.
 - Start training with the Bash tool's `run_in_background`, write progress to a log file, and check the log with short commands every few minutes.
 - Call `torch.set_num_threads(2)` (or set `OMP_NUM_THREADS=2`) and train variants one after another, not all at once.
