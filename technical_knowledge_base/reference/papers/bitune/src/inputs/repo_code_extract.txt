@@ -1,0 +1,387 @@
+# https://github.com/dkopi/bitune (no licence file; GitHub API license: null, checked 2026-10-03). passes.py in full, and PassScale from models/think_gemma.py lines 1185-1440
+import torch
+import os
+
+
+def enable_loras(model):
+    # enable gradient for all params containing "lora"
+    for name, param in model.named_parameters():
+        if (
+            "lora" in name
+            or "think_embeds" in name
+            or "pass_scale" in name
+            or "ia3_l" in name
+        ):
+            param.requires_grad = True
+
+
+def _pass_fn(model, **kwargs):
+    if model.config.pass_type == 1 or model.config.pass_type == 2:
+        assert "input_ids" in kwargs
+        assert "prompt_lengths" in kwargs
+        assert kwargs["prompt_lengths"].shape[0] == 1
+        enable_loras(model)
+
+        input_ids = kwargs["input_ids"]
+        prompt_lengths = kwargs["prompt_lengths"]
+        labels = kwargs["labels"] if "labels" in kwargs else None
+        use_cache = kwargs["use_cache"] if "use_cache" in kwargs else False
+
+        if model.config.ablation == 2:
+            model.set_adapter("default")
+        else:
+            model.set_adapter("prefill")
+        past_key_values = model(
+            input_ids[:, : prompt_lengths[0] - 1],
+            prompt_lengths=prompt_lengths,
+            use_cache=True,
+            enforce_bidir=model.config.pass_type == 1,
+            call_depth=1,
+        )["past_key_values"]
+
+        kwargs = {
+            "cache_position": torch.arange(
+                prompt_lengths[0] - 1 + model.config.think_tokens,
+                input_ids.shape[1] + model.config.think_tokens,
+                device=input_ids.device,
+            ),
+        }
+        if "phi" in model.config.architectures[0].lower():
+            kwargs["position_ids"] = kwargs["cache_position"].unsqueeze(0)
+            del kwargs["cache_position"]
+
+        model.set_adapter("default")
+        out = model(
+            input_ids[:, prompt_lengths[0] - 1 :],
+            prompt_lengths=prompt_lengths,
+            labels=labels[:, prompt_lengths[0] - 1 :] if labels is not None else None,
+            use_cache=use_cache,
+            past_key_values=past_key_values,
+            call_depth=1,
+            **kwargs,
+        )
+        enable_loras(model)
+        return out
+    elif model.config.pass_type >= 3:
+        assert "input_ids" in kwargs
+        assert "prompt_lengths" in kwargs
+        assert kwargs["prompt_lengths"].shape[0] == 1
+        enable_loras(model)
+
+        input_ids = kwargs["input_ids"]
+        prompt_lengths = kwargs["prompt_lengths"]
+        labels = kwargs["labels"] if "labels" in kwargs else None
+        use_cache = kwargs["use_cache"] if "use_cache" in kwargs else False
+
+        if not hasattr(model.config, "ablation"):
+            model.config.ablation = 0
+
+        if model.config.ablation == 2:
+            model.set_adapter("default")
+        else:
+            model.set_adapter("prefill")
+        past_key_values = model(
+            input_ids[:, : prompt_lengths[0] - 1],
+            prompt_lengths=prompt_lengths,
+            use_cache=True,
+            enforce_bidir=False if model.config.ablation == 1 else True,
+            call_depth=1,
+        )["past_key_values"]
+
+        model.set_adapter("default")
+        past_key_values_causal = model(
+            input_ids[:, : prompt_lengths[0] - 1],
+            prompt_lengths=prompt_lengths,
+            use_cache=True,
+            enforce_bidir=False,
+            call_depth=1,
+        )["past_key_values"]
+
+        _past_key_values = ()
+        for i, (k, v) in enumerate(past_key_values_causal):
+            _k, _v = past_key_values[i]
+            _past_key_values += (
+                (model.pass_scale_k(k, _k, i), model.pass_scale_v(v, _v, i)),
+            )
+        past_key_values = _past_key_values
+
+        kwargs = {
+            "cache_position": torch.arange(
+                prompt_lengths[0] - 1 + model.config.think_tokens,
+                input_ids.shape[1] + model.config.think_tokens,
+                device=input_ids.device,
+            ),
+        }
+        if "phi" in model.config.architectures[0].lower():
+            kwargs["position_ids"] = kwargs["cache_position"].unsqueeze(0)
+            del kwargs["cache_position"]
+
+        out = model(
+            input_ids[:, prompt_lengths[0] - 1 :],
+            prompt_lengths=prompt_lengths,
+            labels=labels[:, prompt_lengths[0] - 1 :] if labels is not None else None,
+            use_cache=use_cache,
+            past_key_values=past_key_values,
+            call_depth=1,
+            **kwargs,
+        )
+        enable_loras(model)
+        return out
+    else:
+        raise NotImplementedError(f"Pass type {model.config.pass_type} not implemented")
+class PassScale(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.threshold = 0.01 if config.pass_type in [4, 7, 8, 9, 104] else 1.0
+        self._ratio = nn.Parameter(torch.zeros(config.num_hidden_layers))
+        self._denominator = nn.Parameter(torch.zeros(config.num_hidden_layers))
+
+        # it's such a mess
+        is_newlinear = (config.pass_type >= 600 and config.pass_type < 700) or (
+            config.pass_type >= 800 and config.pass_type < 900
+        )
+
+        if config.pass_type == 300:
+            self.threshold = torch.finfo(torch.bfloat16).eps
+            self.weight = nn.Parameter(torch.zeros(config.num_hidden_layers))
+            self.weight_og = nn.Parameter(torch.zeros(config.num_hidden_layers))
+            self.weight.data.fill_(self.threshold)
+            self.weight_og.data.fill_(self.threshold)
+        elif config.pass_type in [5, 9, 10] or is_newlinear:
+            if (
+                is_newlinear
+                and (self.config.pass_type % 10) % 4 >= 2
+                or (config.pass_type >= 800 and config.pass_type < 900)
+            ):
+                if not hasattr(config, "s_init"):
+                    config.s_init = 0.01
+                self.threshold = config.s_init
+            self.weight = nn.Parameter(torch.zeros(config.num_hidden_layers))
+            if config.pass_type >= 610 and config.pass_type < 620:
+                self.weight = nn.Parameter(
+                    torch.zeros(
+                        config.num_hidden_layers, config.num_key_value_heads, 1, 1
+                    )
+                )
+                self._ratio = nn.Parameter(
+                    torch.zeros(config.num_hidden_layers, config.num_key_value_heads)
+                )
+                self._denominator = nn.Parameter(
+                    torch.zeros(config.num_hidden_layers, config.num_key_value_heads)
+                )
+            if config.pass_type >= 620 and config.pass_type < 630:
+                self.weight = nn.Parameter(torch.zeros(1))
+                self._ratio = nn.Parameter(torch.zeros(1))
+                self._denominator = nn.Parameter(torch.zeros(1))
+            self.weight.data.fill_(self.threshold)
+        elif config.pass_type == 6 or config.pass_type == 7:
+            self.weight = nn.Parameter(
+                torch.zeros(
+                    config.num_hidden_layers,
+                    config.num_key_value_heads,
+                    1,
+                    config.head_dim,
+                )
+            )
+        elif (
+            config.pass_type == 8 or config.pass_type >= 520 and config.pass_type < 600
+        ):
+            self.weight = nn.Parameter(
+                torch.zeros(
+                    config.num_hidden_layers,
+                    config.num_key_value_heads,
+                    1,
+                    1,
+                )
+            )
+            self._ratio = nn.Parameter(
+                torch.zeros(config.num_hidden_layers, config.num_key_value_heads)
+            )
+            self._denominator = nn.Parameter(
+                torch.zeros(config.num_hidden_layers, config.num_key_value_heads)
+            )
+            self.weight.data.fill_(0.0001)
+        else:
+            self.weight = nn.Parameter(torch.zeros(config.num_hidden_layers))
+            self.weight.data.fill_(0.0001)
+
+        print(f"Threshold: {self.threshold}")
+
+    def forward(self, og_hidden_states, hidden_states, idx):
+        if self.config.pass_type >= 400 and self.weight.dtype != torch.float32:
+            self.weight.data = self.weight.data.to(torch.float32)
+
+        if self.config.pass_type >= 100 and self.config.pass_type < 200:
+            return (
+                og_hidden_states * self.threshold
+                + hidden_states * self.weight[idx] * self.weight[idx]
+            ) / (self.threshold + self.weight[idx] * self.weight[idx])
+        elif self.config.pass_type >= 200 and self.config.pass_type < 300:
+            return (
+                og_hidden_states * (1.0 - self.weight[idx])
+                + hidden_states * self.weight[idx]
+            )
+        elif self.config.pass_type >= 300 and self.config.pass_type < 400:
+            return (
+                og_hidden_states * self.weight_og[idx] * self.weight_og[idx]
+                + hidden_states * self.weight[idx] * self.weight[idx]
+            ) / (
+                self.weight_og[idx] * self.weight_og[idx]
+                + self.weight[idx] * self.weight[idx]
+            )
+        elif self.config.pass_type >= 400 and self.config.pass_type < 500:
+            if self.config.pass_type >= 404:
+                self.threshold = 0.01
+            dtype = og_hidden_states.dtype
+            temp_dtype = torch.float32
+            scale = 1.0 + self.weight[idx].to(dtype=temp_dtype)
+            scale = scale * scale
+            if (
+                self.config.pass_type == 401
+                or self.config.pass_type == 403
+                or self.config.pass_type >= 404
+            ):
+                scale = scale - 1.0
+            og_hidden_states = og_hidden_states.to(dtype=temp_dtype)
+            hidden_states = hidden_states.to(dtype=temp_dtype)
+
+            self._ratio.requires_grad = False
+            self._ratio.data = self._ratio.data.detach()
+            if (
+                self.config.pass_type == 402
+                or self.config.pass_type == 403
+                or self.config.pass_type == 405
+            ):
+                result = (og_hidden_states * self.threshold + hidden_states * scale) / (
+                    self.threshold + scale.abs()
+                )
+                self._ratio.data[idx] = scale / (self.threshold + scale.abs())
+            else:
+                result = (og_hidden_states * scale + hidden_states * self.threshold) / (
+                    self.threshold + scale.abs()
+                )
+                self._ratio.data[idx] = self.threshold / (self.threshold + scale.abs())
+            self._denominator.requires_grad = False
+            self._denominator.data = self._denominator.data.detach()
+            self._denominator.data[idx] = (
+                self.threshold + scale.abs()
+            ) / self.threshold
+            return result.to(dtype=dtype)
+        elif self.config.pass_type >= 500 and self.config.pass_type < 600:
+            if self.config.pass_type % 10 >= 2:
+                self.threshold = 0.01
+            dtype = og_hidden_states.dtype
+            temp_dtype = torch.float32
+            scale = self.weight[idx].to(dtype=temp_dtype)
+            og_hidden_states = og_hidden_states.to(dtype=temp_dtype)
+            hidden_states = hidden_states.to(dtype=temp_dtype)
+
+            self._ratio.requires_grad = False
+            self._ratio.data = self._ratio.data.detach()
+            _scale = scale.abs() if self.config.pass_type >= 510 else scale
+            if self.config.pass_type % 10 == 1 or self.config.pass_type % 10 == 3:
+                result = (og_hidden_states * self.threshold + hidden_states * scale) / (
+                    self.threshold + _scale
+                )
+                self._ratio.data[idx] = (scale / (self.threshold + _scale)).squeeze()
+            else:
+                result = (og_hidden_states * scale + hidden_states * self.threshold) / (
+                    self.threshold + _scale
+                )
+                self._ratio.data[idx] = (
+                    self.threshold / (self.threshold + _scale)
+                ).squeeze()
+            self._denominator.requires_grad = False
+            self._denominator.data = self._denominator.data.detach()
+            self._denominator.data[idx] = (
+                (self.threshold + _scale) / self.threshold
+            ).squeeze()
+            return result.to(dtype=dtype)
+        elif self.config.pass_type >= 600 and self.config.pass_type < 700:
+            if self.config.pass_type >= 620:
+                idx = 0
+            dtype = og_hidden_states.dtype
+            temp_dtype = torch.float32
+            scale = self.weight[idx].to(dtype=temp_dtype)
+            og_hidden_states = og_hidden_states.to(dtype=temp_dtype)
+            hidden_states = hidden_states.to(dtype=temp_dtype)
+
+            self._ratio.requires_grad = False
+            self._ratio.data = self._ratio.data.detach()
+            _scale = scale.abs()
+            if self.config.pass_type % 10 >= 4:
+                scale = scale.abs()
+            if self.config.pass_type % 2 == 1:
+                result = (og_hidden_states * self.threshold + hidden_states * scale) / (
+                    self.threshold + _scale
+                )
+                self._ratio.data[idx] = (scale / (self.threshold + _scale)).squeeze()
+            else:
+                result = (og_hidden_states * scale + hidden_states * self.threshold) / (
+                    self.threshold + _scale
+                )
+                self._ratio.data[idx] = (
+                    self.threshold / (self.threshold + _scale)
+                ).squeeze()
+            self._denominator.requires_grad = False
+            self._denominator.data = self._denominator.data.detach()
+            self._denominator.data[idx] = (
+                (self.threshold + _scale) / self.threshold
+            ).squeeze()
+            return result.to(dtype=dtype)
+        elif self.config.pass_type >= 700 and self.config.pass_type < 800:
+            dtype = og_hidden_states.dtype
+            temp_dtype = torch.float32
+            scale = self.weight[idx].to(dtype=temp_dtype)
+            og_hidden_states = og_hidden_states.to(dtype=temp_dtype)
+            hidden_states = hidden_states.to(dtype=temp_dtype)
+
+            meta_scale = 1.0
+            if self.config.pass_type == 701:
+                meta_scale = 50.0
+            if self.config.pass_type == 702:
+                meta_scale = 500.0
+            ratio = nn.functional.sigmoid(scale * meta_scale)
+
+            self._ratio.requires_grad = False
+            self._ratio.data = self._ratio.data.detach()
+            self._ratio.data[idx] = ratio.detach()
+
+            result = og_hidden_states * (1.0 - ratio) + hidden_states * ratio
+
+            self._denominator.requires_grad = False
+            self._denominator.data = self._denominator.data.detach()
+            self._denominator.data[idx].fill_(1.0)
+
+            return result.to(dtype=dtype)
+        elif self.config.pass_type >= 800 and self.config.pass_type < 900:
+            dtype = og_hidden_states.dtype
+            temp_dtype = torch.float32
+            factor = self.weight[idx].to(dtype=temp_dtype)
+            og_hidden_states = og_hidden_states.to(dtype=temp_dtype)
+            hidden_states = hidden_states.to(dtype=temp_dtype)
+
+            self._ratio.requires_grad = False
+            self._ratio.data = self._ratio.data.detach()
+
+            if self.config.pass_type == 800:
+                factor = factor.abs()
+            elif self.config.pass_type == 801:
+                factor = torch.relu(factor)
+
+            alpha = factor / (factor + self.threshold)
+            one_minus_alpha = 1.0 - alpha
+
+            result = og_hidden_states * one_minus_alpha + hidden_states * alpha
+
+            # these are just for diagnostics
+            self._ratio.data[idx] = alpha.squeeze()
+            self._denominator.requires_grad = False
+            self._denominator.data = self._denominator.data.detach()
+            self._denominator.data[idx] = (factor + self.threshold).squeeze()
+
+            return result.to(dtype=dtype)
+        else:
+            return (
+                og_hidden_states * self.threshold

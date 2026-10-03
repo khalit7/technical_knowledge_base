@@ -1,0 +1,18 @@
+"""Copy the Notion fetch of this page, verbatim, from the agent session transcript into live.md.
+usage: python3 save_live.py <transcript.jsonl>"""
+import json, sys
+best = None
+for line in open(sys.argv[1]):
+    try: o = json.loads(line)
+    except Exception: continue
+    msg = o.get('message') or {}
+    for c in (msg.get('content') or []) if isinstance(msg.get('content'), list) else []:
+        if c.get('type') != 'tool_result': continue
+        parts = c.get('content')
+        texts = [p.get('text', '') for p in parts] if isinstance(parts, list) else [parts or '']
+        for t in texts:
+            if '3c65c17b0d0d81a19006e6b096a6e14b as of' in t and '<content>' in t:
+                best = t
+j = json.loads(best)
+open('live.md', 'w').write(j['text'] + '\n')
+print('saved', len(j['text']), 'chars')

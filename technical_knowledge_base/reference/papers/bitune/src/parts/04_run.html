@@ -1,0 +1,53 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Run Bitune: a toy decoder, finetuned nine ways</h2>
+<p>A real model, trained offline with PyTorch and running here in plain JavaScript (the same arithmetic, checked against PyTorch: <span id="fwdCheck"></span>). It is built to answer one question the paper's benchmarks cannot: <b>when does reading the prompt bidirectionally matter?</b> Everything below is computed in your browser unless it says "from training".</p>
+
+<div class="card">
+<h3 style="margin-top:0">The setup</h3>
+<ul class="small">
+<li><b>World.</b> 48 people and 32 clubs, with a fixed random membership table (25% of pairs are members).</li>
+<li><b>Pretraining</b> (causal language modelling, 12,000 steps of 128 sequences). Half the sequences state facts with the club first ("chess Ada yes  choir Ben no ..."), half ask a question <b>before</b> the list ("&lt;bos&gt; ? chess Ada Ben Cy : Ben &lt;eos&gt;"). The pretrained model answers question-first prompts correctly <b id="ptQf"></b> of the time.</li>
+<li><b>Instruction tuning</b> (3,000 steps of 32 prompts, AdamW, 10% warmup then linear decay, no weight decay, as the paper's Table 9). The new template asks the question <b>after</b> the list: "&lt;bos&gt; Ada Ben Cy Dee ? chess" then ": Ben &lt;eos&gt;". 3 to 6 people, exactly one a member. The ":" is moved to the answer side, as in the paper. LoRA rank 4 on every linear layer (the paper: rank 8 on models 64 times wider), scale 1; the pretrained weights stay frozen.</li>
+<li><b>Methods</b>, as the paper's Tables 1, 5 and 8: <span id="methList"></span></li>
+<li><b>Protocol</b>, as the paper's: the learning rate is tuned for LoRA alone (<span id="lrSweep"></span>) and reused for every method; 3 seeds each; accuracy on 2,000 fresh held-out prompts (<span id="overlapNote"></span>).</li>
+</ul>
+</div>
+
+<h3 id="runAsk">Ask the models</h3>
+<div class="card" id="rq">
+<div class="ctl"><label>Club <select id="rqClub"></select></label><label>People in the list <select id="rqK"><option>3</option><option>4</option><option selected>5</option><option>6</option></select></label><label><button id="rqNew">New random list</button> <button id="rqMove">Move the member</button></label></div>
+<div class="fm"><div class="eq" id="rqPrompt" style="white-space:normal;font-family:ui-monospace,Menlo,monospace;font-size:14px"></div><div class="wh" id="rqTruth"></div></div>
+<div id="rqSvg"></div>
+<p class="small mute">Green: the member; orange: other listed people; grey: anyone not in the list. The probability each finetuned model (seed 0, 6-bit weights) gives each listed person as the answer, computed live. "Question first" is plain LoRA trained and asked with the question before the list: the format the pretrained model already knows.</p>
+</div>
+
+<h3 id="runLook">Look inside: the two passes</h3>
+<div class="card" id="ra">
+<div class="ctl"><label>Model <select id="raVar"></select></label><label>Block <select id="raL"><option value="0">1 (first)</option><option value="1">2</option><option value="2">3 (last)</option></select></label><label>Head <select id="raH"><option value="-1">average of 4</option><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select></label></div>
+<div id="raSvg"></div>
+<p class="small" id="raOut"></p>
+<div id="raAl"></div>
+<p class="small mute">Rows are query tokens, columns the tokens they read; darker is more attention. The answer row is the ":" token reading the cache (mixed, for the two-pass models). The mixing chart shows the learned α = |θ| / (0.01 + |θ|) of each block for keys and values, against the paper's Llama3-8B (its Figure 3 averages, decoded).</p>
+</div>
+
+<h3 id="runRes">Results from training</h3>
+<div class="card" id="rr">
+<div id="rrSvg"></div>
+<div class="res small" id="rrOut"></div>
+<div class="ctl"><label>Training curves of <select id="rrCurve"></select></label></div>
+<div id="rcSvg"></div>
+<p class="small mute">The accuracy axis starts at 80%. From training (<code>train.py</code>, <code>model/results.json</code>, <code>model/finetune.log</code>): held-out accuracy every 250 steps on 500 prompts, as logged, for the 3 seeds; the dots above are the final 2,000-prompt test of each seed.</p>
+</div>
+
+<h3 id="runTest">Test it here</h3>
+<div class="card" id="rt">
+<div class="ctl"><label>Model <select id="rtVar"></select></label><label>Prompts <select id="rtN"><option>100</option><option selected>300</option><option>1000</option></select></label><label><button id="rtGo">Run the test</button></label></div>
+<div class="res" id="rtOut" aria-live="polite"></div>
+<p class="small mute">Fresh prompts drawn uniformly (club, list length, people, member's place) from your browser's random generator, answered by the shipped seed-0 model. Its PyTorch test on 2,000 prompts is shown beside it.</p>
+</div>
+
+<div class="card warn" id="toyLimits">
+<h3 style="margin-top:0">What this toy can and cannot test</h3>
+<p class="small" id="toyLim"></p>
+</div>
+</section>

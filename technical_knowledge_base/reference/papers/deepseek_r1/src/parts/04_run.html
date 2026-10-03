@@ -1,0 +1,59 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Train a tiny R1-Zero</h2>
+<p>A 1,514-parameter policy, pretrained on an illustrative "web" of worked solutions, then trained in your browser with GRPO exactly as R1-Zero was set up: a rule reward for accuracy and format (Eq. 4), 16 answers per question, 16 minibatches per rollout trained once each, clip ratio 10, KL 0.001 to a reference replaced every 16 steps, and a length cap that is raised late in training, as R1-Zero's was at step 8.2k of 10,400. Nothing is shipped but the pretrained base model; every number below is computed here, deterministically, and the engine's gradients match PyTorch autograd of the paper's objective to @@CHECK@@.</p>
+<div class="co warn"><div class="t">What is built in, and what is tested</div>
+<p class="small" style="margin:2px 0"><b>By construction:</b> a question is n digits (n from 1 to 8, each 0, 1 or 2); the answer is their sum mod 3. Each thinking token reads one digit and claims the running sum; the network never sees the whole list at once, so a model that answers before reading every digit must guess. Longer thinking helps here because the toy is built that way (one addition per token, the toy's stand-in for a fixed amount of computation per token). <b>What the toy tests</b> is everything else: whether an outcome reward alone, through GRPO's group baseline, finds that out; how fast; what a length cap does; what the language reward, a cold start, a small clip ratio and Dr. GRPO's unbiased loss change. It cannot test whether an LLM's reasoning is real, how R1's cold start affects a strong base, or anything at scale.</p></div>
+
+<div class="card" id="runCard">
+<div class="ctl" style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end">
+<label class="small">Run <select id="rnPreset"></select></label>
+<label class="small">Clip ratio ε <select id="rnEps"><option value="10" selected>10 (R1)</option><option value="0.2">0.2 (common)</option></select></label>
+<label class="small">Objective <select id="rnObj"><option value="grpo" selected>GRPO (R1)</option><option value="drgrpo">Dr. GRPO</option></select></label>
+<label class="small">Answers per question <select id="rnG"><option value="4">4</option><option value="8">8</option><option value="16" selected>16 (R1)</option></select></label>
+<label class="small">Seed <select id="rnSeed"><option>1</option><option>2</option><option>3</option></select></label>
+<button id="rnGo" class="on">▶ Train 400 steps</button><button id="rnStop" disabled>❚❚ Stop</button>
+</div>
+<div class="prog" style="margin:10px 0 4px"><div id="rnBar"></div></div>
+<p class="small mute" id="rnStatus" aria-live="polite" style="margin:2px 0 8px"></p>
+<p class="small" id="rnDesc"></p>
+<div class="chartrow"><div id="rnAcc"></div><div id="rnThink"></div></div>
+<div class="chartrow"><div id="rnLang"></div><div id="rnClip"></div></div>
+<h3>Accuracy by question length, over training</h3>
+<p class="small mute" style="margin:2px 0 6px">The toy's version of {{Figure 8|ax:A3.F8}}: short questions are mastered first, long ones later, and under the short cap questions of 6 to 8 digits cannot be finished at all.</p>
+<div id="rnHm"></div>
+<h3>What the model writes</h3>
+<p class="small mute" style="margin:2px 0 6px">One sampled answer to each of six fixed questions, from the checkpoint you pick. Blue tokens are language A, orange language B; the arrow is the answer, green if right.</p>
+<label class="small" style="display:block">Checkpoint: step <b id="rnCkV">0</b><input type="range" id="rnCk" min="0" max="20" value="0" step="1" aria-label="Checkpoint"></label>
+<div id="rnTr" class="trs" style="margin-top:6px"></div>
+<p class="small mute" id="rnTrNote" style="margin:4px 0 0"></p>
+</div>
+
+<h3>Every run, three seeds each</h3>
+<p>Computed offline by <code>toy_sweep.mjs</code> with the same engine; the page's default run reproduces its first seed exactly (see the line under the charts once it finishes). Accuracy is exact (summed over every question of every length), not sampled.</p>
+<div class="tw"><table class="lt" id="rnSweep"></table></div>
+<div class="co" id="rnRepro"><div class="t">What the toy reproduces, and what it does not</div><ul class="chk small" style="margin:4px 0" id="rnReproL"></ul></div>
+
+<details class="mist"><summary>The toy in full: task, model, corpus, settings against R1's</summary>
+<div class="b">
+<dl class="tl2">
+<dt>Task</dt><dd>n digits, n uniform from 1 to 8, digits uniform in {0, 1, 2}; answer the sum mod 3. Guessing scores 1/3.</dd>
+<dt>Tokens</dt><dd>thinking tokens 0, 1, 2 (language A) and 零, 一, 二 (language B), each claiming the running sum; &lt;/think&gt;; answers →0, →1, →2. After &lt;/think&gt; only an answer may follow. An answer without &lt;/think&gt; fails the format rule; running out of length before answering scores 0.</dd>
+<dt>Policy</dt><dd>a one-hidden-layer network (36 one-hot inputs: previous token, the digit under the reader, digits left, last claimed sum, thinking tokens so far; 32 tanh units; 10 outputs): 1,514 parameters</dd>
+<dt>Corpus</dt><dd><span class="ill">illustrative</span> 35% answer straight away without tags, 50% open the tags and write 0 to 3 steps, 15% write every step; writers know the answer, so short solutions still end with the right one, which the model cannot see. 55% language A, 25% B, 20% switching token by token; 5% of steps are slips, carried forward.</dd>
+<dt>Pretraining</dt><dd>20,000 documents, 3 epochs, Adam 3e-3, batches of 32; weights rounded to 4 decimals and shipped. Base model: 44% accurate at cap 7 (48% at cap 10), 1.4 thinking tokens per answer, 63% of answers well formed.</dd>
+<dt>Cold start</dt><dd>128 clean solutions, every step written, all in language A; 4 epochs, Adam 3e-3, batches of 16: 79% accurate before any RL.</dd>
+</dl>
+<div class="tw"><table class="lt"><thead><tr><th>Setting</th><th>R1-Zero / R1 (paper)</th><th>Toy</th></tr></thead><tbody>
+<tr><td>Answers per question</td><td>16</td><td>16 (4 or 8 selectable)</td></tr>
+<tr><td>Questions per step</td><td>32</td><td>8</td></tr>
+<tr><td>Minibatches per rollout, inner epochs</td><td>16, 1</td><td>16, 1</td></tr>
+<tr><td>Steps</td><td>10,400</td><td>400</td></tr>
+<tr><td>Learning rate</td><td>3e-6</td><td>3e-3 (Adam; the toy's own, chosen once, not tuned per run)</td></tr>
+<tr><td>KL coefficient, reference refresh</td><td>0.001, every 400 steps</td><td>0.001, every 16 steps (the same 4% of the run)</td></tr>
+<tr><td>Clip ratio ε</td><td>not stated for R1-Zero; 10 in R1's first RL stage</td><td>10 (0.2 selectable)</td></tr>
+<tr><td>Length cap</td><td>32,768 tokens, 65,536 from step 8.2k (79% of the run)</td><td>7 tokens, 10 from step 316 (79%); 7 tokens fit 5 thinking steps</td></tr>
+<tr><td>Temperature</td><td>1</td><td>1</td></tr>
+<tr><td>Reward</td><td>accuracy + format (+ language consistency in R1)</td><td>the same; an answer with no thinking counts as fully consistent</td></tr>
+</tbody></table></div>
+</div></details>
+</section>
