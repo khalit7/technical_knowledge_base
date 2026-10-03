@@ -54,6 +54,7 @@ A **high-level comparison along a few axes**, plus the definitions needed to fol
 - 2026-10-01: build folded-in tabs in parallel, the Reading tab written last by one hand from their drafts; give the build script per-tab slots.
 - 2026-10-02: SVG labels drawn at a fixed width clip at phone width; lay charts out by the measured container width and put long captions in HTML (`clipcheck.mjs` catches it).
 - 2026-10-03 (training topic): when the children are stages or techniques, compare the stages on shared axes with a stage x axis grid; the "compare everything" tabs became recipes, a price list and a calculator. Reconcile shared facts at assembly.
+- 2026-10-04 (Topic: rl): Khalid first asked for a comprehensive root (about 60 minutes), then corrected it: "The page shouldn't explain the concepts in depth, this is the children page's responsibility. It should give a quick overview or a quick intuitive explanation." A root gives intuition in about 15 to 20 minutes, one or two visuals per idea at most, and a "Go deeper" link per section; hands-on depth such as a tabular-RL lab belongs on the child pages. Keep cut material in the repo (`src/for_children/`) as input for the children.
 
 ---
 
