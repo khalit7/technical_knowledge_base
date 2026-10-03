@@ -1,0 +1,68 @@
+Beyond-the-paper quotes used on the page (fetched 3 October 2026). Each block: source URL, then the passage relied on.
+
+== https://huggingface.co/docs/transformers/main/en/main_classes/quantization (BitsAndBytesConfig)
+BitsAndBytesConfig ( load_in_8bit = False load_in_4bit = False ... bnb_4bit_compute_dtype = None bnb_4bit_quant_type = 'fp4' bnb_4bit_use_double_quant = False ...)
+bnb_4bit_quant_type ( str , optional , defaults to "fp4" ) -- This sets the quantization data type in the bnb.nn.Linear4Bit layers. Options are FP4 and NF4 data types which are specified by fp4 or nf4.
+
+== https://huggingface.co/blog/4bit-transformers-bitsandbytes
+Making LLMs even more accessible with bitsandbytes, 4-bit quantization and QLoRA. Published May 24, 2023. Younes Belkada, Tim Dettmers (guest), Artidoro Pagnoni (guest), Sylvain Gugger, Sourab Mangrulkar.
+... we recommend using NF4 quantization for better performance. Other options include bnb_4bit_use_double_quant which uses a second quantization after the first one to save an additional 0.4 bits per parameter.
+
+== https://github.com/bitsandbytes-foundation/bitsandbytes/blob/0.39.1/bitsandbytes/functional.py (quantize_4bit)
+    if compress_statistics:
+        offset = absmax.mean()
+        absmax -= offset
+        #code = create_custom_map().to(absmax.device)
+        #qabsmax, state2 = quantize_blockwise(absmax, code=code, blocksize=256)
+        qabsmax, state2 = quantize_blockwise(absmax, blocksize=256)
+(quantize_blockwise with code=None uses name2qmap["dynamic"] = create_dynamic_map())
+
+== https://github.com/bitsandbytes-foundation/bitsandbytes/blob/main/bitsandbytes/functional.py (create_normal_map)
+def create_normal_map(offset=0.9677083, use_extra_value=True):
+    v1 = norm.ppf(torch.linspace(offset, 0.5, 9)[:-1]).tolist()
+    v2 = [0] * (256 - 15)
+    v3 = (-norm.ppf(torch.linspace(offset, 0.5, 8)[:-1])).tolist()
+(the docstring: "The default (0.9677083) covers up to ~1.845 standard deviations and was empirically optimized")
+get_4bit_type: 'fp4' data = [0, 0.0625, 8.0, 12.0, 4.0, 6.0, 2.0, 3.0, ...] / 12; 'int4' data = [7..-7]; 'af4' blocksize 64 from Yoshida 2023.
+
+== https://github.com/bitsandbytes-foundation/bitsandbytes/blob/0.39.1/csrc/kernels.cu (dDequantizeFP4Tree)
+returns 0.25, 0.16666667, 0.5, 0.33333333, 1.0, 0.66666667, 5.208333333e-03, 0.0 (times absmax and sign)
+
+== https://arxiv.org/abs/2306.06965 (Yoshida, NF4 Isn't Information Theoretically Optimal (and that's Good), 12 Jun 2023)
+Their proposed NF4 data type is said to be information theoretically optimal for representing normally distributed weights. I show that this can't quite be the case, as the distribution of the values to be quantized depends on the block-size. ... improved performance for larger quantization block sizes, while both codes perform similarly at smaller block sizes.
+
+== https://arxiv.org/abs/2310.08659 (LoftQ, 12 Oct 2023)
+... a novel quantization framework that simultaneously quantizes an LLM and finds a proper low-rank initialization for LoRA fine-tuning ... especially in the challenging 2-bit and 2/4-bit mixed precision regimes.
+
+== https://arxiv.org/abs/2309.14717 (QA-LoRA, 26 Sep 2023)
+(ii) after fine-tuning, the LLM and auxiliary weights are naturally integrated into a quantized model without loss of accuracy.
+
+== https://arxiv.org/abs/2306.05685 (Zheng et al., Judging LLM-as-a-Judge, 9 Jun 2023)
+We examine the usage and limitations of LLM-as-a-judge, including position, verbosity, and self-enhancement biases ...
+
+== https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms
+QLoRA presents a trade-off that might be worthwhile if you're constrained by GPU memory. It offers 33% memory savings at the cost of a 39% increase in runtime.
+Default LoRA with 16-bit brain floating point precision: Training time: 1.85 h Memory used: 21.33 GB QLoRA with 4-bit Normal Floats: Training time: 2.79 h Memory used: 14.18 GB
+
+== https://github.com/hiyouga/LLaMA-Factory (README)
+[23/06/03] We supported quantized training and inference (aka QLoRA).
+
+== https://github.com/axolotl-ai-cloud/axolotl (README)
+2025/02: Axolotl has added LoRA optimizations to reduce memory usage and improve training speed for LoRA and QLoRA ...
+
+== https://github.com/pytorch/torchtune (README)
+| LoRA/QLoRA | ... (recipes table); November 2024: ... multimodal QLoRA
+
+== https://github.com/unslothai/unsloth (README)
+Supports ... LoRA, QLoRA, full fine tuning ...
+
+== https://github.com/artidoro/qlora (README, LICENSE, scripts/finetune_guanaco_65b.sh)
+We release the resources associated with QLoRA finetuning in this repository under MIT license. ... the Guanaco model family ... intended for purposes in line with the LLaMA license and require access to the LLaMA models.
+Known Issues: 1. 4-bit inference is slow. ... 3. Currently, using bnb_4bit_compute_type='fp16' can lead to instabilities. For 7B LLaMA, only 80% of finetuning runs complete without error.
+finetune_guanaco_65b.sh: --lora_r 64 --lora_alpha 16 --lora_modules all --double_quant --quant_type nf4 --bf16 --bits 4 --warmup_ratio 0.03 --lr_scheduler_type constant --gradient_checkpointing --dataset oasst1 --per_device_train_batch_size 1 --gradient_accumulation_steps 16 --max_steps 1875 --learning_rate 0.0001 --adam_beta2 0.999 --max_grad_norm 0.3 --lora_dropout 0.05
+
+== https://thinkingmachines.ai/blog/lora/ (LoRA Without Regret, 29 Sep 2025; quoted from the LoRA page's extracts)
+Similar to our results, the QLoRA paper also found that LoRA performed worse than MLP or MLP+attention, though they found that MLP+attention > MLP > attention, whereas we found the first two to be roughly [equivalent].
+
+== https://arxiv.org/abs/2010.00133 (Nangia et al., CrowS-Pairs)
+A model that is unbiased would score 50 (stereotypical and anti-stereotypical sentences equally likely). Category sizes used for the weighted average: race-color 516, gender 262, socioeconomic 172, nationality 159, religion 105, age 87, sexual orientation 84, physical appearance 63, disability 60.
