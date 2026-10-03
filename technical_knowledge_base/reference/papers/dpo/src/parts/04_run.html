@@ -1,0 +1,58 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2 id="runTop">Train DPO and RLHF in your browser</h2>
+<p>A tiny language model, preference-tuned here by real arithmetic, every way the paper compares: DPO, its Unlikelihood and Preferred-FT baselines, RLHF with a learned reward model and PPO, and PPO on the true reward. The space is small enough that everything the paper could only estimate is exact here: the expected true reward, the KL to the reference, and the best possible reward-KL trade-off of {{Eq. 4|ax:S4.E4}}.</p>
+<details class="mist" id="runToy" open><summary>The toy, in seven lines</summary><div class="b">
+<ul>
+<li><b>Language.</b> Reviews of exactly 4 words from 12 (film, plot, cast, was, is, very, not, so, good, great, dull, bad): 20,736 possible sequences.</li>
+<li><b>Policy.</b> Autoregressive: one softmax over the first word and, at positions 2 to 4, one softmax per previous word, 444 logits in all; its log-probability of a sequence is the sum of 4 log-softmax entries.</li>
+<li><b>Reference (the SFT model).</b> A grammar, noun then verb then modifier then adjective (72 grammatical sequences), with 3% of every softmax spread uniformly so that every sequence has π<sub>ref</sub> &gt; 0, as Theorem 1 assumes. <span id="ruRef"></span></li>
+<li><b>True reward</b>, standing in for the IMDb sentiment classifier: <i>p</i>(positive) = σ(score), with good +1.2, great +2.2, dull −1.4, bad −2.0, an adjective after "not" multiplied by −0.7 and after "very" or "so" by 1.4, and a bias of −0.3. It lies in [0, 1], like the paper's.</li>
+<li><b>Data</b>, the paper's recipe ({{Appendix C.1|ax:A3.SS1}}) at toy scale: 1,000 groups of 4 samples from π<sub>ref</sub>, all 6 pairs of each group, labelled by the classifier (higher score wins; ties dropped): <span id="ruData"></span>. One prompt only: the toy has no prefixes.</li>
+<li><b>RLHF.</b> A reward model linear in the same 444 word-pair features, fitted with Eq. 2 for 3 epochs, keeping the best validation epoch as the paper does: <span id="ruRm"></span>. PPO with the KL penalty folded into a sequence-level reward, batches of 64 fresh samples, a clipped surrogate (ε = 0.2, 4 epochs per batch), the batch mean as baseline, and β adapted towards a target KL (Ziegler et al.'s controller), Adam at 0.01.</li>
+<li><b>Offline methods</b> (DPO and the rest): batches of 64 pairs, RMSprop as in {{Appendix B|ax:A2}} but at a toy learning rate of 0.01 with 20 warmup steps. Every loss and gradient is checked against PyTorch autograd: <span id="ruChk"></span>.</li>
+</ul></div></details>
+
+<div class="card" id="trCard">
+<div class="ctl">
+<div><div class="small mute">method</div><div class="seg" id="trMeth"><button class="on" data-m="dpo">DPO</button><button data-m="ipo">IPO</button><button data-m="cdpo">cDPO</button><button data-m="ul">Unlikelihood</button><button data-m="sft">Preferred-FT</button><button data-m="ppo">PPO (learned reward)</button><button data-m="ppogt">PPO-GT</button></div></div>
+</div>
+<div class="ctl">
+<label><span id="trHl">β</span> <select id="trH"></select></label>
+<label>steps <select id="trSt"><option>150</option><option selected>600</option><option>1500</option><option>4000</option></select></label>
+<label>labels <select id="trLab"><option value="det" selected>classifier decides (the paper)</option><option value="bt">sampled from Bradley-Terry</option></select></label>
+<div><button id="trGo" class="an-play">&#9654; Train</button> <button id="trStop">Stop</button> <button id="trReset">Reset</button></div>
+</div>
+<p class="try"><b>Try:</b> DPO at β = 1 (it follows the exact frontier); then β = 0.1, the paper's default (well below it, and the chosen answers lose probability); then PPO-GT; then DPO for 4,000 steps (it keeps climbing in KL and the grammar goes); then IPO at τ = 0.1 for 4,000 steps (it nearly levels off).</p>
+<div class="kvs" id="trCnt"></div>
+<div id="trFr"></div>
+<div class="cols" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px">
+<div><div class="small mute">log-ratio log π<sub>θ</sub>/π<sub>ref</sub>, averaged over the training pairs (offline methods)</div><div id="trLr"></div></div>
+<div><div class="small mute">probability mass: grammatical sequences, and sequences never seen in the data</div><div id="trMass"></div></div>
+</div>
+<div class="small mute" style="margin-top:6px">The policy's six most likely reviews now (true reward in brackets):</div>
+<div class="samp" id="trTop"></div>
+</div>
+
+<h3 id="runSweep">Figure 2, at toy scale</h3>
+<p>The paper's sweep shape ({{§6.1|ax:S6.SS1}}): DPO β ∈ {0.05, 0.1, 1, 5}, Unlikelihood α ∈ {0.05, 0.1, 0.5, 1}, Preferred-FT with 3 seeds, PPO and PPO-GT with 4 target KLs each (scaled to the toy's KL range: 0.5, 1, 2, 3), 19 runs evaluated every 25 steps. The results below were computed by <code>toy_sweep.mjs</code> with this page's engine; the button reruns all 19 here and compares.</p>
+<div class="card" id="swCard">
+<div class="ctl"><div class="chips" id="swShow"></div><div><button id="swGo">&#9654; Rerun the sweep here</button></div></div>
+<div id="swSvg"></div>
+<div class="res" id="swOut"></div>
+<div class="tw"><table id="swTab"></table></div>
+</div>
+
+<h3 id="runLong">Train past the sweep</h3>
+<p>The same data, 4,000 steps (about 49 passes). With deterministic labels a pair's margin can always grow, so the losses with a sigmoid or no bound keep pushing; IPO's squared loss has a finite target margin and nearly levels off (Azar et al. 2023). Final states, from <code>toy_sweep.mjs</code> (rerun any of them with the trainer above):</p>
+<div class="card"><div id="lgSvg"></div><div class="tw"><table id="lgTab"></table></div></div>
+
+<h3 id="runThm">Theorem 1, measured</h3>
+<div class="res" id="thOut"></div>
+
+<details class="mist"><summary>What this toy can and cannot tell you</summary><div class="b">
+<ul>
+<li><b>It can</b> check the algebra (exact losses and gradients against PyTorch; DPO and reward-model losses reaching the same minimum), show the reward-KL trade-off against the exact optimum, and show what each loss does to probabilities when trained long.</li>
+<li><b>It cannot</b> reproduce what made PPO hard at GPT-2-large scale: here the policy has 444 numbers, PPO's gradient noise is small, and the reward model generalises well because its features are the policy's own. So "PPO-GT beats DPO here" says that DPO's objective has no built-in advantage, not that the paper's measurement was wrong.</li>
+<li>All 4-word answers have the same length, so SimPO's length normalisation and DPO's length bias cannot show up; there is one prompt, so out-of-distribution prompts cannot be tested.</li>
+</ul></div></details>
+</section>
