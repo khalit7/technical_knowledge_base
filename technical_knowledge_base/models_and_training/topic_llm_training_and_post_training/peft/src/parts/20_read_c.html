@@ -1,0 +1,110 @@
+
+<section id="s-regret">
+<h2>LoRA against full fine-tuning</h2>
+<p>Two careful studies, a year apart, frame the answer. They agree more than their titles suggest: LoRA matches full fine-tuning when the data fits in its capacity and it is set up right, and falls behind when the data is pretraining-sized.</p>
+<h3>"LoRA learns less and forgets less" (Biderman et al., 2024)</h3>
+<p>{{Biderman et al.|https://arxiv.org/abs/2405.09673}} trained Llama-2-7B on code and on math, two ways each: <b>continued pretraining</b> (CPT: StarCoder-Python up to 20B tokens; OpenWebMath, 14.7B tokens) and <b>instruction fine-tuning</b> (IFT: Magicoder-Evol-Instruct-110K, 73M tokens; MetaMathQA, 103M tokens). They scored the target skill (HumanEval for code, GSM8K for math) and, to measure forgetting, the average of HellaSwag, WinoGrande and ARC-Challenge, which the base model already knew. The chart steps through their checkpoints.</p>
+<p class="try"><b>Try:</b> code CPT first: full fine-tuning (orange) climbs higher but slides left, forgetting; the LoRA runs stay right and lower. Then code IFT, where LoRA at rank 256 matches or beats full fine-tuning at epoch 4 while forgetting far less.</p>
+<div class="card" id="bd">
+<div class="seg" id="bdM" role="group" aria-label="Experiment"><button data-m="code_cpt" class="on">Code, CPT</button><button data-m="math_cpt">Math, CPT</button><button data-m="code_ift">Code, IFT</button><button data-m="math_ift">Math, IFT</button></div>
+<div class="plotbox" id="bdP"></div>
+<div class="lg" id="bdL"></div>
+<div class="an-cap" id="bdCap"></div>
+<div class="an-ctl" id="bdCtl"></div>
+<p class="small mute"><i class="nl m">published</i> values from {{Tables S1 to S8|https://arxiv.org/html/2405.09673v2#A4}}, one run per point; the paper's figures plot the same data. Further right is less forgetting; higher is more learning.</p>
+</div>
+<p>What the tables say:</p>
+<ul>
+<li><b>Continued pretraining: LoRA learns less.</b> After 20B tokens of code, full fine-tuning reaches 0.263 on HumanEval and LoRA at rank 256 0.224; on math after 20B tokens, 0.293 against 0.202 on GSM8K. Rank 16 barely moves at all (0.162, 0.158).</li>
+<li><b>Instruction fine-tuning: the gap mostly closes.</b> Code IFT at epoch 4: LoRA r = 256 0.498 against full fine-tuning 0.470 (full fine-tuning's best, 0.497, comes at epoch 8). Math IFT at epoch 4: 0.625 against 0.642.</li>
+<li><b>LoRA forgets less.</b> After code IFT at epoch 4 the forgetting average is 0.632 for LoRA r = 64 and 0.512 for full fine-tuning; after one epoch the LoRA runs still sat at about 0.65. The paper finds LoRA "mitigates forgetting more aggressively than classic regularization techniques" (dropout, weight decay).</li>
+<li>Their recommendations: LoRA for instruction fine-tuning, not continued pretraining; all modules; rank 256 when memory allows; α = 2<i>r</i>; sweep the learning rate from 1e-5 to 5e-4.</li>
+</ul>
+<h3>"LoRA without regret" (Thinking Machines, 2025)</h3>
+<p>{{John Schulman and Thinking Machines Lab|https://thinkingmachines.ai/blog/lora/}} (29 September 2025) swept learning rates for LoRA and full fine-tuning on Llama 3 and Qwen3 models (including a mixture-of-experts one), with SFT on Tulu3 and OpenThoughts3 and RL on MATH and GSM. Their finding: when "a few key details" are right, LoRA learns with the same sample efficiency as full fine-tuning. The details:</p>
+<ul>
+<li><b>All layers, especially the MLP and MoE layers</b> (see {{Which matrices|#s-where}}).</li>
+<li><b>Not capacity-constrained</b>: the adapter must have more parameters than the information to be learned. LLM datasets carry "around 1 bit (0.69 nats) per token"; for typical instruction and reasoning sets LoRA has room. "For datasets that exceed LoRA capacity, LoRA underperforms FullFT", not by hitting a floor but by learning less efficiently.</li>
+<li><b>Learning rate about 10 times full fine-tuning's</b>: "the optimal LR for LoRA is consistently 10x the one used for FullFT in the same application, for both supervised learning and reinforcement learning".</li>
+<li><b>Modest batch sizes</b>: LoRA "pays a larger penalty in loss as batch size increases beyond some point", and a higher rank does not fix it, "a property of the product-of-matrices parametrization". Hugging Face's {{TRL guide|https://huggingface.co/docs/trl/main/lora_without_regret}} turns this into "an effective batch size &lt; 32".</li>
+<li><b>RL needs almost no capacity.</b> LoRA "fully matches" full fine-tuning for policy-gradient RL "even with ranks as low as 1". The argument: supervised learning gives O(tokens) bits per episode, a policy gradient only O(1) bits through the advantage. Their MATH run used about 10,000 problems × 32 samples, so at one bit each about 320,000 bits, against "3M parameters" in a rank-1 LoRA on Llama-3.1-8B (<i class="nl d">derived</i>: 2,621,440 on all seven matrices, which rounds to their figure; check it in the {{Trainable parameters|#t-count}} tab). The TRL guide's ranks: 256 for post-training-scale SFT, 1 to 32 for RL.</li>
+<li><b>Cheaper per step</b>: "slightly more than ⅔ of the FLOPs that full fine-tuning does per pass", from 2<i>N</i>² + 6<i>NR</i> multiply-adds against 3<i>N</i>² for an <i>N</i> × <i>N</i> matrix at rank <i>R</i> (no weight gradient for the frozen matrix). <i class="nl d">derived</i> 67.4% at <i>N</i> = 4,096, <i>R</i> = 16; 79.2% at <i>R</i> = 256.</li>
+</ul>
+<div class="co key"><div class="t">The two studies, reconciled</div>Biderman et al.'s continued pretraining runs (14.7 to 20B tokens) are exactly the "datasets that exceed LoRA capacity" regime; their instruction runs, where LoRA caught up, are the "low-regret" regime. Thinking Machines cites them for this: LoRA underperforms "in settings that resemble pre-training". Use full fine-tuning or {{continued pretraining|n:3c65c17b0d0d8119b8f0e801caa09474}} for billions of tokens of new domain text; LoRA for post-training.</div>
+<div class="co"><div class="t">A worked instance at the small end</div>A Qwen 3.8 4B model was taught to write PostgreSQL query plans: SFT on 400 GPT-6 Astra trajectories (440 generated in two rounds of 120 and 320, each keeping 20 for validation) through a LoRA of 21.2 million parameters (42.5 MB), then a custom "anchored" GRPO against measured execution time. Best of three rollouts, it reached a 1.81 times geometric-mean speed-up over Postgres's own planner on 113 join-heavy queries, for $1,200 in total (about $800 of rented 2 × H100 time and $400 of API fees; development on two RTX 3090s) ({{write-up, 16 September 2026|https://rohanbansal.com/qorl}}).</div>
+<div class="co corr"><div class="t">Corrected from the old page</div>The old text said this cost "a few hundred dollars", ran "on consumer GPUs" and beat "a hand-tuned production planner". The write-up gives $1,200, training on a rented H100 node (consumer cards for development), and compares against PostgreSQL's built-in planner.</div>
+</section>
+
+<section id="s-qlora">
+<h2>QLoRA: LoRA on a 4-bit base</h2>
+<p>{{QLoRA|n:3c65c17b0d0d815a8f4edc33f9583671}} (Dettmers et al., 2023) stores the frozen base in 4 bits and trains bf16 LoRA adapters on top, backpropagating through the dequantised weights. That took fine-tuning a 65B model from more than 780 GB of GPU memory to under 48 GB, one GPU, "without degrading the runtime or predictive performance compared to a 16-bit fully finetuned baseline". Three pieces:</p>
+<ul>
+<li><b>4-bit NormalFloat (NF4)</b>: a 16-value code whose levels follow a normal distribution, since pretrained weights roughly do; blocks of 64 weights share one scale. The paper calls it "information theoretically optimal for normally distributed weights"; {{Yoshida (2023)|https://arxiv.org/abs/2306.06965}} shows it cannot quite be, because the distribution of the scaled values depends on the block size. The QLoRA page builds the code and measures it on real LLaMA weights.</li>
+<li><b>Double quantisation</b>: the per-block scales are themselves quantised, saving about 0.37 bits per parameter (about 3 GB on a 65B model).</li>
+<li><b>Paged optimizers</b>: optimizer state in NVIDIA unified memory, so a long batch's memory spike pages to CPU instead of crashing.</li>
+</ul>
+<p>QLoRA's recipe put LoRA on every linear layer (r = 64, α = 16). The trade is time: Sebastian Raschka measured 33% less memory for 39% more training time (21.33 GB and 1.85 h with bf16 LoRA against 14.18 GB and 2.79 h with QLoRA, in one of his runs) ({{Practical tips|https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms}}). How the bytes add up for a given model size is the parent page's {{memory calculator|n:3c65c17b0d0d81b6876ee72b7056793b}}; NF4 among the other number formats is on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
+<p><b>Merging onto a quantised base needs care.</b> The adapter was trained against the dequantised 4-bit weights, so its product is right relative to those. The usual routes: merge into the original 16-bit weights and quantise the result again (which adds a fresh rounding error); keep the adapter separate at serving time; or train so the merge stays quantised, as {{QA-LoRA|https://arxiv.org/abs/2309.14717}} does. Some formats cannot merge at all: the PEFT docs say adapters on AQLM-quantised models "shall be saved separately, as merging them with AQLM quantized weights is not possible" ({{PEFT quantization guide|https://huggingface.co/docs/peft/main/en/developer_guides/quantization}}). {{LoftQ|https://arxiv.org/abs/2310.08659}} goes the other way, choosing the LoRA initialisation to cancel part of the quantisation error.</p>
+</section>
+
+<section id="s-dora">
+<h2>DoRA: magnitude and direction</h2>
+<p>{{DoRA|https://arxiv.org/abs/2402.09353}} (Liu et al., ICML 2024) splits each weight column into a length and a direction, trains the length directly and the direction with LoRA:</p>
+<div class="fm"><div class="eq">W′ = m · (W<sub>0</sub> + BA) / ‖W<sub>0</sub> + BA‖<sub>c</sub></div>
+<dl><dt>m</dt><dd>a trainable magnitude vector, one number per column (per output unit in PyTorch's layout), initialised to ‖W<sub>0</sub>‖<sub>c</sub></dd>
+<dt>‖·‖<sub>c</sub></dt><dd>"the vector-wise norm of a matrix across each column vector"</dd></dl></div>
+<p>The motivation is an analysis of how fine-tuning changes each column. In the paper's measurements, full fine-tuning's changes in magnitude and in direction were negatively correlated across checkpoints (a large turn with a small stretch, or the reverse) while LoRA's were positively correlated: one low-rank update moves both together. The animation shows the difference in the simplest case.</p>
+<div class="card" id="dr">
+<div class="seg" id="drM" role="group" aria-label="Method"><button data-m="lora" class="on">LoRA</button><button data-m="dora">DoRA</button></div>
+<div class="plotbox" id="drP"></div>
+<div class="an-cap" id="drCap"></div>
+<div class="out" id="drN"></div>
+<div class="an-ctl" id="drCtl"></div>
+<p class="small mute"><i class="nl i">illustrative</i> one 2-D column moved toward a target turned 60° at the same length, along the straight path each parametrisation takes in its own parameters; not a trained model. Both reach the target: it shows how each moves, not which is more accurate.</p>
+</div>
+<p>The results ({{Table 1|https://arxiv.org/html/2402.09353v6}}): on eight commonsense-reasoning tasks, LLaMA-7B averaged 74.7 with LoRA (0.83% of parameters trained), 78.4 with DoRA (0.84%) and 77.5 with DoRA at half the rank (0.43%); LLaMA3-8B 80.8 against 85.2. Two cautions: the LoRA numbers for LLaMA 7B and 13B are taken from an earlier paper (LLM-Adapters) rather than re-tuned, while DoRA kept LoRA's configuration "adjusting only the learning rate"; and the extra 0.01% is the magnitude vector (the {{Trainable parameters|#t-count}} tab's LLaMA-7B preset reproduces 0.83%, 0.84% and 0.43%). To save memory DoRA treats the norm as a constant in the backward pass, which cut training memory by about 24.4% on LLaMA with a 0.2-point difference in accuracy. Once trained, DoRA merges like LoRA, so serving is free; PEFT enables it with <code>use_dora=True</code>.</p>
+</section>
+
+<section id="s-serve">
+<h2>Serving many adapters</h2>
+<p>One adapter is easiest merged: the model is the base's shape and speed. Many adapters on one base are a different problem. Merging each one means a full copy of the model per adapter; keeping them unmerged means one copy of the base, shared by every request, and a small extra product <i>x</i> · <i>A</i><sub><i>i</i></sub> · <i>B</i><sub><i>i</i></sub> per request for whichever adapter it asked for.</p>
+<div class="card" id="sl">
+<div class="slo">
+<div><div id="slD"></div></div>
+<div><div class="seg" id="slS" role="group" aria-label="Setting"><button data-s="S1" class="on">S1: Llama-7B, rank 8</button><button data-s="S2">S2: ranks 8 to 64</button><button data-s="S4">S4: Llama-13B</button></div>
+<div id="slB"></div><div class="lg"><span><i style="background:var(--c3)"></i>S-LoRA</span><span><i style="background:var(--c2)"></i>vLLM-packed (one merged copy per adapter)</span><span><i style="background:var(--c4)"></i>Hugging Face PEFT</span></div></div>
+</div>
+<p class="small mute"><i class="nl m">published</i> {{S-LoRA Table 3|https://arxiv.org/html/2311.03285v3#S7.T3}}: requests per second on one A100 80GB, synthetic workload; OOM is out of memory; "not run" means the paper did not run PEFT there. Settings from its Table 1.</p>
+</div>
+<ul>
+<li><b>S-LoRA</b> ({{Sheng et al.|https://arxiv.org/abs/2311.03285}}) keeps every adapter in host memory, fetches the ones the running requests need, and pages adapter weights and the KV cache from one memory pool ("Unified Paging"), with kernels that batch requests for adapters of different ranks. It served 2,000 adapters on one GPU at 7.61 requests per second, against 8.05 with five. The baseline that merges each adapter into its own copy ran out of memory beyond a handful, and was 4 times slower even then: <i class="nl d">derived</i> 8.05 / 2.04 = 3.9 times, and 7.99 / 0.25 = 32 times faster than PEFT, which swaps adapters between batches.</li>
+<li><b>Punica</b> ({{Chen et al.|https://arxiv.org/abs/2310.18547}}) introduced the batching kernel for different LoRA models against one copy of the base: 12 times the throughput of then state-of-the-art serving systems, adding 2 ms of latency per token.</li>
+<li><b>In practice</b>: {{vLLM|https://docs.vllm.ai/en/latest/features/lora.html}} serves adapters with <code>--enable-lora</code> and <code>--lora-modules</code>, with limits such as <code>max_loras</code>, <code>max_lora_rank</code> and <code>max_cpu_loras</code>; {{SGLang|https://docs.sglang.ai/advanced_features/lora.html}} incorporates "techniques from S-LoRA and Punica". Apple's on-device foundation model swaps rank-16 adapters, "10s of megabytes" each, per feature ({{Apple, June 2024|https://machinelearning.apple.com/research/introducing-apple-foundation-models}}), and Thinking Machines' {{Tinker|https://thinkingmachines.ai/tinker/}} fine-tuning service is built on LoRA. The memory side of serving (KV cache, paging) is {{PagedAttention|n:3c65c17b0d0d81bf8b90ca93fee19f5f}} and {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</li>
+</ul>
+</section>
+
+<section id="s-choose">
+<h2>Choosing a method (2026)</h2>
+<div class="tw"><table>
+<thead><tr><th>Situation</th><th>Choice</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Post-training on one node, model fits in bf16</td><td>LoRA on all linear layers, r = 16 to 64 (256 for large SFT sets); FSDP2 if the base needs sharding</td><td>Matches full fine-tuning in the low-regret regime at a fraction of the memory ({{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} for sharding)</td></tr>
+<tr><td>Short of GPU memory, large base</td><td>QLoRA (NF4 base, bf16 adapters)</td><td>65B on one 48 GB card; costs training time</td></tr>
+<tr><td>RL fine-tuning (GRPO and its family)</td><td>LoRA, low rank (1 to 32)</td><td>RL absorbs about a bit per episode ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}, {{Alignment|n:3c65c17b0d0d81d5bed7e608d4061c7a}})</td></tr>
+<tr><td>Domain adaptation on billions of tokens</td><td>Full fine-tuning or {{continued pretraining|n:3c65c17b0d0d8119b8f0e801caa09474}}</td><td>Exceeds LoRA's capacity; LoRA learns less there</td></tr>
+<tr><td>Many tenants or tasks on one deployment</td><td>One LoRA adapter per task, multi-LoRA serving</td><td>One base in memory; S-LoRA-style batching</td></tr>
+<tr><td>Thousands of adapters where storage dominates</td><td>VeRA or (IA)³</td><td>Ten to a hundred times fewer numbers than LoRA; check quality on your task</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>LoRA on the attention query and value only</summary><div class="b">The original paper's choice for GPT-3. QLoRA and LoRA Without Regret both found it underperforms; put LoRA on every linear layer, the MLP first. A higher rank on attention alone does not make up for it.</div></details>
+<details class="mist"><summary>Reusing full fine-tuning's learning rate</summary><div class="b">LoRA's optimum is about 10 times higher (Thinking Machines, SFT and RL alike). A LoRA run that "doesn't learn" is often just under-stepped.</div></details>
+<details class="mist"><summary>Changing the rank and keeping α, under the wrong convention</summary><div class="b">With α/<i>r</i>, a rank change keeps the optimal learning rate roughly fixed; with rsLoRA's α/√<i>r</i> it does not in the same way. Know which one your library applies (PEFT: <code>use_rslora</code>).</div></details>
+<details class="mist"><summary>Very large batches</summary><div class="b">LoRA pays a growing loss penalty as the batch grows, and more rank does not fix it. Keep effective batches modest (the TRL guide: under 32).</div></details>
+<details class="mist"><summary>Expecting LoRA to absorb a new domain from billions of tokens</summary><div class="b">That is the capacity-limited regime: it learns less than full fine-tuning (Biderman et al.'s CPT runs). Use full fine-tuning or continued pretraining.</div></details>
+<details class="mist"><summary>Merging into 4-bit weights without checking</summary><div class="b">The adapter was trained against the dequantised base; merging and re-quantising adds a new rounding error, and some formats cannot merge at all. Evaluate the merged model, or serve the adapter separately.</div></details>
+<details class="mist"><summary>Reading a full fine-tune's high-rank update as proof LoRA will fail</summary><div class="b">The update full fine-tuning finds need not be the one the task requires (see {{How low is a real update?|#s-rank}}). Train both and compare on the task.</div></details>
+</section>
+</div>
