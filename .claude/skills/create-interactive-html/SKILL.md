@@ -32,9 +32,9 @@ Khalid asks for a page (or a whole topic) to be made HTML-only, or for an existi
 ## How
 1. **Set up the folder.** Find the page in `technical_knowledge_base/pages.json` (path, title, Notion id). Folder names are snake_case slugs of the Notion titles. A child page gets its own folder inside its parent's and its own manifest entry (`"parent"`).
 2. **Absorb the subject:** fetch the Notion page (read-only) if it is still written text, save it verbatim to `src/live.md`, read it with its child pages and resources until you could teach it.
-3. **Build** following the brief; for several pages at once, give each a subagent with `html_utils/BRIEF_page_agent.md` (ask Khalid before running a multi-agent Workflow; plain subagents are fine). Run at most about four at a time.
+3. **Build** following the brief; for several pages at once, give each a subagent with `html_utils/BRIEF_page_agent.md` (ask Khalid before running a multi-agent Workflow; plain subagents are fine). Run at most about four at a time, starting the next page as each finishes. A root page is built one subagent per tab (Part A of `html_utils/methods/topic_pages.md`); a child page's prompt names its parent root and the siblings and paper pages to link. Present finished pages to Khalid for review before publishing unless he has said to publish.
 4. **Check:** `sh html_utils/checkpage.sh <page folder>` must end `fail=0`, `emdash 0`, `errbox 1`. Look at the screenshots. Confirm `src/coverage.json` accounts for everything in `src/live.md`.
-5. **Record:** set the page's manifest entry to `"status": "html_only", "html": "index.html"` (plus `has_video`), add its ideas to `html_utils/interactive-html-ideas.md`, commit, then publish with the `sync-KB-github` skill.
+5. **Publish and record:** publish with the `sync-KB-github` skill (a page with child pages is cleared block by block with `update_content`, never `replace_content`), then `python3 html_utils/page_finalize.py <page folder>...` (sets `html_only`, records the published hash, copies the page's idea tables into the ideas log, commits; paper pages use `paper_finalize.py`) and `git push`. Append any general lesson to the method file's Lessons.
 
 ## Tooling
 `cd html_utils && npm ci` once (puppeteer with its own Chrome). Data scripts are plain Python 3 (stdlib, plus `pyyaml` in a few) and run from the page's `src/`.
