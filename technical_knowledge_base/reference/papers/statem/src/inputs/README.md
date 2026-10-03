@@ -1,0 +1,6 @@
+# Inputs
+
+- `paper_v1.txt`, `pages.txt`: `extract_paper.py` run on the arXiv PDF of 2608.15089v1 (fetched 2026-10-03). The arXiv HTML failed to convert after the title block, so the page links into the PDF by page (`pages.txt` lists where each section, figure and table starts). The PDF and the LaTeX source are not kept; the tables were transcribed from the LaTeX (`aw_exp.tex`, `main_arxiv.tex`) into `mk_tables.py`.
+- `tb21_leaderboard.json`: `fetch_leaderboard.py` run on 2026-10-03 against the GitHub API for the Terminal-Bench 2.1 leaderboard PRs #142 (StateM), #45, #47, #102, #105, #106, #112, #115: raw and reviewed accuracy, standard error, tokens, cost, errors, and for #142 the judge's flags and the thread's dates.
+- `deepseek_trials.json`: `audit_artifact.py` run on the authors' release `deepseek-policy9-tb21-artifacts-20260818` (440 trials; checksums verified against its SHA256SUMS). One compact row per trial, the gate-to-task map, and six full StateM histories (chosen by stated rules) for the replay tab. The 206 MB artifact is not kept; the download command is in the script's docstring.
+- `recompute.json`: written by `recompute.py` (38 checks and the derived numbers the page shows).

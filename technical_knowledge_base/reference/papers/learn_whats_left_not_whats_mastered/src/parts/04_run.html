@@ -1,0 +1,52 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Train the toy: multi-reward RL in a box</h2>
+<p>The paper's claim is about where the update goes when one objective is nearly solved and another is not. That can be tested exactly on a toy small enough to train in your browser in a second, with every method given the same samples, the same rewards and the same budget, including the comparison the paper never runs: GDPO with a smaller <i>fixed</i> weight on the easy objective.</p>
+<div class="co"><div class="t">The toy, in full <span class="ill">illustrative</span></div>
+<p class="small">A policy answers 200 question types. For each answer it picks a <b>method</b> (one of 5; one is right for each question; a table of logits per question, the "skill" it must learn) and a <b>reasoning length</b> (one of 10 bins from 150 to 4,100 tokens, from logits shared by all questions plus a term scaled by the question's difficulty, so length is a habit with limited capacity). An answer is correct if the method is right <i>and</i> a coin with probability 1 − e<sup>−1.6 L / need</sup> comes up, where each question's need is drawn from 150 to 8,000 tokens: longer reasoning helps, and some questions cannot be solved inside the budget. Two rule-based rewards, both bounded in [0, 1]: correctness, and length. Two settings mirror the paper's:</p>
+<ul class="small">
+<li><b>Binary budget</b> (Tables 1 and 4): length reward 1 up to 4,000 tokens; the starting habit exceeds it 0.48% of the time, so the length score starts above 99, as in Figure 2.</li>
+<li><b>Graded</b> (Table 2): 1 up to 1,024 tokens, linear to 0 at 2,048; the starting habit is verbose (80% of answers over 1,024), like a distilled reasoning model.</li>
+</ul>
+<p class="small">Training: 150 steps of 32 questions × 8 answers, Adam at learning rate 0.03, one update per batch (so GRPO's clipped ratio is 1 and its gradient is <i>Â</i> ∇log π), no KL term (the paper omits it too). Advantages exactly as the paper writes them, with an ε of 1e-6 in each standard deviation. Every number is measured exactly over all 200 questions, not sampled. Every toy number in the text comes from <code>toy_sweep.mjs</code> with 8 seeds; the trainer below reruns any of it.</p></div>
+
+<h3 id="runLiveH">Train one run</h3>
+<div class="card" id="runLive">
+<div class="ctl"><label>setting <select id="runSet"><option value="graded" selected>Graded length (Table 2 style)</option><option value="budget">Binary budget (Table 1 style)</option></select></label>
+<label>method <select id="runMeth"></select></label>
+<label>seed <select id="runSeed"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label></div>
+<div class="ctl" id="runCustom"><label>γ <b id="runGv"></b><input type="range" id="runG" min="0" max="3" step="0.05" value="0.5"></label><label>fixed length weight <b id="runWv"></b><input type="range" id="runW" min="0" max="1" step="0.05" value="1"></label></div>
+<div class="ctl"><button id="runGo" class="an-play">▶ Train 150 steps</button><label class="small"><input type="checkbox" id="runCmp" checked> show GDPO on the same seed for comparison</label></div>
+<div id="runSvg"></div>
+<div class="an-cnt" id="runOut"></div>
+<p class="small mute" style="margin:4px 0 0">Thick lines: accuracy and length reward measured exactly every 10 steps. Thin lines: the training batch's own mean rewards at every step, unsmoothed (what Figure 2 plots). Lower panel: the length objective's share of the weights, <i>w̃</i><sub>len</sub> / (<i>w̃</i><sub>len</sub> + <i>w̃</i><sub>correct</sub>), step by step; for SA-MRPO it falls as the length objective saturates.</p>
+</div>
+
+<h3 id="runAllH">All methods, 8 seeds each</h3>
+<div class="card" id="runAll"><div class="seg" id="runAllM" role="group" aria-label="Setting"><button class="on" data-m="graded" aria-pressed="true">Graded length</button><button data-m="budget" aria-pressed="false">Binary budget</button></div>
+<div id="runAllSvg" style="margin-top:8px"></div>
+<p class="small mute" id="runAllNote" style="margin:4px 0 0"></p></div>
+
+<h3 id="runFrontH">The test the paper skips: saturation weights against fixed weights</h3>
+<p>SA-MRPO changes one thing, how much weight the easy objective gets relative to the hard one, so its fair rival is GDPO with that weight simply set lower. Every point below is a final policy (8 seeds averaged): the γ sweep (SA-MRPO, γ = 0 to 3) against the fixed-weight sweep (GDPO, length weight 1 down to 0.05). A method is better only if it reaches more accuracy at the same length reward, that is, if its curve lies above the other.</p>
+<div class="card" id="runFront"><div class="seg" id="runFrontM" role="group" aria-label="Setting"><button class="on" data-m="graded" aria-pressed="true">Graded length</button><button data-m="budget" aria-pressed="false">Binary budget</button></div>
+<div id="runFrontSvg" style="margin-top:8px"></div>
+<div class="an-cnt" id="runFrontOut"></div>
+<div class="ctl"><button id="runFrontGo">Re-run both sweeps here (288 runs, about 10 s)</button><span class="small mute" id="runFrontSt"></span></div>
+<p class="small mute" style="margin:4px 0 0">Matched comparison: for each γ point, the fixed-weight curve's accuracy at the same length reward, by linear interpolation between its neighbouring points (an assumption; the curve is sampled at 10 weights). Error bars: ±1 standard error over the 8 seeds.</p></div>
+
+<h3 id="runShareH">How much of the update the easy objective draws</h3>
+<div class="card" id="runShare"><div id="runShareTbl" class="tw"></div>
+<p class="small mute" style="margin:4px 0 0">Share of groups in which each objective varies at all, and the length objective's share of the advantage's sum of squares before Eq. 1, averaged over the first and last 20 steps of the 8 runs. Under GDPO in the binary-budget setting the length objective varies in about 3% of groups at the start and draws about 4% of the update, falling to under 0.3%: there is little for SA-MRPO to reallocate, which is why every GDPO and SA-MRPO variant there ends within half a point of the others (66.8% to 67.2%).</p></div>
+
+<h3 id="runCheckH">Checked against PyTorch</h3>
+<div class="card" id="runCheck"><div id="runCheckOut"></div></div>
+
+<h3>What the toy can and cannot test</h3>
+<ul>
+<li><b>Can:</b> whether discounting a saturated objective's weight moves the final trade-off between objectives, and whether it does better than a fixed weight at the same trade-off, with every sample, reward and budget shared. Answer here: it moves along the same curve that fixed weights trace, and in the graded setting slightly below it.</li>
+<li><b>Can:</b> the paper's qualitative pattern in the graded setting: SA-MRPO raises accuracy and length together as γ grows, and erodes the saturated objective more at large γ (Table 4's Exceed).</li>
+<li><b>Cannot:</b> what shared parameters do inside a 7B model, where length, format and correctness share every weight and their gradients can interfere in ways a 200-row table and a 20-number length habit cannot. If SA-MRPO helps in large models, that interference, or the early phase of training, is where it would have to come from; the paper does not measure either.</li>
+<li><b>Cannot:</b> evaluation on held-out benchmarks. Accuracy here is on the training questions, measured exactly; the paper's results are on test benchmarks.</li>
+<li><b>Design log:</b> a first design (48 question types, 300 steps) saturated every method at 94% accuracy and was changed once before the sweep, so that correctness keeps headroom as in Figure 2; both results are in <code>inputs/toy_design_log.txt</code>. Nothing was tuned after the sweep.</li>
+</ul>
+</section>

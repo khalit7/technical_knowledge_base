@@ -1,0 +1,43 @@
+
+<section id="s-why"><h2>Why it matters</h2>
+<span class="where nolink">beyond the paper</span>
+<p><b>The design consequence:</b> Keep trajectories raw, pay the storage, and spend the compute at read time, which is the opposite of what a compaction-first harness does. The cleanest evidence is the distil-before-storing ablation: WebShop drops 6.8 to 8.2 points ({{Table 9|ax:A2.T9}}).</p>
+<p><b>The cost</b> is one extra LLM call per task, storage for whole trajectories and a retriever that must scale; the authors list these, plus a hand-designed payload format, as limitations ({{§5|ax:S5}}). <b>The gain for learning</b>: a curator graded on the task it just served is a one-step RL problem that any verifiable-reward setup can train, and being separate from the executor it can be trained cheaply and reused with an expensive one ({{Table 3|ax:S4.T3}}). Concurrent {{MemHarness|https://arxiv.org/abs/2607.28272}} also curates at read time, but in the executor itself, which ties the memory to that model ({{§2|ax:S2}}).</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li>{{Proactive Memory Agent|n:3e25c17b0d0d81ce85e0c6d82f6beb4c}} decides when to remind an agent of something it already holds, and {{SoL-Pi|n:3e25c17b0d0d81a0bb77f16cbc898bb5}} compacts what it carries forward. Both operate on an artifact whose content was fixed earlier, and this says the artifact should not be fixed earlier. (JitMem cites Proactive Memory Agent as arXiv 2607.08716, in-session memory, {{§2|ax:S2}}.)</li>
+<li>{{JIT-Agent|n:3cd5c17b0d0d81148227fbd67dc4b3ee}} makes the same just-in-time move one level up: it synthesises the agent's harness per task at inference time instead of fixing it beforehand.</li>
+<li>{{Demystifying Agent Skills|n:3c65c17b0d0d81249a3cf5fda4de5d92}} found skills distilled from identical trajectories beat raw workflow memory given to the agent. No contradiction: JitMem's executor gets a distillation too, only made late, for the task. {{Repo-To-Skill|n:3d45c17b0d0d818bacfeda8a40caddb2}} is write-time distillation at library scale.</li>
+<li>{{Trained Persistent Memory|n:3ce5c17b0d0d81978137dd8f8cab1c74}} and {{Latent Context Language Models|n:3d45c17b0d0d81eb90a8d70a5ce84d19}} compress memory or context before any query is known, the choice this paper argues against for cross-task memory; {{Agora|n:3e25c17b0d0d81399738c3e65f4bf900}} keeps an append-only raw record instead.</li>
+<li>Underneath it is {{RAG|n:3c65c17b0d0d816c889decc342a7ad39}}'s pattern (store raw, retrieve at query time, condition the reader on the query) with a trained curator between retriever and reader; the curator is trained with GRPO from {{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}, and the executors act in the reason-then-act loop of {{ReAct|n:3c65c17b0d0d816b9a24c28de8f08ea8}}, whose original results were on ALFWorld and WebShop.</li>
+</ul>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S4|§4, Appendix A, Tables 1, 6, 9]]
+<p><b>What holds up.</b> The direction is consistent: untrained read-time beats untrained write-time memory with the same curator model in 15 of 17 comparisons across three executors and three benchmarks. The headline gaps are 5.2 and 15.4 standard errors of the difference ({{tables tab|tab:t-tables:sigT}}). The ablations tell one coherent story. The appendix gives every prompt, the full GRPO configuration, hardware, run times and how the baseline was reproduced ({{Appendix A|ax:A1}}), and the authors state their limits (no gain on Airline and Retail, BM25, an extra call, a hand-designed payload; {{§5|ax:S5}}), which counts in their favour. 62 of 63 derived numbers recompute.</p>
+<p><b>The weaknesses, concretely:</b></p>
+<ol>
+<li><b>Most baselines are copied, not rerun.</b> 36 of the 60 baseline cells in Table 1 (the whole Qwen3-8B block, most of the Gemini block) match SkillOS's published tables to the decimal, standard deviations included; the paper only implies it, through {{Table 6|ax:A1.T6}}. Its own no-memory reproduction gave 42.1 SR on ALFWorld against the 47.9 listed, and 8.6 on WebShop only after adding search guidance to the executor prompt. That makes the no-memory comparison conservative, as the authors argue, but the memory baselines never ran in JitMem's harness. Only the GPT-5.4 block is all their own runs.</li>
+<li><b>The headline attributes the gain to the wrong cause.</b> In the two headline cells, RL training supplies 57% (ALFWorld) and 92% (WebShop SR) of JitMem's gain over no memory, and the trained curator with no retrieval at all already beats every baseline there ({{the question above|tab:t-read:pr-norag}}). So the claim that read-time curation itself is "a major source of the gain" is true of the untrained comparisons, not of the +16.2 and +16.3.</li>
+<li><b>Not like for like.</b> Table 4 omits the curator's call (up to 8,192 output tokens); the GPT-5.4 block has no trained write-time baseline, so its +8.8 and +10.9 set a trained curator against untrained ones.</li>
+<li><b>Three orderings of one fixed test set.</b> The spread covers ordering and sampling only; on tau2-bench the +3.9 is 1.7 standard errors (4 orderings). One ALFWorld task is 0.71 points.</li>
+<li><b>Validation split and tested checkpoint not stated.</b> Decoded from {{Figure 5|ax:A2.F5}}, every ALFWorld validation score is a multiple of 1/140, the size of the test set (ALFWorld's other split has 134 tasks, which does not fit). With the final checkpoint tested, nothing was selected on it; with the best one, the test numbers are optimistic. WebShop validation (100 tasks) peaks at step 75 and ends lower. One training run per curator.</li>
+<li><b>Small slip:</b> SkillOS-gpt's tau2 micro average is printed 66.4; its domains give 66.3.</li>
+<li><b>Nothing to check against.</b> No code, trained curator or trajectories are released (checked 3 October 2026).</li>
+</ol>
+<p class="lead"><b>Verdict:</b> believe the direction, not the headline's attribution. Curating at read time with the task in view beats distilling at write time in almost every like-for-like comparison, and storing raw trajectories clearly helps on WebShop. But the +16.2 and +16.3 are mostly the RL-trained curator (which already wins without any memory), measured against baselines copied from another paper's harness, and the tau2-bench gain is within noise.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>Code and licence:</b> none released (checked 3 October 2026). The untrained version can be built from the paper: every prompt is printed ({{Appendix A|ax:A1}}), retrieval is BM25 over task descriptions with <i>k</i> = 3, and the gate is the executor judging its own transcript.</li>
+<li><b>Per task:</b> one curator call and storage for every successful trajectory; in exchange the executor's prompt grows by about 1.9K tokens instead of 10.7K to 13.4K, with fewer steps ({{Table 4|ax:S4.T4}}).</li>
+<li><b>Training the curator:</b> needs a training split with a verifiable reward (tau2-bench had none, so it was never trained there). 100 GRPO steps of 32 tasks times 8 payloads is 25,600 executor episodes; one run took about 21 hours on ALFWorld and 27 on WebShop on 8 H200 GPUs, about 168 and 216 GPU-hours ({{Appendix A|ax:A1}}).</li>
+<li><b>What worked:</b> a curator trained against Qwen3-8B transferred to Gemini-2.5-Pro and GPT-5.4; with strong executors an untrained strong curator gets much of the gain for free (Gemini curating: 61.0 SR on WebShop, above the trained curator's 50.5).</li>
+<li><b>When it pays:</b> most for a small executor you can train against and for procedural tasks (Telecom +11.0); nothing on Airline and Retail. Banks here hold at most a few hundred trajectories; BM25 over task descriptions at thousands is untested.</li>
+</ul>
+</section>
+</section>

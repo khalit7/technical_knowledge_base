@@ -1,0 +1,43 @@
+
+<section id="s-train"><h2>Training: three kinds of data, four stages</h2>
+[[S4|§4, Table 1, App. C]]
+<p>The goal is to keep a strong model's abilities, not to win one task, so the data is broad ({{§4|ax:S4}}). Three kinds are mixed ({{§4.1|ax:S4.SS1}}, {{Figure 2|ax:S4.F2}}):</p>
+<ul class="tight">
+<li><b>Continual pre-training with interleaved compression.</b> Segments alternate between compressed (between <code>&lt;|memory_start|&gt;</code> and <code>&lt;|memory_end|&gt;</code>) and normal tokens, and the next-token loss is taken <b>only on the uncompressed tokens</b>. Prior work compressed the first half and trained on the second; interleaving teaches the model to condition on latents at many positions, not only at the start.</li>
+<li><b>Supervised fine-tuning</b> on reasoning, long-context instruction following and multi-turn chat, with compressed prompts and documents.</li>
+<li><b>Auxiliary reconstruction</b>: compress a document and ask the decoder to repeat it verbatim. It appears in both of the above.</li>
+</ul>
+<p><b>Why mix them</b> is the instructive part ({{App. C.1|ax:A3.SS1}}). Reconstruction alone gives a model that reconstructs with negligible loss and "cannot perform any other tasks, even when the LLM decoder is kept frozen": a general form of prefix tuning. Next-token prediction alone gives latents that support generation but lose exact strings. Neither failure is shown with numbers; both are "early experiments".</p>
+<details class="mist"><summary>The data sources and the exact compression format (App. C)</summary><div class="b">
+<p>Pre-training mixture: Common Crawl text, code, science and reasoning, long-context and instruction-style data, mostly NVIDIA's Nemotron sets plus about 500K long documents from OLMo-3's longmino ({{App. C.1|ax:A3.SS1}}). SFT: outdated completions relabelled with Qwen3-30B-A3B-Instruct-2507 and Qwen3-235B-A22B-Instruct-2507 (Apache-2.0 checkpoints), plus three synthetic long-context corpora: repository summarisation, document summarisation and repository-level code generation ({{App. C.3|ax:A3.SS3}}). Reconstruction: code, text, long documents, maths and LaTeX, with a bank of 100 prompt templates per source to stop the model overfitting one phrasing ({{App. C.2|ax:A3.SS2}}).</p>
+<p>Raw documents get a fixed alternation that starts with a wrapped (compressed) segment and ends with an unwrapped one. Documents over 16,384 tokens keep 8,192 trainable tokens; shorter ones keep half. Segment pairs: 1 under 2,048 tokens, 1 to 2 up to 4,096, 2 to 4 up to 8,192, 4 to 6 up to 16,384, 4 to 8 above. The first wrapped segment holds 30% to 40% of the wrapped tokens and the last unwrapped segment 40% to 50% of the trainable ones.</p>
+<p>Conversations are wrapped per message: with probability one half the whole message is enclosed; otherwise 1 to 3 wrapped regions are placed inside it (1 region for 32 to 200 tokens, 1 to 2 for 200 to 600, 1 to 3 above; messages under 32 tokens are always fully wrapped), covering 80% to 100% of the message with a 5% unwrapped gap where feasible, falling back to full wrapping below 70% coverage ({{App. C.4|ax:A3.SS4}}). Training packs several examples per sequence with a block-diagonal mask so they cannot see each other ({{App. E.4|ax:A5.SS4}}).</p>
+</div></details>
+<p><b>Staged training</b> ({{§4.2|ax:S4.SS2}}, {{Table 1|ax:S4.T1}}): Stage 0 trains the adapter only; Stage 1 unfreezes the encoder; Stage 2 unfreezes the decoder at a small learning rate (1e-5 against 6e-5); Stage 3 is SFT with the decoder at 3e-5. Training everything end to end from the start "underperforms": the decoder is not used to the encoder's output, both sides take large gradients, and the model degrades. It is the same align-then-finetune shape as vision-language model training (LLaVA, Cambrian). Variants that freeze the decoder or use LoRA, which is what most prior work does, "substantially underperform" (early experiments, no numbers).</p>
+<div id="tokSplit"></div>
+<p><b>The models</b> ({{§5|ax:S5}}): a Qwen3-Embedding-0.6B encoder and a Qwen3-4B-Instruct-2507 decoder, trained at 4x, 8x and 16x. "Over 350B tokens each" is a sum over both sides: in the 16x run the encoder reads <span id="tokEnc"></span>B tokens and the decoder <span id="tokDec"></span>B (its count includes latent positions), <span id="tokTot"></span>B together ({{Table 1|ax:S4.T1}}; the paper gives the token counts for the 16x run only). Training ran on 32 nodes of 4 AMD MI300A GPUs each; the from-scratch search on 16 such nodes ({{App. F|ax:A6}}).</p>
+</section>
+
+<section id="s-search"><h2>The architecture search</h2>
+[[S5|§5, Figure 3, App. D]]
+<p>This is the part anyone building a compressor would otherwise have to guess. The authors pretrain many variants <b>from scratch</b>, in a cleanroom: Qwen3-0.6B's architecture on both sides, all weights randomly initialised with one seed, everything trained end to end, 38B tokens per variant at <i>N</i> = 16 ({{§5|ax:S5}}). Starting from scratch matters because the pre-trained Qwen3-Embedding encoder already uses a causal mask and EOS pooling, which would bias the comparison. Four findings:</p>
+<ol class="tight">
+<li><b>Mean pooling beats token pooling.</b> Appending a CLS or EOS token per latent, as most prior work does, gives a higher loss than averaging each block. Concatenation is indistinguishable from mean at this scale; at scale they swap: concatenation is slightly better at 4x, mean at 16x ({{Figure 8|ax:A4.F8}}).</li>
+<li><b>The encoder window matters more than expected.</b> <i>W</i> = <i>N</i> (16) to <i>W</i> = 256 is called a large gain, 1,024 a further smaller one. Overlapping windows (so nothing is split across passes) sounds necessary and is not: no better loss, more compute ({{App. D.3|ax:A4.SS3}}).</li>
+<li><b>Causal encoder attention beats bidirectional</b>, consistently, although the encoder runs before decoding and has no autoregressive constraint. This cuts against the T5Gemma result, where keeping the encoder causal costs 4.1 and 4.7 points ({{T5Gemma §6|https://arxiv.org/html/2504.06225v1#S6}}; see the {{T5Gemma page|n:3d45c17b0d0d81a9a22ffaada508db5c}}).</li>
+<li><b>A plain two-layer MLP adapter beats an attention-based adapter</b>, at less compute, "in contrast to prior findings" ({{App. D.2|ax:A4.SS2}}).</li>
+</ol>
+<p>Also at scale ({{App. E.1|ax:A5.SS1}}): an encoder initialised from the embedding model (Qwen3-Embedding, itself trained from the LLM) beats one initialised from the LLM, with the gap narrowing over training.</p>
+<div class="pred" id="pq2" data-ans="0">
+<div class="q">In the from-scratch sweep (Figure 3), how far apart are the final losses of the best and the worst design?</div>
+<div class="opts"><button>About 0.02</button><button>About 0.2</button><button>About 1</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>0.022: the best design ends at 1.169 and the worst two at 1.191. These are the printed call-outs of {{Figure 3|ax:S4.F3}} (a 100-step running average at step 10,000; one run each), drawn on a scale that starts at the best value:</p>
+<div id="q2Bars" class="bars"></div>
+<p class="small">Read the gaps against the curves' own wiggle: in the figure the running average still moves by about 0.01 to 0.02 within a few hundred steps, and there is one seed per variant. The window step from 256 to 1,024 is 0.003; mean against concat is 0.002. Two things the figure shows that the text does not say: at <i>W</i> = 16, token pooling (1.182) is as good as mean pooling (1.183), so "mean beats token pooling" holds only with a wide window; and bidirectional attention and EOS pooling at <i>W</i> = 1,024 tie for worst.</p>
+</div></div>
+<p><b>Do the choices hold at scale?</b> The authors check each one in the full pipeline (pre-trained 0.6B encoder and 4B decoder) on loss ({{Figures 8 to 10|ax:A5.F10}}) and downstream ({{App. G.4|ax:A7.SS4}}). Side by side:</p>
+<div class="tw"><table class="clt" id="claimT"><thead><tr><th>Claim</th><th>From scratch (Fig. 3, 9)</th><th>At scale, loss</th><th>At scale, benchmarks</th><th>Holds?</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute">Loss values are the figures' printed call-outs (Figure 3's plot is a raster image; the others are vector text in the e-print, checked by <code>recompute.py</code>). Benchmarks are Tables 20, 26, 30 and 31; the seven columns are RULER 4K, 8K and 16K, LongBench English and Chinese, LongHealth and GSM8K. The {{Tables tab|tab:t-tables:abl}} has every row.</p>
+</section>

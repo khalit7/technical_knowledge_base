@@ -1,0 +1,42 @@
+
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Rebuild the winning prior</h2>
+<p>Nothing from the run is released, so this tab rebuilds the part of the agents' recipe that did almost all the work, Stage A ({{§4.4|ax:S4.SS4}}), from the paper's description, and measures it with the paper's own metric. We asked GPT-2 small for its next-token distribution after every one of the 50,257 tokens, under the paper's 28 contexts (and, separately, with no context), averaged the clipped log-probabilities into a 50,257 × 50,257 table, split off the column mean as the unigram anchor <i>u</i>, factorised the rest by randomized SVD exactly as Algorithm 1 says (rank 671, oversampling 32, one power iteration, fixed seed), and scored the resulting model on 200 FineWeb-Edu texts in 512-token chunks, in bits per byte.</p>
+<div class="co"><div class="t">Same as the paper, and not</div><b>Same:</b> the main donor (GPT-2 small carries weight 0.725 in the winning blend), the 28 contexts of {{Table 5|ax:A2.T5}}, the ±25 clip, averaging per-context log-softmaxes, the unigram anchor, the SVD settings, the temperatures <i>T<sub>b</sub></i> = 0.9314 and <i>T<sub>u</sub></i> = 1.00459, the corpus, chunking and metric. <b>Different:</b> one donor instead of six; equal context weights instead of the variance and naturalness row weights; no Stage B; logits computed directly as <i>u</i>/<i>T<sub>u</sub></i> + (rank-<i>r</i> part of <i>C</i>)/<i>T<sub>b</sub></i>, which §4.4 says is approximately what the target network computes; and our 200 texts (rows 0 to 199 of FineWeb-Edu's sample-10BT) are not theirs, which were never pinned ({{§4.8|ax:S4.SS8}}).</div>
+
+<h3>The ladder: our measurements beside the paper's milestones</h3>
+<div class="card"><div id="ldSvg"></div>
+<p class="small" id="ldNote"></p></div>
+
+<h3>How much rank does the prior need?</h3>
+<div class="card" id="rk">
+<p class="try"><b>Try:</b> slide the rank from 1 to the paper's 671 and to the full, unfactorised table; switch between one context and 28, and between plain softmax (T = 1) and the paper's tuned temperatures. Each point is a real measurement on the 200 texts.</p>
+<div class="ctl"><label>Rank <b id="rkV">671</b><input type="range" id="rkR" min="0" max="6" step="1" value="5"></label>
+<div><span class="small">Contexts</span><div class="seg" id="rkC"><button data-m="c1">1 (token alone)</button><button data-m="c28" class="on">28 (the paper's)</button></div></div>
+<div><span class="small">Temperatures</span><div class="seg" id="rkT"><button data-m="T1">T = 1</button><button data-m="Tpaper" class="on">paper's T<sub>b</sub>, T<sub>u</sub></button></div></div></div>
+<div id="rkSvg"></div>
+<div class="kpis" id="rkK"></div>
+<p class="small"><b>A finding of the rebuild:</b> with 28 contexts the rank-671 model (@@R:ours.stage_a_c28.ranks.671.T1:4@@ at T = 1) scores better than the full table it approximates (@@R:ours.stage_a_c28.full_bpb:4@@); with one context the two are the same (@@R:ours.stage_a_c1.ranks.671.T1:4@@ against @@R:ours.stage_a_c1.full_bpb:4@@). So the factorisation is not only a way to fit the table into a 672-wide network: on the context-averaged table, dropping the smallest singular directions smooths it and helps. That is our reading of two measurements, not something the paper reports or we tested further.</p>
+<p class="note">Energy captured is the share of the squared Frobenius norm of the centred table <i>C</i> carried by the top <i>r</i> singular values. The full table is scored without SVD, at T = 1 (no temperature split exists without the factorisation).</p></div>
+
+<h3>Replay one passage through four models</h3>
+<div class="card" id="rp">
+<div class="an-top"><div class="seg" id="rpM" role="group" aria-label="Model"><button data-m="uniform" aria-pressed="false">Uniform (≈ random init)</button><button data-m="unigram" aria-pressed="false">Unigram anchor u</button><button class="on" data-m="stage_a" aria-pressed="true">Stage A prior</button><button data-m="gpt2" aria-pressed="false">GPT-2, full context</button></div></div>
+<p class="small mute" style="margin:4px 0">The opening of the first text in our sample (FineWeb-Edu). Each box is one GPT-2 token with the bits the model paid for it; darker is more surprised.</p>
+<div id="rpSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rpBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rpPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rpFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rpScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="rpSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+<label class="small">Stage A rank <select id="rpRank"><option value="1">1</option><option value="4">4</option><option value="16">16</option><option value="64">64</option><option value="256">256</option><option value="671" selected>671</option><option value="full">full table</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rpStep"></div><p id="rpCap"></p></div>
+<div class="an-cnt" id="rpCnt"></div>
+<p class="note">The Stage A prior sees only the previous token (plus <i>u</i>): after " Jane" it rates " Aust" third (5%, 4.2 bits against 18.9 for the unigram anchor), and function words come cheap, but words that need the sentence (" romance", " scandal", " independence") cost about what the unigram pays; GPT-2 with context pays 0.5 bits for " Aust". Bits for the passage only; the passage is short, so its bits per byte differ from the 200-text figures above. Stage A here uses the 28 contexts and the paper's temperatures; top-3 predictions are shown at rank 671. GPT-2's tokens are bytes, and the curly apostrophe in "Austen’s" spans two of them; the first half shows as a dot.</p>
+</div>
+
+<h3>How noisy is a 200-text evaluator?</h3>
+<div class="card"><div id="nzTab"></div>
+<p class="small" id="nzNote"></p></div>
+
+<h3>How this was made</h3>
+<p class="small"><code>fetch_data.py</code> downloads the 200 texts; <code>stage_a.py</code> builds the tables (GPT-2 small through Transformers, three CPU threads; the 28-context table took @@R:ours.build_minutes_c28:0@@ minutes and its SVD @@R:ours.svd_minutes_c28:0@@), factorises them and scores every rank; <code>stage_a_demo.py</code> computes the per-text bits, the bootstrap (2,000 resamples over texts, seed 0) and the replay passage; <code>recompute.py</code> checks the measurements against the paper. Results are in <code>src/model/</code>; the 10 GB tables are rebuilt by the scripts and not kept. Our sample has @@R:ours.sample.predicted_tokens:0@@ predicted tokens and @@R:ours.sample.bytes:0@@ bytes (@@R:ours.sample.bytes_per_token:2@@ bytes per token).</p>
+</section>

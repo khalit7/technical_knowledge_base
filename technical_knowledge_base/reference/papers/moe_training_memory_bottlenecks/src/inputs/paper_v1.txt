@@ -1,0 +1,2187 @@
+Source: https://arxiv.org/html/2609.14306v1 (extracted by extract_paper.py)
+
+
+Flattening Every Memory Peak in Long-Context Mixture-of-Experts Training
+
+Xuan-Phi Nguyen†
+††thanks: Corresponding authors: {xnguyen,sjoty}@salesforce.com
+
+Shrey Pandit†
+
+Yiran Zhao†
+
+Shafiq Joty*
+
+Affiliation: Salesforce AI Research
+
+Abstract
+
+Training a Mixture-of-Experts (MoE) model at long context or large batch size
+fails as soon as any one component’s peak allocation exceeds device memory, so
+the target is every peak at once, not the average footprint. Four are left
+unbounded by the parallelism plans in common use, and each grows differently:
+expert dispatch with the routing matrix, the vocabulary projection with tokens
+times vocabulary, gradient checkpoint boundaries with depth times sequence
+length, and optimizer state with parameter count. Which one runs out first
+changes with the model, the context length, and the device count, so lowering
+the largest only exposes the next. We bound all four with schedules whose GPU
+working set is fixed at launch: PipelinedLLEP extends least-loaded expert parallelism
+with a cap on the tokens each source contributes to a dispatch chunk, Ring-DTP
+circulates activations or weight shards around a ring at the vocabulary
+projection and folds each block of logits into an online log-sum-exp,
+Selective checkpoint offload (SCO) keeps the one long-lived tensor of each
+checkpoint boundary in CPU memory, and OffloadStreamAdamW turns the serial CPU
+Adam update of optimizer offload into a bucket pipeline. All four change only
+the order and granularity of computation and data movement, so the loss and
+gradients stay exact. In matched component tests, they cut the MoE dispatch peak by
+up to $59.3\%$ without losing throughput, the vocabulary projection peak by
+ $86.6\%$ , and the offloaded optimizer step by $2.05\times$ faster. Composed on MoE
+models from 120B to 667B parameters, they train at 1M context length,
+ $8$ – $32\times$ the reach of a tuned FSDP2 baseline, and up to $10.4\times$ its
+throughput.
+
+Shrey Pandit†, Xuan-Phi Nguyen†,∗,
+Yiran Zhao, Shafiq Joty∗
+Salesforce AI Research
+†Equal contribution. ∗Corresponding authors:
+{xnguyen,sjoty}@salesforce.com
+
+1 Introduction
+
+Mixture-of-Experts (MoE) models are often trained at long context or large batch size at large scale of compute. However, when adding GPUs is rarely the available remedy, memory is traded for time. Every standard trade charges time: gradient checkpointing recomputes (Chen et al., 2016; Korthikanti et al., 2023), state sharding communicates (Rajbhandari et al., 2020; Zhao et al., 2023), and optimizer offload serializes the update on the host (Ren et al., 2021).
+A training step dies when any component’s peak memory occupancy exceeds the device’s capacity. So a plan that reduces three bottlenecks and leaves the fourth free to grow with the workload buys nothing at the point where the workload grows. Reaching longer context, or larger batches, or large model sizes means holding every component under the device ceiling at the same time.
+
+Which peak runs out first depends on the configuration.
+
+Peak memory is a maximum over live sets, the groups of tensors that must be resident simultaneously. In this work, we explore four components that are left unbounded by the parallelism plans in common use: expert dispatch grows with the routing matrix the router draws (Lepikhin et al., 2020; Rajbhandari et al., 2022), the vocabulary projection with the token-vocabulary product (Wijmans et al., 2025), retained gradient checkpointing boundaries with depth times sequence length (Chen et al., 2016), and AdamW state with parameter count (Loshchilov and Hutter, 2019). Because these grow at different rates, the largest of the four depends specific configuration: logits dominate at large vocabulary and long context, MoE dispatch at high routing imbalance, checkpointing boundaries at high depth, and optimizer state at large parameter count on few devices.
+
+A usable stack needs a bound on every term rather than a large saving on one, and each bound has to be separately enableable so a training run pays only for the peaks it has, which is why the four operators below are developed together. All four change only the order and granularity of computation and data movement, leaving the model, the parameterization, the optimizer, the precision, and the loss untouched: no low-rank adapters, no quantized state (Dettmers et al., 2022), and no approximate routing or attention. Memory and throughput figures are therefore directly comparable with standard full-parameter BF16 training.
+
+Four bounded-streaming operators.
+
+Each operator takes one established component, identifies what that component leaves unbounded, and replaces its schedule.
+
+(i) Expert parallelism shards experts across ranks (GPUs), so a rank must hold every token routed to the experts it owns, and the router decides how many that is (Lepikhin et al., 2020; Rajbhandari et al., 2022). Least-loaded expert parallelism (LLEP) removes the time cost of routing skew by moving routed work to idle ranks without changing any token’s expert choice (Nguyen et al., 2026a), but a rank still allocates for its whole routed batch at once. Our proposed PipelinedLLEP delivers the same routes in chunks and caps the tokens any source may place in a chunk, so a receiver’s buffers follow that cap and routing skew lengthens the schedule instead of enlarging the buffers.
+
+(ii) The vocabulary projection materializes a tokens-by-vocabulary logit tensor, which dominates memory once both factors are large. Fused cross-entropy kernels avoid it on a single device by streaming the log-sum-exp over vocabulary blocks (Wijmans et al., 2025; Hsu et al., 2024), and Megatron shards the weight but requires every rank to hold the same batch (Shoeybi et al., 2019), reducing effective batch size. Our Ring-DTP (ring data-tensor-parallel vocabulary projection) lets each rank keep its own distinct batch and circulates either the activations or the weight shards around a ring until every batch has met every shard, the exact loss and gradients are computed yet the large tensor is never formed.
+
+(iii) Gradient checkpointing buys memory with recomputation, yet one tensor per checkpointed layer, its input, still lives from the forward pass until that layer is recomputed (Chen et al., 2016). Our SCO (selective checkpoint offload) offloads a host-budget subset of those inputs into host memory, and prefetches them back one layer before the layer is recomputed.
+
+(iv) Optimizer offload stores AdamW state on CPU RAM, but a CPU update operation is slow, during which the GPU is idle and, having released its activations, nearly empty (Ren et al., 2021). Instead, our OffloadStreamAdamW (streamed offloaded AdamW) streams the parameters from host RAM to GPUs and compute the weight update there and write back. It leverages communication-computpation overlap to maximize the efficiency.
+
+Individual improvements.
+
+Each operator is measured against the baseline that solves the same problem, on identical input (Section 3).
+
+• 
+
+PipelinedLLEP lowers the MoE dispatch peak by up to $59.3\%$ against LLEP and runs with no noticeable slowdown against it.
+
+• 
+
+Ring-DTP removes $86.6\%$ of the vocabulary projection peak for under $5\%$ more time.
+
+• 
+
+SCO lowers the device peak monotonically in the host budget it is given, moves throughput by under $2\%$ , and raises the largest batch that completes by $17.7\%$ .
+
+• 
+
+OffloadStreamAdamW runs the offloaded optimizer step $2.05\times$ faster than the CPU AdamW it replaces.
+
+We compose the four operators inside the Mixture-of-Parallelisms (MoP) rank layout (Nguyen et al., 2026b).
+End to end on MoE models of 120B, 241B, and 667B parameters, the composed stack trains at one-million context length, $8$ – $32\times$ the reach of a tuned FSDP2 baseline, at up to $10.4\times$ its throughput and up to $12\times$ its largest global batch (Section 4).
+
+2 Four Scaling Axes
+
+Let $\Theta$ be the number of trainable parameters, $W$ the number of devices,
+ $N$ the tokens resident per rank, $H$ the hidden width, $V$ the vocabulary
+size, and $b$ the bytes per activation scalar. AdamW
+(Loshchilov and Hutter, 2019) ordinarily requires $16\Theta$ bytes for
+working weights, gradients, master weights, and moments. ZeRO-3 shards that
+persistent state, sequence parallelism reduces attention activations, and
+expert parallelism partitions expert weights
+(Rajbhandari et al., 2020; Zhao et al., 2023; Jacobs et al., 2023; Rajbhandari et al., 2022). What none of them bounds is the four live sets
+of Table 1, whose heights follow the workload and the model
+dimensions rather than the sharding degrees.
+
+Table 1: The four live sets of tensors that this paper targets to reduce peak memory by making large HBM materializations into streams.
+For MoE layers, $R_{d}$ is the routes received by destination $d$ , $E_{p}$ the expert-parallel degree, $k$ the routing degree,
+ $c_{\mathrm{eff}}$ the effective per-chunk token budget at and $q=kc_{\mathrm{eff}}$ the
+routes it emits. For projection layer, $P$ the tensor-parallel group size, For SCO, $\mathcal{S}$ the offloaded layer
+set, $N_{\max}$ the per-rank token ceiling, and $\beta$ the optimizer bucket
+size.
+
+Live set
+
+Unbounded size, and what sets it
+
+Stream axis
+
+Bounded working set
+
+Expert dispatch
+
+ $2R_{d}Hb$ ; realized routing matrix
+
+token chunks
+
+ $2E_{p}qHb$ 
+
+Vocabulary projection
+
+ $\mathcal{O}(NVb)$ logits; tokens $\times$ vocabulary
+
+vocabulary blocks
+
+ $\mathcal{O}(NVb/P)$ 
+
+Checkpoint boundaries
+
+ $\sum_{\ell\in\mathcal{S}}N_{\ell}Hb$ in HBM; depth $\times$ length
+
+decoder depth
+
+ $\leq 2N_{\max}Hb$ in HBM
+
+Offloaded AdamW
+
+serial host update of $12\Theta/W$ bytes
+
+parameter buckets
+
+ $\mathcal{O}(\beta)$ in HBM
+
+What each operator has to deliver.
+
+The four rows scale differently and need different schedules, but we hold each
+operator to the same requirements and check them one at a time in
+Section 3. Each operator has to return the
+forward values and the gradients of the implementation it replaces. It may only change the
+order of computation but the results must be the same. And its memorybound has to survive checkpoint
+recomputation, which rules out retaining anything sized by the routing matrix.
+As a checkpointed step reaches its peak inside backward, a bound that holds
+only in the original forward pass is not worth much.
+These four rows are the terms of the per-rank budget we target, collected in Equation 6; the remaining consumers of device memory are handled by established components.
+
+3 Four Bounded-Streaming Operators
+
+Each subsection gives the mechanism, the bound it delivers, and a benchmark that isolates the live set the operator governs. Benchmarks run on one eight-H200 node and hold the input fixed across the systems compared; configurations are in Appendix A. Composition follows in Section 4.
+
+3.1 PipelinedLLEP: Receiver-Bounded Expert Dispatch
+
+Under expert parallelism each rank owns only some of the experts, so a token routed to one of them has to travel to the rank that owns it, its destination $d$ . The number of routes $R_{d}$ to $d$ determines the size of its dispatch buffers (Lepikhin et al., 2020; Rajbhandari et al., 2022). That count grows with three things: the batch size, the routing top-k $k$ , and routing imbalance. LLEP removes the third of these by moving a popular expert’s overflow onto ranks that would otherwise be idle (Nguyen et al., 2026a). The first two remain: LLEP still holds the rank’s entire routed batch as the all-to-all materializes that batch in one tensor (Figure 2).
+
+PipelinedLLEP instead splits the batch into chunks, using a maximum token budget $c$ , and processes the chunks in a pipeline that overlaps communication with computation. The budget applies to each sending rank separately: a rank puts at most $c$ of its own tokens into any one chunk. The number of chunks $K$ is computed as:
+
+ $K=\min\!\left(\left\lceil N/c\right\rceil,\,K_{\max}\right),\qquad c_{\mathrm{eff}}=\left\lceil N/K\right\rceil,\qquad R_{d}^{(i)}\leq E_{p}kc_{\mathrm{eff}},$ 	
+
+(1)	
+
+where $N$ is the number of tokens on a rank, $k$ is the router’s top- $k$ , $E_{p}$ is the expert-parallel degree, and $K_{\max}$ is a predetermined limit on the number of chunks. $K$ is the number of chunks, $c_{\mathrm{eff}}$ is how many tokens a rank actually puts in one chunk, and $R_{d}^{(i)}$ is the number of routed tokens that destination $d$ receives in chunk $i$ .
+Each of the $E_{p}$ ranks puts at most $c_{\mathrm{eff}}$ tokens into chunk $i$ , and each token goes to $k$ experts, so one rank sends at most $kc_{\mathrm{eff}}$ routes in that chunk no matter which experts its tokens chose. Summing over the $E_{p}$ senders produces $E_{p}kc_{\mathrm{eff}}$ . No routed token is dropped to make this hold.
+Equation 1 contains only $E_{p}$ , $k$ , and $c_{\mathrm{eff}}$ , and none of them depend on what the router does (Figure 1a,b). A skewed router still sends more routes to one destination than to another, but it cannot push any buffer past this limit. When $N\leq cK_{\max}$ , the chunk limit is never reached and $c_{\mathrm{eff}}=c$ , so the buffers take at most $2E_{p}kcHb$ bytes together at hidden width $H$ and $b$ bytes per value. When $N>cK_{\max}$ , the number of chunks stops at $K_{\max}$ and each buffer is capped at a fixed $1/K_{\max}$ . Either way the limit is known beforehand. Deriving $K$ from $c$ allows the system to dynamically handle micro-batch length variations inflight without facing OOM.
+
+live memory(a) Standard EP and LLEPevery route the rank sends is live at oncetimeindispatchall-to-allexpertmatmulcombineall-to-alloutpeak $\propto kN$ : set by the router, not the launch(b) PipelinedLLEPone chunk of $c_{\mathrm{eff}}$ tokens per stage is live at oncetimeinoutpeak $\propto kc_{\mathrm{eff}}$ : set by the launch, not the routermemory thechunkingremovesdispatchexpert matmulcombine(c) Which tokens share a chunkLLEP fixes a route’s destination from its token’s position, so neighbouring
+positions share a destinationrows sentContiguous chunks1111222233334444tokens on the rank, labelled by destination; shaded cells form one chunk $d_{1}$ $d_{2}$ $d_{3}$ $d_{4}$ one destination gets the chunk: $6.0\times$ meanStrided chunks (PipelinedLLEP)1111222233334444 $d_{1}$ $d_{2}$ $d_{3}$ $d_{4}$ each destination gets a share: $\leq 2.4\times$ mean
+Figure 1: PipelinedLLEP limits expert dispatch by capping how many tokens each rank puts into a chunk. (a) Dispatching the whole batch at once causes peak memory to spike. (b) With $K$ chunks of $c_{\mathrm{eff}}$ tokens, a stage holds $1/K$ as much and the stages overlap, so peak memory stays under the limit of Equation 1.
+(c) LLEP rebalances loads by arranging token destinations into contiguous indices. But when the tokens are dispatched in chunks, a chunk of consecutive positions sends almost all of its routes to the same rank, reintroducing routing imbalance. PipelinedLLEP instead selects tokens for each chunk in strided order, spreading each chunk’s routes over the destinations, which balances the load for each chunk.
+At a 65K tokens batch, consecutive chunks causes routing peak of $6.0\times$ the average, while strided chunks stay within $2.4\times$ , which is worth up to $1.35\times$ in speed and up to $1.37\,\mathrm{GiB}$ of peak memory (Table 8).
+
+Why overlap alone is not enough.
+
+The $K$ chunks run through a three-stage pipeline: dispatch, then the grouped expert matmul (Gale et al., 2023), then combine. While chunk $i$ is on the tensor cores, the dispatch of chunk $i{+}1$ and the combine of chunk $i{-}1$ use the interconnect. Other systems build this same pipeline, but they choose the number of chunks to make the iteration fast (He et al., 2022; Shi et al., 2023; Hwang et al., 2023; Shi et al., 2024); we choose it to cap memory instead, which is a different criterion and gives a different guarantee. Overlap on its own also does not lower the peak during training, because a loop that calls the expert layer once per chunk keeps every chunk’s autograd graph alive until the layer’s backward pass runs. PipelinedLLEP therefore wraps each chunk’s expert matmul in a reentrant gradient checkpoint, nested inside the decoder layer’s non-reentrant gradient checkpoint (Chen et al., 2016; PyTorch Contributors, 2026a).
+The inner checkpoint frees one chunk’s intermediate tensors before the next chunk allocates its own, both forward and backward. Section B.1 gives the details and the gradient accounting.
+
+Which tokens go in which chunk.
+
+LLEP picks the rank that handles a route from the position of its token in the expert’s global token list. A chunk of consecutive positions inherits that grouping, so a chunk covering the relocated tail of a popular expert sends everything it has to a single helper rank, even when the layer’s plan is balanced overall. PipelinedLLEP therefore gives chunk $i$ the positions $i,i{+}K,i{+}2K,\dots$ (Figure 1c), which spreads each chunk’s routes over the destinations.
+Nothing else changes: the same tokens are sent, the relocation plan is the same, and every route goes to the same destination as before.
+Striding runs $1.03$ – $1.35\times$ faster and saves up to $1.37\,\mathrm{GiB}$ of peak memory (Table 8).
+
+bal.30/1650/1680/1695/16 $0$ $20$ $40$ $60$ OOMOOMOOMOOM(a) Peak allocated memory (GiB)standard EPLLEPPipelinedLLEPbal.30/1650/1680/1695/16 $0$ $50$ $100$ $150$ $200$ OOMOOMOOMOOM(b) Forward latency (ms)
+
+Shape
+
+LLEP (GiB)
+
+PipelinedLLEP (GiB)
+
+Peak saved
+
+Speedup vs. LLEP
+
+65K tokens/rank, $H{=}7168$ , top-8
+
+52.7–53.0
+
+21.4–22.9
+
+56.9–59.3%
+
+ $1.01$ – $1.10\times$ 
+
+Figure 2: Expert dispatch as routing skew grows, at 65,536 tokens per rank, $H=7168$ , $I=2048$ , 128 experts, top- $8$ , and $c=6554$ ( $K=10$ ). A profile skew-level label gives the degree of routing imbalance (such as 95/16, which means 95% tokens routed to hottest 16 experts). Section B.2 defines the family. At this shape standard EP runs out of memory as soon as the router is severely skewed. PipelinedLLEP saves up to 59% peak memory without significant slowdown. More details are provided in Appendix Sections B.2, 6 and 7.
+
+Isolated benchmark.
+
+As shown in Figure 2, PipelinedLLEP saves $56.9$ – $59.3\%$ over LLEP at $1.01$ – $1.10\times$ its speed; the saving grows with the unpartitioned live set. Peak memory is deterministic in the configuration and verified empirically. Standard expert parallelism is the faster of the three only where there is no skew to correct and no concentration to cap.
+
+3.2 Ring-DTP: Exact Vocabulary Projection over Distinct Batches
+
+A token’s cross-entropy loss does not need its whole logit row, only a running
+maximum, exponential sum, and the logit of its target. Those three
+scalars are the same size regardless of vocabulary size, so
+the vocabulary can be visited one block at a time and the logit tensor never
+has to exist. Fused cross-entropy kernels use this on a single device
+(Wijmans et al., 2025; Hsu et al., 2024); the difficulty here is that the batch and
+the projection weight are both sharded across ranks.
+
+Rank $r$ holds a distinct local batch $X_{r}\in\mathbb{R}^{N\times H}$ with
+targets $t_{r}$ and owns the vocabulary interval $\mathcal{V}_{r}$ of size $V/P$ , so
+ $W_{\mathrm{voc}}\in\mathbb{R}^{H\times V}$ is column-sharded as
+ $W_{r}:=W_{\mathrm{voc}}[:,\mathcal{V}_{r}]$ . Megatron’s vocabulary-parallel uses the same weight partition but requires every rank to hold the
+same $X$ (Shoeybi et al., 2019), which reduce the effective batch size and long-context scalability.
+By using a data-parallel-like layout, Ring-DTP preserves the distinct $X_{r}$ and arranges $P$ ring-like rounds of data transfer and computation. Over those rounds, every batch
+ $X_{j}$ is co-located with every shard $W_{r}$ once
+(Figure 3).
+A round forms only the logit strip
+ $Y_{j,r}=X_{j}W_{r}\in\mathbb{R}^{N\times V/P}$ , folds its partial normalizer and
+target logit into the running per-token state $S_{j}=(m_{j},z_{j},y_{t_{j}})$ , and
+releases the strip. Peak logit memory is then
+
+ $M_{\mathrm{logit}}^{{Ring-DTP}}=\mathcal{O}(NVb/P),$ 	
+
+(2)	
+
+where $b$ is the number of bytes per value.
+For one token, the logits $y$ of each strip update the running state in the
+standard online-softmax form (Milakov and Gimelshein, 2018; Dao et al., 2022):
+
+ $m^{\prime}=\max(m,\max_{v}y_{v}),\qquad z^{\prime}=e^{m-m^{\prime}}z+\sum_{v}e^{y_{v}-m^{\prime}}.$ 	
+
+(3)	
+
+After all $P$ rounds the exact negative log-likelihood is $m+\log z-y_{t}$ .
+Backward recomputes the gradients one strip at a time from the saved normalizer via the same ring, so neither pass stores a full logit tensor.
+
+(a) $P$ rounds on one ringrank 1 $X_{1},W_{1}$ rank 2 $X_{2},W_{2}$ rank 3 $X_{3},W_{3}$ rank 4 $X_{4},W_{4}$ one hop per iteration, so each $X_{j}$ meets each $W_{r}$ exactly once(b) A round keeps one strip $X_{j}$ $N{\times}H$ $\times$ $W_{r}$ $H{\times}V/P$ $=$ strip $Y_{j,r}$ $N{\times}V/P$ releasedfold $m_{j}$ $z_{j}$ $y_{t_{j}}$ $S_{j}$ (c) Logit footprint $N{\times}V$ dense $\mathcal{O}(NVb)$ neverformedRing-DTP $\mathcal{O}(NVb/P)$ 
+Figure 3: Ring-DTP evaluates the vocabulary projection without materializing
+logits. (a) Ranks hold distinct local batches and distinct
+vocabulary shards; one hop per iteration puts every batch with every
+shard exactly once, drawn for $P=4$ . (b) A round forms one strip
+ $Y_{j,r}$ , folds its normalizer and target logit into the three-scalar
+per-token state $S_{j}$ , and releases the strip. (c) Only one strip
+of $V/P$ columns is ever live, so the logit footprint falls by $P$ and the
+ $N{\times}V$ tensor is never formed.
+
+Which tensor travels, and at what price.
+
+Either the activations $X_{j}$ or the weight shard $W_{r}$ can move. Ring-DTP chooses the cheapest option dynamically. The move-weights schedule (Figure 9) keeps $(X_{j},t_{j},S_{j})$ on its rank and sends $W_{r}$ around the ring, so forward needs no return hop, unlike a ring that can only move one of the two tensors (Liu et al., 2024). Bytes sent per hop are $\mathcal{O}(NH)$ if activations move and $\mathcal{O}(HV/P)$ if weights move. We move weights exactly when $N>V/P$ . Backward replays the same rounds, and the gradient of the moving tensor travels with it. Sharding also cuts persistent projection storage and its backward workspace by $P$ . The cost is $P{-}1$ sequential hops per pass. We therefore choose the smallest $P$ for which the $NV/P$ strip fits. Target-column ownership and gradient derivations are in Appendix C.
+
+Table 2: Vocabulary projection at $P=8$ on a distinct local batch of $N$ per
+GPU with $H=7{,}168$ and $V=200{,}000$ in FP32, measured over hidden states to
+target-token log-probabilities and backward. The standard reference
+materializes full logits and log-softmax. Auto-mode picks move-weights when
+ $N>V/P$ , so the two rows cover one branch each: $N=16{,}384$ falls below
+ $V/P=25{,}000$ and $N=32{,}768$ exceeds it. Peak and latency come from one
+measured pass. Per-tensor
+detail is in Tables 10 and 11.
+
+Forward+backward peak (GiB)	
+Latency (ms)	
+
+ $N$ 	
+Schedule	
+Standard	
+Ring-DTP	
+Saved	
+Standard	
+Ring-DTP	
+Cost	
+
+16,384	
+move-activations	
+42.462	
+7.322	
+82.8%	
+1001.2	
+1052.2	
+ $+5.1\%$ 	
+
+32,768	
+move-weights	
+79.521	
+10.622	
+86.6%	
+2065.2	
+2155.8	
+ $+4.4\%$ 	
+
+Isolated benchmark.
+
+Table 2 measures both branches at $P=8$ , with the local batch $N$ chosen
+so that auto-mode moves activations in one row and weights in the other. In both cases, the peak falls by $82.8\%$ and $86.6\%$ 
+for at most $5.1\%$ more time. Doubling $N$ nearly doubles the standard
+baseline, from $42.5$ to $79.5\,\mathrm{GiB}$ , while Ring-DTP moves from $7.3$ to
+ $10.6\,\mathrm{GiB}$ , so the saving widens as context grows. That is what lets the
+vocabulary head stay on device at 1M context length, where the logit
+tensor alone would exceed HBM. The move-weights branch scales best with context length, as its per-hop payload $\mathcal{O}(HV/P)$ does not grow with token count.
+
+3.3 SCO: Exact Gradient Checkpointing Boundary Offload
+
+Under gradient checkpointing, the layer input $h_{\ell}\in\mathbb{R}^{N_{\ell}\times H}$ stays on the device from the forward pass until that layer is recomputed in backward. This retained input is the checkpoint boundary.
+
+SCO moves a subset of those boundaries to pinned host memory. It walks the checkpointed layers in forward order and offloads each boundary that still fits in the host budget; those layers form the set $\mathcal{S}$ (Figure 4a). Each selected boundary is copied to the host asynchronously during forward, and the device copy is then freed. Layers that do not fit keep their boundaries on the device.
+
+Backward visits layers in reverse. While layer $\ell$ recomputes from $h_{\ell}$ , the next boundary $h_{\ell-1}$ is copied back from the host on a separate stream (Figure 4b). At most two restored boundaries are therefore live on the device at once. Let $N_{\max}$ be the per-rank token ceiling. The restore working set and the host occupancy of $\mathcal{S}$ then satisfy
+
+ $M_{\mathrm{HBM}}^{{SCO}}\leq 2N_{\max}Hb,\qquad M_{\mathrm{host}}\leq|\mathcal{S}|N_{\max}Hb.$ 	
+
+(4)	
+
+The offloaded set stays in host memory until the step ends. Transfer ordering and session cleanup are in Appendix D.
+
+(a) Host budget offloads some boundaries $h_{1}$ $h_{2}$ $h_{3}$ $h_{4}$ $h_{5}$ $h_{6}$ decoder depthhost budgetwhole $h_{\ell}$ offloadedwhole $h_{\ell}$ on device(b) Backward prefetchpinned host holds $h_{1},\ldots,h_{|\mathcal{S}|}$ until the step endsin useprefetch $h_{4}$ $h_{3}$ $h_{3}$ $h_{2}$ $h_{2}$ $h_{1}$ $h_{1}$ –prefetchbwd 4bwd 3bwd 2bwd 1backward visits $\ell$ in reverseat most two restores on the device
+Figure 4: SCO offloads checkpoint boundaries up to a host budget and prefetches them during backward. (a) Each bar is one layer’s checkpoint boundary $h_{\ell}$ . Orange bars fit the host budget and are copied entirely to pinned memory; gray bars stay on the device. (b) During backward, while $h_{\ell}$ is in use, $h_{\ell-1}$ is copied back asynchronously.
+
+Table 3: Matched SCO budget sweep on gpt-oss-20b (OpenAI, 2025), 8xH200 GPUs,
+sequence and expert parallelism of degree eight. Every policy processes a configured global batch size of 556432 tokens. Full sweeps are in Tables 12 and 13.
+
+Host budget
+
+Boundaries
+
+Peak HBM (GiB)
+
+Node RAM (GiB)
+
+Throughput (tok/s/GPU)
+
+Largest 10-step batch
+
+Off
+
+0 / 47
+
+139.790
+
+402.517
+
+2,641
+
+557,056
+
+ $8\,\mathrm{GiB}$ 
+
+21 / 47
+
+133.546
+
+487.990
+
+2,692
+
+589,824
+
+ $16\,\mathrm{GiB}$ 
+
+42 / 47
+
+125.677
+
+573.473
+
+2,687
+
+622,592
+
+Full
+
+47 / 47
+
+123.728
+
+593.410
+
+2,687
+
+655,360
+
+Isolated benchmark.
+
+Table 3 shows HBM-RAM trade off. The device
+peak falls monotonically with the host budget, allowing more memory headroom for other GPU tasks, where node memory rises by
+approximately the same amount. Throughput moves by $1.9\%$ across settings
+with no monotone trend, and while saving $17.65\%$ of HBM consumption. Measured against the largest batch that runs without an
+out-of-memory error, the gain is $35.71\%$ (Table 13).
+
+3.4 OffloadStreamAdamW: Bounded GPU Updates over Host CPU State
+
+When HBM capacity is at the limit, it makes sense to offload the optimizer and its state to CPU (Ren et al., 2021; Rajbhandari et al., 2021), and the price is that a CPU AdamW update is slow, during that time the GPU device is idle and, having released its activations, largely empty in the HBM.
+We make use of the idle GPU as the update engine by streaming CPU-resident states to GPU and back.
+Specifically, OffloadStreamAdamW partitions each
+rank’s state into buckets of at most $\beta$ parameters and rotates them
+through $s$ staging slots and three streams: (i) host-to-device transfer of
+master weights, moments, and final gradients; (ii) a fused GPU AdamW update and
+bf16 working-weight refresh; and (iii) write-back of updated fp32 state
+(Figure 5). For $G$ buckets,
+
+ $T_{\mathrm{stream}}=G\max(T_{\mathrm{H2D}},T_{\mathrm{update}},T_{\mathrm{D2H}})+\mathcal{O}(T_{\mathrm{H2D}}+T_{\mathrm{update}}+T_{\mathrm{D2H}}),\quad M_{\mathrm{stage}}=\mathcal{O}(s\beta).$ 	
+
+(5)	
+
+The floor for any offloaded optimizer is the host-link round trip of
+ $12\Theta/W$ bytes, so the design goal is to hide the update and the write-back
+behind that transfer.
+
+(a) The offloaded update, serialized and streamedhost AdamWone serialized update over all $\Theta/W$ parametershost $\to$ deviceGPU AdamWdevice $\to$ host123451234512345timeperiod $\max(T_{\mathrm{H2D}},T_{\mathrm{upd}},T_{\mathrm{D2H}})$ (b) Device bytes per rank $4\Theta/W$ $12\Theta/W$ stateresident $4\Theta/W$ staging $\mathcal{O}(s\beta)$ streamed $12\Theta/W=116\,\mathrm{GiB}$ at $\Theta=10^{12}$ , $W=96$ 
+Figure 5: OffloadStreamAdamW. (a) Optimizer offload serializes one CPU update
+over all $\Theta/W$ parameters. OffloadStreamAdamW instead partitions $\Theta$ into buckets and rotating them through transfer, update, and write-back streams, leveraging communication-computation overlap. (b) Device bytes per rank: offload removes the $12\Theta/W$ optimizer state and
+streaming adds only $\mathcal{O}(s\beta)$ of staging.
+
+Table 4: Optimizer step on gpt-oss-20b, 8xH200 GPUs. The baseline is the AVX-vectorized CPU Adam kernel of
+ZeRO-Offload. Both sides keep the same fp32 master weights and moments in host
+memory. Staging is resident memory per GPU. Bucket-size sweeps are in
+Table 14.
+
+Configuration	
+Step time (s)	
+Speedup	
+Staging (GiB/GPU)	
+
+CPU Adam (Ren et al., 2021)	
+3.95	
+ -- 	
+0	
+
+Streamed, 2 slots	
+1.93	
+ $\mathbf{2.05\times}$ 	
+4.234	
+
+Isolated benchmark.
+
+Table 4 compares the OffloadStreamAdamW against the AVX CPU Adam kernel of
+ZeRO-Offload (Ren et al., 2021) that it replaces, with the same fp32
+master weights and moments on the host in both cases. Rotating the same update
+through the idle GPU takes the step from $3.95$ to $1.93$  s, a
+ $2.05\times$ speedup. Two slots are enough
+to keep the transfer stream busy. Making the queue deeper but increasing staging slots $s$ leaves step time unchanged. That insensitivity to $s$ is consistent with the pipeline being transfer-bound at the $12\Theta/W$ host-link floor of Equation 5.
+
+3.5 Composition and the Per-Rank Budget
+
+The four operators bound disjoint live sets: dispatch temporaries inside MoE
+layers, logit strips at the output head, boundaries spanning layers, and
+optimizer state at update time. None requires any other, and each can be
+enabled alone. For the combined system we place them inside the MoP rank
+layout (Nguyen et al., 2026b), which supplies the surrounding
+component-specialized assignment of ZeRO-3 for dense weights, a
+sequence-to-head all-to-all for attention, and expert-parallel placement for
+expert weights. The $W$ devices form overlapping sub-groups of sizes $D$ ,
+ $E_{p}$ , and $P$ for sequence, expert, and vocabulary work, and every rank owns a
+distinct token shard and a shard of each weight it touches, so the three
+degrees are choices on one rank set rather than multiplicative axes of a device
+equation $W=d\,t\,p$ . The per-rank device budget is then
+
+ $M_{\mathrm{peak}}^{\mathrm{integrated}}=\underbrace{\tfrac{4\Theta}{W}}_{\text{weights, grads}}+\underbrace{\mathcal{O}(s\beta)}_{\text{opt.\ staging}}+\underbrace{\mathcal{O}(NHb)}_{\text{attention}}+\underbrace{\mathcal{O}(E_{p}qHb)}_{\text{dispatch}}+\underbrace{\mathcal{O}(NVb/P)}_{\text{strips}}+\underbrace{\mathcal{O}(NHb)}_{\text{boundaries}}.$ 	
+
+(6)	
+
+Every quantity on the right is fixed by model or launch configuration once
+ $N\leq N_{\max}$ , which is the property the four operators exist to deliver: a
+configuration can be checked for feasibility before it is launched. Two
+distinct savings meet in the first two terms and are worth separating: host
+offload supplies the reduction from $16\Theta/W$ to $4\Theta/W$ of persistent
+state (Ren et al., 2021), while OffloadStreamAdamW reduces the time that
+offload costs.
+
+4 End-to-End Integration
+
+Section 3 priced each operator against the baseline that solves the same problem in isolation. This section runs all four together inside the MoP rank layout of Section 3.5, on three MoE models of 120B, 241B, and 667B parameters at 16, 32, and 64 H200 GPUs. The comparison is FSDP2-best, the highest-throughput configuration of a sweep over FSDP2 combined with expert, context, and tensor parallelism (Zhao et al., 2023), on the same model at the same GPU count. Model dimensions are in Appendix A.
+
+Figure 6: End-to-end training at matched model and GPU count. Top: per-GPU token throughput. Bottom: per-GPU floating-point rate, against a dashed line at $10\%$ model FLOP utilization. In both, the solid line is the best FSDP2 configuration at each length and the faint markers are the dominated ones from the same sweep, the diamonds are the composed stack, and the shaded band covers lengths at which no FSDP2 configuration fits. Token throughput falls with context while the floating-point rate rises, because attention work per token grows with context.
+
+Context reach and throughput.
+
+Figure 6 (top) plots per-GPU token throughput against context length. FSDP2-best exhausts device memory past 128K, 32K, and 64K tokens at the three scales, while the composed stack trains at one million tokens at all three, which is $8$ – $32\times$ the reach. It is also the faster of the two at the longest length FSDP2-best reaches, by $7.6\times$ at 128K on 120B and $10.4\times$ at 64K on 667B. At 241B, FSDP2-best stops at 32K, four times below our shortest configuration.
+Figure 6 (bottom) reports TFLOPS/s. On that axis the trend reverses because of attention. Our per-GPU rate roughly doubles between 128K and 1M tokens at all three scales, from $91$ – $110$ to $213$ – $233$ TFLOP/s, while FSDP2-best stays below $40$ anywhere in its sweep. At those same lengths, the composed stack delivers $2.2\times$ the baseline’s rate at 667B scale.
+
+Figure 7: Batch and context frontiers at matched model and GPU count. (a) Largest global batch that runs, in distinct tokens per forward and backward pass. (b) Longest context that runs without exhausting device memory, on a log axis. Multiples are against FSDP2-best at the same scale.
+
+Batch size.
+
+Device memory that a step does not commit to a fixed working set is available for tokens, and Figure 7 gives the two axes it can be spent on. The largest global batch that runs is $1.5$ M, $1.8$ M, and $3$ M distinct tokens per forward and backward pass, which is $12\times$ , $7\times$ , and $3\times$ the baseline’s, and the longest context that runs is 1M tokens at every scale. Both follow from the same property. Every term of Equation 6 is fixed by model or launch configuration, so a workload that grows becomes more streamed work rather than a larger footprint. Training quality remains unchanged, as shown in Appendix A.
+
+5 Related Work
+
+Parallelism and expert dispatch.
+
+Megatron-style tensor, sequence, and pipeline parallelism factor devices into a
+global grid (Shoeybi et al., 2019; Korthikanti et al., 2023), ZeRO and FSDP
+shard model state (Rajbhandari et al., 2020; Zhao et al., 2023), expert parallelism
+partitions sparse experts (Rajbhandari et al., 2022), Ulysses shards
+long sequences (Jacobs et al., 2023), and MoP assigns a schedule per
+component over overlapping sub-groups of one rank set (Nguyen et al., 2026b);
+this paper supplies the operator definitions, bounds, exactness conditions, and
+mechanism-level evaluation that layout leaves unspecified. FasterMoE, Lina,
+PipeMoE, and ScheMoE partition dispatch to overlap communication, choosing the
+partition count for bandwidth utilization
+(He et al., 2022; Li et al., 2023; Shi et al., 2023; Shi et al., 2024), which sizes the receive buffer before
+the partition is applied and leaves the footprint following the realized load.
+PipelinedLLEP asks the different question of what a destination may receive, and
+answers it with a token budget on each source, a chunk membership policy that a
+relocated assignment plan requires, and a nested checkpoint contract that holds
+the resulting bound through checkpointed backward. Placement methods
+redistribute skew across devices (Zhai et al., 2023; Nie et al., 2023; Nguyen et al., 2026a) and
+compose with the budget, since a placement fitted to observed co-selection
+statistics carries no guarantee for the next routing matrix.
+
+Streamed losses, activations, and optimizer state.
+
+Cut Cross-Entropy evaluates the log-sum-exp on the fly in on-chip memory
+(Wijmans et al., 2025) and Liger-Kernel fuses the projection with
+cross-entropy over chunked inputs (Hsu et al., 2024), both resting on the
+online-softmax recurrence (Milakov and Gimelshein, 2018) behind FlashAttention
+(Dao et al., 2022), while Megatron’s vocabulary-parallel
+cross-entropy shards the weight and reduces per-shard statistics across
+tensor-parallel ranks (Shoeybi et al., 2019). Each assumes away the case
+Ring-DTP addresses, since the fused kernels loop over a batch resident on one
+device and the vocabulary-parallel reduction needs a replicated batch, so no
+schedule is required; Ring Attention circulates key-value blocks around a ring
+(Liu et al., 2024), where no payload choice arises because only one
+operand can move. For activations, checkpointing and rematerialization reduce
+retained interiors (Chen et al., 2016; Jain et al., 2020; Kirisame et al., 2021), hooks and swapping
+relocate them (PyTorch Contributors, 2026b; Peng et al., 2020), and DeepSpeed
+(DeepSpeed Team, 2026) and PyTorch (PyTorch Contributors, 2026a)
+offload checkpoint regions wholesale, whereas SCO offloads a host-budget subset of checkpoint boundaries and prefetches them one layer ahead. ZeRO-Offload and ZeRO-Infinity move
+optimizer state and its update to lower tiers
+(Ren et al., 2021; Rajbhandari et al., 2021), while 8-bit quantization
+(Dettmers et al., 2022) and block-shared learning rates
+(Zhang et al., 2025) shrink it by changing numerics, which this setting
+excludes.
+
+6 Conclusion
+
+MoE training at long context or large batch size fails for four unrelated
+reasons whose relative heights move with the configuration, so a stack is usable
+only when every one of them has a bound and none of the bounds is mandatory. We
+gave each a schedule whose GPU working set follows from launch configuration: a
+per-source token budget for dispatch, a ring of vocabulary meetings, a host-budget checkpoint-boundary offload, and a bucket pipeline for the offloaded
+update. Together they yield a closed-form per-rank budget in which every term is
+fixed once the token ceiling is set, and matched component tests show each bound
+holding at a throughput cost we measure. Composed inside the MoP rank layout at
+120B, 241B, and 667B, the stack trains at one-million-token context where a tuned
+FSDP2 baseline runs out of memory between 32K and 128K, and spends the memory it
+saves on a larger batch as readily as on a longer context.
+
+7 Limitations
+
+Four boundaries follow from occupying the memory-efficiency end of the space.
+All-to-all and ring traffic assumes a fast interconnect, so the launch-count
+trade that makes additional chunks inexpensive on the intra-node NVLink measured
+here could differ across a slower fabric. A smaller token budget tightens the
+receiver bound and raises the chunk count by the same factor, and forward time is
+flat in the chunk count only over part of that range, so $c$ is selected from a
+measured curve rather than minimized (Figure 8). Checkpoint
+and optimizer streaming spend host capacity and link bandwidth, which binds on
+nodes with less host memory than the $2$  TB used here. Topology
+sensitivity and automatic selection of $(D,E_{p},P,c,\beta)$ remain open.
+
+The Use of Large Language Models
+
+Large language models were used as a writing and coding aid. For the
+manuscript, they assisted with drafting and editing prose, tightening captions,
+and formatting references; every claim, number, and citation was checked
+against the source measurements and the cited papers by the authors. For the
+implementation, they assisted with routine code editing and test scaffolding;
+all operators, correctness tests, and measurements were designed, reviewed, and
+executed by the authors. Large language models were not used to generate
+research ideas, experimental designs, or results, and the authors take full
+responsibility for the content of this paper.
+
+References
+
+Chen et al. (2016)
+T. Chen, B. Xu, C. Zhang, and C. Guestrin
+
+Training deep nets with sublinear memory cost.
+
+arXiv preprint arXiv:1604.06174.
+
+External Links: Link
+
+Cited by: §1,
+§1,
+§1,
+§3.1,
+§5.
+
+Dao et al. (2022)
+T. Dao, D. Y. Fu, S. Ermon, A. Rudra, and C. Ré
+
+FlashAttention: fast and memory-efficient exact attention with IO-awareness.
+
+In Advances in Neural Information Processing Systems (NeurIPS),
+
+External Links: Link
+
+Cited by: §3.2,
+§5.
+
+DeepSeek-AI (2024)
+DeepSeek-AI
+
+DeepSeek-V3 technical report.
+
+arXiv preprint arXiv:2412.19437.
+
+External Links: Link
+
+Cited by: Appendix A.
+
+DeepSpeed Team (2026)
+DeepSpeed Team
+
+Activation checkpointing: cpu_checkpointing and contiguous_memory_optimization.
+
+Note: https://deepspeed.readthedocs.io/en/latest/activation-checkpointing.htmlDeepSpeed documentation
+
+Cited by: §5.
+
+Dettmers et al. (2022)
+T. Dettmers, M. Lewis, S. Shleifer, and L. Zettlemoyer
+
+8-bit optimizers via block-wise quantization.
+
+In International Conference on Learning Representations (ICLR),
+
+External Links: Link
+
+Cited by: §1,
+§5.
+
+Du et al. (2025)
+W. Du, S. Toshniwal, B. Kisacanin, S. Mahdavi, I. Moshkov, G. Armstrong, S. Ge, E. Minasyan, F. Chen, and I. Gitman
+
+Nemotron-Math: efficient long-context distillation of mathematical reasoning from multi-mode supervision.
+
+arXiv preprint arXiv:2512.15489.
+
+External Links: Link
+
+Cited by: Appendix A.
+
+Gale et al. (2023)
+T. Gale, D. Narayanan, C. Young, and M. Zaharia
+
+MegaBlocks: efficient sparse training with mixture-of-experts.
+
+In Conference on Machine Learning and Systems (MLSys),
+
+External Links: Link
+
+Cited by: §3.1.
+
+He et al. (2022)
+J. He, J. Zhai, T. Antunes, H. Wang, F. Luo, S. Shi, and Q. Li
+
+FasterMoE: modeling and optimizing training of large-scale dynamic pre-trained models.
+
+In ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming (PPoPP),
+
+External Links: Link
+
+Cited by: §3.1,
+§5.
+
+Hsu et al. (2024)
+P. Hsu, Y. Dai, V. Kothapalli, Q. Song, S. Tang, S. Zhu, S. Shimizu, S. Sahni, H. Ning, and Y. Chen
+
+Liger kernel: efficient Triton kernels for LLM training.
+
+arXiv preprint arXiv:2410.10989.
+
+External Links: Link
+
+Cited by: §1,
+§3.2,
+§5.
+
+Hwang et al. (2023)
+C. Hwang, W. Cui, Y. Xiong, Z. Yang, Z. Liu, H. Hu, Z. Wang, R. Salas, J. Jose, P. Ram, J. Chau, P. Cheng, F. Yang, M. Yang, and Y. Xiong
+
+Tutel: adaptive mixture-of-experts at scale.
+
+In Conference on Machine Learning and Systems (MLSys),
+
+External Links: Link
+
+Cited by: §3.1.
+
+Jacobs et al. (2023)
+S. A. Jacobs, M. Tanaka, C. Zhang, M. Zhang, S. L. Song, S. Rajbhandari, and Y. He
+
+DeepSpeed Ulysses: system optimizations for enabling training of extreme long sequence transformer models.
+
+arXiv preprint arXiv:2309.14509.
+
+External Links: Link
+
+Cited by: §2,
+§5.
+
+Jain et al. (2020)
+P. Jain, A. Jain, A. Nrusimha, A. Gholami, P. Abbeel, K. Keutzer, I. Stoica, and J. E. Gonzalez
+
+Checkmate: breaking the memory wall with optimal tensor rematerialization.
+
+In Conference on Machine Learning and Systems (MLSys),
+
+External Links: Link
+
+Cited by: §5.
+
+Kirisame et al. (2021)
+M. Kirisame, S. Lyubomirsky, A. Haan, J. Brennan, M. He, J. Roesch, T. Chen, and Z. Tatlock
+
+Dynamic tensor rematerialization.
+
+In International Conference on Learning Representations (ICLR),
+
+External Links: Link
+
+Cited by: §5.
+
+Korthikanti et al. (2023)
+V. A. Korthikanti, J. Casper, S. Lym, L. McAfee, M. Andersch, M. Shoeybi, and B. Catanzaro
+
+Reducing activation recomputation in large transformer models.
+
+In Conference on Machine Learning and Systems (MLSys),
+
+External Links: Link
+
+Cited by: §1,
+§5.
+
+Lepikhin et al. (2020)
+D. Lepikhin, H. Lee, Y. Xu, D. Chen, O. Firat, Y. Huang, M. Krikun, N. Shazeer, and Z. Chen
+
+GShard: scaling giant models with conditional computation and automatic sharding.
+
+arXiv preprint arXiv:2006.16668.
+
+External Links: Link
+
+Cited by: §1,
+§1,
+§3.1.
+
+Li et al. (2023)
+J. Li, Y. Jiang, Y. Zhu, C. Wang, and H. Xu
+
+Accelerating distributed MoE training and inference with Lina.
+
+In USENIX Annual Technical Conference (ATC),
+
+External Links: Link
+
+Cited by: §5.
+
+Liang et al. (2025)
+W. Liang, T. Liu, L. Wright, W. Constable, A. Gu, C. Huang, I. Zhang, W. Feng, H. Huang, J. Wang, S. Purandare, G. Nadathur, and S. Idreos
+
+TorchTitan: one-stop PyTorch native solution for production ready LLM pre-training.
+
+In International Conference on Learning Representations (ICLR),
+
+External Links: Link
+
+Cited by: Appendix A.
+
+Liu et al. (2024)
+H. Liu, M. Zaharia, and P. Abbeel
+
+Ring attention with blockwise transformers for near-infinite context.
+
+In International Conference on Learning Representations (ICLR),
+
+External Links: Link
+
+Cited by: §3.2,
+§5.
+
+Loshchilov and Hutter (2019)
+I. Loshchilov and F. Hutter
+
+Decoupled weight decay regularization.
+
+In International Conference on Learning Representations (ICLR),
+
+External Links: Link
+
+Cited by: Appendix E,
+§1,
+§2.
+
+Milakov and Gimelshein (2018)
+M. Milakov and N. Gimelshein
+
+Online normalizer calculation for softmax.
+
+arXiv preprint arXiv:1805.02867.
+
+External Links: Link
+
+Cited by: §3.2,
+§5.
+
+Nguyen et al. (2026a)
+X. Nguyen, S. Pandit, A. Xu, C. Xiong, and S. Joty
+
+Least-loaded expert parallelism: load balancing an imbalanced mixture-of-experts.
+
+arXiv preprint arXiv:2601.17111.
+
+External Links: Link
+
+Cited by: §1,
+§3.1,
+§5.
+
+Nguyen et al. (2026b)
+X. Nguyen, S. Pandit, Y. Zhao, S. Yavuz, S. Savarese, and S. Joty
+
+Mixture-of-parallelisms: towards a memory-efficient training stack for mixture-of-experts models.
+
+arXiv preprint arXiv:2607.01844.
+
+External Links: Link
+
+Cited by: Appendix A,
+§1,
+§3.5,
+§5.
+
+Nie et al. (2023)
+X. Nie, X. Miao, Z. Wang, Z. Yang, J. Xue, L. Ma, G. Cao, and B. Cui
+
+FlexMoE: scaling large-scale sparse pre-trained model training via dynamic device placement.
+
+In ACM SIGMOD International Conference on Management of Data (SIGMOD),
+
+External Links: Link
+
+Cited by: §5.
+
+OpenAI (2025)
+OpenAI
+
+gpt-oss-120b & gpt-oss-20b model card.
+
+arXiv preprint arXiv:2508.10925.
+
+External Links: Link
+
+Cited by: Table 3.
+
+Peng et al. (2020)
+X. Peng, X. Shi, H. Dai, H. Jin, W. Ma, Q. Xiong, F. Yang, and X. Qian
+
+Capuchin: tensor-based GPU memory management for deep learning.
+
+In International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS),
+
+External Links: Link
+
+Cited by: §5.
+
+PyTorch Contributors (2026a)
+PyTorch Contributors
+
+Activation checkpointing: checkpoint_wrapper and offload_to_cpu.
+
+Note: https://docs.pytorch.org/docs/stable/distributed.checkpoint.htmlPyTorch distributed documentation
+
+Cited by: §3.1,
+§5.
+
+PyTorch Contributors (2026b)
+PyTorch Contributors
+
+Automatic differentiation: saved tensor hooks and save_on_cpu.
+
+Note: https://docs.pytorch.org/docs/stable/autograd.htmlPyTorch documentation
+
+Cited by: §B.1,
+§5.
+
+Rajbhandari et al. (2022)
+S. Rajbhandari, C. Li, Z. Yao, M. Zhang, R. Y. Aminabadi, A. A. Awan, J. Rasley, and Y. He
+
+DeepSpeed-MoE: advancing mixture-of-experts inference and training to power next-generation AI scale.
+
+In International Conference on Machine Learning (ICML),
+
+External Links: Link
+
+Cited by: §1,
+§1,
+§2,
+§3.1,
+§5.
+
+Rajbhandari et al. (2020)
+S. Rajbhandari, J. Rasley, O. Ruwase, and Y. He
+
+ZeRO: memory optimizations toward training trillion parameter models.
+
+In International Conference for High Performance Computing, Networking, Storage and Analysis (SC),
+
+External Links: Link
+
+Cited by: Appendix A,
+§1,
+§2,
+§5.
+
+Rajbhandari et al. (2021)
+S. Rajbhandari, O. Ruwase, J. Rasley, S. Smith, and Y. He
+
+ZeRO-Infinity: breaking the GPU memory wall for extreme scale deep learning.
+
+In International Conference for High Performance Computing, Networking, Storage and Analysis (SC),
+
+External Links: Link
+
+Cited by: §3.4,
+§5.
+
+Ren et al. (2021)
+J. Ren, S. Rajbhandari, R. Y. Aminabadi, O. Ruwase, S. Yang, M. Zhang, D. Li, and Y. He
+
+ZeRO-Offload: democratizing billion-scale model training.
+
+In USENIX Annual Technical Conference (ATC),
+
+External Links: Link
+
+Cited by: §E.1,
+§1,
+§1,
+§3.4,
+§3.4,
+§3.5,
+Table 4,
+§5.
+
+Shi et al. (2023)
+S. Shi, X. Pan, X. Chu, and B. Li
+
+PipeMoE: accelerating mixture-of-experts through adaptive pipelining.
+
+In IEEE International Conference on Computer Communications (INFOCOM),
+
+External Links: Link
+
+Cited by: §3.1,
+§5.
+
+Shi et al. (2024)
+S. Shi, X. Pan, Q. Wang, C. Liu, X. Ren, Z. Hu, Y. Yang, B. Li, and X. Chu
+
+ScheMoE: an extensible mixture-of-experts distributed training system with tasks scheduling.
+
+In European Conference on Computer Systems (EuroSys),
+
+External Links: Link
+
+Cited by: §3.1,
+§5.
+
+Shoeybi et al. (2019)
+M. Shoeybi, M. Patwary, R. Puri, P. LeGresley, J. Casper, and B. Catanzaro
+
+Megatron-LM: training multi-billion parameter language models using model parallelism.
+
+arXiv preprint arXiv:1909.08053.
+
+External Links: Link
+
+Cited by: §1,
+§3.2,
+§5,
+§5.
+
+Wijmans et al. (2025)
+E. Wijmans, B. Huval, A. Hertzberg, V. Koltun, and P. Krähenbühl
+
+Cut your losses in large-vocabulary language models.
+
+In International Conference on Learning Representations (ICLR),
+
+External Links: Link
+
+Cited by: §1,
+§1,
+§3.2,
+§5.
+
+Zhai et al. (2023)
+M. Zhai, J. He, Z. Ma, Z. Zong, R. Zhang, and J. Zhai
+
+SmartMoE: efficiently training sparsely-activated models through combining offline and online parallelization.
+
+In USENIX Annual Technical Conference (ATC),
+
+External Links: Link
+
+Cited by: §5.
+
+Zhang et al. (2025)
+Y. Zhang, C. Chen, Z. Li, T. Ding, C. Wu, D. P. Kingma, Y. Ye, Z. Luo, and R. Sun
+
+Adam-mini: use fewer learning rates to gain more.
+
+In International Conference on Learning Representations (ICLR),
+
+External Links: Link
+
+Cited by: §5.
+
+Zhao et al. (2023)
+Y. Zhao, A. Gu, R. Varma, L. Luo, C. Huang, M. Xu, L. Wright, H. Shojanazeri, M. Ott, S. Shleifer, A. Desmaison, C. Balioglu, P. Damania, B. Nguyen, G. Chauhan, Y. Hao, A. Mathews, and S. Li
+
+PyTorch FSDP: experiences on scaling fully sharded data parallel.
+
+Proceedings of the VLDB Endowment 16 (12), pp. 3848–3860.
+
+External Links: Link
+
+Cited by: Appendix A,
+§1,
+§2,
+§4,
+§5.
+
+Appendix A Experimental Setup
+
+Each operator is measured on the live set it governs, so each benchmark is configured for that operator rather than for a shared end-to-end workload; Table 5 collects the settings. Every controlled benchmark runs on one node with 8 NVIDIA H200 GPUs and compares systems on byte-identical input in the same execution, so a comparison never spans two allocations of the machine. Latencies for the dispatch benchmark are means over ten measured forward calls after three warmup calls. Memory is the maximum PyTorch peak allocation across ranks for the dispatch and projection benchmarks, and the maximum 100 ms NVML sample across ranks after warmup for SCO, since no single counter captures allocator peaks, external runtime allocations, and host residency at once. Tensor totals count each allocation once.
+
+Table 5: Configuration of each controlled component benchmark.
+
+Benchmark
+
+Configuration
+
+Hardware
+
+One node, eight NVIDIA H200 GPUs, intra-node NVLink, 2 TB host memory
+
+Expert dispatch (PipelinedLLEP)
+
+Two shapes: 32,768 tokens per rank at $H=I=4096$ with top- $4$ and $c=10{,}923$ , and 65,536 tokens per rank at $H=7168$ , $I=2048$ with top- $8$ and $c=6554$ ; 128 experts, one eight-rank expert-parallel group, BF16; strided chunk membership; expert-matmul checkpointing; $384\,\mathrm{MiB}$ local-expert workspace
+
+Vocabulary projection (Ring-DTP)
+
+A distinct local batch of $N=16{,}384$ per rank, $H=7168$ , $V=200{,}000$ , FP32; projection group $P\in\{4,8\}$ ; auto-mode operand selection
+
+Checkpoint offload (SCO)
+
+gpt-oss-20b in BF16; sequence and expert parallelism of degree eight; 24 decoder layers exposing 47 checkpoint boundaries; $556{,}432$ tokens per step at a configured ceiling of $557{,}056$ ; pinned host budget swept over $\{0,8,16\}\,\mathrm{GiB}$ and unlimited; depth-one restore prefetch
+
+Offloaded optimizer (OffloadStreamAdamW)
+
+gpt-oss-20b; fp32 master weights and moments in host memory on both sides; 100M-parameter buckets and $s=2$ staging slots, selected from Table 14
+
+Scaling workload.
+
+The end-to-end comparison of Section 4 is a pre-training workload, with all weights initialized from scratch, at 120B, 241B, and 667B parameters on 2, 4, and 8 nodes of the same type, that is 16, 32, and 64 GPUs. The three models share one architecture and differ only in depth: hidden width $H=7168$ , dense FFN intermediate width $18{,}432$ , 384 routed experts of intermediate width $I=2048$ with top- $8$ routing, and $V=200{,}000$ . The 120B, 241B, and 667B models have 7, 14, and 39 decoder layers. Routing is dropless, so every token reaches all eight of its experts, and load is balanced by the auxiliary-loss-free rule of DeepSeek-V3, which adds a per-expert bias to the routing scores and adjusts each bias at the end of every step according to that expert’s load [DeepSeek-AI, 2024]. In the layout of Appendix A, expert shards span every rank, so $E_{p}=W$ is 16, 32, and 64 at the three scales, the projection group is $P=8$ , and $D$ is set between 2 and 16 according to the context length. Both stacks run the same model at the same GPU count at each scale. FSDP2-best is selected per scale by sweeping FSDP2, tensor, context, and expert parallelism together with optimizer CPU offload on a TorchTitan-based stack [Zhao et al., 2023, Liang et al., 2025], and taking the highest-throughput configuration that fits; the whole sweep appears in Figure 6 as faint markers, and its per-length upper envelope is the solid line.
+The per-source token budget $c$ is sweeped from 4096 to 32768 tokens per rank.
+
+Rank layout.
+
+MoP assigns a parallelism scheme per model component instead of factoring the devices into a grid [Nguyen et al., 2026b]. The same $W$ ranks form three overlapping sub-groups: $D$ ranks share a sequence and trade it for attention heads through an all-to-all, $E_{p}$ ranks hold disjoint expert shards, and $P$ ranks hold disjoint vocabulary intervals, with dense weights sharded by ZeRO-3 across all $W$ [Rajbhandari et al., 2020]. Because the sub-groups are views of one rank set rather than factors of a device equation $W=d\,t\,p$ , the three degrees are chosen independently of one another, and each operator of Section 3 runs inside the sub-group that owns the live set it bounds.
+
+Training quality.
+
+Each operator preserves forward values and gradients, so the composed stack trains to the same quality as a standard implementation given the same recipe. We check this end to end by supervised fine-tuning gpt-oss-20b at low reasoning effort on Nemotron-Math [Du et al., 2025], whose assistant responses are generated by gpt-oss-120b, at a context length of 128K, and evaluating Avg@8 on AIME 2025. Trained on the composed stack the model reaches $59.8\%$ ; trained on the FSDP2 baseline under the same data, schedule, and hyperparameters it reaches $59.6\%$ ; and gpt-oss-20b before fine-tuning reaches $45.2\%$ .
+
+Appendix B PipelinedLLEP
+
+B.1 Backward and the Nested Checkpoint Contract
+
+The peak of a checkpointed step falls inside backward, so Equation 1 is only useful if it survives recomputation. Three properties deliver that.
+
+The partition is recomputable, not saved.
+
+Chunk $i$ holds token positions $\{i,i+K,i+2K,\dots\}\cap[0,N)$ , a function of $N$ and $K$ alone, and $K$ is reduced with a maximum over the expert-parallel group before any chunk collective is issued. A forward and its recomputation therefore cut the token axis identically without storing anything route-scale, and every rank runs the same number of chunks even when their token counts differ.
+
+The inner checkpoint is reentrant so the outer one can see it.
+
+The expert matmul holds the $\Theta(kc_{\mathrm{eff}}I)$ expert intermediate and the stacked expert weights the chunk needs, and it is wrapped in a reentrant checkpoint. Reentrant checkpointing routes every tensor argument through autograd’s saved-tensor mechanism [PyTorch Contributors, 2026b], so when the decoder layer’s own non-reentrant checkpoint is active its pack hook sees each of those tensors and replaces it with a placeholder. The stacked weights are then resident for one layer’s forward rather than from that forward until the global backward. A non-reentrant inner checkpoint would instead keep the forward function and its arguments in an unpack closure holding strong Python references for the whole forward-to-backward lifetime; those references sit outside any saved-tensor mechanism, so no outer hook can intercept them, and with $K$ chunks over $L$ layers the stacked weights would stay live for $\mathcal{O}(KL)$ cross-layer duration. Only the expert matmul is checkpointed, not the whole chunk, because placing all three stages of chunk $i$ in one checkpoint call serializes them from Python’s point of view and prevents the dispatch prefetch of chunk $i{+}1$ ; the cost is that dispatch outputs stay live across chunks, which Equation 1 already bounds.
+
+Gradients accumulate once per layer.
+
+Dispatch and combine use all-to-all primitives whose backward is the symmetric inverse all-to-all, so gradients flow through the pipeline as ordinary autograd tensors and no chunk graph is retained past its own backward. Every chunk’s expert-matmul backward accumulates into the same stacked expert-weight tensor, so the weight-migration backward fires exactly once per layer and expert-parameter gradients are returned once, preserving a single sharded-optimizer hook boundary. A scalar anchor returned by the weight-transfer function is added to the final output once rather than per chunk, which gives a rank that only sends foreign expert weights and never receives routes a path from the loss to its transfer.
+
+Algorithm 1 PipelinedLLEP on one expert-parallel rank
+
+ 1:
+
+ Input: hidden states $X$ , route weights $A$ , expert ids $E$ , local
+expert parameters $\Theta_{\mathrm{loc}}$ , token budget $c$ , ceiling $K_{\max}$ 
+
+ 2:
+
+ $K\leftarrow\min(\mathrm{AllReduceMax}(\lceil N/c\rceil),K_{\max})$ 
+
+ 3:
+
+ run the LLEP load measurement and assignment plan once; migrate expert weights if
+the plan requires it
+
+ 4:
+
+ $\pi\leftarrow$ per-route destinations from the layer-wide plan;
+ $S\leftarrow\mathrm{AllGather}$ of the $(K,E_{p})$ send splits
+
+ 5:
+
+ $Y\leftarrow 0$ ; issue dispatch of chunk $0$ 
+
+ 6:
+
+ for $i=0,\ldots,K-1$ do
+
+ 7:
+
+    $\mathcal{T}_{i}\leftarrow\{i,i+K,i+2K,\ldots\}\cap[0,N)$ 
+ $\triangleright$ strided membership
+
+ 8:
+
+    $(X_{i},A_{i},E_{i})\leftarrow$ gather rows $\mathcal{T}_{i}$ in destination order
+under $\pi$ 
+
+ 9:
+
+    $(\widehat{X}_{i},\widehat{A}_{i},\widehat{E}_{i})\leftarrow\mathrm{A2A}((X_{i},A_{i},E_{i});S_{i},S_{i}^{\top})$ 
+ $\triangleright$ dispatch, one coalesced group
+
+ 10:
+
+    $\widehat{Y}_{i}\leftarrow\mathrm{ckpt}_{\mathrm{reentrant}}\left[\mathrm{LocalExperts}(\widehat{X}_{i},\widehat{A}_{i},\widehat{E}_{i};\Theta_{\mathrm{loc}})\right]$ 
+
+ 11:
+
+   issue dispatch of chunk $i{+}1$ on the dispatch stream
+
+ 12:
+
+    $Y_{i}\leftarrow\mathrm{A2A}(\widehat{Y}_{i};S_{i}^{\top},S_{i})$ 
+ $\triangleright$ combine
+
+ 13:
+
+    $Y[\mathcal{T}_{i}]\leftarrow$ top- $k$ reduction of $Y_{i}$ ; release chunk-local
+tensors
+
+ 14:
+
+ Output: $Y$ , and the anchor that drives the weight-transfer backward
+once
+
+Which gradient the partition touches.
+
+For $g_{t}=\partial\mathcal{L}/\partial y_{t}$ , route weight $\alpha_{tj}$ , and expert function $f_{e}$ ,
+
+ $\frac{\partial\mathcal{L}}{\partial\alpha_{tj}}=g_{t}^{\top}f_{e(t,j)}(x_{t}),\qquad\frac{\partial\mathcal{L}}{\partial x_{t}}=\sum_{j}\alpha_{tj}J_{f_{e(t,j)}}(x_{t})^{\top}g_{t},\qquad\frac{\partial\mathcal{L}}{\partial\theta_{e}}=\!\!\sum_{(t,j):e(t,j)=e}\!\!\alpha_{tj}\frac{\partial f_{e}(x_{t})}{\partial\theta_{e}}^{\!\top}\!g_{t}.$ 	
+
+(7)	
+
+Only $\partial\mathcal{L}/\partial\theta_{e}$ has its summation order changed, since it is the one sum split across chunks and reassembled in the shared accumulator of Alg. 1. At $K=1$ that sum has a single term and the expert-parameter gradients are bitwise identical to LLEP’s. Hidden-state and router gradients are never split.
+
+Cost accounting.
+
+Route payload is unchanged in both directions: each route crosses the interconnect once per pass, and the additions are per-chunk metadata exchanges that are $\mathcal{O}(1)$ per route rather than $\mathcal{O}(H)$ . Two costs scale with $K$ . Collective launches grow linearly, since dispatch issues one coalesced group of three native-dtype all-to-alls, combine issues one, and backward issues their symmetric inverses. The expert matmul is evaluated three times per update under decoder-level checkpointing, namely the original forward, the decoder recomputation, and the inner recomputation, against twice for a checkpointed unpartitioned layer; dispatch and combine are evaluated twice either way.
+
+B.2 Routing Profiles
+
+A profile is a pair $r/h$ in which $r$ is the hot-token percentage and $h$ the number of hot experts. Experts $0,\dots,h-1$ are hot and the remaining $E-h$ are cold. The first $\lfloor rN\rfloor$ token positions are hot and select experts $\{j\bmod h:j=0,\dots,k-1\}$ , so a hot token’s $k$ routes cycle over the hot set and collapse onto $\min(k,h)$ distinct experts. Each remaining token $i$ selects cold experts $\{h+((i+j)\bmod(E-h)):j=0,\dots,k-1\}$ , which walks the cold set and spreads the residual load uniformly. The balanced profile assigns token $i$ the experts $\{(i+j)\bmod E:j=0,\dots,k-1\}$ . Routing weights are $1/k$ on every selected expert. Skew rises as $r$ rises and as $h$ falls, and $h\geq k$ against $h
+
+B.3 Per-Profile Measurements
+
+Unless a table states otherwise, every PipelinedLLEP entry uses strided chunk membership and expert-matmul checkpointing, and the chunk count is stated per table. Peak memory is deterministic in the configuration at both shapes: three repeats of the 65K sweep reproduce all seven peaks to the milli-GiB, and latency spread across those repeats is at most $2.6\%$ .
+
+Table 6: Routing-skew sweep at both shapes. Entries are mean forward latency in ms /
+maximum peak allocated memory across ranks in GiB, from executions in which the methods
+compared run on identical input. Speedup and peak reduction are against LLEP. At 65K the
+sweep was repeated three times and each row reports the repeat with the lowest PipelinedLLEP latency together with that repeat’s own LLEP measurement, so the columns are paired;
+Section B.5 explains why the lowest repeat is representative. At the 65K
+shape standard expert parallelism runs out of memory on every skewed profile; on the
+balanced profile LLEP performs no relocation, so the two coincide.
+
+Routing
+
+Standard EP (ms / GiB)
+
+LLEP (ms / GiB)
+
+PipelinedLLEP (ms / GiB)
+
+Speed vs. LLEP
+
+Peak saved
+
+32,768 tokens per rank, $H=I=4096$ , top- $4$ , $c=10{,}923$ ( $K=3$ )	
+
+Balanced
+
+40.82 / 21.347
+
+47.95 / 24.101
+
+44.74 / 17.606
+
+ $\mathbf{1.07\times}$ 
+
+26.9%
+
+30% / 16
+
+89.39 / 32.549
+
+53.14 / 24.476
+
+51.44 / 18.460
+
+ $1.03\times$ 
+
+24.6%
+
+50% / 16
+
+143.12 / 45.351
+
+53.74 / 24.476
+
+54.57 / 18.460
+
+ $0.98\times$ 
+
+24.6%
+
+80% / 16
+
+225.06 / 64.556
+
+53.89 / 24.664
+
+53.90 / 18.553
+
+ $1.00\times$ 
+
+24.8%
+
+95% / 16
+
+267.08 / 74.154
+
+54.34 / 24.664
+
+53.93 / 18.553
+
+ $1.01\times$ 
+
+24.8%
+
+30% / 4
+
+107.28 / 36.885
+
+53.49 / 24.664
+
+52.27 / 18.554
+
+ $1.02\times$ 
+
+24.8%
+
+50% / 4
+
+157.39 / 48.445
+
+53.61 / 24.664
+
+53.97 / 18.554
+
+ $0.99\times$ 
+
+24.8%
+
+65,536 tokens per rank, $H=7168$ , $I=2048$ , top- $8$ , $c=6554$ ( $K=10$ )	
+
+Balanced
+
+177.82 / 52.660
+
+177.82 / 52.660
+
+161.00 / 21.430
+
+ $\mathbf{1.10\times}$ 
+
+59.3%
+
+30% / 16
+
+OOM
+
+182.97 / 52.906
+
+176.62 / 22.772
+
+ $1.04\times$ 
+
+57.0%
+
+50% / 16
+
+OOM
+
+186.07 / 52.906
+
+182.64 / 22.773
+
+ $1.02\times$ 
+
+57.0%
+
+80% / 16
+
+OOM
+
+189.14 / 52.988
+
+180.30 / 22.861
+
+ $1.05\times$ 
+
+56.9%
+
+95% / 16
+
+OOM
+
+182.13 / 52.988
+
+178.57 / 22.855
+
+ $1.02\times$ 
+
+56.9%
+
+30% / 4
+
+OOM
+
+185.78 / 52.906
+
+180.59 / 22.774
+
+ $1.03\times$ 
+
+57.0%
+
+50% / 4
+
+OOM
+
+186.79 / 52.906
+
+184.69 / 22.778
+
+ $1.01\times$ 
+
+57.0%
+
+Table 7: Micro-batch length ladder at the 65K shape under one token budget, $c=4096$ with
+ $K_{\max}=10$ , against a chunk count fixed at $K=10$ . Speedup and peak reduction compare
+PipelinedLLEP with LLEP at the same length, with LLEP re-measured in the same execution; ranges
+are over the balanced and $80\%/16$ profiles. Where a length was executed more than once
+we report the lowest speedup observed, so the ranges are the pessimistic reading. The
+ceiling binds above $N=cK_{\max}=40{,}960$ , where the two configurations coincide.
+
+Token budget $c=4096$ 	
+Fixed $K=10$ 	
+
+Tokens $N$ 
+
+ $K$ 
+
+Speedup
+
+Peak saved
+
+Speedup
+
+Peak saved
+
+128
+
+1
+
+ $\mathbf{1.60}$ – $\mathbf{2.96\times}$ 
+
+9.0–11.0%
+
+ $0.45$ – $0.48\times$ 
+
+9.4–11.4%
+
+1,024
+
+1
+
+ $\mathbf{1.35}$ – $\mathbf{2.17\times}$ 
+
+10.4–11.1%
+
+ $0.47$ – $0.56\times$ 
+
+14.0–15.6%
+
+8,192
+
+2
+
+ $0.98$ – $1.09\times$ 
+
+14.3–17.0%
+
+ $0.80$ – $0.82\times$ 
+
+28.6%
+
+32,768
+
+8
+
+ $1.02$ – $1.09\times$ 
+
+44.9–47.6%
+
+ $0.98$ – $1.06\times$ 
+
+47.2–49.4%
+
+65,536
+
+10
+
+ $1.04$ – $1.10\times$ 
+
+56.9–59.3%
+
+coincides	
+
+131,072
+
+10
+
+ $1.07$ – $1.10\times$ 
+
+63.4–65.9%
+
+coincides	
+
+A chunk count tuned for the top of the range cuts a 128-token micro-batch into ten pieces and pays ten full collective rounds for roughly one token each, which costs $0.45$ – $0.48\times$ ; the budget derives $K=1$ instead and runs at $1.60$ – $2.96\times$ , faster than LLEP itself, because the single chunk still uses the coalesced single-group all-to-all. Peak reduction tracks the size of the unpartitioned live set, rising from $9.0\%$ at 128 tokens to $65.9\%$ at 131,072, since below roughly 8,192 tokens per rank the dispatch buffers are small next to the resident expert weights.
+
+Table 8: Chunk membership at 65,536 tokens per rank, $K=10$ , all other settings
+identical. Send ratio is the largest destination send divided by the mean send
+within a chunk, taken as the maximum over chunks and measured by a per-chunk counter on the
+dispatch all-to-all. Membership changes neither the token set nor any route’s destination,
+so the two policies differ only in schedule quality.
+
+Latency (ms)	
+Peak (GiB)	
+Send ratio	
+
+Routing
+
+Strided
+
+Contig.
+
+Strided
+
+Contig.
+
+Strided
+
+Contig.
+
+Balanced
+
+161.2
+
+218.2
+
+21.430
+
+21.464
+
+1.00
+
+1.02
+
+95% / 16
+
+178.6
+
+184.9
+
+22.855
+
+23.575
+
+1.35
+
+2.63
+
+80% / 16
+
+180.6
+
+209.7
+
+22.861
+
+23.514
+
+2.40
+
+4.00
+
+50% / 4
+
+190.8
+
+217.0
+
+22.778
+
+24.151
+
+2.29
+
+6.00
+
+Strided membership runs at $1.03$ – $1.35\times$ the speed of contiguous membership with $0.03$ – $1.37\,\mathrm{GiB}$ lower peak, and the send-ratio columns give the mechanism. The same counter reports $\max_{d}R_{d}^{(i)}$ against the bound of Equation 1. Strided membership realizes $12.5\%$ of it, which is the even share $1/E_{p}$ , at every chunk size and on every profile, while contiguous membership reaches $17.1\%$ on the $50\%/4$ profile. The bound is therefore respected everywhere and attained nowhere: all-to-all buffers are sized from realized split counts, so the peak follows $kc_{\mathrm{eff}}$ and the bound is the guarantee that no router can move it rather than a description of the traffic.
+
+Table 9: Forward and backward together, $c$ chosen to give $K=10$ at each shape, routing
+profiles balanced / $80\%/16$ . Peak is the maximum allocated memory across ranks over the
+combined pass.
+
+Shape
+
+LLEP (GiB)
+
+PipelinedLLEP (GiB)
+
+Peak saved
+
+Speedup
+
+65K tok, $H{=}7168$ , top-8
+
+52.660 / 52.988
+
+21.430 / 22.861
+
+59.3 / 56.9%
+
+ $1.11$ / $1.04\times$ 
+
+32K tok, $H{=}4096$ , top-4
+
+23.850 / 24.413
+
+14.902 / 15.382
+
+37.5 / 37.0%
+
+ $0.87$ / $0.90\times$ 
+
+Table 9 confirms that the reduction is not an artifact of where a forward-only measurement stops: including backward, the reduction at the reference shape is unchanged at $56.9$ – $59.3\%$ . The 32K row shows the other side of the trade. At $K=10$ that shape sits past the flat region of Figure 8b, so the chunk count that is free at 65K costs $0.87$ – $0.90\times$ there, which is what deriving $K=8$ from the budget avoids at that length.
+
+B.4 Choosing the Token Budget
+
+12351020 $0$ $20$ $40$ $60$ Chunks $K$ (a) Peak allocated memory (GiB)65K tok, $H{=}7168$ , top-832K tok, $H{=}4096$ , top-4LLEP, 65KLLEP, 32K12351020 $0$ $100$ $200$ $300$ selectedChunks $K$ (b) Forward latency (ms)
+Figure 8: Chunk count against peak memory and forward latency at both shapes, routing
+profile $80\%/16$ , with LLEP at the same shape as the horizontal reference. Peak falls
+monotonically in $K$ with decaying marginal return: at 65K the first ten chunks remove
+ $38.4\,\mathrm{GiB}$ and the next ten remove $2.4\,\mathrm{GiB}$ . Latency does not follow the same shape, so
+ $K$ is selected from this curve rather than minimized. At 65K the points
+ $K\in\{2,3,5\}$ are slower and larger than $K=10$ , while $K\in[10,20]$ is flat to within
+ $6\%$ ; at 32K, latency rises steadily past $K=3$ . $K=1$ separates the schedule from the
+chunking: with one chunk the operator holds $8.3\,\mathrm{GiB}$ more than LLEP at 65K, because a
+single chunk adds a copy of the route-shaped tensors and partitions nothing. Each point is
+one execution of ten timed forward calls; LLEP is re-measured inside every execution and
+its reference line is the mean of those six measurements, which span $0.3\%$ .
+
+B.5 Two Latency Modes at the 65K Shape
+
+Forward latency at the 65K shape is bimodal, and the modes are far enough apart to matter for how the timing tables should be read. Five back-to-back passes over the seven profiles at $K=16$ separate them cleanly: in the fast mode every profile reproduces to within $0.5\%$ across passes, which is tighter than any other latency we measure, while the slow mode adds $12$ – $56\%$ and never subtracts. The mode is not a property of the routing profile, since the same profile appears in either mode across passes, and it is strongly a property of the chunk count. Over everything measured at this shape, $K=10$ is slow in $2$ of $56$ profile measurements against $21$ of $84$ for $K=16$ .
+
+The mechanism is the host-side launch pattern. Enabling a per-chunk diagnostic counter, which inserts one host-side synchronization per chunk and changes nothing about the computation, moves the slow mode off two profiles and onto a third, reproducibly in both passes of both conditions. For a given chunk count, routing profile, and host synchronization structure the operator enters one mode and stays in it. Two consequences follow. The representative latency for a configuration is the fast mode, so Table 6 reports the lowest of three repeats at 65K. And $K_{\max}=10$ keeps the schedule in the region where the slow mode is rare, which is a second reason for the ceiling alongside the flat-region argument of Figure 8b. The single-execution points of Figure 8b at $K\in\{2,3,5\}$ are exposed to the effect: the hump at $K=3$ is $1.75\times$ the $K=10$ point, which exceeds the slow mode’s range, so the ordering of those points against $K=10$ holds while their magnitudes are not tight.
+
+Appendix C Ring-DTP
+
+Each rank holds a distinct local batch, and the meetings visit every batch with every vocabulary shard exactly once. Target-column ownership is exclusive: exactly one shard interval contains a given target index, so exactly one meeting contributes $y_{t}$ and no reduction over duplicated contributions is needed. Backward replays the same meetings from the saved per-token state, forms the softmax residual for one strip at a time, and contracts it into input and weight gradients, so neither pass stores a full logit or logit-gradient tensor.
+
+Algorithm 2 Ring-DTP forward on rank $r$ of a projection group of size $P$ 
+
+ 1:
+
+ Input: local batch $X_{r}$ of $N$ tokens, targets $t_{r}$ , weight shard
+ $W_{r}$ over the vocabulary interval $\mathcal{V}_{r}$ 
+
+ 2:
+
+ function Fold(state $S$ , strip $Y$ , targets $t$ , interval $\mathcal{V}$ )
+
+ 3:
+
+   for each token $n$ do
+
+ 4:
+
+     $(m,z,y)\leftarrow S_{n}$ 
+
+ 5:
+
+     $m^{\prime}\leftarrow\max\!\big(m,\max_{v}Y_{n,v}\big)$ ,    $z^{\prime}\leftarrow e^{m-m^{\prime}}z+\sum_{v}e^{Y_{n,v}-m^{\prime}}$ 
+
+ 6:
+
+    if $t_{n}\in\mathcal{V}$ then $y\leftarrow Y_{n,t_{n}}$ 
+
+ 7:
+
+     $S_{n}\leftarrow(m^{\prime},z^{\prime},y)$ 
+
+ 8:
+
+   return $S$ 
+
+ 9:
+
+ $S\leftarrow\textsc{Fold}((-\infty,0,0),\;X_{r}W_{r},\;t_{r},\;\mathcal{V}_{r})$ 
+
+ 10:
+
+ if $N>V/P$ then
+
+ 11:
+
+    $W\leftarrow W_{r}$ 
+
+ 12:
+
+   for $i=1,\ldots,P-1$ do
+
+ 13:
+
+     $q\leftarrow(r-i)\bmod P$ 
+
+ 14:
+
+    send $W$ to rank $r{+}1$ , receive $W_{q}$ from rank $r{-}1$ , and set
+ $W\leftarrow W_{q}$ 
+
+ 15:
+
+     $S\leftarrow\textsc{Fold}(S,\;X_{r}W,\;t_{r},\;\mathcal{V}_{q})$ , then release the
+strip
+
+ 16:
+
+ else
+
+ 17:
+
+    $(X,t,\widetilde{S})\leftarrow(X_{r},t_{r},S)$ 
+
+ 18:
+
+   for $i=1,\ldots,P-1$ do
+
+ 19:
+
+    send $(X,t,\widetilde{S})$ to rank $r{+}1$ and receive the next
+ $(X,t,\widetilde{S})$ from rank $r{-}1$ 
+
+ 20:
+
+     $\widetilde{S}\leftarrow\textsc{Fold}(\widetilde{S},\;XW_{r},\;t,\;\mathcal{V}_{r})$ ,
+then release the strip
+
+ 21:
+
+   send $\widetilde{S}$ to rank $r{+}1$ and receive $S$ from rank $r{-}1$ 
+
+ 22:
+
+ Output: the negative log-likelihood $m+\log z-y$ of every token, from
+its state $S_{n}=(m,z,y)$ 
+
+Figure 9: The move-weights schedule at $P=4$ . Rank $r$ retains its batch $(X_{r},t_{r})$ and
+running statistics $S_{r}$ while each vocabulary block $W_{p}$ advances one hop per
+iteration. A meeting computes $X_{r}W_{p}$ , folds the strip into $S_{r}$ , and releases it,
+so after $P$ meetings every $S_{r}$ is complete on its home rank and forward needs no
+return hop.
+
+The benchmark gives each rank a distinct local batch with $N=16{,}384$ , uses $H=7{,}168$ and $V=200{,}000$ in FP32, and measures hidden states to target-token log-probabilities followed by backward. The standard reference stores the full projection weight and materializes full logits and log-softmax.
+
+Table 10: Peak allocation for the vocabulary projection as the Ring-DTP group grows.
+Projection peaks include target-token log-probability computation and backward;
+the increment subtracts the measured resident weight-plus-input footprint. Changes are
+relative to the standard dense projection. Matched forward latency at the same shape is
+ $989.8$ against $1035.7$  ms at $P=4$ and $1001.2$ against $1052.2$  ms at $P=8$ .
+
+ $P$ 	
+
+Metric
+
+Standard
+
+Ring-DTP
+
+Change
+
+4	
+
+Projection weight
+
+ $5.3406\,\mathrm{GiB}$ 
+
+ $1.3351\,\mathrm{GiB}$ 
+
+75.0% lower
+
+Resident weight + input
+
+ $5.8409\,\mathrm{GiB}$ 
+
+ $1.8353\,\mathrm{GiB}$ 
+
+68.6% lower
+
+Projection F+B peak
+
+ $42.4620\,\mathrm{GiB}$ 
+
+ $11.5194\,\mathrm{GiB}$ 
+
+72.9% lower
+
+Increment over resident
+
+ $36.6212\,\mathrm{GiB}$ 
+
+ $9.6841\,\mathrm{GiB}$ 
+
+73.6% lower
+
+8	
+
+Projection weight
+
+ $5.3406\,\mathrm{GiB}$ 
+
+ $0.6676\,\mathrm{GiB}$ 
+
+87.5% lower
+
+Resident weight + input
+
+ $5.8409\,\mathrm{GiB}$ 
+
+ $1.1678\,\mathrm{GiB}$ 
+
+80.0% lower
+
+Projection F+B peak
+
+ $42.4620\,\mathrm{GiB}$ 
+
+ $\mathbf{7.3222\,\mathrm{GiB}}$ 
+
+82.8% lower
+
+Increment over resident
+
+ $36.6212\,\mathrm{GiB}$ 
+
+ $6.1545\,\mathrm{GiB}$ 
+
+83.2% lower
+
+Table 11: Matched forward latency at the shape of
+Table 10. Local batch is per GPU.
+
+Local batch	
+ $P$ 	
+Standard (ms)	
+Ring-DTP (ms)	
+Slowdown	
+
+16,384	
+4	
+989.8	
+1035.7	
+4.6%	
+
+16,384	
+8	
+1001.2	
+1052.2	
+5.1%	
+
+Appendix D SCO
+
+SCO walks the checkpointed layers in forward order and offloads each boundary that still fits in the host budget. Selected boundaries are copied asynchronously to capped pinned memory, and the device copy is freed. Backward visits layers in reverse. While layer $\ell$ recomputes from $h_{\ell}$ , the next boundary $h_{\ell-1}$ is copied back on a separate stream, so at most two restores occupy the device. Stream events preserve producer and consumer order. An allocation that would exceed the cap is left on the device.
+
+Algorithm 3 SCO over the checkpointed layers of one session
+
+ 1:
+
+ Input: checkpoint boundaries $h_{1},\ldots,h_{L}$ in forward order, pinned
+host budget $B$ 
+
+ 2:
+
+ $\mathcal{S}\leftarrow\emptyset$ 
+
+ 3:
+
+ for $\ell=1,\ldots,L$ do
+
+ 4:
+
+   if $h_{\ell}$ fits in the unused part of $B$ then
+
+ 5:
+
+    copy $h_{\ell}$ to pinned host memory on the copy stream, then free the device
+copy
+
+ 6:
+
+     $\mathcal{S}\leftarrow\mathcal{S}\cup\{\ell\}$ 
+
+ 7:
+
+ if $L\in\mathcal{S}$ then start the restore of $h_{L}$ on the copy
+stream
+
+ 8:
+
+ for $\ell=L,\ldots,1$ do
+
+ 9:
+
+   if $\ell\in\mathcal{S}$ then wait for the restore of $h_{\ell}$ 
+
+ 10:
+
+   if $\ell{-}1\in\mathcal{S}$ then start the restore of
+ $h_{\ell-1}$ on the copy stream
+
+ 11:
+
+   recompute layer $\ell$ from $h_{\ell}$ and run its backward
+
+ 12:
+
+   if $\ell\in\mathcal{S}$ then free the restored $h_{\ell}$ 
+
+ 13:
+
+ release the pinned storage of $\mathcal{S}$ 
+
+The host cap is a correctness condition rather than a comfort margin, because a rank that raised while the others entered a collective would deadlock. Setting it at or above $|\mathcal{S}|N_{\max}Hb$ makes the check pass on every rank independently of what the others hold.
+
+The matched benchmark uses gpt-oss-20b in BF16 on one eight-H200 node with sequence and expert parallelism of degree eight. Its 24-layer decoder exposes 47 checkpoint boundaries across the hidden and residual streams. Every policy processes the same 556,432 tokens per measured step at a configured ceiling of 557,056 and runs ten complete steps, the first two excluded as warmup, with the same stateless optimizer on both sides.
+
+Table 12: Matched SCO budget sweep at 557,056 configured tokens. Logical
+payload is selected boundary storage and the pinned column includes host allocator size
+class rounding; both are per rank. Peak node RAM includes the common process baseline.
+Memory columns are GiB, step time is seconds, throughput is tokens/s/GPU.
+
+Policy
+
+Bound.
+
+Logical
+
+Pinned
+
+Peak HBM
+
+Node RAM
+
+Step
+
+Throughput
+
+Off
+
+0 / 47
+
+0
+
+0
+
+139.790
+
+402.517
+
+26.3412
+
+2,641
+
+ $8\,\mathrm{GiB}$ 
+
+21 / 47
+
+7.82–7.84
+
+10.5
+
+133.546
+
+487.990
+
+25.8415
+
+2,692
+
+ $16\,\mathrm{GiB}$ 
+
+42 / 47
+
+15.63–15.69
+
+21.0
+
+125.677
+
+573.473
+
+25.8806
+
+2,687
+
+Full
+
+47 / 47
+
+17.49–17.55
+
+23.5
+
+123.728
+
+593.410
+
+25.8844
+
+2,687
+
+Table 13: Capacity on the separate 32,768-token search grid. “Largest clean” has no
+allocator-cache-flush warning; “largest completion” finishes all ten steps with
+warnings. The adjacent first failure brackets the marginal boundary, and gain is computed
+between marginal completions.
+
+Policy
+
+Largest clean
+
+Largest completion
+
+First failure
+
+Marginal gain
+
+Failed alloc.
+
+Off
+
+458,752
+
+557,056
+
+589,824
+
+–
+
+ $27.61\,\mathrm{GiB}$ 
+
+ $8\,\mathrm{GiB}$ 
+
+557,056
+
+589,824
+
+622,592
+
+5.88%
+
+ $29.03\,\mathrm{GiB}$ 
+
+ $16\,\mathrm{GiB}$ 
+
+557,056
+
+622,592
+
+655,360
+
+11.76%
+
+ $30.59\,\mathrm{GiB}$ 
+
+Full
+
+622,592
+
+655,360
+
+688,128
+
+17.65%
+
+ $32.17\,\mathrm{GiB}$ 
+
+A session’s boundaries all come from one micro-batch, so its pinned total inherits that micro-batch’s length. Each session releases its pinned storage on completion, which is what makes the cap per-session rather than cumulative; otherwise the sessions comprising one update would accumulate.
+
+Appendix E OffloadStreamAdamW
+
+A bucket co-groups a parameter shard, its fp32 master value and two moments, its final gradient, and the refreshed bf16 working weight. The fused kernel applies the same bias correction, weight decay, and update order as the reference implementation [Loshchilov and Hutter, 2019], and buckets are built once from parameter order, so ownership does not change between steps. Beginning a bucket during backward instead of after it additionally requires the bucket’s gradient to be final and any cross-bucket transform to be known; global gradient clipping supplies the latter only once the global norm exists. The per-bucket and predictive clipping modes that lift this constraint change the update rule and sit outside the exactness claim.
+
+Algorithm 4 OffloadStreamAdamW on one rank
+
+ 1:
+
+ Input: host-resident fp32 master weights and moments, final gradients,
+bucket size $\beta$ , staging slots $s$ 
+
+ 2:
+
+ partition the rank’s parameter shard into buckets $g=1,\ldots,G$ of at most
+ $\beta$ parameters
+
+ 3:
+
+ for $g=1,\ldots,G$ do
+
+ 4:
+
+   wait for a free staging slot and take it
+
+ 5:
+
+   on the transfer stream, copy bucket $g$ ’s master weight, moments, and gradient
+into the slot
+
+ 6:
+
+   on the compute stream, apply the fused AdamW update and refresh the bf16 working
+weight
+
+ 7:
+
+   on the write-back stream, copy the updated fp32 master weight and moments to the
+host
+
+ 8:
+
+   return the slot to the free pool when its write-back event completes
+
+E.1 Bucket and Slot Sweep
+
+All measurements use gpt-oss-20b on eight H200 GPUs, against the AVX CPU Adam kernel of ZeRO-Offload [Ren et al., 2021] at $3.95$  s per optimizer step. The selected 100M-parameter, two-slot configuration averages $1.93$  s (Table 4). Two axes are swept: the requested bucket size, which sets how many parameters cross the link at once, and the number of staging slots, which sets how deep the transfer queue runs.
+
+Table 14: Bucket-size and slot-count sweep. Times are mean optimizer-step latency and
+staging is resident memory per GPU. The 100M bucket wins on both axes, and two slots stay
+within $1.1\%$ of three at every bucket size while using a third less staging memory. A
+deeper queue does not help: step time is flat from two to five slots while each additional
+slot adds one bucket’s worth of staging.
+
+Requested bucket	
+Slots	
+Groups	
+Actual maximum	
+Time (s)	
+Staging (GiB)	
+
+100M	
+2	
+26	
+142.076M	
+1.930	
+4.234	
+
+100M	
+3	
+26	
+142.076M	
+1.951	
+6.351	
+
+150M	
+2	
+14	
+208.431M	
+2.204	
+6.212	
+
+150M	
+3	
+14	
+208.431M	
+2.225	
+9.318	
+
+200M	
+2	
+14	
+244.938M	
+2.240	
+7.300	
+
+200M	
+3	
+14	
+244.938M	
+2.252	
+10.950	
+
+250M	
+2	
+10	
+308.586M	
+2.282	
+9.197	
+
+250M	
+3	
+10	
+308.586M	
+2.282	
+13.795	
+

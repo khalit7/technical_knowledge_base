@@ -1,0 +1,66 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-meth">Method</a><a href="#s-setup">Setup</a><a href="#s-res">Results</a><a href="#s-abl">Ablations and cost</a><a href="#s-trust">Believe it?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+<p class="small mute">The first summary of this paper was written from its abstract. This page is built from the full paper (arXiv v2), its appendices, its vector figures, the released code and the authors' released run records, and it corrects that summary where the details change the reading (the card's note, and {{How much to believe|tab:t-read:s-trust}}).</p>
+
+<section id="s-prob"><h2>Problem: a loop that grades itself on the same tasks</h2>
+[[S1|§1 Introduction, §2]]
+<p>An LLM agent's capability is largely magnified by its <b>harness</b>: everything around the frozen weights, meaning the system and task prompts, the control flow that decides when the agent plans, acts, reflects or stops, the tool interfaces, the memory and skill files, and the context management that decides what the model sees at each step ({{§2|ax:S2}}). The harness decides whether the same model reads the right file before editing it, recovers from a failed command and writes its findings into the deliverable ({{§1|ax:S1}}). Building one is manual work: engineers read failed trajectories and tweak the scaffold, so progress is limited by how many trajectories a person can read.</p>
+<p>Recent methods automate that loop. A proposer LLM reads feedback from the current harness's runs, drafts candidate harnesses, the candidates are scored on an <b>evolve set</b> of tasks, and the best one becomes the next incumbent ({{Eq. 2|ax:S2.E2}}). Because the system improves the thing that shapes its own behaviour, the paper calls this recursive self-improvement at the agent-system level, and it looks like free capability.</p>
+<p>The obvious objection is overfitting, and the paper makes it precise. Each round's candidates depend on scores measured on the same tasks in earlier rounds, so the reuse of the evolve set is <b>adaptive</b> ({{§2|ax:S2}}, citing {{Dwork et al. 2015|https://arxiv.org/abs/1506.02629}}). The score <i>Ŝ</i> is an average over <i>k</i> stochastic runs per task ({{Eq. 3|ax:S2.E3}}), so it is noisy, and taking the maximum of noisy scores round after round selects for luck. The paper names three coupled behaviours that widen the gap between the evolve score and transfer ({{§1|ax:S1}}):</p>
+<ul class="tight">
+<li><b>Benchmark-specific fitting</b>: edits that encode the evolve tasks' names, files or answers.</li>
+<li><b>Noise chasing</b>: keeping a candidate because its evaluation happened to come out high.</li>
+<li><b>Complexity accumulation</b>: machinery that lifts the evolve score a little and costs more tokens on every task.</li>
+</ul>
+<div class="pred" id="pr1" data-ans="2">
+<div class="q">Twenty rounds, two candidates a round, and on average every candidate makes the harness slightly worse (as in the released coding run, where the median candidate lost 5 of 178 passes). The loop keeps whichever candidate scores highest. What happens to the evolve-set score?</div>
+<div class="opts"><button>It falls, like the candidates</button><button>It stays flat: bad candidates are never kept</button><button>It rises by several points while true quality barely moves</button><button>It rises, and true quality rises as much</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>The same random stream of candidates, run through two selection rules. On the left of each run the harness starts at the coding instance's base score; every candidate's true effect is drawn around the released run's median, and every evaluation adds noise of the size the released run calibrated (a difference of two evaluations has a standard deviation of 3 passes in 178). Switch between the rules: the <b>solid</b> line is the score the loop sees, the <b>dashed</b> line the harness's true quality on new tasks.</p>
+<div class="card" id="sm">
+<div class="an-top"><div class="seg" id="smM" role="group" aria-label="Selection rule"><button data-m="g" class="on" aria-pressed="true">Unregularised: keep the best score</button><button data-m="r" aria-pressed="false">RRSI's selection rules</button></div>
+<label class="small">Seed <select id="smSeed" aria-label="Random seed"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label></div>
+<div id="smSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="smBack" aria-label="Previous round" title="Previous round">&#9664;&#9664;</button><button id="smPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="smFwd" aria-label="Next round" title="Next round">&#9654;&#9654;</button>
+<input type="range" id="smScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the rounds">
+<label class="small">Speed <select id="smSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="smStep"></div><p id="smCap"></p></div>
+<div class="an-cnt" id="smCnt"></div>
+<details class="mist"><summary>Change the toy's assumptions</summary><div class="b">
+<div class="ctl">
+<label>Mean true effect of a candidate: <b id="smMuV"></b><input type="range" id="smMu" min="-40" max="20" step="1" value="-23" aria-label="Mean true effect"></label>
+<label>Share of benchmark-specific candidates: <b id="smSpV"></b><input type="range" id="smSp" min="0" max="60" step="5" value="25" aria-label="Benchmark-specific share"></label>
+<label>Critic catches: <b id="smCrV"></b><input type="range" id="smCr" min="0" max="100" step="10" value="50" aria-label="Critic recall"></label>
+<label>Noise band δ: <b id="smDV"></b><input type="range" id="smD" min="0" max="2" step="1" value="2" aria-label="Noise band"></label>
+<label>Score weight inside the band <select id="smW" aria-label="Within-band score weight"><option value="0">0, as in the coding instance</option><option value="1414">1414, as in the workspace instance</option></select></label>
+</div>
+<p class="small mute">A benchmark-specific candidate carries an extra gain that exists only on the evolve set (drawn around +1.5 points); the critic removes such a candidate before evaluation with the chosen probability. The noise band choices are 0, the paper's 0.017 and the released run's 0.034. With the workspace instance's score weight, a within-band gain counts again and the rules behave much like "keep the best score", only cheaper.</p>
+</div></details>
+<div class="out" id="smMc"></div>
+<p><b>What the toy shows.</b> Keeping the best score makes the score the loop sees climb faster than the true quality, and the harness grows: noise chasing and complexity accumulation, as the paper describes. RRSI's rules keep the seen score closer to the truth and cut tokens. <b>What it does not show</b> is the paper's transfer advantage: here true quality under RRSI's rules is no better, and with the coding instance's settings it is worse. Two rules cause that. A real gain smaller than the band (3.4 points at the released run's <i>δ</i>) is rejected unless it also saves tokens (<i>w</i><sub>s</sub> = 0), and an edit that loses up to the band is accepted if it is cheaper. The released coding run did the second thing too: its incumbent went from 140 to 138 to 136 passes through two cheaper edits ({{replay|tab:t-run}}). If RRSI transfers better, the reason lies in what the toy leaves out: the proposal-side constraints, and real benchmark-specific edits whose link to cost and complexity the toy cannot know. The toy does not reproduce the effect, and it was not tuned until it did.</p>
+<p class="small"><span class="ill">Illustrative toy.</span> The selection rules are the paper's ({{Eq. 5, 7|ax:S3.SS3}}, {{Eq. 17|ax:A3.E17}}) with the coding instance's values from the released configuration (<i>β</i><sub>0</sub> 0.10, <i>β</i><sub>1</sub> 44.5, <i>w</i><sub>s</sub> 0, <i>w</i><sub>c</sub> 15). Base score 74.2 (Table 3). The noise of one evaluation has a standard deviation of 1.2 points, so a difference of two has 1.7, the released run's own calibration (<i>δ</i> = 0.034 at two standard deviations). The candidate spread (true effect standard deviation 1.8 points; token change median +11%, spread 17%) is fitted to the 37 measured candidates of the released coding run, and the mean true effect (−2.3 points) is set so that under RRSI's rules the median measured change matches that run's −2.8 points (<code>check_sim.mjs</code>). The benchmark-specific share and the critic's catch rate are assumptions; the paper never measures them. Proposal-side regularisation is not modelled. The boxes average 400 seeds.</p>
+</div>
+</div>
+</div>
+<p>RRSI's question is how to keep the loop and the open edit space while stopping those three behaviours. It defines the target as transfer: an evolved harness should still help on unseen benchmarks with different task descriptions, tool interfaces or verifiers ({{§1|ax:S1}}).</p>
+</section>
+
+<section id="s-idea"><h2>Idea: regularise the search, not the harness</h2>
+[[S3.SS1|§3.1, Figure 2]]
+<p>RRSI leaves the space of reachable harnesses <i>Ω</i>(<i>H</i>) open: prompts, control flow, configuration, context management, tools, skills, memory and subagents may all be modified, added or removed. What it constrains is the <b>trajectory</b> through that space, on both sides of the loop ({{§3.1|ax:S3.SS1}}). The paper borrows the language of classical regularisation and is careful to call each one an analogy, not an optimised penalty ({{Appendix C|ax:A3}}):</p>
+<div class="tw"><table class="lt">
+<thead><tr><th>Side</th><th>Mechanism</th><th>Analogy</th><th>What it stops</th></tr></thead>
+<tbody>
+<tr><td>Proposal</td><td>Annealed edit budget <i>b</i><sub>t</sub></td><td><i>L</i><sub>0</sub>: a cap on how many edits are active in one update</td><td>A candidate bundling many changes that fit the current feedback and cannot be attributed</td></tr>
+<tr><td>Proposal</td><td>Evidence-aware credit (the edit ledger)</td><td>Reusing evidence instead of re-testing</td><td>Spending rounds on hypotheses already falsified</td></tr>
+<tr><td>Proposal</td><td>Structured exploration on a stall</td><td>Diversity or entropy regularisation</td><td>The proposer collapsing onto one edit family, such as prompt rewording</td></tr>
+<tr><td>Selection</td><td>Leakage critic, before evaluation</td><td>Screening the hypothesis space</td><td>Benchmark-specific edits ever receiving an inflated score</td></tr>
+<tr><td>Selection</td><td>Noise-adjusted floor</td><td>Conservative selection under noise</td><td>Walking downhill through regressions too small to notice one at a time</td></tr>
+<tr><td>Selection</td><td>Cost-aware acceptance</td><td>Ridge, <i>L</i><sub>2</sub>: shrinks the total footprint</td><td>Token growth not paid for by measured gain</td></tr>
+<tr><td>Selection</td><td>Structural pruning</td><td>Lasso, <i>L</i><sub>1</sub>: removes components outright</td><td>Machinery that stopped earning its place</td></tr>
+</tbody></table></div>
+<div class="card" id="loop"><div id="loopSvg" class="plot"></div>
+<p class="small mute">The loop of {{Figure 2|ax:S3.F2}}, redrawn: what is generic harness evolution (grey) and what RRSI adds (blue).</p></div>
+</section>

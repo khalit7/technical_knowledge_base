@@ -1,0 +1,52 @@
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p class="verdict-line"><b>Verdict:</b> believe the mechanism, and believe that it can cut calls; treat every number as one anecdote. The idea is sound and cheap, the reported ratios reproduce from the paper's own figures, and some results are large (ConvDiv). But nothing is repeated, several headline ratios are chosen at their most favourable point, the cost metric omits the dreaming itself, and the method cannot be rerun from the paper.</p>
+<h3>What holds up</h3>
+<ul class="tight">
+<li><b>The idea is correct on its own terms.</b> A recorded tree really is an exact record of what each attempt produced, and re-scoring a different traversal of it costs nothing. The selection rule (keep the best of M versions, the current one included) can only improve the replay score on the history.</li>
+<li><b>The arithmetic checks.</b> Every average, every call count (5 × 110 = 550, 5 × 640 = 3,200), the 162× and 1.7× ratios and all four kernel ratios reproduce from the paper's own tables and decoded figures; Figure 6 adds up to Figure 4's ConvDiv curve exactly ({{all checks|tab:t-tables:tb-chk}}).</li>
+<li><b>The baseline is controlled.</b> Same agent, evaluator, initialisation, starting policy and per-round budget, so round 1 is shared and only the policy differs.</li>
+<li><b>Some effects are large.</b> ConvDiv ends 1.48× faster than fixed exploration's own final at fewer generations; Lasso with Flash is faster on five of six datasets at 59% of the calls.</li>
+<li><b>The authors are candid in places.</b> They write "competitive or improved" and "in several settings", and the README's summary admits "2 of 3" maths tasks.</li>
+</ul>
+<h3>What does not</h3>
+<ul class="tight">
+<li><b>One run per arm, no error bars.</b> Discovery runs are stochastic (the paper says so in {{§3|ax:S3.SS0.SSS0.Px2}}), yet every curve is one run. Held-out Lasso runtime moves by hundreds of milliseconds between rounds of the <i>same</i> method (fixed Pro: 5,267, 5,365, 5,295, 4,691, 3,587 ms), so the gaps being compared are of the size of round-to-round noise.</li>
+<li><b>Ratios taken at the best point.</b> VGG16's 2.43× and LayerNorm's 1.79× are ratios of total budgets at which Dream-RSI ends slightly <i>worse</i>; at matched performance they are 1.89× and 1.19×. ConvDiv's 2.09× compares against fixed exploration at 770 generations rather than its final (1.48×). ConvMax's 1.44× is one final-round jump.</li>
+<li><b>An average carried by one dataset.</b> Pro's Lasso solver is faster than fixed exploration's on 1 of 6 datasets and 13% slower on the geometric mean; the 18% gain is RCV1.</li>
+<li><b>A cost metric that leaves out the dreaming.</b> Only discovery-agent calls are counted. The development agent writes M versions of the policy every round and reads every replay trace; M, its model and its token use are not reported. Replay is free of evaluations, not free.</li>
+<li><b>Comparisons that are not like for like.</b> SimpleTES's Lasso row is copied from its own paper and was timed on a machine about twice as fast as the one that timed this paper's sklearn and glmnet rows; 51,200 gpt-oss-120b generations are not the same unit as 317 Gemini CLI sessions; Table 1's other systems used other models and budgets, and it omits a previous best (Together AI's 1.454555).</li>
+<li><b>Claims stronger than the figures.</b> "Consistently superior" (Figure 3b) fails for Pro in two of four later rounds; "consistently underperforms" (Figure 5) fails early in both guided runs; on autocorrelation Dream-RSI is beaten by its own baseline.</li>
+<li><b>Not reproducible as written.</b> β<sub>1</sub>, β<sub>2</sub>, M, K<sub>1</sub>, K<sub>2</sub>, the replay worker count, the GPU and the development agent's model are not given; the prompt's objective differs from Eq. 1; no code, traces or programs are released yet (README release plan, 3 October 2026).</li>
+<li><b>What replay cannot see.</b> It rewards only what the record covers. A policy that would go deeper or wider than the recorded grid "is out of support and cannot earn replay reward" (Appendix B.2), and no replayed policy can score above the best recorded node. Replay also assumes a node's outcome does not depend on which siblings had been tried first, while the agent's prompt makes every attempt read them all.</li>
+</ul>
+<h3>The limit, stated plainly</h3>
+<p>A replay simulator is only valid inside the region the history covers. Dreaming therefore sharpens how a mapped space is exploited (fewer, better-placed probes), and cannot by itself push exploration into unmapped territory; whatever new territory Dream-RSI reaches comes from the online rounds. The toy in {{Dream over a recorded tree|tab:t-run}} shows the shape of this: the dreamed policy wins mostly by probing less, keeps most of the best result on fresh worlds of the same kind, and loses more when the next world rewards depth it never recorded. It is the opposite failure from the one {{Agora|n:3e25c17b0d0d81399738c3e65f4bf900}} reported, where the population converged prematurely and a human had to restore diversity; both point at the same risk in self-improving loops: the cheap signal is always the one that describes where you have already been.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul class="tight">
+<li><b>Code:</b> none yet. {{github.com/zhengkid/Dream-RSI|https://github.com/zhengkid/Dream-RSI}} holds the PDF, figures and a README whose release plan lists "Full codebase", "Reproduction scripts" and "Discovered programs" as "being prepared"; there is no licence file (checked 3 October 2026).</li>
+<li><b>What you would build:</b> an orchestration layer that logs every attempt as a tree node (workspace snapshot, artifact, evaluator output, score), a replay engine for that log, a policy interface (<code>solve()</code> over revealed cells, <code>plan_grid()</code> for the next round's width and depth), and a development agent prompted as in {{Appendix B.2|ax:A2.SS2}}. The prompts in Appendix B are the most reusable part of the paper.</li>
+<li><b>Budget:</b> the reported runs are small: 317 to 1,879 Gemini CLI calls for Lasso, under about 1,000 generations per maths or kernel task, plus an unreported amount of development-agent work per round.</li>
+<li><b>When it should pay:</b> when evaluations are expensive, the per-round budget is large enough to waste, and successive rounds explore similar ground, so that old trees say something about the next one. It buys little when one run is all you have (nothing to replay yet) or when the useful directions lie beyond anything recorded.</li>
+<li><b>What to measure first:</b> run each arm several times, report matched-performance savings and per-task results, and count the development agent's calls in the cost.</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="small mute">(beyond the paper)</span></h2>
+<p>Automated discovery loops have become a standard tool: AlphaEvolve ({{Novikov et al. 2025|https://arxiv.org/abs/2506.13131}}), and SimpleTES, which reports results on 28 problems across quantum compilation, astrodynamics, scientific algorithms, kernels and mathematics with one open model and spends 51,200 generations per problem by default ({{Ye et al. 2026, Table 1|https://arxiv.org/abs/2604.19341}}). Once the loop works, the open question is how to spend its budget, and that is a policy that is usually hand-written.</p>
+<p>Dream-RSI's contribution is to notice that every finished run is free training data for that policy, usable without touching model weights and without new evaluations. That is off-policy evaluation from logged data, an old idea in reinforcement learning, applied to the meta layer of a discovery loop; the classic risk of model-based methods, a policy that exploits the model where the model is wrong ({{Moerland et al. survey|https://arxiv.org/abs/2006.16712}}), takes a specific form here: the record is exact but incomplete, so the bias is toward doing less of what was recorded rather than toward hallucinated rewards.</p>
+<p>It also fits the week's pattern in this knowledge base: three auto-research papers that differ mainly in where the loop's memory lives ({{Agora|n:3e25c17b0d0d81399738c3e65f4bf900}} in a shared commit graph, {{SoL-Pi|n:3e25c17b0d0d81a0bb77f16cbc898bb5}} in harness-layer techniques discovered once and reused, Dream-RSI in a replay simulator built from the search history), as the Agora page puts it.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="tight">
+<li>Third of the week's three auto-research papers, with {{Agora: Git as Shared Memory for Collective AutoResearch|n:3e25c17b0d0d81399738c3e65f4bf900}} and {{SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness|n:3e25c17b0d0d81a0bb77f16cbc898bb5}}.</li>
+<li>GPU kernel engineering as one of the three demonstration domains puts it next to {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}} and next to {{Φ-Bench|n:3db5c17b0d0d81029236da6c38f5891f}}'s finding that kernel and hardware work is where frontier models score worst (Hardware and Edge: 5.4% for the best model).</li>
+<li>{{NeoHorse-1|n:3db5c17b0d0d81e3b105e033a359ad24}} pursues recursive self-improvement in the weights: interactions served through its routing harness become a post-training curriculum for the model. Dream-RSI keeps every model fixed and changes only the exploration code. Like NeoHorse-1, it never turns its own loop off component by component, and its loop is judged on one run.</li>
+<li>{{JIT-Agent|n:3cd5c17b0d0d81148227fbd67dc4b3ee}} and {{HarnessDev|n:3d45c17b0d0d81cd9883f783840e013f}} also change the layer around a fixed agent; HarnessDev found that the score a creator could see moved the same way as the held-out score in only 34 of 64 version changes, the same generalisation question Dream-RSI's in-sample selection leaves open.</li>
+<li>{{EnvHarness|n:3c65c17b0d0d81e88ab9c396a160f813}} (cited by Dream-RSI as Huang et al. 2026b) builds worlds for agents to learn in; here the world is the agent's own past.</li>
+</ul>
+</section>
+</section>

@@ -1,0 +1,73 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-arch">Architecture</a><a href="#s-load">Workload</a><a href="#s-mech">Mechanisms</a><a href="#s-rl">RL co-design</a><a href="#s-mis">Misbehaviour</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a><a href="#s-believe">How much to believe</a><a href="#s-use">Using it</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>Agentic reinforcement learning trains a model by letting it act in a real environment: it reads a repository, calls tools, runs commands, inspects failures, edits files, and is rewarded from native execution signals such as exit codes, test pass rates or a task's own verifier ({{§1|ax:S1}}). Each rollout and each evaluation task therefore needs an isolated, task-specific machine with its repository, dependencies, services, evaluation scripts and coding harness, close enough to a real computer to run unmodified package managers, build tools, browsers and emulators. Rollout and evaluation put the most pressure on that layer, because they are large, concurrent and tied to the training loop; asynchronous rollouts (as in DeepSeek's own pipeline) keep many stateful sessions in flight and may interrupt and resume them across policy updates or preemptions ({{§1|ax:S1}}).</p>
+<p>The paper lists seven properties of this workload, and the whole design follows from them ({{§1|ax:S1.I1}}):</p>
+<div class="tw"><table><thead><tr><th>Property</th><th>What it means in production</th><th>What it forces</th></tr></thead><tbody>
+<tr><td>1. Bursty</td><td>one job can ask for up to 32K sandboxes at once</td><td>horizontal scaling, no central bottleneck in scheduling or image distribution</td></tr>
+<tr><td>2. Dense</td><td>a sandbox mostly waits for the model's next action, so CPU use is sparse; one node hosts up to 800 microVMs or 3,200 containers</td><td>safe overcommit</td></tr>
+<tr><td>3. Stateful and long-lived</td><td>files, installed packages and started services persist across many turns; memory and page cache stay pinned after the CPU goes idle</td><td>memory sharing and reclamation</td></tr>
+<tr><td>4. Heterogeneous</td><td>judge-style scripts, whole repositories, security tasks, computer use, Android, full systems</td><td>more than one kind of sandbox</td></tr>
+<tr><td>5. Diverse images</td><td>each task may need its own repository, versions, services or VM snapshot, with little reuse; eager pulling stretched completion 1.7× in their ablation, on-demand loading cut disk writes 57%</td><td>scalable, on-demand image distribution</td></tr>
+<tr><td>6. Untrustworthy</td><td>agents corrupt filesystems, exhaust resources, interfere with system components</td><td>fine-grained access control and misbehaviour analysis</td></tr>
+<tr><td>7. Interruptible</td><td>GPU training jobs are preempted while long rollouts are in progress</td><td>state preservation and efficient recovery</td></tr>
+</tbody></table></div>
+<p class="lead"><b>The question:</b> what does a sandbox platform need to be, so that a frontier lab can create millions of stateful, untrusted, heterogeneous environments a day at the rate a GPU cluster consumes them, and keep them alive through preemptions?</p>
+</section>
+
+<section id="s-idea"><h2>Idea: one SDK, four backends, the caller chooses</h2>
+[[S2|§2 Overview, Table 1]]
+<p>DSec's answer is an elastic platform rather than a single sandbox runtime. Callers (the training framework, evaluation frameworks and data-construction pipelines) reach it through <b>libdsec</b>, a Python client: a request names the sandbox type, the image or environment, CPU and memory limits, lifetime, network rules and initial user; the caller then runs shell commands or tool calls and reads outputs and exit status ({{§2.1|ax:S2.SS1}}). The paper's minimal session asks for a container with 4 GB, 4 cores, a 300-second idle timeout and network rules that allow PyPI but deny npm, runs <code>echo hello world</code> and stops it ({{§2.1|ax:S2.SS1.tab1}}).</p>
+<div class="fm"><div class="eq" style="font-family:ui-monospace,Menlo,monospace;font-size:13px;text-align:left;white-space:pre-wrap">client = DSecClient(); await client.open()
+args = DSecContainerRunArgs(container_image="registry.../sphinx-9658:official",
+    memory_limit_mb=4096, cpu_cores_limit=4, ttl_running_stop=300,  # idle timeout
+    network_rules={"npm": False, "pypi": True}, init_user="root")
+sandbox = await client.run_container(args, timeout=120)
+result = await sandbox.run_shell("echo hello world"); await sandbox.stop()</div><div class="wh">The paper's minimal libdsec session, condensed from its listing in {{§2.1|ax:S2.SS1.tab1}}.</div></div>
+<p>The SDK is <i>deliberately not</i> a full abstraction over its backends. Stronger isolation and fuller system functionality cost startup latency and resources, and no single sandbox fits every agentic task, so DSec offers four points on that trade-off and the caller stays responsible for picking the one that matches the task ({{§2.1|ax:S2.SS1}}, {{§2.2|ax:S2.SS2}}):</p>
+<div class="tw"><table id="t1tab"><thead><tr><th>Table 1</th><th>FnCall</th><th>Container</th><th>MicroVM</th><th>Full VM</th></tr></thead><tbody id="t1body"></tbody></table></div>
+<p class="small mute">Typical workload fit, transcribed from {{Table 1|ax:S2.T1}} ("more ● = higher demand"; the microVM's runtime performance is printed as ●◐○). Pick a scenario to see which column it falls in: <span class="seg" id="t1M"></span></p>
+<ul>
+<li><b>FnCall</b> runs short, stateless work (judge-style programs, compilation, serverless code, GPU kernels) in reusable, precreated CPU or GPU containers, so there is no per-call provisioning; GPUs are shared for light work or reserved exclusively for performance-sensitive operator evaluation ({{§2.2|ax:S2.SS2}}).</li>
+<li><b>Containers</b> are the main backend for software engineering and general tool use: fast start, dense packing, the Linux stacks most repository tasks use, but they share the host kernel ({{§2.2|ax:S2.SS2}}).</li>
+<li><b>Firecracker microVMs</b> give a VM boundary with Linux compatibility for security-sensitive tasks, at more memory and slower start ({{§2.2|ax:S2.SS2}}).</li>
+<li><b>Full VMs</b> (for example Android through QEMU) cover tasks that need a complete off-the-shelf operating system, a GUI or graphics rendering ({{§2.2|ax:S2.SS2}}).</li>
+</ul>
+<p>In production, containers and microVMs dominate both instance count and resource use; FnCall serves many light invocations with a few resident environments; full VMs cover specialised but important classes ({{§2.2|ax:S2.SS2}}). Whatever the backend, the user sees one lifecycle: create (backend, environment artefact, limits, lifetime, network policy), let the platform prepare it, interact (commands, tool calls, tests), then stop it or let its time-to-live reclaim it. The artefact is a base image plus task workspace and toolkit layers for containers and microVMs, a prepared image or snapshot for full VMs, and a task specification for FnCall ({{§2.3|ax:S2.SS3}}).</p>
+<p>The scale of one production unit: nearly 160 CPU nodes with 30K cores and about 250 TB of DRAM, petabytes of layers and images, about 3 M sandboxes on a typical day, peak concurrency about 380K and creation above 5,000 a second; several such units share one 3FS deployment for base images and workspaces ({{§2.4|ax:S2.SS4}}).</p>
+<div class="pred" id="pr-rate" data-ans="1"><div class="q">At peak DSec creates more than 5,000 sandboxes a second. On a typical day it serves about 3 million. What is the <i>average</i> creation rate over that day?</div>
+<div class="opts"><button>About 2,000 a second</button><button>About 35 a second</button><button>About 500 a second</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div id="rateOut"></div>
+<p class="small mute">Derived from {{§2.4|ax:S2.SS4}} and Figure 7's decoded lifetimes (decoded in {{the figures tab|tab:t-figs}}). Little's law (average number in a system = arrival rate × average time spent in it) is beyond the paper; it assumes the one-week sample behind Figure 7 is representative, so treat the average as indicative.</p></div></div>
+</section>
+
+<section id="s-arch"><h2>Architecture: the path of one request</h2>
+[[S3|§3 Platform Architecture, Figure 1]]
+<p>A creation request passes cluster-level services first, then the per-node runtime. Placement uses power-of-<i>k</i> choices with each engine's own recent placements overlaid on a periodic fleet snapshot, and the node's edge keeps the final say ({{§3.1|ax:S3.SS1}}, {{§3.2|ax:S3.SS2}}, {{§7|ax:S7}}, {{Figure 1|ax:S3.F1}}). Step through it below; the second mode shows FnCall's separate path.</p>
+<div class="card" id="rq">
+<div class="an-top"><div class="seg" id="rqM" role="group" aria-label="Backend"><button class="on" data-m="box" aria-pressed="true">Container or VM</button><button data-m="fn" aria-pressed="false">FnCall</button></div>
+<span class="small mute">Components and order from §3; illustrative timing.</span></div>
+<div id="rqSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rqBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rqPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rqFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rqScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="rqSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rqStep"></div><p id="rqCap"></p></div>
+<div class="an-cnt" id="rqCnt"></div>
+</div>
+<details class="mist"><summary>Each component in detail (§3.2 to §3.4, §7)</summary><div class="b">
+<ul>
+<li><b>IAM</b> authenticates every management request. Projects scope resources and access; unlike the flat or two-level hierarchies of cloud platforms, projects nest to any depth, and an authorised principal, an agent or harness included, can create a subproject, delegate part of its quota and grant permissions it holds, never more than its parent's. Humans and agents use the same management API ({{§3.2|ax:S3.SS2}}).</li>
+<li><b>The apiserver</b> is the only path between the trusted GPU servers (where training code calls libdsec) and the network-isolated sandboxes, which run untrusted code and may reach external networks. Creation, commands and streaming I/O all pass through it. It keeps no per-sandbox state: each sandbox ID encodes its owning edge, so any instance can forward any request and the tier scales horizontally ({{§3.2|ax:S3.SS2}}).</li>
+<li><b>The placement engine</b> filters to healthy nodes with the right backend and hardware (a GPU sandbox only to GPU nodes), then samples a few eligible nodes at random and takes the least loaded: the power-of-<i>k</i>-choices algorithm. Each instance overlays its own recent placements on the last snapshot, so in-flight load counts without coordination between instances. <b>The watcher</b> probes edges and hosts and counts running sandboxes per backend, edge, user and task. Neither needs durable state, so instances are easy to add or replace ({{§3.2|ax:S3.SS2}}, {{§7|ax:S7}}). The {{Place a burst|tab:t-run}} tab runs this algorithm.</li>
+<li><b>The edge</b>, one per node, keeps final admission authority: it checks local capacity and rejects if short (the placement engine then picks another node), provisions storage, applies the eBPF network policy and launches the runtime; it also coordinates disk and memory snapshots and frees resources at stop or time-to-live. FnCall and containers run inside QEMU/libvirt VMs rather than on the host, an extra kernel and network boundary; full VMs use para-virtualised GPUs (virtio-gpu) and translation layers such as DXVK for graphics ({{§3.3|ax:S3.SS3}}).</li>
+<li><b>aether</b> is a per-sandbox proxy talking to the edge over a Unix socket (containers) or vsock (VMs); the edge marks the sandbox failed if that channel closes. <b>chronus</b> instances are shell sessions inside the sandbox (commands, filesystem, HTTP, streaming I/O), one per terminal session ({{§3.3|ax:S3.SS3}}).</li>
+<li><b>Storage</b>: container images are converted offline from OCI to EROFS with metadata kept local and data in 3FS; microVM disks use OverlayBD over the same store; both load on demand and snapshot incrementally over a shared base ({{§3.3|ax:S3.SS3}}).</li>
+<li><b>Cloud bursting</b>: above 80% on-premise utilisation, the placement engine offloads eligible container requests to cloud VMs running the same container runtime and EROFS path from a cloud filesystem. A de-duplicated 30 TB image set covers the files accessed by 70% of container tasks; tasks entirely inside it are cloud-eligible. In one scale unit 200 cloud VMs absorb about 30% of peak overflow ({{§3.4|ax:S3.SS4}}).</li>
+</ul>
+<p>Reliability is engineered rather than measured: auxiliary services (API gateways, package mirrors) and the control-plane ingress sit behind a BGP-announced virtual IP with ECMP routing, so a dead instance loses its route within seconds; placement, watcher and IAM run as several independent instances, and regular cluster resets check that the Infrastructure-as-Code configuration can rebuild every cluster-level service from scratch ({{§7|ax:S7}}).</p></div>
+</details>
+</section>
