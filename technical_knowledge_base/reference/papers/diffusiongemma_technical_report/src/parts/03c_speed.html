@@ -1,0 +1,28 @@
+
+<section id="s-speed"><h2>Speed: where the time of a pass goes</h2>
+[[S6|§6, Figures 11 and 12, Eq. 12]]
+<p>Training raised the tokens per pass; Section 6 lowers the cost of a pass. Serving one request is memory-bound ({{PagedAttention|n:3c65c17b0d0d81bf8b90ca93fee19f5f}}; Pope et al.), so diffusion's extra FLOPs are cheaper than AR's extra passes. Reference implementations are in Hugging Face Transformers and vLLM ({{§6|ax:S6}}). {{Figure 11|ax:S6.F11}} times one step on an H100 in FP8, one request, 4,096 prompt tokens: a DiffusionGemma step processes 256 times more tokens but takes only <b>3.2x</b> as long, 12.63 ms against 4.01 ms of GPU time, plus about 1 ms of CPU work each end to end.</p>
+<div class="card" id="gpu">
+<div class="ctl"><label>Tokens per forward pass (TPF) = <b id="gpuTv"></b><input type="range" id="gpuT" min="1" max="40" step="0.02" value="19.74"></label></div>
+<div class="chips" id="gpuX"><label><input type="checkbox" id="gpuMoE"> MoE experts at the AR step's cost (no expert overhead, nearer a dense model)</label><label><input type="checkbox" id="gpuSmp"> Sampling at the AR step's cost (a fused kernel)</label><label><input type="checkbox" id="gpuAtt"> Attention at the AR step's cost</label></div>
+<div id="gpuSvg"></div>
+<div class="out" id="gpuO"></div>
+<p class="small mute">{{Figure 11|ax:S6.F11}}'s printed labels ("Other" = total minus the rest). Speed = TPF / (GPU time + 0.93 ms overhead); AR = 1 / 4.90 ms. <b>Defaults reproduce</b> Section 6's 1,456 tokens/s, 7.1x and 4.8x, by construction. Checkboxes are what-ifs; the paper says only that a dense model would cut the feed-forward slowdown to under 2x.</p>
+</div>
+<p>Three operations account for the difference ({{§6 "GPU time breakdown"|ax:S6}}):</p>
+<ul class="lst">
+<li><b>MoE experts, 4.3x</b> (1.08 to 4.66 ms): with one request the MoE layer's time is moving expert weights from HBM. One token activates 8 experts per layer, a 256-token canvas about <b>84</b> (PG-19), so loading them no longer amortises: verification's penalty in speculative decoding, at larger parallelism.</li>
+<li><b>Sampling, 5.5x</b> (0.56 to 3.06 ms): a full-precision softmax over the 262k vocabulary at all 256 positions plus the self-conditioning matmul, in torch.compile rather than custom kernels, for extensibility.</li>
+<li><b>Attention, 4.1x</b> (0.45 to 1.84 ms): bidirectional attention over the canvas cannot use single-token decode kernels, so it runs FlashAttention-4 (the text says 4x and "at most 2x" for the rest; the figure prints 2.1x for "Other").</li></ul>
+<div class="pred" id="pr-exp" data-ans="2"><div class="q">each token picks 8 of 128 experts. If the 256 tokens of a canvas chose their experts independently and uniformly, how many distinct experts would one MoE layer have to load?</div>
+<div class="opts"><button>8, the same as one token</button><button>About 84</button><button>Essentially all 128</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div id="prExpC"></div><div class="out" id="prExpO"></div>
+<p class="small mute">Derived: 128 × (1 − (120/128)<sup><i>n</i></sup>); 84 measured ({{§6|ax:S6}}).</p></div></div>
+<p>Two kinds of pass (denoise, cache update) with different masks can share a batch and stopping is decided on the GPU; the vLLM integration avoids every CPU-GPU synchronisation with asynchronous scheduling and a per-sequence causal-attention flag ({{§6|ax:S6}}; {{vLLM blog|https://vllm.ai/blog/2026-06-10-diffusion-gemma}}).</p>
+<h3>More than one user</h3>
+<p>{{Figure 12|ax:S6.F12}} adds concurrent requests (PG-19, DiffusionGemma at 16 TPF, Gemma 4 with an MTP draft of 4). DiffusionGemma leads in per-user and total throughput at low batch sizes; AR begins to win "around 32 concurrent requests", with nothing tuned for batches above 1 (top-<i>k</i> truncation in sampling is expected to help).</p>
+<div class="card" id="bsz"><div id="bszSvg"></div>
+<p class="small mute">{{Figure 12(b)|ax:S6.F12}}'s printed ratios. Dashed: the total-throughput ratio's recent fall (about 0.75 per doubling, derived) carried one doubling on; the figure stops at <i>c</i> = 16.</p></div>
+<p><b>Towards real traffic</b> (outside the paper's scope): DiffusionGemma does TPF times fewer KV-cache transfers and more MoE FLOPs, trading data movement for compute, which suits GPUs whose compute outgrows their bandwidth and long-context agentic serving.</p>
+</section>
