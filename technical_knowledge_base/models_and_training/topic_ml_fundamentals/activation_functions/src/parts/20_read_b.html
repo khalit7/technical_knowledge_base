@@ -1,0 +1,43 @@
+
+<section id="s-relu">
+<h2>The ReLU family</h2>
+<p>ReLU, max(0, <i>x</i>), has slope exactly 1 for every positive input, so the gradient passes through any number of active layers unshrunk, and it costs one comparison. It entered deep learning through restricted Boltzmann machines (<a href="https://www.cs.toronto.edu/~hinton/absps/reluICML.pdf" target="_blank" rel="noopener noreferrer">Nair and Hinton 2010</a>) and deep supervised networks (<a href="https://proceedings.mlr.press/v15/glorot11a.html" target="_blank" rel="noopener noreferrer">Glorot, Bordes and Bengio 2011</a>, who stressed that it makes representations sparse: many units output exactly 0). AlexNet made it the default: a four-layer convolutional network with ReLUs reached 25% training error on CIFAR-10 six times faster than the same network with tanh (<a href="https://papers.nips.cc/paper_files/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html" target="_blank" rel="noopener noreferrer">Krizhevsky, Sutskever and Hinton 2012</a>, section 3.1). Its variants each patch one weakness:</p>
+<div class="tw"><table>
+<tr><th>Variant</th><th>Formula, for <i>x</i> &le; 0 (all are <i>x</i> for <i>x</i> &gt; 0 unless said)</th><th>What it fixes, and its cost</th><th>Source</th></tr>
+<tr><td>Leaky ReLU</td><td>α<i>x</i>, α fixed (0.01 in the paper and PyTorch's default)</td><td>a small gradient for negative inputs, so a unit cannot be stuck at zero gradient; one more hyperparameter</td><td><a href="https://ai.stanford.edu/~amaas/papers/relu_hybrid_icml2013_final.pdf" target="_blank" rel="noopener noreferrer">Maas, Hannun and Ng 2013</a></td></tr>
+<tr><td>PReLU</td><td><i>a</i><i>x</i>, <i>a</i> learned (per channel or shared), initialised at 0.25</td><td>the network picks the slope; He initialisation was derived for it in the same paper</td><td><a href="https://arxiv.org/abs/1502.01852" target="_blank" rel="noopener noreferrer">He et al. 2015</a></td></tr>
+<tr><td>ELU</td><td>α(e<sup><i>x</i></sup> &minus; 1), α = 1</td><td>a smooth negative side that saturates at &minus;α, which pushes mean outputs towards zero (the paper's argument for faster learning); costs an exponential</td><td><a href="https://arxiv.org/abs/1511.07289" target="_blank" rel="noopener noreferrer">Clevert, Unterthiner and Hochreiter 2015</a></td></tr>
+<tr><td>SELU</td><td>λα(e<sup><i>x</i></sup> &minus; 1), and λ<i>x</i> for <i>x</i> &gt; 0; λ &asymp; 1.0507, α &asymp; 1.6733</td><td>constants chosen so that mean 0 and variance 1 is a fixed point of a layer with LeCun initialisation: the network normalises itself without BatchNorm, in fully connected networks</td><td><a href="https://arxiv.org/abs/1706.02515" target="_blank" rel="noopener noreferrer">Klambauer et al. 2017</a></td></tr>
+<tr><td>Squared ReLU</td><td>0, and <i>x</i><sup>2</sup> for <i>x</i> &gt; 0</td><td>found by Primer's search as "the most effective modification" to a Transformer's feed-forward block; used by Nemotron-4 15B and the Nemotron Mini and Minitron models (config <code>relu2</code>)</td><td><a href="https://arxiv.org/abs/2109.08668" target="_blank" rel="noopener noreferrer">So et al. 2021</a>, <a href="https://arxiv.org/abs/2402.16819" target="_blank" rel="noopener noreferrer">Nemotron-4 15B</a>, <a href="https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a></td></tr>
+</table></div>
+<p><b>SELU's fixed point, reproduced.</b> For a standard normal input, this page's numerical integration gives E[SELU(<i>z</i>)] = 0.0000 and E[SELU(<i>z</i>)<sup>2</sup>] = 1.0000 <i class="nl r">reproduces Klambauer et al. independently</i>; for ReLU, E[ReLU(<i>z</i>)<sup>2</sup>] = 0.5, the half that He initialisation's factor 2 puts back. Both are rows of the statistics table in the {{Activation atlas|#t-atlas}}, beside PyTorch's <code>calculate_gain</code>.</p>
+</section>
+
+<section id="s-dead">
+<h2>Dead units, measured</h2>
+<p>A ReLU unit whose input is negative for every example outputs 0 everywhere and receives zero gradient, so nothing in backpropagation pushes it back: it is <b>dead</b>. A high learning rate or a large negative bias can kill many at once. The usual statement is that a dead unit "never recovers". That is exact only for a unit whose inputs cannot change (the first layer, fed fixed data); a dead unit deeper in the network can come back when the layers below it change, as the measured run below shows.</p>
+<p class="try"><b>Try:</b> a real network, trained offline: a 64-128-128-128-10 network on 1,797 handwritten digits, He initialisation, SGD with momentum 0.9, 30 epochs. Each square is one of the 384 hidden units; its shade is the share of the 1,797 images on which it is on, and a red square is dead (off on every image). Press play to run the epochs, then switch runs: the same network at learning rate 0.04, at 0.08, and at 0.08 with leaky ReLU.</p>
+<div class="card" id="dr">
+<div class="seg2" id="drM" role="group" aria-label="Run"><button data-r="0" class="on">ReLU, rate 0.04</button><button data-r="1">ReLU, rate 0.08</button><button data-r="2">Leaky ReLU, rate 0.08</button></div>
+<div id="drSvg" class="plotbox"></div>
+<div class="lg" id="drL"></div>
+<div class="an-ctl" id="drC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="drT"></div><p id="drP" style="margin:2px 0 0"></p></div>
+<div class="cnt" id="drN"></div>
+<p class="small mute">Measured with <code>src/dead_relu_toy.py</code> (PyTorch 2.14, CPU, seed 0 for these three runs). Data: scikit-learn's digits (UCI), pixels standardised, 1,437 images to train on and 360 held out; "dead" is judged on all 1,797. A leaky unit with negative input on every image is counted the same way, though it still passes 1% of the gradient.</p>
+</div>
+<p><b>Across five seeds and ten learning rates</b> (the chart below, from the same script): up to a rate of 0.04 no ReLU unit dies; at 0.05 and 0.06 a handful die and the network still reaches 96 to 98% held-out accuracy; from 0.07 most runs lose a whole layer, after which every image produces the same output, the loss sits at ln 10 = 2.303 and accuracy at chance. With leaky ReLU nothing can go fully silent, so the same rates do not end in a dead network; they end in a loss that overflows to "not a number". The learning rate is the cause in both; the activation decides only whether the failure is silent or loud.</p>
+<div class="card" id="ds">
+<div id="dsSvg" class="plotbox"></div>
+<div class="lg" id="dsL"></div>
+<p class="small mute" id="dsX"></p>
+</div>
+<div class="co"><div class="t">What to do about dead units</div>
+<ul class="tight">
+<li><b>Check for them:</b> count, over a batch or a held-out set, the units whose output is 0 on every example (the parent's {{When training goes wrong|n:3c65c17b0d0d81d796ccc0a293218c57}} tab runs a network whose biases start at &minus;3, so most ReLUs are off from the start, and shows the plateau that follows).</li>
+<li><b>Lower the learning rate, warm it up, clip gradients:</b> the runs above die only above a threshold rate.</li>
+<li><b>Initialise for the activation</b> (He for the ReLU family) and keep biases at 0, not negative.</li>
+<li><b>Normalise</b> before the activation, which keeps pre-activations centred, or switch to a variant with a negative side (leaky, ELU, GELU, SiLU). Neither removes the cause if the rate is too high.</li>
+</ul></div>
+<p><b>In a released model.</b> Dead units are not only a training accident. In OPT, whose feed-forward blocks use ReLU, "many neurons (more than 70% in some layers of the 66b model) are 'dead', i.e. they never activate on a large collection of diverse data", all of them in the first half of the network (<a href="https://arxiv.org/abs/2309.04827" target="_blank" rel="noopener noreferrer">Voita, Ferrando and Nalmpantis 2023</a>). The {{Inside real models|#t-real}} tab measures the same thing on OPT-125m over 283,287 tokens of WikiText-2: <span id="dr-opt"></span></p>
+</section>
