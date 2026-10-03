@@ -1,0 +1,43 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Run the three steps in your browser</h2>
+<p>The paper's whole pipeline, at toy scale, trained here and now: a tiny language model is pretrained on "internet text" in which instructions are usually followed by more instructions (GPT-3's habit), fine-tuned on labeler demonstrations (step 1), a reward model is fit to simulated labelers' rankings with {{Eq. 1|ax:S3.E1}} (step 2), and the policy is trained with PPO against it, with the per-token KL penalty and the pretraining mix of {{Eq. 2|ax:S3.E2}} (step 3). Unlike the paper, the toy knows what its labelers really want, so it can show the gap between the reward model's score and the truth.</p>
+<details class="card"><summary><b>The toy, exactly</b> (what it is, how it was checked, what it cannot show)</summary>
+<ul class="lst small">
+<li><b>World</b>: 30 words and 6 instructions ("name a fruit", "name a colour", "name an animal", "count to three", "what is two plus two", "say hello"). A response is up to 8 words ending with &lt;end&gt;.</li>
+<li><b>Pretraining text</b>: 3,000 seeded documents of 2 to 4 lines: worksheets of instructions (50%: the next line is another instruction), worksheets with answers (12%), and pages of facts such as "apple is a fruit" (38%). Its held-out loss (nats per word on 300 fresh documents) is the toy's stand-in for the paper's public NLP benchmarks: the capability the alignment tax erodes.</li>
+<li><b>Model</b>: an MLP language model over the last 3 words, h = tanh(E<sub>1</sub>[w<sub>t-1</sub>] + E<sub>2</sub>[w<sub>t-2</sub>] + E<sub>3</sub>[w<sub>t-3</sub>] + b), logits = hU + c, 32 hidden units, 3,902 parameters, float64, Adam with β<sub>2</sub> = 0.95 as in §C. Pretrained for 3,000 steps of 32 windows.</li>
+<li><b>Labelers</b>: the toy's ground truth (which the paper never has): +3 for a correct, complete answer; +0.5 for one opening "sure", minus 0.8 for each extra one; minus 0.6 per extra word; -1.5 for more instructions instead of an answer; -1 for a wrong answer; -1 for never stopping; -2 for nothing. A labeler ranks <i>K</i> answers by these scores plus Gumbel noise of scale 0.3, so any pair is a Bradley-Terry choice; 0.3 was chosen so two labelers agree on 73.3% of comparisons of SFT answers, near the paper's 72.6% (by construction).</li>
+<li><b>Step 1</b>: 600 demonstrations (the right answer, half of them with "sure" first), 16 epochs, cosine decay to 10%, with 10% of every batch pretraining text, as the paper's PPO initialisation (§C.3).</li>
+<li><b>Step 2</b>: a linear reward model on bag-of-words counts, global and per instruction (210 features); 800 prompts with <i>K</i> = 6 SFT answers ranked by one labeler, every C(6,2) pair of a prompt in one batch element, one epoch, cosine decay to 10%, then a bias so the demonstrations score 0 on average (§3.5, §C.2). It is deliberately simple: it cannot count, which is the hole PPO finds.</li>
+<li><b>Step 3</b>: bandit episodes; per-token reward -β log(π/π<sub>SFT</sub>), plus the RM score at the end; no discount; advantage = return minus a value table (per instruction and position) initialised from the RM's mean score, whitened per batch; PPO clip 0.2; 500 iterations of 64 episodes in minibatches of 16, one inner epoch. With γ &gt; 0 each minibatch adds γ times the gradient of the mean log-likelihood of 8 fresh pretraining windows per episode, the ratio of §C.4. The value table stands in for the paper's 6B value network.</li>
+<li><b>Checked</b>: the JavaScript language-model gradient, the Eq. 1 loss and gradient, and the full PPO-ptx minibatch objective (clipping active on 17 of 66 tokens) match PyTorch autograd to within 5 × 10<sup>-16</sup> (<span class="mono">check_grad.py</span>, PASS). Everything is seeded, so a setting gives the same numbers as the offline sweep (<span class="mono">sweep.cjs</span>) in a V8 browser.</li>
+<li><b>What it cannot show</b>: model size (one size), held-out labelers, a few-shot "prompted GPT-3" (the model sees only 3 words, so a prefix has no effect), 175B RM instability, and anything about real language. Its β and γ are in its own units: the paper's 0.02 and 27.8 do not transfer.</li></ul></details>
+
+<div class="card" id="stg"><div class="stage" id="stgBox"></div><div class="an-ctl"><button id="stgRun" class="an-play">&#9654; Train the pipeline</button><span class="small mute" id="stgMsg"></span></div></div>
+
+<div class="card" id="smp"><h3 style="margin:0 0 4px">What each model says</h3>
+<div class="an-ctl"><button id="smpNew">New samples</button><span class="small mute">one sample per instruction from each model; the number is the labelers' true score (best 3.5)</span></div>
+<div id="smpOut"></div></div>
+
+<div class="card" id="rmc"><h3 style="margin:0 0 4px">What the reward model learned</h3><div id="rmcOut"></div><div id="rmcSvg"></div></div>
+
+<div class="card" id="trn"><h3 style="margin:0 0 4px">Step 3: train a policy</h3>
+<div class="seg" id="trnP" role="group" aria-label="Preset" style="margin-bottom:8px"><button class="on" data-m="ppo">PPO (β = 0.3)</button><button data-m="ptx">PPO-ptx (γ = 0.1)</button><button data-m="nokl">No KL penalty</button><button data-m="bigkl">Strong KL (β = 3)</button><button data-m="bigptx">Strong mix (γ = 1)</button></div>
+<div class="an-ctl"><label class="small">KL coefficient β <select id="trnB"><option>0</option><option>0.01</option><option>0.03</option><option>0.1</option><option selected>0.3</option><option>1</option><option>3</option></select></label>
+<label class="small">pretraining coefficient γ <select id="trnG"><option selected>0</option><option>0.01</option><option>0.03</option><option>0.1</option><option>0.3</option><option>1</option></select></label>
+<label class="small">seed <select id="trnS"><option selected>21</option><option>22</option><option>23</option></select></label>
+<button id="trnRun" class="an-play">&#9654; Train</button><span class="small mute" id="trnStep"></span></div>
+<p class="small" id="trnQ" style="margin:2px 0 6px"></p>
+<div class="cols2"><div id="trnU"></div><div id="trnR"></div><div id="trnK"></div><div id="trnC"></div></div>
+<p class="small mute" style="margin:2px 0 0">Measured every 25 iterations on 96 fresh samples (16 per instruction). Grey: the previous run, for comparison. Dashed: the SFT model (and, for the pretraining loss, the pretrained model).</p>
+<div class="an-cnt" id="trnCnt"></div>
+<div id="trnOut"></div></div>
+
+<h3 id="swh">Measured: the toy's sweeps, three seeds each</h3>
+<p>The same code run offline by <span class="mono">sweep.cjs</span> for every β (no mix) and every γ (at β = 0.3), seeds 21 to 23; the Train button reproduces any of them exactly. The paper's own sweeps, decoded from its figures, sit beside them.</p>
+<div class="card" id="swf"></div>
+<div class="card" id="swb"></div>
+<div class="card" id="swg"></div>
+<div class="card"><h4 style="margin:0 0 6px">What reproduces at toy scale, and what does not</h4><div id="swTab"></div></div>
+<div class="card" id="sfte"></div>
+</section>
