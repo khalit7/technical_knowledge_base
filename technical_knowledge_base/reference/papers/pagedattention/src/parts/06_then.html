@@ -1,0 +1,36 @@
+<section class="tab" id="t-then" role="tabpanel" hidden>
+<h2>Then and now</h2>
+<p>What came before the paper, what it changed, and what has become of its design three years on. Each step has its source; dated facts were checked on 3 October 2026.</p>
+<div class="tl-item"><h3>2022: Orca, iteration-level scheduling</h3>
+<p>{{Orca (Yu et al., OSDI 2022)|https://www.usenix.org/conference/osdi22/presentation/yu}} schedules at the granularity of one iteration, so finished requests leave and new ones join every step. It still stores each request's KV cache contiguously, sized for its maximum length. The paper's strongest baseline is a reimplementation of it ({{§6.1|ax:S6.SS1}}).</p></div>
+<div class="tl-item"><h3>June 2023: vLLM released</h3>
+<p>The {{announcement|https://blog.vllm.ai/2023/06/20/vllm.html}} reports up to 24× the throughput of Hugging Face Transformers and up to 3.5× that of Hugging Face TGI, "a mere waste of under 4%" of memory, and up to 55% less memory for parallel sampling and beam search, which "can translate into up to 2.2x improvement in throughput". vLLM had served Chatbot Arena and the Vicuna demo for two months. Version 0.1.0 reached PyPI on 20 June 2023 ({{PyPI|https://pypi.org/project/vllm/}}).</p></div>
+<div class="tl-item"><h3>September to October 2023: the paper</h3>
+<p>arXiv on 12 September 2023, SOSP in Koblenz on 23 to 26 October. The default block size of 16 was set here ({{§7.2|ax:S7.SS2}}).</p></div>
+<div class="tl-item"><h3>2023 to 2024: everyone pages the KV cache</h3>
+<ul>
+<li>{{Hugging Face TGI|https://github.com/huggingface/text-generation-inference/blob/main/docs/source/conceptual/paged_attention.md}}: "TGI's PagedAttention implementation leverages the custom cuda kernels developed by the vLLM Project".</li>
+<li>{{NVIDIA TensorRT-LLM|https://nvidia.github.io/TensorRT-LLM/advanced/gpt-attention.html}}: a paged KV cache with 8 to 128 tokens per block, enabled by default.</li>
+<li>{{DeepSpeed-FastGen|https://github.com/deepspeedai/DeepSpeed/blob/master/blogs/deepspeed-fastgen/README.md}}: "blocked KV caching", credited to vLLM.</li>
+<li>{{SGLang's RadixAttention|https://arxiv.org/html/2312.07104v2}} (December 2023): a radix tree of cached prefixes over a paged layout with pages of one token, so any shared prefix is reused, not only pre-declared ones.</li></ul></div>
+<div class="tl-item"><h3>2024: what paging left open</h3>
+<ul>
+<li><b>Prefill and decode interference.</b> {{Sarathi-Serve|https://arxiv.org/abs/2403.02310}} splits prompts into chunks so decodes never stall ("chunked prefills"; up to 2.6× the serving capacity of vLLM on Mistral-7B); {{DistServe|https://arxiv.org/abs/2401.09670}} puts prefill and decode on different GPUs.</li>
+<li><b>The cost of paging inside kernels.</b> {{vAttention|https://arxiv.org/abs/2405.04437}} measures paged prefill kernels up to 37% (FlashAttention-2) and 42% (FlashInfer) slower than non-paged ones, and keeps the KV cache contiguous in virtual memory with CUDA's virtual memory APIs, up to 1.23× faster than paged kernels.</li>
+<li><b>The model side.</b> Multi-head latent attention ({{DeepSeek|n:3c65c17b0d0d81a2ae7ec6796947a235}}) shrinks the cache itself; vLLM now ships FlashMLA kernels for it ({{README|https://github.com/vllm-project/vllm/blob/main/README.md}}).</li></ul></div>
+<div class="tl-item"><h3>2025: vLLM V1</h3>
+<p>The {{V1 alpha|https://blog.vllm.ai/2025/01/27/v1-alpha-release.html}} (January 2025) rebuilt the engine: a scheduler that gives each request a number of tokens per step under a fixed token budget, which makes chunked prefill, prefix caching and speculative decoding the same mechanism; "zero-overhead" hash-based prefix caching with LRU eviction; the scheduler and model executor in an isolated EngineCore process; FlashAttention 3 integrated; up to 1.7× the throughput of V0. V1 became the default in {{v0.8.0|https://github.com/vllm-project/vllm/releases/tag/v0.8.0}} (18 March 2025) and the only engine in {{v0.11.0|https://github.com/vllm-project/vllm/releases/tag/v0.11.0}} (2 October 2025). vLLM became a {{PyTorch Foundation-hosted project|https://pytorch.org/blog/pytorch-foundation-welcomes-vllm/}} on 7 May 2025, and Red Hat launched {{llm-d|https://www.redhat.com/en/about/press-releases/red-hat-launches-llm-d-community-powering-distributed-gen-ai-inference-scale}} for distributed serving on top of it with founding contributors CoreWeave, Google Cloud, IBM Research and NVIDIA.</p></div>
+<div class="tl-item"><h3>2026: the paper's swap path is gone</h3>
+<p>{{v0.18.0|https://github.com/vllm-project/vllm/releases/tag/v0.18.0}} (20 March 2026) removed the <code>swap_space</code> parameter as part of retiring V0, leaving recomputation as the preemption path of §4.5; {{v0.19.0|https://github.com/vllm-project/vllm/releases/tag/v0.19.0}} (April 2026) added general CPU KV cache offloading with block-level preemption handling instead. The current release is {{0.30.0|https://pypi.org/project/vllm/}} (22 September 2026); the default block size is still 16 ({{cache.py|https://github.com/vllm-project/vllm/blob/main/vllm/config/cache.py}}).</p></div>
+<h3>What survived and what changed</h3>
+<div class="tw"><table>
+<tr><th>The paper (2023)</th><th>Today</th></tr>
+<tr><td>Fixed-size KV blocks, block tables, allocation on demand (§4.2)</td><td>Survived everywhere: vLLM, TGI, TensorRT-LLM, DeepSpeed-FastGen, SGLang. vAttention is the main dissent, keeping virtual contiguity.</td></tr>
+<tr><td>Block size 16 (§7.2)</td><td>Still vLLM's default; TensorRT-LLM supports 8 to 128; SGLang pages one token at a time.</td></tr>
+<tr><td>Reference counts and copy-on-write for parallel sampling and beam search (§4.4)</td><td>Survived; prefix sharing grew from provider-reserved prefixes into automatic, hash-based (vLLM) or radix-tree (SGLang) prefix caching across requests.</td></tr>
+<tr><td>Iteration-level scheduling with prompt and decode tokens in one step (§4.3)</td><td>Generalised: V1's per-request token budget, with chunked prefill splitting long prompts.</td></tr>
+<tr><td>Preemption by swapping or recomputation (§4.5)</td><td>Recomputation remains; swap space was removed in v0.18.0; CPU offloading returned as a separate KV cache tier.</td></tr>
+<tr><td>Centralised KV manager over Megatron-style tensor parallelism (§4.6)</td><td>Extended to pipeline, data, expert and context parallelism and to disaggregated prefill and decode ({{README|https://github.com/vllm-project/vllm/blob/main/README.md}}).</td></tr>
+<tr><td>A fused paged attention kernel adapted from FasterTransformer (§5.1)</td><td>Replaced by FlashAttention, FlashInfer, TRTLLM-GEN, FlashMLA and Triton backends that read paged caches ({{README|https://github.com/vllm-project/vllm/blob/main/README.md}}).</td></tr>
+</table></div>
+</section>
