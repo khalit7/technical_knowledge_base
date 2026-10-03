@@ -1,0 +1,72 @@
+
+<section id="s-axes">
+<h2>2 · One recipe, five choices of axes</h2>
+<p>Every normalisation layer does the same three things to a tensor of activations: pick a set of numbers, compute their mean &mu; and variance &sigma;&sup2;, and replace each number x in the set with</p>
+<div class="fm"><div class="eq">y = &gamma; &middot; (x &minus; &mu;) / &radic;(&sigma;&sup2; + &epsilon;) + &beta;</div>
+<dl><dt>&mu;, &sigma;&sup2;</dt><dd>mean and (biased, divide-by-n) variance over the set; RMSNorm skips &mu; and uses the mean square, so y = &gamma; &middot; x / &radic;(mean(x&sup2;) + &epsilon;)</dd><dt>&epsilon;</dt><dd>a small constant against division by zero (10<sup>&minus;5</sup> by default in PyTorch; LLM configs use 10<sup>&minus;5</sup> or 10<sup>&minus;6</sup>)</dd><dt>&gamma;, &beta;</dt><dd>learned per feature or channel, initialised to 1 and 0, so the layer can undo the normalisation if that helps; without them, normalising would also limit what a layer can represent (<a href="https://arxiv.org/abs/1502.03167" target="_blank" rel="noopener noreferrer">Ioffe and Szegedy 2015, &sect;3</a>)</dd></dl></div>
+<p>The kinds differ only in <b>which numbers share one &mu; and &sigma;</b>, and that choice decides everything else: whether an example's output depends on the other examples in its batch, whether training and inference compute the same thing, and what the layer can be used for. The figure that made this clear is Figure 2 of the <a href="https://arxiv.org/abs/1803.08494" target="_blank" rel="noopener noreferrer">GroupNorm paper</a> (Wu and He 2018); the version below is live, on real numbers.</p>
+
+<div class="card" id="ax-card">
+<h3>Which numbers share one mean and one variance</h3>
+<p class="try"><b>Try:</b> pick a layout and a norm, then click any number: everything outlined shares its statistics. Then press "Change example 1": example 1 is multiplied by 3, and every output that changes in <i>another</i> example is ringed in orange. Only BatchNorm rings anything.</p>
+<div class="modes" id="ax-lay"><button data-l="img" class="on">Image: N &times; C &times; H &times; W</button><button data-l="tok">Tokens: B &times; T &times; D</button></div>
+<div class="modes" id="ax-kind"></div>
+<div class="modes"><button id="ax-in" class="on">Show inputs</button><button id="ax-out">Show outputs</button><button id="ax-chg">Change example 1</button></div>
+<div id="ax-t"></div>
+<div class="an-cnt" id="ax-cnt"></div>
+<p class="small mute" id="ax-note"></p>
+<p class="small mute">Inputs are seeded random numbers with an offset and a scale per channel and a scale per example <span class="nl i">illustrative</span>. Outputs are with &gamma; = 1, &beta; = 0 (PyTorch's initial values) and &epsilon; = 10<sup>&minus;5</sup>; they match <code>torch.nn.BatchNorm2d</code>, <code>BatchNorm1d</code>, <code>LayerNorm</code>, <code>RMSNorm</code>, <code>GroupNorm</code> and <code>InstanceNorm2d</code> to 10<sup>&minus;14</sup> (<code>src/checks/norms_ref.py</code>).</p>
+</div>
+
+<p><b>Reading the picture.</b> For images, BatchNorm shares statistics across the N examples and the H &times; W pixels of one channel; LayerNorm across all channels and pixels of one example; InstanceNorm across the pixels of one channel of one example; GroupNorm across a group of channels of one example (with one group it is LayerNorm, with one channel per group it is InstanceNorm). For token sequences, BatchNorm would average one feature over every token of every sequence in the batch, padding included, and the statistics would change with sequence length; LayerNorm and RMSNorm average each token over its own D features, so a token's output depends on nothing else. That independence is why transformers use them.</p>
+<div class="tw"><table>
+<thead><tr><th>Norm</th><th>Set sharing &mu;, &sigma; (image)</th><th>Set (tokens)</th><th>Depends on the batch</th><th>Paper</th></tr></thead>
+<tbody>
+<tr><td>BatchNorm</td><td>one channel, all N examples and pixels</td><td>one feature, all B &times; T tokens</td><td>yes</td><td><a href="https://arxiv.org/abs/1502.03167" target="_blank" rel="noopener noreferrer">Ioffe and Szegedy 2015</a></td></tr>
+<tr><td>LayerNorm</td><td>one example, all C channels and pixels</td><td>one token, its D features</td><td>no</td><td><a href="https://arxiv.org/abs/1607.06450" target="_blank" rel="noopener noreferrer">Ba, Kiros and Hinton 2016</a></td></tr>
+<tr><td>InstanceNorm</td><td>one channel of one example</td><td>(not used)</td><td>no</td><td><a href="https://arxiv.org/abs/1607.08022" target="_blank" rel="noopener noreferrer">Ulyanov, Vedaldi and Lempitsky 2016</a>, for style transfer</td></tr>
+<tr><td>GroupNorm</td><td>a group of C/G channels of one example (G = 32 in the paper)</td><td>(not used)</td><td>no</td><td><a href="https://arxiv.org/abs/1803.08494" target="_blank" rel="noopener noreferrer">Wu and He 2018</a></td></tr>
+<tr><td>RMSNorm</td><td>as LayerNorm, no mean</td><td>one token, its D features, no mean</td><td>no</td><td><a href="https://arxiv.org/abs/1910.07467" target="_blank" rel="noopener noreferrer">Zhang and Sennrich 2019</a></td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-bn">
+<h2>3 · BatchNorm: z-scores inside the network, and the batch it cannot do without</h2>
+<p>BatchNorm is feature scaling applied per layer, inside the network, over the batch dimension. In <b>training</b>, for every layer and every feature (channel):</p>
+<ol>
+<li>Compute the batch mean &mu;<sub>B</sub> and variance &sigma;<sub>B</sub>&sup2; of the feature across the batch (and, in a CNN, across the pixels).</li>
+<li>Normalise: x&#770; = (x &minus; &mu;<sub>B</sub>) / &radic;(&sigma;<sub>B</sub>&sup2; + &epsilon;).</li>
+<li>Re-scale and re-shift with learned parameters: y = &gamma;x&#770; + &beta;, one &gamma; and one &beta; per feature, so num_features of each per layer.</li>
+<li>Update <b>running averages</b> of &mu; and &sigma;&sup2; with a momentum hyperparameter, for later use.</li>
+</ol>
+<p>At <b>inference</b> a single input has no batch, so the layer uses the running averages instead. Exact statistics of the whole training set would be ideal (the original paper averages the mini-batch statistics over the training data once training is done, <a href="https://arxiv.org/abs/1502.03167" target="_blank" rel="noopener noreferrer">&sect;3.1, Algorithm 2</a>), but they change every time the weights do, so frameworks keep a moving average during training instead. With frozen statistics the layer becomes a fixed affine map, which can be folded into the preceding convolution or linear layer at deployment.</p>
+<p><b>Two framework details that trip people up</b>, both from the documentation:</p>
+<ul class="tight">
+<li><b>The two "momentum" conventions are opposite.</b> PyTorch: running = (1 &minus; momentum) &middot; running + momentum &middot; batch, default momentum 0.1, and its docs warn this "is different from one used in optimizer classes" (<a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html" target="_blank" rel="noopener noreferrer">BatchNorm1d</a>). Keras: moving = moving &middot; momentum + batch &middot; (1 &minus; momentum), default momentum 0.99 and &epsilon; = 10<sup>&minus;3</sup> (<a href="https://keras.io/api/layers/normalization_layers/batch_normalization/" target="_blank" rel="noopener noreferrer">BatchNormalization</a>). Both mean "keep 90% (or 99%) of the old estimate"; porting 0.1 from PyTorch to Keras keeps only 10%.</li>
+<li><b>Two variances.</b> PyTorch normalises with the biased batch variance (divide by n) but stores the unbiased one (divide by n &minus; 1) in the running average.</li>
+</ul>
+<p><b>Placement.</b> The original paper adds BN "immediately before the nonlinearity", normalising x = Wu, and drops the layer's bias because &beta; replaces it (<a href="https://arxiv.org/abs/1502.03167" target="_blank" rel="noopener noreferrer">&sect;3.2</a>); after the activation also appears in practice. Its headline: on ImageNet, BN reached the same accuracy "with 14 times fewer training steps" and an ensemble reached 4.9% top-5 validation error <span class="nl r">reported</span>.</p>
+
+<div class="card" id="bn-card">
+<h3>One stream of batches through BatchNorm, then inference; LayerNorm on the same stream</h3>
+<p class="try"><b>Try:</b> press Play to watch BatchNorm normalise each column (feature) of a batch, update its running statistics, then meet one test batch at inference. Switch to batch size 2, then to LayerNorm, the method that replaced BatchNorm in transformers, on the same numbers.</p>
+<div class="modes" id="bn-modes"><button data-m="b8" class="on">BatchNorm, batch 8</button><button data-m="b2">BatchNorm, batch 2</button><button data-m="ln">LayerNorm, batch 8</button></div>
+<div class="an-ctl" id="bn-ctl"></div>
+<div class="an-cap" id="bn-cap"></div>
+<div class="bng" id="bn-g"></div>
+<div class="an-cnt" id="bn-cnt"></div>
+<p class="small mute">Four features with true means 5, &minus;1, 0, 2 and standard deviations 2, 0.5, 3, 1; batches drawn from a seeded generator <span class="nl i">illustrative</span>. PyTorch conventions: momentum 0.1, running mean starting at 0 and running variance at 1, &epsilon; = 10<sup>&minus;5</sup>, &gamma; = 1, &beta; = 0. The training outputs, running statistics and inference outputs match <code>torch.nn.BatchNorm1d</code> to 10<sup>&minus;14</sup> (<code>src/checks/norms_ref.py</code>).</p>
+</div>
+
+<p><b>What the animation shows.</b> With a batch of 2, each feature has two values, so after subtracting their mean they are &plusmn;d/2 and their biased standard deviation is d/2: every training output is &plusmn;1 (up to &epsilon;) <span class="nl d">derived</span>, whatever the inputs. The layer passes on only which of the two values was larger, and at inference, with running statistics, it suddenly outputs a continuous range the next layer never saw in training. With a shifted test distribution (a recalibrated sensor, a new camera), the frozen running statistics no longer centre the data, while LayerNorm re-centres each example on its own.</p>
+<div class="tw"><table>
+<thead><tr><th>Advantages</th><th>Disadvantages</th></tr></thead>
+<tbody>
+<tr><td>Centred, unit-scale inputs to every layer: better gradient flow, higher usable learning rates, faster training</td><td>Sensitive to batch size: small batches give noisy statistics (above). GroupNorm's ResNet-50 on ImageNet has "10.6% lower error than its BN counterpart when using a batch size of 2" <span class="nl r">reported</span> (<a href="https://arxiv.org/abs/1803.08494" target="_blank" rel="noopener noreferrer">Wu and He 2018</a>)</td></tr>
+<tr><td>Mitigates vanishing and exploding gradients; makes deep plain networks trainable (the parent page's <b>Training lab</b> preset "BatchNorm rescues the deep sigmoid net")</td><td>Awkward for RNNs and variable-length sequences: statistics per time step, padding inside the batch</td></tr>
+<tr><td>A mild regulariser: each example's output carries the noise of its batch partners</td><td>Train/inference mismatch: it must carry running averages, which go stale under distribution shift and must be recomputed after fine-tuning</td></tr>
+<tr><td>Motivated as reducing "internal covariate shift"; later work credits a smoother loss landscape instead (below)</td><td>Across devices, each GPU's batch is small unless statistics are synchronised (SyncBatchNorm), which costs communication</td></tr>
+</tbody></table></div>
+<div class="co corr"><div class="t">Correction: why BatchNorm works</div>The original paper's explanation is that BN reduces "internal covariate shift", the change in each layer's input distribution as earlier layers train. <a href="https://arxiv.org/abs/1805.11604" target="_blank" rel="noopener noreferrer">Santurkar et al. 2018</a> showed that "such distributional stability of layer inputs has little to do with the success of BatchNorm" and that BN instead "makes the optimization landscape significantly smoother", so gradients are more predictive and larger steps are safe. The old page's table kept the original claim as an advantage; it is kept above with this correction.</div>
+<p><b>Fixes for small batches</b> keep BatchNorm's form and change where the statistics come from: Batch Renormalization corrects the batch statistics towards the running ones (<a href="https://arxiv.org/abs/1702.03275" target="_blank" rel="noopener noreferrer">Ioffe 2017</a>); SyncBatchNorm pools them across devices; GroupNorm abandons the batch axis altogether, which is why detection and segmentation models, trained with one or two images per GPU, moved to it.</p>
+</section>
