@@ -1,0 +1,128 @@
+Source: https://github.com/state-spaces/mamba (main, fetched 2026-10-03). Lines quoted verbatim.
+
+== mamba_ssm/modules/mamba_simple.py
+
+class Mamba(nn.Module):
+    def __init__(
+        self,
+        d_model,
+        d_state=16,
+        d_conv=4,
+        expand=2,
+        dt_rank="auto",
+        dt_min=0.001,
+        dt_max=0.1,
+        dt_init="random",
+        dt_scale=1.0,
+        dt_init_floor=1e-4,
+        conv_bias=True,
+        bias=False,
+        use_fast_path=True,  # Fused kernel options
+        layer_idx=None,
+        device=None,
+57:        self.d_inner = int(self.expand * self.d_model)
+58:        self.dt_rank = math.ceil(self.d_model / 16) if dt_rank == "auto" else dt_rank
+83:        dt_init_std = self.dt_rank**-0.5 * dt_scale
+85:            nn.init.constant_(self.dt_proj.weight, dt_init_std)
+87:            nn.init.uniform_(self.dt_proj.weight, -dt_init_std, dt_init_std)
+97:        inv_dt = dt + torch.log(-torch.expm1(-dt))
+104:        A = repeat(
+105:            torch.arange(1, self.d_state + 1, dtype=torch.float32, device=device),
+109:        A_log = torch.log(A)  # Keep A_log in fp32
+114:        self.D = nn.Parameter(torch.ones(self.d_inner, device=device))  # Keep in fp32
+
+== mamba_ssm/ops/selective_scan_interface.py (selective_scan_ref)
+148:        delta = F.softplus(delta)
+162:    deltaA = torch.exp(torch.einsum('bdl,dn->bdln', delta, A))
+164:        deltaB_u = torch.einsum('bdl,dn,bdl->bdln', delta, B, u)
+167:            deltaB_u = torch.einsum('bdl,bnl,bdl->bdln', delta, B, u)
+170:            deltaB_u = torch.einsum('bdl,bdnl,bdl->bdln', delta, B, u)
+175:        x = deltaA[:, :, i] * x + deltaB_u[:, :, i]
+189:    out = y if D is None else y + u * rearrange(D, "d -> d 1")
+191:        out = out * F.silu(z)
+
+== mamba_ssm/modules/mamba2.py defaults
+    def __init__(
+        self,
+        d_model,
+        d_state=128,
+        d_conv=4,
+        conv_init=None,
+        expand=2,
+        headdim=64,
+        d_ssm=None,  # If not None, we only apply SSM on this many dimensions, the rest uses gated MLP
+        ngroups=1,
+        A_init_range=(1, 16),
+        D_has_hdim=False,
+        rmsnorm=True,
+        norm_before_gate=False,
+        dt_min=0.001,
+        dt_max=0.1,
+        dt_init_floor=1e-4,
+        dt_limit=(0.0, float("inf")),
+        bias=False,
+        conv_bias=True,
+        # Fused kernel and sharding options
+        chunk_size=256,
+        use_mem_eff_path=True,
+        layer_idx=None,  # Absorb kwarg for general module
+        process_group=None,
+
+== README.md
+# Mamba
+
+![Mamba](assets/selection.png "Selective State Space")
+> **Mamba: Linear-Time Sequence Modeling with Selective State Spaces**\
+> Albert Gu*, Tri Dao*\
+> Paper: https://arxiv.org/abs/2312.00752
+
+![Mamba-2](assets/ssd_algorithm.png "State Space Dual Model")
+> **Transformers are SSMs: Generalized Models and Efficient Algorithms**\
+>     **Through Structured State Space Duality**\
+> Tri Dao*, Albert Gu*\
+> Paper: https://arxiv.org/abs/2405.21060
+
+![Mamba-3](assets/mamba3.png "Inference-first State Space Model")
+> **Mamba-3: Improved Sequence Modeling using State Space Principles**\
+>     **Through Structured State Space Duality**\
+> Aakash Lahoti*, Kevin Y. Li*, Berlin Chen*, Caitlin Wang*, Aviv Bick, J. Zico Kolter, Tri Dao†, Albert Gu†\
+> Paper: https://arxiv.org/abs/2603.15569
+
+## About
+
+Core requirements:
+- Linux
+- Python 3.10+
+- PyTorch 1.12+
+
+Additional requirements for CUDA `selective_scan_cuda` builds and GPU execution:
+- NVIDIA GPU
+- CUDA 11.6+
+
+For AMD cards, see additional prerequisites below.
+## Pretrained Models
+
+Pretrained models are uploaded to
+[Hugging Face](https://huggingface.co/state-spaces): `mamba-130m`, `mamba-370m`,
+`mamba-790m`, `mamba-1.4b`, `mamba-2.8b`, `mamba2-130m`, `mamba2-370m`,
+`mamba2-780m`, `mamba2-1.3b`, `mamba2-2.7b`, `transformerpp-2.7b`, `mamba2attn-2.7b`, trained on 300B tokens on the Pile, as well as `mamba-2.8b-slimpj`
+(trained on 600B tokens on the SlimPajama dataset).
+
+
+The models will be autodownloaded by the generation script below.
+
+These models were trained on the [Pile](https://huggingface.co/datasets/EleutherAI/pile), and follow the standard model dimensions described by GPT-3 and followed by many open source models:
+
+| Parameters | Layers | Model dim. | 
+|------------|--------|------------|
+| 130M       | 24     | 768        |
+| 370M       | 48     | 1024       |
+| 790M       | 48     | 1536       |
+| 1.4B       | 48     | 2048       |
+| 2.8B       | 64     | 2560       |
+
+(The layer count of Mamba doubles that of a Transformer with similar size, as two Mamba blocks are needed for each "layer" (MHA block + MLP block) of a Transformer.)
+
+Note: these are base models trained only for 300B tokens, without any form of downstream modification (instruction tuning, etc.).
+Performance is expected to be comparable or better than other architectures trained on similar data, but not to match larger or fine-tuned models.
+LICENSE: Apache License 2.0 (https://github.com/state-spaces/mamba/blob/main/LICENSE)
