@@ -12,7 +12,7 @@
      kv:[['Stages','Full-parameter next-token training on the domain, then re-run SFT and preference optimisation, since CPT breaks instruction following'],
          ['Data','Billions of tokens, selected hard (Thomson Reuters kept 200B of 19T), with general replay mixed in'],
          ['Cost','A few percent of the base model\'s pretraining; Thomson Reuters\' final run on a 397B base cost $450K (its $40M is a two-year programme including staff)'],
-         ['Watch for','Forgetting: re-warm to a lower learning-rate peak and compare against the base model fine-tuned without CPT']]},
+         ['Watch for','Forgetting: replay general data, re-warm to a lower peak, and compare against the base model fine-tuned without CPT']]},
     {b:'A narrow task with a checker',h:'Distil, adapt cheaply, then RL against the checker',
      kv:[['Stages','SFT on traces from a frontier model through LoRA, then RLVR (GRPO or a variant) in the real environment'],
          ['Data','A few hundred teacher trajectories plus thousands of tasks the checker can score (the Postgres planner: 400 and 13,646)'],
