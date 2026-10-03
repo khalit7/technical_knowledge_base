@@ -1,0 +1,168 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-meth">Six methods</a><a href="#s-train">Training</a><a href="#s-eval">The metric</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>The paper calls itself a <b>proof-of-concept pilot study</b>: one frozen Flan-T5-XL backbone, small trainable adapters, one dataset, and it is explicit that resource constraints shaped every choice ({{abstract|https://arxiv.org/abs/2603.16413}}, {{§1|ax:S1}}, {{§7.3|ax:S7.SS3}}). This page reads it the same way.</p>
+<p>A frozen encoder-decoder language model is <b>stateless</b>. The encoder turns the current input <i>x<sub>t</sub></i> into a latent <i>Z<sub>t</sub></i>, the decoder reads <i>Z<sub>t</sub></i> through cross-attention and writes the answer, and <i>Z<sub>t</sub></i> is discarded after every forward pass ({{Eq. 1|ax:S1.E1}}, {{Figure 1|ax:S3.fig1}}). Nothing persists between turns or sessions: if a user says "I like reading" in session 1 and asks "What do I like?" in session 3, the model cannot answer ({{§1|ax:S1}}).</p>
+<p>The industry answer is <b>text-level memory</b>, which is what every agent framework ships: write facts to a store as strings, retrieve the relevant ones later, and paste them back into the prompt. MemGPT and MemoryBank are the paper's examples ({{§2|ax:S2}}). It works, but the write and the read are discrete, non-differentiable operations bolted on from outside the model.</p>
+<p class="lead"><b>The question:</b> can memory live in the model's <b>continuous latent space</b> instead, so that reading and writing become differentiable operations on dense vectors that can be trained end to end, while every backbone weight stays frozen?</p>
+</section>
+
+<section id="s-idea"><h2>Idea</h2>
+[[S1|§1, Eq. 2]]
+<p>Add a <b>persistent memory bank</b> <i>P<sub>t</sub></i>, a matrix of <i>n<sub>P</sub></i> rows of width <i>d</i> (Flan-T5-XL's <i>d</i> = 2,048), that survives from turn to turn. Each turn now does three things ({{Eq. 2|ax:S1.E2}}):</p>
+<div class="tw"><table><tbody>
+<tr><td><b>Encode</b></td><td><i>Z<sub>t</sub></i> = <i>E</i><sub>frozen</sub>(<i>x<sub>t</sub></i>)</td><td>unchanged</td></tr>
+<tr><td><b>Read</b></td><td><i>ŷ<sub>t</sub></i> = <i>D</i><sub>frozen</sub>(Read(<i>Z<sub>t</sub></i>, <i>P</i><sub><i>t</i>−1</sub>))</td><td>the answer sees what earlier turns left in the bank</td></tr>
+<tr><td><b>Write</b></td><td><i>P<sub>t</sub></i> = Write(<i>P</i><sub><i>t</i>−1</sub>, <i>Z<sub>t</sub></i>)</td><td>this turn's latent is folded into the bank</td></tr>
+</tbody></table></div>
+<p>Why not just keep the raw encoder outputs and let the decoder attend to all of them? The decoder's cross-attention was pre-trained to read <i>current</i> encoder states; piling up history in the same softmax spreads attention thin instead of sharpening retrieval. So a small trainable adapter <i>θ</i><sub>Mem</sub> learns to put memory in a form the frozen decoder can use ({{§1|ax:S1}}, {{§7.1|ax:S7.SS1}}). The animation runs the paper's own example through both systems: the stateless baseline and a model with a bank.</p>
+<div class="card" id="tl">
+<div class="an-top"><div class="seg" id="tlM" role="group" aria-label="System"><button class="on" data-m="mem" aria-pressed="true">With a memory bank</button><button data-m="base" aria-pressed="false">Stateless baseline</button></div>
+<span class="small mute">The paper's example from §1; illustrative turns.</span></div>
+<div id="tlSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="tlBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="tlPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="tlFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="tlScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="tlSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="tlStep"></div><p id="tlCap"></p></div>
+<div class="an-cnt" id="tlCnt"></div>
+<p class="small mute" style="margin:6px 0 0">The bank's shading is the share of it that each turn still holds under the paper's decay <i>γ</i> = 0.95 per turn ({{§6.2|ax:S6.SS2}}): a turn written <i>l</i> turns ago keeps weight <i>γ</i><sup><i>l</i></sup> before normalisation. The {{simulation tab|tab:t-run}} runs the real write rules.</p>
+</div>
+</section>
+
+<section id="s-meth"><h2>Six methods</h2>
+[[S4|§4, Tables 1 and 2]]
+<p>The paper builds six variants spanning <b>three injection points</b> (where memory enters the frozen model: before the encoder, between encoder and decoder, or inside the decoder) and <b>four write mechanisms</b> (how the bank updates: an attention-coupled update, a Hebbian outer product, gated cross-attention, sparse slot addressing) ({{§1|ax:S1}}, {{Table 1|ax:S4.T1}}). The backbone stays frozen and only the small adapters train. Each method borrows a known primitive: prefix tuning (M.1), Flamingo's gated cross-attention (M.2, M.5), Memorizing Transformers' extra keys and values (M.3), fast-weight outer products (M.4) and Neural Turing Machine slots (M.6); the contribution claimed is the controlled comparison, not the primitives ({{§2|ax:S2}}).</p>
+<p>Pick a method to see where its memory enters and how it writes. Parameter counts are recounted from Flan-T5-XL's configuration (<i>d</i> = 2,048, 24 decoder layers, 2.85B parameters in total).</p>
+<div class="card" id="mx">
+<div class="seg" id="mxM" role="group" aria-label="Method"><button class="on" data-m="1">M.1 Prefix</button><button data-m="2">M.2 XAttn</button><button data-m="3">M.3 KV Ext</button><button data-m="4">M.4 Hebbian</button><button data-m="5">M.5 Gated</button><button data-m="6">M.6 Slot</button></div>
+<div id="mxSvg" class="an-svg"></div>
+<div id="mxTxt"></div>
+</div>
+<p><b>Delegated or explicit read.</b> M.1, M.3 and M.6 hand all of <i>P</i> to the decoder as extra keys and values and let the frozen cross-attention pick; M.2, M.4 and M.5 do their own content-based retrieval first ({{Table 1|ax:S4.T1}}). Two of the three "inside the decoder" methods are not built that way: for M.2 and M.5 the per-layer read is approximated by computing it once with <i>Z<sub>t</sub></i> standing in for the decoder's hidden state and passing the result to the decoder as extra encoder positions ({{§4.2 implementation note|ax:S4.SS2}}, {{§4.5|ax:S4.SS5}}). As run, then, five of the six methods enter through the same door, extra positions in the decoder's cross-attention; only M.1 differs.</p>
+<p><b>The write rules, in full.</b> Four methods share one <b>attention-coupled</b> write: queries from the current latent, keys from the bank, values from the current latent, then <span class="m"><i>P<sub>t</sub></i> = <i>γP</i><sub><i>t</i>−1</sub> + <i>A<sub>t</sub></i><sup>⊤</sup><i>V</i></span> with <span class="m"><i>A<sub>t</sub></i> = softmax(<i>QK</i><sup>⊤</sup>/√<i>d</i>)</span>. Taking values from <i>Z<sub>t</sub></i>, not from <i>P</i>, is what lets an all-zero bank fill up at all ({{Eq. 7|ax:S4.E7}}). M.4 keeps a <i>d<sub>h</sub></i> × <i>d<sub>h</sub></i> matrix, adds <span class="m">(1/<i>n</i>)(<i>ZW<sub>K,H</sub></i>)<sup>⊤</sup>(<i>ZW<sub>V,H</sub></i>)</span> each turn and rescales it whenever its Frobenius norm passes 1 ({{Eq. 16|ax:S4.E16}}). M.6 mean-pools the turn, scores the 64 slots, and moves only the top 8 towards the new vector, <span class="m"><i>γP</i>[<i>s</i>] + (1 − <i>γ</i>)<i>u<sub>t</sub></i></span> ({{Eqs. 24 to 28|ax:S4.E24}}). Zero-initialised read projections (M.2's <i>β</i>, M.3's <i>W</i><sub>Mem</sub>) and M.5's negative gate bias make each method start exactly or nearly as the frozen baseline; M.4 initialises <i>W<sub>Q,H</sub></i> small but non-zero, since zeroing both of its read matrices would deadlock the gradients ({{§4.4|ax:S4.SS4}}, {{§4.5|ax:S4.SS5}}).</p>
+</section>
+
+<section id="s-train"><h2>Training, then conversational learning</h2>
+[[S5|§5, §6.2 Implementation details]]
+<p>"Frozen" means the encoder and decoder get no weight updates, not that gradients stop at them: the loss flows back through the frozen decoder (and, for M.1, the frozen encoder) to the adapter, the same principle as prefix tuning, LoRA and adapters ({{§5|ax:S5}}). Training has two phases ({{Figure 8|ax:S5.SS0.SSS0.Px2.fig1}}):</p>
+<ul>
+<li><b>Type 1, supervised.</b> Only the small adapters train, by backpropagation of a teacher-forced answer loss ({{Eq. 31|ax:S5.E31}}). The write rule runs <i>without</i> gradients, so the write-side projections (<i>W<sub>Q</sub></i>, <i>W<sub>K</sub></i>, <i>W<sub>V</sub></i>, M.4's <i>W<sub>K,H</sub></i>, <i>W<sub>V,H</sub></i>, M.6's <i>W<sub>a</sub></i>, <i>W<sub>u</sub></i>) and the decay <i>γ</i> stay at their random initialisation for good. The paper argues that random maps still keep distinct inputs distinct (Johnson-Lindenstrauss); the read side learns to decode whatever the fixed write rule deposits ({{§5|ax:S5.SS0.SSS0.Px2}}).</li>
+<li><b>Type 2, conversational learning.</b> After training, <i>θ</i><sub>Mem</sub> is frozen too, but the bank keeps accumulating at inference with no gradients: every turn runs the write rule, so a fact stated in session 1 could in principle be recalled in session 10 without being restated ({{Eq. 32|ax:S5.E32}}, {{§1|ax:S1}}).</li>
+</ul>
+<div class="tw"><table><tbody>
+<tr><td>Backbone</td><td>Flan-T5-XL, 3B parameters, bfloat16, every weight frozen</td></tr>
+<tr><td>Optimiser</td><td>AdamW, learning rate 10<sup>−4</sup>, weight decay 10<sup>−2</sup>, 200 warmup steps, gradient clipping at 1.0</td></tr>
+<tr><td>Schedule</td><td>10 epochs, batch 2 with gradient accumulation 8 (effective 16); truncated backpropagation through time over <i>k</i> = 8 turns</td></tr>
+<tr><td>Memory, 1x</td><td><i>n<sub>P</sub></i> = 64 rows, <i>γ</i> = 0.95; M.4 <i>d<sub>h</sub></i> = 256; M.6 64 slots, top-<i>k</i> = 8</td></tr>
+<tr><td>Memory, 10x</td><td><i>n<sub>P</sub></i> = 640, <i>d<sub>h</sub></i> = 810 (810² / 256² = 10.0, so ten times the entries), 640 slots</td></tr>
+<tr><td>Runs</td><td>one seed (42), one NVIDIA GPU</td></tr>
+</tbody></table></div>
+<p class="small mute">From {{§6.2|ax:S6.SS2.SSS0.Px2}} and {{§6.4|ax:S6.SS4}}. The paper says the adapters are trained "on the public training split" of LoCoMo, but LoCoMo is released as 10 evaluation conversations with no split; the 639 test questions match the last three conversations (conv-48, 49 and 50) to within 4 questions per lag bucket, so the training presumably used the other seven. That is inferred here, not stated.</p>
+</section>
+
+<section id="s-eval"><h2>The metric: a forgetting curve</h2>
+[[S6.SS1|§6.1, §6.3, Eqs. 33 to 41]]
+<p>Every condition sees only the current turn; no method gets the history as text (the equal-input principle, {{§6.2|ax:S6.SS2.SSS0.Px1}}). For each LoCoMo question the <b>evidence lag</b> is the number of turns from the oldest annotated evidence turn to the end of the conversation, <span class="m"><i>ℓ<sub>q</sub></i> = <i>T</i> − min <i>E<sub>q</sub></i></span> ({{Eq. 37|ax:S6.E37}}). Each trained method answers twice, with its bank intact and with its bank forced to zero, and the <b>memory recall rate</b> is the share of the available headroom the bank fills ({{Eq. 40|ax:S6.E40}}):</p>
+<p class="m" style="text-align:center"><i>ρ<sub>q</sub></i> = max(0, F1<sub>mem</sub> − F1<sub>zero</sub>) / max(1 − F1<sub>zero</sub>, <i>ε</i>)</p>
+<p>Scores are averaged in five lag buckets (0 to 31, 32 to 63, 64 to 127, 128 to 255, 256 or more turns) and smoothed with a weighted non-increasing isotonic fit, so a curve can only stay flat or fall with lag ({{§6.3|ax:S6.SS3}}).</p>
+<div class="pred" id="pr-zero" data-ans="2"><div class="q">The stateless baseline scores exactly 0% at every lag. What does that zero tell you?</div>
+<div class="opts"><button>The baseline remembers nothing, so the six methods beat a real competitor</button><button>Flan-T5-XL cannot answer LoCoMo questions at all</button><button>Nothing: the formula makes it zero, and it cannot go below zero for anyone</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>The baseline has no bank to ablate, so F1<sub>mem</sub> = F1<sub>zero</sub> and <i>ρ</i> = 0 by definition ({{Eq. 41|ax:S6.E41}}); it still answers some questions (6.44 F1, {{Table 5|ax:S7.T5}}). The zero is a sanity check, not a comparison. And the max(0, ...) clips each question at zero <i>before</i> averaging: a bank that changes answers at random, helping some questions and hurting as many, still averages above zero. Try it:</p>
+<div class="ctl"><label>Questions memory helps: <b id="rhoHv">30</b>%<input type="range" id="rhoH" min="0" max="100" step="5" value="30"></label><label>Questions memory hurts: <b id="rhoLv">30</b>%<input type="range" id="rhoL" min="0" max="100" step="5" value="30"></label></div>
+<div id="rhoSvg"></div>
+<div class="out" id="rhoO"></div>
+<p class="small mute">Illustrative: 200 questions with a zero-memory F1 of 0.06 (near the baseline's 6.44); a helped question gains, a hurt one loses, by a random amount up to 0.3 F1 (seeded). The other questions are unchanged. The paper's own Table 5 shows this happening: at 1x M.1 scores a positive 0.02% recall rate while its answers with memory are 6.42 F1 points worse than the baseline's.</p>
+</div></div>
+<p>So the headline "all six positive" is close to guaranteed for any adapter whose answers change at all when the bank is wiped. What the metric can tell apart is <i>how much</i> each method helps and whether the help falls with lag, which is where the results start.</p>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S6.SS4|§6.4, §6.5, §7.2; Tables 3 to 5]]
+<p>Evaluated on <b>LoCoMo</b> with the forgetting-curve protocol at two capacity scales, 1x and 10x ({{§6.4|ax:S6.SS4}}). LoCoMo is a public benchmark of 10 very long two-person conversations, generated by LLM agents and edited by people (19 to 32 sessions, 369 to 689 turns each) with annotated evidence turns for every question, which is what lets each question sit at a known lag ({{LoCoMo|https://arxiv.org/abs/2402.17753}}; counts from the {{released data|https://github.com/snap-research/locomo}}). The test set has 639 questions, and 62% of them sit 256 or more turns back.</p>
+<div class="card" id="fc">
+<div class="an-top"><div class="seg" id="fcM" role="group" aria-label="Capacity"><button class="on" data-m="x1" aria-pressed="true">1x capacity</button><button data-m="x10" aria-pressed="false">10x capacity</button></div>
+<label class="small"><input type="checkbox" id="fcE"> show ± 1 standard-error bound</label></div>
+<div id="fcSvg"></div>
+<p class="small mute" id="fcNote"></p>
+</div>
+<ul>
+<li><b>At 1x</b> three methods score near zero: M.1 Prefix 0.02%, M.3 KV Ext 0.00%, M.5 Gated 0.15% on average. M.2 XAttn and M.6 Slot start above 17% at short lag and fall to about 9% and 7%; M.4 Hebbian is nearly flat at about 9.3% ({{Table 3|ax:S6.T3}}). The 1x picture is weaker, and the honest read is that capacity is doing much of the work.</li>
+<li><b>At 10x</b> all six adapters score above zero at every lag, with means from 8.34% (M.5) to 12.05% (M.3). The paper says M.4 Hebbian "leads with ... the best mean (11.6%)" and that M.3 has "the highest short-lag recall (15.6%)"; its own table has M.3's mean higher (12.05 against 11.60) and M.4's short-lag score higher (15.86 against 15.58) ({{§6.4|ax:S6.SS4.SSS0.Px3}}). Weighted by the number of questions per bucket, M.4 does lead (10.60 against 10.17), and it has the best long-lag score (10.32).</li>
+<li><b>Most of these gaps are noise.</b> With 28 questions in the shortest-lag bucket, a 15% average can carry a standard error of up to about 7 points (the bound for a score between 0 and 1) before the isotonic fit; the means carry about ±1.2. Every 10x method sits between 7.8% and 10.6% on the question-weighted mean. One seed, so seed-to-seed spread is unknown.</li>
+</ul>
+<div class="pred" id="pr-tax" data-ans="2"><div class="q">At 1x, M.3 KV Ext's recall rate is 0.00%. With its bank switched on, how do its answers compare with plain Flan-T5-XL (no adapter, 6.44 F1)?</div>
+<div class="opts"><button>About the same: the memory adds nothing and costs nothing</button><button>Slightly better: the adapter alone helps a little</button><button>Far worse: answers drop to 0.00 F1</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>The paper's adapter-interference analysis, {{Table 5|ax:S7.T5}}, gives two numbers per method: the <b>adapter tax</b>, how far the adapter alone (bank zeroed) pulls F1 below the baseline, and the <b>net benefit</b>, F1 with the bank minus the baseline ({{Eqs. 44, 45|ax:S7.E44}}). Since the baseline is 6.44 F1 at both scales, both F1 levels follow; the chart puts them side by side.</p>
+<div class="seg" id="nbM" role="group" aria-label="Capacity"><button class="on" data-m="x1">1x</button><button data-m="x10">10x</button></div>
+<div id="nbSvg"></div>
+<p class="small mute">F1 with the bank zeroed = 6.44 − tax; F1 with the bank = 6.44 + benefit (derived here from Table 5, which prints only tax and benefit). At 1x, M.1, M.3 and M.5 answer with memory at 0.02, 0.00 and 0.14 F1: memory switched on destroys almost every answer. The paper calls the tax "modest (2 to 4%)"; against a 6.44 baseline, 2.38 to 4.23 points is 37% to 66% of what the frozen model answered on its own.</p>
+</div></div>
+<p><b>Net benefit at 10x</b> is positive for all six, +1.83 to +6.26 F1 points over the baseline; at 1x only M.2 (+6.76), M.6 (+5.75) and M.4 (+3.10) come out ahead ({{§7.2|ax:S7.SS2.SSS0.Px4}}). The taxes take only two values per scale (2.38 or 4.23 for the delegated-read methods, 3.39 for every explicit-read one), which is unusual for six separately trained adapters and is not explained.</p>
+<p><b>Knowledge accumulation</b> ({{§6.5|ax:S6.SS5}}, {{Table 4|ax:S6.T4}}): after writing sessions 1 to <i>s</i>, probe every question whose evidence is already written, and track the mean F1 <i>K<sub>s</sub></i>; Δ<i>K</i> = <i>K</i><sub>30</sub> − <i>K</i><sub>1</sub>. At 1x M.6 has the largest gain (Δ<i>K</i> = 9.71) and M.4 (7.84) and M.2 (7.34) follow, while M.1, M.3 and M.5 stay under 0.2. Two things do not add up. The text says M.6 has "the highest terminal <i>K</i><sub>30</sub> = 9.7%", but M.2 (11.04) and M.4 (10.62) are higher in the same table. And the stateless baseline gains 5.57 points, explained as "more context injected into the current prompt", although the equal-input rule gives it only the current turn; with <i>K</i><sub>1</sub> = 0, what changes is which questions are answerable, not the baseline. Two of the three test conversations have 30 sessions; conv-49 has 25.</p>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="small mute">(beyond the paper)</span></h2>
+[[S7.SS4|§7.4 Broader implications]]
+<p>The framing is the valuable part. Nearly all deployed agent memory is <b>text-level and non-differentiable</b>: retrieval is a separate system, and the model has no say in what gets written or how it is encoded. OpenClaw keeps memory as plain Markdown files such as MEMORY.md ({{OpenClaw docs|https://docs.openclaw.ai/concepts/memory}}); Hermes injects bounded MEMORY.md and USER.md files at session start and plugs in external memory providers ({{Hermes docs|https://hermes-agent.nousresearch.com/docs/user-guide/features/memory-providers}}). Latent-space memory makes the write mechanism itself learnable, and the six-variant taxonomy (injection point × write mechanism) is a reasonable map of the design space, even if these experiments cannot rank the options convincingly.</p>
+<p>What it does not show:</p>
+<ul>
+<li>whether it beats a competent RAG or text-memory system: there is no RAG or text-memory baseline. For scale, on the same benchmark LoCoMo's authors report 41.4 F1 for GPT-3.5-turbo reading its top 5 retrieved observations, and 13.9 for Mistral-7B with no memory at all ({{LoCoMo Tables 2 and 3|https://arxiv.org/abs/2402.17753}}); here the best adapter with memory reaches about 12.7 F1 (6.44 + 6.26). Different models and possibly different scoring scripts, so a scale, not a comparison;</li>
+<li>whether it transfers off Flan-T5-XL to a modern decoder-only model (the paper says this "must be validated separately", {{§7.3|ax:S7.SS3}});</li>
+<li>whether latent memory stays interpretable and auditable, which is exactly what makes text memory operationally attractive: a Markdown file can be read, corrected and deleted line by line, a 640 × 2,048 array cannot.</li>
+</ul>
+<p>A positive score against a zero baseline is a floor, not evidence of a competitive system. The paper's own forward-looking claims (that unfreezing the backbone, 70B+ models, more data and banks of millions of slots will give "substantially stronger results", {{§7.3|ax:S7.SS3}}, {{§8|ax:S8}}) are expectations, not results.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li><b>The practical alternative it implicitly argues against:</b> text-level memory in personal agents (OpenClaw's MEMORY.md, Hermes's memory providers and skills) and retrieval generally: {{RAG|n:3c65c17b0d0d816c889decc342a7ad39}}, {{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}, and the text-memory agent papers {{Proactive Memory Agent|n:3e25c17b0d0d81ce85e0c6d82f6beb4c}} and {{Just-in-Time Memory|n:3e95c17b0d0d818f89b3f066f816727b}}.</li>
+<li><b>Related compression-into-latents work:</b> context distillation ({{Snell et al.|https://arxiv.org/abs/2209.15189}}), KV-cache compression and Gist tokens ({{Mu et al.|https://arxiv.org/abs/2304.08467}}); at scale, {{Latent Context Language Models|n:3d45c17b0d0d81eb90a8d70a5ce84d19}}.</li>
+<li><b>Adjacent in this batch:</b> {{Bitune|n:3ce5c17b0d0d8173af14ed0caa19d6db}} and {{LLM Modules|n:3ce5c17b0d0d810191d0ebcffc54f608}}, also frozen-backbone-plus-adapter designs; {{LoRA|n:3c65c17b0d0d81018f15edd19fa5c28a}} is the standard way to add few trainable parameters to a frozen model.</li>
+<li><b>The backbone family:</b> {{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}} (Flan-T5-XL is an instruction-tuned T5) and, for a newer encoder-decoder to retry this on, {{Encoder-Decoder Gemma and T5Gemma 2|n:3d45c17b0d0d81a9a22ffaada508db5c}}.</li>
+<li><b>A bank that decays every step</b> is a fixed-size recurrent state; {{Mamba|n:3c65c17b0d0d8179984fc3a1fee4c36a}} learns an input-dependent decay instead of a fixed <i>γ</i>, which is the obvious fix for the problem below.</li>
+</ul>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S6|§6, §7, Tables 3 to 5]]
+<p><b>What holds up.</b> The protocol is clean in two ways: every condition sees the same current-turn input, and each method is scored against itself with its bank wiped, so the score isolates what the bank contributes ({{§6.2|ax:S6.SS2.SSS0.Px1}}, {{Eq. 40|ax:S6.E40}}). The equations are complete enough to run (the {{simulation tab|tab:t-run}} does), the hyperparameters are given, and the parameter counts check out when recounted. The author is upfront about the limits: a pilot, one backbone, one dataset, absolute recall "modest (up to ≈ 12%)" ({{§7.3|ax:S7.SS3}}), and that counts in the paper's favour.</p>
+<p><b>The weaknesses, concretely:</b></p>
+<ol>
+<li><b>The headline cannot fail.</b> The recall rate is clipped at zero per question, and the baseline is zero by construction ({{Eqs. 40, 41|ax:S6.E40}}); any adapter whose answers change when its bank is wiped scores above zero (the widget under {{The metric|tab:t-read:s-eval}}). M.1 at 1x scores +0.02% while its answers are 6.42 F1 points worse than the baseline's ({{Table 5|ax:S7.T5}}).</li>
+<li><b>No competitor.</b> No RAG or text-memory baseline, not even "paste the last few turns into the prompt". The only F1 levels are derived: 6.44 for the frozen model, at most about 12.7 with memory.</li>
+<li><b>Five of the six write rules all but erase a turn within about 100 turns, but most questions are older.</b> See the question below; only the slot rule (M.6) keeps a trace, because slots it does not pick do not decay.</li>
+<li><b>One seed, 639 questions</b>, no error bars; most gaps between methods are inside one standard error ({{Table 3|ax:S6.T3}}; bounds in the {{tables tab|tab:t-tables}}).</li>
+<li><b>The text disagrees with its own tables</b> in eight places, listed with the evidence in the {{tables tab|tab:t-tables:claims}}: the best 10x mean, the best 10x short-lag score, the best <i>K</i><sub>30</sub>, "learned selective writes" (the write side is never trained, {{§5|ax:S5.SS0.SSS0.Px2}}), "explicit gating (M.5, M.6)" (M.6 has no gate), M.2's "more selective" write (it is M.1's), the baseline's Δ<i>K</i>, and a LoCoMo "training split" that does not exist.</li>
+<li><b>The injection-point comparison is not what was run</b>: M.2 and M.5 are approximated as extra encoder positions ({{§4.2|ax:S4.SS2}}), the same door M.3, M.4 and M.6 use.</li>
+<li><b>Nothing to check against</b>: "we ... release six trained memory adapters" ({{§1|ax:S1}}), but no code or weights are linked from the paper or its arXiv page (checked 3 October 2026).</li>
+</ol>
+<div class="pred" id="pr-decay" data-ans="2"><div class="q">The bank decays by <i>γ</i> = 0.95 per turn. In the attention-coupled bank (M.1, M.2, M.3, M.5), how much of a turn written 256 turns ago is still there?</div>
+<div class="opts"><button>About a third</button><button>About 5%</button><button>About two parts in a million</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>0.95<sup>256</sup> ≈ 2 × 10<sup>−6</sup>. The bank is an exponential moving average with an effective window of 1/(1 − <i>γ</i>) = 20 turns; a turn's weight drops below bfloat16's resolution (2<sup>−8</sup>, the precision the backbone runs at) after 109 turns. Below, the paper's three write rules run on a synthetic 600-turn conversation (the bars are the share of LoCoMo's 639 test questions at each lag):</p>
+<div class="seg" id="dkM" role="group" aria-label="Write rule"><button class="on" data-m="ac">Attention-coupled (M.1, 2, 3, 5)</button><button data-m="hebb">Hebbian (M.4)</button><button data-m="slot">Slot (M.6)</button></div>
+<div class="seg" id="dkG" role="group" aria-label="Decay"><button class="on" data-m="0.95">γ = 0.95 (paper)</button><button data-m="0.99">γ = 0.99</button></div>
+<div id="dkSvg"></div>
+<p class="small mute" id="dkO"></p>
+</div></div>
+<p>Yet the long-lag scores are where the methods score most of their points: 7% to 10% at 256+ turns, on 62% of the questions. Whatever earns that credit is unlikely to be the evidence turn itself. One candidate is recent context: in the three test conversations, 34% of answerable questions share a content word of the answer with the last 20 turns (33% of those at lag 256+), counted from the released data. And in the simulation, an attention-coupled bank that starts at zero, as §4.1's remark about zero initialisation suggests, keeps all 64 (or 640) rows identical forever, because identical keys give every row the same attention weight, and a bank started from small random values drifts to the same state (its rows' spread falls from 21% after one turn to 0.3% after 100, at 1x); ten times the rows then stores nothing more, so the "capacity" story does not follow from the write rule as written. The slot rule fares little better from a zero start: ties always pick the same first slots, so 64 of the 640 slots at 10x are ever written ({{simulation tab|tab:t-run}}). Both are illustrative (random latents, <i>d</i> = 32), not a rerun of the paper.</p>
+<p class="lead"><b>Verdict:</b> read it as a map of the design space and a clear statement of the problem, not as evidence that latent memory works. The metric cannot go below zero, three methods make answers worse at 1x, five of the six write rules as specified all but erase a turn within about 100 turns while most questions are older, and there is one seed, no competitor and no released code.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul>
+<li><b>Code and licence:</b> none. The paper promises six trained adapters; nothing is linked (checked 3 October 2026). Rebuilding means implementing the equations of {{§4|ax:S4}} yourself; they are complete except for the initial bank and M.5's exact gate bias.</li>
+<li><b>Hardware and budget:</b> modest. A frozen 3B Flan-T5-XL in bfloat16 on one GPU, adapters of 1.0M to 21.0M parameters, 10 epochs over a few LoCoMo conversations ({{§6.2|ax:S6.SS2.SSS0.Px2}}). The bank costs 0.5 MB per conversation at 1x and 5.2 MB at 10x in float32 (640 × 2,048 × 4 bytes; the paper's "≈ 5 MB", {{§7.4|ax:S7.SS4.SSS0.Px2}}), one per user, stored outside the model.</li>
+<li><b>What worked:</b> at 1x only M.2, M.4 and M.6 beat the plain model; at 10x all six did, by 1.8 to 6.3 F1 points on a 6.44 baseline. Only Flan-T5-XL was tried; the frozen decoder must be open-weight and hookable (M.2 needs source-level access to the decoder blocks, {{§4.2|ax:S4.SS2}}).</li>
+<li><b>When it pays off:</b> as a research starting point for learned memory, mainly the taxonomy and the self-ablation metric (with the clipping removed). For an agent that has to remember users today, text memory or retrieval is far ahead on this very benchmark and can be read and audited; nothing here suggests otherwise. If you try it, start with a learned or input-dependent decay instead of <i>γ</i> = 0.95, so that turns can survive the hundreds of turns LoCoMo asks about.</li>
+</ul>
+</section>
+</section>
