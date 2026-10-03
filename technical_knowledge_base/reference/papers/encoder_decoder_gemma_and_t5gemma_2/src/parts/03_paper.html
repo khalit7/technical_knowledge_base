@@ -1,0 +1,183 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-obj">Objectives and setup</a><a href="#s-res">Results</a><a href="#s-abl">Ablations</a><a href="#s-t2">T5Gemma 2</a><a href="#s-t2res">Long context</a><a href="#s-believe">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction]]
+<p>The decoder-only architecture won, but the argument was never settled on the merits ({{§2|ax:S2}}). An encoder-decoder splits parameters by function: an <b>encoder</b> reads the input with bidirectional attention (no autoregressive constraint on something you only read), and a <b>decoder</b> writes the output with cross-attention over the encoder's representation. The split also allows <b>independent sizing of the two halves</b>: a large encoder with a small decoder when understanding the input matters more than generating the output, as in summarisation, which "doesn't need to generate any new information" ({{§3.1|ax:S3.SS1}}).</p>
+<p>The blocker was cost: nobody would pretrain a competitive encoder-decoder from scratch when strong decoder-only checkpoints already existed at every size. So the question is narrower and more useful:</p>
+<p class="lead"><b>The question:</b> can you <b>adapt</b> an existing decoder-only checkpoint into an encoder-decoder, cheaply, and end up ahead ({{§1|ax:S1}})?</p>
+</section>
+
+<section id="s-idea"><h2>Idea: copy the decoder into both halves</h2>
+[[S3|§3, Figure 1, Table 1]]
+<p><b>Architecture</b> ({{§3.1|ax:S3.SS1}}). As close to the source model as possible, so initialisation is mostly a copy. The encoder is the decoder-only model with self-attention switched from causal to bidirectional. Each decoder block keeps its feed-forward network and self-attention and adds a cross-attention with the same heads and head size, attending to the whole encoder output. Testbed: Gemma 2 2B and 9B, plus four small decoder-only models pretrained in mT5 sizes, S, B, L and XL ({{Table 1|ax:S3.T1}}).</p>
+<p><b>Initialisation</b> ({{§3.2|ax:S3.SS2}}). The encoder is fully initialised from the checkpoint, since it introduces no new weights; the decoder's feed-forward and self-attention come from the corresponding layers. Cross-attention is the only genuinely new part:</p>
+<ul class="lst">
+<li><b>Balanced</b> (encoder and decoder share a configuration, 2B-2B): cross-attention is initialised from the self-attention weights.</li>
+<li><b>Unbalanced</b> (9B encoder, 2B decoder): the shapes differ, so cross-attention starts random and trains alone for a <b>warmup of <i>K</i> = 1,000 steps</b> with everything else frozen ({{§4|ax:S4}}). The warmup is sensitive: none costs 0.7 points and 5,000 steps cost 2.3 ({{§6|ax:S6}}).</li>
+</ul>
+<p>The animation runs the recipe on the real checkpoints, one weight group at a time, to scale; the T5Gemma 2 mode adds the two parameter-saving changes described further down.</p>
+<div class="card" id="adx">
+<div class="an-top"><div class="seg" id="adxM" role="group" aria-label="Which adaptation"><button class="on" data-m="bal" aria-pressed="true">2B-2B (balanced)</button><button data-m="unb" aria-pressed="false">9B-2B (unbalanced)</button><button data-m="t2" aria-pressed="false">T5Gemma 2 270M-270M</button></div>
+<span class="small mute">Blocks drawn to scale by parameter count.</span></div>
+<div id="adxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="adxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="adxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="adxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="adxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="adxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="adxStep"></div><p id="adxCap"></p></div>
+<div class="an-cnt" id="adxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Counts recomputed from the configs; they match Hugging Face's counts of the released T5Gemma checkpoints to 0.01%, and of T5Gemma 2 to 0.1% (its vision encoder taken as the paper's 417M) ({{the recount|tab:t-tables:tb-par}}). Mask insets: lower triangle causal, full square bidirectional. Stops off screen; paused under reduced motion.</p>
+</div>
+<div class="co warn"><div class="t">One thing the paper's own size table leaves out</div>{{Table 1|ax:S3.T1}} gives 4.0B (2B-2B), 16.7B (9B-9B) and 10.4B (9B-2B) non-embedding parameters: encoder plus decoder <i>without</i> cross-attention. With it, the released checkpoints have <b>4.42B, 18.50B and 10.78B</b>; cross-attention adds 0.37B, <b>1.85B</b> and 0.44B. T5Gemma 2's Table 1 uses the full count (4,417M for 2B-2B, {{T5Gemma 2 Table 1|bx:S1.T1}}).</div>
+</section>
+
+<section id="s-obj"><h2>Objectives and setup</h2>
+[[S3.SS3|§3.3, §4]]
+<p>An encoder-decoder needs an input and a separate target. Two classical objectives are compared, and they do not agree ({{§3.3|ax:S3.SS3}}):</p>
+<ul class="lst">
+<li><b>PrefixLM</b>: split each sequence in half and predict the second half from the first. Here with <b>knowledge distillation</b> from the Gemma 2 teacher, whose logits came with Gemma 2's pretraining data ({{§4|ax:S4}}).</li>
+<li><b>UL2</b> ({{Tay et al. 2022|https://arxiv.org/abs/2205.05131}}): a mixture of denoisers that varies the mean span length and the corruption rate across several settings and prefixes each example with a mode token, so one model learns short-span denoising, long-span denoising and prefix LM together. No distillation: mapping teacher logits onto corrupted spans is "non-trivial". The span corruption it extends is animated on the {{T5 page|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}.</li>
+</ul>
+<p><b>Data.</b> The Gemma 2 pretraining mixture (8T tokens) cut into 4096-4096 input-target pairs for PrefixLM and 8192-8192 for UL2; adaptation runs on up to <b>2T tokens</b>. SFT and RLHF follow Gemma 2's recipe, with the learning rate retuned ({{§4|ax:S4}}).</p>
+<p><b>Evaluation</b>, three scores: a <b>PT score</b> averaged over 22 benchmarks for pretrained models, an <b>IT score</b> over 10 for instruction-tuned ones, and <b>SuperGLUE</b>, fine-tuned with a classification head on the last token of the encoder (of the decoder, for decoder-only), as the test of "contextual representations". Generation is greedy throughout ({{§4|ax:S4}}).</p>
+<details class="more"><summary>The benchmarks in each score</summary><p>PT: BoolQ, SIQA, PIQA, ARC-c and ARC-e, MMLU, MMLU Pro, HellaSwag, Winogrande, TruthfulQA, AGIEval, BBH, DROP, GPQA, GSM8K, HumanEval, Lambada, MATH-500, MBPP, NQ, TriviaQA, WMT23, zero- or few-shot. IT: GSM8K, MMLU, MMLU Pro, MBPP, HumanEval, MATH-500, BBH, GPQA Diamond, WMT23, MGSM, with task instructions. SuperGLUE: COPA, WiC, WSC, RTE, MultiRC, CB and BoolQ as classification, dev-set accuracy, with learning rate, batch size and dropout grid-searched per task.</p></details>
+</section>
+
+<section id="s-res"><h2>Results</h2>
+[[S5|§5, Table 2, Figures 2 to 4]]
+<p><b>Adaptation converges fast.</b> Balanced models come close to their source's PT score "after only tens of billions of tokens"; 9B-2B is slower, since its cross-attention starts random, but climbs past Gemma 2 2B towards 9B ({{Figure 2|ax:S5.F2}}). Decoded from the figure: at 42B tokens 2B-2B is 1.3 points short of Gemma 2 2B, and it passes it at about <span class="js" data-rc="fig2.2B-2B_reaches_2B_at_B_tokens"></span>B (9B-9B passes 9B at about <span class="js" data-rc="fig2.9B-9B_reaches_9B_at_B_tokens"></span>B; {{curves|tab:t-tables:tb-f2}}). More tokens help some tasks a lot, such as GSM8K and DROP ({{§5|ax:S5}}).</p>
+<p><b>The objective choice splits by what you want.</b> UL2 gives better representations and wins SuperGLUE at most scales (11 of 14 pairs, {{Table 2(b)|ax:S5.T2}}); PrefixLM with distillation gives better generative models and wins most PT and IT pairs (9 of 14), by up to <b>3.6</b> points at 9B-2B. The rest of the paper uses PrefixLM. There is no free combination: merging the two checkpoints gave similar or much worse models, and switching objectives for the last 10% of training gave mixed results ({{Figure 5|ax:S6.F5}}).</p>
+<p><b>The gain arrives after instruction tuning, not before.</b> Adapted models are comparable or slightly better than their decoder-only counterparts after pretraining, and substantially better after instruction tuning ({{Table 2|ax:S5.T2}}):</p>
+<div class="tw"><table><thead><tr><th>Pair</th><th>PT: Gemma 2 → adapted</th><th>gain</th><th>IT after RLHF: Gemma 2 → adapted</th><th>gain</th></tr></thead><tbody>
+<tr><td>9B-9B against Gemma 2 9B</td><td>61.7 → 63.1</td><td><b>+1.4</b></td><td>59.6 → 64.5</td><td><b>+4.9</b></td></tr>
+<tr><td>2B-2B against Gemma 2 2B</td><td>47.9 → 49.7</td><td><b>+1.8</b></td><td>39.0 → 46.1</td><td><b>+7.1</b></td></tr>
+<tr><td>XL-XL against XL (SFT)</td><td>39.7 → 39.5</td><td>−0.2</td><td>23.5 → 30.7</td><td><b>+7.2</b></td></tr></tbody></table></div>
+<p class="small mute">IT compares RLHF models (the adapted SFT models lead by 3.3 and 7.4). Below 2B the adapted models trail on PT by 0.2 to 0.7 (S-S, L-L, XL-XL; B-B is +0.2) while still gaining on IT ({{§5|ax:S5}}).</p>
+<p><b>Not every task moves the same way.</b> After pretraining Gemma 2 9B wins 8 of 17 tasks against 9B-9B, mostly knowledge recall (ARC-C by 4.1, while losing Winogrande by 4.4); after RLHF the encoder-decoder wins 10 of 11, trailing only on WMT23, by 0.9 ({{Table 3|ax:S5.T3}}, {{per task|tab:t-tables:tb-t3}}).</p>
+<p><b>Encoder-decoder wins SuperGLUE everywhere</b>: all 24 comparisons in {{Table 2(b)|ax:S5.T2}} (six sizes, both objectives, pretrained and tuned), by at least 1.2 points, which the paper attributes, "likely", to bidirectional self-attention.</p>
+<p><b>The asymmetric result is the one to remember.</b> At matched inference FLOPs the encoder-decoders sit on the quality-efficiency frontier ({{Figure 3|ax:S5.F3}}); since FLOPs are not latency, the paper also timed GSM8K queries at batch size 1 ({{Figure 4|ax:S5.F4}}).</p>
+<div class="pred" id="pr-lat" data-ans="1"><div class="q">the 9B-2B has a 9B encoder in front of a 2B decoder. Answering a GSM8K question, how does its latency compare with Gemma 2 2B's?</div>
+<div class="opts"><button>About 3 to 4 times slower: it carries a 9B model</button><button>About the same, within 10%</button><button>Faster: the encoder shortens the answer</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>About the same: <b><span class="js" data-rc="fig4.9B-2B.ms"></span> ms against <span class="js" data-rc="fig4.2B.ms"></span> ms</b> (1.05×), with GSM8K accuracy <b>73.8 against 58.0</b>, decoded from the figure's vector data. The 9B encoder reads the question once, in parallel; every one of the answer's tokens then costs only the 2B decoder plus its cross-attention. Run it below.</p></div></div>
+<div class="card" id="cdx">
+<div class="an-top"><div class="seg" id="cdxM" role="group" aria-label="Which model"><button class="on" data-m="ed92" aria-pressed="true">T5Gemma 9B-2B</button><button data-m="d2" aria-pressed="false">Gemma 2 2B</button><button data-m="d9" aria-pressed="false">Gemma 2 9B</button><button data-m="ed22" aria-pressed="false">T5Gemma 2B-2B</button></div></div>
+<div class="ctl"><label>Prompt <b id="cdxPv"></b> tokens<input type="range" id="cdxP" min="0" max="5" step="1" value="2"></label><label>Answer <b id="cdxAv"></b> tokens<input type="range" id="cdxA" min="0" max="5" step="1" value="3"></label></div>
+<div id="cdxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="cdxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="cdxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="cdxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="cdxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="cdxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="cdxStep"></div><p id="cdxCap"></p></div>
+<div class="an-cnt" id="cdxCnt"></div>
+<div id="cdxCmp"></div>
+<p class="small mute" style="margin:6px 0 0">Our cost model, illustrative: at batch size 1 each generated token streams the decoder's weights (with cross-attention and softmax) from memory once, <i>bytes</i> / <i>bandwidth</i>; reading the prompt costs 2 × <i>parameters</i> × <i>tokens</i> FLOPs at peak. Hardware: one TPU v5e, 819 GB/s and 197 bf16 TFLOP/s ({{Google Cloud|https://cloud.google.com/tpu/docs/v5e}}); the paper does not name its hardware, and KV-cache reads and overheads are left out, so compare ratios. Measured points: {{Figure 4|ax:S5.F4}}, decoded.</p>
+</div>
+<p>The model gets the shape (9B-2B near 2B, far from 9B) but not every detail: measured, 2B-2B is <i>faster</i> than Gemma 2 2B (<span class="js" data-rc="fig4.2B-2B.ms"></span> against <span class="js" data-rc="fig4.2B.ms"></span> ms), which a per-token cost cannot explain; answer lengths, which the paper does not report, may differ.</p>
+</section>
+
+<section id="s-abl"><h2>Ablations: the likely objections</h2>
+[[S6|§6 Discussion, Table 4]]
+<div class="pred" id="pr-extra" data-ans="1"><div class="q">is the gain just extra training? Gemma 2 2B (PT 47.9) is trained for another 6 trillion tokens as a decoder-only model. Where does its PT score land, against the adapted 2B-2B's 49.7?</div>
+<div class="opts"><button>Above 49.7: compute was the whole story</button><button>Between the two: some gain, not all</button><button>No change: Gemma 2 2B was already saturated</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div id="prExtraChart"></div><p><b>48.57</b>: up 0.67 from 47.9, still 1.13 below the adapted model, so "the additional pretraining compute can't fully explain the improvements" and the authors credit the encoder-decoder's inductive bias. One run, one size, PT score only: the larger IT gain was never tested against the same control ({{§6|ax:S6}}).</p></div></div>
+<ul class="lst">
+<li><b>Bidirectional encoder attention matters.</b> A causal 2B-2B encoder scores 45.6 PT and 41.7 IT, <b>4.1 and 4.7 points</b> below the bidirectional one, yet still beats Gemma 2 2B on IT by 2.7: bidirectionality "contributes greatly" but "is not the only factor" ({{§6|ax:S6}}; in the {{toy|tab:t-run}} the bidirectional encoder also learns faster, 90% at step 275 against 450).</li>
+<li><b>Warmup matters for the unbalanced model.</b> Preliminary 9B-2B runs (UL2, 800B tokens, BoolQ and GSM8K only): 62.5 with 1K warmup steps, <b>61.8 with none</b>, <b>60.2 with 5K</b>.</li>
+
+<li><b>Adaptation against pretraining from scratch</b> on 8T tokens ({{Table 4|ax:S6.T4}}): scratch wins everything at S-S (29M non-embedding parameters) and PT and SuperGLUE at B-B (113M); adaptation wins PT and IT from L-L (409M) up and all three only at XL-XL (1.6B) and 2B-2B. So the old summary's "better above roughly 100M" is too generous.</li>
+
+</ul>
+<details class="more"><summary>Two more findings from §6</summary><ul class="lst"><li><b>Multi-head attention in the encoder: mixed.</b> The encoder runs in parallel, so Gemma 2's grouped-query attention is no longer needed there; expanding it to full multi-head by replicating heads raised 2B-2B's PT by 0.5 (to 50.2) but cut IT by 2.9 (to 43.5), so GQA stays ({{§6|ax:S6}}).</li><li><b>Does the PT score predict the tuned score?</b> Across all ablations and sizes, yes (Spearman ρ 0.97 for IT and 0.89 for SuperGLUE); within one size, no (averaged ρ 0.42 and 0.05, not significant). Weaker PT checkpoints sometimes tune better, so pick checkpoints on IT too ({{Figure 6|ax:S6.F6}}).</li></ul></details>
+</section>
+
+<section id="s-t2"><h2>T5Gemma 2: the recipe on Gemma 3, with images and 128K</h2>
+[[B:S2|§1, §2, Table 1]]
+<p><b>T5Gemma 2</b> repeats the adaptation on Gemma 3 (270M, 1B, 4B) with UL2 and drops distillation: UL2 with and without it were within 0.4 points, not worth the data-loading overhead ({{§1|bx:S1}}, {{Table 3|bx:S3.T3}}). The block is Gemma 3's (GQA with QK-norm, RMSNorm, RoPE, local and global layers 5:1). It adds three things and tests a fourth ({{§2|bx:S2}}):</p>
+<ul class="lst">
+<li><b>Images.</b> Gemma 3's frozen 400M SigLIP encoder turns an image into <b>256 tokens</b>, always fed to the encoder, so vision inherits bidirectional visibility for free ({{Figure 2|bx:S1.F2}}).</li>
+<li><b>Long context</b> by positional interpolation: pretrained at most <b>16K</b> long, evaluated to <b>128K</b>.</li>
+<li><b>Tied word embeddings</b> across encoder input, decoder input and decoder softmax, a return to T5's choice (the first T5Gemma had separate tables). On the 2B-2B ablation: "nearly no quality change" (47.8 to 47.7) for <b>10.5%</b> fewer parameters ({{Table 1|bx:S1.T1}}; recount 10.54%).</li>
+<li><b>Merged attention</b>: one module with shared weights does the decoder's self- and cross-attention at once, over the encoder output concatenated onto the decoder's input, with one softmax. It saves <b>6.5%</b> of parameters for about <b>0.3</b> points (recount: 368.1M, 6.58%) and makes the decoder a Gemma 3 decoder again, which eases initialisation.</li>
+</ul>
+<div class="fm"><div class="eq"><i>Q</i> = <i>X W<sub>q</sub></i> &nbsp; <i>K</i> = [<i>X</i>; <i>H</i>] <i>W<sub>k</sub></i> &nbsp; <i>V</i> = [<i>X</i>; <i>H</i>] <i>W<sub>v</sub></i> &nbsp; <i>A</i> = softmax(<i>QK</i><sup>⊤</sup>/√<i>d<sub>h</sub></i> ⊙ <i>M</i>) <i>V</i> &nbsp; <i>O</i> = <i>A W<sub>o</sub></i></div><div class="wh">Equations 1 to 5 ({{T5Gemma 2 §2|bx:S2.E1}}): <i>X</i> is the decoder's input, <i>H</i> the encoder's output, and the mask <i>M</i> is causal over decoder tokens and open over encoder tokens; "attention logits are also normalized jointly". In the Transformers code the cross part of the mask is never windowed and encoder keys get no rotary position ({{modeling_t5gemma2.py|https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5gemma2/modeling_t5gemma2.py}}).</div></div>
+<div class="pred" id="pr-merge" data-ans="1"><div class="q">in merged attention, decoder token 3 can see its 3 decoder tokens and 6 encoder tokens. How much attention weight, in total, can the encoder tokens receive?</div>
+<div class="opts"><button>Exactly 1, as in a separate cross-attention</button><button>Anything between 0 and 1: they share one softmax with the decoder tokens</button><button>Exactly 6/9, one share per visible token</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p class="try"><b>Try:</b> real arithmetic on small random weights (seeded). The left grid is the mask <i>M</i>; pick a decoder row and compare the merged softmax with the two separate softmaxes of a standard decoder block. Change the temperature of the encoder side to see the shared mass move.</p>
+<div class="ctl"><label>Decoder row <b id="mgRv">3</b><input type="range" id="mgR" min="1" max="4" step="1" value="3"></label><label>Encoder relevance <b id="mgBv">0</b><input type="range" id="mgB" min="-3" max="3" step="0.5" value="0"></label><div><button id="mgNew">New random weights</button></div></div>
+<div id="mgx"></div>
+<div class="out" id="mgO"></div>
+<p class="small mute">Single head, <i>d</i> = 8, <i>d<sub>h</sub></i> = 4, <i>m</i> = 4 decoder tokens, <i>n</i> = 6 encoder tokens, entries drawn from a standard normal (Box-Muller, seeded). "Encoder relevance" adds a constant to every encoder logit, standing in for how well the query matches the input. Separate attention here reuses the same weights for its cross-attention (as the balanced T5Gemma recipe initialises it), normalises each softmax to 1 and adds the two outputs through two residual branches; merged attention has one distribution over all 9 visible tokens. Illustrative inputs; the equations are the paper's.</p></div></div>
+<p><b>A rejected variant is worth knowing.</b> Cross-attention only on global-attention layers, "one cross-attention sub-layer every six decoder layers", looked like an obvious saving and cost <b>1.3 points</b> ({{Table 1|bx:S1.T1}}). The recount says it was not one in six: its 4,233M parameters are exactly the baseline minus cross-attention on 13 of Gemma 2 2B's 26 layers, Gemma 2's one-in-two pattern (one in six would be 4,106M). All four ablations ran on Gemma 2 2B with PrefixLM and distillation for 400B tokens, not on the shipped Gemma 3 and UL2 setup.</p>
+<details class="more"><summary>Sizes, training setup, and why distillation was dropped</summary><p><b>Sizes</b> ({{Table 2|bx:S2.T2}}). With merged attention the decoder has exactly the encoder's weights, so each model is two copies of a Gemma 3 stack, one shared embedding and the vision encoder: 270M-270M is 417M + 168M + 100M + 100M, 1B-1B is 417M + 302M + 2 × 698M, 4B-4B is 417M + 675M + 2 × 3,209M. Recounted from Gemma 3's configs and checked against the released weights (786.0M, 2,116.0M and 7,508.9M parameters on Hugging Face).</p>
+<p><b>Setup</b> ({{§3|bx:S3}}). Gemma 3's pretraining mixture (multilingual web, code, maths, images), turned into UL2 data of at most 16K input and 16K target tokens with five denoisers mixed 1:1:1:1:4: mean span 3 at 15% corruption, 12 at 50%, 32 at 15%, 32 at 50%, and one long prefix-style task (span three quarters of the input, 75% corrupted, one span). Image data uses prefix LM only (everything up to the last image is input). About <b>2T tokens</b>, batch 4.2M tokens, cosine learning rate with 100 warmup steps, gradient clipping at 1.0, weight decay, a learning-rate grid search per size, and the final checkpoint averaged over the last five (saved 10K steps apart). Post-training is "slight": distillation only, "much less compute" than Gemma 3's, no RL, so its results are a lower bound.</p>
+<p><b>Why distillation was dropped</b> ({{Table 3|bx:S3.T3}}). PrefixLM with distillation was the worst of three at both 270M and 1B; UL2 and UL2 with distillation were within 0.4 points (1B-1B: 40.2 with, 39.8 without; 270M-270M: 30.5 and 30.6). With the first paper's mixed results, the authors conclude that distillation's value depends on teacher and student capacity, and drop it for its "expensive data loading overhead".</p>
+</details>
+</section>
+
+<section id="s-t2res"><h2>T5Gemma 2 results: long context, images, tuning</h2>
+[[B:S4|§4, Tables 4 and 5]]
+<p><b>Long context is the strongest single result in the line</b> ({{Table 4|bx:S4.T4}}). Pretrained, T5Gemma 2 4B-4B scores <b>81.7</b> on RULER 32K against Gemma 3 4B's <b>66.8</b>, and 57.6 against 51.7 at 128K; 270M-270M scores <b>57.3</b> against Gemma 3 270M's 21.3, though pretrained only at 16K. The first T5Gemma (Gemma 2, 8K context) scores about 0.</p>
+<div class="pred" id="pr-long" data-ans="2"><div class="q">at 4B, T5Gemma 2 leads Gemma 3 by 14.9 points on RULER at 32K. At 128K, the lead is</div>
+<div class="opts"><button>Larger: the encoder's advantage grows with length</button><button>About the same</button><button>Smaller</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div id="prLongChart"></div><p>Smaller: <b>+5.9</b> at 128K (MRCR: +2.9 at 32K, +2.0 at 128K). After post-training the 4B-4B is <b>behind</b> at RULER 128K (39.5 against 46.9) and the 1B-1B falls from 35.1 to 6.4 ({{Table 5|bx:S4.T5}}). The paper claims "consistently improved long-context performance (up to 128K)", true for pretrained models; the old summary's "advantage grows with context length" is not. And Gemma 3 270M and 1B have 32K windows ({{config|https://huggingface.co/unsloth/gemma-3-1b-pt/blob/main/config.json}}), so 128K is beyond them.</p></div></div>
+<p>The authors' explanation: encoder parameters are spent only on reading the input, bidirectionally, and cross-attention attends to "high-level representations of the input" ({{§4|bx:S4}}).</p>
+<p><b>Text-only models become multimodal.</b> Gemma 3 270M and 1B are text-only, yet with SigLIP in front of the encoder they score 35.1 and 49.8 on the multimodal average; the 1B-1B trails Gemma 3 4B by only <b>8.7</b> points (6.9 on long context) "despite being much smaller" ({{§4|bx:S4}}). Much smaller means about half, 2.12B parameters against 4.30B, not the old summary's "a quarter".</p>
+<p><b>Pretrained, comparable; post-trained, ahead.</b> Per capability, T5Gemma 2 minus Gemma 3 at the same size:</p>
+<div id="capChart" class="plot"></div>
+<p class="small mute">Category averages from {{Table 4|bx:S4.T4}} and {{Table 5|bx:S4.T5}}; Gemma 3 has multimodal scores only at 4B. Each T5Gemma 2 holds two copies of its source plus the vision encoder: <span class="js" data-rc="params.ratio_range_all"></span> times the parameters (text weights alone <span class="js" data-rc="params.ratio_range_text"></span>).</p>
+<p>Pretrained, the two small models clearly beat their sources and 4B-4B is on par (−1.6 on reasoning, +0.4 to +6.4 elsewhere); after the light post-training T5Gemma 2 leads in every category ({{§4|bx:S4}}). EmbeddingGemma comes from this line: its paper adapts a 300M Gemma 3 with the T5Gemma recipe and UL2 and initialises from that encoder ({{EmbeddingGemma §2|https://arxiv.org/abs/2509.20354}}); the T5Gemma 2 paper calls it a user of its checkpoints ({{§5|bx:S5}}).</p>
+</section>
+
+<section id="s-believe"><h2>How much of this to believe</h2>
+<p><b>What holds up.</b></p>
+<ul class="lst">
+<li><b>Breadth and consistency.</b> 22 pretraining and 10 tuned benchmarks, seven sizes, two objectives, two model families, and the direction holds almost everywhere: SuperGLUE in all 24 comparisons, IT gains at every size. The decoded figures agree with the tables to the printed decimal.</li>
+<li><b>The obvious confounds were tested</b> (extra compute, causal encoder, scratch, warmup), and the authors state limits themselves: FLOPs "may not correlate well with actual running speed", benchmark choice can mislead, PT scores do not predict tuned scores within a size, T5Gemma 2's post-training is a lower bound. That counts in their favour.</li>
+<li><b>Released weights</b> for every size; the parameter counts reproduce from the configs to 0.1%.</li>
+</ul>
+<p><b>What is weaker.</b></p>
+<ul class="lst">
+<li><b>Not like for like on parameters.</b> Matched inference FLOPs, not size: 2B-2B has 5.6B parameters against Gemma 2 2B's 2.6B, T5Gemma 2 4B-4B 7.5B against Gemma 3 4B's 4.3B. Some of the gain may be capacity.</li>
+<li><b>Single runs, no error bars</b>, and several deciding margins are small: merged attention 0.3, UL2 with or without distillation 0.4, warmup 0.7, objective switching ±1.4 ({{Figure 5|ax:S6.F5}}).</li>
+<li><b>The controls cover less than the headlines.</b> The extra-compute control is one 2B run on PT only, while the headline gain is on IT; the warmup test is preliminary (UL2, not the PrefixLM recipe; two tasks).</li>
+<li><b>"Cheaper than scratch" counts only the adaptation</b>, fair when a checkpoint already exists (the premise); scratch gets 8T tokens, adapted models up to 2T on top of their own pretraining, and scratch still wins at the two smallest sizes.</li>
+<li><b>Tables that say less than the text.</b> The first paper's sizes omit cross-attention (1.85B at 9B-9B); T5Gemma 2's ablations ran on Gemma 2 with PrefixLM, not the shipped models, and its global-layers count matches every second layer, not "every six".</li>
+<li><b>Long context</b>: large at 32K, but the lead shrinks with length, reverses at RULER 128K after post-training, the small baselines run at or past their 32K windows, and only two benchmarks are used.</li>
+<li><b>Few-shot prompting is not tested</b>: every IT result is after tuning, so the in-context ability that made the field choose decoder-only ({{GPT-3|n:3c65c17b0d0d8193ac92c7648cfaca12}}) gets no comparison.</li>
+</ul>
+<div class="co key"><div class="t">Verdict</div>Believe the recipe and its direction: copied decoder weights plus a bidirectional encoder match the source model after pretraining and beat it after tuning, at matched inference cost, and the 9B-2B's latency result is measured, not estimated. Treat the size of the wins as single runs from models with about twice the parameters, and the long-context lead as real at 32K but narrowing by 128K.</div>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul class="lst">
+<li><b>Weights.</b> First generation released 9 July 2025: S, B, L, ML, XL, 2B-2B, 9B-2B and 9B-9B, each in PrefixLM and UL2 versions, pretrained and instruction-tuned ({{collection|https://huggingface.co/models?search=google/t5gemma}}, {{blog|https://developers.googleblog.com/en/t5gemma/}}). T5Gemma 2: 270M-270M, 1B-1B and 4B-4B, pretrained only, announced 18 December 2025 ({{blog|https://blog.google/technology/developers/t5gemma-2/}}). All under the {{Gemma terms of use|https://ai.google.dev/gemma/terms}}, behind a licence click-through on Hugging Face.</li>
+<li><b>Code.</b> Inference and fine-tuning in Transformers ({{T5Gemma|https://huggingface.co/docs/transformers/model_doc/t5gemma}}, {{T5Gemma 2|https://huggingface.co/docs/transformers/model_doc/t5gemma2}}). The adaptation code was never released (the paper's "code and checkpoints at XXX (coming soon)" became checkpoints only), so adapting another family means reimplementing the weight mapping, the warmup and the UL2 preprocessing.</li>
+<li><b>Budget.</b> Up to 2T tokens; for T5Gemma 2, 2T tokens at 4.2M per batch is about 476,000 steps (derived), on TPU v4p, v5p and v5e ({{model card|https://huggingface.co/google/t5gemma-2-270m-270m}}). Figure 2 suggests balanced models pass their source within about 125 to 200B tokens.</li>
+<li><b>What worked.</b> Balanced pairs from XL (1.6B non-embedding) up, and 9B-2B for long input and short output; at 113M and below scratch beat adaptation on most scores. PrefixLM with distillation for generation, UL2 for representations (UL2 for everything in T5Gemma 2).</li>
+<li><b>When it pays off:</b> long inputs and short outputs (summarisation, extraction, classification, retrieval and reranking, document QA), fine-tuning rather than prompting, encoder embeddings, images in the input. <b>When it buys little:</b> long generations, where the decoder dominates, and few-shot prompting, which neither paper measures.</li>
+</ul>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="mute small">(beyond the papers)</span></h2>
+<p><b>It is the first serious modern test of the architecture question T5 originally answered.</b> T5 measured encoder-decoder above decoder-only in 2019 ({{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}) and the field went decoder-only anyway, for few-shot prompting at scale. This line redoes the measurement at 2025 scale and the answer holds, with the honest qualification that the advantage concentrates in fine-tuned and long-context settings rather than raw pretraining scores.</p>
+<p><b>Adaptation makes the architecture question cheap to ask</b>: no from-scratch budget is needed to try an encoder-decoder, which is why this could change what people build. The recipe is not Gemma-specific; the authors name LLaMA, Qwen and DeepSeek, and note that "in theory" models from different families could be paired ({{§3.1|ax:S3.SS1}}).</p>
+<p><b>Asymmetric sizing is the underexploited idea.</b> A large encoder with a small decoder is the right shape wherever the input is long and the output short (extractive and retrieval-augmented QA, classification, routing, reranking), and a decoder-only model structurally cannot offer it. The 9B-2B is a proof of concept; the paper lists more unbalanced setups, 27B, other families and dense with MoE pairings as future work ({{§7|ax:S7}}), and T5Gemma 2 released only balanced models.</p>
+<p><b>Long context is where the architecture earns its keep</b>, at least at 32K: encoder parameters are spent only on reading, and cross-attention retrieves from a high-level representation instead of re-scanning raw tokens, the same intuition as the latent-context compression line ({{Latent Context Language Models|n:3d45c17b0d0d81eb90a8d70a5ce84d19}}) from the other direction.</p>
+<p><b>Downstream, the checkpoints are already load-bearing.</b> EmbeddingGemma (about 300M parameters), first on the MTEB multilingual, English and code leaderboards among models under 500M parameters as of 23 September 2025 by its own paper, starts from a T5Gemma-adapted encoder ({{EmbeddingGemma|https://arxiv.org/abs/2509.20354}}): the encoder half reused for what encoders are good at.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li>{{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}} (2019): the original claim being retested, the span corruption that UL2 extends, and the source of the tied embeddings T5Gemma 2 returns to.</li>
+<li>{{Seq vs Seq (Ettin)|n:3c65c17b0d0d81139cffea35080afe2b}} (2025): the compute-matched encoder against decoder comparison from the representation-learning side; T5Gemma is the same question from the generation side.</li>
+<li>{{Bitune|n:3ce5c17b0d0d8173af14ed0caa19d6db}} (2024): the other route to bidirectional prompt processing, a bidirectional pass inside a decoder-only model instead of splitting the model in two.</li>
+<li>{{Latent Context Language Models|n:3d45c17b0d0d81eb90a8d70a5ce84d19}} (2026): the complementary answer for long inputs, compressing the context into latents for a decoder rather than restructuring the model around an encoder.</li>
+<li>{{GPT-3|n:3c65c17b0d0d8193ac92c7648cfaca12}} (2020): the reason the field went the other way, and the capability neither T5Gemma paper tests.</li>
+<li>Lab page: {{Google DeepMind: Gemini and Gemma|n:3c65c17b0d0d8173a0aafcb27cf7a5f3}}, where T5Gemma sits in the Gemma family. Topics: {{llms|n:3c65c17b0d0d812d9e00f6ec89965286}} (the Gemma family and the encoder-decoder lineage), {{llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (UL2, adaptation, PrefixLM plus distillation), {{rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}} (EmbeddingGemma downstream).</li>
+</ul>
+</section>
+</section>
