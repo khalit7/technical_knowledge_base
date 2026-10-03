@@ -1,0 +1,399 @@
+Verbatim extracts read 2026-10-03 for the Defaults across models tab. Each block names its source URL. Em-dashes in the sources are written as --.
+
+== AlexNet, NeurIPS 2012 PDF, sections 3.3 and 5: https://papers.nips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf
+before training begins. This sort of response normalization implements a form of lateral inhibition
+inspired by the type found in real neurons, creating competition for big activities amongst neuron
+outputs computed using different kernels. The constants k, n, α, and β are hyper-parameters whose
+values are determined using a validation set; we used k = 2, n = 5, α = 10−4 , and β = 0.75. We
+applied this normalization after applying the ReLU nonlinearity in certain layers (see Section 3.5).
+This scheme bears some resemblance to the local contrast normalization scheme of Jarrett et al. [11],
+but ours would be more correctly termed “brightness normalization”, since we do not subtract the
+mean activity. Response normalization reduces our top-1 and top-5 error rates by 1.4% and 1.2%,
+We use dropout in the first two fully-connected layers of Figure 2. Without dropout, our network ex-
+hibits substantial overfitting. Dropout roughly doubles the number of iterations required to converge.
+
+
+5     Details of learning
+We trained our models using stochastic gradient descent
+with a batch size of 128 examples, momentum of 0.9, and
+weight decay of 0.0005. We found that this small amount
+of weight decay was important for the model to learn. In            Figure 3: 96 convolutional kernels of size
+other words, weight decay here is not merely a regularizer:         11×11×3 learned by the first convolutional
+it reduces the model’s training error. The update rule for          layer on the 224×224×3 input images. The
+weight w was                                                        top 48 kernels were learned on GPU 1 while
+                                            
+                                              ∂L
+                                                                   the bottom 48 kernels were learned on GPU
+  vi+1 := 0.9 · vi − 0.0005 ·  · wi −  ·                          2. See Section 6.1 for details.
+                                              ∂w wi Di
+ wi+1 := wi + vi+1
+                                                                                              D           E
+                                                                                                  ∂L
+where i is the iteration index, v is the momentum variable,  is the learning rate, and           ∂w wi        is
+                                                                                                          Di
+the average over the ith batch Di of the derivative of the objective with respect to w, evaluated at
+wi .
+We initialized the weights in each layer from a zero-mean Gaussian distribution with standard de-
+viation 0.01. We initialized the neuron biases in the second, fourth, and fifth convolutional layers,
+as well as in the fully-connected hidden layers, with the constant 1. This initialization accelerates
+the early stages of learning by providing the ReLUs with positive inputs. We initialized the neuron
+biases in the remaining layers with the constant 0.
+We used an equal learning rate for all layers, which we adjusted manually throughout training.
+The heuristic which we followed was to divide the learning rate by 10 when the validation error
+rate stopped improving with the current learning rate. The learning rate was initialized at 0.01 and
+
+
+                                                      6
+
+== GPT (2018) PDF, section 4.1: https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf
+very low token level perplexity of 18.4 on this corpus.
+Model specifications Our model largely follows the original transformer work [62]. We trained a
+12-layer decoder-only transformer with masked self-attention heads (768 dimensional states and 12
+attention heads). For the position-wise feed-forward networks, we used 3072 dimensional inner states.
+We used the Adam optimization scheme [27] with a max learning rate of 2.5e-4. The learning rate
+was increased linearly from zero over the first 2000 updates and annealed to 0 using a cosine schedule.
+We train for 100 epochs on minibatches of 64 randomly sampled, contiguous sequences of 512 tokens.
+Since layernorm [2] is used extensively throughout the model, a simple weight initialization of
+N (0, 0.02) was sufficient. We used a bytepair encoding (BPE) vocabulary with 40,000 merges [53]
+and residual, embedding, and attention dropouts with a rate of 0.1 for regularization. We also
+employed a modified version of L2 regularization proposed in [37], with w = 0.01 on all non bias or
+gain weights. For the activation function, we used the Gaussian Error Linear Unit (GELU) [18]. We
+used learned position embeddings instead of the sinusoidal version proposed in the original work.
+
+== GPT-2 (2019) PDF, section 2.3: https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
+
+ck   few modifications. Layer normalization (Ba et al., 2016)
+     was moved to the input of each sub-block, similar to a
+     pre-activation residual network (He et al., 2016) and an
+     additional layer normalization was added after the final self-
+     attention block. A modified initialization which accounts
+     for the accumulation on the residual path with model depth
+     is used. We scale the weights
+                                √ of residual layers at initial-
+
+     ization by a factor of 1/ N where N is the number of
+
+     residual layers. The vocabulary is expanded to 50,257. We
+
+     also increase the context size from 512 to 1024 tokens and
+
+     a larger batchsize of 512 is used.
+     largest model from BERT (Devlin et al., 2018). Our largest
+
+     model, which we call GPT-2, has over an order of magni-
+
+     tude more parameters than GPT. The learning rate of each
+
+     model was manually tuned for the best perplexity on a 5%
+
+
+== GPT-2 released code, src/model.py: https://github.com/openai/gpt-2/blob/master/src/model.py
+def gelu(x):
+    return 0.5*x*(1+tf.tanh(np.sqrt(2/np.pi)*(x+0.044715*tf.pow(x, 3))))
+
+def norm(x, scope, *, axis=-1, epsilon=1e-5):
+    """Normalize to mean = 0, std = 1, then do a diagonal affine transform."""
+    with tf.variable_scope(scope):
+        n_state = x.shape[-1].value
+        g = tf.get_variable('g', [n_state], initializer=tf.constant_initializer(1))
+        b = tf.get_variable('b', [n_state], initializer=tf.constant_initializer(0))
+        u = tf.reduce_mean(x, axis=axis, keepdims=True)
+        s = tf.reduce_mean(tf.square(x-u), axis=axis, keepdims=True)
+        x = (x - u) * tf.rsqrt(s + epsilon)
+        x = x*g + b
+        return x
+
+def split_states(x, n):
+    """Reshape the last dimension of x into [n, x.shape[-1]/n]."""
+    *start, m = shape_list(x)
+    return tf.reshape(x, start + [n, m//n])
+
+def merge_states(x):
+    """Smash the last two dimensions of x into a single dimension."""
+    *start, a, b = shape_list(x)
+    return tf.reshape(x, start + [a*b])
+
+def conv1d(x, scope, nf, *, w_init_stdev=0.02):
+    with tf.variable_scope(scope):
+        *start, nx = shape_list(x)
+        w = tf.get_variable('w', [1, nx, nf], initializer=tf.random_normal_initializer(stddev=w_init_stdev))
+        b = tf.get_variable('b', [nf], initializer=tf.constant_initializer(0))
+        c = tf.reshape(tf.matmul(tf.reshape(x, [-1, nx]), tf.reshape(w, [-1, nf]))+b, start+[nf])
+        return c
+
+== ResNet section 3.4 and 4.2: https://arxiv.org/html/1512.03385v1
+We adopt batch normalization (BN) [16] right after each convolution and before activation, following [16].
+We initialize the weights as in [13] and train all plain/residual nets from scratch.
+We use SGD with a mini-batch size of 256. The learning rate starts from 0.1 and is divided by 10 when the error plateaus, and the models are trained for up to $60\times 10^{4}$ iterations. We use a weight decay of 0.0001 and a momentum of 0.9. We do not use dropout [14], following the practice in [16].
+We use a weight decay of 0.0001 and momentum of 0.9, and adopt the weight initialization in [13] and BN [16] but with no dropout. These models are trained with a mini-batch size of 128 on two GPUs. We start with a learning rate of 0.1, divide it by 10 at 32k and 48k iterations, and terminate training at 64k iterations, which is determined on a 45k/5k train/val split. We follow the simple data augmentation in [24] for training: 4 pixels are padded on each side, and a 32 $\times$ 32 crop is randomly sampled from the padded image or its horizontal flip. For testing, we only evaluate the single view of the original 32 $\times$ 32 image.
+We compare $n=\{3,5,7,9\}$ , leading to 20, 32, 44, and 56-layer networks.
+Fig. 6 (left) shows the behaviors of the plain nets. The deep plain nets suffer from increased depth, and exhibit higher training error when going deeper. This phenomenon is similar to that on ImageNet (Fig. 4, left) and on MNIST (see [42]), suggesting that such an optimization difficulty is a fundamental problem.
+Fig. 6 (middle) shows the behaviors of ResNets. Also similar to the ImageNet cases (Fig. 4, right), our ResNets manage to overcome the optimization difficulty and demonstrate accuracy gains when the depth increases.
+We further explore $n=18$ that leads to a 110-layer ResNet. In this case, we find that the initial learning rate of 0.1 is slightly too large to start converging55
+ 5
+ With an initial learning rate of 0.1, it starts converging ( $<$ 90% error) after several epochs, but still reaches similar accuracy.. So we use 0.01 to warm up the training until the training error is below 80% (about 400 iterations), and then go back to 0.1 and continue training. The rest of the learning schedule is as done previously. This 110-layer network converges well (Fig. 6, middle). It has fewer parameters than other deep and thin networks such as FitNet [35] and Highway [42] (Table 6), yet is among the state-of-the-art results (6.43%, Table 6).
+
+== LLaMA sections 2.2 and 2.3: https://arxiv.org/html/2302.13971v1
+Pre-normalization [GPT3].
+To improve the training stability, we normalize the input of each transformer sub-layer, instead of normalizing the output. We use the RMSNorm normalizing function, introduced by Zhang and Sennrich (2019).
+SwiGLU activation function [PaLM].
+We replace the ReLU non-linearity by the SwiGLU activation function, introduced by Shazeer (2020) to improve the performance. We use a dimension of $\frac{2}{3}4d$ instead of $4d$ as in PaLM.
+Rotary Embeddings [GPTNeo].
+We remove the absolute positional embeddings, and instead, add rotary positional embeddings (RoPE), introduced by Su et al. (2021), at each layer of the network.
+The details of the hyper-parameters for our different models are given in Table 2.
+Figure 1: 
+Training loss over train tokens for the 7B, 13B, 33B, and 65 models.
+LLaMA-33B and LLaMA-65B were trained on 1.4T tokens. The smaller models were trained on 1.0T tokens. All models are trained with a batch size of 4M tokens.
+2.3 Optimizer
+Our models are trained using the AdamW optimizer (Loshchilov and Hutter, 2017), with the following hyper-parameters: $\beta_{1}=0.9,\beta_{2}=0.95$ .
+We use a cosine learning rate schedule, such that the final learning rate is equal to 10% of the maximal learning rate.
+We use a weight decay of $0.1$ and gradient clipping of $1.0$ .
+We use $2,000$ warmup steps, and vary the learning rate and batch size with the size of the model (see Table 2 for details).
+learning rate batch size  $n$ tokens 6.7B 4096 32 32  $3.0e^{-4}$  4M 1.0T 13.0B 5120 40 40  $3.0e^{-4}$  4M 1.0T 32.5B 6656 52 60  $1.5e^{-4}$  4M 1.4T 65.2B 8192 64 80  $1.5e^{-4}$  4M 1.4T Table 2:  
+
+== Llama 2 section 2.2: https://arxiv.org/html/2307.09288v2
+We adopt most of the pretraining setting and model architecture from Llama 1. We use the standard transformer architecture
+(Vaswani et al., 2017), apply pre-normalization using RMSNorm (Zhang and Sennrich, 2019), use the SwiGLU activation function (Shazeer, 2020), and rotary positional embeddings (RoPE, Su et al. 2022). The primary architectural differences from Llama 1 include increased context length and grouped-query attention (GQA). We detail in Appendix Section A.2.1 each of these differences with ablation experiments to demonstrate their importance.
+Hyperparameters.
+We trained using the AdamW optimizer (Loshchilov and Hutter, 2017), with $\beta_{1}=0.9,\beta_{2}=0.95,\text{eps}=10^{-5}$ . We use a cosine learning rate schedule, with warmup of 2000 steps, and decay final learning rate down to 10% of the peak learning rate. We use a weight decay of $0.1$ and gradient clipping of $1.0$ .
+Figure 5 (a) shows the training loss for Llama 2 with these hyperparameters.
+
+== Gopher section 3: https://arxiv.org/html/2112.11446v2
+We use the autoregressive Transformer architecture detailed in Radford et al. (2019) with two modifications: we use RMSNorm (Zhang and Sennrich, 2019) instead of LayerNorm (Ba et al., 2016),
+We train all models for 300 billion tokens with a 2048 token context window, using the Adam (Kingma and Ba, 2014) optimiser.
+We warm-up the learning rate from $10^{-7}$ to the maximum learning rate over the first 1500 steps, and then decay it 10 $\times$ using a cosine schedule.
+As we increase model size, we decrease the maximum learning rate and increase the number of tokens in each batch, as shown in Table 1.
+Furthermore, we increase Gopher’s batch size from three to six million tokens per batch during training.
+We clip gradients based on the global gradient norm using a clipping value of 1.
+However, for the 7.1B model and for Gopher we reduce this to 0.25 for improved stability.
+We incorporate the bfloat16 numerical format to reduce memory and increase training throughput. Models smaller than 7.1B are trained with mixed precision float32 parameters and bfloat16 activations (Micikevicius et al., 2018), while 7.1B and 280B use bfloat16 activations and parameters. bfloat16 parameters are updated using stochastic rounding to maintain stability (Gupta et al., 2015).
+We subsequently found that stochastic rounding does not fully recover mixed precision training performance; more details can be found in Appendix C.
+3.3 Infrastructure
+
+== Gemma 3 section 2: https://arxiv.org/html/2503.19786v1
+The pre-training optimization recipe is similar to Gemma 2, with some modifications in the architecture design.
+We use the same tokenizer as Gemini 2.0, and we also revisit our data mixture to improve the multilingual capabilities of the models, while introducing image understanding.
+All Gemma 3 models are trained with knowledge distillation (Hinton et al., 2015).
+In post-training, we focus our efforts on improving mathematics, reasoning, and chat abilities, as well as integrating the new capabilities of Gemma 3, long-context, and image inputs.
+We use a novel post-training approach that brings gains across all capabilities, including math, coding, chat, instruction following, and multilingual. The resulting Gemma 3 instruction-tuned models are both powerful and versatile, outperforming their predecessors by a wide margin.
+In the following sections, we provide a brief overview of our models, including the architecture and pre- and post-training recipes.
+We also provide detailed evaluations across a wide variety of quantitative and qualitative benchmarks. We discuss our approach to safe and responsible deployment and outline the broader implications of Gemma 3, its limitations, and advantages.
+Figure 1: Example of visual interaction with Gemma 3 27B IT model.
+2 Model Architecture
+Gemma 3 models follow the same general decoder-only transformer architecture as previous iterations (Vaswani et al., 2017), with most architecture elements similar to the first two Gemma versions.
+We use a Grouped-Query Attention (GQA) (Ainslie et al., 2023) with post-norm and pre-norm with RMSNorm (Zhang and Sennrich, 2019).
+Inspired by Dehghani et al. (2023), Wortsman et al. (2023) and Chameleon Team (2024), we replace the soft-capping of Gemma 2 with QK-norm.
+Distillation.
+We sample 256 logits per token, weighted by teacher probabilities. The student learns the teacher’s distribution within these samples via cross-entropy loss. The teacher’s target distribution is set to zero probability for non-sampled logits, and renormalized.
+
+== Kimi K2 sections 2.1, 2.4, 2.5: https://arxiv.org/html/2507.20534v1
+We train Kimi K2 using the token-efficient Muon optimizer [33], incorporating weight decay and consistent update RMS scaling [46]. Experiments in our previous work Moonlight [46] show that, under the same compute budget and model size -- and therefore the same amount of training data -- Muon substantially outperforms AdamW [36, 48], making it an effective choice for improving token efficiency in large language model training.
+Algorithm 1 MuonClip Optimizer
+ 1:
+ for each training step $t$ do
+ 2:
+   // 1. Muon optimizer step
+ 3:
+   for each weight $\mathbf{W}\in\mathbb{R}^{n\times m}$ do
+ 4:
+     $\mathbf{M}_{t}=\mu\mathbf{M}_{t-1}+\mathbf{G}_{t}$ $\triangleright$ $\mathbf{M}_{0}=\mathbf{0}$ , $\mathbf{G}_{t}$ is the grad of $\mathbf{W}_{t}$ , $\mu$ is momentum
+ 5:
+     $\mathbf{O}_{t}=\operatorname{Newton-Schulz}(\mathbf{M}_{t})\cdot\sqrt{\max(n,m)}\cdot 0.2$ $\triangleright$ Match Adam RMS
+ 6:
+     $\mathbf{W}_{t}=\mathbf{W}_{t-1}-\eta\bigl(\mathbf{O}_{t}+\lambda\mathbf{W}_{t-1}\bigr)$ $\triangleright$ learning rate $\eta$ , weight decay $\lambda$ 
+ 7:
+   end for
+ 8:
+   // 2. QK-Clip
+ 9:
+   for each attention head $h$ in every attention layer of the model do
+ 10:
+    Obtain $S_{\max}^{h}$ already computed during forward
+ 11:
+    if $S_{\max}^{h}>\tau$ then
+ 12:
+       $\gamma\leftarrow\tau/S_{\max}^{h}$ 
+Under this setting, storing the model parameters in BF16 and their gradient accumulation buffer in FP32 requires approximately 6 TB of GPU memory, distributed over a model-parallel group of 256 GPUs.
+Inputs of MoE up-projections and SwiGLU are compressed to FP8-E4M3 in 1 $\times$ 128 tiles with FP32 scales. Small-scale experiments show no measurable loss increase. Due to potential risks of performance degradation that we observed during preliminary study, we do not apply FP8 in computation.
+We pre-trained the model with a 4,096-token context window using the MuonClip optimizer (Algorithm 1) and the WSD learning rate schedule [25], processing a total of 15.5T tokens.
+The first 10T tokens were trained with a constant learning rate of 2e-4 after a 500-step warm-up,
+followed by 5.5T tokens with a cosine decay from 2e-4 to 2e-5.
+Weight decay was set to 0.1 throughout, and the global batch size was held at 67M tokens. The overall training curve is shown in Figure 3.
+Towards the end of pre-training, we conducted an annealing phase followed by a long-context activation stage. The batch size was kept constant at 67M tokens, while the learning rate was decayed from 2e-5 to 7e-6. In this phase, the model was trained on 400 billion tokens with a 4k sequence length, followed by an additional 60 billion tokens with a 32k sequence length. To extend the context window to 128k, we employed the YaRN method [55].
+
+== SmolLM3 blog: https://huggingface.co/blog/smollm3
+SmolLM3 follows a transformer decoder architecture with tied embedding similar to SmolLM2, building on Llama architecture with some key modifications optimized for efficiency and long context performance.
+Grouped Query Attention (GQA): We replaced multi-head attention with grouped-query attention using 4 groups. Our ablations on a 3B model trained with 100B tokens from FineWeb-Edu showed that GQA matches the performance of multi-head attention while significantly reducing the KV cache size during inference.
+NoPE: We implemented NoPE from "RoPE to NoRoPE and Back Again: A New Hybrid Attention Strategy" (Yang et al., 2025), selectively removing rotary position embeddings from every 4th layer. This approach improves long context performance without affecting short context capabilities, as confirmed by our ablations.
+Intra-Document Masking: Following "Analysing The Impact of Sequence Composition on Language Model Pre-Training", during training, we use attention masking to ensure tokens from different documents in the same training sequence don't attend to each other. Similar to Llama 3, this helps with faster and more stable long context training while maintaining short context performance.
+Training Stability: Following OLMo 2, we remove weight decay from embedding layers to improve training stability. This modification contributed to more stable training dynamics, with embedding norms naturally stabilizing at healthier values during training without impacting overall performance in our ablations.
+All these changes were validated through ablations using the same 3B architecture trained on 100B tokens from FineWeb-Edu, ensuring each modification either improved performance or maintained it while offering other benefits.
+Training Configuration: We use a global batch size of 2.36M tokens with 4096 sequence length, a learning rate of 2e-4, and the AdamW optimizer (beta1: 0.9, beta2: 0.95) with weight decay of 0.1 and gradient clipping of 1. We use the WSD (Warmup-Stable-Decay) scheduler, with 2000  warmup steps, and a linear decay to 0 in the final 10% training steps. We use nanotron framework for the training, datatrove for data processing and lighteval for evaluation. The model was trained on 384 H100 GPUs for 24 days. You can see the distributed training setup in the following figure.
+it says beta1 0.8 in the picture but at somewhere of "Pretraining" it says "and the AdamW optimizer (beta1: 0.9, beta2: 0.95) with weight decay of 0.1"
+
+== Mistral 7B paper (sections): https://arxiv.org/html/2310.06825v1
+19:1 Introduction
+20:2 Architectural details
+21:3 Results
+22:4 Instruction Finetuning
+23:5 Adding guardrails for front-facing applications
+26:6 Conclusion
+47:1 Introduction
+69:2 Architectural details
+111:3 Results
+233:4 Instruction Finetuning
+
+== CLIP released code, clip/model.py: https://github.com/openai/CLIP/blob/main/clip/model.py
+class LayerNorm(nn.LayerNorm):
+    """Subclass torch's LayerNorm to handle fp16."""
+
+    def forward(self, x: torch.Tensor):
+        orig_type = x.dtype
+        ret = super().forward(x.type(torch.float32))
+        return ret.type(orig_type)
+
+
+class QuickGELU(nn.Module):
+    def forward(self, x: torch.Tensor):
+        return x * torch.sigmoid(1.702 * x)
+
+
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+        self.initialize_parameters()
+
+    def initialize_parameters(self):
+        nn.init.normal_(self.token_embedding.weight, std=0.02)
+        nn.init.normal_(self.positional_embedding, std=0.01)
+
+        if isinstance(self.visual, ModifiedResNet):
+            if self.visual.attnpool is not None:
+                std = self.visual.attnpool.c_proj.in_features ** -0.5
+                nn.init.normal_(self.visual.attnpool.q_proj.weight, std=std)
+                nn.init.normal_(self.visual.attnpool.k_proj.weight, std=std)
+                nn.init.normal_(self.visual.attnpool.v_proj.weight, std=std)
+                nn.init.normal_(self.visual.attnpool.c_proj.weight, std=std)
+
+            for resnet_block in [self.visual.layer1, self.visual.layer2, self.visual.layer3, self.visual.layer4]:
+                for name, param in resnet_block.named_parameters():
+                    if name.endswith("bn3.weight"):
+                        nn.init.zeros_(param)
+
+        proj_std = (self.transformer.width ** -0.5) * ((2 * self.transformer.layers) ** -0.5)
+        attn_std = self.transformer.width ** -0.5
+        fc_std = (2 * self.transformer.width) ** -0.5
+        for block in self.transformer.resblocks:
+            nn.init.normal_(block.attn.in_proj_weight, std=attn_std)
+            nn.init.normal_(block.attn.out_proj.weight, std=proj_std)
+            nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
+            nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
+
+        if self.text_projection is not None:
+            nn.init.normal_(self.text_projection, std=self.transformer.width ** -0.5)
+
+== ViT released code, vit_jax/models_vit.py: https://github.com/google-research/vision_transformer/blob/main/vit_jax/models_vit.py
+  dtype: Dtype = jnp.float32
+  param_dtype: Dtype = jnp.float32
+  out_dim: Optional[int] = None
+  dropout_rate: float = 0.1
+  kernel_init: Callable[[PRNGKey, Shape, Dtype],
+                        Array] = nn.initializers.xavier_uniform()
+  bias_init: Callable[[PRNGKey, Shape, Dtype],
+                      Array] = nn.initializers.normal(stddev=1e-6)
+
+  @nn.compact
+  def __call__(self, inputs, *, deterministic):
+    """Applies Transformer MlpBlock module."""
+    actual_out_dim = inputs.shape[-1] if self.out_dim is None else self.out_dim
+    x = nn.Dense(
+        features=self.mlp_dim,
+        dtype=self.dtype,
+        param_dtype=self.param_dtype,
+        kernel_init=self.kernel_init,
+        bias_init=self.bias_init)(  # pytype: disable=wrong-arg-types
+            inputs)
+    x = nn.gelu(x)
+    x = nn.Dropout(rate=self.dropout_rate)(x, deterministic=deterministic)
+    output = nn.Dense(
+        features=actual_out_dim,
+        dtype=self.dtype,
+        param_dtype=self.param_dtype,
+        kernel_init=self.kernel_init,
+        bias_init=self.bias_init)(  # pytype: disable=wrong-arg-types
+            x)
+    output = nn.Dropout(
+        rate=self.dropout_rate)(
+    # Attention block.
+    assert inputs.ndim == 3, f'Expected (batch, seq, hidden) got {inputs.shape}'
+    x = nn.LayerNorm(dtype=self.dtype)(inputs)
+    x = nn.MultiHeadDotProductAttention(
+        dtype=self.dtype,
+        kernel_init=nn.initializers.xavier_uniform(),
+        broadcast_dropout=False,
+        deterministic=deterministic,
+        dropout_rate=self.attention_dropout_rate,
+        num_heads=self.num_heads)(
+            x, x)
+    x = nn.Dropout(rate=self.dropout_rate)(x, deterministic=deterministic)
+    x = x + inputs
+
+    # MLP block.
+    y = nn.LayerNorm(dtype=self.dtype)(x)
+    y = MlpBlock(
+    assert x.ndim == 3  # (batch, len, emb)
+
+    if self.add_position_embedding:
+      x = AddPositionEmbs(
+          posemb_init=nn.initializers.normal(stddev=0.02),  # from BERT.
+          name='posembed_input')(
+              x)
+
+== Mesh TensorFlow Unitransformer: https://github.com/tensorflow/mesh/blob/master/mesh_tensorflow/transformer/transformer.py
+class Unitransformer(object):
+  """A Transformer model with only one layer stack, e.g. a language model.
+
+  This class is also used as part of Bitransformer, which contains two
+  Unitransformers.
+  """
+
+  def __init__(self,
+               layer_stack,
+               d_model=1024,
+               input_vocab_size=gin.REQUIRED,
+               output_vocab_size=gin.REQUIRED,
+               autoregressive=gin.REQUIRED,
+               max_length=gin.REQUIRED,
+               shared_embedding_and_softmax_weights=False,
+               label_smoothing=0.0,
+               z_loss=1e-4,
+               name="transformer",
+               layout=None,
+      shared_embedding_and_softmax_weights: a boolean
+      label_smoothing: a float
+      z_loss: a float
+      name: a string
+      layout: optional - an input to mtf.convert_to_layout_rules
+        dtype=context.activation_dtype,
+        on_value=on_value,
+        off_value=off_value)
+    loss = mtf.layers.softmax_cross_entropy_with_logits(
+        logits,
+        soft_targets,
+        output_vocab_dim,
+        z_loss=self.z_loss if context.train else 0.0)
+    weights = mtf.cast(mtf.greater(targets, 0), context.activation_dtype)
+
+== T5 model gins (no z_loss override): https://github.com/google-research/text-to-text-transfer-transformer/tree/main/t5/models/gin/models
+# -*-Python-*-
+
+# Base model from https://arxiv.org/abs/1910.10683
+include 'models/bi_v1.gin'
+# -*-Python-*-
+# with relative attention instead of positional embedding
+include 'models/bi_bert_base.gin'
+
+transformer.Unitransformer.positional_embedding = False
+# relative attention is implemented as a bias (independent of context)
+# this bias differs across attention heads but is shared across different
+#  layers in a stack (to save time)
+transformer_layers.SelfAttention.relative_attention_type = "bias_shared"

@@ -1369,3 +1369,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | C12 | Cost of a CPT run (Thomson, Neon) as a chart | 1 | 1 | 1 | 0 | 1 | 1 | 0 | 0 | 0 | 5 | | rejected: owned by the parent Price list; a training-bill tab is a pattern Khalid removed |
 | C13 | Tokenizer extension: fertility before and after (Swallow 56.2%) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 1 | −1 | 5 | | rejected: belongs to Tokenizers; one sentence and a table row carry it |
 | C14 | Re-doing the Pretraining page's anneal toy | | | | | | | | | | | | excluded by the brief |
+
+### Topic: ml-fundamentals (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_ml_fundamentals/src/viz_ideas.md`.
+
