@@ -1,0 +1,28 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Simulate the KV cache</h2>
+<p>The same eight requests served from the same KV cache memory by the four systems of the paper's evaluation ({{§6.1|ax:S6.SS1}}): Orca (Max) reserves the maximum length for every request, Orca (Pow2) reserves prompt plus the output rounded up to a power of two, Orca (Oracle) knows each true output length, and all three take contiguous chunks from a buddy allocator. vLLM takes 4-slot blocks on demand. Every step every running request adds one token, as in iteration-level scheduling ({{§2.3|ax:S2.SS3}}), and a new request is admitted, first come first served, as soon as its memory can be found. Memory is drawn to scale: one square per token slot.</p>
+<p class="try"><b>Try:</b> play Orca (Max) first: two requests run at a time and most of each chunk is red: slots reserved for a maximum length the request never reaches. Switch to Orca (Oracle): no red, but the light reserved slots and the grey rounding of the buddy allocator still block other requests. Then vLLM: almost every slot holds a token, up to seven requests run at once, and the eight finish in about half the steps. Watch for a preemption: when blocks run out, vLLM evicts the latest request and recomputes it later ({{§4.5|ax:S4.SS5}}).</p>
+<div class="card" id="kv">
+<div class="an-top"><div class="seg" id="kvM" role="group" aria-label="System"><button class="on" data-m="max" aria-pressed="true">Orca (Max)</button><button data-m="pow2" aria-pressed="false">Orca (Pow2)</button><button data-m="oracle" aria-pressed="false">Orca (Oracle)</button><button data-m="vllm" aria-pressed="false">vLLM</button></div></div>
+<div id="kvSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="kvBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="kvPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="kvFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="kvScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="kvSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="kvStep"></div><p id="kvCap"></p></div>
+<div class="an-cnt" id="kvCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Toy sizes, chosen so the whole memory fits on screen: 64 token slots, a maximum sequence length of 32, vLLM blocks of 4 (the paper's figures use 4 too; vLLM's default is 16). The eight requests (prompt + output tokens) are illustrative: A 7 + 6, B 3 + 9, C 12 + 4, D 5 + 14, E 9 + 3, F 4 + 8, G 10 + 7, H 6 + 5. The simulator is the same code that runs at the paper's scale below; see <code>src/sim.py</code> for every rule. The animation runs only while it is on screen and starts paused if your system asks for reduced motion.</p>
+</div>
+
+<h3 id="run-scale">At the paper's scale</h3>
+<p>The same simulator at the size of the paper's OPT-13B server: 12 GB of KV cache at 800 KB per token, 15,728 slots ({{Table 1|ax:S5.T1}}), with requests whose prompt and output lengths are drawn from the paper's own ShareGPT or Alpaca histograms ({{Figure 11|ax:S5.F11}}, read from its vector graphics) and filtered as the authors' released benchmark does. The queue never empties, as in {{Figure 13|ax:S5.F13}}, where every system is past its capacity. Each system runs 6,000 steps; the averages skip the first 1,500.</p>
+<div class="ctl">
+<label>Trace <select id="scD"><option value="sharegpt" selected>ShareGPT (Figure 2, Figure 13a)</option><option value="alpaca">Alpaca (Figure 13b)</option></select></label>
+<label>vLLM block size <select id="scB"><option value="1">1</option><option value="4">4</option><option value="8">8</option><option value="16" selected>16 (default)</option><option value="32">32</option><option value="64">64</option><option value="128">128</option><option value="256">256</option></select></label>
+<label>Samples per request (parallel sampling) <select id="scN"><option value="1" selected>1 (basic sampling)</option><option value="2">2</option><option value="4">4</option><option value="6">6</option></select></label>
+<label><button id="scSeed">New random requests</button> <span class="small mute" id="scSeedV">seed 1</span></label>
+</div>
+<div id="scSvg"></div>
+<div class="tw"><table id="scT"></table></div>
+<p class="small" id="scRep"></p>
+<p class="small mute">What the simulator leaves out, so read its batch sizes as memory limits: time (it counts steps, not seconds; prefill, recomputation and the kernel cost nothing), arrivals (the queue is always full, so a system whose real batch is set by the arrival rate, as vLLM's probably is on Alpaca at 30 requests/s, comes out larger here), the pairing of prompt and output lengths in the real traces (drawn independently here), swapping (preemption is by recomputation, the released default for single sequences), and anything Orca's real implementation did that the paper's reimplementation did not. Limits it keeps from the released vLLM v0.1.0 code, not stated in the paper: 2,560 tokens and 256 sequences per step, and 1% of blocks kept free.</p>
+</section>
