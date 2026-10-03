@@ -1348,3 +1348,24 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 11 | Real LLM teacher and student logits on the same text (forward/reverse KL per token on Qwen2.5-0.5B against a smaller model) | 0 | 1 | 1 | 0 | 1 | 2 | 0 | 2 | 3 | none | rejected: no smaller model with the same tokenizer is cached; the toy shows the per-token KL with exact numbers |
 | 12 | Gemma 3 teacher-size crossover (Figure 8) redrawn | 0 | 0 | 1 | 2 | 1 | 2 | 0 | 1 | 5 | none | rejected: figure only, no printed values (the method forbids reading curves); described in words |
 | 13 | Training-bill tab for distillation runs | | | | | | | | | | none | rejected: a pattern Khalid removed; the Llama 3.2 GPU-hours sit in the budget chart's details |
+
+### Continued Pretraining (CPT) (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/continued_pretraining_cpt/src/viz_ideas.md`.
+
+| # | Idea | Moves | Reproduces | Computable | Beyond prose | Misconception | Central | Novel | Anim | Cost | Score | Placement | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C1 | **One base, two continuations, animated**: the toy's CPT run step by step, English and German loss on one axis, toggle no replay / 25% replay / peak 0.1×, counters (German read, English replayed, both losses against the base), seed band, retrained-on-both reference, samples at the end | 2 | 1 (qualitative, independent) | 2×2 | 2 | 2 (the "re-warm drives most forgetting" claim) | 2 | 2 | 2 | −2 | 15 | Reading, Forgetting | built |
+| C2 | **Forgetting against adaptation**: Ibrahim et al. Tables 2, 4, 12 as two lines (replay share, LR peak) in old-loss against new-loss space, union star, new-data-only point; four sets (405M German, 405M SlimPajama, 10B SlimPajama, the toy's 3 × 3) | 2 | 2×2 (by construction, transcribed) | 2×2 | 2 | 2 | 2 | 2 | 0 | −1 | 17 | Reading, The two levers | built |
+| C3 | **CMR law as a calculator**: model size and CPT tokens, predicted CMR with the four published values; extrapolation shaded | 2 | 2×2 (independently from Table 5's coefficients: 29.8, 34.9, 41.4, 47.8) | 2×2 | 1 | 1 (the T = 250 / 500B unit slip) | 2 | 2 | 0 | −1 | 15 | Reading, Choosing the mix | built |
+| C4 | **D-CPT usage 1**: general-loss rise against domain share from Table 5, movable tolerance, interpolated crossing (0.9245 at 3% against the law's 0.924) | 2 | 2×2 (independently, from measured rows) | 2×2 | 1 | 1 (two "optimal ratios" disagree) | 2 | 2 | 0 | −1 | 15 | Reading, Choosing the mix | built |
+| C5 | **Recipes compared**: 18 recipes (14 CPT, 3 own mid-training, BloombergGPT), sortable, filter by kind, detail card per row with quote-level source; scatter of general share against LR-peak ratio (log) | 1 | 1 | 2×2 | 2 | 1 | 2 | 2 | 0 | −1 | 13 | Own tab | built |
+| C6 | **Replay toy tab**: the 3 × 3 grid of peak × replay, curves per seed or mean, pretraining-and-CPT view, samples, findings recomputed from the runs | 2 | 1 | 2×2 | 2 | 2 | 2 | 2 | 0 | −2 | 14 | Own tab | built |
+| C7 | Three schedules across two datasets (cosine and re-warm, stay at minimum, infinite) | 1 | 0 | 2×2 | 1 | 1 | 1 | 1 | 0 | 0 | 9 | Reading, Schedules | built (small, labelled illustrative phase lengths) |
+| C8 | Toy run with an infinite schedule against cosine re-warm | 2 | 0 | 2×2 | 1 | 0 | 1 | 2 | 1 | −2 | 9 | | rejected for now: Ibrahim tested infinite schedules only without a shift; a toy result would be the only evidence on the page and easy to over-read |
+| C9 | Refit the CMR law live from the toy's runs | 1 | 0 | 1 | 1 | 0 | 1 | 2 | 0 | −2 | 4 | | rejected: the toy has three replay shares, too few points for a 3-parameter power law plus the trajectory condition |
+| C10 | D-CPT full law L(N, D, r) calculator | 2 | 0 | 0 | 1 | 0 | 2 | 2 | 0 | −1 | 6 | | rejected: the paper publishes no fitted coefficients (E, A, B, C, α, β, γ, η, ε), only fit quality tables |
+| C11 | Gupta et al. warmup-length curves redrawn | 1 | 0 | 0 | 1 | 0 | 1 | 1 | 0 | 0 | 4 | | rejected: figures only, no printed values (method forbids reading curves) |
+| C12 | Cost of a CPT run (Thomson, Neon) as a chart | 1 | 1 | 1 | 0 | 1 | 1 | 0 | 0 | 0 | 5 | | rejected: owned by the parent Price list; a training-bill tab is a pattern Khalid removed |
+| C13 | Tokenizer extension: fertility before and after (Swallow 56.2%) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 1 | −1 | 5 | | rejected: belongs to Tokenizers; one sentence and a table row carry it |
+| C14 | Re-doing the Pretraining page's anneal toy | | | | | | | | | | | | excluded by the brief |

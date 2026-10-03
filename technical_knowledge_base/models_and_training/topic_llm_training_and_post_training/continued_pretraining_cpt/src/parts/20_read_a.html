@@ -1,0 +1,38 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" aria-label="Sections"><a href="#s-what">What and when</a><a href="#s-forget">Forgetting, watched</a><a href="#s-levers">The two levers</a><a href="#s-sched">Schedules that resume</a><a href="#s-mix">Choosing the mix</a><a href="#s-other">Other findings</a><a href="#s-rcp">What labs did</a><a href="#s-cost">What it costs</a><a href="#s-check">Checklist</a><a href="#s-mist">Common mistakes</a></nav>
+
+<section id="s-what">
+<h2>What CPT is, and when to use it</h2>
+<p class="lead">Continued pretraining (CPT, also "continual pretraining") resumes next-token training of an existing base model on new data: a domain (finance, medicine, law, code, maths), a new language, fresher data, or longer documents. It keeps the pretraining objective and trains every parameter; what changes is the data.</p>
+<div class="stage">
+<div><h4>Pretraining</h4>From random weights, on trillions of tokens of broad text. Details on {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}.</div>
+<div><h4>Mid-training, the anneal</h4>The base-model builder's last stage: same objective, learning rate decaying, the best data up-weighted (OLMo 2: 50B tokens; {{Pretraining, section 4|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}).</div>
+<div class="me"><h4>Continued pretraining</h4>Someone else's finished base, billions to hundreds of billions of new tokens, all parameters, same objective (DeepSeekMath: 500B tokens on a 7B base, {{paper page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}).</div>
+<div><h4>Fine-tuning (SFT, LoRA)</h4>Demonstrations or preference pairs, millions of tokens; teaches format and behaviour more than knowledge ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}, {{Alignment|n:3c65c17b0d0d81d5bed7e608d4061c7a}}).</div>
+</div>
+<p>Mid-training and CPT are the same machinery: the difference is who runs it. The base-model builder anneals its own run on curated data; an adapter takes a released checkpoint (usually without its optimizer state or its data) and pushes it towards a domain. Long-context extension is CPT too: the standard 128K recipes are continued pretraining on upsampled long documents with a rescaled rotary base ({{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}). The parent page compares all these stages on one grid ({{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}).</p>
+<p><b>When it is worth it.</b> CPT is for a large knowledge gap: a body of text the base model has barely seen, measured in billions of tokens. Fine-tuning, including LoRA, does not inject bulk knowledge well: Biderman et al. found LoRA "learns less and forgets less" than full training when continuing to pretrain on code and maths ({{PEFT, Against full fine-tuning|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}). When the gap is a few documents that change often, retrieval (a RAG system) or a fine-tune is cheaper and easier to keep current; skip CPT.</p>
+<p><b>A worked pattern.</b> A domain-specific financial-services LLM Khalid worked on followed the usual shape: select a base model by benchmark screening; continue pretraining on a mix of domain and general text; then post-train, and evaluate on three axes (domain, general, safety) with a private in-house benchmark. Every step of that shape has a section below.</p>
+</section>
+
+<section id="s-forget">
+<h2>The central problem: forgetting, watched</h2>
+<p>Training on a shifted distribution degrades what the model knew. The effect has a name from the 1980s, catastrophic forgetting, and in CPT it shows up immediately as a rise in the loss on the old data while the loss on the new data falls. The animation below is a real experiment run for this page: a small character-level model (<span data-v="toyParams">815,616</span> parameters) pretrained on six English books, then continued on six German ones (the strong shift Ibrahim et al. studied at 405M parameters, Pile to German Common Crawl). Same base, same German data, three seeds; the only difference between the two runs is whether a quarter of each batch is English replayed from pretraining.</p>
+<div class="card" id="fgCard">
+<div class="seg" id="fgMode"><button class="on" data-m="p1.0_r0.0">No replay</button><button data-m="p1.0_r0.25">25% replay</button><button data-m="p0.1_r0.0">No replay, peak 0.1×</button></div>
+<div class="plotbox" id="fgPlot"></div>
+<div class="lg"><span><i style="background:var(--c1)"></i>English loss (general, old)</span><span><i style="background:var(--c2)"></i>German loss (domain, new)</span><span><i class="dash" style="color:var(--mute)"></i>the other runs, for comparison</span><span><i class="dash" style="color:var(--c3)"></i>retrained from scratch on both</span></div>
+<div class="out" id="fgN"></div>
+<div class="an-cap" id="fgCap"></div>
+<div class="an-ctl" id="fgCtl"></div>
+<div id="fgSmp"></div>
+<p class="small mute">Toy scale: loss in bits per character on 128 held-out passages of each language; lines are the mean of seeds 1 to 3 and the band their range. Pretraining: 5,000 steps of 32 × 96 characters, cosine from 3e-3 to 3e-4. Each CPT run: 1,500 steps from that checkpoint with a fresh AdamW state, warmup over 1% of steps, cosine to 10% of its peak. "Retrained from scratch on both" is the same model trained 6,500 steps on the union with the same German share. Full grid of peaks and replay shares, per seed: {{Replay toy|#t-toy}}.</p>
+</div>
+<p>What the toy shows, and how it lines up with the published runs:</p>
+<ul>
+<li><b>Forgetting is fast.</b> Without replay, English loss jumps within the first 50 steps (<span data-v="toyEn50">?</span> bits per character, from <span data-v="toyBaseEn">?</span>) and keeps rising while German improves. By the end, asked to continue the English words "it was a", the no-replay model carries on in German (samples under the chart). Ibrahim et al.'s 405M model lost the same way at scale: Pile loss went from 2.17 to 3.56 after 200B German tokens, a 64% rise <i class="nl d">derived</i> ({{Table 2|https://arxiv.org/html/2403.08763v4#S6.T2}}).</li>
+<li><b>A little replay removes most of it, at almost no cost to the domain.</b> In the toy, 25% replay removes <span data-v="toyRm25">?</span>% of the English loss rise, for <span data-v="toyDeCost25">?</span> bits of German loss. In Ibrahim's strong shift, 1% replay removed 52% of the Pile loss rise, 5% removed 71% and 25% removed 89%, while German loss moved from 1.11 to 1.12, 1.12 and 1.16 <i class="nl d">derived</i>: (3.56 − replay loss) / (3.56 − 2.17).</li>
+<li><b>Replay plus re-warming matches retraining.</b> The paper's headline: with re-warming, re-decaying and replay, the continued model reaches the average loss of a model retrained on all the data, for "substantially less compute" ({{Figure 1|https://arxiv.org/html/2403.08763v4#S1.F1}}): 405M on German at 25% replay scores 2.33 (Pile) and 1.16 (German) against the union model's 2.26 and 1.25, average 1.75 both, after 200B tokens of training instead of 500B, 40% <i class="nl d">derived</i>, given that the base already exists. The toy's dashed green lines are its own retrained-from-scratch model.</li>
+</ul>
+<p>Toy defaults reproduce Ibrahim et al.'s qualitative result independently (a different model, data and scale); the toy's numbers are not comparable to the paper's, which are in nats per token. One seed difference worth knowing: the paper ran each configuration once ("we did not run our experiments over multiple seeds", §8); the toy ran three, and its bands are narrow next to the effects.</p>
+</section>
