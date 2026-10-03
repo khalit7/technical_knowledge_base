@@ -1,0 +1,32 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Simulate the memory bank</h2>
+<p>The paper's three write rules, run exactly as written: the attention-coupled write of M.1, M.2, M.3 and M.5 ({{Eq. 7|ax:S4.E7}}), M.4's Hebbian outer product with its norm rescaling ({{Eq. 16|ax:S4.E16}}) and M.6's top-<i>k</i> slot write ({{Eqs. 24 to 28|ax:S4.E24}}). The write projections are fixed random maps, which is faithful: the paper never trains them ({{§5|ax:S5.SS0.SSS0.Px2}}). What is illustrative is the input: 600 turns of random latents with <i>d</i> = 32 features and 8 tokens per turn, instead of Flan-T5-XL's 2,048-wide encoder states. The row counts (64 or 640), the Hebbian size (scaled to <i>d</i> = 32 in the paper's 256 : 2,048 and 810 : 2,048 ratios), the 8 of 64 or 640 slots and <i>γ</i> are the paper's ({{§6.2|ax:S6.SS2.SSS0.Px2}}). Everything runs in float64 in your browser, and <code>check_sim.py</code> checks this JavaScript against an independent NumPy implementation of the same equations: across 15 cases the largest relative difference is about 10<sup>−13</sup>.</p>
+<p>The bank cannot be read without the trained read adapters, which were not released, so the simulation measures what any read could find: how much of the bank a turn still accounts for after <i>l</i> more turns, and how many different rows the bank actually holds.</p>
+
+<div class="card" id="sim">
+<div class="seg" id="smR" role="group" aria-label="Write rule"><button class="on" data-m="ac">Attention-coupled (M.1, 2, 3, 5)</button><button data-m="hebb">Hebbian (M.4)</button><button data-m="slot">Slot (M.6)</button></div>
+<div class="seg" id="smS" role="group" aria-label="Capacity"><button class="on" data-m="1">1x</button><button data-m="10">10x</button></div>
+<div class="seg" id="smI" role="group" aria-label="Initial bank"><button class="on" data-m="zero">bank starts at zero</button><button data-m="rand">small random start</button></div>
+<div class="ctl"><label>Decay <i>γ</i> = <b id="smGv">0.950</b><input type="range" id="smG" min="0.9" max="0.999" step="0.001" value="0.95" aria-label="Decay gamma"></label></div>
+<div id="smSvg"></div>
+<div class="out" id="smO"></div>
+<p class="small mute" id="smN"></p>
+</div>
+
+<div class="co"><div class="t">Defaults reproduce</div>
+<p>At <i>γ</i> = 0.95 the attention-coupled bank is an exponential moving average: a turn's weight after <i>l</i> turns is 0.95<sup><i>l</i></sup>, so 0.95<sup>256</sup> ≈ 2.0 × 10<sup>−6</sup>, the effective window is 1/(1 − <i>γ</i>) = 20 turns, and the weight drops below bfloat16's 2<sup>−8</sup> after 109 turns. These follow from {{Eq. 7|ax:S4.E7}} and the printed <i>γ</i> ({{§6.2|ax:S6.SS2.SSS0.Px2}}) and are recomputed in <code>recompute.py</code>; the chart's curve follows the same slope, independently. Keeping 1% of a turn for 256 turns would need <i>γ</i> ≥ 0.9822 (try it on the slider). Not reproducible here: the recall rates themselves, which need the trained adapters and Flan-T5-XL.</p></div>
+
+<h3>Does a ten times bigger bank hold more?</h3>
+<p>The 10x results are read as "capacity is doing much of the work" ({{§6.4|ax:S6.SS4}}). Capacity only helps if different rows hold different things. In the attention-coupled write every row's key is computed from the row itself, so rows that are equal get equal attention and receive equal updates. The animation shows the 64 rows of a 1x bank (one column each, 32 features down) after each turn, from a zero start and from a small random start.</p>
+<div class="card" id="cap">
+<div class="an-top"><div class="seg" id="capM" role="group" aria-label="Initial bank"><button class="on" data-m="zero" aria-pressed="true">Bank starts at zero</button><button data-m="rand" aria-pressed="false">Small random start (σ = 0.01)</button></div></div>
+<div id="capSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="capBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="capPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="capFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="capScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="capSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="capStep"></div><p id="capCap"></p></div>
+<div class="an-cnt" id="capCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Colour: each cell's value divided by the largest absolute value in the bank at that turn (blue positive, orange negative). Spread: the rows' distance from their mean, as a share of the bank's norm. Random latents, <i>d</i> = 32, seed 7; illustrative.</p>
+</div>
+<p>What this cannot show: real encoder states are not random, and a trained read adapter might extract something from a bank whose rows agree (a single averaged vector of the last 20 turns still carries recent context). What it does show is that, as written, ten times more rows add no independent storage to the attention-coupled bank, and at 10x the slot rule from a zero start only ever writes 64 of its 640 slots, because ties go to the same first slots (from a small random start it writes 120 of them in 600 turns). The paper does not state the initial bank, so both starts are shown.</p>
+</section>
