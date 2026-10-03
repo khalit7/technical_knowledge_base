@@ -1,0 +1,59 @@
+
+<section id="s-data"><h2>Data from the routing harness</h2>
+[[S3|§3]]
+<p>Agent post-training data is not a pile of instruction and response pairs: it is execution trajectories linking user requests, model reasoning, tool actions, environment observations and outcomes. The corpus centres on trajectories produced by the deployment harness, with public instruction, reasoning, tool-use, code and preference data added to broaden coverage ({{§3|ax:S3}}). The primary corpus is "on the order of 10<sup>5</sup> to 10<sup>6</sup>" harness trajectories; the exact counts of trajectories and tokens are "recorded in the training manifest" and not printed ({{§3.1|ax:S3.SS1}}). Public sources cited include ToolACE, UltraFeedback (binarized, cleaned) and the Aya dataset.</p>
+
+<h3>Three granularities</h3>
+<p>The corpus is organised at three linked levels ({{§3.1|ax:S3.SS1}}):</p>
+<ul class="tight">
+<li><b>Trajectory</b>: a whole interaction run by the harness, with user requests, responses, tool calls, observations, recovery attempts and terminal outcome.</li>
+<li><b>User turn</b>: from one user request to the next (or to termination); the <b>training unit</b>. Tool results and harness-injected messages do not start a new turn.</li>
+<li><b>Subscene</b>: adjacent user turns that share a local goal; the unit for semantic labelling. It can capture a goal being continued, modified, interrupted or resumed within one conversation.</li>
+</ul>
+<p>Every record stays linked to its parent trajectory and subscene, so quality, semantic, routing and outcome signals can each be attached at their own level. Within a user-turn record, the current request with its interleaved reasoning, tool calls and observations is kept whole; earlier visible responses and tool interactions stay as context, but reasoning from earlier turns is dropped, a convention also used by DeepSeek-V3.2 and Qwen ({{§3.1|ax:S3.SS1}}, {{§4.1|ax:S4.SS1}}). Pick which turn is being trained to see what gets loss:</p>
+<div class="card" id="mk">
+<div class="seg" id="mkM" role="group" aria-label="Current user turn"><button data-m="2" class="on">Train on user turn 2</button><button data-m="1">Train on user turn 1</button></div>
+<div id="mkSvg" class="plot"></div>
+<p class="small" id="mkCap"></p>
+<p class="small mute" style="margin:4px 0 0">Redrawn from {{Figure 4|ax:S4.F4}}. Block widths are not token counts. System instructions, tool specifications and harness context are left out of the drawing, as in the paper; they are in the sequence with <i>m</i> = 0.</p>
+</div>
+
+<h3>Quality gates</h3>
+[[S3.SS2|§3.2]]
+<p>Before anything is judged, the corpus is <b>deduplicated</b> (exact and near-duplicate) and <b>decontaminated</b>: the same matching infrastructure screens every training candidate against the evaluation suites and removes overlaps from the training side ({{§3.2|ax:S3.SS2}}).</p>
+<p><b>Structural validation</b> is rule-based, because these properties can be read straight off the trajectory. At turn level the pipeline rebuilds requests, responses, tool calls, tool observations and terminal events, then checks payload readability, supported message structure, that a request and a response exist, causal event order, and that every tool call is closed by its result (matched through identifiers and execution branches). It flags missing responses, orphan observations, duplicated or conflicting tool-call identifiers, unresolved internal calls and ambiguous terminal branches. Each trajectory gets one of three outcomes:</p>
+<div class="tw"><table class="t3"><thead><tr><th>Outcome</th><th>What happens</th></tr></thead><tbody>
+<tr><td>Internally complete</td><td>goes straight to semantic evaluation</td></tr>
+<tr><td>Partially recoverable</td><td>only its causally closed sub-trajectories are used</td></tr>
+<tr><td>Quarantined</td><td>ambiguous event ownership, or no recoverable supervision target</td></tr>
+</tbody></table></div>
+<p>Structural validity guarantees reliable serialisation and replay; it says nothing about correct tool choice or task success. That is the job of <b>semantic evaluation</b>, which builds a normalised event stream and scores <b>six independent dimensions</b>: goal attainment, instruction adherence, tool use, evidence consistency, error recovery and termination. High-certainty failures (a missing final response, an unresolved tool call, an unrecovered terminal error) are caught deterministically; anything needing task-level interpretation goes to a semantic judge restricted to evidence present in the trajectory, and every finding must point at the events it rests on. Long trajectories are judged in segments and re-aggregated per turn, so an early failure can be told apart from a later recovery ({{§3.2|ax:S3.SS2}}).</p>
+<p>Each dimension gets <b>PASS, WARN, FAIL or NOT_EVALUATED</b>, with evaluation coverage stored separately. Missing evidence or an interrupted judge call never becomes a positive verdict, and the result is kept as a structured record (structural state, six verdicts, coverage) rather than squeezed into one heuristic score; admission, review and quarantine policies are written over that record.</p>
+
+<h3>What the user wanted: Scene, Goal, Outcome</h3>
+[[S3.SS3|§3.3]]
+<p>Separately from execution quality, each <b>subscene</b> is characterised on three axes ({{§3.3|ax:S3.SS3}}, {{Figure 3|ax:S3.F3}}):</p>
+<div class="cols3">
+<div class="sp"><div class="n">Scene</div><p>What the user is doing and in what context. Closed taxonomies of task type and application domain (one primary value, up to two secondary), plus Use Context and Asking/Doing: does the request seek information or execution?</p></div>
+<div class="sp"><div class="n">Goal</div><p>What the user expects and how success is judged: the objective decomposed into acceptance criteria, and cross-turn relations marking a goal as new, continued, modified, resumed or ambiguous.</p></div>
+<div class="sp"><div class="n">Outcome</div><p>The verifiable result against the goal, so that "the task was actually satisfied" can be told apart from "the process ran to completion".</p></div>
+</div>
+<p>To control annotation noise, each attribute keeps its derivation method and confidence, and structural facts set by the source or by rules cannot be overwritten by a semantic judge. Structural quality, the turn's reasoning policy, loss masks and routing records stay as separate metadata.</p>
+</section>
+
+<section id="s-route"><h2>Routing signals: predicted, decided, served</h2>
+[[S3.SS4|§3.4]]
+<p>The harness router works per user turn and estimates <b>capability demand</b> from the current request, recent dialogue, earlier routing decisions and execution state. It assigns one of four service tiers ({{§3.4|ax:S3.SS4}}):</p>
+<div class="tw"><table class="t3"><thead><tr><th>Tier</th><th>Meant for</th></tr></thead><tbody>
+<tr><td><b>C0</b></td><td>bounded, low-risk requests</td></tr>
+<tr><td><b>C1</b></td><td>the general-purpose default</td></tr>
+<tr><td><b>C2</b></td><td>multi-step reasoning and execution</td></tr>
+<tr><td><b>C3</b></td><td>maximum capability or reliability (may combine several proposer models with an aggregator)</td></tr>
+</tbody></table></div>
+<p>Policy controls may then adjust the assignment for risk, context pressure, an earlier failure or service limits. The tiers are relative demand under the routing policy, not fixed models: models, prices and inference settings change across deployments, so the tier semantics are versioned to keep old records interpretable.</p>
+<p>For every turn the corpus keeps <b>three separate fields</b>: the router's raw prediction, the policy-adjusted decision, and the tier actually served. Joined to the semantic attributes, that gives a <b>prediction, action, outcome</b> record per turn. The separation matters for training: the model actually served also reflects user overrides, service availability and deployment policy, so the curriculum uses a <b>re-estimated</b> demand, not the served tier, as its ordering signal ({{§2.2|ax:S2.SS2}}, {{§4.2|ax:S4.SS2}}). Outcome fields, in turn, become the deficiency signals that drive allocation.</p>
+<h3>Capability-guided allocation</h3>
+[[S3.SS5|§3.5]]
+<p>Quality dimensions, semantic attributes and routing tiers together form a stratification space. At each iteration the current checkpoint is evaluated on a stratified suite (kept disjoint from training by the decontamination screen), and results aggregated across attributes, quality dimensions, outcome states and routing tiers form a <b>model-deficiency profile</b>. The next training mixture shifts toward the regions where the model underperforms while keeping broad coverage: verified successes supply positive supervision, informative failures mark regions that need more or rebalanced data. Allocation changes the composition of the data, not the objective. Between iterations the harness keeps adding trajectories through the same pipeline, old and new data are reallocated together, and updated checkpoints returning to the harness reveal the next gaps ({{§3.5|ax:S3.SS5}}).</p>
+<div class="co warn"><div class="t">Described, not measured</div>Allocation is the step that makes this a loop, and the paper gives no number for it: no deficiency profile, no before and after mixture, and no run with allocation switched off. The authors say the results "reflect a single pass of the evaluation–selection–update loop" ({{§6|ax:S6}}).</div>
+</section>
