@@ -1,0 +1,84 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-dd">Discrete diffusion</a><a href="#s-block">Block by block</a><a href="#s-samp">The sampler</a><a href="#s-train">Training</a><a href="#s-speed">Speed</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a><a href="#s-believe">How much to believe</a><a href="#s-use">Using it</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1 Introduction, Appendix A.2]]
+<p>Serving one request at a time, an autoregressive (AR) model is <b>memory-bound</b>: every new token needs all the weights and the whole KV cache streamed from GPU memory, so the time goes on moving data while the compute units sit mostly idle, and that caps how fast a single user's answer can arrive. Batching many requests restores throughput, but not per-user speed ({{§1|ax:S1}}).</p>
+<p><b>Speculative decoding</b> is the usual fix: a small drafter proposes a candidate continuation, typically 8 tokens, and the large model verifies it in one pass. With a draft of 8 this keeps <b>3 to 6 tokens per forward pass</b> (TPF; the paper cites EAGLE-3, Li et al. 2026). It is still limited: an AR drafter is itself sequential, and parallel drafters (Medusa, DFlash) lose acceptance at later draft positions, the "suffix decay" that DSpark patches with a small AR module ({{§1|ax:S1}}, {{Appendix A.2|ax:A1.SS2}}).</p>
+<p><b>Text diffusion</b> sidesteps the bottleneck by predicting a whole block of tokens at once, moving decoding from memory-bound towards compute-bound. By mid-2026 the fast, capable ones (Gemini Diffusion, Mercury) were behind proprietary APIs, while the open-weights ones (LLaDA, Seed Diffusion, Nemotron-Labs-Diffusion) had limited reasoning or multimodal ability, or did not deliver the latency diffusion promises, or both ({{§1|ax:S1}}). And there was no public recipe for cheaply turning a frontier AR model into a competitive diffusion model.</p>
+<p class="lead"><b>The question:</b> can an open AR model be converted, cheaply, into a text diffusion model that is both fast and still smart?</p>
+</section>
+
+<section id="s-idea"><h2>Idea</h2>
+[[S1|§1, §6 Eq. 12, Table 1]]
+<p>Finetune the released <b>Gemma 4 26B A4B</b> mixture-of-experts checkpoint into a discrete diffusion model with <b>fewer than 10% of the AR model's training tokens</b>, in two stages: supervised finetuning (SFT) for bidirectional denoising of 256-token blocks, then <b>SD·RL</b>, reinforcement learning and sampler distillation at once ({{§1|ax:S1}}, {{Figure 2|ax:S1.F2}}). No diffusion pretraining: the AR weights are warm-started directly, and the only new parameters are a 7.8M-parameter self-conditioning MLP.</p>
+<div class="tw"><table><thead><tr><th>Part</th><th class="num">Parameters</th></tr></thead><tbody>
+<tr><td>Total</td><td class="num">25.2B</td></tr><tr><td>Activated per token (excluding the vision encoder; including self-conditioning)</td><td class="num">3.85B</td></tr>
+<tr><td>Vision encoder</td><td class="num">550M</td></tr><tr><td>Embedder (vocabulary of 262k tokens)</td><td class="num">740M</td></tr>
+<tr><td>Self-conditioning MLP (new)</td><td class="num">7.8M</td></tr><tr><td>Experts active / total</td><td class="num">8 / 128, + 1 shared</td></tr></tbody></table></div>
+<p class="small mute">{{Table 1|ax:S1.T2}} (the abstract rounds 3.85B to 3.8B).</p>
+<p>The model writes a block of 256 tokens in about 12 forward passes, so on average about <b>20 tokens per pass</b> against speculative decoding's 3 to 6 ({{§1|ax:S1}}). Each of those passes processes 256 positions and so costs more than an AR step; the whole speed argument is one ratio ({{§6, Eq. 12|ax:S6.E12}}):</p>
+<div class="fm"><div class="eq">tokens per second = TPF / <i>t</i><sub>fwd</sub>, &nbsp;so the speed-up over AR is TPF / <i>r</i></div>
+<dl><dt><i>t</i><sub>fwd</sub></dt><dd>time of one forward pass (end to end); <i>r</i> = how many times slower a diffusion pass is than an AR step</dd>
+<dt>AR</dt><dd>1 token / 4.90 ms = 204 tokens/s (Table 3; 4.90 ms is 1,000 / 204)</dd>
+<dt>DiffusionGemma</dt><dd>19.74 tokens / 13.56 ms = <b>1,456 tokens/s</b>, 7.1x AR and 4.8x AR with multi-token prediction (303); <i>r</i> = 13.56 / 4.90 = 2.8 end to end</dd></dl></div>
+<p>The pass count itself is animated in the {{2026-08-24 tech news issue|n:3c65c17b0d0d81ca8c8af3c2fc0c3ced}}; this page covers what is specific to the report: the conversion, the sampler that decides how many passes a block gets, the training stage that shrinks that number, and where the time of a pass goes. The model keeps Gemma 4's thinking mode, multimodal input and long context, and its weights can still decode autoregressively ({{§1|ax:S1}}).</p>
+</section>
+
+<section id="s-dd"><h2>Discrete diffusion over tokens</h2>
+[[S2|§2, Eq. 1 and 2, Figure 3]]
+<p>Diffusion basics (a forward process that corrupts data, a network that learns to reverse it, sampling that refines everything in parallel from noise) are on the {{DDPM page|n:3c65c17b0d0d811481e4e36333454f7a}} and the {{Stable Diffusion page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}. Text is discrete, and Gaussian diffusion on token embeddings (Diffusion-LM, SED, CDCD) drifts into regions where no token lives; rounding back to the nearest token gives incoherent text and breaks the exactness of the likelihood bounds ({{§2|ax:S2}}). So DiffusionGemma uses <b>discrete diffusion</b> on token states, whose corruptions are multi-step descendants of BERT's masking and random replacement ({{BERT page|n:3c65c17b0d0d81e5ad9bd09cbf18ad7c}}), in the continuous-time Markov chain framework of discrete flow matching (Campbell et al.; Gat et al.). The sequence being refined is the <b>canvas</b>, <i>C</i> tokens long, and the <b>forward process</b> factorises over positions ({{Eq. 1|ax:S2.E1}}):</p>
+<div class="fm"><div class="eq">P(<i>x<sub>t</sub></i> | <i>x</i><sub>0</sub>) = ∏<sub><i>i</i></sub> [ κ<sub><i>t</i></sub> δ(<i>x<sub>t</sub><sup>i</sup></i>, <i>x</i><sub>0</sub><sup><i>i</i></sup>) + (1 − κ<sub><i>t</i></sub>) / <i>V</i> ]</div>
+<dl><dt>κ<sub><i>t</i></sub></dt><dd>noise schedule, from 1 at <i>t</i> = 0 (clean) to 0 at <i>t</i> = 1 (every token uniform over the vocabulary of size <i>V</i>)</dd></dl></div>
+<p>This is <b>multinomial</b> (uniform) diffusion: a corrupted token becomes a random real token, not a [mask]. The difference matters for the rest of the paper, and it is easiest to see on one canvas:</p>
+<div class="card" id="fwd">
+<div class="an-top"><div class="seg" id="fwdM" role="group" aria-label="Corruption"><button class="on" data-m="uni" aria-pressed="true">Multinomial (DiffusionGemma)</button><button data-m="mask" aria-pressed="false">Masked</button></div></div>
+<div class="ctl"><label>Noise level <i>t</i> = <b id="fwdTv"></b><input type="range" id="fwdT" min="0" max="100" step="1" value="50"></label><div><button id="fwdR">Redraw the noise</button></div></div>
+<div id="fwdOut" class="sent"></div>
+<div class="out" id="fwdO"></div>
+<p class="small mute">Illustrative: the paper's {{Appendix F|ax:A6.F22}} sample answer as words, a 40-word vocabulary, κ<sub><i>t</i></sub> = 1 − <i>t</i>.</p>
+</div>
+<p>With masking every visible token is guaranteed clean, so a model learns to copy visible tokens and cannot revise them. With uniform noise any visible token might be noise, so the model judges every position, including its own earlier choices: tokens accepted earlier in the same canvas can still change, the paper's built-in self-correction ({{§3.2|ax:S3.SS2}}). Tokens of earlier canvases are frozen.</p>
+<p>The <b>reverse process</b> needs the posterior over clean tokens given a noisy canvas, which the network <i>p</i><sub>θ</sub>(<i>v</i> | <i>x<sub>t</sub></i>) approximates; a transition rule Step (for example a discrete Euler step) turns it into the next canvas ({{Eq. 2|ax:S2.E2}}; {{Figure 3|ax:S2.F3}} takes "blue moon" through "dark cloud" to "red sunset"). Positions updated in the same step cannot see each other's choices, which can produce local inconsistencies; self-conditioning and the sampler below counter it.</p>
+</section>
+
+<section id="s-block"><h2>Block by block: a causal encoder and a bidirectional decoder with one set of weights</h2>
+[[S3.SS1|§3.1, §3.2, Eq. 3 to 6, Figure 4]]
+<p>Discrete flow matching works on a fixed length, so open-ended text is generated <b>block-autoregressively</b>, one 256-token canvas at a time ({{§3.1|ax:S3.SS1}}, {{Figure 4|ax:S3.F4}}):</p>
+<ol class="lst">
+<li><b>Encode the context.</b> The transformer runs with causal attention over the prompt (system instructions, user turns, interleaved image embeddings) and fills a KV cache, <span class="m"><i>H</i> = Encoder<sub>θ</sub>(<i>h</i>)</span> ({{Eq. 3|ax:S3.E3}}).</li>
+<li><b>Denoise a canvas.</b> Start from 256 uniformly random tokens. The same transformer, now as the decoder, attends bidirectionally across the canvas and to the cache, and returns logits for every position, <span class="m"><i>L<sub>t</sub></i> = Decoder<sub>θ</sub>(<i>x<sub>t</sub></i>, <i>z<sub>t</sub></i>, <i>H</i>)</span> ({{Eq. 5|ax:S3.E5}}); the sampler below turns them into the next canvas, at most <i>N</i> times.</li>
+<li><b>Encode and append.</b> The finished canvas goes through the causal encoder once and its keys and values are appended to the cache, <span class="m"><i>H</i> ← <i>H</i> ⊕ Encoder<sub>θ</sub>(<i>x̂</i><sub>0</sub>)</span> ({{Eq. 4|ax:S3.E4}}). Repeat until the model writes the end-of-turn token.</li></ol>
+<p>This inverts the usual encoder-decoder (BART, {{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}: bidirectional encoder, causal decoder). Early context never sees later canvases, but appending a canvas encodes only the new tokens, so the growing context is never re-encoded and long reasoning stays cheap. The authors date the scheme to an unpublished June 2023 manuscript; Wu et al., Arriola et al. (block diffusion) and Deschenaux and Gulcehre found analogous designs ({{§3.1|ax:S3.SS1}}).</p>
+<p>Inside one step ({{Eq. 6|ax:S3.SS2}}): <span class="m"><i>p̂</i><sub>0</sub> = Softmax(<i>L<sub>t</sub></i> / τ<sub><i>t</i></sub>)</span>; the <b>self-conditioning</b> signal <span class="m"><i>z</i> = FFW(<i>p̂</i><sub>0</sub><i>E</i>)</span>, the expected token embedding under the prediction through a small feed-forward network, is added to the next step's input, so each step builds on the previous step's beliefs; then Step samples the next canvas. Work the paper cites finds these vectors still map onto an interpretable token bottleneck.</p>
+</section>
+
+<section id="s-samp"><h2>The sampler: how many passes a block gets</h2>
+[[S3.SS3|§3.3, Algorithm 1, Table 2, Figure 5, §3.4]]
+<p>The recommended sampler, Algorithm 1, has three parts, with the defaults of {{Table 2|ax:S1.T2}} ({{§3.3|ax:S3.SS3}}):</p>
+<ul class="lst">
+<li><b>Entropy-bounded acceptance</b> (Ben-Hamu et al. 2026, like MaskGIT): sort positions by predictive entropy and accept the longest lowest-entropy prefix whose entropies before the last sum to at most <b><i>b</i> = 0.1</b>; those take a fresh sample from <i>p̂</i><sub>0</sub>. Every other position is <b>re-noised uniformly</b> and explored again next pass. The bound keeps the mutual information between tokens accepted together small.</li>
+<li><b>Temperature annealing</b>, linear from τ = 0.8 at the start to 0.4 at the end: explore early, commit late.</li>
+<li><b>Adaptive stopping</b>: stop when the mean entropy over the canvas is below <b>0.005</b> and the argmax prediction is unchanged for two consecutive passes; at most <b><i>N</i> = 48</b> passes.</li></ul>
+<p>The model averages about <b>12 effective denoising steps</b> per canvas, 4x fewer than 48 "without sacrificing generation quality"; structured tasks such as code take fewer steps than natural language, and harder problems more ({{Figure 5|ax:S3.F5}}). Table 4's 15 benchmarks average <b><span id="dnsMean"></span></b>.</p>
+<p>The animation runs Algorithm 1 for real on a <b>toy DiffusionGemma</b> (75,000 parameters; shared-weights causal encoder and bidirectional decoder, self-conditioning, Eq. 13's two losses) trained on the two tasks of {{Appendix G.2|ax:A7.SS2}}: continue a bit sequence where each bit is a rule of the three bits before it (sequential, the "hard" case), or apply the rule to an input string (parallel, "easy"). Answers are 24 bits in 3 canvases of 8; this rule table was held out of training. The toggle runs the same problem through a masked-diffusion twin trained identically, or through the same weights decoding autoregressively.</p>
+<div class="card" id="dgx">
+<div class="an-top"><div class="seg" id="dgxM" role="group" aria-label="Decoding"><button class="on" data-m="multinomial" aria-pressed="true">Multinomial diffusion (the paper)</button><button data-m="masked" aria-pressed="false">Masked diffusion</button><button data-m="ar" aria-pressed="false">Same weights, AR</button></div>
+<span class="small mute" id="dgxProb"></span></div>
+<div id="dgxSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="dgxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="dgxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="dgxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="dgxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="dgxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="dgxStep"></div><p id="dgxCap"></p></div>
+<div class="an-cnt" id="dgxCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Top row of each canvas: the decoder's input (grey italic = noise or [mask]); bottom row: its prediction, darker = more confident, as in the paper's {{trace figures|ax:A6.F22}}; outlined = accepted by the entropy budget. The paper's sampler defaults, seed 1; every knob is on {{Run the toy|tab:t-run}}.</p>
+</div>
+<p id="toyNote"></p>
+<div class="pred" id="pr-steps" data-ans="0"><div class="q">the paper's two G.2 prompts took 7 denoising steps (sequential) and 4 (parallel). Run the toy on 48 held-out problems of each kind: which needs more passes per canvas?</div>
+<div class="opts"><button>The sequential task, clearly</button><button>About the same</button><button>The parallel task</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><div class="out" id="prStepsO">Running in your browser...</div><div id="prStepsC"></div>
+<p class="small mute">Measured live: 48 problems per task on held-out rule tables, multinomial toy, default sampler, seed 1 per problem. The paper's figures are single prompts ({{Figure 24|ax:A7.F24}}, {{Figure 25|ax:A7.F25}}); the toy's numbers are means over many.</p></div></div>
+<p>The speed tables use Section 3.4's metrics ({{§3.4|ax:S3.SS4}}). Over <i>K</i> canvases with <i>N<sub>k</sub></i> steps and <i>C<sub>k</sub></i> valid tokens: Total Tokens Σ<i>C<sub>k</sub></i> ({{Eq. 7|ax:S3.E7}}); Total Denoising Steps Σ<i>N<sub>k</sub></i>, the main driver of latency ({{Eq. 8|ax:S3.E8}}); Effective Denoising Steps Σ<i>N<sub>k</sub>C<sub>k</sub></i> / Total Tokens, token-weighted so a short last canvas does not drag it down ({{Eq. 9|ax:S3.E9}}); and <b>TPF</b> = Total Tokens / (Total Denoising Steps + <i>K</i> − 1), the <i>K</i> − 1 being the encode-and-append passes ({{Eq. 10|ax:S3.E10}}). The final weights also load back into Gemma 4's architecture and decode autoregressively ({{§3.5|ax:S3.SS5}}).</p>
+</section>
