@@ -1,0 +1,67 @@
+
+<section id="s-levers">
+<h2>The two levers: replay and the re-warmed peak</h2>
+<p>Two settings decide most of the trade between learning the domain and keeping the rest.</p>
+<p><b>1. Data mixing (replay).</b> Mix general tokens back into the domain stream. Measured ranges:</p>
+<ul class="tight">
+<li><b>Even 1 to 5% helps a lot.</b> Meditron kept 1% general text, Llemma 2% (plus 3% code), SaulLM about 2%. Ibrahim et al.'s lowest setting, 1%, "significantly reduces forgetting" on both shifts, and 0.5% already removed 63% of the Pile loss rise on the weak shift <i class="nl d">derived</i> ({{Table 2|https://arxiv.org/html/2403.08763v4#S6.T2}}). The D-CPT Law runs show the same at 1.8B: training on chemistry alone raised general loss 21.2%; with 6 to 10% general data the rise was 1.6 to 4.4% <i class="nl d">derived</i> from {{Table 5|https://arxiv.org/html/2406.01375#S4.T5}}.</li>
+<li><b>10 to 30% when the shift is strong or general ability is precious.</b> Ibrahim et al. chose 25% for English to German and 5% for the weak shift; DeepSeek-Coder-V2 kept 30% natural language over 6T tokens of code CPT (as Ibrahim et al. note in their §2; row in {{Recipes compared|#t-rcp}}).</li>
+<li><b>Domain-heavy, half and half, when domain depth is the goal.</b> Dialpad's DACP mixed 25B tokens of business-call transcripts with 25B tokens sampled from FineWeb-Edu, 1:1, for Llama 3.1 8B and Mistral 7B v0.3 ({{DACP, 2025|https://arxiv.org/abs/2510.05858}}).</li>
+<li><b>Too much replay costs adaptation.</b> At 50%, Ibrahim's German loss rose from 1.11 to 1.22, "relatively significantly worse".</li>
+</ul>
+<p>Choose replay data close to the original pretraining distribution, or the best open approximation when the original is unknown (it usually is: open-weight labs rarely release their mix). Ibrahim et al. replayed the Pile itself, the base model's own data; FineWeb-Edu and DCLM are the common stand-ins.</p>
+<p><b>2. The learning-rate schedule.</b> A released base model has usually finished with its learning rate decayed near a small minimum. Continuing at that minimum adapts too slowly; re-warming to a high peak adapts well but makes the loss on old data spike first. Ibrahim et al.'s rule of thumb: re-warm to the order of the original peak and re-decay to the order of the original minimum; "decreasing the schedule's maximum learning rate can help reduce forgetting, whereas increasing it can improve adaptation" (§2). Gupta et al. found the same on Pythia 410M continued on SlimPajama, and that the length of the warmup barely matters ({{Gupta et al. 2023|https://arxiv.org/abs/2308.04014}}). Combine the two levers: replay and a re-warmed, re-decayed schedule together.</p>
+<div class="card" id="frCard">
+<h3 style="margin-top:0">Forgetting against adaptation, from the published runs</h3>
+<div class="try"><b>Try:</b> start on the strong shift and follow the replay line from 0% to 50%: the Pile loss falls steeply while German barely moves until 25%. Then compare the learning-rate line, which slides along the trade. Switch to the toy to see the same two lines from this page's own runs.</div>
+<div class="seg" id="frSet"><button class="on" data-s="ger405">405M, to German</button><button data-s="sp405">405M, to SlimPajama</button><button data-s="sp10b">10B, to SlimPajama</button><button data-s="toy">The toy</button></div>
+<div class="plotbox" id="frPlot"></div>
+<div class="lg" id="frLg"></div>
+<div class="pt-det" id="frDet">Tap or hover a point.</div>
+<p class="small mute" id="frNote"></p>
+</div>
+<div class="co corr"><div class="t">Corrections</div>
+<p class="small">The old page said re-warming "drives most forgetting". In Ibrahim et al.'s own numbers it does not, under a real shift: the 405M model trained on German at a constant learning rate equal to the old minimum, never re-warmed, still raised its Pile loss from 2.17 to 3.22; re-warming to the old peak raised it to 3.56. So re-warming added 0.34 of the 1.39 rise, 24%, and the data shift the other 76% <i class="nl d">derived</i> ({{Table 12|https://arxiv.org/html/2403.08763v4#A1.T12}}; on the weak shift, 0.02 of 0.27, 7%). What is true is narrower: re-warming alone raises the loss even with no shift at all ("every model that re-increases its learning rate ... sees an increase in loss", §7.1, on Pile continued with Pile). The toy separates the two the same way: compare "No replay, peak 0.1×" with "No replay" above.</p>
+<p class="small">The old page also gave "an order of magnitude lower peak than pretraining" as a common heuristic. It is common practice, but not what the two controlled studies tested. eBay's e-Llama paper names two paradigms in the literature, "use the same LR_max as for the original pretraining ... or ... a smaller value, typically around 10% of the original", and chose 10% after an ablation ({{e-Llama, §4|https://arxiv.org/html/2501.09706}}). Ibrahim et al. and Gupta et al. tried 0.5×, 1× and 2× the original peak; the closest thing to 0.1× in their tables is the never-re-warmed constant run at the old minimum (least forgetting, worst adaptation: German 1.21 against 1.11). Disclosed recipes span 1× (Code Llama, Meditron) to about 1/150 (DACP), with Llemma and Swallow at one third and ChipNeMo at 1/60 ({{Recipes compared|#t-rcp}}). ChipNeMo's own ablation shows the risk at the top: at 3e-4 instead of 5e-6, MMLU fell from 44.6 to 26.6 ({{ChipNeMo|https://arxiv.org/html/2311.00176}}). A sensible place to start pilots, not a law.</p>
+</div>
+</section>
+
+<section id="s-sched">
+<h2>Schedules that resume without re-warming</h2>
+<p>Re-warming is needed because a cosine schedule ends low. Ibrahim et al. propose "infinite" schedules instead: warm up, cool down once to a constant learning rate, stay constant across every later dataset, and decay quickly only when a model is to be released ({{§7.2|https://arxiv.org/html/2403.08763v4#S7}}). The checkpoint to continue from is the one before the final decay, so no re-warm is needed. This is the warmup-stable-decay (WSD) family; the {{WSM paper page|n:3c75c17b0d0d8105b452d2c1bc1d087a}} replaces the final decay with checkpoint merging. DeepSeek did this for DeepSeek-Coder-V2: it continued DeepSeek-V2 from a checkpoint before the learning-rate decay (as Ibrahim et al. describe it, §2).</p>
+<div class="card" id="scCard">
+<div class="seg" id="scMode"><button class="on" data-m="cos">Cosine, then re-warm</button><button data-m="const">Cosine, then stay at the minimum</button><button data-m="inf">Infinite schedule</button></div>
+<div class="plotbox" id="scPlot"></div>
+<p class="small" id="scCap"></p>
+<p class="small mute">Shapes from Ibrahim et al.'s Equations 1 to 4 with their 405M settings (Table 14): peak 3e-4, minimum 3e-5, constant 1.65e-4 for the infinite schedule, warmup 1%. Two datasets of equal size, drawn to the same token axis; the cooldown and anneal lengths are illustrative. Note: the infinite schedule was tested only at 405M and without a distribution shift (§8).</p>
+</div>
+<p>The evidence is thinner than for replay: infinite schedules matched cosine at 405M on 300B tokens of SlimPajama from scratch, and across three 100B splits of the same data showed "negligible forgetting across dataset boundaries" (Figure 10), but the authors list as limitations that these runs had no distribution shift and only one size.</p>
+</section>
+
+<section id="s-mix">
+<h2>Choosing the mix: CMR and the D-CPT law</h2>
+<p>Grid-searching the domain share at full scale is expensive. Two 2024 papers fit scaling laws on small pilot runs and predict the share instead.</p>
+<p><b>The CMR scaling law</b> (Gu et al., {{EMNLP 2024 Findings|https://arxiv.org/abs/2407.17467}}). Llama-shaped models of 460M to 3.1B, pretrained on 200B general tokens, then continued for 20B tokens (10,000 steps × 512 × 4,096 = 20.97B <i class="nl d">derived</i>) on finance or arXiv papers mixed with general text at a constant learning rate of 3e-5. The definitions, read from the paper rather than paraphrased:</p>
+<ul class="tight">
+<li>a mixture ratio R (the domain share) is <b>feasible</b> if, by the end of training, general loss is no more than a tolerance ε above the base model's (ε = 0.05, "based on empirical results by observation") and domain loss has fallen;</li>
+<li>the <b>Critical Mixture Ratio</b> is the largest feasible R: below it the domain data is under-used, above it general loss rises past the tolerance;</li>
+<li>final domain and general losses follow L(R) = α·R<sup>s</sup> + β in the ratio, and their changes follow power laws in tokens; the CMR itself is fitted as R<sub>CMR</sub> = α₄·T<sup>s₄</sup> + β₃ (Equation 8).</li>
+</ul>
+<div class="card" id="cmCard">
+<h3 style="margin-top:0">The CMR law as a calculator</h3>
+<div class="try"><b>Try:</b> leave 20B tokens and step through the model sizes: the four published CMRs. Then drag the budget: the law says the domain share you can afford grows with training tokens and with model size. Past 20B the curves are extrapolation.</div>
+<div class="ctl"><label>Model <select id="cmSize"><option>460M</option><option>940M</option><option>1.6B</option><option selected>3.1B</option></select></label>
+<label>CPT tokens: <b id="cmTv">20B</b><input type="range" id="cmT" min="2" max="60" step="1" value="20"></label></div>
+<div class="out" id="cmOut"></div>
+<div class="plotbox" id="cmPlot"></div>
+<p class="small mute">Coefficients from {{Table 5|https://arxiv.org/html/2407.17467v2#A4.T5}} (finance). Defaults reproduce the paper's four CMRs (29.8%, 34.9%, 41.4%, 47.8% at 20B) independently from the coefficients. One unit conversion is ours: the paper sets T = 100 for its 20B tokens, so one unit is 0.2B, and its Figure 5 caption's "T=250, which is equivalent to ... 500B tokens" should read 50B <i class="nl d">derived</i>; the slider uses 0.2B per unit. The law was fitted on one learning rate, one general corpus and two domains.</p>
+</div>
+<p><b>The D-CPT Law</b> (Que et al., {{NeurIPS 2024|https://arxiv.org/abs/2406.01375}}) adds the mixture ratio r to a Chinchilla-style law: L(N, D, r) = E + A/N<sup>α</sup> + B·r<sup>η</sup>/D<sup>β</sup> + C/(r + ε)<sup>γ</sup>, fitted on Qwen1.5 0.5B, 1.8B and 4B, 0.1B to 26B tokens and six domains, and used three ways: the best domain share under a cap on general-loss damage, the best share when the domain corpus is limited (its "explicit domain-corpus-size" use), and how to split compute between model and data. Its worked example: chemistry, 1.8B, 10B tokens, general loss allowed to rise at most 3% from 2.8602.</p>
+<div class="card" id="dcCard">
+<div class="ctl"><label>Allowed rise in general loss: <b id="dcTv">3.0%</b><input type="range" id="dcT" min="1.6" max="4.3" step="0.1" value="3"></label></div>
+<div class="plotbox" id="dcPlot"></div>
+<p class="small" id="dcOut"></p>
+<p class="small mute">Measured general loss at each domain share from {{Table 5|https://arxiv.org/html/2406.01375#S4.T5}}, as a rise over 2.8602; the crossing is interpolated between neighbouring measurements. At the paper's 3% it falls at a domain share of 0.9245, matching the law's prediction of 0.924 independently (the law's predicted general loss there, 2.9458, against a measured 2.9445). Outside 1.6% to 4.3% the table has no points to interpolate.</p>
+</div>
+<p><b>Why the two "optimal" shares disagree</b> (about 30 to 48% domain in CMR, 92% in D-CPT): they answer different questions. CMR caps the general-loss rise at an absolute 0.05 nats and requires it to be heading down by the end; D-CPT caps it at a relative 3% (about 0.086 here); and the domains, base models, budgets and learning rates differ (CMR: a constant 3e-5 over 20B tokens; D-CPT: 10B tokens on Qwen1.5). Neither ratio transfers to your run; the method does. Practical use: run a few short pilots at different ratios, fit, pick the ratio, then commit the budget.</p>
+</section>
