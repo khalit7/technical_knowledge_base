@@ -1,0 +1,24 @@
+# Visualisation ideas: Contrastive and self-supervised learning (2026-10-03)
+
+Central question: **what stops a network trained without labels from learning nothing, and what does each objective push the embedding geometry towards?**
+
+Already elsewhere (linked, not rebuilt): parent root, thread 1 "Everything is cross entropy" and "Beyond one network" (comparison-level table, ln N chance for CLIP's batch); CLIP paper page (trained toy CLIP, a live 8-pair batch with a temperature slider, softmax against sigmoid on one toy batch); ViT paper page (toy ViT, MAE in "Then and now"); BERT paper page (toy BERT, masking); Evaluation metrics (BERTScore on real embeddings, rescaling); Loss functions (cross-entropy family).
+
+Scores: quantity the reader moves (0-2), reproduces a published figure (x2), computable from public data (x2), shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere, animation against the method it replaced; minus build cost.
+
+| # | Idea | Score | Data and formulas | Placement | Status |
+|---|---|---|---|---|---|
+| CS1 | **InfoNCE on one real batch**: 48 STS-B paraphrase pairs, BERT-base before and after unsupervised SimCSE (same backbone); τ and N sliders, symmetric option; row-softmax heat map, loss, ln N, ln N − L, top-1; gradient bars per anchor with the hardest negative's share; loss against τ for both models; a natural false negative (row 31) | 15 | real_embeddings.py (HF checkpoints, sentence-transformers/stsb test); ∂L/∂s = (p − 1[pos])/τ; reproduces STS-B Spearman 76.85 (SimCSE Table 5), 59.04 (Su et al., SimCSE Table B.2) and 53.87 (SimCSE Table 5, only with embedding + last-layer averaging: a finding) independently | Own tab | built |
+| CS2 | **Alignment and uniformity on the circle, before/after**: same encoder, InfoNCE (τ 0.5 or 0.2) against positives only, 24 snapshots over 3,000 steps on real digits; counters align, uniform (ideal −1.575 derived), 5-NN | 13 | train_toy.py sphere; Wang and Isola 2020 definitions (α = 2, t = 2); log(e^-4 I0(4)) | Reading | built |
+| CS3 | **Collapse lab**: one encoder (16-d, BatchNorm) trained eleven ways; seven pairs (negatives; SimSiam stop-gradient; SimSiam predictor; BYOL; DINO centering; DINO sharpening; VICReg variance) played side by side: class-mean cosine matrix, per-dimension std bars, embedding std, effective rank, 5-NN, DINO teacher entropy and batch-mean KL; std over training for all runs; three-seed table | 14 | train_toy.py collapse; SimSiam §4.1 std monitor (1/√d checked by sampling); DINO Fig. 7 measures; reproduces the published ablation directions (SimSiam without stop-gradient or predictor collapses; DINO without centering one-hot, without sharpening uniform) qualitatively, not numerically | Own tab | built |
+| CS4 | **MAE against I-JEPA, animated on one real photo**: 6 steps each; MAE at 50/75/90% with the released ViT-MAE-Base reconstruction and loss; I-JEPA blocks drawn with the paper's sampling rules; counters for encoder tokens, target type, loss | 12 | real_mae.py (facebook/vit-mae-base, norm_pix_loss false); mk_data.py masks (I-JEPA §3 scales) | Reading | built |
+| CS5 | **Family tree**: 35 methods 2006 to 2025 by family, first arXiv dates, filter chips | 8 | arXiv abstract pages | Reading | built |
+| CS6 | Train a tiny contrastive text encoder live in the browser | 7 | | none | rejected: SimCSE's released checkpoint is the honest "after", and a browser toy would not reproduce anything |
+| CS7 | Real I-JEPA forward pass | 6 | | none | rejected: smallest released I-JEPA is ViT-H (about 2.5 GB); its output is vectors with nothing to show beyond the schematic |
+| CS8 | Temperature sweep toy (uniformity-tolerance curve) | 7 | | none | rejected as a separate visual: CS1's loss-against-τ curve and hardest-negative share carry the hardness argument on real data |
+| CS9 | Rebuild CLIP's 8 × 8 batch or softmax-against-sigmoid | | | none | rejected: on the CLIP paper page, linked |
+
+Departures: CS3's toy is not tuned per method except DINO's teacher momentum (0.99 to 0.996, the paper's value) after a first try; full DINO stays healthy in 1 of 3 seeds, said on the page. The 5-NN accuracy of collapsed runs is not zero (a residual speck of spread carries class information); the page says the std, not the accuracy, is the collapse measure. Raw pixels already score 90% 5-NN on the digits, said plainly.
+
+Rule proposed for section 2: when a page claims a defence prevents a failure, ablate the defence on one shared toy with several seeds and show the failure's own measure (std, entropy), not a downstream accuracy that a degenerate solution can still partly pass.
+What the methodology lacked here: guidance for pooling conventions that share a name (BERT "first-last avg." is two different poolings in two cited tables); recompute both and say which reproduces which.

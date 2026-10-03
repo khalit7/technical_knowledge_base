@@ -1533,3 +1533,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | NI12 | muP width-transfer toy (optimal LR against width, SP vs muP) | 2 | 1 | 2 | 2 | 1 | 1 | 2 | 0 | -3 | 8 | rejected for now: a convincing transfer curve needs many widths x learning rates x seeds of real training; the page states Table 3's rules and the paper's result instead |
 | NI13 | OLMo 2 init comparison re-drawn (growth exponents) | | | | | | | 0 (OLMo 2 paper page) | | | n/a | rejected: on the paper page; linked |
 | NI14 | DyT against LayerNorm on a toy | 1 | 0 | 2 | 1 | 0 | 0 | 2 | 0 | -2 | 4 | rejected: one paragraph carries the 2025 result; a toy would test nothing published |
+
+### Contrastive and self-supervised learning (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning/src/viz_ideas.md`.
+
+| # | Idea | Score | Data and formulas | Placement | Status |
+|---|---|---|---|---|---|
+| CS1 | **InfoNCE on one real batch**: 48 STS-B paraphrase pairs, BERT-base before and after unsupervised SimCSE (same backbone); τ and N sliders, symmetric option; row-softmax heat map, loss, ln N, ln N − L, top-1; gradient bars per anchor with the hardest negative's share; loss against τ for both models; a natural false negative (row 31) | 15 | real_embeddings.py (HF checkpoints, sentence-transformers/stsb test); ∂L/∂s = (p − 1[pos])/τ; reproduces STS-B Spearman 76.85 (SimCSE Table 5), 59.04 (Su et al., SimCSE Table B.2) and 53.87 (SimCSE Table 5, only with embedding + last-layer averaging: a finding) independently | Own tab | built |
+| CS2 | **Alignment and uniformity on the circle, before/after**: same encoder, InfoNCE (τ 0.5 or 0.2) against positives only, 24 snapshots over 3,000 steps on real digits; counters align, uniform (ideal −1.575 derived), 5-NN | 13 | train_toy.py sphere; Wang and Isola 2020 definitions (α = 2, t = 2); log(e^-4 I0(4)) | Reading | built |
+| CS3 | **Collapse lab**: one encoder (16-d, BatchNorm) trained eleven ways; seven pairs (negatives; SimSiam stop-gradient; SimSiam predictor; BYOL; DINO centering; DINO sharpening; VICReg variance) played side by side: class-mean cosine matrix, per-dimension std bars, embedding std, effective rank, 5-NN, DINO teacher entropy and batch-mean KL; std over training for all runs; three-seed table | 14 | train_toy.py collapse; SimSiam §4.1 std monitor (1/√d checked by sampling); DINO Fig. 7 measures; reproduces the published ablation directions (SimSiam without stop-gradient or predictor collapses; DINO without centering one-hot, without sharpening uniform) qualitatively, not numerically | Own tab | built |
+| CS4 | **MAE against I-JEPA, animated on one real photo**: 6 steps each; MAE at 50/75/90% with the released ViT-MAE-Base reconstruction and loss; I-JEPA blocks drawn with the paper's sampling rules; counters for encoder tokens, target type, loss | 12 | real_mae.py (facebook/vit-mae-base, norm_pix_loss false); mk_data.py masks (I-JEPA §3 scales) | Reading | built |
+| CS5 | **Family tree**: 35 methods 2006 to 2025 by family, first arXiv dates, filter chips | 8 | arXiv abstract pages | Reading | built |
+| CS6 | Train a tiny contrastive text encoder live in the browser | 7 | | none | rejected: SimCSE's released checkpoint is the honest "after", and a browser toy would not reproduce anything |
+| CS7 | Real I-JEPA forward pass | 6 | | none | rejected: smallest released I-JEPA is ViT-H (about 2.5 GB); its output is vectors with nothing to show beyond the schematic |
+| CS8 | Temperature sweep toy (uniformity-tolerance curve) | 7 | | none | rejected as a separate visual: CS1's loss-against-τ curve and hardest-negative share carry the hardness argument on real data |
+| CS9 | Rebuild CLIP's 8 × 8 batch or softmax-against-sigmoid | | | none | rejected: on the CLIP paper page, linked |
