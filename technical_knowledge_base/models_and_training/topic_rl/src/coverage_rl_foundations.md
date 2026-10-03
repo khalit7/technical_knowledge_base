@@ -1,68 +1,50 @@
 # Coverage: RL foundations (folded into Topic: rl)
 
-Source: `src/live_rl_foundations.md`, the Notion page "RL foundations" (3c65c17b0d0d810b8c5ce46696baf31f) fetched read-only on 2026-10-03 (text as of 2026-09-30). Khalid's decision: the page is folded into the root's Reading tab. Every fact below is carried; section ids are in `#t-read`.
+Source: `src/live_rl_foundations.md` (3c65c17b0d0d810b8c5ce46696baf31f, text as of 2026-09-30). Since Khalid's instruction of 2026-10-04 the root's Reading tab is an intuitive overview, so most of this page's worked material moves to child pages. Each fact is either in the root (id in `#t-read`, or a root tab) or **moved to a child page**, with its full text and widgets archived in `src/for_children/reading_full/` ("archive", with the long tab's section ids) and the checks in `src/for_children/reading_full_checks/`.
 
-| # | Fact in RL foundations | Where it is now |
+Proposed owners among the approved children: **Bandits** = Bandits and exploration; **DP** = Dynamic programming; **MF** = Model-free prediction and control. The foundations material without a natural child (history, observability, MRP, Bellman equations in full, the student examples) is assigned to **DP**, the first classical child, unless Khalid prefers otherwise.
+
+| # | Fact | Where it is now |
 |---|---|---|
-| 1 | Embed "Interactive: RL foundations"; "23 min read · +5h 50m resources" | Superseded by the root page; resources in `#t-more` |
-| 2 | RL definition: agent, environment, action, observation, scalar reward, maximise total reward over time; nobody says the correct action | `rd-over` |
-| 3 | Three differences from supervised learning: score not label; delayed feedback and credit assignment; actions decide the data (not fixed, not independent) | `rd-what` list |
-| 4 | Scope: the vocabulary and skeleton every RL page reuses; the classifying distinctions; RLHF and RLVR treat token generation as an MDP | `rd-over`, `rd-loop` (LLM case), `rd-llm` |
-| 5 | Loop at step t (Silver L1): receive O_t and R_t, execute A_t, environment emits O_{t+1}, R_{t+1}; reward after A_t is R_{t+1}; Silver and Sutton-Barto indexing; r_t convention shifts the subscript | `rd-loop` |
-| 6 | Silver's examples: helicopter stunts, backgammon, Atari | `rd-what` |
-| 7 | Learning (unknown environment, interact) against planning (known model, compute; tree search over known rules) | `rd-what` last paragraph |
-| 8 | Reward: scalar feedback; maximise cumulative not immediate; refuelling helicopter, investment examples | `rd-what` |
-| 9 | Reward hypothesis: an assumption; LLM goals have no definition, so a proxy (RM, test suite, LLM judge); shortcuts: length, agreeing with wrong claims, special-casing tests; reward hacking page | `rd-what`, `rd-llm` reward-hacking subsection |
-| 10 | History H_t formula; ends with O_t, R_t, excludes A_t; grows without bound | `rd-loop` formula box |
-| 11 | State is any function of history; environment state (private, may be irrelevant, for reasoning about the environment) and agent state (the agent's summary, what algorithms use) | `rd-loop` |
-| 12 | Markov property formula and gloss; sufficient statistic; environment state and full history are Markov; design problem: compact Markov agent state; single Atari frame not Markov, DQN stacks frames | `rd-loop` (with the DQN paper link for the four-frame stack) |
-| 13 | Fully observable: O_t = S^a = S^e, MDP, most theory | `rd-loop` |
-| 14 | Partially observable: robot camera, trading agent, poker; POMDP; agent state choices: full history, belief vector, RNN state formula with σ, W_s, W_o | `rd-loop` |
-| 15 | LLM: full-prefix decoder is the S^a = H_t choice; nothing hidden; generation is a fully observable MDP | `rd-loop` |
-| 16 | Student chain states (Class 1, 2, 3, Pass, Pub, Facebook, Sleep terminal), Silver L2 | `rd-mdp` |
-| 17 | Markov process ⟨S, P⟩, P_ss′ formula, rows sum to 1; every transition probability of the student chain | `rd-mdp` (all probabilities verbatim) and the diagram `#rd-sm` |
-| 18 | MRP ⟨S, P, R, γ⟩, R_s definition; rewards −2 per class, Facebook −1, Pub +1, Pass +10, Sleep 0 | `rd-mdp` |
-| 19 | MDP ⟨S, A, P, R, γ⟩, P^a and R^a formulas; agency the only new ingredient; every action of the student MDP with reward and successor | `rd-mdp` and `#rd-sm` (MDP modes) |
-| 20 | Policy π(a given s); fixing a policy gives an MRP with P^π and R^π formulas | `rd-mdp` |
-| 21 | Return G_t formula, γ meaning, myopic and far-sighted, weights sum to 1/(1 − γ): 0.9 about 10, 0.99 about 100; episodic sum stops | `rd-ret` and the discount slider `#rd-disc` |
-| 22 | Why discount: cycles, uncertainty, convenience (contractions), preference | `rd-ret` ordered list |
-| 23 | γ = 1 fine when every sequence terminates; LLM RL uses γ = 1 | `rd-ret` |
-| 24 | Worked returns: Class 1, 2, 3, Pass, Sleep at γ ½ gives −2.25; Class 1, Facebook, Facebook, Class 1, Class 2, Sleep gives −3.125; return random, value its average | `rd-mdp` and the sampler `#rd-mc` |
-| 25 | V in an MRP; V_π and Q_π definitions with glosses | `rd-val` |
-| 26 | V = Σ π Q; Q = R + γ Σ P V (needs the model) | `rd-val` |
-| 27 | Q is what you want for model-free control (argmax lookup) | `rd-val` |
-| 28 | Optimal V_* and Q_*; argmax Q_* is optimal; an optimal policy exists, better in every state, and a deterministic one exists | `rd-val` |
-| 29 | Bellman: one-step pieces; derivation from G_t = R + γG_{t+1}; Markov allows replacing the tail; MRP form | `rd-val` |
-| 30 | Bellman expectation equations for V_π and Q_π, linear; matrix form and (I − γP^π)^{-1}R^π; O(n³), only small problems | `rd-val` |
-| 31 | Bellman optimality equations for V_* and Q_*; max makes them nonlinear; solved iteratively by VI and PI with a model, Q-learning and SARSA with exploration decaying to greedy without | `rd-val` |
-| 32 | "Everything downstream ... is a way of approximately solving one of these equations" | `rd-val` (bold) |
-| 33 | Student MRP values table at γ 0, 0.9, 1 for six states | `#rd-sm` computes every cell exactly (γ slider; reproduces the table); `rd-val` text quotes −12.5, −22.5, 1.5, 4.3, 0.8 |
-| 34 | γ = 0 values equal immediate rewards; Facebook at γ 1: 10 steps at −1 then Class 1 at −12.5, total −22.5; Silver rounds to −13 and −23 | `rd-val` and the widget's note |
-| 35 | Bellman check at Class 3: −2 + 1 × (0.6 × 10 + 0.4 × 0.8) = 4.32 | `rd-val` (and the widget shows it when Class 3 is clicked) |
-| 36 | Uniform policy V_π: −1.3, 2.7, 7.4, −2.3, with the Class 3 check | `rd-val` list and `#rd-sm` uniform mode |
-| 37 | Optimal V_*: 6, 8, 10, 6, with all eight action values | `rd-val` list and `#rd-sm` optimal mode |
-| 38 | One improvement step: Q_π values 0.69 / −3.31, 5.38 / 0, 10 / 4.77, −1.31 / −3.31; greedy gives the optimal policy; prediction serving control | `rd-val` list and the uniform-mode caption |
-| 39 | Optimal policy Study, Study, Study, Quit; Q_* needs no model, V_* would need 0.2, 0.4, 0.4 | `rd-val` |
-| 40 | Silver prints Q_*(Pub) 8.4; arithmetic gives 9.4; Study still wins | `rd-val` correction box |
-| 41 | Agent components: policy (deterministic or stochastic; an LLM is a stochastic token policy), value function, model (transition and reward model with hats); LLM "reward model" meaning, not planned with | `rd-agent` |
-| 42 | Taxonomy by what is stored (value-based, policy-based with REINFORCE description, actor-critic) and by model use (model-free list, model-based: DP, AlphaZero, MuZero); axes independent | `rd-agent` |
-| 43 | Table of 8 algorithms (value iteration, SARSA, Q-learning, DQN, REINFORCE, A2C, PPO, GRPO) with stores, model, learns from | `rd-agent` table (all 8 rows, plus TRPO, DDPG/TD3/SAC, AlphaZero, MuZero) |
-| 44 | Exploitation and exploration definitions; restaurant, oil, game-move examples; balance; pure exploitation stuck, pure exploration never cashes in | `rd-band` |
-| 45 | Multi-armed bandit: an MDP with a single state | `rd-band` |
-| 46 | ε-greedy formula with ε/m; ε 0.1, m 4 gives 0.925 and 0.025 (Silver L5) | `rd-band` |
-| 47 | GLIE definition; on the model-free page | `rd-band`, `rd-samp` |
-| 48 | Optimistic initialisation; entropy bonuses; temperature and sampling diversity in LLM rollouts (around 1, spread of rewards for GRPO) | `rd-band` (optimistic agent also run live in `#rd-bd`) |
-| 49 | Prediction (evaluate V_π, Q_π) and control (find π_*); solve prediction to solve control; policy evaluation, policy iteration, value iteration with a model; MC and TD for prediction, SARSA and Q-learning for control without | `rd-agent` paragraph, `rd-plan`, `rd-samp` |
-| 50 | Bootstrapping and sampling definitions (Silver L4 unified view), depth and width | `rd-samp` |
-| 51 | Three targets DP, TD, MC side by side; the sampling update | `rd-samp` (2×2 table with targets) and the incremental-update box |
-| 52 | 2×2 table: DP, TD, exhaustive search, MC | `rd-samp` table |
-| 53 | Bootstrapping buys lower variance and early updates, costs bias; sampling buys model independence, costs variance; student example −2.25 or −3.125 against −2 + ½V(Class 2) | `rd-samp` |
-| 54 | On-policy ("learn on the job") and off-policy ("look over someone's shoulder") with target π and behaviour μ; four uses (Silver L5) | `rd-samp` |
-| 55 | Importance sampling ratio formula and the expectation identity; example ρ = 2 and weight 0; ratios multiply, off-policy MC high variance; one-step Q-learning needs no ratio | `rd-samp` |
-| 56 | LLM: PPO and GRPO rollouts from a stale copy, inference engine probabilities differ, mildly off-policy, the per-token clipped ratio is this correction | `rd-samp` last paragraph, `rd-llm` |
-| 57 | Trade-offs: value/policy/actor-critic (incl. PPO-RLHF value model as large as the policy, what GRPO deletes); model-free/model-based (compounding errors; known small DP, known huge search, unknown learn or MuZero); MC/TD; on/off-policy; the discount (horizon, variance, slower convergence) | `rd-when` details paragraph and table; `rd-ret` for the discount |
-| 58 | Common mistakes: reward is not value (Class 2 example); observation is not state; history excludes the action; greedy on V needs a model; optimality equation not linear; γ = 1 not always wrong; on-policy not online; LLM reward model not model-based; reward hypothesis an assumption | `rd-wrong` (all nine) |
-| 59 | How it connects: Topic: rl, DP, model-free, deep RL, RL for LLMs (token MDP description), reward hacking | `#t-more` (children and neighbours with descriptions) |
-| 60 | Best resources: Silver lectures 1 and 2 (3h), Sutton and Barto chapters 1 to 3 (2h), Weng "Long Peek" (~35 min), Spinning Up Key Concepts (~15 min) | `#t-more` (Silver and Sutton-Barto entries name these parts and times; Weng 35 min; Spinning Up entry names Key Concepts, 15 min) |
-
-Nothing was dropped. Additions beyond the old page: Silver's examples of state construction are kept as given; Sutton and Barto page anchors added; the MRP, MDP and return examples are computed live and checked against `read/recompute.py`.
+| 1 | Embed; 23 min read | Superseded |
+| 2 | RL definition | `rd-over` |
+| 3 | Score not label; delayed feedback and credit assignment; actions decide the data | `rd-what` |
+| 4 | Scope; RLHF and RLVR treat generation as an MDP | `rd-over`, `rd-llm` |
+| 5 | Loop at step t; R_{t+1} indexing; r_t convention | `rd-loop` (indexing stated); r_t convention moved to DP (archive `rd-loop`) |
+| 6 | Helicopter, backgammon, Atari | `rd-what` |
+| 7 | Learning against planning | `rd-what` |
+| 8 | Cumulative reward; refuelling and investment examples | `rd-what` (refuelling); investment moved to DP (archive `rd-what`) |
+| 9 | Reward hypothesis, proxies, reward hacking | `rd-what` |
+| 10 | History H_t formula | Moved to DP (archive `rd-loop`); `rd-loop` says the agent summarises what it has seen |
+| 11 | Environment state against agent state | Moved to DP (archive `rd-loop`) |
+| 12 | Markov property; Atari frame; DQN frame stack | `rd-loop` (intuitive); formula moved to DP (archive) |
+| 13 | Fully observable, MDP | `rd-loop` |
+| 14 | Partially observable examples; POMDP; history, belief and RNN states | `rd-loop` (poker, robot; agent builds its state); belief and RNN formulas moved to DP (archive) |
+| 15 | LLM generation is fully observable | `rd-loop` |
+| 16 to 19 | Student chain, MRP, MDP with every probability and reward | MDP named and defined in `rd-loop`; the student example ("a lecture costs −2 yet the state is worth +1.5") in `rd-loop`; every probability and reward moved to DP (archive `rd-mdp`, widget `rd-sm`) |
+| 20 | Policy; fixing a policy gives an MRP | Policy in `rd-loop`; the MRP reduction moved to DP (archive) |
+| 21 | Return, γ, 1/(1 − γ) horizons | `rd-loop` |
+| 22 | Four reasons to discount | `rd-loop` (finiteness, convergence); uncertainty and preference moved to DP (archive `rd-ret`) |
+| 23 | γ = 1 for terminating tasks and LLM RL | `rd-loop`, `rd-wrong` |
+| 24 | Sampled returns −2.25 and −3.125 | Moved to DP (archive `rd-mdp`, sampler `rd-mc`) |
+| 25, 26 | V_π and Q_π definitions; V = ΣπQ, Q = R + γΣPV | Definitions in `rd-loop`; relations moved to DP (archive `rd-val`) |
+| 27 | Q for model-free control | `rd-loop` |
+| 28 | Optimal values; deterministic optimal policy exists | Optimality equation named in `rd-idea`; existence results moved to DP (archive `rd-val`) |
+| 29 | Bellman derivation from the return recursion | `rd-idea` (in words and one equation) |
+| 30, 31 | Expectation and optimality equations, linearity, matrix solution, O(n³), nonlinearity | Moved to DP (archive `rd-val`); `rd-idea` keeps the expectation equation and the max version in words |
+| 32 | "Everything downstream solves one of these equations" | `rd-idea` (the one idea) |
+| 33 to 40 | Student MRP table, Facebook −22.5, Class 3 check, uniform and optimal V and Q, one-step improvement, Q* needs no model, Silver's 8.4 against 9.4 | Moved to DP (archive `rd-val`, widget `rd-sm`, correction box); `rd-loop` keeps "reward is not value" with Class 2's −2 and +1.5 |
+| 41 | Agent components: policy, value, model; LLM reward model is not a planning model | Three axes in `rd-fam`; reward model point in `rd-wrong`; component definitions in `#t-tax`; archive `rd-agent` |
+| 42, 43 | Taxonomy and the 8-row table | `#t-tax`, `#t-atlas`; `rd-fam` intro |
+| 44, 45 | Exploration against exploitation; restaurant and oil examples; bandit as single-state MDP | `rd-what`, `rd-f-band`; the everyday examples moved to Bandits (archive `rd-band`) |
+| 46 | ε-greedy formula, 0.925 and 0.025 | ε-greedy in `rd-f-band`; formula and numbers moved to Bandits (archive) |
+| 47 | GLIE | Moved to MF (existing Model-free page already has it); named in the `rd-f-band` Go deeper note |
+| 48 | Optimistic initialisation, entropy bonuses, temperature in LLM rollouts | `rd-f-band` |
+| 49 | Prediction against control; evaluate then improve | `rd-f-plan` (evaluate a little, improve a little); definitions moved to DP (archive `rd-agent`) |
+| 50 to 53 | Bootstrapping and sampling; three targets; 2×2 table; costs; student example | `rd-idea` spine table and `rd-f-samp` ("bootstrapping"); the 2×2 table and examples moved to MF (archive `rd-samp`) |
+| 54, 55 | On- and off-policy; importance sampling with ρ = 2 example; one-step Q-learning needs no ratio | `rd-f-samp` (both, intuitively); formula and example moved to MF (archive `rd-samp`) |
+| 56 | LLM RL mildly off-policy; clipped ratio is this correction | `rd-f-samp` (PPO's and GRPO's ratios are this correction) |
+| 57 | Trade-offs | `rd-when` |
+| 58 | Nine common mistakes | `rd-wrong` keeps reward/value, observation/state, γ = 1, on-policy/online, reward model; history-excludes-action, greedy-on-V, optimality-not-linear moved to DP (archive `rd-wrong`); reward hypothesis in `rd-what` |
+| 59 | How it connects | `#t-more` |
+| 60 | Best resources | `#t-more` |
