@@ -17,5 +17,5 @@ if rows: open(log, 'w').write(s.rstrip('\n') + '\n' + '\n'.join(rows) + '\n')
 for sl in slugs: subprocess.run(['python3', 'html_utils/sync_status.py', '--record', B + sl], check=True)
 titles = [x['title'].split(':')[0] for x in d['pages'] if x['path'] in [B + s for s in slugs]]
 subprocess.run(['git', 'add', p, log] + [B + s for s in slugs], check=True)
-subprocess.run(['git', 'commit', '-qm', 'sync to notion: paper pages ' + ', '.join(titles) + '\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'], check=True)
+subprocess.run(['git', 'commit', '-qm', 'sync to notion: paper pages ' + ', '.join(titles) + '\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>'], check=True)
 print('finalized', slugs, 'idea rows', len(rows))

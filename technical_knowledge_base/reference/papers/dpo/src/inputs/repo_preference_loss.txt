@@ -1,0 +1,47 @@
+Source: https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py (preference_loss, Apache-2.0)
+45:def preference_loss(policy_chosen_logps: torch.FloatTensor,
+46-                    policy_rejected_logps: torch.FloatTensor,
+47-                    reference_chosen_logps: torch.FloatTensor,
+48-                    reference_rejected_logps: torch.FloatTensor,
+49-                    beta: float,
+50-                    label_smoothing: float = 0.0,
+51-                    ipo: bool = False,
+52-                    reference_free: bool = False) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+53-    """Compute the DPO loss for a batch of policy and reference model log probabilities.
+54-
+55-    Args:
+56-        policy_chosen_logps: Log probabilities of the policy model for the chosen responses. Shape: (batch_size,)
+57-        policy_rejected_logps: Log probabilities of the policy model for the rejected responses. Shape: (batch_size,)
+58-        reference_chosen_logps: Log probabilities of the reference model for the chosen responses. Shape: (batch_size,)
+59-        reference_rejected_logps: Log probabilities of the reference model for the rejected responses. Shape: (batch_size,)
+60-        beta: Temperature parameter for the DPO loss, typically something in the range of 0.1 to 0.5. We ignore the reference model as beta -> 0.
+61-        label_smoothing: conservativeness for DPO loss, which assumes that preferences are noisy (flipped with probability label_smoothing)
+62-        ipo: If True, use the IPO loss instead of the DPO loss.
+63-        reference_free: If True, we ignore the _provided_ reference model and implicitly use a reference model that assigns equal probability to all responses.
+64-
+65-    Returns:
+66-        A tuple of three tensors: (losses, chosen_rewards, rejected_rewards).
+67-        The losses tensor contains the DPO loss for each example in the batch.
+68-        The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected responses, respectively.
+69-    """
+70-    pi_logratios = policy_chosen_logps - policy_rejected_logps
+71-    ref_logratios = reference_chosen_logps - reference_rejected_logps
+72-
+73-    if reference_free:
+74-        ref_logratios = 0
+75-
+76-    logits = pi_logratios - ref_logratios  # also known as h_{\pi_\theta}^{y_w,y_l}
+77-
+78-    if ipo:
+79-        losses = (logits - 1/(2 * beta)) ** 2  # Eq. 17 of https://arxiv.org/pdf/2310.12036v2.pdf
+80-    else:
+81-        # Eq. 3 https://ericmitchell.ai/cdpo.pdf; label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
+82-        losses = -F.logsigmoid(beta * logits) * (1 - label_smoothing) - F.logsigmoid(-beta * logits) * label_smoothing
+83-
+84-    chosen_rewards = beta * (policy_chosen_logps - reference_chosen_logps).detach()
+85-    rejected_rewards = beta * (policy_rejected_logps - reference_rejected_logps).detach()
+86-
+87-    return losses, chosen_rewards, rejected_rewards
+88-
+89-
+90-def _get_batch_logps(logits: torch.FloatTensor, labels: torch.LongTensor, average_log_prob: bool = False) -> torch.FloatTensor:
