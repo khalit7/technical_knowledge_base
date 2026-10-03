@@ -1,0 +1,39 @@
+<section class="tab" id="t-cost" role="tabpanel" hidden>
+<h2>Check the bill</h2>
+<p>The report's cost claim is three numbers: GPU hours, a rental price, and the scope of what was counted ({{Table 1|ax:S1.T1}}). This tab recomputes each, then asks the question the January 2025 discussion mostly skipped: are 2.788M GPU hours plausible for this model and these tokens? Every number comes from <span class="mono">recompute.py</span>; the inputs you can change are labelled.</p>
+
+<h3>1. Table 1, recomputed</h3>
+<div class="ctl"><label>Rental price per H800 GPU hour = <b id="bpV">$2.00</b> (the paper's assumption)<input type="range" id="bp" min="1" max="4" step="0.25" value="2"></label></div>
+<div class="tw"><table class="tb" id="billT"></table></div>
+<p class="small" id="billNote"></p>
+
+<h3>2. From GPU hours to arithmetic</h3>
+<p>Training a Transformer costs about 6 FLOPs per parameter per token (2 forward, 4 backward), counting only the parameters a token actually uses. For V3 that is 36.6B (37.55B active minus the 0.93B input embedding, which is a lookup, not a multiply; recounted from {{config.json|https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/main/config.json}}). Attention over the context and the MTP module add more. Divide by GPU-seconds and by the H800's peak and you get the share of the hardware the run actually used, its model FLOPs utilisation (MFU). Llama 3.1 405B, trained on H100s with the same peak, is the yardstick: Meta reported 38 to 43% BF16 MFU ({{Llama 3, Table 4|https://arxiv.org/html/2407.21783v3#S3.T4}}).</p>
+<div class="ctl">
+<label><input type="checkbox" id="fAtt"> add attention FLOPs (4K context for V3, 8K for Llama)</label>
+<label><input type="checkbox" id="fMtp"> add V3's MTP module (one extra block and output head)</label>
+<label>Peak to divide by <select id="fPk"><option value="bf16" selected>989 TFLOPS dense BF16</option><option value="fp8">1,979 TFLOPS dense FP8 (V3's GEMMs)</option></select></label>
+</div>
+<div id="mfuSvg"></div>
+<div class="out" id="mfuOut"></div>
+<p class="small mute">Peaks: H100 SXM, 1,979 and 3,958 TFLOPS "with sparsity", halved for dense ({{NVIDIA|https://www.nvidia.com/en-us/data-center/h100/}}); the H800 has the H100's compute with less interconnect bandwidth ({{planetbanatt|https://planetbanatt.net/articles/v3fermi.html}}). Llama: 405B parameters, 15.6T tokens ({{Llama 3 §1|https://arxiv.org/html/2407.21783v3#S1}}), 30.84M GPU hours ({{model card|https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/MODEL_CARD.md}}). Attention FLOPs per token per layer, training: 3 × 2 × heads × (key + value dimension) × average causal context. V3 pre-training hours only (2,664K); Llama's figure is its model card's training time for 405B. Assumptions are first-order: no recomputation, no pipeline bubble, no failed steps.</p>
+<div class="co key"><div class="t">What this shows</div>
+<p class="small" style="margin:0" id="mfuKey"></p></div>
+
+<h3>3. The same work, costed per unit</h3>
+<p>GPU hours per billion active parameters per trillion tokens: the price of one unit of "6ND" work on each cluster.</p>
+<div id="unitSvg"></div>
+<p class="small mute" id="unitNote"></p>
+
+<h3>4. Wall clock and stages</h3>
+<div class="out" id="wallOut"></div>
+<p class="small mute">Derived from Table 1 and §4.3 at 2,048 GPUs. Context extension: 1,000 steps of 1,920 sequences of 32K plus 1,000 steps of 480 sequences of 128K ({{§4.3|ax:S4.SS3}}).</p>
+
+<h3>5. What the $5.576M leaves out</h3>
+<ul>
+<li><b>Research and ablations</b> on architectures, algorithms and data: excluded by the paper's own sentence ({{§1|ax:S1}}). The ablations alone include 15.7B and 228.7B models on up to 1.33T tokens, twice each for MTP and for balancing, and FP8 against BF16 at two scales ({{§4.5|ax:S4.SS5}}, {{Appendix B|ax:A2.SS1}}).</li>
+<li><b>The R1-series expert models</b> that generated V3's reasoning data ({{§5.1|ax:S5.SS1}}); R1's own later report gives its RL cost, quoted on the {{DeepSeek lab page|n:3c65c17b0d0d81a2ae7ec6796947a235}}.</li>
+<li><b>Hardware, power, staff and data.</b> The 2,048 H800s cost far more to buy than $5.6M; the lab page quotes SemiAnalysis's estimate of DeepSeek's hardware. The paper never claims otherwise: $2 an hour is a rental-equivalent price.</li>
+</ul>
+<p class="small">The fair one-line version: "the final training run used 2.788M H800 GPU hours, worth about $5.6M at rental prices". That claim checks out.</p>
+</section>
