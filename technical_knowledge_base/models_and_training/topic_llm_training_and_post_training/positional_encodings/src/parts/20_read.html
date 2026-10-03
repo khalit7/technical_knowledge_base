@@ -1,0 +1,77 @@
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .nl{display:inline-block;font-style:normal;font-size:10.5px;line-height:1.35;font-weight:600;border-radius:4px;padding:0 4px;margin:0 2px;border:1px solid currentColor;vertical-align:1px;white-space:nowrap}
+#t-read .nl.d{color:var(--c1)}#t-read .nl.i{color:var(--bad)}#t-read .nl.u{color:var(--mute)}
+#t-read .co.corr{border-left-color:var(--bad)}#t-read .co.corr .t{color:var(--bad)}
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-cap{min-height:6.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
+#t-read .an-cnt,.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-read .an-cnt .stat .v,.out .stat .v{font-size:15.5px}
+.modes{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.modes button{font-size:12.5px;padding:3px 9px;border-radius:99px}.modes button:disabled{opacity:.4;cursor:not-allowed}
+.chk i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:3px;vertical-align:-1px}
+.legs{display:flex;flex-wrap:wrap;gap:2px 4px;margin:4px 0}
+.fx{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;white-space:nowrap}
+.panelt{font-size:13px;font-weight:600;margin:10px 0 2px}
+.lstrip{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px}.lstrip svg{display:inline-block}
+.lk i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 3px 0 8px;vertical-align:-1px}
+table.cmp{min-width:820px}table.cmp td:first-child{font-weight:600}
+table.wide{min-width:760px}
+.ctlrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0;font-size:13px}
+.ctlrow label{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;max-width:100%}.ctlrow select{max-width:100%;min-width:0}.ctlrow input[type=range]{width:150px;max-width:40vw}
+</style>
+<nav class="nav" id="rd-nav">
+<a href="#rd-over">In one screen</a><a href="#rd-abs">Absolute or relative</a><a href="#rd-six">Six schemes, one query</a><a href="#rd-rel">The relative family</a><a href="#rd-rope">RoPE</a><a href="#rd-var">Variants in configs</a><a href="#rd-break">Past the trained length</a><a href="#rd-ext">Stretching RoPE</a><a href="#rd-recipe">Recipes</a><a href="#rd-beyond">Beyond RoPE</a><a href="#rd-mist">Common mistakes</a>
+</nav>
+
+<section id="rd-over">
+<h2>In one screen</h2>
+<p class="lead">Attention compares every query with every key by a dot product, and a dot product does not care about order: shuffle the tokens and each one gets the same scores. Something has to tell the model where each token sits. There are three broad answers: <b>add a position vector to the input</b> once (absolute: learned or sinusoidal), <b>change the attention score by the distance</b> between the two tokens (relative: Shaw, T5, ALiBi, DeBERTa, and RoPE, which does it by rotating queries and keys), or <b>add nothing</b> and let the causal mask carry the order (NoPE). Since 2023 almost every open LLM uses RoPE, and the practical questions are about RoPE: which base, how many dimensions to rotate, and how to stretch it past the length it was trained on.</p>
+<div class="tw"><table class="cmp">
+<thead><tr><th>Scheme</th><th>What it changes</th><th>Learned?</th><th>Position it encodes</th><th>Past the trained length</th><th>Used by</th></tr></thead><tbody>
+<tr><td>Learned absolute</td><td>Adds one trained vector per position to the input embedding</td><td>Yes, one row per position</td><td>Absolute</td><td>No row exists: a hard cap</td><td>GPT-2 (1,024 rows, {{config|https://huggingface.co/openai-community/gpt2/blob/main/config.json}}), BERT (512, {{config|https://huggingface.co/google-bert/bert-base-uncased/blob/main/config.json}})</td></tr>
+<tr><td>Sinusoidal</td><td>Adds a fixed sine and cosine vector to the input</td><td>No</td><td>Absolute (the vectors' dot product depends on distance only, but the cross terms with content do not)</td><td>Defined, but unseen: perplexity stops improving about 20 tokens past a 512 training length and degrades from about 50 ({{ALiBi §2|https://arxiv.org/abs/2108.12409}})</td><td>The 2017 {{Transformer|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}</td></tr>
+<tr><td>Shaw et al. relative</td><td>Adds a learned vector per clipped distance to the keys (and values) inside attention</td><td>Yes</td><td>Relative, clipped at <i>k</i></td><td>Every distance beyond <i>k</i> reuses the edge vector</td><td>Research (2018 translation)</td></tr>
+<tr><td>T5 bias</td><td>Adds one learned scalar per distance bucket to each logit, per head</td><td>Yes, 32 per head</td><td>Relative, log buckets up to 128</td><td>All far distances share the last bucket</td><td>{{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}</td></tr>
+<tr><td>ALiBi</td><td>Subtracts slope × distance from each logit</td><td>No, fixed slopes per head</td><td>Relative</td><td>Extrapolates: trained at 1,024, same perplexity at 2,048 as a sinusoidal model trained at 2,048</td><td>BLOOM ({{paper|https://arxiv.org/abs/2211.05100}}), MPT ({{config|https://huggingface.co/anas-awadalla/mpt-7b/blob/main/config.json}}, mirror)</td></tr>
+<tr><td>DeBERTa</td><td>Separate content and relative-position vectors; scores from content-content, content-position and position-content terms</td><td>Yes</td><td>Relative (absolute added only near the output)</td><td>Not measured on this page</td><td>DeBERTa encoders</td></tr>
+<tr><td>RoPE</td><td>Rotates each pair of query and key dimensions by an angle proportional to position, in every layer</td><td>No</td><td>Relative, in the q·k product</td><td>Slow pairs meet angles never seen in training; ALiBi measured gains for only 100 to 200 extra tokens; fixed by RoPE scaling</td><td>Llama 3, Qwen3, DeepSeek-V3, Gemma 3, gpt-oss ({{configs|#t-spec}})</td></tr>
+<tr><td>NoPE</td><td>Nothing; the causal mask is the only order signal</td><td>No</td><td>Implicit</td><td>No angles to break; used in one layer of four beside RoPE layers</td><td>Llama 4, Command A, SmolLM3 (<a href="#rd-var">below</a>)</td></tr>
+</tbody></table></div>
+<p class="small mute">Rows from the papers and configs linked in each section below. The parent page, {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}, places positional encoding among the architecture choices made before pretraining and in the long-context stage of continued pretraining; this page owns the details.</p>
+</section>
+
+<section id="rd-abs">
+<h2>Absolute or relative, embedding or encoding</h2>
+<p>Two distinctions organise the whole field.</p>
+<ul>
+<li><b>Learned or fixed.</b> A <b>positional embedding</b> in the strict sense is a learned table: row <i>p</i> is a trained vector added to the token at position <i>p</i> (GPT-2, BERT). It is simple, but the table has as many rows as the training length, so there is nothing to look up beyond it and no extrapolation at all. A <b>positional encoding</b> is a fixed function of position. The 2017 Transformer's sinusoidal encoding was chosen because it "may allow the model to extrapolate to sequence lengths longer than the ones encountered during training" ({{Vaswani et al. §3.5|https://arxiv.org/html/1706.03762v7#S3.SS5}}); learned embeddings gave "nearly identical results" there (Table 3, row E). In practice it interpolates well and extrapolates poorly: ALiBi's authors measured its perplexity stop improving about 20 tokens past a 512-token training length and degrade from about 50 ({{Press et al. 2021 §2|https://arxiv.org/abs/2108.12409}}). The naming is loose in the literature: RoPE is "rotary position <i>embedding</i>" although nothing in it is learned.</li>
+<li><b>Absolute or relative.</b> Absolute methods answer "where is this token?" and are added to the input once, before the first layer. Relative methods answer "how far apart are these two tokens?" and act inside attention, at every layer, which matches what attention uses: the score between a query and a key. A relative method gives the same score to the same pair of tokens wherever the pair sits in the sequence.</li>
+</ul>
+</section>
+
+<section id="rd-six">
+<h2>Six schemes, one query</h2>
+<p>The chart puts every family on the same query. One token's content vector <i>x</i> (64 dimensions, seeded random, <span class="nl i">illustrative</span>) is repeated at every position, so content contributes the same to every score and only position makes a difference. The curve is what position adds to the attention logit between the query and a key <i>k</i> tokens back, computed exactly:</p>
+<div class="fm"><dl>
+<dt>Sinusoidal, learned</dt><dd>(<i>x</i> + <i>p</i><sub><i>m</i></sub>)·(<i>x</i> + <i>p</i><sub><i>m</i>−<i>k</i></sub>)/√<i>d</i> − <i>x</i>·<i>x</i>/√<i>d</i> = (<i>x</i>·<i>p</i><sub><i>m</i>−<i>k</i></sub> + <i>p</i><sub><i>m</i></sub>·<i>x</i> + <i>p</i><sub><i>m</i></sub>·<i>p</i><sub><i>m</i>−<i>k</i></sub>)/√<i>d</i>, with the 2017 sinusoid or a random 512-row table (<span class="nl i">illustrative</span>, untrained)</dd>
+<dt>T5</dt><dd><i>b</i><sub><i>h</i></sub>(bucket(<i>k</i>)): the <b>real</b> learned biases of T5-base's decoder self-attention (32 buckets × 12 heads, read from the released {{safetensors file|https://huggingface.co/google-t5/t5-base/blob/main/model.safetensors}}), bucketed by T5's own function</dd>
+<dt>ALiBi</dt><dd>−<i>m</i><sub><i>h</i></sub>·<i>k</i>, with the paper's 8-head slopes <i>m</i><sub><i>h</i></sub> = 2<sup>−<i>h</i></sup></dd>
+<dt>RoPE</dt><dd>Σ<sub><i>i</i></sub> (<i>x</i><sub>2<i>i</i></sub><sup>2</sup> + <i>x</i><sub>2<i>i</i>+1</sub><sup>2</sup>)(cos <i>k</i>θ<sub><i>i</i></sub> − 1)/√<i>d</i>, θ<sub><i>i</i></sub> = base<sup>−2<i>i</i>/<i>d</i></sup></dd>
+<dt>NoPE</dt><dd>0</dd></dl></div>
+<div class="card" id="sc">
+<div class="ctlrow"><span class="seg" id="scView" role="group" aria-label="View"><button class="on" data-v="logit" aria-pressed="true">Added to the logit</button><button data-v="w" aria-pressed="false">Attention weights</button></span>
+<span class="seg" id="scRange" role="group" aria-label="Distance range"><button data-r="128" aria-pressed="false">0 to 128</button><button class="on" data-r="1024" aria-pressed="true">0 to 1,024</button><button data-r="2048" aria-pressed="false">0 to 2,048</button></span></div>
+<div class="ctlrow"><label>Shift the pair along by <input type="range" id="scOff" min="0" max="1024" step="16" value="0" aria-label="Shift"> <b id="scOffV">0</b></label>
+<label>Head <input type="range" id="scHead" min="1" max="8" step="1" value="1" aria-label="Head"> <b id="scHeadV">1</b></label>
+<label>RoPE base <select id="scBase"><option value="10000" selected>10,000</option><option value="500000">500,000</option></select></label></div>
+<div id="scSvg" class="plot"></div>
+<div class="legs" id="scLeg"></div>
+<div class="out" id="scOut"></div>
+<p class="try"><b>Try:</b> shift the pair along. Only the absolute schemes move (their unshifted curve stays faint): the same two tokens at the same distance get a different score at a different place. Switch to <i>Attention weights</i>: NoPE spreads attention evenly over however many tokens the mask lets it see, ALiBi decays exponentially (head 1 looks a few tokens back, head 8 hundreds), T5 is flat from 113 tokens on, and RoPE with base 10,000 decays and ripples. Go to 0 to 2,048: the learned table stops at 512 because there is no row 512.</p>
+<p class="small mute">Head selects ALiBi's slope and T5-base's decoder head (the first 8 of its 12). The trained length 512 is <span class="nl i">illustrative</span> (BERT's and T5's input length). The T5 decoder's last bucket, offsets 113 and beyond (the dotted line, computed with T5's bucket function), holds values from −40.8 to 32.8 across heads where every other bucket stays between −22 and 5.4; the chart clips them. Span corruption makes a 104-token target per 512 tokens of text ({{T5 page|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}), shorter than 113, so the denoising objective alone never reaches that bucket; the released checkpoints were also trained on supervised tasks with longer targets, so why its values sit so far out is <span class="nl u">unconfirmed</span>.</p>
+</div>
+</section>

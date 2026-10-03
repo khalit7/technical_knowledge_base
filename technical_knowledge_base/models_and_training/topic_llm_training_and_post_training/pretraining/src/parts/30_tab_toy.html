@@ -1,0 +1,63 @@
+<div class="tab" id="t-toy" role="tabpanel" hidden>
+<style>
+#t-toy .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-toy .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-toy .an-play{min-width:6.4em}
+#t-toy .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-toy .an-cap .t{font-weight:600;font-size:14px}#t-toy .an-cap p{margin:2px 0;font-size:13.5px}
+#t-toy .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
+#t-toy .an-cnt .stat .v{font-size:16px}
+#ty-heat{font:14px/1.9 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
+#ty-heat span{border-radius:2px;transition:background .3s}
+#ty-sample{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;border:1px dashed var(--line);border-radius:8px;padding:6px 10px;color:var(--mute);min-height:5.5em}
+#ty-grid{display:grid;grid-template-columns:minmax(0,7em) repeat(2,minmax(0,1fr));gap:6px;font-size:13px;margin:8px 0}
+#ty-grid .h{font-weight:600;color:var(--mute);font-size:12px;align-self:end}
+#ty-grid .c{border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--bg)}
+#ty-grid .c .v{font-size:18px;font-weight:600}#ty-grid .c .r{font-size:11.5px;color:var(--mute)}
+#ty-plot svg text{font-size:11px}
+.ty-scale{display:flex;height:10px;border-radius:2px;overflow:hidden;width:160px;max-width:40vw;margin:4px 0}
+.ty-scale span{flex:1}
+</style>
+<h2 style="margin-top:14px">Anneal a toy: the two levers, separated</h2>
+<p>OLMo 2's ablation ({{Reading|#t-read}}, section 5, "What the anneal buys") has three cells: no anneal, decay on the old mix, decay on the new mix. It never tries the new mix at a constant learning rate, so it cannot say whether the data switch needs the decay. This tab runs all four cells on a model small enough to train on a laptop. <i class="nl t">toy</i> Everything here was measured on this page's own runs; nothing is read from a paper.</p>
+<div class="card">
+<h3 style="margin-top:0">What was trained</h3>
+<ul class="tight">
+<li><b>Model:</b> a <span id="ty-par"></span>-parameter GPT at the character level (4 layers, width 128, 4 heads, context 96, pre-norm), trained with AdamW (β 0.9 and 0.95, weight decay 0.1), gradient clipping at 1.0, batch 32 sequences.</li>
+<li><b>Two kinds of data.</b> "Web": six public-domain novels from Project Gutenberg, lower-cased, with digits removed (5% of each held out). "Maths": lines like <code>47+38=85</code> for two-digit sums, with a fixed 20% of all pairs never trained on and used only for testing.</li>
+<li><b>Stage 1</b>: 6,000 steps, 3% of sequences maths (SmolLM3's stage-1 share), learning rate warmed up over 150 steps to 3e-3 and then held flat: the stable phase of warmup-stable-decay.</li>
+<li><b>Four branches of 1,200 steps from the same stage-1 checkpoint</b> (the last 17% of the run, the usual 10 to 20% cooldown): the learning rate held flat or decayed linearly to zero, crossed with the same mix or a maths-heavy mix (25% of sequences, close to OLMo 2's 20.8% maths in Dolmino). Every branch sees the same number of tokens and starts from the same random state; the two same-mix branches see identical batches.</li>
+<li><b>Three seeds</b> (1, 2, 3) of the whole experiment. Code: <code>src/toy/train.py</code>, run on CPU with two threads (<span id="ty-sec"></span>).</li>
+</ul>
+</div>
+
+<h3>The four cells</h3>
+<div class="seg" id="ty-met" role="group" aria-label="Measure"></div>
+<div id="ty-grid"></div>
+<p class="small mute" id="ty-gnote"></p>
+
+<h3>Loss through the run</h3>
+<p class="try"><b>Try:</b> switch the measure above. "Sum answers" is the loss on the digits after <code>=</code>, which a model can drive to zero; "Sum operands" is the loss on the random digits before it, which no model can push below about 3.25 bits (log<sub>2</sub> 9 for the leading digit, log<sub>2</sub> 10 for the second, averaged). "Word starts" is the first letter of a word, the part of text that carries the choices.</p>
+<div class="seg" id="ty-view" role="group" aria-label="Range"><button data-v="all" class="on">Whole run</button><button data-v="br">Branches only</button></div>
+<div class="seg" id="ty-seed" role="group" aria-label="Seed"><button data-s="-1" class="on">Mean of 3 seeds</button><button data-s="0">Seed 1</button><button data-s="1">Seed 2</button><button data-s="2">Seed 3</button></div>
+<div id="ty-plot" class="plot"></div>
+<div class="leg" id="ty-leg"></div>
+<p class="small mute">Held-out evaluation every 100 steps: 96 text windows from the held-out 5% of the books, 48 windows of held-out sums, and greedy exact-match accuracy on 300 held-out sums, each given five training sums as context. Bands are the range over seeds.</p>
+
+<div class="card" id="ty-card">
+<h3 style="margin-top:0">One passage, watched as it trains</h3>
+<p class="try"><b>Try:</b> play it. Each character is coloured by the model's surprise at it (bits: −log<sub>2</sub> p of that character given the ones before). Watch the inside of words cool first, the first letters of words stay warm, and the answers to the sums go cold only on the maths-heavy branches. Pick the branch for the last step to compare them.</p>
+<div class="seg" id="ty-br" role="group" aria-label="Branch"></div>
+<div id="ty-heat" aria-label="Held-out passage coloured by loss"></div>
+<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mute)"><span>0 bits</span><div class="ty-scale" id="ty-scale"></div><span>6+ bits</span></div>
+<div class="an-cap" id="ty-cap" aria-live="polite"></div>
+<div class="an-cnt" id="ty-cnt"></div>
+<div class="an-ctl" id="ty-ctl"></div>
+<div class="small mute" style="margin-top:6px">Sample from the same checkpoint (prompt "it was ", temperature 0.8):</div>
+<div id="ty-sample"></div>
+<p class="small mute">Seed 1. The passage is held-out text from the end of <i>Pride and Prejudice</i> plus three held-out sums; the first character has no prediction and is uncoloured.</p>
+</div>
+
+<h3>What the toy says, and what it cannot</h3>
+<ul id="ty-find"></ul>
+</div>

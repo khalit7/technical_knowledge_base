@@ -1121,3 +1121,136 @@ Reading-tab visuals and rejected ideas: `technical_knowledge_base/models_and_tra
 | SC-3 | **Before/after animation: one budget, three allocations** (Kaplan 2020, Chinchilla, Llama-3-8B-style over-training) on the IsoFLOP curve, with bars to scale for N, D, reducible loss split into model and data terms, serving FLOPs per token; ticks show the other two allocations; last step gives the break-even inference tokens. Two budgets (Gopher's, Llama 3 405B's), any fit | Kaplan's 4.68B at 1e21 (method check); Approach 3's 40B at Gopher's budget | Own section |
 | SC-4 | **Lifetime compute along the iso-loss curve** (Sardana et al.): training-only and training + 2N·D_inf against N, with this model, the Chinchilla-optimal and the inference-aware optimum; D_inf slider | Sardana's three §2 examples, within the fit's rounding | Inference section |
 | SC-5 | **Tokens per parameter against compute**: frontier of each fit (unrounded, rounded, Besiroglu) and the 20 line, presets as dots, current model ringed | Approach 3's 59 at Gopher's budget; rounded constants' 93 | Two answers section |
+
+### Distributed Training (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/distributed_training/src/viz_ideas.md`.
+
+| Where | Visual | Consequence here |
+|---|---|---|
+| Root, Machinery | Bytes per parameter bars (16, 2, 0.52 ...) for training, LoRA, QLoRA, serving; a 5-row parallelism table | Linked; this page's table is the detailed one (collective and bytes per step) |
+| Root, Scaling calculator tab | FLOPs and GPU-days for a size and token count | Linked for "how long"; the layout calculator only uses 6ND for step time |
+| ZeRO page, Step through a training step | DDP against ZeRO-1/2/3, layer by layer, 2 to 8 GPUs, memory strips, collectives | Linked for the layer-by-layer ZeRO schedule; the animation here keeps ZeRO to five steps |
+| ZeRO page, Tables | Ψ, N_d, N_m calculator; Table 1 rebuilt | The layout calculator reproduces Table 1 again only as its first preset, as a check of the shared formula |
+| Megatron-LM page | TP split of one MLP animated; memory against t; Then and now layouts 2019 to 2026 | Linked; TP here is two all-reduces per sub-block, not the matrix demo |
+| Llama 3 page, Run the 16K-GPU job | 4D rank mapper; interleaved pipeline simulator; memory per GPU for 405B (state only) | Linked; the calculator here adds activations, CP, EP and per-axis communication time |
+| DeepSeek page (and DeepSeek-V3 paper page) | 1F1B / ZB1P / DualPipe schedule simulator; EPLB; FP8 tiles | Linked; the bubble table here is formulas only |
+| Switch page | Figure 9 redrawn: data, model, expert splits on 16 cores, forward tensors | Linked |
+| # | Idea | Q | R×2 | C×2 | S | M | X | A | N | −B | Total | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **One training step, nine ways**: Llama 3 8B, 4 GPUs, the same batch (4 × 8K, or 1 × 32K), DP, ZeRO-1/2/3, HSDP, TP, PP, EP, CP; what each GPU holds (layers, slices, experts, chunks, memory bar to scale against 80 GB), each collective drawn, bytes sent per GPU by link, idle share; DP's numbers beside every counter | 2 | 2 (ZeRO's 2Ψ against 3Ψ; 1F1B bubble (p−1)/m) | 4 | 2 | 2 (CP and EP do not shrink weights; DP cannot split one sequence; TP sends the most bytes) | 2 | 2 (no page shows all axes on one model and one scale) | 1 | −2 | 15 | **built, Reading** |
+| 2 | **Layout calculator**: any model, TP x CP x PP x DP (+ EP), ZeRO stage, bytes recipe, sequence, micro-batches, recompute; memory per GPU stacked against 80 GB; bytes and seconds per step per axis on its link against compute time | 2 | 4 (ZeRO Table 1 independently; Llama 3 Table 4 GPU and token products and MFU; DeepSeek-V3 2,048 = 16 × 128, 4 experts per GPU, EP64 = 8 nodes; DeepSeek's "approximately 1:1" comm-to-compute ratio comes out at 1.4 : 1 independently) | 4 | 2 | 1 (16 bytes is one convention of four) | 2 | 1 (Llama page covers state memory for one model) | 0 | −2 | 14 | **built, own tab** ("across all layouts, how do memory and communication change") |
+| 3 | Pipeline schedule animation, GPipe / 1F1B / interleaved / DualPipe | 2 | 2 | 4 | 2 | 1 | 1 | 0 (built twice: DeepSeek D5, Llama 3 P-llama_3_herd.4) | 1 | −2 | 11 | **rejected as an animation**; replaced by #4 |
+| 4 | Bubble and memory table: p, m, v sliders; GPipe, 1F1B, interleaved, ZB-H1, DualPipe rows with the published formulas, bubble share and in-flight activations | 2 | 2 ((p−1)/m; (p−1)/(vm); ZB-H1 one third of 1F1B at F = B = W) | 4 | 1 | 2 (1F1B does not shrink the bubble; the old page implied it did) | 1 | 1 | 0 | −1 | 12 | **built, Reading (PP)** |
+| 5 | Collective cost calculator: collective, n, message, link; ring factors 2(n−1)/n and (n−1)/n; NVLink against InfiniBand | 2 | 2 (DeepSeek's 160 / 50 = 3.2) | 4 | 1 | 1 | 1 | 1 | 0 | −1 | 11 | **built, Reading (collectives)** |
+| 6 | Memory-per-GPU calculator alone | | | | | | | | | | | merged into #2 (one tab, two outputs) |
+| 7 | Communication-cost calculator alone | | | | | | | | | | | merged into #2 (per axis, per link) and #5 (per collective) |
+| 8 | Device-mesh rank picker for Llama 3 | | | | | | | | | | | rejected: Llama 3 page has it (P-llama_3_herd.3) |
+| 9 | Ring Attention against Ulysses animation | 1 | 0 | 2 | 2 | 1 | 1 | 2 | 1 | −2 | 8 | runner-up: the CP mode shows Llama 3's all-gather variant; the three variants' volumes are compared in a sentence |
+| 10 | Activation checkpointing slider (none, selective, full) | | | | | | | | | | | folded into #2 as the recompute control |
+| 11 | Framework comparison matrix | 0 | 0 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 2 | rejected: a list reads as well |
+
+### Quantization and Precision (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/quantization_and_precision/src/viz_ideas.md`.
+
+| # | Idea | R | C | P | S | M | Q | N | A | cost | score | placement | status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **One block of 32 real weights through five scopes, animated** (INT4 per tensor, per channel, per 32; MXFP4; NVFP4), row and block pickers, counters (scale, step, zeroed, levels used, error, bpw), all scopes compared at the last step | 1 | 2 | 2 | 2 | 2 | 2 | 1 | 2 | 1 | 2+4+2+2+2+2+1+2-1 = 16 | Reading, PTQ | built |
+| 2 | **Outlier migration, animated**: SmoothQuant against plain W8A8 and AWQ against plain INT4, on a real 16 x 64 activation slice and 8 x 64 weights, α slider, slice and whole-layer errors | 1 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2+4+2+2+2+2+2+2-2 = 16 | Reading, Outliers | built |
+| 3 | **One real layer, every scheme**: 17 weight schemes and 6 W8A8 recipes on Qwen2.5-0.5B layer 8 q_proj, error against bits per weight, weight-error toggle (GPTQ and AWQ flip), α curves | 1 | 2 | 1 | 2 | 2 | 2 | 2 | 0 | 2 | 2+4+1+2+2+2+2-2 = 13 | Own tab | built |
+| 4 | **Bit explorer**: any value through fp32, tf32, bf16, fp16, E5M2, E4M3, E2M1 (bits, stored value, error, step, edge behaviour), plus inside a shared-scale block (INT8, INT4, MXFP8, MXFP4, NVFP4, NF4), limits table | 2 | 2 | 2 | 2 | 2 | 1 | 1 | 0 | 1 | 4+4+2+2+2+1+1-1 = 15 | Own tab | built |
+| 5 | **GGUF block layout to scale** from ggml-common.h structs, block bpw against whole-file bpw | 2 | 2 | 1 | 1 | 1 | 1 | 2 | 0 | 0 | 4+4+1+1+1+1+2 = 14 | Reading, names | built |
+| 6 | **Bits per weight against perplexity, two models** (LLaMA-1-7B 2023 against Llama-3-8B current), linear/log | 2 | 2 | 1 | 2 | 2 | 2 | 2 | 0 | 0 | 4+4+1+2+2+2+2 = 17 | Reading, names | built |
+| 7 | Format range bars on one log2 axis | 2 | 2 | 0 | 1 | 1 | 1 | 1 | 0 | 0 | 4+4+0+1+1+1+1 = 12 | Reading, formats | built (static) |
+| 8 | PTQ vs QAT vs FP8 vs NVFP4 training, published deltas | 1 | 1 | 0 | 0 | 1 | 2 | 1 | 0 | 0 | | Reading, QAT | built as a table, not a chart: rows use different models and metrics, so a chart would splice metrics |
+| 9 | Loss-scaling simulator (gradient histogram against fp16 range, S slider) | 0 | 0 | 2 | 2 | 1 | 1 | 1 | 1 | 1 | | | rejected: gradient distributions exist only as figure images (Micikevicius Fig. 3); the explorer's 1e-8 preset makes the point |
+| 10 | NF4 codebook on the block animation | | | | | | | | | | | | rejected: owned by the QLoRA page (P-qlora.1, .2) |
+| 11 | FP8 tile/block granularity on activations | | | | | | | | | | | | rejected: owned by the DeepSeek-V3 page (P-deepseek_v3.1) |
+| 12 | Memory calculator for serving formats | | | | | | | | | | | | rejected: owned by the parent root page |
+| 13 | Ternary packing calculator (2 - z against 1.625 and log2 3) | 2 | 2 | 1 | 0 | 1 | 0 | 1 | 0 | 0 | | Reading, ternary | rejected as a widget: two crossovers stated as derived numbers in a sentence |
+
+### Alignment: SFT, RLHF, DPO Family, RLVR (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr/src/viz_ideas.md`.
+
+| # | Idea | Q | R | C | S | M | P | N | A | Cost | Total | Placement | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **One preference pair through eight losses, animated** (reward model as "before", DPO, cDPO, IPO, length-normalised DPO, SimPO, ORPO, KTO): what each reads (sum or average, reference or not), scores, margin, loss on its curve, per-token push with the shared prefix, then 400 training steps on this pair alone with the chosen and rejected log-probabilities against DPO's | 2 | 1 (x2: cDPO stops at ln 9 / β, IPO at 1/(2τ) by construction) | 2 (x2) | 2 | 2 (shared tokens cancel in DPO, not under length normalisation; DPO's margin grows by crushing the rejected answer) | 2 | 2 (adds RM, KTO, ORPO, LN-DPO and the per-token view; the DPO page's morph covers the curves only) | 2 | -2 | 18 | Reading, section 4 | built |
+| 2 | **Which tokens carry the loss**, on a real Tulu 3 conversation tokenized with Tulu 3's tokenizer: every token, assistant turns, last answer, instruction modelling; counters | 1 | 1 (x2: the template markers really are 5 plain tokens each) | 2 (x2) | 2 | 2 (TRL's default trains on user turns of conversational data) | 2 | 2 | 0 | -1 | 15 | Reading, section 1 | built |
+| 3 | **Eight real conversations padded against packed, animated** (before: pad to longest; after: best-fit packing, plain causal mask leaking, then boundaries), with masks to scale and counters for positions computed and cross-conversation attention | 1 | 1 (x2) | 2 (x2) | 2 | 2 (plain packing leaks attention: 61.8% of pairs on the sample) | 1 | 2 | 2 | -2 | 15 | Reading, Packing | built |
+| 4 | **Method family tree**: 33 methods by first-arXiv date and signal lane, edges to the method each changed, detail with what it removed or fixed, successors, and the KB page | 1 | 0 | 2 (x2) | 2 | 1 | 2 | 1 (DPO page's then-and-now is DPO-only; parent's "How we got here" is all stages by year) | 0 | -1 | 10 | Own tab | built |
+| 5 | Sum against mean loss widget (token weights in a batch under per-example mean, per-batch mean, sum) | 1 | 1 | 2 | 1 | 2 | 1 | 2 | 0 | -1 | 11 | | folded into prose with the sample's derived 56.5x; a widget would repeat one ratio |
+| 6 | RLVR pipeline animation (prompt, group, verifier, advantages, update) with GRPO against Dr. GRPO, DAPO clip-higher and dynamic sampling, GSPO sequence ratios | 2 | 1 | 2 | 2 | 1 | 1 | 0 | 2 | -2 | | | rejected: owned by RL for LLMs and the DeepSeekMath page (animation, live trainer, GRPO then-and-now); the parent animates GRPO's group. Linked by tab name |
+| 7 | Bradley-Terry reward-model widget on its own | 1 | 1 | 2 | 1 | 1 | 1 | 0 | 0 | -1 | | | rejected as a separate visual: InstructGPT page has K = 4 to 9 pairs live, Constitutional AI the soft/hard labels; the BT loss is the first method of idea 1 |
+| 8 | Online against offline simulator | 2 | 0 | 0 | 1 | 1 | 1 | 1 | 1 | -2 | | | rejected: no public numbers would let a toy say anything not built in; the published comparisons are listed with numbers instead |
+| 9 | pass@k curves for RLVR against base | 2 | 1 | 1 | 2 | 1 | 0 | 0 | 0 | -1 | | | rejected: the parent's Axis 1 and the DeepSeekMath and R1 pages carry the evidence; curves would be read off images |
+| 10 | KTO and ORPO trained on the DPO page's enumerable toy | | | | | | | | | | | | rejected: belongs to the DPO paper page (which rejected it for the same reason); idea 1 shows their mechanics |
+
+### Sampling and Decoding (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/sampling_and_decoding/src/viz_ideas.md`.
+
+| # | Idea | Param | Repro x2 | Computable x2 | Beyond a sentence | Misconception | Central | Absent elsewhere | Anim | Cost | Score | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| SD1 | Sampler pipeline animation, top-p against min-p on the same real Qwen distribution, T 1 / 1.5 / 2, uncertain or confident step | 2 | 1 (x2) | 2 (x2) | 2 | 2 ("top-p keeps a handful") | 2 | 2 | 1 | -1 | 16 | built, Reading |
+| SD2 | Sampler lab: 32 real distributions, temperature, top-k, top-p, min-p, typical, repetition / presence / frequency penalties, order switch, presets, draw 200 | 2 | 1 (x2) | 2 (x2) | 2 | 2 (order; penalties hurt correct repeats) | 2 | 2 | 0 | -2 | 14 | built, own tab |
+| SD3 | Twelve decoders on GPT-2 small: perplexity against diversity, repetition, sample reader, human reference | 2 | 2 (x2) | 2 (x2) | 2 | 2 (beam finds better text) | 2 | 2 | 0 | -2 | 16 | built, own tab |
+| SD4 | Beam search tree against greedy, real GPT-2 log-probabilities, plus 80-token runs | 1 | 1 (x2) | 2 (x2) | 2 | 2 | 1 | 2 | 1 | -1 | 13 | built, Reading |
+| SD5 | Constrained decoding: JSON grammar masking the vocabulary step by step, unconstrained against constrained, real Qwen steps | 1 | 1 (x2) | 2 (x2) | 2 | 2 (constraints are free) | 2 | 2 | 1 | -1 | 14 | built, Reading |
+| SD6 | Speculative decoding animation with acceptance rule and expected speed-up | 2 | 2 (x2) | 2 (x2) | 2 | 1 | 0 (owned by Topic: inference-and-serving) | 0 (G18, N3) | 1 | -1 | 9 | rejected: belongs to inference-and-serving and is built twice already; formula and links kept in text |
+| SD7 | Self-consistency / best-of-n curves | 2 | 2 | 2 | 2 | 1 | 0 | 0 (Topic: llms R3) | 0 | -1 | 7 | rejected: owned by Topic: llms Deeper: test-time compute |
+| SD8 | Mirostat, XTC, DRY, top-a in the lab | 1 | 0 | 1 | 1 | 0 | 1 | 2 | 0 | -2 | 4 | rejected: niche; mirostat and DRY need a generated sequence, not one distribution; kept as a table |
+| SD9 | Live model in the page | 2 | 2 | 0 | 2 | 1 | 2 | 2 | 0 | -3 | n/a | rejected: no network and a 0.5B model is far beyond the page size |
+| SD10 | Temperature-only slider on a toy distribution | 2 | 0 | 2 | 1 | 0 | 1 | 0 | 0 | 0 | 4 | rejected: subsumed by SD1 and SD2 on real data |
+| SD11 | XGrammar context-independent / dependent token split on our tokenizer | 1 | 1 | 1 | 1 | 0 | 1 | 2 | 0 | -2 | 5 | rejected: needs XGrammar's internals; the paper's figure (1,134 of 128k) quoted instead |
+
+### Positional Encodings (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/positional_encodings/src/viz_ideas.md`.
+
+| # | Idea | What it shows, what the reader does | Score | Placement | Data and formulas |
+|---|---|---|---|---|---|
+| PE1 | **What breaks past the trained length, before/after animation** | One real config (Llama 3.1, Qwen3, DeepSeek-V3 key, gpt-oss, Phi-3, Gemma 3 global) at 8 distances from L/4 to s·L; top panel plain RoPE, bottom the chosen extension (PI, NTK, dynamic NTK, YaRN, Llama 3, LongRoPE); 8 dials with the trained wedge and the current angle, a strip of all pairs, counters (unseen pairs, furthest beyond a wedge, fastest pair's speed, logit multiplier), caption per step | move 2 + reproduces 1×2 (Llama 3.1 band boundaries 2,048 / 8,192, YaRN ranges) + computable 2×2 + beyond a sentence 2 + corrects a misconception 2 (the old page's "high-frequency dims see unseen angles") + central 2 + absent 1 (RoFormer shows turns per pair, not angles against the trained wedge per method) + animation 2 − cost 2 = 17 | Reading, What breaks | configs in inputs/; ports of transformers' rope functions; unseen = (Δθ′ mod 2π) > Lθ for pairs with Lθ < 2π |
+| PE2 | **Six schemes on one query** | Positional part of the logit (or attention weights) against distance for sinusoidal, learned, T5 (real T5-base decoder biases), ALiBi, RoPE, NoPE; shift the pair, head, RoPE base, range | 2 + 1×2 (T5 bucket edges, ALiBi slopes) + 2×2 (T5 weights read from safetensors; formulas exact) + 2 + 1 (absolute schemes move under a shift) + 2 + 2 (no explainer puts all six on one query) + 0 − 1 = 14 | Reading, Six schemes | illustrative content vector (seeded, labelled); T5 bias tensor; finding: bucket 31 (offsets 113+) holds outlying values |
+| PE3 | **Stretch the spectrum** | θ/θ′ per pair against wavelength (or index) for PI, NTK, YaRN, Llama 3, LongRoPE long and short, on 7 configs, factor selectable, inspect a pair; the configs table with kept / blended / ×s counts, logit factor, s·L against max_position_embeddings | 2 + 2×2 (gpt-oss 9/9/14 = Gallery, independently; DeepSeek 163,840 and Phi-3 131,072 = configs; Qwen 131,072 = card by construction) + 2×2 + 2 + 1 + 2 + 1 (Gallery has YaRN only) + 0 − 1 = 15 | Own tab ("across all methods and configs") | same ports; temperatures (0.1 ln s + 1)², LongRoPE 1 + ln s / ln L |
+| PE4 | **Variants table with layer strips** | Partial, decoupled, multimodal RoPE and RoPE/NoPE interleaving, config fields verbatim, a strip of every layer drawn from no_rope_layers / sliding_window_pattern / layer_types | 0 + 1×2 + 2×2 + 1 + 1 (NoPE retrieval claim) + 1 + 2 + 0 − 0 = 11 | Reading, Variants | configs; HF Llama 4 config semantics (1 = uses RoPE) |
+| PE5 | Production recipes table | Pretraining length and base, long-context stage, positions, window for 7 models | 0 + 0 + 2×2 + 1 + 1 + 1 + 1 = 8 (a table, not a visual) | Reading, Recipes | papers, cards, blogs |
+
+### Parameter-Efficient Fine-Tuning (PEFT) (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/peft/src/viz_ideas.md`.
+
+| # | Idea | Q | R | C | S | M | P | N | A | Cost | Total | Placement | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **One real matrix, full fine-tuning against LoRA, animated**: SmolLM2-135M layer 14 q_proj; LoRA steps (frozen W0, B = 0 so ΔW = 0, α/r, trained ΔW as the best rank-r approximation of the real full fine-tune update, merge) against full fine-tuning steps (all entries trained, the real Instruct-minus-base update, its spectrum, ship a full copy); rank 1/4/16/64; counters (trainable, training state, rank, share held, bytes shipped, extra multiply-adds); cumulative-energy curve | 2 | 1 (x2: its share-held numbers are measured, not published; reproduces Biderman's qualitative "full fine-tuning is high rank") | 2 (x2) | 2 | 2 (a full fine-tune's update is not low-rank; that does not mean LoRA fails) | 2 | 2 (the LoRA page animates one token on a toy; nobody shows a real update) | 2 | -2 | 17 | Reading, LoRA | built |
+| 2 | **Trainable-parameter calculator** across 9 methods from real config.json shapes (Llama 3 8B, Qwen3-8B, Mistral 7B v0.3, Qwen3-30B-A3B, LLaMA 7B/13B, GPT-3, SmolLM2), rank, targets, bottleneck, tokens; per-matrix breakdown; PEFT-library column; 7 presets reproducing published counts | 2 | 2 (x2) | 2 (x2) | 1 | 2 (VeRA's Table 1 counts its frozen shared pair; "3M" is 2.62M) | 2 | 1 (LoRA page has GPT-3 only) | 0 | -1 | 17 | Own tab | built |
+| 3 | **Layer x matrix heatmap of the real update** (210 matrices: rank for 90%, relative size, share at rank 16), click for detail, medians table | 1 | 1 (x2: matches Biderman's "MLP higher rank than attention") | 2 (x2) | 2 | 1 | 1 | 2 | 0 | -1 | 13 | Reading, How low is a real update? | built |
+| 4 | **Learns less, forgets less**: Biderman Tables S1 to S8 as target skill against forgetting average, stepped checkpoint by checkpoint, four experiments, LoRA r 16/64/256 against full | 1 | 2 (x2: transcribed table values) | 2 (x2) | 2 | 1 (CPT against IFT) | 2 | 1 (the paper plots the same data separately per axis) | 1 | -1 | 15 | Reading, Against full fine-tuning | built |
+| 5 | **DoRA against LoRA, one 2-D column, animated** (chord path with the length dipping 13% against an arc at constant length with a separate m bar) | 1 | 0 | 1 | 2 | 1 | 1 | 1 | 2 | -1 | 8 | Reading, DoRA | built, labelled illustrative |
+| 6 | **Multi-adapter serving**: S-LoRA layout diagram plus Table 3 bars for S1, S2, S4 | 1 | 2 (x2: "up to 4x" = 3.9x and "30x" = 32x recomputed) | 2 (x2) | 1 | 1 | 1 | 2 | 0 | -1 | 12 | Reading, Serving | built |
+| 7 | DoRA's ΔM/ΔD scatter recomputed on the SmolLM2 update | | | | | | | | | | | | rejected: the paper's measure is across training checkpoints of one layer; with only the final checkpoint the across-layer correlation (q 0.43, v 0.90, positive) is a different quantity and would look like a contradiction it is not |
+| 8 | LoRA against adapter latency animation, GPT-3 parameter calculator alone, in-browser LoRA trainer | | | | | | | | | | | | rejected: owned by the LoRA paper page; linked |
+| 9 | Memory calculator (bytes per parameter, full against LoRA against QLoRA) | | | | | | | | | | | | rejected: owned by the parent's Machinery section; linked |
+| 10 | NF4 codebook explorer | | | | | | | | | | | | rejected: owned by the QLoRA paper page and Quantization and Precision |
+| 11 | LoRA Without Regret curves (loss against LR, rank) | | | | | | | | | | | | rejected: published only as images; their numbers (10x LR, 2/3 FLOPs, 320,000 bits against 3M) are recomputed in prose instead |
+| 12 | Training a real LoRA on SmolLM2 to compare with its full fine-tune | | | | | | | | | | | | rejected for now: would need the SFT and DPO data and hours of CPU; idea 1's best-rank-r bound plus the published studies answer the question honestly |
+
+### Pretraining (2026-10-03)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/pretraining/src/viz_ideas.md`.
+
+| # | Idea | Q1 | Q2x2 | Q3x2 | Q4 | Q5 | Q6 | Q7 | A | cost | Score | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **A run, stage by stage** (GPT-3 one pass, OLMo 2 7B cut cosine then Dolmino anneal, SmolLM3 WSD with three mixes): LR and mixture bands to scale on each run's own token axis, playhead with captions, counters (tokens, LR as % of peak, maths+code share, maths tokens seen), zoom on the last 5% | 1 | 4 | 4 | 2 | 1 | 2 | 1 | 1 | -2 | 14 | built, Reading (Data and curriculum) |
+| 2 | **What the anneal buys, split in two**: OLMo 2 Table 11 rows (4T checkpoint; 50B with LR to zero on the pretraining mix; 50B on the new mix), predict then reveal, binomial SE on GSM* | 1 | 4 | 4 | 2 | 2 | 2 | 2 | 0 | -1 | 16 | built, Reading |
+| 3 | **Toy anneal, trained**: a 0.8M-parameter character model, stage 1 at constant LR on 97% books and 3% two-digit sums, then four 1,200-step branches (LR flat or to zero) x (same mix or 25% sums), 3 seeds; loss per kind of token, sum accuracy, per-character loss heatmap, samples | 2 | 0 | 4 | 2 | 2 | 2 | 2 | 1 | -2 | 13 | built, own tab |
+| 4 | **Speedrun record history**: 92 records, time on a log axis, coloured by kind of change (this page's tagging), filter, replay, log-speedup share by kind | 2 | 4 | 4 | 1 | 1 | 1 | 2 | 1 | -1 | 15 | built, own tab (the root's PL-14 assigned it here) |
+| 5 | **One sentence, five objectives** (causal, masked, span corruption, UL2 mode token, FIM): what goes in, what must come out, which positions carry a loss; counters for input length, target length, supervised positions | 2 | 2 | 4 | 2 | 1 | 1 | 1 | 1 | -1 | 13 | built, Reading (Objective), compact; T5 and Seq vs Seq pages own the span and mask mechanics and are linked |
+| 6 | **Families against variants**: T5 Tables 4 to 7 GLUE as ranges, against the baseline's run-to-run SD | 0 | 4 | 4 | 1 | 1 | 1 | 0 | 0 | 0 | 11 | built, small inline chart |
+| 7 | Data pipeline funnel, Common Crawl to tokens (FineWeb, DCLM, FineWeb-Edu, Nemotron-CC retention) | 1 | 4 | 2 | 2 | 1 | 1 | 1 | 1 | -2 | 9 | rejected: belongs to Topic: data-curation-and-datasets (this page's own text says the dedup and filtering detail lives there); the GPT-3 page already animates one filtering pipeline |
+| 8 | LR schedules animated on one run (cosine, WSD, linear, anneal) | 2 | 0 | 2 | 1 | 0 | 1 | 0 | 1 | -1 | 6 | rejected: the Optimisers page owns the family, the WSM page draws the planning problem, OLMo 2 and Llama 3 pages draw their schedules. Idea 1 keeps only what is specific to pretraining: the schedule and the data switch on one axis |
+| 9 | AdamW against Muon on a toy problem | 2 | 0 | 2 | 1 | 0 | 0 | 0 | 1 | -1 | 5 | rejected: optimiser mechanics belong to the Optimisers page and the Kimi page (Newton-Schulz stepper). Muon's effect on a real benchmark is shown by idea 4 (records 3 and 4) |
+| 10 | Tokens per parameter across models | 1 | 4 | 4 | 1 | 1 | 1 | 0 | 0 | 0 | 12 | rejected: duplicate of GPT-3 page (P-gpt_3.11), Chinchilla page (P-chinchilla.10) and the root Scaling calculator; linked |
+| 11 | Toy trained live in the browser | 2 | 0 | 2 | 2 | 1 | 1 | 1 | 1 | -2 | 8 | rejected for the replay: a live run of 7,200 steps x 4 branches x 3 seeds takes minutes in JS and gives one noisy seed; the recorded run carries three seeds and the same curves |
+| 12 | Batch-size ramp chart | 1 | 2 | 4 | 0 | 0 | 0 | 0 | 0 | -1 | 6 | rejected: the Llama 3 page draws the 405B batch ramp; text carries GPT-3, Llama 3 and speedrun record 46 |

@@ -1,0 +1,73 @@
+== Format constants from bit layouts (sign / exponent / mantissa, IEEE-style bias 2^(e-1)-1)
+fp32      bias 127  max 3.40282e+38  min normal 1.175e-38  min subnormal 1.401e-45  eps(1) 1.192e-07 range 277.0 binades
+tf32      bias 127  max 3.40116e+38  min normal 1.175e-38  min subnormal 1.148e-41  eps(1) 0.0009766 range 264.0 binades
+bf16      bias 127  max 3.38953e+38  min normal 1.175e-38  min subnormal 9.184e-41  eps(1) 0.007812  range 261.0 binades
+fp16      bias  15  max 65504        min normal 6.104e-05  min subnormal 5.96e-08   eps(1) 0.0009766 range 40.0 binades
+fp8 E5M2  bias  15  max 57344        min normal 6.104e-05  min subnormal 1.526e-05  eps(1) 0.25      range 31.8 binades
+fp8 E4M3  bias   7  max 448          min normal 0.01562    min subnormal 0.001953   eps(1) 0.125     range 17.8 binades
+fp4 E2M1  bias   1  max 6            min normal 1          min subnormal 0.5        eps(1) 0.5       range 3.6 binades
+E8M0 scale: 2^-127 .. 2^127, 255 values + NaN, no zero
+INT8 symmetric: 255 levels (-127..127), INT4 symmetric 15 levels (-7..7), asymmetric 16 levels
+
+== Bits per weight of block formats (bytes from the ggml-common.h static_asserts, and the format definitions)
+Q4_0           18 bytes /  32 weights = 4.5000 bpw
+Q4_1           20 bytes /  32 weights = 5.0000 bpw
+Q5_0           22 bytes /  32 weights = 5.5000 bpw
+Q5_1           24 bytes /  32 weights = 6.0000 bpw
+Q8_0           34 bytes /  32 weights = 8.5000 bpw
+Q2_K           84 bytes / 256 weights = 2.6250 bpw
+Q3_K          110 bytes / 256 weights = 3.4375 bpw
+Q4_K          144 bytes / 256 weights = 4.5000 bpw
+Q5_K          176 bytes / 256 weights = 5.5000 bpw
+Q6_K          210 bytes / 256 weights = 6.5625 bpw
+IQ2_XXS        66 bytes / 256 weights = 2.0625 bpw
+IQ2_XS         74 bytes / 256 weights = 2.3125 bpw
+IQ2_S          82 bytes / 256 weights = 2.5625 bpw
+IQ3_XXS        98 bytes / 256 weights = 3.0625 bpw
+IQ3_S         110 bytes / 256 weights = 3.4375 bpw
+IQ4_NL         18 bytes /  32 weights = 4.5000 bpw
+IQ4_XS        136 bytes / 256 weights = 4.2500 bpw
+MXFP4 (ggml)   17 bytes /  32 weights = 4.2500 bpw
+TQ1_0          54 bytes / 256 weights = 1.6875 bpw
+TQ2_0          66 bytes / 256 weights = 2.0625 bpw
+MXFP4 (OCP): 4 + 8/32 = 4.2500  MXFP8: 8 + 8/32 = 8.2500
+NVFP4: 4 + 8/16 = 4.5000 (+ one fp32 per tensor)
+NF4 blocks of 64 with fp32 absmax: 4 + 32/64 = 4.500; with double quant (8-bit absmax, fp32 per 256 blocks): 4 + 8/64 + 32/(64*256) = 4.1270
+INT4 g128 with fp16 scale and fp16 zero: 4 + 32/128 = 4.250; g32 fp16 scale (Q4_0) 4 + 16/32 = 4.500
+
+== llama.cpp use_more_bits: fraction of layers promoted to Q6_K in Q4_K_M
+   28 layers: 14 promoted (50.0%)
+   32 layers: 16 promoted (50.0%)
+   80 layers: 40 promoted (50.0%)
+  126 layers: 62 promoted (49.2%)
+
+== Effective bpw (README, Llama-3.1-8B) and GB per billion parameters
+  Q4_K_M   4.8944 bpw = 0.612 GB per billion parameters
+  Q8_0     8.5008 bpw = 1.063 GB per billion parameters
+  Q2_K     3.1593 bpw = 0.395 GB per billion parameters
+  IQ2_XXS  2.3824 bpw = 0.298 GB per billion parameters
+  README Llama 3.1 Q4_K_M sizes: 8B 4.9 GB, 70B 43.1 GB, 405B 249.1 GB -> per B: 0.610 0.610 0.614 (params 8.03, 70.6, 405.9)
+  gap block -> file, Q4_K_M: 4.8944 - 4.5 = 0.394 bpw; Q2_K: 3.1593 - 2.625 = 0.534
+
+== Perplexity deltas: LLaMA-1-7B (llama.cpp, July 2023) against Llama-3-8B (current quantize.cpp)
+  Q2_K    +0.8698  +3.5199  ratio 4.0x
+  Q3_K_M  +0.2437  +0.6569  ratio 2.7x
+  Q4_0    +0.2499  +0.4685  ratio 1.9x
+  Q4_K_S  +0.1149  +0.2689  ratio 2.3x
+  Q4_K_M  +0.0535  +0.1754  ratio 3.3x
+  Q5_K_M  +0.0142  +0.0569  ratio 4.0x
+  Q6_K    +0.0044  +0.0217  ratio 4.9x
+  Q8_0    +0.0004  +0.0026  ratio 6.5x
+  Q4_0 / Q4_K_S: 7B 2.17x, Llama-3-8B 1.74x
+
+== Ternary
+  log2(3) = 1.5850; five trits per byte: 8/5 = 1.600; with power-of-two groups (TQ1_0): 54*8/256 = 1.6875
+  BITCOS 2 - z at z = 0.515: 1.485; equals 1.625 at z = 0.375; equals log2 3 at z = 0.415
+  Bonsai 2 27B: 27e9 * 1.76 / 8 = 5.94 GB; 16 / 1.76 = 9.09x; 83.9 / 85.4 = 0.982
+
+== Training memory (bytes per parameter, Adam, mixed precision)
+  bf16 weights 2 + bf16 grads 2 + fp32 master 4 + fp32 m 4 + fp32 v 4 = 16
+== Mixed precision: fp16 underflow threshold 2^-24 = 5.96e-08; loss scale 8 shifts exponents by 3 (2^-27 -> 2^-24)
+== NVFP4 pretraining: MXFP4 tokens to match: 1.36T / 1T = +36%
+== torchtitan Float8 (Llama 3.1 8B, 8 H100): 9409 / 6674 = 1.410 (compile alone baseline); 9409 / 6258 = 1.5035 (vs eager FSDP)
+== NVFP4 size: 16 / 4.5 = 3.56x smaller than FP16; 8.0 / 4.5 = 1.78x smaller than FP8

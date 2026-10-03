@@ -1,0 +1,34 @@
+<div class="tab" id="t-read" role="tabpanel">
+<p class="lead">A language model does not write text. At each step it outputs one number per vocabulary entry, and a separate rule, the <b>decoder</b>, turns those numbers into the next token. The same model gives repetitive, bland, creative or broken text depending on that rule alone. This page is about the rule: searching for the most probable text, sampling from a reshaped distribution, forcing a format, and the inference techniques built on sampling.</p>
+<p class="small mute">Where this sits: the last stage of the lifecycle on {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (the parent compares the training stages; this page owns the inference end). Numbers are published, with the source linked, unless marked <i class="nl d">derived</i> (formula shown), <i class="nl m">measured here</i> (computed offline on a small open model, script in the page source), <i class="nl i">illustrative</i> or <i class="nl u">unconfirmed</i>.</p>
+
+<h2 id="rd-logits">From logits to a token</h2>
+<p>One forward pass ends in a vector of <b>logits</b> <i>z</i>, one per vocabulary entry: 151,936 for {{Qwen2.5-0.5B-Instruct|https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct}}, the small open model whose real distributions fill the animations below, and 50,257 for {{GPT-2|https://huggingface.co/openai-community/gpt2}}. The softmax turns them into probabilities, with a temperature <i>T</i> that rescales the logits first:</p>
+<div class="fm"><div class="eq">p<sub>i</sub> = exp(z<sub>i</sub> / T) / &Sigma;<sub>j</sub> exp(z<sub>j</sub> / T)</div>
+<dl><dt>z<sub>i</sub></dt><dd>logit of token i (only differences between logits matter)</dd><dt>T</dt><dd>temperature: T = 1 is the model's own distribution, T &lt; 1 sharpens it, T &gt; 1 flattens it towards uniform, T &rarr; 0 puts all the mass on the top token</dd></dl></div>
+<p>A decoder then picks a token, appends it, and runs the model again. Decoders fall into two families. <b>Search</b> is deterministic and tries to find a high-probability sequence (greedy, beam search). <b>Sampling</b> draws at random from a reshaped distribution (temperature, then truncation by top-k, top-p, min-p and others). A third layer, <b>constraints</b>, removes tokens that would break a required format before either family chooses.</p>
+
+<h2 id="rd-search">Deterministic search: greedy and beam</h2>
+<ul>
+<li><b>Greedy decoding</b> takes the argmax token at every step. It is locally optimal and globally poor for open-ended text: repetitive and dull. It is still fine for short factual answers, and it is effectively what temperature 0 means.</li>
+<li><b>Beam search</b> keeps the <i>B</i> highest-probability partial sequences at every step: each is extended by its best next tokens, all candidates are scored by their total log-probability, and only the top <i>B</i> survive. It is the standard for machine translation and summarisation, where outputs are short and closed-ended. For open-ended generation it produces degenerate, repetitive, low-diversity text, because high probability is not the same as human-like ({{Holtzman et al., 2019|https://arxiv.org/abs/1904.09751}}), and chat LLMs essentially do not use it.</li>
+</ul>
+<p>The animation runs both on the same real input: GPT-2 small continuing a sentence from Jerome K. Jerome's <i>{{Three Men in a Boat|https://www.gutenberg.org/ebooks/308}}</i> (1889). Every score is the model's own log-probability.</p>
+<div class="card" id="rd-bm">
+<div class="seg" id="rd-bmM" role="group" aria-label="Decoder"><button data-m="greedy" class="on">Before: greedy</button><button data-m="beam">After: beam search, B = 3</button></div>
+<div class="ctxt" id="rd-bmCtx"></div>
+<div class="bm" id="rd-bmL"></div>
+<div class="tw"><table class="cand" id="rd-bmT"></table></div>
+<div class="an-ctl" id="rd-bmC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rd-bmTt"></div><p id="rd-bmP"></p></div>
+<div class="an-cnt" id="rd-bmN"></div>
+</div>
+<p class="try"><b>Try:</b> step to 4 in beam mode. Greedy's choice "was very" is still among the candidates but scores below three other branches, so beam search drops it; greedy can never revisit a choice. After six tokens the best beam is 6.7 times more probable than greedy's text <i class="nl m">measured here</i> (exp(&minus;7.54 + 9.44); script <code>recompute.py</code>).</p>
+<p>Finding the more probable text does not make it better. Run both for 80 tokens on the same prompt <i class="nl m">measured here</i>:</p>
+<div class="grid">
+<div class="sp"><div class="n">Greedy, 80 tokens</div><p class="mono" id="rd-bmG"></p></div>
+<div class="sp"><div class="n">Beam search, 4 beams, 80 tokens</div><p class="mono" id="rd-bmB"></p></div>
+<div class="sp"><div class="n">Sampled, T = 1, top-p 0.95</div><p class="mono" id="rd-bmS"></p></div>
+</div>
+<p>Both searches fall into a loop the model rates as highly probable; the sample wanders but does not repeat. This is the paradox Holtzman et al. named: "using likelihood as a decoding objective leads to text that is bland and strangely repetitive", and the per-token probability of natural text is "on average, much lower than text generated by beam search" (§4.3). On 5,000 WebText continuations with GPT-2 Large (762M) they measured perplexity 12.38 for human text against 1.50 for greedy and 1.48 for beam search with 16 beams, and 73.66% of greedy texts repeating (Table 1, {{paper|https://arxiv.org/abs/1904.09751}}). The {{Twelve decoders|#t-deg}} tab reruns that comparison on GPT-2 small.</p>
+<div class="co corr"><div class="t">Correction: temperature 0 is greedy, but greedy is not reproducible on a server</div>Greedy is deterministic for a fixed computation. A served model is not a fixed computation: the batch it shares with other requests changes the kernels' reduction order. Thinking Machines sent the same prompt 1,000 times to Qwen3-235B at temperature 0 and got 80 different completions, diverging at token 103; batch-invariant kernels made all 1,000 identical ({{He, September 2025|https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/}}). Anthropic's migration guide says the same of its API: "temperature = 0 ... never guaranteed identical outputs" ({{Opus 5.5 migration guide|https://platform.claude.com/docs/en/models/opus-5-5/migration-guide}}).</div>

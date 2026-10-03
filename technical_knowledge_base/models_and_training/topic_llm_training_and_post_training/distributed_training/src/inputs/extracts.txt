@@ -1,0 +1,69 @@
+Extracts fetched 2026-10-03 for the Distributed Training page. Each block: source URL, then verbatim lines.
+
+== https://nanotron-ultrascale-playbook.static.hf.space/index.html (Ultra-Scale Playbook)
+We ran over 4,100 distributed experiments (over 16k including test runs) with up to 512 GPUs to scan many possible distributed training layouts and model sizes. --> As you can see, there’s a lot of ground to be covered. Before getting into the trenches of distributed training, let’s take a quick high-level look at the challenges we'll cover in the book. High-Level Overview All the techniques we'll cover in this book tackle one or several of the following three key challenges, which we'll bump into repeatedly: Memory usage: This is a hard limitation - if a training step doesn't fit in memory, training cannot proceed. Compute efficiency: We want our hardware to spend most time computing, so we need to reduce time spent on data transfers or waiting for other GPUs to perform work. Communication overhead: We want to minimize communication overhead, as it keeps GPUs idle. To achieve this, we will try to make the best use of intra-node (fast) and inter-node (slower) bandwidths and to overlap communication with compute as much as possible. In many places, we'll see that we can trade one of t
+
+Step 1: Fitting a training step in memory First, we need to figure out how we can fit a full model instance on our GPUs. There are two general cases: 1. GPU-rich case 🤑 - when you have plenty of GPUs available: For models under 10B parameters, you can use a single parallelism technique, e.g. tensor parallelism or ZeRO-3/DP with full recompute across 8 GPUs. For models between 10B-100B parameters requiring more than 8 GPUs, you have several options: Combining tensor parallelism (TP=8) with pipeline parallelism Combining tensor parallelism (TP=8) with data parallelism (ZeRO-3) Using only ZeRO-3 (i.e., pure data parallelism) At 512+ GPU scale, pure data parallelism/ZeRO-3 will start to becomes inefficient due to communication cost - it can be better to then combine DP with either tensor or pipeline parallelism. At 1024+ GPU scale, a recommended setup may be tensor parallelism (TP=8) with data parallelism (ZeRO-2) and pipeline parallelism. We focus on fitting a single instance for now - even though we may use DP for ZeRO to achieve this goal - we're only interested here in the model para
+
+typically sees around 43% performance degradation in similar cross-node scenarios. This type of behavior when hitting the lower-bandwidth inter-node network makes pipeline parallelism particularly attractive for distributed training across multiple nodes. While 1F1B significantly reduces our activation memory footprint, we see in this last graph that the pipeline bubble remains a major efficiency bottleneck. With the bubble size still proportional to the number of pipeline stages, we're leaving valuable GPU compute idle. Can we design an even smarter schedule to minimize this wasted computation time? Interleaving stages The 1F1B schedule let us improve memory usage but didn't have much effect on the size of the idle bubble. Is there any way we can push this frontier? It turns out this is possible if we are willing to bring in a few additional communication operations. Time to talk about interleaved stages ! Up to now, we’ve sliced our model naively along the model depth dimensions, hosting for instance layers 1-4 on the first GPU and layers 5-8 on the second GPU. But there are other 
+
+If you count carefully, you'll see that the bubble still has the same size, so our training efficiency is not significantly improved. However, we only need to store activations for p micro-batches (where p is the degree of pipeline parallelism) instead of m (where m is the number of micro-batches), which can reduce the activation memory explosion we had in the AFAB schedule. As a consequence, we can add more micro-batches, which then will actually reduce the bubble. A major complexity of this setup, visible in the above figure, is how forward and backward passes are not cleanly sequential anymore but rather are performed in parallel across devices and interleaved. This means we will have to schedule a switch from forward to backward passes independently on each device instead of in a simple and common central training loop as usual. This is one of the reasons implementing pipeline parallelism usually requires rather extensive modifications to training code as well as modeling code. You can find a full implementation of 1F1B in Picotron as well: 👉 1F1B PP implementation in Picotron (c
+
+
+
+
+
+== https://github.com/pytorch/pytorch/blob/main/torch/nn/parallel/distributed.py (DDP docstring)
+        bucket_cap_mb: ``DistributedDataParallel`` will bucket parameters into
+                       multiple buckets so that gradient reduction of each
+                       bucket can potentially overlap with backward computation.
+                       :attr:`bucket_cap_mb` controls the bucket size in
+                       MebiBytes (MiB). If ``None``, a default size of 25 MiB
+                       will be used. (default: ``None``)
+
+== https://github.com/pytorch/torchtitan (README, key features)
+
+1. Multi-dimensional composable parallelisms
+   - [FSDP2](docs/fsdp.md) with per-parameter sharding
+   - [Tensor Parallel](https://pytorch.org/docs/stable/distributed.tensor.parallel.html) (including [async TP](https://discuss.pytorch.org/t/distributed-w-torchtitan-introducing-async-tensor-parallelism-in-pytorch/209487))
+   - [Pipeline Parallel](https://discuss.pytorch.org/t/distributed-w-torchtitan-training-with-zero-bubble-pipeline-parallelism/214420)
+   - [Context Parallel](https://discuss.pytorch.org/t/distributed-w-torchtitan-breaking-barriers-training-long-context-llms-with-1m-sequence-length-in-pytorch-using-context-parallel/215082)
+2. [Meta device](https://pytorch.org/docs/stable/meta.html) initialization
+3. Per-op selective and full activation checkpointing
+4. [Distributed checkpointing](https://discuss.pytorch.org/t/distributed-w-torchtitan-optimizing-checkpointing-efficiency-with-pytorch-dcp/211250) (including async checkpointing)
+   - [Interoperable checkpoints](docs/checkpoint.md) which can be loaded directly into [`torchtune`](https://github.com/pytorch/torchtune) for fine-tuning
+5. `torch.compile` support
+6. [Low-precision training](torchtitan/quantization/README.md) with [MXFP8](torchtitan/quantization/mxfp8/README.md) and [NVFP4](torchtitan/quantization/nvfp4/README.md)
+7. Supervised Fine-Tuning (SFT) with chat-formatted datasets
+8. DDP and HSDP
+9. [TorchFT](https://github.com/pytorch/torchft) integration
+10. Checkpointable data-loading, with the C4 dataset pre-configured (144M entries) and support for [custom datasets](torchtitan/components/data/README.md)
+11. Gradient accumulation, derived from `training.num_tokens_per_train_step` in the selected recipe
+12. Flexible learning rate scheduler (warmup-stable-decay)
+== https://arxiv.org/html/2410.06511v3 (torchtitan paper, via WebFetch)
+"FSDP2 advances the tensor sharding approach by replacing the original FSDP1 FlatParameter sharding. Specifically, parameters are now represented as DTensors sharded on the tensor dimension 0."
+"FSDP2 records an average of 7% lower GPU memory versus FSDP1" ... "FSDP2 shows an average gain of 1.5% faster throughput."
+"HSDP obviates this to some degree by creating a 2-D DeviceMesh that contains replica groups on one dimension and shard groups on the other dimension."
+"accelerations ranging from 65.08% on Llama 3.1 8B at 128 GPU scale (1D), 12.59% on Llama 3.1 70B at 256 GPU scale (2D), to 30% on Llama 3.1 405B at 512 GPU scale (3D)"
+
+== https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md (bus bandwidth factors, via WebFetch)
+AllReduce 2*(n-1)/n; ReduceScatter and AllGather (n-1)/n; Broadcast and Reduce 1; AlltoAll (n-1)/n.
+
+== https://arxiv.org/html/2104.04473 (Narayanan et al. 2021, via WebFetch)
+GPipe bubble time fraction (p-1)/m; 1F1B (PipeDream-Flush) same bubble, in-flight micro-batches limited to the pipeline depth p; interleaved (p-1)/(v*m), "the amount of communication also increases by v"; 502 petaFLOP/s on 3072 GPUs, 52% of peak, 1 trillion parameters; TP "up to degree g when using g-GPU servers".
+
+== https://arxiv.org/html/2401.10241 (Zero Bubble PP, via WebFetch)
+ZB-H1 bubble (p-1)(TF+TB-TW), peak memory p M_B as 1F1B, "the bubble size is reduced to a third of 1F1B's size"; ZB-H2 (2p-1) M_B; up to 23% over 1F1B at similar memory, 31% relaxed.
+
+== https://arxiv.org/html/2205.05198 (Korthikanti et al. 2022, via WebFetch)
+Activations per layer sbh(34 + 5as/h); with TP + SP sbh/t (34 + 5as/h); with selective recomputation 34 sbh / t. Full recomputation 30-40% overhead (36% measured); selective 2.7% (GPT-3) and 1.6% (MT-NLG) FLOPs overhead; 5x less activation memory, over 90% less recompute overhead; 530B at 54.2% MFU on 2240 A100s against 42.1%.
+SP replaces all-reduce by reduce-scatter + all-gather at the same volume.
+
+== https://arxiv.org/abs/2309.14509 (DeepSpeed Ulysses, via WebFetch)
+all-to-all for attention; constant communication volume when sequence length and devices grow proportionally; 2.5x faster with 4x longer sequences than the SOTA baseline.
+
+== https://www.nvidia.com/en-us/data-center/h100/ (H100 SXM)
+NVLink 900GB/s; 80GB; 3.35TB/s; BF16 1,979 teraFLOPS with sparsity (989.5 dense).
+
+== https://megacpp.com/blog/framework-survey-fsdp-vs-megatron-vs-deepspeed/ (David Gornshtein, 18 April 2026, via WebFetch)
+Megatron-Core "the ceiling for NVIDIA training"; DeepSpeed "does not decisively win either axis", pragmatic for ZeRO-Infinity offload; "use torchtitan as a pattern source, not as a dependency"; FSDP2 for PyTorch-native control, single-node dense or small MoE.

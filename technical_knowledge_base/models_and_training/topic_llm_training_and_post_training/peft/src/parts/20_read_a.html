@@ -1,0 +1,44 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" aria-label="Sections"><a href="#s-why">Why PEFT</a><a href="#s-fam">The methods</a><a href="#s-lora">LoRA on a real matrix</a><a href="#s-rank">How low is a real update?</a><a href="#s-where">Which matrices</a><a href="#s-regret">Against full fine-tuning</a><a href="#s-qlora">QLoRA</a><a href="#s-dora">DoRA</a><a href="#s-serve">Serving many adapters</a><a href="#s-choose">Choosing</a><a href="#s-mist">Common mistakes</a></nav>
+
+<section id="s-why">
+<h2>Why PEFT</h2>
+<p class="lead">Parameter-efficient fine-tuning freezes the pretrained model and trains a small set of numbers, usually new ones added beside it. The frozen base is shared; what a task learns lives in the small set.</p>
+<p>Three things follow, and they are the reasons to use it:</p>
+<ul>
+<li><b>Memory.</b> Training with Adam in mixed precision holds about 16 bytes per trained parameter: the bf16 weight and gradient (2 + 2) and fp32 master weight and two moments (12) ({{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}). A frozen weight needs no gradient and no optimizer state, only its own 2 bytes. Biderman et al. put the model and optimizer state of a 7B model at 112 GB with Adam and 15.12 GB with Adam plus LoRA, before activations ({{Table S14|https://arxiv.org/html/2405.09673v2#A8.T14}}); <i class="nl d">derived</i> 112 = 16 × 7 and 15.12 = 2 × 7 + 16 × 0.07, so their row assumes adapters of about 1% of the model. The parent page's {{bytes-per-parameter calculator|n:3c65c17b0d0d81b6876ee72b7056793b}} (Machinery section) compares full fine-tuning, LoRA and QLoRA for any model size; this page does not repeat it.</li>
+<li><b>Cheap per-task copies.</b> A full fine-tune of GPT-3 175B is a 350 GB checkpoint; its LoRA adapter (rank 4 on the query and value matrices) is about 35 MB ({{LoRA §4.2|n:3c65c17b0d0d81018f15edd19fa5c28a}}). Adapters can be swapped in seconds, or many can be served at once against one base (see {{Serving many adapters|#s-serve}} below; vLLM calls this multi-LoRA).</li>
+<li><b>Less forgetting.</b> The base weights never move, and a low-rank change can only move the model so far. Biderman et al. measured it: LoRA "learns less and forgets less" than full fine-tuning (chart in {{Against full fine-tuning|#s-regret}}).</li>
+</ul>
+<p>The price is capacity: a small set of numbers can store only so much. For the instruction and preference data of ordinary post-training that is rarely binding; for billions of tokens of new domain text it is (the same section).</p>
+</section>
+
+<section id="s-fam">
+<h2>The methods, and what each one trains</h2>
+<p>Every method answers one question differently: <b>which numbers are trained, and where do they touch the frozen network?</b> Parameter counts in the table are for Llama 3 8B (8.03B parameters) from its {{config.json|https://huggingface.co/NousResearch/Meta-Llama-3-8B/blob/main/config.json}}, computed by the page's formulas and identical to the counts the {{PEFT library|https://huggingface.co/docs/peft}} itself reports (the {{Trainable parameters|#t-count}} tab recomputes them for any model, rank and target set).</p>
+<div class="tw"><table class="fam">
+<thead><tr><th>Method</th><th>What is trained</th><th>Where it touches the model</th><th class="num">Trainable on Llama 3 8B</th><th>Extra cost when serving</th></tr></thead>
+<tbody>
+<tr><td>Full fine-tuning</td><td>Every weight</td><td>Everywhere</td><td class="num">8.03B (100%)</td><td>None, but one full copy per task</td></tr>
+<tr><td>Head only</td><td>A new output layer</td><td>On top of the frozen backbone</td><td class="num">task-sized</td><td>None</td></tr>
+<tr><td>Adapters (Houlsby 2019)</td><td>Two small bottleneck MLPs per block (down to <i>m</i>, up to <i>d</i>)</td><td>In series, after attention and after the MLP</td><td class="num">33.8M at <i>m</i> = 64</td><td>Extra sequential layers on every token</td></tr>
+<tr><td>Prompt tuning</td><td><i>n</i> "virtual token" embeddings</td><td>Prepended to the input</td><td class="num">81,920 at <i>n</i> = 20</td><td><i>n</i> more tokens of context</td></tr>
+<tr><td>Prefix tuning, P-tuning v2</td><td><i>n</i> keys and values per layer</td><td>Prepended to every layer's attention</td><td class="num">1.31M at <i>n</i> = 20</td><td><i>n</i> more cached positions</td></tr>
+<tr><td>(IA)³</td><td>One scaling vector each for keys, values and the MLP hidden units</td><td>Multiplies activations elementwise</td><td class="num">0.52M</td><td>None once folded into the weights</td></tr>
+<tr><td><b>LoRA</b></td><td>Two thin matrices <i>B</i>, <i>A</i> per adapted matrix: Δ<i>W</i> = (α/<i>r</i>) <i>BA</i></td><td>In parallel with each frozen matrix</td><td class="num">41.9M at <i>r</i> = 16, all 7 matrices</td><td>None once merged</td></tr>
+<tr><td>LoRA-FA</td><td>LoRA with <i>A</i> frozen at its random start; only <i>B</i> trains</td><td>As LoRA</td><td class="num">22.0M at <i>r</i> = 16, all</td><td>None once merged</td></tr>
+<tr><td>VeRA</td><td>Two scaling vectors per matrix; one random <i>B</i>, <i>A</i> pair shared by all layers and frozen</td><td>As LoRA</td><td class="num">1.61M at <i>r</i> = 1,024, all 7</td><td>None once merged</td></tr>
+<tr><td><b>QLoRA</b></td><td>LoRA, on a base stored in 4-bit NF4</td><td>As LoRA</td><td class="num">as LoRA</td><td>Merge needs care (see {{QLoRA|#s-qlora}})</td></tr>
+<tr><td><b>DoRA</b></td><td>LoRA for each weight's direction plus one magnitude per output unit</td><td>As LoRA, then renormalised</td><td class="num">43.3M at <i>r</i> = 16, all</td><td>None once merged</td></tr>
+</tbody></table></div>
+<p class="small mute">Settings: (IA)³ scales keys, values and the input of the MLP's down projection, as the PEFT library does for Llama; VeRA's rank 1,024 on every linear layer is the VeRA paper's instruction-tuning setup ({{VeRA §4.3|https://arxiv.org/html/2310.11454v2}}). Adapter count from the LoRA paper's formula 2<i>L</i>(2<i>dm</i> + <i>m</i> + <i>d</i>) ({{LoRA §5.1|n:3c65c17b0d0d81018f15edd19fa5c28a}}).</p>
+<p>The families in brief, oldest first:</p>
+<ol>
+<li><b>Head-only tuning</b>: freeze the backbone, train a task head. The classic transfer-learning baseline; too weak to change how a generative model behaves, because nothing inside the network moves.</li>
+<li><b>Adapters</b> ({{Houlsby et al. 2019|https://arxiv.org/abs/1902.00751}}): small bottleneck MLPs inserted into each block. On GLUE they came within 0.4% of full fine-tuning while adding 3.6% parameters per task. Their cost is latency: the adapter sits in series, so every token runs extra sequential layers, which the LoRA paper measured as a single forward pass of GPT-2 medium 20.7% to 30.3% slower at batch size 1 and 128 tokens, shrinking to 2.2% to 3.0% at batch 32 and 512 tokens ({{LoRA Table 1|n:3c65c17b0d0d81018f15edd19fa5c28a}}). LoRA, which merges away, superseded them.</li>
+<li><b>Soft prompts</b>: learn embeddings instead of words. <b>Prompt tuning</b> ({{Lester et al. 2021|https://arxiv.org/abs/2104.08691}}) prepends them to the input only, and "closes the gap" with full tuning only as T5 models exceed billions of parameters. <b>Prefix tuning</b> ({{Li and Liang 2021|https://arxiv.org/abs/2101.00190}}) prepends keys and values at every layer, about 0.1% of the parameters; <b>P-tuning v2</b> ({{Liu et al. 2021|https://arxiv.org/abs/2110.07602}}) made deep prompts match fine-tuning on understanding tasks with 0.1% to 3% of the parameters. No architecture change and tiny counts, but they spend context positions, train less stably and are weaker than LoRA; niche today. On LLaMA-7B commonsense reasoning, prefix tuning averaged 64.6 against LoRA's 74.7 ({{DoRA Table 1|https://arxiv.org/html/2402.09353v6}}, baselines from LLM-Adapters).</li>
+<li><b>(IA)³</b> ({{Liu et al. 2022|https://arxiv.org/abs/2205.05638}}): rescale activations with learned vectors; among the fewest parameters of any method here (fewer than LoRA by about 80 times on Llama 3 8B), built for few-shot fine-tuning of T0 (the T-Few recipe).</li>
+<li><b>LoRA</b> ({{Hu et al. 2021|n:3c65c17b0d0d81018f15edd19fa5c28a}}): learn the <i>change</i> to a frozen matrix as a product of two thin matrices. The default today; the next three sections are about it.</li>
+<li><b>LoRA's descendants</b> each change one thing. <b>QLoRA</b> stores the base in 4 bits; <b>DoRA</b> separates magnitude from direction; <b>LoRA-FA</b> ({{Zhang et al.|https://arxiv.org/abs/2308.03303}}) freezes <i>A</i>, arguing the update collapses to a regression on <i>B</i>, which saves activation memory; <b>VeRA</b> ({{Kopiczko et al.|https://arxiv.org/abs/2310.11454}}) shares one frozen random pair across all layers and trains only scaling vectors, for storage-bound settings with many adapters; <b>rsLoRA</b> and <b>LoRA+</b> change only the scale and the learning rates (next section).</li>
+</ol>
+</section>

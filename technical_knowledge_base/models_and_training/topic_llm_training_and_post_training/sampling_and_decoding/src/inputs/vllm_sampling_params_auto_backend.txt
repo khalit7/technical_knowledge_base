@@ -1,0 +1,41 @@
+            # lm format enforcer backend
+            if is_mistral_tokenizer(tokenizer):
+                raise VLLMValidationError(
+                    "Mistral tokenizer is not supported for the 'lm-format-enforcer' "
+                    "structured output backend. Please use ['xgrammar', 'outlines'] "
+                    "backends or tokenizer_mode='hf' instead."
+                )
+            validate_structured_output_request_lm_format_enforcer(self)
+        elif (
+            backend == "auto"
+            and is_mistral_tokenizer(tokenizer)
+            and tokenizer.is_tekken
+            and self.structured_outputs.grammar
+            and grammar_is_likely_lark(self.structured_outputs.grammar)
+        ):
+            # Lark grammars for Tekken Mistral tokenizers, including the ones
+            # the Mistral tool parser generates, go to guidance. llguidance
+            # takes the tokenizer from mistral-common and never lets a regex
+            # match a special token. The xgrammar backend declares no special
+            # tokens for Mistral tokenizers, so a regex like `.` can match
+            # `[TOOL_CALLS]` or `[INST]` as plain text.
+            validate_guidance_grammar(self, tokenizer=_get_llg_tokenizer(tokenizer))
+            self.structured_outputs._backend = "guidance"
+            self.structured_outputs._backend_was_auto = True
+        else:
+            # NOTE: backend must be "auto" here, because we have
+            # checked supported_backends above.
+            # In this mode, we set opinionated defaults based on what we think
+            # will satisfy the most use cases without having to worry about
+            # this setting. We include fallback behavior here, but not with any
+            # other setting where a specific backend was specified.
+            try:
+                validate_xgrammar_grammar(self)
+                self.structured_outputs._backend = "xgrammar"
+            except VLLMValidationError:
+                # The request either failed validation
+                # or includes some jsonschema feature(s) that
+                # are not supported in xgrammar.
+
+                skip_guidance = _is_non_tekken_mistral(tokenizer)
+

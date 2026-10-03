@@ -1,0 +1,62 @@
+<div class="tab" id="t-calc" role="tabpanel" hidden>
+<style>
+#t-calc .lc-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px 12px;margin:8px 0}
+#t-calc .lc-ctl label{font-size:13px;display:block;min-width:0}#t-calc .lc-ctl select,#t-calc .lc-ctl input[type=number]{width:100%}
+#t-calc .lc-bar{display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--soft);position:relative;margin:4px 0 2px}
+#t-calc .lc-bar span{display:block;height:100%}
+#t-calc .lc-line{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--bad)}
+#t-calc .lc-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute)}
+#t-calc .lc-leg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-calc .crow{display:grid;grid-template-columns:minmax(0,7.5em) minmax(0,1fr) minmax(0,8.5em);gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+#t-calc .crow .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+#t-calc .crow .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+#t-calc .crow .val{text-align:right;font-variant-numeric:tabular-nums;line-height:1.2}
+#t-calc .warn{color:var(--bad);font-size:13px}
+#t-calc .repro{border-left:3px solid var(--good);background:var(--soft);padding:8px 12px;border-radius:0 6px 6px 0;font-size:13px;margin:10px 0}
+#t-calc .nl{display:inline-block;font-style:normal;font-size:10.5px;line-height:1.35;font-weight:600;border-radius:4px;padding:0 4px;margin:0 2px;border:1px solid currentColor;vertical-align:1px;white-space:nowrap}
+#t-calc .nl.d{color:var(--c1)}#t-calc .nl.i{color:var(--bad)}
+@media (max-width:520px){#t-calc .crow{grid-template-columns:minmax(0,5.6em) minmax(0,1fr) minmax(0,7.4em);font-size:12px}}
+</style>
+<h2>Layout calculator</h2>
+<p>Pick a model and a layout, TP × CP × PP × DP (plus EP for an MoE model), and see what one GPU holds and what it sends in one optimizer step, axis by axis, on the link that axis lands on. It is the {{One training step|#t-read}} animation's arithmetic at real scale. Training time in GPU-days for a model size and token budget is the parent page's {{Scaling calculator|n:3c65c17b0d0d81b6876ee72b7056793b}} tab; this tab only uses compute to put the communication in proportion.</p>
+<p class="try"><b>Try:</b> start from Llama 3 405B on 16,384 GPUs, then switch the preset to 128K context: CP = 16 takes the sixteen-fold longer sequences and activations per GPU do not move. Load DeepSeek-V3 and watch expert all-to-all dominate the step: that is the "approximately 1:1" computation-to-communication ratio DualPipe was built to hide. Set ZeRO to stage 0 on the ZeRO 7.5B preset to see 120 GB.</p>
+<div class="card" id="lc">
+<div class="lc-ctl">
+<label>Preset <select id="lcP"><option value="l405_8k_16k" selected>Llama 3 405B, 8K, 16,384 GPUs</option><option value="l405_8k_8k">Llama 3 405B, 8K, 8,192 GPUs</option><option value="l405_128k">Llama 3 405B, 128K context</option><option value="dsv3">DeepSeek-V3, 2,048 H800s</option><option value="zero75">ZeRO paper: 7.5B on 64 GPUs</option><option value="l8b_fsdp">Llama 3 8B, FSDP on 8 GPUs (illustrative)</option><option value="custom">Custom</option></select></label>
+<label>Model <select id="lcMo"></select></label>
+<label>Bytes per parameter <select id="lcR"></select></label>
+<label>GPU and links <select id="lcG"></select></label>
+<label>TP <select id="lcTP"></select></label>
+<label>CP <select id="lcCP"></select></label>
+<label>PP <select id="lcPP"></select></label>
+<label>DP <select id="lcDP"></select></label>
+<label>EP (MoE only) <select id="lcEP"></select></label>
+<label>ZeRO stage over DP <select id="lcZ"><option value="0">0: replicated (DDP)</option><option value="1">1: optimizer state</option><option value="2">2: + gradients</option><option value="3">3: + weights (FSDP)</option></select></label>
+<label>Sequence length <select id="lcS"><option>4096</option><option>8192</option><option>32768</option><option>131072</option></select></label>
+<label>Micro-batches per step, <i>m</i> <input type="number" id="lcM" min="1" max="512" step="1"></label>
+<label>Activations <select id="lcA"><option value="store">Stored, 34 sbh per layer</option><option value="full">Full recomputation</option><option value="off">Not counted (states only)</option></select></label>
+<label>Pipeline schedule <select id="lcI"><option value="1f1b">1F1B: min(m, PP) in flight</option><option value="dual">DualPipe: PP + 1 in flight, 2 parameter copies</option></select></label>
+<label>MFU, <b id="lcFv">41</b>% <input type="range" id="lcF" min="10" max="70" step="1" value="41"></label>
+</div>
+<div class="out" id="lcO"></div>
+<h3 style="margin:10px 0 2px">Memory per GPU</h3>
+<div class="lc-bar" id="lcBar"></div>
+<div class="lc-leg"><span><i style="background:var(--c1)"></i>weights</span><span><i style="background:var(--c5)"></i>gradients</span><span><i style="background:var(--c4)"></i>optimizer state</span><span><i style="background:var(--c3)"></i>activations (estimate)</span><span><i style="background:var(--bad)"></i>80 GB</span></div>
+<p class="small mute" id="lcMemN"></p>
+<h3 style="margin:12px 0 2px">One step: compute against communication, per GPU</h3>
+<div id="lcC"></div>
+<p class="small mute" id="lcCN"></p>
+<div id="lcWarn" class="warn" aria-live="polite"></div>
+<div class="repro" id="lcRep"></div>
+</div>
+<h3>How the numbers are made</h3>
+<ul class="tight">
+<li><b>Parameters per GPU</b>: dense parameters ÷ (TP × PP), expert parameters ÷ (EP × PP × TP); doubled for DualPipe's two copies. Counts from config.json, recounted (Llama 3 8B 8.03B, 70B 70.55B, 405B 405.85B; DeepSeek-V3 671.03B of which 653.91B routed experts and 37.55B active, from the {{DeepSeek-V3 paper page|n:3c65c17b0d0d815fb8dac9ba1e35ab81}}).</li>
+<li><b>States</b>: bytes per parameter split into weights, gradients and optimizer state; ZeRO divides them over the data-parallel group, which includes the CP ranks (as Megatron's distributed optimizer does) and, for experts, DP × CP ÷ EP ranks. Llama 3's "shards optimizer states and gradients" but keeps weights after forward is modelled as stage 2.</li>
+<li><b>Activations</b> <i class="nl i">estimate</i>: Korthikanti et al.'s 34<i>sbh</i> per layer for a GPT-style layer with sequence parallelism and no stored score matrix, ÷ (TP × CP), × layers per stage × micro-batches in flight on the first stage. Full recomputation keeps 2<i>sbh</i> per layer plus one layer's working set. Llama's SwiGLU and GQA and DeepSeek's MLA, FP8 caching and recomputation make the real figure differ.</li>
+<li><b>Communication</b>: bytes sent per GPU per step, ring factors from nccl-tests. DP: one all-reduce (stage 0) or reduce-scatter plus all-gather (1, 2), plus two all-gathers per micro-batch (3). TP: 4 all-reduces of 2<i>sbh</i>/CP bytes per layer per micro-batch. CP: an all-gather of K and V forward and a reduce-scatter of their gradients backward per layer. PP: one activation and one gradient per micro-batch. EP: dispatch and combine, forward and backward, <i>k</i> copies per token, (EP − 1)/EP leaving the GPU (FP8 dispatch for DeepSeek-V3).</li>
+<li><b>Links</b>: groups are laid out innermost first, TP, CP, EP, PP, DP (Llama 3's order, with EP inside DP as DeepSeek places 64 experts' GPUs on 8 servers); a group that fits in one 8-GPU server uses NVLink, otherwise the network. Peak bandwidths; real collectives reach less, and overlap with compute hides much of the time, so the bars are an upper bound on exposed time and a lower bound on transfer time.</li>
+<li><b>Compute</b>: 6 × active parameters × tokens per step ÷ (GPUs × 989.5 TFLOP/s BF16 × MFU), attention FLOPs left out, which understates the 128K row. MFU defaults are Llama 3's published 43, 41 and 38% and the DeepSeek-V3 page's derived 34%.</li>
+</ul>
+<p class="small mute">All formulas in <code>src/recompute.py</code>; <code>src/check_calc.mjs</code> confirms this page's JavaScript gives the same numbers for every preset.</p>
+</div>
