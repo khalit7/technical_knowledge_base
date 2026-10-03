@@ -1,0 +1,80 @@
+"""Write coverage.json: every fact, number, mechanism step, caveat and link of live.md (the Notion page
+before migration) with where the HTML carries it, and verify each item's check strings against the built
+index.html (tags stripped, scripts kept, whitespace normalised).
+usage: python3 mk_coverage.py   (after build.sh)"""
+import html, json, re, sys
+
+raw = open('../index.html', encoding='utf-8').read()
+txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
+txt = re.sub(r'\s+', ' ', txt)
+R = 'The paper tab'
+C = [
+ # header and links
+ ('Reading time line "8 min read, +~1h 30m resources"', 'dropped: replaced by the build-computed reading time and resources total for the new page', ['min to read', 'of resources']),
+ ('Authors: Tian, Wang, Zhao, Chen, Liu, Liu, Mao, Zhao, Zhang, Zhou', R + ', headline card', ['Changxin Tian', 'Jiapeng Wang', 'Qian Zhao', 'Kunlong Chen', 'Jia Liu', 'Ziqi Liu', 'Jiaxin Mao', 'Wayne Xin Zhao', 'Zhiqiang Zhang', 'Jun Zhou']),
+ ('Affiliations: Ling Team, Ant Group; Gaoling School of AI, Renmin University', R + ', headline card', ['Ling Team, Ant Group', 'Gaoling School of Artificial Intelligence, Renmin University']),
+ ('Dates: arXiv 23 July 2025, v2 11 August 2025; added to the KB 2026-08-31 on request', R + ', headline card', ['v1 23 July 2025', 'v2 11 August 2025', '2026-08-31 on request']),
+ ('Links: arXiv abstract (~45 min), PDF, HTML (same paper)', 'headline card and Further reading', ['https://arxiv.org/abs/2507.17634', 'https://arxiv.org/pdf/2507.17634v2', 'https://arxiv.org/html/2507.17634v2', '(45 min)']),
+ ('Topics: llm-training-and-post-training, ml-fundamentals', 'Further reading, Topics; Connections', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d81d796ccc0a293218c57']),
+ # resources
+ ('Best resource: the paper HTML (~45 min), short; Figure 2 carries the whole idea', R + ', Idea (Figure 2 rebuilt as the weight calculator); Further reading', ['Figure 2', 'arXiv HTML v2']),
+ ('Background: Hägele et al. arXiv:2405.18392 (~45 min) on why the decay phase is worth attacking', 'Further reading; Connections', ['https://arxiv.org/abs/2405.18392', 'why the decay phase is worth attacking']),
+ ('Concurrent empirical take: Li et al. 2025 (WMA/SMA/EMA heuristics), reference 36', 'Further reading; Method', ['https://arxiv.org/abs/2505.12082', 'WMA, SMA and EMA']),
+ # problem
+ ('Every mainstream LR schedule ends in a decay phase, where the scheduling pain lives', R + ', Problem', ['Every mainstream learning-rate (LR) schedule ends in a decay phase, and the decay phase is where the scheduling pain lives']),
+ ('Cosine needs the total token count up front; extending means restarting to recalibrate', R + ', Problem; schedule chart', ['Extending a run means restarting to recalibrate the curve']),
+ ('WSD inserts a plateau but needs decay start, length, function; extending after decay began needs rollback and redesign', R + ', Problem; schedule chart', ['decay start', 'the decay length and the decay function', 'rolling back to the pre-decay state and redesigning the anneal']),
+ ('So WSD is not a fully autonomous, continuously extendable process', R + ', Problem', ['not a fully autonomous, continuously extendable training process']),
+ ('Prior decay-free work (schedule-free, EWA averaging) mostly aimed to match WSD; each averaging scheme hard-codes one path', R + ', Problem', ['schedule-free optimisers, EWA-style weight averaging', 'hard-codes one annealing path']),
+ # method
+ ('WSM: warm up, hold LR constant indefinitely, no decay ever', R + ', Method', ['Warmup-Stable and Merge', 'hold the LR constant indefinitely. No decay, ever']),
+ ('Checkpoints every T_cpt; async process merges the most recent n into W_merged, the model you evaluate or ship; training never pauses', R + ', Method', ['Save a checkpoint every', 'merges them into', 'is the model you evaluate or ship', 'Training itself never pauses']),
+ ('Merge as weighted sum; expand checkpoints into base plus updates; double sum rearranges', R + ', Idea, Eq. 1 to 4', ['Swapping the order of the double sum']),
+ ('theta_hat = theta_n - sum w_i g_{n+i-1}, w_i = sum_{j>=i} c_j', R + ', Idea (formula box)', ['w i = Σ j ≥ i c j']),
+ ('Merging with c_j is identical to a synthetic decay schedule w_i since the base checkpoint', R + ', Idea', ['identical', 'synthetic decay schedule']),
+ ('Theorem 3.1: for non-increasing w, c_k = w_k, c_j = w_j - w_{j+1}, c_0 = 1 - w_1 (unique)', R + ', Idea; calculator', ['Theorem 3.1', 'are uniquely', 'c 0 = 1 − w 1']),
+ ('Mean averaging ~ linear decay', R + ', Idea; predict question 1', ['mean averaging is (approximately) linear decay']),
+ ('EMA is a convex decay', R + ', Idea, corrected: the EMA curve of Figure 2(a) is concave in the usual sense and ends at 21% of peak; the paper wording is reversed', ['"Convex" and "concave" are the wrong way round', 'ends at 21% of the peak']),
+ ('Cosine and 1-sqrt curves can be constructed explicitly', R + ', Idea; calculator', ['cosine and 1-sqrt curves can be constructed explicitly']),
+ ('Optimiser-agnostic: nothing in the training loop changes; composes with SGD, Adam', R + ', Idea', ['optimiser-agnostic', 'composes with SGD, Adam or anything else']),
+ ('Offline merging is exploration: one run, many simulated anneals; then online as a fixed sliding window, which EMA forces from step one', R + ', Method', ['one training run, many simulated anneals of different shapes and durations', 'fixed sliding window', 'hard-codes one annealing path from step one']),
+ ('Data anneal layered on: after T_switch, curated high-quality mixture, LR still flat', R + ', Method', ['Optional data anneal', 'with the LR still flat']),
+ # results
+ ('Setup: Ling-mini 16.3B total / 1.4B active MoE, 256 experts, top-8 plus one shared', R + ', Results setup; Tables tab recount', ['16.3B-total, 1.4B-active MoE', '256 experts with top-8 routing plus one shared expert']),
+ ('AdamW, peak LR 4.78e-4, batch 2048', R + ', Results setup (plus the Appendix A 3.74e-4 discrepancy)', ['AdamW', 'peak LR 4.78e-4', 'batch 2,048', '3.74e-4']),
+ ('Shared checkpoint pretrained on 10.2T tokens at constant LR, then branch 400B two ways: WSD decay vs constant + merge', R + ', Results setup', ['10.2T tokens at constant LR', 'branch 400B tokens two ways']),
+ ('Checkpoint every 25B tokens', R + ', Results setup', ['Checkpoint every 25B tokens']),
+ ('WSM beats WSD on best-checkpoint comparison: +1.3 points (62.67 to 63.95)', R + ', Results; card; Figure 3 rebuilt (and +1.18 at matched tokens)', ['+1.28 points', '62.67 to 63.95', '+1.18']),
+ ('Abstract highlights: +3.5% MATH, +2.9% HumanEval, +5.5% MMLU-Pro relative', R + ', Results and Believe?, corrected: the three come from different sources; +5.5% is MATH in Figure 10, MMLU-Pro is +4.8% there and +4.4% in Table 7', ['+3.5% MATH, +2.9% HumanEval, +5.5% MMLU-Pro', 'not MMLU-Pro']),
+ ('Professional knowledge gained most (+4.8% relative)', R + ', Results; Tables tab', ['professional knowledge (+4.83% relative)']),
+ ('Gain survives post-training: identical 5-epoch SFT, 64.07 vs 62.90; wins language, knowledge, math, reasoning, agent; loses narrowly on code', R + ', Results; Tables tab (with the Table 9 reasoning caveat)', ['supervised fine-tuning for 5 epochs', '64.07 to 62.90', 'winning on language, knowledge, math, reasoning and agent, and losing narrowly on code']),
+ ('Merge duration is the dominant hyperparameter, ahead of interval and count; longer windows better with diminishing returns, like more annealing data', R + ', What matters; predict question 3; toy tab', ['Merge duration is the dominant hyperparameter', 'diminishing returns', 'mirroring how more annealing data behaves in a real decay']),
+ ('Merge algorithm follows decay-shape hierarchy: 1-sqrt slightly ahead of mean, both clearly ahead of EMA; EMA no trend with window', R + ', What matters (with the matched-token reversal); Tables tab; toy', ['Merge algorithm follows the decay-shape hierarchy', 'EMA shows no trend with window size', 'mean leads']),
+ ('Finer checkpoint granularity helps (closer approximation), traded against storage', R + ', What matters; Tables tab Table 4', ['Finer checkpoint granularity helps', 'traded against storage']),
+ ('Robust mid-run: four checkpoints over 100B at 2T, 4T, 6T, 8T, 10T closely track a real 100B decay; gains smaller than with HQ data, fidelity is the point', R + ', What matters; Figure 5(a) rebuilt', ['2T, 4T, 6T, 8T and 10T', 'closely tracks what a real 100B-token decay run would have produced', 'but the fidelity is the point']),
+ # why it matters
+ ('As a schedule: first decay-free method reported to beat WSD rather than match it; genuinely open-ended, no rollback', R + ', Why it matters', ['first decay-free method reported to beat WSD rather than merely match it', 'no rollback if you decide to train longer']),
+ ('As an evaluation tool: cheap high-fidelity proxy for post-anneal potential, removes throwaway decay runs', R + ', Why it matters', ['As an evaluation tool, which may be the bigger deal in practice', 'cheap, high-fidelity proxy', 'throwaway decay runs']),
+ ('Costs: storage for checkpoint history (small; online window of ~12 checkpoints)', R + ', Why it matters; Method; Use it', ['online sliding window of about 12 checkpoints']),
+ ('Caveat: one model family and one 400B branch, so +1.3 is a strong signal, not a settled constant', R + ', Why it matters; Believe?', ['one model family and one 400B-token branch', 'strong signal rather than a settled constant']),
+ ('Caveat: merged model is a separate artifact from live training weights', R + ', Why it matters', ['separate artifact from the live training weights']),
+ # connections
+ ('Connection: LR-schedule family in Optimisers and learning-rate schedulers (ml-fundamentals), where WSD vs WSM lives', R + ', Connections; Further reading', ['Optimisers and learning-rate schedulers', 'where the WSD-versus-WSM comparison lives']),
+ ('Connection: decay-shape ordering (concave > linear > convex) from Hägele et al. 2024, which made constant-plus-cooldown credible', R + ', Connections (with the wording correction)', ['concave beats linear beats convex', 'constant-plus-cooldown a credible cosine replacement']),
+ ('Connection: data-anneal switch = mid-training anneal in Pretraining and Data mixing (Dolmino, Llama 3 annealing)', R + ', Connections; Further reading topics', ['Pretraining and Data mixing', 'Dolmino, Llama 3 annealing']),
+ ('Connection: complements schedule-free optimisation (Defazio et al. 2024), inside vs outside the optimiser', R + ', Connections; Further reading', ['https://arxiv.org/abs/2405.15682', 'one via iterate averaging inside the optimiser, the other via checkpoint merging outside it']),
+ ('Connection: merge machinery is ordinary model merging (model souping in the OLMo 2 recipe), reframed as scheduling', R + ', Connections; Further reading', ['model souping in the', '3c65c17b0d0d81fb9857fb956165ae1c', 'reframed as scheduling rather than as ensembling']),
+ ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Proves checkpoint merging is algebraically equivalent to LR decay']),
+]
+norm = lambda s: re.sub(r'\s+', ' ', s)
+out, miss = [], []
+for fact, where, checks in C:
+    found = [c for c in checks if norm(c) in txt or c in raw]
+    ok = len(found) == len(checks)
+    if not ok: miss.append((fact, [c for c in checks if c not in found]))
+    out.append({'fact': fact, 'where': where, 'checks': checks, 'verified': ok})
+json.dump({'source': 'live.md (Notion page as of 2026-09-20T17:34Z)', 'items': len(out), 'verified': sum(o['verified'] for o in out),
+           'dropped': [o['fact'] for o in out if o['where'].startswith('dropped')], 'items_list': out}, open('coverage.json', 'w'), indent=1, ensure_ascii=False)
+print('coverage items', len(out), 'verified', sum(o['verified'] for o in out))
+for f, m in miss: print('MISSING', f[:60], m)
+sys.exit(1 if miss else 0)
