@@ -1,0 +1,74 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" aria-label="Sections"><a href="#s-over">In one screen</a><a href="#s-dark">Soft targets</a><a href="#s-kl">Forward or reverse KL</a><a href="#s-flav">Whose text</a><a href="#s-rl">Distil or RL?</a><a href="#s-prune">Prune, then distil</a><a href="#s-land">The small tier</a><a href="#s-terms">Whose terms</a><a href="#s-prac">Practical notes</a></nav>
+
+<section id="s-over">
+<h2>In one screen</h2>
+<p class="lead"><b>Knowledge distillation</b> trains a small model, the <b>student</b>, to reproduce what a large model, the <b>teacher</b>, does. It is one of four ways to make a model smaller, and the one that buys the most quality per parameter: almost every capable model under 10B parameters in 2026 was taught by a bigger one.</p>
+<p>The four levers, and where each is explained in depth:</p>
+<div class="bets">
+<div class="bet"><h4>1 · Pruning</h4><p class="small">Remove weights: single weights (unstructured sparsity) or whole structures (attention heads, MLP channels, the embedding width, or entire layers, which is depth pruning). Quality drops, so a pruned model is <b>healed</b> by more training, now usually distillation from the unpruned original. NVIDIA's Minitron recipe (prune a big model's width or depth, then distil into it) produced Llama-3.1-Minitron and the Nemotron Nano line for a fraction of the tokens of training from scratch. <a href="#s-prune">Token budgets below</a>.</p></div>
+<div class="bet"><h4>2 · Quantization</h4><p class="small">Store each weight in fewer bits; no new model is trained unless the quantization is quantization-aware. The current marker for how far it goes: Ternary Bonsai 2 27B (PrismML, 17 September 2026) holds Qwen3.8 27B's weights at 1.76 effective bits, 5.9 GB, and keeps 98.2% of its aggregate benchmark score (83.9 against 85.4). Nine times smaller for about 1.5 points is a better trade than most distillation achieves, which argues for trying this lever first. Details and the arithmetic: {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p></div>
+<div class="bet"><h4>3 · Low-rank factorisation</h4><p class="small">Replace a weight matrix <i>W</i> by a product of two thin ones (or compress it with an SVD). Rarely used alone to shrink an LLM; it lives on in LoRA's low-rank updates ({{Parameter-Efficient Fine-Tuning (PEFT)|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}) and in architecture choices such as DeepSeek's multi-head latent attention, which stores a low-rank latent instead of full keys and values ({{DeepSeek|n:3c65c17b0d0d81a2ae7ec6796947a235}}).</p></div>
+<div class="bet"><h4>4 · Distillation</h4><p class="small">Train the student on the teacher's outputs. It is the dominant lever for quality per parameter, and it combines with the other three: prune then distil, distil then quantize. The rest of this page.</p></div>
+</div>
+<p>Distillation comes in three flavours, which differ in <b>whose text the student trains on</b> and <b>how much of the teacher's opinion it sees at each position</b>:</p>
+<div class="tw"><table class="tbl-s">
+<thead><tr><th>Flavour</th><th>Text trained on</th><th>Target at each position</th><th>Needs from the teacher</th><th>Who uses it</th></tr></thead>
+<tbody>
+<tr><td><b>Sequence-level</b> (black-box, "SFT on teacher outputs")</td><td>The teacher's</td><td>The one token the teacher wrote</td><td>Only generated text: an API is enough, any tokenizer</td><td>DeepSeek-R1's distilled Qwen and Llama models, SmolLM3 (Qwen3-32B traces), Phi-4 (GPT-4o synthetic data), most "distilled" open models</td></tr>
+<tr><td><b>Logit</b> (white-box, token-level)</td><td>The teacher's, or any corpus</td><td>The teacher's whole next-token distribution (or a sample of it)</td><td>Logits, so the weights or a logit API, and the same tokenizer</td><td>Gemma 2 and 3 pretraining, Llama 3.2 1B and 3B, Minitron</td></tr>
+<tr><td><b>On-policy</b> (GKD, MiniLLM, Thinking Machines)</td><td>The <b>student's own</b></td><td>The teacher's distribution, or its log-probability of the token the student chose</td><td>Log-probabilities on text the student writes, during training</td><td>Qwen3's small models (second phase), Gemma 2's post-training, Xiaomi's MiMo (multi-teacher)</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources for each row are in the sections below: {{Soft targets|#s-dark}}, {{Whose text|#s-flav}}, {{Prune, then distil|#s-prune}}. How each open recipe used a teacher, stage by stage, is on the parent's {{Open recipes compared|n:3c65c17b0d0d81b6876ee72b7056793b}} tab; distillation's place among the other training stages is on the parent page.</p>
+</section>
+
+<section id="s-dark">
+<h2>What the teacher knows: soft targets and temperature</h2>
+<p>A trained model assigns a probability to every possible next token, not just the right one. The wrong ones are not noise. In {{Hinton, Vinyals and Dean (2015)|https://arxiv.org/abs/1503.02531}}'s example, an image of a BMW "may only have a very small chance of being mistaken for a garbage truck, but that mistake is still many times more probable than mistaking it for a carrot." Those ratios say how the model generalises, and a one-hot label throws them away. This is what later writers called <b>dark knowledge</b>.</p>
+<p>The problem is that a confident model's wrong-answer probabilities are tiny, so they barely move a cross-entropy loss. Hinton's fix is a <b>temperature</b> <i>T</i> in the softmax, applied to the teacher and the student alike during training:</p>
+<div class="fm"><div class="eq">q<sub>i</sub> = exp(z<sub>i</sub> / T) / Σ<sub>j</sub> exp(z<sub>j</sub> / T)</div>
+<div class="eq" style="font-size:15px">L = (1 − α) · CE(y, q<sup>(T=1)</sup>) + α · T<sup>2</sup> · KL(p<sub>teacher</sub><sup>(T)</sup> ‖ q<sub>student</sub><sup>(T)</sup>)</div>
+<dl><dt>z<sub>i</sub></dt><dd>the logit of token <i>i</i>; <i>T</i> = 1 is the ordinary softmax, higher <i>T</i> flattens it</dd><dt>y</dt><dd>the true next token (the hard label), when there is one</dd><dt>T<sup>2</sup></dt><dd>"the magnitudes of the gradients produced by the soft targets scale as 1/T<sup>2</sup>", so the soft term is multiplied by <i>T</i><sup>2</sup> to keep the mix stable as <i>T</i> changes; Hinton found "a considerably lower weight" on the hard term worked best (§2)</dd></dl></div>
+<p class="try"><b>Try:</b> real next-token logits from Qwen2.5-0.5B-Instruct, saved from a run on this page's data script. Move the temperature and watch the second and third answers come up out of the floor. Compare the confident prompts (the capital, the multiplication) with the genuinely open one (the favourite animal).</p>
+<div class="card" id="dk">
+<div class="chips" id="dkP"></div>
+<div class="ctl"><label>Temperature <i>T</i> = <b id="dkTv">1.00</b><input type="range" id="dkT" min="-2" max="3" step="0.05" value="0" aria-label="Temperature, log scale"></label><label>Tokens shown <b id="dkKv">12</b><input type="range" id="dkK" min="5" max="25" step="1" value="12" aria-label="Number of tokens shown"></label></div>
+<div class="small mute" id="dkPrompt"></div>
+<div id="dkBars" aria-live="polite"></div>
+<div class="lg"><span><i style="background:var(--c1)"></i>teacher's soft target at <i>T</i></span><span><i style="border:1.5px solid var(--c2);background:none"></i>the hard label: all mass on the top token</span></div>
+<div class="out" id="dkO"></div>
+<p class="small mute" id="dkNote"></p>
+</div>
+<div class="pred" id="hp">
+<div class="q">Predict: soft targets with 3% of the data</div>
+<p class="small">Hinton's speech model (85M parameters) reaches 58.9% frame accuracy trained on all 2,000 hours. Trained on only 3% of the data with hard labels, it overfits and peaks at 44.5%. Trained on the same 3% but with soft targets from the model that saw everything, what does it reach?</p>
+<div class="opts"><button data-v="46">about 46%</button><button data-v="51">about 51%</button><button data-v="57" data-right="1">about 57%</button><button data-v="60">about 60%, above the full-data model</button></div>
+<div class="ans"><b>57.0%</b>, within 1.9 points of the full-data model, and "we did not have to do early stopping: the system with soft targets simply 'converged' to 57%" ({{Table 5|https://arxiv.org/abs/1503.02531}}). That is <i class="nl d">derived</i> (57.0 − 44.5) / (58.9 − 44.5) = 86.8% of the gap closed by labels alone. The same paper distilled a 10-model ensemble (61.1%) into one model (60.8%) that kept 86% of the ensemble's gain over the baseline (Table 1), and an MNIST student that never saw a 3 still got 98.6% of the test 3s right once its bias for 3 was corrected, purely from what the soft targets for other digits said about 3s (§3).</div>
+</div>
+<h3>What changes for language models</h3>
+<ul class="tight">
+<li><b>The distribution is huge.</b> A soft target at one position is 151,936 numbers for Qwen2.5's vocabulary and 262K for Gemma's, against one integer for a hard label. Gemma 3 keeps a sample: "We sample 256 logits per token, weighted by teacher probabilities", trains on those with cross-entropy and sets the rest to zero ({{Gemma 3 §2.2|https://arxiv.org/html/2503.19786}}); why storing them all is impractical over 14T tokens is drawn on the {{Google DeepMind page|n:3c65c17b0d0d8173a0aafcb27cf7a5f3}}.</li>
+<li><b>The temperature is usually 1.</b> Minitron tried τ = 0.1, 0.5, 1.0 and 3.0 when distilling a pruned LLM and got the best results at 1.0, reasoning that "LLM logit distributions have higher entropy" than an image classifier's spiky ones; keeping only the teacher's top <i>K</i> ≤ 100 logits gave "a significant drop in accuracy" ({{Minitron, appendix|https://arxiv.org/html/2407.14679}}). Gemma 2 and 3 and Qwen3 §4.5 do not report a temperature at all. With 150K tokens, the tail already carries a lot at <i>T</i> = 1: in the animal prompt above, the top token has only 9.4%.</li>
+<li><b>Hinton tuned it.</b> For a small MNIST student (30 units per layer), "temperatures in the range 2.5 to 4 worked significantly better than higher or lower temperatures"; with 300 or more units per layer, everything above 8 was similar (§3). Tune <i>T</i> and anneal the mix α of hard and soft loss; this page's toy runs one variant at <i>T</i> = 2 ({{Distil a toy student|#t-toy}}).</li>
+</ul>
+</section>
+
+<section id="s-kl">
+<h2>Forward or reverse KL</h2>
+<p>A student that is smaller than its teacher cannot match it everywhere, so the choice of what to minimise decides <i>where</i> it is wrong. With teacher distribution <i>p</i> and student <i>q</i>:</p>
+<div class="fm"><div class="eq">forward KL(p ‖ q) = Σ<sub>x</sub> p(x) log [p(x) / q(x)]&nbsp;&nbsp;&nbsp;&nbsp;reverse KL(q ‖ p) = Σ<sub>x</sub> q(x) log [q(x) / p(x)]</div>
+<dl><dt>forward</dt><dd>expectation under the teacher: punishes the student for missing anything the teacher considers likely, so it <b>covers</b> every mode, even if that means putting mass between them</dd><dt>reverse</dt><dd>expectation under the student: punishes the student for putting mass where the teacher puts little, so it <b>seeks one mode</b> and ignores the rest</dd></dl></div>
+<p>Classic logit distillation and SFT on teacher samples both minimise forward KL. {{MiniLLM|https://arxiv.org/abs/2306.08543}} argued that for generation this is the wrong way round: forward KL makes the student "overestimate the low-probability regions of the teacher distribution", which when sampled produce text the teacher would never write, so it switched to reverse KL. {{GKD|https://arxiv.org/abs/2306.13649}} treats the divergence as a choice ("useful when the student lacks the expressivity to mimic the teacher's distribution") and in its own experiments picked differently per task: a generalised Jensen-Shannon divergence for translation, forward KL for summarisation and arithmetic (Figure 1). For pretraining-style logit distillation of a pruned model, Minitron measured the opposite of MiniLLM: forward KL reached an LM loss of 2.155 against 2.665 for reverse KL (Table 16). Thinking Machines chose reverse KL for on-policy distillation because it is "mode seeking": "it learns one specific behavior (the teacher's) instead of spreading its distribution across several suboptimal options" ({{blog|https://thinkingmachines.ai/blog/on-policy-distillation/}}).</p>
+<p class="try"><b>Try:</b> a two-mode teacher and a student that can only make one bump (a position and a width, two numbers). Both runs start from the same student and take the same gradient steps on their own objective, computed exactly in your browser. Switch between the objectives, or show both, and watch where the student's mass ends up.</p>
+<div class="card" id="kl">
+<div class="seg2" id="klM" role="group" aria-label="Objective"><button data-m="f" class="on">Forward KL</button><button data-m="r">Reverse KL</button><button data-m="b">Both</button></div>
+<div class="ctl"><label>Teacher's weight on the left mode <b id="klWv">0.60</b><input type="range" id="klW" min="0.2" max="0.8" step="0.05" value="0.6" aria-label="Weight of the left mode"></label><label>Student starts at token <b id="klSv">22</b><input type="range" id="klS" min="4" max="36" step="1" value="22" aria-label="Student starting position"></label></div>
+<div class="plotbox ch" id="klSvg"></div>
+<div class="lg"><span><i style="background:var(--dim)"></i>teacher <i>p</i></span><span><i style="background:var(--c1)"></i>student <i>q</i>, forward KL</span><span><i style="background:var(--c2)"></i>student <i>q</i>, reverse KL</span></div>
+<div class="an-ctl" id="klC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="klT"></div><p id="klP" style="margin:2px 0 0"></p></div>
+<div class="out" id="klN"></div>
+<p class="small mute"><span class="ill">Illustrative</span> teacher (two Gaussian bumps over 40 tokens, centres 11 and 29) and student family; the optimisation is real: plain gradient descent on the exact KL, gradients by central differences, 40 steps: 8 × the gradient on the position (capped at 1.5 tokens a step) and 0.15 × the gradient on the log-width (capped at 0.15).</p>
+</div>
+<p>The picture is the whole argument in one dimension. In a language model the same thing happens per position, across 150K tokens and thousands of positions: a forward-KL student hedges between the teacher's ways of saying something and samples blends of them; a reverse-KL student commits to one way and says it well, at the cost of diversity. Which matters more depends on the job, which is why GKD made it a parameter. The toy below measures both on a real task: success and the number of distinct correct answers.</p>
+</section>

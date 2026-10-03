@@ -1,0 +1,220 @@
+Source: https://arxiv.org/abs/1503.02531 (Hinton, Vinyals, Dean 2015), pdftotext -layout, excerpts
+                                             ∗
+                                                 Also affiliated with the University of Toronto and the Canadian Institute for Advanced Research.
+                                             †
+                                                 Equal contribution.
+
+
+                                                                                                  1
+mapping from input vectors to output vectors. For cumbersome models that learn to discriminate
+between a large number of classes, the normal training objective is to maximize the average log
+probability of the correct answer, but a side-effect of the learning is that the trained model assigns
+probabilities to all of the incorrect answers and even when these probabilities are very small, some
+of them are much larger than others. The relative probabilities of incorrect answers tell us a lot about
+how the cumbersome model tends to generalize. An image of a BMW, for example, may only have
+a very small chance of being mistaken for a garbage truck, but that mistake is still many times more
+probable than mistaking it for a carrot.
+It is generally accepted that the objective function used for training should reflect the true objective
+of the user as closely as possible. Despite this, models are usually trained to optimize performance
+on the training data when the real objective is to generalize well to new data. It would clearly
+be better to train models to generalize well, but this requires information about the correct way to
+generalize and this information is not normally available. When we are distilling the knowledge
+from a large model into a small one, however, we can train the small model to generalize in the same
+way as the large model. If the cumbersome model generalizes well because, for example, it is the
+average of a large ensemble of different models, a small model trained to generalize in the same way
+will typically do much better on test data than a small model that is trained in the normal way on the
+same training set as was used to train the ensemble.
+An obvious way to transfer the generalization ability of the cumbersome model to a small model is
+to use the class probabilities produced by the cumbersome model as “soft targets” for training the
+small model. For this transfer stage, we could use the same training set or a separate “transfer” set.
+When the cumbersome model is a large ensemble of simpler models, we can use an arithmetic or
+geometric mean of their individual predictive distributions as the soft targets. When the soft targets
+have high entropy, they provide much more information per training case than hard targets and much
+less variance in the gradient between training cases, so the small model can often be trained on much
+less data than the original cumbersome model and using a much higher learning rate.
+For tasks like MNIST in which the cumbersome model almost always produces the correct answer
+with very high confidence, much of the information about the learned function resides in the ratios
+of very small probabilities in the soft targets. For example, one version of a 2 may be given a
+probability of 10−6 of being a 3 and 10−9 of being a 7 whereas for another version it may be the
+other way around. This is valuable information that defines a rich similarity structure over the data
+(i. e. it says which 2’s look like 3’s and which look like 7’s) but it has very little influence on the
+cross-entropy cost function during the transfer stage because the probabilities are so close to zero.
+Caruana and his collaborators circumvent this problem by using the logits (the inputs to the final
+softmax) rather than the probabilities produced by the softmax as the targets for learning the small
+model and they minimize the squared difference between the logits produced by the cumbersome
+model and the logits produced by the small model. Our more general solution, called “distillation”,
+is to raise the temperature of the final softmax until the cumbersome model produces a suitably soft
+set of targets. We then use the same high temperature when training the small model to match these
+soft targets. We show later that matching the logits of the cumbersome model is actually a special
+case of distillation.
+The transfer set that is used to train the small model could consist entirely of unlabeled data [1]
+or we could use the original training set. We have found that using the original training set works
+well, especially if we add a small term to the objective function that encourages the small model
+to predict the true targets as well as matching the soft targets provided by the cumbersome model.
+Typically, the small model cannot exactly match the soft targets and erring in the direction of the
+correct answer turns out to be helpful.
+
+
+2 Distillation
+
+Neural networks typically produce class probabilities by using a “softmax” output layer that converts
+the logit, zi , computed for each class into a probability, qi , by comparing zi with the other logits.
+
+                                              exp(zi /T )
+                                        qi = P                                                      (1)
+                                              j exp(zj /T )
+
+
+                                                   2
+where T is a temperature that is normally set to 1. Using a higher value for T produces a softer
+probability distribution over classes.
+In the simplest form of distillation, knowledge is transferred to the distilled model by training it on
+a transfer set and using a soft target distribution for each case in the transfer set that is produced by
+using the cumbersome model with a high temperature in its softmax. The same high temperature is
+used when training the distilled model, but after it has been trained it uses a temperature of 1.
+When the correct labels are known for all or some of the transfer set, this method can be significantly
+improved by also training the distilled model to produce the correct labels. One way to do this is
+to use the correct labels to modify the soft targets, but we found that a better way is to simply use
+a weighted average of two different objective functions. The first objective function is the cross
+entropy with the soft targets and this cross entropy is computed using the same high temperature in
+the softmax of the distilled model as was used for generating the soft targets from the cumbersome
+model. The second objective function is the cross entropy with the correct labels. This is computed
+using exactly the same logits in softmax of the distilled model but at a temperature of 1. We found
+that the best results were generally obtained by using a condiderably lower weight on the second
+objective function. Since the magnitudes of the gradients produced by the soft targets scale as 1/T 2
+it is important to multiply them by T 2 when using both hard and soft targets. This ensures that the
+relative contributions of the hard and soft targets remain roughly unchanged if the temperature used
+for distillation is changed while experimenting with meta-parameters.
+
+2.1 Matching logits is a special case of distillation
+
+Each case in the transfer set contributes a cross-entropy gradient, dC/dzi , with respect to each
+logit, zi of the distilled model. If the cumbersome model has logits vi which produce soft target
+probabilities pi and the transfer training is done at a temperature of T , this gradient is given by:
+                                                                               !
+                          ∂C     1               1       ezi /T      evi /T
+                              = (qi − pi ) =          P z /T − P v /T                                 (2)
+                          ∂zi   T                T       je
+                                                              j
+                                                                      je
+                                                                           j
+
+
+
+
+If the temperature is high compared with the magnitude of the logits, we can approximate:
+                                                                       !
+                           ∂C    1      1 + zi /T         1 + vi /T
+                               ≈           P        −        P                                       (3)
+                           ∂zi   T N + j zj /T         N + j vj /T
+
+If
+Pwe nowPassume that the logits have been zero-meaned separately for each transfer case so that
+   j zj = j vj = 0 Eq. 3 simplifies to:
+
+                                        ∂C     1
+                                            ≈      (zi − vi )                                        (4)
+                                        ∂zi   NT 2
+So in the high temperature limit, distillation is equivalent to minimizing 1/2(zi − vi )2 , provided the
+logits are zero-meaned separately for each transfer case. At lower temperatures, distillation pays
+much less attention to matching logits that are much more negative than the average. This is poten-
+tially advantageous because these logits are almost completely unconstrained by the cost function
+used for training the cumbersome model so they could be very noisy. On the other hand, the very
+negative logits may convey useful information about the knowledge acquired by the cumbersome
+model. Which of these effects dominates is an empirical question. We show that when the distilled
+model is much too small to capture all of the knowledege in the cumbersome model, intermedi-
+ate temperatures work best which strongly suggests that ignoring the large negative logits can be
+helpful.
+
+3 Preliminary experiments on MNIST
+To see how well distillation works, we trained a single large neural net with two hidden layers
+of 1200 rectified linear hidden units on all 60,000 training cases. The net was strongly regularized
+using dropout and weight-constraints as described in [5]. Dropout can be viewed as a way of training
+an exponentially large ensemble of models that share weights. In addition, the input images were
+
+                                                   3
+jittered by up to two pixels in any direction. This net achieved 67 test errors whereas a smaller
+net with two hidden layers of 800 rectified linear hidden units and no regularization achieved 146
+errors. But if the smaller net was regularized solely by adding the additional task of matching the soft
+targets produced by the large net at a temperature of 20, it achieved 74 test errors. This shows that
+soft targets can transfer a great deal of knowledge to the distilled model, including the knowledge
+about how to generalize that is learned from translated training data even though the transfer set does
+not contain any translations.
+When the distilled net had 300 or more units in each of its two hidden layers, all temperatures above
+8 gave fairly similar results. But when this was radically reduced to 30 units per layer, temperatures
+in the range 2.5 to 4 worked significantly better than higher or lower temperatures.
+We then tried omitting all examples of the digit 3 from the transfer set. So from the perspective
+of the distilled model, 3 is a mythical digit that it has never seen. Despite this, the distilled model
+only makes 206 test errors of which 133 are on the 1010 threes in the test set. Most of the errors
+are caused by the fact that the learned bias for the 3 class is much too low. If this bias is increased
+by 3.5 (which optimizes overall performance on the test set), the distilled model makes 109 errors
+of which 14 are on 3s. So with the right bias, the distilled model gets 98.6% of the test 3s correct
+despite never having seen a 3 during training. If the transfer set contains only the 7s and 8s from the
+training set, the distilled model makes 47.3% test errors, but when the biases for 7 and 8 are reduced
+by 7.6 to optimize test performance, this falls to 13.2% test errors.
+
+
+4 Experiments on speech recognition
+softmax layer with 14,000 labels (HMM targets ht ). The input is 26 frames of 40 Mel-scaled filter-
+bank coefficients with a 10ms advance per frame and we predict the HMM state of 21st frame. The
+total number of parameters is about 85M. This is a slightly outdated version of the acoustic model
+used by Android voice search, and should be considered as a very strong baseline. To train the DNN
+acoustic model we use about 2000 hours of spoken English data, which yields about 700M training
+examples. This system achieves a frame accuracy of 58.9%, and a Word Error Rate (WER) of 10.9%
+on our development set.
+
+                                                     4
+                                System           Test Frame Accuracy   WER
+                                Baseline                58.9%          10.9%
+                            10xEnsemble                 61.1%          10.7%
+                        Distilled Single model          60.8%          10.7%
+
+Table 1: Frame classification accuracy and WER showing that the distilled single model performs
+about as well as the averaged predictions of 10 models that were used to create the soft targets.
+
+
+4.1 Results
+
+We trained 10 separate models to predict P (ht |st ; θ), using exactly the same architecture and train-
+ing procedure as the baseline. The models are randomly initialized with different initial parameter
+values and we find that this creates sufficient diversity in the trained models to allow the averaged
+predictions of the ensemble to significantly outperform the individual models. We have explored
+adding diversity to the models by varying the sets of data that each model sees, but we found this
+to not significantly change our results, so we opted for the simpler approach. For the distillation we
+tried temperatures of [1, 2, 5, 10] and used a relative weight of 0.5 on the cross-entropy for the hard
+targets, where bold font indicates the best value that was used for table 1 .
+Table 1 shows that, indeed, our distillation approach is able to extract more useful information from
+the training set than simply using the hard labels to train a single model. More than 80% of the
+improvement in frame classification accuracy achieved by using an ensemble of 10 models is trans-
+ferred to the distilled model which is similar to the improvement we observed in our preliminary
+experiments on MNIST. The ensemble gives a smaller improvement on the ultimate objective of
+WER (on a 23K-word test set) due to the mismatch in the objective function, but again, the im-
+provement in WER achieved by the ensemble is transferred to the distilled model.
+We have recently become aware of related work on learning a small acoustic model by matching
+the class probabilities of an already trained larger model [8]. However, they do the distillation at a
+
+One of our main claims about using soft targets instead of hard targets is that a lot of helpful infor-
+mation can be carried in soft targets that could not possibly be encoded with a single hard target. In
+this section we demonstrate that this is a very large effect by using far less data to fit the 85M pa-
+rameters of the baseline speech model described earlier. Table 5 shows that with only 3% of the data
+(about 20M examples), training the baseline model with hard targets leads to severe overfitting (we
+did early stopping, as the accuracy drops sharply after reaching 44.5%), whereas the same model
+trained with soft targets is able to recover almost all the information in the full training set (about
+2% shy). It is even more remarkable to note that we did not have to do early stopping: the system
+with soft targets simply “converged” to 57%. This shows that soft targets are a very effective way of
+communicating the regularities discovered by a model trained on all of the data to another model.
+
+                                                       7
+             System & training set               Train Frame Accuracy   Test Frame Accuracy
+             Baseline (100% of training set)             63.4%                 58.9%
+             Baseline (3% of training set)               67.3%                 44.5%
+             Soft Targets (3% of training set)           65.4%                 57.0%
+
+Table 5: Soft targets allow a new model to generalize well from only 3% of the training set. The soft
+targets are obtained by training on the full training set.
+
+
+6.1 Using soft targets to prevent specialists from overfitting
+
+The specialists that we used in our experiments on the JFT dataset collapsed all of their non-specialist
+classes into a single dustbin class. If we allow specialists to have a full softmax over all classes,
