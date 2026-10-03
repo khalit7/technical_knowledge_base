@@ -1,0 +1,25 @@
+# Phi-Bench: visualisation ideas
+
+Central question: what does a Phi-Bench score measure, and how far can the ranking and the category findings be trusted?
+
+Scores 0 to 2 on the Methodology's questions (parameter to move, reproduces a stated figure (x2), computable from public data (x2), shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere, animation), minus build cost.
+
+| id | Idea | What the reader does | Data and formula | Reproduces | Placement | Score | Status |
+|---|---|---|---|---|---|---|---|
+| P-phi_bench.1 | Replay the MoE training run, before/after by model | Plays the 24 rounds of the paper's iteration task for Claude Opus 5, Qwen3.7 Max or DeepSeek-V4-Pro: each submission, failed rounds as crosses, best so far, with the task's frozen lines (dense starter 1.955, reference recipe 1.275, ceiling 1.22); counters include the task's own reward | Figures 6 and 8 decoded from the vector SVGs (decode_figs.py); a3 constants from the released manifest; reward = min(1, ln(s/s_ref)/ln s_ref), s = 1.9551/BPB | The text's 1.3646 -> 1.3932 -> 1.3248 (rounds 5, 7, 8); 191 of 192 best-so-far points match the leaderboard's iter.json (independently) | Own tab | 15 | built |
+| P-phi_bench.2 | BPB against the task's reward lens | Toggles the eight best-so-far curves from bits per byte to the task reward: seven flat at 0, Opus 0.005 from round 21; the main-evaluation Opus run (0.14) as a reference line | as above | none; a correction (the showcase run earns almost nothing on the benchmark's own scale; full marks need 0.831 BPB, below the 0.9 anti-spoof floor) | Replay tab | 13 | built |
+| P-phi_bench.3 | Score a submission: AB-BA against unpaired timing | Picks any of the 77 tasks (real anchors), sets the true speed-up as a multiple of the anchor, noise, drift and pairs; 2,000 seeded simulated scorings give the measured speed-up and reward histograms, mean reward and share of zeros | Paper's metric; tasks_index.json anchors; noise model illustrative (lognormal per-measurement error times a drift factor shared within a pair, or not) | SCORING.md's worked anchors (2.58 -> 0, 4.14 -> 0.5, 6.656 -> 1), by construction | Own tab | 12 | built |
+| P-phi_bench.4 | Reward curve, predict then reveal | Answers "a submission that ties the reference scores?" then moves the speed-up on the chosen task; old curve (tie = 0.5) dashed | Performance Metric; SCORING.md v1/v2 identity | as above | Reading | 11 | built |
+| P-phi_bench.5 | Task counts behind every category score | Predicts how many tasks Hardware and Edge has (3), then sees the format by category heatmap with the best score and its standard-error bound | Figure 4 printed labels; Table 2; bound sqrt(m(1-m)/n) | Figure 4 sums 55/20/10 and the leaderboard's per-category counts | Reading | 12 | built |
+| P-phi_bench.6 | Formats with error bounds | Predicts which format scores highest (E2EO), then Table 3 bars with bound whiskers | Table 3 | Full = (55 KFC + 20 LHI + 10 E2EO)/85 (independently) | Reading | 10 | built |
+| P-phi_bench.7 | Figure 5 rebuilt with the 30-task mix ringed | Reads the three effort curves; the max points sit exactly on (20 LHI + 10 E2EO)/30 from Table 3 | Figure 5 printed labels; Table 3 | exposes the mislabelled caption (20 LHI) | Reading and Tables | 10 | built |
+| P-phi_bench.8 | Max against high effort slopegraph | Sees ranks change between the paper's max-effort table and the leaderboard's unpublished high-effort table | bench.json leaderboard | none | Tables | 8 | built |
+| P-phi_bench.9 | Figure 7 rebuilt as counts | Error counts per class and model, whole numbers decoded from vector bar extents | error.svg | text's ">half Python for most models" (5 of 8), Opus lowest Python share | Tables | 8 | built |
+| P-phi_bench.10 | Three nested scopes | Toggles KFC, LHI, E2EO: nested boxes (function, submodule, repository) plus what is given, editable, submissions and the package's reward split and time limits | Table 1; tasks_index.json; task.toml timeouts | none | Reading | 7 | built |
+| P-phi_bench.11 | Anchors strip plot | Sees all 77 frozen anchors by format on a log scale (1.16x to 41,667x, median 11.3x), the selected task ringed | tasks_index.json | none | Score tab | 8 | built |
+
+Rejected: rebuilding Figure 3 (the taxonomy wheel; the labels are glyph paths and the figure carries no number the argument needs); a per-task leaderboard explorer for all 30 LHI and E2EO trajectories (no per-task rewards are published, and baselines would need 30 manifests; one task done exactly beats 30 done approximately); a "Then and now" tab (a September 2026 result).
+
+Inspiration: the authors' own leaderboard "Iteration Theater" (one task's rounds animated), which this page extends with failed submissions and the task's reward.
+
+What the Methodology lacked: a rule for benchmark papers whose package ships frozen scoring constants. Translating a figure's raw metric into the benchmark's own reward, with the package's constants, is a cheap and decisive check of what a headline figure means; it should be a standard step for benchmark papers with released graders.
