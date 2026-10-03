@@ -1,0 +1,62 @@
+<section id="rd-coll">
+<h2>Collectives, and the wire they cross</h2>
+<p>Every split communicates through a handful of operations that all GPUs in a group call together (NCCL implements them on NVIDIA hardware):</p>
+<ul class="tight">
+<li><b>All-reduce</b>: every GPU starts with a full buffer and ends with the element-wise sum (or mean) of all of them. Gradient averaging in data parallelism; the partial sums in tensor parallelism.</li>
+<li><b>Reduce-scatter</b>: every GPU ends with the sum of one 1/<i>n</i> slice. <b>All-gather</b>: every GPU contributes a slice and ends with all of them. A ring all-reduce is exactly a reduce-scatter followed by an all-gather, which is why ZeRO-1 and ZeRO-2 cost what DDP costs (<a href="https://nanotron-ultrascale-playbook.static.hf.space/index.html" target="_blank" rel="noopener noreferrer">Ultra-Scale Playbook</a>).</li>
+<li><b>All-to-all</b>: every GPU sends a different piece to every other GPU. Expert dispatch and combine; DeepSpeed Ulysses.</li>
+<li><b>Send and receive</b> (point to point): one GPU to one GPU. Activations and gradients between pipeline stages.</li>
+</ul>
+<p>In a ring, each GPU sends 2(<i>n</i> − 1)/<i>n</i> of the buffer for an all-reduce and (<i>n</i> − 1)/<i>n</i> for a reduce-scatter, all-gather or all-to-all (<a href="https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md" target="_blank" rel="noopener noreferrer">nccl-tests</a>), so bytes per GPU barely change with the group size; what changes is the slowest link in the ring. On an H100 server the 8 GPUs share NVLink at 900 GB/s per GPU, 450 each way (<a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">NVIDIA</a>); between servers each GPU has its own 400 Gb/s network card, 50 GB/s (Llama 3 used RoCE and InfiniBand at 400 Gb/s per GPU, {{§3.3.1|n:3c65c17b0d0d81aca58ccb9d720b474e}}). DeepSeek's export-limited H800s have NVLink at 160 GB/s, "roughly 3.2 times that of IB (50 GB/s)" ({{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} §3.2.2).</p>
+<p class="try"><b>Try:</b> the default is DDP's gradient all-reduce for Llama 3 8B (16.1 GB of bf16 gradients) on 8 GPUs. Switch the link to InfiniBand: the same bytes take nine times longer. Then pick all-to-all and the H800 links to see DeepSeek's 3.2.</p>
+<div class="card" id="cc">
+<div class="ctl">
+<label>Collective <select id="ccK" style="width:100%"><option value="ar" selected>All-reduce</option><option value="rs">Reduce-scatter</option><option value="ag">All-gather</option><option value="a2a">All-to-all</option><option value="p2p">Send / receive</option></select></label>
+<label>GPUs in the group, <i>n</i> = <b id="ccNv">8</b><input type="range" id="ccN" min="2" max="1024" value="8" step="1"></label>
+<label>Buffer, GB <select id="ccS" style="width:100%"><option value="16.06">16.1 (Llama 3 8B bf16 gradients)</option><option value="141.1">141 (Llama 3 70B bf16 gradients)</option><option value="0.2684">0.27 (one TP all-reduce: 4 × 8,192 tokens × 4,096 × 2 bytes)</option><option value="0.0671">0.067 (one 8K-token activation, PP send)</option></select></label>
+<label>Link <select id="ccL" style="width:100%"><option value="450" selected>NVLink, H100 (450 GB/s each way)</option><option value="160">NVLink, H800 (160 GB/s, DeepSeek)</option><option value="50">InfiniBand 400 Gb/s (50 GB/s)</option><option value="25">Ethernet 200 Gb/s (25 GB/s)</option></select></label>
+</div>
+<div class="out" id="ccO"></div>
+<p class="small mute" id="ccNote"></p>
+</div>
+</section>
+
+<section id="rd-dp">
+<h2>Data parallelism (DP, DDP)</h2>
+<p>Replicate the model on every GPU and give each replica a different micro-batch. After backward, an <b>all-reduce</b> averages the gradients, so every replica takes the identical optimizer step:</p>
+<ol class="tight">
+<li>copy the model to each of the <i>X</i> GPUs;</li>
+<li>shard the batch;</li>
+<li>forward in parallel;</li>
+<li>backward in parallel;</li>
+<li>all-reduce the gradients, overlapped with backward by sending them in buckets (25 MiB by default in PyTorch, <a href="https://github.com/pytorch/pytorch/blob/main/torch/nn/parallel/distributed.py" target="_blank" rel="noopener noreferrer">DistributedDataParallel</a>);</li>
+<li>the same optimizer step everywhere.</li>
+</ol>
+<p>PyTorch's old <code>DataParallel</code> was a single process driving the GPUs of one machine by threads; <b>DDP</b> (<code>DistributedDataParallel</code>) runs one process per GPU, works across machines, and is the baseline everything else builds on (<a href="https://arxiv.org/abs/2006.15704" target="_blank" rel="noopener noreferrer">Li et al. 2020</a>). It is simple and scales nearly linearly while the all-reduce hides behind backward. Its cost is memory: the full model, gradients and optimizer state on every GPU, 16 bytes per parameter, so a model above about 5B parameters no longer fits on an 80 GB GPU with Adam (80 / 16, <i class="nl d">derived</i>). That ceiling is what ZeRO and FSDP remove. The global batch is micro-batch × gradient-accumulation steps × data-parallel degree (<a href="https://nanotron-ultrascale-playbook.static.hf.space/index.html" target="_blank" rel="noopener noreferrer">Playbook</a>), so DP is also how a layout reaches its target batch once the model fits.</p>
+</section>
+
+<section id="rd-zero">
+<h2>ZeRO and FSDP: sharded data parallelism</h2>
+<p>Data parallelism stores the same 16 bytes per parameter <i>n</i> times. ZeRO ({{paper page|n:3c65c17b0d0d81879a7ed90bca007699}}, <a href="https://arxiv.org/abs/1910.02054" target="_blank" rel="noopener noreferrer">Rajbhandari et al. 2019</a>) shards them across the data-parallel group instead:</p>
+<ul class="tight">
+<li><b>ZeRO-1</b> shards the optimizer state: 4 + 12/<i>n</i> bytes per parameter. The 7.5B example on 64 GPUs: 31.4 GB.</li>
+<li><b>ZeRO-2</b> also shards the gradients: 2 + 14/<i>n</i>; 16.6 GB.</li>
+<li><b>ZeRO-3</b> also shards the parameters: each layer's weights are all-gathered just in time for forward and again for backward, then freed. 16/<i>n</i>; 1.88 GB, against 120 GB for plain DP (ZeRO Table 1). Communication is 3Ψ against DP's 2Ψ, 1.5 times (§7), and model-state memory falls as 1/<i>N</i>.</li>
+<li><b>ZeRO-Offload</b> moves optimizer state and its update to CPU memory (<a href="https://arxiv.org/abs/2101.06840" target="_blank" rel="noopener noreferrer">Ren et al. 2021</a>); <b>ZeRO-Infinity</b> adds NVMe, enough to "fine-tune trillion parameter models on a single NVIDIA DGX-2 node" (<a href="https://arxiv.org/abs/2104.07857" target="_blank" rel="noopener noreferrer">Rajbhandari et al. 2021</a>).</li>
+</ul>
+<p><b>FSDP</b> is PyTorch's native version, "motivated by" ZeRO with a design aligned with the rest of PyTorch (<a href="https://arxiv.org/abs/2304.11277" target="_blank" rel="noopener noreferrer">Zhao et al. 2023</a>); its default full sharding is ZeRO-3, and it has a ZeRO-2-like mode as well (the stage names across DeepSpeed, FSDP1 and FSDP2 are matched on the ZeRO page's {{Then and now|n:3c65c17b0d0d81879a7ed90bca007699}} tab). <b>FSDP2</b> (<code>fully_shard</code>) "replac[ed] the original FSDP1 FlatParameter sharding. Specifically, parameters are now represented as DTensors sharded on the tensor dimension 0" (<a href="https://arxiv.org/abs/2410.06511" target="_blank" rel="noopener noreferrer">torchtitan paper</a>). Because every parameter keeps its own identity:</p>
+<ul class="tight">
+<li>it composes with TP, PP and EP on a device mesh;</li>
+<li><code>state_dict</code> handling is sane through Distributed Checkpoint (DCP);</li>
+<li>partial freezing works, so LoRA-style fine-tuning is straightforward;</li>
+<li>it "records an average of 7% lower GPU memory versus FSDP1" and "an average gain of 1.5% faster throughput" <i class="nl r">reported</i> (torchtitan paper).</li>
+</ul>
+<p>The 2026 default: on PyTorch, without a need for NVMe offload, use FSDP2 rather than DeepSpeed. The arithmetic is the same; the composition is cleaner. A 2026 {{framework survey|https://megacpp.com/blog/framework-survey-fsdp-vs-megatron-vs-deepspeed/}} reaches the same split: DeepSpeed remains the pragmatic choice mainly for memory-bound runs that need ZeRO-Infinity offload.</p>
+<p><b>Hybrid sharding (HSDP)</b> builds "a 2-D DeviceMesh that contains replica groups on one dimension and shard groups on the other" (torchtitan paper): FSDP-shard within a server (or a small group), DDP-replicate across groups. The heavy per-layer all-gathers stay on NVLink and only the gradient all-reduce crosses servers (HSDP mode above: 8.0 GB per GPU on InfiniBand against 36.1 GB for ZeRO-3 across both servers). It also bounds the blast radius of a failure: a lost server leaves complete replicas, which is how {{torchft|https://github.com/pytorch/torchft}} does "fault tolerance across the replicated dimension". Use it when the model fits in one server's (or group's) aggregate memory.</p>
+</section>
+
+<section id="rd-tp">
+<h2>Tensor parallelism and sequence parallelism</h2>
+<p>Tensor parallelism splits individual weight matrices "horizontally" across GPUs ({{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}): a <b>column-parallel</b> matrix followed by a <b>row-parallel</b> one, in the feed-forward block and in attention (heads are divided among GPUs), so the nonlinearity in between needs no communication and each block ends with one all-reduce. That is two all-reduces per layer forward and two backward, inside every layer, in small latency-bound messages. In the animation TP sends 51.5 GB per GPU for the step, more than any other mode. It therefore needs NVLink-class bandwidth and stays inside a server: Megatron's guidance is TP "up to degree g when using g-GPU servers", then pipeline parallelism across servers (<a href="https://arxiv.org/abs/2104.04473" target="_blank" rel="noopener noreferrer">Narayanan et al. 2021</a>), and the Playbook measured "around 43% performance degradation" when TP crosses nodes, against 14% for PP.</p>
+<p><b>Sequence parallelism</b> (Megatron-style) extends TP to the regions TP leaves replicated, LayerNorm and dropout, by splitting their activations along the sequence. The all-reduce becomes a reduce-scatter plus an all-gather of the same total size, so communication is unchanged and the duplicated activation memory disappears: activations per layer fall from <i>sbh</i>(34 + 5<i>as</i>/<i>h</i>) to <i>sbh</i>/<i>t</i>(34 + 5<i>as</i>/<i>h</i>), and with selective recomputation to 34<i>sbh</i>/<i>t</i> (<a href="https://arxiv.org/abs/2205.05198" target="_blank" rel="noopener noreferrer">Korthikanti et al. 2022</a>). Do not confuse it with context parallelism below, which splits the sequence through attention too.</p>
+</section>

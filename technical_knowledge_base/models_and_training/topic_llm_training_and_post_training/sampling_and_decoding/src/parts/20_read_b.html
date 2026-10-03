@@ -1,0 +1,55 @@
+
+<h2 id="rd-stack">Stochastic sampling: the standard stack</h2>
+<p>Sampling draws the next token at random, but rarely from the raw distribution: pure sampling at T = 1 lets the long tail of unlikely tokens in, and a few bad draws derail the text (Holtzman et al. measured perplexity 22.73 for pure sampling against 12.38 for human text). The standard stack reshapes the distribution first, in this order: <b>temperature, then truncation, then renormalise, then sample</b>.</p>
+<ul>
+<li><b>Temperature T</b>: divide the logits by T before the softmax. T &lt; 1 sharpens (more deterministic; T &rarr; 0 approaches greedy); T = 1 is the raw distribution; T &gt; 1 flattens towards uniform (more random, more "creative"). Reasoning models often want T around 0.6 to 1.0 to keep exploring (settings below).</li>
+<li><b>Top-k</b> keeps only the k most probable tokens, renormalises and samples ({{Fan et al., 2018|https://arxiv.org/abs/1805.04833}}, who used k = 10 for stories). Its flaw: a fixed k ignores the shape of the distribution. When the distribution is sharp, k lets junk in; when it is flat, k cuts off good options.</li>
+<li><b>Top-p (nucleus)</b> keeps the smallest set of tokens whose cumulative probability reaches p (for example 0.9), renormalises and samples ({{Holtzman et al.|https://arxiv.org/abs/1904.09751}}, Eq. 2: the smallest V<sup>(p)</sup> with &Sigma;<sub>x&isin;V(p)</sub> P(x) &ge; p). The set adapts to the distribution; top-p was the long-time default for open-ended generation.</li>
+<li><b>Min-p</b> keeps tokens whose probability is at least p<sub>min</sub> &times; P(top token), for example 0.05 to 0.1 of the maximum ({{Nguyen et al., ICLR 2025 oral|https://arxiv.org/abs/2407.01082}}). The cut scales with the model's confidence: confident steps become near-greedy, uncertain steps stay diverse. Its authors report better quality and diversity than top-p especially at high temperature; it is implemented in Hugging Face transformers, vLLM, SGLang and llama.cpp, and llama.cpp enables it by default (min-p 0.05, {{common.h|https://github.com/ggml-org/llama.cpp/blob/master/common/common.h}}). Whether it is better is disputed: see the box below.</li>
+</ul>
+<p>The before/after below runs the same real distribution through top-p, the method min-p was proposed to replace, and through min-p. Two inputs from Qwen2.5-0.5B-Instruct: an uncertain step (the second token of a story opening, where the model's top choice has 22% probability) and a confident one (the token after "The capital of Australia is", where "Canberra" has 96%).</p>
+<div class="card" id="rd-pp">
+<div class="row2"><div class="seg" id="rd-ppM" role="group" aria-label="Truncation"><button data-m="p" class="on">Before: top-p 0.9</button><button data-m="m">After: min-p 0.1</button></div>
+<div class="seg" id="rd-ppI" role="group" aria-label="Input"><button data-m="story" class="on">Uncertain step</button><button data-m="capital">Confident step</button></div>
+<div class="seg" id="rd-ppT" role="group" aria-label="Temperature"><button data-m="1">T 1</button><button data-m="1.5" class="on">T 1.5</button><button data-m="2">T 2</button></div></div>
+<div class="ctxt" id="rd-ppCtx"></div>
+<div class="tkl" id="rd-ppL"></div>
+<div class="an-ctl" id="rd-ppC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rd-ppTt"></div><p id="rd-ppP"></p></div>
+<div class="an-cnt" id="rd-ppN"></div>
+<p class="small mute">The top 12 of 151,936 tokens are drawn; the grey row is every other token together. Grey bar: probability before the cut; blue bar: after. Counts include the tail, computed from a binned summary of all 151,936 logits; checked against the exact full-vocabulary count in <code>recompute.py</code> (for example 6,102 against an exact 6,099 kept tokens at T 1.5) <i class="nl m">measured here</i>.</p>
+</div>
+<p class="try"><b>Try:</b> the confident step at T 1.5. Top-p 0.9 now keeps 5,166 tokens (exact full-vocabulary count; the animation's binned estimate says 5,209), because at T 1.5 "Canberra" falls from 96% to 59% and about 30% of the mass spreads thinly beyond the top 12 tokens, which top-p must collect back token by token <i class="nl m">measured here</i>; min-p keeps only "Canberra". At the uncertain step and T 2, top-p keeps about 35,700 tokens and min-p 46. That is the whole argument for min-p, on a real distribution.</p>
+<div class="co warn"><div class="t">Disputed: "min-p beats top-p"</div>The min-p paper reports better quality and diversity on GPQA, GSM8K and AlpacaEval creative writing, and a human preference for min-p. A re-analysis by {{Schaeffer, Kazdan and Denisov-Blanch (June 2025)|https://arxiv.org/abs/2506.13681}} found omitted data and incorrect statistical tests in the human evaluation, found that "min-p did not outperform baselines in quality, diversity, or a trade-off between quality and diversity" once hyperparameter counts were controlled, and noted that the community-adoption figures were removed from the paper as unsubstantiated. What is not in dispute is the mechanism shown above: at high temperature, min-p's cut follows the top token and top-p's does not. Our own GPT-2 run in {{Twelve decoders|#t-deg}} agrees with the mechanism (at T 1.5, min-p 0.1 stays near human perplexity while top-p 0.95 explodes) but measures likelihood under the same model, not quality as judged by people.</div>
+
+<h3>The order is not universal</h3>
+<p>"Temperature, then truncation" is how {{Hugging Face transformers|https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py}} applies its warpers (temperature, top-k, top-p, min-p, typical) and how {{vLLM|https://github.com/vllm-project/vllm/blob/main/vllm/v1/sample/sampler.py}} does it (penalties, temperature, min-p, then top-k and top-p). {{llama.cpp|https://github.com/ggml-org/llama.cpp/blob/master/common/common.h}} applies temperature <i>last</i> by default (penalties, DRY, top-n-sigma, top-k, typical, top-p, min-p, XTC, temperature), so its truncation sees the T = 1 distribution and temperature only reshapes the survivors. With llama.cpp's own defaults (top-k 40, top-p 0.95, min-p 0.05) at T 1.5, the uncertain step keeps 14 tokens with temperature last and 34 with temperature first <i class="nl m">measured here</i>. The {{Sampler lab|#t-lab}} has the switch.</p>
+
+<h3>Repetition controls</h3>
+<p>Blunt instruments, needed less as models improved and still useful for small models:</p>
+<ul>
+<li><b>Repetition penalty</b> ({{CTRL, Keskar et al., 2019|https://arxiv.org/abs/1909.05858}}, who found &theta; &asymp; 1.2 a good balance with greedy sampling): every token already in the context has its logit divided by &theta; if positive and multiplied by &theta; if negative ({{transformers' implementation|https://github.com/huggingface/transformers/blob/main/src/transformers/generation/logits_process.py}}, which counts the prompt too).</li>
+<li><b>Presence and frequency penalties</b> (the OpenAI-style pair): z<sub>j</sub> &rarr; z<sub>j</sub> &minus; c<sub>j</sub>&middot;&alpha;<sub>frequency</sub> &minus; [c<sub>j</sub> &gt; 0]&middot;&alpha;<sub>presence</sub>, where c<sub>j</sub> counts how often token j was already sampled; "around 0.1 to 1" to reduce repetition somewhat, up to 2 to suppress it strongly at a cost in quality ({{OpenAI docs|https://developers.openai.com/api/docs/guides/advanced-usage}}). Qwen3's model card suggests presence_penalty 0 to 2 against endless repetition, warning of language mixing at high values ({{card|https://huggingface.co/Qwen/Qwen3-8B}}).</li>
+<li><b>No-repeat n-gram</b> bans any token that would complete an n-gram already generated (transformers' <code>no_repeat_ngram_size</code>).</li>
+</ul>
+<p>They are blunt because they cannot tell a loop from a correct repeat. In the lab's "pattern" prompt (continue "red, blue, red, blue, red,") the right answer is a word already in the context; a repetition penalty of 1.3 pushes it down. Try it on the {{Sampler lab|#t-lab}}.</p>
+
+<h3>The long tail of samplers</h3>
+<p>The local-model community has produced many more; most are niche. What each keeps:</p>
+<div class="tw"><table>
+<tr><th>Sampler</th><th>Rule</th><th>Source</th></tr>
+<tr><td>Typical sampling</td><td>Keep the tokens whose surprisal &minus;log p is closest to the distribution's entropy, until their mass reaches typical_p ("entropy-relative")</td><td>{{Meister et al., 2022|https://arxiv.org/abs/2202.00666}}; in the lab</td></tr>
+<tr><td>Mirostat</td><td>Adjust a top-k-like cut on the fly so that the text's surprise stays near a target (target perplexity, &tau; = 5 by default in llama.cpp)</td><td>{{Basu et al., 2020|https://arxiv.org/abs/2007.14966}}</td></tr>
+<tr><td>Top-a</td><td>Keep tokens above a threshold proportional to the square of the top probability</td><td>local-model community; origin <i class="nl u">unconfirmed</i></td></tr>
+<tr><td>XTC (exclude top choices)</td><td>With some probability, remove every token above a threshold except the least likely of them: cuts the most likely tokens, not the least, to break clich&eacute;s</td><td>{{p-e-w, text-generation-webui PR 6335 (2024)|https://github.com/oobabooga/text-generation-webui/pull/6335}}</td></tr>
+<tr><td>DRY (don't repeat yourself)</td><td>Penalise a token that would extend a sequence already in the context, by multiplier &times; base<sup>(length &minus; allowed length)</sup> (base 1.75, allowed length 2 in llama.cpp)</td><td>{{llama.cpp common.h|https://github.com/ggml-org/llama.cpp/blob/master/common/common.h}}</td></tr>
+</table></div>
+<p>The {{Sampler lab|#t-lab}} runs temperature, top-k, top-p, min-p, typical, the repetition penalty and the presence and frequency penalties on 32 real distributions from four prompts, in either order, and samples from the result.</p>
+
+<h2 id="rd-div">Diversity against quality</h2>
+<p>Every truncation trades diversity for staying in the model's high-probability region. The {{Twelve decoders|#t-deg}} tab measures the trade on GPT-2 small: four passages, 48 new tokens, 16 samples per decoder <i class="nl m">measured here</i>. The pattern reproduces Holtzman et al.'s Table 1 independently, on a smaller model and different text:</p>
+<ul>
+<li>Greedy and beam search sit far below human perplexity (2.3 and 2.4 against 31.0 for the real continuation) and repeat: 53% of greedy's 4-grams are repeats.</li>
+<li>Pure sampling overshoots (47.2); top-p 0.95 at T 1 lands closest to human text (31.6 against 31.0), as nucleus sampling did in the paper (13.13 against 12.38).</li>
+<li>Raise the temperature and top-p falls apart (perplexity about 3,900 at T 1.5) while min-p 0.1 stays near human text up to T 2 (16.1 at T 1.5, 40.0 at T 2).</li>
+</ul>
