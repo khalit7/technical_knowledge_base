@@ -1,0 +1,45 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2 id="runTop" style="margin-top:14px">Route text through a toy Mixtral</h2>
+<p>Section 5 of the paper is the only part about what Mixtral's router learned, and it rests on one model nobody outside Mistral could probe in the browser. This tab repeats the section on a toy built to the paper's recipe and trained here, on held-out text it never saw, so every claim can be checked against a model whose routing you can inspect token by token. It is <b>not Mixtral</b>: 4 layers instead of 32, about <span id="rvP"></span> parameters instead of 46.7B, four small domains instead of The Pile. Read it as a test of whether the paper's findings are what a top-2 router tends to learn, not as a measurement of Mixtral.</p>
+<details class="mist"><summary>What is Mixtral's in the toy, what is ours, and how it was trained</summary><div class="b">
+<ul class="lst small">
+<li><b>From the paper</b> ({{§2.1|ax:S2.SS1}}): decoder-only; every FFN an MoE layer; 8 SwiGLU experts; top-2 with the softmax over the two kept logits; RMSNorm, rotary positions, grouped-query attention (4 query heads sharing 2 key-value heads here, 32 sharing 8 in Mixtral), untied output head.</li>
+<li><b>Ours</b>: width 128, 4 layers, expert inner width 256, a 2,048-token byte-level BPE vocabulary trained on the corpus, 256-token windows, AdamW (β = 0.9, 0.95, weight decay 0.1) with warmup and cosine decay, <span id="rvSteps"></span> steps of 32 windows (8 per domain), seed 0, two CPU threads.</li>
+<li><b>Load balancing</b>: the paper says nothing; the released Hugging Face config sets a Switch-style auxiliary loss at 0.02. "With aux loss 0.02" uses it, "no auxiliary loss" trains the same model without; switch between them with the control at the top of each panel.</li>
+<li><b>Data</b> (about 1.2 MB of text per domain; split into train and held-out by 8 KB documents): <i>code</i>, the Python standard library's own source (for Pile GitHub); <i>novels</i>, five public-domain books from Project Gutenberg (Pride and Prejudice, Moby Dick, Sherlock Holmes, Frankenstein, A Tale of Two Cities); <i>Wikipedia</i>, plain-text extracts of named English articles; <i>maths</i>, one question and its answer per line from our own generator in the style of DeepMind Mathematics (arithmetic, linear equations, derivatives, remainders, rounding), synthetic and narrow like the original. Everything below is measured on <span id="rvTokN"></span> held-out tokens per domain (<span id="rvWin"></span> windows of 256).</li>
+<li>Scripts: <span class="mono">data.py</span>, <span class="mono">train.py</span>, <span class="mono">analyse.py</span> in the page's source; <span class="mono">uv run --with torch --with tokenizers python train.py main</span> takes about 11 minutes on two laptop CPU threads. The page ships only the measured routing, not the weights.</li></ul></div></details>
+<div class="ctl" style="margin:10px 0"><span class="small">Toy variant:</span> <div class="seg" id="rvV" role="group" aria-label="Variant"><button class="on" data-m="main" aria-pressed="true">With aux loss 0.02</button><button data-m="noaux" aria-pressed="false">No auxiliary loss</button></div></div>
+
+<h3 id="rv8">1. Every token coloured by its expert (Figure 8, rebuilt)</h3>
+<p class="try"><b>Try:</b> pick a domain and a layer, then tap any token to see its two experts and their weights at every layer. In code, watch indentation and <span class="mono">self</span>; in maths, the words that open each question; then switch layers and see the colours re-sort. The paper's Figure 8 colours by first choice at layers 0, 15 and 31.</p>
+<div class="an-ctl"><div class="seg" id="rvD" role="group" aria-label="Domain"><button class="on" data-m="github" aria-pressed="true">Code</button><button data-m="gutenberg" aria-pressed="false">Novels</button><button data-m="wikipedia" aria-pressed="false">Wikipedia</button><button data-m="dm_math" aria-pressed="false">Maths</button></div>
+<div class="seg" id="rvS" role="group" aria-label="Sample"><button class="on" data-m="0" aria-pressed="true">Sample 1</button><button data-m="1" aria-pressed="false">2</button><button data-m="2" aria-pressed="false">3</button></div></div>
+<div class="an-ctl"><span class="small">Layer</span><div class="seg" id="rvL" role="group" aria-label="Layer"><button data-m="0" aria-pressed="false">0 (first)</button><button data-m="1" aria-pressed="false">1</button><button class="on" data-m="2" aria-pressed="true">2</button><button data-m="3" aria-pressed="false">3 (last)</button></div>
+<span class="small">Colour by</span><div class="seg" id="rvC" role="group" aria-label="Colour by"><button class="on" data-m="e1" aria-pressed="true">First choice</button><button data-m="e2" aria-pressed="false">Second choice</button></div></div>
+<div class="ekey" id="rvKey"></div>
+<div class="rtx" id="rvTxt" aria-label="Held-out text coloured by expert"></div>
+<div class="tokd" id="rvTok">Tap a token.</div>
+<p class="small mute" id="rvStat"></p>
+
+<h3 id="rv7">2. Which experts each domain uses (Figure 7, rebuilt)</h3>
+<p class="try"><b>Try:</b> step through the layers. If experts specialised by domain, each domain's bars would pile onto its own one or two experts; the dashed line is 1/8, uniform use. The table under the chart measures how far apart the domains are, against how far apart two halves of the <i>same</i> domain are (sampling noise).</p>
+<div class="an-ctl"><span class="small">Layer</span><div class="seg" id="rvL2" role="group" aria-label="Layer"><button class="on" data-m="0" aria-pressed="true">0 (first)</button><button data-m="1" aria-pressed="false">1</button><button data-m="2" aria-pressed="false">2</button><button data-m="3" aria-pressed="false">3 (last)</button></div>
+<div class="seg" id="rvCh" role="group" aria-label="Choice"><button class="on" data-m="either" aria-pressed="true">Either choice</button><button data-m="first" aria-pressed="false">First</button><button data-m="second" aria-pressed="false">Second</button></div></div>
+<div class="card" id="rvDist"></div>
+<div id="rvTV"></div>
+
+<h3 id="rv5">3. Do consecutive tokens repeat their expert? (Table 5, rebuilt with controls)</h3>
+<p class="try"><b>Try:</b> compare the measured repeat rate with the three baselines. The paper compares only against uniform random choice. <i>Shuffled</i> keeps every token's own routing but scrambles the order, so it removes position and keeps the fact that some experts are used more than others; <i>different tokens only</i> drops pairs where the same token appears twice in a row (two spaces, two newlines), which repeat their expert trivially.</p>
+<div class="an-ctl"><div class="seg" id="rvRm" role="group" aria-label="Metric"><button class="on" data-m="first" aria-pressed="true">Same first choice</button><button data-m="either" aria-pressed="false">First or second overlap</button></div></div>
+<div class="card" id="rvRep"></div>
+<p class="small mute" id="rvRepNote"></p>
+
+<h3 id="rvPr">4. Token or topic: what predicts the expert?</h3>
+<p>A direct test of "syntax, not domain" that the paper does not run: guess each held-out token's first-choice expert from its token alone (the expert that token most often got), from its domain alone, or from nothing (the most used expert). The guesses are fitted on half the held-out windows and scored on the other half.</p>
+<div class="card" id="rvPred"></div>
+<div id="rvCross"></div>
+
+<h3 id="rvTr">5. Training, and what reproduces</h3>
+<div class="card" id="rvCurve"></div>
+<div id="rvRepro"></div>
+</section>

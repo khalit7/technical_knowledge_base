@@ -1,0 +1,51 @@
+<section class="tab" id="t-run" hidden role="tabpanel">
+<h2>Run the 16K-GPU job</h2>
+<p>Three simulations of {{§3.3|ax:S3.SS3}}, each computed from the paper's own numbers: where every GPU sits in the 4D mesh and the network, how the pipeline schedule trades idle time against memory, and what interruptions every three hours cost. Workloads and timings that the paper does not give are labelled illustrative.</p>
+
+<div class="card" id="mesh">
+<h3 style="margin-top:0">Where a GPU's groups land (Table 4, Figure 5)</h3>
+<p class="small">GPUs are grouped in the order [TP, CP, PP, DP], innermost first, so a GPU's rank is <span class="m">tp + TP·(cp + CP·(pp + PP·dp))</span>. Pick a configuration and a GPU: each strip is the whole job, with pod boundaries every 3,072 GPUs, and the ticks are the GPU's partners in that group.</p>
+<div class="ctl"><label>Configuration <select id="mxC" aria-label="Configuration"><option value="0">8,192 GPUs, 8K tokens</option><option value="1">16,384 GPUs, 8K tokens</option><option value="2" selected>16,384 GPUs, 128K tokens</option></select></label>
+<label>GPU rank <b id="mxRv"></b><input type="range" id="mxR" min="0" max="16383" step="1" value="5000" aria-label="GPU rank"></label></div>
+<div id="mxSvg"></div>
+<div class="out" id="mxOut"></div>
+<p class="small mute">Topology from {{§3.3.1|ax:S3.SS3.SSS1}}: 8 GPUs per server on NVLink, 16 per rack, 3,072 per pod at full bisection bandwidth, pods joined at 1:7 oversubscription. Placing consecutive ranks in consecutive servers is this page's assumption; the paper says the scheduler and the layout are topology-aware but not how ranks are mapped. The three Table 4 meshes side by side are on the {{Meta lab page|n:3c65c17b0d0d81949ad8e17bcb3567f1}}.</p>
+</div>
+
+<div class="card" id="mem">
+<h3 style="margin-top:0">Why 405B parameters need all four dimensions: memory per GPU</h3>
+<div class="ctl"><label>Tensor parallel TP <b id="mmTv"></b><input type="range" id="mmT" min="0" max="3" step="1" value="3" aria-label="TP"></label><label>Pipeline parallel PP <b id="mmPv"></b><input type="range" id="mmP" min="0" max="5" step="1" value="4" aria-label="PP"></label><label>Data parallel (FSDP) DP <b id="mmDv"></b><input type="range" id="mmD" min="0" max="7" step="1" value="7" aria-label="DP"></label></div>
+<div id="mmSvg"></div>
+<div class="out" id="mmOut"></div>
+<p class="small mute">Counts are per GPU for the recounted 405.85B parameters. Assumed layout (the paper gives only its outline): BF16 weights of the GPU's TP × PP shard stay gathered through forward and backward (the paper's "do not reshard after forward"); FP32 gradients of that shard are accumulated over micro-batches before the FP32 reduce-scatter; FP32 master weights and AdamW's two moments (12 bytes per parameter) are sharded across DP. Activations, buffers and fragmentation take the rest of the 80 GB and are not modelled; the paper fits 8K-token sequences without activation checkpointing. Defaults: Table 4's first configurations (TP 8, PP 16, DP 128).</p>
+</div>
+
+<div class="card" id="pp">
+<h3 style="margin-top:0">The pipeline schedule: idle bubbles against in-flight memory (Figure 6)</h3>
+<p class="small">Four pipeline ranks hold eight stages (<i>V</i> = 2 per rank, interleaved), as in Figure 6. Each micro-batch goes forward through stages 0 to 7 and backward from 7 to 0; a forward takes 1 time unit and a backward 2. <i>N</i> is how many contiguous micro-batches each stage processes before switching: depth-first needs <i>N</i> = PP, breadth-first <i>N</i> = <i>M</i>; Llama 3 lets <i>N</i> float.</p>
+<div class="an-top"><div class="seg" id="ppM" role="group" aria-label="Schedule"><button data-m="dfs" aria-pressed="false">Depth-first: N = 4, M = 8</button><button class="on" data-m="l3" aria-pressed="true">Llama 3: N = 5, M = 10</button><button data-m="bfs" aria-pressed="false">Breadth-first: N = M = 10</button></div></div>
+<div class="ctl"><label>Point-to-point latency <b id="ppLv"></b><input type="range" id="ppL" min="0" max="4" step="1" value="0" aria-label="Latency"></label></div>
+<div id="ppSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="ppBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="ppPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="ppFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="ppScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="ppSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="ppStep"></div><p id="ppCap"></p></div>
+<div class="an-cnt" id="ppCnt"></div>
+<div id="ppSweep"></div>
+<p class="small mute">A list scheduler executes each rank's operations strictly in order: warm-up forwards (2(PP − 1 − rank) + (<i>V</i> − 1)<i>N</i>, the Megatron interleaved rule with <i>N</i> in place of PP), then one forward and one backward alternately, then the remaining backwards. <b>With no latency it reproduces the paper's bubble formula (PP − 1)/(<i>V</i> × <i>M</i>) exactly</b> for every <i>N</i> ≥ PP (independently: the formula is not used by the simulation). Latency and unit times are illustrative; "in flight" counts micro-batch stages whose activations a rank holds between forward and backward. The table sweeps <i>N</i> at the current latency for <i>M</i> = 10; below <i>N</i> = PP this page's warm-up rule stalls or deadlocks, and the paper does not say how its implementation handles that case.</p>
+</div>
+
+<div class="card" id="rl">
+<h3 style="margin-top:0">Replay the 54 days: interruptions against checkpointing (Table 5)</h3>
+<p class="small">Interruptions arrive at the paper's rate, 466 in 54 days (419 unexpected, coloured by Table 5's root causes, and 47 planned). Each costs the restart time plus the work since the last checkpoint; each checkpoint pauses training briefly. The paper reports only the outcome, more than 90% effective training time; the times below are yours to set (the defaults are one setting that clears 90%).</p>
+<div class="an-top"><div class="seg" id="rlM" role="group" aria-label="Recovery"><button class="on" data-m="auto" aria-pressed="true">Automated recovery</button><button data-m="manual" aria-pressed="false">Every stop waits for a person (+2 h)</button></div></div>
+<div class="ctl"><label>Checkpoint every <b id="rlIv"></b><input type="range" id="rlI" min="0" max="7" step="1" value="1" aria-label="Checkpoint interval"></label><label>Restart time <b id="rlRv"></b><input type="range" id="rlR" min="0" max="6" step="1" value="1" aria-label="Restart time"></label><label>Pause per checkpoint <b id="rlSv"></b><input type="range" id="rlS" min="0" max="5" step="1" value="2" aria-label="Checkpoint pause"></label></div>
+<div id="rlSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="rlBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rlPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rlFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="rlScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the weeks">
+<label class="small">Speed <select id="rlSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rlStep"></div><p id="rlCap"></p></div>
+<div class="an-cnt" id="rlCnt"></div>
+<p class="small mute">Arrival times are a seeded Poisson process at 466/54 per day; causes are drawn in proportion to Table 5's counts. Expected effective time is <span class="m">1 − λ(<i>R</i> + <i>I</i>/2) − <i>s</i>/<i>I</i></span> for rate λ, restart <i>R</i>, interval <i>I</i> and pause <i>s</i> (derived here: half an interval of work is lost on average), maximised at <span class="m"><i>I</i>* = √(2<i>s</i>/λ)</span>. The paper's three manual interventions in 54 days are why the automated mode is the realistic one; the +2 h mode shows what the same failure rate would cost without that automation. Times are illustrative.</p>
+</div>
+</section>
