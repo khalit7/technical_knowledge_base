@@ -1,0 +1,80 @@
+
+<section id="s-tr">
+<h2>5. Traces: one request, followed everywhere</h2>
+<p>Metrics say the slowest requests got slower; they cannot say <i>where</i> the time went. A <dfn id="g-trace">trace</dfn> can. It records one request's whole journey as a tree of <dfn id="g-span">spans</dfn>. A span is one timed operation: a name ("load history"), a start time and duration, the ID of its <b>parent</b> span (the operation that called it), <b>attributes</b> (key-value details such as <code>http.route</code> or <code>db.system.name</code>), <b>events</b> (timestamped notes inside it, such as an exception), and a <b>status</b> (unset, OK or error). Each span also has a <b>kind</b>: SERVER for handling an incoming request, CLIENT for an outgoing call, INTERNAL for work inside one service. Here is a real, typical trace from the normal phase, drawn as a <dfn id="g-wf">waterfall</dfn> (one row per span, bars on a shared time axis; click a row for its details):</p>
+<div class="card"><div class="wf" id="tr-typ"></div><div class="kvs" id="tr-typ-d" style="max-height:220px"></div></div>
+<p>Two things to notice. The <code>GET /search</code> span comes from a <i>different process</i> (retrieval) yet sits inside chat-api's tree, because the two processes passed the trace's identity between them. And the model call dominates: in this demo, as in a real LLM product, a normal request is mostly waiting for the model. Instrumentation is a few lines per operation (real code from <code>src/demo/api.py</code>):</p>
+<div class="code"><span class="cm"># once, at start-up: who we are, and where finished spans go</span>
+provider = TracerProvider(resource=Resource.create({"service.name": "chat-api"}))
+provider.add_span_processor(BatchSpanProcessor(exporter))   <span class="cm"># sends spans in the background</span>
+trace.set_tracer_provider(provider)
+tracer = trace.get_tracer("chat-api")
+
+<span class="cm"># per request</span>
+with tracer.start_as_current_span("POST /v1/chat", kind=SpanKind.SERVER,
+                                  attributes={"http.route": "/v1/chat"}) as sp:
+    with tracer.start_as_current_span("load history"):        <span class="cm"># child: parent is set automatically</span>
+        rows = db().execute(...)
+    with tracer.start_as_current_span("GET retrieval /search", kind=SpanKind.CLIENT):
+        headers = {}
+        inject(headers)                                        <span class="cm"># writes the traceparent header</span>
+        urllib.request.urlopen(Request(url, headers=headers), timeout=1.0)</div>
+</section>
+
+<section id="s-tp">
+<h2>Context propagation: the traceparent header, byte by byte</h2>
+<p><dfn id="g-prop">Context propagation</dfn> is how the trace's identity crosses a network call. The caller writes it into a header; the callee reads it and makes its spans children of the caller's span. The format is a W3C standard, Trace Context: a W3C Recommendation since February 2020, edited in November 2021 ({{W3C Trace Context|https://www.w3.org/TR/trace-context/}}), with a Level 2 draft adding a "random" flag ({{Trace Context Level 2, Candidate Recommendation Draft, 28 March 2024|https://www.w3.org/TR/trace-context-2/}}). This is the real header chat-api sent to retrieval on the incident's first failed request. Click each part:</p>
+<div class="card" id="tp-card">
+<div class="tp" id="tp-view"></div>
+<div class="detail" id="tp-detail"></div>
+<label class="small">Or paste any traceparent to check it: <input id="tp-in" type="text" spellcheck="false" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:13px"></label>
+<p class="small" id="tp-check"></p>
+</div>
+<p>Rules worth knowing from the spec: IDs are lowercase hex, an all-zero trace ID or parent ID is invalid and the header "MUST" then be ignored, and "Vendors MUST expect the header name in any case (upper, lower, mixed), and SHOULD send the header name in lowercase." That last rule bit this page's demo: Python's <code>urllib</code> sent the header as <code>Traceparent</code>, the receiving code looked it up case-sensitively, missed it, and every retrieval span silently started a new trace. Nothing errored; the traces were just broken in two. The fix was one line (lower-case the header names before <code>extract</code>); the lesson is to check that a cross-service trace actually joins up before you need it. A companion header, <code>tracestate</code>, carries vendor-specific data; <b>baggage</b> (a separate W3C header) carries your own key-value pairs, such as a tenant ID, to every downstream service.</p>
+<p class="small">Propagation also crosses queues: put <code>traceparent</code> in the message's headers when you publish and extract it in the consumer, so an async job joins the trace of the request that created it (see the sibling {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}). For LLM agents, a trace per conversation turn with a span per model and tool call is how agent runs are evaluated; that use is on {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}}.</p>
+</section>
+
+<section id="s-samp">
+<h2>Sampling: which traces to keep</h2>
+<p>Every request produces a trace of about eight spans in our demo; at 10 million messages a day that is 80 million spans a day, most of them boring. <dfn id="g-samp">Sampling</dfn> keeps a subset. Two places to decide (definitions from {{OpenTelemetry sampling|https://opentelemetry.io/docs/concepts/sampling/}}):</p>
+<ul>
+<li><dfn id="g-head">Head sampling</dfn> decides at the start of the trace, usually from the trace ID ("keep 10%"), and passes the decision downstream in the <code>traceparent</code> flags so every service agrees. Cheap and stateless. Its weakness: "you cannot ensure that all traces with an error within them are sampled with head sampling alone", because nobody knows yet whether this request will fail or be slow.</li>
+<li><dfn id="g-tail">Tail sampling</dfn> decides after the trace is complete, "by considering all or most of the spans within the trace": keep every error, every slow trace, and a small share of the rest. Its costs: it is stateful (spans wait in memory, 30 seconds by default), and "All spans for a given trace MUST be received by the same collector instance" ({{tail sampling processor README at 9056197|https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/9056197f9bf1320dc8d15bf0c6eb631d7f71dbbc/processor/tailsamplingprocessor/README.md}}), so at scale a load-balancing layer routes by trace ID in front of the samplers.</li>
+</ul>
+<p>Both policies, replayed on the real incident phase's trace IDs (head: OpenTelemetry's trace-ID-ratio rule at 10%; tail: keep errors, keep anything over 1 s, plus 5% of the rest):</p>
+<div class="card"><div class="bars" id="sp-bars"></div><p class="small mute" id="sp-note"></p></div>
+<p class="small">The collector configuration for that tail policy is in the {{Real telemetry|#t-real}} tab; it passes <code>otelcol-contrib validate</code> (version 0.162.0). The processor's stability is "beta" for traces. Remember what sampling does to counting: if you keep 5% of normal traces, you cannot count requests from traces. Count with metrics (computed before sampling) and explain with traces.</p>
+<h3>Exemplars: from a metric spike to the exact trace</h3>
+<p>An <dfn id="g-ex">exemplar</dfn> is a trace ID attached to one histogram bucket observation, so a dot on a latency graph links to a real request that landed in that bucket. Our chat-api attached one to every observation; in the OpenMetrics text format they appear after a <code>#</code> (real lines):</p>
+<div class="code" id="ex-text"></div>
+<p class="small">Prometheus stores them only with <code>--enable-feature=exemplar-storage</code>; queried over the incident minute and a half, it returned <b id="ex-n"></b> exemplars, the slowest pointing at a <b id="ex-top"></b> request. Grafana draws them as dots that open the trace in Tempo or Jaeger.</p>
+</section>
+
+<section id="s-otel">
+<h2>6. OpenTelemetry: one standard for all of it</h2>
+<p><dfn id="g-otel">OpenTelemetry</dfn> (OTel) is the open, vendor-neutral standard for producing telemetry, a Cloud Native Computing Foundation project born from the merger of two earlier projects, OpenTracing and OpenCensus ({{What is OpenTelemetry|https://opentelemetry.io/docs/what-is-opentelemetry/}}). You instrument your code once against its API, and send the data to any backend (Prometheus, Tempo, Jaeger, Datadog, Honeycomb and most others accept it). Its parts:</p>
+<div class="tw"><table>
+<thead><tr><th>Part</th><th>What it does</th><th>In the demo</th></tr></thead>
+<tbody>
+<tr><td><b>API</b></td><td>What your code calls: <code>start_as_current_span</code>, meters, the propagator. Does nothing until an SDK is installed, so libraries can depend on it safely.</td><td><code>opentelemetry-api</code> 1.45.0</td></tr>
+<tr><td><b>SDK</b></td><td>The implementation: sampling, batching, resource attributes (service name and version), exporters</td><td><code>opentelemetry-sdk</code> 1.45.0 (released 2026-09-25)</td></tr>
+<tr><td><b>OTLP</b></td><td>The wire protocol between SDKs, collectors and backends (gRPC on port 4317, HTTP on 4318)</td><td>The demo wrote spans to a file instead</td></tr>
+<tr><td><b>Collector</b></td><td>A separate program that <b>receives</b> telemetry, <b>processes</b> it (batch, filter, redact, tail-sample, add Kubernetes metadata) and <b>exports</b> it to one or more backends. Run as an <i>agent</i> beside each app, a <i>gateway</i> pool in front of the backends, or both.</td><td>Config validated with otelcol-contrib 0.162.0 (2026-09-29)</td></tr>
+<tr><td><b>Semantic conventions</b></td><td>Agreed attribute names, so every library says <code>http.request.method</code>, not <code>method</code> or <code>verb</code>. HTTP conventions were marked stable in v1.23.0 (2023-11-03, {{release notes|https://github.com/open-telemetry/semantic-conventions/releases/tag/v1.23.0}}); latest v1.44.0 (2026-08-04)</td><td><code>http.route</code>, <code>http.response.status_code</code>, <code>db.system.name</code></td></tr>
+<tr><td><b>Auto-instrumentation</b></td><td>Packages that wrap common libraries (web frameworks, HTTP clients, database drivers) so spans appear without code changes</td><td>Not used, to show the mechanics by hand</td></tr>
+</tbody></table></div>
+<p><b>Maturity differs by signal and language</b>, so check before you rely on it. OpenTelemetry's status page lists Python as Stable for traces and metrics and "Development" for logs; Go logs are a release candidate; Java is Stable for all three ({{OTel status|https://opentelemetry.io/status/}}, fetched 2026-10-04). That is why this demo wrote logs through Python's standard <code>logging</code> with the trace ID added, which is what most Python teams do today; the collector can still ingest those lines. Profiles became a fourth OTel signal in public alpha on 2026-03-26 (<a href="#s-prof">next section</a>). For model calls, the GenAI conventions (status "Development") are covered in the sibling {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} section 12.</p>
+<div class="co"><div class="t">Why the collector is worth running</div><p class="small">Without it each service talks to the backend directly, so changing vendors, adding redaction or adding tail sampling means changing every service. With it, services send OTLP to <code>localhost</code> and the pipeline is one config file. Put <code>memory_limiter</code> first in every pipeline so an overloaded collector refuses data instead of crashing, and remember that the collector is now part of your production path: monitor it (it exports its own metrics) and keep it outside the systems it watches (the Roblox lesson).</p></div>
+</section>
+
+<section id="s-prof">
+<h2>7. Profiling: the fourth signal</h2>
+<p>Traces say which operation was slow; when that operation is your own code burning CPU, you need to know which <i>function</i>. A <dfn id="g-prof">profiler</dfn> answers by <b>sampling</b>: many times a second it records the stack (the chain of functions currently running), then counts how often each function appears. A <dfn id="g-flame">flame graph</dfn> draws the result: "The x-axis shows the stack profile population, sorted alphabetically (it is not the passage of time), and the y-axis shows stack depth... The wider a frame is, the more often it was present in the stacks" ({{Brendan Gregg, Flame Graphs|https://www.brendangregg.com/flamegraphs.html}}). <dfn id="g-cprof">Continuous profiling</dfn> runs a low-overhead sampler on every production process all the time; Google described doing so fleet-wide in 2010 "with negligible overhead" ({{Google-Wide Profiling, IEEE Micro 2010|https://research.google/pubs/google-wide-profiling-a-continuous-profiling-infrastructure-for-data-centers/}}). Tools in 2026: Grafana Pyroscope, Parca, Datadog's profiler, and OpenTelemetry Profiles, which entered public alpha on 2026-03-26 with an eBPF-based reference profiler ({{OTel blog|https://opentelemetry.io/blog/2026/profiles-alpha/}}).</p>
+<p>A real example, and an answer to "what does all this telemetry cost my service?". We timed each kind of telemetry call as the demo makes it, then profiled a loop emitting one request's worth (six spans, two histogram observations, one counter, one JSON log line) with a 30-line sampling profiler of exactly the kind described above (stacks read every millisecond):</p>
+<div class="card">
+<div class="out" id="pf-bench"></div>
+<div class="fg" id="pf-flame"></div>
+<p class="small mute" id="pf-note"></p>
+</div>
+<p class="small">Reading it: about 96 microseconds of CPU per request in Python, against a request of about 320 ms, is 0.03%: negligible for this service. The flame graph shows where it goes: span creation and the JSON log line, not the metrics. At 10,000 requests a second on one machine the same cost is about one CPU core, which is when teams sample traces, drop INFO logs on hot paths, or move work to the collector.</p>
+</section>
