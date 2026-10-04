@@ -1,0 +1,36 @@
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>
+#t-lab .ctl label{font-size:12.5px}
+#t-lab .tog{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:6px 0}
+#t-lab .tog label{white-space:nowrap}
+#t-lab .stat .v{font-size:17px}
+#t-lab .out{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+#t-lab .ctl{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+#t-lab .grp{border:1px solid var(--line);border-radius:10px;padding:6px 12px;margin:8px 0}
+#t-lab .grp>summary{cursor:pointer;font-weight:600;font-size:14px}
+#t-lab select{max-width:100%}
+</style>
+<section id="lab-top">
+<h2>Queue lab</h2>
+<p>A simulated queue with the semantics of SQS (and of the measured Postgres queue): messages arrive, wait, are claimed by workers, hidden for a visibility timeout, and deleted when a worker acknowledges them after doing the side effect. You choose the traffic, the workers, the timeout and how often workers crash, and watch the backlog, the age of the oldest message, redeliveries and duplicates. Everything runs in your browser, deterministic for a given seed; the same model in Python is <code>qsim</code> in <code>src/recompute.py</code>.</p>
+<div class="try"><b>Try:</b> start with "Healthy" and raise the arrival rate until utilisation passes 100%: the backlog stops draining and the age of the oldest message climbs without limit. Load "Crashes, naive", then tick the idempotent consumer: redeliveries stay, duplicates vanish. Load "Poison, no DLQ" and set max receives to 5. Load the two "Lab run" presets to compare the model with the real Postgres runs.</div>
+<div class="chips" id="lab-pre"></div>
+<p class="small mute" id="lab-pre-note"></p>
+<div id="lab-ctl"></div>
+<div class="out" id="lab-out"></div>
+<div class="chart" id="lab-svg"></div>
+<p class="small mute" id="lab-little"></p>
+<details class="grp"><summary>The model, exactly</summary>
+<ul class="tight small">
+<li>Arrivals: Poisson at rate &lambda; for T seconds (optionally 3 times &lambda; from T/4 to T/2), or a backlog of N messages at time 0. The run lasts 1.5 T (steady) or T (backlog), so a steady run shows the drain after arrivals stop.</li>
+<li>Waiting messages are claimed oldest first (a redelivered message goes to the front, as <code>ORDER BY id</code> did in the measured lab). A claim hides the message for the visibility timeout V.</li>
+<li>Service time: exponential with mean S, or fixed S. At the end of service: the side effect, then the acknowledgement (delete).</li>
+<li>Crash: with probability p per delivery, after the side effect and before the acknowledgement (the dangerous spot). The worker is down for the restart time, then takes new work. The message reappears when its timeout expires.</li>
+<li>If a message's timeout expires while its first worker is still busy, another worker may take it; both do the side effect (a duplicate) and the second acknowledgement finds it already deleted.</li>
+<li>Idempotent consumer: a repeated side effect is detected and skipped (counted as "caught").</li>
+<li>Poison messages (a fraction of arrivals) fail every time: no effect, no acknowledgement. With max receives M &gt; 0, a message already received M times goes to the dead-letter queue when it is next claimed (the SQS <code>maxReceiveCount</code> rule).</li>
+<li>Queue bound B: an arrival finding B messages in the system is rejected (the producer would get 429).</li>
+<li>Little's law check: L is the time-average number of messages in the system over the run; X is completions per second; W the mean time from arrival to acknowledgement. L = XW when the queue ends empty.</li>
+</ul></details>
+</section>
+</div>

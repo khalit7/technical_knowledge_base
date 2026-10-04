@@ -1,0 +1,52 @@
+
+<section id="s-llm">
+<h2>Async work around LLMs</h2>
+<p>LLM products stretch every idea on this page, because one unit of work can take a second (a chat reply), minutes (a deep-research answer, an agent run) or hours (a batch over a million documents), and costs real money each time it runs.</p>
+<h3>Stream to the user while the work continues</h3>
+<p>The chat reply stays on the request path but is <b>streamed</b>: the server sends tokens as they are generated over server-sent events (SSE), one long HTTP response with one event per chunk. Anthropic: set <code>"stream": true</code> "to incrementally stream the response using server-sent events (SSE)" ({{Anthropic streaming|https://platform.claude.com/docs/en/build-with-claude/streaming}}). The design question is what happens when the connection drops halfway. If generation is tied to the HTTP connection, a closed tab or a phone switching networks kills a paid-for answer. The better shape separates the two: the generation runs as a background job writing chunks somewhere durable, and the HTTP stream is just a reader that can reconnect. Vercel's AI SDK: "In a resumable stream setup, client-side aborts are treated as disconnects. Closing a tab, refreshing the page, or calling stop() only closes the current HTTP connection and should not cancel the underlying generation" ({{AI SDK resumable streams|https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-resume-streams}}). OpenAI's background mode does it on the provider side: create a response with <code>background</code> and <code>stream</code> both true and "keep track of a 'cursor' corresponding to the sequence_number you receive in each streaming event", then resume with <code>starting_after</code> ({{OpenAI background mode|https://platform.openai.com/docs/guides/background}}). Note its retention: "Response data is temporarily stored to disk for roughly 10 minutes to enable asynchronous execution and polling". Server-sent events in API design: {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
+<h3>Long-running agent jobs</h3>
+<p>An agent run is a saga of model calls and tool calls, some with side effects (open a pull request, send an e-mail, charge a card). Treat it as a durable workflow: return <code>202</code> with a run id, execute the steps in a worker or workflow engine that records each completed step, and push progress to the client (SSE or WebSocket) or let it poll. Three rules from the sections above, applied:</p>
+<ul>
+<li><b>Every tool call with a side effect carries an idempotency key</b> derived from the run id and step number, because a crashed run will be resumed and a timed-out call retried (<a href="#s-idem">idempotent consumers</a>).</li>
+<li><b>Record model outputs as completed steps,</b> so a resumed run does not pay for the same tokens again; that is the point of durable execution for agents. Temporal's announcement of its OpenAI Agents SDK integration (public preview, July 2025): "Temporal keeps track of application progress and stores all Activity results" ({{Temporal blog|https://temporal.io/blog/announcing-openai-agents-sdk-integration}}, vendor post). An OpenAI infrastructure VP is quoted in Temporal's September 2026 funding post as saying OpenAI built "a durable orchestration framework powered by Temporal" ({{Temporal, 2026-09-14|https://temporal.io/blog/temporal-raises-usd550m-series-e-at-usd12-55b-valuation-ai}}; a vendor post, not an OpenAI source).</li>
+<li><b>Leases must outlast the slowest step or be renewed:</b> a 20-minute agent step on a queue with a 5-minute visibility timeout runs four times in parallel (<a href="#s-vt">visibility timeouts</a>).</li>
+</ul>
+<h3>Batch APIs: a queue the provider runs for you</h3>
+<p>For work that can wait hours (evaluations, re-embedding a corpus, classifying a backlog), providers sell a queue with a discount: OpenAI's Batch API offers "50% lower costs, a separate pool of significantly higher rate limits, and a clear 24-hour turnaround time" ({{OpenAI Batch|https://platform.openai.com/docs/guides/batch}}); Anthropic's Message Batches have "most batches finishing in less than 1 hour while reducing costs by 50%", up to 100,000 requests or 256 MB per batch ({{Anthropic batch processing|https://platform.claude.com/docs/en/build-with-claude/batch-processing}}). Your side is still a job: submit, store the batch id, poll or get notified, fetch results, and handle the requests that expired or failed (resubmit them, idempotently, keyed by your own request ids). When to batch and what it saves is on {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}}.</p>
+<h3>A queue in front of the GPUs</h3>
+<p>Inference servers queue requests internally and batch them on the GPU (the parent root's Step 5). Two lessons from this page carry over: a queue in front of a GPU pool must be bounded and shed load early, because an unbounded one turns a traffic spike into minutes of latency for everyone (the degradation ladder and priorities are on {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}}); and autoscaling should follow queue depth or the age of the oldest request, not CPU. Serving engines themselves are {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</p>
+</section>
+
+<section id="s-prod">
+<h2>What pros do in production</h2>
+<p>Practices below are sourced where a source states them; the rest are common practice (marked).</p>
+<div class="tw"><table>
+<thead><tr><th>Decision</th><th>Typical choice</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>First queue for a new service</td><td>A Postgres-backed queue (Procrastinate, River, Solid Queue) or SQS</td><td>No new infrastructure; enqueue in the same transaction as the data (common practice; River and Oban docs)</td></tr>
+<tr><td>When to add Kafka</td><td>Several consumers of the same events, replay, or high event volume</td><td>A log's strengths; operational cost is real (common practice)</td></tr>
+<tr><td>Kafka producer</td><td><code>acks=all</code>, idempotence on (defaults since 3.0), replication factor 3, <code>min.insync.replicas=2</code></td><td>No loss if one broker fails; Kafka docs recommend RF 3 with min ISR 2 for EOS</td></tr>
+<tr><td>Kafka consumer</td><td>Commit offsets after processing (manual commit) or process idempotently; <code>read_committed</code> if upstream uses transactions</td><td>At-least-once on purpose, not by accident of the auto-commit timer</td></tr>
+<tr><td>Message ids</td><td>A producer-assigned unique id (UUID, or entity id plus version) in every message</td><td>Deduplication needs a key the producer controls</td></tr>
+<tr><td>Visibility timeout</td><td>Several times the p99 job time, with a heartbeat for long jobs</td><td>SQS docs: extend with <code>ChangeMessageVisibility</code></td></tr>
+<tr><td>DLQ</td><td>After 3 to 5 receives; alarm on any message; tested redrive</td><td>SQS redrive policy; the numbers are common practice</td></tr>
+<tr><td>Monitoring</td><td>Age of oldest message (or lag in seconds), DLQ depth, consumer error rate, redelivery rate</td><td>Yanacek: age catches both slowness and retry loops</td></tr>
+<tr><td>Events to other services</td><td>Outbox, relayed by polling or by Debezium</td><td>Removes the dual write</td></tr>
+<tr><td>Multi-step, long-running work</td><td>A durable workflow engine (Temporal, DBOS, Restate, Cloudflare Workflows)</td><td>Resumes after crashes without hand-written state machines</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Assuming the queue gives exactly-once</summary><div class="b">Every common broker delivers at least once in practice. Design every consumer to receive a message twice; test it by delivering twice.</div></details>
+<details class="mist"><summary>Generating the dedup id in the consumer</summary><div class="b">A random id made on receipt is new on every redelivery, so nothing is ever deduplicated. The id must come from the producer, or be derived from the content (order id plus event type).</div></details>
+<details class="mist"><summary>Running Celery with default acks for important work</summary><div class="b">The default acknowledges before running, so a killed worker loses the task. Use <code>acks_late</code> plus <code>reject_on_worker_lost</code>, and idempotent tasks.</div></details>
+<details class="mist"><summary>A visibility timeout shorter than the slowest job</summary><div class="b">Slow jobs run on two workers at once (measured above). Set it above p99, or heartbeat.</div></details>
+<details class="mist"><summary>Publishing an event right after a commit, "it is usually fine"</summary><div class="b">It is fine until a deploy or crash lands between the two lines; then events are lost silently (measured: one per crash). Use an outbox, or enqueue in the database.</div></details>
+<details class="mist"><summary>Watching queue length instead of message age</summary><div class="b">A queue of 10,000 may be healthy (fast consumers) and a queue of 50 may be stuck (one poison message retried forever). Age tells you which.</div></details>
+<details class="mist"><summary>No DLQ, or a DLQ nobody watches</summary><div class="b">Without one, a poison message burns a worker forever (try it in the Queue lab); with an unwatched one, failed jobs vanish quietly.</div></details>
+<details class="mist"><summary>More consumers than partitions</summary><div class="b">In a Kafka consumer group the extra consumers sit idle. Plan partition counts for peak parallelism, or use share groups (Kafka 4.2+).</div></details>
+<details class="mist"><summary>Changing the partition count of a keyed topic</summary><div class="b">Keys move to new partitions, so per-key ordering breaks across the change (try it in the Kafka widget above).</div></details>
+<details class="mist"><summary>Doing slow work inside the database transaction that holds the job lock</summary><div class="b">Fine for milliseconds (the throughput experiment did it), harmful for minutes: long transactions hold locks and stop Postgres from cleaning up old row versions. For long jobs use a lease (a <code>visible_at</code> column) and commit the claim at once.</div></details>
+<details class="mist"><summary>Unbounded queues in front of expensive resources</summary><div class="b">Bound them, reject early with 429, and scale on queue age. An unbounded queue in front of a GPU pool turns a spike into minutes of latency for everyone.</div></details>
+</section>

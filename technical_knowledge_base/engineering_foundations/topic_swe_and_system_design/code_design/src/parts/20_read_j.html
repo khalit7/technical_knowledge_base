@@ -1,0 +1,54 @@
+<section id="s-tools"><h2>12. The tooling a pro uses (versions as of <span data-v="env.date"></span>)</h2>
+<p>Everything mechanical should be a machine's job, so humans review design. The 2026 Python default stack:</p>
+<div class="tw"><table>
+<thead><tr><th>Job</th><th>Tool (PyPI version, release date)</th><th>What it does for you</th></tr></thead>
+<tbody>
+<tr><td>Lint and format</td><td>{{ruff|https://docs.astral.sh/ruff/}} 0.16.10, 2026-10-01</td><td>One tool for hundreds of lint rules (pyflakes, pycodestyle, isort, bugbear, pylint subsets) and a formatter; its docs claim "10-100x faster than existing linters (like Flake8) and formatters (like Black)". The formatter is "designed as a drop-in replacement for Black": on Django and Zulip "&gt; 99.9% of lines are formatted identically" ({{docs|https://docs.astral.sh/ruff/formatter/#black-compatibility}}). Black itself (26.10.0, released today) is still maintained.</td></tr>
+<tr><td>Type check</td><td>mypy 2.4.0 or pyright 1.1.414 (ty, pyrefly newer)</td><td>Section 6.</td></tr>
+<tr><td>Run checks before each commit</td><td>{{pre-commit|https://pre-commit.com/}} 4.6.2, 2026-08-10</td><td>Runs the hooks listed in <code>.pre-commit-config.yaml</code> on the files you changed, at <code>git commit</code>, so formatting never reaches review.</td></tr>
+<tr><td>Projects, dependencies, Python versions</td><td>{{uv|https://docs.astral.sh/uv/}} 0.12.23, 2026-10-03</td><td>Creates projects, resolves and locks dependencies (<code>uv.lock</code>), installs Python itself, builds and publishes.</td></tr>
+<tr><td>Tests</td><td>pytest 9.1.1; hypothesis 6.168.3</td><td>Owned by {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}, which also covers CI.</td></tr>
+</tbody></table></div>
+<p>A real configuration, the one that built <code>chatsummary</code> above, plus the pre-commit file that would run it (the ruff hook block is the one from {{ruff-pre-commit's README|https://github.com/astral-sh/ruff-pre-commit}}; tags checked today):</p>
+<div class="cv"><span class="l"><span class="cm"># pyproject.toml (tool sections)</span></span><span class="l">[tool.ruff]</span><span class="l">line-length = 110</span><span class="l">target-version = <span class="s">"py310"</span></span><span class="l">[tool.ruff.lint]</span><span class="l">select = [<span class="s">"E"</span>, <span class="s">"F"</span>, <span class="s">"I"</span>, <span class="s">"B"</span>, <span class="s">"UP"</span>, <span class="s">"BLE"</span>, <span class="s">"C901"</span>, <span class="s">"PLR0911"</span>, <span class="s">"PLR0912"</span>, <span class="s">"ANN"</span>]</span><span class="l">[tool.mypy]</span><span class="l">strict = true</span><span class="l"></span><span class="l"><span class="cm"># .pre-commit-config.yaml</span></span><span class="l">repos:</span><span class="l">- repo: https://github.com/astral-sh/ruff-pre-commit</span><span class="l">  rev: v0.16.10</span><span class="l">  hooks:</span><span class="l">    - id: ruff-check</span><span class="l">      args: [ --fix ]</span><span class="l">    - id: ruff-format</span><span class="l">- repo: https://github.com/pre-commit/mirrors-mypy</span><span class="l">  rev: v2.4.0</span><span class="l">  hooks:</span><span class="l">    - id: mypy</span><span class="l">      additional_dependencies: [pydantic, httpx]</span></div>
+<p>Rule selection is a decision, not a default: ruff enables only a small default set, and <code>C901</code> (complexity) is not in it. What a few chosen rules found on the tangled LLM call, for real:</p>
+<div class="cv" id="tools-ruff"></div>
+<div class="cost"><div class="t">What it costs, and when not to</div>Every rule you enable is a rule someone must satisfy or silence. Turning on everything (<code>select = ["ALL"]</code>) on an old codebase produces thousands of findings and teaches people to ignore the linter. Start with the defaults plus a few rules that catch bugs (bugbear <code>B</code>, blind except <code>BLE</code>), add more one at a time, and fix or baseline existing violations when you do.</div>
+</section>
+
+<section id="s-ai"><h2>13. Working with AI coding assistants: you are the reviewer</h2>
+<p>An AI coding assistant writes plausible code fast. Plausible is the risk: the failure mode is code that looks right, passes the tests it wrote for itself, and is subtly wrong at the edges. The old page put it well: "LLM-authored code raises the review bar, not lowers it". What the evidence says, as of today:</p>
+<ul class="tight">
+<li><b>Speed is not settled.</b> METR's randomised trial (16 experienced open-source developers, 246 real issues in their own repositories, early-2025 tools) found "when developers use AI tools, they take 19% longer than without", while the developers expected a 24% speedup and still believed afterwards that AI had sped them up by 20% ({{METR, 2025-07-10|https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/}}). A February 2026 follow-up with newer tools says its new data "gives us an unreliable signal of the current productivity effect of AI tools", because of who chose to take part ({{METR, 2026-02-24|https://metr.org/blog/2026-02-24-uplift-update/}}). Honest summary: no reliable measurement yet, and your own feeling of speed is not evidence.</li>
+<li><b>Delivery can suffer.</b> Google's DORA 2024 report associated a 25% increase in AI adoption with 7.5% better documentation quality and 3.4% better code quality, but also "an estimated decrease in delivery throughput by 1.5%, and an estimated reduction in delivery stability by 7.2%" ({{Google Cloud blog, 2024-10-23|https://cloud.google.com/blog/products/devops-sre/announcing-the-2024-dora-report}}).</li>
+<li><b>Models invent packages.</b> Across 16 models and 576,000 code samples, "the average percentage of hallucinated packages is at least 5.2% for commercial models and 21.7% for open-source models", with 205,474 unique invented names ({{Spracklen et al., USENIX Security 2025|https://arxiv.org/abs/2406.10279}}). Attackers register such names ("slopsquatting"), so <code>pip install</code> of a suggested package you have never heard of can install malware.</li>
+</ul>
+<h3>A reviewer's checklist for AI output</h3>
+<ol>
+<li><b>Read the tests first.</b> Do they test behaviour, or do they test mocks? Would they fail if the code were wrong? (Review lab, "a test that tests the mock".)</li>
+<li><b>Ask for the invariants.</b> Make the assistant (or yourself) state what must always hold ("a claimed key is released unless a response was saved") and check the code against that sentence.</li>
+<li><b>Check every new dependency</b> exists, is the package you think it is, and is maintained.</li>
+<li><b>Watch the edges</b>: error paths, retries, empty inputs, concurrency, time zones. Assistants write the happy path well. The "retry everything" and "blocking call in async code" diffs in the Review lab are both typical.</li>
+<li><b>Keep diffs small</b>, the same rule as for humans; ask for one change at a time.</li>
+<li><b>Never let it edit the tests and the code in the same step</b> to make a failure go away; that is how a characterization test gets "fixed" instead of the bug.</li>
+</ol>
+<div class="deepnote"><b>Go deeper:</b> agent harnesses that run coding assistants are covered in {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}; how coding agents are benchmarked, and why scores can mislead, in {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}} and the paper page {{Schrödinger's Code Repository|n:3e95c17b0d0d81e8b0e0e99acbeb9713}} (has an LLM learned SWE-bench or memorised it?).</div>
+</section>
+
+<section id="s-mist"><h2>14. Common mistakes</h2>
+<details class="mist"><summary><b>Returning None (or False) for failures</b></summary><div class="b">The caller cannot tell why, and usually does not check. Raise a typed exception (section 7). Measured in section 4: four different failures, one <code>None</code>.</div></details>
+<details class="mist"><summary><b><code>except Exception:</code> around a block "to be safe"</b></summary><div class="b">It catches your own bugs (<code>KeyError</code>, <code>TypeError</code>) and the errors that say your request is wrong, then retries or hides them. Catch the narrowest exception that you can actually handle.</div></details>
+<details class="mist"><summary><b>Abstracting on the second copy</b></summary><div class="b">The shared function gets shaped by a guess, then grows flags. Wait for the third (section 5); if the abstraction is already wrong, inline it back.</div></details>
+<details class="mist"><summary><b>Shallow wrappers and classitis</b></summary><div class="b">A <code>LLMClientWrapper</code> whose methods each call one SDK method adds a name and hides nothing. Either hide something real (retries, typed errors, a smaller interface) or call the SDK directly.</div></details>
+<details class="mist"><summary><b>Mixing a refactoring and a behaviour change in one PR</b></summary><div class="b">The reviewer cannot tell which line changes what callers see. Step 8 of the refactor shows a behaviour change hiding inside a "pure cleanup".</div></details>
+<details class="mist"><summary><b>Rewriting instead of refactoring</b></summary><div class="b">The rewrite in section 10 is shorter, scores lower complexity, and fails 4 of 14 tests plus one untested behaviour. Rewrites lose the details that lived in the old structure.</div></details>
+<details class="mist"><summary><b>Untyped signatures with a type checker in CI</b></summary><div class="b">The checker cannot check what is not annotated; <code>mypy --strict</code> reported 1 error on the tangled function, none of them its real problems. Annotate signatures first.</div></details>
+<details class="mist"><summary><b>pydantic everywhere</b></summary><div class="b">Validation at every internal hop costs about five times a dataclass per object (measured, section 6) and buries the real boundary. Validate where data enters; trust it inside.</div></details>
+<details class="mist"><summary><b>Humans reviewing formatting</b></summary><div class="b">Wastes the reviewer's attention and starts arguments. ruff format plus pre-commit ends the topic.</div></details>
+<details class="mist"><summary><b>Removing a public name without a deprecation period</b></summary><div class="b">Callers break on upgrade with <code>TypeError: ... unexpected keyword argument</code> (measured in the Review lab). Warn for at least two releases first (section 9).</div></details>
+</section>
+
+<section id="s-gloss"><h2>Glossary</h2>
+<div class="gl" id="gloss"></div>
+</section>
+</div>
