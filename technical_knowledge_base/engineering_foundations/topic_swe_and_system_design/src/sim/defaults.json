@@ -1,0 +1,67 @@
+{
+  "_note": "Every default of the Scale simulator (t-sim). kind: published (read from a source), derived (formula from published inputs), fitted (set so one published figure is reproduced, by construction), illustrative (a stated assumption). Fetched 2026-10-04 unless a date is given. The JS (parts/31_js_sim_model.js) embeds the same values; src/sim/check_js.mjs confirms they are equal.",
+  "workload": {
+    "msgs_per_user_day": {"v": 10, "kind": "illustrative", "note": "chat messages per daily active user per day"},
+    "api_per_msg": {"v": 4, "kind": "illustrative", "note": "other API calls per message (load history, list chats, auth refresh, settings)"},
+    "peak_factor": {"v": 2, "kind": "illustrative", "note": "busiest hour rate / daily average rate (default; adjustable on the tab, same 2x as the Reading's step 6); everything except the queue is sized for the peak"},
+    "reads_per_req": {"v": 3, "kind": "illustrative"},
+    "writes_per_msg": {"v": 3, "kind": "illustrative", "note": "save user message, save reply, update conversation"},
+    "jobs_per_msg": {"v": 2, "kind": "illustrative", "note": "e.g. moderation check and search indexing after each message"},
+    "job_cpu_s": {"v": 0.05, "kind": "illustrative", "note": "CPU seconds per job"},
+    "isl": {"v": 1000, "kind": "illustrative", "note": "input tokens per model call (prompt plus history); also the TensorRT-LLM table's ISL"},
+    "osl": {"v": 400, "kind": "illustrative", "note": "output tokens per reply"}
+  },
+  "app": {
+    "instance": "m7i.xlarge", "vcpu": 4, "price_h": 0.2016,
+    "price_src": "https://instances.vantage.sh/aws/ec2/m7i.xlarge",
+    "price_note": "AWS on-demand Linux, us-east-1, read through Vantage's mirror of the AWS price list on 2026-10-04 (the same entry as the Numbers tab, src/num/num_data.json)",
+    "cpu_per_req_s": {"v": 0.005, "kind": "illustrative", "note": "5 ms of CPU per API request: 4 vCPU gives 800 requests/s per server"},
+    "enqueue_cpu_s": {"v": 0.0005, "kind": "illustrative", "note": "cost to put one job on the queue"}
+  },
+  "lb": {
+    "price_h": 0.0225, "lcu_h": 0.008, "new_conn_per_lcu": 25,
+    "src": "https://aws.amazon.com/elasticloadbalancing/pricing/",
+    "note": "Application Load Balancer, us-east-1; LCUs estimated as one new connection per request (upper bound, keep-alive lowers it)"
+  },
+  "db": {
+    "family": "db.r7g (RDS for PostgreSQL, single-AZ, us-east-1)",
+    "sizes": [["large", 2], ["xlarge", 4], ["2xlarge", 8], ["4xlarge", 16], ["8xlarge", 32], ["16xlarge", 64]],
+    "price_per_vcpu_h": 0.1195,
+    "price_src": ["https://instances.vantage.sh/aws/rds/db.r7g.large", "https://instances.vantage.sh/aws/rds/db.r7g.2xlarge", "https://instances.vantage.sh/aws/rds/db.r7g.16xlarge"],
+    "price_note": "large $0.239/h, 2xlarge $0.956/h, 16xlarge $7.65/h: exactly linear at $0.1195 per vCPU-hour; xlarge, 4xlarge, 8xlarge derived from that",
+    "read_cpu_s": {"v": 0.001, "kind": "illustrative", "note": "indexed lookup plus result handling"},
+    "write_cpu_s": {"v": 0.003, "kind": "illustrative", "note": "insert or update with index maintenance and write-ahead log"},
+    "replica_apply_cpu_s": {"v": 0.001, "kind": "illustrative", "note": "a replica replays each write from the log"},
+    "rows_per_user": {"v": 100, "kind": "illustrative", "note": "stored messages per user, the table a missing index forces you to scan"},
+    "scan_rows_per_s": {"v": 2e7, "kind": "illustrative", "note": "rows a sequential scan reads per second per core"}
+  },
+  "cache": {
+    "instance": "cache.r7g.large", "price_h": 0.219,
+    "price_src": "https://instances.vantage.sh/aws/elasticache/cache.r7g.large",
+    "ops_per_s": {"v": 100000, "kind": "published (rounded)", "note": "redis.io benchmark examples without pipelining: 72,145 to 188,324 requests/s on one instance; Redis executes commands on one thread", "src": "https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/benchmarks/"},
+    "hit_rate": {"v": 0.9, "kind": "illustrative"}
+  },
+  "queue": {
+    "price_per_million": 0.40, "free_million": 1, "calls_per_job": 3,
+    "src": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSQueueService/current/us-east-1/index.json",
+    "note": "SQS standard Tier1 $0.40 per million requests (price list published 2026-09-11); 1M free per month (https://aws.amazon.com/sqs/pricing/); send, receive, delete = 3 calls per job"
+  },
+  "workers": {"instance": "m7i.xlarge", "vcpu": 4, "price_h": 0.2016, "note": "one job at a time per vCPU"},
+  "gpu": {
+    "model": "Llama 3.3 70B Instruct, FP8 weights and FP8 KV cache (nvidia/Llama-3.3-70B-Instruct-FP8)",
+    "gpu": "H100 SXM 80GB", "gpus_per_replica": 2,
+    "published_tps_per_gpu": {"v": 2209, "kind": "published (vendor)", "note": "TensorRT-LLM perf overview, H100 TP2 FP8, ISL/OSL 1000/1000, maximum-load throughput, output tokens/s per GPU", "src": "https://github.com/NVIDIA/TensorRT-LLM/blob/8a9c66ce086594054d3722307cfed2d658d25e60/docs/source/developer-guide/perf-overview.md", "date": "file last changed 2026-09-11"},
+    "price_gpu_h": {"v": 3.99, "kind": "published", "note": "Lambda on-demand H100 SXM, 8-GPU instance, per GPU-hour", "src": "https://lambda.ai/pricing"},
+    "hbm_bytes": 80e9, "hbm_bw": 3.35e12, "fp8_dense_flops": 1.979e15,
+    "hw_src": "https://www.nvidia.com/en-us/data-center/h100/",
+    "hw_note": "datasheet: 80GB, 3.35TB/s, FP8 3,958 TFLOPS with sparsity, so 1,979 dense",
+    "weight_bytes": 72656585760, "weight_src": "https://huggingface.co/api/models/nvidia/Llama-3.3-70B-Instruct-FP8 (sum of safetensors files)",
+    "params": 70.55e9, "params_note": "Llama 3.3 70B parameter count from its config (80 layers, d 8192, FFN 28672, 64 heads, 8 KV heads, vocab 128256, untied)",
+    "layers": 80, "kv_heads": 8, "head_dim": 128, "kv_bytes": 1,
+    "config_src": "https://huggingface.co/nvidia/Llama-3.3-70B-Instruct-FP8/blob/main/config.json and hf_quant_config.json (kv_cache_quant_algo FP8)",
+    "kv_mem_fraction": {"v": 0.9, "kind": "published", "note": "TensorRT-LLM KvCacheConfig.free_gpu_memory_fraction default", "src": "https://github.com/NVIDIA/TensorRT-LLM/blob/main/tensorrt_llm/llmapi/llm_args.py"},
+    "prefill_mfu": {"v": 0.4, "kind": "illustrative", "note": "share of dense FP8 peak reached during prefill"},
+    "batch": {"v": 64, "kind": "illustrative", "note": "max concurrent streams per replica (the engine's batch limit)"}
+  },
+  "hours_per_month": 730
+}

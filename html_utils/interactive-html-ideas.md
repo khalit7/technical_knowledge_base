@@ -1985,3 +1985,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/measure
 | Long context vs RAG cost/accuracy curve | 3 | 2 | 2 | | rejected: owned by the Long-context benchmarks page and the RAG topic's cost table |
 | Sample-size calculator for retrieval comparisons | 3 | 2 | 1 | | rejected: owned by Eval statistics |
 | TREC RAG nugget scoring animation | 3 | 2 | 4 | | rejected for now: judgments of one topic would be needed; described in rd-fw with dated numbers |
+
+### Topic: swe-and-system-design (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/src/viz_ideas.md`.
+
