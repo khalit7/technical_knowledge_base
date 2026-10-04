@@ -1660,3 +1660,17 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | VB-13 | Real DQN trained offline on a small task, with and without target network | Seeds on CartPole-like tasks often show no clear difference; a noisy result would teach less than the exact example and invite over-reading | | none | 6 | rejected for VB-1 |
 | VB-14 | Dueling V/A decomposition widget | One example already in the text; nothing to move that teaches beyond it | | none | 4 | rejected |
 | VB-15 | NoisyNet weight-noise toy | No published figure to reproduce; the effect needs a full agent | | none | 4 | rejected |
+
+### Model-based RL and planning (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_rl/model_based_rl_and_planning/src/viz_ideas.md`.
+
+| # | Idea | Where | T | R | C | Notes |
+|---|---|---|---|---|---|---|
+| 1 | **Dyna maze, episode 2, n = 0 / 5 / 50** (Figure 8.3 as a before/after animation) | Reading 2 | 5 | 5 | 2 | Same run, same random numbers: planning draws from a second stream, so episode 1 is identical for every n and only planning differs. Counters: arrows, planning updates, V(S) against 0.95^13. |
+| 2 | **MCTS stepper on one tic-tac-toe position**: UCT with random playouts / PUCT with an untrained network / PUCT with the trained network | Reading 5 | 5 | 5 | 4 | The four steps shown for 6 simulations, then one frame per simulation; ends with prior p against visit share pi. Real networks from the Self-play lab. The position (O must block the middle row) was chosen in Python as one where UCT at 30 simulations usually misses the only non-losing move (2 of 20 seeds) and PUCT with the trained network finds it. |
+| 3 | **Compounding model error on Gymnasium's Pendulum-v1** (open loop against restart every 5 steps) plus error-by-horizon chart with the ensemble's spread | Reading 12 | 5 | 5 | 3 | A 5-member MLP ensemble fitted for this page to 2,000 random-torque transitions (src/fit_pendulum.py). One-step error 0.0016 rad; 0.20 after 50 steps (125 times); restarts every 5 steps keep the mean at 0.0044. |
+| 4 | **MuZero vs AlphaZero search-path stepper**, ending with the training unroll (K = 5) and its targets | Reading 8 | 4 | 2 | 2 | A diagram, labelled so: hidden states drawn as strips. Required by the coverage of the old embed's "MuZero training unroll" stepper (entry 118). |
+| 5 | **Figures 8.2, 8.4, 8.5 recomputed** | Reading 2, 3 | 4 | 5 | 2 | Defaults reproduce the shapes; the 1,700-step first episode does not (exact expected random walk 869). |
+| 6 | **Dyna lab** tab: the three experiments with n, alpha, epsilon, kappa, runs | tab | 3 | 5 | 2 | Sweeps that deserve room (Khalid rejected the root's tabular lab; depth belongs on children). |
+| 7 | **Self-play lab** tab: training curves, any position's prior / value / visits / exact result for 5 checkpoints, a table of checkpoints, and a simulations-needed chart | tab | 4 | 5 | 4 | The AlphaZero loop trained offline in about 30 s (src/train_ttt.py); weights int8 (about 2.5 KB per checkpoint). |
