@@ -1,0 +1,75 @@
+
+<section id="s-met">
+<h2>4. Metrics: numbers over time</h2>
+<p>A <dfn id="g-metric">metric</dfn> is a number your program keeps up to date in memory, such as "requests handled so far". A monitoring system reads it every few seconds and stores each reading with its time, giving a <dfn id="g-ts">time series</dfn>: a list of (time, value) pairs. Because the program only updates a number per request (we measured 0.8 to 1 microsecond per update), metrics are the cheapest way to see <i>all</i> requests, at any traffic.</p>
+<p>This page uses <b>Prometheus</b>, the open-source metrics system most teams start with. It <b>pulls</b>: each program serves its current numbers as text at <code>/metrics</code>, and Prometheus fetches ("scrapes") that page on a timer (the configuration default is 1 minute, {{Prometheus configuration|https://prometheus.io/docs/prometheus/latest/configuration/configuration/}}; the demo used 1 second). Here is part of chat-api's real <code>/metrics</code> page at the end of the run:</p>
+<div class="code" id="mx-text" style="max-height:300px"></div>
+<p>Each line is <code>name{labels} value</code>. The <b>name</b> says what is measured; the <b>labels</b> (key="value" pairs) split it into dimensions, and every distinct combination of name and labels is its own time series. The four metric types (definitions from {{Prometheus metric types|https://prometheus.io/docs/concepts/metric_types/}}):</p>
+<div class="tw"><table>
+<thead><tr><th>Type</th><th>What it is</th><th>In the demo</th><th>How you read it</th></tr></thead>
+<tbody>
+<tr><td><dfn id="g-counter">Counter</dfn></td><td>"a cumulative metric that represents a single monotonically increasing counter whose value can only increase or be reset to zero on restart"</td><td><code>http_requests_total{status="503"} 12</code></td><td>Never look at the raw value; take its rate per second over a window with <code>rate()</code>, which also handles restarts</td></tr>
+<tr><td><dfn id="g-gauge">Gauge</dfn></td><td>"a single numerical value that can arbitrarily go up and down"</td><td><code>http_requests_in_flight</code></td><td>Read it directly: memory in use, queue length, requests in progress</td></tr>
+<tr><td><dfn id="g-hist">Histogram</dfn></td><td>Counts of observations in <b>buckets</b> (upper bounds <code>le</code>, "less than or equal"), each bucket <b>cumulative</b>, plus <code>_sum</code> and <code>_count</code></td><td><code>http_request_duration_seconds_bucket{le="0.5"} 1956</code>: 1,956 requests took 0.5 s or less</td><td>Percentiles with <code>histogram_quantile()</code>, computed on the server, and they can be summed across machines</td></tr>
+<tr><td>Summary</td><td>Percentiles computed inside the program</td><td>not used</td><td>Cheap to query, but "not aggregatable": you cannot combine the p99 of ten servers into the fleet's p99 ({{Prometheus histograms and summaries|https://prometheus.io/docs/practices/histograms/}}). Prefer histograms.</td></tr>
+</tbody></table></div>
+<p class="small">Naming conventions worth copying: base units (seconds and bytes, not milliseconds), a unit suffix (<code>_seconds</code>), and <code>_total</code> on counters ({{Prometheus naming|https://prometheus.io/docs/practices/naming/}}). Our counter is declared as <code>http_requests</code>; the client library adds <code>_total</code>.</p>
+</section>
+
+<section id="s-pct">
+<h2>Why averages lie, and how percentiles come out of a histogram</h2>
+<p>Latency (how long one request takes) varies from request to request, so a single number must summarise a distribution. The <b>average</b> (mean) is the obvious choice and a bad one. A <dfn id="g-pct">percentile</dfn> is better: the p99 is the latency that 99% of requests beat, so it describes the slowest 1 in 100; the p50 (median) describes the typical request. The SRE book's warning: "If you run a web service with an average latency of 100 ms at 1,000 requests per second, 1% of requests might easily take 5 seconds" ({{SRE book, ch. 6|https://sre.google/sre-book/monitoring-distributed-systems/}}). Here is what our real incident did to each number, measured exactly from the load generator's own record of every request (the last 60 seconds of each phase):</p>
+<div class="card" id="pc-card">
+<div class="seg" id="pc-seg"><button data-m="normal" class="on">Normal phase</button><button data-m="incident">Incident phase</button></div>
+<div class="chart" id="pc-dist"></div>
+<div class="out" id="pc-stats"></div>
+<p class="small mute" id="pc-note"></p>
+</div>
+<p>The average moved by about a third: enough to notice, wrong about what happened. It suggests every user got a bit slower. The truth is that the median barely moved while the slowest requests became about 2.5 times slower: most users saw nothing, some saw a reply take a second longer, and about 2% got an error (12 requests over the whole incident). One request's journey through several such services makes it worse: "the 99th percentile of one backend can easily become the median response of your frontend" (SRE book), because a page that calls 100 backends almost always hits one slow one.</p>
+<h3>How Prometheus gets a percentile from buckets</h3>
+<p>Prometheus never sees individual requests, only bucket counts, so it estimates. <code>histogram_quantile(0.99, ...)</code> computes the rank (0.99 times the total count), finds the bucket that contains that rank, and assumes the requests inside the bucket are spread evenly between its lower and upper bound (<b>linear interpolation</b>, {{PromQL functions|https://prometheus.io/docs/prometheus/latest/querying/functions/}}). Move the slider; the bars are the real bucket counts from the incident's last minute.</p>
+<div class="card" id="hq-card">
+<label class="small">Percentile &phi; = <b id="hq-pv"></b><input type="range" id="hq-p" min="50" max="999" value="990" step="1"></label>
+<div class="chart" id="hq-chart"></div>
+<div class="fm"><div class="eq" id="hq-eq" style="white-space:normal"></div></div>
+<p class="small" id="hq-cmp"></p>
+</div>
+<p>The error is bounded by the bucket's width: "Error is limited by the width of the bucket the quantile is located in" ({{Prometheus histograms|https://prometheus.io/docs/practices/histograms/}}). So choose buckets around the numbers you care about: if your target is "first token within 2 s", have a bucket boundary at 2. The SRE book suggests boundaries roughly a factor of 3 apart (10 ms, 30 ms, 100 ms, 300 ms...). The newer fix is the <b>native histogram</b>: exponentially spaced buckets chosen automatically at high resolution and stored as one series. They were experimental from Prometheus 2.40 (November 2022) and are "supported as a stable feature" from v3.8.0, though scraping them must still be switched on with <code>scrape_native_histograms</code> ({{native histograms spec|https://prometheus.io/docs/specs/native_histograms/}}). OpenTelemetry's equivalent is the exponential histogram.</p>
+</section>
+
+<section id="s-prom">
+<h2>PromQL: asking questions of metrics</h2>
+<p>PromQL is Prometheus's query language. Four pieces cover most daily use: a <b>selector</b> picks series by name and labels (<code>http_requests_total{job="chat-api",status=~"5.."}</code>, where <code>=~</code> is a regular-expression match), a <b>range</b> in square brackets takes the last N seconds of samples (<code>[1m]</code>), <code>rate()</code> turns a counter's samples into a per-second rate, and <code>sum by (label)</code> adds series together, keeping only the labels named. These are the real queries run against the demo's Prometheus, with the real answers at the end of each phase (60-second windows):</p>
+<div class="tw"><table id="pq-table"><thead><tr><th>Question</th><th>PromQL</th><th class="num">Normal</th><th class="num">Incident</th></tr></thead><tbody></tbody></table></div>
+<p class="small">Two habits from this table: divide <i>after</i> summing (sum the rates of errors and of all requests, then divide; never average ratios), and always <code>sum by (le)</code> before <code>histogram_quantile</code>, so buckets from every server combine before the estimate. The dependency row shows interpolation going wrong: the true retrieval p99 was about 1.0 s (the timeout), but the nearest bucket edges were 1 and 2.5 s, so the estimate landed at 1.7 s. In production, frequently used queries are precomputed every evaluation by <b>recording rules</b>, which is how the alert rules in <a href="#s-al">Alerting</a> stay cheap.</p>
+</section>
+
+<section id="s-card">
+<h2>Cardinality: why one label can cost a fortune</h2>
+<p><dfn id="g-card">Cardinality</dfn> is the number of distinct time series. Prometheus's own warning: "every unique combination of key-value label pairs represents a new time series, which can dramatically increase the amount of data stored. Do not use labels to store dimensions with high cardinality (many different label values), such as user IDs, email addresses, or other unbounded sets of values" ({{Prometheus naming|https://prometheus.io/docs/practices/naming/}}). The multiplication is easy to underestimate, because a histogram is already many series per combination. Try adding a tenant label:</p>
+<div class="card" id="cd-card">
+<div class="ctl">
+<label>Routes <b id="cd-rv"></b><input type="range" id="cd-r" min="1" max="50" value="5"></label>
+<label>Status codes seen <b id="cd-sv"></b><input type="range" id="cd-s" min="1" max="10" value="4"></label>
+<label>Servers (instances) <b id="cd-iv"></b><input type="range" id="cd-i" min="1" max="200" value="10"></label>
+<label>Histogram buckets <b id="cd-bv"></b><input type="range" id="cd-b" min="5" max="30" value="10"></label>
+</div>
+<div class="seg" id="cd-seg"><button data-m="1" class="on">No extra label</button><button data-m="100">+ model (100 values)</button><button data-m="10000">+ tenant_id (10,000)</button><button data-m="1000000">+ user_id (1 million)</button></div>
+<div class="out" id="cd-out"></div>
+<p class="small mute">series = (buckets + 2) &times; routes &times; status codes &times; instances &times; extra label values, for one latency histogram (the +2 are <code>_sum</code> and <code>_count</code>). Samples per second = series / 15 s scrape interval. Disk = samples &times; 86,400 &times; 1.5 bytes, the middle of Prometheus's "an average of only 1-2 bytes per sample" ({{Prometheus storage|https://prometheus.io/docs/prometheus/latest/storage/}}); memory and query cost grow with series too. Not every combination occurs in practice, so read these as upper bounds.</p>
+</div>
+<p>The rule of thumb that follows: labels for things with a few, known values (route template, status class, region, model name); high-cardinality detail (user, tenant, request ID, prompt length) goes into traces and logs, which are priced per event, not per combination. Honeycomb's pitch is the other side of this trade: their event store is built for high-cardinality fields, which "pinpoint the specific components, transactions, or users affected" ({{Honeycomb|https://www.honeycomb.io/what-is-observability}}). One subtle trap: use the route <i>template</i> (<code>/v1/chats/{id}</code>), never the raw path, as a label; OpenTelemetry's HTTP conventions require <code>http.route</code> to "be low-cardinality" for this reason ({{OTel HTTP spans|https://opentelemetry.io/docs/specs/semconv/http/http-spans/}}).</p>
+</section>
+
+<section id="s-meth">
+<h2>What to measure: the four golden signals, RED and USE</h2>
+<p>Three short checklists answer "which metrics first?". They overlap on purpose.</p>
+<div class="tw"><table>
+<thead><tr><th>Method</th><th>The signals</th><th>Use it for</th><th>For chat-api</th></tr></thead>
+<tbody>
+<tr><td><b>Four golden signals</b> (Google SRE book, 2016)</td><td>"latency, traffic, errors, and saturation. If you can only measure four metrics of your user-facing system, focus on these four" ({{ch. 6|https://sre.google/sre-book/monitoring-distributed-systems/}})</td><td>Any user-facing service</td><td>p50 and p99 duration; requests per second; 5xx ratio; in-flight requests against the worker limit</td></tr>
+<tr><td><b>RED</b> (Tom Wilkie, 2018)</td><td><b>R</b>ate (requests per second), <b>E</b>rrors (failing requests), <b>D</b>uration (the distribution of time taken) ({{Grafana blog, 2018-08-03|https://grafana.com/blog/the-red-method-how-to-instrument-your-services/}})</td><td>Every request-driven service, the same three graphs each</td><td>The first three golden signals; Wilkie made it because "The USE Method doesn't really apply to services"</td></tr>
+<tr><td><b>USE</b> (Brendan Gregg)</td><td>"For every resource, check utilization, saturation, and errors" ({{The USE Method|https://www.brendangregg.com/usemethod.html}})</td><td>Resources: CPU, memory, disks, network, connection pools, GPUs</td><td>CPU busy %, run queue, DB pool waiters, GPU memory</td></tr>
+</tbody></table></div>
+<p class="small">Two details from the SRE book that beginners miss. Track the latency of errors separately: a fast 500 pulls the average down, while "a slow error is even worse than a fast error". And count implicit errors: a 200 response "coupled with the wrong content", or a reply slower than your promise, is an error to the user. For an LLM product that last point is large (wrong answers with status 200); the sibling {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} section 12 covers quality signals.</p>
+</section>

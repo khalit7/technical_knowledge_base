@@ -1,0 +1,92 @@
+
+<section id="s-tools">
+<h2>12. Tools, and what they cost (as of 2026-10-04)</h2>
+<p>The first decision is not which vendor but which <b>pricing unit</b> you will pay in, because each tool bills on a different one and your telemetry grows along all of them: hosts, gigabytes, log lines, spans or events, and time series. Instrumenting with OpenTelemetry keeps the switch cheap.</p>
+<div class="tw"><table>
+<thead><tr><th>Tool</th><th>Signal</th><th>Model</th><th>What you pay for</th></tr></thead>
+<tbody>
+<tr><td>{{Prometheus|https://prometheus.io/}} 3.15.0 (2026-09-25; 3.0 was {{announced 2024-11-14|https://prometheus.io/blog/2024/11/14/prometheus-3-0/}})</td><td>Metrics, alert rules</td><td>Open source, self-hosted, single server with local storage</td><td>Machines and your time; long-term and multi-cluster storage needs {{Thanos|https://github.com/thanos-io/thanos}} or {{Mimir|https://github.com/grafana/mimir}}, or a managed service</td></tr>
+<tr><td>Grafana</td><td>Dashboards over every store</td><td>Open source, or Grafana Cloud (SaaS)</td><td>Self-hosted: machines. Cloud: usage-based (prices not captured here)</td></tr>
+<tr><td>{{Loki|https://grafana.com/docs/loki/latest/get-started/overview/}}</td><td>Logs</td><td>Open source; indexes labels only</td><td>Object storage plus query compute; cheap to keep, slower to search widely</td></tr>
+<tr><td>{{Tempo|https://grafana.com/docs/tempo/latest/introduction/}}</td><td>Traces</td><td>Open source; "requiring only object storage to operate"</td><td>Object storage; finds traces by ID or by TraceQL search</td></tr>
+<tr><td>{{Jaeger v2|https://www.cncf.io/blog/2024/11/12/jaeger-v2-released-opentelemetry-in-the-core/}} (November 2024)</td><td>Traces</td><td>Open source, CNCF graduated; v2 "is now based on ... the OpenTelemetry Collector"</td><td>Your storage backend (Elasticsearch, Cassandra and others)</td></tr>
+<tr><td>{{Datadog|https://www.datadoghq.com/pricing/}}</td><td>All, one product</td><td>SaaS</td><td>Infrastructure from $15 per host per month (Pro, annual); APM from $31 per host; logs $0.10 per GB ingested plus $1.70 per million lines indexed for 15 days; many add-ons</td></tr>
+<tr><td>{{Honeycomb|https://www.honeycomb.io/pricing}}</td><td>Traces and wide events (high cardinality)</td><td>SaaS</td><td>Events (each span is one): free up to 20 million a month; Pro from $150 a month, up to 750 million</td></tr>
+<tr><td>{{Pyroscope|https://github.com/grafana/pyroscope}}, {{Parca|https://github.com/parca-dev/parca}}</td><td>Continuous profiling</td><td>Open source</td><td>Machines; small CPU overhead per profiled process</td></tr>
+</tbody></table></div>
+<p class="small mute">Prices are list prices read from the vendors' pages on 2026-10-04 and change often; enterprise contracts are negotiated. The table is not exhaustive: cloud providers' own monitoring (CloudWatch, Google Cloud Observability, Azure Monitor), New Relic, Elastic, Splunk, Chronosphere and others compete on the same units.</p>
+<div class="cost"><div class="t">The chat product's telemetry, sized from the demo's real per-request numbers</div>
+<div class="tw"><table id="tc-table"><tbody></tbody></table></div>
+<p class="small mute">10 million messages a day is the parent root's estimate; the per-request figures are measured in the demo; prices as in the table above. <span class="ill">Illustrative</span>: a real product has more services, more spans and more log lines per request.</p></div>
+<p><b>Self-host or buy?</b> Self-hosting (Prometheus, Grafana, Loki, Tempo on object storage) is cheap per gigabyte and costs engineers' time: upgrades, capacity, and the monitoring of the monitoring. SaaS is fast to start and charges per unit, and bills grow quietly with traffic, labels and log verbosity; teams that buy usually also run the OpenTelemetry Collector to sample, drop and redact before data leaves, which is where most of the savings are. A sensible start for a small team: OpenTelemetry in the code, one SaaS or one managed Grafana stack, SLO alerts on two or three symptoms, and a monthly look at the bill by unit.</p>
+</section>
+
+<section id="s-pro">
+<h2>13. What pros run in production today</h2>
+<ol>
+<li><b>OpenTelemetry everywhere</b>: SDK plus auto-instrumentation in every service; a Collector beside each node (agent) and a gateway pool that batches, redacts and tail-samples before the backends.</li>
+<li><b>RED metrics per service and per dependency</b> as histograms with buckets placed at the SLO thresholds (or native histograms), low-cardinality labels only, recording rules for anything on a dashboard or in an alert.</li>
+<li><b>JSON logs to standard output</b> with trace and request IDs, INFO in production, WARNING and above indexed, the rest archived; secrets never passed to the logger.</li>
+<li><b>Traces tail-sampled</b>: all errors and slow requests, a few percent of the rest; exemplars linking latency graphs to traces; context propagated through HTTP, gRPC and queue messages.</li>
+<li><b>SLOs as code</b>, with multiwindow, multi-burn-rate alert rules generated by tools such as {{Sloth|https://github.com/slok/sloth}} ("Prometheus SLO ... generator") or {{Pyrra|https://github.com/pyrra-dev/pyrra}}, and unit-tested with <code>promtool</code>.</li>
+<li><b>Pages only on symptoms</b> (SLO burn, plus a black-box prober from outside), everything else as tickets; a runbook link on every alert; Alertmanager or PagerDuty grouping and inhibition; a weekly review of every page.</li>
+<li><b>Continuous profiling</b> on the services where CPU is money.</li>
+<li><b>Monitoring outside the failure domain</b>: the alerting path does not depend on the cluster, DNS or network it watches.</li>
+<li><b>For LLM services</b>, the extra signals (time to first token, tokens per second, KV cache, cost and quality) on top of all this: sibling {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}}, section 12.</li>
+</ol>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Graphing and alerting on the average latency</summary><div class="b">It hides the tail and blends a 15% slowdown into a mild rise (section 4's real numbers). Graph p50 and p99 together; alert on SLO burn.</div></details>
+<details class="mist"><summary>Averaging percentiles across servers</summary><div class="b">The average of ten servers' p99s is not the fleet's p99. Sum the histogram buckets first (<code>sum by (le)</code>), then take the quantile. Summaries cannot be combined at all.</div></details>
+<details class="mist"><summary>A user ID, email or raw URL path as a metric label</summary><div class="b">Each value is a new series per bucket; the series count multiplies (try the cardinality calculator). Put those fields on spans and log lines; use the route template as the label.</div></details>
+<details class="mist"><summary>Logs without trace IDs</summary><div class="b">Then a slow trace cannot lead you to its log lines, nor a log line to its trace. Add trace_id and span_id in the log formatter, once.</div></details>
+<details class="mist"><summary>Broken traces nobody noticed</summary><div class="b">Context lost at a header with unexpected case (this page's own bug), a thread pool, a queue or a proxy that strips headers. Check that a request's trace crosses every hop, and add propagation to message headers.</div></details>
+<details class="mist"><summary>Head sampling only</summary><div class="b">At 10% head sampling, our real run kept 8 of the 90 traces you would want during the incident. Keep errors and slow traces with tail sampling, and count with metrics, not traces.</div></details>
+<details class="mist"><summary>Treating "no data" as "zero"</summary><div class="b">A labelled series exists only after its first event, so an error-ratio query returns nothing before the first error; a <code>rate()</code> window needs at least two samples, so a window as short as the scrape interval returns nothing. Pre-create series and use windows several times the scrape interval.</div></details>
+<details class="mist"><summary>Buckets that miss the threshold you care about</summary><div class="b">The estimate is only as precise as the bucket containing it: our real retrieval p99 of about 1.0 s was reported as 1.7 s. Put a boundary at each SLO threshold, or use native histograms.</div></details>
+<details class="mist"><summary>Paging on causes, and paging too often</summary><div class="b">CPU above 80% wakes people for nothing and misses what nobody predicted. Page on user-facing symptoms; aim for fewer than two incidents per 12-hour shift; delete alerts nobody acts on.</div></details>
+<details class="mist"><summary>Logging secrets or customer content</summary><div class="b">Tokens, passwords, connection strings, prompts and replies end up in many systems with many readers. Do not pass them to the logger; keep a redaction filter as a backstop.</div></details>
+<details class="mist"><summary>Monitoring that shares the failure</summary><div class="b">If the monitoring runs on the cluster, DNS or service directory that failed, it fails with it (Roblox, 2021). Keep the alerting path and a prober outside.</div></details>
+<details class="mist"><summary>Untested alert rules</summary><div class="b">A typo in a label matcher makes an alert silently never fire. Unit-test rules with <code>promtool test rules</code> in CI, as this page does.</div></details>
+</section>
+
+<section id="s-gl">
+<h2>Glossary</h2>
+<div class="gl" id="gl-list">
+<div><b><a href="#g-alert">Alert</a></b>: A rule evaluated repeatedly that notifies someone when it becomes true: a page (now) or a ticket (working hours).</div>
+<div><b><a href="#g-bb">Black-box monitoring</a></b>: Testing the service from outside, as a user would; shows symptoms that are happening now.</div>
+<div><b><a href="#g-burn">Burn rate</a></b>: Error ratio divided by the error budget (1 minus SLO): 1 spends the budget exactly over the SLO period; 14.4 spends 2% of a 30-day budget in an hour.</div>
+<div><b><a href="#g-card">Cardinality</a></b>: The number of distinct time series: every combination of metric name and label values is one.</div>
+<div><b><a href="#g-prop">Context propagation</a></b>: Passing the trace's identity (the traceparent header) with every call, so the callee's spans join the caller's trace.</div>
+<div><b><a href="#g-cprof">Continuous profiling</a></b>: Running a low-overhead sampling profiler on production processes all the time.</div>
+<div><b><a href="#g-counter">Counter</a></b>: A metric that only goes up (or resets to zero on restart), read through rate().</div>
+<div><b><a href="#g-dash">Dashboard</a></b>: A saved page of graphs that explains a service's state; alerts watch, dashboards explain.</div>
+<div><b><a href="#g-eb">Error budget</a></b>: The failures an SLO allows: 1 minus the SLO, for example 0.1% of requests over 30 days.</div>
+<div><b><a href="#g-ex">Exemplar</a></b>: A trace ID stored with one histogram observation, linking a point on a latency graph to a real request.</div>
+<div><b><a href="#g-flame">Flame graph</a></b>: A profile drawn as stacked boxes: width is how often a function was on the stack, height is call depth.</div>
+<div><b><a href="#g-gauge">Gauge</a></b>: A metric that goes up and down: memory in use, queue length, requests in flight.</div>
+<div><b><a href="#g-head">Head sampling</a></b>: Deciding whether to keep a trace when it starts, usually from its trace ID, and passing the decision downstream.</div>
+<div><b><a href="#g-hist">Histogram</a></b>: A metric that counts observations into buckets (le = less than or equal), plus their sum and count; percentiles are estimated from it.</div>
+<div><b><a href="#g-log">Log</a></b>: A timestamped record of one event, written by the program as it runs.</div>
+<div><b><a href="#g-metric">Metric</a></b>: A number the program keeps up to date, read on a timer and stored as a time series.</div>
+<div><b><a href="#g-mon">Monitoring</a></b>: Collecting and displaying fixed, pre-chosen measurements of a system to detect known failure modes.</div>
+<div><b><a href="#g-obs">Observability</a></b>: Being able to answer new questions about a running system (what is wrong, for whom, where) from its telemetry, without new code.</div>
+<div><b><a href="#g-oncall">On-call</a></b>: Being reachable to respond to pages for a shift, on a rotation shared by the team.</div>
+<div><b><a href="#g-otel">OpenTelemetry</a></b>: The vendor-neutral standard (API, SDK, OTLP protocol, Collector, semantic conventions) for producing telemetry.</div>
+<div><b><a href="#g-pct">Percentile</a></b>: The value a given share of observations falls below: p50 is the median, p99 is beaten by 99% of requests.</div>
+<div><b><a href="#g-prof">Profiler</a></b>: A tool that samples which functions are running, to show where CPU or memory goes.</div>
+<div><b><a href="#g-runbook">Runbook</a></b>: The page an on-call engineer opens from an alert: meaning, impact, first checks, safe mitigations, escalation.</div>
+<div><b><a href="#g-samp">Sampling</a></b>: Keeping only some traces to control cost.</div>
+<div><b><a href="#g-signal">Signal</a></b>: A kind of telemetry: logs, metrics, traces, profiles.</div>
+<div><b><a href="#g-slo">SLO</a></b>: Service level objective: a target for a measured indicator over a window, such as 99.9% of messages succeed over 30 days.</div>
+<div><b><a href="#g-span">Span</a></b>: One timed operation inside a trace, with a parent, attributes, events and a status.</div>
+<div><b><a href="#g-slog">Structured log</a></b>: A log line written as named fields (usually JSON), so it can be filtered and counted.</div>
+<div><b><a href="#g-tail">Tail sampling</a></b>: Deciding whether to keep a trace after it has finished, so errors and slow traces can always be kept.</div>
+<div><b><a href="#g-ts">Time series</a></b>: A list of (time, value) pairs for one metric name and one set of label values.</div>
+<div><b><a href="#g-trace">Trace</a></b>: The tree of spans recording one request's path through every service it touched.</div>
+<div><b><a href="#g-wf">Waterfall</a></b>: A trace drawn as one row per span with bars on a shared time axis.</div>
+<div><b><a href="#g-wb">White-box monitoring</a></b>: Monitoring from the system's internals (metrics, logs); can show causes and imminent problems.</div>
+</div>
+</section>

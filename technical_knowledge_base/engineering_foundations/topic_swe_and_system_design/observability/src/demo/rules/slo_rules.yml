@@ -1,0 +1,45 @@
+# SLO burn-rate alerts for chat-api, availability SLO 99.9% (error budget 0.001),
+# the SRE workbook's multiwindow, multi-burn-rate method (ch. 5, table 5-8).
+groups:
+  - name: chat-api-slo-recording
+    rules:
+      - record: job:slo_errors_per_request:ratio_rate5m
+        expr: sum by (job) (rate(http_requests_total{status=~"5.."}[5m])) / sum by (job) (rate(http_requests_total[5m]))
+      - record: job:slo_errors_per_request:ratio_rate30m
+        expr: sum by (job) (rate(http_requests_total{status=~"5.."}[30m])) / sum by (job) (rate(http_requests_total[30m]))
+      - record: job:slo_errors_per_request:ratio_rate1h
+        expr: sum by (job) (rate(http_requests_total{status=~"5.."}[1h])) / sum by (job) (rate(http_requests_total[1h]))
+      - record: job:slo_errors_per_request:ratio_rate2h
+        expr: sum by (job) (rate(http_requests_total{status=~"5.."}[2h])) / sum by (job) (rate(http_requests_total[2h]))
+      - record: job:slo_errors_per_request:ratio_rate6h
+        expr: sum by (job) (rate(http_requests_total{status=~"5.."}[6h])) / sum by (job) (rate(http_requests_total[6h]))
+      - record: job:slo_errors_per_request:ratio_rate1d
+        expr: sum by (job) (rate(http_requests_total{status=~"5.."}[1d])) / sum by (job) (rate(http_requests_total[1d]))
+      - record: job:slo_errors_per_request:ratio_rate3d
+        expr: sum by (job) (rate(http_requests_total{status=~"5.."}[3d])) / sum by (job) (rate(http_requests_total[3d]))
+  - name: chat-api-slo-alerts
+    rules:
+      - alert: ChatApiErrorBudgetBurn
+        expr: |
+          (job:slo_errors_per_request:ratio_rate1h{job="chat-api"} > (14.4 * 0.001)
+            and job:slo_errors_per_request:ratio_rate5m{job="chat-api"} > (14.4 * 0.001))
+          or
+          (job:slo_errors_per_request:ratio_rate6h{job="chat-api"} > (6 * 0.001)
+            and job:slo_errors_per_request:ratio_rate30m{job="chat-api"} > (6 * 0.001))
+        labels:
+          severity: page
+        annotations:
+          summary: "chat-api is burning its 30-day error budget fast"
+          runbook_url: "https://runbooks.example.internal/chat-api/error-budget-burn"
+      - alert: ChatApiErrorBudgetBurn
+        expr: |
+          (job:slo_errors_per_request:ratio_rate1d{job="chat-api"} > (3 * 0.001)
+            and job:slo_errors_per_request:ratio_rate2h{job="chat-api"} > (3 * 0.001))
+          or
+          (job:slo_errors_per_request:ratio_rate3d{job="chat-api"} > 0.001
+            and job:slo_errors_per_request:ratio_rate6h{job="chat-api"} > 0.001)
+        labels:
+          severity: ticket
+        annotations:
+          summary: "chat-api is spending its error budget faster than it refills"
+          runbook_url: "https://runbooks.example.internal/chat-api/error-budget-burn"

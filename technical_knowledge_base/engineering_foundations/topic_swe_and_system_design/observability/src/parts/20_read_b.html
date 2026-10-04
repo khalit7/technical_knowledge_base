@@ -1,0 +1,48 @@
+
+<section id="s-demo">
+<h2>2. The running example, instrumented for real</h2>
+<p>To avoid teaching from invented screenshots, this page instrumented a small version of the chat product on a laptop and broke it on purpose. Everything shown below (traces, metric text, query results, log lines) comes from that run on 2026-10-04; the code is in this page's <code>src/demo/</code>.</p>
+<div class="flow">
+<div><b>load generator</b>4 clients in a loop, about 10 requests a second</div><i>&rarr;</i>
+<div><b>chat-api</b> (port 8701)<span class="small mute"> auth, load history (real SQLite), call retrieval, model call (<span class="ill">simulated: a sleep</span>), save</span></div><i>&rarr;</i>
+<div><b>retrieval</b> (port 8702)<span class="small mute"> a separate process; normally about 15 ms</span></div>
+</div>
+<div class="flow">
+<div><b>Prometheus 3.15.0</b> scrapes <code>/metrics</code> on both every second</div>
+<div><b>OpenTelemetry SDK 1.45.0</b> writes every span to a file</div>
+<div><b>JSON log lines</b> carry the trace ID</div>
+</div>
+<p><b>The incident.</b> The run had three phases: 90 seconds normal, 90 seconds of incident, 45 seconds of recovery. During the incident one retrieval replica went cold: 15% of retrieval calls took 900 ms and 2% hung for 1.5 s, past chat-api's 1-second timeout, so those requests failed with HTTP 503 ("service unavailable"). The model call, the database and everything else were unchanged. This is the classic shape of a real slowdown: one dependency, some of the time, for some users. Keep it in mind; <a href="#s-inc">section 8</a> debugs it twice.</p>
+<p class="small mute">Versions: Python 3.12.11, opentelemetry-sdk 1.45.0 (released 2026-09-25), prometheus-client 0.26.0 (2026-07-24), Prometheus 3.15.0 (2026-09-25). The incident shape is chosen; its numbers are measured. Browse all of it in the {{Real telemetry|#t-real}} tab.</p>
+</section>
+
+<section id="s-logs">
+<h2>3. Logs: what happened, one event at a time</h2>
+<p>A <dfn id="g-log">log</dfn> is a timestamped record of one event, written by the program as it runs. The beginner's version is a line of text: <code>2026-10-04 19:36:42 request failed for user7 after 1014ms</code>. A human can read it; a machine has to guess where the user name ends. At 10 million messages a day (the parent root's estimate) nobody reads lines; you query them. So write <dfn id="g-slog">structured logs</dfn>: one JSON object per line, with named fields. Here is a real line from the demo, written by the incident's first failed request:</p>
+<div class="logbox" id="lg-one"></div>
+<p>Every field can now be filtered and counted: <code>level="ERROR" and route="/v1/chat"</code>, average <code>duration_ms</code> by <code>status</code>. Three fields do most of the work:</p>
+<ul>
+<li><b>level</b>, how serious the event is. Python's standard levels, in order: DEBUG (detail for developers, normally off in production), INFO (normal events worth keeping), WARNING (something unexpected that the program handled), ERROR (an operation failed), CRITICAL (the program itself is in trouble) ({{Python logging docs|https://docs.python.org/3/library/logging.html#logging-levels}}). Production usually runs at INFO. A DEBUG call that is switched off costs almost nothing: we measured 0.14 microseconds, against 17 for a JSON line actually written (<a href="#s-prof">Profiling</a>).</li>
+<li><b>request_id</b>, a random ID given to each request at the edge and returned to the client in an <code>X-Request-Id</code> header (a common convention, not a standard), so a user's support ticket can be matched to your logs.</li>
+<li><b>trace_id and span_id</b>, the IDs of the <a href="#s-tr">trace</a> this event belongs to. This is the field that ties the three signals together: from a slow trace you jump to exactly its log lines, in every service. Our <code>JsonFormatter</code> reads them from the current OpenTelemetry span, so no handler code has to pass them around.</li>
+</ul>
+<h3>What never to log</h3>
+<p>Logs are copied to many places (agents, storage, backups, laptops during an incident) and readable by many people, so a secret in a log is a leaked secret. OWASP's logging cheat sheet lists what "should usually not be recorded directly in the logs, but instead should be removed, masked, sanitized, hashed, or encrypted", including "Session identification values", "Access tokens", "Authentication passwords", "Database connection strings", "Encryption keys and other primary secrets", "Bank account or payment card holder data" and sensitive personal data; it adds that even "non sensitive personal data (e.g. personal names, telephone numbers, email addresses)" may need special treatment ({{OWASP Logging Cheat Sheet|https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html}}). For the chat product that means: never log prompts or replies by default (they are customer data, see the sibling {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} section 12 on retention), API keys, or bearer tokens.</p>
+<div class="two">
+<div><h4>What the handler passed in</h4><div class="kvs" id="lg-in"></div></div>
+<div><h4>What reached the log file</h4><div class="kvs" id="lg-out"></div></div>
+</div>
+<p class="small">Our demo deliberately passes the user's email and the <code>Authorization</code> header to the logger, and a redaction filter in the formatter masks them (real output above). Treat such a filter as a seatbelt, not as the plan: the plan is not to pass secrets to the logger at all, because a filter only catches the patterns it knows.</p>
+<h3>From the program to a place you can search</h3>
+<p>The modern pipeline: the program writes JSON lines to standard output; an <b>agent</b> on each machine (Fluent Bit, Vector, or the OpenTelemetry Collector) reads them, adds fields such as the host and the Kubernetes pod, and ships them to a store. Stores differ in what they <b>index</b> (build a lookup structure for, so a search is fast):</p>
+<ul>
+<li><b>Full-text index</b> (Elasticsearch, OpenSearch, Datadog's indexed logs): any word in any line is searchable in milliseconds; you pay for the index, per gigabyte or per line.</li>
+<li><b>Labels only</b> (Grafana Loki): "Loki does not index the contents of the logs, but only indexes metadata about your logs as a set of labels for each log stream" ({{Loki overview|https://grafana.com/docs/loki/latest/get-started/overview/}}). A search scans the compressed lines of the matching streams. Much cheaper to store, slower to search across everything.</li>
+</ul>
+<div class="cost"><div class="t">What logs cost, worked for the chat product</div>
+<p class="small">Measured: chat-api's lines average <b id="lc-a"></b> bytes, retrieval's <b id="lc-r"></b>; one message makes one line in each. At 10 million messages a day that is <b id="lc-gb"></b> GB a day, <b id="lc-gbm"></b> GB per 30 days. At Datadog's list prices on 2026-10-04 (annual billing: $0.10 per ingested GB, and $1.70 per million log events indexed with 15-day retention, {{Datadog pricing|https://www.datadoghq.com/pricing/}}), ingesting costs about <b id="lc-ing"></b> a month but indexing <b id="lc-idx"></b> lines costs about <b id="lc-idxc"></b>. The count of lines, not their size, drives the bill. Turn on DEBUG at 20 lines per request <span class="ill">(illustrative)</span> and the indexing line becomes ten times larger. The usual answers: index only WARNING and above, keep INFO in cheap archive storage, sample repetitive success lines, and use metrics instead of logs for counting.</p></div>
+<h3>The incident, as seen in logs alone</h3>
+<p>These are 14 consecutive chat-api lines from the real incident, around the first failure, shown compactly (time, level, service, message, then status, duration and the start of the trace ID; the full JSON lines are in the {{Real telemetry|#t-real}} tab). Read them as the on-call engineer would:</p>
+<div class="logbox" id="lg-stream"></div>
+<p class="small">The error line is obvious. What the stream does not show: that one request in seven is about 900 ms slower than normal, because those succeed and log "request served" like every other. Logs answer "what happened to this request"; they are bad at "what is happening to all requests". That is the job of metrics.</p>
+</section>
