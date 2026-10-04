@@ -1,0 +1,49 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav"><a href="#rd-one">In one screen</a><a href="#rd-anim">One trajectory, three graders</a><a href="#rd-outcome">Outcome</a><a href="#rd-actions">Actions, not messages</a><a href="#rd-steps">Steps</a><a href="#rd-judges">Judges</a><a href="#rd-rel">Reliability</a><a href="#rd-hack">Hacking your eval</a><a href="#rd-cost">Cost and budgets</a><a href="#rd-env">Environments</a><a href="#rd-obs">Tracing</a><a href="#rd-mist">Mistakes</a><a href="#rd-check">Checklist</a></nav>
+
+<section id="rd-one">
+<p class="lead">A chat model is graded on what it says. An agent is graded on what it <b>did</b>: the database rows it changed, the files it committed, the money it moved, the calls it made on the way. Its final message is only a claim about those things, and on real trials the claim and the facts disagree often enough to matter.</p>
+<p>This page is about evaluating <b>your own agent</b>: the one you are building, on your tasks, before you ship it and while it runs. Public agentic benchmarks (GAIA, OSWorld, WebArena, τ²-bench, Terminal-Bench, METR time horizons) and how each was broken in 2026 belong to {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}}, which also owns pass^k on real τ²-bench trials and the Terminal-Bench verifier exploit; this page links them and applies them. The parent, {{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}}, explains why any eval is a measuring instrument that has to be calibrated; this page is that idea for agents.</p>
+
+<h2>In one screen</h2>
+<p>There are three things you can grade, and they answer different questions. Every row below is measured on this page on 400 real τ²-bench airline trials (GPT-5.2 and Claude Opus 4.5, four trials of each of 50 tasks, the trajectory files Sierra released with its leaderboard), re-graded with τ²-bench's own evaluator.</p>
+<div class="tw"><table>
+<thead><tr><th>Grade</th><th>What it reads</th><th>What it catches</th><th>What it misses</th><th>On the 400 trials</th></tr></thead>
+<tbody>
+<tr><td><b>The message</b></td><td>The agent's replies (a judge model reads the transcript)</td><td>Tone, policy explanations, whether the user was told the right thing</td><td>Whether anything actually happened; a confident "All set" after a wrong booking</td><td>Disagrees with the final state on <b id="o-msgdis">49</b> trials</td></tr>
+<tr><td><b>The outcome</b></td><td>The world after the run: database, files, tests</td><td>Wrong or missing changes, whatever the agent claimed</td><td>Harm along the way that the check does not look at; it rewards doing nothing when the right answer is "no change"</td><td>A do-nothing agent passes <b id="o-null">23 of 50</b> tasks</td></tr>
+<tr><td><b>The steps</b></td><td>Every tool call, its arguments and order</td><td>Where it went wrong, extra or unsafe actions, wasted calls</td><td>Valid routes the task author did not foresee: strict path matching is brittle</td><td>Gold-action checks fail on <b id="o-stepdis">24</b> trials the outcome passed</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">The rule this page argues for</div>Grade the <b>outcome</b> first, with code, on a state you can diff. Grade <b>actions</b> (not messages) wherever an action can do harm the outcome check does not see. Use the <b>path</b> only for diagnosis or for actions that must never happen, never as an exact sequence to match. Read failing and suspiciously passing transcripts every time the number moves. This is close to Anthropic's own advice, "it's often better to grade what the agent produced, not the path it took" ({{Demystifying evals for AI agents|https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents}}, 9 Jan 2026), with one addition from the safety results below: what an agent <i>did</i> along the way is part of what it produced.</div>
+</section>
+
+<section id="rd-anim">
+<h2>One trajectory, three graders</h2>
+<p>Pick a real trial and step through it. Each tool call lights up as it happens; the three panels show what each grader would say <i>if the run stopped here</i>. The message grader sees only the agent's replies; the outcome grader sees the database diffed against the gold database; the step grader matches each call against the task's gold actions. The default trial ends with all three disagreeing in an instructive way.</p>
+<div class="an" id="an">
+<div class="bar"><span class="lab2">Trial</span><select id="an-case" aria-label="Trial"></select></div>
+<div class="bar" role="group" aria-label="Lens"><span class="lab2">Highlight</span><div class="seg" id="an-lens"><button data-l="all" class="on">All three</button><button data-l="msg">Message only</button><button data-l="state">Final state</button><button data-l="steps">Step by step</button></div></div>
+<div class="cap" id="an-cap"></div>
+<div class="lanes">
+<div class="tl" id="an-tl" aria-live="polite"></div>
+<div>
+<div class="gr" id="an-g-msg"></div>
+<div class="gr" id="an-g-state" style="margin-top:8px"></div>
+<div class="gr" id="an-g-steps" style="margin-top:8px"></div>
+</div>
+</div>
+<div class="cnt" id="an-cnt"></div>
+<div class="ctrl"><button id="an-back" aria-label="Step back">&#9664;</button><button id="an-play">Play</button><button id="an-fwd" aria-label="Step forward">&#9654;</button><input type="range" id="an-scrub" min="0" max="1" value="0" aria-label="Scrub"><select id="an-speed" aria-label="Speed"><option value="1800">slow</option><option value="1000" selected>normal</option><option value="500">fast</option></select></div>
+<p class="small mute" id="an-src"></p>
+</div>
+<div class="try"><b>Try:</b> run the default trial to the end with "Message only", then switch to "Final state". Then pick the Claude Opus 4.5 trial of the same task, the only one of eight that passed, and compare who proposed insurance.</div>
+<p>What the five trials show between them:</p>
+<ul>
+<li><b>GPT-5.2, task 29, trial 1.</b> The agent explains the policy, cancels and rebooks, and ends "All set." The transcript judge marks all three of its assertions met. The database disagrees on six fields: the gold booking has no insurance and one $282 card payment; the agent booked insurance and split the payment across a gift card and the card. <b>But the simulated user asked for both</b> ("Insurance on the new booking: Yes, please"; "use gift_card_6468981"); the task's instructions never mention either. Only the step view shows that the outcome check is enforcing the task author's unstated assumption against the simulated user's improvisation. Task 29 passed in 1 of 8 trials across the two models.</li>
+<li><b>GPT-5.2, task 0, trial 3.</b> The task is to refuse a cancellation the policy does not allow. The agent transfers to a human instead. Nothing in the database changes, so the outcome check passes and the trial scores 1; the transcript judge says the agent "did not refuse". Here the outcome grader is too lenient.</li>
+<li><b>GPT-5.2, task 12, trial 1.</b> The database is exactly right. The gold-action check still fails one step: the gold path calls <code>calculate</code> for the fare difference and the agent did the arithmetic itself. A path grader that demanded every gold call would fail a correct run.</li>
+<li><b>GPT-5.2, task 31, trial 1.</b> The user, unable to change a basic-economy flight, ends "this is exactly what I needed": the agent upgraded the cabin to economy and then moved the flight, for $47. The gold outcome is "no change", so the trial fails. Anthropic describes Opus 4.5 finding a policy loophole in a τ²-bench flight task that "'failed' the evaluation as written, but actually came up with a better solution for the user" ({{Anthropic, 9 Jan 2026|https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents}}); whether this is the same task is <span class="ill">unconfirmed</span>, but it is the same pattern.</li>
+<li><b>Claude Opus 4.5, task 29, trial 2.</b> All three graders agree. Here the agent proposed the booking without insurance, charged to the card on file, and the simulated user accepted ("<b>no</b>, please <b>do not</b> add travel insurance"): the gold reservation, so the database matches.</li>
+</ul>
+<p class="small mute">Data: Sierra's released trajectory files for the GPT-5.2 (high) and Claude Opus 4.5 (high) airline submissions (26 Feb 2026, user simulator GPT-5.2; {{GPT-5.2 file|https://sierra-tau-bench-public.s3.us-west-2.amazonaws.com/submissions/gpt-5-2_sierra_2026-02-26/trajectories/gpt-5.2_high_airline_gpt-5.2_4trials.json}}, {{Opus 4.5 file|https://sierra-tau-bench-public.s3.us-west-2.amazonaws.com/submissions/claude-opus-4-5_sierra_2026-02-26/trajectories/claude-opus-4-5_high_airline_gpt-5.2_4trials.json}}, MIT). The message verdicts are τ²-bench's own natural-language assertions, graded by an LLM judge over the transcript and stored in the files; airline does not count them toward the reward. The database diffs were computed for this page by replaying the agent's calls and the gold actions in {{τ²-bench's environment|https://github.com/sierra-research/tau2-bench}} (commit 5bfa7e3, 28 Sep 2026); re-grading all 200 GPT-5.2 airline trials with its evaluator reproduces every recorded reward (200 of 200). Long messages and tool results are clipped for display.</p>
+</section>

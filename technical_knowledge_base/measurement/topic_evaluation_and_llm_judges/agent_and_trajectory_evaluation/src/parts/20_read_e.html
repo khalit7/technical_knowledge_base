@@ -1,0 +1,67 @@
+<section id="rd-cost">
+<h2>Cost and step budgets</h2>
+<p>Two agents with the same success rate are not equally good if one needs three times the money or ten times the calls, and an agent with no budget can buy success by trying longer. Fix the budget before the run (steps, tokens, wall-clock time, dollars), report the score at that budget, and count "ran out of budget" as its own failure category. τ²-bench's runs here allowed 200 steps and 10 tool errors per trial (the files' run configuration); MOLE capped sessions at 50 turns and two of its four agents hit the cap on the same assignment that GPT-5.3 finished in 9 turns.</p>
+<div id="costBars"></div>
+<div class="leg" id="costLeg"></div>
+<p class="small mute">Per-trial agent cost as recorded in each trial's <code>agent_cost</code> field of the released files (the harness's own estimate; the user simulator's cost is separate), averaged over passing and failing trials; computed in the page, checked by <code>recompute.py</code>.</p>
+<p>Failures cost more than successes for both agents (GPT-5.2: <b id="c-gf">$0.181</b> against <b id="c-gp">$0.100</b> a trial, <b id="c-gcf">15.7</b> tool calls against <b id="c-gcp">9.6</b>), because a failing agent keeps searching. And the two runs that tie at pass^1 are far apart in cost: <b id="c-gt">$22.76</b> for GPT-5.2's 200 trials against <b id="c-ot">$79.84</b> for Opus 4.5's, which is <b id="c-gps">$0.137</b> against <b id="c-ops">$0.475</b> per successful trial. Prices change and these are the harness's estimates, so treat the ratio, not the dollars, as the finding. At scale the same holds: HAL spent about $40,000 on 21,730 rollouts and found "higher reasoning effort reducing accuracy in the majority of runs" ({{HAL|https://arxiv.org/abs/2510.11977}}), so more budget is not automatically more score. The root's <i>Same model, many harnesses</i> tab and {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}} (the harness section) show how much of an agent's bill is the harness rather than the model.</p>
+</section>
+
+<section id="rd-env">
+<h2>Sandboxes and environment design</h2>
+<p>The environment is half of an agent eval: the tools, the state they act on, the simulated user if there is one, and the verifier. Which harness gives you which sandbox (Docker, Kubernetes, VMs, cloud sandboxes, NVIDIA OpenShell with network policies in Inspect; none in lm-eval or HELM) is on {{Eval harnesses|n:3c65c17b0d0d81ea9cd5eb65795ff5c9}}, section <i>Sandboxes for agentic evals</i>. What to design, whichever you use:</p>
+<ul>
+<li><b>The production agent in a copy of production.</b> "It's essential that the agent in the eval functions roughly the same as the agent used in production" (Anthropic): the same tool schemas, system prompt and limits, so the eval measures what you ship.</li>
+<li><b>State you can reset and diff.</b> τ²-bench's whole world is a JSON database rebuilt for every trial and replayed for grading, with a frozen clock (every booking in these trials is created at 2024-05-15 15:00). That is what made this page's re-grading and diffs possible.</li>
+<li><b>A clean start per trial</b>, so failures are independent (the reliability section).</li>
+<li><b>A verifier out of the agent's reach.</b> On Terminal-Bench 2.0 an exploit agent replaced the <code>curl</code> the in-container verifier used, and every 3.0 and 4.0 task declares a separate verifier container; OSWorld's gold files were downloadable from inside the VM ({{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}}).</li>
+<li><b>A network policy</b> stated per task: no network, an allow-list, or open. Emergence World's agents turned a read-only fetch tool into a publishing channel through a GET-accepting API (its paper page has the round-by-round containment).</li>
+<li><b>A pinned simulated user</b>, with instructions that say what the user wants on every choice the gold state depends on (task 29's insurance and payment method were not).</li>
+<li><b>Long-horizon state when the risk is long-horizon.</b> MOLE's simulated organisation (150 agent-run accounts, 9 stateful services, 30 workdays) exists because single-session tasks cannot show harm that accumulates across days.</li>
+</ul>
+</section>
+
+<section id="rd-obs">
+<h2>Observability and tracing</h2>
+<p>Everything on this page was graded from logs. A trace that records each model call, each tool call with its arguments and result, and the state before and after is what lets you re-grade old runs with a new grader, attribute a failure, and audit a suspicious pass. The conventions, as of 4 October 2026:</p>
+<div class="tw"><table>
+<thead><tr><th>Standard or tool</th><th>Unit</th><th>What matters for grading</th></tr></thead>
+<tbody>
+<tr><td>{{OpenTelemetry GenAI semantic conventions|https://github.com/open-telemetry/semantic-conventions-genai}}<br><span class="small mute">status Development; moved to their own repository (commit e07f4eb, 2 Oct 2026)</span></td><td>Spans: <code>invoke_agent {gen_ai.agent.name}</code>, <code>execute_tool {gen_ai.tool.name}</code>, <code>chat {model}</code>; operations also include <code>plan</code>, <code>retrieval</code>, <code>invoke_workflow</code>, <code>create_agent</code></td><td>On a tool span <code>gen_ai.tool.name</code> is required and <code>gen_ai.tool.call.id</code> recommended, but <code>gen_ai.tool.call.arguments</code> and <code>gen_ai.tool.call.result</code> are <b>opt-in</b>: default instrumentation drops exactly what an action grader needs. Turn them on in eval runs.</td></tr>
+<tr><td>{{LangSmith|https://docs.langchain.com/langsmith/observability-concepts}}</td><td>A run ("a single unit of work"), a trace ("a collection of runs for a single operation"), a thread (a multi-turn session)</td><td>Trajectory evaluators (agentevals) run over these traces</td></tr>
+<tr><td>{{Braintrust|https://www.braintrust.dev/docs/guides/traces}}</td><td>A trace of spans typed <code>eval</code>, <code>task</code>, <code>llm</code>, <code>function</code>, <code>tool</code>, <code>score</code></td><td>Scorers run offline in experiments or online on production logs, and write a <code>score</code> span; ingests OpenTelemetry</td></tr>
+<tr><td>{{Inspect|https://inspect.aisi.org.uk/}} logs</td><td>One <code>.eval</code> log per run, every event timed</td><td>The sibling page's <i>Inside a run log</i> tab opens a real one ({{Eval harnesses|n:3c65c17b0d0d81ea9cd5eb65795ff5c9}})</td></tr>
+</tbody></table></div>
+<p>What to log for grading, whatever the tool: every tool call with full arguments and results (no 600-character clip), state snapshots or diffs, the termination reason, tokens, cost and time per step, the agent's reasoning where policy allows (MOLE's monitors needed it), and the versions of the model, prompt, harness, simulated user and judge. Then any grader on this page can be run again, later, on the same trials.</p>
+<div class="deepnote"><b>Go deeper (optional):</b> using traces to gate releases, golden sets of trajectories and online scoring: {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}. Agent frameworks and their tracing integrations: {{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}.</div>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Grading the final message</summary><div class="b">It is a claim. On 400 real trials it disagreed with the database 49 times. Grade the state, and the actions where harm can hide.</div></details>
+<details class="mist"><summary>Demanding the reference path</summary><div class="b">Valid routes differ. The gold-action check failed 24 trials whose database was exactly right. Match writes, not reads; use the path to diagnose.</div></details>
+<details class="mist"><summary>Quoting a score without the do-nothing baseline</summary><div class="b">23 of 50 τ²-bench airline tasks pass with no action. Report the floor and split change from no-change tasks.</div></details>
+<details class="mist"><summary>One trial per task, or pass^1 as reliability</summary><div class="b">Report pass^k and cluster error bars by task; read the tasks that never pass before calling the agent weak.</div></details>
+<details class="mist"><summary>Blaming the agent for the simulator, the environment or the judge</summary><div class="b">Pin the user simulator, isolate trials, log termination reasons, and re-run LLM judges on fixed trajectories to measure their own noise.</div></details>
+<details class="mist"><summary>A verifier the agent can touch</summary><div class="b">Tests in the agent's container, gold files on a reachable URL, a timer the agent can overwrite: each has been exploited. Separate the verifier.</div></details>
+<details class="mist"><summary>Tuning the harness on the tasks you score</summary><div class="b">StateM's task-shaped gates and HarnessDev's 34 of 64 agreement: keep a held-out split.</div></details>
+<details class="mist"><summary>Ignoring cost and budget</summary><div class="b">Same pass^1, three times the cost per success. Fix budgets and report cost per success.</div></details>
+<details class="mist"><summary>Clipped or partial traces</summary><div class="b">A judge cannot grade what it is not shown; OpenTelemetry's tool arguments and results are opt-in.</div></details>
+</section>
+
+<section id="rd-check">
+<h2>Checklist for your own agent eval</h2>
+<ol>
+<li>Write tasks with a resettable, diffable state and a gold end state; say in the user instructions everything the gold depends on.</li>
+<li>Balance tasks that need a change against tasks whose right answer is no change; run a do-nothing agent and report its score.</li>
+<li>Grade the outcome with code; add hard checks for forbidden actions and an audit of unexpected writes.</li>
+<li>Use model judges (transcript, agent-as-a-judge, PRM) only for what code cannot specify, and calibrate each against human labels.</li>
+<li>Run several trials per task; report pass^k, clustered error bars, and per-task outcomes.</li>
+<li>Isolate trials and the verifier; pin the simulator, the judge and the harness versions.</li>
+<li>Add impossible canaries and a held-out split; read the top scores and every jump.</li>
+<li>Fix budgets; report cost per success and budget-exhausted failures separately.</li>
+<li>Log full traces (arguments, results, state, reasoning, versions) so any grader can be re-run.</li>
+</ol>
+</section>
+<p class="foot">Built 4 October 2026 as a new page (no old Notion text). Data computed in the page: Sierra's τ²-bench airline trajectory files for GPT-5.2 (high) and Claude Opus 4.5 (high) (MIT), re-graded with τ²-bench at commit 5bfa7e3. Corrected facts from the parent page, the root's Judge atlas and the MOLE, Emergence World, StateM, HarnessDev and Prime Agent paper pages. See <code>src/coverage.json</code>.</p>
+</div>
