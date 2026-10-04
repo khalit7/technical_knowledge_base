@@ -1,0 +1,27 @@
+
+<section id="rd-s7">
+<h2>7. Choosing: five questions, and two doors that only open one way</h2>
+<h3>The problem appears</h3>
+<p>Every database vendor's benchmark shows its product winning. Comparisons by category ("we need a NoSQL database") lead to systems chosen for the wrong reason, and a database is one of the hardest things to change later: the data has to move, and every piece of code that talks to it has to change. So the choice needs a method, applied when a measured limit forces you off the default.</p>
+<h3>The idea: five questions, in this order</h3>
+<div class="qa">
+<div><b>1. What are the access patterns?</b>Which queries run, how often, and how fast they must be. Start here, not from the shape of the data: almost any data fits almost any model, but each store is fast only at certain queries. A key-value store is cheap only if you always know the key.</div>
+<div><b>2. Which rules must hold across rows?</b>If two things must change together or not at all (charge a credit and save a reply), you want real transactions, inside one store. This one question rules out most alternatives for most business data.</div>
+<div><b>3. How much writing, and how uneven?</b>Steady thousands of small writes per second fit one Postgres server: even this page's laptop, flushing every commit to its SSD for real, ran 2,133 small write transactions per second with 32 clients <span class="meas">measured</span> ({{Database atlas|#t-atlas}} has the run), and a server SSD flushes far faster. Hundreds of thousands per second across regions do not fit. Plan for the peak and the busiest single key, not the average.</div>
+<div><b>4. How much do you know about future questions?</b>If you cannot list tomorrow's queries, a normalised relational schema lets you ask new ones for free. Only queries known and frozen justify a store designed around them.</div>
+<div><b>5. What can your team run at 3 a.m.?</b>Backups that have actually been restored, failover, upgrades, someone on call who understands it. A database nobody can debug under load is the wrong database, whatever its benchmarks.</div>
+</div>
+<p>Applied to the chat product, the answers explain the fleet in the opening picture:</p>
+<div class="tw"><table>
+<tr><th>Data</th><th>Access pattern</th><th>Rules across rows</th><th>Store</th></tr>
+<tr><td>Users, chats, messages, credits</td><td>By user and chat; new questions every month</td><td>Yes: credits and replies change together</td><td>Postgres (the source of truth)</td></tr>
+<tr><td>Chat list, rate-limit counters</td><td>Same key read constantly; a little staleness is fine</td><td>No</td><td>Redis, as a cache built from Postgres</td></tr>
+<tr><td>Tokens per model per day</td><td>Scans of two columns over everything</td><td>No; minutes behind is fine</td><td>Column store, copied from Postgres</td></tr>
+<tr><td>Search history by meaning</td><td>Nearest neighbours of an embedding</td><td>Must respect who may see which chat</td><td>pgvector inside Postgres first (section 8)</td></tr>
+</table></div>
+<h3>The two doors that only open one way</h3>
+<p>Almost every choice above can be undone with a migration: expensive, but finite. Two cannot be undone without rewriting every row. When data is split across machines (<dfn id="g-shard">sharding</dfn>), the <b>shard key</b> decides which machine each row lives on: shard the chat product by user and "all of one user's chats" is fast while "all chats about a topic, across users" must ask every machine. In a wide-column store, the <b>partition key</b> plays the same role. Choose either from the queries you will run most, check that no single key will be too busy, and take time over it, because changing it later means moving all the data.</p>
+<p>One more decision is cheapest at schema time: how long each kind of data is kept and how it is deleted. A user's right to have their data erased, rules about which country data may live in, and audit retention all become requirements on the store; a store with no practical way to delete one user's rows is one you will eventually have to migrate off.</p>
+<div class="cost"><div class="t">What this method costs</div>It is slower than picking the newest tool, and it often ends with "stay on Postgres and add an index", which is less exciting to build. It also asks you to measure before deciding, which means building the measurement first.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> the families side by side, with the questions each answers well, are in {{Database atlas|#t-atlas}}; sharding and its trade-offs are on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}; worked designs that make these choices end to end are on {{System design case studies|n:3ef5c17b0d0d81c3b211d75127ef5ded}}.</div>
+</section>
