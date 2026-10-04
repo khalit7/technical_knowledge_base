@@ -1,0 +1,118 @@
+
+<section id="rd-eli">
+<h2><span class="num">9</span>Does RLVR teach, or elicit?</h2>
+<p>RLVR reliably raises pass@1. The question is whether it adds abilities the base model lacked or makes the base model's best answers its usual ones (<b>sharpening</b>). The evidence, in the order it arrived:</p>
+<ul>
+<li><b>DeepSeekMath</b> already saw the shape in 2024: RL raised majority-vote accuracy (Maj@K) but not Pass@K; the page's decoding of its Figure 7 finds Pass@64 slightly lower after RL ({{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}).</li>
+<li><b>Yue et al.</b> (NeurIPS 2025 oral): RLVR-trained models beat their base at small <i>k</i>, but "the base models achieve a higher pass@k score when k is large"; RLVR operates "within the base model's capabilities rather than expanding beyond them", six popular RLVR algorithms "perform similarly and remain far from optimal", and distillation introduces genuinely new reasoning patterns ({{Yue et al. 2025|https://arxiv.org/abs/2504.13837}}).</li>
+<li><b>The invisible leash</b>: RLVR as "a support-constrained optimization mechanism"; token-level entropy can rise while answer-level entropy falls ({{Wu et al. 2025|https://arxiv.org/abs/2507.14843}}).</li>
+<li><b>Spurious rewards</b>: random rewards lifted Qwen2.5-Math-7B on MATH-500 by 21.4 points against 29.1 for true rewards, traced to "clipping bias" in GRPO amplifying a pretraining behaviour (code-style reasoning, 65% to over 90% of answers); the effect "often fail[s] to produce gains for other model families, such as Llama3 or OLMo2". Lesson: ablate on more than one base family ({{Shao et al. 2025|https://arxiv.org/abs/2506.10947}}).</li>
+<li><b>Against</b>: judging the reasoning chain and not just the answer (CoT-Pass@k), RLVR "can encourage sound reasoning processes even when rewards depend solely on answer correctness" ({{Wen et al. 2025|https://arxiv.org/abs/2506.14245}}); prolonged RL with KL control and reference resets (ProRL) "consistently outperform[s] base models across a wide range of pass@k evaluations", including problems the base cannot solve at any sampling budget ({{Liu et al. 2025|https://arxiv.org/abs/2505.24864}}).</li>
+</ul>
+<p>The reading the old page gave, and which the sources above still support: RLVR reliably converts pass@<i>k</i> into pass@1 and improves reasoning validity; whether it creates capability outside the base model's support remains contested, and prolonged multi-stage RL is the strongest claim for genuine expansion. <b>Measure pass@<i>k</i> at large <i>k</i> before claiming a new capability.</b></p>
+<div class="card" id="rd-pk">
+<div class="rd-ph">Why the curves cross: sharpening against expansion</div>
+<div class="seg" id="rd-pkM" role="group" aria-label="RL effect"><button data-m="sharp" class="on">RL sharpens only</button><button data-m="expand">RL sharpens and expands</button></div>
+<div class="rd-svg" id="rd-pkP"></div>
+<p class="small mute" id="rd-pkT"></p>
+<p class="small mute"><i class="nl i">illustrative</i> 40 problems with per-sample success probabilities spread from 0 to 0.9 for the base model; "sharpening" raises every probability above 0.15 toward 1 and pushes the rest toward 0; "expansion" also gives a quarter of the unsolved problems a small chance. pass@<i>k</i> = 1 − (1 − <i>p</i>)<sup><i>k</i></sup> per problem, averaged, computed exactly; the shape, not the numbers, is the point.</p>
+</div>
+</section>
+
+<section id="rd-hack">
+<h2><span class="num">10</span>Reward hacking, specifically in LLM RL</h2>
+<p>Every RL method optimises the reward it is given, not the one intended. The general picture, the over-optimisation curves of {{Gao et al. 2022|https://arxiv.org/abs/2210.10760}} (proxy reward keeps rising while the true reward rises, peaks and falls as the policy moves away from its start), a case gallery and the defences are on {{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}}; the KL leash is animated on the training topic's Axis 4. What is specific to the RL step of a language model:</p>
+<ul>
+<li><b>Length.</b> Reward models tend to prefer longer answers (Reward Hacking, "Verbosity: length is the easiest feature to buy"), and GRPO's 1/|<i>o</i>| makes long wrong answers cheap (section 7): two independent pushes toward verbosity. On this page's data the real reward model's scores <span id="rd-hkLen">correlate with length</span>.</li>
+<li><b>The reward model's blind spots.</b> A learned scorer ranks wrong answers above right ones some of the time; the policy finds those regions. On this page's data the real reward model <span id="rd-hkAuc">separates correct from wrong answers imperfectly</span>, which is exactly the gap a policy optimising against it would exploit ({{Real rollouts|#t-roll}} tab).</li>
+<li><b>Lenient verifiers.</b> An answer extractor that accepts the reference number anywhere in the response rewards a policy that lists many numbers. On this page's data such a verifier <span id="rd-hkAny">accepts many wrong answers</span> ({{Verifier gallery|#t-ver}}).</li>
+<li><b>Model-based verifiers and judges</b> are fooled by surface patterns ("master keys" such as ":" or "Thought process:"; {{Zhao et al. 2025|https://arxiv.org/abs/2507.08794}}) and get hacked during RL "particularly after fine-tuning" ({{Huang et al. 2025|https://arxiv.org/abs/2505.22203}}).</li>
+<li><b>Tests.</b> In code RL, special-cased outputs, edited tests and early exits pass a test suite without solving the task; measured cases are in the Reward Hacking page's case gallery.</li>
+<li><b>Format rewards</b> are satisfied in form: a <code>&lt;think&gt;</code> block can be empty or decorative.</li>
+</ul>
+<p>Defences that belong to the RL loop: the KL penalty or a refreshed reference; rule rewards for long runs and learned rewards only briefly (R1's 400 final steps); held-out verifiers; logging reward components separately; and reading samples, especially the highest-reward ones. Monitoring the chain of thought helps, but training against the monitor teaches the model to hide (Reward Hacking, "Read the chain of thought, but do not train against it").</p>
+</section>
+
+<section id="rd-agent">
+<h2><span class="num">11</span>Agentic and multi-turn RL</h2>
+<p>When the policy calls tools, the MDP of section 1 changes in three ways. <b>The transition is no longer trivial:</b> after a tool call the environment appends tokens the policy did not generate (a search result, a test log, a shell's output). <b>Those tokens must be masked out of the loss</b>, because the policy cannot be credited or blamed for them; Search-R1 introduced "retrieved token masking for stable RL training" ({{Jin et al. 2025|https://arxiv.org/abs/2503.09516}}). And <b>episodes span many turns</b> with one reward at the end of the task, so credit assignment is harder than in single-turn reasoning; step-level advantages from states that recur across a group (GiGPO) are on {{Alignment|n:3c65c17b0d0d81d5bed7e608d4061c7a}} ("Credit over many turns").</p>
+<ul>
+<li><b>Exact token accounting.</b> If the trainer re-tokenises the engine's text instead of using the engine's own token ids, the log-probabilities no longer line up and the data is silently off-policy (section 8). Mercor's 397B run calls the discipline "token-in-token-out" ({{Mercor, 1 September 2026|https://www.mercor.com/blog/training-frontier-knowledge-work-agents-a-397b-rl-training-guide-with-skyrl/}}).</li>
+<li><b>Cost as a term in the objective.</b> Selectable reasoning-effort tiers have normally been separate checkpoints, or a budget bolted onto a finished model. Cognition trained SWE-2's whole effort ladder in one RL run with the reward <i>R</i> = <i>S</i> − λ<sub><i>e</i></sub><i>C</i>, where <i>S</i> ∈ {0, 1} is success, <i>C</i> the rollout's cost, and λ<sub><i>e</i></sub> "tuned to match the slope of the Pareto curve of the base model at effort level <i>e</i>". The saving showed up in turns: on FrontierCode 1.1 Main, SWE-2 medium used 53 steps against SWE-1.7's 127 (58% fewer, 1 − 53/127) at 81% lower average cost ({{Cognition, 10 September 2026|https://cognition.com/blog/swe-2}}). For agents, turn count is where the money goes once per-token price is competitive.</li>
+<li><b>Several objectives at once.</b> When a run optimises several rewards, gradient keeps flowing into the ones already mastered. <i>Learn What's Left, Not What's Mastered</i> normalises each objective per group and down-weights it by (1 − saturation)<sup>γ</sup>; it is the multi-objective cousin of DAPO's dynamic sampling, for the same reason (no disagreement, no signal). Its {{paper page|n:3c65c17b0d0d81e38b0fe72f3daf44bc}} trains it live and finds the gains unproven: single runs, and the obvious fixed-weight rival never run.</li>
+<li><b>The largest published recipe in this shape</b>: Mercor with SkyRL trained Qwen3.5-397B-A17B on 1,928 expert knowledge-work tasks (consulting, banking, law) and "improved Pass@1 by 70% relative, from 16.11% to 27.29%" on APEX-Agents (27.29 / 16.11 = 1.69). Most of its write-up is about exact token accounting, fully asynchronous RL with in-flight weight updates, timeouts and error classes for robust environments, and the harness: fixing its tool servers "raised the base ... from 22.74% to 28.69% mean reward, with zero training". Its authors' summary: "algorithm choices mattered less than the data". The recipe in full is on {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}.</li>
+</ul>
+</section>
+
+<section id="rd-infra">
+<h2><span class="num">12</span>Infrastructure: rollouts, weights and environments</h2>
+<p>An RL step for an LLM is four jobs on one or two pools of GPUs: <b>generate</b> rollouts with an inference engine (vLLM, SGLang), <b>score</b> them (a verifier, a reward model, an environment), <b>train</b> on them, and <b>sync</b> the new weights back to the engine. The frameworks (verl, OpenRLHF, TRL, SkyRL, NeMo RL) are listed on {{Alignment|n:3c65c17b0d0d81d5bed7e608d4061c7a}} section 6; checkpoints, failures and goodput are on {{Training Infrastructure|n:3c65c17b0d0d81c9b2cac997583bf572}}.</p>
+<ul>
+<li><b>Colocated or disaggregated.</b> verl's HybridFlow colocates trainer and engine on the same GPUs and switches between them, which makes weight sync fast; disaggregated designs give each its own pool and ship weights over the network.</li>
+<li><b>Synchronous or asynchronous.</b> A synchronous step waits for the longest response in the batch, and reasoning lengths have a long tail, so most GPUs idle at the end of every generation phase. Asynchronous systems let generation run ahead: AReaL's rollout workers "continuously generate new outputs without waiting" while trainers update "whenever a batch of data is collected", with "a staleness-enhanced PPO variant" for the older samples, reaching "up to 2.77× training speedup" ({{Fu et al. 2025|https://arxiv.org/abs/2505.24298}}); PipelineRL updates weights <b>in flight</b>, pausing generation only briefly so sequences already in progress continue on the new weights, about 2× faster learning on 128 H100s ({{Piché et al. 2025|https://arxiv.org/abs/2509.19128}}). The price is staleness, which is the off-policy problem of section 8.</li>
+<li><b>Environments are now the expensive part</b> for agents (the training topic's Axis 3 has the numbers). DeepSeek's sandbox layer runs about 3 million sandboxes a day, over 5,000 created per second, on about 160 nodes, co-designed so stateful rollouts survive preemptible GPU training; the paper page judges the production scale self-reported ({{DSec page|n:3e95c17b0d0d81bd927be047bb0d7b0b}}, which lets you place a burst of sandboxes live).</li>
+<li><b>How RL scales.</b> A 400,000-GPU-hour study fits reward against compute with a sigmoid, <i>R<sub>C</sub></i> − <i>R</i><sub>0</sub> = (<i>A</i> − <i>R</i><sub>0</sub>) / (1 + (<i>C</i><sub>mid</sub>/<i>C</i>)<sup><i>B</i></sup>), and finds that most recipe details (loss aggregation, normalisation, curriculum, the off-policy algorithm) change the efficiency <i>B</i> more than the ceiling <i>A</i>. Its recipe, ScaleRL, combines PipelineRL, forced length interruptions, CISPO, prompt-level loss averaging, batch-level advantage normalisation, FP32 logits, zero-variance filtering and "No-Positive-Resampling" (prompts whose historical pass rate reaches 0.9 or more leave the pool) ({{Khatri et al. 2025|https://arxiv.org/abs/2510.13786}}).</li>
+</ul>
+<div class="card" id="rd-as">
+<div class="rd-ph">One batch of real rollouts, synchronous against asynchronous</div>
+<div class="seg" id="rd-asM" role="group" aria-label="Schedule"><button data-m="sync" class="on">Before: synchronous</button><button data-m="async">After: asynchronous</button></div>
+<div class="rd-svg" id="rd-asP"></div>
+<div class="an-ctl" id="rd-asC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rd-asT"></div><p id="rd-asX"></p></div>
+<div class="an-cnt" id="rd-asN"></div>
+<p class="small mute" id="rd-asNote"></p>
+</div>
+</section>
+
+<section id="rd-when">
+<h2><span class="num">13</span>Trade-offs: which one when</h2>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Choice</th><th>Buys</th><th>Costs</th><th>Use it when</th></tr></thead>
+<tbody>
+<tr><td>PPO-RLHF</td><td>Per-token credit from a learned critic; works with any learned reward</td><td>Four large models in memory, a value model fitted during RL, many sensitive hyperparameters (GAE λ among them)</td><td>The reward is a learned preference model and you have the infrastructure for the critic</td></tr>
+<tr><td>GRPO</td><td>A critic-free loop with roughly half the memory and a baseline that needs no training</td><td><i>G</i> rollouts per prompt; equal credit for every token of a response</td><td>The default for single-turn reasoning with a verifier; long-horizon agentic tasks feel its lack of per-token credit most</td></tr>
+<tr><td>RLOO</td><td>The same group baseline, exactly unbiased, no std division</td><td>As GRPO</td><td>You want REINFORCE's simplicity with a free baseline (Ahmadian et al.)</td></tr>
+<tr><td>GRPO with the Dr. GRPO and DAPO fixes</td><td>GRPO's cost without its length and difficulty biases; zero-signal groups filtered; entropy kept alive</td><td>More rollouts to fill a batch (dynamic sampling)</td><td>Long chain-of-thought runs; the checklist makes each an explicit decision</td></tr>
+<tr><td>GSPO</td><td>Stability on long responses and MoE models by clipping whole sequences</td><td>The per-token view of the ratio: one outlier token no longer gets clipped on its own</td><td>MoE policies, long responses</td></tr>
+<tr><td>CISPO</td><td>Rare tokens keep their gradient; 2× faster than DAPO in MiniMax's runs</td><td>No trust region from the clip; relies on the weight cap and small steps</td><td>Long reasoning where reflective tokens matter</td></tr>
+<tr><td>Verifier or reward model</td><td>A verifier cannot be flattered and needs no preference data</td><td>Exists only where correctness is checkable; a reward model covers open-ended quality and is exploitable</td><td>Verifier for checkable tasks; reward model briefly, as R1 confined its preference rewards to the final 400 steps of its last RL stage</td></tr>
+<tr><td>Offline preference methods (DPO family)</td><td>No RL loop: cheap broad preference shaping</td><td>Consistently weaker than online RL at equal data where it matters most (reasoning, agentic behaviour)</td><td>Cheap style and preference tuning; on {{Alignment|n:3c65c17b0d0d81d5bed7e608d4061c7a}}</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="rd-mist">
+<h2><span class="num">14</span>Common mistakes and misconceptions</h2>
+<details class="mist"><summary>Assuming the rollout policy is the old policy.</summary><div class="b">The inference engine's probabilities differ from the trainer's; computing ρ against the trainer's recomputed log-probabilities alone hides a systematic off-policy gap. Log both and correct with TIS or rejection sampling (section 8).</div></details>
+<details class="mist"><summary>Letting the engine's sampling defaults change the policy.</summary><div class="b">A model's shipped <code>generation_config.json</code> can carry sampling settings the trainer knows nothing about; Qwen2.5-0.5B-Instruct's sets repetition_penalty 1.1, temperature 0.7, top_p 0.8 and top_k 20 ({{file|https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/main/generation_config.json}}). Building this page, a first run that overrode temperature, top_p and top_k but not the repetition penalty sampled from a different distribution than π<sub>θ</sub>: its stored log-probabilities differed from the model's by 0.08 to 0.45 nats per token on average across 32 responses (up to 3.2 on one token), against about 0.0015 for a pure precision gap (the {{Rollout mismatch|#t-mis}} tab's third set-up). Sample at temperature 1 with every processor off, or record and correct for what you change.</div></details>
+<details class="mist"><summary>Forgetting that uniform groups teach nothing.</summary><div class="b">A group where every answer is right, or every answer is wrong, has zero advantage everywhere. On a prompt set that is too easy or too hard most of the batch is wasted; filter or resample, and track the fraction of zero-signal groups.</div></details>
+<details class="mist"><summary>Dividing by a zero standard deviation.</summary><div class="b">The same uniform groups give 0 / 0 in the advantage; without a small constant in the denominator the loss becomes NaN.</div></details>
+<details class="mist"><summary>Letting length normalisation happen by default.</summary><div class="b">Averaging each response over its own length quietly rewards long wrong answers. Choose token-mean, sequence-mean or a constant denominator deliberately, and watch response length on wrong answers.</div></details>
+<details class="mist"><summary>Calling GRPO "PPO without a critic" and expecting PPO's behaviour.</summary><div class="b">With one gradient step per batch the ratio stays at 1 (up to the rollout mismatch) and the clip never binds, so the update is plain REINFORCE with a group baseline; the clip only matters when a batch is reused for several steps (R1-Zero's 16 minibatches).</div></details>
+<details class="mist"><summary>Counting the KL penalty twice.</summary><div class="b">RLHF-PPO puts it in the reward, GRPO in the loss. Doing both, or comparing β values across the two placements (0.02 in InstructGPT's reward, 0.04 and 0.001 in DeepSeek's losses), mixes up two different regularisers. And k3's gradient in the loss is not the gradient of the KL it estimates (section 3).</div></details>
+<details class="mist"><summary>Re-tokenising text between the engine and the trainer.</summary><div class="b">The same text can tokenise differently; the trainer then scores tokens the engine never sampled. Pass token ids end to end ("token-in-token-out").</div></details>
+<details class="mist"><summary>Training on environment tokens.</summary><div class="b">In multi-turn RL, tool outputs are part of the state, not the policy's actions; mask them from the loss (section 11).</div></details>
+<details class="mist"><summary>Reading a pass@1 gain as new capability.</summary><div class="b">RLVR reliably turns pass@<i>k</i> into pass@1; whether it expands what the base model can solve at all is open (section 9). Measure pass@<i>k</i> at large <i>k</i>, on more than one base family, before claiming it.</div></details>
+<details class="mist"><summary>Trusting the verifier.</summary><div class="b">An answer extractor that accepts malformed output, or a test suite with gaps, is a reward to hack; the policy will find it. Read the highest-reward samples.</div></details>
+</section>
+
+<section id="rd-check">
+<h2><span class="num">15</span>Checklist for a from-scratch RLVR loop</h2>
+<p class="small mute">Tick as you build; your ticks stay in this browser only.</p>
+<ol class="cl" id="rd-ck">
+<li><label><input type="checkbox"> <b>Rollout:</b> <i>G</i> samples per prompt at temperature about 1.0 with every other sampling processor off; store the engine's per-token log-probabilities and token ids.</label></li>
+<li><label><input type="checkbox"> <b>Reward:</b> a verifier score per sample; keep format and correctness rewards separate for logging; test the verifier on known-good and known-bad answers (equivalent forms, extra numbers, empty reasoning).</label></li>
+<li><label><input type="checkbox"> <b>Advantage:</b> group-mean baseline; decide explicitly on standard-deviation normalisation (Dr. GRPO says no) and on length normalisation (token-mean, sequence-mean or a constant; be deliberate).</label></li>
+<li><label><input type="checkbox"> <b>Loss:</b> clipped ratio against the old (rollout) log-probabilities; consider clip-higher or CISPO; KL to the reference, or drop it, as much RLVR work now does when the anchor is not needed; never both a reward penalty and a loss term.</label></li>
+<li><label><input type="checkbox"> <b>Filter</b> degenerate groups (all correct or all wrong) or dynamic-sample past them; consider dropping prompts the policy has mastered.</label></li>
+<li><label><input type="checkbox"> <b>Mismatch:</b> compare engine and trainer log-probabilities every step; apply TIS or masking; compute the head in FP32 if the gap grows.</label></li>
+<li><label><input type="checkbox"> <b>Agents:</b> mask environment tokens; pass token ids end to end; put timeouts on every tool.</label></li>
+<li><label><input type="checkbox"> <b>Monitor:</b> entropy, response length (on right and wrong answers separately), KL, clip fraction, reward by difficulty bucket, the fraction of zero-signal groups, and the rollout-against-training log-probability gap.</label></li>
+<li><label><input type="checkbox"> <b>Evaluate</b> pass@1 and pass@<i>k</i> at large <i>k</i> on held-out problems, on more than one base model.</label></li>
+</ol>
+<p>The Mercor run in section 11 makes the same point about where the difficulty sits: steps 1, 2, 5 and 7 are where its work actually landed.</p>
+</section>
+
+<section id="rd-unv">
+<div class="co unv"><div class="t">On the old page, unverified</div>The old page carried this paragraph in its RLVR section: "<b>Reinforcement Learning for Calibrated Decisions</b>, the training method behind TypeSafe's Jev, optimises instead for epistemically honest probability estimates on structured decisions: the model returns a typed value with a confidence score, and the objective rewards that confidence being well calibrated rather than the answer being preferred or passing a check. It is worth naming as a third branch beside RLHF and RLVR, because it targets a property neither of them scores. The surrounding product claims (40x to 200x faster than frontier models on comparable tasks) are vendor-reported with no independent evaluation." What could be checked on 4 October 2026: TypeSafe's own announcement exists ({{TypeSafe blog|https://typesafe.ai/blog/introducing-system-one-models-and-jev}}) and says RLCD "Optimizes for: Calibrated decisions: answers with epistemically honest probabilities on System One tasks", and claims "40x-200x faster for the same levels of frontier intelligence for System One shaped queries" from its own workflow evaluations. It gives no definition of the reward or objective, no paper and no independent evaluation. So the method's existence is vendor-stated, its mechanism undocumented, and the speed claim unverified; it is kept here, not in the explanation, until a primary technical source appears.</div>
+</section>
+</div>
