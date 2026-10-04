@@ -1,0 +1,49 @@
+<div class="tab" id="t-cost" role="tabpanel" hidden>
+<style>
+#t-cost .cm-q{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;overflow-wrap:anywhere}
+#t-cost .cm-paths{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:8px;margin:10px 0}
+#t-cost .cm-p{border:1px solid var(--line);border-radius:10px;padding:8px 11px;min-width:0;background:var(--bg)}
+#t-cost .cm-p.win{border:2px solid var(--good)}
+#t-cost .cm-p h4{margin:0 0 2px;font-size:14px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}
+#t-cost .cm-p .tot{font-size:20px;font-weight:600}
+#t-cost .cm-p .win-tag{font-size:11px;font-weight:700;color:var(--bg);background:var(--good);border-radius:4px;padding:0 6px}
+#t-cost .cm-p dl{display:grid;grid-template-columns:minmax(0,1fr);gap:0;font-size:12.5px;margin:6px 0 0}
+#t-cost .cm-p dt{color:var(--mute);margin-top:4px}#t-cost .cm-p dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600;overflow-wrap:anywhere}
+#t-cost .cm-p .fx{font-size:12px;color:var(--mute);margin-top:4px;overflow-wrap:anywhere}
+#t-cost .cm-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:6px 16px;margin:8px 0}
+#t-cost .cm-ctl label{font-size:13px;display:block;min-width:0}#t-cost .cm-ctl label b{font-variant-numeric:tabular-nums}
+#t-cost .cm-ctl select{width:100%}
+#t-cost .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-cost .seg button{font-size:12.5px;padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink);text-align:left}
+#t-cost .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-cost .cm-chk{font-size:13px;border-left:3px solid var(--good);padding:2px 0 2px 10px;margin:8px 0}
+#t-cost .cm-meas td,#t-cost .cm-meas th{font-size:12.5px}
+#t-cost .cm-meas td.w{font-weight:700;color:var(--good)}
+#t-cost .kv{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr)}#t-cost .kv dt,#t-cost .kv dd{overflow-wrap:anywhere}
+</style>
+<h2>Cost model: price three plans by hand, the way Postgres does</h2>
+<p>The planner chose among a sequential scan, an index scan and a bitmap scan for a range query by computing three numbers. This tab computes the same three numbers from the same inputs, read from the real tables: the page and row counts in <code>pg_class</code>, the index size and B-tree height, and the column's histogram and correlation in <code>pg_stats</code>. With the default settings it reproduces every cost PostgreSQL 16.2 printed for these queries, to the cent (150 of 150 figures, checked in <code>src/recompute.py</code>). Explained step by step in Reading, {{section 2|#t-read}}.</p>
+<p class="try"><b>Try:</b> drag "rows wanted" and watch the winner change at the crossover. On <code>users</code>, set the correlation to 1 (as if the table were sorted by id) and the index scan wins far longer. Set random_page_cost to 1.1 and the crossover moves. Lower work_mem to 64 kB on <code>messages</code> and the bitmap goes lossy.</p>
+<div class="seg" id="cm-preset"><button data-m="users" class="on">users by id: 100,000 rows, correlation -0.03</button><button data-m="messages">messages by id: 10,000,000 rows, correlation 1.00</button></div>
+<div class="cm-q" id="cm-sql"></div>
+<div class="cm-ctl">
+<label>Rows wanted: <b id="cm-n-v"></b><input type="range" id="cm-n" min="0" max="1000" step="1" value="560" aria-label="Rows wanted"></label>
+<label>random_page_cost: <b id="cm-rp-v"></b><input type="range" id="cm-rp" min="1" max="10" step="0.1" value="4" aria-label="random_page_cost"></label>
+<label>seq_page_cost: <b id="cm-sp-v"></b><input type="range" id="cm-sp" min="0.1" max="2" step="0.1" value="1" aria-label="seq_page_cost"></label>
+<label>Correlation used: <b id="cm-cr-v"></b><input type="range" id="cm-cr" min="-1" max="1" step="0.01" value="0" aria-label="Correlation"></label>
+<label>cpu_tuple_cost<select id="cm-ct"><option>0.001</option><option>0.005</option><option selected>0.01</option><option>0.02</option><option>0.05</option></select></label>
+<label>cpu_operator_cost<select id="cm-co"><option>0.0005</option><option>0.001</option><option selected>0.0025</option><option>0.005</option><option>0.01</option></select></label>
+<label>effective_cache_size<select id="cm-ec"><option value="16384">128 MB</option><option value="131072">1 GB</option><option value="524288" selected>4 GB (default)</option><option value="2097152">16 GB</option></select></label>
+<label>work_mem<select id="cm-wm"><option value="64">64 kB</option><option value="1024">1 MB</option><option value="4096" selected>4 MB (default)</option><option value="65536">64 MB</option></select></label>
+</div>
+<p><button id="cm-reset">Reset to the measured defaults</button></p>
+<div class="out" id="cm-sum"></div>
+<div class="cm-paths" id="cm-paths"></div>
+<div class="card"><div id="cm-chart"></div><p class="small mute" id="cm-chart-cap"></p></div>
+<div class="cm-chk" id="cm-chk"></div>
+<h3>Measured: did the cheapest cost run fastest?</h3>
+<div class="tw"><table class="cm-meas" id="cm-meas"></table></div>
+<p class="small mute">Each path forced in turn (<code>enable_seqscan</code>, <code>enable_indexscan</code>, <code>enable_bitmapscan</code> switched off for the others), serial plans (<code>max_parallel_workers_per_gather = 0</code>), warm cache, best of three, measured 2026-10-04 on PostgreSQL 16.2, Apple M1 Pro. Green: fastest. Pages: buffer hits plus reads at the scan node, so a page visited twice counts twice. Statistics as stored when measured (users' id correlation -0.03 although the rows sit in long runs; see Reading, section 2).</p>
+<h3>What the inputs are</h3>
+<dl class="kv" id="cm-inputs"></dl>
+<p class="small mute">Simplifications, all of which also hold for the measured queries: one table, one range condition on an indexed bigint column, no NULLs, both ends of the range inside the histogram (the planner looks up the real minimum and maximum through the index when a bound falls in the first or last bucket, which this calculator does not), serial plans. Parallel plans divide CPU costs among workers and add <code>parallel_setup_cost</code> and <code>parallel_tuple_cost</code>.</p>
+</div>

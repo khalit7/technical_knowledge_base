@@ -1,0 +1,62 @@
+<section id="rd-s5">
+<h2>5. Join order: a search problem</h2>
+<p>With two tables the planner compares a handful of plans: which table is outer, which of the three join algorithms, which access path for each side. Every extra table multiplies the choices. With <i>n</i> tables there are <i>n</i>! orders for a simple chain of joins (3,628,800 for ten) and more if intermediate results may themselves be joined ("bushy" trees). Trying them one by one is impossible, so since IBM's System R (Selinger and colleagues, {{Access Path Selection in a Relational Database Management System, SIGMOD 1979|https://dl.acm.org/doi/10.1145/582095.582099}}) planners use <dfn id="g-dp">dynamic programming</dfn>: find the cheapest way to join every pair, keep it, then build the cheapest plan for every set of three from the kept pairs, and so on. That turns the factorial into "only" exponential, because it still visits every subset of tables that the query's join conditions connect.</p>
+<p>Postgres runs this near-exhaustive search while the query has fewer than <code>geqo_threshold</code> (12 by default) items in its FROM list. From 12 on it switches to <dfn id="g-geqo">GEQO</dfn>, the genetic query optimizer, which treats join order like the travelling salesman problem: it encodes orders as strings such as 4-1-3-2, breeds and mutates a population of them, and keeps the cheapest it finds in a fixed budget ({{GEQO in PostgreSQL|https://www.postgresql.org/docs/current/geqo-pg-intro.html}}). It is randomised: the result depends on <code>geqo_seed</code> and need not be the best plan.</p>
+<div class="card" id="rd-geqo-card">
+<div id="rd-geqo"></div>
+<p class="small mute" id="rd-geqo-cap"></p>
+</div>
+<p>Two subtleties trip people up. First, <b>explicit JOINs are only reordered in groups of 8</b>: <code>join_collapse_limit</code> and <code>from_collapse_limit</code> (8 by default) stop the planner from flattening longer chains of <code>JOIN ... ON</code> or nested subqueries into one search, so a 14-table query written with JOIN syntax is planned as smaller searches whose boundaries follow how you wrote it, and GEQO never runs; written as a comma-separated FROM list it is one search of 14 items and GEQO does ({{Controlling the Planner with Explicit JOIN Clauses|https://www.postgresql.org/docs/current/explicit-joins.html}}). Second, <b>exhaustive is not the same as right</b>: the search is only as good as its row estimates, which section 4 showed can be off by 1,000 times on joins. Leis and colleagues still found exhaustive dynamic programming beat heuristic search on their benchmark, despite the bad estimates.</p>
+<div class="tech"><div><b>Problem it solves</b>Choosing a join order among millions without trying them.</div><div><b>How</b>Dynamic programming over subsets up to 11 FROM items; GEQO from 12.</div><div><b>Cost</b>Planning time that grows exponentially with tables; GEQO trades plan quality for a bounded search.</div><div><b>When to act</b>Generated queries joining 12 or more tables (ORMs, BI tools): measure planning time in EXPLAIN's summary; raise <code>geqo_threshold</code> only if planning stays affordable, or split the query.</div></div>
+</section>
+
+<section id="rd-s6">
+<h2>6. Reading EXPLAIN like a professional</h2>
+<p><code>EXPLAIN</code> shows the plan the planner chose without running it. <code>EXPLAIN ANALYZE</code> runs the query (so it really inserts, updates or deletes: wrap those in <code>BEGIN; ... ROLLBACK;</code>) and adds what happened ({{EXPLAIN|https://www.postgresql.org/docs/current/sql-explain.html}}; {{Using EXPLAIN|https://www.postgresql.org/docs/current/using-explain.html}}). Use <code>EXPLAIN (ANALYZE, BUFFERS)</code> by default; PostgreSQL 18 turns BUFFERS on automatically with ANALYZE. Other options worth knowing: <code>SETTINGS</code> (lists settings changed from their defaults, so a plan pasted into a ticket says which <code>work_mem</code> it ran with), <code>VERBOSE</code> (output columns), <code>FORMAT JSON</code> (for tools such as {{explain.dalibo.com|https://explain.dalibo.com}} and {{explain.depesz.com|https://explain.depesz.com}}), <code>GENERIC_PLAN</code> (PostgreSQL 16 and later: the plan for a statement with <code>$1</code> placeholders, without values), and <code>SUMMARY</code> (planning time).</p>
+<h3>One node, field by field</h3>
+<pre class="pl">-&gt;  Index Scan using chats_pkey on chats  (cost=0.42..37801.43 rows=100 width=19) (actual time=11.819..91.565 rows=1 loops=1)
+      Filter: (title ~~ 'Chat 123456%'::text)
+      Rows Removed by Filter: 999999
+      Buffers: shared hit=12053</pre>
+<dl class="kv">
+<dt><code>Index Scan using chats_pkey on chats</code></dt><dd>The node type, the index it walks, the table it reads.</dd>
+<dt><code>cost=0.42..37801.43</code></dt><dd>Estimated startup and total cost, in the units of section 2.</dd>
+<dt><code>rows=100</code></dt><dd>Estimated rows this node will output (per loop).</dd>
+<dt><code>width=19</code></dt><dd>Estimated average bytes per output row.</dd>
+<dt><code>actual time=11.819..91.565</code></dt><dd>Milliseconds until the first row and until the last row, per loop, including everything below this node.</dd>
+<dt><code>rows=1 loops=1</code></dt><dd>Actual rows output per loop, and how many times the node ran. Total rows = rows &times; loops; total time is roughly time &times; loops.</dd>
+<dt><code>Filter</code>, <code>Rows Removed by Filter</code></dt><dd>A condition checked on each row after fetching it, and how many rows it threw away. A large number here means work wasted; an <code>Index Cond</code> instead would mean the index did the filtering.</dd>
+<dt><code>Buffers: shared hit=12053</code></dt><dd>8 KB pages found in Postgres's buffer pool (<b>hit</b>), asked from the operating system (<b>read</b>, which may still come from the operating system's memory), modified (<b>dirtied</b>) or written out to make room (<b>written</b>); <b>temp</b> pages are sorts and hashes that spilled to disk (section 9).</dd>
+</dl>
+<p>This one node is section 7's slow query: the planner expected 100 matching titles and, walking the primary key in id order, expected to find the first 10 after about a tenth of the table (cost 3,780 at the Limit above it). There was 1 match, so it read all 1,000,000 rows to find it. The estimate on the node (100) against the actual (1) is the whole diagnosis.</p>
+<h3>Reading a whole plan</h3>
+<ol>
+<li><b>Start at the bottom</b> (the most indented lines) and go up: children produce rows for their parents.</li>
+<li><b>Find the time.</b> Each node's time includes its children; subtract them to see what the node itself cost. Multiply by <code>loops</code> on the inner side of a nested loop.</li>
+<li><b>Compare estimated and actual rows</b> at each node (section 4's habit). The lowest big mismatch is the cause.</li>
+<li><b>Count pages</b> in <code>Buffers</code>: pages are the work, and unlike milliseconds they do not change between a cold and a warm run (the parent's Query plans case 8 shows the same query at three cache temperatures).</li>
+<li><b>Look for waste</b>: Rows Removed by Filter in the millions, <code>Heap Fetches</code> on an Index Only Scan (the table had to be visited after all), <code>Sort Method: external merge</code> or <code>Batches</code> greater than 1 (spilled to disk), <code>Workers Launched</code> fewer than <code>Workers Planned</code> (no free parallel workers).</li>
+<li><b>Check Planning Time against Execution Time</b>: for short queries run thousands of times, planning can be most of the cost (section 10).</li>
+</ol>
+<div class="mist"><details><summary><b>Every common node in one table</b> (open)</summary><div class="b"><div class="tw"><table>
+<thead><tr><th>Node</th><th>What it does</th><th>Worth noticing</th></tr></thead>
+<tbody>
+<tr><td>Seq Scan / Parallel Seq Scan</td><td>Reads every page of a table</td><td>Fine for small tables or when most rows match; a Filter removing nearly everything suggests an index</td></tr>
+<tr><td>Index Scan (Backward)</td><td>Walks an index in order and fetches each matching row</td><td>Delivers rows sorted by the index, which can make a Sort unnecessary</td></tr>
+<tr><td>Index Only Scan</td><td>Answers from the index alone</td><td><code>Heap Fetches</code> counts rows it still had to check in the table, because the visibility map was out of date (VACUUM sets it)</td></tr>
+<tr><td>Bitmap Index Scan + Bitmap Heap Scan</td><td>Collects matching row locations, then reads pages in physical order</td><td><code>Heap Blocks: exact=, lossy=</code>: lossy pages (when the bitmap outgrows <code>work_mem</code>) must recheck every row; <code>Recheck Cond</code></td></tr>
+<tr><td>Nested Loop</td><td>For each outer row, runs the inner side</td><td>Inner <code>loops=</code> is the number of outer rows; great when that is small, terrible when an underestimate made it large</td></tr>
+<tr><td>Hash Join + Hash</td><td>Builds a hash table from one input, streams the other past it</td><td><code>Batches</code> above 1 means the hash table spilled to disk</td></tr>
+<tr><td>Merge Join</td><td>Zips two inputs sorted on the join key</td><td>Often fed by Sort nodes or index scans</td></tr>
+<tr><td>Memoize</td><td>Caches inner results of a nested loop by key (PostgreSQL 14+)</td><td><code>Hits</code> and <code>Misses</code> show whether the cache helped</td></tr>
+<tr><td>Sort, Incremental Sort</td><td>Orders rows; incremental sort finishes an order that is already partly there</td><td><code>Sort Method: quicksort Memory</code> (fine), <code>top-N heapsort</code> (a Limit above), <code>external merge Disk</code> (spilled)</td></tr>
+<tr><td>HashAggregate, GroupAggregate, Aggregate</td><td>GROUP BY with a hash table, over sorted input, or one group for the whole input</td><td>HashAggregate <code>Batches</code> above 1 means it spilled</td></tr>
+<tr><td>Gather, Gather Merge</td><td>Collects rows from parallel workers</td><td>Rows and times below it are per process: multiply by loops</td></tr>
+<tr><td>Limit</td><td>Stops after n rows</td><td>Makes startup cost matter; a plan chosen "because it can stop early" is fragile when matches are rarer than estimated</td></tr>
+<tr><td>Materialize, CTE Scan, SubPlan</td><td>Stores an intermediate result; a SubPlan runs once per outer row</td><td>A SubPlan with large <code>loops</code> is a correlated subquery that a join might replace</td></tr>
+<tr><td>Append, Result, ProjectSet</td><td>Concatenates inputs (UNION ALL, partitions); computes expressions</td><td>Append over partitions shows which ones were pruned</td></tr>
+</tbody></table></div></div></details></div>
+<h3>What measuring costs</h3>
+<p>EXPLAIN ANALYZE reads the clock twice per row per node, and that is not free. On this laptop the clock costs 20.6 nanoseconds a read (<code>pg_test_timing</code>), and <code>SELECT count(*) FROM messages</code> took <b>432 ms</b> plainly, <b>722 ms</b> under EXPLAIN ANALYZE, and 469 ms with <code>TIMING OFF</code> <span class="meas">measured</span>: per-node timing added 67% to a query that pushes 10 million rows through two nodes. Row counts and buffers stay exact either way, so use <code>(ANALYZE, BUFFERS, TIMING OFF)</code> when you only need counts, and trust ratios rather than absolute times from a timed plan. The same cost applies to auto_explain in section 7, which is why its <code>log_timing</code> is often switched off.</p>
+<div class="deepnote"><b>Practise:</b> the {{Plan reading lab|#t-lab}} tab has eight real plans from this database, each with a question to answer by clicking a line of the plan, and the answer with its explanation.</div>
+</section>

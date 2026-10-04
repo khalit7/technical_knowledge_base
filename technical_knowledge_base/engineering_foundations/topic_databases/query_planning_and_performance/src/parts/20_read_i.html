@@ -1,0 +1,68 @@
+<section id="rd-pro">
+<h2>What professionals set up before anything is slow</h2>
+<p>The routine only works if the evidence is already being collected when the problem appears. A common starting point for a Postgres server, each line from the documentation linked above; the thresholds are judgement calls, not standards:</p>
+<pre class="sql"># postgresql.conf (server restart needed for shared_preload_libraries)
+shared_preload_libraries = 'pg_stat_statements,auto_explain'
+pg_stat_statements.max = 10000        # default 5000; more if the app sends many distinct statements
+track_io_timing = on                  # I/O time in EXPLAIN and pg_stat_statements; check the clock cost with pg_test_timing first
+log_min_duration_statement = '500ms'  # log text and duration of slow statements
+auto_explain.log_min_duration = '1s'  # and the plan of very slow ones
+auto_explain.log_analyze = on
+auto_explain.log_buffers = on
+auto_explain.log_timing = off         # avoid the per-node clock cost (section 6)
+auto_explain.sample_rate = 0.1        # explain one statement in ten
+log_temp_files = 0                    # log every spill to disk, with its size</pre>
+<ul>
+<li><b>Look weekly, not only during incidents:</b> the top 10 statements by total time, and what changed since last week. Many teams keep snapshots of pg_stat_statements in a table or in their monitoring system, since its counters are cumulative and reset on restart or <code>pg_stat_statements_reset()</code>.</li>
+<li><b>Set a <code>statement_timeout</code></b> per application role, so one runaway query cannot hold a connection and its locks for an hour (operational detail on {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}).</li>
+<li><b>Test plans on production-sized data</b>, or at least with production statistics: a plan on a 1,000-row development table says nothing about the 10-million-row one.</li>
+<li><b>Tie database time to requests</b>: tracing that shows how many queries each API request made and how long each took is how N+1 patterns get noticed ({{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}).</li>
+<li><b>Put the index next to the query in code review:</b> a new query on a large table comes with its EXPLAIN output, and a new index with the query that needs it.</li>
+</ul>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<div class="mist"><details><summary>Optimising the query someone complained about instead of the one using the most time</summary><div class="b">Sort pg_stat_statements by total time. In section 7 the noticed report was 2.4% of database time and the unnoticed search 78.6%.</div></details></div>
+<div class="mist"><details><summary>Reading EXPLAIN without ANALYZE, or without BUFFERS</summary><div class="b">Plain EXPLAIN shows only estimates, so it cannot show the misestimate that is usually the cause. Without BUFFERS you see time, which changes with the cache, instead of pages, which do not.</div></details></div>
+<div class="mist"><details><summary>Comparing a cold run with a warm one</summary><div class="b">The first run reads from disk, the second from memory. Run twice, compare page counts, and say which you measured (the parent's Query plans case 8).</div></details></div>
+<div class="mist"><details><summary>Testing plans on a small development database</summary><div class="b">Plans depend on table sizes and statistics; a Seq Scan is the right plan for a small table and the wrong one for a big one.</div></details></div>
+<div class="mist"><details><summary>One new index per slow query</summary><div class="b">Each index slows every write and takes space. Check whether an existing composite index can serve the query, and drop indexes that <code>pg_stat_user_indexes</code> shows unused.</div></details></div>
+<div class="mist"><details><summary>Switching off a plan type in production</summary><div class="b"><code>enable_nestloop = off</code> and its siblings are diagnostic switches for testing, not fixes: they make that plan type look absurdly expensive for every query.</div></details></div>
+<div class="mist"><details><summary>Raising work_mem for the whole server</summary><div class="b">It is per operation and per process; raise it for the role or session that needs it.</div></details></div>
+<div class="mist"><details><summary>Forgetting ANALYZE after a bulk load or (before PostgreSQL 18) a major upgrade</summary><div class="b">Section 3: the planner plans on the old picture of the data until statistics are refreshed.</div></details></div>
+<div class="mist"><details><summary>Trusting EXPLAIN ANALYZE's milliseconds as exact</summary><div class="b">Per-node timing has a cost (67% on one scan here). Use ratios, page counts and row counts; use TIMING OFF when counts are enough.</div></details></div>
+<div class="mist"><details><summary>Not seeing the ORM's queries</summary><div class="b">Turn on SQL logging in development and count queries per request; N+1 patterns are invisible in the code that causes them.</div></details></div>
+<div class="mist"><details><summary>Expecting an index to help <code>LIKE '%word%'</code></summary><div class="b">A B-tree helps only a prefix (<code>LIKE 'word%'</code>, with the C collation or <code>text_pattern_ops</code>). Substring search needs a trigram index or a full-text index.</div></details></div>
+<div class="mist"><details><summary>"Fast in testing, slow in production" with prepared statements</summary><div class="b">Drivers prepare after 5 executions and Postgres may switch to a generic plan after that (section 10). Check <code>EXPLAIN (GENERIC_PLAN)</code>.</div></details></div>
+<div class="mist"><details><summary>Copying configuration folklore</summary><div class="b">random_page_cost = 1.1, huge work_mem, JIT on or off: each is right for some workloads. Change one setting at a time with before and after numbers from your own workload.</div></details></div>
+</section>
+
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<dl class="glo">
+<dt>auto_explain</dt><dd>An extension that logs the plans of statements slower than a threshold (section 7).</dd>
+<dt>Bitmap scan</dt><dd>Collects matching row addresses from an index, sorts them by page, then reads each page once (section 2).</dd>
+<dt>Cardinality</dt><dd>The number of rows a plan node outputs; the planner estimates it before running (section 1).</dd>
+<dt>Correlation</dt><dd>How closely a table's physical row order follows a column's order, from -1 to 1 (section 2).</dd>
+<dt>Cost</dt><dd>The planner's price for a plan in arbitrary units where one sequential page read is 1.0; startup cost is the price before the first row, total cost after the last (section 2).</dd>
+<dt>Custom and generic plan</dt><dd>For a prepared statement, a plan made for the actual parameter values, or one plan reused for all values (section 10).</dd>
+<dt>Dynamic programming</dt><dd>The join-order search that builds the cheapest plan for every subset of tables from the cheapest plans of smaller subsets (section 5).</dd>
+<dt>Extended statistics</dt><dd>Statistics over several columns created with CREATE STATISTICS: dependencies, ndistinct, mcv (section 3).</dd>
+<dt>GEQO</dt><dd>The genetic query optimizer, a randomised join-order search used from 12 FROM items (section 5).</dd>
+<dt>Histogram</dt><dd>Boundaries that split a column's values into buckets with equal numbers of rows (section 3).</dd>
+<dt>MCV list</dt><dd>A column's most common values with their frequencies (section 3).</dd>
+<dt>N+1 queries</dt><dd>One query for a list, then one query per item; usually caused by an ORM's lazy loading (section 8).</dd>
+<dt>Node</dt><dd>One step in a plan tree: a scan, a join, a sort, an aggregate (section 1).</dd>
+<dt>pg_hint_plan</dt><dd>An extension that forces parts of a plan from hints in comments (section 11).</dd>
+<dt>pg_stat_statements</dt><dd>An extension that keeps per-statement totals of calls, time, rows and pages (section 7).</dd>
+<dt>Plan, planner</dt><dd>The tree of steps that runs a query, and the component that chooses it by estimated cost (section 1).</dd>
+<dt>Plan regression</dt><dd>A query that became slow because its plan changed, not its SQL (section 11).</dd>
+<dt>Prepared statement</dt><dd>A statement parsed once and executed many times with parameters (section 10).</dd>
+<dt>Sargable</dt><dd>A condition an index can answer, typically with the indexed column left bare (section 4).</dd>
+<dt>Selectivity</dt><dd>The fraction of rows a condition keeps; estimated rows = selectivity &times; rows (section 3).</dd>
+<dt>Spill</dt><dd>A sort or hash that outgrows <code>work_mem</code> and writes temporary files (section 9).</dd>
+<dt>Statistics</dt><dd>What ANALYZE stores about each column from a sample: null fraction, distinct count, MCVs, histogram, correlation (section 3).</dd>
+<dt>Statistics target</dt><dd>The size of the MCV list and histogram, and the sample (300 rows per unit); 100 by default (section 3).</dd>
+</dl>
+</section>
