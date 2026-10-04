@@ -1,0 +1,849 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bandits and exploration</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+#ovBars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 6.6em;margin:5px 0}#ovBars .row .nm{white-space:normal;line-height:1.2}#ovBars .ml{display:block;font-size:11.5px;color:var(--mute)}
+#ovBars .track{height:12px}
+#pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+@media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<style>
+.tab .nl{display:inline-block;font-style:normal;font-size:10.5px;line-height:1.35;font-weight:600;border-radius:4px;padding:0 4px;margin:0 2px;border:1px solid currentColor;vertical-align:1px;white-space:nowrap}
+.tab .nl.d{color:var(--c1)}.tab .nl.i{color:var(--bad)}.tab .nl.r{color:var(--c4)}.tab .nl.u{color:var(--mute)}
+.co.corr{border-left-color:var(--bad)}.co.corr .t{color:var(--bad)}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+.an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.an-ctl select{padding:3px 6px}.an-play{min-width:6.4em}
+.an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+.an-cap .t{font-weight:600;font-size:14px}.an-cap p{margin:2px 0;font-size:13.5px}
+.an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
+.an-cnt .stat .v{font-size:16px}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+.leg i{display:inline-block;width:14px;height:3px;border-radius:0;margin-right:5px;vertical-align:middle}
+.rd-svg{width:100%;overflow:hidden}
+.rd-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.rd-two>div{min-width:0}
+.rd-ph{font-size:12px;color:var(--mute);font-weight:600;margin:6px 0 2px}
+table.rd-t{font-size:13px}table.rd-t td,table.rd-t th{padding:5px 6px}
+table.rd-t td:first-child{font-weight:600}
+.rd-sl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:6px 16px;margin:8px 0}
+.rd-sl label{font-size:13px;display:block;min-width:0}
+.rd-btns{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0;align-items:center}
+.rd-btns button{font-size:12.5px;padding:3px 9px}
+.seg{flex-wrap:wrap;max-width:100%}
+.rd-pred{border:1px dashed var(--acc);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13.5px}
+.rd-pred .ans{margin-top:6px}
+.rd-eqline{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:15px;overflow-wrap:anywhere;padding:2px 0}
+h2 .num{color:var(--mute);font-weight:500;margin-right:4px}
+.fm .eq{white-space:normal}
+.prog{height:6px;background:var(--soft);border-radius:3px;overflow:hidden;margin:6px 0}.prog>div{height:100%;background:var(--acc);width:0}
+.repro{font-size:12.5px;color:var(--mute);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:8px 0}.repro b{color:var(--ink)}
+.algo{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+@media (max-width:520px){table.rd-t{font-size:12.5px}.rd-eqline{font-size:14px}}
+</style>
+<h1>Bandits and exploration</h1>
+<div class="sub">Child of <a href="https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e" target="_blank" rel="noopener noreferrer">Topic: rl</a>. How an agent decides between using what it knows and finding out more: bandit algorithms and their regret, contextual bandits in production, and exploration in full RL. Sources are linked inline; read 4 October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-test" aria-selected="false">10-armed testbed</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav">
+<a href="#rd-over">One screen</a><a href="#rd-trade">1 The trade-off</a><a href="#rd-est">2 Action values</a><a href="#rd-str">3 Strategies</a><a href="#rd-reg">4 Regret</a><a href="#rd-ctx">5 Contextual bandits</a><a href="#rd-deep">6 Exploration in full RL</a><a href="#rd-llm">7 In LLM training</a><a href="#rd-wrong">Mistakes</a>
+</nav>
+
+<section id="rd-over">
+<h2>Bandits and exploration in one screen</h2>
+<p class="lead">An agent that learns from its own actions has to keep choosing between <b>exploiting</b> the action it currently believes is best and <b>exploring</b> an action that might be better. The cleanest form of the problem is the <b>multi-armed bandit</b>: one state, <i>k</i> actions with unknown average payoffs, and a score for the total reward collected. Bandits have a precise yardstick, <b>regret</b>, and a proven floor on it: any good strategy must lose reward growing at least like the logarithm of time. The strategies below differ in how they spend that loss.</p>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Strategy</th><th>How it explores</th><th>Knob</th><th>Regret as time T grows</th><th>Where it shows up</th></tr></thead>
+<tbody>
+<tr><td>Greedy</td><td>Never on purpose</td><td>none</td><td>Linear: it can lock onto a worse arm forever</td><td>The baseline that fails</td></tr>
+<tr><td>ε-greedy</td><td>A random action a fraction ε of the time</td><td>ε (or a decay schedule)</td><td>Linear for fixed ε; logarithmic with a tuned decay (ε<sub>n</sub>-greedy)</td><td>DQN and most deep value methods</td></tr>
+<tr><td>Optimistic initial values</td><td>Start every estimate high; disappointment drives trying</td><td>Q₀</td><td>Not a general guarantee (only explores at the start)</td><td>Tabular tricks; R-MAX in full RL</td></tr>
+<tr><td>UCB</td><td>Bonus for uncertainty: Q + c √(ln t / N)</td><td>c</td><td>Logarithmic (UCB1, proved for rewards in [0, 1])</td><td>Agent57's policy chooser; MCTS (UCT)</td></tr>
+<tr><td>Gradient bandit</td><td>Samples from a softmax over learned preferences</td><td>step α</td><td>Depends on α; no log guarantee here</td><td>The bandit version of policy gradients</td></tr>
+<tr><td>Thompson sampling</td><td>Acts on one draw from its posterior belief</td><td>the prior</td><td>Logarithmic, matching the lower bound for Bernoulli arms</td><td>Ads, recommendation, adaptive trials</td></tr>
+<tr><td>LinUCB (contextual)</td><td>UCB on a linear model of reward given features</td><td>α</td><td>Sublinear under its linear model</td><td>News recommendation (Yahoo!), Decision Service</td></tr>
+<tr><td>Count bonuses, RND, Go-Explore</td><td>Reward novelty, or return to promising states</td><td>bonus scale</td><td>Theory only in the tabular case</td><td>Hard-exploration Atari (Montezuma's Revenge)</td></tr>
+</tbody></table></div>
+<p class="small mute">Each row is derived and sourced in the section that covers it. Where this sits in RL as a whole: the <a href="https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e" target="_blank" rel="noopener noreferrer">Topic: rl</a> page, whose Taxonomy tab has exploration as one of its axes. This page reuses the vocabulary of that page: reward, return, action value <i>Q</i>, policy.</p>
+</section>
+
+<section id="rd-trade">
+<h2><span class="num">1</span>The exploration-exploitation trade-off</h2>
+<p><b>Exploitation</b> uses current knowledge to take the action believed best, maximising reward now. <b>Exploration</b> takes an action that looks worse, to gather information that may pay off later. Silver's everyday examples (<a href="https://davidstarsilver.wordpress.com/wp-content/uploads/2025/04/lecture-9-exploration-and-exploitation.pdf" target="_blank" rel="noopener noreferrer">Silver, Lecture 9</a>): go to your favourite restaurant or try a new one; show the most successful advert or a different one; drill for oil at the best known site or at a new one; play the move you believe is best or an experimental one. Both extremes fail. Pure exploitation gets stuck on the first decent option it finds, because it never collects the evidence that something else is better. Pure exploration never cashes in what it has learned.</p>
+<p>Why this is special to reinforcement learning: in supervised learning the training labels arrive whatever the model predicts. Here <b>the agent's own choices decide which data it sees</b>, so a wrong belief about an action can never be corrected if the agent stops taking it. The value of trying an action is therefore partly the reward it pays now and partly the information it buys. Bandits isolate this: one situation repeated, no state, no delay between action and reward, so nothing is left except exploration (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=47" target="_blank" rel="noopener noreferrer">Sutton and Barto, chapter 2</a>).</p>
+<p>There is a sense in which the trade-off is "solved": if you have a prior over the arms and a known horizon, the best possible policy is the Bayes-optimal one, computed by planning over all future beliefs. It is almost never computed, because the tree of possible futures explodes; Sutton and Barto note that for 1,000 steps of a two-armed bandit with two possible rewards the tree would have 2<sup>2000</sup> leaves (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=65" target="_blank" rel="noopener noreferrer">§2.10</a>). For the discounted, infinite-horizon case, <a href="https://doi.org/10.1111/j.2517-6161.1979.tb01068.x" target="_blank" rel="noopener noreferrer">Gittins (1979)</a> showed that the Bayes-optimal policy reduces to an index computed per arm. Everything else on this page is a cheaper rule that gets close.</p>
+</section>
+
+<section id="rd-est">
+<h2><span class="num">2</span>The k-armed bandit and action values</h2>
+<p>At each step <i>t</i> the agent picks an action <i>A<sub>t</sub></i> from <i>k</i> options and receives a reward <i>R<sub>t</sub></i> drawn from that action's distribution. The <b>value</b> of an action is its expected reward, <i>q</i>*(<i>a</i>) = E[<i>R<sub>t</sub></i> | <i>A<sub>t</sub></i> = <i>a</i>]; if the agent knew it, the problem would be trivial. It keeps an estimate <i>Q<sub>t</sub></i>(<i>a</i>) instead.</p>
+<div class="fm"><div class="eq">Q<sub>n+1</sub> = Q<sub>n</sub> + (1/n) [R<sub>n</sub> − Q<sub>n</sub>]</div>
+<dl><dt>Q<sub>n</sub></dt><dd>the average of the first n − 1 rewards from this action</dd><dt>R<sub>n</sub> − Q<sub>n</sub></dt><dd>the error: how surprising the new reward is</dd><dt>1/n</dt><dd>the step size; with 1/n the estimate is exactly the sample average</dd></dl></div>
+<p>The <b>sample average</b> can be updated without storing past rewards, with the incremental rule above; its general form, NewEstimate ← OldEstimate + StepSize [Target − OldEstimate], recurs through all of RL, from TD learning to the deep methods (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=52" target="_blank" rel="noopener noreferrer">Sutton and Barto §2.4, eq. 2.3</a>).</p>
+<p>When the arms' values drift over time (a <b>nonstationary</b> problem), the sample average is a poor tracker: it weights a reward from step 1 as much as one from yesterday. A constant step size α ∈ (0, 1] fixes this. Unrolling the update gives an <b>exponential recency-weighted average</b> (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=54" target="_blank" rel="noopener noreferrer">§2.5, eq. 2.6</a>):</p>
+<div class="fm"><div class="eq">Q<sub>n+1</sub> = (1 − α)<sup>n</sup> Q<sub>1</sub> + Σ<sub>i=1..n</sub> α (1 − α)<sup>n−i</sup> R<sub>i</sub></div>
+<dl><dt>(1 − α)<sup>n−i</sup></dt><dd>a reward's weight decays geometrically with the number of later rewards; the weights sum to 1</dd><dt>(1 − α)<sup>n</sup> Q<sub>1</sub></dt><dd>the initial estimate never fully disappears: a constant step size keeps a (shrinking) bias</dd></dl></div>
+<p>Stochastic approximation says when a schedule of step sizes α<sub>n</sub> converges to the true value: Σ α<sub>n</sub> = ∞ (steps large enough to overcome any start) and Σ α<sub>n</sub><sup>2</sup> &lt; ∞ (small enough to settle). The sample average's 1/<i>n</i> meets both; a constant α fails the second, which is exactly what lets it keep tracking a moving target (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=55" target="_blank" rel="noopener noreferrer">§2.5, eq. 2.7</a>). The testbed tab's Nonstationary preset shows the difference: <a href="#" data-tab="t-test">10-armed testbed</a>.</p>
+<p>The <b>initial estimate</b> <i>Q</i><sub>1</sub> is a bias: with sample averages it disappears the first time an arm is pulled; with a constant α it is permanent, though decreasing (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=56" target="_blank" rel="noopener noreferrer">§2.6</a>). That bias is the lever behind optimistic initial values, below.</p>
+</section>
+
+<section id="rd-str">
+<h2><span class="num">3</span>The strategies</h2>
+<h3>Greedy and ε-greedy</h3>
+<p><b>Greedy</b> always takes argmax<sub><i>a</i></sub> <i>Q<sub>t</sub></i>(<i>a</i>) (ties broken at random). It locks onto whichever arm looked good first. <b>ε-greedy</b> takes the greedy action with probability 1 − ε and otherwise picks uniformly among all <i>m</i> actions, so the greedy action has probability 1 − ε + ε/<i>m</i> and each other action ε/<i>m</i>; with ε = 0.1 and <i>m</i> = 4 that is 0.9 + 0.025 = 0.925 and 0.025 (<a href="https://davidstarsilver.wordpress.com/wp-content/uploads/2025/04/lecture-5-model-free-control-.pdf" target="_blank" rel="noopener noreferrer">Silver, Lecture 5</a>). Every action is tried infinitely often, so every estimate converges; the price is that ε-greedy keeps picking bad arms at the same rate forever, so its regret grows linearly. Decaying ε towards 0 while still trying every action infinitely often is called <b>GLIE</b> (greedy in the limit with infinite exploration); it is the condition under which Monte Carlo control and SARSA converge to the optimal policy (<a href="https://davidstarsilver.wordpress.com/wp-content/uploads/2025/04/lecture-5-model-free-control-.pdf" target="_blank" rel="noopener noreferrer">Silver, Lecture 5</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81898a0cd4c05c744969" target="_blank" rel="noopener noreferrer">Model-free prediction and control</a>).</p>
+<h3>Optimistic initial values</h3>
+<p>Set every initial estimate far above any plausible reward (Sutton and Barto use +5 when the true values are drawn from N(0, 1)). Whatever the greedy agent tries disappoints it, so it moves on to the next arm, and every arm is tried several times before the estimates settle (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=56" target="_blank" rel="noopener noreferrer">§2.6</a>). It needs a constant step size: with sample averages the optimism is erased by the first pull of each arm. The book calls it "a simple trick that can be quite effective on stationary problems, but it is far from being a generally useful approach": its drive to explore is spent at the start, so it cannot respond when the task changes. The same idea, made principled, is R-MAX in full RL (section 6).</p>
+<h3>Upper confidence bound (UCB)</h3>
+<p>ε-greedy explores indiscriminately. Better: prefer arms that could plausibly be the best, given how uncertain their estimates are (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=57" target="_blank" rel="noopener noreferrer">§2.7, eq. 2.10</a>):</p>
+<div class="fm"><div class="eq">A<sub>t</sub> = argmax<sub>a</sub> [ Q<sub>t</sub>(a) + c √( ln t / N<sub>t</sub>(a) ) ]</div>
+<dl><dt>N<sub>t</sub>(a)</dt><dd>how often a has been pulled before t; an unpulled arm counts as maximising</dd><dt>√(ln t / N)</dt><dd>shrinks each time a is pulled, grows slowly (logarithmically) while it is not, so every arm is eventually retried, ever more rarely</dd><dt>c</dt><dd>the confidence level; <a href="https://homes.di.unimi.it/~cesabian/Pubblicazioni/ml-02.pdf#page=3" target="_blank" rel="noopener noreferrer">UCB1 (Auer et al. 2002)</a> uses x̄<sub>j</sub> + √(2 ln n / n<sub>j</sub>), that is c = √2, for rewards in [0, 1]</dd></dl></div>
+<p>This is <b>optimism in the face of uncertainty</b>: act as if each arm is as good as it plausibly could be. Either the optimism was right and you collect, or it was wrong and the pull shrinks the bonus. The book adds a caution: UCB "is more difficult than ε-greedy to extend beyond bandits", to nonstationary problems and to large state spaces with function approximation, where counting visits is not practical; section 6 is about how deep RL works around that.</p>
+<h3>Gradient bandits</h3>
+<p>Instead of estimating values, learn a <b>preference</b> <i>H<sub>t</sub></i>(<i>a</i>) per action and act by softmax, π<sub>t</sub>(<i>a</i>) = e<sup><i>H<sub>t</sub></i>(<i>a</i>)</sup> / Σ<sub><i>b</i></sub> e<sup><i>H<sub>t</sub></i>(<i>b</i>)</sup>. After each reward (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=59" target="_blank" rel="noopener noreferrer">§2.8, eq. 2.12</a>):</p>
+<div class="fm"><div class="eq">H(A<sub>t</sub>) ← H(A<sub>t</sub>) + α (R<sub>t</sub> − R̄<sub>t</sub>)(1 − π<sub>t</sub>(A<sub>t</sub>)),&nbsp;&nbsp; H(a) ← H(a) − α (R<sub>t</sub> − R̄<sub>t</sub>) π<sub>t</sub>(a) for a ≠ A<sub>t</sub></div>
+<dl><dt>R̄<sub>t</sub></dt><dd>the baseline: the average reward so far (the book's experiments include R<sub>t</sub> itself, per its footnote on p. 37)</dd><dt>R<sub>t</sub> − R̄<sub>t</sub></dt><dd>better than usual raises the chosen action's probability; worse lowers it; the others move the opposite way</dd></dl></div>
+<p>The box in §2.8 proves that the expected update equals the gradient of expected reward, so this is stochastic gradient ascent: the one-state case of the <b>policy gradient</b> (REINFORCE with a baseline). The baseline does not change the expected update, only its variance; Figure 2.5 shows what happens without it when all rewards are shifted by +4 (<a href="#" data-tab="t-test">10-armed testbed</a>, Fig. 2.5). The full derivation and the general case live on <a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a>.</p>
+<h3>Thompson sampling</h3>
+<p>Keep a <b>posterior distribution</b> over each arm's mean. At every step draw one sample from each posterior and pull the arm whose sample is highest; update that arm's posterior with the reward. An arm is pulled with exactly the probability that it is the best arm under the current belief ("probability matching"). For 0/1 rewards with a uniform prior the posterior is Beta(1 + successes, 1 + failures), so the whole algorithm is two counters per arm and one Beta draw. It is the oldest method on the page: <a href="https://doi.org/10.1093/biomet/25.3-4.285" target="_blank" rel="noopener noreferrer">Thompson (1933)</a> proposed it "for allocating experimental effort in two-armed bandit problems arising in clinical trials" (<a href="https://arxiv.org/abs/1707.02038" target="_blank" rel="noopener noreferrer">Russo et al., tutorial</a>). Uncertain arms have wide posteriors, so they sometimes produce a high draw and get tried; as evidence accumulates a bad arm's posterior narrows below the best arm's and it stops being chosen. Sutton and Barto note that it "often performs similarly to the best of the distribution-free methods" (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=65" target="_blank" rel="noopener noreferrer">§2.10</a>).</p>
+
+<div class="card" id="bd">
+<div class="rd-ph">Five strategies on the same five arms, the same reward for the same arm at the same step</div>
+<div class="seg" id="bd-M" role="group" aria-label="Strategy"><button data-k="greedy" class="on">Greedy</button><button data-k="eps">ε-greedy</button><button data-k="opt">Optimistic</button><button data-k="ucb">UCB</button><button data-k="ts">Thompson</button></div>
+<label class="small">Reward stream <select id="bd-S"><option value="1">seed 1</option><option value="2">seed 2</option><option value="3" selected>seed 3</option><option value="4">seed 4</option><option value="5">seed 5</option></select></label>
+<div class="rd-two"><div><div class="rd-svg" id="bd-A"></div></div><div><div class="rd-svg" id="bd-R"></div></div></div>
+<div class="an-ctl" id="bd-C"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="bd-T"></div><p id="bd-P"></p></div>
+<div class="an-cnt" id="bd-N"></div>
+<p class="small mute">Left: each arm's estimate (bar) against its true mean (the tick across each arm: 0.2, 1.0, −0.4, 1.5, 0.6; <i class="nl i">illustrative</i>); the arm about to be pulled is orange. UCB adds its upper bound (green whisker). Thompson shows its belief about each mean, a normal posterior drawn sideways (prior N(0, 1), noise variance 1 assumed known), and the circle is this step's draw from it. Right: total regret of all five on this stream. Every strategy reads one pre-drawn table of rewards (and of normal draws for Thompson), so they differ only in the choices they make. Estimates are sample averages, except the optimistic agent's constant step 0.1 (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=56" target="_blank" rel="noopener noreferrer">Figure 2.3's setting</a>).</p>
+</div>
+<div class="try"><b>Try:</b> on seed 3, start with Greedy, then press Thompson at the same pull and watch the beliefs about arms 2 and 5 stay wide while arm 4's narrows. Then try the other seeds: greedy is sometimes lucky, never reliable; ε-greedy's regret line never bends.</div>
+<p><b>Across 2,000 tasks.</b> The <a href="#" data-tab="t-test">10-armed testbed</a> tab reruns Sutton and Barto's Figures 2.2 to 2.6 live, with Thompson sampling added and the nonstationary exercise. Its defaults reproduce the book's printed numbers independently: the best possible average reward is the expected maximum of ten standard normals, 1.539 by integration (book: "about 1.54"); greedy settles near 1.0 per step and finds the best arm in about 35% of tasks (book: "only about 1" and "approximately one-third"); ε = 0.1 stays below its 91% ceiling (<a href="#" data-tab="t-test">recompute.py, 2,000 tasks</a>).</p>
+</section>
+<section id="rd-reg">
+<h2><span class="num">4</span>Regret, and the floor under it</h2>
+<p>Testbed curves average over a family of tasks. The theory asks a sharper question: on <i>any</i> task, how much reward does a strategy lose against an oracle that always pulls the best arm? That loss is the <b>regret</b>:</p>
+<div class="fm"><div class="eq">Regret(T) = T μ* − E[ Σ<sub>t=1..T</sub> μ<sub>A<sub>t</sub></sub> ] = Σ<sub>a</sub> Δ<sub>a</sub> E[N<sub>a</sub>(T)]</div>
+<dl><dt>μ*</dt><dd>the best arm's mean; Δ<sub>a</sub> = μ* − μ<sub>a</sub> is arm a's gap</dd><dt>N<sub>a</sub>(T)</dt><dd>how often arm a is pulled in T steps; the second form (the regret decomposition, <a href="https://tor-lattimore.com/downloads/book/book.pdf#page=71" target="_blank" rel="noopener noreferrer">Lattimore and Szepesvári, Lemma 4.5</a>) says regret is just the pulls wasted on each bad arm times its gap</dd></dl></div>
+<p>A strategy that pulls a bad arm a fixed fraction of the time (greedy stuck on it, ε-greedy with fixed ε) has regret growing <b>linearly</b> in T. The question is how slowly it can grow.</p>
+<p><b>The Lai and Robbins lower bound</b> (<a href="https://doi.org/10.1016/0196-8858(85)90002-8" target="_blank" rel="noopener noreferrer">Lai and Robbins 1985</a>): for any strategy that is good on every instance (its regret is o(T<sup>a</sup>) for every a &gt; 0), each suboptimal arm must be pulled at least about ln T / KL(<i>p<sub>a</sub></i>, <i>p</i>*) times, so</p>
+<div class="fm"><div class="eq">lim inf<sub>T→∞</sub> Regret(T) / ln T ≥ Σ<sub>a: Δ<sub>a</sub> &gt; 0</sub> Δ<sub>a</sub> / KL(p<sub>a</sub>, p*)</div>
+<dl><dt>KL(p<sub>a</sub>, p*)</dt><dd>the Kullback-Leibler divergence between arm a's reward distribution and the best arm's: how many bits each pull gives towards telling them apart. For 0/1 rewards KL(p, q) = p ln(p/q) + (1 − p) ln((1 − p)/(1 − q))</dd></dl></div>
+<p>The intuition: to be sure an arm is worse, you must pull it until the evidence rules out that it is the best one, and the number of pulls that takes grows with how sure you need to be (ln T) and shrinks with how distinguishable the arms are (KL). Arms that are close (small Δ, small KL) are both cheap to confuse and expensive to separate. The bound is <b>asymptotic</b>: it fixes the slope against ln T as T grows without limit, not the regret at any finite T. (The original paper is behind a paywall; the statement here follows the restatement in <a href="https://homes.di.unimi.it/~cesabian/Pubblicazioni/ml-02.pdf#page=2" target="_blank" rel="noopener noreferrer">Auer et al. 2002, p. 236</a>: "IE[T<sub>j</sub>(n)] ≥ (ln n)/D(p<sub>j</sub>||p*) asymptotically".)</p>
+<p><b>Strategies that reach logarithmic regret:</b></p>
+<ul>
+<li><b>UCB1</b>, for any rewards in [0, 1], has regret at most 8 Σ<sub>Δ<sub>i</sub>&gt;0</sub> (ln n)/Δ<sub>i</sub> + (1 + π²/3) Σ Δ<sub>j</sub> after <i>any</i> number of plays n (<a href="https://homes.di.unimi.it/~cesabian/Pubblicazioni/ml-02.pdf#page=3" target="_blank" rel="noopener noreferrer">Auer et al. 2002, Theorem 1</a>). Logarithmic and finite-time, but the authors note its leading constant "8/Δ<sub>i</sub><sup>2</sup> is worse than the corresponding constant 1/D(p<sub>j</sub>||p*) in Lai and Robbins' result".</li>
+<li><b>ε<sub>n</sub>-greedy</b>: ε-greedy with ε<sub>n</sub> = min(1, cK/(d²n)), where d is a lower bound on the gap, is also logarithmic (<a href="https://homes.di.unimi.it/~cesabian/Pubblicazioni/ml-02.pdf#page=5" target="_blank" rel="noopener noreferrer">Auer et al., Theorem 3</a>); it needs d, which you do not know in practice.</li>
+<li><b>Thompson sampling</b> had no regret analysis for almost eighty years. <a href="https://arxiv.org/abs/1111.1797" target="_blank" rel="noopener noreferrer">Agrawal and Goyal (2012)</a> proved logarithmic regret "for the first time", and <a href="https://arxiv.org/abs/1205.4217" target="_blank" rel="noopener noreferrer">Kaufmann, Korda and Munos (2012)</a> gave "the first finite-time analysis that matches the asymptotic rate given in the Lai and Robbins lower bound" for 0/1 rewards. Thompson sampling is asymptotically optimal there; UCB1 is not (KL-UCB, which builds its confidence bound from the KL divergence itself, is the UCB-family method that closes the gap; <a href="https://tor-lattimore.com/downloads/book/book.pdf#page=146" target="_blank" rel="noopener noreferrer">Lattimore and Szepesvári, §10.2</a>).</li>
+</ul>
+
+<div class="card" id="rg">
+<div class="rd-ph">Expected regret against the Lai and Robbins line, 0/1 rewards, computed in your browser</div>
+<div class="seg" id="rg-pre" role="group" aria-label="Arms"><button data-p="close" class="on">Close arms: 0.6, 0.5, 0.45, 0.4, 0.3</button><button data-p="far">Far arms: 0.9, 0.8, 0.6, 0.5</button></div>
+<label class="small">Runs <select id="rg-runs"><option value="50">50</option><option value="200" selected>200</option><option value="500">500</option></select></label>
+<div class="prog"><div id="rg-prog"></div></div>
+<div class="rd-svg" id="rg-P"></div>
+<div class="leg" id="rg-L"></div>
+<div class="an-cnt" id="rg-N"></div>
+<p class="small mute" id="rg-X"></p>
+</div>
+<div class="try"><b>Try:</b> switch to far arms: the bound's constant drops from 12.3 to 4.0 because well-separated arms are cheap to tell apart, and every method's regret falls. Change the number of runs to see which differences are noise.</div>
+<p><b>Two other ways to score a bandit.</b> The bound above is <i>instance-dependent</i>: it depends on the gaps, and blows up as a gap shrinks towards 0, even though tiny gaps cost little per pull. The <i>worst case</i> over all instances is a different floor: for any policy there is an instance with means in [0, 1] whose regret is at least (1/27) √((k − 1)n) (<a href="https://tor-lattimore.com/downloads/book/book.pdf#page=208" target="_blank" rel="noopener noreferrer">Lattimore and Szepesvári, Theorem 15.2</a>), a square root of time rather than a logarithm, because the adversary can choose gaps of about √(k/n) that are too small to detect yet still cost something every pull. The Bayesian view (expected regret under a prior, where the Gittins index is optimal for discounted problems) is a third. Which one a paper optimises changes which algorithm "wins".</p>
+<p><b>Where UCB went next.</b> The same index applied at every node of a search tree is UCT (<a href="https://doi.org/10.1007/11871842_29" target="_blank" rel="noopener noreferrer">Kocsis and Szepesvári 2006</a>), the selection rule behind Monte Carlo tree search, and through it AlphaGo's search (with a learned prior added): see <a href="https://app.notion.com/p/3ee5c17b0d0d8116be5fd39e10bd94c5" target="_blank" rel="noopener noreferrer">Model-based RL and planning</a>. And Agent57, the first deep RL agent above the human benchmark on all 57 Atari games, chooses among its exploration policies with a bandit: "a simplified sliding-window UCB with ε<sub>UCB</sub>-greedy exploration" over the last 160 episodes (<a href="https://arxiv.org/abs/2003.13350" target="_blank" rel="noopener noreferrer">Badia et al. 2020</a>), because a plain UCB "will not be able to adapt to the changes of the reward through time".</p>
+</section>
+
+<section id="rd-ctx">
+<h2><span class="num">5</span>Contextual bandits, and where bandits run in production</h2>
+<p>A plain bandit has one situation. A <b>contextual bandit</b> sees a context first (a user's features, a patient's history, the page being viewed), then picks an action, then sees the reward of that action only. The goal is a <i>policy</i> from contexts to actions. Sutton and Barto call it <b>associative search</b> and place it exactly between the bandit and full RL: the action affects the reward, as in a bandit, but there is a situation to recognise; if actions also changed the next situation, it would be full RL (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=63" target="_blank" rel="noopener noreferrer">§2.9</a>). It is the most deployed form of RL by far, because many products face exactly this loop: show something, see a click or not, never see what the other options would have earned.</p>
+<h3>LinUCB</h3>
+<p><a href="https://arxiv.org/abs/1003.0146" target="_blank" rel="noopener noreferrer">Li, Chu, Langford and Schapire (2010)</a> model each article's click probability as linear in a feature vector x<sub>t,a</sub> of the user and article, fit by ridge regression, and add an upper-confidence width (their eq. 5):</p>
+<div class="fm"><div class="eq">a<sub>t</sub> = argmax<sub>a</sub> ( x<sub>t,a</sub><sup>⊤</sup> θ̂<sub>a</sub> + α √( x<sub>t,a</sub><sup>⊤</sup> A<sub>a</sub><sup>−1</sup> x<sub>t,a</sub> ) )</div>
+<dl><dt>A<sub>a</sub></dt><dd>= I + Σ x x<sup>⊤</sup> over the contexts where a was shown: how much evidence there is in each feature direction</dd><dt>θ̂<sub>a</sub></dt><dd>= A<sub>a</sub><sup>−1</sup> b<sub>a</sub>, with b<sub>a</sub> = Σ (reward) x: the ridge-regression estimate</dd><dt>√(x<sup>⊤</sup>A<sup>−1</sup>x)</dt><dd>the standard deviation of the prediction in this context's direction; it plays the part of √(ln t / N) in UCB</dd></dl></div>
+<p>On the Yahoo! Front Page Today Module, with "over 33 million events", LinUCB gave "a 12.5% click lift compared to a standard context-free bandit algorithm, and the advantage becomes even greater when data gets more scarce". They evaluated offline, which is the second contribution people still use: replay logged traffic in which articles were chosen <i>uniformly at random</i>, keep only the events where the logged article matches the one the new policy would have chosen, and average their clicks. Because the logging was random, this "can provide provably unbiased evaluations" (<a href="https://arxiv.org/abs/1003.5956" target="_blank" rel="noopener noreferrer">Li, Chu, Langford and Wang 2011</a>).</p>
+<h3>Where bandits are used</h3>
+<ul>
+<li><b>Recommendation and content:</b> Yahoo! news (above). Microsoft's Decision Service, a general contextual-bandit system, reported "two live production deployments for content recommendation that achieved click-through improvements of 25-30%, another with 18% revenue lift in the landing page" (<a href="https://arxiv.org/abs/1606.03966" target="_blank" rel="noopener noreferrer">Agarwal et al. 2016</a>).</li>
+<li><b>Advertising:</b> Bing's adPredictor paper proposes that instead of always feeding the expected click rate to the auction, "the system can sample from the posterior weight distribution", an idea it traces to Thompson, which has "the effect of bubbling up ads about whose CTR the system has a high degree of uncertainty left" (<a href="https://icml.cc/Conferences/2010/papers/901.pdf#page=7" target="_blank" rel="noopener noreferrer">Graepel et al. 2010, §5</a>; the paper says "can", not that this was the deployed default). Yahoo!'s <a href="https://proceedings.neurips.cc/paper/2011/hash/e53a0a2978c28872a4505bdb51db06dc-Abstract.html" target="_blank" rel="noopener noreferrer">Chapelle and Li (2011)</a> found on display-ad selection and news recommendation that "Thompson sampling achieves state-of-the-art results, and in some cases significantly outperforms other alternatives like UCB", which is what revived the method.</li>
+<li><b>Clinical trials:</b> the field's origin (Thompson 1933) and its sharpest tension. Assigning more patients to the arm that looks better is the bandit's point and an ethical gain, but it leaves fewer patients on the other arm and weakens the trial's statistical power: <a href="https://doi.org/10.1214/14-STS504" target="_blank" rel="noopener noreferrer">Villar, Bowden and Wason (2015)</a> find bandit designs "offer significant advantages, in terms of assigning more patients to better treatments, and severe limitations, in terms of their resulting statistical power", and propose a rule that keeps power. The cautionary example is the 1985 ECMO trial, which used randomised play-the-winner: one infant was assigned to conventional treatment and died, eleven to ECMO and all survived (<a href="https://pubmed.ncbi.nlm.nih.gov/3900904/" target="_blank" rel="noopener noreferrer">Bartlett et al. 1985</a>), a result too lopsided for many to accept as evidence.</li>
+<li><b>Inside other learners:</b> Agent57's policy chooser and UCT's tree search (section 4).</li>
+</ul>
+<div class="co warn"><div class="t">What a bandit does not do</div>A bandit's action does not change the next context. If showing an article changes what the user does next week, or a treatment changes the patient's later state, the problem is full RL with delayed consequences, and a bandit optimising the immediate click can be confidently wrong about the long run.</div>
+</section>
+<section id="rd-deep">
+<h2><span class="num">6</span>Exploration in full RL</h2>
+<p>With states, an exploratory action's payoff may only show up many steps later, after a specific sequence of further actions. That changes the problem in three ways.</p>
+<ul>
+<li><b>Dithering is exponentially slow.</b> ε-greedy and softmax noise explore one step at a time. If a reward sits at the end of a chain of N decisions where only one of two actions keeps you on track, a uniformly random policy reaches it with probability 2<sup>−N</sup> per attempt, so it needs about 2<sup>N</sup> attempts <span class="nl d">derived</span>. What is needed is <b>deep</b> (temporally extended) exploration: commit to a plan for finding out, across many steps. Osband et al. put it this way: "Unlike dithering strategies such as epsilon-greedy exploration, bootstrapped DQN carries out temporally-extended (or deep) exploration; this can lead to exponentially faster learning" (<a href="https://arxiv.org/abs/1602.04621" target="_blank" rel="noopener noreferrer">Osband et al. 2016</a>).</li>
+<li><b>Sparse rewards give no gradient.</b> If almost every episode returns 0, every action looks the same and value estimates have nothing to learn from until something succeeds by chance.</li>
+<li><b>Distractors trap exploiters.</b> A small nearby reward is found first, and a greedy-ish learner stops looking for the larger one far away: greedy on the testbed, scaled up.</li>
+</ul>
+<p>The animation puts all three in one small world: a 14 × 7 grid, a 0.1 reward four steps from the start, a +1 reward thirteen steps away, 60 steps per episode, tabular Q-learning. The same learner is run three ways.</p>
+
+<div class="card" id="gx">
+<div class="rd-ph">One sparse-reward world, three ways to explore, 500 episodes each</div>
+<div class="seg" id="gx-M" role="group" aria-label="Exploration"><button data-m="eps" class="on">ε-greedy</button><button data-m="cnt">+ count bonus</button><button data-m="opt">Optimistic starts</button></div>
+<label class="small">Seed <select id="gx-S"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+<div class="rd-svg" id="gx-P"></div>
+<div class="an-ctl" id="gx-C"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="gx-T"></div><p id="gx-X"></p></div>
+<div class="an-cnt" id="gx-N"></div>
+<div class="tw" id="gx-Y"></div>
+<p class="small mute">Cell shade: how often each cell has been entered so far (log scale); orange line: this episode's path. S is the start, 0.1 the small reward, +1 the large one; both end the episode. Q-learning with step 0.5, γ = 0.95, ties broken at random; ε = 0.1 in the first two modes. The count bonus adds β/√N(s′) with β = 0.2 to the reward for entering s′, where N counts visits over all episodes (a tabular stand-in for the pseudo-count and RND bonuses below). Optimistic starts set every Q to 1 and act greedily. All settings <i class="nl i">illustrative</i>, chosen so the small reward is a real trap; the table counts 20 seeds of each and is computed in your browser and checked against the page's Python reference (src/recompute.py).</p>
+</div>
+<div class="try"><b>Try:</b> play ε-greedy to the end and look at the shading: it never leaves the corner near the start. Switch to optimistic starts at the same episode: the whole map is shaded within a few dozen episodes. The count bonus sits in between: it gets there, but later, because its Q starts at 0 and the bonus has to be collected before it can pull the agent onwards.</div>
+<p>The families of answers, roughly in the order they appeared:</p>
+<h3>Optimism with counts (tabular, with guarantees)</h3>
+<p><b>E<sup>3</sup></b> (<a href="https://doi.org/10.1023/A:1017984413808" target="_blank" rel="noopener noreferrer">Kearns and Singh 2002</a>) and <b>R-MAX</b> (<a href="https://jmlr.org/papers/v3/brafman02a.html" target="_blank" rel="noopener noreferrer">Brafman and Tennenholtz 2002</a>) gave the first polynomial-time guarantees for exploring an MDP. R-MAX's model "is initialized in an optimistic fashion: all actions in all states return the maximal possible reward (hence the name)"; once a state-action pair has been tried enough times its true model replaces the optimistic one. <b>MBIE-EB</b> (<a href="https://doi.org/10.1016/j.jcss.2007.08.009" target="_blank" rel="noopener noreferrer">Strehl and Littman 2008</a>) turns this into a bonus β/√N(s, a) added to the reward in the Bellman equation (as restated by <a href="https://arxiv.org/abs/1606.01868" target="_blank" rel="noopener noreferrer">Bellemare et al. 2016</a>), the direct MDP analogue of UCB. <b>UCRL2</b> (<a href="https://jmlr.org/papers/v11/jaksch10a.html" target="_blank" rel="noopener noreferrer">Jaksch, Ortner and Auer 2010</a>) plans optimistically within confidence sets on the transition model and proves regret Õ(DS√(AT)) against a lower bound Ω(√(DSAT)) (D the MDP's diameter, S states, A actions). All of them need to count visits to each state, which is impossible when states are images.</p>
+<h3>Pseudo-counts and hashing (counts for large state spaces)</h3>
+<p><a href="https://arxiv.org/abs/1606.01868" target="_blank" rel="noopener noreferrer">Bellemare et al. (2016)</a> derive a <b>pseudo-count</b> N̂(x) from a density model of observations: how much the model's probability of x rises after one more look at x says how familiar x is. The bonus is β (N̂ + 0.01)<sup>−1/2</sup> with β = 0.05. On Montezuma's Revenge their agent "consistently navigates through 15 rooms" of the first level's 24 within 50 million frames, where the agent without the bonus saw two, and scored 3,439 on average by 100 million frames. <a href="https://arxiv.org/abs/1611.04717" target="_blank" rel="noopener noreferrer">Tang et al. (2017)</a> count hashed states instead (SimHash of pixels or of learned features), bonus β/√n(φ(s)).</p>
+<h3>Curiosity and prediction error</h3>
+<p>Reward the agent where its model of the world is wrong. The <b>Intrinsic Curiosity Module</b> uses "the error in an agent's ability to predict the consequence of its own actions in a visual feature space learned by a self-supervised inverse dynamics model" (<a href="https://arxiv.org/abs/1705.05363" target="_blank" rel="noopener noreferrer">Pathak et al. 2017</a>); learning features through an inverse model is meant to ignore what the agent cannot affect. A <a href="https://arxiv.org/abs/1808.04355" target="_blank" rel="noopener noreferrer">large-scale study</a> trained agents with curiosity alone, no extrinsic reward, on 54 environments, and documented the main failure, the <b>noisy TV</b>: add a TV with a channel-changing action to a maze and "the presence of the TV drastically slows down learning", because unpredictable noise stays surprising forever. Prediction error mixes up "new" with "random".</p>
+<h3>Random Network Distillation (RND)</h3>
+<p><a href="https://arxiv.org/abs/1810.12894" target="_blank" rel="noopener noreferrer">Burda et al. (2018)</a> fix the target: a randomly initialised network that is never trained maps each observation to a feature vector, and a second network is trained to predict those features. Its error is high on observations unlike those seen before and falls with familiarity, but because the target is a deterministic function of the observation, noise does not keep it high. RND was the "first method that achieves better than average human performance on this game without using demonstrations or having access to the underlying state": a mean of 8,152 on Montezuma's Revenge against an average human 4,753 (Table 1), with the best agent often finding "22 out of the 24 rooms on the first level".</p>
+<h3>Remember and return: NGU, Agent57, Go-Explore</h3>
+<p><b>Never Give Up</b> combines a per-episode novelty bonus with RND's lifelong one and was the "first algorithm to achieve non-zero rewards (with a mean score of 8,400) in the game of Pitfall! without using demonstrations" (<a href="https://arxiv.org/abs/2002.06038" target="_blank" rel="noopener noreferrer">Badia et al. 2020a</a>); <b>Agent57</b> adds the bandit meta-controller of section 4 to choose how much to explore, and is "the first deep RL agent that outperforms the standard human benchmark on all 57 Atari games" (<a href="https://arxiv.org/abs/2003.13350" target="_blank" rel="noopener noreferrer">Badia et al. 2020b</a>; see the <a href="https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e" target="_blank" rel="noopener noreferrer">Milestones and benchmarks tab of Topic: rl</a> for its scores, including two mistyped MuZero entries found there). <b>Go-Explore</b> (<a href="https://arxiv.org/abs/1901.10995" target="_blank" rel="noopener noreferrer">Ecoffet et al. 2019</a>) splits the problem: keep an archive of distinct states ("cells") reached so far, pick a promising one, <i>return</i> to it (by restoring the emulator's state, which needs a resettable simulator), explore from there, and add new cells; then train a robust policy from the best trajectories. Without domain knowledge its policies averaged 43,763 on Montezuma's Revenge, "higher than the human expert mean of 34,900", and solved level 1 in 99.8% of attempts. Its journal version, <a href="https://doi.org/10.1038/s41586-020-03157-9" target="_blank" rel="noopener noreferrer">"First return, then explore"</a>, adds a policy that learns to return without resets and reports that it "solves all heretofore unsolved Atari games"; with easy-to-provide domain knowledge it reaches 102,571 on Pitfall and 1,731,645 on Montezuma's Revenge (figures from the <a href="https://arxiv.org/abs/2004.12919" target="_blank" rel="noopener noreferrer">preprint</a>).</p>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Montezuma's Revenge</th><th class="num">Score</th><th>Conditions</th></tr></thead>
+<tbody>
+<tr><td>DQN (2015)</td><td class="num">0</td><td>Human 4,367 in the same table (<a href="https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf#page=11" target="_blank" rel="noopener noreferrer">Mnih et al. 2015, Extended Data Table 2</a>)</td></tr>
+<tr><td>#Exploration, BASS-SimHash (2017)</td><td class="num">238</td><td>50M steps (Tang et al., Table 1)</td></tr>
+<tr><td>Pseudo-counts (2016)</td><td class="num">3,439</td><td>average at 100M frames (Bellemare et al., appendix)</td></tr>
+<tr><td>RND (2018)</td><td class="num">8,152</td><td>mean; average human 4,753 in that paper's table</td></tr>
+<tr><td>Go-Explore (2019)</td><td class="num">43,763</td><td>no domain knowledge; resets the emulator to return; "human expert" 34,900</td></tr>
+<tr><td>Go-Explore (2021)</td><td class="num">1,731,645</td><td>with domain knowledge (room, discretised position, keys held, level, read from pixels by hand-written classifiers)</td></tr>
+</tbody></table></div>
+<div class="co warn"><div class="t">Reading these scores</div>The human reference changes from paper to paper (4,367, 4,753, 34,900), and so do frame budgets, whether the emulator may be reset, and whether domain knowledge is used. The rows are not a leaderboard; each is a result under its own conditions.</div>
+<h3>Uncertainty about values: posterior sampling in deep RL</h3>
+<p>Thompson sampling's deep-RL form keeps several plausible value functions and acts greedily with respect to one of them for a whole episode, which gives the temporally extended exploration that per-step noise lacks: <b>Bootstrapped DQN</b> trains several Q heads on bootstrapped data (<a href="https://arxiv.org/abs/1602.04621" target="_blank" rel="noopener noreferrer">Osband et al. 2016</a>); the idea is developed in <a href="https://jmlr.org/papers/v20/18-339.html" target="_blank" rel="noopener noreferrer">Osband, Van Roy, Russo and Wen (2019)</a>. <b>NoisyNet</b> instead learns noise in the network's weights, replacing ε-greedy and entropy bonuses, with initial noise scale σ<sub>0</sub> = 0.5 (<a href="https://arxiv.org/abs/1706.10295" target="_blank" rel="noopener noreferrer">Fortunato et al. 2017</a>); it is one of the six extensions Rainbow combines (Method atlas tab of <a href="https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e" target="_blank" rel="noopener noreferrer">Topic: rl</a>; details on <a href="https://app.notion.com/p/3ee5c17b0d0d818689b2c0dbce434ece" target="_blank" rel="noopener noreferrer">Value-based deep RL</a>).</p>
+<h3>Entropy bonuses (policy methods)</h3>
+<p>Policy-gradient methods explore by sampling from their own stochastic policy, and the danger is that it collapses onto one action too early. A3C adds the policy's entropy to the objective, "with a weight β = 0.01 for all Atari and TORCS experiments" (<a href="https://arxiv.org/abs/1602.01783" target="_blank" rel="noopener noreferrer">Mnih et al. 2016</a>); SAC makes it the objective itself, J(π) = Σ<sub>t</sub> E[r(s<sub>t</sub>, a<sub>t</sub>) + α H(π(·|s<sub>t</sub>))], "to succeed at the task while acting as randomly as possible", with the temperature α weighing entropy against reward (<a href="https://arxiv.org/abs/1801.01290" target="_blank" rel="noopener noreferrer">Haarnoja et al. 2018</a>). Both are local: they keep the policy from collapsing, but do not by themselves send the agent anywhere new. The mechanics are on <a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a>.</p>
+<div class="co key"><div class="t">One idea under all of these</div>Every method on this page either adds a bonus where knowledge is thin (UCB, counts, pseudo-counts, RND), starts optimistic and lets evidence correct it (optimistic values, R-MAX), or acts on a plausible guess drawn from its uncertainty (Thompson sampling, bootstrapped and noisy networks). Randomness alone (ε-greedy, entropy) is the cheap fallback that works when rewards are dense.</div>
+</section>
+
+<section id="rd-llm">
+<h2><span class="num">7</span>Exploration when training language models</h2>
+<p>RL on a pretrained language model starts from a policy that already produces sensible answers, so exploration is mostly inherited from pretraining and controlled through sampling: several responses per prompt at a temperature around 1, so that some are right and some wrong and the advantage has something to compare (GRPO's group). Three findings frame what this exploration can and cannot do:</p>
+<ul>
+<li><b>RL sharpens more than it discovers.</b> <a href="https://arxiv.org/abs/2504.13837" target="_blank" rel="noopener noreferrer">Yue et al. (2025)</a> find that "while RLVR-trained models outperform their base models at small k (e.g., k = 1), the base models achieve a higher pass@k score when k is large", and conclude that the reasoning abilities they measured "originate from and are bounded by the base model". In bandit terms: RL concentrates probability on arms the base model already pulls sometimes; it rarely finds arms the base model never pulls.</li>
+<li><b>Entropy collapses, and that caps performance.</b> <a href="https://arxiv.org/abs/2505.22617" target="_blank" rel="noopener noreferrer">Cui et al. (2025)</a> fit "a transformation equation R = −a e<sup>H</sup> + b between entropy H and downstream performance R", so that when entropy runs out "the ceiling is fully predictable H = 0, R = −a + b"; they trace the entropy change to "the covariance between action probability and the change in logits" and propose Clip-Cov and KL-Cov to slow it.</li>
+<li><b>Clip asymmetrically to keep exploring.</b> DAPO's "Clip-Higher ... promotes the diversity of the system and avoids entropy collapse" by letting low-probability tokens grow more than PPO's symmetric clip allows: ε<sub>low</sub> = 0.2, ε<sub>high</sub> = 0.28 (<a href="https://arxiv.org/abs/2503.14476" target="_blank" rel="noopener noreferrer">Yu et al. 2025</a>).</li>
+</ul>
+<p>The algorithms (PPO for RLHF, GRPO, RLVR, DAPO) are on <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>; the pipeline around them on <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a>; the paper pages <a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath</a> (GRPO) and <a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">DeepSeek-R1</a> (RL from a base model without supervised warm-up) show what this exploration produced at scale.</p>
+</section>
+
+<section id="rd-wrong">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Breaking ties by taking the first arm</summary><div class="b">With all estimates equal at the start, "argmax" in most libraries returns the first index, so a greedy agent always starts on arm 1 and the results depend on arm order. Sutton and Barto break ties at random; so does every simulation on this page except the Reading animation, where the fixed tie rule is visible and stated.</div></details>
+<details class="mist"><summary>Reading one run, or a few, as a result</summary><div class="b">A single bandit run is dominated by luck (try the five seeds in section 3). The book averages 2,000 tasks; on the testbed tab, compare 200 with 2,000 to see how much of a curve's wiggle is noise.</div></details>
+<details class="mist"><summary>Using UCB's constant outside its scale</summary><div class="b">UCB1's √(2 ln n / n<sub>j</sub>) assumes rewards in [0, 1]. With rewards in the hundreds the bonus is negligible and UCB is greedy; with rewards in [0, 0.01] it explores almost uniformly. Rescale the rewards or tune c (Figure 2.6 shows how much c matters).</div></details>
+<details class="mist"><summary>Treating optimistic initial values as a general method</summary><div class="b">Optimism explores only at the start. With sample averages it vanishes after one pull of each arm, and in a nonstationary task it never comes back (§2.6). R-MAX makes it principled by tying optimism to counts.</div></details>
+<details class="mist"><summary>Using sample averages on a problem that drifts</summary><div class="b">The 1/n step gives yesterday's reward the same weight as last year's, so the estimate follows a moving arm ever more slowly. Use a constant step size (the testbed tab's Nonstationary preset shows the gap).</div></details>
+<details class="mist"><summary>Reading the Lai and Robbins bound as a finite-time floor</summary><div class="b">It is a statement about the slope against ln T in the limit. A good algorithm can sit below the line at any T you can afford to run (the regret chart in section 4 shows Thompson sampling doing exactly that).</div></details>
+<details class="mist"><summary>Crediting Thompson sampling for a matched prior</summary><div class="b">On the 10-armed testbed Thompson sampling with a N(0, 1) prior uses the exact distribution the tasks are drawn from. With a wrong or overconfident prior it can under-explore; report the prior with the result.</div></details>
+<details class="mist"><summary>Evaluating a new bandit policy on logs from the old one</summary><div class="b">Logged clicks only show the arm the old policy chose. Li et al.'s replay estimator is unbiased because the logging policy chose uniformly at random; with a non-random logging policy you need its propensities (inverse propensity weighting) or a randomised slice of traffic.</div></details>
+<details class="mist"><summary>Expecting a novelty bonus to ignore noise</summary><div class="b">Prediction-error curiosity is drawn to anything unpredictable (the noisy TV). RND's fixed random target and counts of states avoid that particular trap, but any bonus can distract from the task if it is not scaled down as the task reward appears.</div></details>
+<details class="mist"><summary>Comparing hard-exploration scores across papers</summary><div class="b">Human baselines, frame budgets, sticky actions, emulator resets and domain knowledge all differ (see the Montezuma's Revenge table). Compare within one paper's table, or re-run.</div></details>
+<details class="mist"><summary>Thinking ε-greedy is always the wrong choice</summary><div class="b">In Auer et al.'s experiments "an optimally tuned ε<sub>n</sub>-GREEDY performs almost always best" (<a href="https://homes.di.unimi.it/~cesabian/Pubblicazioni/ml-02.pdf" target="_blank" rel="noopener noreferrer">Auer et al. 2002</a>); its weakness is that the tuning depends on the unknown gap, and in full RL that its exploration is shallow. With dense rewards (most of Atari) it is still the default.</div></details>
+</section>
+</div>
+<div class="tab" id="t-test" role="tabpanel" hidden>
+<h2>The 10-armed testbed, run live</h2>
+<p>Sutton and Barto's testbed (<a href="http://incompleteideas.net/book/RLbook2020.pdf#page=50" target="_blank" rel="noopener noreferrer">§2.3</a>): each task is a 10-armed bandit whose true values <i>q</i>*(<i>a</i>) are drawn from a standard normal; pulling arm <i>a</i> pays <i>q</i>*(<i>a</i>) plus standard normal noise. One run is 1,000 pulls on one task; a curve is the average over 2,000 tasks. Everything below is computed in your browser when you open a figure, in slices so the page stays responsive, with seeded random numbers: task <i>i</i> is the same task for every method, and the reward noise is drawn from its own stream, so methods differ only in the arms they choose. The engine is checked against an independent Python implementation (every value equal on 40 tasks of every setting).</p>
+<div class="seg" id="tb-fig" role="group" aria-label="Figure"><button data-f="f22" class="on">Fig. 2.2 ε-greedy</button><button data-f="f23">Fig. 2.3 optimistic</button><button data-f="f24">Fig. 2.4 UCB</button><button data-f="f25">Fig. 2.5 gradient</button><button data-f="f26">Fig. 2.6 parameter study</button><button data-f="fall">All methods + Thompson</button><button data-f="fns">Nonstationary (Ex. 2.5)</button></div>
+<div class="rd-btns"><label class="small">Tasks per curve <select id="tb-runs" aria-label="Tasks per curve"><option value="200">200 (quick, noisier)</option><option value="500">500</option><option value="2000" selected>2,000 (as in the book)</option></select></label></div>
+<div class="prog"><div id="tb-prog"></div></div>
+<p class="small mute" id="tb-stat" aria-live="polite"></p>
+<div class="rd-two"><div><div class="rd-ph" id="tb-h1"></div><div class="rd-svg" id="tb-p1"></div></div><div id="tb-w2"><div class="rd-ph" id="tb-h2"></div><div class="rd-svg" id="tb-p2"></div></div></div>
+<div class="leg" id="tb-leg"></div>
+<p id="tb-note" class="small"></p>
+<div class="repro" id="tb-repro"></div>
+<div class="try"><b>Try:</b> switch to 200 tasks and back to see how much of a curve's wiggle is noise; on Fig. 2.4, find the spike at step 11; on Fig. 2.6, compare each method's best setting and how wide its plateau is (the book: all are "fairly insensitive, performing well over a range of parameter values varying by about an order of magnitude"); on Nonstationary, watch sample averages fall behind.</div>
+<h3>What the book's figures show, and what they do not</h3>
+<ul>
+<li><b>Greedy is not a strawman.</b> It is ahead for the first few steps on Fig. 2.2, and its failure is specific: in about two thirds of tasks the first sample of the best arm happened to be disappointing and it never looked again.</li>
+<li><b>The ranking depends on the task.</b> With reward variance 10 instead of 1 the book expects ε-greedy to gain on greedy; with zero variance greedy would find each arm's value after one pull and could do best (§2.3). Optimistic starts and sample averages both treat "the beginning of time" specially and cannot help when the task changes (§2.6), which the nonstationary run shows.</li>
+<li><b>A testbed is not a guarantee.</b> These are averages over one distribution of tasks; the regret bounds in the Reading tab are what hold for every task. On this testbed Thompson sampling also knows the exact prior the tasks come from.</li>
+</ul>
+<p class="small mute">Reproduction notes: ties between equal estimates are broken at random (as in the book); UCB treats an unpulled arm as maximising (eq. 2.10); the gradient baseline is the average of all rewards including the current one (the book's footnote on p. 37); "best possible" is the mean, over the tasks run, of each task's largest true value. Figure 2.6's parameter ranges (ε from 1/128 to 1/4, α from 1/32 to 2, c from 1/16 to 4, Q₀ from 1/4 to 4) follow <a href="https://github.com/ShangtongZhang/reinforcement-learning-an-introduction/blob/master/chapter02/ten_armed_testbed.py" target="_blank" rel="noopener noreferrer">Shangtong Zhang's reproduction</a>, since the book's figure gives only the shared axis (1/128 to 4).</p>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<section id="s-more">
+<h2>Further reading</h2>
+<p>The Reading tab (about 28 minutes) goes from the trade-off through bandit algorithms, regret, contextual bandits and exploration in full RL to LLM training. Links open in a new tab, with reading times (estimated for external resources).</p>
+<h3>On this page</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="#" data-tab="t-test">10-armed testbed</a></div><p>Sutton and Barto's Figures 2.2 to 2.6 rerun live over 2,000 tasks, plus Thompson sampling and the nonstationary exercise, with the book's printed numbers checked.</p></div>
+</div>
+<h3>The parent topic and its tabs</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e" target="_blank" rel="noopener noreferrer">Topic: rl</a></div><p>The short intuitive overview of RL: one target (the Bellman equation), many estimators. Its <b>Taxonomy</b> tab classifies methods on 18 axes, exploration among them; its <b>Method atlas</b> tab puts 47 methods on one grid (DQN, Rainbow, PPO, SAC, GRPO...); its <b>Milestones and benchmarks</b> tab has the Atari results this page's Montezuma's Revenge table sits among (Agent57, MuZero). <span class="rt">(about 16 min read)</span></p></div>
+</div>
+<h3>Sibling pages, in reading order</h3>
+<div class="grid">
+<div class="sp"><div class="n">Bandits and exploration</div><p>This page: the first of the eight.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81baada7e1c05ce69d01" target="_blank" rel="noopener noreferrer">Dynamic programming</a></div><p>Planning with a known model: policy evaluation, policy and value iteration. No exploration needed, because the model is given.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81898a0cd4c05c744969" target="_blank" rel="noopener noreferrer">Model-free prediction and control</a></div><p>Monte Carlo, TD, SARSA and Q-learning, where ε-greedy and GLIE do their work; cliff walking shows on-policy exploration's cost.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ee5c17b0d0d818689b2c0dbce434ece" target="_blank" rel="noopener noreferrer">Value-based deep RL</a></div><p>DQN and its fixes, including NoisyNet inside Rainbow.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a></div><p>The general case of the gradient bandit; entropy bonuses, SAC's maximum-entropy objective.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ee5c17b0d0d8116be5fd39e10bd94c5" target="_blank" rel="noopener noreferrer">Model-based RL and planning</a></div><p>UCT and Monte Carlo tree search, where the UCB index chooses moves.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ee5c17b0d0d81d4995ec47e428de9b3" target="_blank" rel="noopener noreferrer">Offline RL and imitation</a></div><p>When the agent may not explore at all: learning from a fixed dataset.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a></div><p>GRPO, RLVR, DAPO: sampling temperature, group size and clipping as the exploration controls of language-model RL.</p></div>
+</div>
+<h3>Neighbouring pages</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a></div><p>The post-training pipeline around the RL step. <span class="rt">(24 min read)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath (2024)</a></div><p>Introduces GRPO, whose group of samples per prompt is its exploration. <span class="rt">(24 min read)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">DeepSeek-R1 (2025)</a></div><p>RL from a base model with no supervised warm-up (R1-Zero): what inherited exploration can reach. <span class="rt">(35 min read)</span></p></div>
+</div>
+<h3>Best resources</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="http://incompleteideas.net/book/RLbook2020.pdf#page=47" target="_blank" rel="noopener noreferrer">Sutton and Barto, chapter 2: Multi-armed Bandits</a></div><p>The source of the testbed, every strategy in sections 2 and 3, and the exercises. <span class="rt">(about 1h 30m)</span></p></div>
+<div class="sp"><div class="n"><a href="https://davidstarsilver.wordpress.com/wp-content/uploads/2025/04/lecture-9-exploration-and-exploitation.pdf" target="_blank" rel="noopener noreferrer">David Silver, Lecture 9: Exploration and Exploitation</a></div><p>Slides: regret, optimism, probability matching, information state search, contextual bandits, and the MDP extensions. <span class="rt">(about 45 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://lilianweng.github.io/posts/2018-01-23-multi-armed-bandit/" target="_blank" rel="noopener noreferrer">Lilian Weng: The Multi-Armed Bandit Problem and Its Solutions</a></div><p>A compact walk through ε-greedy, UCB and Thompson sampling with code. <span class="rt">(about 20 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://lilianweng.github.io/posts/2020-06-07-exploration-drl/" target="_blank" rel="noopener noreferrer">Lilian Weng: Exploration Strategies in Deep RL</a></div><p>A map of count-based, prediction-based and memory-based exploration (section 6's families, with many more). <span class="rt">(about 50 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1707.02038" target="_blank" rel="noopener noreferrer">Russo et al.: A Tutorial on Thompson Sampling</a></div><p>When and why probability matching works, with examples beyond Bernoulli arms. <span class="rt">(about 2h)</span></p></div>
+<div class="sp"><div class="n"><a href="https://tor-lattimore.com/downloads/book/book.pdf" target="_blank" rel="noopener noreferrer">Lattimore and Szepesvári: Bandit Algorithms</a></div><p>The reference text: regret decomposition, UCB and KL-UCB, lower bounds, linear and contextual bandits. Chapters 4 to 10 and 15 cover this page's section 4. <span class="rt">(about 6h for those chapters)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1904.07272" target="_blank" rel="noopener noreferrer">Slivkins: Introduction to Multi-Armed Bandits</a></div><p>A shorter book-length survey, good on contextual bandits. <span class="rt">(about 4h)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1003.0146" target="_blank" rel="noopener noreferrer">Li et al. 2010: LinUCB on Yahoo! news</a></div><p>The contextual bandit paper behind section 5, with its offline replay evaluation. <span class="rt">(about 40 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/1810.12894" target="_blank" rel="noopener noreferrer">Burda et al. 2018: Random Network Distillation</a></div><p>A short, clear paper on the novelty bonus most used in deep RL. <span class="rt">(about 40 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2004.12919" target="_blank" rel="noopener noreferrer">Ecoffet et al.: First return, then explore</a></div><p>Go-Explore's full version: detachment, derailment, and the archive. <span class="rt">(about 1h)</span></p></div>
+</div>
+<p class="foot">Built from the repository's source (src/). The simulations run on a seeded engine checked value for value against an independent Python implementation (src/recompute.py, src/check_engine.mjs). Read 4 October 2026.</p>
+</section>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_bx_engine.js */
+// ---- Computation engine for every visual on this page (no drawing here) ----
+// Checked against an independent Python implementation: src/recompute.py writes src/expected.json, src/check_engine.mjs compares.
+(function(root){
+  // seeded uniform random numbers (mulberry32), identical in recompute.py
+  function rng(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1)>>>0;t=(t^(t+(Math.imul(t^(t>>>7),t|61)>>>0)))>>>0;return ((t^(t>>>14))>>>0)/4294967296}}
+  function gauss(r){const u1=r(),u2=r();return Math.sqrt(-2*Math.log(1-u1))*Math.cos(2*Math.PI*u2)}
+  // index of the largest value, ties broken uniformly at random with r (Sutton and Barto break ties randomly)
+  function argmaxR(v,r){let m=-Infinity,c=0,a=0;for(let k=0;k<v.length;k++){if(v[k]>m){m=v[k];a=k;c=1}else if(v[k]===m)c++}
+    if(c===1)return a;let j=Math.floor(r()*c);for(let k=0;k<v.length;k++)if(v[k]===m){if(j===0)return k;j--}return a}
+
+  // ---- 1. E[max of n independent standard normals] = integral of x n phi(x) Phi(x)^(n-1) dx (the testbed's best possible reward for n = 10) ----
+  function emax(n){const h=1e-3,lo=-9,M=Math.round(18/h);let Phi=0,prev=0,s=0;
+    for(let i=0;i<=M;i++){const x=lo+i*h,ph=Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);if(i>0)Phi+=(prev+ph)*h/2;prev=ph;
+      const f=x*n*ph*Math.pow(Math.min(1,Phi),n-1);s+=(i===0||i===M?0.5:1)*f*h}return s}
+
+  // ---- 2. The 10-armed testbed (Sutton and Barto section 2.3) ----
+  // One run = one bandit task. Three independent streams per run: the task (true values), the reward noise, the agent's own randomness.
+  // cfg: {kind:'eps'|'ucb'|'grad'|'ts', eps, q0, alpha (constant step; sample average when absent), c, base (gradient baseline), off (mean of q*), walk (sd of a random walk on q*: nonstationary), k}
+  function tbRun(cfg,run,steps,acc){
+    const K=cfg.k||10,tr=rng(1000000+run),nr=rng(2000000+run),pr=rng(3000000+run);
+    const q=new Float64Array(K);for(let k=0;k<K;k++)q[k]=cfg.walk?0:gauss(tr)+(cfg.off||0);
+    const Q=new Float64Array(K).fill(cfg.q0||0),N=new Float64Array(K),H=new Float64Array(K),S=new Float64Array(K),pi=new Float64Array(K),U=new Float64Array(K);
+    let rbar=0,best=0;if(!cfg.walk){for(let k=1;k<K;k++)if(q[k]>q[best])best=k;acc.maxq+=q[best]}
+    for(let t=0;t<steps;t++){let a;
+      if(cfg.walk){best=0;for(let k=1;k<K;k++)if(q[k]>q[best])best=k}
+      if(cfg.kind==='eps'){if(pr()<cfg.eps)a=Math.floor(pr()*K);else a=argmaxR(Q,pr)}
+      else if(cfg.kind==='ucb'){for(let k=0;k<K;k++)U[k]=N[k]===0?Infinity:Q[k]+cfg.c*Math.sqrt(Math.log(t+1)/N[k]);a=argmaxR(U,pr)}
+      else if(cfg.kind==='ts'){for(let k=0;k<K;k++)U[k]=((cfg.off||0)+S[k])/(1+N[k])+gauss(pr)/Math.sqrt(1+N[k]);a=argmaxR(U,pr)}
+      else{let mx=-Infinity;for(let k=0;k<K;k++)if(H[k]>mx)mx=H[k];let z=0;for(let k=0;k<K;k++){pi[k]=Math.exp(H[k]-mx);z+=pi[k]}
+        for(let k=0;k<K;k++)pi[k]/=z;
+        const u=pr();let cum=0;a=K-1;for(let k=0;k<K;k++){cum+=pi[k];if(u<cum){a=k;break}}
+      }
+      const R=q[a]+gauss(nr);acc.R[t]+=R;if(a===best)acc.O[t]+=1;N[a]++;
+      if(cfg.kind==='grad'){
+        // baseline: the average of all rewards including this one (the book's footnote 1 on p. 37: "the baseline also included R_t")
+        rbar+=(R-rbar)/(t+1);const b=cfg.base?rbar:0,d=cfg.alpha*(R-b);
+        for(let k=0;k<K;k++)H[k]+=k===a?d*(1-pi[k]):-d*pi[k]}
+      else{Q[a]+=(cfg.alpha?cfg.alpha:1/N[a])*(R-Q[a]);S[a]+=R}
+      if(cfg.walk)for(let k=0;k<K;k++)q[k]+=cfg.walk*gauss(tr)}
+  }
+  function tbNew(steps){return {R:new Float64Array(steps),O:new Float64Array(steps),maxq:0,runs:0}}
+  // run runs [r0, r1) into acc
+  function tbBatch(cfg,r0,r1,steps,acc){for(let r=r0;r<r1;r++){tbRun(cfg,r,steps,acc);acc.runs++}return acc}
+
+  // ---- 3. One five-armed bandit, every strategy reading the same pre-drawn table (the Reading tab's before/after) ----
+  // Arms pay their mean plus standard normal noise. Thompson sampling uses a N(0, 1) prior on each mean and known noise variance 1,
+  // so its posterior after n pulls with reward sum s is N(s / (1 + n), 1 / (1 + n)); its draws come from the table's own normals z.
+  const BANDIT={mu:[0.2,1.0,-0.4,1.5,0.6],T:300};
+  function banditTable(seed){const r=rng(seed),T=BANDIT.T,K=BANDIT.mu.length,rew=[],u=[],ra=[],z=[];
+    for(let t=0;t<T;t++){const row=[];for(let k=0;k<K;k++)row.push(BANDIT.mu[k]+gauss(r));rew.push(row)}
+    for(let t=0;t<T;t++){u.push(r());ra.push(Math.floor(r()*K))}
+    for(let t=0;t<T;t++){const row=[];for(let k=0;k<K;k++)row.push(gauss(r));z.push(row)}return {rew,u,ra,z}}
+  // strategy: {kind:'greedy'|'eps'|'ucb'|'ts', eps, q0, c, alpha}
+  function banditRun(tab,st){const K=BANDIT.mu.length,T=BANDIT.T,Q=new Array(K).fill(st.q0||0),N=new Array(K).fill(0),S=new Array(K).fill(0);
+    const best=Math.max(...BANDIT.mu);let reg=0,tot=0;const hist=[];
+    for(let t=0;t<T;t++){let a=-1,th=null,U=null;
+      if(st.kind==='ucb'){for(let k=0;k<K;k++)if(N[k]===0){a=k;break}
+        U=Q.map((q,k)=>N[k]===0?Infinity:q+st.c*Math.sqrt(Math.log(t+1)/N[k]));
+        if(a<0){let bv=-Infinity;for(let k=0;k<K;k++)if(U[k]>bv){bv=U[k];a=k}}}
+      else if(st.kind==='ts'){th=S.map((s,k)=>s/(1+N[k])+tab.z[t][k]/Math.sqrt(1+N[k]));let bv=-Infinity;for(let k=0;k<K;k++)if(th[k]>bv){bv=th[k];a=k}}
+      else if(st.kind==='eps'&&tab.u[t]<st.eps)a=tab.ra[t];
+      else{let bv=-Infinity;for(let k=0;k<K;k++)if(Q[k]>bv){bv=Q[k];a=k}}
+      const R=tab.rew[t][a];N[a]++;S[a]+=R;Q[a]+=(R-Q[a])*(st.alpha?st.alpha:1/N[a]);reg+=best-BANDIT.mu[a];tot+=R;
+      hist.push({a,R,Q:Q.slice(),N:N.slice(),S:S.slice(),th,U,reg,tot})}
+    return hist}
+
+  // ---- 4. Bernoulli bandit: regret against the Lai and Robbins lower bound ----
+  function klB(p,q){const e=1e-15;p=Math.min(Math.max(p,e),1-e);q=Math.min(Math.max(q,e),1-e);return p*Math.log(p/q)+(1-p)*Math.log((1-p)/(1-q))}
+  // the bound's constant: sum over suboptimal arms of gap / KL(p_a, p*); regret >= (this + o(1)) ln T
+  function lrConst(p){const b=Math.max(...p);let s=0;for(const x of p)if(x<b)s+=(b-x)/klB(x,b);return s}
+  // Gamma(a) for a >= 1 (Marsaglia and Tsang 2000) and Beta(a, b) from two gammas
+  function gammaS(a,r){const d=a-1/3,c=1/Math.sqrt(9*d);for(;;){let x,v;do{x=gauss(r);v=1+c*x}while(v<=0);v=v*v*v;const u=r();
+      if(u<1-0.0331*x*x*x*x)return d*v;if(Math.log(u)<0.5*x*x+d*(1-v+Math.log(v)))return d*v}}
+  function betaS(a,b,r){const x=gammaS(a,r),y=gammaS(b,r);return x/(x+y)}
+  // cfg: {kind:'greedy'|'eps'|'ucb1'|'ts', eps}; marks: steps at which to record cumulative expected regret (sum of gaps of arms pulled)
+  function brRun(cfg,p,T,run,marks,acc){const K=p.length,nr=rng(5000000+run),pr=rng(6000000+run),b=Math.max(...p);
+    const N=new Float64Array(K),S=new Float64Array(K),V=new Float64Array(K);let reg=0,m=0;
+    for(let t=0;t<T;t++){let a;
+      if(cfg.kind==='ts'){for(let k=0;k<K;k++)V[k]=betaS(1+S[k],1+N[k]-S[k],pr);a=argmaxR(V,pr)}
+      else if(cfg.kind==='ucb1'){for(let k=0;k<K;k++)V[k]=N[k]===0?Infinity:S[k]/N[k]+Math.sqrt(2*Math.log(t)/N[k]);a=argmaxR(V,pr)}
+      else{if(cfg.kind==='eps'&&pr()<cfg.eps)a=Math.floor(pr()*K);else{for(let k=0;k<K;k++)V[k]=N[k]===0?0.5:S[k]/N[k];a=argmaxR(V,pr)}}
+      const x=nr()<p[a]?1:0;N[a]++;S[a]+=x;reg+=b-p[a];
+      while(m<marks.length&&marks[m]===t+1){acc[m]+=reg;m++}}
+    return acc}
+  function logMarks(T,per){const s=new Set();for(let i=0;i<=per*Math.log10(T)+1e-9;i++)s.add(Math.max(1,Math.round(Math.pow(10,i/per))));s.add(T);return [...s].filter(x=>x<=T).sort((a,b)=>a-b)}
+
+  // ---- 5. A sparse-reward gridworld: epsilon-greedy against a count bonus against optimistic starts ----
+  // 14 x 7 cells, start (0,3); a small reward 0.1 at (2,1) and a large reward 1 at (13,3), both end the episode; 60 steps at most.
+  // Tabular Q-learning, step 0.5, gamma 0.95, epsilon 0.1 (not in 'opt' mode). 'cnt' adds the intrinsic reward beta / sqrt(N(s')) with beta 0.2,
+  // N counting visits to s' over all episodes so far; 'opt' starts every Q at 1 and acts greedily.
+  const GX={W:14,H:7,start:[0,3],small:[2,1],big:[13,3],rs:0.1,rb:1,cap:60,alpha:0.5,g:0.95,eps:0.1,beta:0.2,q0:1};
+  const MV=[[1,0],[-1,0],[0,1],[0,-1]];
+  function gxRun(mode,seed,episodes,keep){const W=GX.W,Hh=GX.H,n=W*Hh,r=rng(7000000+seed);
+    const Q=new Float64Array(n*4).fill(mode==='opt'?GX.q0:0),N=new Float64Array(n),out=[];let first=-1,nBig=0;
+    const id=(x,y)=>y*W+x,sm=id(GX.small[0],GX.small[1]),bg=id(GX.big[0],GX.big[1]);const qq=new Float64Array(4);
+    for(let ep=0;ep<episodes;ep++){let x=GX.start[0],y=GX.start[1],end=0;const path=keep?[id(x,y)]:null;
+      for(let t=0;t<GX.cap;t++){const s=id(x,y);let a;
+        if(mode!=='opt'&&r()<GX.eps)a=Math.floor(r()*4);else{for(let k=0;k<4;k++)qq[k]=Q[s*4+k];a=argmaxR(qq,r)}
+        x=Math.min(W-1,Math.max(0,x+MV[a][0]));y=Math.min(Hh-1,Math.max(0,y+MV[a][1]));const s2=id(x,y);N[s2]++;if(keep)path.push(s2);
+        const rew=s2===bg?GX.rb:s2===sm?GX.rs:0,ri=rew+(mode==='cnt'?GX.beta/Math.sqrt(N[s2]):0),term=s2===bg||s2===sm;
+        let mx=-Infinity;if(!term)for(let k=0;k<4;k++)if(Q[s2*4+k]>mx)mx=Q[s2*4+k];
+        Q[s*4+a]+=GX.alpha*(ri+(term?0:GX.g*mx)-Q[s*4+a]);if(term){end=s2===bg?2:1;break}}
+      if(end===2){nBig++;if(first<0)first=ep}
+      if(keep){const V=new Float64Array(n);for(let s=0;s<n;s++)V[s]=Math.max(Q[s*4],Q[s*4+1],Q[s*4+2],Q[s*4+3]);out.push({path,end,N:N.slice(),V,nBig,first})}}
+    return keep?out:{first,nBig}}
+  function gxSummary(mode,seeds,episodes){const firsts=[];let found=0;for(let s=1;s<=seeds;s++){const o=gxRun(mode,s,episodes,false);firsts.push(o.first);if(o.first>=0)found++}return {firsts,found}}
+
+  root.BX={rng,gauss,argmaxR,emax,tbRun,tbNew,tbBatch,BANDIT,banditTable,banditRun,klB,lrConst,gammaS,betaS,brRun,logMarks,GX,gxRun,gxSummary};
+})(typeof window!=='undefined'?window:globalThis);
+</script>
+<script>/* 22_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+// ---- helpers shared by this page's Reading visuals ----
+// redraw on window resize only while the Reading tab is visible (the tab bar fires resize on every tab switch)
+RD.onResize=f=>addEventListener('resize',()=>{const t=document.getElementById('t-read');if(t&&!t.hidden&&t.offsetParent!==null)f()});
+// numbers with a true minus sign; percentages; powers of ten with a superscript exponent
+RD.pct=(v,n)=>(100*v).toFixed(n==null?1:n)+'%';
+RD.e=(v,n)=>{if(v===0)return '0';const a=Math.abs(v),ex=Math.floor(Math.log10(a)),m=v/Math.pow(10,ex);return m.toFixed(n?n-1:1)+' &times; 10<sup>'+(ex<0?'&minus;'+(-ex):ex)+'</sup>'};
+RD.n=(v,d)=>{const s=(+v).toFixed(d==null?2:d);return /^-0?\.?0*$/.test(s)?s.slice(1):s.replace('-','−')};
+RD.sg=(v,d)=>(v>0?'+':'')+RD.n(v,d);
+// build an svg string of width w and height h
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+RD.colorScale=(v,lo,hi)=>{// diverging: negative orange, positive blue, via color-mix on CSS variables
+  const t=Math.max(-1,Math.min(1,v>=0?(hi>0?v/hi:0):(lo<0?-v/lo:0)));const p=Math.round(Math.abs(t)*70);
+  return 'color-mix(in srgb, '+(t>=0?'var(--c1)':'var(--c2)')+' '+p+'%, var(--bg))'};
+// clicking a row of the spine table jumps to its section; nav highlights the section in view
+(function(){
+  const tb=document.getElementById('rd-spine');
+  if(tb)tb.addEventListener('click',e=>{const r=e.target.closest('tr[data-go]');if(!r||e.target.closest('a'))return;const s=document.getElementById(r.dataset.go);if(s)s.scrollIntoView({behavior:RD.RM?'auto':'smooth',block:'start'})});
+  const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});
+})();
+</script>
+<script>/* 23_js_chart.js */
+// ---- A small line-chart helper shared by the testbed tab and the regret chart ----
+// series: [{ys (array), xs (optional array), col, lab, w, dash}]; o: {x0,x1,y0,y1,logx,xt (ticks [[v,label]]),yt,ylab,xlab,hl:[{y,lab}],H,label}
+RD.chart=function(el,series,o){
+  const W=RD.width(el),H=o.H||220,l=40,r=10,t=14,b=30;
+  const X=v=>{if(o.logx){const a=Math.log(o.x0),c=Math.log(o.x1);return l+(W-l-r)*(Math.log(v)-a)/(c-a)}return l+(W-l-r)*(v-o.x0)/(o.x1-o.x0)};
+  const Y=v=>t+(H-t-b)*(o.y1-Math.max(o.y0,Math.min(o.y1,v)))/(o.y1-o.y0);
+  let s='';
+  (o.yt||[]).forEach(([v,lb])=>{s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,lb,{a:'end',fs:10,fill:'var(--mute)'})});
+  (o.xt||[]).forEach(([v,lb],i,arr)=>{s+=RD.t(Math.min(W-r,Math.max(l,X(v))),H-b+14,lb,{a:i===0?'start':i===arr.length-1?'end':'middle',fs:10,fill:'var(--mute)'})});
+  if(o.xlab)s+=RD.t((l+W-r)/2,H-3,o.xlab,{a:'middle',fs:10.5,fill:'var(--mute)'});
+  if(o.ylab)s+=RD.t(l+4,t+8,o.ylab,{fs:10.5,fill:'var(--mute)'});
+  (o.hl||[]).forEach(h=>{s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(h.y).toFixed(1)+'" y2="'+Y(h.y).toFixed(1)+'" stroke="var(--ink)" stroke-dasharray="4 3" opacity=".7"/>'+RD.t(l+6,Y(h.y)-4,h.lab,{fs:10,fill:'var(--ink)'})});
+  series.forEach(se=>{const n=se.ys.length;if(!n)return;const pts=[];
+    for(let i=0;i<n;i++){const x=se.xs?se.xs[i]:i+1,y=se.ys[i];if(y==null||!isFinite(y))continue;pts.push(X(x).toFixed(1)+','+Y(y).toFixed(1))}
+    s+='<polyline fill="none" stroke="'+se.col+'" stroke-width="'+(se.w||1.6)+'"'+(se.dash?' stroke-dasharray="'+se.dash+'"':'')+' stroke-linejoin="round" points="'+pts.join(' ')+'"/>';
+    if(se.dots)se.ys.forEach((y,i)=>{if(y!=null&&isFinite(y))s+='<circle cx="'+X(se.xs[i]).toFixed(1)+'" cy="'+Y(y).toFixed(1)+'" r="2.6" fill="'+se.col+'"/>'})});
+  if(o.extra)s+=o.extra(X,Y,W,H);
+  el.innerHTML=RD.svg(W,H,s,o.label||'Chart');
+};
+RD.legend=(el,series)=>{el.innerHTML=series.filter(s=>s.lab).map(s=>'<span><i style="background:'+s.col+'"></i>'+s.lab+'</span>').join('')};
+</script>
+<script>/* 24_js_bd.js */
+// ---- Reading: five strategies on one bandit, the same reward for the same arm at the same step (before/after animation) ----
+(function(){
+  const E=window.BX,mu=E.BANDIT.mu,T=E.BANDIT.T,K=mu.length,best=Math.max(...mu),bi=mu.indexOf(best);
+  const ST={greedy:{kind:'greedy'},eps:{kind:'eps',eps:0.1},opt:{kind:'greedy',q0:5,alpha:0.1},ucb:{kind:'ucb',c:2},ts:{kind:'ts'}};
+  const NAME={greedy:'Greedy',eps:'ε-greedy (ε = 0.1)',opt:'Optimistic greedy (Q₀ = 5, step 0.1)',ucb:'UCB (c = 2)',ts:'Thompson sampling'};
+  const SH={greedy:'greedy',eps:'ε-greedy',opt:'optimistic',ucb:'UCB',ts:'Thompson'};
+  const COL={greedy:'var(--c2)',eps:'var(--c1)',opt:'var(--c5)',ucb:'var(--c3)',ts:'var(--c4)'};
+  const $=id=>document.getElementById(id),A=$('bd-A'),Rg=$('bd-R'),Tt=$('bd-T'),Px=$('bd-P'),N=$('bd-N'),Sd=$('bd-S');
+  let mode='greedy',runs={};
+  function compute(){const tab=E.banditTable(+Sd.value);runs={};Object.keys(ST).forEach(k=>runs[k]=E.banditRun(tab,ST[k]))}
+  const pdf=(v,m,s)=>Math.exp(-0.5*((v-m)/s)*((v-m)/s))/(s*Math.sqrt(2*Math.PI));
+  function draw(i){const h=runs[mode],cur=i>0?h[i-1]:null,nxt=i<T?h[i]:null;
+    const Q=cur?cur.Q:new Array(K).fill(ST[mode].q0||0),Nn=cur?cur.N:new Array(K).fill(0),S=cur?cur.S:new Array(K).fill(0);
+    let W=RD.width(A),H=230,l=30,r=6,t=12,b=34;const lo=mode==='opt'?-1.5:-3,hi=mode==='opt'?5.5:3.5;
+    const Y=v=>t+(H-t-b)*(hi-Math.max(lo,Math.min(hi,v)))/(hi-lo),cw=(W-l-r)/K;let s='';
+    for(let v=Math.ceil(lo);v<=hi;v++)s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,RD.n(v,0),{a:'end',fs:10,fill:'var(--mute)'});
+    for(let k=0;k<K;k++){const cx=l+k*cw+cw/2,bw=Math.min(30,cw*0.42),y0=Y(0),on=nxt&&nxt.a===k;
+      if(mode==='ts'){// posterior N(S/(1+n), 1/(1+n)) drawn sideways; the dot is the sample drawn for the next pull
+        const m=S[k]/(1+Nn[k]),sd=1/Math.sqrt(1+Nn[k]),pts=[],sc=cw*0.16;
+        for(let j=0;j<=40;j++){const v=m-3.2*sd+6.4*sd*j/40;pts.push([Math.min(cw*0.46,sc*pdf(v,m,sd)),Y(v)])}
+        s+='<path d="M'+pts.map(p=>(cx+p[0]).toFixed(1)+','+p[1].toFixed(1)).join('L')+'L'+pts.slice().reverse().map(p=>(cx-p[0]).toFixed(1)+','+p[1].toFixed(1)).join('L')+'Z" fill="'+(on?'var(--c4)':'var(--c1)')+'" opacity="'+(on?0.55:0.3)+'"/>';
+        s+='<line x1="'+(cx-bw/2)+'" x2="'+(cx+bw/2)+'" y1="'+Y(m)+'" y2="'+Y(m)+'" stroke="var(--c1)" stroke-width="2"/>';
+        if(nxt&&nxt.th)s+='<circle cx="'+cx+'" cy="'+Y(nxt.th[k]).toFixed(1)+'" r="4.5" fill="'+(on?'var(--c2)':'var(--bg)')+'" stroke="var(--c2)" stroke-width="2"/>'}
+      else{const yq=Y(Q[k]);s+='<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+Math.min(y0,yq).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1,Math.abs(yq-y0)).toFixed(1)+'" fill="'+(on?'var(--c2)':'var(--c1)')+'" opacity="'+(on?1:.75)+'"/>';
+        if(mode==='ucb'&&nxt&&nxt.U){const u=nxt.U[k];const yu=isFinite(u)?Y(u):t;s+='<line x1="'+cx+'" x2="'+cx+'" y1="'+yq.toFixed(1)+'" y2="'+yu.toFixed(1)+'" stroke="var(--c3)" stroke-width="2"/><line x1="'+(cx-7)+'" x2="'+(cx+7)+'" y1="'+yu.toFixed(1)+'" y2="'+yu.toFixed(1)+'" stroke="var(--c3)" stroke-width="2"/>'}}
+      s+='<line x1="'+(cx-bw/2-5)+'" x2="'+(cx+bw/2+5)+'" y1="'+Y(mu[k])+'" y2="'+Y(mu[k])+'" stroke="var(--ink)" stroke-width="2.5" stroke-dasharray="'+(mode==='ts'?'3 2':'')+'"/>';
+      s+=RD.t(cx,H-20,'arm '+(k+1),{a:'middle',fs:10.5,w:k===bi?600:400})+RD.t(cx,H-6,'n = '+Nn[k],{a:'middle',fs:10,fill:'var(--mute)'})}
+    A.innerHTML=RD.svg(W,H,s,'Arm estimates');
+    W=RD.width(Rg);const H2=230,l2=36,b2=24,mx=Math.max(...Object.keys(runs).map(k=>runs[k][T-1].reg)),X=j=>l2+(W-l2-8)*j/T,Y2=v=>10+(H2-10-b2)*(1-v/mx);s='';
+    [0,mx/2,mx].forEach(v=>{s+=RD.t(l2-4,Y2(v)+4,RD.n(v,0),{a:'end',fs:10,fill:'var(--mute)'})+'<line x1="'+l2+'" x2="'+(W-8)+'" y1="'+Y2(v)+'" y2="'+Y2(v)+'" stroke="var(--line)"/>'});
+    const ends=Object.keys(runs).map(k=>[k,Y2(runs[k][T-1].reg)]).sort((a,b)=>a[1]-b[1]);for(let j=1;j<ends.length;j++)if(ends[j][1]-ends[j-1][1]<11)ends[j][1]=ends[j-1][1]+11;const LY={};ends.forEach(e=>LY[e[0]]=e[1]);
+    Object.keys(runs).forEach(k=>{const pts=[[0,0]].concat(runs[k].map((x,j)=>[j+1,x.reg])).filter((p,j)=>j%3===0||j===T);
+      s+='<polyline fill="none" stroke="'+COL[k]+'" stroke-width="'+(k===mode?3:1.3)+'" opacity="'+(k===mode?1:.6)+'" points="'+pts.map(p=>X(p[0]).toFixed(1)+','+Y2(p[1]).toFixed(1)).join(' ')+'"/>';
+      s+=RD.t(W-10,LY[k]-3,SH[k],{a:'end',fs:10,fill:COL[k],w:k===mode?600:400})});
+    s+='<line x1="'+X(i)+'" x2="'+X(i)+'" y1="10" y2="'+(H2-b2)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>'+RD.t(l2,H2-6,'pull 0',{fs:10,fill:'var(--mute)'})+RD.t(W-8,H2-6,'pull '+T,{a:'end',fs:10,fill:'var(--mute)'})+RD.t(l2+4,22,'total regret',{fs:10,fill:'var(--mute)'});
+    Rg.innerHTML=RD.svg(W,H2,s,'Regret');
+    if(!cur){Tt.textContent=NAME[mode]+': before the first pull';Px.innerHTML={greedy:'Estimates start at 0. Greedy pulls whichever arm currently looks best (ties go to the first arm) and never pulls an arm on purpose to learn about it.',eps:'Estimates start at 0. Nine pulls in ten are greedy; one in ten picks an arm uniformly at random, good or bad.',opt:'Every estimate starts at 5, far above any true mean, so each arm disappoints when tried and the agent moves on to the others.',ucb:'Each arm is pulled once; then UCB pulls the arm with the highest upper bound Q + c √(ln t / n), the green whisker on each bar.',ts:'Each arm has a belief: a normal distribution over its mean (prior N(0, 1)), drawn sideways. Every step draws one value from each belief (the circles) and pulls the arm with the highest draw.'}[mode]}
+    else{const a=cur.a;Tt.textContent='Pull '+i+': '+NAME[mode]+' pulled arm '+(a+1)+' and got '+RD.n(cur.R,2);
+      let x=mu[a]===best?'Arm 4 is the best arm (true mean 1.5): no regret this pull.':'Arm '+(a+1)+' has true mean '+RD.n(mu[a],1)+': this pull cost '+RD.n(best-mu[a],1)+' of regret.';
+      if(mode==='greedy'&&cur.N[a]>i*0.9&&i>20)x+=' Greedy has locked onto one arm and never collects the evidence that another is better.';
+      else if(mode==='ucb'&&i>50)x+=' Rarely pulled arms keep a large bonus, so UCB still tries them now and then, less often as their bounds fall below arm 4\'s estimate.';
+      else if(mode==='ts'&&i>50)x+=' The belief about arm 4 is now narrow; a poor arm is pulled only when its wide belief happens to produce a high draw, which gets rarer as its belief narrows.';
+      else if(mode==='eps'&&i>50)x+=' One pull in ten is still random, so ε-greedy pays regret on bad arms forever, at the same rate as on the first day.';
+      else if(mode==='opt'&&i>50)x+=' The optimism is used up; from here it is greedy with a constant step size.';
+      Px.innerHTML=x}
+    const bp=cur?cur.N[bi]/i:0;
+    N.innerHTML=RD.stat('Pulls',String(i),'of '+T)+RD.stat('Total regret',cur?RD.n(cur.reg,1):'0','Σ (1.5 − μ pulled)')+RD.stat('Best arm share',cur?RD.pct(bp,0):'none','arm 4')+RD.stat('Total reward',cur?RD.n(cur.tot,1):'0','this stream')}
+  compute();
+  const an=RD.anim({card:'bd',ctl:'bd-C',n:T+1,ms:70,draw,label:'Pull'});
+  $('bd-M').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.k;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.redraw()});
+  Sd.addEventListener('change',()=>{compute();an.redraw()});
+  RD.onResize(()=>an.redraw());an.redraw();
+})();
+</script>
+<script>/* 25_js_rg.js */
+// ---- Reading: regret against the Lai and Robbins lower bound, Bernoulli arms, computed live in slices when the card comes into view ----
+(function(){
+  const B=window.BX,$=id=>document.getElementById(id);
+  const PRE={close:[0.6,0.5,0.45,0.4,0.3],far:[0.9,0.8,0.6,0.5]};
+  const M=[{k:'greedy',lab:'greedy',col:'var(--c2)'},{k:'eps',lab:'ε-greedy, ε = 0.1',col:'var(--c1)'},{k:'ucb1',lab:'UCB1',col:'var(--c3)'},{k:'ts',lab:'Thompson sampling',col:'var(--c4)'}];
+  const T=10000,marks=B.logMarks(T,20);
+  let pre='close',runs=200,cache={},job=0,started=false;
+  function start(){started=true;const key=pre+'|'+runs,my=++job;const st=cache[key]||(cache[key]={acc:M.map(()=>new Float64Array(marks.length)),i:0,done:false});
+    const total=M.length*runs;let last=0;
+    function slice(){if(my!==job)return;const t0=performance.now();
+      while(st.i<total&&performance.now()-t0<28){const j=Math.floor(st.i/runs);B.brRun({kind:M[j].k,eps:0.1},PRE[pre],T,st.i%runs,marks,st.acc[j]);st.i++}
+      $('rg-prog').style.width=(100*st.i/total).toFixed(1)+'%';if(st.i>=total)st.done=true;
+      if(st.done||performance.now()-last>350){last=performance.now();draw()}
+      if(!st.done)setTimeout(slice,0)}
+    slice()}
+  function draw(){const st=cache[pre+'|'+runs];if(!st)return;const p=PRE[pre],C=B.lrConst(p),done=Math.floor(st.i/runs);
+    const ser=M.map((m,j)=>({lab:m.lab,col:m.col,w:2,xs:marks,ys:j<done||st.done?[...st.acc[j]].map(v=>v/runs):[]}));
+    const bound={lab:'Lai and Robbins: '+RD.n(C,2)+' × ln T',col:'var(--ink)',dash:'5 4',w:1.4,xs:marks,ys:marks.map(t=>C*Math.log(t))};
+    let ymax=0;ser.forEach(s=>s.ys.forEach(v=>{if(v>ymax)ymax=v}));ymax=Math.max(ymax,C*Math.log(T))*1.05;
+    const step=ymax>400?200:ymax>200?100:50,yt=[];for(let v=0;v<=ymax;v+=step)yt.push([v,String(v)]);
+    RD.chart($('rg-P'),ser.concat([bound]),{x0:1,x1:T,y0:0,y1:ymax,logx:true,xt:[[1,'1'],[10,'10'],[100,'100'],[1000,'1,000'],[10000,'10,000']],yt,xlab:'Pulls T (log scale)',ylab:'expected regret',H:250,label:'Regret against the lower bound'});
+    RD.legend($('rg-L'),ser.concat([bound]));
+    const i1=marks.indexOf(1000),slope=s=>(s.ys[s.ys.length-1]-s.ys[i1])/Math.log(10);
+    $('rg-N').innerHTML=ser.map(s=>s.ys.length?RD.stat(s.lab,RD.n(s.ys[s.ys.length-1],1),'regret at 10,000 · slope '+RD.n(slope(s),1)+' per unit of ln T'):RD.stat(s.lab,'…','computing')).join('')+RD.stat('Lower bound constant',RD.n(C,2),'Σ Δ / KL(p_a, p*) per unit of ln T');
+    $('rg-X').innerHTML=st.done?'Arms '+p.join(', ')+' (<i class="nl i">illustrative</i>), '+runs+' runs of 10,000 pulls, seeded. Slopes are measured between 1,000 and 10,000 pulls. Greedy and fixed-ε exploration have linear regret (on this log axis a straight line in T curves upward); greedy loses most, from the runs where it locks onto a worse arm. UCB1 is logarithmic, but its constant (Auer et al.\'s 8/Δ) is large when gaps are small, so on close arms it can trail ε-greedy at 10,000 pulls and wins only over longer horizons. Thompson sampling sits <b>below</b> the bound line, which is not a contradiction: the bound is asymptotic and constrains the slope as T grows without limit; on two arms 0.6 and 0.5 the same engine\'s Thompson slope rises from about 3 to 4.2 per unit of ln T by a million pulls, towards the bound\'s 4.9 (README).':'Computing in your browser…'}
+  $('rg-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pre=b.dataset.p;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));start()});
+  $('rg-runs').addEventListener('change',e=>{runs=+e.target.value;start()});
+  const card=$('rg');if('IntersectionObserver' in window)new IntersectionObserver(es=>{if(es[es.length-1].isIntersecting&&!started)start()},{threshold:.1}).observe(card);else start();
+  RD.onResize(draw);RD.onRender(()=>{if(started)draw()});
+})();
+</script>
+<script>/* 26_js_gx.js */
+// ---- Reading: a sparse-reward gridworld, epsilon-greedy against a count bonus against optimistic starts (before/after animation) ----
+(function(){
+  const B=window.BX,G=B.GX,$=id=>document.getElementById(id),EP=500;
+  const NAME={eps:'ε-greedy Q-learning',cnt:'ε-greedy + count bonus β/√N(s)',opt:'Optimistic starts, Q₀ = 1, greedy'};
+  let mode='eps',seed=1,hist=null;const memo={};
+  function compute(){const k=mode+'|'+seed;hist=memo[k]||(memo[k]=B.gxRun(mode,seed,EP,true))}
+  function draw(i){const W=RD.width($('gx-P')),cs=Math.max(14,Math.min(46,Math.floor((W-4)/G.W))),gw=cs*G.W,gh=cs*G.H,ox=Math.max(0,Math.floor((W-gw)/2));
+    const h=i>0?hist[i-1]:null,Nn=h?h.N:new Float64Array(G.W*G.H);let mx=1;for(const v of Nn)if(v>mx)mx=v;let s='';
+    for(let y=0;y<G.H;y++)for(let x=0;x<G.W;x++){const v=Nn[y*G.W+x],p=v?Math.round(12+68*Math.log(1+v)/Math.log(1+mx)):0;
+      s+='<rect x="'+(ox+x*cs)+'" y="'+(y*cs)+'" width="'+(cs-1)+'" height="'+(cs-1)+'" rx="2" fill="'+(v?'color-mix(in srgb, var(--c1) '+p+'%, var(--bg))':'var(--soft)')+'" stroke="var(--line)"/>'}
+    const cx=c=>ox+(c%G.W)*cs+cs/2,cy=c=>Math.floor(c/G.W)*cs+cs/2;
+    const mark=(xy,lab,col)=>'<circle cx="'+(ox+xy[0]*cs+cs/2)+'" cy="'+(xy[1]*cs+cs/2)+'" r="'+(cs*0.36)+'" fill="'+col+'"/>'+RD.t(ox+xy[0]*cs+cs/2,xy[1]*cs+cs/2+4,lab,{a:'middle',fs:Math.max(9,Math.min(12,cs*0.3)),fill:'var(--bg)',w:600});
+    if(h){s+='<polyline fill="none" stroke="var(--c2)" stroke-width="2" stroke-linejoin="round" opacity=".9" points="'+h.path.map(c=>cx(c).toFixed(1)+','+cy(c).toFixed(1)).join(' ')+'"/>'}
+    s+=mark(G.start,'S','var(--ink)')+mark(G.small,'0.1','var(--c5)')+mark(G.big,'+1','var(--c3)');
+    $('gx-P').innerHTML=RD.svg(W,gh+2,s,'Gridworld visits');
+    let seen=0;for(const v of Nn)if(v)seen++;
+    $('gx-T').textContent=h?'Episode '+i+' of '+EP+': '+NAME[mode]+(h.end===2?' reached the +1 goal':h.end===1?' took the small 0.1 reward':' ran out of steps (60)'):NAME[mode]+': before the first episode';
+    let x;if(!h)x={eps:'Q starts at 0 everywhere. With ties broken at random the first episodes are random walks; whichever reward a walk hits first starts to pull the greedy policy towards it.',cnt:'The same agent, plus an intrinsic reward β/√N(s) for entering a state visited N times so far (β = 0.2). New states pay more than familiar ones, so the agent is drawn towards the edge of what it has seen.',opt:'Every Q starts at 1, the largest reward there is. Any action not yet tried looks as good as the best possible outcome, so a greedy agent tries them systematically: R-MAX\'s "optimism in the face of uncertainty" in its simplest tabular form.'}[mode];
+    else if(mode==='eps')x=h.nBig?'It found the +1 goal by chance in episode '+(h.first+1)+'. Whether that one discovery wins depends on how far the value has to propagate before the small reward\'s pull takes over.':'Hitting the +1 needs at least 13 steps in the right direction; a random walk that wanders 60 steps rarely gets there, while the 0.1 is three steps away. Exploration that is random at each step is shallow: '+seen+' of '+(G.W*G.H)+' cells visited so far.';
+    else if(mode==='cnt')x=h.nBig?'Far goal first reached in episode '+(h.first+1)+'; reached in '+h.nBig+' episodes so far. The bonus fades as 1/√N, so once the map is familiar the agent exploits the +1.':'The bonus pushes it into new cells: '+seen+' of '+(G.W*G.H)+' visited. Q starts at 0, so untried actions are not attractive in themselves; the bonus has to be collected and propagated back first, which is slower than optimism.';
+    else x=h.nBig?'Far goal first reached in episode '+(h.first+1)+'; reached in '+h.nBig+' episodes so far. Optimism decays only where the agent has been, so it sweeps the map before settling.':seen+' of '+(G.W*G.H)+' cells visited; every unexplored action still looks worth 1.';
+    $('gx-X').innerHTML=x;
+    $('gx-N').innerHTML=RD.stat('Episodes',String(i),'of '+EP)+RD.stat('Reached +1',h?String(h.nBig):'0',h&&h.first>=0?'first in episode '+(h.first+1):'not yet')+RD.stat('Cells visited',String(seen),'of '+(G.W*G.H))+RD.stat('Return this episode',h?(h.end===2?'1':h.end===1?'0.1':'0'):'none','extrinsic only')}
+  compute();
+  const an=RD.anim({card:'gx',ctl:'gx-C',n:EP+1,ms:90,draw,label:'Episode'});
+  $('gx-M').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));compute();an.redraw()});
+  $('gx-S').addEventListener('change',e=>{seed=+e.target.value;compute();an.redraw()});
+  // twenty seeds of each mode, computed once when the Reading tab first renders
+  let done=false;function summary(){if(done)return;done=true;const rows=['eps','cnt','opt'].map(m=>{const s=B.gxSummary(m,20,EP),f=s.firsts.filter(v=>v>=0).sort((a,b)=>a-b);
+      return '<tr><td>'+{eps:'ε-greedy',cnt:'+ count bonus',opt:'Optimistic starts'}[m]+'</td><td class="num">'+s.found+' of 20</td><td class="num">'+(f.length?f[Math.floor(f.length/2)]+1:'none')+'</td></tr>'}).join('');
+    $('gx-Y').innerHTML='<table class="rd-t"><thead><tr><th>Agent</th><th class="num">Seeds reaching +1 (500 episodes)</th><th class="num">Median first +1 episode</th></tr></thead><tbody>'+rows+'</tbody></table>'}
+  RD.onRender(summary);setTimeout(summary,50);
+  RD.onResize(()=>an.redraw());an.redraw();
+})();
+</script>
+<script>/* 31_js_tb.js */
+// ---- 10-armed testbed tab: Sutton and Barto Figures 2.2 to 2.6 run live, in slices, when the tab opens ----
+(function(){
+  const B=window.BX,$=id=>document.getElementById(id);
+  const C=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
+  const P2=e=>Math.pow(2,e),fr=e=>e<0?'1/'+Math.pow(2,-e):String(Math.pow(2,e));
+  const F={
+    f22:{steps:1000,lines:[{lab:'ε = 0 (greedy)',cfg:{kind:'eps',eps:0}},{lab:'ε = 0.01',cfg:{kind:'eps',eps:0.01}},{lab:'ε = 0.1',cfg:{kind:'eps',eps:0.1}}],
+      note:'Figure 2.2: ε-greedy with sample-average estimates starting at 0. Greedy rises fastest for a few steps, then levels off near 1 because in most tasks it never returns to the best arm. ε = 0.1 finds the best arm sooner; ε = 0.01 is slower but would pass it in the long run.'},
+    f23:{steps:1000,lines:[{lab:'Optimistic, greedy: Q₁ = 5, ε = 0',cfg:{kind:'eps',eps:0,q0:5,alpha:0.1}},{lab:'Realistic, ε-greedy: Q₁ = 0, ε = 0.1',cfg:{kind:'eps',eps:0.1,alpha:0.1}}],
+      note:'Figure 2.3: both use a constant step size α = 0.1. The optimistic agent is disappointed by every arm in turn, so it explores everything early (worse at first, the spikes of Exercise 2.6), then settles on the best arm more often than the ε-greedy agent, which keeps exploring forever.'},
+    f24:{steps:1000,lines:[{lab:'UCB, c = 2',cfg:{kind:'ucb',c:2}},{lab:'ε-greedy, ε = 0.1',cfg:{kind:'eps',eps:0.1}}],
+      note:'Figure 2.4: UCB tries each arm once (steps 1 to 10), then picks the largest upper bound. The spike at step 11 is Exercise 2.8: after one pull each, the arm with the best single reward has the highest bound, and it is often the best arm; on step 12 its bonus has shrunk and the others\' have grown.'},
+    f25:{steps:1000,off:4,lines:[{lab:'α = 0.1, with baseline',cfg:{kind:'grad',alpha:0.1,base:true,off:4}},{lab:'α = 0.4, with baseline',cfg:{kind:'grad',alpha:0.4,base:true,off:4}},{lab:'α = 0.1, without baseline',cfg:{kind:'grad',alpha:0.1,base:false,off:4}},{lab:'α = 0.4, without baseline',cfg:{kind:'grad',alpha:0.4,base:false,off:4}}],
+      note:'Figure 2.5: the true values are drawn around +4 instead of 0. With the baseline (the average reward so far, this reward included, as the book\'s footnote says) the shift changes nothing; without it every reward looks good, the chosen arm is always pushed up, and learning is much worse.'},
+    f26:{steps:1000,param:true,lines:[
+      {lab:'ε-greedy (ε)',ex:[-7,-6,-5,-4,-3,-2],mk:e=>({kind:'eps',eps:P2(e)})},
+      {lab:'gradient bandit (α)',ex:[-5,-4,-3,-2,-1,0,1],mk:e=>({kind:'grad',alpha:P2(e),base:true})},
+      {lab:'UCB (c)',ex:[-4,-3,-2,-1,0,1,2],mk:e=>({kind:'ucb',c:P2(e)})},
+      {lab:'greedy with optimistic Q₀, α = 0.1',ex:[-2,-1,0,1,2],mk:e=>({kind:'eps',eps:0,q0:P2(e),alpha:0.1})},
+      {lab:'Thompson sampling (no parameter; not in the book)',ex:[0],flat:true,mk:()=>({kind:'ts'})}],
+      note:'Figure 2.6: each point is the average reward over all 1000 steps (proportional to the area under a learning curve) at one parameter value, varied by factors of two. Every method has an inverted U: too little exploration and too much both cost reward. The parameter ranges follow the widely used reproduction of the book\'s figures (Zhang, ten_armed_testbed.py); Thompson sampling, added here, has no parameter and is drawn as a flat line.'},
+    fall:{steps:1000,lines:[{lab:'greedy',cfg:{kind:'eps',eps:0}},{lab:'ε-greedy, ε = 0.1',cfg:{kind:'eps',eps:0.1}},{lab:'optimistic greedy, Q₁ = 5, α = 0.1',cfg:{kind:'eps',eps:0,q0:5,alpha:0.1}},{lab:'UCB, c = 2',cfg:{kind:'ucb',c:2}},{lab:'gradient, α = 0.1, baseline',cfg:{kind:'grad',alpha:0.1,base:true}},{lab:'Thompson sampling',cfg:{kind:'ts'}}],
+      note:'Beyond the book: every method of the chapter at its book setting, plus Thompson sampling with the testbed\'s own prior (true values N(0, 1), reward noise variance 1, so its posterior is exact). Matching the prior to how tasks are generated is an advantage the other methods do not get: say so whenever Thompson wins on a testbed.'},
+    fns:{steps:10000,lines:[{lab:'sample averages, ε = 0.1',cfg:{kind:'eps',eps:0.1,walk:0.01}},{lab:'constant step α = 0.1, ε = 0.1',cfg:{kind:'eps',eps:0.1,alpha:0.1,walk:0.01}}],
+      note:'Exercise 2.5 (no published figure): all true values start equal and take independent random walks (a normal increment with standard deviation 0.01 each step), 10,000 steps. Sample averages weight a reward from step 1 as much as one from step 9,000, so they follow the moving best arm ever more slowly; a constant step size forgets old rewards at rate (1 − α) per pull and keeps up.'}
+  };
+  let cur='f22',runs=2000,cache={},job=0;
+  const el={fig:$('tb-fig'),runs:$('tb-runs'),prog:$('tb-prog'),stat:$('tb-stat'),p1:$('tb-p1'),p2:$('tb-p2'),h1:$('tb-h1'),h2:$('tb-h2'),leg:$('tb-leg'),repro:$('tb-repro'),note:$('tb-note'),w2:$('tb-w2')};
+  function units(f){if(f.param)return f.lines.map(L=>L.ex.map(e=>({L,e,cfg:L.mk(e)}))).flat();return f.lines.map(L=>({L,cfg:L.cfg}))}
+  function start(){const key=cur+'|'+runs;if(cache[key]&&cache[key].done){draw();return}
+    const f=F[cur],us=units(f),my=++job;
+    const st=cache[key]||(cache[key]={u:us.map(u=>Object.assign({},u,{acc:B.tbNew(f.steps)})),i:0,done:false});
+    const total=st.u.length*runs;let last=0;
+    function slice(){if(my!==job)return;const t0=performance.now();
+      while(st.i<total&&performance.now()-t0<28){const u=st.u[Math.floor(st.i/runs)],r=st.i%runs,n=Math.min(runs-r,20);B.tbBatch(u.cfg,r,r+n,f.steps,u.acc);st.i+=n}
+      el.prog.style.width=(100*st.i/total).toFixed(1)+'%';
+      el.stat.textContent=st.i<total?'Running: '+st.i.toLocaleString('en')+' of '+total.toLocaleString('en')+' task runs ('+f.steps.toLocaleString('en')+' steps each)':'Done: '+total.toLocaleString('en')+' task runs, '+(total*f.steps).toLocaleString('en')+' pulls, computed in your browser.';
+      if(st.i>=total)st.done=true;
+      if(st.done||performance.now()-last>400){last=performance.now();draw()}
+      if(!st.done)setTimeout(slice,0)}
+    slice()}
+  const bins=(a,n,k)=>{const out=[],xs=[];if(k<=1){for(let i=0;i<a.length;i++){out.push(a[i]/n);xs.push(i+1)}return {ys:out,xs}}
+    for(let i=0;i<a.length;i+=k){let s=0,m=0;for(let j=i;j<Math.min(a.length,i+k);j++){s+=a[j];m++}out.push(s/m/n);xs.push(i+m/2+0.5)}return {ys:out,xs}};
+  function draw(){const f=F[cur],st=cache[cur+'|'+runs];if(!st)return;el.note.innerHTML=f.note;
+    if(f.param){el.w2.hidden=true;el.h1.textContent='Average reward over the first 1000 steps against each method\'s parameter';
+      const ser=f.lines.map((L,j)=>{const us=st.u.filter(u=>u.L===L),ys=us.map(u=>u.acc.runs?u.acc.R.reduce((a,b)=>a+b,0)/u.acc.runs/f.steps:null);
+        if(L.flat)return {lab:L.lab,col:C[j],xs:[-7,2],ys:[ys[0],ys[0]],dash:'5 4',w:1.6};return {lab:L.lab,col:C[j],xs:L.ex,ys,dots:true,w:2}});
+      RD.chart(el.p1,ser,{x0:-7,x1:2,y0:1,y1:1.6,xt:[-7,-6,-5,-4,-3,-2,-1,0,1,2].map(e=>[e,fr(e)]),yt:[1,1.1,1.2,1.3,1.4,1.5,1.6].map(v=>[v,v.toFixed(1)]),xlab:'ε, α, c or Q₀ (log scale, factors of 2)',H:260,label:'Parameter study'});
+      RD.legend(el.leg,ser);
+      if(st.done){const best=ser.filter(s=>!s.dash).map(s=>{let i=0;s.ys.forEach((y,j)=>{if(y>s.ys[i])i=j});return s.lab.split(' (')[0]+' peaks at '+RD.n(s.ys[i],3)+' ('+fr(s.xs[i])+')'});
+        const top=ser.filter(s=>!s.dash).map(s=>Math.max(...s.ys)),w=top.indexOf(Math.max(...top));
+        el.repro.innerHTML='<b>Shape check, independently</b> (the book prints no values for this figure, and curves are not read off images): '+best.join('; ')+'. Highest of the four: <b>'+ser[w].lab.split(' (')[0]+'</b> (book: "Overall, on this problem, UCB seems to perform best"). Every curve is an inverted U. Thompson sampling: '+RD.n(ser[4].ys[0],3)+'.'}
+      else el.repro.textContent='Computing; the curves fill in as tasks finish.';return}
+    el.w2.hidden=false;const k=f.steps>2000?20:1;
+    const sR=st.u.map((u,j)=>Object.assign({lab:u.L.lab,col:C[j]},bins(u.acc.R,Math.max(1,u.acc.runs),k)));
+    const sO=st.u.map((u,j)=>Object.assign({lab:u.L.lab,col:C[j]},bins(u.acc.O,Math.max(1,u.acc.runs)/100,k)));
+    const off=f.off||0,xt=f.steps>2000?[[1,'1'],[2500,'2,500'],[5000,'5,000'],[7500,'7,500'],[10000,'10,000']]:[[1,'1'],[250,'250'],[500,'500'],[750,'750'],[1000,'1000']];
+    const maxq=st.u[0].acc.maxq/Math.max(1,st.u[0].acc.runs);
+    el.h1.textContent='Average reward';el.h2.textContent='% optimal action';
+    RD.chart(el.p1,sR,{x0:1,x1:f.steps,y0:off-0.1,y1:off+1.65,xt,yt:[0,0.5,1,1.5].map(v=>[off+v,String(off+v)]),xlab:'Steps',hl:f.walk||cur==='fns'?[]:[{y:maxq,lab:'best possible '+RD.n(maxq,2)}],label:'Average reward'});
+    RD.chart(el.p2,sO,{x0:1,x1:f.steps,y0:0,y1:100,xt,yt:[0,20,40,60,80,100].map(v=>[v,v+'%']),xlab:'Steps',label:'Percent optimal action'});
+    RD.legend(el.leg,sR);
+    if(!st.done){el.repro.textContent='Computing; the curves fill in as tasks finish.';return}
+    const fin=s=>s.ys[s.ys.length-1],mx=s=>Math.max(...s.ys),last100=u=>{let s=0;for(let i=f.steps-100;i<f.steps;i++)s+=u.acc.R[i];return s/100/u.acc.runs};
+    let h='';
+    if(cur==='f22')h='<b>Defaults reproduce the book\'s printed numbers, independently</b> (same testbed definition, our own random tasks): best possible, the mean of the largest true value over these '+runs.toLocaleString('en')+' tasks, '+RD.n(maxq,3)+' (book: "about 1.54"; the expected maximum of 10 standard normals is 1.539 by integration). Greedy\'s reward over the last 100 steps '+RD.n(last100(st.u[0]),2)+' (book: "only about 1"); greedy picks the best arm on '+RD.n(fin(sO[0]),1)+'% of tasks at step 1000 (book: "only approximately one-third"). ε = 0.1 peaks at '+RD.n(mx(sO[2]),1)+'% optimal (book: "never selected that action more than 91% of the time"; 91% = 1 − 0.1 + 0.1/10 is a ceiling by construction).';
+    else if(cur==='f23'){let x=-1;for(let i=50;i<f.steps;i++){if(st.u[0].acc.O[i]>st.u[1].acc.O[i]){x=i+1;break}}
+      let sp=0,spi=0;for(let i=0;i<40;i++)if(sO[0].ys[i]>sp){sp=sO[0].ys[i];spi=i+1}
+      h='<b>Shape check, independently</b> (the book prints no values): optimistic greedy ends at '+RD.n(fin(sO[0]),1)+'% optimal against '+RD.n(fin(sO[1]),1)+'% for realistic ε-greedy, and is ahead to stay from about step '+(x>0?x:'none')+' (book: "initially worse... eventually it performs better"). Its early spike peaks at step '+spi+' with '+RD.n(sp,1)+'% (Exercise 2.6).'}
+    else if(cur==='f24'){const r=sR[0].ys;h='<b>Shape check, independently</b>: UCB\'s average reward at steps 10, 11, 12 is '+[9,10,11].map(i=>RD.n(r[i],2)).join(', ')+': the step-11 spike of Exercise 2.8. Over the last 100 steps UCB averages '+RD.n(last100(st.u[0]),3)+' against '+RD.n(last100(st.u[1]),3)+' for ε-greedy (book: "UCB generally performs better than ε-greedy action selection, except in the first k steps").'}
+    else if(cur==='f25')h='<b>Shape check, independently</b>: % optimal at step 1000: '+sO.map(s=>s.lab+' '+RD.n(fin(s),1)+'%').join('; ')+'. With the baseline the +4 shift has no effect (the same curves as on a testbed centred at 0, up to noise); without it performance is "significantly degraded", as the book says.';
+    else if(cur==='fall')h='<b>Beyond the book</b> (labelled, not a published figure): average reward over all 1000 steps: '+st.u.map((u,j)=>u.L.lab+' '+RD.n(u.acc.R.reduce((a,b)=>a+b,0)/u.acc.runs/f.steps,3)).join('; ')+'.';
+    else if(cur==='fns'){const tail=u=>{let s=0;for(let i=f.steps-1000;i<f.steps;i++)s+=u.acc.O[i];return 100*s/1000/u.acc.runs};h='<b>Exercise, no published answer</b>: % optimal over the last 1,000 steps: sample averages '+RD.n(tail(st.u[0]),1)+'%, constant step '+RD.n(tail(st.u[1]),1)+'%.'}
+    el.repro.innerHTML=h}
+  el.fig.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur=b.dataset.f;[...el.fig.children].forEach(x=>x.classList.toggle('on',x===b));start()});
+  el.runs.addEventListener('change',()=>{runs=+el.runs.value;start()});
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-test']=window.TAB_RENDER['t-test']||[]).push(()=>{if(!cache[cur+'|'+runs])start();else draw()});
+  addEventListener('resize',()=>{const t=$('t-test');if(t&&!t.hidden)draw()});
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('rlband-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('rlband-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  show(start,false);
+})();
+</script>
+</div></body></html>
