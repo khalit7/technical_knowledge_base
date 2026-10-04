@@ -1,0 +1,112 @@
+Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c65c17b0d0d8143abd0e126338fb9dd as of 2026-09-24T15:45:35.105Z:
+<page url="https://app.notion.com/p/3c65c17b0d0d8143abd0e126338fb9dd">
+<ancestor-path>
+<parent-page url="https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a" title="Topic: benchmarks"/>
+<ancestor-2-page url="https://app.notion.com/p/3c65c17b0d0d81c7b646e548e65d9446" title="Technical knowledge base"/>
+<ancestor-3-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
+</ancestor-path>
+<properties>
+{"title":"Benchmark methodology: how benchmarks are used, misused, and die"}
+</properties>
+<iconMetadata>null</iconMetadata>
+<content>
+⏱ 9 min read · +3h resources
+## Best resources
+- [IBM: What are LLM benchmarks?](https://www.ibm.com/think/topics/llm-benchmarks) (\~12 min): the primer Khalid's original notes came from
+- [The Leaderboard Illusion (2025)](https://arxiv.org/abs/2504.20879) (45 min) and [LMArena's response](https://arena.ai/blog/our-response/) (\~10 min); [Simon Willison's summary](https://simonwillison.net/2025/Apr/30/criticism-of-the-chatbot-arena/) (\~8 min)
+- [A Careful Examination of LLM Benchmark Contamination (GSM1k, 2024)](https://arxiv.org/abs/2405.00332) (45 min)
+- [Adding Error Bars to Evals (Anthropic, 2024)](https://www.anthropic.com/research/statistical-approach-to-model-evals) (\~20 min)
+- [BetterBench (2024)](https://betterbench.stanford.edu/) (\~15 min): assesses benchmarks themselves against design criteria
+- [Berkeley RDI on gamed agent benchmarks (2026)](https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/) (\~25 min)
+## The basic protocol (from the notes, still the right skeleton)
+1. **Sample data**: the benchmark ships the dataset (and ideally a canonical prompt).
+2. **Testing**: zero-shot or few-shot, plus chain-of-thought (CoT) on/off, tools on/off, reasoning-effort setting, agent scaffold.
+3. **Scoring**: a defined metric: accuracy, precision/recall/F1, exact match, pass@k, ROUGE/BLEU (legacy generation), perplexity (legacy LM quality), Elo (preference), judge score, task success rate, pass\^k (reliability).
+Every one of those knobs changes the number. A benchmark result is meaningless without
+the protocol tuple: (dataset version, shots, CoT, tools, sampling params, extraction logic, scaffold, judge). Harness details live in <mention-page url="https://app.notion.com/p/3c65c17b0d0d81ea9cd5eb65795ff5c9"/>.
+## Few-shot vs zero-shot, and protocol drift
+- Base-model era: few-shot (MMLU 5-shot) taught the format. Instruct era: zero-shot CoT
+	is standard; few-shot can even hurt reasoning models (o1-class models were explicitly
+	evaluated 0-shot; OpenAI noted few-shot prompts degraded o1 on GPQA).
+- Answer extraction is a silent killer: regex-parsing "The answer is (X)" vs
+	logprob-over-options gives different MMLU scores for the same model. Harnesses
+	(lm-eval-harness vs HELM vs vendor) legitimately disagree by points.
+- Reasoning models add: token budget and effort level (a model at "high effort" is a
+	different system), plus tools (HLE with vs without search differs by \~10-20 points).
+## Sampling variance and error bars
+- Generative evals at temperature \> 0 need repeated runs: single-run pass@1 on a
+	30-question AIME has a standard error of several points; a 2-point SWE-bench delta on
+	500 tasks is within noise. Anthropic's error-bar work: treat questions as sampled from
+	a population, report confidence intervals (CIs) based on the central limit theorem (CLT), use paired tests when comparing two models on the
+	same items (paired analysis kills much of the variance).
+- Common inflation tricks: cherry-picking best-of-N runs, maj@k/consensus reported next
+	to competitors' pass@1, "with tools" next to "without". Read the footnotes.
+## Contamination: detection and defenses
+Detection heuristics:
+- N-gram / substring overlap between benchmark and pretraining corpus (weak vs
+	paraphrase).
+- Perplexity or completion tests: model completes a benchmark item verbatim from a
+	prefix.
+- Fresh-parallel-set rebuilds: GSM1k (new GSM8K-alike) showed up to 13% drops for some
+	model families, showing memorization; GSM-Symbolic template perturbations same story.
+- Temporal splits: performance cliff on data created after the training cutoff
+	(SWE-rebench found models score much better on pre-cutoff repos).
+Defenses, ranked roughly by strength. Above everything else now sits enclave evaluation: the lab's weights and the evaluator's benchmark prompts are loaded into the same hardware-encrypted enclave and only scores come out, so the lab cannot put the questions in a training set and the evaluator never holds the model, which makes non-contamination a property of the execution environment rather than of a contract. It was piloted in Aug 2026 on one small model, so treat it as a direction rather than a defence you can currently buy; mechanism and caveats in <mention-page url="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546"/>. Below it, in order: fully private sets with an evaluation API
+(FrontierMath, HLE private split, SWE-bench Pro commercial split) \> rolling live data
+pinned to dates (LiveCodeBench, MathArena, SWE-rebench) \> canary strings (BIG-bench
+GUIDs, respected only by cooperating labs) \> perturbation/templating \> trust.
+## The saturation lifecycle (Khalid's note, formalized)
+Benchmarks have a limited lifespan: as models improve, everyone scores highly and the
+benchmark stops discriminating; or models train on it (deliberately or via web scrape)
+and the score decouples from capability. Typical arc:
+1. **Launch**: frontier scores low (MMLU 2020: \~32%; ARC-AGI-2 2025: \~4%).
+2. **Discriminative years**: the useful period, historically 2-4 years, now often \<18
+	months (ARC-AGI-2 went \~4% to \~85%+ in about a year; Terminal-Bench 1.0 lasted months). The sharpest data point so far: Terminal-Bench-Science 0.1, built in Aug 2026 to sit far below saturation (Claude Opus 5 at 30.0%), stood at 52.6% for Claude Fable 5.1 one week later, a routine point release removing 22 points of headroom in seven days. Stage 5 running in public: Artificial Analysis Intelligence Index v4.2 (Sep 2026) dropped GPQA Diamond as saturated, replaced it with private-set evaluations (AA-Briefcase, GDP.pdf) and raised private held-out sets to 40% of the index weight ([Artificial Analysis](https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-2) (15 min)).
+3. **Saturation**: top models cluster within noise of each other and of the errata
+	ceiling (MMLU \~92%, SWE-bench Verified \~97%, GPQA Diamond \~96%).
+4. **Zombie phase**: still cited for continuity and marketing; deltas are meaningless.
+5. **Replacement**: a harder sibling (MMLU-\>MMLU-Pro-\>GPQA-\>HLE; SWE-bench-\>Verified-\>
+	Pro; ARC 1-\>2-\>3) or a design change (static -\> live/rolling, static -\> interactive).
+Implication for eval engineering: pin benchmark versions, expect to rotate the suite
+yearly, and keep a private regression set that never touches the internet.
+## Goodhart effects and benchmark gaming
+"When a measure becomes a target, it ceases to be a good measure." Concrete forms:
+- **Training on the test** (or its paraphrases/distillations); the boundary with
+	"training on similar data" is genuinely blurry.
+- **Overfitting the format**: models tuned for multiple-choice question (MCQ) letter-answering or arena-pleasing
+	verbosity; length and style bias in judge-based evals (AlpacaEval needed
+	length-controlled variants).
+- **Scaffold shopping**: report the best of many agent harnesses, compare to rivals'
+	default harness. The extreme cases are ARC-AGI-3, where the same model scores 62.7% and 99.9% depending on the harness ([ARC Prize](https://arcprize.org/blog/astra) (15 min)), and Hyper-tau-bench, where the same agent passes 23.9% of held-out tasks alone and 82.2% paired with an engineer who knows the task ([Sierra](https://sierra.ai/blog/hyper-t-bench-evaluating-agents-that-build-agents) (20 min)). The lesson generalises: once a model reasons partly in latent state, provider-neutral and best-achievable evaluation are permanently different questions. Both are worked through in <mention-page url="https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a">Topic: benchmarks</mention-page>; harness mechanics in <mention-page url="https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb"/>.
+- **Reward hacking inside the eval**: agents tamper with checkers or fetch gold answers
+	(Berkeley RDI 2026 broke 8 agent benchmarks this way; METR saw o3 hack scoring
+	organically in \~30% of some runs). Evaluator isolation is now a design requirement.
+- **Selective reporting**: private variants tested in the arena, only the winner
+	released (see below).
+## Private vs public splits
+Public test sets die by leakage; fully private sets are unauditable and concentrate
+trust in one org (FrontierMath's OpenAI-funding disclosure is the cautionary tale).
+Best current practice is a hybrid: public dev + private held-out (HLE, ARC-AGI
+semi-private, SWE-bench Pro), with the private split used to measure public-split
+overfitting, plus independent rerunners (Epoch, HAL, Artificial Analysis) as auditors.
+Private in-house benchmarks (a domain suite alongside general-capability and safety axes, for example) apply the same idea inside a company: they stay discriminative precisely because they are not in anyone's training data.
+## Elo arenas and their critiques
+LMArena (ex Chatbot Arena/LMSYS): anonymous pairwise battles, human votes, Bradley-Terry (Elo-style) ratings; Arena-Hard distills hard arena prompts into an offline judge-graded proxy. Live, contamination-free by construction, and measures what users prefer. Critiques:
+- **The Leaderboard Illusion (2025)**: undisclosed private testing (Meta tested 27
+	Llama-4 variants pre-release, best-of-N retracted at will), unequal sampling rates
+	favoring big proprietary labs, silent deprecation of open models, and arena data
+	access advantages (arena-vote data measurably trains models to win the arena).
+	LMArena disputed parts (notably the open-model data-share calculation) but tightened
+	policy on variant testing.
+- **Preference is not capability**: votes reward confident, well-formatted, sycophantic answers; style effects rival capability effects (style-controlled ratings reorder the board). The 2025 sycophancy incident (GPT-4o rollback) showed optimization pressure toward arena-pleasing behavior has product consequences.
+- Practical read: use arenas as one noisy signal of user preference, category-filtered
+	(coding, hard prompts, style control on), never as the capability ranking.
+## Misuse checklist (for reading model cards)
+- Same protocol for all models compared? (shots, tools, maj@k, effort, scaffold)
+- Error bars or at least n-per-benchmark stated?
+- Benchmark version pinned? (MMLU vs MMLU-Pro; Terminal-Bench 2.x vs 4.0, which are not comparable; which AIME year)
+- Saturated benchmark deltas being narrated as meaningful?
+- Any number you cannot reproduce with a public harness deserves a discount.
+Cross-links: harnesses, judge design, regression gates, and contamination tooling in <mention-page url="https://app.notion.com/p/3c65c17b0d0d8181b351e1b8fc6a1546"/>; reward hacking in <mention-page url="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974"/>.
+</content>
+</page>
