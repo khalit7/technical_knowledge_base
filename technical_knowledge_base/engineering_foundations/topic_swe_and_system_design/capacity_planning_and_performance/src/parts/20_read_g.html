@@ -1,0 +1,72 @@
+<section id="s-prod">
+<h2>What pros run in production today</h2>
+<div class="tw"><table>
+<thead><tr><th>Concern</th><th>Typical choice (2026)</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Latency targets</td><td>p99 (and p99.9 for fan-out dependencies) per endpoint, from histograms, with error and rejection rates next to them</td><td>The tail is the experience; averages cannot be merged into percentiles</td></tr>
+<tr><td>Utilisation target</td><td>About 60 to 80% at peak for request-serving tiers, lower for small pools, near 100% for batch</td><td>The 1 / (1 &minus; &rho;) curve plus failures and peaks inside the window</td></tr>
+<tr><td>Edge balancing</td><td>A managed L4 or L7 balancer (AWS ALB or NLB, Google Cloud Load Balancing) across zones</td><td>Someone else runs the redundancy</td></tr>
+<tr><td>Internal balancing</td><td>Envoy (service mesh sidecar or gateway) with <code>LEAST_REQUEST</code>, or gRPC client-side balancing; HAProxy <code>random(2)</code> or <code>leastconn</code>; nginx <code>random two least_conn</code></td><td>Per-request, load-aware, two choices by default</td></tr>
+<tr><td>Affinity</td><td>Consistent hashing (ring hash, Maglev) with bounded loads, only where a warm per-server state pays</td><td>Moves 1/N of keys on a change; bounded loads stop hot keys</td></tr>
+<tr><td>Shared cache</td><td>Redis or Valkey with <code>maxmemory</code> and <code>allkeys-lru</code> (or LFU), cache-aside, versioned keys, TTLs with jitter</td><td>Simple, fast, survives forgotten invalidations</td></tr>
+<tr><td>Stampede protection</td><td>Coalescing in the loader (single-flight), stale-while-revalidate at proxies and CDNs, XFetch for very hot keys</td><td>A popular expiry must cost one rebuild, not sixty</td></tr>
+<tr><td>Database connections</td><td>Small per-process pools (SQLAlchemy, psycopg_pool) behind PgBouncer in transaction mode or a managed proxy</td><td>Postgres is process-per-connection with a default cap of 100</td></tr>
+<tr><td>Python services</td><td>Uvicorn or Gunicorn with about one worker process per core, async endpoints for I/O, CPU work in processes or native code</td><td>The GIL; free-threading is supported but not default</td></tr>
+<tr><td>Profiling</td><td>Continuous sampling in production (py-spy, or a continuous profiler), plus tracing for waits</td><td>CPU profiles do not show waiting</td></tr>
+<tr><td>Load testing</td><td>k6 arrival-rate executors (or wrk2) in staging and before launches; step tests to find the knee; soak tests for leaks</td><td>Open model, no coordinated omission</td></tr>
+<tr><td>Capacity</td><td>Forecast peaks (organic plus events) beyond the lead time; N+1 or N+2 and zone-loss headroom; autoscaling with floors and ceilings</td><td>The SRE book's three requirements</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Reporting the average latency</summary><div class="b">It hides the tail that users feel and cannot be combined across servers. Report p50, p99 and p99.9 from merged histograms.</div></details>
+<details class="mist"><summary>Planning to run at 90% to "use what we pay for"</summary><div class="b">At 90% a single queue's wait is 9 service times and the p99 is 46; one failure or a 10% burst pushes it past 100%. Experiment 1's runs aimed at 90% actually ran at 101% because the real service time was 12% longer than assumed.</div></details>
+<details class="mist"><summary>Load testing closed-loop and quoting the p99</summary><div class="b">The tool stops sending when the server stalls, so the stall is missing from the data: Experiment 2's closed-loop p99 was 89 ms against 1,400 ms for the same server measured open-loop. Use arrival-rate executors and measure from the scheduled time.</div></details>
+<details class="mist"><summary>Load testing one URL with one key</summary><div class="b">100% cache hits measures the cache. Use production's key spread and endpoint mix.</div></details>
+<details class="mist"><summary>Random or round-robin balancing in front of uneven work</summary><div class="b">Both keep sending a slow server its full share. In Experiment 3, with one server three times slower, random and round robin had p99s of 28 seconds (the slow server's queue grew all run); two choices kept the p99 at 280 ms.</div></details>
+<details class="mist"><summary>Treating the cache as optional when the database is sized for the misses</summary><div class="b">A cold cache sends ten times the reads to a database sized for 10% of them. Warm caches before traffic, keep spare cache capacity (Facebook's Gutter), and protect hot keys from stampedes.</div></details>
+<details class="mist"><summary>Updating the cache on write instead of deleting it</summary><div class="b">Concurrent writers can leave the older value cached for the full TTL. Delete after the database commit; keep a TTL as the backstop.</div></details>
+<details class="mist"><summary>Every process opening its own big pool</summary><div class="b">Pools multiply across processes and servers; the database's 100 connections run out. Size from the database's side; add PgBouncer.</div></details>
+<details class="mist"><summary>Holding a database connection across a model call</summary><div class="b">The hold time becomes seconds and Little's law asks for thousands of connections. Release before calling out.</div></details>
+<details class="mist"><summary>Adding threads to speed up CPU-bound Python</summary><div class="b">Under the GIL four threads took as long as running the jobs one after another (Experiment 4). Use processes, native code, or the free-threaded build with its dependencies checked.</div></details>
+<details class="mist"><summary>Profiling only the CPU</summary><div class="b">A request waiting 400 ms on the network shows nothing in a CPU flame graph. Use wall-clock profiling or tracing for waits.</div></details>
+<details class="mist"><summary>Sizing for the daily average, or for a per-hour peak when per-second bursts matter</summary><div class="b">Size for the busy hour with headroom for bursts; plan known events separately. Real peak factors range from 1.2 (global Wikipedia, hourly) to 25 (Twitter, per second).</div></details>
+</section>
+
+<section id="s-gl">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#g-cache">Cache</a></b>: a faster copy of an answer; hit rate is the share of reads it serves.</div>
+<div><b><a href="#g-capplan">Capacity planning</a></b>: forecast, peak factor, headroom and spares turned into hardware and dates.</div>
+<div><b><a href="#g-cdn">CDN</a></b>: a cache run in many cities near users.</div>
+<div><b><a href="#g-closed">Closed workload</a></b>: a fixed set of users, each waiting for an answer before sending again.</div>
+<div><b><a href="#g-co">Coordinated omission</a></b>: a load tester missing the requests it failed to send during a stall.</div>
+<div><b><a href="#g-coalesce">Coalescing</a></b>: many identical requests in flight served by one backend call.</div>
+<div><b><a href="#g-chash">Consistent hashing</a></b>: key-to-server mapping that moves about 1/N of keys when a server changes.</div>
+<div><b><a href="#g-conn">Connection</a></b> and <b><a href="#g-pool">pool</a></b>: an open, logged-in channel to a database; a set kept open and lent out.</div>
+<div><b><a href="#g-cv">Coefficient of variation</a></b>: standard deviation divided by mean; 0 constant, 1 exponential.</div>
+<div><b><a href="#g-flame">Flame graph</a></b>: sampled call stacks; width is time share, not a timeline.</div>
+<div><b><a href="#g-gil">GIL</a></b>: CPython's lock letting one thread run Python code at a time.</div>
+<div><b><a href="#g-hedge">Hedged request</a></b>: a backup copy sent after a delay; the first answer wins.</div>
+<div><b><a href="#g-hit">Hit rate</a></b>: share of reads answered by the cache; backend load is (1 &minus; h) &times; reads.</div>
+<div><b><a href="#g-knee">Knee</a></b>: where latency starts to rise steeply with load.</div>
+<div><b><a href="#g-l4">L4</a></b> / <b><a href="#g-l7">L7</a></b> balancer: picks per connection without reading HTTP / reads each HTTP request.</div>
+<div><b><a href="#g-lat">Latency</a></b>: time for one request, sent to answered.</div>
+<div><b><a href="#g-lb">Load balancer</a></b>: picks a server for each piece of work.</div>
+<div><b><a href="#g-loadtest">Load test</a></b>: synthetic traffic to learn behaviour under load.</div>
+<div><b><a href="#g-mm1">M/M/1</a></b>, <b><a href="#g-mmc">M/M/c</a></b>: random arrivals, random (exponential) service, 1 or c servers sharing one queue.</div>
+<div><b><a href="#g-open">Open workload</a></b>: requests arrive at a rate regardless of answers.</div>
+<div><b><a href="#g-p2c">Power of two choices</a></b>: sample two servers, use the less loaded.</div>
+<div><b><a href="#g-peak">Peak factor</a></b>: busiest period's rate over the average.</div>
+<div><b><a href="#g-pct">Percentile</a></b>: the value a given share of requests beat (p50, p99).</div>
+<div><b><a href="#g-poisson">Poisson process</a></b>: independent random arrivals at a steady average rate.</div>
+<div><b><a href="#g-profiler">Profiler</a></b>: measures where a program spends its time; sampling or tracing.</div>
+<div><b><a href="#g-queue">Queue</a></b>: work waiting for a busy resource.</div>
+<div><b><a href="#g-sat">Saturation</a></b>: work queued because a resource is fully busy.</div>
+<div><b><a href="#g-stampede">Stampede</a></b>: many requests rebuilding the same expired cache entry at once.</div>
+<div><b><a href="#g-tail">Tail</a></b>: the slow end of the latency distribution.</div>
+<div><b><a href="#g-thr">Throughput</a></b>: requests finished per second.</div>
+<div><b><a href="#g-util">Utilisation</a></b> (&rho;): share of time a resource is busy.</div>
+</div>
+</section>
