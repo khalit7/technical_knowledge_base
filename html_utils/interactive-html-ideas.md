@@ -2008,3 +2008,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | B10 | Reading s-ver | Stripe-style dated versions: one core response walked back through change modules for three pinned dates | newest vs older pins | The mechanism of the "gold standard" in one picture | illustrative versions, labelled |
 | T1 | Wire lab tab | All 20 captured exchanges grouped by topic, every line explained, the equivalent curl command | n/a | A reference the reader returns to; too big for the Reading tab | captured |
 | T2 | Breaking or not? tab | 15 proposed changes to the chat API; answer, then see the rule and source | n/a | Compatibility is judgement; a quiz trains it faster than a list | AIP-180, Anthropic, Stripe, Zalando |
+
+### ML system design: LLM and ML services (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/ml_system_design/src/viz_ideas.md`.
+
+| Rank | Idea | Score (teach / data / effort) | Placement | Status |
+|---|---|---|---|---|
+| 1 | Same burst, four autoscaling policies (CPU, requests/s, queue + KV, warm pool): capacity and TTFT over 40 minutes, HPA defaults, summary table | 5 / 4 (published throughput, HPA defaults; traffic and cold start illustrative) / medium | Reading s8, inline animation | built (23_js_rd_scale.js, model 22_js_scale_model.js) |
+| 2 | Gateway lab: traffic mix, tiers, router accuracy, exact/semantic/prefix caches, provider outage and fallback; cost per 1k, monthly, TTFT, full time, errors, wrong answers; where requests and money go | 5 / 4 (real prices from the KB snapshot; latencies illustrative) / medium | own tab t-gw | built |
+| 3 | One conversation, two prompt layouts: prefix-cache hits turn by turn with Sonnet 5.5 prices | 4 / 5 / low | Reading s9, inline animation | built |
+| 4 | The model layer opened up: architecture boxes numbered by section | 3 / n.a. / low (drawer reused from the parent root) | One screen | built |
+| 5 | Measured LiteLLM fallback (rate limit then fallback 2.9 s; context window 0.02 s) | 4 / 5 (real library run, mocked providers) / low | Reading s3, table | built |
+| 6 | Token bucket by requests vs by tokens, two tenants | 3 / 3 / low | Reading s5 | rejected: the wall box's arithmetic (84,000 vs 3 million tokens) says it; the parent root already explains the bucket |
+| 7 | Request timeline (queue, prefill, decode) as an animated Gantt | 3 / 3 / medium | Reading s2 | rejected: the parent root's continuous-batching animation and the PagedAttention page cover the engine side; a flow strip is enough |
+| 8 | Degradation ladder simulator | 3 / 2 (no published data on rung effects) / medium | s11 | rejected: would be invented numbers; the lab's outage presets carry the fallback rung |
+| 9 | Feature store point-in-time join animation | 3 / 3 / medium | s13 | rejected for now: classic ML is one section here; a candidate if Khalid wants a classic-ML child |
