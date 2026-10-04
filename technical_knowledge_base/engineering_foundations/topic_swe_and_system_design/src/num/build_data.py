@@ -218,7 +218,7 @@ BUDGET = [
       after=[seg('Request travels London to Virginia', HALF_USER, 'net', 'atlantic'),
              seg('Your code runs', 1, 'app', ill=True),
              seg('Save the message (commit)', TX_CLOUD, 'db', 'pgtx'),
-             seg('Put two jobs on a queue', KAFKA_ACK, 'q', 'kafka', note='Kafka p99 of 5 ms at 200 MB/s with three replicas (Confluent 2020): the queue has the job durably, so you can reply.'),
+             seg('Put two jobs on a queue', KAFKA_ACK, 'q', 'kafka', note='Kafka p99 of 5 ms at 200 MB/s with three replicas (Confluent 2020, fsync off, Kafka\'s default): the job is held on three brokers, so you can reply.'),
              seg('Reply travels to London', HALF_USER, 'net', 'atlantic'),
              seg('Worker: generate the title', TITLE, 'gpu', 'decode', lane='bg', note='A background worker takes the job from the queue after the user already has the reply.'),
              seg('Worker: send analytics event', AZ['eastus_westus'], 'net', 'uscross', lane='bg')],
@@ -255,8 +255,8 @@ THROUGHPUT = dict(
  redis=[dict(lab='Redis SET, 50 clients, no pipelining (docs example; machine not stated)', v=180180, unit='requests/s', src='redis_bench'),
         dict(lab='Redis GET, pipelining 16 commands, MacBook Air (docs example)', v=1811594, unit='requests/s', src='redis_bench', note='Pipelining sends many commands per round trip.'),
         dict(lab='Valkey 8.0 SET, 512 B values, 8 I/O threads, AWS c7g.4xlarge (16 vCPU)', v=1190000, unit='requests/s', src='valkey8', note='The project\'s own benchmark.')],
- kafka=[dict(lab='Kafka peak throughput, 3 brokers on i3en.2xlarge (8 vCPU, 2 NVMe), 3 replicas', v=605, unit='MB/s', src='kafka2020'),
-        dict(lab='Kafka p99 latency at 200 MB/s (producer to consumer)', v=5, unit='ms', src='kafka2020')],
+ kafka=[dict(lab='Kafka peak throughput, 3 brokers on i3en.2xlarge (8 vCPU, 2 NVMe), 3 replicas', v=605, unit='MB/s', src='kafka2020', note='Run with fsync off, Kafka\'s default: the broker acknowledges once the replicas have the write in memory and relies on replication, not a disk flush, for durability. Confluent also ran fsync on every message and reported comparable throughput at larger batch sizes.'),
+        dict(lab='Kafka p99 latency at 200 MB/s (producer to consumer)', v=5, unit='ms', src='kafka2020', note='Also with fsync off (Kafka\'s default); with a flush per message Confluent reported latency still below Pulsar\'s up to about p99.9.')],
  gpu=[dict(lab='Llama 3.3 70B FP8, 2 x H100 (tensor parallel 2), 1,000 in / 1,000 out tokens per request', per=2209, gpus=2, src='trtllm_repo',
            note='Older reading: 4,181.06 tokens/s total across 2 GPUs (2,091 per GPU), docs v0.21.'),
       dict(lab='Llama 3.3 70B FP8, 2 x H200 (tensor parallel 2), 1,000 / 1,000', per=2587, gpus=2, src='trtllm_repo',
@@ -284,7 +284,7 @@ API_PRICE = dict(src='openrouter', model='Llama 3.3 70B Instruct', out_lo=0.32, 
 # ---------------------------------------------------------------- estimate calculator: defaults and drills
 HOURS_MONTH = 730
 DEFAULT = dict(dau=1_000_000, per=30, peak=2, wfrac=0.1, wbytes=1800, rep=3, resp=20, srv=500, srvp=0.2016,
-               msgs=10, intok=1000, outtok=300, gtok=2209, derate=0.5, gpup=3.99)
+               msgs=10, intok=1000, outtok=400, gtok=2209, derate=0.5, gpup=3.99)
 DRILLS = [
  dict(id='tw', n='Tweets per second (Twitter, 2013)', set=dict(dau=500_000_000, per=1, peak=25, wfrac=0, msgs=0, resp=0, srv=0),
       ask='Twitter said it takes in "more than 500 million Tweets a day". How many per second on average, and what peak should it plan for?',
@@ -294,8 +294,8 @@ DRILLS = [
       ask='Stack Overflow\'s load balancers saw 209,420,973 HTTP requests on 2016-02-09, and sent 1.24 TB of HTTP traffic. How many requests per second, how much bandwidth, and how many web servers?',
       check=dict(src='so2016', text='Stack Overflow ran this on 9 primary web servers. 1.24 TB / 209.4 M requests = 5.92 KB average response; the peak factor 2 and 539 requests/s per server are assumptions chosen so that 9 servers come out.',
                  servers=9, by_construction='Response size and servers per peak are back-solved from the post, so those match by construction; the per-second rate is plain arithmetic.')),
- dict(id='chat', n='GPUs for a chat feature (1 M daily users)', set=dict(dau=1_000_000, per=30, peak=2, msgs=10, intok=1000, outtok=300, gtok=2209, derate=0.5, gpup=3.99),
-      ask='A chat assistant with 1 million daily users, 10 messages each (10 million a day, the Reading\'s estimate), 300 output tokens per reply, served with Llama 3.3 70B on rented H100s. How many GPUs, and what do they cost?',
+ dict(id='chat', n='GPUs for a chat feature (1 M daily users)', set=dict(dau=1_000_000, per=30, peak=2, msgs=10, intok=1000, outtok=400, gtok=2209, derate=0.5, gpup=3.99),
+      ask='A chat assistant with 1 million daily users, 10 messages each (10 million a day, the Reading\'s estimate), 1,000 input and 400 output tokens per reply (the Reading\'s and the Scale simulator\'s request shape), served with Llama 3.3 70B on rented H100s. How many GPUs, and what do they cost?',
       check=dict(src='openrouter', text='Compare the cost per million output tokens with what API providers charge for the same open model: $0.32 to $2.25 per million output tokens on OpenRouter.',
                  by_construction='GPU throughput is NVIDIA\'s maximum-throughput figure per GPU (vendor, repo commit 8a9c66c); the 50% derate for interactive speed is illustrative; the peak factor 2 matches the Reading and the Scale simulator (a daily peak about twice the average, an assumption, not a measurement).')),
  dict(id='store', n='Storage for chat history', set=dict(dau=1_000_000, per=10, wfrac=1, wbytes=1800, rep=3, msgs=0, resp=0, srv=0),

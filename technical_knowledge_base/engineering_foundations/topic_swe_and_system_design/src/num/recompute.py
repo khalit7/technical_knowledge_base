@@ -58,6 +58,8 @@ row = next(g for g in D['thr']['gpu'] if g['lab'].startswith('Llama 3.3 70B FP8,
 close(row['per'], 2209, what='70B FP8 H100 per GPU'); close(D['defaults']['gtok'], row['per'], what='calculator default = per-GPU figure')
 close(next(d for d in D['drills'] if d['id'] == 'chat')['set']['gtok'], row['per'], what='chat drill = per-GPU figure')
 close(D['defaults']['peak'], 2, what='peak factor 2 (Reading and simulator)')
+close(D['defaults']['outtok'], 400, what='reply length 400 output tokens (Reading and simulator)'); close(D['defaults']['intok'], 1000, what='prompt 1,000 input tokens (Reading and simulator)')
+close(next(d for d in D['drills'] if d['id'] == 'chat')['set']['outtok'], 400, what='chat drill reply length 400')
 print(f"  70B FP8 2xH100: {row['per']}/GPU (8a9c66c); docs v0.21 total 4,181.06 = {4181.06/2:.0f}/GPU; always-busy cost at $3.99 = ${3.99/(row['per']*3600)*1e6:.2f}/M")
 
 # availability
