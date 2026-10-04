@@ -1,0 +1,9 @@
+# Source of the Agent and trajectory evaluation page
+
+Build: `python3 mk_inputs.py <scratch>` (reads the downloaded τ²-bench trajectory files and the re-grading outputs; writes `inputs/`), `python3 mk_data.py` (writes `parts/21_js_data.js`), then `sh build.sh` (writes `../index.html`).
+Re-grading (done once, 2026-10-04): clone github.com/sierra-research/tau2-bench at 5bfa7e3, `uv sync`, then from its folder `uv run --with websockets python ../regrade.py ../gpt52_airline.json` (and telecom), `../null_env.py ../gpt52_retail.json`, `../dbdiff.py <file> 29:1 0:3 12:1 31:1` (and the Opus file 29:2). The trajectory files (13 to 20 MB each) stay out of the repository; URLs in `mk_inputs.py`.
+Checks: `python3 recompute.py` (writes `recompute.json`), then from the repo root `node .../src/checks/check_ui.mjs` (every control at 390 dark and 920 light; compares the page's computations and the 160 matcher verdicts with `recompute.json`; OK, 948 actions on 2026-10-04) and `sh html_utils/checkpage.sh <folder>`.
+
+Shape: Part B of `html_utils/methods/topic_pages.md` (child page). Reading follows the subject's logic: one screen (three things to grade), the animation, outcome, actions not messages, steps, judges, reliability, hacking, cost, environments, tracing, mistakes, checklist. Departure: public agent benchmarks are linked, not covered (owned by Topic: benchmarks' Agentic page); the real data is the same τ²-bench release that page uses, but here re-graded (three graders, do-nothing agent, path matchers) rather than for pass^k.
+
+Parts: `01_head`, `02_css`, `10_header`, `20_read_a` to `_e`, `30_tab_grade`, `32_tab_match`, `39_tab_more`; JS `21_js_data` (generated), `22_js_calc` (all derived numbers, window.ATJ_OUT), `23_js_anim`, `24_js_inline`, `31_js_grade`, `33_js_match`, `99_js_tabs`.
