@@ -1,3 +1,94 @@
 <div class="tab" id="t-sim" role="tabpanel" hidden>
-<p>Being built.</p>
+<style>
+#t-sim .sm-top{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0}
+#t-sim .sm-users{flex:1 1 260px;min-width:0}
+#t-sim .sm-users label{font-size:13px;display:block}
+#t-sim .sm-users b{font-size:20px;font-variant-numeric:tabular-nums}
+#t-sim .sm-cap{font-size:13px;color:var(--mute);margin:4px 0 8px;min-height:2.6em}
+#t-sim .sm-dia{border:1px solid var(--line);border-radius:10px;background:var(--soft);margin:8px 0;overflow:hidden;position:relative}
+#t-sim .sm-dia svg text{font-size:11.5px}
+#t-sim .sm-dia .bx{fill:var(--bg);stroke:var(--line);stroke-width:1.2}
+#t-sim .sm-viewlab{position:absolute;top:6px;left:10px;font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+#t-sim .sm-next{border-left:3px solid var(--acc);background:var(--soft);padding:8px 12px;border-radius:0 6px 6px 0;margin:10px 0;font-size:14px}
+#t-sim .sm-next.bad{border-left-color:var(--bad)}#t-sim .sm-next.warn{border-left-color:var(--c5)}#t-sim .sm-next.ok{border-left-color:var(--good)}
+#t-sim .sm-bars .row{grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 6.4em}
+#t-sim .sm-bars .track{height:16px;overflow:visible}
+#t-sim .sm-bars .lim{position:absolute;top:-3px;bottom:-3px;width:0;border-left:1.5px dashed var(--mute)}
+#t-sim .sm-bars .avg{position:absolute;top:-3px;bottom:-3px;width:3px;background:var(--ink);border-radius:2px}
+#t-sim .sm-bars .row .nm small{display:block;color:var(--mute);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#t-sim .sm-bars .val small{display:block;color:var(--mute);font-size:11px}
+#t-sim .sm-fix{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--bg)}
+#t-sim .sm-fix h3{margin:0 0 4px;font-size:15px}
+#t-sim .sm-fix .btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+#t-sim .sm-cmp td.num{font-variant-numeric:tabular-nums}
+#t-sim .sm-cmp td.better{color:var(--good);font-weight:600}#t-sim .sm-cmp td.worse{color:var(--bad);font-weight:600}
+#t-sim details.sm-grp{border:1px solid var(--line);border-radius:8px;margin:6px 0;padding:0 12px}
+#t-sim details.sm-grp>summary{cursor:pointer;padding:7px 0;font-size:14px;font-weight:600}
+#t-sim details.sm-grp>summary span{font-weight:400;color:var(--mute);font-size:12.5px}
+#t-sim .sm-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:6px 18px;padding:0 0 10px}
+#t-sim .sm-ctl label{font-size:13px;display:block;min-width:0}
+#t-sim .sm-ctl label .h{display:block;color:var(--mute);font-size:12px;line-height:1.35}
+#t-sim .sm-ctl select{width:100%}
+#t-sim .sm-src td,#t-sim .sm-src th{font-size:12.5px}
+#t-sim .sm-src td:first-child{white-space:nowrap}
+#t-sim .kind{display:inline-block;font-size:11px;border-radius:99px;padding:0 7px;border:1px solid var(--line);white-space:nowrap}
+#t-sim .kind.pub{color:var(--good);border-color:var(--good)}#t-sim .kind.ill{color:var(--bad);border-color:var(--bad)}#t-sim .kind.der{color:var(--acc);border-color:var(--acc)}#t-sim .kind.fit{color:var(--c4);border-color:var(--c4)}
+#t-sim .sm-play{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--mute);padding:4px 10px 8px}
+@media (max-width:520px){#t-sim .sm-bars .row{grid-template-columns:minmax(0,7.6em) minmax(0,1fr) 5.4em}}
+</style>
+<p class="lead">Drag the number of users and watch which part of the chat product runs out of room first. Then ask for the fix, compare before and after, apply it, and watch the bottleneck move somewhere else.</p>
+<p>Every box below is a <b>queue</b>: requests arrive, wait if every server is busy, get served, and leave. The bar under each box is its <b>utilisation</b>, how much of its capacity is in use. Under about 70% waits are short; past that they grow fast; at 100% requests arrive faster than they can be served and the queue grows until requests time out. The running example is the one the {{Reading|#t-read}} follows: a chat assistant with accounts and history, backed by a self-hosted open model.</p>
+<div class="chips" id="sm-presets" role="group" aria-label="Presets"></div>
+<div class="sm-cap" id="sm-cap"></div>
+<div class="sm-top">
+ <div class="sm-users"><label for="sm-u">Daily active users: <b id="sm-uv">1</b></label>
+ <input type="range" id="sm-u" min="0" max="700" step="1" value="0" aria-label="Daily active users, log scale from 1 to 10 million"></div>
+</div>
+<div class="sm-dia" id="sm-dia"><div class="sm-viewlab" id="sm-viewlab">Now</div><div id="sm-svg"></div>
+<div class="sm-play"><button id="sm-anim" type="button">Pause</button><span id="sm-animnote">Dots are requests; squares under a box are requests waiting in its queue (Little's law, below).</span></div></div>
+<div class="sm-next" id="sm-next"></div>
+<div class="bars sm-bars" id="sm-bars"></div>
+<div class="out" id="sm-stats"></div>
+<div class="sm-fix" id="sm-fix">
+ <h3>Suggested fix</h3>
+ <p id="sm-fixtext" class="small"></p>
+ <div class="btns"><div class="seg" id="sm-view" role="group" aria-label="Show"><button data-v="now" class="on" type="button">Before</button><button data-v="after" type="button">After the fix</button></div>
+ <button id="sm-apply" type="button">Apply the fix</button><button id="sm-undo" type="button">Undo</button></div>
+ <div class="tw"><table class="sm-cmp" id="sm-cmp"></table></div>
+</div>
+<h2 style="font-size:17px">Change the system yourself</h2>
+<p class="small mute">Each group is one tier. The presets and the fix button set these too.</p>
+<div id="sm-ctls"></div>
+<h2 style="font-size:17px">How the numbers are computed</h2>
+<p><b>Arrivals.</b> Every daily active user sends 10 chat messages a day, and each message brings 4 other API calls (load the history, list chats, refresh the login). Traffic is not flat: the busiest hour runs at 2 times the daily average by default (the Traffic control changes it), and every tier except the queue is sized for that hour. So the message rate is <span class="mono">users &times; 10 / 86,400 s &times; 2</span>, written &lambda; (lambda, arrivals per second). All three numbers are <span class="ill">illustrative</span>: your product's own logs replace them.</p>
+<div class="fm"><div class="eq">&rho; = &lambda; &times; S / c</div>
+<dl><dt>&rho;</dt><dd>utilisation (rho): the share of capacity in use. Capacity is c / S requests per second, so this is arrival rate divided by capacity.</dd>
+<dt>&lambda;</dt><dd>arrival rate at this component, requests per second</dd>
+<dt>S</dt><dd>mean service time: how long one request keeps one server busy (5 ms of CPU for an API call, for example)</dd>
+<dt>c</dt><dd>servers working in parallel: CPU cores of a machine, or batch slots of a GPU replica</dd></dl></div>
+<div class="fm"><div class="eq">L = &lambda; &times; W</div>
+<dl><dt>L</dt><dd>average number of requests inside the component (waiting or being served)</dd>
+<dt>W</dt><dd>average time each spends inside</dd></dl>
+<p class="small" style="margin:6px 0 0"><b>Little's law</b> holds for any queue that is not growing, whatever the arrival pattern or service times (<a href="https://doi.org/10.1287/opre.9.3.383" target="_blank" rel="noopener noreferrer">Little, 1961</a>). The squares under each box are L<sub>q</sub> = &lambda; &times; W<sub>q</sub>, the requests waiting; the GPU card uses it to find how many streams are being generated at once.</p></div>
+<div class="fm"><div class="eq">C(c, A) = <span style="display:inline-block;vertical-align:middle;text-align:center"><span style="display:block;border-bottom:1px solid currentColor;padding:0 4px">(A<sup>c</sup>/c!) &middot; c/(c&minus;A)</span><span style="display:block;padding:0 4px">&Sigma;<sub>k&lt;c</sub> A<sup>k</sup>/k! + (A<sup>c</sup>/c!) &middot; c/(c&minus;A)</span></span>,&ensp; W<sub>q</sub> = C / (c/S &minus; &lambda;)</div>
+<dl><dt>A</dt><dd>offered load &lambda; &times; S, in servers' worth of work</dd>
+<dt>C</dt><dd>the <b>Erlang C</b> formula: the probability an arriving request finds all c servers busy and has to wait (computed with the stable recursion through Erlang B, so it works for a million GPU slots)</dd>
+<dt>W<sub>q</sub></dt><dd>mean wait in the queue</dd></dl></div>
+<p><b>Which queue model, and why it is an approximation.</b> Each component is treated as <b>M/M/c</b>: in Kendall's notation, arrivals are random and independent (Poisson, the first M), service times are random with an exponential distribution (the second M), and there are c servers taking requests first come, first served. Waits then follow a known distribution (zero with probability 1 &minus; C, otherwise exponential with rate c/S &minus; &lambda;), which gives the p50 and p99 directly; p50 is the median request, p99 the one slower than 99 in 100, the number users notice. Real systems break every assumption: arrivals come in bursts (a launch, a retry storm), a GPU reply's length is fixed once the request is known rather than exponential, a load balancer sends each request to one server instead of a shared line (each app server here is its own M/M/4), and components influence each other. The point of the model is the shape: wait time grows like 1/(1 &minus; &rho;), so going from 80% to 90% busy doubles the queueing, and 90% to 95% doubles it again.</p>
+<p><b>Checked against a simulation</b> (src/sim/des_check.py: a discrete-event simulation of 380,000 requests per case, first come first served):</p>
+<div class="tw"><table class="sm-src"><tr><th>Case</th><th class="num">P(wait), formula</th><th class="num">simulated</th><th class="num">p99 time inside, formula</th><th class="num">simulated</th></tr>
+<tr><td>M/M/1 at 50%, S 10 ms</td><td class="num">0.500</td><td class="num">0.498</td><td class="num">92.1 ms</td><td class="num">92.6 ms</td></tr>
+<tr><td>M/M/1 at 90%, S 10 ms</td><td class="num">0.900</td><td class="num">0.900</td><td class="num">461 ms</td><td class="num">488 ms</td></tr>
+<tr><td>M/M/4 at 80%, S 5 ms (an app server)</td><td class="num">0.596</td><td class="num">0.598</td><td class="num">34.5 ms</td><td class="num">34.8 ms</td></tr>
+<tr><td>M/M/64 at 90%, S 1 s</td><td class="num">0.311</td><td class="num">0.301</td><td class="num">4.66 s</td><td class="num">4.62 s</td></tr>
+<tr><td>Two queues in a line (app, then database), end to end</td><td class="num"></td><td class="num"></td><td class="num">32.0 ms</td><td class="num">32.3 ms</td></tr></table></div>
+<p class="small">The formulas match within the simulation's own noise, which is largest at 90% and above. For a GPU replica pair with fixed reply length (M/D/c, 128 slots), M/M/c overstates the mean wait: 0.16 s against 0.10 s simulated at 90%, 2.07 s against 0.93 s at 97%. The simulator is therefore pessimistic about GPU waits close to saturation; the utilisation, and so where things break, is exact under its assumptions.</p>
+<p><b>One chat message, end to end.</b> 20,000 sampled messages each pass through an app server, 3 reads (the cache, then the database on a miss), one write (saving the message), the GPU queue and the prefill (the time to read the prompt, which ends at the first token: <b>TTFT</b>, time to first token), then the reply is generated token by token. Times are server-side only: the user's network adds its own round trips. The sampler uses a fixed seed, so the same settings always show the same numbers.</p>
+<p><b>The GPU replica.</b> One replica is two H100 GPUs serving Llama 3.3 70B in FP8, the configuration NVIDIA benchmarks. Generation runs in steps: each step reads all the weights once and produces one token for every stream in the batch, so a step takes <span class="mono">t(n) = a + b &times; n</span> for n streams. <span class="mono">a</span> = 36.3 GB of weights per GPU / 3.35 TB/s = 10.8 ms (<span class="kind der">derived</span>); <span class="mono">b</span> = 0.092 ms per stream (<span class="kind fit">fitted</span> so that at 1,000 input and 1,000 output tokens, with the largest batch memory allows, a replica makes 2 &times; 2,209 = 4,418 output tokens per second, NVIDIA's published maximum-load figure; reproduced by construction). The fitted b is within 3% of the compute one token needs at 40% of the GPU's FP8 peak (0.089 ms), which is why the fit is believable. Reading the prompt (prefill) costs <span class="mono">2 &times; 70.55 B &times; input tokens / (2 &times; 1,979 TFLOPS &times; 40%)</span>, 89 ms for 1,000 tokens. Each stream holds a <b>KV cache</b> (the model's memory of the conversation so far): 2 &times; 80 layers &times; 8 KV heads &times; 128 &times; 1 byte = 163,840 bytes per token, and 90% of what the weights leave free (2 &times; 80 GB &minus; 72.7 GB) is 78.6 GB, so the batch can never exceed 78.6 GB / (163,840 &times; tokens per stream). The concurrency actually in use comes from Little's law (n = arrivals per replica &times; time per request at n). Batch slots are the GPU's c.</p>
+<p class="small">The database costs (1 ms of CPU per indexed read, 3 ms per write) are illustrative round numbers for a database server; measured latencies for PostgreSQL, Redis and disks are on {{Numbers to know|#t-num}}.</p>
+<p><b>Cost.</b> On-demand list prices for 730 hours a month, with the fleet sized for the busiest hour and left running (no autoscaling). Excluded: storage, network transfer, backups, standby copies in a second zone, monitoring, people. Real bills differ; the proportions are the lesson.</p>
+<h3>Every default, with its source</h3>
+<p class="small mute"><span class="kind pub">published</span> read from a source; <span class="kind der">derived</span> computed from published numbers; <span class="kind fit">fitted</span> set to reproduce one published figure; <span class="kind ill">illustrative</span> an assumption to replace with your own measurement. Fetched 4 October 2026.</p>
+<div class="tw"><table class="sm-src" id="sm-src"></table></div>
+<p class="small mute">Model, recompute and checks: src/sim/ (model.py and the page's JavaScript agree on 1,404 numbers to the last digit across the presets, the fix chains and 40 random settings).</p>
 </div>

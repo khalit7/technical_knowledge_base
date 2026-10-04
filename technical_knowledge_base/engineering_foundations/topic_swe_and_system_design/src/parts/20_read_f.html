@@ -1,0 +1,31 @@
+
+<section id="rd-s6">
+<h2 class="step-h"><span class="snum" style="--sc:var(--c6)">Step 6</span> Designing it on purpose: the method</h2>
+<div class="wall"><div class="t">The problem appears</div>Steps 1 to 5 were reactive. That works until a fix takes months (sharding a live database, buying GPUs), or someone asks for the design before the system exists. How many GPUs do ten million users mean, and what breaks first? Without numbers, a design is a guess drawn in boxes.</div>
+<p>The method below is what experienced engineers do, in roughly this order, and it is also the structure that system design interviews expect (Alex Xu's <i>System Design Interview</i> compresses it into four phases for a 45-minute interview: understand the problem and establish design scope, 3 to 10 minutes; propose a high-level design, 10 to 15; deep dive, 10 to 25; wrap up, 3 to 5; {{ByteByteGo|https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews}}). Each step narrows the next.</p>
+<div class="reason">
+<div><b>Requirements.</b> <dfn id="d-func">Functional requirements</dfn> say what the system does: sign in, chat, keep history, upload documents. <dfn id="d-nonfunc">Non-functional requirements</dfn> say how well: how many users, how fast (time to first token under 1 second at p99, say), how reliable (an SLO), how cheap, what privacy rules. The non-functional ones decide the architecture; ask them first.</div>
+<div><b>Back-of-the-envelope estimates.</b> <dfn id="d-envelope">Rough arithmetic</dfn>, accurate to a factor of two or so, that turns users into requests per second, tokens per second, GPUs and storage. It tells you which part is the hard part. The animation below does it for our product.</div>
+<div><b>API.</b> The endpoints the clients will call: <code>POST /chats</code>, <code>POST /chats/{id}/messages</code> (streams the reply), <code>GET /chats/{id}/messages?cursor=...</code>, <code>POST /documents</code> (returns 202, Step 3). Writing them forces decisions: what is idempotent, what streams.</div>
+<div><b>Data model.</b> The tables and how they are found: <i>users</i>, <i>chats</i> (owned by a user), <i>messages</i> (in a chat, in order), <i>documents</i>. Every query should hit an index and carry the likely shard key (user).</div>
+<div><b>High-level design.</b> The boxes and arrows: the right-hand picture at the top of this page. Each box should be justified by a requirement or an estimate.</div>
+<div><b>Deep dives.</b> The two or three parts the estimates flagged as hard. For this product: the GPU fleet (Step 5) and the message store (Step 2). Go into those, not into everything.</div>
+<div><b>Bottlenecks and trade-offs.</b> What breaks at ten times the traffic, what fails when a dependency fails (Step 4), and what each choice cost.</div>
+</div>
+
+<div class="card" id="rd-est-card">
+<b>Animation: the estimate, step by step, sized for the average day against the busy hour</b>
+<div class="seg" id="rd-est-seg"><button data-m="avg" class="on">Before: size the fleet for the average</button><button data-m="peak">After: size for the peak, plus headroom</button></div>
+<div id="rd-est-list"></div>
+<div class="rd-svg" id="rd-est-svg"></div>
+<div class="leg" id="rd-est-leg"></div>
+<div class="an-cap" id="rd-est-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rd-est-cnt"></div>
+<div class="an-ctl" id="rd-est-ctl"></div>
+<p class="small mute"><span class="ill">Every input is an assumption, labelled as such</span>: 10% of users active each day, 10 messages each, 500 output tokens per reply, a busy hour twice the daily average, 2,000 output tokens per second per GPU (a round planning number, a little below NVIDIA's maximum-load benchmark row for Llama 3.3 70B in FP8 on two H100s with 1,000 input and 1,000 output tokens per request: 2,209 output tokens/s per GPU ({{TensorRT-LLM perf overview, commit 8a9c66c|https://github.com/NVIDIA/TensorRT-LLM/blob/8a9c66ce086594054d3722307cfed2d658d25e60/docs/source/developer-guide/perf-overview.md}}, vendor figure, the same row the Scale simulator uses); a service holding latency targets gets less, so measure your own; more figures in {{Numbers to know|#t-num}}), replies streaming for 10 seconds, 2 KB of text per message. The daily traffic shape is invented to average exactly 1. Changing any input changes the answer in proportion, which is the point: the method, not the numbers, is what carries over. Checked in <code>src/read/recompute.py</code>.</p>
+</div>
+
+<p>Two lessons fall out of the arithmetic. First, the model layer dominates: 115 requests per second is a small load for app servers and a database, while the same traffic needs tens of GPUs. Second, the peak sets the size, not the average: a fleet sized for the average day is short of capacity for 14 hours of it, and a fleet sized for the peak sits more than half idle overnight. Closing that gap is why <dfn id="d-autoscale">autoscaling</dfn> (adding and removing model replicas automatically as traffic moves; slow for GPUs because of cold starts), cheaper batch work at night and routing to smaller models matter so much in practice (Step 5).</p>
+<div class="co"><div class="t">How this maps to interviews</div>A general system design interview (45 to 60 minutes) is this method out loud: clarify requirements, estimate, sketch the API and data model, draw the high-level design, then let the interviewer pick a deep dive. Machine learning system design interviews swap part of the middle for ML-specific steps: the metrics that define success offline and online, the data, the model choice, then serving and monitoring (Chip Huyen's free {{Machine Learning Systems Design|https://huyenchip.com/machine-learning-systems-design/toc.html}} booklet uses this framing). In both, what is judged is whether you quantify and name trade-offs, not how many component names you know.</div>
+<div class="deepnote"><b>Go deeper (optional).</b> Run this estimate with your own inputs in the {{Scale simulator|#t-sim}}; the latency, throughput and size figures to estimate with in {{Numbers to know|#t-num}}; real designs and post-mortems in {{Case files|#t-cases}}.</div>
+</section>
