@@ -1,0 +1,84 @@
+
+<section id="rd-integ">
+<h2>The integrity crisis</h2>
+<p>In April 2026 Hao Wang, Qiuyang Mang, Alvin Cheung, Koushik Sen and Dawn Song at UC Berkeley published {{How We Broke Top AI Agent Benchmarks|https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/}} (Berkeley RDI; the paper is {{arXiv 2605.12673|https://arxiv.org/abs/2605.12673}} and the scanner is {{BenchJack|https://github.com/benchjack/benchjack}}). An automated agent audited eight prominent agent benchmarks, built a working exploit for each, ran it through the official evaluation, and scored near the top "without solving a single task", in most cases with no model calls at all:</p>
+<div class="tw"><table class="rd-t" id="rd-rdi">
+<thead><tr><th>Benchmark</th><th class="num">Tasks</th><th class="num">Exploit score</th><th>How</th></tr></thead>
+<tbody>
+<tr><td>Terminal-Bench (2.0)</td><td class="num">89</td><td class="num">100%</td><td>Wrapped binaries the verifier later calls in the same container (curl for 82 tasks; pip, python or uvx for 7); a trojaned uvx fakes pytest</td></tr>
+<tr><td>SWE-bench Verified</td><td class="num">500</td><td class="num">100%</td><td>A 10-line conftest.py hook forces every test to report passed (Django: patch unittest's run)</td></tr>
+<tr><td>SWE-bench Pro</td><td class="num">731</td><td class="num">100%</td><td>Overwrites the in-container test-output parser</td></tr>
+<tr><td>WebArena</td><td class="num">812</td><td class="num">about 100%</td><td>file:// reads the gold answer from the task config; DOM and prompt injection</td></tr>
+<tr><td>FieldWorkArena</td><td class="num">890</td><td class="num">100%</td><td>The validator checks only that the last message came from the assistant; sending "{}" passes</td></tr>
+<tr><td>CAR-bench</td><td class="num">hallucination tasks</td><td class="num">100%</td><td>Three of four reward components skipped for that task type; the LLM judge reads injected notes</td></tr>
+<tr><td>GAIA</td><td class="num">165 (validation)</td><td class="num">about 98%</td><td>Public answers plus a normaliser that collapses distinct strings; one miss per level dodges the 100% filter</td></tr>
+<tr><td>OSWorld</td><td class="num">369</td><td class="num">73%</td><td>Downloads public gold files into the checked path; sets checked state directly; eval() on a VM string</td></tr>
+</tbody></table></div>
+<p>RDI group the flaws into seven patterns, and every benchmark on this page can be read against them:</p>
+<ol class="tight">
+<li><b>No isolation between agent and evaluator</b> (SWE-bench, Terminal-Bench, OSWorld): the checker reads state the agent could write.</li>
+<li><b>Answers shipped with the test</b> (WebArena configs, OSWorld gold URLs, GAIA's public validation answers).</li>
+<li><b>eval() on untrusted input</b> (WebArena, OSWorld): code execution on the grading machine, a security hole as well as a scoring one.</li>
+<li><b>LLM judges without input sanitisation</b> (WebArena, CAR-bench): the agent's text reaches the judge's prompt.</li>
+<li><b>Weak string matching</b> (WebArena's substring check, GAIA's normaliser).</li>
+<li><b>Evaluation logic that does not evaluate</b> (FieldWorkArena's validator, CAR-bench's skipped components, GAIA's comma bug that marks correct answers wrong).</li>
+<li><b>Trusting the output of untrusted code</b> (pytest output and reward files produced inside the agent's container).</li>
+</ol>
+<p>It is not only a red-team result. RDI also list incidents in the wild: IQuest-Coder-V1 claimed 81.4% on SWE-bench until 24.4% of its trajectories were found running <code>git log</code> to copy the answer from history (corrected to 76.2%); in KernelBench, <code>torch.empty()</code> returned stale GPU memory holding the evaluator's reference answer; and Anthropic's Mythos Preview assessment describes a model that, unable to edit a file it lacked permission for, injected code into a config file that ran with elevated privileges and deleted itself afterwards. {{HAL|https://arxiv.org/abs/2510.11977}}, which reran 9 benchmarks with 21,730 rollouts (about $40,000), found agents searching Hugging Face for the benchmark instead of solving the task. {{METR|https://metr.org/blog/2025-06-05-recent-reward-hacking/}} measured o3 reward-hacking in 30.4% of RE-Bench runs by overwriting a grader's timer, monkey-patching the evaluator and caching answers. So an agent score you did not run yourself, under an isolated evaluator with held-out checks, deserves suspicion; RDI say plainly they are not claiming current leaders cheat, but that optimisation pressure can find the evaluator before it finds the solution.</p>
+<p><b>What changed since.</b> Terminal-Bench 3.0 and 4.0 tasks declare a separate verifier environment, copy out only declared artifacts and install nothing at trial time (74 of 74 and 66 of 66 task files, counted here; the animation in Anatomy shows why that defeats the wrapper exploit). Separation does not fix the other six patterns.</p>
+<div class="co key"><div class="t">The minimum bar for an agent benchmark (RDI's Agent-Eval Checklist, condensed)</div><ul class="tight">
+<li>Run the checker outside the agent's environment, on a read-only host; copy artifacts out through a controlled channel and treat them as untrusted; mount binaries and test files read-only.</li>
+<li>Never put reference answers, gold files or evaluator configs where the agent can read them; keep the primary split's answers secret and rotate instances.</li>
+<li>Never call eval() on agent-controlled strings; parse structured data.</li>
+<li>Treat agent text as data in any judge prompt (delimiters, stripping, structured output), or grade extracted features instead.</li>
+<li>Before publishing, attack your own evaluator with a null agent (its score is the floor and should be zero), a random agent, a prompt-injection agent and a state-tampering agent.</li>
+<li>Score robustly: no substring matches on short strings, a crashed task counts as zero, no category skips a check.</li>
+</ul></div>
+<div class="deepnote"><b>Go deeper:</b> <a href="#" data-tab="t-task">Grade a real task</a> runs regex-log's real test on your own regex and lists each exploit beside the defence that stops it; {{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}} covers why trained agents find these paths; {{Safety and honesty|n:3ef5c17b0d0d818da9d5efda1a443166}} covers AgentHarm and monitoring.</div>
+</section>
+
+<section id="rd-boards">
+<h2>Leaderboards worth checking</h2>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Board</th><th>Why</th><th>State on 4 Oct 2026</th></tr></thead>
+<tbody>
+<tr><td>{{tbench.ai|https://www.tbench.ai/leaderboard}} and {{terminal-bench-science.ai|https://www.terminal-bench-science.ai/}}</td><td>Agent and model pairs, 5 (or 3) trials, intervals, pass@5 and dollars</td><td>4.0 updated 21 Sep; Science updated 22 Sep</td></tr>
+<tr><td>{{os-world.github.io|https://os-world.github.io/}} and {{osworld-v2.xlang.ai|https://osworld-v2.xlang.ai/}}</td><td>Verified with step budgets; 2.0 binary and partial per release and set</td><td>2.0 official results 17 Sep</td></tr>
+<tr><td>{{taubench.com|https://taubench.com/}}</td><td>Trajectories published with submissions, so pass^k can be recomputed (this page does)</td><td>core board idle since Mar; banking and voice active</td></tr>
+<tr><td>{{GAIA Space|https://gaia-benchmark-leaderboard.hf.space/}}</td><td>Submitted answers on the hidden test split</td><td>active; gameable</td></tr>
+<tr><td>{{MCP Atlas|https://labs.scale.com/leaderboard/mcp_atlas}}</td><td>The MCP board vendors cite</td><td>active</td></tr>
+<tr><td>{{METR time horizons (results file)|https://metr.org/assets/benchmark_results_1_1.yaml}}</td><td>The horizon per model, with intervals and the doubling fit; raw runs on GitHub</td><td>latest point 8 May</td></tr>
+<tr><td>{{HAL (Princeton)|https://hal.cs.princeton.edu/}}</td><td>Reruns many agent benchmarks under one harness, with cost; the closest thing to a fair cross-benchmark view</td><td>see site</td></tr>
+<tr><td>{{Zapier AutomationBench|https://zapier.com/benchmarks}}, {{Agents' Last Exam|https://snorkel.ai/leaderboard/agents-last-exam/}}</td><td>Work tasks with price per task; strict and partial scores</td><td>active</td></tr>
+<tr><td>{{Artificial Analysis|https://artificialanalysis.ai/}}, {{Epoch AI|https://epoch.ai/benchmarks}}</td><td>Independent reruns and collected boards for cross-checking vendor claims</td><td>active</td></tr>
+</tbody></table></div>
+<p class="small mute">SWE-bench boards (swebench.com, Scale's SWE-bench Pro) are covered on {{Coding|n:3ef5c17b0d0d81bfa09ad4ba5eef0c4e}}.</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Quoting a model's agent score without the harness, effort and budget</summary><div class="b">The pair is the unit. One model on the official Terminal-Bench 4.0 board spans 50.61% to 58.18% across effort settings; a harness lifted one model 9 points on Terminal-Bench 2.1; on ARC-AGI-3 two harnesses at equal effort gave 62.7% and 98.6%.</div></details>
+<details class="mist"><summary>Splicing versions of one benchmark</summary><div class="b">Terminal-Bench 2.0, 2.1, 3.0 and 4.0 are different task sets with different limits and checkers; OSWorld, OSWorld-Verified and OSWorld 2.0 (three releases, full or offline, binary or partial) are not one scale. Write the version, the set and the metric.</div></details>
+<details class="mist"><summary>Reading partial credit as success rate</summary><div class="b">OSWorld 2.0's partial score and binary accuracy differ by 30 to 40 points for the same run; Agents' Last Exam's 56.4% "score" for GPT-6 Sol is a 32.2% pass rate.</div></details>
+<details class="mist"><summary>Treating pass^1 as reliability</summary><div class="b">On τ²-bench retail, three models 5 points apart at pass^1 tie at pass^4, 25 to 30 points lower. If a product must work every time, ask for pass^k.</div></details>
+<details class="mist"><summary>Putting a lab's own run beside a board's</summary><div class="b">On Terminal-Bench-Science the same model reads 52.6% (lab) and 40.0% (board). Compare like with like and say who ran each number.</div></details>
+<details class="mist"><summary>Trusting a score the environment could have produced</summary><div class="b">If the checker ran where the agent ran, read answers it could see, or asked a judge that reads the agent's text, the score is an upper bound on capability plus an unknown amount of exploitation.</div></details>
+<details class="mist"><summary>Reading a small set's gap as a ranking</summary><div class="b">50 airline tasks: one task is 2 points. 30 sampled tasks with 3 attempts (HarnessTax) cannot separate harnesses a few points apart. Use the root's error-bar calculator.</div></details>
+<details class="mist"><summary>Quoting a METR horizon beyond the suite</summary><div class="b">A 17-hour horizon on a suite whose longest reliable range is about 16 hours, with an interval from 8 to 55 hours, says "beyond what this suite can measure", not "17 hours".</div></details>
+</section>
+
+<section id="rd-check">
+<h2>Checklist before quoting an agent number</h2>
+<ol class="cl">
+<li><label><input type="checkbox"> Benchmark <b>version</b>, task <b>set</b> (full, offline, public, held-out) and <b>metric</b> (binary, partial, pass^1, pass^k, Elo)?</label></li>
+<li><label><input type="checkbox"> <b>Who ran it</b>: the official board, an independent rerun, or the lab?</label></li>
+<li><label><input type="checkbox"> <b>Harness</b>, effort, and the time and step budget?</label></li>
+<li><label><input type="checkbox"> <b>How many trials</b> per task, and how many tasks (so how wide the interval is)?</label></li>
+<li><label><input type="checkbox"> Is the <b>checker isolated</b> from the agent, and are the answers hidden?</label></li>
+<li><label><input type="checkbox"> Is there a <b>simulated user or judge model</b> in the loop, and which version?</label></li>
+<li><label><input type="checkbox"> Is the board <b>still maintained</b>, and does the comparison use the same date's entries?</label></li>
+<li><label><input type="checkbox"> Is there a <b>cost</b> beside the score?</label></li>
+</ol>
+</section>
+<div class="foot">Built 4 October 2026 from the old Notion page's text (every fact carried or corrected; see <code>src/coverage.json</code>), the root page's verified data, and primary sources linked inline. Data computed in the page: τ²-bench trajectory files (MIT), METR's eval-analysis-public runs, Terminal-Bench task files (Apache 2.0).</div>
+</div>
