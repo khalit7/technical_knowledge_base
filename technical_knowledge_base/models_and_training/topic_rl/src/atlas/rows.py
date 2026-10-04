@@ -119,8 +119,8 @@ R('sarsa', 'SARSA', 'SARSA', 'cls', '1994', 'mf',
     k='der', frm=['qlearn'], n='Introduced five years after Q-learning, as a modification of it; not its precursor.'),
   C('A textbook method: no SARSA entry in the Stable-Baselines3 or CleanRL algorithm tables', 'sb3', 'README', k='der', n='Absence checked in both tables, read ' + READ + '.'))
 
-R('dyna', 'Dyna-Q', 'Dyna-Q', 'cls', '1990', None,
-  C('Sutton, Integrated Architectures for Learning, Planning, and Reacting (ICML 1990)', 'sutton90', 'title (Crossref)', n='S&B: "The Dyna architecture is due to Sutton (1990)". No child page covers it; S&B chapter 8.'),
+R('dyna', 'Dyna-Q', 'Dyna-Q', 'cls', '1990', 'mb',
+  C('Sutton, Integrated Architectures for Learning, Planning, and Reacting (ICML 1990)', 'sutton90', 'title (Crossref)', n='S&B: "The Dyna architecture is due to Sutton (1990)". S&B chapter 8.'),
   C('Value Q(s,a) plus a learned model', SB, '8.2', k='der', f='value'),
   C('Learned (from real transitions)', SB, '8.2', k='der', f='learned'),
   C('Off-policy (Q-learning updates on real and simulated transitions)', SB, '8.2', k='der', f='off'),
@@ -130,7 +130,7 @@ R('dyna', 'Dyna-Q', 'Dyna-Q', 'cls', '1990', None,
   C('Gets many updates out of each real step by planning in a learned model', SB, '8 notes', 'The Dyna architecture is due to Sutton (1990)', k='der', frm=['qlearn', 'vi']),
   C('The idea Dreamer scales up: learning behaviour inside a learned model', 'dreamer', 'abstract', 'solves long-horizon tasks from images purely by latent imagination', k='der'))
 
-R('reinforce', 'REINFORCE', 'REINFORCE', 'cls', '1992-05', 'deep',
+R('reinforce', 'REINFORCE', 'REINFORCE', 'cls', '1992-05', 'pg',
   C('Williams, Simple statistical gradient-following algorithms for connectionist reinforcement learning (1992)', 'williams92', 'title (Crossref)', n='S&B: "REINFORCE is due to Williams (1987, 1992)".'),
   C('Policy', SB, '13.3', k='der', f='policy', n='S&B 13.5: REINFORCE with a learned baseline is still not actor-critic, because the baseline does not judge the action.'),
   C('Free', SB, '13.3', k='der', f='free'),
@@ -141,7 +141,7 @@ R('reinforce', 'REINFORCE', 'REINFORCE', 'cls', '1992-05', 'deep',
   C('An unbiased gradient of expected return for any differentiable stochastic policy, with no value function needed', 'williams92', 'title', k='der', frm=[]),
   C('Back in LLM RL: Ahmadian et al. found plain REINFORCE beats PPO for RLHF', 'rloo24', '1', 'Vanilla Policy Gradient REINFORCE consistently outperforms PPO'))
 
-R('ac83', 'Actor-critic (1983)', 'Actor-critic', 'cls', '1983-09', 'deep',
+R('ac83', 'Actor-critic (1983)', 'Actor-critic', 'cls', '1983-09', 'pg',
   C('Barto, Sutton and Anderson, Neuronlike adaptive elements that can solve difficult learning control problems (1983)', 'bsa83', 'title (Crossref)',
     n='S&B 13.5-6 notes: actor-critic methods were among the earliest studied (Witten 1977; Barto, Sutton and Anderson 1983).'),
   C('Actor-critic', SB, '13 intro', 'Methods that learn approximations to both policy and value functions are often called actor–critic methods', f='ac'),
@@ -154,7 +154,7 @@ R('ac83', 'Actor-critic (1983)', 'Actor-critic', 'cls', '1983-09', 'deep',
   C('The shape of A2C and PPO; S&B note the name A2C is used for it', SB, '13.5-6 notes', 'Actor–critic methods are sometimes referred to as advantage actor–critic (“A2C”) methods in the literature'))
 
 # ---------------- value networks ----------------
-R('dqn13', 'DQN (2013, arXiv)', 'DQN 2013', 'val', '2013-12-19', 'deep',
+R('dqn13', 'DQN (2013, arXiv)', 'DQN 2013', 'val', '2013-12-19', 'val',
   C('Mnih et al., Playing Atari with Deep Reinforcement Learning', 'mnih13', 'arXiv v1'),
   C('Value Q(s,a; theta)', 'mnih13', 'abstract', 'whose output is a value function estimating future rewards', f='value'),
   C('Free', 'mnih13', 'abstract', k='der', f='free'),
@@ -167,7 +167,7 @@ R('dqn13', 'DQN (2013, arXiv)', 'DQN 2013', 'val', '2013-12-19', 'deep',
     'The model is a convolutional neural network, trained with a variant of Q-learning', frm=['qlearn']),
   C('Superseded by the 2015 Nature version', 'mnih15', 'Methods', k='der'))
 
-R('dqn15', 'DQN (2015, Nature)', 'DQN 2015', 'val', '2015-02-26', 'deep',
+R('dqn15', 'DQN (2015, Nature)', 'DQN 2015', 'val', '2015-02-26', 'val',
   C('Mnih et al., Human-level control through deep reinforcement learning (Nature 518)', 'mnih15', 'doi'),
   C('Value Q(s,a; theta)', 'mnih15', 'Methods', k='der', f='value'),
   C('Free', 'mnih15', 'Methods', k='der', f='free'),
@@ -179,7 +179,7 @@ R('dqn15', 'DQN (2015, Nature)', 'DQN 2015', 'val', '2015-02-26', 'deep',
     'is to use a separate network for', frm=['dqn13']),
   C('Implemented in Stable-Baselines3 and CleanRL', 'cleanrl', 'README', 'Deep Q-Learning (DQN)', n='Stable-Baselines3 lists DQN for discrete actions only (read ' + READ + ').'))
 
-R('ddqn', 'Double DQN', 'Double', 'val', '2015-09-22', 'deep',
+R('ddqn', 'Double DQN', 'Double', 'val', '2015-09-22', 'val',
   C('van Hasselt, Guez and Silver, Deep Reinforcement Learning with Double Q-learning', 'ddqn', 'arXiv v1'),
   C('Value', 'ddqn', 'abstract', k='der', f='value'),
   C('Free', 'ddqn', 'abstract', k='der', f='free'),
@@ -193,7 +193,7 @@ R('ddqn', 'Double DQN', 'Double', 'val', '2015-09-22', 'deep',
     n='Double Q-learning itself is tabular (van Hasselt 2010); this paper carries it to DQN.'),
   C('One of Rainbow\'s six combined extensions', 'rainbow', 'abstract', 'This paper examines six extensions to the DQN algorithm', k='der'))
 
-R('dueling', 'Dueling DQN', 'Dueling', 'val', '2015-11-20', 'deep',
+R('dueling', 'Dueling DQN', 'Dueling', 'val', '2015-11-20', 'val',
   C('Wang et al., Dueling Network Architectures for Deep Reinforcement Learning', 'dueling', 'arXiv v1'),
   C('Value, split into V(s) and advantage A(s,a) streams', 'dueling', 'abstract',
     'Our dueling network represents two separate estimators: one for the state value function and one for the state-dependent action advantage function', f='value'),
@@ -207,7 +207,7 @@ R('dueling', 'Dueling DQN', 'Dueling', 'val', '2015-11-20', 'deep',
     'better policy evaluation in the presence of many similar-valued actions', frm=['dqn15']),
   C('One of Rainbow\'s six combined extensions', 'rainbow', 'abstract', 'six extensions to the DQN algorithm', k='der'))
 
-R('per', 'Prioritized replay', 'PER', 'val', '2015-11-18', 'deep',
+R('per', 'Prioritized replay', 'PER', 'val', '2015-11-18', 'val',
   C('Schaul et al., Prioritized Experience Replay', 'per', 'arXiv v1'),
   C('Value', 'per', 'abstract', k='der', f='value'),
   C('Free', 'per', 'abstract', k='der', f='free'),
@@ -220,7 +220,7 @@ R('per', 'Prioritized replay', 'PER', 'val', '2015-11-18', 'deep',
   C('Rainbow\'s ablation found it one of the two most crucial of its six components', 'rainbow', '4',
     'Prioritized replay and multi-step learning were the two most crucial components of Rainbow'))
 
-R('c51', 'C51 (distributional)', 'C51', 'val', '2017-07-21', 'deep',
+R('c51', 'C51 (distributional)', 'C51', 'val', '2017-07-21', 'val',
   C('Bellemare, Dabney and Munos, A Distributional Perspective on Reinforcement Learning', 'c51', 'arXiv v1'),
   C('Value distribution (51 fixed atoms)', 'c51', '5', 'the 51-atom version', f='value'),
   C('Free', 'c51', 'abstract', k='der', f='free'),
@@ -233,7 +233,7 @@ R('c51', 'C51 (distributional)', 'C51', 'val', '2017-07-21', 'deep',
     'This is in contrast to the common approach to reinforcement learning which models the expectation of this return, or value', frm=['dqn15']),
   C('Implemented in CleanRL', 'cleanrl', 'README', 'Categorical DQN (C51)'))
 
-R('qrdqn', 'QR-DQN', 'QR-DQN', 'val', '2017-10-27', 'deep',
+R('qrdqn', 'QR-DQN', 'QR-DQN', 'val', '2017-10-27', 'val',
   C('Dabney et al., Distributional Reinforcement Learning with Quantile Regression', 'qrdqn', 'arXiv v1'),
   C('Value distribution (quantiles)', 'qrdqn', 'abstract', 'the distribution over returns is modeled explicitly instead of only estimating the mean', f='value'),
   C('Free', 'qrdqn', 'abstract', k='der', f='free'),
@@ -245,7 +245,7 @@ R('qrdqn', 'QR-DQN', 'QR-DQN', 'val', '2017-10-27', 'deep',
     'We give results that close a number of gaps between the theoretical and algorithmic results given by Bellemare, Dabney, and Munos (2017)', frm=['c51']),
   C('Implemented in SB3 Contrib', 'sb3', 'README', 'QR-DQN'))
 
-R('rainbow', 'Rainbow', 'Rainbow', 'val', '2017-10-06', 'deep',
+R('rainbow', 'Rainbow', 'Rainbow', 'val', '2017-10-06', 'val',
   C('Hessel et al., Rainbow: Combining Improvements in Deep Reinforcement Learning', 'rainbow', 'arXiv v1'),
   C('Value distribution', 'rainbow', '3', k='der', f='value'),
   C('Free', 'rainbow', 'abstract', k='der', f='free'),
@@ -259,7 +259,7 @@ R('rainbow', 'Rainbow', 'Rainbow', 'val', '2017-10-06', 'deep',
   C('A reference agent rather than a library default: neither the Stable-Baselines3 nor the CleanRL table lists it', 'cleanrl', 'README', k='der', n='Absence checked, read ' + READ + '.'))
 
 # ---------------- policy and actor-critic networks ----------------
-R('trpo', 'TRPO', 'TRPO', 'pg', '2015-02-19', 'deep',
+R('trpo', 'TRPO', 'TRPO', 'pg', '2015-02-19', 'pg',
   C('Schulman et al., Trust Region Policy Optimization', 'trpo', 'arXiv v1'),
   C('Policy (an advantage estimate, with or without a learned baseline)', 'trpo', 'abstract', k='der', f='policy'),
   C('Free', 'trpo', 'abstract', k='der', f='free'),
@@ -273,7 +273,7 @@ R('trpo', 'TRPO', 'TRPO', 'pg', '2015-02-19', 'deep',
   C('Implemented in SB3 Contrib; PPO took its place as the default', 'ppo', 'abstract',
     'have some of the benefits of trust region policy optimization (TRPO), but they are much simpler to implement', k='der'))
 
-R('gae', 'GAE', 'GAE', 'pg', '2015-06-08', 'deep',
+R('gae', 'GAE', 'GAE', 'pg', '2015-06-08', 'pg',
   C('Schulman et al., High-Dimensional Continuous Control Using Generalized Advantage Estimation', 'gae', 'arXiv v1'),
   C('Actor-critic (value function as baseline)', 'gae', 'abstract',
     'using value functions to substantially reduce the variance of policy gradient estimates at the cost of some bias', f='ac'),
@@ -287,7 +287,7 @@ R('gae', 'GAE', 'GAE', 'pg', '2015-06-08', 'deep',
     'The two main challenges are the large number of samples typically required', frm=['trpo', 'tdl', 'ac83']),
   C('PPO\'s advantage estimator', 'ppo', '3', 'we can use a truncated version of generalized advantage estimation'))
 
-R('a3c', 'A3C', 'A3C', 'pg', '2016-02-04', 'deep',
+R('a3c', 'A3C', 'A3C', 'pg', '2016-02-04', 'pg',
   C('Mnih et al., Asynchronous Methods for Deep Reinforcement Learning', 'a3c', 'arXiv v1'),
   C('Actor-critic', 'a3c', 'abstract', 'The best performing method, an asynchronous variant of actor-critic', f='ac'),
   C('Free', 'a3c', 'abstract', k='der', f='free'),
@@ -299,7 +299,7 @@ R('a3c', 'A3C', 'A3C', 'pg', '2016-02-04', 'deep',
     'parallel actor-learners have a stabilizing effect on training allowing all four methods to successfully train neural network controllers', frm=['dqn15', 'ac83']),
   C('Replaced by its synchronous version, A2C', 'a2c', 'blog', 'we have not seen any evidence that the noise introduced by asynchrony provides any performance benefit'))
 
-R('a2c', 'A2C', 'A2C', 'pg', '2017-08-18', 'deep',
+R('a2c', 'A2C', 'A2C', 'pg', '2017-08-18', 'pg',
   C('OpenAI Baselines: ACKTR and A2C (blog post, Wu et al.)', 'a2c', 'blog', n='No paper: the synchronous variant was named in an OpenAI blog post.'),
   C('Actor-critic', 'a2c', 'blog', 'This algorithm is naturally called A2C, short for advantage actor critic', f='ac'),
   C('Free', 'a2c', 'blog', k='der', f='free'),
@@ -312,7 +312,7 @@ R('a2c', 'A2C', 'A2C', 'pg', '2017-08-18', 'deep',
     'Our synchronous A2C implementation performs better than our asynchronous implementations', frm=['a3c']),
   C('Implemented in Stable-Baselines3', 'sb3', 'README', 'A2C'))
 
-R('ppo', 'PPO', 'PPO', 'pg', '2017-07-20', 'deep',
+R('ppo', 'PPO', 'PPO', 'pg', '2017-07-20', 'pg',
   C('Schulman et al., Proximal Policy Optimization Algorithms', 'ppo', 'arXiv v1'),
   C('Actor-critic (learned V for the advantage)', 'ppo', '3', 'make use a learned state-value function V (s); for example, generalized advantage estimation', f='ac'),
   C('Free', 'ppo', 'abstract', k='der', f='free'),
@@ -327,7 +327,7 @@ R('ppo', 'PPO', 'PPO', 'pg', '2017-07-20', 'deep',
   C('The default on-policy algorithm: Stable-Baselines3, CleanRL and verl all ship it; OpenAI Five was trained with it', 'dota', '3',
     'The policy is trained using Proximal Policy Optimization (PPO)', n='Library tables read ' + READ + '.'))
 
-R('ddpg', 'DDPG', 'DDPG', 'pg', '2015-09-09', 'deep',
+R('ddpg', 'DDPG', 'DDPG', 'pg', '2015-09-09', 'pg',
   C('Lillicrap et al., Continuous control with deep reinforcement learning', 'ddpg', 'arXiv v1'),
   C('Actor-critic (deterministic actor)', 'ddpg', 'abstract', 'We present an actor-critic, model-free algorithm based on the deterministic policy gradient', f='ac'),
   C('Free', 'ddpg', 'abstract', 'actor-critic, model-free', f='free'),
@@ -339,7 +339,7 @@ R('ddpg', 'DDPG', 'DDPG', 'pg', '2015-09-09', 'deep',
     'We adapt the ideas underlying the success of Deep Q-Learning to the continuous action domain', frm=['dqn15']),
   C('Implemented in Stable-Baselines3 and CleanRL; TD3 fixed its overestimation', 'cleanrl', 'README', 'Deep Deterministic Policy Gradient (DDPG)'))
 
-R('td3', 'TD3', 'TD3', 'pg', '2018-02-26', 'deep',
+R('td3', 'TD3', 'TD3', 'pg', '2018-02-26', 'pg',
   C('Fujimoto, van Hoof and Meger, Addressing Function Approximation Error in Actor-Critic Methods', 'td3', 'arXiv v1'),
   C('Actor-critic (twin critics)', 'td3', 'abstract', 'taking the minimum value between a pair of critics', f='ac'),
   C('Free', 'td3', 'abstract', k='der', f='free'),
@@ -351,7 +351,7 @@ R('td3', 'TD3', 'TD3', 'pg', '2018-02-26', 'deep',
   C('DDPG overestimates values, as DQN did', 'td3', 'abstract', 'We show that this problem persists in an actor-critic setting', frm=['ddpg', 'ddqn']),
   C('Implemented in Stable-Baselines3 and CleanRL', 'cleanrl', 'README', 'Twin Delayed Deep Deterministic Policy Gradient (TD3)'))
 
-R('sac', 'SAC', 'SAC', 'pg', '2018-01-04', 'deep',
+R('sac', 'SAC', 'SAC', 'pg', '2018-01-04', 'pg',
   C('Haarnoja et al., Soft Actor-Critic: Off-Policy Maximum Entropy Deep RL with a Stochastic Actor', 'sac', 'arXiv v1'),
   C('Actor-critic (stochastic actor)', 'sac', 'abstract', 'an off-policy actor-critic deep RL algorithm based on the maximum entropy reinforcement learning framework', f='ac'),
   C('Free', 'sac', 'abstract', k='der', f='free'),
@@ -366,7 +366,7 @@ R('sac', 'SAC', 'SAC', 'pg', '2018-01-04', 'deep',
     'real-world challenging tasks such as locomotion for a quadrupedal robot and robotic manipulation with a dexterous hand'))
 
 # ---------------- search and world models ----------------
-R('alphago', 'AlphaGo', 'AlphaGo', 'mb', '2016-01-28', 'deep',
+R('alphago', 'AlphaGo', 'AlphaGo', 'mb', '2016-01-28', 'mb',
   C('Silver et al., Mastering the game of Go with deep neural networks and tree search (Nature 529)', 'alphago', 'doi'),
   C('Actor-critic (policy and value networks) plus tree search', 'alphago', 'abstract',
     'uses value networks to evaluate board positions and policy networks to select moves', f='ac'),
@@ -381,7 +381,7 @@ R('alphago', 'AlphaGo', 'AlphaGo', 'mb', '2016-01-28', 'deep',
     'Without any lookahead search, the neural networks play Go at the level of state-of-the-art Monte Carlo tree search programs', frm=['reinforce', 'td0']),
   C('Superseded by AlphaGo Zero, which beat it 100 to 0', 'agz', 'abstract', 'winning 100', k='der'))
 
-R('agz', 'AlphaGo Zero', 'AG Zero', 'mb', '2017-10', 'deep',
+R('agz', 'AlphaGo Zero', 'AG Zero', 'mb', '2017-10', 'mb',
   C('Silver et al., Mastering the game of Go without human knowledge (Nature 550)', 'agz', 'doi'),
   C('Actor-critic (one network, policy and value outputs)', 'agz', 'abstract',
     'a neural network is trained to predict AlphaGo’s own move selections and also the winner of AlphaGo’s games', f='ac'),
@@ -393,7 +393,7 @@ R('agz', 'AlphaGo Zero', 'AG Zero', 'mb', '2017-10', 'deep',
   C('Drops the human games: search becomes its own teacher', 'agz', 'abstract', 'AlphaGo becomes its own teacher', frm=['alphago']),
   C('Generalised to chess and shogi as AlphaZero', 'az17', 'abstract', 'we generalise this approach into a single AlphaZero algorithm', k='der'))
 
-R('az', 'AlphaZero', 'AlphaZero', 'mb', '2017-12-05', 'deep',
+R('az', 'AlphaZero', 'AlphaZero', 'mb', '2017-12-05', 'mb',
   C('Silver et al., Mastering Chess and Shogi by Self-Play with a General RL Algorithm', 'az17', 'arXiv v1', n='Peer-reviewed version: Science 362, 2018 (doi 10.1126/science.aar6404).'),
   C('Actor-critic (policy and value heads)', 'az17', 'abstract', k='der', f='ac'),
   C('Given (the rules)', 'az17', 'abstract', 'given no domain knowledge except the game rules', f='given'),
@@ -405,7 +405,7 @@ R('az', 'AlphaZero', 'AlphaZero', 'mb', '2017-12-05', 'deep',
     'we generalise this approach into a single AlphaZero algorithm that can achieve, tabula rasa, superhuman performance in many challenging domains', frm=['agz']),
   C('MuZero matched it without being given the rules', 'muzero', 'abstract', 'matched the superhuman performance of the AlphaZero algorithm that was supplied with the game rules', k='der'))
 
-R('muzero', 'MuZero', 'MuZero', 'mb', '2019-11-19', 'deep',
+R('muzero', 'MuZero', 'MuZero', 'mb', '2019-11-19', 'mb',
   C('Schrittwieser et al., Mastering Atari, Go, Chess and Shogi by Planning with a Learned Model', 'muzero', 'arXiv v1', n='Nature 588, 2020 (doi 10.1038/s41586-020-03051-4).'),
   C('Actor-critic plus a learned model', 'muzero', 'abstract', 'the reward, the action-selection policy, and the value function', f='ac'),
   C('Learned (predicts only reward, policy and value)', 'muzero', 'abstract',
@@ -419,8 +419,8 @@ R('muzero', 'MuZero', 'MuZero', 'mb', '2019-11-19', 'deep',
   C('Rate control in YouTube\'s VP9 encoder (libvpx)', 'muzerovp9', 'abstract',
     'the MuZero-based rate control achieves an average 6.28% reduction in size of the compressed videos'))
 
-R('dreamer', 'Dreamer', 'Dreamer', 'mb', '2019-12-03', None,
-  C('Hafner et al., Dream to Control: Learning Behaviors by Latent Imagination', 'dreamer', 'arXiv v1', n='No child page covers world models.'),
+R('dreamer', 'Dreamer', 'Dreamer', 'mb', '2019-12-03', 'mb',
+  C('Hafner et al., Dream to Control: Learning Behaviors by Latent Imagination', 'dreamer', 'arXiv v1'),
   C('Actor-critic in imagination, plus a learned world model', 'dreamer', 'abstract',
     'propagating analytic gradients of learned state values back through trajectories imagined in the compact state space of a learned world model', f='ac'),
   C('Learned (latent world model)', 'dreamer', 'abstract', 'a learned world model', f='learned'),
@@ -434,8 +434,8 @@ R('dreamer', 'Dreamer', 'Dreamer', 'mb', '2019-12-03', None,
     'Dreamer is the first algorithm to collect diamonds in Minecraft from scratch without human data or curricula'))
 
 # ---------------- imitation and offline ----------------
-R('bc', 'Behaviour cloning', 'BC', 'off', '1988', None,
-  C('Pomerleau, ALVINN: An Autonomous Land Vehicle in a Neural Network (NeurIPS 1988)', 'alvinn88', 'title', n='No child page covers imitation or offline RL.'),
+R('bc', 'Behaviour cloning', 'BC', 'off', '1988', 'off',
+  C('Pomerleau, ALVINN: An Autonomous Land Vehicle in a Neural Network (NeurIPS 1988)', 'alvinn88', 'title'),
   C('Policy', 'alvinn88', 'title', k='der', f='policy'),
   C('Free', 'alvinn88', 'title', k='der', f='free'),
   C('Offline (demonstrations)', 'corl', 'README', k='der', f='offline'),
@@ -445,7 +445,7 @@ R('bc', 'Behaviour cloning', 'BC', 'off', '1988', None,
   C('Starting point of imitation: copy an expert instead of specifying a reward', 'alvinn88', 'title', k='der', frm=[]),
   C('The baseline of imitation and offline RL libraries (imitation, CORL)', 'imitation', 'README', 'Behavioral Cloning'))
 
-R('gail', 'GAIL', 'GAIL', 'off', '2016-06-10', None,
+R('gail', 'GAIL', 'GAIL', 'off', '2016-06-10', 'off',
   C('Ho and Ermon, Generative Adversarial Imitation Learning', 'gail', 'arXiv v1'),
   C('Policy, plus a discriminator that acts as the reward', 'gail', 'abstract', 'draws an analogy between imitation learning and generative adversarial networks', k='der', f='policy'),
   C('Free', 'gail', 'abstract', 'a model-free imitation learning algorithm', f='free'),
@@ -456,7 +456,7 @@ R('gail', 'GAIL', 'GAIL', 'off', '2016-06-10', None,
   C('Inverse RL followed by RL is indirect and slow', 'gail', 'abstract', 'This approach is indirect and can be slow', frm=['bc', 'trpo']),
   C('Implemented in the imitation library', 'imitation', 'README', 'Generative Adversarial Imitation Learning'))
 
-R('cql', 'CQL', 'CQL', 'off', '2020-06-08', None,
+R('cql', 'CQL', 'CQL', 'off', '2020-06-08', 'off',
   C('Kumar et al., Conservative Q-Learning for Offline Reinforcement Learning', 'cql', 'arXiv v1'),
   C('Value (Q), also used inside actor-critic methods', 'cql', 'abstract',
     'straightforward to implement on top of existing deep Q-learning and actor-critic implementations', f='value'),
@@ -470,7 +470,7 @@ R('cql', 'CQL', 'CQL', 'off', '2020-06-08', None,
     'standard off-policy RL methods can fail due to overestimation of values induced by the distributional shift between the dataset and the learned policy', frm=['dqn15', 'sac']),
   C('Implemented in CORL (offline and offline-to-online)', 'corl', 'README', 'Conservative Q-Learning for Offline Reinforcement Learning'))
 
-R('iql', 'IQL', 'IQL', 'off', '2021-10-12', None,
+R('iql', 'IQL', 'IQL', 'off', '2021-10-12', 'off',
   C('Kostrikov, Nair and Levine, Offline Reinforcement Learning with Implicit Q-Learning', 'iql', 'arXiv v1'),
   C('Actor-critic (Q, V, and a policy extracted afterwards)', 'iql', 'abstract', 'we extract the policy via advantage-weighted behavioral cloning', k='der', f='ac'),
   C('Free', 'iql', 'abstract', k='der', f='free'),
@@ -484,7 +484,7 @@ R('iql', 'IQL', 'IQL', 'off', '2021-10-12', None,
   C('Implemented in CORL; fine-tunes online after offline training', 'iql', 'abstract',
     'IQL achieves strong performance fine-tuning using online interaction after offline initialization'))
 
-R('dt', 'Decision Transformer', 'DT', 'off', '2021-06-02', None,
+R('dt', 'Decision Transformer', 'DT', 'off', '2021-06-02', 'off',
   C('Chen et al., Decision Transformer: Reinforcement Learning via Sequence Modeling', 'dt', 'arXiv v1'),
   C('Policy (a return-conditioned sequence model)', 'dt', 'abstract', 'Decision Transformer simply outputs the optimal actions by leveraging a causally masked Transformer', f='policy'),
   C('Free', 'dt', 'abstract', 'model-free offline RL baselines', k='der', f='free'),

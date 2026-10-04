@@ -9,7 +9,7 @@
   const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dtxt=d=>{const p=d.split('-');return p.length===1?p[0]:p.length===2?MON[+p[1]-1]+' '+p[0]:(+p[2])+' '+MON[+p[1]-1]+' '+p[0]};
   const yfrac=d=>{const p=d.split('-').map(Number);return p[0]+((p[1]||7)-1)/12+((p[2]||15)-1)/365};
-  const childName=id=>id===D.deep?'Deep RL':id===D.llm?'RL for LLMs':'child page';
+  const childName=id=>(D.children&&D.children[id])||'child page';
   window.MSU={$,esc,A,NP,DOM,dtxt};
   // the tab's own section links
   document.querySelectorAll('#t-miles [data-ms-go]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const t=$(a.dataset.msGo);if(t)t.scrollIntoView({block:'start',behavior:'smooth'})}));

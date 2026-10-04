@@ -62,8 +62,12 @@ REPO_TEXT = {
 # knowledge base pages a row links to (Notion ids)
 PAGES = {
  'dp': ['Dynamic programming', '3c65c17b0d0d81baada7e1c05ce69d01'],
- 'mf': ['Model-free methods', '3c65c17b0d0d81898a0cd4c05c744969'],
- 'deep': ['Deep RL', '3c65c17b0d0d8180b808c8c0cf8ddbe6'],
+ 'bandit': ['Bandits and exploration', '3ee5c17b0d0d81acba54d70ac51c601c'],
+ 'mf': ['Model-free prediction and control', '3c65c17b0d0d81898a0cd4c05c744969'],
+ 'val': ['Value-based deep RL', '3ee5c17b0d0d818689b2c0dbce434ece'],
+ 'pg': ['Policy gradients and actor-critic', '3ee5c17b0d0d8101a262d3620e75747c'],
+ 'mb': ['Model-based RL and planning', '3ee5c17b0d0d8116be5fd39e10bd94c5'],
+ 'off': ['Offline RL and imitation', '3ee5c17b0d0d81d4995ec47e428de9b3'],
  'llm': ['RL for LLMs', '3c65c17b0d0d818c9bcff7177325fe56'],
  'align': ['Alignment: SFT, RLHF, DPO Family, RLVR', '3c65c17b0d0d81d5bed7e608d4061c7a'],
 }

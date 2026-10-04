@@ -1,12 +1,16 @@
 # Notes: what was checked for the Method atlas and Taxonomy (read 2026-10-03)
 
 ## Child pages (read-only Notion fetch, 2026-09-30 versions)
-- Deep RL (3c65c17b0d0d8180b808c8c0cf8ddbe6): DQN, Double, Dueling, Rainbow, REINFORCE, baselines, actor-critic, GAE, A3C/A2C, TRPO, PPO, DDPG, TD3, SAC, AlphaGo, AlphaZero, MuZero. Rows REINFORCE and actor-critic (1983) link here, as the old root page's map did.
-- Model-free methods (3c65c17b0d0d81898a0cd4c05c744969): MC, TD(0), TD(lambda), SARSA, Expected SARSA, Q-learning, Double Q-learning.
+- The old Deep RL page (3c65c17b0d0d8180b808c8c0cf8ddbe6) was split on 2026-10-04; its rows now link to the pages below.
+- Value-based deep RL (3ee5c17b0d0d818689b2c0dbce434ece): DQN 2013 and 2015, Double, Dueling, PER, C51, QR-DQN, Rainbow.
+- Policy gradients and actor-critic (3ee5c17b0d0d8101a262d3620e75747c): REINFORCE, actor-critic (1983), TRPO, GAE, A3C, A2C, PPO, DDPG, TD3, SAC.
+- Model-based RL and planning (3ee5c17b0d0d8116be5fd39e10bd94c5): Dyna-Q, AlphaGo, AlphaGo Zero, AlphaZero, MuZero, Dreamer.
+- Offline RL and imitation (3ee5c17b0d0d81d4995ec47e428de9b3): behaviour cloning, GAIL, CQL, IQL, Decision Transformer.
+- Bandits and exploration (3ee5c17b0d0d81acba54d70ac51c601c): no atlas row yet.
+- Model-free prediction and control (3c65c17b0d0d81898a0cd4c05c744969): MC, TD(0), TD(lambda), SARSA, Expected SARSA, Q-learning, Double Q-learning.
 - RL for LLMs (3c65c17b0d0d818c9bcff7177325fe56): RLHF with PPO, GRPO, RLVR, Dr. GRPO, DAPO, GSPO, off-policy corrections, RLOO and SA-MRPO mentioned. GDPO rows link here too.
 - Dynamic programming (3c65c17b0d0d81baada7e1c05ce69d01): value and policy iteration.
 - DPO links to Alignment (3c65c17b0d0d81d5bed7e608d4061c7a), which owns the DPO family.
-- No child page covers Dyna, Dreamer, behaviour cloning, GAIL, CQL, IQL or Decision Transformer; the atlas says so in their rows.
 
 ## Corrections the sources make to common claims (shown in the tab)
 1. DQN's target network is from the 2015 Nature paper; the 2013 arXiv paper has replay but no target network (phrase absent from its text; Double DQN's paper: "as proposed by Mnih et al. (2015)").
