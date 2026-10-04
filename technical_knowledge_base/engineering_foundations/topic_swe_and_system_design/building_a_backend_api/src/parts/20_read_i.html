@@ -1,0 +1,83 @@
+
+<section id="s-prod">
+<h2>18. What a production API has that the demo does not</h2>
+<p>The demo is honest about being small. Before real users, a Python API normally gains the following; each line names the problem it solves.</p>
+<div class="tw"><table>
+<thead><tr><th>Add</th><th>Because</th><th>Where it is taught</th></tr></thead>
+<tbody>
+<tr><td>Several worker processes (e.g. <code>uvicorn --workers 4</code>, or one process per container with many containers)</td><td>One Python process uses one CPU core for Python code</td><td>{{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}</td></tr>
+<tr><td>Postgres with a connection pool, migrations (Alembic), and the idempotency and session tables in it</td><td>SQLite in memory loses everything on restart and serves one machine</td><td>{{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}</td></tr>
+<tr><td>A timeout on every outgoing call (model, database, webhooks) and on the request itself</td><td>One slow dependency otherwise holds every worker</td><td>{{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}</td></tr>
+<tr><td>A request ID per request, structured logs, metrics per endpoint and status, traces</td><td>"It failed" must become one search</td><td>{{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}</td></tr>
+<tr><td>A body size limit at the proxy and in the app</td><td>A 2 GB body is a denial of service</td><td>This page, section 4</td></tr>
+<tr><td>TLS termination, CORS rules for browser clients, security headers</td><td>Browsers enforce who may call you from which site</td><td>{{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}</td></tr>
+<tr><td>Tests per endpoint: happy path, each error, another user's ID, a retried key, a breaking-change diff of the OpenAPI spec</td><td>The contract is only as good as its tests</td><td>{{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}</td></tr>
+<tr><td>A gateway in front (auth, rate limits, routing to model providers) once there are several services</td><td>Cross-cutting rules in one place</td><td>{{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}}</td></tr>
+<tr><td>Readiness and liveness endpoints that check dependencies, not just the process</td><td>A load balancer must stop sending traffic to a broken instance</td><td>Root, Step 1</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-mist">
+<h2>19. Common mistakes</h2>
+<p class="small mute">Each is a real, frequent failure; click to open.</p>
+<details class="mist"><summary>Returning 200 with <code>{"error": ...}</code> in the body</summary><div class="b">Every proxy, monitor, retry policy and SDK reads the status code. A 200 error looks like success to all of them: dashboards stay green while users fail. Use the status codes; put detail in a problem body.</div></details>
+<details class="mist"><summary>A GET that changes something</summary><div class="b">Link previews, crawlers, prefetching browsers and retrying proxies send GETs freely, because RFC 9110 says GET is safe. <code>GET /unsubscribe?id=...</code> gets triggered by an email scanner. State changes go in POST, PUT, PATCH or DELETE.</div></details>
+<details class="mist"><summary>Retrying POSTs without an idempotency key</summary><div class="b">Client libraries and service meshes that retry automatically will duplicate side effects (messages, charges, emails). Either send keys, or configure retries only for idempotent methods.</div></details>
+<details class="mist"><summary>Checking "is the key already there?" with a SELECT, then inserting</summary><div class="b">Two concurrent retries both see "absent" and both proceed. Use a unique constraint and let the insert fail (section 10).</div></details>
+<details class="mist"><summary>Looking up objects by ID without the owner</summary><div class="b">OWASP's API1:2023, Broken Object Level Authorization. Every query that takes an ID from the request also filters by the caller.</div></details>
+<details class="mist"><summary>Offset pagination on a big, changing table</summary><div class="b">Slow at depth (measured above: hundreds of milliseconds a million rows in) and wrong under concurrent writes (duplicates and skipped rows). Use a cursor with a unique tie-breaker.</div></details>
+<details class="mist"><summary>Renaming a field "because the old name was ugly"</summary><div class="b">It breaks every client that reads it. Add the new field, keep the old one, deprecate it with a date, remove it only in a new version.</div></details>
+<details class="mist"><summary>Trusting the JWT header's <code>alg</code></summary><div class="b">The "alg: none" and algorithm-confusion attacks. Pin algorithms, check issuer, audience and expiry (RFC 8725).</div></details>
+<details class="mist"><summary>Parsing the webhook JSON before verifying its signature</summary><div class="b">The signature is over the raw bytes; frameworks that re-serialise the body make every check fail, and teams then "temporarily" turn verification off.</div></details>
+<details class="mist"><summary>Leaking internals in errors</summary><div class="b">Stack traces and SQL in a 500 body tell an attacker your stack and schema. Log them with the request ID; return a generic problem.</div></details>
+<details class="mist"><summary>Floats for money, numbers for 64-bit IDs</summary><div class="b">Rounding errors in balances; IDs that change in JavaScript above 2<sup>53</sup>. Integer minor units; string IDs.</div></details>
+<details class="mist"><summary>No limits: unbounded strings, lists, page sizes, request bodies</summary><div class="b">Every input needs a maximum, or one request can exhaust memory, database time or model tokens.</div></details>
+<details class="mist"><summary>A streaming endpoint behind a buffering proxy</summary><div class="b">Works on a laptop, arrives as one lump in production. Disable buffering for the route and test through the real proxy.</div></details>
+</section>
+
+<section id="s-corr">
+<h2>20. What changed from the old page</h2>
+<p class="small">This page replaces the API half of the old "API and Code Design" page (11 min read, fetched 2026-09-22 and saved in <code>src/live.md</code>); its code-design half (library design, code review, abstractions) now belongs to {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}. Every old claim was checked; <code>src/coverage.json</code> maps each one. The corrections:</p>
+<div class="corr"><div class="t">Corrected or made precise</div><ul class="small">
+<li><b>"Cursor ... O(1) on the DB".</b> Not quite: a keyset page is an index seek plus the page, logarithmic in table size, and measured here as flat (0.02 to 0.05 ms) from page 1 to a million rows deep. Offset is the one that grows linearly.</li>
+<li><b>"Return a conflict if the same key arrives with a different payload".</b> The IETF draft says 422 for that case and reserves 409 for a retry while the first request is still running; Stripe documents 409 for the concurrent case. Brandur's 2017 reference code used 409 for both. The demo follows the draft.</li>
+<li><b>"RFC 9457 (<code>application/problem+json</code>) is the standards-track shape".</b> Right, and worth adding: it obsoleted RFC 7807 in July 2023, and the major LLM providers still use their own shapes.</li>
+<li><b>Idempotency-Key as a standard.</b> The old page implied a standard header; it is an expired IETF draft (draft-07, 2025-10-15), though widely implemented.</li>
+<li><b>"Stripe ... pins each consumer to the version they onboarded with".</b> Confirmed, with the detail that the pin happens on the account's first API request and a <code>Stripe-Version</code> header overrides it per request.</li>
+</ul></div>
+</section>
+
+<section id="s-gloss">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#d-api">API</a></b>: the requests a program promises to understand, and its answers.</div>
+<div><b><a href="#d-contract">Contract</a></b>: everything about an API that clients can observe and therefore depend on.</div>
+<div><b><a href="#d-http">HTTP</a></b>: the request and response protocol of the web (RFC 9110).</div>
+<div><b><a href="#d-method">Method</a></b>: the verb of a request: GET, POST, PUT, PATCH, DELETE.</div>
+<div><b><a href="#d-header">Header</a></b>: a <code>Name: value</code> line of metadata on a request or response.</div>
+<div><b><a href="#d-status">Status code</a></b>: the three-digit result; 4xx client's fault, 5xx server's.</div>
+<div><b><a href="#d-safe">Safe method</a></b>: does not change server state (GET).</div>
+<div><b><a href="#d-idem">Idempotent</a></b>: repeating it has the same effect as doing it once.</div>
+<div><b><a href="#d-json">JSON</a></b>: the text data format of most API bodies (RFC 8259).</div>
+<div><b><a href="#d-asgi">ASGI server</a></b>: the process (uvicorn) that owns the socket and calls your Python app.</div>
+<div><b><a href="#d-route">Route</a></b>: the function that handles one method and path.</div>
+<div><b><a href="#d-resource">Resource</a></b>: a thing with an identity and a URL (a chat).</div>
+<div><b><a href="#d-rest">REST</a></b>: the convention of resources in URLs and verbs in methods.</div>
+<div><b><a href="#d-reqid">Request ID</a></b>: a unique ID per request, in responses and logs.</div>
+<div><b><a href="#d-cursor">Cursor</a></b>: an opaque token meaning "continue after this row".</div>
+<div><b><a href="#d-ikey">Idempotency key</a></b>: a client-chosen ID that makes retries of one action safe.</div>
+<div><b><a href="#d-authn">Authentication</a></b>: who is calling.</div>
+<div><b><a href="#d-authz">Authorisation</a></b>: may they do this to this object.</div>
+<div><b><a href="#d-apikey">API key</a></b>: a long random secret identifying a caller.</div>
+<div><b><a href="#d-oauth">OAuth 2</a></b>: delegated access: an app acts for a user via tokens.</div>
+<div><b><a href="#d-oidc">OpenID Connect</a></b>: identity on top of OAuth 2 (the ID token).</div>
+<div><b><a href="#d-jwt">JWT</a></b>: a signed, readable token of claims.</div>
+<div><b><a href="#d-ratelimit">Rate limit</a></b>: a cap on requests or tokens per unit of time.</div>
+<div><b><a href="#d-webhook">Webhook</a></b>: an HTTP call your server makes to a client's URL when something happens.</div>
+<div><b><a href="#d-sse">Server-sent events</a></b>: one long HTTP response carrying a stream of events.</div>
+<div><b><a href="#d-breaking">Breaking change</a></b>: a change after which an existing correct client fails.</div>
+<div><b><a href="#d-openapi">OpenAPI</a></b>: a machine-readable description of an HTTP API.</div>
+<div><b><a href="#d-grpc">gRPC</a></b>: RPC over HTTP/2 with protocol buffers.</div>
+</div>
+</section>
+</div>

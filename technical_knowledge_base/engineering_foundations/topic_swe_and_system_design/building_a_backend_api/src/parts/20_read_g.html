@@ -1,0 +1,60 @@
+
+<section id="s-rate">
+<h2>12. Rate limiting, as the client sees it</h2>
+<p>A <dfn id="d-ratelimit">rate limit</dfn> caps how many requests (or, for LLM APIs, tokens) one caller may use per unit of time, so one runaway script cannot take capacity from everyone. How the server counts (a token bucket, per key, per model) is on the root's Step 5; this section is the contract with the client. The demo gives each key a bucket of 5 requests refilling at 1 per second; seven rapid messages got <span data-v="burst"></span>. The first and the sixth, captured:</p>
+<div class="grid">
+<div><div class="small mute">Allowed (headers only)</div><div class="raw" data-res="rate_ok" data-headonly="1"></div></div>
+<div><div class="small mute">Limited</div><div class="raw" data-res="rate_limited"></div></div>
+</div>
+<ul>
+<li><b>429 Too Many Requests</b> ({{RFC 6585 §4|https://www.rfc-editor.org/rfc/rfc6585.html#section-4}}) with <b><code>Retry-After</code></b>, either seconds or an HTTP date ({{RFC 9110 §10.2.3|https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after}}). A well-behaved client waits that long; Anthropic's SDK honours it automatically when retrying ({{Claude API errors|https://platform.claude.com/docs/en/api/errors}}).</li>
+<li><b>Tell clients where they stand before they hit the wall.</b> The IETF's {{RateLimit header fields draft|https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/}} (draft-11, 2026-05-23, still an active draft, not an RFC) defines <code>RateLimit-Policy: "burst";q=5;w=5</code> (quota 5 per 5-second window) and <code>RateLimit: "burst";r=4;t=0</code> (4 remaining, resets in 0 s), which the demo sends. Most providers still use their own <code>X-</code> headers: OpenAI sends <code>x-ratelimit-remaining-requests</code>, <code>x-ratelimit-remaining-tokens</code> and their reset times ({{OpenAI API reference|https://developers.openai.com/api/reference/overview}}).</li>
+<li><b>Limit before expensive work</b>, and before the idempotency layer: Stripe notes that "rate limiters run before the API's idempotency layer", so a 429 is not stored against the key and the retry gets a fresh chance ({{Stripe|https://docs.stripe.com/error-low-level}}). The demo does the same.</li>
+<li><b>A quota is not a rate limit.</b> "1,000 messages a month" is a billing quota; tell it apart in the error type, because waiting a second will not fix it (Anthropic's tier spend-cap 429 has no <code>retry-after</code>, its docs say, for exactly this reason).</li>
+</ul>
+</section>
+
+<section id="s-hook">
+<h2>13. Webhooks: your API in reverse</h2>
+<p>Some events happen later: a long batch job finishes, a payment clears, a moderation review completes. Clients could poll (<code>GET</code> every few seconds), which is wasteful and slow. A <dfn id="d-webhook">webhook</dfn> turns it around: the client registers a URL, and <em>your</em> server sends an HTTP POST to it when the event happens. Now you are the client, calling code you do not control, over a network that fails. Everything from the previous sections applies with the roles swapped.</p>
+<div class="cost"><div class="t">The discipline, with the sources that set it</div>
+<ul>
+<li><b>Sign every delivery.</b> The receiver must know the POST came from you and was not altered. Compute an HMAC (a keyed hash) with SHA-256 over an ID, a timestamp and the exact body, using a secret shared with that receiver. The {{Standard Webhooks spec|https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md}} signs <code>msg_id.timestamp.payload</code> and sends <code>webhook-id</code>, <code>webhook-timestamp</code> and <code>webhook-signature: v1,&lt;base64&gt;</code>; Stripe signs <code>timestamp.payload</code> into <code>Stripe-Signature: t=...,v1=...</code> ({{Stripe webhooks|https://docs.stripe.com/webhooks}}).</li>
+<li><b>Reject old timestamps</b> to stop replays of a captured request: Stripe's libraries default to "a default tolerance of 5 minutes", and Stripe warns that a tolerance of 0 "disables the recency check entirely".</li>
+<li><b>Verify against the raw bytes,</b> before any JSON parsing: re-serialising changes spacing and key order and the signature fails. Compare signatures in constant time.</li>
+<li><b>Retry with backoff, for days.</b> Stripe retries "for up to three days with an exponential back off in live mode"; Standard Webhooks suggests a schedule from immediately, 5 seconds, 5 minutes, 30 minutes, up to 24 hours. After that, mark the endpoint failing and let the user redeliver.</li>
+<li><b>Expect duplicates and disorder.</b> Delivery is at-least-once, so receivers must deduplicate: "Use the <code>webhook-id</code> header as an idempotency key". Stripe "doesn't guarantee the delivery of events in the order that they're generated"; receivers should fetch current state rather than trust event order.</li>
+<li><b>Receivers: answer 2xx fast, work later.</b> Stripe: "quickly returns a successful status code (2xx) before any complex logic that might cause a timeout"; put the event on a queue ({{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}).</li>
+<li><b>Thin events</b> carry only the type and IDs; the receiver fetches the object, so it always gets current data and no personal data travels in the webhook. Stripe now offers both "thin" and "snapshot" events.</li>
+</ul></div>
+<div class="card" id="rd-wh-card">
+<b>Verify a real webhook signature</b> <span class="real">real HMAC-SHA256</span>
+<p class="small">The demo service signed this event with the Standard Webhooks scheme and the secret <code>whsec_demo_secret</code> (used as raw bytes here; Standard Webhooks secrets are base64 after the prefix). Your browser recomputes the signature below. Edit one character of the body, or change the timestamp, and watch it fail.</p>
+<label class="small">webhook-id <input id="rd-wh-id" style="width:100%"></label>
+<label class="small">webhook-timestamp <input id="rd-wh-ts" style="width:100%"></label>
+<label class="small">Body (raw bytes) <textarea id="rd-wh-body" rows="3" style="width:100%;font:12px ui-monospace,Menlo,monospace;background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:6px"></textarea></label>
+<div class="raw" id="rd-wh-out" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>
+<button id="rd-wh-reset">Reset to the signed event</button>
+</div>
+</section>
+
+<section id="s-sse">
+<h2>14. Streaming model output: server-sent events</h2>
+<p>A model writes its answer a token at a time over several seconds. Waiting for the whole answer before sending anything makes the product feel dead; streaming shows the first words in a fraction of a second. LLM APIs stream with <dfn id="d-sse">server-sent events</dfn> (SSE), defined in the {{WHATWG HTML standard|https://html.spec.whatwg.org/multipage/server-sent-events.html}}: one ordinary HTTP response with <code>Content-Type: text/event-stream</code> that stays open while the server writes events. Each event is a few <code>field: value</code> lines (<code>event</code>, <code>data</code>, <code>id</code>, <code>retry</code>) ended by a blank line. Here is the demo's stream exactly as it arrived, including the chunk sizes of HTTP/1.1 chunked transfer encoding (hex byte counts) that you never see in a browser:</p>
+<div class="card" id="rd-sse-card">
+<b>Replay of a captured stream, at its real arrival times</b> <span class="real">captured</span>
+<div class="grid"><div><div class="small mute">Bytes on the wire</div><div class="raw" id="rd-sse-raw" style="max-height:320px;overflow:auto"></div></div>
+<div><div class="small mute">What the user sees</div><div id="rd-sse-ui" style="border:1px solid var(--line);border-radius:8px;padding:10px;min-height:5em;font-size:15px"></div><div class="small mute" id="rd-sse-t"></div></div></div>
+<div class="an-ctl" id="rd-sse-ctl"></div>
+</div>
+<p>The shape mirrors the providers': a start event, many small deltas, a stop event with the reason. Anthropic's API, since version <code>2023-06-01</code>, sends incremental deltas and named events only ({{Claude API versioning|https://platform.claude.com/docs/en/api/versioning}}).</p>
+<div class="cost"><div class="t">What breaks in production</div>
+<ul>
+<li><b>Buffering proxies.</b> A proxy or load balancer that buffers responses turns your stream into one late lump. Send <code>Cache-Control: no-cache</code> (the demo does) and turn buffering off for the route (in nginx, <code>proxy_buffering off</code> or the <code>X-Accel-Buffering: no</code> response header; {{nginx docs|https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering}}).</li>
+<li><b>Idle timeouts.</b> Load balancers drop connections that are silent for too long (AWS's Application Load Balancer defaults to 60 s; {{AWS docs|https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#load-balancer-attributes}}); long reasoning pauses need periodic comment lines (<code>: ping</code>) as keep-alives.</li>
+<li><b>Errors after 200.</b> The status is gone once streaming starts; send an error event and make clients handle it.</li>
+<li><b>The client went away.</b> When the user closes the tab, stop generating: detect the disconnect (Starlette raises on send; check <code>await request.is_disconnected()</code>) and cancel the model call, or you pay for tokens nobody reads.</li>
+<li><b>Resuming.</b> Browsers' <code>EventSource</code> reconnects and sends the last <code>id</code> it saw in a <code>Last-Event-ID</code> header; supporting it means keeping recent events per stream. Most LLM APIs do not resume; clients re-request.</li>
+</ul></div>
+<p class="small mute">Why not WebSockets? A WebSocket is a two-way connection that leaves HTTP after the handshake; it suits chat between users, games and voice. A model reply is one request and one long answer, which SSE does with plain HTTP, ordinary auth headers and proxies that already understand it. Details of both are in {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}; how the model produces tokens and why the first one takes longest is on {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</p>
+</section>

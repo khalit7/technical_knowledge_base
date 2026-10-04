@@ -1,0 +1,46 @@
+
+<section id="s-idem">
+<h2>10. Idempotency keys: making POST safe to retry</h2>
+<p>Networks fail in a way that is impossible to tell apart from the client's side. The user presses Send; the request leaves the phone; after 30 seconds nothing has come back. Either the request never arrived, or it arrived, the model answered, 10 credits were charged, and the <em>response</em> was lost in a tunnel. The client sees the same timeout in both cases. Retrying risks paying twice; not retrying risks losing the message. Brandur Leach's post for Stripe lays out these cases with payments ({{Stripe blog, 2017-02-22|https://stripe.com/blog/idempotency}}); the root page's Step 4 shows the double charge in one picture. This section is the full mechanism.</p>
+<p>GET, PUT and DELETE are idempotent by definition (<a href="#s-http">section 2</a>), so clients and proxies may retry them. POST is not: each POST creates something new. An <dfn id="d-ikey">idempotency key</dfn> makes one POST idempotent: the client generates a unique value for one logical action (one message the user sent), sends it in an <code>Idempotency-Key</code> header, and sends the <em>same</em> value on every retry of that action. The server stores the key with the result of the first attempt and answers any repeat from the store.</p>
+<div class="card" id="rd-id-card">
+<b>Animation: one message, a lost reply and a retry, with the server's database step by step</b>
+<div class="seg" id="rd-id-scn"><button data-m="lost" class="on">Reply lost, client retries</button><button data-m="conc">Retry while first still running</button><button data-m="diff">Same key, different message</button></div>
+<div class="seg" id="rd-id-seg"><button data-m="before" class="on">Before: no key</button><button data-m="after">After: Idempotency-Key</button></div>
+<div id="rd-id-view"></div>
+<div class="an-cap" id="rd-id-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rd-id-cnt"></div>
+<div class="an-ctl" id="rd-id-ctl"></div>
+<p class="small mute">The database states follow the demo service's code (<code>src/service/app.py</code>); the 201 replay, the 409 and the 422 at the end of each "after" run are the real captured responses (Wire lab, "msg_retry", "msg_concurrent", "msg_mismatch"). Timings are illustrative.</p>
+</div>
+<h3>The server side, as the demo implements it</h3>
+<div class="code" data-src="req_hash = hashlib.sha256|return JSONResponse(out, status_code=201"></div>
+<div class="walk">
+<div class="wl"><b>1. Claim the key atomically.</b> <code>INSERT</code> a row for (user, key) with status <code>started</code>. The primary key means exactly one of two simultaneous attempts can succeed; the other gets an integrity error. Never "SELECT, and if absent INSERT": two requests can both see "absent" between the two statements (a race).</div>
+<div class="wl"><b>2. If the key exists, compare and replay.</b> Different request hash: the client reused a key for a different action, a bug, so answer 422. Status <code>started</code>: the first attempt is still running, so answer 409 and let the client retry later. Status <code>done</code>: return the stored status code and body, and mark it with <code>Idempotent-Replayed: true</code> as Stripe does.</div>
+<div class="wl"><b>3. Do the work and record the result in one transaction.</b> The message, the credit charge and the stored response commit together or not at all. If they were separate statements, a crash between them would leave money taken and no record of the response, or a key stuck at <code>started</code> forever.</div>
+</div>
+<h3>What the standards and Stripe say</h3>
+<div class="tw"><table>
+<thead><tr><th>Question</th><th>IETF draft (draft-07, 2025-10-15)</th><th>Stripe (docs, fetched 2026-10-04)</th><th>The demo</th></tr></thead>
+<tbody>
+<tr><td>Key format</td><td>"It is RECOMMENDED that a UUID or a similar random identifier be used"</td><td>"we suggest using V4 UUIDs"; up to 255 characters; never personal data</td><td>UUID v4 from the client</td></tr>
+<tr><td>Key missing where required</td><td>400</td><td>Optional; without it, no protection</td><td>400</td></tr>
+<tr><td>Same key, different request</td><td>422</td><td>An error ("compares incoming parameters ... and errors if they're not the same"); Brandur's 2017 reference design used 409</td><td>422</td></tr>
+<tr><td>Retry while the first is running</td><td>409</td><td>409 ("conflicts with another request ... same idempotent key")</td><td>409</td></tr>
+<tr><td>What is stored</td><td>The resource's choice; fingerprint the request</td><td>"the resulting status code and body of the first request ... regardless of whether it succeeds or fails ... including 500 errors"; nothing stored if validation fails or a concurrent request conflicts</td><td>Status and body of a completed request</td></tr>
+<tr><td>Expiry</td><td>"SHOULD define such expiration policy and publish it"</td><td>Keys pruned after at least 24 hours; a reused pruned key "generate[s] a new request"</td><td>None (demo)</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: {{draft-ietf-httpapi-idempotency-key-header-07|https://www.ietf.org/archive/id/draft-ietf-httpapi-idempotency-key-header-07.html}}; {{Stripe, idempotent requests|https://docs.stripe.com/api/idempotent_requests}}; {{Stripe, advanced error handling|https://docs.stripe.com/error-low-level}}; {{Brandur Leach, "Implementing Stripe-like idempotency keys in Postgres" (2017-10-27)|https://brandur.org/idempotency-keys}}.</p>
+<div class="corr"><div class="t">Status of the standard (checked 2026-10-04)</div>The <code>Idempotency-Key</code> header is <b>not an RFC</b>. The IETF HTTPAPI working group's draft reached version 07 on 2025-10-15 and is listed by the datatracker as an expired Internet-Draft ({{datatracker|https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/}}). It still documents common practice: its implementation list names Stripe, Adyen, PayPal, Square, Twilio, Chargebee, Razorpay, Google Standard Payments and others. Use the header name; do not cite it as a standard.</div>
+<h3>The harder case: work outside your database</h3>
+<p>The single transaction above works because everything the request changes lives in one database. Real requests also call things you cannot roll back: the model provider, a card network, an email service. Brandur's design splits the request into <dfn>atomic phases</dfn> ("a set of local state mutations that occur in transactions between foreign state mutations") and records a <dfn>recovery point</dfn> after each one, so a retry resumes from the last completed step instead of starting over. His warning: "once we make our first foreign state mutation, we're committed one way or another" ({{brandur.org|https://brandur.org/idempotency-keys}}). For an LLM call, the practical version is: record that the model was called and store its output before charging and answering, and pass your own idempotency key down to any provider that accepts one.</p>
+<div class="cost"><div class="t">What it costs, and when not to bother</div>
+<ul>
+<li><b>One extra write per request</b> and a table that grows (prune after your published window; Stripe's is 24 hours).</li>
+<li><b>Stale <code>started</code> rows</b> after a crash need a lock timeout (Brandur's <code>locked_at</code>), after which a retry may take over.</li>
+<li><b>Streaming responses</b> cannot be replayed byte for byte cheaply. The demo does not protect streamed messages; production designs store the finished message and let a retry fetch it, or resume the stream from the last event ID (<a href="#s-sse">section 14</a>).</li>
+<li><b>Not needed</b> where the operation is naturally idempotent: setting a value with PUT, deleting, or creating with a client-chosen ID (<code>PUT /v1/chats/{client_uuid}</code>), which makes the ID itself the key.</li>
+</ul></div>
+<p class="small mute">Clients: generate the key once per user action (not per attempt), keep it until you get a definite answer, and retry with backoff and jitter. Retry policy and why retries can take a system down are on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}; how queues give the same "at least once, so deduplicate" problem a different shape is on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</p>
+</section>

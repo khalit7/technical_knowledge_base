@@ -1,0 +1,46 @@
+
+<section id="s-page">
+<h2>8. Pagination: never return everything</h2>
+<p>A user with 40,000 chats asks for "my chats". Returning all of them is slow, memory-hungry on both sides, and grows forever. So every list endpoint returns a <dfn id="d-page">page</dfn> (say 20 items) plus a way to ask for the next one. There are two ways to say "the next one".</p>
+<div class="two">
+<div><h4>Offset: "skip N rows"</h4><p class="small"><code>GET /v1/chats?limit=20&amp;offset=40</code><br><code>SELECT ... ORDER BY created_at, id LIMIT 20 OFFSET 40</code></p><p class="small">Easy, lets a UI jump to page 7. But the database cannot jump: it walks the index from the start and throws away the first 40 rows. And if rows are added or removed while the user pages, everything shifts.</p></div>
+<div><h4>Cursor (keyset): "rows after this one"</h4><p class="small"><code>GET /v1/chats?limit=20&amp;cursor=...</code><br><code>SELECT ... WHERE (created_at, id) &gt; (:t, :id) ORDER BY created_at, id LIMIT 20</code></p><p class="small">The <dfn id="d-cursor">cursor</dfn> encodes the sort key of the last row the client saw. With an index on <code>(created_at, id)</code> the database seeks straight to it ({{Postgres, row comparison|https://www.postgresql.org/docs/current/functions-comparisons.html#ROW-WISE-COMPARISON}}). No page numbers, but stable and fast at any depth.</p></div>
+</div>
+<div class="card" id="rd-pg-card">
+<b>Measured: one page of 20 rows, a million rows in Postgres</b> <span class="real">measured</span>
+<div id="rd-pg-bars"></div>
+<p class="small mute" id="rd-pg-note"></p>
+</div>
+<p>Offset cost grows in proportion to the depth because every skipped row is still read; the cursor's cost stays flat, because the database seeks to the cursor's position in the index. Markus Winand's {{"We need tool support for keyset pagination"|https://use-the-index-luke.com/no-offset}} makes the same case with Postgres and MySQL plans. The second problem is correctness, which no index fixes:</p>
+<div class="card" id="rd-dr-card">
+<b>Animation: the same user paging while others write, offset against cursor</b>
+<div class="seg" id="rd-dr-seg"><button data-m="off" class="on">Before: offset</button><button data-m="ks">After: cursor</button></div>
+<div id="rd-dr-view"></div>
+<div class="an-cap" id="rd-dr-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rd-dr-cnt"></div>
+<div class="an-ctl" id="rd-dr-ctl"></div>
+<p class="small mute">Illustrative data: eight chats, newest first, pages of three. One chat is created and one deleted while the user pages.</p>
+</div>
+<h3>How the demo does it, and how a real API should</h3>
+<p>The captured first page (limit 2) ended with <code>"next_cursor": "5b3137..."</code>; sending it back returned the next two chats. Two chats were created in the same second, which is why the cursor carries the <code>id</code> as a tie-breaker: sorting by <code>created_at</code> alone would make the order between equal timestamps arbitrary, and a page boundary between them could skip or repeat one.</p>
+<div class="raw" data-body="list_p1"></div>
+<div class="cost"><div class="t">The rules, from the big style guides</div>
+<ul>
+<li><b>Cursors are opaque.</b> Google's {{AIP-158|https://google.aip.dev/158}}: page tokens "must be opaque (but URL-safe) strings, and must not be user-parseable", because anything clients can decode they will depend on. The demo's cursor is hex-encoded JSON, which a curious client can decode: fine for a demo, a mistake in production. Base64 an encrypted or signed blob, so you can change what it contains later.</li>
+<li><b>An empty or null next cursor is the only end signal.</b> AIP-158: "If the end of the collection has been reached, the <code>next_page_token</code> field must be empty." Do not make clients guess from a short page.</li>
+<li><b>Cap <code>limit</code>.</b> The demo answers 422 above 100; AIP-158 prefers to "coerce down to the maximum". Either way, document it.</li>
+<li><b>Skip <code>total_count</code></b> unless you need it: counting a big filtered set is itself a full scan. AIP-158 allows an estimate, clearly documented.</li>
+<li><b>Offset still has a place:</b> small admin tables where users want "page 7 of 9". Zalando: "#160 SHOULD prefer cursor-based pagination, avoid offset-based pagination".</li>
+</ul></div>
+</section>
+
+<section id="s-filter">
+<h2>9. Filtering and sorting</h2>
+<p>Lists need narrowing: <code>GET /v1/chats?created_after=2026-09-01&amp;model=large&amp;order=-created_at</code>. Three rules keep this from becoming a performance and security problem:</p>
+<ul>
+<li><b>Allow-list fields.</b> Accept only the filters and sort keys you have indexes for. A generic "filter on any column" becomes a full table scan the first time someone filters on an unindexed one, and a way to probe fields you never meant to expose.</li>
+<li><b>Bind filters into the cursor.</b> A cursor made under <code>model=large</code> means nothing under <code>model=small</code>. AIP-158 says that if other arguments change between pages, "the API should send an INVALID_ARGUMENT error"; store a hash of the filters inside the cursor and check it.</li>
+<li><b>Never build SQL from strings.</b> Pass values as parameters (the demo's <code>?</code> placeholders) so the database never interprets user text as SQL. That is the whole fix for SQL injection, OWASP's perennial injection risk.</li>
+</ul>
+<p class="small mute">Sorting descending with keyset needs the comparison reversed (<code>&lt;</code> instead of <code>&gt;</code>) and an index in that order (or one Postgres can scan backwards). Full-text search and "find similar" are different tools (a search engine or a vector index; see {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}).</p>
+</section>

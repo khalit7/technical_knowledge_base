@@ -1,0 +1,55 @@
+
+<section id="s-json">
+<h2>3. JSON: the body almost every API speaks</h2>
+<p><dfn id="d-json">JSON</dfn> (JavaScript Object Notation, {{RFC 8259|https://www.rfc-editor.org/rfc/rfc8259.html}}) is text with six kinds of value: objects <code>{"key": value}</code>, arrays <code>[1, 2]</code>, strings in double quotes, numbers, <code>true</code>/<code>false</code>, and <code>null</code>. That is all: there is no date type, no distinction between integers and decimals, no comments. Three consequences every API designer meets:</p>
+<ul>
+<li><b>Big integers break in browsers.</b> JavaScript stores every number as a 64-bit float, exact only up to 2<sup>53</sup> &#8722; 1 = 9,007,199,254,740,991; RFC 8259 §6 warns about exactly this range. A 64-bit database ID above it silently changes in a JavaScript client. Send IDs as strings (the demo's are <code>"chat_ae8136d1b896"</code>, like Stripe's <code>cus_...</code> prefixes, which also tell a human what kind of object an ID names).</li>
+<li><b>Dates are strings by convention.</b> Use one format everywhere: either Unix seconds (the demo's <code>created_at</code>) or an {{RFC 3339|https://www.rfc-editor.org/rfc/rfc3339.html}} timestamp with a time zone (<code>"2026-10-04T19:06:35Z"</code>). Mixing them is a classic support ticket.</li>
+<li><b>Money is never a float.</b> 0.1 + 0.2 is not 0.3 in binary floating point; send integer minor units (cents, or credits) as Stripe does with <code>amount: 2000</code> for $20.00.</li>
+</ul>
+<p><code>Content-Type: application/json</code> tells the other side the body is JSON. Errors use the more specific <code>application/problem+json</code> (<a href="#s-err">section 7</a>), and streams use <code>text/event-stream</code> (<a href="#s-sse">section 14</a>).</p>
+</section>
+
+<section id="s-svc">
+<h2>4. A minimal service in FastAPI, line by line</h2>
+<p>A Python web service has two layers. A <dfn id="d-asgi">server</dfn> such as <b>uvicorn</b> owns the socket: it accepts connections, parses the bytes you saw above, and hands each request to your <b>application</b> through a standard Python interface called <dfn>ASGI</dfn> (asynchronous server gateway interface, {{asgi.readthedocs.io|https://asgi.readthedocs.io/en/latest/}}). <b>FastAPI</b> is the application framework: it routes a method and path to your function, parses and validates the input with <b>pydantic</b>, and turns your return value into a response ({{FastAPI docs|https://fastapi.tiangolo.com/}}). Flask and Django are the older alternatives; FastAPI is the common choice for new Python APIs and for model serving because validation and documentation come from type hints.</p>
+<p>The whole demo is one file. To run it yourself: <code>uv run --no-project --with fastapi --with uvicorn uvicorn app:app --port 8765</code> from <code>src/service/</code>, then <code>curl localhost:8765/v1/health</code>. Here are the parts that matter, with the explanation under each.</p>
+<div class="code" data-src="app = FastAPI|primary key(owner, key));"></div>
+<div class="walk">
+<div class="wl"><b>FastAPI(...)</b> creates the application object that uvicorn will call. <code>title</code> and <code>version</code> end up in the generated OpenAPI document (<a href="#s-oas">section 16</a>).</div>
+<div class="wl"><b>sqlite3.connect</b> opens a database. SQLite ships with Python, so the demo runs anywhere; a real service uses Postgres (see {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}) with the same tables. <code>isolation_level=None</code> means "I will say BEGIN and COMMIT myself", which the idempotency code needs.</div>
+<div class="wl"><b>idempotency_keys</b> has <code>primary key(owner, key)</code>: the database itself refuses a second row with the same pair. That one line is what makes the idempotency check safe under concurrency (<a href="#s-idem">section 10</a>).</div>
+</div>
+<div class="code" data-src="class ChatIn|created_at: int"></div>
+<div class="walk">
+<div class="wl"><b>class ChatIn(BaseModel)</b> declares the shape of a valid request body. FastAPI reads the body, parses the JSON, and builds a <code>ChatIn</code> or rejects the request with 422 before your function runs.</div>
+<div class="wl"><b>Field(min_length=1, max_length=200)</b> are constraints. Limits on every string and number are not pedantry: an unbounded <code>content</code> field is how someone sends you 2 GB.</div>
+<div class="wl"><b>extra="forbid"</b> rejects unknown fields (the capture's <code>"colour": "blue"</code>). Strict input catches client typos (<code>max_token</code>) that would otherwise be silently ignored; the cost is that clients cannot send fields from a newer version of your API. Anthropic's API, for one, rejects an unknown field with "Extra inputs are not permitted" ({{Claude API errors|https://platform.claude.com/docs/en/api/errors}}), which is pydantic's own wording.</div>
+<div class="wl"><b>Literal["small", "large"]</b> is an enum: any other model name fails validation with a message listing the allowed values.</div>
+</div>
+<div class="code" data-src="@app.post(&quot;/v1/chats&quot;, status_code=201)|return JSONResponse(chat.model_dump()"></div>
+<div class="walk">
+<div class="wl"><b>@app.post("/v1/chats")</b> is a <dfn id="d-route">route</dfn>: this function handles POST requests to that path.</div>
+<div class="wl"><b>body: ChatIn</b>: because the parameter's type is a pydantic model, FastAPI takes it from the JSON body. <b>authorization: Header()</b> takes it from the <code>Authorization</code> header (FastAPI converts the parameter name, so <code>idempotency_key</code> reads <code>Idempotency-Key</code>).</div>
+<div class="wl"><b>who(authorization)</b> turns the API key into a user, or nobody (<a href="#s-auth">section 11</a>).</div>
+<div class="wl"><b>JSONResponse(..., 201, headers={"Location": ...})</b>: 201 plus the URL of the new chat, as RFC 9110 §15.3.2 describes for created resources.</div>
+</div>
+<div class="co key"><div class="t">How fast is this layer?</div>Measured on this laptop (Apple M1 Pro, one uvicorn worker, loopback, keep-alive, 2,000 requests after 200 warm-up): <code>GET /v1/health</code> p50 <span data-v="timing.health.p50_ms"></span> ms, p99 <span data-v="timing.health.p99_ms"></span> ms; <code>GET /v1/chats/{id}</code> with a database read p50 <span data-v="timing.get_chat.p50_ms"></span> ms, p99 <span data-v="timing.get_chat.p99_ms"></span> ms. An LLM reply takes seconds (the root's Step 5), so the framework is almost never the bottleneck of an LLM product; the model, the database and the network are. Measure before rewriting a service in a "faster" framework.</div>
+<p class="small mute"><code>async def</code> or plain <code>def</code>? FastAPI runs plain <code>def</code> routes in a thread pool and <code>async def</code> routes on the event loop. Inside <code>async def</code>, never call something that blocks (a synchronous HTTP client, <code>time.sleep</code>, a slow database driver): it freezes every other request on that worker ({{FastAPI, async docs|https://fastapi.tiangolo.com/async/}}). The demo's message route is <code>async</code> because it awaits the (pretend) model call and streams.</p>
+</section>
+
+<section id="s-val">
+<h2>5. Validation: parse, don't trust</h2>
+<p>Every byte from a client is untrusted: it may be malformed, malicious, or from an old app version. The rule pros follow is to turn it into typed objects at the edge, once, and reject anything that does not fit, so that code inside the service never sees a missing field or a string where a number should be. Alexis King's essay calls this "parse, don't validate": the result of checking should be a value whose type proves the check happened ({{lexi-lambda.github.io, 2019|https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/}}). Pydantic models are exactly that.</p>
+<p>Here is what happens when a client sends <code>{"title": "", "colour": "blue"}</code>. On the left, FastAPI's default answer; on the right, the same failure after the demo's handler rewrites it into problem details (both captured).</p>
+<div class="grid">
+<div><div class="small mute">FastAPI default (<code>application/json</code>)</div><div class="raw" data-body="create_invalid_default"></div></div>
+<div><div class="small mute">Problem details (<code>application/problem+json</code>)</div><div class="raw" data-body="create_invalid"></div></div>
+</div>
+<p>Both report every failing field at once, which is what clients want: a form can highlight two mistakes in one round trip instead of two. The default shape exposes pydantic's internals (<code>loc</code>, <code>ctx</code>, the echoed <code>input</code>, which can leak a secret a user pasted into the wrong field); the rewritten one uses the standard error shape of <a href="#s-err">section 7</a> with a <dfn>JSON Pointer</dfn> ({{RFC 6901|https://www.rfc-editor.org/rfc/rfc6901.html}}) to each bad field, as RFC 9457's own validation example does. Query parameters get <code>"parameter": "limit"</code> instead of a pointer, and a body that is not JSON at all says where it broke:</p>
+<div class="grid">
+<div><div class="small mute"><code>GET /v1/chats?limit=500</code></div><div class="raw" data-body="list_badlimit"></div></div>
+<div><div class="small mute">Body <code>{"title": "Trip</code> (cut off)</div><div class="raw" data-body="create_badjson"></div></div>
+</div>
+<div class="cost"><div class="t">What validation costs, and where it stops</div>Pydantic v2's validation core is written in Rust ({{pydantic docs|https://docs.pydantic.dev/latest/}}), so per-request cost is small next to network and database time. Validation checks <em>shape</em> (types, lengths, ranges, allowed values). It cannot check <em>meaning</em> that needs the database: whether the chat exists and belongs to the caller, whether the user has credits. Those are business rules, checked in the route, and they answer 404, 403 or 409 rather than 422. Do not pass pydantic models deep into the core of the program either: they belong at the boundary (the code-design half of this question is on {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}).</div>
+</section>

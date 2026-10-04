@@ -1,0 +1,47 @@
+
+<section id="s-auth">
+<h2>11. Authentication and authorisation</h2>
+<p>Two different questions, often confused. <dfn id="d-authn">Authentication</dfn>: who is calling? <dfn id="d-authz">Authorisation</dfn>: is this caller allowed to do <em>this</em> to <em>this</em> object? A request can pass the first and must still fail the second: Alice is logged in, and she asks for Bob's chat.</p>
+<h3>API keys: the simplest credential</h3>
+<p>An <dfn id="d-apikey">API key</dfn> is a long random secret that identifies a caller, sent on every request, usually as <code>Authorization: Bearer &lt;key&gt;</code> (the bearer scheme of {{RFC 6750|https://www.rfc-editor.org/rfc/rfc6750.html}}: whoever bears it is let in). It suits server-to-server calls: a customer's backend calling your API, or your backend calling an LLM provider. The captured 401 shows the required challenge header:</p>
+<div class="raw" data-res="create_noauth"></div>
+<ul>
+<li><b>Store a hash, not the key.</b> The demo keeps <code>sha256(key)</code>; a leaked database then leaks no usable keys. Show the key once at creation; let users create several and revoke each.</li>
+<li><b>Give keys a recognisable prefix</b> (<code>sk_live_</code>, <code>ghp_</code>) so secret scanners can find them in leaked code; GitHub explains its formats in {{"Behind GitHub's new authentication token formats" (2021)|https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/}}.</li>
+<li><b>Never in URLs.</b> Query strings end up in logs, browser history and proxies; use the header.</li>
+<li><b>Never in a browser or mobile app.</b> Anything shipped to a user's device is public. The app talks to your backend with the user's session; your backend holds the provider key.</li>
+</ul>
+<h3>Sessions or tokens: how a logged-in user is remembered</h3>
+<div class="two">
+<div><h4>Server session</h4><p class="small">After login the server stores a session row and sends a random session ID in a cookie (<code>HttpOnly; Secure; SameSite=Lax</code>, so page scripts cannot read it and other sites cannot easily send it). Each request: look up the ID. <b>Revoking is instant</b> (delete the row). Costs a lookup per request, usually in a fast shared store (root, Step 2). The default for your own web app.</p></div>
+<div><h4>Self-contained token (JWT)</h4><p class="small">After login an authorisation server signs a token listing who the user is and until when. Each service checks the signature locally, <b>with no lookup</b>. The price: a token cannot be revoked before it expires, so access tokens live minutes, and a longer-lived refresh token gets new ones. The default when many services, or other companies, must verify the caller.</p></div>
+</div>
+<h3>OAuth 2 and OpenID Connect, at the level a backend needs</h3>
+<p><dfn id="d-oauth">OAuth 2</dfn> ({{RFC 6749, 2012|https://www.rfc-editor.org/rfc/rfc6749.html}}) solves <em>delegation</em>: letting an app act for a user without ever seeing the user's password ("let this calendar app read my Google Calendar"). Four roles: the <b>user</b>, the <b>client</b> (the app), the <b>authorisation server</b> (which logs the user in and issues tokens) and the <b>resource server</b> (the API that accepts the tokens: that is your backend). The two flows that matter today:</p>
+<ul>
+<li><b>Authorisation code with PKCE</b> for apps acting for a user: the browser is redirected to the authorisation server, the user logs in and consents, the app receives a one-time code and exchanges it for tokens. PKCE ({{RFC 7636|https://www.rfc-editor.org/rfc/rfc7636.html}}) binds the code to the app that asked for it, so a stolen code is useless.</li>
+<li><b>Client credentials</b> for machine-to-machine calls: a service authenticates as itself and gets a token, no user involved.</li>
+</ul>
+<p>The current security rules are {{RFC 9700, OAuth 2.0 Security Best Current Practice (January 2025)|https://www.rfc-editor.org/rfc/rfc9700.html}}: clients "SHOULD NOT use the implicit grant"; the password grant "MUST NOT be used"; "Public clients MUST use PKCE" (and it is recommended for all); redirect URIs are compared by "exact string matching". {{OAuth 2.1|https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/}} folds these into one document; it is still an active draft (draft-16, 2026-09-03). <dfn id="d-oidc">OpenID Connect</dfn> ({{OIDC Core 1.0|https://openid.net/specs/openid-connect-core-1_0.html}}) adds <em>identity</em> on top: besides an access token, the client gets an <b>ID token</b> saying who the user is. "Sign in with Google" is OIDC.</p>
+<p class="small">As a backend engineer you rarely implement the authorisation server: you use one (Auth0, Okta, Cognito, Keycloak, or Google and Microsoft directly). Your job is the resource server's: on every request, verify the access token and read who and what it allows.</p>
+<h3>JWTs and how they go wrong</h3>
+<p>A <dfn id="d-jwt">JWT</dfn> (JSON Web Token, {{RFC 7519|https://www.rfc-editor.org/rfc/rfc7519.html}}) is three base64url pieces joined by dots: a header (which algorithm signed it), a payload of <dfn>claims</dfn> (issuer <code>iss</code>, subject <code>sub</code>, audience <code>aud</code>, expiry <code>exp</code>), and a signature over the first two. The payload is <b>encoded, not encrypted</b>: anyone holding the token can read it. Below is a real token made for this page with the standard library (HS256, secret <code>demo-secret-do-not-use</code>), checked live in your browser.</p>
+<div class="card" id="rd-jwt-card">
+<b>A real JWT, decoded and verified in the page</b> <span class="real">real HMAC</span>
+<div class="seg" id="rd-jwt-seg"><button data-m="ok" class="on">The issued token</button><button data-m="tamper">Payload edited (sub: mallory)</button><button data-m="none">Forged with alg: none</button></div>
+<div class="raw" id="rd-jwt-tok" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>
+<div class="grid"><div><div class="small mute">Header</div><div class="raw" id="rd-jwt-h"></div></div><div><div class="small mute">Payload (claims)</div><div class="raw" id="rd-jwt-p"></div></div></div>
+<div class="two" id="rd-jwt-ver"></div>
+</div>
+<p>The "alg: none" row is the oldest JWT attack: the token says it is unsigned, and a library that trusts the header accepts it. {{RFC 8725, JWT Best Current Practices (February 2020)|https://www.rfc-editor.org/rfc/rfc8725.html}} lists the failures and the rules:</p>
+<ul>
+<li><b>Pin the algorithm.</b> "Libraries MUST enable the caller to specify a supported set of algorithms and MUST NOT use any other algorithms." In PyJWT that is <code>jwt.decode(token, key, algorithms=["RS256"], audience="chat-api")</code>; never let the token choose. This also stops <em>algorithm confusion</em>, where a token signed with HS256 using your public RSA key as the "secret" passes a careless check.</li>
+<li><b>Check issuer and audience,</b> not just the signature: a valid token for another service must fail here (RFC 8725 §3.8, §3.9). And <code>exp</code>, with a small clock-skew allowance.</li>
+<li><b>No weak HMAC secrets.</b> A human-memorable secret can be brute-forced offline from any token. For tokens checked by many services, use asymmetric keys (RS256 or ES256) published by the issuer as a JWKS (a JSON list of public keys), so verifiers never hold a signing secret.</li>
+<li><b>Keep access tokens short-lived</b> (minutes) and nothing secret in the payload.</li>
+</ul>
+<h3>Authorisation: check the object, every time</h3>
+<p>The first entry in {{OWASP's API Security Top 10 (2023)|https://owasp.org/API-Security/editions/2023/en/0x11-t10/}} is <b>Broken Object Level Authorization</b>: an endpoint takes an ID from the URL and returns or changes that object without checking the caller may touch it. Change <code>chat_ae81...</code> to someone else's ID and you read their chats. The fix is boring and must be everywhere: scope every query by the caller. The demo never looks a chat up by ID alone:</p>
+<div class="code" data-src="row = DB.execute(&quot;select id,title,created_at from chats where id=? and owner=?&quot;|return problem(404, &quot;not-found&quot;, &quot;Chat not found.&quot;, f&quot;No chat {chat_id} for this API key.&quot;)"></div>
+<p class="small mute">Beyond ownership come roles and permissions (an admin, a read-only key, scopes like <code>chats:read</code> in a token). Start with ownership checks in every query and a test per endpoint that tries another user's ID; add a policy layer when roles appear. Prompt injection and other model-specific abuse are on {{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}.</p>
+</section>
