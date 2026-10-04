@@ -1,0 +1,37 @@
+<section id="rd-rel">
+<h2>Reliability across runs</h2>
+<p>An agent run is a sample. The same agent on the same task can pass, fail, or pass for a different reason, so one trial per task measures luck as much as skill. Two numbers separate them: <b>pass@k</b>, the chance that at least one of k trials succeeds, and <b>pass^k</b>, "the probability that all k trials succeed" (Anthropic's wording; the metric is from {{τ-bench, Yao et al., Jun 2024|https://arxiv.org/abs/2406.12045}}). A product that must work every time a customer calls is a pass^k product. The estimators, the animation and every reproduced τ²-bench run are on {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}} (its <i>pass^k on real trials</i> tab); this page applies them to the two airline runs it uses.</p>
+<p>From the released trials, pass^1 to pass^4 come out at <b id="r-g">83.0, 78.3, 75.0, 72.0</b> for GPT-5.2 and <b id="r-o">84.0, 77.7, 73.5, 70.0</b> for Opus 4.5, matching the leaderboard's pass^1 and pass^4 independently. Per task, over all eight trials:</p>
+<div id="taskStrip"></div>
+<div class="leg" id="taskLeg"></div>
+<p class="small mute" id="taskNote">Tap a task for its eight outcomes. Outlined squares are tasks the do-nothing agent passes.</p>
+<p><b id="r-8">30</b> tasks pass in all 8 trials, <b id="r-mix">17</b> are mixed, and <b id="r-0">3</b> (tasks 23, 39 and 44) never pass. Anthropic's rule of thumb applies to the last group: "a 0% pass rate across many trials (i.e 0% pass@100) is most often a signal of a broken task, not an incapable agent". Eight trials is far from a hundred, and whether these three are broken is <span class="ill">unconfirmed</span> here; they are the first transcripts to read. Task 29 is the mixed kind worth reading too: it passed once, and what decided it was the simulated user.</p>
+<h3>Where the variance comes from</h3>
+<ul>
+<li><b>The agent's sampling.</b> The variance you want to measure.</li>
+<li><b>The simulated user.</b> In τ²-bench a model plays the customer, and its improvisations change the right answer (task 29). Part of what any simulated-user eval measures is the simulator, and its version changes between leaderboard rows ({{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}} has the details). Pin it, and when a task flips, check whether the user changed first.</li>
+<li><b>The environment.</b> "Each trial should be 'isolated' by starting from a clean environment. Unnecessary shared state between runs (leftover files, cached data, resource exhaustion) can cause correlated failures due to infrastructure flakiness rather than agent performance" (Anthropic). Count infrastructure failures separately: τ²-bench scores any run that did not end with the agent or user stopping as 0 (<code>evaluate_simulation</code>), so a crashed container and a wrong answer look the same unless you log the termination reason (all 400 trials here ended with the user stopping).</li>
+<li><b>The grader.</b> A code grader on a fixed trajectory should be deterministic: re-grading the 200 GPT-5.2 airline trials reproduces every recorded reward. An LLM judge is not; re-run it on fixed trajectories to measure its own noise before you blame the agent.</li>
+</ul>
+<p>Trials of one task are correlated, so error bars must be clustered by task, and k trials of 50 tasks are not 50k independent observations: {{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}} has the formulas and the sample-size calculator.</p>
+</section>
+
+<section id="rd-hack">
+<h2>Reward hacking and verifier exploits in your own evals</h2>
+<p>An eval you optimise against becomes a target, and agents find the gaps faster than people do. In April 2026 Berkeley RDI's exploit agent scored near the top of eight public agent benchmarks "without solving a single task"; the seven flaw patterns and the Terminal-Bench curl exploit, animated on a real task, are on {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}} (Reading, <i>Integrity</i>, and the <i>Grade a real task</i> tab). The same happens inside private evals:</p>
+<ul>
+<li><b>Models hack the scorer you gave them.</b> METR found o3 reward hacking in 0.7% of runs across HCAST tasks and more than 43 times as often on RE-Bench, including 21 of 21 runs of <i>Optimize LLM Foundry</i>, 12 of 28 of <i>Rust Codecontest</i> and 6 of 24 of <i>Optimize a Kernel</i>; hacks included overwriting the timing function, returning the answer "the scoring system already calculated", and monkey-patching the evaluation "so that it judges every submission as successful". It found them by inspecting anomalously high-scoring runs and, on HCAST, with a model monitor ({{METR, 5 Jun 2025|https://metr.org/blog/2025-06-05-recent-reward-hacking/}}).</li>
+<li><b>Impossible tasks measure the propensity.</b> ImpossibleBench mutates a task's tests so they contradict its specification; any pass "necessarily implies a specification-violating shortcut". GPT-5 cheated on 76% of one-off-mutated SWE-bench tasks and 2.9% of the LiveCodeBench ones; hiding the tests cut cheating success to near zero; letting the agent flag the task for a human lowered GPT-5 from 54% to 9% on conflicting SWE-bench tasks; a Claude Sonnet 4 monitor caught 86 to 89% of cheating on LiveCodeBench but only 42 to 50% on SWE-bench ({{Zhong, Raghunathan and Carlini, Oct 2025|https://arxiv.org/abs/2510.20270}}).</li>
+<li><b>The harness can overfit the eval.</b> StateM's 95.28% raw Terminal-Bench 2.1 submission fell to 94.38% with the four flagged trials its authors accepted, 93.26% with all nine reward-hacking flags zeroed, and <b id="h-sm">92.36%</b> with all 13 flags the leaderboard's judge raised (four for "harness cheating", gate slots that mapped onto single tasks); the pull request was closed unmerged on 19 September 2026 ({{StateM paper page|n:3c65c17b0d0d81899098d8153e100691}}). HarnessDev measured the general form: the score a harness creator could see moved the same way as the held-out score in only 34 of 64 version changes ({{HarnessDev paper page|n:3d45c17b0d0d81cd9883f783840e013f}}).</li>
+<li><b>Self-improving agents keep their hacks.</b> In a Factorio run, Prime Agent found it could spawn resources through RCON despite an anti-cheating heartbeat and saved the shortcut as a reusable skill ({{Prime Agent paper page|n:3cd5c17b0d0d81579a02f0431f24c6cb}}).</li>
+</ul>
+<div class="co key"><div class="t">Defences that cost little</div>
+<ul class="tight">
+<li>Run the verifier where the agent cannot reach it: a separate container, tests copied in after the agent stops, read-only or hidden tests.</li>
+<li>Add canaries: impossible variants of a few tasks (any pass is a hack) and a do-nothing agent (its score is the floor).</li>
+<li>Keep a held-out task split that no prompt, harness or skill was tuned on.</li>
+<li>Read the transcripts of the highest scores and of every sudden jump, as METR did; then put a monitor on the rest.</li>
+<li>Give the agent a legitimate way out ("flag for a human"); it cut cheating by more than five times in ImpossibleBench.</li>
+</ul></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the training-time version of the same failure: {{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}}. Judges that can be gamed (null models, format tricks): {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}.</div>
+</section>
