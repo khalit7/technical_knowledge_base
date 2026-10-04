@@ -1,0 +1,99 @@
+<section id="s-cache">
+<h2>Caching strategy</h2>
+<p>A <dfn id="g-cache">cache</dfn> keeps a copy of an answer somewhere faster than where it came from, so the next request for it skips the slow path (the root's Step 2). It is the cheapest capacity you will ever buy: in the root's Numbers to know, a Redis read takes about 0.14 ms while the query it replaces can take milliseconds and, more importantly, uses up the database, the one component that is hardest to scale. It also brings three new problems: stale answers, a dependency that can empty itself, and stampedes. This section takes them in order.</p>
+
+<h3 id="s-cache-where">Where caches live</h3>
+<div class="flow"><div><b>Client</b>HTTP cache in the app or browser</div><i>&rarr;</i><div><b>CDN</b>copies in many cities</div><i>&rarr;</i><div><b>Reverse proxy</b>nginx <code>proxy_cache</code></div><i>&rarr;</i><div><b>In-process</b>a dict in each server</div><i>&rarr;</i><div><b>Shared cache</b>Redis, Valkey, Memcached</div><i>&rarr;</i><div><b>Database</b>its own buffer cache</div></div>
+<p>Further left is faster and takes more load off everything behind it, but is harder to invalidate: you can delete a Redis key, you cannot reach into a million phones. So cache immutable or slowly changing things far out (the app's code and images on a <dfn id="g-cdn">CDN</dfn>, with long <code>Cache-Control: max-age</code> and a new file name per version), and changing data close in, where you control it. An <b>in-process</b> cache (Python's <code>functools.lru_cache</code>, or <code>cachetools</code> 7.2 with a TTL) costs nothing per read but is per server: 8 servers mean 8 copies, 8 times the misses, and 8 places to invalidate. A <b>shared</b> cache is one network hop away and holds one copy for everyone.</p>
+
+<h3 id="s-cache-pat">The patterns: who reads and writes the cache</h3>
+<div class="tw"><table>
+<thead><tr><th>Pattern</th><th>On a read</th><th>On a write</th><th>Trade-off</th></tr></thead>
+<tbody>
+<tr><td><b>Cache-aside</b> (lazy loading)</td><td>App checks the cache; on a miss it reads the database and fills the cache</td><td>App writes the database, then deletes the cache entry</td><td>The default. Simple, caches only what is read; the first read after a change is slow</td></tr>
+<tr><td><b>Read-through</b></td><td>The cache library itself loads missing entries from a function you give it</td><td>As cache-aside</td><td>Same behaviour, less app code; the loader is one place to add coalescing</td></tr>
+<tr><td><b>Write-through</b></td><td>As cache-aside</td><td>App writes cache and database together, synchronously</td><td>Reads after writes are fresh; every write pays twice, and you cache data nobody may read</td></tr>
+<tr><td><b>Write-back</b> (write-behind)</td><td>From the cache</td><td>Write the cache now, flush to the database later in batches</td><td>Fast writes, absorbs bursts; a cache crash loses acknowledged writes. Rarely right for user data</td></tr>
+<tr><td><b>Write-around</b></td><td>As cache-aside</td><td>Write the database only; let the entry expire</td><td>For data written often and read rarely</td></tr>
+</tbody></table></div>
+<p>Cache-aside for our chat API's "load a conversation", with redis-py 8.1 (current on 2026-10-04):</p>
+<div class="code">import json, redis
+r = redis.Redis(host="cache", port=6379)
+
+def get_chat(chat_id):
+    key = f"chat:{chat_id}:v1"            <span class="cm"># version the key so a format change cannot read old entries</span>
+    hit = r.get(key)
+    if hit is not None:
+        return json.loads(hit)
+    chat = db_load_chat(chat_id)          <span class="cm"># the slow path: a Postgres query</span>
+    r.set(key, json.dumps(chat), ex=300)  <span class="cm"># TTL 300 s bounds how stale it can ever be</span>
+    return chat
+
+def rename_chat(chat_id, title):
+    db_rename_chat(chat_id, title)        <span class="cm"># 1. write the source of truth (commit)</span>
+    r.delete(f"chat:{chat_id}:v1")        <span class="cm"># 2. then delete, never update, the cached copy</span></div>
+<p>Two details carry most of the correctness. <b>Delete, do not update</b>, on a write: two concurrent writers updating the cache can land in the wrong order and leave the older value cached forever, while a delete just forces a fresh read. <b>Keep the TTL</b> even with invalidation: some code path will forget to delete (a migration script, an admin tool), and the TTL is the upper bound on how long that bug lasts. Facebook's memcache paper names the remaining race, a reader putting back a value that a writer has just invalidated (a "stale set"), and closes it with <b>leases</b>: on a miss the cache hands out a token, and a later fill is accepted only if the token is still valid ({{Nishtala et al., NSDI 2013|https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf}}).</p>
+
+<h3 id="s-hit">Hit-rate maths: what the cache does to the database</h3>
+<p>The <dfn id="g-hit">hit rate</dfn> h is the share of reads the cache answers. With &lambda; reads a second, the database sees (1 &minus; h) &times; &lambda;. The scale is not linear in the way intuition says: going from 90% to 99% hits looks like a 9-point gain but divides the database's read load by ten (1,000 reads a second become 100, then 10). And the mean latency is h &times; t<sub>cache</sub> + (1 &minus; h) &times; (t<sub>cache</sub> + t<sub>db</sub>).</p>
+<div class="card" id="hr-card">
+<div class="ctl">
+<label>Reads per second: <b id="hr-lv"></b><input type="range" id="hr-l" min="100" max="20000" step="100" value="1000" aria-label="Reads per second"></label>
+<label>Hit rate: <b id="hr-hv"></b><input type="range" id="hr-h" min="0" max="1000" step="1" value="900" aria-label="Hit rate"></label>
+<label>Database capacity (reads/s at 100%): <b id="hr-cv"></b><input type="range" id="hr-c" min="100" max="20000" step="100" value="600" aria-label="Database capacity"></label>
+</div>
+<div class="out" id="hr-out"></div>
+<p class="small mute">Cache read 0.143 ms (Redis GET, root's Numbers to know); a miss adds 5 ms for the database query (illustrative: an indexed primary-key lookup measured 0.067 ms there, a chat history with joins and sorting is slower). Default database capacity 600 reads a second and 1,000 reads a second of demand are the root's Step 2 example. Formulas checked in src/recompute.py.</p>
+</div>
+<p>Three consequences. <b>The tail is the miss path</b>: at a 95% hit rate, 5% of reads take the slow path, so the p99 is a database read however fast the cache is; the cache improves the median far more than the p99. <b>The database is now sized for the misses</b>, so the cache has become part of your capacity, and when it empties (a restart, a failover, a deploy that changes every key) the full load lands on a database sized for a tenth of it: the root's Scale simulator shows this as "cold cache", and Facebook keeps a small pool of spare "Gutter" servers (about 1% of the memcached fleet) to take over a failed server's keys rather than let its misses reach the databases. <b>Warm up before taking traffic</b>: fill a new cache from the old one, or ramp traffic with slow start. The root's Case files carry the good side of this dependency too: "DNS failed in one data center; caches kept most of GitHub up".</p>
+<p>What sets the hit rate: how often the same key is read again within its TTL (a user's conversation is re-read on every message; a search with a unique query never is), how skewed popularity is (a few hot keys get most reads, which is why small caches work at all), and whether the hot set fits in memory.</p>
+
+<h3 id="s-evict">Eviction: what to throw out when memory is full</h3>
+<ul>
+<li><b>LRU</b> (least recently used): evict what was read longest ago. Cheap, good for most workloads. Redis approximates it by sampling: it "samples a small number of keys at random and then evicts the ones with the longest time since last access" (<code>maxmemory-samples 5</code> by default).</li>
+<li><b>LFU</b> (least frequently used): evict what is read least often, with counts that decay so old popularity fades. Better when a few keys are steadily popular and a scan of one-off keys would flush them out of an LRU. Redis has it since 4.0, with a "Morris counter" of a few bits per key.</li>
+<li><b>TinyLFU</b>: an admission policy: a new entry only gets in if it is estimated to be read more often than the entry it would evict, using a compact frequency sketch ({{Einziger, Friedman and Manes, ACM ToS 2017|https://arxiv.org/abs/1512.00727}}). Caffeine, the standard Java cache, uses W-TinyLFU: "a small admission LRU that evicts to a large Segmented LRU if accepted by the TinyLfu admission policy" ({{Caffeine wiki|https://github.com/ben-manes/caffeine/wiki/Efficiency}}).</li>
+</ul>
+<div class="co warn"><div class="t">Redis does not evict by default</div><p>The shipped <code>redis.conf</code> says "The default is: maxmemory-policy noeviction" ({{redis.conf, 8.2|https://raw.githubusercontent.com/redis/redis/8.2/redis.conf}}): when memory is full, writes fail. For a cache, set <code>maxmemory</code> and a policy explicitly; the Redis docs call <code>allkeys-lru</code> "a good default option if you have no reason to prefer any others" ({{Redis key eviction|https://redis.io/docs/latest/develop/reference/eviction/}}). Redis 8.6 added LRM (least recently modified) policies.</p></div>
+
+<h3 id="s-cache-st">Thundering herds and cache stampedes</h3>
+<p>A <dfn id="g-stampede">cache stampede</dfn> (also dog-piling, or a thundering herd): a popular entry expires, and every request that arrives before someone has rebuilt it misses and rebuilds it too. If the rebuild takes 300 ms and the key is read 200 times a second, 60 requests run the same expensive query at once, which makes the query slower, which widens the window. Facebook measured it on keys prone to it: "Without leases, all of the cache misses resulted in a peak database query rate of 17K/s. With leases, the peak database query rate was 1.3K/s" (Nishtala et al.; root Case files: "Leases cut a cache stampede from 17,000 to 1,300 queries a second"). Four defences:</p>
+<ol>
+<li><dfn id="g-coalesce">Request coalescing</dfn> (single-flight): the first miss rebuilds; the others wait for its answer. Go ships it as <code>singleflight</code>: "Do executes and returns the results of the given function, making sure that only one execution is in-flight for a given key at a time. If a duplicate comes in, the duplicate caller waits for the original to complete and receives the same results" ({{golang.org/x/sync v0.23.0|https://pkg.go.dev/golang.org/x/sync/singleflight}}). nginx has <code>proxy_cache_lock on</code>: "only one request at a time will be allowed to populate a new cache element" ({{nginx proxy module|https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_lock}}). Facebook's leases do it across servers: one token per key every 10 seconds, other clients told to "wait a short amount of time". Cost: the waiters still wait for the rebuild.</li>
+<li><b>Serve stale while revalidating</b>: keep the old value a little past its TTL and refresh in the background, so nobody waits. HTTP has a header for it (<code>Cache-Control: stale-while-revalidate=30</code>, {{RFC 5861|https://datatracker.ietf.org/doc/html/rfc5861}}); nginx does it with <code>proxy_cache_use_stale updating</code> plus <code>proxy_cache_background_update on</code>. Cost: a few seconds of staleness.</li>
+<li><b>Probabilistic early expiry (XFetch)</b>: each reader, before the entry expires, recomputes early with a probability that rises as expiry approaches and as the rebuild gets more expensive. Vattani, Chierichetti and Lowenstein proved this optimal ({{VLDB 2015|https://cseweb.ucsd.edu/~avattani/papers/cache_stampede.pdf}}); the whole algorithm is one line: recompute if <code>now &minus; &Delta; &middot; &beta; &middot; ln(rand()) &ge; expiry</code>, where &Delta; is how long the last rebuild took and &beta; = 1 "already provides effective prevention against cache stampedes". Cost: one early rebuild per expiry, no waiting, no locks.</li>
+<li><b>TTL jitter</b>: entries written together (after a deploy, a cache flush) with the same TTL expire together. Add a random 0 to 10% to each TTL so they spread out. (Advice, not from a single source.)</li>
+</ol>
+<h3 id="s-st-anim">Before and after: one hot key expiring</h3>
+<div class="card" id="sa-card">
+<div class="seg" id="sa-seg"><button class="on" data-m="none">No protection</button><button data-m="coalesce">Request coalescing</button><button data-m="xfetch">XFetch early refresh</button></div>
+<div class="rd-svg" id="sa-svg"></div><div class="leg" id="sa-leg"></div>
+<div class="an-cnt" id="sa-cnt"></div>
+<div class="an-cap" id="sa-cap"></div>
+<div class="an-ctl" id="sa-ctl"></div>
+<p class="small mute">The page's model (src/model.py, <code>stampede</code>): one key read 200 times a second, expiring at t = 1 s, rebuilt by a 300 ms database query; XFetch with &beta; = 1 and &Delta; = 300 ms, seeded random draws. Illustrative rates; the counts (60, 1, 1 database queries) are checked in src/recompute.py.</p>
+</div>
+<p>A minimal single-flight for an asyncio service: the first caller for a key creates a future and does the work; others await the same future.</p>
+<div class="code">import asyncio
+_inflight: dict[str, asyncio.Future] = {}
+
+async def get_coalesced(key, load):
+    if (fut := _inflight.get(key)) is not None:
+        return await fut                   <span class="cm"># someone is already loading this key: share their answer</span>
+    fut = asyncio.get_running_loop().create_future()
+    _inflight[key] = fut
+    try:
+        value = await load(key)            <span class="cm"># the one real database call</span>
+        fut.set_result(value)
+        return value
+    except Exception as e:
+        fut.set_exception(e)               <span class="cm"># waiters get the error too, not a hang</span>
+        raise
+    finally:
+        del _inflight[key]</div>
+<p class="small mute">Per process only: 8 servers can still send 8 queries. Route each key to one server (consistent hashing, as Discord did) or coalesce in the shared cache (a short lock key with <code>SET key NX PX 3000</code>) to go further.</p>
+
+<h3 id="s-cdn">CDNs</h3>
+<p>A CDN is a cache run for you in hundreds of cities. It serves static files (the app bundle, images) and any public response you mark cacheable with <code>Cache-Control: public, max-age=...</code> (<code>s-maxage</code> for shared caches only). Its hit ratio is what you pay for: every miss crosses the world to your servers. CDNs collapse concurrent misses for the same URL into one request to you (the same coalescing idea), and support stale-while-revalidate and stale-if-error. For our chat assistant the CDN carries the app and static assets; the conversations themselves are personal and uncacheable at the edge. LLM-specific caches (provider prompt caching, KV prefix reuse, semantic caches) are on {{ML system design, section 9|n:3c65c17b0d0d8117b057dc2586836ec8}}.</p>
+<div class="when"><b>When not to cache:</b> data that must be exactly current (a credit balance, a permission just revoked), data read once (a unique search), or anything you cannot invalidate and would be harmed by serving late. And do not add a cache to hide a missing index: fix the query first (root Step 2).</div>
+</section>

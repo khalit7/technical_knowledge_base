@@ -1,0 +1,63 @@
+<section id="s-queue">
+<h2>Queueing theory you actually use</h2>
+<p>Every resource in our chat API is a <dfn id="g-queue">queue</dfn>: requests arrive, wait if the resource is busy, get served, leave. A CPU core, a database connection, a GPU batch slot, a worker in a pool: same shape. Four results cover nearly every capacity question you will meet, and none needs more than arithmetic.</p>
+
+<h3 id="s-hockey">1. The hockey stick: waiting grows like 1 / (1 &minus; &rho;)</h3>
+<p>Take one server and requests that arrive at random, independently of each other, the way users do (a <dfn id="g-poisson">Poisson process</dfn>: the gap between arrivals is unpredictable, with a known average). Say each request needs, on average, S = 10 ms of work, with the amount varying from request to request (exponentially distributed, the textbook assumption). This is the <dfn id="g-mm1">M/M/1 queue</dfn> (Markov arrivals, Markov service, 1 server), and its mean time in the system is</p>
+<div class="fm"><div class="eq">W = S / (1 &minus; &rho;)</div>
+<dl><dt>W</dt><dd>mean time from arrival to answer (waiting plus service)</dd><dt>S</dt><dd>mean service time (the work itself)</dd><dt>&rho;</dt><dd>utilisation = arrival rate &times; S (for one server)</dd></dl></div>
+<p>At &rho; = 50%, W = 2S; at 80%, 5S; at 90%, 10S; at 95%, 20S; at 99%, 100S. Each step closer to 100% costs more than the last, and at 100% the queue grows without limit (the root's Step 1). For M/M/1 the whole distribution is known: the time in the system is exponential with mean W, so the p99 is ln(100) &times; W = 4.6 &times; W. At 90% busy, a request needing 10 ms of work has a p99 of 460 ms.</p>
+<div class="tw"><table id="q-mult"></table></div>
+<p class="small mute">Exact M/M/c values (Erlang C, the same code as the root's Scale simulator), in multiples of the mean service time S; c is the number of servers sharing one queue. Checked in src/recompute.py.</p>
+
+<h3 id="s-meas-h">Measured: the hockey stick on a real service</h3>
+<div class="meas"><div class="t">Experiment 1: one server, open-loop load from 10% to 106% busy</div>
+<p>A tiny HTTP server (Python asyncio, one request at a time, each holding the server for a random time with a mean of 10 ms drawn from an exponential distribution: a timed wait standing in for a database or model call), driven by an open-loop load generator that sends requests at random times at a fixed average rate whether or not earlier ones have returned. Nine rates, 40 to 75 seconds each, first 2 seconds dropped, latency measured from each request's scheduled send time. The server logged every service time it actually gave: the sleep overshoots by about 1 ms on this laptop, so the real mean service time was 11.1 to 11.5 ms and the utilisation is computed from that, not from the nominal 10 ms. Code: src/lab/server.py, loadgen.py, run_all.py (Apple M1 Pro, Python 3.12, 2026-10-04).</p></div>
+<div class="card" id="mh-card"><div class="seg" id="mh-seg"><button class="on" data-m="p99">p99</button><button data-m="p50">p50</button><button data-m="mean">mean</button></div>
+<div class="chart" id="mh-chart"></div><div class="leg" id="mh-leg"></div>
+<p class="small mute" id="mh-note"></p></div>
+<p id="mh-text"></p>
+<div class="co warn"><div class="t">The lesson the experiment adds</div><p>The two runs aimed at 90% and 95% ran at 101% and 106% because the real service time was 12% longer than the nominal one. Nobody would see that from a dashboard showing "90% CPU". A capacity estimate is only as good as the service time it uses, so measure the service time under load, not on an idle machine.</p></div>
+
+<h3 id="s-little">2. Little's law: how many requests are inside</h3>
+<p>Little's law (taught on the root's Step 3) says that, averaged over time, the number of requests in a system equals the rate they arrive times the time each stays: <b>L = &lambda;W</b> ({{Little, 2011|https://people.cs.umass.edu/~emery/classes/cmpsci691st/readings/OS/Littles-Law-50-Years-Later.pdf}}). It holds for any arrival pattern and any service time, which is why it is the most used formula in capacity work. Three uses on this page:</p>
+<ul>
+<li><b>Concurrency needed.</b> Our chat API at the busy hour: 1,157 requests a second, each holding a CPU core for 25 ms (the Scale simulator's figure before background jobs move to a queue): on average 1,157 &times; 0.025 = 29 cores are busy, so with the root's 4-core m7i.xlarge servers you need more than 7 of them before counting any headroom. Move the jobs to a queue (5.2 ms each) and it drops to 6 cores.</li>
+<li><b>Connection pools.</b> 3,472 database reads a second, each holding a connection for 1 ms: 3.5 connections busy on average (<a href="#s-pool">pools</a>).</li>
+<li><b>Sanity-check a load test.</b> In Experiment 1 at 89% busy: 80 requests a second &times; 87 ms mean = 7 requests in the server on average. If a tool claims a throughput and a latency that do not multiply out to its concurrency, one of the numbers is wrong.</li>
+</ul>
+
+<h3 id="s-mmc">3. One queue for many servers beats a queue per server</h3>
+<p>A bank with one line feeding 8 tellers, against a supermarket with a line per till. With one shared line (<dfn id="g-mmc">M/M/c</dfn>, c servers), a teller never sits idle while someone waits in another line. The numbers at 90% busy, in multiples of S: one shared queue for 8 servers, mean 1.9S, p99 7.1S; 8 separate queues with requests sprinkled at random, each is its own M/M/1, so mean 10S, p99 46S. Same servers, same load, a p99 6.5 times worse. Two consequences:</p>
+<ul>
+<li><b>Big pools run hotter safely.</b> 8 servers sharing a queue at 90% wait less than 1 server at 70%. This is why a large fleet can target a higher utilisation than a small one, and why splitting one pool into many small dedicated ones costs capacity.</li>
+<li><b>A load balancer decides which world you live in.</b> Random assignment builds the supermarket; least-outstanding-requests approximates the bank. The <a href="#s-lb">load balancing section</a> measures the difference.</li>
+</ul>
+
+<h3 id="s-target">Why aim for 60 to 80% utilisation, not 100%</h3>
+<p>Four reasons stack up, each cheap to see from the formulas above:</p>
+<ol>
+<li><b>The curve.</b> From 50% to 80% busy, the mean wait for one server rises from 1S to 4S; from 80% to 95% it rises to 19S.</li>
+<li><b>Your measurement window hides peaks.</b> An hourly average of 70% contains minutes at 90% (see the <a href="#s-peak">peak factors</a> below; Twitter's busiest second in 2013 was 25 times its average, in the root's {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}}: "A peak 25 times the average").</li>
+<li><b>Servers fail.</b> If one of four dies, the other three take its share: 60% becomes 80%. That is <a href="#s-nplus">N+1</a> arithmetic.</li>
+<li><b>Capacity takes time to add.</b> A new VM takes a minute or two, a GPU replica several minutes, a database resize longer: the headroom must cover the load growth while you wait.</li>
+</ol>
+<p>The root's Scale simulator flags a component as hot at 70% and its suggested fixes stop at 60% (src/sim/model.py: <code>HOT, TARGET = 0.7, 0.6</code>); this page keeps those numbers. Work nobody is waiting for (overnight batch jobs, training) is the exception: run it near 100%, since only throughput matters there.</p>
+
+<h3 id="s-kingman">4. Variability multiplies waiting: Kingman's formula</h3>
+<p>The M/M/1 formula assumed exponential service times. Real ones are less or more variable. The <dfn id="g-cv">coefficient of variation</dfn> (cv) measures it: standard deviation divided by mean. Constant service has cv 0, exponential has cv 1, and a service where most requests take 5 ms and a few take 500 ms (a cache hit against a cache miss, a short prompt against a 100,000-token one) easily has cv 2 or more. John Kingman's 1961 heavy-traffic result ({{Proc. Cambridge Phil. Soc. 57, 902|https://doi.org/10.1017/S0305004100036094}}) gives the mean wait of a single queue, approximately:</p>
+<div class="fm"><div class="eq">W<sub>q</sub> &asymp; [&rho; / (1 &minus; &rho;)] &times; [(c<sub>a</sub><sup>2</sup> + c<sub>s</sub><sup>2</sup>) / 2] &times; S</div>
+<dl><dt>W<sub>q</sub></dt><dd>mean time waiting in the queue (before service starts)</dd><dt>c<sub>a</sub></dt><dd>cv of the gaps between arrivals (1 for random, Poisson arrivals; above 1 for bursty traffic)</dd><dt>c<sub>s</sub></dt><dd>cv of the service times</dd></dl></div>
+<p>Three factors: utilisation, variability, and the service time itself. At 80% busy with random arrivals: constant service waits 2S, exponential 4S, cv 2 waits 10S. Variability is a lever as strong as utilisation, and often cheaper to pull: put the slow kind of request in its own pool (the root's Step 3 moved PDF processing to a queue for exactly this reason), cap request sizes, or batch small requests together. For several servers the same correction applied to the exact M/M/c wait (the Allen-Cunneen approximation) is what the explorer below uses.</p>
+<div class="card" id="hx-card">
+<div class="ctl">
+<label>Servers sharing one queue (c): <b id="hx-cv-c"></b><input type="range" id="hx-c" min="0" max="5" step="1" value="0" aria-label="Servers"></label>
+<label>Service time variability (cv): <b id="hx-cv-s"></b><input type="range" id="hx-s" min="0" max="6" step="1" value="2" aria-label="Service cv"></label>
+<label>Mean service time S: <b id="hx-cv-ms"></b><input type="range" id="hx-ms" min="1" max="200" step="1" value="11" aria-label="Service time in ms"></label>
+</div>
+<div class="out" id="hx-out"></div>
+<div class="chart" id="hx-chart"></div>
+<p class="small mute">Mean time in the system, W = W<sub>q</sub> + S, against utilisation. Exact M/M/c (Erlang C) when cv = 1; otherwise the M/M/c wait times (1 + cv<sup>2</sup>)/2, an approximation (Kingman for c = 1, Allen-Cunneen for c &gt; 1), with random arrivals. Dots: Experiment 1's measured means, shown when c = 1, scaled to your S. The grey band is the 60 to 80% target zone.</p>
+</div>
+<div class="deepnote"><b>Go deeper (optional).</b> The root's {{Scale simulator|n:3c65c17b0d0d81048ae0dd14ac399b4d}} runs every component of the chat product as an M/M/c queue and lets you push the arrival rate yourself; the {{Load-test lab|#t-lab}} on this page simulates individual requests through a balancer. Mor Harchol-Balter's <i>Performance Modeling and Design of Computer Systems</i> (Cambridge, 2013) is the textbook when you want proofs.</div>
+</section>

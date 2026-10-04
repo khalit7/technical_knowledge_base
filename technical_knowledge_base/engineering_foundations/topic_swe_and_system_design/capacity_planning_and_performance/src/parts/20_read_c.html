@@ -1,0 +1,79 @@
+<section id="s-lb">
+<h2>Load balancing</h2>
+<p>A <dfn id="g-lb">load balancer</dfn> (the root's Step 1) sits in front of a pool of identical servers and picks one for each piece of work. The previous section showed why the choice matters: random assignment turns 8 servers into 8 separate queues, while a policy that sends work to an idle server approaches one shared queue, with a p99 several times lower at the same cost. This section covers where balancers sit, the algorithms, how to keep affinity when you need it, and how servers enter and leave the pool safely.</p>
+
+<h3 id="s-l4l7">Layer 4 and layer 7</h3>
+<p>The layer names come from the networking stack. A <dfn id="g-l4">layer 4 (L4) balancer</dfn> works at the transport layer: it sees TCP connections (addresses and ports), picks a server per connection and copies bytes; it never reads the HTTP inside. gRPC's engineers describe it: "The application data (HTTP/2 and gRPC frames) are simply copied between the client connection to the backend connection" ({{gRPC blog, 2017|https://grpc.io/blog/grpc-load-balancing/}}). Examples: AWS Network Load Balancer, Linux IPVS, Google's Maglev. A <dfn id="g-l7">layer 7 (L7) balancer</dfn> terminates HTTP: it reads each request, so it can balance per request, route by path or header, retry, and count requests in flight per server. Examples: nginx, Envoy, HAProxy, AWS Application Load Balancer.</p>
+<p>The difference bites with long-lived connections. HTTP keep-alive and HTTP/2 send many requests over one connection, so an L4 balancer that spread connections evenly can still leave one server with the busiest client. For per-request balancing of HTTP/2 or gRPC you want L7, or <b>client-side balancing</b>, where the client itself knows the server list and picks per call (the gRPC post contrasts "Proxy Load Balancing" and "Client-Side Load Balancing"; a service-mesh sidecar such as Envoy next to each app is the common middle ground). Typical production shape: an L4 or cloud balancer at the edge, L7 inside.</p>
+
+<h3 id="s-algo">The algorithms</h3>
+<div class="tw"><table>
+<thead><tr><th>Policy</th><th>How it picks</th><th>Good at</th><th>Weak at</th></tr></thead>
+<tbody>
+<tr><td><b>Round robin</b> (weighted)</td><td>Each server in turn; weights for unequal machines</td><td>Equal servers, similar requests; zero state</td><td>Ignores how busy a server is; keeps feeding a slow server its full share</td></tr>
+<tr><td><b>Random</b></td><td>Uniform at random</td><td>No coordination between many balancers</td><td>The worst tail of all: each server becomes an independent M/M/1 queue</td></tr>
+<tr><td><b>Least connections</b> / <b>least outstanding requests</b></td><td>The server with the fewest requests in flight</td><td>Uneven request sizes, uneven servers</td><td>Needs fresh counts; many balancers acting on the same stale view all pick the same server</td></tr>
+<tr><td><b>Power of two choices</b> (P2C)</td><td>Pick two at random, send to the one with fewer in flight</td><td>Nearly the benefit of least-outstanding with O(1) work and no herding</td><td>Still needs per-server in-flight counts (cheap for a proxy)</td></tr>
+<tr><td><b>Hash</b> (consistent)</td><td>A hash of a key (user, chat, URL) picks the server</td><td>Affinity: the same key reaches the same warm cache</td><td>Hot keys overload one server unless loads are bounded</td></tr>
+</tbody></table></div>
+<p><dfn id="g-p2c">Power of two choices</dfn> deserves its name. Michael Mitzenmacher analysed it as the "supermarket model": requests arrive at n servers, "each customer chooses some constant d servers independently and uniformly at random ... and waits for service at the one with the fewest customers", and found that "having d = 2 choices leads to exponential improvements in the expected time a customer spends in the system over d = 1, whereas having d = 3 choices is only a constant factor better than d = 2" ({{IEEE TPDS 12(10), 2001|https://www.eecs.harvard.edu/~michaelm/postscripts/tpds2001.pdf}}). For many servers his limit gives the mean time in the system, in units of the service time, as the sum over i &ge; 1 of &lambda;<sup>(d<sup>i</sup> &minus; d)/(d &minus; 1)</sup>. At 90% load: random (d = 1) 10, two choices 2.61, three choices 2.03. At 99%: 100 against 5.4. The second sample removes most of the damage and more samples add little, which is why Envoy ({{"Defaults to 2 so that we perform two-choice selection"|https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/cluster.proto}}) and HAProxy ({{"The default value is 2"|https://docs.haproxy.org/3.2/configuration.html#4.2-balance}}) both sample two servers.</p>
+<div class="tw"><table id="sm-table"></table></div>
+<p class="small mute">Mitzenmacher's limit as n grows (exponential service), computed from the formula above in src/recompute.py; his paper reports simulations within a few percent of it for 100 queues up to 95% load. The lab and the animation below use 8 servers, where two choices helps a little less.</p>
+
+<h3 id="s-lb-anim">Before and after: the same traffic, random against two choices</h3>
+<div class="card" id="la-card">
+<div class="seg" id="la-seg"><button class="on" data-m="random">Random</button><button data-m="rr">Round robin</button><button data-m="p2c">Power of two choices</button><button data-m="lor">Least outstanding</button></div>
+<div class="rd-svg" id="la-svg"></div><div class="leg" id="la-leg"></div>
+<div class="an-cnt" id="la-cnt"></div>
+<div class="an-cap" id="la-cap"></div>
+<div class="an-ctl" id="la-ctl"></div>
+<p class="small mute">Simulated with the page's model (src/model.py, the same code as the Load-test lab): 8 servers, each serving one request at a time, exponential service times, random (Poisson) arrivals at 90% of total capacity. The arrival times and the work each request needs are identical under every policy; only the balancer's choice differs. One square is one request in a server (being served or waiting); time is in units of the mean service time. Starts paused under reduced motion.</p>
+</div>
+
+<h3 id="s-meas-lb">Measured: four policies on eight real servers</h3>
+<div class="meas"><div class="t">Experiment 3: eight server processes, one client-side balancer</div>
+<p>Eight copies of Experiment 1's server (one request at a time each, exponential service with a nominal mean of 20 ms), each a separate process; one open-loop client sends Poisson traffic and picks a server per request with each policy, counting its own requests in flight per server (exactly what a client-side balancer or a sidecar does). 40 seconds per run at 70% and 90% of nominal capacity, then 30 seconds at 70% with server 0 three times slower. Same arrival seed for every policy.</p></div>
+<div class="tw"><table id="lbm-table"></table></div>
+<p id="lbm-text"></p>
+
+<h3 id="s-affinity">Affinity: consistent hashing</h3>
+<p>Sometimes the same key must keep reaching the same server: a per-server in-memory cache, a chat whose model context (the LLM's KV cache) is warm on one GPU replica, or Discord's data services, where routing every request for a channel to one instance is what makes request coalescing work (root {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}}: "Trillions of messages: hot partitions, request coalescing, a new database"). The naive way, server = hash(key) mod N, moves almost every key when N changes; nginx's documentation warns of exactly that: "adding or removing a server from the group may result in remapping most of the keys to different servers" ({{nginx upstream module|https://nginx.org/en/docs/http/ngx_http_upstream_module.html#hash}}). <dfn id="g-chash">Consistent hashing</dfn> places servers and keys on a circle and sends each key to the next server clockwise, so adding a server moves only the keys between it and its neighbour, about 1/N of them ("only a few keys will be remapped", nginx's <code>hash ... consistent</code>, ketama). Envoy offers a ring hash and Maglev, which "uses the algorithm described in section 3.4 of [the Maglev paper] with a fixed table size of 65537" and looks up faster ({{Envoy load balancers|https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/load_balancing/load_balancers}}).</p>
+<p>Affinity's cost is hot keys: one viral chat lands on one server. <b>Bounded loads</b> fixes it by refusing a server that already carries more than a set multiple of the average and moving on round the ring; HAProxy's <code>hash-balance-factor</code>: "if &lt;factor&gt; is 150, then no server will be allowed to have a load more than 1.5 times the average ... Reasonable values are from 125 to 200" ({{HAProxy 3.2 manual|https://docs.haproxy.org/3.2/configuration.html#4.2-hash-balance-factor}}). Do not use affinity for stateless requests: it throws away the balancing you just paid for.</p>
+
+<h3 id="s-health">Health checks, draining and slow start</h3>
+<ul>
+<li><b>Active health checks</b>: the balancer probes each server (an HTTP GET to a health endpoint every few seconds) and removes it after several failures. In open-source nginx they are not available: "periodic health checks is available as part of our commercial subscription"; the open-source version only counts real failures (<code>max_fails</code>, default 1, within <code>fail_timeout</code>, default 10 seconds). What a health endpoint should check (and why "the database is down" must not mark every server unhealthy) is on {{Reliability engineering, Health checks done right|n:3ef5c17b0d0d8152b8dececf34196174}}.</li>
+<li><b>Outlier detection</b> (passive): eject a server whose real responses go bad. Envoy's defaults: eject after 5 consecutive 5xx responses, checked every 10 s, for a base 30 s, never more than 10% of the pool at once ({{Envoy outlier detection|https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/outlier_detection.proto}}). The 10% cap matters: a balancer that ejects every server has built an outage.</li>
+<li><b>Connection draining</b>: to remove a server (a deploy, a scale-in), stop sending it new requests but let the ones in flight finish. AWS ALB waits 300 seconds by default ("deregistration delay") and warns: "If a deregistering target terminates the connection before the deregistration delay elapses, the client receives a 500-level error response" ({{AWS ALB target group attributes|https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html}}). On Kubernetes a deleted pod gets a 30-second grace period by default before it is killed ({{pod lifecycle|https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/}}); the server must keep serving after SIGTERM until the balancer has stopped sending to it.</li>
+<li><b>Slow start</b>: a new server with a cold cache gets a ramp instead of its full share at once. HAProxy's <code>slowstart</code> grows a returning server's weight "linearly from 0 to 100%"; ALB's slow start mode does the same, but "You can't enable slow start mode when using the least outstanding requests or weighted random routing algorithms".</li>
+</ul>
+
+<h3 id="s-lbconf">Real configurations</h3>
+<p>Versions current on 2026-10-04: nginx 1.31.6 and 1.30.5 (15 September 2026), HAProxy 3.2.25 (28 September 2026), Envoy 1.39.1 (27 August 2026). Each turns on two choices in a different way:</p>
+<div class="code"><span class="cm"># nginx: random two least_conn (since 1.15.1); open-source has passive checks only</span>
+upstream chat_api {
+    random two least_conn;
+    server 10.0.1.11:8000 max_fails=3 fail_timeout=10s;
+    server 10.0.1.12:8000 max_fails=3 fail_timeout=10s;
+    keepalive 32;            <span class="cm"># reuse connections to the servers (default since 1.29.7)</span>
+}</div>
+<div class="code"><span class="cm"># HAProxy: random(2) is the power of two choices ("The default value is 2")</span>
+backend chat_api
+    balance random(2)
+    option httpchk GET /healthz
+    default-server inter 2s fall 3 rise 2 slowstart 30s
+    server app1 10.0.1.11:8000 check
+    server app2 10.0.1.12:8000 check</div>
+<div class="code"><span class="cm"># Envoy: LEAST_REQUEST samples 2 hosts by default ("two-choice selection"), plus outlier detection</span>
+clusters:
+- name: chat_api
+  lb_policy: LEAST_REQUEST
+  least_request_lb_config: { choice_count: 2 }
+  outlier_detection: { consecutive_5xx: 5, interval: 10s, base_ejection_time: 30s, max_ejection_percent: 10 }</div>
+<div class="code"><span class="cm"># AWS ALB: round robin is the default; switch the target group to least outstanding requests</span>
+aws elbv2 modify-target-group-attributes --target-group-arn $TG \
+  --attributes Key=load_balancing.algorithm.type,Value=least_outstanding_requests \
+               Key=deregistration_delay.timeout_seconds,Value=60</div>
+<p class="small mute">Directives quoted from the nginx upstream module page, the HAProxy 3.2 manual, Envoy's load balancer and outlier detection docs, and AWS's target group attributes page (all fetched 2026-10-04); versions from endoflife.date and Envoy's GitHub releases. The server addresses and the 30 s, 60 s and 2 s values are illustrative.</p>
+<div class="when"><b>When not to bother:</b> two servers behind a managed balancer with similar, fast requests are fine on round robin. The policy matters once requests vary in cost (an LLM call against a cache hit), servers vary (one is garbage-collecting), or you run hot. For LLM servers the right signal is not requests in flight but tokens or KV-cache memory in use: {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} and Topic: inference-and-serving own that.</div>
+</section>
