@@ -1,0 +1,25 @@
+
+<section id="rd-ret">
+<h2>Retrieval metrics</h2>
+<p>For one query q, the labels give a set of relevant passages Rel(q), each with a grade (binary: relevant or not; graded: for example 3 = answers the question on its own, 2 = holds a needed part, 1 = related background, 0 = irrelevant). The retriever returns a ranked list, and a metric "at k" looks only at the top k, because only those reach the prompt. Each metric is computed per query and averaged over the queries; TREC's <code>trec_eval</code> and its Python binding <code>pytrec_eval</code> are the reference implementations, and BEIR and MTEB use them.</p>
+<div class="fm"><div class="eq">recall@k = |Rel(q) &cap; Top<sub>k</sub>(q)| / |Rel(q)| &nbsp;&nbsp; precision@k = |Rel(q) &cap; Top<sub>k</sub>(q)| / k</div>
+<div class="eq">hit@k = 1 if any relevant passage is in Top<sub>k</sub>(q), else 0 &nbsp;&nbsp; RR = 1 / rank of the first relevant passage</div>
+<div class="eq">DCG@k = &Sigma;<sub>i=1..k</sub> gain(rel<sub>i</sub>) / log<sub>2</sub>(i+1) &nbsp;&nbsp; nDCG@k = DCG@k / IDCG@k</div>
+<dl><dt>Top<sub>k</sub>(q)</dt><dd>the first k retrieved passages</dd><dt>rel<sub>i</sub></dt><dd>the grade of the passage at rank i (0 if unjudged or irrelevant)</dd><dt>gain</dt><dd>linear, gain = rel (what <code>trec_eval</code>, BEIR and MTEB use), or exponential, gain = 2<sup>rel</sup> &minus; 1 (Burges et al. 2005, used by some learning-to-rank libraries); the two give different numbers on graded labels</dd><dt>IDCG@k</dt><dd>the DCG of the ideal order, all relevant passages sorted by grade, so nDCG lies in [0, 1]</dd><dt>MRR</dt><dd>the mean of RR over queries, often cut at 10 (RR = 0 when the first hit is below rank 10)</dd></dl></div>
+<ul class="tight">
+<li><b>recall@k</b> is the number RAG lives on: if the evidence is not in the prompt nothing downstream can recover it. Measure it twice, at the k that reaches the prompt and at the depth the reranker reads (often 50 to 150), or a retrieval miss and a ranking miss look the same. It has no value for a query with no relevant passage (an unanswerable question): leave those out of the average and score abstention on them instead.</li>
+<li><b>hit@k</b> (also "success@k", or "recall@k" in some dense-retrieval papers, which use the name for this per-query 0 or 1) equals recall@k when every query has exactly one relevant passage, and is more lenient otherwise. Check which one a paper means before comparing.</li>
+<li><b>precision@k</b> penalises padding the prompt: raising k can only raise recall and usually lowers precision. It is capped by the labels: with one relevant passage per query, precision@10 cannot exceed 0.1.</li>
+<li><b>MRR</b> fits single-answer lookups and ignores everything after the first hit.</li>
+<li><b>nDCG@10</b> rewards putting the most relevant passage first; it is the standard for comparing rerankers, whose whole job is moving items up, and BEIR's and MTEB's headline retrieval number.</li>
+</ul>
+<p>The calculator below holds one ranked list. Click a slot to cycle its grade (0 to 3); the starting list is the worked example from the old RAG evaluation page, a query with three relevant passages A (grade 3), B (2) and C (1), before and after a cross-encoder reranker. First stage: X, B, Y, C, Z in the top 5 and A at rank 8, so recall@5 = 2/3, precision@5 = 0.4, RR = 1/2, and nDCG@5 = (2/1.585 + 1/2.322) / (3 + 2/1.585 + 1/2) = 1.693 / 4.762 = 0.355. Reranked: A, B, X, C, Y, so recall@5 = 1, precision@5 = 0.6, RR = 1 and nDCG@5 = 4.693 / 4.762 = 0.985. The reranker could rescue A only because the first stage had it within the 20 it was given.</p>
+<div class="card" id="mc-card">
+<div class="seg" id="mc-preset"><button data-m="first" class="on">First stage</button><button data-m="rerank">After reranking</button><button data-m="pad">One hit, nine misses</button></div>
+<div class="an-ctl"><label class="small">Cutoff k <select id="mc-k"><option>3</option><option selected>5</option><option>10</option></select></label><label class="small">Gain <select id="mc-gain"><option value="lin" selected>linear (trec_eval)</option><option value="exp">exponential 2^rel &minus; 1</option></select></label><span class="small mute">Relevant passages not in this list count toward recall and IDCG.</span></div>
+<div class="mcl" id="mc-list"></div>
+<div class="out" id="mc-out"></div>
+<p class="small mute" id="mc-note"></p>
+</div>
+<p>Two recalls are easy to confuse. <b>ANN recall</b> measures an approximate nearest-neighbour index against exact search over the same embeddings; <b>retrieval recall</b> measures the whole system against human labels. A perfect index cannot fix an embedding model that puts the right passage far from the query; {{Embeddings and vector search|n:3c65c17b0d0d81508f99e1fa78c2bb41}} owns the first.</p>
+</section>

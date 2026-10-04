@@ -1,0 +1,39 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#rd-one">One screen</a><a href="#rd-halves">Two halves</a><a href="#rd-ret">Retrieval metrics</a><a href="#rd-real">A real run</a><a href="#rd-gen">Generation metrics</a><a href="#rd-fw">Frameworks</a><a href="#rd-judge">Judging faithfulness</a><a href="#rd-bench">Detection benchmarks</a><a href="#rd-long">Long context</a><a href="#rd-build">Your own test set</a><a href="#rd-agent">Agentic RAG</a><a href="#rd-mist">Mistakes</a></nav>
+
+<section id="rd-one">
+<p class="lead">A retrieval-augmented generation (RAG) system answers in two steps: a retriever puts a few passages in the prompt, and a generator writes an answer from them. Each step fails in its own way, and a single end-to-end score ("62% of answers were correct") cannot say which one did, so it cannot say what to fix. Evaluation therefore splits the system: classical retrieval metrics over labelled passages for the first step, faithfulness and relevance checks for the second, and an end-to-end check that ties them together. This page works every metric on released human labels: a BM25, dense and hybrid run on three BEIR test sets scored against their qrels, 1,584 RAGTruth responses whose hallucinated spans were marked by annotators, and MS MARCO's own marks of which passage holds the answer. About 30 minutes; the two tabs are optional.</p>
+<p class="small mute">The parent topic owns judges in general (who grades, bias, calibration, statistics); its {{Judge bias lab|n:3c65c17b0d0d8181b351e1b8fc6a1546}} and {{Judge atlas|n:3c65c17b0d0d8181b351e1b8fc6a1546}} tabs are linked, not rebuilt. How a RAG system is built (chunking, BM25, dense search, fusion, reranking, agent loops) is {{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}} and its deep dives; this page is only about measuring one.</p>
+
+<h2>In one screen</h2>
+<div class="tw"><table>
+<thead><tr><th>Question</th><th>Measure</th><th>Needs</th><th>Blind to</th></tr></thead>
+<tbody>
+<tr><td>Did the evidence reach the prompt?</td><td>recall@k and hit rate@k, at the prompt's k and at the reranker's input depth</td><td>passage labels (qrels)</td><td>order inside the top k</td></tr>
+<tr><td>Is the best evidence on top?</td><td>nDCG@10, MRR</td><td>graded labels for nDCG; binary for MRR</td><td>coverage below the cutoff</td></tr>
+<tr><td>How much of the prompt is noise?</td><td>precision@k</td><td>passage labels</td><td>order, and missing evidence</td></tr>
+<tr><td>Is every claim in the answer supported by the passages?</td><td>faithfulness, also called groundedness</td><td>passages and answer; a judge or a trained detector</td><td>whether the passages are true or current</td></tr>
+<tr><td>Does the answer address the question?</td><td>answer relevance</td><td>question and answer</td><td>whether the answer is correct</td></tr>
+<tr><td>Do the citations point at passages that support the sentence?</td><td>citation precision and recall</td><td>answer with citations, and the passages</td><td>claims left uncited</td></tr>
+<tr><td>Is the answer right?</td><td>correctness against a reference, or the share of reference nuggets covered</td><td>reference answers or nuggets</td><td>which half failed</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">The one habit</div>For every wrong answer, first ask whether a passage that holds the answer was in the prompt. That one bit gives the failure to the retriever (not in the prompt) or to the generator (in the prompt, and still wrong) before anybody touches a component.</div>
+</section>
+
+<section id="rd-halves">
+<h2>Two halves, and why one score hides which failed</h2>
+<p>With one gold passage per question, end-to-end accuracy is a product: the share of questions whose gold passage the first stage returns among the K candidates, times the share the reranker keeps in the k that reach the prompt, times the share the generator then answers correctly, A = r<sub>K</sub> &middot; p<sub>k|K</sub> &middot; g. Any factor caps the whole, and the same 67.5% can come from a weak retriever or from a weak generator. {{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}} works the product through a 200-question example in its "where an answer gets lost" section; here is the same split done on real items.</p>
+<p>The animation runs two real questions through retrieve, then generate. <b>Before</b> scores each answer end to end, the way a single accuracy number does. <b>After</b> scores the same answer twice more: the retrieval half against a human mark of which passage holds the answer, and the generation half against human-marked hallucinated spans. The first question comes from RAGTruth, whose three passages per question were taken from MS MARCO; the second from SciFact, retrieved by our own BM25 and hybrid runs.</p>
+<div class="card" id="an-card">
+<div class="seg" id="an-mode"><button data-m="before">Before: one end-to-end score</button><button data-m="after" class="on">After: split the halves</button></div>
+<div class="an-ctl"><label class="small wide">Question <select id="an-case"><option value="carry">"carry on cast still alive" (RAGTruth, MS MARCO)</option><option value="ampk">AMPK and lung fibrosis claim (SciFact)</option></select></label><label class="small" id="an-mwrap">Generator <select id="an-model"></select></label></div>
+<div class="pipe" id="an-pipe"></div>
+<div class="an-cnt" id="an-cnt"></div>
+<div class="an-cap" id="an-cap" aria-live="polite"></div>
+<div class="an-ctl" id="an-ctl"></div>
+</div>
+<p class="small mute">Labels: which passage holds the answer is MS MARCO v1.1's <code>is_selected</code> flag (the MS MARCO annotator wrote the reference answer from it) and SciFact's qrels; hallucinated spans are RAGTruth's annotations; end-to-end correctness is our reading of each answer against MS MARCO's reference answer and SciFact's CONTRADICT label, shown in the caption so it can be checked. The SciFact answers were generated for this page by Qwen2.5-1.5B-Instruct, greedy, with RAGTruth's QA instruction (<code>src/gen_case.py</code>).</p>
+<p id="rd-xtab-lead">The first question is not a lucky pick. RAGTruth built its question-answering set so that the retriever had already done its job: of its 989 MS MARCO questions, 276 can be matched by text to MS MARCO v1.1, and in all 264 whose three passages could be matched one by one, at least one passage carries MS MARCO's answer mark (exactly one passage in 200 questions, two in 51, all three in 13). Retrieval scored on those contexts gives hit@3 = 1.0, precision@3 = 0.431 and MRR = 0.651 for every model. Everything that differs between the six generators below is therefore the generator's:</p>
+<div id="rd-xtab"></div>
+<p class="small mute">264 questions times six models; a response is "hallucinated" if RAGTruth marked any span, "refused" if it is only the instructed "Unable to answer based on given passages" (under 150 characters), and "answered, then disclaimed" if it answers and then appends that sentence anyway (a Llama-2-7B habit). Computed by <code>src/ragtruth_marco.py</code>.</p>
+</section>
