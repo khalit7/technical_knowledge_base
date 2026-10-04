@@ -1,6 +1,6 @@
 // ---- Reading, Step 6: a back-of-the-envelope estimate, fleet sized for the average against the busy hour (every input illustrative; src/read/recompute.py a6) ----
 window.RDSIM=window.RDSIM||{};
-RDSIM.E={users:10e6,dau_frac:0.10,msgs_per_dau:10,out_tok:500,peak_x:2.0,tok_per_gpu:2000,stream_s:10,bytes_per_msg:2000,headroom:1.2};
+RDSIM.E={users:10e6,dau_frac:0.10,msgs_per_dau:10,out_tok:400,in_tok:1000,peak_x:2.0,tok_per_gpu:2000,stream_s:10,bytes_per_msg:2000,headroom:1.2};
 RDSIM.A6_SHAPE=[0.4,0.3,0.25,0.25,0.3,0.4,0.55,0.75,0.95,1.1,1.2,1.25,1.25,1.2,1.15,1.15,1.2,1.3,1.45,1.65,1.85,2.0,1.3,0.8];
 RDSIM.a6=function(){const E=RDSIM.E,dau=E.users*E.dau_frac,msgs=dau*E.msgs_per_dau,avg=msgs/86400,peak=avg*E.peak_x,ta=avg*E.out_tok,tp=peak*E.out_tok;
   const sd=msgs*2*E.bytes_per_msg/1e9;
@@ -19,7 +19,7 @@ RDSIM.a6day=function(g){const r=RDSIM.a6(),E=RDSIM.E,capT=g*E.tok_per_gpu,dem=RD
     ['Messages a day',f(r.msgs),'1,000,000 × 10'],
     ['Average requests a second',f1(r.avg_rps),f(r.msgs)+' ÷ 86,400 s'],
     ['Busy-hour requests a second',f1(r.peak_rps),f1(r.avg_rps)+' × 2'],
-    ['Output tokens a second','average '+f(r.tok_avg)+', busy hour '+f(r.tok_peak),'requests × 500 tokens'],
+    ['Output tokens a second','average '+f(r.tok_avg)+', busy hour '+f(r.tok_peak),'requests × 400 tokens'],
     ['GPUs',String(g),mode==='avg'?f(r.tok_avg)+' ÷ 2,000 tokens/s per GPU (sized for the average)':f(r.tok_peak)+' × 1.2 headroom ÷ 2,000 tokens/s per GPU'],
     ['Open streams in the busy hour',f(r.streams),'Little\'s law: '+f1(r.peak_rps)+' req/s × 10 s each'],
     ['New text stored',r.store_day_gb+' GB a day, '+r.store_year_tb+' TB a year',f(r.msgs)+' × 2 messages × 2 KB'],
@@ -42,8 +42,8 @@ RDSIM.a6day=function(g){const r=RDSIM.a6(),E=RDSIM.E,capT=g*E.tok_per_gpu,dem=RD
       ['Who is actually there','Only some users come back on a given day; 10% is the assumption here.'],
       ['How much they do','Ten messages each. Each message is one request to the model.'],
       ['Turn a day into a rate','A day has 86,400 seconds, so 10 million messages is about 116 requests a second on average: modest for app servers and a database.'],
-      ['Traffic is not flat','Evenings are busier than nights. Assume the busy hour runs at twice the average.'],
-      ['Convert to model work','At 500 output tokens per reply the model must produce about 58,000 tokens a second on average and 116,000 in the busy hour. The chart shows the day\'s shape.'],
+      ['Traffic is not flat','Evenings are busier than nights. Assume the busy hour runs at twice the average, close to what German Wikipedia measures in one time zone (1.92 in September 2026; see the note below).'],
+      ['Convert to model work','At 400 output tokens per reply (with about 1,000 input tokens, the request shape the Scale simulator uses) the model must produce about '+f(Math.round(r.tok_avg/1000)*1000)+' tokens a second on average and '+f(Math.round(r.tok_peak/1000)*1000)+' in the busy hour. The chart shows the day\'s shape.'],
       [mode==='avg'?'Size the fleet for the average':'Size the fleet for the peak','At an assumed 2,000 output tokens a second per GPU: '+(mode==='avg'?r.gpu_avg+' GPUs cover the average.':r.gpu_peak+' GPUs cover the busy hour with 20% headroom.')],
       ['Count open connections','Little\'s law again: '+f1(r.peak_rps)+' new replies a second, each streaming for 10 seconds, means about '+f(r.streams)+' connections open at once, which every layer from the load balancer down must hold.'],
       ['Count the bytes','Text is small: about '+r.store_day_gb+' GB of new messages a day. Storage is not the hard part; the GPUs are.'],

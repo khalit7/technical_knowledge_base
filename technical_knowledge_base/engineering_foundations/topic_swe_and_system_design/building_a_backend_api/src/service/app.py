@@ -172,6 +172,9 @@ async def send_message(chat_id: str, body: MessageIn,
             return problem(409, "idempotency-key-in-use", "A request with this key is still in progress.",
                            "Retry after it finishes.")
         return JSONResponse(json.loads(saved), status_code=code, headers={"Idempotent-Replayed": "true"})
+    # KNOWN BUG (found by the Code design page, kept so the captures stay true): an exception or crash between the
+    # claim above and the commit below leaves the key 'started' forever, so every retry gets 409. Fix: release the
+    # claim on every exit without a saved response (a context manager) and give claims an expiry.
     # 2. do the work once: store the message, charge credits, "call the model"
     if not DB.execute("select 1 from chats where id=? and owner=?", (chat_id, owner)).fetchone():
         DB.execute("delete from idempotency_keys where owner=? and key=?", (owner, idempotency_key))
