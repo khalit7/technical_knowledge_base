@@ -1,0 +1,61 @@
+
+<section id="s-lake">
+<h2>9. The lakehouse: making a folder of Parquet files behave like a table</h2>
+<p><b>The problem.</b> Object storage (S3, Google Cloud Storage, Azure Blob) is the cheapest durable place to keep terabytes, and Parquet is the format every engine reads. So teams put Parquet files in a bucket and called it a <b>data lake</b>. A folder of files is not a table, though, and the chat product hits every gap within a month:</p>
+<ul>
+<li><b>No atomic commit.</b> A nightly job writes 40 files; a reader that lists the folder halfway through sees 23 of them and reports wrong totals. A job that crashes leaves half its files behind.</li>
+<li><b>No safe change.</b> Deleting one user's messages (a privacy request) means rewriting files while others read them. Two writers at once can overwrite each other.</li>
+<li><b>No schema history.</b> Add a <code>lang</code> column and old files lack it; rename a column and readers that match by name break.</li>
+<li><b>No time travel.</b> "What did this table look like when we trained last Tuesday's model?" has no answer once files are rewritten.</li>
+<li><b>Slow planning.</b> Listing a folder of a million objects on S3 takes many API calls before a single byte of data is read.</li>
+</ul>
+<p><b>The idea.</b> A <b>table format</b> keeps, next to the data files, a small set of <b>metadata files</b> that list exactly which data files make up the table at each moment, with their statistics. A commit writes new data files first (invisible), then new metadata, and finally makes the new metadata current with one atomic step. Readers read whichever metadata is current when they start, so they always see a whole commit or none of it. Old metadata stays, so old versions stay readable. The <b>lakehouse</b> is that combination, data lake storage with warehouse-style tables on top, named in the CIDR 2021 paper by Armbrust, Ghodsi, Xin and Zaharia ({{Lakehouse paper|https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf}}). Three formats matter:</p>
+
+<h3>Apache Iceberg: a tree of metadata, walked through on a real table</h3>
+<p>The spec ({{iceberg.apache.org/spec|https://iceberg.apache.org/spec/}}) tracks individual files, not directories, in four layers. Built here with pyiceberg 0.12.0 on the local disk (<code>src/measure/iceberg_walk.py</code>), one day of chat messages at a time:</p>
+<div class="card" id="iceMini">
+<svg id="iceTree" aria-label="Iceberg metadata tree"></svg>
+<div class="small mute">The real files after the second append. Every name is the one pyiceberg wrote; the {{Iceberg, step by step|#t-ice}} tab replays all eight steps and opens each file.</div>
+</div>
+<ol>
+<li><b>Catalog</b>: holds one pointer per table, the location of the current <code>metadata.json</code>. Here a SQLite file; in production a REST catalog service, AWS Glue, Unity Catalog or Polaris (below).</li>
+<li><b><code>metadata.json</code></b>: the table's schemas (each column with a permanent <b>field id</b>), partition specs, and the list of <b>snapshots</b>, each one the complete state of the table after one commit. Every commit writes a new one; ours grew from 1,036 bytes to 7,761 bytes over eight steps.</li>
+<li><b>Manifest list</b> (<code>snap-...avro</code>): one per snapshot, listing the manifests that make it up, with partition value ranges so a reader can skip whole manifests.</li>
+<li><b>Manifests</b> (<code>...-m0.avro</code>): each lists data files with their partition values, row counts, and per-column lower and upper bounds (min/max, like Parquet's) so the planner can skip files without opening them.</li>
+<li><b>Data files</b>: ordinary Parquet. One day of our messages is one 323 KB file.</li>
+</ol>
+<p>What each step of the real run wrote, in short:</p>
+<div class="tw"><table class="small">
+<thead><tr><th>Step</th><th>New files</th><th>What it shows</th></tr></thead>
+<tbody>
+<tr><td>Create, partition by <code>day(created_at)</code></td><td>2 metadata.json</td><td>No data yet: a table is its metadata. Adding the partition spec was itself a commit.</td></tr>
+<tr><td>Append 2026-03-01 (28,800 rows)</td><td>1 Parquet, 1 manifest, 1 manifest list, 1 metadata.json</td><td>The data file lands in <code>created_at_day=2026-03-01/</code>; snapshot 1 exists only once metadata.json 00002 is current.</td></tr>
+<tr><td>Append 2026-03-02</td><td>same four kinds</td><td>The new manifest list names both manifests: snapshots share unchanged manifests rather than copying them.</td></tr>
+<tr><td>Add column <code>lang</code></td><td>1 metadata.json only</td><td><b>Schema evolution</b> rewrites no data: schema 1 adds field id 7. Old files simply have no field 7, read as null.</td></tr>
+<tr><td>Delete chat 520912</td><td>1 Parquet, 2 manifests, 1 list, 1 metadata.json</td><td>pyiceberg rewrote the one affected file (28,798 rows) and recorded the old one as DELETED: <b>copy-on-write</b>. The old file stays on disk for time travel.</td></tr>
+<tr><td>Partition spec day to month</td><td>1 metadata.json only</td><td><b>Partition evolution</b>: new data uses month; old files keep their day layout; queries need no change, because they filter on <code>created_at</code>, never on the partition column (<b>hidden partitioning</b>).</td></tr>
+<tr><td>Time travel to snapshot 1</td><td>none</td><td>Reading snapshot 1899985093966477424 returns 28,800 rows and the 6 original columns; the current snapshot has 115,198 rows and 7 columns.</td></tr>
+</tbody></table></div>
+<p>A query for one day planned exactly one of the table's four live data files, from manifest bounds alone, before opening any Parquet: the same min/max pruning as section 3, one level up. <b>Concurrency</b> is optimistic: a writer builds new metadata from the snapshot it read, then asks the catalog to swap the pointer only if it still points where it did; if another writer won, it re-checks for conflicts and retries ({{spec|https://iceberg.apache.org/spec/}}). Format v2 added row-level deletes through <i>delete files</i> (merge-on-read, the alternative to copy-on-write); v3 adds deletion vectors, row lineage, default values, variant and geospatial types; a v4 is in draft. Current Java release: 1.12.0, 2026-09-29 ({{releases|https://iceberg.apache.org/releases/}}).</p>
+
+<h3>Delta Lake: an ordered log of JSON commits</h3>
+<p>Delta keeps a folder <code>_delta_log/</code> of numbered JSON files; commit <i>n</i> is <code>00000000000000000003.json</code> for <i>n</i> = 3, and creating it atomically (put-if-absent) is the commit ({{PROTOCOL.md|https://github.com/delta-io/delta/blob/master/PROTOCOL.md}}). Each holds <b>actions</b>: <code>add</code> a file (with per-file stats), <code>remove</code> a file, <code>metaData</code> (schema), <code>protocol</code>, <code>commitInfo</code>. The same steps with deltalake 1.6.6 (<code>src/measure/delta_walk.py</code>) wrote four commits; the delete wrote one <code>add</code> (28,798 rows copied) and one <code>remove</code>, exactly like Iceberg's copy-on-write. Readers replay the log; to keep replay short, Delta Spark writes a Parquet <b>checkpoint</b> of the whole state every 10 commits by default (an implementation default, not part of the protocol). Delta also has deletion vectors, <b>liquid clustering</b> (changeable clustering keys instead of fixed partitions) and <b>UniForm</b>, which writes Iceberg metadata for the same files so Iceberg readers can read a Delta table ({{UniForm|https://docs.delta.io/latest/delta-uniform.html}}). Current: delta-spark 4.4.0.</p>
+<h3>Apache Hudi, in brief</h3>
+<p>Hudi is built for streaming upserts, for example from a change-data feed. Its tables are <b>copy-on-write</b> (rewrite base files on update) or <b>merge-on-read</b> (append updates to log files, merge at read time, compact later), with a record-level index mapping each key to its file group so an upsert finds its row fast ({{table types|https://hudi.apache.org/docs/table_types}}). Current: 1.2.1 (2026-09-24). Iceberg has the broadest engine support today, which is why the atlas suggests it unless you live in Spark and Databricks (Delta) or stream CDC upserts (Hudi).</p>
+
+<h3>Catalogs: where the pointer lives</h3>
+<p>The atomic step needs one place that holds "current metadata for table X" and can compare-and-swap it. That is the <b>catalog</b>, and in 2026 it is where vendors compete:</p>
+<ul>
+<li><b>Iceberg REST catalog</b>: an OpenAPI spec, so any engine talks to any catalog; a commit sends requirements such as "the current snapshot is still 42" plus updates ({{spec|https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml}}).</li>
+<li><b>AWS Glue Data Catalog</b>: has an Iceberg REST endpoint ({{docs|https://docs.aws.amazon.com/glue/latest/dg/connect-glu-iceberg-rest.html}}); <b>Amazon S3 Tables</b> (announced 2024-12-03) are buckets that store Iceberg tables and run compaction and snapshot clean-up for you ({{announcement|https://aws.amazon.com/about-aws/whats-new/2024/12/amazon-s3-tables-apache-iceberg-tables-analytics-workloads/}}).</li>
+<li><b>Unity Catalog</b>: Databricks' catalog; its open-source version is an LF AI and Data sandbox project, release 0.6.0 (2026-08), serving Delta tables and the Iceberg REST API ({{unitycatalog.io|https://www.unitycatalog.io/}}).</li>
+<li><b>Apache Polaris</b>: an Iceberg REST catalog that Snowflake donated; incubating from 2024-08-09, a top-level Apache project since 2026-02-15 ({{Apache|https://incubator.apache.org/projects/polaris.html}}).</li>
+<li><b>Nessie</b> (Git-like branches and multi-table commits) and <b>Lakekeeper</b> (a Rust REST catalog) are open-source alternatives; <b>DuckLake</b> (section 6) puts the whole catalog and metadata in a SQL database.</li>
+</ul>
+
+<h3>The small-files problem, measured</h3>
+<p>Streaming or frequent small appends create many small files. Each file costs an open, a footer read and a plan entry; each is compressed on its own, and on S3 each is at least one request. The same 10 million messages, measured with DuckDB 1.5.6 (<code>src/measure/remote_small.py</code>):</p>
+<div class="card" id="sfCard"><div id="sfBars" class="bars"></div><div class="small mute" id="sfNote"></div></div>
+<p>The fix is <b>compaction</b>: rewrite many small files into few large ones as a new commit, which readers never notice. Iceberg's <code>rewrite_data_files</code> procedure targets 512 MB files by default; Delta's <code>OPTIMIZE</code> targets 1 GB, and its auto compaction 128 MB ({{Iceberg procedures|https://iceberg.apache.org/docs/latest/spark-procedures/}}, {{Delta config|https://github.com/delta-io/delta/blob/master/spark/src/main/scala/org/apache/spark/sql/delta/sources/DeltaSQLConf.scala}}). Then expire old snapshots and delete files no snapshot references, or storage grows for ever: time travel is paid for in bytes.</p>
+<div class="co warn"><div class="t">When not to use a table format</div>One team, one engine, data that fits in DuckDB or Postgres: a lakehouse adds a catalog to run, compaction jobs to schedule and snapshot expiry to remember. Its pay-off is many engines (Spark for ETL, Trino or a warehouse for BI, Python for ML) sharing one copy of very large tables with safe concurrent writes.</div>
+</section>

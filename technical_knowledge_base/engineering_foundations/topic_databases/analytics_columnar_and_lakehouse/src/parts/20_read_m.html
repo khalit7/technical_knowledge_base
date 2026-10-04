@@ -1,0 +1,41 @@
+
+<section id="s-pro">
+<h2>12. What pros do, and the common mistakes</h2>
+<h3>The path most teams should follow</h3>
+<ol>
+<li><b>Start inside Postgres</b>, on a read replica, with a few summary tables refreshed by a job. Under a few million rows of events, that is enough.</li>
+<li><b>When analytic queries take seconds and hurt the app</b>, export to Parquet (nightly, or CDC for changing rows) and query it with DuckDB from notebooks and jobs. One machine handles hundreds of gigabytes.</li>
+<li><b>When dashboards need sub-second answers over billions of fresh events</b>, run ClickHouse (or ClickHouse Cloud), fed by batched inserts.</li>
+<li><b>When many teams, many engines or tens of terabytes</b> share the data, put it in a lakehouse (Iceberg plus a catalog) and/or a cloud warehouse, with dbt for transformations and budget alerts from day one.</li>
+</ol>
+<p>Each step adds a system to run and a copy to keep correct, so take the next one only when the current one measurably fails.</p>
+<h3>Common mistakes</h3>
+<details class="mist"><summary>Running analytics on the primary database</summary><div class="b">Each analytic query over the 10M messages kept Postgres busy for 0.5 to 10 seconds here, reading every page of the table; on the primary that competes with users. Use a replica, or a copy.</div></details>
+<details class="mist"><summary>Writing Parquet in whatever order rows arrive, then wondering why filters are slow</summary><div class="b">Pruning works only if the filtered column is clustered: in the lab, one chat's messages cost 0.46 MB sorted by chat and 34 to 86 MB shuffled. Sort by the column most queries filter on (usually time, then a key).</div></details>
+<details class="mist"><summary>Thousands of tiny files</summary><div class="b">Streaming jobs that write a file every few seconds: the same 10M rows as about 10,000 files took 124 times longer to aggregate than as one file, and 8% more disk. Batch writes, and schedule compaction.</div></details>
+<details class="mist"><summary><code>SELECT *</code> on a pay-per-byte warehouse</summary><div class="b">BigQuery bills every column selected, even with LIMIT. Name the columns; preview with table previews or a dry run.</div></details>
+<details class="mist"><summary>Treating a column store as a database for the app</summary><div class="b">Single-row updates, unique constraints and read-your-writes are where they are weakest (ClickHouse deduplicates only at merge time, and does not fsync inserts by default). Keep the system of record in Postgres.</div></details>
+<details class="mist"><summary>Partitioning by a high-cardinality column</summary><div class="b">Partitioning a lakehouse table by user id makes one folder per user and millions of tiny files. Partition by time at a grain that gives files of hundreds of MB; cluster or sort by the key inside.</div></details>
+<details class="mist"><summary>Never expiring snapshots</summary><div class="b">Every Iceberg or Delta rewrite keeps the old files for time travel. Without snapshot expiry and orphan clean-up, storage grows for ever, and deleted personal data is still on disk.</div></details>
+<details class="mist"><summary>Training on today's feature values</summary><div class="b">Section 11: half of the "pro" examples were leaked. Join features as of each example's timestamp.</div></details>
+<details class="mist"><summary>Reaching for Spark at 50 GB</summary><div class="b">A cluster adds minutes of start-up and an operations burden; DuckDB or Polars on one machine finish first at this scale (section 6). Reach for distributed engines when data or concurrency truly exceeds one machine.</div></details>
+<h3>Glossary</h3>
+<dl class="kv">
+<dt>OLTP / OLAP</dt><dd>Many small reads and writes of whole rows (the app) / few large reads of a few columns of many rows (analytics).</dd>
+<dt>Row group</dt><dd>A block of rows inside a Parquet file or column store; the unit of skipping.</dd>
+<dt>Column chunk</dt><dd>One column's values within one row group, stored contiguously.</dd>
+<dt>Page</dt><dd>The unit inside a column chunk that is encoded and compressed (a dictionary page, data pages).</dd>
+<dt>Encoding / codec</dt><dd>Type-aware compact representation (dictionary, RLE, delta) / generic byte compression (Snappy, zstd).</dd>
+<dt>Zone map, min/max statistics</dt><dd>Smallest and largest value per block, used to skip blocks that cannot match.</dd>
+<dt>Footer</dt><dd>The metadata at the end of a Parquet file: schema, row groups, column chunk offsets and statistics.</dd>
+<dt>Vectorised execution</dt><dd>Operators process batches (vectors) of a few thousand values per call instead of one row per call.</dd>
+<dt>Late materialisation</dt><dd>Evaluate filters on a few columns first; fetch the other columns only for rows that survive.</dd>
+<dt>Part, merge (ClickHouse)</dt><dd>An immutable sorted chunk written per insert / the background job that combines parts.</dd>
+<dt>Table format</dt><dd>Metadata files (Iceberg, Delta, Hudi) that turn data files into a table with atomic commits, snapshots and schema history.</dd>
+<dt>Snapshot, time travel</dt><dd>The table's full state after one commit / reading an older snapshot.</dd>
+<dt>Catalog</dt><dd>The service that holds each table's current metadata pointer and swaps it atomically.</dd>
+<dt>Compaction</dt><dd>Rewriting many small files into fewer large ones.</dd>
+<dt>ETL / ELT / CDC</dt><dd>Transform before loading / load raw then transform in place / streaming every row change from the database's log.</dd>
+<dt>Point-in-time join</dt><dd>Joining each example to feature values as of its own timestamp (an ASOF join).</dd>
+</dl>
+</section>

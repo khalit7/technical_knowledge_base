@@ -2229,3 +2229,40 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | work_mem spill bars (sort, hash join, hash agg) | Reading s9 | 2 | 3 | 3 | |
 | Parallel workers curve with perfect-scaling line | Reading s9 | 2 | 3 | 3 | |
 | N+1 and batching bars | Reading s8 | 2 | 3 | 3 | Log scale for batching. |
+
+### NoSQL in practice: key-value, document, wide-column, time-series, graph (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/nosql_in_practice/src/viz_ideas.md`.
+
+| Idea | T | F | C | Placement | Data | Notes |
+|---|---|---|---|---|---|---|
+| "Latest 50 messages" across four layouts: no index, B-tree index, CLUSTER, Cassandra partition; strip of the table's pages drawn to scale with the pages read lit, counters, captions per step | 5 | 5 | 3 | Reading section 2 (the before/after animation) | `m_wide.py`: EXPLAIN (ANALYZE, BUFFERS) of all three Postgres runs, ctid block numbers of the 50 rows, Cassandra trace | The suggested animation. Real block positions show why an index alone still reads 49 pages and CLUSTER reads 1. |
+| DynamoDB single-table lab: access patterns left, key choices right, each pattern scored GetItem / Query / GSI / extra work / Scan with items read and read units; item table as stored; hot-partition and cost calculator | 5 | 4 | 2 | Tab | `m_ddb.py` counts and capacities; AWS prices dated 2026-10-04 | Rules encoded from the docs; item counts from the measured load. Provisioned cost assumes a 3x peak (labelled). |
+| Rate-limit race: allowed requests, naive read-decide-write (188) against the Lua bucket (20) against the limit | 4 | 5 | 5 | Reading 3 | `m_redis.py` | Bars; the measurement is the visual. |
+| Quorum calculator on a token ring: RF, write and read levels, replicas down; success and overlap | 4 | 5 (arithmetic) | 4 | Reading 6 | formula from Cassandra docs | Ring is illustrative. |
+| Tombstone table: 0, 5,000, 101,000 deleted, with the trace lines and the failure | 4 | 5 | 5 | Reading 6 | `m_wide.py` | Real trace text. |
+| Cardinality calculator: series, samples a day, disk a day | 3 | 4 | 5 | Reading 7 | Prometheus docs (1-2 bytes per sample) | No memory-per-series figure shown: not documented as a constant. |
+| k-hop timing chart (log scale) for four engines with counts | 4 | 5 | 4 | Reading 8 | `m_graph.py` | Honest result: Postgres fastest to 3 hops. |
+
+### Analytics: columnar engines, DuckDB and the lakehouse (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/analytics_columnar_and_lakehouse/src/viz_ideas.md`.
+
+| # | Idea | What it shows, what the reader does | Data and sources | Placement | Score | Status |
+|---|---|---|---|---|---|---|
+| A1 | **Pruning before/after animation** | One query over the real 82-row-group Parquet file, row group by row group, without and with min/max statistics, one day or one chat; counters for row groups, bytes, rows decoded | anatomy.json (every row group's stats and chunk sizes from the footer); final bytes with pruning reproduce DuckDB's measured 1,197,073 bytes for the day query exactly (independently, from the footer); the chat query computes 708,747 against 741,532 measured | Reading 3 | 15 | built |
+| A2 | **Parquet lab** | 36 real files (4 sort orders x 3 row-group sizes x 3 codecs); choose one: size, row groups, bytes read (counted) and footer-predicted, median time for 4 queries; scatter of all 36 | parquet_lab.py, lab.json | Own tab | 14 | built |
+| A3 | **Inside a Parquet file** | A 23,047-byte file drawn to scale region by region; click to decode page headers and footer; the role column decoded to bits | anatomy.py + thrift_compact.py, checked against pyarrow | Own tab | 13 | built |
+| A4 | **Iceberg, step by step** | Every file pyiceberg wrote over 8 commits, live versus superseded, each decoded (metadata.json, manifest list, manifests); Delta toggle with its JSON log | iceberg_walk.py, delta_walk.py | Own tab (+ a static mini tree in Reading 9) | 13 | built |
+| A5 | Encodings explorer | Per column, every encoding x codec, column chunk bytes, log bars; sorted toggle for role/model | encodings.py | Reading 2 | 11 | built |
+| A6 | Three engines, five queries | DuckDB, Postgres, SQLite bars, default and one thread; answers checked identical | engines.py | Reading 1 | 11 | built |
+| A7 | Row at a time against vectors | One-column sum: SQLite, Postgres, Python loop, DuckDB 1 thread, numpy | engines.py, vec_ooc.py | Reading 4 | 9 | built |
+| A8 | HTTP range map | Which byte ranges DuckDB fetched over HTTP for three queries, drawn on the 534 MB file | remote_small.py (local Range server log) | Reading 6 | 10 | built |
+| A9 | Small files bars | 1 / 100 / ~1,000 / ~10,000 files: time and bytes; compaction time | remote_small.py | Reading 9 | 8 | built |
+| A10 | Dashboard bill calculator | Rows and refreshes per day: BigQuery on-demand against Snowflake XS and Redshift Serverless 60 s minimums | list prices 2026-10-04; BigQuery data type sizes; labelled derived | Reading 8 | 8 | built |
+| A11 | Sort order bars | Bytes read per query across sort orders at 100k rows, Snappy | lab.json | Reading 5 | 7 | built |
+| R1 | ClickHouse parts-and-merge animation | Parts appearing per insert and merging | real system.parts shown as text instead; the merge has only two real states (10 parts, 1 part), so an animation would invent intermediate merges | Reading 7 (text) | rejected |
+| R2 | Warehouse price history tab | | A pattern Khalid removed elsewhere; prices are dated in a table instead | none | rejected |
+| R3 | Spark against DuckDB benchmark chart | | No run of our own on Spark; the Coiled figures are vendor-run and only summarised in words | none | rejected |
+| R4 | Late materialisation animation | | Its effect is visible in the lab's needed-versus-read column; a separate animation would repeat A1's shape | Lab note | rejected |
+| R5 | Re-drawing the root's rows-vs-columns animation | | Owned by the root's Reading section 5 and Query plans case 6: linked | none | rejected |

@@ -1,0 +1,19 @@
+
+<section id="s-olap">
+<h2>1. Two kinds of work: OLTP and OLAP</h2>
+<p><b>OLTP</b> (online transaction processing) is what the app does: many small requests, each reading or writing a few whole rows (open chat 424242, save one message), each expected in milliseconds, with transactions keeping concurrent writers correct. <b>OLAP</b> (online analytical processing) is what analysts, dashboards, billing and ML pipelines do: few, large queries that read a few columns of millions or billions of rows and aggregate them, where seconds are fine and rows are rarely changed after they are written.</p>
+<p>The chat product's analytics questions look like this, and they are the five queries measured on this page:</p>
+<ul>
+<li>Tokens per model (the parent page's case 6), and messages per day in March.</li>
+<li>Tokens by country and plan: a join of all three tables (messages, chats, users).</li>
+<li>The top 10 users by tokens in the last 30 days, and distinct active chats per model per month.</li>
+</ul>
+<p><b>Measured: the same five questions on three engines.</b> Same rows in each (100,000 users, 1M chats, 10M messages, from the root's generator), every answer checked identical across engines. PostgreSQL 16.2 with its two base indexes and 7 GB of shared buffers warmed so the tables sat in memory; SQLite 3.47.1 with a 2.5 GB page cache; DuckDB 1.5.6 in its own file. Default parallelism (Postgres 2 workers per query, DuckDB 10 threads), and one thread each. Median of 3 warm runs (SQLite 2), on a shared laptop (<code>src/measure/engines.py</code>, 2026-10-04).</p>
+<div class="card" id="engCard">
+<div class="seg" id="engMode"><button data-m="def" class="on">Default parallelism</button><button data-m="one">One thread each</button></div>
+<div id="engBars"></div>
+<div class="small mute" id="engNote"></div>
+</div>
+<p>Three engines, one machine, same data: the column engine answers in milliseconds what the row engines answer in seconds, and the gap survives taking parallelism away. Sections 2 to 4 explain where each factor comes from. None of this says Postgres or SQLite are slow databases: ask each to fetch one chat's messages by key and the ranking reverses, which is why the app stays on Postgres.</p>
+<div class="co"><div class="t">Why not just run analytics on the app's Postgres?</div>Up to a few million rows, do: a read replica, a few summary tables refreshed by a job, maybe a BRIN index on time (see {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}). Past that, every analytic query reads every page of the table, competes with the app for disk, memory and CPU, and holds back vacuum while it runs ({{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}). That is the moment to make a second copy in a column format.</div>
+</section>
