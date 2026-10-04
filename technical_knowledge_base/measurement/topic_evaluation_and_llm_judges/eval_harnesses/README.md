@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3c65c17b0d0d81ea9cd5eb65795ff5c9 (child of Topic: evaluation-and-llm-judges)
 
-Old written page in Notion: being rebuilt as an interactive page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). What each harness treats as the unit of work (lm-eval task YAML, Inspect tasks, solvers, scorers and sandboxes, lighteval and its Inspect backend, HELM in maintenance mode, OpenAI evals and simple-evals, Evalchemy, Unitxt, promptfoo, Braintrust), how each scores, what each logs, sandboxing for agentic evals, current status dated 4 October 2026, and contribution entry points (inspect_evals' 2026 move to a Register). Tabs: Reading (with a before/after animation of one GSM8K problem through lm-eval and Inspect, from real runs), One task, every harness (GSM8K in each harness from pinned files, and an extraction bench on real outputs), Inside a run log (the real lm-eval and Inspect logs, field by field), Further reading. No child pages, databases or video.
