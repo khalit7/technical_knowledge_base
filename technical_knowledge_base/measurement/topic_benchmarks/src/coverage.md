@@ -95,3 +95,26 @@ The Same model, many numbers tab (`same/README.md`) and the Saturation timeline 
 - Real-SWE (read 2026-10-04): GPT-6 Astra 46.25%, Fable 5.1 45.00%, not "Fable 5.1 leads at 38.8%"; the "roughly 20 points below Terminal-Bench 4.0" is now 11.65 and 10.8 points against lab TB 4.0 figures. Reading rd-num Contamination.
 - Terminal-Bench-Science AA re-runs 63.3% (Astra) and 43.3% (Fable 5.1) against lab 64.6% and 52.6%. Reading rd-life text and animation captions, linking the Saturation timeline.
 - AIME 2026 was at 98.3% on the day it existed, so "each vintage saturates within about a year" is wrong: carried by tab sat; the Reading tab makes no within-a-year claim.
+
+## Update after the seven child pages were built (4 October 2026, later the same day)
+Rows above that this pass changed; where a row above disagrees, this section wins.
+| Fact | Where now |
+|---|---|
+| "Child page planned" for long context, multimodal, safety, human preference | Every family's Go deeper note links its child with its reading time (rd-fam); Further reading lists all seven children with reading times. Multilingual translation, the classic era and aggregators stay root-only (said in rd-fam and Further reading). |
+| Old "Math and coding benchmarks" page (3c65c17b0d0d8146b127fe43f5761bf0) | Replaced everywhere by Math benchmarks (3ef5c17b0d0d81ec942edf0040a2f596) or Coding benchmarks (3ef5c17b0d0d81bfa09ad4ba5eef0c4e): Reading, Further reading, atlas tab text and owner column (unused "mc" source removed). |
+| GDP.pdf "Astra 33.2" | Corrected in Reading (rd-fam Long context) to 34.2% (Surge harness) and 32.2% (Artificial Analysis), both read 4 Oct 2026; 33.2% is AA's v4.2-launch figure (atlas row keeps it, labelled). |
+| FrontierMath "only 50-problem Tier 4 discriminates" | Corrected: v2 sizes 295 (285 private) and 43 (41 private); Tier 4 v2 at 100% (GPT-6.1 Sol max, Epoch, 29 Sep 2026). Reading rd-fam Math; atlas FrontierMath rows (source: Epoch v2 changelog). Saturation data already agreed. |
+| HLE tools "10 to 20 points" | Qualified as set-specific: 3.3 to 7.0 points on full HLE (Anthropic, HLE sources blocklisted); 19.3 to 32.2 on HLE-Diamond (maintainers, 22 Sep 2026). Atlas HLE row (corrections and an issue) and tab same (HLE case note and correction). |
+| SWE-bench Verified "~97%" | Confirmed independently: Vals AI bash-only, Claude Opus 5 97.0%, eight models 93.4 to 97.0%, updated 1 Sep 2026. Atlas headline reading (Epoch's 83.5% kept as a separate reading); Reading rd-fam Coding. |
+| Terminal-Bench 4.0 task count | 66, counted from the 66 task folders of v4.0.0 (board: 330 trials, 5 per task); no longer "derived from release notes". Atlas tb4 row. |
+| Terminal-Bench 2.x StateM issue | Reworded against the StateM paper page: GPT-5.5 83.1% to 92.1%, 95.3% raw with GPT-5.6 Sol; 13 judge flags of 424 rewarded trajectories, four harness cheating; closed unmerged 19 Sep 2026. Atlas tb2 row. |
+| Long-context and multimodal statuses | Reading rd-fam: long context Active GDP.pdf, MRCR (independent runs), NoLiMa; Saturating AA-LCR; retired, dormant or saturated NIAH, RULER, LongBench v2, Fiction.LiveBench. Multimodal Active Video-MME-v2, CharXiv, ZeroBench, GDP.pdf; Saturating MMMU-Pro and the video sets; Saturated MMMU, MathVista, ChartQA, DocVQA. Atlas MRCR status now active; NIAH row gains Claude 2.1 27% to 98% (Anthropic, 6 Dec 2023). |
+| Safety Active list; HarmBench/StrongREJECT | StrongREJECT dropped from Active; HarmBench, AgentHarm, StrongREJECT listed as research staples off frontier cards. Atlas harmbench reading cites the GPT-5.2 card (11 Dec 2025); correction reworded. One sentence on dangerous-capability and scheming/evaluation-awareness evals (rd-fam Safety). |
+| MOLE "role-play instruction not to refuse" | Reworded to the children's reading: a preamble saying the sandbox is harmless; refusal and completion correlate across models (Spearman -0.73); best monitor 24 of 45 (Reading rd-game). |
+| Preference: Arena-Hard v2 Active; GDPval-AA under preference; LMArena | Arena-Hard v2 dormant (newest entries Apr 2025); GDPval-AA only under Agentic; LMArena renamed Arena on 28 Jan 2026 (said once, then "Arena"), text board 413 models on 2 Oct 2026, style control default, factuality toggle since 14 Jul 2026, Agent Arena (Jun 2026) by causal tracing. Reading rd-fam, Further reading, atlas lmarena row. |
+| Instruction following | Points to Human preference and arenas (IFEval, IFBench, MultiChallenge). |
+| GSM1k "up to 13%" | v4 of the paper says "up to 8%" (13% was v1). Reading rd-num Contamination (atlas already said 8%). |
+| Tool use Active list | BFCL v4 and the MCP evals shown as dormant boards (as the atlas already said); tau2-bench still reported. |
+| New atlas rows | NoLiMa, CharXiv, ZeroBench, Video-MME-v2, XSTest, Cybench (facts from the children's sourced text; arXiv ids verified). 100 rows. |
+| Coding and math status lines | Aligned with the children and the atlas: SWE-bench Pro v1 deprecated, Pro V2 public split at 99.4%, LiveCodeBench and Pro frozen, Aider Polyglot saturating; AIME and HMMT saturated (MathArena deprecated final-answer contests, May 2026), miniF2F and PutnamBench solved; ARC-AGI-2 saturated (rd-fam). |
+| Reading time | About 21 minutes (Reading tab). |

@@ -34,3 +34,8 @@ Notion 3c65c17b0d0d8143abd0e126338fb9dd, fetched 2026-10-04 (last edited 2026-09
 | Practical read: one noisy signal, category filters, style control | Reading (rd-fam, rd-wrong) |
 | Misuse checklist (same protocol, error bars, version pinned incl. TB 2.x vs 4.0 and AIME year, saturated deltas, reproducibility discount) | Reading (rd-how checklist and rd-wrong) |
 | Cross-links: evaluation-and-llm-judges, Reward Hacking | Further reading |
+
+## Update after the child pages were built (4 October 2026)
+- GSM1k: "up to 13% drops" is the paper's v1; v4 says up to 8% (Reading rd-num Contamination now says so).
+- HLE with and without search: the tools effect is set-specific (3.3 to 7.0 points on full HLE in Anthropic's runs; 19.3 to 32.2 on HLE-Diamond in the maintainers'); tab same and atlas carry both.
+- LMArena is now Arena (renamed 28 January 2026); Arena-Hard v2 is dormant, not an active proxy. Depth on the Human preference and arenas child.
