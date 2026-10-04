@@ -2139,3 +2139,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | 9 | Animated message delivery through gateways and channel servers | 3 | 2 | 2 | Reading, design 3 | rejected: the build-up diagram shows the routing; a packet animation would be decoration |
 | 10 | A rebuild of the root's Scale simulator or Numbers to know | n/a | | | | rejected: linked by name instead (Part B rule) |
 | 11 | Rate-limiting algorithms animated | n/a | | | | rejected: Reliability engineering already animates five limiters on one burst; linked |
+
+### Testing and quality: unit, property-based, data and model tests, CI (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/testing_and_quality/src/viz_ideas.md`.
+
+| Idea | T | D | C | Placement | Status |
+|---|---|---|---|---|---|
+| Same bug, two kinds of test: the buggy chunker under three example tests (all pass) against the real Hypothesis run (seed 6, all 25 logged calls), stepping through generation, first failure and shrinking to `'0'`, size 2; third mode runs the property on the fixed code (100 calls, all pass). Characters coloured covered or lost, call strip, smallest-failure highlight, counters, captions. | 5 | 5 (trace_6.json, trace_6_fixed.json) | 3 | Reading, s-prop | built (the page's before/after animation) |
+| Mutation lab: 10 test functions as checkboxes, live line coverage and mutation score from the real kill matrix (23 mutants x 26 test cases), source with covered lines, mutant list with kill status and kind (crash or value), click for the killing test's code, challenge preset (fewest tests that kill all: 3, by exhaustive search). | 5 | 5 (killmatrix.json, coverage_per_test.json) | 3 | Tab | built |
+| Pyramid and trophy side by side, click a layer for catches/misses/speed/tools, with measured speeds where this page has them. | 3 | 3 | 5 | Reading, s-shape | built |
+| Flaky-run strip: 2,000 real runs of the unseeded test, one square each, from the JUnit XML. | 4 | 5 | 5 | Reading, s-flaky | built |
+| Measured terminal blocks (integration cost, float32 order, smoke test, coverage report, mutmut survivors) generated from inputs/ so numbers come from data. | 3 | 5 | 5 | Reading | built |
+| Stateful LRU shrink animation (sequence of put/get shrinking to 5 steps) | 3 | 2 (only the final sequence was logged) | 3 | - | rejected: the final 5-step sequence shown as output teaches the point; logging intermediate sequences adds little |
+| CI pipeline timeline simulator (jobs, caching, cancel-in-progress) | 3 | 1 (no real CI run) | 2 | - | rejected: would be illustrative only; the dated YAML plus the rules list is enough |
+| Flakiness rate calculator (P(suite green) from N tests at p flakiness) | 3 | 2 | 4 | - | rejected: the measured strip makes the point with real data; maybe later |
+| SQLite vs PostgreSQL side-by-side query animation | 2 | 5 | 4 | - | rejected: one failing assert says it; static output kept |

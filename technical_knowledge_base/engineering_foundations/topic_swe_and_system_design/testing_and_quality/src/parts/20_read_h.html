@@ -1,0 +1,77 @@
+<section id="s-llm"><h2>12. Testing LLM features</h2>
+<p>An LLM feature is ordinary code wrapped around a call whose answer varies. Split it accordingly: the code around the call (building the prompt, parsing the answer, retrying, falling back) is tested like any code, fast and exactly, with the model replaced; the model's quality is measured by evals. Mixing the two gives slow, flaky, expensive unit tests that still do not tell you whether the model is good.</p>
+<h3>Contract tests on structured output</h3>
+<p>When model output feeds other code, the boundary needs a <b>contract</b>: a schema the output must satisfy, checked on every response. In Python that is a pydantic model. Structured-output modes (JSON mode, JSON schema, tool calling) and constrained decoding make valid output much more likely; validate anyway. Put semantic rules in the schema too: enum fields really in the enum, numbers within bounds, ids that resolve, citation indices in range.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/llm/extract.py</code> with pydantic <span data-v="env.pydantic"></span>, httpx <span data-v="env.httpx"></span></div>
+<pre class="cv py">class Ticket(BaseModel):
+    category: Literal["billing", "bug", "account", "other"]
+    priority: int = Field(ge=1, le=4)
+    summary: str = Field(min_length=1, max_length=200)
+
+def extract_ticket(client: httpx.Client, message: str, retries: int = 1) -&gt; Ticket:
+    prompt = f"Return JSON with category, priority (1-4) and summary for: {message}"
+    for attempt in range(retries + 1):
+        r = client.post("/v1/chat/completions", json={
+            "model": "small", "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [{"role": "user", "content": prompt}]})
+        r.raise_for_status()
+        text = r.json()["choices"][0]["message"]["content"]
+        try:
+            return Ticket.model_validate_json(text)
+        except ValidationError as e:              # repair: one retry with the error appended
+            prompt += f"\nYour last answer was invalid: {e.errors()[0]['msg']}. Return valid JSON only."
+    raise ValueError("model output failed validation after retries")</pre>
+<p>The <b>repair loop</b> retries once with the validation error in the prompt, then gives up and lets the caller fall back. Count how often it fires: a rising repair rate is an early signal that a model or prompt change has regressed.</p>
+<h3>A fake model server</h3>
+<p>To test that code without a real model, replace the HTTP layer. <code>httpx.MockTransport</code> routes requests to a Python function in the same process: a fake chat-completions server that returns scripted replies and records what it was sent (a fake and a spy at once, <a href="#s-dbl">section 5</a>).</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/llm/test_extract.py</code> (3 passed in 0.18 s)</div>
+<pre class="cv py">def fake_llm(*replies):
+    """A fake chat-completions server: returns the given replies in order and records requests."""
+    seen = []
+    def handler(request: httpx.Request) -&gt; httpx.Response:
+        seen.append(json.loads(request.content))
+        content = replies[min(len(seen) - 1, len(replies) - 1)]
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+    return httpx.Client(base_url="http://fake-llm", transport=httpx.MockTransport(handler)), seen
+
+def test_out_of_range_priority_is_repaired_once():
+    client, seen = fake_llm('{"category": "bug", "priority": 7, "summary": "App crashes"}',
+                            '{"category": "bug", "priority": 4, "summary": "App crashes"}')
+    assert extract_ticket(client, "the app crashes on login").priority == 4
+    assert len(seen) == 2 and "invalid" in seen[1]["messages"][0]["content"]
+
+def test_gives_up_after_one_repair():
+    client, seen = fake_llm('not json at all')
+    with pytest.raises(ValueError):
+        extract_ticket(client, "hello")
+    assert len(seen) == 2</pre>
+<p>These tests pin the behaviour that matters to the rest of the system (valid output passes through, one repair, then a clean failure, <code>temperature=0</code> and JSON mode are actually sent) and run in milliseconds with no API key. The same fake can be a small local HTTP server (FastAPI or <code>http.server</code>) when the code under test builds its own client.</p>
+<h3>Recorded responses (VCR)</h3>
+<p>A fake returns what <i>you</i> think the provider returns. A <dfn id="g-vcr">recorded response</dfn> test captures what it really returned once: {{vcrpy|https://vcrpy.readthedocs.io/en/latest/usage.html}} intercepts HTTP, saves request and response to a YAML <i>cassette</i>, and replays it on later runs without a network. {{pytest-recording|https://pypi.org/project/pytest-recording/}} wraps it as a marker. Here the "provider" is a local server so the run is self-contained; with a real provider the steps are the same.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/llm/test_vcr.py</code> with vcrpy <span data-v="env.vcrpy"></span>, pytest-recording <span data-v="env.pytest_recording"></span></div>
+<pre class="cv py">@pytest.fixture(scope="module")
+def vcr_config():
+    return {"filter_headers": ["authorization"]}     # never write API keys into the cassette
+
+@pytest.mark.vcr
+def test_password_reset_is_an_account_ticket(provider_url):
+    with httpx.Client(base_url=provider_url, headers={"authorization": "Bearer sk-secret"}) as client:
+        t = extract_ticket(client, "I can't reset my password")
+    assert t.category == "account"</pre>
+<div class="term">$ pytest --record-mode=once test_vcr.py              <b># provider up: records the cassette</b>
+<span class="g">1 passed in 1.29s</span>
+$ PROVIDER_DOWN=1 pytest --record-mode=none test_vcr.py   <b># nothing listening: replays it</b>
+<span class="g">1 passed in 0.14s</span>
+$ (cassette deleted) PROVIDER_DOWN=1 pytest --record-mode=none test_vcr.py
+<span class="r">1 failed in 0.14s</span>
+<i># the saved cassette: method, URL, request body, response body, no authorization header</i></div>
+<p>Record modes decide what happens on a miss: <code>once</code> (vcrpy's default) records if the cassette does not exist and replays otherwise; <code>none</code> never touches the network, which pytest-recording uses by default "to prevent unintentional network requests"; <code>new_episodes</code> and <code>all</code> record more. <b>Costs:</b> cassettes go stale when the provider changes its API, so re-record on a schedule and when upgrading the SDK; they can capture secrets and user data, so filter headers and use synthetic inputs; and a cassette replays one sample of a nondeterministic model, so assert on structure, not on exact wording.</p>
+<h3>When an eval replaces a test</h3>
+<p>A unit test asks "is this exactly right?" and expects the answer yes every time. For model quality ("are tickets categorised correctly?") the honest answer is a rate ("on 94% of cases", say), so the check is an eval: a versioned set of cases, scored, compared with the current production configuration, with a threshold and per-slice results. Use the split:</p>
+<div class="two">
+<div><h4>Test (exact, every push, fake model)</h4><p class="small">Prompt assembly, output parsing, schema validation, repair and fallback logic, retries, streaming, token counting, cost accounting, the gateway's routing rules.</p></div>
+<div><h4>Eval (statistical, on merge or nightly, real model)</h4><p class="small">Answer quality, categorisation accuracy, refusal behaviour, tone, groundedness. Every model, prompt, temperature or provider change runs it. See {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}} and {{Eval harnesses|n:3c65c17b0d0d81ea9cd5eb65795ff5c9}}.</p></div>
+</div>
+<p>A few deterministic assertions sit in between and can run on real model output in the eval job: the output parses, the tool call is valid, no forbidden string appears. Treat prompts as code: versioned, reviewed, and every edit runs the eval. Runtime checks on live traffic are {{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}.</p>
+</section>

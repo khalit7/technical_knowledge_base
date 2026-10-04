@@ -1,0 +1,87 @@
+<section id="s-ci"><h2>15. CI pipelines: running it all on every change</h2>
+<p><dfn id="g-ci">Continuous integration</dfn> (CI) runs the checks automatically on every push and pull request, on a clean machine, and blocks the merge if any fail. It turns "the tests pass on my laptop" into "the tests pass, from scratch, for everyone". The design problem is time: developers wait for CI, so the order and split of the checks matter as much as the checks.</p>
+<ul>
+<li><b>Cheapest first, fail fast.</b> Lint and type checks take seconds and catch a large share of mistakes; run them first and stop there if they fail. Then unit tests (aim for a few minutes), then integration tests, then the slow tiers.</li>
+<li><b>Tiers by cost.</b> Unit on every push; integration with real services and fakes on every pull request; GPU, full-model and eval tiers on the merge queue or nightly. Mark tests (<code>@pytest.mark.slow</code>, <code>gpu</code>, <code>integration</code>) so laptops and CI select with <code>-m</code>.</li>
+<li><b>Cache dependencies.</b> Resolving and downloading packages can take longer than the tests; uv with its cache restores an environment in seconds.</li>
+<li><b>Cancel stale runs.</b> A new push to the same branch makes the previous run worthless; <code>concurrency</code> with <code>cancel-in-progress: true</code> cancels it ({{workflow syntax|https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax}}).</li>
+<li><b>Parallelise</b> with <code>pytest -n auto</code> (pytest-xdist) inside a job, and a matrix across Python versions; set <code>fail-fast: false</code> on a matrix when you want every version to report rather than stop at the first failure.</li>
+<li><b>Same checks locally.</b> pre-commit hooks run ruff (and optionally the fast tests) before each commit, so CI is rarely the first to find a lint error.</li>
+</ul>
+<div class="cvh">A complete GitHub Actions workflow for the chat product, dated 2026-10-04 (written for this page and parsed as valid YAML, not run on GitHub): <code>experiments/ci/ci.yml</code></div>
+<pre class="cv yml"># .github/workflows/ci.yml  (written 2026-10-04; action versions checked on GitHub that day)
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"              # nightly: slow and GPU tiers
+
+concurrency:                          # a new push cancels the older run of the same branch
+  group: ci-${&#123;&#123; github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:                             # seconds: fail fast on the cheapest checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0   # no floating @v10 tag since v8: pin a release or a SHA
+        with: { enable-cache: true }
+      - run: uv sync --locked
+      - run: uv run ruff check . &amp;&amp; uv run ruff format --check .
+      - run: uv run mypy src
+
+  unit:                               # minutes at most: every push
+    needs: static
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false                # let every Python version report
+      matrix: { python: ["3.12", "3.13"] }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: true, python-version: "${&#123;&#123; matrix.python }}" }
+      - run: uv sync --locked
+      - run: uv run pytest -m "not slow and not gpu" -n auto -p randomly --junitxml=unit.xml
+
+  integration:                        # real PostgreSQL as a service container
+    needs: unit
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: test }
+        ports: ["5432:5432"]
+        options: &gt;-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: true }
+      - run: uv sync --locked
+      - run: uv run pytest -m "integration" --junitxml=integration.xml
+
+  gpu-nightly:                        # smoke training run and evals on a GPU runner
+    if: github.event_name == 'schedule'
+    runs-on: gpu-t4                   # the name you gave your GPU larger runner
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: true }
+      - run: uv sync --locked
+      - run: uv run pytest -m "gpu or slow"</pre>
+<div class="corr"><div class="t">Version pins, checked 2026-10-04</div><code>actions/checkout</code> is at v7 (v7.0.1, 2026-07-20); many examples online still show v4. <code>astral-sh/setup-uv</code> stopped publishing floating major tags at v8.0.0 ("You won't be able to use <code>@v8</code> or <code>@v8.0</code> any longer", {{release notes|https://github.com/astral-sh/setup-uv/releases/tag/v8.0.0}}), so <code>@v10</code> does not resolve: pin a full release such as <code>v10.2.0</code>, or a commit SHA, which is the safer habit for every third-party action.</div>
+<h3>GPU tests in CI</h3>
+<p>Some code paths (CUDA kernels, mixed precision, a serving engine) only run on a GPU. The options, cheapest to most flexible:</p>
+<div class="tw"><table><thead><tr><th>Option</th><th>What you get</th><th>Cost and catch</th></tr></thead><tbody>
+<tr><td>Avoid needing one</td><td>CPU runs of the smallest model that exercises the path, or a fake engine.</td><td>Free; misses GPU-only bugs.</td></tr>
+<tr><td>GitHub-hosted GPU runner</td><td>4 vCPU, one NVIDIA T4 (16 GB), 28 GB RAM.</td><td>$0.052 per minute on Linux, GitHub Team or Enterprise Cloud only ({{runner pricing|https://docs.github.com/en/billing/reference/actions-runner-pricing}}, 2026-10-04). A T4 is old and small: fine for smoke tests, not for a 70B model.</td></tr>
+<tr><td>Self-hosted runner on your own GPU machine</td><td>Any GPU, weights cached on local disk.</td><td>You run and secure it; never attach one to a public repository, where anyone's pull request could run code on it.</td></tr>
+<tr><td>Ephemeral cloud GPU from a CPU job (Modal, SkyPilot, a cloud batch API)</td><td>A large GPU for the minutes the test needs.</td><td>Pay per second; needs credentials in CI; cold starts add minutes.</td></tr>
+</tbody></table></div>
+<p>Whatever runs on GPUs: cache model weights on the runner, use the smallest model that exercises the code, assert numeric results with tolerances (<a href="#s-ml">section 11</a>), and keep full-size evals in the nightly tier.</p>
+</section>

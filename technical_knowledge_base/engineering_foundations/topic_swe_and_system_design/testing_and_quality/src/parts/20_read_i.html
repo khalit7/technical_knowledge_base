@@ -1,0 +1,47 @@
+<section id="s-flaky"><h2>13. Flaky tests</h2>
+<p>A <dfn id="g-flaky">flaky test</dfn> passes and fails on the same code. It is worse than no test: every red build might be noise, so people learn to press "rerun" until it is green, and then a real failure gets rerun away too. At Google's scale, "about 1.5% of all test runs" reported a flaky result and "almost 16% of our tests have some level of flakiness" ({{Micco, Google Testing Blog, 2016|https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html}}).</p>
+<p><b>Causes.</b> Luo, Hariri, Eloussi and Marinov studied 201 fixes of flaky tests in 51 open-source projects; of the 161 they could classify, the top causes were <b>async wait</b> (74, 45%: the test sleeps or polls instead of waiting for the thing it needs), <b>concurrency</b> (32, 20%) and <b>test order dependency</b> (19, 12%: one test relies on state another leaves behind) ({{FSE 2014|https://mir.cs.illinois.edu/marinov/publications/LuoETAL14FlakyTestsAnalysis.pdf}}). In ML code add unseeded randomness, real network calls, and exact asserts on floats. Two of these, built and measured:</p>
+<div class="card" id="fl-card">
+<h3 style="margin-top:0">1. Unseeded randomness</h3>
+<div class="cmp">
+<div><h4><span class="lbl b">flaky</span></h4>
+<pre class="cv py">def full_jitter(attempt, rng=None):
+    rng = rng or random
+    return rng.uniform(0, backoff_delay(attempt))
+
+def test_jitter_waits_a_bit():
+    # attempt 3: uniform in [0, 2.0] seconds
+    assert full_jitter(3) &gt;= 0.1    # false 5% of the time</pre></div>
+<div><h4><span class="lbl p">fixed</span></h4>
+<pre class="cv py">def test_jitter_stays_within_bounds():
+    rng = random.Random(1234)        # same draws every run
+    for attempt in range(1, 8):
+        for _ in range(1000):
+            d = full_jitter(attempt, rng)
+            assert 0 &lt;= d &lt;= backoff_delay(attempt)</pre></div>
+</div>
+<p class="small">Each square is one run of the flaky test (<code>pytest --count=2000</code>, run by run from a JUnit XML report); red ones failed.</p>
+<div class="fstrip" id="fl-strip"></div>
+<div class="term" id="fl-out"></div>
+<p class="small">The fix does two things. It seeds the generator, so a failure always reproduces. And it asserts the real contract (the wait lies between 0 and the cap), which is true on every draw; "waits at least 0.1 s" was never part of the contract, and no seed makes an untrue assertion correct.</p>
+<h3>2. Test order dependency</h3>
+<div class="cmp">
+<div><h4><span class="lbl b">flaky</span></h4>
+<pre class="cv py">def test_default_model():
+    assert build_request("hi")["model"] == "small"
+
+def test_large_model_override():
+    settings_mod.CONFIG["model"] = "large"   # never restored
+    assert build_request("hi")["model"] == "large"</pre></div>
+<div><h4><span class="lbl p">fixed</span></h4>
+<pre class="cv py">def test_large_model_override(monkeypatch):
+    monkeypatch.setitem(settings_mod.CONFIG, "model", "large")
+    assert build_request("hi")["model"] == "large"
+    # monkeypatch undoes the change after the test</pre></div>
+</div>
+<div class="term" id="fl-ord"></div>
+</div>
+<p><b>Find them on purpose.</b> {{pytest-randomly|https://pypi.org/project/pytest-randomly/}} shuffles test order on every run and resets <code>random.seed</code>, printing the seed so a failing order can be replayed with <code>-p randomly --randomly-seed=N</code>; run it in CI and order dependencies surface in days instead of months. {{pytest-xdist|https://pypi.org/project/pytest-xdist/}} (<code>-n auto</code>) runs tests in parallel processes, which finds shared files and ports. <code>pytest-repeat</code>'s <code>--count</code> reruns a suspect test hundreds of times, as above.</p>
+<p><b>Measure them.</b> A test's flakiness is the share of runs on the <i>same commit</i> where it failed and then passed on retry. CI systems that keep test history (Buildkite Test Engine, Datadog, Trunk, or a script over JUnit XML reports) can compute it per test and rank the worst.</p>
+<p><b>What to do with one.</b> Google built "a tool that monitors the flakiness of tests and if the flakiness is too high, it automatically quarantines the test. Quarantining removes the test from the critical path and files a bug for developers to reduce the flakiness" (same post). Do the same by hand if you must: move it out of the blocking job, give the bug an owner and a deadline, then fix it or delete it. Automatic retry ({{pytest-rerunfailures|https://pypi.org/project/pytest-rerunfailures/}}, <code>--reruns 2</code>) keeps the build green, but it hides real intermittent bugs (a race in your code looks exactly like a flaky test) and slows the suite; if you use it, record every rerun and review the list. Never let "rerun until green" become the culture.</p>
+</section>

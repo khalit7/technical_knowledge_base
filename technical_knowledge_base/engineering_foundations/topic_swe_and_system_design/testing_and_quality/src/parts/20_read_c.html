@@ -1,0 +1,127 @@
+<section id="s-pytest"><h2>3. pytest from zero</h2>
+<p>{{pytest|https://docs.pytest.org/en/stable/}} is the standard test runner for Python. A <dfn id="g-runner">test runner</dfn> finds your tests, runs each one in isolation, and reports which passed. pytest's rules are short: files named <code>test_*.py</code>, functions named <code>test_*</code>, and a plain <code>assert</code> statement as the check. When an assert fails, pytest rewrites it to show both sides ({{assertion introspection|https://docs.pytest.org/en/stable/how-to/assert.html}}), so you never need special <code>assertEqual</code> methods.</p>
+<p>The first piece of the chat product under test is the <b>chunker</b>: before a document can be searched by meaning (retrieval, the R in RAG), it is cut into overlapping windows of text, each embedded separately. Here are the function and three ordinary tests.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/chunking.py</code></div>
+<pre class="cv py">def chunk(text: str, size: int, overlap: int) -&gt; list[str]:
+    """Split text into windows of `size` characters; neighbours share `overlap` characters."""
+    if not 0 &lt;= overlap &lt; size:
+        raise ValueError("need 0 &lt;= overlap &lt; size")
+    step = size - overlap
+    return [text[i:i + size] for i in range(0, len(text) - size + 1, step)]
+
+def unchunk(chunks: list[str], overlap: int) -&gt; str:
+    """Inverse of chunk: glue the windows back, dropping each repeated overlap."""
+    if not chunks:
+        return ""
+    return chunks[0] + "".join(c[overlap:] for c in chunks[1:])</pre>
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_chunking_examples.py</code></div>
+<pre class="cv py">from chunking import chunk, unchunk
+
+def test_splits_into_overlapping_windows():
+    assert chunk("abcdefghij", size=4, overlap=1) == ["abcd", "defg", "ghij"]
+
+def test_no_overlap():
+    assert chunk("abcdef", size=2, overlap=0) == ["ab", "cd", "ef"]
+
+def test_round_trip():
+    text = "the quick brown fox jumps over the lazy dog!!"   # 45 characters
+    assert unchunk(chunk(text, size=10, overlap=5), overlap=5) == text</pre>
+<div class="term">$ pytest -q test_chunking_examples.py
+...                                                                      [100%]
+<b class="g">3 passed in 0.53s</b></div>
+<p>All green, and the function has a bug: look at <code>len(text) - size + 1</code>. Any document shorter than one window produces no chunks at all, so it silently vanishes from the search index. The three examples happen to use lengths where the windows fit exactly. Hold that thought; <a href="#s-prop">section 7</a> finds it without being told where to look.</p>
+
+<h3>Running tests</h3>
+<div class="tw"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
+<tr><td><code>pytest -q</code></td><td>Run everything under the current folder, one character per test.</td></tr>
+<tr><td><code>pytest tests/test_search.py::test_search_ignores_case</code></td><td>Run one test by its <dfn id="g-nodeid">node id</dfn> (file, then <code>::</code>, then name).</td></tr>
+<tr><td><code>pytest -k "retry and not slow"</code></td><td>Run tests whose names match an expression.</td></tr>
+<tr><td><code>pytest -x --lf</code></td><td>Stop at the first failure; rerun only the tests that failed last time.</td></tr>
+<tr><td><code>pytest -m "not slow"</code></td><td>Skip tests carrying the <code>slow</code> marker (below).</td></tr>
+<tr><td><code>pytest --durations=10</code></td><td>List the ten slowest tests: where your suite's time goes.</td></tr>
+</tbody></table></div>
+
+<h3>Fixtures: setup that tests ask for by name</h3>
+<p>A <dfn id="g-fixture">fixture</dfn> is a function that builds something a test needs (a database connection, a temporary folder, a fake server) and cleans it up afterwards. A test asks for it by naming it as an argument; pytest calls the fixture, passes in the value, and after the test runs the code after <code>yield</code> ({{fixtures docs|https://docs.pytest.org/en/stable/how-to/fixtures.html}}). The <dfn id="g-scope">scope</dfn> says how often it is rebuilt: <code>function</code> (default, once per test), <code>module</code>, or <code>session</code> (once per run, for expensive things). Fixtures shared by many files live in a <code>conftest.py</code>, which pytest loads automatically. These are the real fixtures behind the PostgreSQL tests in <a href="#s-int">section 6</a>:</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/integ/conftest.py</code> (timing code removed)</div>
+<pre class="cv py">import sqlite3, tempfile
+import pytest, psycopg, pgserver
+
+@pytest.fixture
+def sqlite_conn():
+    conn = sqlite3.connect(":memory:")
+    yield conn                      # the test runs here
+    conn.close()                    # teardown, even if the test failed
+
+@pytest.fixture(scope="session")    # start PostgreSQL once for the whole run
+def pg_server():
+    yield pgserver.get_server(tempfile.mkdtemp(prefix="pgtest"), cleanup_mode="stop")
+
+@pytest.fixture
+def pg_conn(pg_server):             # fixtures can use other fixtures
+    with psycopg.connect(pg_server.get_uri(), autocommit=False) as conn:
+        yield conn
+        conn.rollback()             # every test's writes vanish: tests stay independent</pre>
+<p>pytest ships useful fixtures too: <code>tmp_path</code> (a fresh folder per test), <code>monkeypatch</code> (change an attribute, dict item or environment variable and undo it after the test; it fixes the order-dependent flake in <a href="#s-flaky">section 13</a>), <code>capsys</code> (capture printed output) and <code>caplog</code> (capture log records).</p>
+
+<h3>Parametrisation: one test, many cases</h3>
+<p><code>@pytest.mark.parametrize</code> runs the same test body once per row, each reported as its own test (<code>test_parse_retry_after[-3-0.0]</code>), so one bad row does not hide the others ({{parametrize docs|https://docs.pytest.org/en/stable/how-to/parametrize.html}}). From the retry policy that the chat product uses when the model provider fails:</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/mut/tests/test_strong.py</code> (excerpt)</div>
+<pre class="cv py">import pytest
+from retrypolicy import should_retry, backoff_delay, parse_retry_after
+
+@pytest.mark.parametrize("status", [408, 429, 500, 502, 503, 504])
+def test_retryable_statuses_are_retried(status):
+    assert should_retry(status, attempt=1)
+
+@pytest.mark.parametrize("header,expected", [
+    ("2", 2.0), ("1.5", 1.5), ("0", 0.0), ("-3", 0.0), (None, None), ("soon", None),
+])
+def test_parse_retry_after(header, expected):
+    assert parse_retry_after(header) == expected</pre>
+<h3>Checking errors, floats and slow tests</h3>
+<ul>
+<li><code>with pytest.raises(ValueError, match="overlap"):</code> passes only if the block raises that exception type with a matching message. Assert the type and the condition, not merely that "something failed".</li>
+<li><code>assert total == pytest.approx(0.3)</code> compares floats with a tolerance (default relative 1e-6); <code>0.1 + 0.2 == 0.3</code> is false in binary floating point. <a href="#s-ml">Section 11</a> shows why this matters for ML code.</li>
+<li><dfn id="g-marker">Markers</dfn> label tests: <code>@pytest.mark.slow</code>, <code>@pytest.mark.gpu</code>. Declare them under <code>markers</code> in your config and add <code>--strict-markers</code> so a typo is an error, not a silently unselected test ({{markers docs|https://docs.pytest.org/en/stable/how-to/mark.html}}).</li>
+</ul>
+<div class="cvh"><code>pyproject.toml</code> (a sensible starting config)</div>
+<pre class="cv py">[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "slow: takes more than a second; skipped on every push",
+  "gpu: needs a GPU runner",
+]</pre>
+</section>
+
+<section id="s-beh"><h2>4. Test behaviour, not implementation</h2>
+<p>The single most useful idea in test design: a test should check <b>what</b> the code promises (its outputs, its errors, its effects that others can see), not <b>how</b> it does it. A test tied to the how breaks every time you improve the code without changing what it does, which teaches people to stop refactoring. Google's testing book puts the goal as tests that are "unchanging": they only need to change when the requirements change ({{Software Engineering at Google, ch. 12|https://abseil.io/resources/swe-book/html/ch12.html}}).</p>
+<div class="cmp">
+<div><h4><span class="lbl b">brittle</span> tests the implementation</h4>
+<pre class="cv py">def test_backoff_uses_min(mocker):
+    spy = mocker.spy(builtins, "min")
+    backoff_delay(3)
+    spy.assert_called_once()
+
+def test_retryable_set():
+    assert 503 in retrypolicy.RETRYABLE</pre>
+<p class="small">Illustrative (<code>mocker</code> comes from pytest-mock). Breaks if you rewrite the cap as an <code>if</code>; passes if the delay is wrong; reaches into a private detail.</p></div>
+<div><h4><span class="lbl p">robust</span> tests the behaviour</h4>
+<pre class="cv py">def test_backoff_doubles_from_base_then_caps():
+    assert [backoff_delay(a) for a in range(1, 7)] \
+        == [0.5, 1, 2, 4, 8, 8]
+
+def test_stops_at_max_attempts():
+    assert not should_retry(503, attempt=3)</pre>
+<p class="small">Survives any rewrite that keeps the promise; fails on any change a caller could notice.</p></div>
+</div>
+<h3>How a good test reads</h3>
+<ul>
+<li><b>Arrange, act, assert</b>: build the inputs, call the code once, check the result. If a test needs three acts, it is three tests.</li>
+<li><b>One reason to fail</b>, and a name that says the behaviour: <code>test_retry_preserves_idempotency_key</code>, not <code>test_retry_2</code>. When it goes red in CI, the name is the bug report.</li>
+<li><b>Tiny literal inputs</b> written in the test itself, so the expected output can be checked by eye.</li>
+<li><b>Write the failing test before fixing a bug.</b> It proves you reproduced the bug, and it stops the bug coming back (a <dfn id="g-regression">regression test</dfn>). Every production incident should leave one behind; for model behaviour, the equivalent is a new case in the golden set ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</li>
+<li><b>Design for testing</b>: a function that takes its inputs as arguments and returns a value (a <dfn id="g-pure">pure function</dfn>) needs no setup at all. Anything that touches S3, a database or the clock goes behind an interface that a test can replace. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} (sections 4 and 8: functional core, dependency injection) shows the refactoring on a real handler.</li>
+</ul>
+</section>

@@ -1,0 +1,48 @@
+<section id="s-dbl"><h2>5. Test doubles: fakes, stubs, mocks, and why over-mocking lies</h2>
+<p>Real dependencies (the model provider, a payment API, a database) can be slow, cost money, need network access or fail at random. A <dfn id="g-double">test double</dfn> stands in for one during a test, the way a stunt double stands in for an actor. Gerard Meszaros named the kinds in <i>xUnit Test Patterns</i> (2007); Martin Fowler's {{Mocks Aren't Stubs|https://martinfowler.com/articles/mocksArentStubs.html}} (2004, revised 2007) is the classic explanation.</p>
+<div class="tw"><table><thead><tr><th>Double</th><th>What it is</th><th>Example in the chat product</th></tr></thead><tbody>
+<tr><td><dfn id="g-dummy">Dummy</dfn></td><td>Passed in to fill a parameter, never used.</td><td>A <code>logger=None</code> argument in a test that never logs.</td></tr>
+<tr><td><dfn id="g-stub">Stub</dfn></td><td>Returns canned answers.</td><td>A model client whose <code>complete()</code> always returns <code>"Hello"</code>.</td></tr>
+<tr><td><dfn id="g-spy">Spy</dfn></td><td>A stub that also records how it was called.</td><td>The fake LLM server below keeps every request so the test can check <code>temperature == 0</code>.</td></tr>
+<tr><td><dfn id="g-mock">Mock</dfn></td><td>Pre-programmed with expected calls; the test fails if the calls differ (Python's <code>unittest.mock</code>, <code>pytest-mock</code>).</td><td><code>client.complete.assert_called_once_with(...)</code></td></tr>
+<tr><td><dfn id="g-fake">Fake</dfn></td><td>A small working implementation with shortcuts.</td><td>An in-memory chat store; an HTTP handler that answers like a chat-completions API.</td></tr>
+</tbody></table></div>
+<p><b>Prefer real, then fake, then mock.</b> Google's testing book recommends using the real implementation whenever it is fast and deterministic, a fake when it is not, and mocks sparingly ({{Software Engineering at Google, ch. 13|https://abseil.io/resources/swe-book/html/ch13.html}}: "A real implementation should be preferred over a test double. A fake is often the ideal solution if a real implementation can't be used"). The reason is what a mock checks: that your code <i>called</i> something in a particular way, not that the result is right. A test made of mocks restates the implementation, so it passes when the code is wrong and fails when the code is refactored correctly. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}'s Review lab has a real example: a mock-only test that still passes with the function it claims to test broken.</p>
+<div class="two">
+<div><h4>Where a mock is the right tool</h4><p class="small">The interaction <i>is</i> the behaviour: "a payment is charged exactly once", "the alert is sent", "we never call the provider when the cache hits". Mock at the boundary you own (your <code>PaymentGateway</code> wrapper), not deep inside third-party libraries.</p></div>
+<div><h4>Where a mock lies</h4><p class="small">Mocking the database, then asserting the SQL string was passed. Mocking <code>requests.post</code> to return a dict that the real API never returns. Mocking a function in the same module you are testing. Each passes forever while production breaks.</p></div>
+</div>
+<h3>Contract tests: keeping fakes honest</h3>
+<p>A fake drifts: the real service changes a field name and your fake does not. A <dfn id="g-contract">contract test</dfn> checks the agreement between two sides directly. In <b>consumer-driven contract testing</b> ({{Pact|https://docs.pact.io/}}, "a code-first consumer-driven contract testing tool"; pact-python 3.4.1, 2026-09-17), the consumer's tests run against a Pact mock server and write down every request they make and the response they rely on (the <i>pact</i> file); the provider's CI then replays those requests against the real provider and fails if any expectation breaks. Each side tests alone, yet a breaking change is caught before deploy.</p>
+<p><b>Cost and when not to:</b> it needs a place to share pacts (the Pact Broker or PactFlow) and buy-in from both teams. For a third-party API you do not control (a model provider), the provider will never run your pacts; use recorded responses and schema checks instead (<a href="#s-llm">section 12</a>), and an OpenAPI document as the contract when one exists ({{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}, section 16).</p>
+</section>
+
+<section id="s-int"><h2>6. Integration tests with real dependencies</h2>
+<p>An <dfn id="g-integration">integration test</dfn> runs your code together with a real dependency: the actual database engine, a real Redis, a real HTTP stack. It catches the bugs that live <i>between</i> components: SQL a different engine reads differently, a transaction that does not roll back, a type the driver converts. A common shortcut is to test against SQLite in memory while production runs PostgreSQL. Here is what that shortcut cost, measured.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/integ/</code>: the same test against SQLite and PostgreSQL <span data-v="env.postgres"></span></div>
+<pre class="cv py">def search_chats(conn, owner, text):
+    """Chats of this owner whose title contains `text`, ignoring case (the product spec)."""
+    rows = conn.execute(q(conn, "SELECT id FROM chats WHERE owner = ? AND title LIKE ? ORDER BY id"),
+                        (owner, f"%{text}%")).fetchall()
+    return [r[0] for r in rows]
+
+@pytest.mark.parametrize("db", ["sqlite_conn", "pg_conn"])
+def test_search_ignores_case(db, request):
+    conn = request.getfixturevalue(db)
+    seed(conn)   # "Trip planning for Lisbon", "trip budget spreadsheet" (ada); "Trip ideas" (bob)
+    assert search_chats(conn, "ada", "trip") == [1, 2]</pre>
+<div class="term">test_search.py .F
+<span class="r">FAILED test_search.py::test_search_ignores_case[pg_conn] - assert [2] == [1, 2]</span>
+1 failed, 1 passed</div>
+<p>SQLite's <code>LIKE</code> ignores case for ASCII letters by default ({{SQLite docs|https://www.sqlite.org/lang_expr.html#like}}); PostgreSQL's <code>LIKE</code> is case-sensitive and offers <code>ILIKE</code> for the other behaviour ({{PostgreSQL docs|https://www.postgresql.org/docs/16/functions-matching.html#FUNCTIONS-LIKE}}). So the SQLite suite was green while production users searching "trip" never saw "Trip planning for Lisbon". The fix, <code>lower(title) LIKE lower(?)</code>, passes on both; at scale you would add a trigram index ({{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}} owns that depth).</p>
+<div class="term" id="int-cost"></div>
+<p>The usual objection is speed. Measured on this laptop, a real PostgreSQL costs about a second of startup per test run and a couple of milliseconds per test. A suite of 500 such tests would add roughly a second. That is the trade: a little time for tests that use the engine you ship.</p>
+<h3>Three ways to get the real thing</h3>
+<div class="tw"><table><thead><tr><th>Option</th><th>How</th><th>Cost</th></tr></thead><tbody>
+<tr><td>{{pgserver|https://pypi.org/project/pgserver/}} (used here)</td><td>PostgreSQL binaries inside a pip wheel; <code>pgserver.get_server(dir)</code> starts one. No Docker.</td><td>PostgreSQL only; version fixed by the wheel (<span data-v="env.postgres"></span> in <span data-v="env.pgserver"></span>).</td></tr>
+<tr><td>{{testcontainers-python|https://testcontainers-python.readthedocs.io/}}</td><td>Starts a throwaway Docker container per session: <code>with PostgresContainer("postgres:17") as pg:</code>. Also Kafka, Redis, MinIO, LocalStack.</td><td>Needs Docker; first pull is slow; seconds per start. Any image and version, so it can match production exactly.</td></tr>
+<tr><td>CI service containers</td><td>The CI system starts the database next to the job (<code>services:</code> in GitHub Actions, <a href="#s-ci">section 15</a>).</td><td>Only in CI; locally you still need one of the above.</td></tr>
+</tbody></table></div>
+<p><b>Keeping tests independent.</b> Tests sharing a database leak state into each other. The cheapest isolation is the one above: each test runs inside a transaction that is rolled back at the end. When code under test commits on its own, truncate the tables after each test, or clone a prepared database per test with <code>CREATE DATABASE t1 TEMPLATE base</code>. With parallel workers (<code>pytest-xdist</code>), give each worker its own database.</p>
+<p><b>When not to:</b> logic that does not touch the dependency (pricing rules, parsing, retry decisions) belongs in fast unit tests. Integration tests are for the seams: queries, transactions, migrations, serialisation, configuration.</p>
+</section>
