@@ -1,0 +1,56 @@
+<section id="rd-s10">
+<h2>10. The LLM caches, first: the KV cache inside the model server</h2>
+<p>An LLM product has three caches that a web product does not, and they differ in the one property that matters most: <b>can a hit return a wrong answer?</b> The KV cache and prompt caching never change the answer; a semantic cache can.</p>
+<h3>What it stores, and why it exists</h3>
+<p>A transformer generates text one <dfn id="g-token">token</dfn> (a word piece) at a time. To produce the next token, every layer's attention compares it with all earlier tokens, using two vectors per earlier token per layer: a key (what the token offers) and a value (what it contributes). Those vectors never change once computed, so servers keep them in GPU memory instead of recomputing them for every new token: the <dfn id="g-kv">KV cache</dfn>. Without it, generating token n would redo the work for all n &minus; 1 earlier tokens. It is not optional, and it is never stale: the keys and values of a given prefix under a given model are fixed. Its problem is size.</p>
+<div class="fm"><div class="eq">bytes per token = 2 &times; layers &times; KV heads &times; head dimension &times; bytes per number</div>
+<dl><dt>2</dt><dd>one key and one value</dd><dt>KV heads</dt><dd>with grouped-query attention (GQA) several query heads share one key/value head, so this is usually 8, not the full head count</dd><dt>bytes</dt><dd>2 for 16-bit numbers (BF16), 1 for FP8</dd></dl></div>
+<div class="card" id="rd-kv-card">
+<div class="calc">
+<label>Model <select id="rd-kv-model"></select></label>
+<label>Context per conversation: <b id="rd-kv-ctxv"></b> tokens<input type="range" id="rd-kv-ctx" min="0" max="7" step="1" value="3"></label>
+<label>Conversations at once: <b id="rd-kv-nv"></b><input type="range" id="rd-kv-n" min="1" max="64" step="1" value="8"></label>
+</div>
+<div class="out" id="rd-kv-out"></div>
+<div class="small mute" id="rd-kv-src"></div>
+</div>
+<p>The Llama 3.1 70B row reproduces the old page's 320 KiB per token independently from the model's {{config.json|https://huggingface.co/unsloth/Meta-Llama-3.1-70B-Instruct/blob/main/config.json}} (80 layers, 8 KV heads, head dimension 8,192 / 64 = 128): one 128K-token conversation holds 40 GiB, more than half of an 80 GB H100 before any weights. That is why <b>KV memory, not compute, usually caps how many conversations one GPU serves at once</b>. It also makes generation memory-bound: every new token reads the weights and that conversation's whole KV cache from GPU memory, and batching shares the weight reads across conversations but never the KV reads, since each conversation has its own. Hence new architectures attack it: DeepSeek-V3's multi-head latent attention stores one compressed 576-number vector per layer (68.6 KiB per token), and DeepSeek reports 890 bytes per token for V4.1-Flash (both worked through on the {{DeepSeek page|n:3c65c17b0d0d81a2ae7ec6796947a235}}).</p>
+<h3>Reusing it across requests: prefix caching</h3>
+<p>Because attention is causal (token i only looks at tokens 0 to i), two requests that start with the same tokens have identical keys and values for that shared start. A server can keep them and skip recomputing that part of the prompt (<dfn id="g-prefill">prefill</dfn>, the first pass over the prompt that dominates time to first token). This is <dfn id="g-prefix">prefix caching</dfn>, and it is exact: a hit returns precisely what recomputing would.</p>
+<ul>
+<li><b>vLLM</b> splits the cache into fixed-size blocks and gives each full block a hash of its tokens <i>and</i> its parent block's hash, so a block hash names the whole prefix up to it; a new request looks its blocks up in order and reuses every hit. A block shared by several requests is stored once and reference-counted. Freed blocks wait in an LRU queue and are evicted from its head when memory is needed ({{vLLM design: automatic prefix caching|https://docs.vllm.ai/en/stable/design/prefix_caching/}}). The docs call it "almost a free lunch" that "won't change model outputs". The block allocator underneath is PagedAttention ({{paper page|n:3c65c17b0d0d81bf8b90ca93fee19f5f}}).</li>
+<li><b>SGLang's RadixAttention</b> keeps prompts and generations in a radix tree (a prefix tree whose edges hold runs of tokens), evicts least recently used leaves, and schedules requests that share prefixes together to raise the hit rate ({{LMSYS blog, January 2024|https://www.lmsys.org/blog/2024-01-17-sglang/}}).</li>
+</ul>
+<p>Prefix caching dictates prompt layout: stable content first (system prompt, tool definitions, documents), anything that changes per request last. One timestamp at the top of a system prompt makes every request a miss. The {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} page animates one conversation under both layouts (section 9 there), and routing requests to the replica that holds their prefix is section 4 there.</p>
+<div class="deepnote"><b>Go deeper (optional):</b> PagedAttention, KV quantisation (FP8 KV halves the bytes per token), offloading cold prefixes to CPU memory or SSD (LMCache, Mooncake, NVIDIA Dynamo), and cache-aware routing belong to {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</div>
+</section>
+
+<section id="rd-s11">
+<h2>11. Provider prompt caching: the same idea, sold by the token</h2>
+<p>When you call a hosted model, the provider runs prefix caching for you and passes on part of the saving: input tokens read from its cache are billed at a fraction of the normal price. It never changes the answer. What differs between providers is whether you opt in, whether writing the cache costs extra, the minimum length, and how long an entry lives. As of 5 October 2026, from each provider's documentation:</p>
+<div class="tw"><table id="rd-pc-tbl"></table></div>
+<h3>Break-even: does caching pay?</h3>
+<p>With a write multiplier w (what writing a prefix costs, relative to sending it normally) and a read multiplier r, a prefix used n times costs w + r(n &minus; 1) with caching against n without. Caching pays once</p>
+<div class="fm"><div class="eq">n &gt; 1 + (w &minus; 1) / (1 &minus; r)</div></div>
+<div class="co warn"><div class="t">Correction to the old page</div>The old page said Anthropic's caching breaks even at "roughly 1.3 reads inside the TTL". With w = 1.25 and r = 0.1 the break-even is n = 1 + 0.25 / 0.9 = <b>1.28 total uses</b>: one write plus a single read (2 uses: 1.35 against 2.00) already saves 32.5%. OpenAI's own guide gives the same arithmetic: "writing a prefix once and fully reusing it once costs 1.35&times; its ordinary input cost, compared with 2&times;" ({{OpenAI prompt caching|https://developers.openai.com/api/docs/guides/prompt-caching}}). The old page also said OpenAI has no write surcharge: true for models before GPT-5.6, but GPT-5.6 and later charge 1.25&times; for writes. And the read multiplier is no longer 0.1&times; everywhere: Anthropic bills reads at 0.05&times; on Claude Opus 5.5 and 0.025&times; on Fable 5.1 and Mythos 5.1; OpenAI at 0.05&times; on GPT-6.1 Sol.</div>
+<div class="card" id="rd-be-card">
+<div class="calc">
+<label>Provider and model <select id="rd-be-model"></select></label>
+<label>Cached prefix: <b id="rd-be-tokv"></b> tokens<input type="range" id="rd-be-tok" min="0" max="6" step="1" value="3"></label>
+<label>Requests reusing it within the lifetime: <b id="rd-be-nv"></b><input type="range" id="rd-be-n" min="1" max="50" step="1" value="10"></label>
+</div>
+<div class="out" id="rd-be-out"></div>
+<div class="rd-svg" id="rd-be-svg"></div>
+<p class="small mute">Input cost of the cached prefix only (the uncached suffix and the output cost the same either way). Gemini explicit caching adds a storage charge per million tokens per hour, shown for one hour. Prices from the table above; formula checked in <code>recompute.py</code>.</p>
+</div>
+<h3>What breaks a cache hit</h3>
+<ul>
+<li><b>Any change before the cached point.</b> The cache is a prefix: Anthropic's docs list what invalidates which level ("tools &rarr; system &rarr; messages"): changing tool definitions invalidates everything; toggling web search or citations, or the speed setting, invalidates the system prompt and messages; images, tool choice, thinking or effort settings invalidate messages ({{Anthropic prompt caching|https://platform.claude.com/docs/en/build-with-claude/prompt-caching}}). A timestamp, a request id or a shuffled tool list early in the prompt does the same.</li>
+<li><b>Too short.</b> Below the minimum (512 to 4,096 tokens on Anthropic depending on the model, 1,024 on OpenAI's GPT-5.6 and later, 2,048 to 4,096 on Gemini) nothing is cached and no error is returned.</li>
+<li><b>Too long a gap.</b> An entry lives 5 minutes on Anthropic (refreshed on each use, 1 hour at a 2&times; write), at least 30 minutes on OpenAI's newest models, and as long as you pay for on Gemini's explicit caches (default 1 hour).</li>
+<li><b>Anthropic's 20-block lookback.</b> A read looks back at most 20 content blocks from your breakpoint for an earlier entry; a conversation that grows by 20 or more blocks between writes misses unless you add a second breakpoint.</li>
+<li><b>The wrong machine.</b> Provider caches live on individual machines: OpenAI notes that "traffic above 15 requests per minute can lead to overflow routing" for one prefix; a stable <code>prompt_cache_key</code> helps routing on its older models.</li>
+<li><b>Parallel first requests.</b> An entry exists only after the first response begins (Anthropic), so ten requests sent at once with a new prefix all pay full price; send one first.</li>
+</ul>
+<p><b>Verify, never assume:</b> every response reports what it read from cache (<code>cache_read_input_tokens</code> and <code>cache_creation_input_tokens</code> on Anthropic, <code>usage.input_tokens_details.cached_tokens</code> on OpenAI, the <code>usage_metadata</code> field on Gemini (<code>usage.total_cached_tokens</code> in its Interactions API)). The cost-weighted hit ratio of section 6 has an exact form here: the share of the input bill removed is h &times; (1 &minus; r), less the write premium, so 90% of input tokens read from cache at 0.1&times; removes 0.9 &times; 0.9 = 81% of the input bill before writes.</p>
+</section>

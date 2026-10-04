@@ -1,0 +1,47 @@
+<section id="rd-pro">
+<h2>Choosing: which cache, in which order</h2>
+<p>For the chat product, from cheapest and safest to riskiest. Each step is worth doing before the next.</p>
+<ol>
+<li><b>Make the database fast without a cache.</b> Indexes, fewer queries per request (no N+1), and enough RAM for the working set. Every cache you do not add is an invalidation bug you do not have.</li>
+<li><b>Cache what never changes, far out.</b> Static assets with content-hashed names and a year-long <code>max-age</code> on a CDN (section 9).</li>
+<li><b>Use provider prompt caching, always.</b> Put the stable prompt first, check the cached-token fields, and remember that one reuse already pays (section 11). In your own serving stack, prefix caching is on by default in vLLM and SGLang (section 10).</li>
+<li><b>Add a shared cache for expensive, read-heavy, shared results</b>: Redis or Valkey with <code>allkeys-lfu</code> or <code>allkeys-lru</code>, a <code>maxmemory</code>, TTLs on everything, delete after commit, and leases or versioned keys where staleness hurts (sections 3 to 5). Weigh by cost: skip cheap primary-key lookups (section 6).</li>
+<li><b>Precompute heavy aggregates</b> in a materialised view or a summary table instead of caching each answer (section 8).</li>
+<li><b>An in-process cache in front of the shared one</b> only for a few very hot keys (feature flags, the model list), with a short TTL: it removes the network hop and protects the Redis shard that owns a hot key.</li>
+<li><b>A semantic cache last, and only after an evaluation</b> on your traffic, scoped per tenant and user, with its false-hit rate monitored (section 12).</li>
+</ol>
+<h3>What pros run in production today</h3>
+<ul>
+<li><b>Python services:</b> <code>redis-py</code> (8.x) or <code>valkey-py</code> clients with connection pools and timeouts of tens of milliseconds, so a slow cache degrades into misses rather than stalling requests; <code>cachetools</code> (<code>TTLCache</code>) for in-process caches; TTL jitter (a random extra 0 to 10%) so keys written together do not expire together.</li>
+<li><b>Java services:</b> Caffeine (W-TinyLFU) in process, Redis or Memcached behind it.</li>
+<li><b>Managed:</b> Amazon ElastiCache (Valkey, Redis OSS or Memcached), Google Memorystore; replicas for availability, not for correctness.</li>
+<li><b>Invalidation at scale:</b> deletes driven by the database's change stream (Debezium reading Postgres logical replication, or an outbox), Facebook-style, with TTLs underneath.</li>
+<li><b>LLM products:</b> prompt layout reviewed like an API (stable prefix, append-only history), cache-hit rate and cached-token cost on the main dashboard, exact-match caching of deterministic calls, semantic caching rarely and narrowly.</li>
+</ul>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Caching to hide a slow query</summary><div class="b">The miss path stays slow, the p99 is the miss path, and a cold cache brings the whole load back. Fix the query or the index first.</div></details>
+<details class="mist"><summary>Deleting the cache key before the commit</summary><div class="b">A reader between the delete and the commit refills the old row for the whole TTL. Commit, then delete (in an after-commit hook if you use an ORM).</div></details>
+<details class="mist"><summary>Updating the cache on write instead of deleting</summary><div class="b">Two writers can land in the cache in the opposite order from the database. Measured: <span class="nv" data-n="race.strategies.set_on_write.stale_share" data-f="pct"></span> of trials ended wrong.</div></details>
+<details class="mist"><summary>No TTL because "we invalidate explicitly"</summary><div class="b">Some path will forget (a script, a migration, a new service). The TTL is the upper bound on how long that bug lasts.</div></details>
+<details class="mist"><summary>Leaving Redis at its defaults</summary><div class="b"><code>maxmemory 0</code> grows until the machine swaps or the process is killed; with a limit, <code>noeviction</code> turns a full cache into write errors (measured: <span class="nv" data-n="ev_note.noev_err_200k" data-f="int"></span> failed SETs in one run).</div></details>
+<details class="mist"><summary>A volatile-* policy with keys that have no TTL</summary><div class="b">Nothing is eligible, so it behaves like <code>noeviction</code>: measured, <span class="nv" data-n="ev_note.vol_nottl_err" data-f="int"></span> failed SETs, against <span class="nv" data-n="ev_note.vol_ttl_err" data-f="int"></span> once every key had a TTL.</div></details>
+<details class="mist"><summary>Choosing allkeys-lrm for a read-through cache</summary><div class="b">LRM only notices writes, and cache-aside writes a key once, when it is filled; so LRM evicts by fill time, like FIFO, ignoring how often the key is read. Measured, it did no better than random eviction.</div></details>
+<details class="mist"><summary>Letting requests for missing keys through every time</summary><div class="b">A key that does not exist in the database is never cached, so every request for it reaches the database (cache penetration, often a bot probing ids). Cache the "not found" answer with a short TTL, or keep a Bloom filter of keys that exist.</div></details>
+<details class="mist"><summary>One hot key on one shard</summary><div class="b">A cluster spreads keys, not load: one celebrity chat or one shared prompt key lives on one Redis primary, which saturates while the rest idle. Put the few hottest keys in an in-process cache in front, or copy one key under several names (<code>key:0</code> to <code>key:7</code>) and read a random copy, which multiplies the writes. Find them first: <code>redis-cli --hotkeys</code> (it needs an LFU policy).</div></details>
+<details class="mist"><summary>Reading the hit ratio alone</summary><div class="b">Weight hits by what the miss costs (section 6), and watch evictions, expiries and latency on the miss path.</div></details>
+<details class="mist"><summary>Filling the cache from a replica right after a write</summary><div class="b">Milliseconds of replication lag become a TTL of staleness. Fill from the primary for keys just written, or route the writer's reads to the primary briefly.</div></details>
+<details class="mist"><summary>Caching personalised responses in a shared cache</summary><div class="b">A CDN or reverse proxy serves user A's page to user B. Mark them <code>Cache-Control: private</code>, and put user and tenant in every application cache key that depends on them.</div></details>
+<details class="mist"><summary>A timestamp at the top of the prompt</summary><div class="b">Every request differs from the first token, so provider prompt caching never hits and the bill does not fall. Volatile content goes last.</div></details>
+<details class="mist"><summary>Copying a semantic-cache threshold</summary><div class="b">Measured here, the same 0.90 meant <span class="nv" data-n="sem_note.mini_fpr90" data-f="pct"></span> false hits with one model and <span class="nv" data-n="sem_note.bge_fpr90" data-f="pct"></span> with another. Fit it on your own labelled traffic.</div></details>
+<details class="mist"><summary>Benchmarking with a warm cache and quoting the result as typical</summary><div class="b">Report cold and warm runs separately, and say which; the root's Query plans tab shows the difference on real plans.</div></details>
+</section>
+
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<div class="gl" id="rd-gl"></div>
+</section>
+<div class="foot">Measured on 5 October 2026 on an Apple M1 Pro laptop (16 GB, macOS) with Redis 8.8.0 (conda-forge, in a scratch directory), PostgreSQL 16.2 (the pgserver wheel's build with the pg_buffercache and pg_prewarm modules compiled against it) on a copy of the root's 10-million-message chat database, sentence-transformers with all-MiniLM-L6-v2 and bge-small-en-v1.5 on CPU, and public data (Wikimedia pageviews of 15 September 2026; GLUE QQP and PAWS). Each measurement script runs in under 10 minutes; the scripts and raw outputs are in the page's <code>src/measure</code> and <code>src/inputs</code> folders. Prices and limits are from the providers' documentation read on 5 October 2026 and change often: check before budgeting.</div>
+</div>
