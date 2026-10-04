@@ -1,0 +1,114 @@
+
+<section id="rd-classic">
+<h2>13. Classic ML serving: features, skew, batch scoring, embeddings</h2>
+<p>Most models in production are not LLMs: fraud scores, ranking, recommendations, ETA prediction, search relevance. They are cheap per call (milliseconds of CPU) but bring a problem LLMs mostly hide: the model's inputs are <dfn id="d-feature">features</dfn> (numbers computed from data, such as "orders this user placed in the last 7 days") that must be computed the same way when training and when serving.</p>
+<h3>Online and offline</h3>
+<p>Uber's Michelangelo platform (2017) is the reference picture. Features for online models were "precomputed and stored in Cassandra where they can be read at low latency", there were "approximately 10,000 features in Feature Store", and serving ran at "P95 latency of less than 5 milliseconds" without stored features and "less than 10ms" with them, with "the highest traffic models right now serving more than 250,000 predictions per second". Offline models wrote predictions "back to Hive" for other jobs to read ({{Uber Engineering, Meet Michelangelo, 5 Sep 2017|https://www.uber.com/blog/michelangelo-machine-learning-platform/}}). By 2024 there were "more than 5K models in production, serving 10 million real-time predictions per second at peak", and the platform had added a Gen AI Gateway with logging, cost attribution and PII redaction ({{Uber, From predictive to generative AI, 2 May 2024|https://www.uber.com/blog/from-predictive-to-generative-ai/}}).</p>
+<p>That gives the two serving modes:</p>
+<ul>
+<li><dfn id="d-batchscore">Batch scoring</dfn>: run the model over every user or item on a schedule and store the predictions in a table the product reads. Cheap, simple, easy to inspect; stale between runs and wasteful for users who never show up. Good for daily recommendations, churn scores, nightly embeddings.</li>
+<li><dfn id="d-online">Online inference</dfn>: compute the prediction inside the request, with fresh features. Needed when the input only exists now (a transaction being authorised, a search query). DoorDash's Sibyl prediction service, for example, fetched features from Redis per prediction, ran shadow predictions for candidate models on the same inputs, and load-tested at "over 100,000 predictions per second" ({{DoorDash Engineering, 29 Jun 2020|https://careersatdoordash.com/blog/doordashs-new-prediction-service/}}).</li>
+</ul>
+<h3>Training-serving skew, the classic ML bug</h3>
+<p>Google's Rules of Machine Learning define <dfn id="d-skew">training-serving skew</dfn> as "a difference between performance during training and performance during serving", caused by "A discrepancy between how you handle data in the training and serving pipelines", "A change in the data between when you train and when you serve", or "A feedback loop between your model and your algorithm". Its fix, Rule #29: "save the set of features used at serving time, and then pipe those features to a log to use them at training time"; YouTube's home page did this "with significant quality improvements and a reduction in code complexity" ({{Rules of ML|https://developers.google.com/machine-learning/guides/rules-of-ml}}). The deeper version of the same warning is Sculley et al.'s "Hidden Technical Debt in Machine Learning Systems": a mature system might be "(at most) 5% machine learning code and (at least) 95% glue code", and "Changing Anything Changes Everything" ({{NeurIPS 2015|https://papers.nips.cc/paper_files/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html}}).</p>
+<p>A <dfn id="d-fstore">feature store</dfn> is the tool that removes most skew: features are defined once, computed into an offline store (for training) and an online store (for serving), and read through one API. Its key guarantee is <dfn id="d-pit">point-in-time correctness</dfn>: a training example labelled at 8:50 must only see feature values known at 8:50, not ones computed at 8:52, or the model learns from the future and disappoints in production ({{Databricks docs, point-in-time joins|https://docs.databricks.com/aws/en/machine-learning/feature-store/time-series}}). In Feast (v0.66.0), the same feature names serve both sides:</p>
+<pre class="code"># training: features as of each row's timestamp ("point-in-time correct")
+training_df = store.get_historical_features(
+    entity_df=entity_df,               # driver_id, event_timestamp, label
+    features=["driver_hourly_stats:conv_rate",
+              "driver_hourly_stats:acc_rate",
+              "driver_hourly_stats:avg_daily_trips"],
+).to_df()
+
+# serving: copy the latest values into the online store, then read them in the request
+#   feast materialize-incremental $CURRENT_TIME
+feature_vector = store.get_online_features(
+    features=["driver_hourly_stats:conv_rate",
+              "driver_hourly_stats:acc_rate",
+              "driver_hourly_stats:avg_daily_trips"],
+    entity_rows=[{"driver_id": 1004}, {"driver_id": 1005}],
+).to_dict()</pre>
+<p class="small mute">From the {{Feast quickstart|https://docs.feast.dev/getting-started/quickstart}}: Feast "ensures point-in-time correctness so future feature values do not leak to models". Airbnb's Chronon (open-sourced 2024 with Stripe as co-maintainer) lets teams "define their features only once, powering both offline flows for model training as well as online flows for model inference", and measures consistency by comparing logged online fetches with backfilled values ({{Airbnb Engineering|https://medium.com/airbnb-engineering/chronon-airbnbs-ml-feature-platform-is-now-open-source-d9c4dba859e8}}).</p>
+<p><b>LLM services have skew too</b>: a prompt template assembled differently in the evaluation harness and in production, a retrieval index rebuilt between evaluation and launch, a tokenizer or chat template version mismatch. Rule #29 transfers directly: log the exact prompt the model saw.</p>
+<h3>Embedding services</h3>
+<p>An embedding model turns text into a vector for search and retrieval. Serving one is a throughput problem: many short inputs, batched by tokens. Hugging Face's Text Embeddings Inference (v1.9.4) has "Token based dynamic batching" with <code>--max-batch-tokens</code> (default 16384; "you could fit 10 queries of total_tokens=100 or a single query of 1000 tokens" for a limit of 1,000) and <code>--max-concurrent-requests</code> (default 512), where "Having a low limit will refuse clients requests instead of having them wait for too long and is usually good to handle backpressure correctly" ({{TEI CLI arguments|https://huggingface.co/docs/text-embeddings-inference/en/cli_arguments}}). Two design facts: embeddings from different models live in different spaces, so <b>changing the embedding model means re-embedding the whole corpus</b> (a batch job, half price through batch APIs, usually written to a new index and switched over once complete; reasoning, not a sourced rule), and the model version belongs in every stored vector's metadata. Smaller vectors are a cost lever: OpenAI notes a text-embedding-3-large vector "can be shortened to a size of 256 while still outperforming an unshortened text-embedding-ada-002 embedding with a size of 1536" ({{OpenAI embeddings guide|https://developers.openai.com/api/docs/guides/embeddings}}).</p>
+</section>
+
+<section id="rd-interview">
+<h2>14. The ML system design interview, run with the method</h2>
+<p>The parent topic's Step 6 teaches the general method (requirements, estimates, API, data model, high-level design, deep dives, trade-offs) and Alex Xu's timing for a 45-minute interview: scope 3 to 10 minutes, high-level design 10 to 15, deep dive 10 to 25, wrap-up 3 to 5. ML interviews keep that shape and swap the middle for ML steps. Chip Huyen's booklet uses project setup, data pipeline, modelling and serving ({{Machine Learning Systems Design|https://huyenchip.com/machine-learning-systems-design/toc.html}}); Aminian and Xu's <i>Machine Learning System Design Interview</i> (ByteByteGo, 2023) is commonly summarised as seven steps (clarify requirements, frame as an ML task, data, model, evaluation, deployment and serving, monitoring; the course page is behind a login, so that list is unconfirmed here). For an LLM product, run it like this:</p>
+<ol>
+<li><b>Requirements (5 min).</b> Users and tenants; traffic; what a good answer is; latency as TTFT and TPOT targets; cost per request or per user; data rules (which vendors may see what); realtime or batch. State assumptions aloud.</li>
+<li><b>Metrics (3 min).</b> Offline: task metrics on an evaluation set. Online: resolution rate, thumbs, escalations. System: TTFT and TPOT percentiles, availability, cost per request. Guard metrics: safety violations, wrong-answer rate.</li>
+<li><b>Estimate (5 min).</b> Tokens per second at peak, GPUs or API dollars, concurrent streams (Little's law). Below.</li>
+<li><b>Model and data (5 min).</b> API or self-hosted; which tier; prompt, retrieval or fine-tune, justified by the estimate.</li>
+<li><b>High-level design (10 min).</b> This page's opening diagram, pruned to what the requirements need.</li>
+<li><b>Deep dives (10 to 15 min).</b> Pick the two the numbers flag: usually cost (routing and caching) and capacity (autoscaling and the degradation ladder), or quality (rollout and monitoring).</li>
+<li><b>Wrap-up.</b> What breaks at ten times the traffic, and what you would build next.</li>
+</ol>
+<div class="card"><b>Worked estimate: a support assistant for 10,000 business tenants</b>
+<p class="small"><span class="ill">Illustrative inputs</span>: 500 messages per tenant per day, busy hour 3 times the average, 3,000 input tokens (instructions plus retrieved documents) and 300 output tokens per message, 70% of input tokens a cached prefix.</p>
+<ul class="tight">
+<li>Traffic: 10,000 &times; 500 = 5 million messages a day = 58 a second on average, <b>174 a second</b> at peak.</li>
+<li>Output tokens at peak: 174 &times; 300 = <b>52,000 a second</b>.</li>
+<li>Self-hosted 70B at the derated 1,104 tokens/s per GPU: 52,083 &divide; 1,104.5 = 47.2, so <b>48 H100s (24 replicas)</b>, $4,596 a day at $3.99 if kept for the peak all day; Little's law gives 174 &times; (300 &divide; 69 tokens/s) = about <b>755 streams</b> open at peak.</li>
+<li>Through an API (Sonnet 5.5): 3,000 &times; $2 + 300 &times; $10 per million = $0.009 a message, <b>$45,000 a day</b>; with 70% of input read from the prefix cache, 900 &times; $2 + 2,100 &times; $0.20 + 300 &times; $10 per million = $0.00522, <b>$26,100 a day</b>.</li>
+</ul>
+<p class="small">What to say next is the point of the exercise: the API costs six to ten times the self-hosted fleet at this volume (with and without caching), but buys a stronger model, no capacity risk and no GPU team; a router that sends easy questions to a small tier and caching change the ratio; and the self-hosted fleet sized for the peak is mostly idle at night unless batch work fills it. Checked in <code>src/recompute.py</code>.</p></div>
+<p>What interviewers reward is quantified trade-offs, not component names: "prefix caching cuts the cost per message by about 40% here because 70% of each prompt is static" beats "add a cache". Frontier-lab interviews go deeper into the engine (KV cache sizing, prefill and decode on separate GPUs, speculative decoding); that depth is in {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}. Full worked designs from requirements to bottlenecks are in the sibling {{System design case studies|n:3ef5c17b0d0d81c3b211d75127ef5ded}}.</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Rate limiting or autoscaling on requests per second</summary><div class="b">One request can be a thousand times another. Limit and scale on tokens and queues (sections 5 and 8).</div></details>
+<details class="mist"><summary>Autoscaling on GPU or CPU utilisation</summary><div class="b">GPU duty cycle does not measure work done, GPU memory is pre-allocated, CPU barely moves. Use queue depth, batch size or KV cache use (section 8).</div></details>
+<details class="mist"><summary>An unbounded queue in front of the GPUs</summary><div class="b">It converts overload into minutes of waiting for everyone and invites retry storms. Bound it and refuse early with <code>Retry-After</code> (section 11).</div></details>
+<details class="mist"><summary>A timestamp or user name at the top of the prompt</summary><div class="b">It defeats prefix caching for every request. Static content first, append-only, dynamic content last (section 9).</div></details>
+<details class="mist"><summary>A semantic cache on personal or time-sensitive questions</summary><div class="b">"Similar" is not "same": wrong answers, sometimes another user's. Scope per tenant, restrict to safe intents, measure the false-hit rate (section 9).</div></details>
+<details class="mist"><summary>Retrying through every layer</summary><div class="b">Client, gateway and SDK each retrying three times multiplies load during an outage (the parent topic's 243-times case). Retry in one layer, honour <code>retry-after</code>, then fall back.</div></details>
+<details class="mist"><summary>Model aliases instead of pinned versions</summary><div class="b">The provider moves the alias and your quality changes overnight with no deploy to roll back. Pin dated snapshots; record versions in every usage event (section 10).</div></details>
+<details class="mist"><summary>Huge <code>max_tokens</code> by default</summary><div class="b">Where limits reserve <code>max_tokens</code> (OpenAI), it burns rate limit that is never used; everywhere it allows runaway cost. Set it per feature.</div></details>
+<details class="mist"><summary>Monitoring errors but not quality</summary><div class="b">Model failures are often fluent and 200 OK. Sample and score production traffic continuously (section 12).</div></details>
+<details class="mist"><summary>Dashboards and autoscalers on renamed metrics</summary><div class="b">vLLM renamed <code>gpu_cache_usage_perc</code> and <code>time_per_output_token_seconds</code>; queries on old names return nothing after an upgrade. Alert on missing metrics (section 2).</div></details>
+<details class="mist"><summary>A fallback that has never carried full traffic</summary><div class="b">Its quota, prompt format, tool-call format and cold cache are untested until the outage. Test failover on a schedule (section 4).</div></details>
+<details class="mist"><summary>Different feature or prompt code in training and serving</summary><div class="b">Training-serving skew. Log what the model saw at serving time and train or evaluate on that (section 13).</div></details>
+</section>
+
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#d-autoscale">Autoscaling</a></b>: adding and removing replicas automatically as load changes.</div>
+<div><b><a href="#d-batchscore">Batch scoring</a></b>: precomputing predictions for everyone on a schedule.</div>
+<div><b><a href="#d-cold">Cold start</a></b>: the time for a new replica to get hardware, load weights and warm up.</div>
+<div><b><a href="#d-cpr">Cost per request</a></b>: tokens times prices, or GPU-seconds times GPU price.</div>
+<div><b><a href="#d-crud">CRUD</a></b>: web services that create, read, update and delete records.</div>
+<div><b><a href="#d-e2e">End-to-end latency</a></b>: TTFT plus the time to stream the rest.</div>
+<div><b><a href="#d-feature">Feature</a></b>: a number computed from data and given to a model.</div>
+<div><b><a href="#d-fstore">Feature store</a></b>: one definition of features, served offline and online.</div>
+<div><b><a href="#d-gateway">LLM gateway</a></b>: the single service every model call passes through.</div>
+<div><b><a href="#d-goodput">Goodput</a></b>: request rate per GPU that still meets latency targets.</div>
+<div><b><a href="#d-headroom">Headroom</a></b>: spare capacity kept to absorb spikes during cold starts.</div>
+<div><b><a href="#d-itl">Inter-token latency (ITL)</a></b>: the gap between streamed tokens.</div>
+<div><b><a href="#d-kv">KV cache</a></b>: the engine's per-token memory of a conversation, in GPU memory.</div>
+<div><b><a href="#d-little">Little's law</a></b>: items in a system = arrival rate &times; time each stays.</div>
+<div><b><a href="#d-multitenancy">Multi-tenancy</a></b>: serving many customers on shared infrastructure.</div>
+<div><b><a href="#d-noisy">Noisy neighbour</a></b>: one tenant's load hurting the others.</div>
+<div><b><a href="#d-online">Online inference</a></b>: computing the prediction inside the request.</div>
+<div><b><a href="#d-pit">Point-in-time correctness</a></b>: training rows see only feature values known at their time.</div>
+<div><b><a href="#d-quota">Quota</a></b>: a cap on total use over a period, often in money.</div>
+<div><b><a href="#d-ratelimit">Rate limit</a></b>: a cap on how fast a caller may consume.</div>
+<div><b><a href="#d-replica">Replica</a></b>: one running copy of the model, often on several GPUs.</div>
+<div><b><a href="#d-router">Router</a></b>: picks the model (gateway level) or the replica (pool level).</div>
+<div><b><a href="#d-sse">Server-sent events</a></b>: a text format for streaming over one HTTP response.</div>
+<div><b><a href="#d-spot2">Spot GPU</a></b>: discounted capacity the cloud can take back on short notice.</div>
+<div><b><a href="#d-stream">Streaming</a></b>: sending the reply token by token as it is generated.</div>
+<div><b><a href="#d-tenant">Tenant</a></b>: one customer organisation in a shared system.</div>
+<div><b><a href="#d-token">Token</a></b>: the unit models read and write, a word or part of one.</div>
+<div><b><a href="#d-bucket">Token bucket</a></b>: a refilling allowance that permits bursts and caps the average.</div>
+<div><b><a href="#d-tps">Tokens per second</a></b>: per user (speed felt) or per GPU (capacity).</div>
+<div><b><a href="#d-tpot">TPOT</a></b>: average time per output token after the first.</div>
+<div><b><a href="#d-skew">Training-serving skew</a></b>: a model doing worse in serving than in training because inputs differ.</div>
+<div><b><a href="#d-ttft">TTFT</a></b>: time from sending the request to the first output token.</div>
+<div><b><a href="#d-usage">Usage event</a></b>: one record per request of who, which model, tokens, cost and latency.</div>
+</div>
+</section>

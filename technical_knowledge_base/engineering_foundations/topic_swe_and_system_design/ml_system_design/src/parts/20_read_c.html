@@ -1,0 +1,77 @@
+
+<section id="rd-limit">
+<h2>5. Rate limits and quotas, counted in tokens</h2>
+<div class="wall"><div class="t">The problem appears</div>The chat assistant opens an API to business customers with a limit of 60 requests a minute each. Customer A sends 60 short chats a minute: 60 &times; 1,400 = 84,000 tokens. Customer B sends 60 requests a minute, each with a 50,000-token contract to summarise: 3 million tokens, 36 times A's load for the same "60 requests". B fills the GPUs and A's users wait.</div>
+<p>A <dfn id="d-ratelimit">rate limit</dfn> caps how fast a caller may consume a resource; past it the server answers <code>429 Too Many Requests</code>, which "MAY include a Retry-After header indicating how long to wait" ({{RFC 6585 &sect;4|https://www.rfc-editor.org/rfc/rfc6585#section-4}}; the header's format is in {{RFC 9110 &sect;10.2.3|https://www.rfc-editor.org/rfc/rfc9110#section-10.2.3}}). The parent topic introduced the <dfn id="d-bucket">token bucket</dfn>: each caller has a bucket that refills at a steady rate up to a maximum, and each request takes from it, so short bursts pass and the average is capped. For LLMs the fix is to put <i>model tokens</i> in the bucket, not requests. That is what the providers do:</p>
+<ul>
+<li><b>Anthropic</b>: "The API uses the token bucket algorithm to do rate limiting. This means that your capacity is continuously replenished up to your maximum limit, rather than being reset at fixed intervals", with separate limits for requests per minute (RPM), input tokens per minute (ITPM) and output tokens per minute (OTPM), per model. "For most Claude models, only uncached input tokens count toward your ITPM rate limits", so caching raises effective capacity: "With a 2,000,000 ITPM limit and an 80% cache hit rate, you could effectively process 10,000,000 total input tokens per minute" ({{Anthropic rate limits|https://platform.claude.com/docs/en/api/rate-limits}}, read 2026-10-04).</li>
+<li><b>OpenAI</b> limits RPM, requests per day, TPM and tokens per day, per organisation and project, and reports what is left in <code>x-ratelimit-remaining-tokens</code> and related headers ({{OpenAI rate limits|https://developers.openai.com/api/docs/guides/rate-limits}}).</li>
+</ul>
+<h3>The hard part: output tokens are unknown at admission</h3>
+<p>When a request arrives you know its input tokens but not its output. Three real answers:</p>
+<ol>
+<li><b>Reserve the worst case, refund later.</b> OpenAI: "Your rate limit is calculated as the maximum of <code>max_tokens</code> and the estimated number of tokens based on the character count." A careless <code>max_tokens</code> of 32,000 on every call burns limit that is never used.</li>
+<li><b>Count output as it is produced.</b> Anthropic: "OTPM rate limits are evaluated in real time as output tokens are produced, counting only the actual tokens generated. The max_tokens parameter does not factor into OTPM rate limit calculations."</li>
+<li><b>Charge after the response.</b> Envoy AI Gateway (Agent Router) v1.1.0: "Token usage is charged after the response completes", and "If the existing charged usage is over the limit, the request is rejected with a 429 status code". The price is overshoot: it "does not interrupt an already admitted stream", so with a 1,000-token hourly limit one admitted request "can stream 1,200 tokens successfully. The bucket is then 200 tokens over the limit" ({{usage-based rate limiting docs, v1.1.0|https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/docs/capabilities/traffic/usage-based-ratelimiting.md}}).</li>
+</ol>
+<p>The Envoy policy that limits each tenant to a token budget per model, trimmed from the same page: the request itself costs 0 and the response costs its total tokens, read from metadata the gateway fills in.</p>
+<pre class="code">rateLimit:
+  type: Global
+  global:
+    rules:
+      - clientSelectors:
+          - headers:
+              - name: x-tenant-id      # one bucket per distinct tenant
+                type: Distinct
+              - name: x-ai-eg-model    # ... per model
+                type: Exact
+                value: gpt-4
+        limit:
+          requests: 1000               # here: 1000 total tokens per hour
+          unit: Hour
+        cost:
+          request:  {from: Number, number: 0}
+          response:
+            from: Metadata
+            metadata: {namespace: io.envoy.ai_gateway, key: llm_total_token}</pre>
+<p>Alongside token limits, cap <b>concurrent streams</b> per tenant: a stream holds a batch slot for seconds (section 1), and fifty open streams from one tenant are fifty slots nobody else can use, whatever the token count.</p>
+<h3>Rate limits are not quotas</h3>
+<p>A rate limit protects capacity right now; a <dfn id="d-quota">quota</dfn> (or budget) caps total use over a billing period, usually in money. Envoy's docs separate them the same way: "Use QuotaPolicy when you need to cap cumulative token spend, and usage-based rate limiting (this page) when you need to control request velocity." LiteLLM sets budgets on keys, users and teams with <code>max_budget</code> (US dollars) and <code>budget_duration</code> such as <code>30d</code>, and rejects calls past it with errors like "ExceededTokenBudget" ({{LiteLLM docs, budgets and rate limits|https://docs.litellm.ai/docs/proxy/users}}). Tell callers which one they hit: Anthropic returns 429 with a <code>retry-after</code> header for a rate limit, 429 with <i>no</i> retry-after when the monthly spend cap is reached (retrying cannot help), and a different code, <code>529 overloaded_error</code>, when "the API experiences high traffic across all users" ({{Anthropic errors|https://platform.claude.com/docs/en/api/errors}}). Your own gateway should keep the same three cases apart: you are over your limit; you are out of budget; we are out of capacity.</p>
+<div class="cost"><div class="t">What token limits cost</div>A shared counter (usually Redis) that every gateway copy updates on every request; a decision about what happens when that counter is unreachable (fail open and risk overload, or fail closed and refuse everyone); and limits that customers find harder to reason about than "60 requests a minute". <b>When not to:</b> an internal tool with a handful of users and a monthly budget alert needs no per-tenant token buckets.</div>
+</section>
+
+<section id="rd-tenant">
+<h2>6. Multi-tenancy and isolation</h2>
+<p>A <dfn id="d-tenant">tenant</dfn> is one customer organisation sharing your system with others. <dfn id="d-multitenancy">Multi-tenancy</dfn> is serving them all from shared infrastructure, which is cheap, while keeping each from hurting or seeing the others, which is the work. Four things must be isolated:</p>
+<ul>
+<li><b>Capacity.</b> The <dfn id="d-noisy">noisy neighbour</dfn>: one tenant's burst fills the batch and every other tenant's TTFT rises. Token limits (section 5) cap the average; fair scheduling handles the moment. The Virtual Token Counter scheduler defines fairness by "a cost function that accounts for the number of input and output tokens processed" and gives "a 2&times; tight upper bound on the service difference between two backlogged clients" while keeping the GPU busy ({{Sheng et al., Fairness in Serving Large Language Models, OSDI 2024|https://www.usenix.org/conference/osdi24/presentation/sheng}}).</li>
+<li><b>Data.</b> Prompts and answers must never cross tenants: not in logs, not in caches. A response cache or semantic cache shared across tenants can hand one customer another's answer; even a shared prefix cache is a timing side channel (a fast first token reveals that someone sent the same beginning). OpenAI states "Caches are not shared across organizations" ({{OpenAI prompt caching|https://developers.openai.com/api/docs/guides/prompt-caching}}). Put the tenant id in every cache key.</li>
+<li><b>Cost.</b> Every usage event carries the tenant, so each one's bill and margin are known (section 12).</li>
+<li><b>Customisation.</b> Tenants may have their own fine-tuned adapters on a shared base model; engines can serve many small adapters on one replica ({{Parameter-Efficient Fine-Tuning|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}).</li>
+</ul>
+<h3>Four ways to share GPUs, from cheapest to most isolated</h3>
+<div class="tw"><table><thead><tr><th>Model</th><th>How</th><th>Good for</th><th>Cost</th></tr></thead><tbody>
+<tr><td>Shared pool, fair queue</td><td>everyone in one pool; per-tenant token limits and a fair scheduler</td><td>many small tenants</td><td>tail latency moves with others' load</td></tr>
+<tr><td>Shared pool, priority classes</td><td>requests carry a priority; under pressure low priority waits or is shed first</td><td>mixing paid and free, chat and batch</td><td>low classes can starve</td></tr>
+<tr><td>Reserved capacity</td><td>a tenant buys a guaranteed rate; overflow goes to the shared pool</td><td>large customers with latency contracts</td><td>reserved capacity you must hold even when idle</td></tr>
+<tr><td>Dedicated pool</td><td>a tenant's own replicas</td><td>the largest or most regulated customers</td><td>whole replicas, idle at night</td></tr>
+</tbody></table></div>
+<p>Real examples of each idea. Priority classes are as old as Google's load shedding: requests are tagged <code>CRITICAL_PLUS</code>, <code>CRITICAL</code>, <code>SHEDDABLE_PLUS</code> ("the default for batch jobs, which can retry requests minutes or even hours later") or <code>SHEDDABLE</code>, and a request's criticality propagates to the calls it makes ({{SRE book, ch. 21, Handling Overload|https://sre.google/sre-book/handling-overload/}}). The Kubernetes inference stack does the same for model traffic: an early version had Critical, Standard and Sheddable; today llm-d's <code>InferenceObjective</code> carries an integer <code>priority</code>, and "flow control will <i>always</i> allow requests of higher priority to be served first", while "Fairness is only enforced and tracked between requests of the same priority" ({{inferenceobjective_types.go, llm-d-router v0.11.0|https://github.com/llm-d/llm-d-router/blob/v0.11.0/apix/v1alpha2/inferenceobjective_types.go}}). Reserved capacity: Anthropic's Priority Tier committed input and output tokens per minute for 1 to 12 months, "targets 99.5% uptime", and "Requests beyond your committed capacity automatically fall back to standard tier"; it is "no longer available for purchase" to new buyers as of October 2026 ({{Anthropic service tiers|https://platform.claude.com/docs/en/api/service-tiers}}).</p>
+<div class="cost"><div class="t">What isolation costs</div>Each step down the table buys predictability with idle hardware. Scoping caches per tenant lowers hit rates. <b>When not to:</b> a product with one customer (your own app) has no tenants to isolate; start with a shared pool and per-tenant limits, and add reserved or dedicated capacity only for a customer who pays for it.</div>
+</section>
+
+<section id="rd-paths">
+<h2>7. Three paths: realtime, streaming and batch</h2>
+<p>Not every model call is a person waiting. Splitting traffic by how long it may wait is the single biggest cost lever after routing, because work that can wait can run when GPUs are idle or cheap.</p>
+<div class="tw"><table><thead><tr><th></th><th>Realtime (request/response)</th><th>Streaming</th><th>Batch</th></tr></thead><tbody>
+<tr><td>Examples</td><td>classify a message, embed a query, autocomplete</td><td>chat replies, agent steps shown live</td><td>embed a whole document store, nightly evaluations, summarise yesterday's tickets, synthetic data</td></tr>
+<tr><td>Who waits</td><td>a program, for milliseconds to a second</td><td>a person, watching tokens arrive</td><td>nobody; a deadline in hours</td></tr>
+<tr><td>Optimise</td><td>end-to-end latency</td><td>TTFT, then TPOT</td><td>tokens per dollar</td></tr>
+<tr><td>Capacity</td><td>small models, high concurrency</td><td>sized for the peak (section 8)</td><td>leftover and cheap capacity, spot GPUs</td></tr>
+<tr><td>On overload</td><td>shed or degrade (section 11)</td><td>queue briefly, then shed</td><td>wait</td></tr>
+</tbody></table></div>
+<p><b>Batch through providers</b> costs half. OpenAI's Batch API gives a "50% cost discount compared to synchronous APIs" and each batch "completes within 24 hours (and often more quickly)", with its own higher rate limits ({{OpenAI Batch API|https://developers.openai.com/api/docs/guides/batch}}). Anthropic's Message Batches: "All usage is charged at 50% of the standard API prices", "most batches finishing in less than 1 hour", a batch holds up to 100,000 requests or 256 MB, unfinished requests expire after 24 hours and are not billed, and the discount stacks with prompt caching ({{Anthropic batch processing|https://platform.claude.com/docs/en/build-with-claude/batch-processing}}). Between realtime and batch there are now speed tiers on the same API: OpenAI's Flex processing trades "slower response times and occasional resource unavailability" for batch prices, and returns a 429 it does not charge for when capacity is short; its premium tier, renamed from Priority processing to Fast mode on 30 July 2026, charges more per token for up to 2.5 times the speed ({{Flex processing|https://developers.openai.com/api/docs/guides/flex-processing}}, {{Fast mode|https://developers.openai.com/api/docs/guides/fast-mode}}).</p>
+<p><b>Batch on your own GPUs</b> means using the trough. The parent topic's estimate showed that a fleet sized for the busy hour sits more than half idle overnight; a batch lane that fills that idle capacity at low priority, and is pushed aside the moment chat traffic needs the slots, turns idle GPU-hours into useful work. That needs a priority scheduler in the engine or router (the vLLM production stack router has a <code>priority</code> option, section 4) and batch jobs that tolerate being paused. The batch lane is also the natural home for preemptible <dfn id="d-spot">spot</dfn> GPUs (section 8).</p>
+<p><b>Long jobs behind a person</b> (generate a report, run an agent for ten minutes) use the parent topic's asynchronous pattern: accept the job, return <code>202 Accepted</code> with a job id, put it on a queue, and let the client poll or receive a callback. Anthropic itself advises "the streaming Messages API or Message Batches API for long-running requests, especially those over 10 minutes". Delivery guarantees, retries and dead-letter queues for that pattern belong to the sibling page {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</p>
+<div class="cost"><div class="t">What splitting costs</div>Two or three code paths instead of one, and results that arrive later. A batch lane on shared GPUs needs preemption that really works; a batch job that cannot be paused will hold slots during the morning ramp. <b>When not to:</b> if under a tenth of your tokens can wait, the second path is not worth its code.</div>
+</section>

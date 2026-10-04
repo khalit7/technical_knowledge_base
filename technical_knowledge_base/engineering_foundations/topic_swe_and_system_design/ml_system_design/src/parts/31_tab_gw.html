@@ -1,0 +1,50 @@
+<div class="tab" id="t-gw" role="tabpanel" hidden>
+<style>
+#t-gw .ctl label{font-size:13px}#t-gw .ctl select{width:100%}
+#t-gw .grp{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:10px 0}
+#t-gw .grp h3{margin:2px 0 6px;font-size:14px}
+#t-gw .chk{display:inline-flex;align-items:center;gap:5px;white-space:normal}
+#t-gw .sbar{display:flex;height:26px;border-radius:5px;overflow:hidden;margin:4px 0 2px;background:var(--soft)}
+#t-gw .sbar span{display:block;height:100%}
+#t-gw .sleg{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:12px;color:var(--mute)}
+#t-gw .sleg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-gw .stat .v.up{color:var(--bad)}#t-gw .stat .v.dn{color:var(--good)}
+#t-gw .note{font-size:12.5px;color:var(--mute)}
+</style>
+<h2 style="margin-top:14px">Gateway lab</h2>
+<p>Put a gateway in front of the chat assistant's traffic and decide what it does: route between a small and a large model, answer from caches, fall back when a provider fails. The lab shows what each request costs, how long it takes, how many fail, and how many get a worse or wrong answer, against a naive, healthy baseline: the same traffic sent to the large model, no caching, no outage. Every number is an expectation per request (no randomness).</p>
+<p class="try"><b>Try:</b> start from <i>Naive</i>, then <i>Router + prefix cache</i>: cost halves and a few percent of answers get worse (hard questions misrouted to the small model). Then <i>Provider outage, no fallback</i> against <i>with fallback</i>: the fallback turns 40% errors into slower, pricier answers. Then push the semantic cache's hit rate up and watch wrong answers climb.</p>
+<div class="chips" id="gw-pre">
+<button data-p="naive">Naive: one large model</button><button data-p="tuned" class="on">Router + prefix cache</button><button data-p="semantic">+ aggressive semantic cache</button><button data-p="outage_nofb">Provider outage, no fallback</button><button data-p="outage_fb">Provider outage, with fallback</button><button data-p="selfhost">Small tier self-hosted</button>
+</div>
+<div class="out" id="gw-out"></div>
+<div class="card"><b>Where requests go</b><div class="sbar" id="gw-bar"></div><div class="sleg" id="gw-leg"></div>
+<b style="display:block;margin-top:10px">Where the money goes</b><div class="sbar" id="gw-cbar"></div><div class="sleg" id="gw-cleg"></div></div>
+<div class="grp"><h3>Traffic</h3><div class="ctl">
+<label>Peak requests per second <b id="gw-rps-v"></b><input type="range" id="gw-rps" min="10" max="2000" step="0.5"></label>
+<label>Share of easy requests <b id="gw-easy-v"></b><input type="range" id="gw-easy" min="0" max="1" step="0.05"></label>
+<label>Input tokens per request<select id="gw-tin"><option value="200">200</option><option value="1000">1,000</option><option value="4000">4,000</option><option value="20000">20,000</option></select></label>
+<label>Output tokens per request<select id="gw-tout"><option value="100">100</option><option value="400">400</option><option value="1500">1,500</option></select></label>
+</div></div>
+<div class="grp"><h3>Models and routing</h3><div class="ctl">
+<label>Large model<select id="gw-big"></select></label>
+<label>Small model<select id="gw-small"></select></label>
+<label class="chk"><input type="checkbox" id="gw-router"> Router sends easy requests to the small model</label>
+<label>Router accuracy <b id="gw-acc-v"></b><input type="range" id="gw-acc" min="0.5" max="1" step="0.01"></label>
+</div></div>
+<div class="grp"><h3>Caches</h3><div class="ctl">
+<label>Exact cache hit rate <b id="gw-exact-v"></b><input type="range" id="gw-exact" min="0" max="0.3" step="0.01"></label>
+<label>Share of input tokens that are a cached prefix <b id="gw-prefix-v"></b><input type="range" id="gw-prefix" min="0" max="0.9" step="0.05"></label>
+<label class="chk"><input type="checkbox" id="gw-sem"> Semantic cache</label>
+<label>Semantic hit rate (of exact misses) <b id="gw-semhit-v"></b><input type="range" id="gw-semhit" min="0" max="0.5" step="0.01"></label>
+<label>Wrong answers among semantic hits <b id="gw-semfalse-v"></b><input type="range" id="gw-semfalse" min="0" max="0.1" step="0.005"></label>
+</div></div>
+<div class="grp"><h3>Failure</h3><div class="ctl">
+<label>Large model's provider failing <b id="gw-outage-v"></b><input type="range" id="gw-outage" min="0" max="1" step="0.05"></label>
+<label class="chk"><input type="checkbox" id="gw-fb"> Fall back to another provider</label>
+<label>Fallback provider<select id="gw-fbm"></select></label>
+<label>Time to detect failure and switch <b id="gw-det-v"></b><input type="range" id="gw-det" min="0" max="10" step="0.5"></label>
+</div></div>
+<p class="note"><b>How it is computed.</b> Requests first meet the exact cache, then (if on) the semantic cache, then the router; the router sends easy requests to the small model with the stated accuracy, and its mistakes send hard requests to the small model (counted as worse answers) and easy ones to the large model (wasted money). Calls to the failing provider either error or go to the fallback, which starts with no cached prefix. Cost per request = (uncached input &times; input price + cached input &times; cache-read price + output &times; output price) &divide; 1,000,000. Monthly cost uses the average rate, half the peak (the parent topic's peak factor 2), over 730 hours. Mean TTFT and full time are request-weighted means.</p>
+<p class="note"><b>Sources and labels.</b> Prices per million tokens (input, output, cache read), from the knowledge base's shared price snapshot of 2026-10-01: Claude Sonnet 5.5 $2, $10, $0.20 and Claude 4.5 Haiku $1, $5, $0.10 ({{Anthropic pricing|https://platform.claude.com/docs/en/about-claude/pricing}}); GPT-6.1 Sol $2, $10, $0.10 and GPT-6 Luna $0.10, $0.50, $0.01 ({{OpenAI pricing|https://developers.openai.com/api/docs/pricing}}). Self-hosted Llama 3.3 70B: $1.00 per million output tokens with input included, derived from 2,209 tokens/s per H100 at half load and $3.99 per GPU-hour (the parent topic's shared figures); prefix caching saves it time, not money. Cache writes are ignored (they add 25% on the first use of each prefix). <span class="ill">Illustrative</span>: every latency (time to first token 0.8 s large API, 0.4 s small API, 0.2 s self-hosted; 60, 120 and 69 tokens/s per user; 10 ms gateway, 20 ms router, 20 ms semantic lookup; a cached prefix removes up to 60% of TTFT), the traffic mix and every hit rate. Defaults: the chat assistant's 231.5 peak requests a second (1 million daily users &times; 10 messages &divide; 86,400 &times; 2). Checked against <code>src/models.py</code> by <code>src/recompute.py</code> and <code>check_js.mjs</code> (60 random settings and every preset, no differences).</p>
+</div>

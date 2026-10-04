@@ -1,0 +1,93 @@
+
+<section id="rd-scale">
+<h2>8. Autoscaling GPUs</h2>
+<p><dfn id="d-autoscale">Autoscaling</dfn> adds replicas when load rises and removes them when it falls. On Kubernetes, the system most model services run on, the built-in Horizontal Pod Autoscaler (HPA) does it with one formula: "desiredReplicas = ceil[currentReplicas * (currentMetricValue / desiredMetricValue)]", checked every 15 seconds by default, ignoring changes within a 10% tolerance, adding at most "4 pods or a 100% of the currently running replicas" per 15 seconds, and waiting 300 seconds before scaling down so a short dip does not throw capacity away ({{Kubernetes docs, Horizontal Pod Autoscaling|https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/}}). With several metrics it computes a replica count for each and takes the largest. The whole question is <b>which metric</b>.</p>
+<h3>Why the web-service signals fail on GPUs</h3>
+<ul>
+<li><b>CPU utilisation</b>, the default for web servers, barely moves: the CPU of a GPU server mostly tokenises text and schedules the GPU. Google's GKE guide: "For inference workloads running on GPUs, we don't recommend CPU and memory utilization as the only indicators". The parent topic's Slack case shows the same trap on ordinary servers: threads waiting on a congested network used less CPU, so the autoscaler removed servers during the overload (Case files, "The first Monday of the year: autoscaling made it worse").</li>
+<li><b>GPU utilisation</b> "Measures the duty cycle, which is the amount of time that the GPU is active" but "Does not measure how much work is being done while the GPU is active". <b>GPU memory</b> is worse: engines like vLLM reserve almost all GPU memory at start, so the metric "only works for scaling up, and won't scale down when traffic decreases" ({{GKE, Best practices for autoscaling LLM inference workloads with GPUs|https://cloud.google.com/kubernetes-engine/docs/best-practices/machine-learning/inference/autoscaling}}, updated 2026-10-02).</li>
+<li><b>Requests per second</b> ignores request size (section 1). NVIDIA's Dynamo documentation puts it plainly: "Latency depends on request content, not just request count. A single request with a 32K-token prompt consumes orders of magnitude more compute than a short one" ({{Dynamo Planner overview, v1.5.0|https://github.com/ai-dynamo/dynamo/blob/v1.5.0/docs/fern/pages/developer-guide/knowledge-base/modular-components/planner/overview.md}}).</li>
+</ul>
+<h3>The signals that work</h3>
+<ul>
+<li><b>Queue depth</b> (<code>vllm:num_requests_waiting</code>): requests that have arrived but have no batch slot. GKE: "Queue size directly correlates to request latency" and is "largely workload-agnostic, because queue size is independent of request size, model, or hardware"; continuous batching keeps the queue near zero while there is room, so "use the growth point as a signal to initiate scale-up", starting with a threshold "between 3-5" per replica.</li>
+<li><b>Batch size</b> (<code>vllm:num_requests_running</code>): for tighter latency, since it reacts before a queue forms; harder to tune because the right value depends on request sizes.</li>
+<li><b>KV cache use</b> (<code>vllm:kv_cache_usage_perc</code>): how full the conversation memory is; near 100% the engine must refuse or evict. llm-d's recommended KEDA setup scales on both waiting requests (threshold 20) and KV cache use (threshold 0.95) per prefill or decode role ({{llm-d-autoscaling blueprint at 3c06c88|https://github.com/llm-d/llm-d-autoscaling/blob/3c06c8814bcde4f7da0c7b4fadeed015e135a9de/README.md}}); GKE's page does not mention KV cache.</li>
+<li><b>Tokens in flight</b> or a latency target: Dynamo's planner can "Target specific TTFT/ITL SLA values" and runs a predictive loop (default every 180 s) for the daily curve under a reactive one (every 5 s) for surprises.</li>
+</ul>
+<p>Real configuration. KServe (v0.21.0) hands autoscaling to KEDA, an add-on that feeds outside metrics such as Prometheus queries to the HPA. Its documented example scales a vLLM server on running requests, two per replica:</p>
+<pre class="code">apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: huggingface-qwen
+  annotations:
+    serving.kserve.io/deploymentMode: "Standard"
+    serving.kserve.io/autoscalerClass: "keda"
+spec:
+  predictor:
+    model:
+      modelFormat: {name: huggingface}
+      storageUri: "hf://Qwen/Qwen2.5-0.5B-Instruct"
+      resources: {limits: {nvidia.com/gpu: "1"}}
+    minReplicas: 1
+    maxReplicas: 5
+    autoScaling:
+      metrics:
+        - type: External
+          external:
+            metric:
+              backend: "prometheus"
+              serverAddress: "http://prometheus.istio-system.svc.cluster.local:9090"
+              query: vllm:num_requests_running
+            target: {type: Value, value: "2"}</pre>
+<p class="small mute">Trimmed from {{KServe docs, LLM autoscaling with KEDA|https://kserve.github.io/website/docs/model-serving/generative-inference/autoscaling}} (source at kserve/website 71c8b22): "if our LLM receives 6 concurrent requests with our target of 2 requests per pod, the system will scale to 3 replicas". The vLLM production stack's KEDA tutorial does the same on <code>vllm:num_requests_waiting</code> with a threshold of 5 ({{tutorial 20, at 014d070|https://github.com/vllm-project/production-stack/blob/014d070e6f7611978d321bdb05cbe9a934b614e7/tutorials/20-keda-autoscaling.md}}). KEDA's defaults: it polls every 30 s, and its 300 s <code>cooldownPeriod</code> applies only to scaling to zero ({{KEDA 2.21 ScaledObject spec|https://keda.sh/docs/2.21/reference/scaledobject-spec/}}).</p>
+
+<div class="card" id="rd-as-card">
+<b>Animation: the same burst of chat traffic, four autoscaling policies</b>
+<p class="small">One GPU pool serving Llama 3.3 70B (replicas of two H100s, 4,418 output tokens a second each). At minute 5 requests double and replies grow from 400 to 600 tokens, for 20 minutes. Pick a policy and watch capacity (top) and time to first token (bottom).</p>
+<div class="seg" id="rd-as-seg"><button data-m="cpu" class="on">Before: CPU 60%</button><button data-m="rps">Before: requests/s</button><button data-m="queue">After: queue + KV cache</button><button data-m="warm">After + warm pool</button></div>
+<div class="rd-svg" id="rd-as-svg"></div>
+<div class="an-cap" id="rd-as-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rd-as-cnt"></div>
+<div class="an-ctl" id="rd-as-ctl"></div>
+<div class="tw" id="rd-as-sum"></div>
+<p class="small mute">A fluid model, one-second steps, with Kubernetes' HPA defaults (15 s sync, 10% tolerance, scale-up at most max(100%, 4 pods) per 15 s, 300 s scale-down window). Published inputs: 2,209 tokens/s per H100 (TensorRT-LLM, the parent's shared figure), $3.99 per GPU-hour. <span class="ill">Illustrative</span>: the traffic, the CPU curve (25% + 10% &times; GPU busy share), the 3-minute cold start and the 20-second warm start, the 90 ms prefill, and KV cache use modelled as the share of the replica's capacity in use. Time to first token is prefill plus the wait implied by the queue (first in, first out); real clients would time out long before the worst values. Checked against <code>src/models.py</code> by <code>src/recompute.py</code> and <code>check_js.mjs</code> (7,348 numbers, no differences).</p>
+</div>
+<p>Read the summary table under the animation. Scaling on CPU never fires; scaling on requests gets the direction right but sizes the pool for the old request size and lets a queue build for the whole burst; scaling on the queue and KV cache gets the size right but spends the first minutes of the burst waiting for cold replicas; the warm pool removes that wait. The warm pool's price is not in its GPU-hours column: those standby GPUs must exist somewhere, either paid for idle or running preemptible batch work (section 7) that gives way.</p>
+<h3>Cold starts, and what pros do about them</h3>
+<p>A GPU replica's start is a chain, and each link has a fix:</p>
+<div class="tw"><table><thead><tr><th>Link</th><th>Published number</th><th>Fix</th></tr></thead><tbody>
+<tr><td>Get a GPU machine</td><td>"Spinning up a GPU worker takes minutes, not seconds" (Dynamo docs)</td><td>keep spare nodes, or predict demand (Dynamo's predictive loop, schedules for the daily curve)</td></tr>
+<tr><td>Pull the container image</td><td>24 s to 1.5 s with GKE image streaming, on Google's sample web app ({{GKE image streaming|https://cloud.google.com/kubernetes-engine/docs/how-to/image-streaming}})</td><td>image streaming, images preloaded on node boot disks</td></tr>
+<tr><td>Load the weights</td><td>Llama 3 8B (15 GB) on an A10G: 47.99 s with the standard Hugging Face loader, 4.88 s from S3 with the Run:ai Model Streamer ({{NVIDIA, 16 Sep 2025|https://developer.nvidia.com/blog/reducing-cold-start-latency-for-llm-inference-with-nvidia-runai-model-streamer/}})</td><td>parallel streaming loaders (<code>vllm serve --load-format runai_streamer</code>), weights cached on local NVMe (KServe LocalModelCache)</td></tr>
+<tr><td>Start the engine</td><td>the same run took 23.18 s to be ready although weights loaded in 4.88 s: memory allocator, CUDA graph capture, kernel compilation</td><td>keep the process alive: vLLM sleep mode "Offloads model weights to CPU RAM and discards KV cache", and waking is "18-200x faster than full reload" ({{vLLM blog, 26 Oct 2025|https://vllm.ai/blog/2025-10-26-sleep-mode}}); GPU memory snapshots (Modal: a small vLLM model's start from 45 s to 5 s, {{Modal, 30 Jul 2025|https://modal.com/blog/gpu-mem-snapshots}})</td></tr>
+</tbody></table></div>
+<p>The other side of cold starts is <dfn id="d-headroom">headroom</dfn>: capacity kept above current demand to absorb a spike while new replicas start. If a replica takes 3 minutes to start and traffic can grow 20% in 3 minutes, you need about 20% headroom at all times. It is a dial between cost and latency, not a planning failure. <b>Scale to zero</b> (no replicas when idle; KEDA and Knative support it) saves the most and makes the first user after a quiet period wait the whole cold start: fine for an internal tool, wrong for a chat product.</p>
+<h3>Spot GPUs</h3>
+<p><dfn id="d-spot2">Spot</dfn> (preemptible) capacity is spare cloud capacity sold at a discount that can be taken back with little warning: two minutes on AWS ({{EC2 Spot interruption notices|https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-instance-termination-notices.html}}), 0 seconds by default or 120 seconds if configured on Google Cloud, which advertises "up to 91% discounts" ({{GCP Spot VMs|https://cloud.google.com/compute/docs/instances/spot}}), and "up to 30 seconds" on Azure ({{Azure Spot VMs|https://learn.microsoft.com/en-us/azure/virtual-machines/spot-vms}}). Two minutes is less than a cold start, so spot suits the batch lane first. For live serving, research systems mix spot across regions with on-demand fallback: SkyServe "reduces cost by 43% on average" against on-demand replicas ({{SkyServe, EuroSys 2025|https://arxiv.org/abs/2411.01438}}), and SpotServe reports "saving 54% monetary cost compared with only using on-demand instances" ({{SpotServe, ASPLOS 2024|https://arxiv.org/abs/2311.15566}}).</p>
+<div class="cost"><div class="t">What autoscaling costs</div>Metrics plumbing that must keep working (an autoscaler reading a renamed metric sees zero, section 2), tuning of thresholds per model and hardware, and headroom you pay for. It can also amplify trouble: an autoscaler that adds replicas while a shared dependency is the real bottleneck makes things worse (Slack). <b>When not to:</b> steady traffic on a fixed fleet, or a fleet so small that one replica is the minimum anyway; then fixed capacity plus load shedding (section 11) is simpler.</div>
+</section>
+
+<section id="rd-cache">
+<h2>9. Caching layers</h2>
+<p>The parent topic's cache rule holds: do not compute the same thing twice. LLM services have four caches, from outermost to innermost, and they differ in what counts as "the same".</p>
+<ul>
+<li><b>Exact response cache.</b> Key = hash of (tenant, model, full prompt, sampling parameters); value = the stored answer. Safe and cheap; hits mostly on retried requests, repeated system jobs and identical FAQ-style prompts. Low hit rate on chat, because conversations rarely repeat exactly. Skip it for requests with temperature above zero if users expect variety.</li>
+<li><b>Semantic cache.</b> Embed the new prompt, find the most similar stored prompt, and return its answer if the similarity is above a threshold (GPTCache popularised it; LiteLLM ships one: <code>type: "redis-semantic"</code> with <code>similarity_threshold: 0.8</code>, {{LiteLLM docs|https://docs.litellm.ai/docs/proxy/caching_semantic}}). It is the riskiest cache because "similar" is not "same": "What is my balance?" from two users, "flights to Paris Texas" and "flights to Paris", yesterday's news. GPTCache's own README warns "you may encounter false positives during cache hits". Measured: one study reports hit rates of 61.6 to 68.8% with "positive hit rates exceeding 97%", that is roughly 3% of hits wrong ({{GPT Semantic Cache, arXiv 2411.05276|https://arxiv.org/abs/2411.05276}}); vCache finds that a single static threshold gives "unexpected error rates" and learns a threshold per cached prompt, reporting "up to 12.5&times; higher cache hit and 26&times; lower error rates" ({{vCache, arXiv 2502.03771|https://arxiv.org/abs/2502.03771}}). Huyen's verdict: "semantic cache's value is more dubious because many of its components are prone to failure". Use it only for non-personal, slowly changing answers, scoped per tenant, with the threshold set by an evaluation and the wrong-answer rate monitored.</li>
+<li><b>Prefix (KV) cache.</b> Not an answer cache: it keeps the KV cache of a prompt's beginning so the next request with the same beginning skips that part of prefill. It never changes the answer, only the speed and price. Engines do it automatically (vLLM automatic prefix caching) and providers sell it: Anthropic charges 1.25 times the input price to write a 5-minute cache entry and 0.1 times to read it ({{Anthropic prompt caching|https://platform.claude.com/docs/en/build-with-claude/prompt-caching}}); OpenAI caches automatically from 1,024 tokens and now charges 1.25 times for writes on its newest models ({{OpenAI prompt caching|https://developers.openai.com/api/docs/guides/prompt-caching}}). The rule that makes it work is in the animation below.</li>
+<li><b>Embedding and retrieval caches.</b> In retrieval-augmented generation, store the embedding of each document chunk (computed once) and of frequent queries. Owned by {{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}.</li>
+</ul>
+<div class="card" id="rd-pc-card">
+<b>Animation: one conversation, two prompt layouts, the prefix cache</b>
+<p class="small">Six turns of a chat. Each request contains a 2,000-token system prompt (instructions and tool definitions), the conversation so far, and the new message, which includes a 30-token line with the current time and user context. Only the order changes.</p>
+<div class="seg" id="rd-pc-seg"><button data-m="before" class="on">Before: time line first</button><button data-m="after">After: static first, append-only</button></div>
+<div class="leg"><span style="--sw:var(--c2)">time and user line</span><span style="--sw:var(--c1)">system prompt</span><span style="--sw:var(--dim)">conversation so far</span><span style="--sw:var(--c5)">new message</span><span style="--sw:var(--good)">outline: served from cache</span></div>
+<div class="rd-svg" id="rd-pc-svg"></div>
+<div class="an-cap" id="rd-pc-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rd-pc-cnt"></div>
+<div class="an-ctl" id="rd-pc-ctl"></div>
+<p class="small mute">Prices: Claude Sonnet 5.5, $2 per million input tokens, $2.50 cache write (5-minute), $0.20 cache read, $10 output ({{Anthropic prompt caching|https://platform.claude.com/docs/en/build-with-claude/prompt-caching}}, read 2026-10-04). Over six turns the "after" layout costs $0.0391 against $0.0655 (input alone: $0.0151 against $0.0415, 64% less), and the model processes 4,780 input tokens instead of 20,730. <span class="ill">Illustrative</span> token counts; checked in <code>src/recompute.py</code>. Real caveats: a cache entry lives 5 minutes unless used (or 1 hour at a higher write price), there is a minimum cacheable length (512 to 4,096 tokens by model on Anthropic), and an entry "only becomes available after the first response begins", so parallel requests sent at once all miss.</p>
+</div>
+<p>Two production details decide whether prefix caching pays. First, <b>the request must reach a machine that has the prefix</b>: provider caches live on individual machines (OpenAI: traffic "above 15 requests per minute" on one prefix "can lead to overflow routing"; a <code>prompt_cache_key</code> helps it route), and for self-hosted pools this is the job of the prefix-aware router in section 4 and of Character.AI's sticky sessions, which reached a "95% cache rate" (parent's Case files). Second, <b>prompts must be append-only</b>: anything that changes per request (time, user name, retrieved documents, a shuffled tool list) goes after everything that does not.</p>
+<div class="cost"><div class="t">What caches cost</div>Memory and a lookup on every request; invalidation when a model or prompt version changes (put both in the key); per-tenant scoping (section 6), which lowers hit rates; and, for semantic caches, wrong answers. <b>When not to:</b> answers that depend on the user, on time or on live data must not come from a response or semantic cache; prefix caching is almost always worth it.</div>
+</section>
