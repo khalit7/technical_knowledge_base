@@ -1,0 +1,41 @@
+<section id="rd-s2">
+<h2>2. From text to terms</h2>
+<p>Before anything can be indexed, text must be cut into the units a search compares. This step is called <dfn id="g-analysis">analysis</dfn> (Lucene and Elasticsearch) or parsing plus dictionaries (Postgres), and it runs twice: when a document is stored and when a query arrives. If the two runs differ, nothing matches.</p>
+<ol class="steps">
+<li><b>Tokenise</b>: split the text into <dfn id="g-token">tokens</dfn>, usually words, numbers and some punctuation-aware pieces (an email address, a hyphenated word, a URL).</li>
+<li><b>Normalise</b>: lower-case, and often strip accents, so "Market" and "market" are one term.</li>
+<li><b>Drop <dfn id="g-stop">stop words</dfn></b>: very common words ("the", "is", "how", "do") that appear in almost every text and carry little meaning. Postgres's English configuration drops 127 of them from its <code>english.stop</code> list.</li>
+<li><b>Stem</b>: cut endings so "investing", "invested" and "invests" become the same <dfn id="g-lexeme">lexeme</dfn> <code>invest</code>. A <dfn id="g-stem">stemmer</dfn> applies suffix rules, the classic being {{Porter (1980)|https://tartarus.org/martin/PorterStemmer/}}, now usually its successor Snowball; it can produce non-words ("stori" for "story"). <dfn id="g-lemma">Lemmatisation</dfn> instead looks words up in a dictionary to return the real base form ("better" to "good"); it is slower and language-specific ({{Manning, Raghavan and Schuetze, section 2.2.4|https://nlp.stanford.edu/IR-book/html/htmledition/stemming-and-lemmatization-1.html}}).</li>
+</ol>
+<p>Here is what PostgreSQL 18.6 actually does to one stored question, printed by its <code>ts_debug</code> function <span class="meas">measured</span>:</p>
+<div class="tw" id="tsDebug"></div>
+<p>Postgres stores the result as a <dfn id="g-tsvector">tsvector</dfn>, a sorted list of lexemes with their word positions: <code class="fx" id="tsVec"></code>. A query is turned into a <dfn id="g-tsquery">tsquery</dfn> by the same rules, with operators: <code>&amp;</code> (and), <code>|</code> (or), <code>!</code> (not) and <code>&lt;-&gt;</code> (followed by). <code>plainto_tsquery('english', 'how do I invest in the share market')</code> gives <code class="fx" id="tsPlain"></code>: stop words gone, every remaining word required.</p>
+<div class="co warn"><div class="t">The language setting is a silent default</div>Stemming rules are per language. Postgres picks the configuration from <code>default_text_search_config</code>, which initdb sets from the server's locale; the built-in fallback is <code>simple</code>, which lower-cases but neither stems nor drops stop words ({{PostgreSQL docs, 12.1 and 19.11|https://www.postgresql.org/docs/18/textsearch-intro.html}}). Always name the configuration in both the index and the query (<code>to_tsvector('english', body)</code>): an index built under one configuration is not used by a query written under another, and results change if a server's default differs.</div>
+</section>
+
+<section id="rd-s3">
+<h2>3. The inverted index, built step by step</h2>
+<p>A book's index at the back maps a word to the pages where it appears. An <dfn id="g-inv">inverted index</dfn> is the same thing for a database: a <b>dictionary</b> of every term, and for each term a <dfn id="g-postings">postings list</dfn>, the sorted list of document ids that contain it, usually with how often (term frequency) and where (positions). It is "inverted" because a document maps to its words, and the index maps each word back to its documents.</p>
+<p>The animation builds one for six real questions from the dataset, then answers the running query. Toggle <b>LIKE scan</b> to see the same query without an index.</p>
+<div class="card" id="invCard">
+<div class="seg" id="invSeg"><button data-m="index" class="on">Inverted index</button><button data-m="like">LIKE scan, no index</button></div>
+<div id="invBox"></div>
+<div class="an-cap" id="invCap"></div>
+<div class="an-cnt" id="invCnt"></div>
+<div class="an-ctl" id="invCtl"></div>
+<p class="small mute">Lexemes and positions printed by Postgres <code>to_tsvector('english', ...)</code> for six real Quora questions <span class="meas">measured</span>; ranking in the last step uses the BM25 formula of section 4.</p>
+</div>
+<p><b>Why it is fast.</b> A query reads a handful of postings lists instead of every text. On the full table, counting the questions that mention "diamond" <span class="meas">measured</span>:</p>
+<div class="tw nomin"><table>
+<thead><tr><th>Query</th><th>Plan</th><th class="num">Rows</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td><code>body ILIKE '%diamond%'</code></td><td>sequential scan, one process</td><td class="num">@@like_rows@@</td><td class="num">@@like_ms@@ ms</td></tr>
+<tr><td>the same</td><td>parallel sequential scan, 3 processes</td><td class="num">@@like_rows@@</td><td class="num">@@like_par_ms@@ ms</td></tr>
+<tr><td>the same</td><td>pg_trgm GIN index (section 5)</td><td class="num">@@like_rows@@</td><td class="num">@@like_trgm_ms@@ ms</td></tr>
+<tr><td><code>tsv @@ to_tsquery('english', 'diamond')</code></td><td>full-text GIN index</td><td class="num">@@fts_rows@@</td><td class="num">@@fts_ms@@ ms</td></tr>
+</tbody></table></div>
+<p>The answers differ by one row because a substring is not a word: <code>ILIKE</code> also matched "TheDiamondMinecart", a channel name that the tokeniser keeps as one word. Words match "diamonds" too (stemming), substrings only by luck of spelling. A trigram index (section 5) is the way to make arbitrary <code>LIKE '%...%'</code> fast when you truly need substrings.</p>
+<p><b>How real engines store postings.</b> Ids in a postings list are sorted, so engines store the gaps between them (5, 9, 12 becomes 5, 4, 3) in as few bits as each gap needs; common words compress best. Lucene adds skip data so an AND query can jump through a long list instead of reading it all ({{Lucene postings format|https://lucene.apache.org/core/10_5_0/core/org/apache/lucene/codecs/lucene104/package-summary.html}}). Postgres stores postings inside a <dfn id="g-gin">GIN</dfn> (generalized inverted) index: a B-tree over the terms whose leaf entries hold the posting list, or a pointer to a posting tree when the list is long; "GIN indexes are the preferred text search index type" ({{PostgreSQL docs, 12.9|https://www.postgresql.org/docs/18/textsearch-indexes.html}}). GiST can also index a <code>tsvector</code>, but it stores a fixed-size signature per document, so it is lossy and every hit must be rechecked.</p>
+<div class="cost"><div class="t">What it cost here</div>Adding the stored <code>tsvector</code> column to the 522,931-row table took @@add_tsv_s@@ s and @@tsv_mb@@ MB; building the GIN index took @@gin_s@@ s and @@gin_mb@@ MB for @@lexemes@@ distinct lexemes <span class="meas">measured</span>. Every insert must now add an entry to the postings list of each of its words; GIN softens that with a pending list merged later (the {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}} page explains GIN's pending list and fastupdate).</div>
+<div class="deepnote"><b>Inverted indexes are LSM-shaped in search engines.</b> Lucene never edits an index file in place: new documents go to a new small <b>segment</b>, deletes are marks, and segments are merged in the background, the same write pattern as the LSM-trees taught on {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}. Section 6 shows what that means for freshness.</div>
+</section>

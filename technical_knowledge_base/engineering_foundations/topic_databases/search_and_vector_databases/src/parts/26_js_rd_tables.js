@@ -1,0 +1,47 @@
+// ---- Reading: measured outputs and tables drawn from SV (src/inputs/*.json via build_data.py), and the glossary ----
+(function(){
+  const $=id=>document.getElementById(id),esc=RD.esc,D=SV.demo||{},A=SV.ann||{};
+  const set=(id,h)=>{const e=$(id);if(e)e.innerHTML=h};
+  if(D.ts_debug)set('tsDebug','<table class="mini"><tr><th>Token type</th><th>Token</th><th>Dictionary used</th><th>Lexeme kept</th></tr>'+
+    D.ts_debug.filter(r=>r[0]!=='blank').map(r=>'<tr><td>'+esc(r[0])+'</td><td class="key">'+esc(r[1])+'</td><td>'+esc(r[2])+'</td><td>'+(r[3]==='{}'?'<span class="mute">dropped (stop word)</span>':r[3]==null?'<span class="mute">none</span>':esc(r[3]))+'</td></tr>').join('')+'</table>');
+  set('tsVec',esc(D.to_tsvector||''));set('tsPlain',esc(D.plainto||''));set('tsPhrase',esc(D.phraseto||''));set('tsWeb',esc(D.websearch||''));set('tsTrgm',esc(D.show_trgm||''));
+  if(D.typo_trgm_top)set('trgmTab','<table class="mini"><tr><th>Question found by trigram similarity to "kohinor diamnd"</th><th>Word similarity</th></tr>'+D.typo_trgm_top.map(r=>'<tr><td>'+esc(r[0])+'</td><td class="num">'+(+r[1]).toFixed(3)+'</td></tr>').join('')+'</table>');
+  if(SV.tiny)set('embDims','['+SV.tiny.first_dims.map(x=>x.toFixed(4)).join(', ')+', ...]');
+  const f3=x=>x.toFixed(3),ms=x=>x>=10?x.toFixed(1):x.toFixed(2);
+  if(A.hnsw){let h='<table><thead><tr><th>Index and setting</th><th class="num">Recall@10</th><th class="num">Median ms</th><th class="num">p95 ms</th><th class="num">Index MB</th><th class="num">Build s</th></tr></thead><tbody>';
+    h+='<tr><td>Exact scan (no index)</td><td class="num">'+f3(A.exact.recall)+'</td><td class="num">'+ms(A.exact.p50_ms)+'</td><td class="num">'+ms(A.exact.p95_ms)+'</td><td class="num">0</td><td class="num">0</td></tr>';
+    const H=A.hnsw.m16_efc64;H.curve.forEach(c=>{h+='<tr'+(c.ef_search===40?' class="hl"':'')+'><td>HNSW m 16, ef_search '+c.ef_search+(c.ef_search===40?' (defaults)':'')+'</td><td class="num">'+f3(c.recall10)+'</td><td class="num">'+ms(c.p50_ms)+'</td><td class="num">'+ms(c.p95_ms)+'</td><td class="num">'+(H.bytes/1e6).toFixed(0)+'</td><td class="num">'+H.build_s.toFixed(1)+'</td></tr>'});
+    const V=A.ivf.lists523;V.curve.filter(c=>[1,8,23,64].includes(c.probes)).forEach(c=>{h+='<tr><td>IVFFlat 523 lists, probes '+c.probes+'</td><td class="num">'+f3(c.recall10)+'</td><td class="num">'+ms(c.p50_ms)+'</td><td class="num">'+ms(c.p95_ms)+'</td><td class="num">'+(V.bytes/1e6).toFixed(0)+'</td><td class="num">'+V.build_s.toFixed(1)+'</td></tr>'});
+    set('measTab',h+'</tbody></table><p class="small mute">All settings and the m 8 and m 32 builds are in the ANN lab tab.</p>')}
+  if(A.quant){const Q=A.quant;let h='<table><thead><tr><th>Index</th><th>Setting</th><th class="num">Recall@10</th><th class="num">Median ms</th><th class="num">Index MB</th><th class="num">Build s</th></tr></thead><tbody>';
+    const H=A.hnsw.m16_efc64;h+='<tr><td>HNSW on vector (float32)</td><td>ef_search 40</td><td class="num">'+f3(H.curve[2].recall10)+'</td><td class="num">'+ms(H.curve[2].p50_ms)+'</td><td class="num">'+(H.bytes/1e6).toFixed(0)+'</td><td class="num">'+H.build_s.toFixed(1)+'</td></tr>';
+    Q.halfvec.curve.forEach(c=>{h+='<tr><td>HNSW on halfvec</td><td>ef_search '+c.ef_search+'</td><td class="num">'+f3(c.recall10)+'</td><td class="num">'+ms(c.p50_ms)+'</td><td class="num">'+(Q.halfvec.bytes/1e6).toFixed(0)+'</td><td class="num">'+Q.halfvec.build_s.toFixed(1)+'</td></tr>'});
+    Q.binary.curve.forEach(c=>{h+='<tr><td>HNSW on binary (bit)</td><td>'+esc(c.mode)+'</td><td class="num">'+f3(c.recall10)+'</td><td class="num">'+ms(c.p50_ms)+'</td><td class="num">'+(Q.binary.bytes/1e6).toFixed(0)+'</td><td class="num">'+Q.binary.build_s.toFixed(1)+'</td></tr>'});
+    set('quantTab',h+'</tbody></table>')}
+  if(A.filter){let h='<table><thead><tr><th>Filter keeps</th><th>Method</th><th class="num">Rows returned (of 10)</th><th class="num">Queries with 0 rows</th><th class="num">Recall@10</th><th class="num">Median ms</th></tr></thead><tbody>';
+    const NM={hnsw_post_filter:'HNSW, iterative scan off (post-filter)',hnsw_strict:'HNSW, iterative_scan = strict_order',hnsw_relaxed:'HNSW, iterative_scan = relaxed_order',btree_prefilter_exact:'B-tree on tenant, then exact (pre-filter)',planner_default:'Planner\'s choice with both indexes, iterative off'};
+    ['tenant','tenant10'].forEach(c=>{const F=A.filter[c];if(!F)return;Object.keys(NM).forEach(k=>{const r=F[k];if(!r)return;
+      h+='<tr><td>'+(100*F.share_of_rows).toFixed(0)+'% of rows</td><td>'+NM[k]+'</td><td class="num">'+r.rows_mean.toFixed(2)+'</td><td class="num">'+(100*r.zero_rows_share).toFixed(1)+'%</td><td class="num">'+f3(r.recall10)+'</td><td class="num">'+ms(r.p50_ms)+'</td></tr>'})});
+    set('filtTab',h+'</tbody></table>')}
+  if(SV.rel){const R=SV.rel,NM={fts_and:'Postgres full-text, all words (plainto_tsquery, ts_rank)',fts_or:'Postgres full-text, any word (ts_rank)',bm25_pg:'BM25 on the same Postgres lexemes',vector:'Vector, exact cosine',hnsw:'Vector, HNSW (ef_search 100)',rrf_bm25_vec:'Hybrid: RRF of BM25 and vector',rrf_sql:'Hybrid in one SQL statement: RRF of ts_rank and HNSW'};
+    let h='<table><thead><tr><th>Retriever</th><th class="num">Quora nDCG@10</th><th class="num">Quora recall@10</th><th class="num">SciFact nDCG@10</th><th class="num">SciFact recall@10</th></tr></thead><tbody>';
+    Object.keys(NM).forEach(k=>{const a=R.quora.scores[k],b=R.scifact.scores[k];h+='<tr'+(k==='rrf_bm25_vec'?' class="hl"':'')+'><td>'+NM[k]+'</td><td class="num">'+f3(a.ndcg10)+'</td><td class="num">'+f3(a.recall10)+'</td><td class="num">'+f3(b.ndcg10)+'</td><td class="num">'+f3(b.recall10)+'</td></tr>'});
+    set('hybTab',h+'</tbody></table><p class="small mute">BM25 here uses k1 0.9 and b 0.4 (Anserini\'s BEIR values) over Postgres\'s English lexemes. The evaluation page\'s own runs on SciFact, with a Lucene-style tokeniser, gave BM25 '+R.cross.bm25+', all-MiniLM-L6-v2 '+R.cross.dense+' and RRF '+R.cross.hybrid+' nDCG@10 (<a href="https://app.notion.com/p/3ef5c17b0d0d8194a914d1843ee26f13" target="_blank" rel="noopener noreferrer">RAG and retrieval evaluation</a>); the dense run is the same model and data, and this page\'s run gives '+R.scifact.scores.vector.ndcg10.toFixed(3)+', an independent reproduction. BM25 differs slightly because the tokenisers differ.</p>')}
+  // glossary: every <dfn id="g-..."> on the Reading tab, with the sentence it was defined in
+  const G={'g-vector':'an ordered list of numbers; here, the output of an embedding model','g-embedding':'a neural network that maps a text (or image) to a vector so that similar meanings get nearby vectors',
+    'g-knn':'finding the k stored vectors closest to a query vector; exact when every distance is computed','g-ann':'an index that finds most of the nearest neighbours while looking at a small part of the data',
+    'g-recall':'of the true k nearest (or relevant) items, the share returned in the top k','g-ivf':'an index that clusters vectors with k-means and searches only the closest clusters (probes)',
+    'g-ivfflat':'pgvector\'s IVF index, storing full vectors in each list; knobs lists and ivfflat.probes','g-pq':'compressing a vector by splitting it into parts and storing each part as the id of its nearest learned centroid',
+    'g-hnsw':'hierarchical navigable small world: a layered graph of neighbours searched greedily from the top layer down; knobs m, ef_construction, ef_search',
+    'g-diskann':'a single-layer graph index (Vamana) designed to live on SSD with compressed vectors in RAM','g-scann':'Google\'s ANN library; quantises vectors to preserve inner-product ranking',
+    'g-quant':'storing each number of a vector in fewer bits (float16, int8, 1 bit), trading accuracy for memory','g-iter':'pgvector 0.8+ setting that keeps scanning an HNSW or IVFFlat index until enough rows pass the WHERE clause',
+    'g-bm25':'the standard lexical ranking formula: idf times saturating term frequency, normalised by document length (k1, b)','g-segment':'in Lucene, an immutable mini inverted index; new data makes new segments, merges combine them',
+    'g-analysis':'turning text into index terms: tokenising, normalising, dropping stop words, stemming','g-token':'one unit cut from text, usually a word or number',
+    'g-stop':'a very common word (the, is, how) dropped before indexing','g-lexeme':'the normalised, stemmed form of a word that Postgres stores and matches',
+    'g-stem':'a rule-based function cutting word endings (investing to invest)','g-lemma':'reducing a word to its dictionary base form using a vocabulary (better to good)',
+    'g-tsvector':'Postgres type holding a document\'s sorted lexemes with positions','g-tsquery':'Postgres type holding a search condition over lexemes with &, |, ! and <->',
+    'g-inv':'an index from each term to the list of documents containing it','g-postings':'for one term, the sorted list of documents (with frequencies and positions) that contain it',
+    'g-gin':'Postgres\'s generalized inverted index, the preferred index for tsvector, arrays and jsonb','g-rrf':'merging ranked lists by summing 1 / (k + rank) over the lists, k = 60 by default'};
+  const gl=[...document.querySelectorAll('#t-read dfn[id^="g-"]')].map(d=>[d.textContent,d.id,G[d.id]||'']).sort((a,b)=>a[0].localeCompare(b[0]));
+  set('glossList',gl.map(g=>'<div><b><a href="#'+g[1]+'">'+esc(g[0])+'</a></b>: '+esc(g[2])+'</div>').join(''));
+})();

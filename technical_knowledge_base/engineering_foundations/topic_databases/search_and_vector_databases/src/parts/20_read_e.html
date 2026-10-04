@@ -1,0 +1,62 @@
+<section id="rd-s10">
+<h2>10. Measured: recall against latency in pgvector</h2>
+<p>The same measurement every team should run on its own data, done here on the 522,931 questions: for 1,000 test questions, the exact top 10 (computed outside the database), then each index at several settings, recording recall@10 and the latency of the full SQL query from a client on the same machine (second pass, so caches are warm; <code>shared_buffers</code> 4 GB holds the table and every index) <span class="meas">measured</span>.</p>
+<pre class="sql"><span class="k">CREATE INDEX</span> q_hnsw <span class="k">ON</span> q <span class="k">USING</span> hnsw (embedding vector_cosine_ops);   <span class="c">-- m 16, ef_construction 64</span>
+<span class="k">SET</span> hnsw.ef_search = 40;                                          <span class="c">-- per session, or SET LOCAL per transaction</span>
+<span class="k">SELECT</span> id <span class="k">FROM</span> q <span class="k">ORDER BY</span> embedding &lt;=&gt; $1 <span class="k">LIMIT</span> 10;</pre>
+<div class="tw" id="measTab"></div>
+<p>What the numbers say:</p>
+<ul class="tight">
+<li><b>HNSW at its defaults is about @@speedup@@ times faster than exact search</b> (@@hnsw40_p50@@ ms against @@exact_p50@@ ms median) and returns @@hnsw40_rec_pct@@% of the true top 10. Its query plan read @@hnsw_buf@@ pages from memory, against @@exact_buf@@ for the exact scan.</li>
+<li><b>ef_search is the dial.</b> From 10 to 640, recall rose from @@hnsw10_rec@@ to @@hnsw640_rec@@ while latency grew about @@ef_growth@@ times. Past about 0.99 each extra point of recall costs more than the last.</li>
+<li><b>m changes the curve, not just a point.</b> m 8 builds in @@m8_build@@ s but tops out lower (@@m8_640@@ at ef_search 640); m 32 with ef_construction 128 took @@m32_build@@ s to build and reached @@m32_40@@ already at ef_search 40. The defaults sit in between.</li>
+<li><b>IVFFlat needs many probes.</b> With 523 lists (rows / 1000), 1 probe gave recall @@ivf1_rec@@; reaching @@ivf23_rec@@ took 23 probes (&radic;lists) at @@ivf23_p50@@ ms, slower than HNSW at higher recall. It built in @@ivf_build@@ s against @@hnsw_build@@ s for HNSW.</li>
+<li><b>Size.</b> The HNSW index was @@hnsw_mb@@ MB, about @@hnsw_bpv@@ bytes per vector: the 1,544-byte vector is copied into the index, plus its links. IVFFlat was @@ivf_mb@@ MB.</li>
+</ul>
+<p>{{ANN lab|#t-ann}} plots all of these as curves with the knobs, plus the quantised variants of section 11 and a memory calculator for your own sizes.</p>
+<div class="corr"><div class="t">Re-based on a measurement</div>The old page's latency row "HNSW ANN query, 1M vectors, in memory: 1 to 5 ms" was unconfirmed. Measured here at 523k vectors of 384 dimensions: @@hnsw40_p50@@ ms median, @@hnsw40_p95@@ ms p95 at the defaults, including the client round trip. Time per query grows slowly with N for HNSW (roughly with log N, per the paper) and linearly with dimensions, so a 1M by 1,536 table will be several times slower; measure it.</div>
+</section>
+
+<section id="rd-s11">
+<h2>11. Quantisation: smaller vectors</h2>
+<p>Memory is what makes vector search expensive at scale, and most of it is the vectors themselves. <dfn id="g-quant">Quantisation</dfn> stores each number in fewer bits:</p>
+<div class="tw nomin"><table>
+<thead><tr><th>Form</th><th>Bits per number</th><th>Size of a 1,536-d vector</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>float32 (<code>vector</code>)</td><td>32</td><td>6,144 bytes</td><td>the model's output</td></tr>
+<tr><td>float16 (<code>halfvec</code>, pgvector 0.7.0+)</td><td>16</td><td>3,072 bytes (2&times; smaller)</td><td>a very small recall loss (measured below); also lifts HNSW's limit from 2,000 to 4,000 dimensions</td></tr>
+<tr><td>int8 (scalar quantisation)</td><td>8</td><td>1,536 bytes (4&times;)</td><td>Elasticsearch's default before BBQ; Qdrant, Milvus; not in pgvector</td></tr>
+<tr><td>binary (<code>bit</code>, <code>binary_quantize</code>)</td><td>1</td><td>192 bytes (32&times;)</td><td>keeps only the sign of each number; Hamming distance; re-rank with full vectors</td></tr>
+<tr><td>PQ codes</td><td>about 0.5</td><td>96 bytes (64&times;)</td><td>section 9</td></tr>
+</tbody></table></div>
+<p>Measured on the 522,931 questions (indexes on an expression, so the table keeps full float32 vectors for re-ranking) <span class="meas">measured</span>:</p>
+<div class="tw" id="quantTab"></div>
+<p><b>Binary quantisation needs re-ranking, and a model that tolerates it.</b> Alone, the 1-bit index found @@bin_rec@@ of the true top 10: 384 signs keep too little of a small model's meaning. Fetching more candidates by Hamming distance and re-ordering them by the full vectors recovers recall (@@bin100_rec@@ with 100 candidates, @@bin400_rec@@ with 400). Hugging Face's measurements on larger models report about 96% of retrieval quality kept with re-scoring and 32&times; less memory, and int8 keeping about 99% ({{blog, 2024-03-22|https://huggingface.co/blog/embedding-quantization}}); results depend strongly on the model, so measure.</p>
+<pre class="sql"><span class="k">CREATE INDEX ON</span> q <span class="k">USING</span> hnsw ((binary_quantize(embedding)::bit(384)) bit_hamming_ops);
+<span class="k">SELECT</span> id <span class="k">FROM</span> (
+  <span class="k">SELECT</span> id, embedding <span class="k">FROM</span> q
+  <span class="k">ORDER BY</span> binary_quantize(embedding)::bit(384) &lt;~&gt; binary_quantize($1) <span class="k">LIMIT</span> 100  <span class="c">-- needs hnsw.ef_search &gt;= 100</span>
+) s <span class="k">ORDER BY</span> embedding &lt;=&gt; $1 <span class="k">LIMIT</span> 10;</pre>
+<p><b>Matryoshka dimensions.</b> Some models are trained with {{Matryoshka Representation Learning|https://arxiv.org/abs/2205.13147}} (Kusupati et al., NeurIPS 2022) so that the first 256 or 512 numbers of a vector are themselves a usable embedding. OpenAI's text-embedding-3 models expose this as a <code>dimensions</code> parameter (1,536 by default for -small, 3,072 for -large); its docs state that "a text-embedding-3-large embedding can be shortened to a size of 256 while still outperforming an unshortened text-embedding-ada-002 embedding with a size of 1536" ({{OpenAI docs|https://developers.openai.com/api/docs/guides/embeddings}}). In pgvector, index a prefix with <code>subvector(embedding, 1, 256)::vector(256)</code> and re-rank with the full vector. all-MiniLM-L6-v2 was not trained this way, so it was not tested here. Note that 3,072 dimensions exceed HNSW's 2,000 limit for <code>vector</code>: index them as <code>halfvec</code> or shortened.</p>
+</section>
+
+<section id="rd-s12">
+<h2>12. Filtered search: where vector indexes break</h2>
+<p>Real queries carry conditions: "nearest questions <b>from this workspace</b>", "documents this user may see", "created this year". An ANN index orders by distance only; it knows nothing about <code>tenant_id</code>. There are three ways to combine them, shown on the toy with a 10% filter:</p>
+<div class="card" id="fltCard">
+<div class="seg" id="fltSeg"><button data-m="post" class="on">Post-filter</button><button data-m="iter">Iterative scan</button><button data-m="pre">Pre-filter (B-tree, then exact)</button></div>
+<div class="anbox" id="fltSvg"></div>
+<div class="an-cap" id="fltCap"></div>
+<div class="an-cnt" id="fltCnt"></div>
+<div class="an-ctl" id="fltCtl"></div>
+</div>
+<ul class="tight">
+<li><b>Post-filter</b>: search the ANN index for the top candidates, then drop those that fail the condition. Fast, but if the condition keeps 1% of rows, the 40 candidates of a default HNSW scan hold on average 0.4 matching rows ({{pgvector README, Filtering|https://github.com/pgvector/pgvector#filtering}}). This is what pgvector did before 0.8.0, and still does with iterative scans off.</li>
+<li><b>Pre-filter</b>: use an ordinary index to find the matching rows, then compute exact distances over just those. Exact and fast when the filter is selective; a brute-force scan of most of the table when it is not.</li>
+<li><b>Filter during the search</b>: skip non-matching nodes while walking the graph but keep walking until enough matches are found. pgvector 0.8.0 (2024-10-30) added <dfn id="g-iter">iterative index scans</dfn>: <code>hnsw.iterative_scan = strict_order</code> or <code>relaxed_order</code> resumes the scan until enough rows pass, up to <code>hnsw.max_scan_tuples</code> (20,000 by default). Qdrant evaluates the filter while traversing and adds extra links per indexed payload value so filtered regions stay connected, and switches to a plain scan of the matching points below a size threshold ({{Qdrant indexing docs|https://qdrant.tech/documentation/concepts/indexing/}}); Weaviate's ACORN strategy (added in 1.27, default since 1.34) does a similar thing.</li>
+</ul>
+<p>Measured on the 522,931 questions, 1,000 test queries, each with a filter on a synthetic <code>tenant</code> column (row id modulo 100, so 1% of rows; and modulo 10, 10%), HNSW at defaults, recall against the exact filtered top 10 <span class="meas">measured</span>:</p>
+<div class="tw" id="filtTab"></div>
+<p>@@filt_text@@</p>
+<div class="co"><div class="t">What to do in pgvector</div><ul class="tight"><li>Turn on iterative scans for any filtered vector query: <code>SET hnsw.iterative_scan = relaxed_order;</code> (wrap in a materialised CTE and re-sort if exact order matters, as the README shows).</li><li>Keep a B-tree on the filter column so pre-filtering is possible, but do not trust the planner to pick it: here, with the B-tree present and iterative scans off, it chose the HNSW index for the 1% filter on every query and returned @@plan_rows@@ rows on average (<code>EXPLAIN ANALYZE</code> showed <i>Rows Removed by Filter: 41</i> and <i>rows=0</i>) <span class="meas">measured</span>. The planner does not know the index scan stops at ef_search candidates. Check the plan, and force the pre-filter with a materialised CTE when you know the filter is selective.</li><li>For a few large tenants, a <b>partial index</b> per tenant (<code>CREATE INDEX ... WHERE tenant_id = 7</code>); for many tenants, <b>list partitioning</b> by tenant so each partition has its own small index. pgvector's README notes that a shared index lets one tenant's vectors affect another's recall and speed.</li></ul></div>
+</section>
