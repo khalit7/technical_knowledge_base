@@ -1,0 +1,141 @@
+"""Write coverage.json: every fact, number, caveat and link in live.md (the old Notion page, 22 Sep 2026), where the HTML
+carries it, and whether it was carried, corrected or dropped. Each entry's `find` string must occur in ../index.html
+(checked here). Run after build.sh: python3 mk_coverage.py"""
+import json, re, html as H
+
+page = H.unescape(re.sub(r'<[^>]+>', ' ', open('../index.html').read()))
+page = re.sub(r'\s+', ' ', page)
+C = []
+
+
+def c(fid, fact, where, find, status='carried', note=''):
+    C.append({'id': fid, 'fact': fact, 'where': where, 'find': find, 'status': status, 'note': note})
+
+
+# header and best resources
+c('meta', '11 min read, +7h 30m resources', 'README', 'Further reading', 'superseded', 'Reading time recomputed for the new page (see README).')
+c('r1', 'MMLU paper (45 min); MMLU-Pro (45 min)', 'Further reading', 'MMLU paper (Hendrycks et al., 2020) (45 min)')
+c('r2', 'GPQA paper (45 min); Epoch GPQA Diamond tracker (~10 min)', 'Further reading', 'Epoch AI GPQA Diamond tracker (about 10 min)')
+c('r3', 'HLE paper (45 min); lastexam.ai and Scale labs (~10 min each)', 'Further reading', 'lastexam.ai and Scale Labs (about 10 min each)')
+c('r4', 'FutureHouse (~15 min); HLE-Verified (45 min)', 'Further reading', 'HLE-Verified (2026) (45 min)')
+c('r5', 'Chollet 2019 (90 min, 60+ pages); ARC Prize site (~20 min)', 'Further reading', '(90 min, 60+ pages)')
+c('r6', 'MMLU-Redux / Are We Done with MMLU? (45 min)', 'Further reading', 'Are We Done with MMLU?" (MMLU-Redux, 2024) (45 min)')
+c('r7', 'Expert re-grading of six physics benchmarks (25 min)', 'Further reading', 'Expert re-grading of six physics benchmarks (2026) (25 min)')
+# MMLU
+c('m1', 'MMLU 2020: 15,908 four-option MCQs, 57 subjects', 'Reading: MMLU', 'paper reports 15,908 questions')
+c('m2', 'scraped from exams and study guides', 'Reading: MMLU', 'practice questions for the GRE', 'corrected', 'Collected by hand by students from free online practice exams and course material (the paper), not scraped.')
+c('m3', 'historically 5-shot without CoT; modern 0-shot CoT', 'Reading: MMLU', 'Base models were scored 5-shot')
+c('m4', 'random chance 25%', 'Reading: how graded', '25% for MMLU and GPQA')
+c('m5', "defined 2021-2023 comparisons; GPT-4's 86.4% headline", 'Reading: MMLU', '86.4% GPT-4, 5-shot')
+c('m6', 'MMLU-Redux re-annotated 5,700 questions across all 57 subjects; ~6.5% contain an error', 'Reading: MMLU; Fix the key', '5,700 in all')
+c('m7', 'counts every defect type, so the wrong-gold rate alone is lower', 'Reading: MMLU', 'only 106 of 5,700 (1.86%) are a wrong gold label', 'carried', 'Now quantified from the dataset.')
+c('m8', 'virology ~57% flawed', 'Reading: MMLU; Fix the key', '57 of 100 sampled virology questions are flawed')
+c('m9', 'contamination: public web sources, verbatim and paraphrase overlap widespread', 'Reading: MMLU', 'The questions sit on the public web')
+c('m10', 'frontier average ~92%+ in 2026', 'Reading: MMLU correction box', 'has no 2026 source', 'corrected', 'No 2026 card reports MMLU; highest independent row 88.1% (5-shot); 92.3% is o1 (2024, lab).')
+c('m11', 'remaining headroom mostly errata', 'Reading: MMLU status', 'the gap between frontier models is answer-key noise')
+c('m12', 'retired as a discriminator; still a mid-training sanity check', 'Reading: MMLU status', 'Still a cheap smoke test during training')
+# MMLU-Pro
+c('p1', 'MMLU-Pro 2024: 12K harder questions', 'Reading: MMLU-Pro', 'Total: 12,032 questions')
+c('p2', '10 options, chance 10%', 'Reading: MMLU-Pro', 'chance falls to 10%')
+c('p3', 'requires CoT; CoT beats direct by up to ~20 points, the reverse of MMLU', 'Reading: MMLU-Pro table', '+19.1')
+c('p4', 'cleaned of many MMLU trivia items', 'Reading: MMLU-Pro', 'drop 5,886 questions')
+c('p5', 'frontier high-80s to low-90s', 'Reading: MMLU-Pro', '91.16% (Gemini 3.1 Pro')
+c('p6', 'saturating at the top, still useful for mid-tier and open-weight', 'Reading: MMLU-Pro correction box', 'saturated and legacy since early 2026', 'corrected')
+# SimpleQA
+c('s1', 'SimpleQA (2024, OpenAI)', 'Reading: SimpleQA', 'SimpleQA OpenAI, November 2024')
+c('s2', 'factual reliability rather than knowledge breadth', 'Reading: one screen and SimpleQA', 'Factual reliability and abstention')
+c('s3', '4,326 short-form questions', 'Reading: SimpleQA', '4,326 short fact-seeking questions')
+c('s4', 'graded correct / incorrect / not attempted', 'Reading: SimpleQA; Grade it yourself', 'labels each answer correct, incorrect or not attempted')
+c('s5', 'used to report hallucination and abstention', 'Reading: SimpleQA correction', 'Abstention and hallucination remain the reason to run it')
+c('s6', 'still active because calibration remains unsolved', 'Reading: SimpleQA correction box', 'the original SimpleQA is unmaintained', 'corrected', 'Live version is SimpleQA Verified (1,000 items).')
+# GPQA
+c('g1', 'GPQA 2023: 448 questions, biology, physics, chemistry, written by PhD-holders', 'Reading: GPQA', 'Main set: at least one expert agrees')
+c('g2', 'skilled non-experts with web ~34%', 'Reading: GPQA', 'non-experts reach 34% with the web')
+c('g3', 'experts ~65-74%', 'Reading: GPQA', 'Experts reach 65% on the extended set, 74%')
+c('g4', 'Diamond 198: both experts correct, most non-experts wrong', 'Reading: GPQA funnel', 'Diamond: both experts right, at most one non-expert right')
+c('g5', 'Diamond is the number everyone reports', 'Reading: GPQA funnel', 'it is the subset every card reports')
+c('g6', '4-option MCQ; sensitive to option-order shuffles; good reports average over permutations', 'Reading: GPQA', 'careful harnesses shuffle and average over permutations')
+c('g7', 'GPT-4 ~36% (2023)', 'Reading: GPQA trajectory', 'GPT-4 (March 2023) 35.7%')
+c('g8', 'o1 ~78% (2024)', 'Reading: GPQA correction', "Epoch's run of o1 (high) gives 76.8%", 'corrected', 'Old figure unconfirmed; Epoch run shown.')
+c('g9', 'frontier ~92-95% by mid-2026', 'Reading: GPQA trajectory', 'Gemini 3.1 Pro Preview (February 2026) 94.4%')
+c('g10', 'Gemini 3.1 Pro ~95%, GPT-5.4 ~92%, Claude Opus 4.6 ~91%', 'Reading: GPQA correction box', 'were unsourced lab-style figures', 'corrected')
+c('g11', 'saturated by Sep 2026 (GPT-6 Astra 96.0%)', 'Reading: GPQA correction box', '95.8% (GPT-6 Astra, max)', 'corrected')
+c('g12', 'dropped from AA Intelligence Index v4.2 (4 Sep 2026); AA-Briefcase and GDP.pdf replaced it; private held-out sets 40% of weight', 'Reading: GPQA status', 'private held-out sets rose to 40% of the index weight')
+c('g13', 'above ~90% remaining errors overlap disputed items; a few percent of gold labels contested', 'Reading: GPQA status; residuals', "a few percent of GPQA Diamond's keys disputed")
+c('g14', 'best single MCQ discriminator for 60-90%; stays on model cards', 'Reading: GPQA status', 'good discriminator between 60% and 90%')
+c('g15', '198 questions: wide binomial bars; 2-point gap is noise; 95% CI about +/-4', 'Reading: GPQA format traps', 'about ±4.2 points')
+# HLE
+c('h1', 'CAIS + Scale AI, ~2,500 questions', 'Reading: HLE', '2,500 made the public set')
+c('h2', 'from ~70K submissions', 'Reading: HLE', 'Over 70,000 such attempts', 'corrected', '70,000 logged attempts against models, about 13,000 questions reviewed.')
+c('h3', '~1,000 contributors', 'Reading: HLE', 'Nearly 1,000 subject experts')
+c('h4', 'selected because late-2024 frontier models failed them', 'Reading: HLE', 'each had to stump frontier models')
+c('h5', 'math ~40%', 'Reading: HLE', 'about 40% by the old page', 'carried', 'Marked unconfirmed (figure is an image).')
+c('h6', '~14% multimodal', 'Reading: HLE', '14% need an image')
+c('h7', 'mix of exact-answer and MCQ', 'Reading: HLE', 'About 24% are multiple choice')
+c('h8', 'LLM judge: GPT-4o originally, o3-mini-class later', 'Reading: HLE grading', 'o3-mini (2025-01-31) judges correctness')
+c('h9', 'private held-out split detects overfitting', 'Reading: HLE', 'A private held-out set measures overfitting')
+c('h10', 'reports calibration error; models confidently wrong', 'Reading: HLE grading', 'RMS calibration error: above 70%')
+c('h11', 'launch SOTA ~9% (early 2025)', 'Reading: HLE grading', 'At launch o1 scored 9.1%')
+c('h12', '~25-30% by mid-2025 (with tools)', 'Reading: HLE scores; tools chart', '25.3% (GPT-5, August 2025)', 'carried', 'Plus Grok 4 26.9% / 44% with tools (July 2025) on the tools chart.')
+c('h13', '~46% no-tools SOTA official leaderboard Aug 2026; tool-augmented 55-65% on aggregators', 'Reading: HLE correction box', "Scale's board now shows 54.8%", 'corrected')
+c('h14', 'always check tools/no-tools protocol', 'Reading: HLE tools section', 'A tools effect is a property of set, harness and blocklist')
+c('h15', 'FutureHouse ~29% of text-only chem/bio answers contradicted', 'Reading: HLE answer key', '29.3 ± 3.7% contradicted by peer-reviewed literature')
+c('h16', "Scale's own review ~18% expert disagreement overall", 'Reading: HLE correction box', 'the 18% is the HLE team', 'corrected')
+c('h17', '~50% supported, ~30% contradicted, ~20% nuanced', 'Reading: HLE answer key', '51.3 ± 4.1% supported and 19.3 ± 3.2% nuanced')
+c('h18', 'HLE-Verified revised the set down to 668 clean items', 'Reading: HLE correction box; Fix the key', '668 is only the verified-as-is part', 'corrected')
+c('h19', 'models gain 30-40 points on items whose statement or key was wrong', 'Reading: HLE; Fix the key', 'gained 29.9 to 39.6 points')
+c('h20', 'unsolved residue partly unfixable noise; effective ceiling below 100%', 'Reading: residuals', 'an apparent ceiling below 100% may be the answer key')
+c('h21', 'headline frontier reasoning number of 2025-26; deltas on the same harness more meaningful than absolute values', 'Reading: HLE status', 'compare models on the same harness')
+# ARC
+c('a1', "Chollet's ARC: few-shot induction of novel grid transformation rules", 'Reading: ARC', 'Abstraction and Reasoning Corpus follows from it')
+c('a2', 'skill-acquisition efficiency (fluid intelligence) rather than stored knowledge', 'Reading: ARC', 'fluid rather than crystallised intelligence')
+c('a3', 'every task novel, contamination structurally limited, format can be trained for', 'Reading: ARC', 'the format itself can be trained for, and was')
+c('a4', 'ARC-AGI-1 (2019): 800 public + private eval tasks', 'Reading: ARC-AGI-1 correction box', '400 training and 400 public evaluation tasks, plus 100 semi-private and 100 private', 'corrected')
+c('a5', 'metric: % solved with 2 attempts', 'Reading: ARC-AGI-1 format', 'within two attempts (pass@2)')
+c('a6', 'GPT-class models ~0-5% for years', 'Reading: ARC-AGI-1 history', 'not re-verified here', 'carried', 'Marked not re-verified.')
+c('a7', 'program-synthesis hybrids ~30-40%', 'Reading: ARC-AGI-1 history', 'hovered around 34%', 'carried', 'Now with the 2020 (20%) and 2024 (53.5%, 55.5%) competition results.')
+c('a8', 'o3 75.7% (semi-private, $ capped) and 87.5% (unlimited compute), Dec 2024', 'Reading: ARC-AGI-1', '87.5% at 172 times the compute')
+c('a9', 'effectively ended it as a frontier target', 'Reading: ARC-AGI-1 correction box', "o3's 75.7% was below the 98% human panel", 'corrected')
+c('a10', 'score per dollar became part of reporting', 'Reading: ARC intro', 'publishes cost per task beside every score')
+c('a11', 'small transformer from scratch, ~1.5 h on one RTX 5090, ~67 cents, 44% ARC-AGI-1, 7% ARC-AGI-2, beats many LLMs, matches TRM and HRM', 'Reading: ARC-AGI-1', 'beating many LLMs on that set and matching the TRM and HRM')
+c('a12', 'frontier ARC-AGI-3 run costs tens of thousands of dollars; method and sample efficiency matter as much as scale', 'Reading: ARC-AGI-1', 'method and sample efficiency account for as much of an ARC number as scale does')
+c('a13', 'ARC-AGI-2 (2025): same format, calibrated so humans solve them', 'Reading: ARC-AGI-2', 'Same format, built to remove')
+c('a14', 'avg human ~66%, panels ~100%', 'Reading: ARC-AGI-2 correction box', '66% is the share of attempted test pairs solved', 'corrected')
+c('a15', '2024-era reasoners ~1-4%', 'Reading: ARC-AGI-2 trajectory', 'o3 preview 4.0% at $200 a task')
+c('a16', 'prize target 85% within Kaggle compute limits', 'Reading: ARC-AGI-2 prize rules', 'needs 85% on the private set inside Kaggle')
+c('a17', '~4% (mid-2025)', 'Reading: ARC-AGI-2 correction box', 'by July 2025 Grok 4 had 16.0%', 'corrected')
+c('a18', 'Gemini 3 Deep Think ~85% (Feb 2026)', 'Reading: ARC-AGI-2 trajectory', 'Gemini 3 Deep Think 84.6%')
+c('a19', 'high-80s/low-90s for GPT-5.6-class and Opus-5-class by Aug 2026', 'Reading: ARC-AGI-2 trajectory', 'GPT-5.6 Sol 92.5% (July)')
+c('a20', 'official leaderboard lower (high-60s) because of cost caps and protocol', 'Reading: ARC-AGI-2 correction box', 'the official board now reads 95.0%', 'corrected')
+c('a21', '"ARC-AGI-2 solved" claims: leaderboards differ in compute, retries, public vs semi-private', 'Reading: mistakes', 'Comparing a public-set ARC score with a leaderboard score')
+c('a22', 'ARC-AGI-3 launched 2026-03-25: interactive turn-based games; explore, infer goal, plan without instructions', 'Reading: ARC-AGI-3', 'no instructions, rules or stated goals')
+c('a23', 'metric: % environments completed', 'Reading: ARC-AGI-3 correction box', 'the metric is RHAE', 'corrected')
+c('a24', 'humans 100%, frontier at launch <1%', 'Reading: ARC-AGI-3', 'Frontier AI scores 0.51%')
+c('a25', '~30% on a default harness by Aug 2026 (Claude Opus 5)', 'Reading: ARC-AGI-3 correction box', '30.2% is Claude Opus 5', 'corrected')
+c('a26', 'research scaffolds reach 95.5 to 100%', 'Reading: ARC-AGI-3', "Prime Agent's 95.5% with Claude Opus 5 is the best of three runs")
+c('a27', 'since Sep 2026 ARC Prize publishes two labelled harness results per model', 'Reading: ARC-AGI-3', 'Since September 2026 ARC Prize labels two harnesses per model')
+c('a28', 'never quote an ARC-AGI-3 score without its harness', 'Reading: mistakes', 'Quoting an ARC-AGI-3 score without harness and effort')
+c('a29', 'worked case in Topic: benchmarks', 'Reading: ARC-AGI-3 chart caption', "compiled in the root's Same model, many numbers tab")
+c('a30', 'ARC Prize 2026 runs a $2M pool across ARC-AGI-2/3 tracks', 'Reading: ARC-AGI-3', 'offers over $2,000,000')
+# residuals
+c('d1', 'defect rates: ~6.5% MMLU, ~29% HLE chem/bio, a few percent GPQA Diamond', 'Reading: residuals', 'Every benchmark above carries an item-defect rate')
+c('d2', 'physics re-grading: wrong keys, ambiguous questions and grader bugs explain most failures; cleaned suites near-saturated', 'Reading: residuals', '143 were benchmark errors, 95 grader errors and only 12 model errors')
+c('d3', 'residual mixes model failure and item defect; defects concentrate in the hard tail', 'Reading: residuals', 'defects gather in exactly the hard tail')
+c('d4', 'ceiling may be the key; rankings reorder on a cleaned set; HLE-Verified gains are the same effect', 'Reading: residuals; Fix the key', 'rankings can reorder on a cleaned set')
+c('d5', 'next bar: harder human-written exams, not another leaderboard on the same pipeline', 'Reading: residuals', 'the next bar has to be harder, human-written exams')
+c('d6', 'link: re-grading paper page and arXiv 2609.13009 (25 min)', 'Reading: residuals; Further reading', 'arXiv 2609.13009')
+# what to use
+c('u1', 'frontier: HLE (errata), ARC-AGI-3, GPQA Diamond for the sub-frontier band', 'Reading: what to use', 'Frontier expert knowledge')
+c('u2', 'regression: MMLU-Pro subsets cheap and stable; full MMLU only as a smoke test', 'Reading: what to use', 'MMLU-Pro subsets; MMLU only as a smoke test')
+c('u3', 'never compare across harnesses without checking shots, CoT, tools, extraction regex, MCQ option shuffling; see Benchmark methodology (now folded into the root)', 'Reading: what to use', 'Never compare across harnesses without checking shots')
+c('mention_root', 'mention: Topic: benchmarks', 'header, many places', 'Part of Topic: benchmarks')
+c('mention_method', 'mention: Benchmark methodology page (3c65c17b0d0d8143abd0e126338fb9dd)', 'Reading: what to use', 'What a number leaves out', 'carried', 'That page is folded into the root; linked by section name.')
+
+missing = [x['id'] for x in C if x['find'] not in page]
+for x in C:
+    x['found'] = x['find'] not in [] and x['find'] in page
+counts = {}
+for x in C:
+    counts[x['status']] = counts.get(x['status'], 0) + 1
+json.dump({'source': 'live.md (Notion fetch of 22 Sep 2026)', 'counts': counts, 'items': C}, open('coverage.json', 'w'), indent=1, ensure_ascii=False)
+print(len(C), 'items', counts, 'missing in HTML:', missing)
