@@ -1,0 +1,44 @@
+
+<section id="rd-var">
+<h2>2. Where the variance comes from: items, samples, and the thermostat</h2>
+<p>Miller splits each item's score into a mean and a random part, s<sub>i</sub> = x<sub>i</sub> + ε<sub>i</sub>: x<sub>i</sub> is what the model would average on item i if asked forever, ε<sub>i</sub> is this particular sample's luck. By the law of total variance the error of the eval mean has two parts:</p>
+<div class="fm"><div class="eq">Var(μ̂) = ( Var(x) + E[σ<sub>i</sub>²] / K ) / n</div>
+<dl><dt>Var(x)</dt><dd>how much items differ in difficulty for this model: a property of the item population, fixed once the eval is chosen</dd><dt>E[σ<sub>i</sub>²]</dt><dd>the average within-item variance: how much one item's score moves between samples (for 0/1 scores, the mean of x<sub>i</sub>(1 − x<sub>i</sub>))</dd><dt>K</dt><dd>samples per item, averaged per item before averaging over items (Miller §3.1)</dd></dl></div>
+<p>Only the second part can be bought down without new items. Miller's worked case, difficulty uniform on [0, 1], has Var(x) = 1/12 and E[σ²] = 1/6, so the variance with K samples is (1 + 2/K)/3 of the single-sample variance: K = 2 cuts it by a third, K = 4 by half, K = 6 by 5/9, and no K can cut more than 2/3. Two other routes:</p>
+<ul class="tight">
+<li><b>Next-token probabilities</b> remove ε altogether when the answer is a single token and there is no chain of thought: score item i by the probability of the right token, p<sub>i</sub>. In the uniform case that is the full 2/3 reduction. Anthropic's post said it knew of no open-source framework implementing it (November 2024).</li>
+<li><b>"Don't touch the thermostat!"</b> Lowering the temperature to 0 also removes ε, but by rounding each item to 0 or 1 it moves the variance into Var(x) and can shift the mean: in Miller's example a uniform x at T = 1 becomes a coin at T = 0 and the irreducible variance triples, 1/12 to 1/4; in his second example the mean moves from 2/3 to 3/4 and Var(x) grows from 1/27 to 3/16. Change the temperature only to study the model at that temperature.</li>
+</ul>
+<p>The same decomposition on the RACE-H run <i class="nl r">real data</i>: the chart shows, for each model, the standard error of its accuracy under four scorings of the same <span class="esv" data-k="race_n"></span> questions. The K curve is Miller's formula fed with the measured Var(x) and E[σ²]; the dots are what seeded sampling actually gives.</p>
+<div class="card" id="rd-var-card">
+<div class="seg" id="rd-var-m"><button data-m="0" class="on">Model A</button><button data-m="1">Model B</button></div>
+<div id="rd-var-svg" class="rd-svg"></div>
+<div class="an-cnt" id="rd-var-cnt"></div>
+<p class="small mute" id="rd-var-cap"></p>
+</div>
+<p><b>Noise the item standard error does not see.</b> The formula above treats the model as fixed. Several other sources move a score just as much, and none of them shrinks with more items:</p>
+<ul class="tight">
+<li><b>Training seed.</b> Madaan et al. trained ten 7B models identical except for the initialisation seed ({{arXiv:2406.10229|https://arxiv.org/abs/2406.10229}}, Meta, 2024). Their Table 1 sets the spread across seeds beside the 95% item interval of one model; seed noise is "generally ... well below the 95% CI" (table below). Two models that differ only in a data choice are therefore compared at the seed scale, which needs more than the item interval to see.</li>
+<li><b>Checkpoint to checkpoint.</b> Heineman et al. ({{"Signal and Noise", arXiv:2508.13144|https://arxiv.org/abs/2508.13144}}, Ai2, 2025) see a 1.7-point range on ARC Challenge across the final 30 checkpoints of one 1B run, define noise as the relative standard deviation of the final checkpoints, and find that a benchmark's signal-to-noise ratio predicts whether small-scale rankings hold at scale (R = 0.791).</li>
+<li><b>Decoding seeds and hardware.</b> Hochlehnert et al. ({{"A Sober Look at Progress in Language Model Reasoning", arXiv:2504.07086|https://arxiv.org/abs/2504.07086}}) report pass@1 standard deviations of 5 to 15 points across 20 seeds on AIME'24 and AMC'23, and the same model at 7.3% ± 3.8 on one cluster and 11.3% ± 3.6 on another with identical containers.</li>
+<li><b>Prompt, harness and grader.</b> Not variance in the statistical sense: they change what is measured. The parent topic's {{Same model, many harnesses|n:3c65c17b0d0d8181b351e1b8fc6a1546}} tab shows the spreads; a comparison is only paired if both sides used the same setup.</li>
+</ul>
+<div class="tw"><table id="rd-mad"></table></div>
+<p class="small mute">Madaan et al. Table 1, selected rows: seed mean and standard deviation across the ten final 7B models, and their "95% CI", the average of 210 analytic half-widths 1.96·√(S(1 − S)/N) over every checkpoint. The last column recomputes that formula at the final seed mean <i class="nl d">derived</i>; it differs where early checkpoints scored lower (HumanEval).</p>
+</section>
+
+<section id="rd-clu">
+<h2>3. Clustered errors: when items are not independent draws</h2>
+<p>The CLT assumes each item was drawn independently. Many evals draw groups: several questions about one passage (DROP, QuAC, RACE, SQuAD), one question translated into many languages (MGSM), many variants of one template (GSM-Symbolic), tasks from a few repositories, turns of one conversation, chunks of one document. Items in a group rise and fall together, so n of them carry less information than n independent items. Miller's clustered standard error (Eq. 4, from the econometrics of {{Abadie et al.|https://doi.org/10.1093/qje/qjac038}}) adds the within-cluster cross terms:</p>
+<div class="fm"><div class="eq">SE<sub>clustered</sub>² = SE<sub>CLT</sub>² + (1/n²) Σ<sub>c</sub> Σ<sub>i</sub> Σ<sub>j≠i</sub> (s<sub>i,c</sub> − s̄)(s<sub>j,c</sub> − s̄)</div>
+<dl><dt>c</dt><dd>a cluster; the triple sum runs over pairs of different items in the same cluster. Equivalently SE<sub>clustered</sub> = √(Σ<sub>c</sub> (Σ<sub>i∈c</sub>(s<sub>i,c</sub> − s̄))²) / n</dd></dl></div>
+<p>It slides between the two extremes: if the items in a cluster are uncorrelated it equals the plain standard error; if they always agree, each cluster counts as one item. For planning, the textbook shortcut is the design effect 1 + (m − 1)ρ for clusters of m items with intra-cluster correlation ρ (variance multiplier; the {{calculator|#t-size}} has it).</p>
+<div class="tw"><table id="rd-clu-tab"></table></div>
+<p class="small mute" id="rd-clu-cap"></p>
+<ul class="tight">
+<li><b>Cluster on how the items were drawn,</b> not on any grouping you can find: the passage, the template, the conversation, the source document. If items were sampled one by one, do not cluster.</li>
+<li><b>The opposite mistake:</b> counting repeated runs of the same item as separate items. MathArena's "±" counts 4 runs of 30 AIME problems as 120 independent answers; its sibling page {{Math benchmarks|n:3ef5c17b0d0d81ec942edf0040a2f596}} ("Error bars on 30 problems") reproduces all 123 table rows and finds the problem-level interval a median 1.7 times wider. Miller states the rule: "computing a pooled standard error across all KN answers will be inconsistent".</li>
+<li><b>Tools.</b> Inspect's <code>stderr(cluster="...")</code> implements Eq. 4 with a finite-cluster factor C/(C − 1) that the paper does not have ({{std.py|https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/scorer/_metrics/std.py}}, read 4 October 2026); for 400 clusters it widens the standard error by about 0.1%. lm-evaluation-harness reports a closed-form standard error of the mean and bootstraps a few metrics ({{metrics.py|https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/api/metrics.py}}); we found no clustering option there.</li>
+<li><b>Small n and clusters together</b> are hard: Bowyer et al. find that neither the plain nor the clustered CLT interval reaches its stated coverage with few items, and fit a Beta-Binomial hierarchical model instead (their Section 3.2, with code).</li>
+</ul>
+</section>
