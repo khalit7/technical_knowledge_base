@@ -10,7 +10,7 @@ Facts the Reading tab leans on or links to. Old pages are the floor; corrected f
 - RocketEval: checklist 5 to 10 binary questions; P(Yes)/(P(Yes)+P(No)); Qwen2-1.5B 36.4% CoT vs 40.1% direct, 70.3% with GPT-4o analysis; $27.70 Gemma-2-2B vs $3,400 GPT-4o for 1,000 WildBench tests; Spearman with Arena Elo 0.965 vs 0.979 (Mistral-Nemo 0.986); instance agreement 57.9% vs 66.6% vs 64.7% human ceiling. (Check against the paper page.)
 - Calibration: Critique Shadowing (Hamel Husain); report Cohen's kappa not raw accuracy; inter-annotator 75 to 85% on open-ended tasks; TPR/FPR correction (arXiv:2511.21140); reliability vs validity (arXiv:2606.19544: self-consistent yet systematically wrong).
 - Juries: PoLL (arXiv:2404.18796) beats single GPT-4 judge at about 7 to 8x lower cost; RoPoLL (arXiv:2606.30931) geometric median; escalation cheap jury, frontier judge, human.
-- Meta-evals: JudgeBench (arXiv:2410.12784) best frontier judges about 64%, fine-tuned judges and RMs 55 to 64%; RewardBench 2 (arXiv:2506.01937).
+- Meta-evals: JudgeBench (arXiv:2410.12784; corrected 2026-10-04 against the paper, the old page's "about 64%" for the best frontier judges was stale): with the Arena-Hard judge prompt GPT-4o scores 56.57%, o3-mini (high) 80.9% (v2 Table 2); multi-agent debate does not buy points there: ChatEval (GPT-4o) scores 34.0% against 56.57% for single GPT-4o (v2 Table 1; src/judges/inputs/judgebench_v2_T1.tsv); RewardBench 2 (arXiv:2506.01937).
 - Fine-tuned judges (Prometheus 2, Glider, Selene, JudgeLM), reward models, agent-as-judge.
 - Operational checklist of 7 items.
 
