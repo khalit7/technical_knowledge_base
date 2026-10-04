@@ -1821,3 +1821,18 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/measure
 | 9 | BBQ bias-score calculator | 1 | 1 | 1 | 0 | 1 | 0 | 1 | 0 | 0 | | | rejected: the two formulas in text suffice; set is saturated |
 | 10 | Threshold ladder chart (RSP, Preparedness, FSF) | 0 | 0 | 0 | 1 | 1 | 1 | 2 | 0 | 0 | | | rejected: a table carries it better |
 | 11 | Re-draw saturation curves for TruthfulQA, Cybench | | | | | | | | | | | | rejected: the root's Saturation timeline owns trajectories |
+
+### Human preference and arenas (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/measurement/topic_benchmarks/human_preference_and_arenas/src/viz_ideas.md`.
+
+| Rank | Idea | Score (teach / data / cost) | Placement | Data |
+|---|---|---|---|---|
+| 1 | Style control step by step on all 2024 votes: plain, + length, + markdown, then LMArena's published board (before/after, rows slide) | 5/5/4 | Reading, animation | public log of 26 Aug 2024 (1.76M votes), FastChat code reimplemented; coefficients reproduce the published 0.249/0.024/0.031/0.019 |
+| 2 | Same votes, two raters: online Elo (K = 4) against Bradley-Terry, in time, reversed and shuffled order (before/after method) | 5/5/4 | Reading, animation | 6,000-vote sample, ten models |
+| 3 | Fit the votes: Bradley-Terry with style features, online Elo with K and order, ties, vote count, sandwich against bootstrap, against LMArena's full-data rating | 5/5/3 | Tab | same sample; full-data published ratings |
+| 4 | Today's board through three published lenses (raw, style control, factuality) with rank spreads, rows sliding between lenses, 12 categories | 5/5/4 | Tab | Arena leaderboard-dataset, latest split (2 Oct 2026) |
+| 5 | Intervals and rank spreads for the top 15 (Arena's rule computed over all 413 models) | 4/5/5 | Reading | same |
+| 6 | Best-of-N private variants: expected inflation σ·E[max of N], checked against Arena's "+11 after 50 tests and 3000 votes" | 4/4/5 | Reading, widget | σ from a real CI on the Oct 2026 board; exact integral |
+| 7 | Arena score against the AA Intelligence Index for 35 matched models, Spearman overall and frontier only | 4/4/4 | Reading | leaderboard-dataset; topic_llms aa_snapshot.json |
+| 8 | Null model against best real entry on three judge boards | 3/4/5 | Reading | arXiv 2410.07137; board readings |
