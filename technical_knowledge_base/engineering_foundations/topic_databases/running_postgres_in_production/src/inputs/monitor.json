@@ -1,0 +1,71 @@
+{
+ "machine": {
+  "cpu": "Apple M1 Pro",
+  "ram_gb": 16,
+  "os": "macOS-27.0.1-arm64-arm-64bit",
+  "date": "2026-10-05"
+ },
+ "version": "16.2 (pgserver wheel)",
+ "steps": [
+  {
+   "step": "runaway_find",
+   "cmd": "SELECT pid, usename, state, now() - query_start AS running_for, wait_event, left(query, 40) AS query\nFROM pg_stat_activity WHERE state <> 'idle' AND pid <> pg_backend_pid() ORDER BY query_start LIMIT 5;",
+   "out": "pid  | usename | state  |   running_for   | wait_event |                  query                   \n-------+---------+--------+-----------------+------------+------------------------------------------\n 17749 | app     | active | 00:00:04.012598 |            | SELECT count(*) FROM messages a JOIN mes\n(1 row)",
+   "secs": null
+  },
+  {
+   "step": "runaway_cancel",
+   "cmd": "SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE pid = <pid>;  -- the app sees:",
+   "out": "canceling statement due to user request",
+   "secs": null
+  },
+  {
+   "step": "statement_timeout",
+   "cmd": "ALTER ROLE app SET statement_timeout = '2s';  -- then the same query again",
+   "out": "canceling statement due to statement timeout",
+   "secs": 2.01
+  },
+  {
+   "step": "idle_states",
+   "cmd": "SELECT state, count(*), max(now() - state_change) AS longest FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid() GROUP BY state ORDER BY 2 DESC;",
+   "out": "state        | count |     longest     \n---------------------+-------+-----------------\n idle in transaction |     6 | 00:00:02.035658\n idle                |     4 | 00:00:02.016654\n(2 rows)",
+   "secs": null
+  },
+  {
+   "step": "idle_timeout",
+   "cmd": "ALTER ROLE app SET idle_in_transaction_session_timeout = '3s';  -- a new session opens a transaction, waits 4.5 s, then:",
+   "out": "terminating connection due to idle-in-transaction timeout",
+   "secs": null
+  },
+  {
+   "step": "lock_queue",
+   "cmd": "SELECT pid, pg_blocking_pids(pid) AS blocked_by, wait_event_type, now() - query_start AS waiting, left(query, 38) AS query\nFROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0 OR pid IN (SELECT unnest(pg_blocking_pids(a.pid)) FROM pg_stat_activity a)\nORDER BY query_start;",
+   "out": "pid  | blocked_by | wait_event_type |     waiting     |                 query                  \n-------+------------+-----------------+-----------------+----------------------------------------\n 18111 | {}         | Client          | 00:00:02.528472 | SELECT count(*) FROM users\n 18114 | {18111}    | Lock            | 00:00:02.520366 | ALTER TABLE users ADD COLUMN locale te\n 18143 | {18114}    | Lock            | 00:00:01.50802  | SELECT email FROM users WHERE id = 7\n 18144 | {18114}    | Lock            | 00:00:01.50639  | SELECT email FROM users WHERE id = 7\n 18145 | {18114}    | Lock            | 00:00:01.505183 | SELECT email FROM users WHERE id = 7\n(5 rows)",
+   "secs": null
+  },
+  {
+   "step": "stat_database",
+   "cmd": "SELECT numbackends, xact_commit, xact_rollback, round(100.0 * blks_hit / nullif(blks_hit + blks_read, 0), 2) AS cache_hit_pct,\n deadlocks, temp_files, pg_size_pretty(temp_bytes) AS temp_bytes, pg_size_pretty(pg_database_size(datname)) AS size\nFROM pg_stat_database WHERE datname = 'chat';",
+   "out": "numbackends | xact_commit | xact_rollback | cache_hit_pct | deadlocks | temp_files | temp_bytes |  size  \n-------------+-------------+---------------+---------------+-----------+------------+------------+--------\n           1 |      248926 |            10 |         95.31 |         0 |          4 | 41 MB      | 267 MB\n(1 row)",
+   "secs": null
+  },
+  {
+   "step": "stat_tables",
+   "cmd": "SELECT relname, n_live_tup, n_dead_tup, round(100.0 * n_dead_tup / nullif(n_live_tup + n_dead_tup, 0), 1) AS dead_pct,\n seq_scan, idx_scan, last_autovacuum IS NOT NULL AS autovacuumed\nFROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 5;",
+   "out": "relname  | n_live_tup | n_dead_tup | dead_pct | seq_scan | idx_scan | autovacuumed \n----------+------------+------------+----------+----------+----------+--------------\n chats    |     100000 |          6 |      0.0 |        2 |  1124443 | f\n messages |    1124437 |          0 |      0.0 |        5 |   124441 | f\n users    |      10000 |          0 |      0.0 |        2 |   100003 | f\n geo      |         18 |          0 |      0.0 |        1 |          | f\n(4 rows)",
+   "secs": null
+  },
+  {
+   "step": "biggest",
+   "cmd": "SELECT relname, relkind, pg_size_pretty(pg_total_relation_size(c.oid)) AS total\nFROM pg_class c WHERE relnamespace = 'public'::regnamespace AND relkind IN ('r', 'i') ORDER BY pg_total_relation_size(c.oid) DESC LIMIT 6;",
+   "out": "relname        | relkind |  total  \n-----------------------+---------+---------\n messages              | r       | 249 MB\n messages_chat_created | i       | 51 MB\n messages_pkey         | i       | 24 MB\n chats                 | r       | 10 MB\n chats_pkey            | i       | 2208 kB\n users                 | r       | 1192 kB\n(6 rows)",
+   "secs": null
+  },
+  {
+   "step": "waldir",
+   "cmd": "SELECT count(*) AS wal_files, pg_size_pretty(sum(size)) AS wal_size FROM pg_ls_waldir();",
+   "out": "wal_files | wal_size \n-----------+----------\n        23 | 368 MB\n(1 row)",
+   "secs": null
+  }
+ ]
+}

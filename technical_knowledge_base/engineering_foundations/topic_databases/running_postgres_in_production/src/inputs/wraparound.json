@@ -1,0 +1,74 @@
+{
+ "machine": {
+  "cpu": "Apple M1 Pro",
+  "ram_gb": 16,
+  "os": "macOS-27.0.1-arm64-arm-64bit",
+  "date": "2026-10-04"
+ },
+ "version": "16.2 (pgserver wheel)",
+ "steps": [
+  {
+   "step": "prepared",
+   "cmd": "SELECT gid, prepared, transaction FROM pg_prepared_xacts;",
+   "out": "gid    |           prepared            | transaction \n-----------+-------------------------------+-------------\n refund-42 | 2026-10-04 22:45:13.099171+00 |         732\n(1 row)",
+   "secs": null
+  },
+  {
+   "step": "resetwal",
+   "cmd": "pg_resetwal -x 2,144,484,070 -D data   (oldestXID in pg_controldata: 722)",
+   "out": "Write-ahead log reset",
+   "secs": null,
+   "oldest": 722,
+   "target": 2144484070
+  },
+  {
+   "step": "warning",
+   "cmd": "INSERT INTO credits VALUES (10001, 100);",
+   "out": "WARNING:  database \"template0\" must be vacuumed within 3000299 transactions\nHINT:  To avoid a database shutdown, execute a database-wide VACUUM in that database.\nYou might also need to commit or roll back old prepared transactions, or drop stale replication slots.",
+   "secs": null
+  },
+  {
+   "step": "refused",
+   "cmd": "INSERT INTO credits VALUES (...);  -- one at a time until refused",
+   "out": "308 more inserts succeeded, then:\nERROR:  database is not accepting commands to avoid wraparound data loss in database \"postgres\"\nHINT:  Stop the postmaster and vacuum that database in single-user mode.\nYou might also need to commit or roll back old prepared transactions, or drop stale replication slots.",
+   "secs": null,
+   "more": 308
+  },
+  {
+   "step": "reads_ok",
+   "cmd": "SELECT count(*) FROM credits;  -- reads still work",
+   "out": "count \n-------\n 10309\n(1 row)",
+   "secs": null
+  },
+  {
+   "step": "ages",
+   "cmd": "SELECT datname, age(datfrozenxid) AS xid_age, round(100.0 * age(datfrozenxid) / 2147483648, 1) AS pct_of_limit FROM pg_database ORDER BY 2 DESC;",
+   "out": "datname  |  xid_age   | pct_of_limit \n-----------+------------+--------------\n postgres  | 2144483647 |         99.9\n chat      | 2144483647 |         99.9\n template1 | 2144483647 |         99.9\n template0 | 2144483647 |         99.9\n(4 rows)",
+   "secs": null
+  },
+  {
+   "step": "holders",
+   "cmd": "-- what is holding the oldest transaction ID back?\nSELECT 'prepared xact' AS what, gid AS name, age(transaction) AS xid_age FROM pg_prepared_xacts\nUNION ALL SELECT 'session', pid::text, age(backend_xmin) FROM pg_stat_activity WHERE backend_xmin IS NOT NULL AND pid <> pg_backend_pid()\nUNION ALL SELECT 'slot', slot_name, greatest(age(xmin), age(catalog_xmin)) FROM pg_replication_slots ORDER BY 3 DESC NULLS LAST;",
+   "out": "what      |   name    |  xid_age   \n---------------+-----------+------------\n prepared xact | refund-42 | 2144483647\n(1 row)",
+   "secs": null
+  },
+  {
+   "step": "autovac_log",
+   "cmd": "server log (autovacuum keeps trying)",
+   "out": "WARNING:  cutoff for removing and freezing tuples is far in the past\nDETAIL:  The table's relfrozenxid or relminmxid is too far in the past.",
+   "secs": null
+  },
+  {
+   "step": "fix",
+   "cmd": "ROLLBACK PREPARED 'refund-42';  -- in database chat; then VACUUM (FREEZE) in each database",
+   "out": "datname  | xid_age | pct_of_limit \n-----------+---------+--------------\n template0 |     288 |          0.0\n postgres  |      11 |          0.0\n chat      |      11 |          0.0\n template1 |      11 |          0.0\n(4 rows)",
+   "secs": 0.36
+  },
+  {
+   "step": "writes_back",
+   "cmd": "INSERT INTO credits VALUES (99999, 1);",
+   "out": "INSERT 0 1",
+   "secs": null
+  }
+ ]
+}

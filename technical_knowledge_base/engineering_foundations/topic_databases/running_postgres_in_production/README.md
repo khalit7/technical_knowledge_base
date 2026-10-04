@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3ef5c17b0d0d8149a0c9d3e2083ed0de (child of Topic: databases)
 
-New page (2026-10-04). Being built as an interactive page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). What an on-call engineer needs for a Postgres database, taught from zero: what breaks, RPO and RTO, logical and physical backups, WAL archiving and point-in-time recovery (pgBackRest, WAL-G, Barman), streaming replication, slots, synchronous standbys, logical replication, failover with Patroni and fencing, split brain and pg_rewind, autovacuum and HOT, VACUUM against VACUUM FULL, transaction ID wraparound, connection cost and PgBouncer pitfalls, timeouts, pg_upgrade and logical-replication upgrades, security basics, monitoring and alerts, managed services compared (dated prices), common mistakes. Every output shown was produced on local PostgreSQL 16.2 and 17.11 servers and PgBouncer 1.24.1 by the scripts in `src/lab/`. Tabs: Reading, Incident lab (10 alerts with real diagnosis output), Lab notebook (all 70 transcripts), Production checklist, Further reading. New page (2026-10-04); no child pages, databases or video.

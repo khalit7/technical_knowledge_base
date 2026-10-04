@@ -1,0 +1,101 @@
+<section id="rd-s10">
+<h2>10. Security basics</h2>
+<p>A database is where the valuable data is, so it gets the narrowest door. Four layers, from outside in:</p>
+<ul>
+<li><b>Network.</b> The database has no public IP address; only the application's subnet (and a bastion or VPN for humans) can reach port 5432.</li>
+<li><b>Who may connect, and how: <code>pg_hba.conf</code>.</b> Each line is <code>type database user address method</code>, read top to bottom, first match wins ({{pg_hba.conf docs|https://www.postgresql.org/docs/18/auth-pg-hba-conf.html}}). Use <code>hostssl</code> lines (TLS required) and <code>scram-sha-256</code> passwords, the default since PostgreSQL 14; MD5 passwords are deprecated and PostgreSQL 18 warns when one is set ({{18 release notes|https://www.postgresql.org/docs/18/release-18.html}}).</li>
+<li><b>Encryption in transit.</b> <code>ssl = on</code> on the server, and <code>sslmode=verify-full</code> on clients so they also check the server's certificate (anything weaker can be intercepted).</li>
+<li><b>Least privilege.</b> A <dfn>role</dfn> is a user or a group; give each kind of client its own role with only what it needs. The application should not own the tables, and nothing should run as a superuser.</li>
+</ul>
+<pre class="code"># pg_hba.conf: TLS from the app subnet, SCRAM passwords; nothing else gets in
+hostssl  chat  app,migrator  10.20.0.0/16  scram-sha-256
+hostssl  chat  +readonly     10.30.0.0/24  scram-sha-256
+host     all   all           0.0.0.0/0     reject
+
+-- roles: the migration role owns the schema, the app only reads and writes rows
+CREATE ROLE migrator LOGIN;                         -- runs schema migrations, owns the tables
+CREATE ROLE app LOGIN;                              -- the web service
+CREATE ROLE readonly NOLOGIN;                       -- a group for analysts and dashboards
+GRANT CONNECT ON DATABASE chat TO app, readonly;
+GRANT USAGE ON SCHEMA public TO app, readonly;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly;
+ALTER DEFAULT PRIVILEGES FOR ROLE migrator IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app;   -- tables created later too
+ALTER DEFAULT PRIVILEGES FOR ROLE migrator IN SCHEMA public GRANT SELECT ON TABLES TO readonly;</pre>
+<p class="small mute">Subnets and role names are <span class="ill">illustrative</span>. Since PostgreSQL 15 ordinary roles can no longer create objects in the <code>public</code> schema by default ({{15 release notes|https://www.postgresql.org/docs/15/release-15.html}}).</p>
+<p>Two more layers when the product needs them. <b>Row-level security</b> makes the database itself filter rows by tenant or user, so a bug in one query cannot leak another customer's chats; it is taught with the chat schema on {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}} ({{RLS docs|https://www.postgresql.org/docs/18/ddl-rowsecurity.html}}). <b>Auditing</b> (the pgaudit extension, or the managed service's audit log) records who read or changed what. Least privilege also limits mistakes: the GitLab engineer in section 3 could delete a data directory because one account could do everything everywhere; a role without <code>DELETE</code> on a table cannot run the 14:03 statement at all. Keep credentials in a secret manager, rotate them, and give humans individual named roles so the log says who did it.</p>
+</section>
+
+<section id="rd-s11">
+<h2>11. Monitoring: the numbers that warn you</h2>
+<p>Every incident in section 2 except a sudden hardware failure is visible hours or days in advance in a handful of numbers. The general method (metrics, logs, traces, alerting on symptoms) is on {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}; for a database, the four <dfn>golden signals</dfn> (latency, traffic, errors, saturation, from {{Google's SRE book|https://sre.google/sre-book/monitoring-distributed-systems/}}) map to these sources:</p>
+<div class="tw"><table>
+<thead><tr><th>Signal</th><th>For Postgres</th><th>Where it comes from</th></tr></thead>
+<tbody>
+<tr><td><b>Latency</b></td><td>Query time, per normalised query</td><td><code>pg_stat_statements</code> (needs <code>shared_preload_libraries</code>: {{docs|https://www.postgresql.org/docs/18/pgstatstatements.html}}) and the application's own histograms; the slow-query workflow is on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}</td></tr>
+<tr><td><b>Traffic</b></td><td>Transactions per second, rows read and written</td><td><code>pg_stat_database</code> (<code>xact_commit</code>, <code>tup_inserted</code>, ...), as rates</td></tr>
+<tr><td><b>Errors</b></td><td>Rollbacks, deadlocks, failed connections, log errors</td><td><code>pg_stat_database</code> (<code>xact_rollback</code>, <code>deadlocks</code>), the server log</td></tr>
+<tr><td><b>Saturation</b></td><td>Connections used, CPU, IO, disk, replication lag, retained WAL, transaction ID age, dead tuples</td><td><code>pg_stat_activity</code>, <code>pg_stat_replication</code>, <code>pg_replication_slots</code>, <code>pg_database</code>, <code>pg_stat_user_tables</code>, the host</td></tr>
+</tbody></table></div>
+<p>Real output of the views you will read most, after a short pgbench run on the chat database:</p>
+<div class="tr" data-run="monitor" data-steps="stat_database,stat_tables,biggest,waldir" data-title="Real run: the dashboard queries"></div>
+<p>Some things in that output deserve a second look: <code>cache_hit_pct</code> (share of page reads served from shared buffers; on a busy production database it is normally above 99%, and a drop means the working set no longer fits in memory), <code>temp_files</code> (queries spilling sorts and hashes to disk because <code>work_mem</code> was too small for them: here the heavy join from below), and an index bigger than a quarter of its table (is it used? <code>idx_scan</code> says).</p>
+<h3>Finding the query that is hurting you</h3>
+<div class="tr" data-run="monitor" data-steps="runaway_find,runaway_cancel" data-title="Real run: a runaway query, found and cancelled"></div>
+<p><code>pg_cancel_backend(pid)</code> cancels the current query and keeps the connection; <code>pg_terminate_backend(pid)</code> ends the whole session (and rolls back its transaction). Prefer cancel. When everything on one table hangs, the cause is usually a lock queue: a migration waits for a long transaction, and every reader queues behind the migration, because locks are granted in order:</p>
+<div class="tr" data-run="monitor" data-steps="lock_queue" data-title="Real run: one idle transaction, one ALTER TABLE, and everyone else waiting"></div>
+<p>Reading it: the first process (blocked by nobody) is idle inside a transaction that read <code>users</code>; the <code>ALTER TABLE</code> needs an exclusive lock and waits for it; the three simple <code>SELECT</code>s are blocked by the <code>ALTER</code>, not by the idle transaction. Ending the idle transaction (or the migration) releases all of them. Migrations should set <code>lock_timeout</code> and retry; the measurements of which <code>ALTER TABLE</code> takes which lock are on {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}} ("ALTER TABLE, measured").</p>
+<h3>The alerts worth having</h3>
+<div class="tw"><table>
+<thead><tr><th>Alert</th><th>Query or metric</th><th>Warn</th><th>Page</th></tr></thead>
+<tbody>
+<tr><td>Disk used</td><td>host metric for the data volume</td><td>80%</td><td>90%</td></tr>
+<tr><td>Retained WAL / inactive slot</td><td><code>pg_replication_slots</code>: <code>active</code>, retained bytes</td><td>inactive 10 min or above 5 GB</td><td>wal_status <code>unreserved</code></td></tr>
+<tr><td>WAL archiving failing</td><td><code>pg_stat_archiver.failed_count</code> rising</td><td>any failure</td><td>failing 15 min</td></tr>
+<tr><td>Newest backup too old</td><td>backup tool's metrics</td><td>older than schedule</td><td>2 x schedule</td></tr>
+<tr><td>Replication lag</td><td><code>pg_stat_replication.replay_lag</code></td><td>30 s</td><td>5 min</td></tr>
+<tr><td>Transaction ID age</td><td><code>max(age(datfrozenxid))</code></td><td>500 million</td><td>1 billion</td></tr>
+<tr><td>Connections</td><td><code>count(*)</code> in <code>pg_stat_activity</code> / <code>max_connections</code></td><td>70%</td><td>90%</td></tr>
+<tr><td>Long transactions</td><td>oldest <code>xact_start</code> among non-idle and idle-in-transaction sessions</td><td>5 min</td><td>30 min</td></tr>
+<tr><td>Dead tuples</td><td><code>n_dead_tup</code> / <code>n_live_tup</code> on big tables</td><td>20%</td><td>(investigate, rarely a page)</td></tr>
+<tr><td>Errors and latency</td><td>rollback rate, deadlocks, p95 query latency</td><td>vs your baseline</td><td>vs your SLO</td></tr>
+</tbody></table></div>
+<p class="small mute">Thresholds are <span class="ill">this page's suggested starting points</span>, not sourced standards; tune them to your database. The usual collector is <code>postgres_exporter</code> feeding Prometheus and Grafana; hosted options (pganalyze, Datadog, the clouds' own tools) collect the same views.</p>
+</section>
+
+<section id="rd-s12">
+<h2>12. Managed Postgres: what it takes off your plate</h2>
+<p>A managed service runs the server for you: provisioning, minor upgrades, automated backups and point-in-time restore, a standby with automatic failover, monitoring dashboards. It does <b>not</b> design your schema, fix slow queries, size your connection pools, tune autovacuum for your hottest table, choose when to do a major upgrade, or test that a restore gives you what you need. Everything in sections 6 to 11 stays your job. Prices are list prices read on 2026-10-04 (USD, us-east-1 or the provider's default region); the {{Database atlas tab of the root|n:3cd5c17b0d0d815d8841ec845f5f3324}} has each product's row with sources.</p>
+<div class="tw"><table id="rd-managed">
+<thead><tr><th>Service</th><th>What it is</th><th>Failover and backups</th><th>Price example (list, 2026-10-04)</th></tr></thead>
+<tbody>
+<tr><td><b>Amazon RDS for PostgreSQL</b></td><td>Stock Postgres on a managed VM with EBS storage</td><td>Multi-AZ standby; backups kept 0 to 35 days; transaction logs to S3 every 5 minutes ({{docs|https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIT.html}})</td><td>db.m7g.large (2 vCPU, 8 GiB): $0.168/h, Multi-AZ $0.337/h; gp3 storage $0.115/GB-month ({{AWS price list|https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/current/us-east-1/index.csv}})</td></tr>
+<tr><td><b>Amazon Aurora PostgreSQL</b></td><td>Postgres engine on AWS's shared storage, kept in copies across three Availability Zones</td><td>Up to 15 readers; failover typically under 60 s, often under 30 ({{docs|https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Concepts.AuroraHighAvailability.html}})</td><td>Serverless v2 $0.12 per ACU-hour; storage $0.10/GB-month plus $0.20 per million I/Os, or I/O-Optimized $0.225/GB-month</td></tr>
+<tr><td><b>Google Cloud SQL</b></td><td>Managed stock Postgres on Google Cloud</td><td>Regional HA; Enterprise Plus: 99.99% SLA including maintenance, PITR logs up to 35 days ({{editions|https://cloud.google.com/sql/docs/postgres/editions-intro}})</td><td>Enterprise: $0.0413 per vCPU-hour, $0.007 per GiB-hour; HA doubles ({{pricing|https://cloud.google.com/sql/pricing}}; region of the default table not stated: unconfirmed)</td></tr>
+<tr><td><b>Google AlloyDB</b></td><td>Postgres-compatible engine on Google's disaggregated storage, with a columnar cache</td><td>HA standby in a second zone; read pools</td><td>$0.06608 per vCPU-hour, $0.0112 per GiB-hour ({{pricing|https://cloud.google.com/alloydb/pricing}}; region unconfirmed)</td></tr>
+<tr><td><b>Azure Database for PostgreSQL</b></td><td>Flexible Server: managed stock Postgres</td><td>Zone-redundant HA; backups 7 days by default, configurable ({{overview|https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview}})</td><td>not collected</td></tr>
+<tr><td><b>Neon</b></td><td>Serverless Postgres: storage separated from compute, scale to zero, instant branches; owned by Databricks (announced 2025-05-14)</td><td>History window for restores: Free 6 hours, Launch up to 7 days, Scale up to 30 days</td><td>Launch $0.106, Scale $0.222 per compute-unit hour ({{pricing|https://neon.com/pricing}})</td></tr>
+<tr><td><b>Supabase</b></td><td>A Postgres database per project plus auth, storage and APIs</td><td>Daily backups (Pro: 7 days); PITR as an add-on, about $100/month for 7 days ({{backups|https://supabase.com/docs/guides/platform/backups}})</td><td>Pro from $25/month including $10 compute credit; Micro compute $0.01344/h ({{compute|https://supabase.com/docs/guides/platform/manage-your-usage/compute}})</td></tr>
+<tr><td><b>Crunchy Bridge</b></td><td>Managed stock Postgres from Crunchy Data, acquired by Snowflake (announced 2025-06-02) and now sold as Snowflake Postgres</td><td>HA option; pgBackRest-based backups</td><td>Hobby-0 $9/month, Standard-8 $140/month, storage $0.10/GB ({{pricing page, still live|https://www.crunchydata.com/pricing}}; whether new sign-ups are accepted: unconfirmed)</td></tr>
+</tbody></table></div>
+<div class="card"><div class="out" id="rd-mcost"></div>
+<p class="small mute">One always-on node with 2 vCPU and 8 GiB for a 730-hour month, compute only, from the unit prices above: RDS $0.168 x 730 (Multi-AZ $0.337 x 730); Cloud SQL (2 x $0.0413 + 8 x $0.007) x 730, HA doubles; AlloyDB (2 x $0.06608 + 8 x $0.0112) x 730. Storage, backups, I/O and network come on top. Derived on this page, not quoted.</p></div>
+<p>How to choose, in one paragraph: if you are on a cloud already, its stock managed Postgres (RDS, Cloud SQL, Azure Flexible Server) is the default; Aurora and AlloyDB buy faster failover, more readers and storage that grows by itself, at a higher price and with less portability; Neon and Supabase suit small, spiky or many-database workloads and fast-moving teams; running it yourself (with Patroni or CloudNativePG, pgBackRest, PgBouncer and postgres_exporter) is cheapest in money and most expensive in on-call time. What is safe to defer: none of the five rules at the top of this page.</p>
+</section>
+
+<section id="rd-s13">
+<h2>13. Common mistakes</h2>
+<details class="mist"><summary>Treating a replica as a backup</summary><div class="b">A replica copies a <code>DELETE</code> within milliseconds (section 3). Only backups with WAL archiving can go back in time. A delayed replica (<code>recovery_min_apply_delay = '1h'</code>) is a useful extra, never a substitute.</div></details>
+<details class="mist"><summary>Backups that nobody has restored</summary><div class="b">GitLab 2017: every backup mechanism existed and none worked. Automate a restore test and alert on it (section 3).</div></details>
+<details class="mist"><summary>A replication slot without a cap</summary><div class="b">One dead replica or one abandoned CDC consumer, and the primary keeps WAL until the disk is full (section 4). Set <code>max_slot_wal_keep_size</code> and alert on inactive slots.</div></details>
+<details class="mist"><summary>No timeouts</summary><div class="b">A session left idle in a transaction blocks vacuum everywhere and can hold locks that queue a migration and then every query behind it (sections 6 and 11).</div></details>
+<details class="mist"><summary>Running VACUUM FULL on a live table</summary><div class="b">It takes an exclusive lock for the whole rewrite. Use pg_repack or pg_squeeze, or accept reusable free space (section 6).</div></details>
+<details class="mist"><summary>Turning autovacuum off, or leaving it at defaults on a huge hot table</summary><div class="b">Off means bloat and, eventually, wraparound. Defaults on a billion-row table mean 200 million dead rows before it starts (section 6 calculator).</div></details>
+<details class="mist"><summary>Raising max_connections instead of pooling</summary><div class="b">Thousands of backends cost memory and CPU, and the pool arithmetic still overflows on the next deploy (section 8).</div></details>
+<details class="mist"><summary>SET and prepared statements through a transaction pooler</summary><div class="b">Session state leaks between clients; driver-prepared statements collide unless <code>max_prepared_statements</code> is set (section 8).</div></details>
+<details class="mist"><summary>Failover without fencing</summary><div class="b">Two primaries accept different writes; one side's writes are thrown away when you rejoin them (section 5).</div></details>
+<details class="mist"><summary>Forgetting sequences at a logical-replication cutover</summary><div class="b">The first insert on the new server collides with existing ids (section 9).</div></details>
+<details class="mist"><summary>Letting a version run out of support</summary><div class="b">PostgreSQL 14 ends on 2026-11-12. Plan major upgrades a year ahead and rehearse them on a restored copy.</div></details>
+<details class="mist"><summary>The application connects as a superuser or table owner</summary><div class="b">Every bug and every leaked credential then has full power. One role per kind of client, least privilege (section 10).</div></details>
+</section>
