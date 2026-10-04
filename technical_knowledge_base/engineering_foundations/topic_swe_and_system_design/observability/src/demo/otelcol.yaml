@@ -1,0 +1,49 @@
+# OpenTelemetry Collector (contrib 0.162.0) as a gateway for the chat product.
+# Receives OTLP from the services, keeps every error trace and every slow trace,
+# 5% of the rest, and sends traces to Tempo, metrics to Prometheus, logs to Loki.
+receivers:
+  otlp:
+    protocols:
+      grpc: {endpoint: 0.0.0.0:4317}
+      http: {endpoint: 0.0.0.0:4318}
+processors:
+  memory_limiter:            # first: refuse data before the collector runs out of memory
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+  tail_sampling:             # decide per trace once its spans have arrived
+    decision_wait: 10s
+    num_traces: 50000
+    policies:
+      - name: keep-errors
+        type: status_code
+        status_code: {status_codes: [ERROR]}
+      - name: keep-slow
+        type: latency
+        latency: {threshold_ms: 1000}
+      - name: baseline-5-percent
+        type: probabilistic
+        probabilistic: {sampling_percentage: 5}
+  batch: {}
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: {insecure: true}
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling, batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]

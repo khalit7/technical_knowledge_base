@@ -1,0 +1,23 @@
+
+<section id="s-inc">
+<h2>8. One incident, debugged two ways</h2>
+<p>Same incident, same data, two toolkits. On the left of the toggle, the toolkit many first services have: an average-latency graph and a log search. On the right, the one this page teaches: percentiles from a histogram, exemplars, and traces. Every line, number, log entry and span below is from the real run; only the engineer's reasoning in the captions is written for the page. Press play, or step through.</p>
+<div class="card" id="ix-card">
+<div class="seg" id="ix-seg"><button data-m="a" class="on">Averages and logs</button><button data-m="b">Percentiles and traces</button></div>
+<div class="an-ctl" id="ix-ctl"></div>
+<div class="chart" id="ix-chart"></div>
+<div class="an-cap" id="ix-cap"></div>
+<div id="ix-ev"></div>
+<div class="an-cnt" id="ix-cnt"></div>
+</div>
+<p>The difference is not effort or talent. With averages and logs, the slow-but-successful requests are invisible: they log "request served" like everyone else, and the average blends them into a mild rise. With a p99 the tail shows up as its own line; with an exemplar the line links to a request; with a trace the request shows where its time went, across a process boundary; with span attributes you can group by replica and confirm it. Real numbers from the incident phase: replicas r1 and r2 answered in a median of about 18 ms, while every one of the <b id="ix-r3n"></b> lookups on r3-cold took over 500 ms (median <b id="ix-r3m"></b> ms). <span class="small mute">In this demo the slow replica is labelled by construction; in production the attribute would carry the real host or pod name, and the conclusion would be the same query.</span></p>
+<p class="small">The error trace also shows a second problem: chat-api gave up after its 1-second timeout and answered 503, but retrieval kept working for another half second on a request nobody was waiting for. Passing the deadline down with the call fixes that; the sibling {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}} teaches deadline propagation.</p>
+</section>
+
+<section id="s-dash">
+<h2>9. Dashboards that help</h2>
+<p>A <dfn id="g-dash">dashboard</dfn> is a saved page of graphs. The SRE book's test: dashboards "should answer basic questions about your service, and normally include some form of the four golden signals", and teams "carefully avoid any situation that requires someone to 'stare at a screen to watch for problems'" ({{SRE book, ch. 6|https://sre.google/sre-book/monitoring-distributed-systems/}}): alerts watch, dashboards explain. Here is the first row of chat-api's dashboard, drawn from the real Prometheus queries over the demo run (the shaded band is the incident):</p>
+<div class="card"><div class="grid" id="db-grid"></div></div>
+<p>A layout that works, from top to bottom: <b>(1)</b> is it healthy for users: RED for the service, with the SLO drawn as a line; <b>(2)</b> its dependencies: the same three graphs per dependency, as the client sees them (the bottom-right panel found the incident); <b>(3)</b> its resources: USE for CPU, memory, connection pools, GPUs; <b>(4)</b> deploy and config-change markers on every graph, since, in the SRE book's words, "roughly 70% of outages are due to changes in a live system" ({{SRE book, ch. 1|https://sre.google/sre-book/introduction/}}). Habits: show p50 and p99 together, never only the mean; put units on axes; keep one dashboard per service in the same layout so on-call engineers know where to look; and prune. The SRE book: "Signals that are collected, but not exposed in any prebaked dashboard nor used by any alert, are candidates for removal."</p>
+<p class="small mute">Look at the error-ratio panel: it starts only at the first failure. The 503 series did not exist until a 503 happened (client libraries create a labelled series on first use), so before that the query returns nothing rather than 0. Dashboards and alerts read "nothing" as "no data", not as "fine". Pre-create the label values you expect (in the Python client, calling <code>.labels(route, "503")</code> once at start-up creates the series at 0) or write the query to treat a missing series as zero.</p>
+</section>
