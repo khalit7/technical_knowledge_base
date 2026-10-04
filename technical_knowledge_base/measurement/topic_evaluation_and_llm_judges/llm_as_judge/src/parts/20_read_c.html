@@ -1,0 +1,49 @@
+
+<section id="rd-cal">
+<h2>Calibration against human gold</h2>
+<p>No judge number means anything until it has been checked against human labels on the same kind of data. Calibration answers three questions in turn: how often does the judge agree with people, corrected for chance; what are its error rates on each class; and what does its pass rate become once those errors are corrected.</p>
+
+<h3>Building the gold slice: Critique Shadowing</h3>
+<p>Hamel Husain's method ({{Creating an LLM-as-a-Judge That Drives Business Results, 29 Oct 2024|https://hamel.dev/blog/posts/llm-judge/}}), as the post reads in October 2026:</p>
+<ol>
+<li>One <b>principal domain expert</b> (a psychologist for a mental-health assistant, a lawyer for legal analysis) decides what is acceptable.</li>
+<li>A dataset spanning the product's features, scenarios and personas, with real system outputs (synthetic user inputs are fine).</li>
+<li>The expert gives each output <b>pass or fail with a written critique</b>, detailed enough that a new employee could follow the reasoning. No 1 to 5 scales.</li>
+<li>Fix the obvious system failures the review turns up before building any judge.</li>
+<li>Build the judge from the expert's critiques as few-shot examples and iterate the prompt until judge and expert agree; in the post's Honeycomb example this reached "&gt;90% agreement" in three iterations.</li>
+<li>Error analysis by root cause; about 100 labelled examples per failure mode to validate a judge ("Below 60 examples, the confidence intervals are often too wide").</li>
+<li>Specialised judges only where the analysis shows a recurring failure.</li>
+</ol>
+<p>The post asks for the judge's <b>true positive rate and true negative rate separately</b> rather than raw agreement, because "agreement can be misleading when failures are rare", and splits the labelled data about 10 to 20% for few-shot examples and 40 to 45% each for development and test. Those two rates are exactly what the correction below needs.</p>
+
+<h3>Agreement, corrected for chance</h3>
+<p>Raw agreement flatters a judge whenever one label dominates. Cohen's kappa subtracts the agreement two raters would reach by chance given how often each uses each label: &kappa; = (p<sub>o</sub> &minus; p<sub>e</sub>) / (1 &minus; p<sub>e</sub>). On MT-Bench, GPT-4's 66.2% agreement with the 3,355 votes is &kappa; = 0.337, and across 21 judges in 2026 raw agreement overstated kappa by 33 to 41 points on MT-Bench ({{Norman et al.|https://arxiv.org/abs/2606.19544}}). The parent page's {{Calibration section|n:3c65c17b0d0d8181b351e1b8fc6a1546}} works the formula on an example and charts the human ceiling: two MT-Bench experts agree 63% with ties and 81% without, so a judge near those figures is at the ceiling of the labels, not below it.</p>
+
+<h3>Correcting the pass rate</h3>
+<p>A judge with errors reports a biased pass rate even when its agreement looks fine. Call the true pass rate &theta;, the judge's pass rate p, its sensitivity q<sub>1</sub> (the share of truly passing items it passes) and its specificity q<sub>0</sub> (the share of truly failing items it fails). Then p = q<sub>1</sub>&theta; + (1 &minus; q<sub>0</sub>)(1 &minus; &theta;), which inverts to the Rogan-Gladen estimator (1978), used for LLM judges by {{Lee et al. (arXiv 2511.21140, v4 May 2026)|https://arxiv.org/abs/2511.21140}}:</p>
+<div class="fm"><div class="eq">&theta;&#770; = (p&#770; + q&#770;<sub>0</sub> &minus; 1) / (q&#770;<sub>0</sub> + q&#770;<sub>1</sub> &minus; 1)</div>
+<dl><dt>p&#770;</dt><dd>the judge's pass rate on all n test items</dd><dt>q&#770;<sub>1</sub>, q&#770;<sub>0</sub></dt><dd>the judge's sensitivity and specificity measured on a human-labelled gold slice of m<sub>1</sub> passing and m<sub>0</sub> failing items</dd><dt>interval</dt><dd>the paper's eq. 8: an adjusted Wald interval (add two successes and two failures to each rate) whose variance adds the test-set term p(1&minus;p)/n and the two calibration terms (1&minus;&theta;)&sup2;q<sub>0</sub>(1&minus;q<sub>0</sub>)/m<sub>0</sub> and &theta;&sup2;q<sub>1</sub>(1&minus;q<sub>1</sub>)/m<sub>1</sub>, all divided by (q<sub>0</sub>+q<sub>1</sub>&minus;1)&sup2;, truncated to [0, 1]</dd></dl></div>
+<p>The denominator is the whole story. A judge with q<sub>0</sub> + q<sub>1</sub> near 1 carries almost no information about the truth, and the correction then divides noise by a small number. Three results from the paper matter in practice. The estimator stays unbiased when the gold slice and the test set have different pass rates, as long as the judge's error rates are the same on both, which is not true of the prediction-powered alternatives. Allocating more of the gold labels to the class the judge errs on shortens the interval at a fixed budget. And spending the labels on calibration only beats spending them directly on the eval when the judge is good enough: on Chatbot Arena win rates, none of seven recent judges (Claude Opus 4.6 the closest) reached that region, while on AlpacaEval GPT-4.1-mini did. With 10% of Arena's labelled pairs as the gold slice, its intervals covered the true win rate in 95 to 99% of 100 splits, with widths of 0.18 to 0.27.</p>
+<p>The animation runs the same estimator on the released MT-Bench data. Each square is one human vote on a comparison involving the chosen model, with the human's verdict as the truth and GPT-4's released pairwise verdict (both orders, a disagreement counted as a tie) as the judge; "pass" means the chosen model won. Ties by the judge count as "not a win", which is part of why the raw rate is low.</p>
+<div class="card" id="an-card">
+<div class="seg" id="an-mode"><button data-m="naive">Before: report the judge's rate</button><button data-m="corr" class="on">After: correct with a gold slice</button></div>
+<div class="an-ctl"><label class="small">Model <select id="an-target"></select></label><label class="small">Gold slice <select id="an-m"><option value="50">50 votes</option><option value="100" selected>100 votes</option><option value="200">200 votes</option></select></label></div>
+<div class="dots" id="an-dots" aria-label="One square per human vote"></div>
+<div class="leg" id="an-leg"></div>
+<div class="an-cnt" id="an-cnt"></div>
+<div class="an-cap" id="an-cap" aria-live="polite"></div>
+<div class="an-ctl" id="an-ctl"></div>
+<p class="small mute">Real data, not illustrative: <code>lmsys/mt_bench_human_judgments</code> (3,355 expert and author votes; 6 models; 80 questions, 2 turns) and the GPT-4 verdicts released with it. Tie votes by humans are left out, so every item has a true win or loss. The gold slice is a seeded random draw (seed 1); the {{Calibration lab|#t-cal}} redraws it, varies its size and repeats it 200 times. Squares are drawn in data order.</p>
+</div>
+<p>GPT-3.5-turbo is the clean case: the raw rate is 15 points low mostly because the judge calls many of GPT-3.5's wins ties (144 of the 226 human-judged wins it missed), and 100 human labels bring the estimate within 3 points. Switch to GPT-4 for the failure case: when humans preferred the other answer, the GPT-4 judge still sided with GPT-4 63% of the time (q&#770;<sub>0</sub> about 0.37), so q<sub>0</sub> + q<sub>1</sub> is near 1.2 and the interval spans most of [0, 1]. The raw rate is only 2 points off there, by luck of cancelling errors, and nothing in the raw number says so. In both cases the same 100 labels spent directly on the eval give a narrower interval than the correction, as Lee et al. found on Arena: a GPT-4-era judge on MT-Bench is not yet good enough for calibration to save human labels.</p>
+
+<h3>Reliability is not validity</h3>
+<p>A judge can repeat itself perfectly and be systematically wrong. Norman et al. found test-retest reliability above 0.95 together with position bias above 0.10 in two production judges (Qwen 3 8B: 0.992 and 0.192, with JudgeBench kappa 0.289; Gemini 2.5 Flash: 0.988 and 0.125), because a judge that always prefers slot A is perfectly reproducible. Their minimum validation protocol before deploying a judge:</p>
+<ol>
+<li><b>Chance-correct:</b> report Cohen's kappa (or Krippendorff's alpha) as the headline, beside any raw agreement.</li>
+<li><b>Swap positions:</b> run AB and BA and report |P(A wins) &minus; 0.5|.</li>
+<li><b>Replicate:</b> at least 3 runs at temperature 0 with response caching off.</li>
+<li><b>Cross-validate:</b> at least 2 meta-evaluations, one preference-style and one correctness-style.</li>
+<li><b>Audit the paradox:</b> when test-retest is above 0.95, check that position bias is below 0.10 before calling the judge reliable.</li>
+</ol>
+</section>
