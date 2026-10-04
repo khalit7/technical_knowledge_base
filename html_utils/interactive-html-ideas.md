@@ -1706,3 +1706,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | OF6 | GAIL discriminator toy | | 4: an adversarial game is not reproducible exactly at page scale and would be illustrative only | | none | rejected |
 | OF7 | Decision Transformer on a stochastic toy (luck against skill) | | 6: good idea for the debate, but a sequence model cannot be trained in-page; Paster et al.'s argument is stated instead | | none | rejected (candidate for later) |
 | OF8 | Off-policy evaluation variance (IS weights against horizon) | | 5: the importance-sampling blow-up is already on Model-free prediction and control | | none | rejected (linked) |
+
+### Topic: benchmarks (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/measurement/topic_benchmarks/src/viz_ideas.md`.
+
