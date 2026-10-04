@@ -1,0 +1,23 @@
+<section id="rd-s1">
+<h2>1. Why transactions: two requests, one balance</h2>
+<h3>The problem appears</h3>
+<p>Ines (user 7, the same user as in the root's SQL playground) has 30 prepaid credits. She has the chat open in two browser tabs. In tab A she asks for a long answer that costs 10 credits; a second later, in tab B, a short one that costs 5. The server code for "charge a message" is reasonable on its own:</p>
+<pre class="py">balance = db.execute("SELECT balance FROM credits WHERE user_id = 7")   # 30
+if balance &gt;= cost:
+    reply = call_model(prompt)                                          # seconds
+    db.execute("INSERT INTO messages ...")
+    db.execute("UPDATE credits SET balance = %s WHERE user_id = 7", (balance - cost,))</pre>
+<p>Run once at a time, it is correct: 30, then 20, then 15. Run twice at once, both copies read 30 before either writes. Tab A writes 30 - 10 = 20, tab B writes 30 - 5 = 25, and the last write wins: Ines paid 5 credits for 15 credits of answers. Nothing failed, no constraint was broken, no error was logged. This is the <dfn id="g-lostupdate">lost update</dfn>, and on this page it was reproduced on a real Postgres and a real MySQL: final balance <b>25</b> instead of 15 <span class="meas">measured</span>.</p>
+<p>Two words before going on. A <dfn id="g-session">session</dfn> is one connection from a program to the database; the database runs the statements of one session in order, but statements of different sessions <i>interleave</i>, in whatever order they happen to arrive. <dfn id="g-concurrency">Concurrency</dfn> is that interleaving. Each of the anomalies on this page is one unlucky interleaving.</p>
+<h3>The idea: a transaction</h3>
+<p>A transaction is a group of statements the database treats as one unit. <code>BEGIN</code> opens it; <code>COMMIT</code> makes all of its changes permanent and visible to others at the same instant; <code>ROLLBACK</code> throws them all away. Outside <code>BEGIN</code>, each statement is its own one-statement transaction, which is called <dfn id="g-autocommit">autocommit</dfn>.</p>
+<p>A transaction gives two separate promises, and beginners usually expect only the first:</p>
+<div class="two">
+<div><h4>All or nothing (atomicity)</h4>If anything fails half-way, none of the transaction's changes survive: the credits are never taken without the reply being saved. This is about <b>failures</b>, and every relational database gives it in full.</div>
+<div><h4>As if alone (isolation)</h4>Concurrent transactions should not see each other's half-done work or trample each other's decisions. This is about <b>concurrency</b>, and how much of it you get depends on the <dfn id="g-isolation">isolation level</dfn>, a setting. Wrapping Ines's code in <code>BEGIN</code> and <code>COMMIT</code> at Postgres's default level still loses the update: atomicity is not isolation.</div>
+</div>
+<h3>What your code must do when a statement fails</h3>
+<p>When one statement inside a transaction fails (a constraint refuses it, a deadlock is detected), Postgres marks the whole transaction failed: every later statement is answered with <code>ERROR 25P02: current transaction is aborted, commands ignored until end of transaction block</code>, and <code>COMMIT</code> is answered with <code>ROLLBACK</code> (SQLSTATE 25P02, <code>in_failed_sql_transaction</code> in the <a href="https://www.postgresql.org/docs/16/errcodes-appendix.html" target="_blank" rel="noopener noreferrer">Postgres 16 error codes</a>; the {{Isolation lab|#t-lab}} shows a failed transaction's COMMIT answered with ROLLBACK). SQLite instead undoes only the failed statement and lets you commit the rest, which is how the root's <b>SQL playground</b> tab, lesson 10, ends up with a +50 credit and no matching debit ({{Topic: databases, SQL playground tab|n:3cd5c17b0d0d815d8841ec845f5f3324}}). The rule that works everywhere: on any error, roll back and decide whether to retry the whole transaction.</p>
+<p>Python drivers do this for you if you let them. With psycopg 3 (the current Postgres driver for Python), <code>with conn.transaction():</code> issues <code>BEGIN</code>, then <code>COMMIT</code> at the end of the block, or <code>ROLLBACK</code> if an exception escapes. One trap: by default "even a simple SELECT will start a transaction", which then stays open until you commit, holding back clean-up (<a href="https://www.psycopg.org/psycopg3/docs/basic/transactions.html" target="_blank" rel="noopener noreferrer">psycopg 3 docs, transactions</a>; section 10 measures the cost).</p>
+<div class="deepnote"><b>Where this goes next:</b> section 2 takes the four ACID letters one at a time with what each costs; sections 3 to 5 are isolation, the hard one.</div>
+</section>

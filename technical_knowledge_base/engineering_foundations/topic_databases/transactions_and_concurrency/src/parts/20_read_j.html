@@ -1,0 +1,62 @@
+<section id="rd-pro">
+<h2>What professionals do in production (as of October 2026)</h2>
+<ul>
+<li><b>Postgres at its default, read committed, plus discipline</b> is what most Postgres applications run: checks folded into writes (<code>UPDATE ... WHERE balance &gt;= 10</code>, then read the row count), constraints for every rule that can be declared, <code>FOR UPDATE</code> where a read must not go stale, and serializable for the few transactions that guard multi-row rules. Teams that choose serializable everywhere (CockroachDB's default, for instance) accept the retry loop as part of every data access path.</li>
+<li><b>Know the MySQL difference:</b> code written for MySQL's repeatable read is not protected from lost updates, as recorded in section 4. Use atomic updates or <code>SELECT ... FOR UPDATE</code>; many MySQL shops run read committed for its simpler locking.</li>
+<li><b>Short transactions as a rule, enforced by settings:</b> <code>idle_in_transaction_session_timeout</code> on application roles, <code>lock_timeout</code> on migrations, a statement timeout per endpoint, and an alert on the age of the oldest open transaction.</li>
+<li><b>One retry helper</b> for 40001 and 40P01, with jitter and a cap, used by every transaction, and idempotency keys at the API edge so that a retried request cannot charge twice.</li>
+<li><b>Queues in the database</b> with <code>FOR UPDATE SKIP LOCKED</code> until throughput says otherwise; a single job at a time with an advisory lock.</li>
+<li><b>Lock-aware migrations:</b> <code>SET lock_timeout</code>, small steps, retries of the migration rather than of the app.</li>
+<li><b>Never a model call inside a transaction.</b> LLM calls take seconds; a transaction held across one holds its row locks and its snapshot for that long, for every request in flight.</li>
+</ul>
+</section>
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Believing that <code>BEGIN</code> ... <code>COMMIT</code> prevents race conditions</summary><div class="b">It gives atomicity, not full isolation. At Postgres's default level a transaction-wrapped read-then-write still lost an update (section 3, lost update, read committed).</div></details>
+<details class="mist"><summary>Reading, computing in Python, writing back</summary><div class="b">The lost update's shape. Write <code>SET balance = balance - 10</code> instead of <code>SET balance = 20</code>, or lock the row when you read it.</div></details>
+<details class="mist"><summary>Ignoring the affected-row count</summary><div class="b"><code>UPDATE ... WHERE balance &gt;= 10</code> that changed 0 rows means "not enough credits"; an optimistic update that changed 0 rows means "someone else wrote first". Code that does not read the count turns both into silent bugs.</div></details>
+<details class="mist"><summary>Assuming "repeatable read" means the same thing everywhere</summary><div class="b">Postgres's is snapshot isolation and refuses lost updates; MySQL's let one through on this page; the SQL standard's allows phantoms. Test the anomaly you care about on your database (the scripts in <code>src/measure/</code> are a starting point).</div></details>
+<details class="mist"><summary>Using <code>FOR UPDATE</code> to protect a rule over rows that do not exist yet</summary><div class="b">The quota case: nothing to lock. Materialise the conflict in a counter row, lock a parent row, or use serializable.</div></details>
+<details class="mist"><summary>Switching to serializable without a retry loop</summary><div class="b">Users then see the 40001 errors. Retry the whole transaction, not the failed statement, and keep external calls out of it.</div></details>
+<details class="mist"><summary>Mixing isolation levels for one rule</summary><div class="b">Serializable's guarantee holds among serializable transactions. One code path at read committed that writes the same rows can still produce the anomaly.</div></details>
+<details class="mist"><summary>Leaving a transaction open</summary><div class="b">A Python driver starts a transaction on the first query, even a <code>SELECT</code>; a script or notebook that never commits holds back <code>VACUUM</code> for the whole database (section 10 measured 20,000 dead versions kept alive by one idle session).</div></details>
+<details class="mist"><summary>Taking locks in different orders in different code paths</summary><div class="b">The recipe for deadlocks (section 7). Sort the ids before locking several rows.</div></details>
+<details class="mist"><summary>Running a migration without <code>lock_timeout</code></summary><div class="b">One long read in front of it, and every query on the table queues behind the migration (section 6).</div></details>
+<details class="mist"><summary>Turning <code>fsync</code> off for speed</summary><div class="b">Corruption after a power cut. If commits are too slow, batch more work per transaction, rely on group commit, or use <code>synchronous_commit = off</code> for writes you can afford to lose.</div></details>
+</section>
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#g-acid">ACID</a></b>: atomicity, consistency, isolation, durability; the four promises of a transaction.</div>
+<div><b><a href="#g-anomaly">Anomaly</a></b>: an outcome no one-at-a-time order of the transactions could produce.</div>
+<div><b><a href="#g-autocommit">Autocommit</a></b>: each statement outside <code>BEGIN</code> is its own transaction.</div>
+<div><b><a href="#g-autovacuum">Autovacuum</a></b>: Postgres's background process that runs <code>VACUUM</code> and <code>ANALYZE</code>.</div>
+<div><b><a href="#g-bloat">Bloat</a></b>: space in a table or index taken by dead or reusable versions.</div>
+<div><b><a href="#g-concurrency">Concurrency</a></b>: statements of several sessions interleaving.</div>
+<div><b><a href="#g-deadlock">Deadlock</a></b>: transactions each waiting for a lock another holds; one is killed (40P01, MySQL 1213).</div>
+<div><b><a href="#an-dirty">Dirty read</a></b>: reading another transaction's uncommitted change.</div>
+<div><b><a href="#g-fsync">Flush (fsync)</a></b>: forcing written data from memory to the disk; the cost of durability.</div>
+<div><b><a href="#g-hot">HOT update</a></b>: a new row version on the same page with no index change; prunable without VACUUM.</div>
+<div><b><a href="#g-idem">Idempotency key</a></b>: a client-chosen key that makes a repeated request return the first result instead of acting twice.</div>
+<div><b><a href="#g-isolation">Isolation level</a></b>: the setting that decides which anomalies the database still allows.</div>
+<div><b><a href="#g-lock">Lock</a></b>: a claim that makes conflicting claims wait until commit or rollback.</div>
+<div><b><a href="#g-lostupdate">Lost update</a></b>: two read-modify-write cycles on one value; the second overwrites the first.</div>
+<div><b><a href="#g-mvcc">MVCC</a></b>: multi-version concurrency control; readers see old versions while writers make new ones.</div>
+<div><b><a href="#an-nonrepeatable">Non-repeatable read</a></b>: the same row read twice in one transaction gives two values.</div>
+<div><b><a href="#g-occ">Optimistic concurrency</a></b>: no lock; check at write time that the row did not change (version column).</div>
+<div><b><a href="#an-phantom">Phantom</a></b>: a repeated query with a condition returns new or missing rows.</div>
+<div><b><a href="#an-readskew">Read skew</a></b>: reading related rows from two different moments.</div>
+<div><b><a href="#g-seranomaly">Serialization anomaly</a></b>: any anomaly, including write skew, that only serializable prevents.</div>
+<div><b><a href="#g-session">Session</a></b>: one connection to the database; runs one transaction at a time.</div>
+<div><b><a href="#g-snapshot">Snapshot</a></b>: which transactions had committed at one moment, <code>xmin:xmax:list</code>.</div>
+<div><b><a href="#g-si">Snapshot isolation</a></b>: one snapshot per transaction, writes refused if the row changed since; Postgres's repeatable read.</div>
+<div><b><a href="#g-ssi">SSI</a></b>: serializable snapshot isolation; Postgres's serializable since 9.1.</div>
+<div><b><a href="#g-tx">Transaction</a></b>: statements treated as one unit: <code>BEGIN</code>, then <code>COMMIT</code> or <code>ROLLBACK</code>.</div>
+<div><b><a href="#g-xid">Transaction id (xid)</a></b>: the number a writing Postgres transaction gets.</div>
+<div><b><a href="#g-version">Version column</a></b>: a counter checked and incremented by every update (compare-and-set).</div>
+<div><b><a href="#g-wal">WAL</a></b>: write-ahead log; changes are logged and flushed before commit returns.</div>
+<div><b><a href="#an-writeskew">Write skew</a></b>: two transactions read the same rows and write different ones, together breaking a rule.</div>
+<div><b><a href="#g-xmin">xmin</a>, <a href="#g-xmax">xmax</a></b>: the ids of the transactions that created and deleted a row version.</div>
+</div>
+</section>
+</div>

@@ -7,7 +7,7 @@ RESET = [
     'DROP TABLE IF EXISTS credits', 'DROP TABLE IF EXISTS messages', 'DROP TABLE IF EXISTS oncall',
     'DROP TABLE IF EXISTS billing', 'DROP TABLE IF EXISTS purchases', 'DROP TABLE IF EXISTS users',
     'CREATE TABLE users (id int PRIMARY KEY, name varchar(20) NOT NULL, daily_quota int NOT NULL)',
-    "INSERT INTO users VALUES (7, 'Ava', 3), (12, 'Ben', 3)",
+    "INSERT INTO users VALUES (7, 'Ava', 3), (12, 'Ben', 3)",  # names unused by every scenario; the page calls user 7 Ines and user 12 Quinn, as the root's SQL playground does
     'CREATE TABLE credits (user_id int PRIMARY KEY, balance int NOT NULL CHECK (balance >= 0), version int NOT NULL DEFAULT 1)',
     'INSERT INTO credits (user_id, balance) VALUES (7, 30), (12, 20)',
     'CREATE TABLE messages (id int PRIMARY KEY, user_id int NOT NULL, day int NOT NULL)',
@@ -127,7 +127,7 @@ def ws_steps(L, fix=None):
             dict(s='A', sql='COMMIT', key='a_commit'), dict(s='B', sql='COMMIT', key='b_commit')]
 S['writeskew'] = dict(
     title='Write skew', names=['A', 'B'],
-    story='The chat product\'s incident rota needs at least one engineer on call. Ana and Raj are both on call and both feel ill; each checks that someone else is on call, then signs off (the on-call doctors example of Cahill, Rohm and Fekete, 2008).',
+    story='The chat product\'s incident rota needs at least one engineer on call. Ana and Raj are both on call and both feel ill; each checks that someone else is on call, then signs off (the on-call doctors example from Kleppmann\'s Designing Data-Intensive Applications).',
     steps=ws_steps, final={'on_call': 'SELECT count(*) FROM oncall WHERE on_call'},
     check=lambda n, f: (f['on_call'][0][0] == 0, '%s engineers on call at the end (the rule: at least 1)' % f['on_call'][0][0]),
     fixes={'for_update': 'lock the rows read (FOR UPDATE)'})

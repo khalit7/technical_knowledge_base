@@ -2197,3 +2197,17 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | 9 | Bloom filter calculator | 5 | Reading s6 | formula; RocksDB measured FP rate beside it | Connects bits per key to wasted reads |
 | 10 | Measured tables: depth, splits, UUID keys, write cost bars, RocksDB amplification, Postgres amplification, BRIN | 7 | Reading s5, s7, s9, s11 | m3, m4, m5 | Replace the old page's unsourced numbers |
 | 11 | Real crash log with the recovery steps | 6 | Reading s4 | kill -9 on a real server | Recovery shown, not described |
+
+### Transactions and concurrency: ACID, MVCC, isolation anomalies, locks (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/transactions_and_concurrency/src/viz_ideas.md`.
+
+| Rank | Idea | Score (teach / real data / cost) | Placement | Data |
+|---|---|---|---|---|
+| 1 | **Recorded interleavings**: every anomaly as two or three live sessions, one row per step, blocked statements dashed, late finishes marked; chips for every level on both databases | 5 / 5 / 3 | Reading, section 3 (one card per anomaly) | `inputs/matrix_pg.json`, `matrix_mysql.json` from `measure/run_matrix.py` |
+| 2 | **Before/after MVCC animation**: the lost update three ways (read committed, FOR UPDATE, serializable with a retry) with the real heap page (pageinspect: xmin, xmax, lock-only flag, commit status) and each session's real snapshot after every step | 5 / 5 / 4 | Reading, section 5 | `inputs/mvcc_trace.json` from `measure/mvcc_trace.py` (Postgres 16.15, conda-forge, for pageinspect) |
+| 3 | **Isolation lab** tab: pick anomaly, database, level (or fix), step through the recording with play/scrub; also the lock recordings | 5 / 5 / 3 | Tab | same, plus `extras_pg.json` |
+| 4 | **Measured matrix**: 8 anomalies x 4 levels x 2 databases, cell says happened or how prevented, click opens the lab | 5 / 5 / 1 | Reading, section 4 | matrix files |
+| 5 | **Contention benchmark** bars: commits/s, retries per commit, p99, lost updates; 4 ways x 2, 8, 32 clients x hot/spread | 4 / 5 / 2 | Reading, section 9 | `inputs/bench_pg.json` from `measure/bench.py` |
+| 6 | Lock recordings with mode switches: job queue (FOR UPDATE / SKIP LOCKED / NOWAIT), lock queue (with and without lock_timeout), deadlock (opposite and ordered) | 4 / 5 / 1 | Reading, sections 6 and 7 | `extras_pg.json` |
+| 7 | Durability bars (4 settings) and long-transaction stat tiles | 3 / 5 / 1 | Reading, sections 2 and 10 | `extras_pg.json` |
