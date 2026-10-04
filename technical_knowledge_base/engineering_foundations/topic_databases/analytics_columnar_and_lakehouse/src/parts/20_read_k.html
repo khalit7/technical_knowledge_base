@@ -1,0 +1,26 @@
+
+<section id="s-elt">
+<h2>10. Getting the data there: ETL, ELT, change data capture and dbt</h2>
+<p><b>The problem.</b> Every engine on this page holds a <i>copy</i>. The app writes to Postgres; analytics reads somewhere else; something must move the rows, keep the copy fresh enough, and never lose or double-count a message.</p>
+<p><b>Two shapes of pipeline.</b></p>
+<ul>
+<li><b>ETL</b> (extract, transform, load): pull rows out, clean and reshape them in a separate program (a Python job, Spark), then load only the finished tables. It was the norm when warehouse compute was scarce and expensive.</li>
+<li><b>ELT</b> (extract, load, transform): copy the raw rows into the warehouse or lake as they are, then transform them <i>inside</i> it with SQL. Cheap separated compute made this the default: the raw copy stays, so a fixed transformation can be re-run over history.</li>
+</ul>
+<p><b>Extracting without hurting the app.</b> A nightly <code>COPY (SELECT ... WHERE created_at &gt;= yesterday)</code> works for append-only tables like messages, as long as it reads from a replica. Rows that change (a user's plan, a deleted chat) need <b>change data capture (CDC)</b>: a tool such as {{Debezium|https://debezium.io/documentation/reference/stable/connectors/postgresql.html}} reads Postgres's write-ahead log through a replication slot and emits every insert, update and delete in commit order. That machinery (slots, the outbox pattern, delivery guarantees) is owned by {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}; the leftover risk on the database side, an abandoned slot that keeps WAL forever, is on {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}. Landing a change stream in a lake is what Hudi's merge-on-read and Iceberg's row-level deletes are for.</p>
+<h3>dbt, in one section</h3>
+<p><b>dbt</b> is the common tool for the T in ELT. You write each transformed table as one <code>SELECT</code> in a file (a <b>model</b>); dbt works out the order from references between models, runs them in the warehouse, and runs <b>tests</b> (not null, unique, accepted values, relationships) on the results. A daily usage table for the chat product, as an <b>incremental model</b> that only processes new rows on each run ({{dbt docs|https://docs.getdbt.com/docs/build/incremental-models-overview}}):</p>
+<pre class="fm" style="font-size:12.5px;white-space:pre;overflow-x:auto">-- models/daily_tokens.sql
+&#123;&#123; config(materialized='incremental', unique_key=['day', 'model']) &#125;&#125;
+select cast(created_at as date) as day, model,
+       count(*) as messages, sum(tokens) as tokens
+from &#123;&#123; source('app', 'messages') &#125;&#125;
+&#123;% if is_incremental() %&#125;
+  -- reprocess the last 2 days: late rows still land in the right day
+  where created_at &gt;= (select max(day) - interval 2 day from &#123;&#123; this &#125;&#125;)
+&#123;% endif %&#125;
+group by 1, 2</pre>
+<p class="small mute">The double braces above are dbt's Jinja templating, shown verbatim.</p>
+<p>State in October 2026: the Python engine is now called dbt Core v1 (1.12.5, 2026-09-15); the Rust <b>Fusion</b> engine is "v2" and the recommended default, with its runtime open-sourced as dbt Core v2.0 alpha ({{dbt Fusion|https://docs.getdbt.com/docs/fusion/about-fusion}}); and dbt Labs merged with Fivetran (announced 2025-10-13, completed 2026-06-01) ({{Fivetran|https://www.fivetran.com/press/fivetran-dbt-labs-complete-merger-to-create-the-data-infrastructure-for-trusted-ai-agents}}).</p>
+<div class="co warn"><div class="t">Mistakes this prevents, and causes</div>Incremental models skip rows that arrive late unless the filter looks back (the two days above); a pipeline that is not idempotent double-counts on retry (merge on a unique key, never blind-append in a retried job); and a model graph of 400 SQL files with no owner is its own maintenance problem. Start with plain SQL views; reach for dbt when there are more than a handful of transformations or more than one person.</div>
+</section>

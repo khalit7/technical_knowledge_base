@@ -1,0 +1,36 @@
+
+<section id="s-pq">
+<h2>5. The Parquet file, byte by byte</h2>
+<p><b>Why a file format matters.</b> Sections 2 to 4 describe what every column store does inside its own storage. <b>Apache Parquet</b> writes the same structure into an ordinary file that any engine can read: DuckDB, ClickHouse, Spark, pandas, Polars, BigQuery, Snowflake, and every lakehouse table format. It is the shared language of analytics data, so knowing its layout explains most performance surprises.</p>
+<h3>The layout</h3>
+<div class="card"><svg id="pqLayout" aria-label="Parquet file layout"></svg></div>
+<ol>
+<li>The file starts with the 4 bytes <code>PAR1</code> (hex <code>50 41 52 31</code>), a "magic number" that identifies the format.</li>
+<li><b>Row groups</b> follow, one after another. Each holds one <b>column chunk</b> per column, and each chunk is a sequence of <b>pages</b>: optionally one <i>dictionary page</i>, then <i>data pages</i>. Every page starts with a small <b>page header</b> (its type, sizes, value count, encoding) and is the unit that is encoded and compressed.</li>
+<li>At the end comes the <b>footer</b> (the <i>file metadata</i>): the schema, then for every row group and every column chunk its byte offset, sizes, encodings, codec and <b>statistics</b> (min, max, null count). It is serialised with Apache Thrift's compact protocol.</li>
+<li>The last 8 bytes are the footer's length (4 bytes, little-endian) and <code>PAR1</code> again ({{parquet-format README|https://github.com/apache/parquet-format/blob/master/README.md}}).</li>
+</ol>
+<p><b>Why the footer is at the end.</b> A writer streams row groups out without knowing in advance how big they will be, then writes the offsets once it knows them. A reader does the reverse: read the last 8 bytes, then the footer, and only then decide which byte ranges of the file it needs. That is why a query on object storage starts with one small request at the end of the file (section 6 shows the requests).</p>
+<p>The {{Inside a Parquet file|#t-bytes}} tab opens a real 23,047-byte file (the first 1,000 messages, two row groups of 500, no compression) region by region, with every header decoded by a small Thrift reader written for this page and checked against pyarrow's own reading. Two details from it worth knowing here:</p>
+<ul>
+<li>The <code>role</code> column's dictionary page holds just <code>user</code> and <code>assistant</code> (each with a 4-byte length). Its data page starts with the bit width, <code>01</code>, then one bit-packed run whose bytes are <code>aa aa aa ...</code>: binary 10101010, read from the lowest bit up, is 0, 1, 0, 1: user, assistant, user, assistant. Ten million roles are 10 million bits.</li>
+<li>The <code>id</code> column of 500 values takes 80 bytes with delta encoding, page header included: the body is a short header, the first value and deltas that need zero bits each.</li>
+</ul>
+<h3>Real metadata of the 10-million-row file</h3>
+<p>DuckDB 1.5.6 writing the messages with its defaults (Snappy, row groups of 122,880 rows) produced a 534 MB file with 82 row groups and a 76,648-byte footer. Row group 0, as pyarrow reads the footer:</p>
+<div class="tw" id="pqRg0"></div>
+<p>Two things to notice. DuckDB wrote <code>id</code> and <code>created_at</code> with PLAIN encoding (Snappy then halves <code>id</code>), whereas pyarrow with delta encoding would make them a few hundred kilobytes for the whole file (section 2): writers differ, and it shows in file size. And the <code>created_at</code> min and max of row group 0 are 2025-09-01 00:00:03 and 2025-09-05 06:24:00: about four days per row group, so a one-day query touches one or two of 82 row groups.</p>
+<h3>Beyond min/max: page index and bloom filters</h3>
+<ul>
+<li><b>Page index</b>: optional per-page min/max (ColumnIndex) and page locations (OffsetIndex) stored near the footer, so a reader can skip pages inside a column chunk, not just whole row groups ({{PageIndex.md|https://github.com/apache/parquet-format/blob/master/PageIndex.md}}).</li>
+<li><b>Bloom filters</b>: a compact bit array per column chunk that answers "is value X definitely absent?" Min/max cannot rule out chat 424242 when the chunk spans 400,000 to 450,000; a bloom filter can. DuckDB writes them by default (<code>WRITE_BLOOM_FILTER</code> true, target false-positive ratio 0.01, {{COPY docs|https://duckdb.org/docs/current/sql/statements/copy.html}}).</li>
+</ul>
+<h3>Row group size and sort order, measured</h3>
+<p>The spec suggests large row groups (512 MB to 1 GB) for sequential scans; DuckDB defaults to 122,880 rows. The {{Parquet lab|#t-lab}} tab measures 36 versions of the same file. The headline, at row groups of 100,000 rows with Snappy:</p>
+<div class="card" id="sortCard">
+<div class="seg" id="sortQ"><button data-m="chat" class="on">One chat</button><button data-m="day">One day</button><button data-m="model">One model</button><button data-m="all">Tokens per model</button></div>
+<div id="sortBars" class="bars"></div><div class="small mute" id="sortNote"></div>
+</div>
+<p><b>Sort order decides what can be skipped</b>, and it has to be chosen when the file is written: shuffled rows make every filter read everything, while sorting by the filtered column reads only the matching row groups. Time order is a good default for event data, because new data arrives in time order and most questions name a time range. <b>Row group size</b> trades skipping against overhead: tiny row groups (10,000 rows) skip finely but bloat the footer and slow every query; huge ones skip little. A few hundred thousand to a few million rows, or 100 MB to 1 GB, is the usual range.</p>
+<div class="co"><div class="t">In production (October 2026)</div>parquet-format 2.14.0 (2026-09-11) added ALP, a float encoding, in preview ({{release|https://github.com/apache/parquet-format/releases/tag/apache-parquet-format-2.14.0}}). Newer columnar file formats compete for ML and random access: Lance (multimodal, v12.0.0, 2026-09-17), Vortex (LF AI and Data incubation), Meta's Nimble (explicitly unstable) and the research format F3 (SIGMOD 2025, decoders embedded as WebAssembly). Parquet remains the interchange default.</div>
+</section>

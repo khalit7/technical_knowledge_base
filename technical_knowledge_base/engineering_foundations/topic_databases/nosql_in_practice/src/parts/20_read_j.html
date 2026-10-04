@@ -1,0 +1,41 @@
+<section id="rd-pro">
+<h2>Choosing, and running them in production</h2>
+<h3>How pros decide</h3>
+<ol>
+<li><b>Start with Postgres as the source of truth</b> and write down the access patterns (section 1). Most of the families' tricks exist in Postgres in smaller form: a composite index (section 2), <code>jsonb</code> (section 5), partitions and rollups (section 7), a join per hop (section 8), <code>SKIP LOCKED</code> queues.</li>
+<li><b>Add a store only for a measured problem</b>, named in one sentence: "ranks for 100,000 players on every page view cost 9 ms each" (Redis); "message writes exceed one primary" (Cassandra, ScyllaDB or DynamoDB); "every dashboard query scans 30 days" (a rollup, then a time-series or column store).</li>
+<li><b>Treat every extra store as a copy</b> that can be rebuilt from the source of truth, fed by an outbox or change data capture ({{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}), with its own backups, monitoring and on-call knowledge. "Polyglot persistence" (several stores, each for what it does best) is real at scale and an expensive habit before it.</li>
+</ol>
+<div class="tw"><table>
+<tr><th>System</th><th>Settings pros check first (each explained on this page)</th></tr>
+<tr><td>Redis / Valkey</td><td><code>maxmemory</code> and an eviction policy when it is a cache, <code>noeviction</code> when it holds data you need; <code>appendonly yes</code> with <code>appendfsync everysec</code> if losing a minute matters; replicas plus Sentinel or Cluster for failover, knowing that failover can drop acknowledged writes; no <code>KEYS *</code> in production (use <code>SCAN</code>); short scripts.</td></tr>
+<tr><td>DynamoDB</td><td>access patterns and keys reviewed before the first write; on-demand capacity until traffic is predictable; alarms on throttled requests; Contributor Insights to find hot keys; a TTL attribute to expire items; incremental export to S3 for analytics.</td></tr>
+<tr><td>MongoDB</td><td>write concern <code>majority</code> (the default since 5.0); a <code>$jsonSchema</code> validator per collection; one index per access pattern, ordered by ESR; no unbounded arrays; transactions short and retried on <code>TransientTransactionError</code>.</td></tr>
+<tr><td>Cassandra / ScyllaDB</td><td>replication factor 3 across racks or zones, <code>LOCAL_QUORUM</code> for reads and writes that must agree; partitions bounded by a time bucket; repair run more often than <code>gc_grace_seconds</code>; alerts on tombstone warnings and large partitions; compaction chosen per table.</td></tr>
+<tr><td>Prometheus and friends</td><td>no unbounded label values; retention and rollups set on purpose; long-term storage (Thanos, Mimir, VictoriaMetrics) only when one server's retention is not enough.</td></tr>
+</table></div>
+<p class="small mute">These are configuration names and documented behaviours from the sources linked in each section; they are a checklist, not a complete production guide. Backups, replication and failover for Postgres itself are on {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}; sharding Postgres and distributed SQL on {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}; consistency models and quorums in general on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}.</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Choosing the database before listing the questions</summary><div class="b">The family follows from the access patterns. A store chosen for its reputation, before the list exists, leaves the questions nobody planned for as scans (section 4) or new tables (section 6).</div></details>
+<details class="mist"><summary>Read, decide, write in the application</summary><div class="b">Measured: 188 requests passed a limit of 20. Use the store's atomic operation (<code>INCR</code>, a Lua script, a conditional write, <code>UPDATE ... SET n = n - 1 WHERE n &gt; 0</code>).</div></details>
+<details class="mist"><summary>Redis as the only copy</summary><div class="b">A failover lost 4,947 of 5,000 acknowledged writes here; an RDB-only server lost every write since its last snapshot. Keep the source of truth in a database.</div></details>
+<details class="mist"><summary>Believing a filter makes a scan cheap</summary><div class="b">DynamoDB charges for items read, not returned: a Scan that returned nothing still read 1,000 items in its first page.</div></details>
+<details class="mist"><summary>A partition key that concentrates traffic</summary><div class="b">The current date, a tenant with most of the traffic, one celebrity chat. Every partition has a ceiling (1,000 writes a second in DynamoDB); spread with a suffix or rethink the key.</div></details>
+<details class="mist"><summary>Partitions or documents that grow forever</summary><div class="b">A chat document hit the 16 MB limit at 15,220 messages; a Cassandra partition per chat grows without limit. Bucket by time or count.</div></details>
+<details class="mist"><summary>Using Cassandra as a queue, or deleting in bulk</summary><div class="b">5,000 tombstones made a read about nine times slower; 101,000 made it fail. Prefer TTLs on time-ordered tables with TimeWindow compaction, and never a read-and-delete queue.</div></details>
+<details class="mist"><summary>"Schemaless" without validation</summary><div class="b">Without a validator, every reader must handle every shape ever written. Add <code>$jsonSchema</code> or keep the fixed fields as Postgres columns.</div></details>
+<details class="mist"><summary>Reading your own write from an index or replica</summary><div class="b">DynamoDB GSIs, MongoDB secondaries, Redis replicas and Cassandra at <code>ONE</code> can all return data from before your write. Read from the primary, or use a strong read where one exists, for the request right after a write.</div></details>
+<details class="mist"><summary>User ids as metric labels</summary><div class="b">One label with 100,000 values multiplies every metric's series by 100,000 (the calculator in section 7). Per-user detail goes in logs or an events table.</div></details>
+<details class="mist"><summary>Deleting old time-series rows with DELETE</summary><div class="b">Measured: 1.9 s and 65 MB of log for 7 days, and the table did not shrink; dropping 7 daily partitions took 0.06 s.</div></details>
+<details class="mist"><summary>A graph database for two hops</summary><div class="b">Friends of friends was faster in Postgres than in either graph engine here. Graph databases pay off for paths and variable-depth patterns.</div></details>
+</section>
+
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<div class="gl" id="rd-gl"></div>
+</section>
+<div class="foot">Measured on 4 and 5 October 2026 on an Apple M1 Pro laptop (16 GB, macOS) with Redis 8.8.0, MongoDB 8.0.23, OpenJDK 17 and 25 (conda-forge, installed in a scratch directory), DynamoDB Local 3.3.1, Apache Cassandra 5.0.9, Neo4j Community 2026.09.0, Kuzu 0.11.3, PostgreSQL 16.2 (pgserver wheel) and DuckDB 1.5.6. Every run is under 10 minutes; the scripts and raw outputs are in the page's <code>src/measure</code> and <code>src/inputs</code> folders. Facts about other systems come from the root page's Database atlas (checked on 4 October 2026) unless linked.</div>
+</div>

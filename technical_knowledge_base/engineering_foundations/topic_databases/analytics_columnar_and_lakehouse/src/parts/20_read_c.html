@@ -1,0 +1,39 @@
+
+<section id="s-col">
+<h2>2. Inside a column store: chunks, encodings, compression</h2>
+<p><b>The problem.</b> A table of 10 million messages is about 1.5 GB in Postgres. An analytics question usually needs two or three of its seven columns, and it needs every row of them. A layout that keeps each row's values together forces the reader through all seven columns to get two.</p>
+<p><b>The idea.</b> Cut the table into blocks of rows (a <b>row group</b>: in DuckDB's own storage and in the Parquet files it writes, 122,880 rows by default ({{DuckDB Parquet docs|https://duckdb.org/docs/stable/data/parquet/overview}})). Inside each block, store each column on its own, one after another: a <b>column chunk</b>. A query that names <code>model</code> and <code>tokens</code> reads those two chunks from every block and never touches <code>content</code>. That is the whole trick behind the root page's 87 times fewer bytes at 10 million rows ({{Query plans|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab, case 6).</p>
+<p>The second win comes free: one column's values are all the same type and usually look alike (two roles, four model names, timestamps three seconds apart), so they can be stored in far fewer bits than their plain form. That is done in two layers, and it helps to keep them apart:</p>
+<ul>
+<li><b>Encoding</b> rewrites values into a smaller representation that the engine can still read directly, often without decoding everything first. It knows the type (integers, strings).</li>
+<li><b>Compression</b> (a <b>codec</b> such as Snappy, LZ4 or Zstandard) then squeezes the encoded bytes as an opaque blob, the way a zip file does. It must be undone before the bytes are used.</li>
+</ul>
+
+<h3>The encodings, one problem each</h3>
+<div class="grid">
+<div class="sp"><div class="n">Dictionary</div><p><b>Problem:</b> the same few strings repeated millions of times (<code>model</code> has four values). <b>How:</b> store each distinct value once in a <i>dictionary page</i>, then store small integer codes (0 to 3) instead of the strings. <b>Cost:</b> useless when nearly every value is distinct (an id): writers fall back to plain when the dictionary grows too big (pyarrow's default limit is 1 MB per column chunk, {{pyarrow docs|https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html}}).</p></div>
+<div class="sp"><div class="n">Bit-packing</div><p><b>Problem:</b> codes 0 to 3 need 2 bits, not 32. <b>How:</b> pack each value into exactly as many bits as the largest one needs, eight values at a time. <b>Cost:</b> one big value raises the width for its whole run.</p></div>
+<div class="sp"><div class="n">Run-length (RLE)</div><p><b>Problem:</b> long runs of the same value (a column sorted by <code>model</code>). <b>How:</b> write "value 2, repeated 2,500,000 times" as two numbers. <b>Cost:</b> nothing gained when values alternate; Parquet mixes RLE runs and bit-packed runs in one stream, the <i>RLE/bit-packing hybrid</i> ({{Parquet encodings|https://parquet.apache.org/docs/file-format/data-pages/encodings/}}).</p></div>
+<div class="sp"><div class="n">Delta</div><p><b>Problem:</b> sorted or slowly growing numbers (ids, timestamps): 10 million eight-byte values that differ by 1 or by 3 seconds. <b>How:</b> store the first value, then the differences, bit-packed in blocks (DELTA_BINARY_PACKED). <b>Cost:</b> differences of a random column are as big as the values.</p></div>
+<div class="sp"><div class="n">Byte stream split</div><p><b>Problem:</b> numbers whose bytes are noisy at the bottom but similar at the top (floats, measurements). <b>How:</b> write all first bytes, then all second bytes, and so on, so the codec sees long similar streams. <b>Cost:</b> no saving on its own; it only helps the codec that follows.</p></div>
+<div class="sp"><div class="n">Codecs</div><p><b>Snappy</b> and <b>LZ4</b> are fast and modest; <b>Zstandard (zstd)</b> compresses harder for a little more CPU, with levels; gzip and Brotli are slower still. Parquet lists UNCOMPRESSED, SNAPPY, GZIP, LZO, BROTLI, LZ4 (framing deprecated), ZSTD and LZ4_RAW ({{parquet-format|https://github.com/apache/parquet-format/blob/master/Compression.md}}).</p></div>
+</div>
+
+<h3>Measured on the chat data</h3>
+<p>Every column of the 10 million messages, written on its own by pyarrow 25.0.1 with each encoding and each codec; the bar is the column chunk's size from the file's footer (<code>src/measure/encodings.py</code>, run 2026-10-04). Pick a column; for <code>role</code> and <code>model</code> try the table sorted by those columns.</p>
+<div class="card" id="encCard">
+<div class="chips" id="encCols"></div>
+<div class="seg" id="encOrder"><button data-m="time" class="on">Stored in time order</button><button data-m="sorted">Table sorted by model, role</button></div>
+<div id="encBars" class="bars"></div>
+<div id="encNote" class="small mute"></div>
+</div>
+<p>What the numbers say:</p>
+<ul>
+<li><b><code>id</code> and <code>created_at</code>:</b> 80 MB plain, about 0.2 to 0.3 MB with delta encoding (367 and 236 times smaller), before any codec. Consecutive ids differ by 1 and timestamps by 3 seconds, so every delta fits in a couple of bits. Dictionary is the wrong tool here: it gave up and stored 82.7 MB.</li>
+<li><b><code>role</code>:</b> 105 MB of plain strings; a dictionary of two words plus 1 bit per row is 1.29 MB (10 million bits is 1.25 MB). Roles alternate user, assistant, so runs never form. Sort the table by role and the same dictionary encoding gives 17.5 KB: the bits become a handful of RLE runs.</li>
+<li><b><code>model</code>:</b> four values, so 2 bits each: 2.54 MB with a dictionary, and Snappy or zstd on top gain nothing, because bit-packed random codes look like noise to a codec.</li>
+<li><b><code>content</code>:</b> nothing but the codec helps. 835 MB plain, 389 MB with Snappy, 223 MB with zstd. <span class="ill">Caveat:</span> the generator's text is a repeated hexadecimal hash, which compresses unusually well; real chat text should be measured on your own data.</li>
+</ul>
+<div class="co key"><div class="t">The rule that falls out</div>Let the writer pick encodings (every mainstream writer tries dictionary first and falls back), choose the codec on purpose (Snappy is the default in DuckDB and in {{Spark|https://spark.apache.org/docs/latest/sql-data-sources-parquet.html}}, zstd is the usual choice for data kept a long time), and control the one thing that changes the numbers most: <b>sort order</b>. The same 10 million roles are 1.29 MB or 17.5 KB depending only on how rows were ordered when written.</div>
+<p><b>What it costs.</b> Encoded, compressed columns are cheap to scan and expensive to change: updating one message means decoding and rewriting whole chunks, which is why column stores append in bulk, mark deletions on the side, and merge later (sections 7 and 9). Rebuilding a whole row touches one chunk per column. And CPU is spent on every read to undo the codec; with fast disks and a heavy codec, scans can become CPU-bound.</p>
+</section>
