@@ -1,5 +1,5 @@
-# Production eval engineering: gates, golden sets, statistics, gold-label auditing
+# Production eval engineering: gates, golden sets, shadow and A/B tests
 
-Notion: https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc (child of Topic: evaluation-and-llm-judges)
+Notion: https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc (child of Topic: evaluation-and-llm-judges; old title "Production eval engineering: gates, golden sets, statistics, gold-label auditing")
 
-Old written page in Notion: being rebuilt as an interactive page (statistics moves to Eval statistics).
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). The promotion path for a change to a shipping LLM product: golden sets (composition, sizes, promotion of production failures, lifecycle), regression gates in CI (per-slice thresholds, hard floors, flaky evals, what trips the gate in promptfoo, DeepEval, Braintrust, LangSmith, Inspect and the retiring OpenAI Evals API), cost and latency budgets (with a 2023 cost-quality frontier and the evals' own bill), offline against online, shadow deployments, canary, A/B tests and interleaving, monitoring and drift, eval-driven development. Tabs: Reading (with a before/after animation of one real model swap through an aggregate gate and a per-slice gate, on LMSYS's released MT-Bench grades), Gate designer (34 models, every threshold), Case file (21 dated team write-ups on the promotion path), Further reading. Statistics moved to Eval statistics and gold-label auditing to Human evaluation and annotation (handoffs in `src/`). No child pages, databases or video.
