@@ -1,0 +1,44 @@
+<section id="rd-s4">
+<h2>4. Partitioning inside one Postgres</h2>
+<h3>The problem appears</h3>
+<p>The messages table is the chat product's biggest: 10 million rows here, billions in a real product, growing every second. The product keeps one year of messages, so every night a job deletes the oldest day, and that job now runs for minutes, writes gigabytes of log, and leaves dead rows behind for vacuum to clean. Dashboards that look only at last week still read pages of old data.</p>
+<h3>The idea</h3>
+<p><dfn>Partitioning</dfn> splits one logical table into several physical tables, the <dfn>partitions</dfn>, each holding the rows whose <dfn>partition key</dfn> falls in its slice. Queries still name the parent table; Postgres sends each row to its partition and, when a query's WHERE clause names the partition key, skips the partitions that cannot contain matches. That skipping is <dfn>partition pruning</dfn>, done when planning and again when executing (<a href="https://www.postgresql.org/docs/current/ddl-partitioning.html" target="_blank" rel="noopener noreferrer">PostgreSQL docs, Table partitioning</a>). Everything stays on one server: partitioning is not sharding.</p>
+<p>Postgres has had this built in ("declarative partitioning") since version 10 (range and list) and hash partitioning since 11 (<a href="https://www.postgresql.org/docs/release/11.0/" target="_blank" rel="noopener noreferrer">release notes</a>). Three ways to slice:</p>
+<div class="vs">
+<div><h4>Range</h4><p>Each partition holds a range of values, usually time: one partition per month. The natural choice for anything that grows with time and is deleted by age.</p></div>
+<div><h4>List</h4><p>Each partition holds listed values: <code>country IN ('DE','FR','NL')</code>. Useful when the data has a few natural groups, for example to put EU users' rows on separate storage.</p></div>
+<div><h4>Hash</h4><p>Rows are spread by a hash of the key into N partitions: <code>MODULUS 8, REMAINDER 3</code>. Evens out size when there is no natural range; pruning only helps queries with key equality.</p></div>
+</div>
+<pre class="sql"><span class="c">-- the chat messages, one partition per month (what this page measured)</span>
+<span class="k">CREATE TABLE</span> messages_month (<span class="k">LIKE</span> messages <span class="k">INCLUDING DEFAULTS</span>, <span class="k">PRIMARY KEY</span> (id, created_at))
+  <span class="k">PARTITION BY RANGE</span> (created_at);
+<span class="k">CREATE TABLE</span> messages_m2025_09 <span class="k">PARTITION OF</span> messages_month
+  <span class="k">FOR VALUES FROM</span> ('2025-09-01 00:00+00') <span class="k">TO</span> ('2025-10-01 00:00+00');
+<span class="c">-- ... one per month to 2026-08; an index created on the parent is created on every partition</span>
+<span class="k">CREATE INDEX ON</span> messages_month (chat_id, created_at);</pre>
+<p>Note the primary key: <code>(id, created_at)</code>, not <code>(id)</code>. Each partition can only check uniqueness inside itself, so a unique key must include the partition key. Asking for <code>PRIMARY KEY (id)</code> fails, measured: <code class="small">ERROR: unique constraint on partitioned table must include all partitioning columns</code>. If you need <code>id</code> unique on its own, generate it so it cannot collide (a sequence or an ID that embeds time).</p>
+<h3>Measured: which queries partitioning helps</h3>
+<p>The 10 million messages were copied into two partitioned versions: by month (12 range partitions on <code>created_at</code>) and by hash of <code>chat_id</code> (8 partitions). Pick a query and a layout; highlighted boxes are partitions the plan actually read.</p>
+<div class="card" id="ptCard">
+<div class="seg" id="ptQ"><button data-m="dash" class="on">Dashboard: tokens per model, last 7 days</button><button data-m="chat">Open a chat: latest 50 messages</button><button data-m="chat_week">Same chat, with a date range</button></div>
+<div class="seg" id="ptL"><button data-m="messages" class="on">One table</button><button data-m="messages_month">By month (range)</button><button data-m="messages_hash">By chat (hash, 8)</button></div>
+<pre class="sql" id="ptSql"></pre>
+<div class="pt" id="ptBoxes"></div>
+<div class="nums" id="ptNums"></div>
+<p class="small mute" id="ptNote"></p>
+</div>
+<p><b>How to read it.</b> The dashboard query names <code>created_at</code>, so the monthly layout reads only August: about <b>26 ms against 373 ms</b> for the plain table (7,341 pages against 192,372). But the "One table" layout with an ordinary index on <code>created_at</code> also answers it in <b>about 23 ms</b> (select "One table" and read the note): for reading, an index does most of what partitioning does. Opening a chat does not name <code>created_at</code>, so the monthly layout must probe all 12 partitions' indexes: <b>0.21 ms against 0.05 ms</b>, and its planning takes 2.0 ms against 0.3 ms. The hash-by-chat layout is the mirror image: one partition for the chat, all 8 for the dashboard. <b>A partition key is chosen by the queries, exactly like a shard key</b> (section 7), on a smaller stage.</p>
+<h3>Where partitioning really pays: deleting old data</h3>
+<div class="nums" id="ptRet"></div>
+<p>Deleting September 2025 from the plain table means finding and marking 863,999 rows, writing 160 MB of log (which every replica must replay, and every backup must store), and leaving 864 thousand dead rows for vacuum. Dropping the September partition removes one file. This, more than speed, is why time-series and log-like tables are partitioned. Archiving works the same way: detach a partition (<code>DETACH PARTITION ... CONCURRENTLY</code>, since PostgreSQL 14, takes only a weak lock on the parent), copy it to cheap storage, drop it.</p>
+<h3>Maintenance: what you now have to run</h3>
+<ul class="tight">
+<li><b>Create future partitions before data arrives.</b> An insert with no matching partition fails. Most teams use the <a href="https://github.com/pgpartman/pg_partman" target="_blank" rel="noopener noreferrer">pg_partman</a> extension or a scheduled job that creates the next few months ahead.</li>
+<li><b>The default partition trap.</b> A <code>DEFAULT</code> partition catches rows that fit nowhere, but attaching a new partition then scans the default partition to check none of its rows belong to the new one, under a lock, unless a CHECK constraint proves it (<a href="https://www.postgresql.org/docs/current/ddl-partitioning.html" target="_blank" rel="noopener noreferrer">docs</a>).</li>
+<li><b>Not too many partitions.</b> The docs: the planner handles "up to a few thousand partitions fairly well, provided that typical queries allow the query planner to prune all but a small number". Measured below on empty tables, planning time only.</li>
+</ul>
+<div class="bars" id="ptPlan"></div>
+<p class="small mute">Planning time in ms (median of 7), for a query on the partition key (pruned to one) and a query on another column (all partitions remain). Every query pays planning time, so 3,000 unpruned partitions add about 0.1 s to each one.</p>
+<div class="cost"><div class="t">What partitioning does not solve</div><p>It does not add CPU, memory, disk or connections: all partitions live on the same server, so a server that is out of any of them stays out. It makes queries that do not name the key slightly slower, constrains unique keys, and adds jobs to run. Partitionwise join and aggregate (planning joins partition by partition) exist but are off by default because they raise planning cost (<code>enable_partitionwise_join</code>, <a href="https://www.postgresql.org/docs/current/runtime-config-query.html" target="_blank" rel="noopener noreferrer">docs</a>). <b>Enough when</b> the pain is a huge, time-ordered table: retention, vacuum, index size, archiving. <b>Not the answer</b> when the server itself is full.</p></div>
+</section>
