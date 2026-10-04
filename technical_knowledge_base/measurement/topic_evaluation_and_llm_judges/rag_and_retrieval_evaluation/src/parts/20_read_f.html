@@ -1,0 +1,67 @@
+
+<section id="rd-bench">
+<h2>Hallucination detection benchmarks for RAG</h2>
+<p>These measure the detectors, not the generators: each holds model outputs labelled faithful or not against their sources, and a detector is scored on finding the unfaithful ones. Use them to choose the faithfulness checker before you trust it on your traffic.</p>
+<div class="tw"><table>
+<thead><tr><th>Benchmark</th><th>What it holds</th><th>Best reported detector</th></tr></thead>
+<tbody>
+<tr><td><b>RAGTruth</b> (<a href="https://arxiv.org/abs/2401.00396" target="_blank" rel="noopener noreferrer">ACL 2024</a>)</td><td>17,790 responses of six 2023 models (QA, data-to-text, summarisation), every hallucinated span marked with one of four types; 43.1% of responses have at least one.</td><td>Fine-tuned Llama-2-13B: response F1 78.7, span F1 52.7, above prompted GPT-4-turbo (63.4, 28.3).</td></tr>
+<tr><td><b>LLM-AggreFact</b> (<a href="https://arxiv.org/abs/2404.10774" target="_blank" rel="noopener noreferrer">MiniCheck, EMNLP 2024</a>)</td><td>Ten grounding datasets (eleven on the <a href="https://llm-aggrefact.github.io/" target="_blank" rel="noopener noreferrer">leaderboard</a>), a claim against its grounding document, balanced accuracy.</td><td>Paper: MiniCheck-FT5 (770M) 74.7% against GPT-4 75.3%, at about $0.24 against $107. Leaderboard (last updated Sep 2025): Bespoke-MiniCheck-7B 77.4, Claude-3.5 Sonnet 77.2, Granite Guardian 3.3 76.5.</td></tr>
+<tr><td><b>HaluBench</b> (<a href="https://arxiv.org/abs/2407.08488" target="_blank" rel="noopener noreferrer">Patronus, Lynx, Jul 2024</a>)</td><td>About 15,000 context, question, answer triples from FinanceBench, DROP, COVID-QA, PubMedQA, HaluEval and RAGTruth, with perturbed answers.</td><td>Lynx-70B 87.4% accuracy against GPT-4o 86.5% and Claude-3-Sonnet 78.8%.</td></tr>
+<tr><td><b>FaithBench</b> (<a href="https://arxiv.org/abs/2410.13210" target="_blank" rel="noopener noreferrer">Oct 2024</a>)</td><td>660 summaries from ten models over 66 source passages, labelled by annotators (including "questionable" and "benign").</td><td>All detectors near 50% balanced accuracy in the paper (best, MiniCheck-DeBERTa-L, 54.95%). FaithJudge, a few-shot judge given human-labelled examples, later reached 84.0% with o3-mini-high (<a href="https://arxiv.org/abs/2505.04847" target="_blank" rel="noopener noreferrer">arXiv 2505.04847, EMNLP 2025 Industry</a>).</td></tr>
+<tr><td><b>Vectara HHEM-2.1-Open</b> (<a href="https://huggingface.co/vectara/hallucination_evaluation_model" target="_blank" rel="noopener noreferrer">model card</a>)</td><td>A flan-t5-base classifier, the checker inside RAGAS's HHEM variant and Vectara's hallucination leaderboard.</td><td>Model card: RAGTruth-QA balanced accuracy 74.28% against GPT-4's 74.11% (vendor figure).</td></tr>
+</tbody></table></div>
+<p>The pattern across them: on easy, synthetic perturbations (HaluBench) detectors look nearly solved; on natural errors of strong models (FaithBench) they were at chance until judges got examples. Your traffic is the second kind.</p>
+</section>
+
+<section id="rd-long">
+<h2>Long context against RAG: what to evaluate</h2>
+<p>When a corpus fits in a million-token window, "do we need retrieval at all?" is an evaluation question, answered on your own questions, not by a leaderboard. Three findings frame it:</p>
+<ul class="tight">
+<li>Position matters inside the window: accuracy is highest when the relevant passage sits at the start or end and drops in the middle (Lost in the Middle). {{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}} owns this and the effective-length benchmarks (its "Position" and "Beyond retrieval" sections, and HELMET's RAG category, which predicts downstream behaviour better than needle tests).</li>
+<li>More retrieved passages is not monotone: quality rises, then falls as hard negatives pile in (<a href="https://arxiv.org/abs/2410.05983" target="_blank" rel="noopener noreferrer">Jin et al., Oct 2024</a>). So evaluate recall@k and end-to-end accuracy together across k, not recall alone.</li>
+<li>Neither wins everywhere: long context beat RAG on average when budget allowed, and routing each query to RAG or long context by the model's own judgement kept quality at 65% lower cost on Gemini-1.5-Pro (<a href="https://arxiv.org/abs/2407.16833" target="_blank" rel="noopener noreferrer">Self-Route, EMNLP 2024 Industry</a>); LaRA's 2,326 cases over 11 models found the winner depends on model, window, task and chunking (<a href="https://arxiv.org/abs/2502.09977" target="_blank" rel="noopener noreferrer">Mar 2025</a>).</li>
+</ul>
+<p>Evaluate both arms on the same golden set, with the same correctness check, at your corpus size, and report cost and latency beside accuracy. Retrieval metrics apply only to the RAG arm; the long-context arm is scored end to end plus faithfulness against the whole window. {{Advanced and agentic RAG|n:3c65c17b0d0d8105a68cfb504ed4b0e8}} prices the two.</p>
+</section>
+
+<section id="rd-build">
+<h2>Building a RAG test set from your own corpus</h2>
+<p>A few hundred well-made items beat ten thousand synthetic ones.</p>
+<ol>
+<li><b>Mine real questions</b> from logs, support tickets and subject-matter experts. Synthetic questions come out longer and more literal: one September 2026 comparison on a production corpus found real queries averaged 6.8 words against 15.7 for generated ones, and that tuning on the synthetic set picked a retriever with up to 8 times the latency of the fastest (<a href="https://arxiv.org/abs/2609.14579" target="_blank" rel="noopener noreferrer">Kucia and Gawlik, arXiv 2609.14579</a>, preprint).</li>
+<li><b>Label each question twice:</b> the relevant passage ids with grades (for the retrieval half) and a reference answer, or a list of nuggets (for the generation half). Expert time is the bottleneck; spend it here. Labelling only the top results of one system biases the labels toward that system; pool the top 10 of several systems, as TREC does.</li>
+<li><b>Bootstrap coverage with generation, then filter by hand.</b> RAGAS's generator builds a knowledge graph over your chunks (entities, keyphrases, similarity links) and by default draws a third each of single-hop specific, multi-hop abstract and multi-hop specific questions (<a href="https://docs.ragas.io/en/stable/concepts/test_data_generation/rag/" target="_blank" rel="noopener noreferrer">docs</a>). Unfiltered, generated questions quote the chunk's own phrasing and are easy for lexical retrieval by construction.</li>
+<li><b>Include the hard cases on purpose:</b> unanswerable questions (the system should abstain; score abstention, not recall), multi-hop questions, ambiguous ones, near-duplicate documents, and questions whose answer changed over time.</li>
+<li><b>Version it.</b> Re-chunking the index invalidates passage-id labels; re-label or map them. Never tune on the held-out slice.</li>
+</ol>
+<p>How many questions a comparison needs is on {{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}}; label quality and agreement on {{Human evaluation and annotation|n:3ef5c17b0d0d819485bcc54a45d49420}}; turning the set into a release gate on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}.</p>
+<h3>Bucket every failure</h3>
+<ul class="tight">
+<li><b>Retrieval miss:</b> the answer is not in the corpus (a corpus gap, not a retriever bug), or it is but was not retrieved. Fix chunking, hybrid search, query rewriting.</li>
+<li><b>Ranking miss:</b> retrieved at rank 40, the prompt takes 10. Fix the reranker or k.</li>
+<li><b>Generation miss:</b> the passage was in the prompt and the answer is wrong, unfaithful or incomplete. Fix the prompt, the model, the context formatting; check for distraction by irrelevant passages.</li>
+<li><b>Grounding-refusal miss:</b> the context sufficed and the model refused or hedged; or, the inverse, the context did not suffice and it answered anyway. Fix the instructions and abstention.</li>
+<li><b>Source miss:</b> both halves passed and the source itself was stale or wrong. Fix the corpus.</li>
+</ul>
+</section>
+
+<section id="rd-agent">
+<h2>Agentic RAG</h2>
+<p>When the model calls retrieval as a tool in a loop, the per-call metrics still apply to each search, and the trajectory needs its own checks: did it search when it should (and not when it should not), how good were its reformulated queries, how many calls until it had enough, and are the final citations verified against what it actually read. {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}} owns grading trajectories; public agentic benchmarks are on {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}}.</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Reporting one end-to-end score</summary><div class="b">It cannot say which half failed. Split retrieval from generation, and ask the one-bit question on every failure.</div></details>
+<details class="mist"><summary>Measuring recall only at the prompt's k</summary><div class="b">Measure the first stage at the reranker's input depth too, or a retrieval miss and a ranking miss look the same.</div></details>
+<details class="mist"><summary>Reading high faithfulness as correctness</summary><div class="b">Faithfulness is answer against passages. A stale passage gives a faithful wrong answer (four of six "still alive" in the animation), and a true answer from memory scores as unfaithful (846 of RAGTruth's 2,927 QA spans).</div></details>
+<details class="mist"><summary>Comparing "faithfulness" across frameworks</summary><div class="b">RAGAS fails unsupported claims; DeepEval's default passes them unless they contradict the context; TruLens counts refusals as grounded. Name the framework, version and judge with every number.</div></details>
+<details class="mist"><summary>Reading high context precision as a clean prompt</summary><div class="b">Irrelevant passages below the relevant ones do not lower it; precision@k catches the padding.</div></details>
+<details class="mist"><summary>Comparing nDCG across libraries, or "recall" across papers</summary><div class="b">Check the gain (linear in trec_eval, exponential in some libraries), the cutoff, and whether "recall@k" means the share of relevant passages or a per-query hit.</div></details>
+<details class="mist"><summary>Calling two BM25 runs the same system</summary><div class="b">On SciFact our Lucene-style BM25 scores nDCG@10 0.676 and rank_bm25 as installed 0.652: tokenisation, stemming and k1, b move the third decimal and sometimes the second ({{Score a real retrieval run|#t-run}}).</div></details>
+<details class="mist"><summary>Unpinned judges</summary><div class="b">Upgrading the judge model moves every generation metric; treat it as a new instrument and recalibrate on the gold slice.</div></details>
+<details class="mist"><summary>Synthetic-only test sets and stale labels</summary><div class="b">Generated questions are easy by construction; re-chunking invalidates passage-id labels.</div></details>
+<details class="mist"><summary>Averaging recall over unanswerable questions</summary><div class="b">It has no value there (zero relevant passages to divide by); score abstention separately.</div></details>
+</section>
+</div>
