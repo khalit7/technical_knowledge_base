@@ -1674,3 +1674,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 5 | **Figures 8.2, 8.4, 8.5 recomputed** | Reading 2, 3 | 4 | 5 | 2 | Defaults reproduce the shapes; the 1,700-step first episode does not (exact expected random walk 869). |
 | 6 | **Dyna lab** tab: the three experiments with n, alpha, epsilon, kappa, runs | tab | 3 | 5 | 2 | Sweeps that deserve room (Khalid rejected the root's tabular lab; depth belongs on children). |
 | 7 | **Self-play lab** tab: training curves, any position's prior / value / visits / exact result for 5 checkpoints, a table of checkpoints, and a simulations-needed chart | tab | 4 | 5 | 4 | The AlphaZero loop trained offline in about 30 s (src/train_ttt.py); weights int8 (about 2.5 KB per checkpoint). |
+
+### RL for LLMs: RLHF, GRPO, RLVR (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_rl/rl_for_llms/src/viz_ideas.md`.
+
+| # | Idea | Teach | Data | Placement | Status |
+|---|---|---|---|---|---|
+| 1 | **One real response through RLHF-PPO, GRPO+verifier, Dr. GRPO** (before/after, six steps: response, score, KL, baseline, advantage, loss weight; counters for models in memory, rollouts, networks, distinct advantages; λ toggle) | 5 | 5 (real tokens, real RM, measured values) | Reading section 5 | built |
+| 2 | **One group step by step: GRPO, Dr. GRPO, RLOO** (reused from Topic: rl reading_full, now with real groups and lengths) | 5 | 5 | Reading section 3 | built (reused) |
+| 3 | **Rare token under four objectives** (PPO clip, clip-higher, CISPO, no clip; 16 minibatch steps; probability on log scale; per-step gradient weight) | 4 | 3 (illustrative toy, exact gradients, checked in Python) | Reading section 7 | built |
+| 4 | **Rollout mismatch tab** (histograms of real per-token log-ratios in three set-ups; TIS cap and MIS band sliders; sequence ratio against GSPO's geometric mean) | 4 | 5 | Tab | built |
+| 5 | **Verifier gallery** (three checkers on 160 answers, agreement table, real disagreements annotated, documented failures with sources) | 4 | 5 | Tab | built |
+| 6 | **Real rollouts tab** (all groups, verdicts, RM score, three advantages, KL to base; RM-against-verifier scatter with AUC and length correlation) | 4 | 5 | Tab | built |
+| 7 | **Synchronous against asynchronous** (real lengths, illustrative engine/trainer model; utilisation and staleness counters) | 3 | 3 | Reading section 12 | built |
+| 8 | **pass@k crossing** (sharpening against expansion) | 3 | 2 (illustrative, exact) | Reading section 9 | built |
+| 9 | k3 against the plain log-ratio on real tokens | 3 | 4 (base model as stand-in reference) | Reading section 3 | built |
+| 10 | DAPO overlong penalty slider | 2 | 5 (formula) | Reading section 7 | built (from the old embed) |
