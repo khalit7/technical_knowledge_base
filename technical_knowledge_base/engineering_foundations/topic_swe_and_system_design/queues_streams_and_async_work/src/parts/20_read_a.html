@@ -1,0 +1,47 @@
+<div class="tab" id="t-read" role="tabpanel">
+<p class="small mute">About 50 minutes to read. Every section can be read alone; terms are defined at first use (in bold) and collected in the glossary at the end. This page owns the depth on queues, streams and background work; the parent root's Step 3 ("Slow work leaves the request path") gives the five-minute version.</p>
+<nav class="nav" id="rd-nav">
+<a href="#s-one">In one screen</a><a href="#s-why">Why async</a><a href="#s-kinds">Queues and logs</a><a href="#s-kafka">Kafka</a><a href="#s-sem">Delivery semantics</a><a href="#s-meas">Measured</a><a href="#s-eos">Exactly-once</a><a href="#s-idem">Idempotent consumers</a><a href="#s-vt">Visibility timeouts</a><a href="#s-dlq">Dead letters</a><a href="#s-bp">Backpressure</a><a href="#s-dual">Dual write and outbox</a><a href="#s-saga">Sagas</a><a href="#s-eda">Events</a><a href="#s-jobs">Python job queues</a><a href="#s-cron">Cron</a><a href="#s-llm">LLM async</a><a href="#s-prod">In production</a><a href="#s-mist">Mistakes</a><a href="#s-gl">Glossary</a>
+</nav>
+
+<section id="s-one">
+<h2>In one screen</h2>
+<p class="lead">Our running example is the parent topic's chat assistant. When a user sends a message, the reply has to come back now; but a lot of other work hangs off that message and can happen a few seconds later: give the conversation a title, embed an uploaded PDF so it can be searched, count the tokens for billing, send a receipt when someone buys a subscription, tell the analytics system. This page is about that second kind of work: how it is handed off (<b>queues</b> and <b>logs</b>), how often it runs when machines crash (<b>delivery semantics</b>), and how to keep a database and a message system in agreement (<b>the outbox</b>).</p>
+<div class="tw"><table class="onescreen">
+<thead><tr><th>Problem</th><th>Tool</th><th>What it costs</th><th>When not to use it</th></tr></thead>
+<tbody>
+<tr><td>Slow work holds the user's request</td><td><a href="#s-why">A queue and background workers</a>; reply <code>202 Accepted</code></td><td>The result arrives later; one more system to run</td><td>The answer the user is waiting to read</td></tr>
+<tr><td>Many services need the same events, or a replay</td><td><a href="#s-kinds">A log</a> (Kafka, Kinesis, Redpanda) instead of a queue</td><td>Partitions to plan, offsets to manage, a cluster to run</td><td>A simple job queue with one kind of worker</td></tr>
+<tr><td>A worker crashes halfway through a job</td><td><a href="#s-sem">At-least-once delivery</a>: acknowledge after the work</td><td>Duplicates: a job can run twice</td><td>Never acknowledge first unless losing work is acceptable</td></tr>
+<tr><td>Duplicates do damage (two e-mails, two charges)</td><td><a href="#s-idem">Idempotent consumer</a>: a unique key on the message id</td><td>A table of processed ids, and an expiry policy</td><td>When the effect is already naturally idempotent</td></tr>
+<tr><td>"Exactly once" is promised</td><td><a href="#s-eos">Kafka transactions</a>, or at-least-once plus deduplication</td><td>Latency and complexity; covers Kafka-to-Kafka only</td><td>When the side effect is outside Kafka (then deduplicate)</td></tr>
+<tr><td>A job is slower than the timeout and runs twice</td><td><a href="#s-vt">Visibility timeout</a> set above the slowest job, extended by a heartbeat</td><td>Slower recovery after a real crash</td><td>Never set it below normal processing time</td></tr>
+<tr><td>One bad message fails forever</td><td><a href="#s-dlq">Dead-letter queue</a> after N tries, with an alert and a replay path</td><td>Someone must look at it</td><td>Strictly ordered streams, where skipping breaks order</td></tr>
+<tr><td>Work arrives faster than it is done</td><td><a href="#s-bp">Backpressure</a>, bounded queues, Little's law to size workers</td><td>Some producers are told "not now"</td><td>Never let a queue grow without bound instead</td></tr>
+<tr><td>Save a row and publish an event, atomically</td><td><a href="#s-dual">Transactional outbox</a> (polling relay or Debezium)</td><td>A relay to run; events arrive at least once</td><td>When the database itself is the queue (enqueue in the same transaction)</td></tr>
+<tr><td>One business action spans several services</td><td><a href="#s-saga">Saga</a> with compensating steps (not two-phase commit)</td><td>No isolation between steps; compensations to write</td><td>When one database transaction can do it</td></tr>
+<tr><td>Multi-step jobs that must survive crashes for hours</td><td><a href="#s-jobs">Durable workflows</a> (Temporal, DBOS, Restate)</td><td>A new programming model; deterministic code</td><td>Single-step jobs a plain queue handles</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Three ideas carry most of this page</div>
+<p><b>1. A network cannot give you "exactly once"; you build it.</b> When a crash or a lost reply leaves the sender unsure whether a message arrived, it must either send again (and risk a duplicate) or not (and risk a loss). Real systems choose "send again" and make the receiver ignore repeats. Measured below on a real Postgres: 1,000 jobs with a 5% crash chance were done 1,046 to 1,053 times; with a unique key on the message id, exactly 1,000.</p>
+<p><b>2. Two writes to two systems are never atomic.</b> Saving an order and then publishing its event loses the event whenever the process dies in between (measured: 19 to 28 lost per 500 orders at a 5% crash chance). The outbox turns the two writes into one database transaction, then publishes later, at least once.</p>
+<p><b>3. A queue hides overload instead of removing it.</b> If work arrives faster than workers finish it, nothing errors: the queue just grows, and every job waits longer. Watch the age of the oldest message, size workers with Little's law, and push back on producers.</p>
+</div>
+</section>
+
+<section id="s-why">
+<h2>Why async: taking slow work off the request path</h2>
+<p>A <dfn id="d-req">request path</dfn> is everything that happens between a client sending a request and receiving the response. On the chat assistant, the path for "send message" is: check the user, save the message, call the model, stream the reply. Anything else done on that path makes every user wait for it, and holds one of the server's limited request slots while they wait. The parent root shows the effect with PDF uploads: 5 uploads among 30 chat messages made chat messages wait up to 3 seconds that should have waited none (the root's Step 3 animation, {{Topic: swe-and-system-design|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p>
+<p>The fix is to separate <b>accepting</b> work from <b>doing</b> it. The request handler writes a description of the job somewhere durable and answers at once; other processes do the job later. That "somewhere" is a <dfn id="d-mq">message queue</dfn> or a <dfn id="d-log">log</dfn> (both explained in the next section). Vocabulary used for the rest of the page:</p>
+<ul>
+<li>A <dfn id="d-msg">message</dfn> (or event, or job) is one unit of handed-off work or information: a small record such as <code>{"type": "embed_document", "doc_id": 981}</code>.</li>
+<li>The <dfn id="d-producer">producer</dfn> writes messages; the <dfn id="d-consumer">consumer</dfn> (or <dfn id="d-worker">worker</dfn>) reads and handles them; the <dfn id="d-broker">broker</dfn> is the system in between that stores them (SQS, RabbitMQ, Kafka, or a table in Postgres).</li>
+<li>To <dfn id="d-ack">acknowledge</dfn> (ack) a message is to tell the broker "done, you may forget it" (a queue deletes it; a log records how far you got).</li>
+</ul>
+<p>The HTTP side of the hand-off is <code>202 Accepted</code>, which RFC 9110 defines as "the request has been accepted for processing, but the processing has not been completed" ({{RFC 9110 §15.3.3|https://www.rfc-editor.org/rfc/rfc9110#section-15.3.3}}). The response usually carries a job id and a URL the client can poll, or the client is told later through a webhook or a server-sent event. How to design those endpoints is on {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
+<div class="two">
+<div><h4>Goes async on the chat assistant</h4><ul class="tight"><li>Embedding an uploaded document (tens of seconds)</li><li>Generating a conversation title after the first reply</li><li>Usage metering and billing events</li><li>Receipts, e-mails, outgoing webhooks to customers</li><li>Nightly evaluation runs, re-embedding the corpus (batch APIs, <a href="#s-llm">below</a>)</li><li>Long agent tasks that run for minutes</li></ul></div>
+<div><h4>Stays on the request path</h4><ul class="tight"><li>The reply the user is reading (stream it instead: <a href="#s-llm">below</a>)</li><li>Anything the next screen needs to show correctly</li><li>Checks that must reject the request (auth, rate limits, validation)</li><li>Writes the user must see confirmed (saving the message itself)</li></ul></div>
+</div>
+<div class="cost"><div class="t">What async costs</div>The result is late, so the product must show progress and handle "not ready yet". Failures happen where no user sees them, so they need their own alerts. Jobs can run twice (the rest of this page). And the broker is one more system to run, monitor and pay for. A rule of thumb (opinion, not a sourced rule): make work async when it is slow, can fail and be retried independently, or fans out to several consumers; keep it synchronous when the caller needs the result to continue.</div>
+</section>

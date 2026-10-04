@@ -1,0 +1,1704 @@
+{
+ "env": {
+  "date": "2026-10-04",
+  "python": "3.12.11",
+  "fastapi": "0.142.2",
+  "pydantic": "2.13.5",
+  "starlette": "1.7.0",
+  "pytest": "9.1.1",
+  "radon": "6.0.1",
+  "ruff": "0.16.10",
+  "httpx": "0.28.1"
+ },
+ "ruff_rules": "C901,PLR0911,PLR0912,PLR0915",
+ "steps": [
+  {
+   "step": 0,
+   "title": "The handler as it is",
+   "why": "The real send_message handler from the backend API page's demo service: 52 lines doing authentication, rate limiting, idempotency, storage and the model call inline.",
+   "file": "steps/step0.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    ok, remaining, reset = take_token(owner)\n    if not ok:\n        r = problem(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\")\n        r.headers.update({\"Retry-After\": str(reset), **rate_headers(remaining, reset)})\n        return r\n    if not idempotency_key:\n        return problem(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    try:\n        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",\n                   (owner, idempotency_key, req_hash, int(time.time())))\n    except sqlite3.IntegrityError:\n        status, old_hash, code, saved = DB.execute(\n            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",\n            (owner, idempotency_key)).fetchone()\n        if old_hash != req_hash:\n            return problem(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",\n                           \"Use a new key for a new message.\")\n        if status == \"started\":\n            return problem(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",\n                           \"Retry after it finishes.\")\n        return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return problem(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    msg_id = \"msg_\" + uuid.uuid4().hex[:12]\n    reply = \"Echo: \" + body.content[:40]\n    # 3. one transaction: the message, the charge and the stored response commit together or not at all\n    DB.execute(\"begin\")\n    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))\n    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))\n    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,\n           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}\n    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"\n               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))\n    DB.execute(\"commit\")\n    return JSONResponse(out, status_code=201, headers=rate_headers(remaining, reset))",
+   "handler_lines": 52,
+   "handler_sloc": 49,
+   "cc_handler": 9,
+   "cc_max": 9,
+   "cc_mean": 2.85,
+   "n_funcs": 13,
+   "mi": 49.2,
+   "module_sloc": 166,
+   "ruff": [
+    {
+     "code": "PLR0911",
+     "msg": "Too many return statements (9 > 6)",
+     "line": 145
+    }
+   ],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [],
+   "diff_add": 0,
+   "diff_del": 0
+  },
+  {
+   "step": 1,
+   "title": "Pin the behaviour with tests",
+   "why": "14 characterization tests record what the handler does today, good or bad. Nothing in the code changes.",
+   "file": "steps/step1.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    ok, remaining, reset = take_token(owner)\n    if not ok:\n        r = problem(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\")\n        r.headers.update({\"Retry-After\": str(reset), **rate_headers(remaining, reset)})\n        return r\n    if not idempotency_key:\n        return problem(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    try:\n        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",\n                   (owner, idempotency_key, req_hash, int(time.time())))\n    except sqlite3.IntegrityError:\n        status, old_hash, code, saved = DB.execute(\n            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",\n            (owner, idempotency_key)).fetchone()\n        if old_hash != req_hash:\n            return problem(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",\n                           \"Use a new key for a new message.\")\n        if status == \"started\":\n            return problem(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",\n                           \"Retry after it finishes.\")\n        return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return problem(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    msg_id = \"msg_\" + uuid.uuid4().hex[:12]\n    reply = \"Echo: \" + body.content[:40]\n    # 3. one transaction: the message, the charge and the stored response commit together or not at all\n    DB.execute(\"begin\")\n    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))\n    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))\n    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,\n           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}\n    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"\n               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))\n    DB.execute(\"commit\")\n    return JSONResponse(out, status_code=201, headers=rate_headers(remaining, reset))",
+   "handler_lines": 52,
+   "handler_sloc": 49,
+   "cc_handler": 9,
+   "cc_max": 9,
+   "cc_mean": 2.85,
+   "n_funcs": 13,
+   "mi": 49.2,
+   "module_sloc": 166,
+   "ruff": [
+    {
+     "code": "PLR0911",
+     "msg": "Too many return statements (9 > 6)",
+     "line": 145
+    }
+   ],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [],
+   "diff_add": 0,
+   "diff_del": 0
+  },
+  {
+   "step": 2,
+   "title": "Errors become exceptions",
+   "why": "A ProblemError exception and one handler that turns it into an RFC 9457 response. The handler raises instead of building responses, so a helper can fail without returning a special value.",
+   "file": "steps/step2.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    ok, remaining, reset = take_token(owner)\n    if not ok:\n        raise ProblemError(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\",\n                           {\"Retry-After\": str(reset), **rate_headers(remaining, reset)})\n    if not idempotency_key:\n        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    try:\n        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",\n                   (owner, idempotency_key, req_hash, int(time.time())))\n    except sqlite3.IntegrityError:\n        status, old_hash, code, saved = DB.execute(\n            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",\n            (owner, idempotency_key)).fetchone()\n        if old_hash != req_hash:\n            raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",\n                           \"Use a new key for a new message.\")\n        if status == \"started\":\n            raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",\n                           \"Retry after it finishes.\")\n        return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    msg_id = \"msg_\" + uuid.uuid4().hex[:12]\n    reply = \"Echo: \" + body.content[:40]\n    # 3. one transaction: the message, the charge and the stored response commit together or not at all\n    DB.execute(\"begin\")\n    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))\n    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))\n    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,\n           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}\n    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"\n               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))\n    DB.execute(\"commit\")\n    return JSONResponse(out, status_code=201, headers=rate_headers(remaining, reset))",
+   "handler_lines": 51,
+   "handler_sloc": 48,
+   "cc_handler": 9,
+   "cc_max": 9,
+   "cc_mean": 2.67,
+   "n_funcs": 15,
+   "mi": 47.8,
+   "module_sloc": 176,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [
+    "@@ -38,2 +38,16 @@",
+    " ",
+    "+class ProblemError(Exception):",
+    "+    \"\"\"A failure the client should see as an RFC 9457 problem.\"\"\"",
+    "+    def __init__(self, status: int, type_: str, title: str, detail: str,",
+    "+                 headers: dict[str, str] | None = None):",
+    "+        super().__init__(detail)",
+    "+        self.status, self.type_, self.title, self.detail = status, type_, title, detail",
+    "+        self.headers = headers or {}",
+    "+",
+    "+@app.exception_handler(ProblemError)",
+    "+async def on_problem(request: Request, exc: ProblemError):",
+    "+    r = problem(exc.status, exc.type_, exc.title, exc.detail)",
+    "+    r.headers.update(exc.headers)",
+    "+    return r",
+    "+",
+    " if PROBLEM_JSON:",
+    "@@ -152,7 +166,6 @@",
+    "     if not ok:",
+    "-        r = problem(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\")",
+    "-        r.headers.update({\"Retry-After\": str(reset), **rate_headers(remaining, reset)})",
+    "-        return r",
+    "+        raise ProblemError(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\",",
+    "+                           {\"Retry-After\": str(reset), **rate_headers(remaining, reset)})",
+    "     if not idempotency_key:",
+    "-        return problem(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",",
+    "+        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",",
+    "                        \"Generate a UUID per logical message and resend it on every retry.\")",
+    "@@ -168,6 +181,6 @@",
+    "         if old_hash != req_hash:",
+    "-            return problem(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",",
+    "+            raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",",
+    "                            \"Use a new key for a new message.\")",
+    "         if status == \"started\":",
+    "-            return problem(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",",
+    "+            raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",",
+    "                            \"Retry after it finishes.\")",
+    "@@ -177,3 +190,3 @@",
+    "         DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))",
+    "-        return problem(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "+        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "     if body.stream:"
+   ],
+   "diff_add": 20,
+   "diff_del": 7
+  },
+  {
+   "step": 3,
+   "title": "Extract enforce_rate_limit()",
+   "why": "Five lines about tokens become one call with a name. The helper raises 429 itself and returns the headers the success response needs.",
+   "file": "steps/step3.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    limit_headers = enforce_rate_limit(owner)\n    if not idempotency_key:\n        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    try:\n        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",\n                   (owner, idempotency_key, req_hash, int(time.time())))\n    except sqlite3.IntegrityError:\n        status, old_hash, code, saved = DB.execute(\n            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",\n            (owner, idempotency_key)).fetchone()\n        if old_hash != req_hash:\n            raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",\n                           \"Use a new key for a new message.\")\n        if status == \"started\":\n            raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",\n                           \"Retry after it finishes.\")\n        return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    msg_id = \"msg_\" + uuid.uuid4().hex[:12]\n    reply = \"Echo: \" + body.content[:40]\n    # 3. one transaction: the message, the charge and the stored response commit together or not at all\n    DB.execute(\"begin\")\n    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))\n    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))\n    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,\n           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}\n    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"\n               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))\n    DB.execute(\"commit\")\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 48,
+   "handler_sloc": 45,
+   "cc_handler": 8,
+   "cc_max": 8,
+   "cc_mean": 2.56,
+   "n_funcs": 16,
+   "mi": 47.5,
+   "module_sloc": 179,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [
+    "@@ -99,2 +99,11 @@",
+    " ",
+    "+def enforce_rate_limit(owner: str) -> dict[str, str]:",
+    "+    \"\"\"Take one token for this owner or raise 429. Returns the RateLimit headers.\"\"\"",
+    "+    ok, remaining, reset = take_token(owner)",
+    "+    if not ok:",
+    "+        raise ProblemError(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\",",
+    "+                           {\"Retry-After\": str(reset), **rate_headers(remaining, reset)})",
+    "+    return rate_headers(remaining, reset)",
+    "+",
+    "+",
+    " # ---------- the data shapes (pydantic models) ----------",
+    "@@ -164,6 +173,3 @@",
+    "         return unauthorized()",
+    "-    ok, remaining, reset = take_token(owner)",
+    "-    if not ok:",
+    "-        raise ProblemError(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\",",
+    "-                           {\"Retry-After\": str(reset), **rate_headers(remaining, reset)})",
+    "+    limit_headers = enforce_rate_limit(owner)",
+    "     if not idempotency_key:",
+    "@@ -207,3 +213,3 @@",
+    "     DB.execute(\"commit\")",
+    "-    return JSONResponse(out, status_code=201, headers=rate_headers(remaining, reset))",
+    "+    return JSONResponse(out, status_code=201, headers=limit_headers)",
+    " "
+   ],
+   "diff_add": 11,
+   "diff_del": 5
+  },
+  {
+   "step": 4,
+   "title": "Name the fingerprint: request_fingerprint()",
+   "why": "A pure function: same inputs, same output, no database. The handler stops spelling out how a request is hashed.",
+   "file": "steps/step4.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    limit_headers = enforce_rate_limit(owner)\n    if not idempotency_key:\n        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = request_fingerprint(chat_id, body)\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    try:\n        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",\n                   (owner, idempotency_key, req_hash, int(time.time())))\n    except sqlite3.IntegrityError:\n        status, old_hash, code, saved = DB.execute(\n            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",\n            (owner, idempotency_key)).fetchone()\n        if old_hash != req_hash:\n            raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",\n                           \"Use a new key for a new message.\")\n        if status == \"started\":\n            raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",\n                           \"Retry after it finishes.\")\n        return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    msg_id = \"msg_\" + uuid.uuid4().hex[:12]\n    reply = \"Echo: \" + body.content[:40]\n    # 3. one transaction: the message, the charge and the stored response commit together or not at all\n    DB.execute(\"begin\")\n    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))\n    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))\n    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,\n           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}\n    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"\n               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))\n    DB.execute(\"commit\")\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 48,
+   "handler_sloc": 45,
+   "cc_handler": 8,
+   "cc_max": 8,
+   "cc_mean": 2.47,
+   "n_funcs": 17,
+   "mi": 47.6,
+   "module_sloc": 181,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [
+    "@@ -126,2 +126,8 @@",
+    " ",
+    "+# ---------- idempotency keys ----------",
+    "+def request_fingerprint(chat_id: str, body: MessageIn) -> str:",
+    "+    \"\"\"Hash of everything that makes two requests 'the same request'.\"\"\"",
+    "+    return hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()",
+    "+",
+    "+",
+    " # ---------- endpoints ----------",
+    "@@ -177,3 +183,3 @@",
+    "                        \"Generate a UUID per logical message and resend it on every retry.\")",
+    "-    req_hash = hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()",
+    "+    req_hash = request_fingerprint(chat_id, body)",
+    "     # 1. claim the key atomically: the primary key makes a second insert fail"
+   ],
+   "diff_add": 7,
+   "diff_del": 1
+  },
+  {
+   "step": 5,
+   "title": "Extract claim_key()",
+   "why": "The 15-line try/except that claims a key moves behind one name. It returns a saved response to replay, or None when this request now owns the key.",
+   "file": "steps/step5.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    limit_headers = enforce_rate_limit(owner)\n    if not idempotency_key:\n        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = request_fingerprint(chat_id, body)\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    replay = claim_key(owner, idempotency_key, req_hash)\n    if replay:\n        return replay\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    msg_id = \"msg_\" + uuid.uuid4().hex[:12]\n    reply = \"Echo: \" + body.content[:40]\n    # 3. one transaction: the message, the charge and the stored response commit together or not at all\n    DB.execute(\"begin\")\n    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))\n    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))\n    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,\n           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}\n    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"\n               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))\n    DB.execute(\"commit\")\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 37,
+   "handler_sloc": 34,
+   "cc_handler": 6,
+   "cc_max": 6,
+   "cc_mean": 2.44,
+   "n_funcs": 18,
+   "mi": 47.6,
+   "module_sloc": 186,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [
+    "@@ -131,2 +131,21 @@",
+    " ",
+    "+def claim_key(owner: str, key: str, fingerprint: str) -> JSONResponse | None:",
+    "+    \"\"\"Claim an idempotency key. None: this request owns it now. A response: replay it.",
+    "+    Raises 422 if the key was used for a different request, 409 if that one is still running.\"\"\"",
+    "+    try:",
+    "+        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",",
+    "+                   (owner, key, fingerprint, int(time.time())))",
+    "+        return None",
+    "+    except sqlite3.IntegrityError:",
+    "+        status, old_hash, code, saved = DB.execute(",
+    "+            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",",
+    "+            (owner, key)).fetchone()",
+    "+    if old_hash != fingerprint:",
+    "+        raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",",
+    "+                           \"Use a new key for a new message.\")",
+    "+    if status == \"started\":",
+    "+        raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",",
+    "+                           \"Retry after it finishes.\")",
+    "+    return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})",
+    "+",
+    " ",
+    "@@ -185,16 +204,5 @@",
+    "     # 1. claim the key atomically: the primary key makes a second insert fail",
+    "-    try:",
+    "-        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",",
+    "-                   (owner, idempotency_key, req_hash, int(time.time())))",
+    "-    except sqlite3.IntegrityError:",
+    "-        status, old_hash, code, saved = DB.execute(",
+    "-            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",",
+    "-            (owner, idempotency_key)).fetchone()",
+    "-        if old_hash != req_hash:",
+    "-            raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",",
+    "-                           \"Use a new key for a new message.\")",
+    "-        if status == \"started\":",
+    "-            raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",",
+    "-                           \"Retry after it finishes.\")",
+    "-        return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})",
+    "+    replay = claim_key(owner, idempotency_key, req_hash)",
+    "+    if replay:",
+    "+        return replay",
+    "     # 2. do the work once: store the message, charge credits, \"call the model\""
+   ],
+   "diff_add": 22,
+   "diff_del": 14
+  },
+  {
+   "step": 6,
+   "title": "Name the duplicate: release_key()",
+   "why": "The same DELETE appeared twice. A named function says why it runs (give the key back) and keeps the two copies from drifting apart.",
+   "file": "steps/step6.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    limit_headers = enforce_rate_limit(owner)\n    if not idempotency_key:\n        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = request_fingerprint(chat_id, body)\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    replay = claim_key(owner, idempotency_key, req_hash)\n    if replay:\n        return replay\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        release_key(owner, idempotency_key)\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        release_key(owner, idempotency_key)\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    msg_id = \"msg_\" + uuid.uuid4().hex[:12]\n    reply = \"Echo: \" + body.content[:40]\n    # 3. one transaction: the message, the charge and the stored response commit together or not at all\n    DB.execute(\"begin\")\n    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))\n    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))\n    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,\n           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}\n    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"\n               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))\n    DB.execute(\"commit\")\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 37,
+   "handler_sloc": 34,
+   "cc_handler": 6,
+   "cc_max": 6,
+   "cc_mean": 2.37,
+   "n_funcs": 19,
+   "mi": 47.3,
+   "module_sloc": 188,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [
+    "@@ -150,2 +150,6 @@",
+    " ",
+    "+def release_key(owner: str, key: str) -> None:",
+    "+    \"\"\"Give a key back when the request ends without a stored response.\"\"\"",
+    "+    DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, key))",
+    "+",
+    " ",
+    "@@ -209,6 +213,6 @@",
+    "     if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():",
+    "-        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))",
+    "+        release_key(owner, idempotency_key)",
+    "         raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "     if body.stream:",
+    "-        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))",
+    "+        release_key(owner, idempotency_key)",
+    "         return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\","
+   ],
+   "diff_add": 6,
+   "diff_del": 2
+  },
+  {
+   "step": 7,
+   "title": "Split core from shell: make_reply() and save_reply()",
+   "why": "Deciding the reply is pure (make_reply). Writing it is I/O (save_reply: one transaction). The handler only wires them together.",
+   "file": "steps/step7.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       authorization: Annotated[str | None, Header()] = None,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    owner = who(authorization)\n    if not owner:\n        return unauthorized()\n    limit_headers = enforce_rate_limit(owner)\n    if not idempotency_key:\n        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = request_fingerprint(chat_id, body)\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    replay = claim_key(owner, idempotency_key, req_hash)\n    if replay:\n        return replay\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        release_key(owner, idempotency_key)\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        release_key(owner, idempotency_key)\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    # 3. one transaction: the message, the charge and the stored response\n    out = save_reply(owner, chat_id, idempotency_key, make_reply(body.content))\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 28,
+   "handler_sloc": 25,
+   "cc_handler": 6,
+   "cc_max": 6,
+   "cc_mean": 2.24,
+   "n_funcs": 21,
+   "mi": 47.2,
+   "module_sloc": 192,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [
+    "@@ -155,2 +155,20 @@",
+    " ",
+    "+# ---------- the reply: a pure decision, then one transaction ----------",
+    "+def make_reply(content: str) -> str:",
+    "+    return \"Echo: \" + content[:40]",
+    "+",
+    "+def save_reply(owner: str, chat_id: str, key: str, reply: str) -> dict:",
+    "+    \"\"\"The message, the charge and the stored response commit together or not at all.\"\"\"",
+    "+    msg_id = \"msg_\" + uuid.uuid4().hex[:12]",
+    "+    DB.execute(\"begin\")",
+    "+    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))",
+    "+    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))",
+    "+    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,",
+    "+           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}",
+    "+    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"",
+    "+               \"where owner=? and key=?\", (json.dumps(out), owner, key))",
+    "+    DB.execute(\"commit\")",
+    "+    return out",
+    "+",
+    "+",
+    " # ---------- endpoints ----------",
+    "@@ -220,13 +238,4 @@",
+    "     await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while",
+    "-    msg_id = \"msg_\" + uuid.uuid4().hex[:12]",
+    "-    reply = \"Echo: \" + body.content[:40]",
+    "-    # 3. one transaction: the message, the charge and the stored response commit together or not at all",
+    "-    DB.execute(\"begin\")",
+    "-    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))",
+    "-    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))",
+    "-    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,",
+    "-           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}",
+    "-    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"",
+    "-               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))",
+    "-    DB.execute(\"commit\")",
+    "+    # 3. one transaction: the message, the charge and the stored response",
+    "+    out = save_reply(owner, chat_id, idempotency_key, make_reply(body.content))",
+    "     return JSONResponse(out, status_code=201, headers=limit_headers)"
+   ],
+   "diff_add": 20,
+   "diff_del": 11
+  },
+  {
+   "step": 8,
+   "title": "Auth becomes a dependency (four copies, one function)",
+   "why": "Every endpoint repeated the same three auth lines. A FastAPI dependency raises 401 once for all four. One test goes red: see the next step.",
+   "file": "steps/step8.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       owner: Owner,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    limit_headers = enforce_rate_limit(owner)\n    if not idempotency_key:\n        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",\n                       \"Generate a UUID per logical message and resend it on every retry.\")\n    req_hash = request_fingerprint(chat_id, body)\n    # 1. claim the key atomically: the primary key makes a second insert fail\n    replay = claim_key(owner, idempotency_key, req_hash)\n    if replay:\n        return replay\n    # 2. do the work once: store the message, charge credits, \"call the model\"\n    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():\n        release_key(owner, idempotency_key)\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        release_key(owner, idempotency_key)\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    # 3. one transaction: the message, the charge and the stored response\n    out = save_reply(owner, chat_id, idempotency_key, make_reply(body.content))\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 25,
+   "handler_sloc": 22,
+   "cc_handler": 5,
+   "cc_max": 5,
+   "cc_mean": 2.05,
+   "n_funcs": 22,
+   "mi": 48.3,
+   "module_sloc": 187,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": false,
+     "msg": "assert 401 == 422"
+    }
+   ],
+   "passed": 13,
+   "total": 14,
+   "diff": [
+    "@@ -11,3 +11,3 @@",
+    " ",
+    "-from fastapi import FastAPI, Header, Request, Query",
+    "+from fastapi import Depends, FastAPI, Header, Request, Query",
+    " from fastapi.exceptions import RequestValidationError",
+    "@@ -78,2 +78,12 @@",
+    "     return r",
+    "+",
+    "+def current_owner(authorization: Annotated[str | None, Header()] = None) -> str:",
+    "+    \"\"\"FastAPI dependency: the owner of a valid API key, or 401.\"\"\"",
+    "+    owner = who(authorization)",
+    "+    if not owner:",
+    "+        raise ProblemError(401, \"unauthorized\", \"Missing or invalid API key.\",",
+    "+                           \"Send Authorization: Bearer <key>.\", {\"WWW-Authenticate\": 'Bearer realm=\"chat\"'})",
+    "+    return owner",
+    "+",
+    "+Owner = Annotated[str, Depends(current_owner)]",
+    " ",
+    "@@ -179,6 +189,3 @@",
+    " @app.post(\"/v1/chats\", status_code=201)",
+    "-def create_chat(body: ChatIn, authorization: Annotated[str | None, Header()] = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "+def create_chat(body: ChatIn, owner: Owner):",
+    "     chat = Chat(id=\"chat_\" + uuid.uuid4().hex[:12], title=body.title, created_at=int(time.time()))",
+    "@@ -188,6 +195,3 @@",
+    " @app.get(\"/v1/chats/{chat_id}\")",
+    "-def get_chat(chat_id: str, authorization: Annotated[str | None, Header()] = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "+def get_chat(chat_id: str, owner: Owner):",
+    "     row = DB.execute(\"select id,title,created_at from chats where id=? and owner=?\", (chat_id, owner)).fetchone()",
+    "@@ -198,7 +202,4 @@",
+    " @app.get(\"/v1/chats\")",
+    "-def list_chats(authorization: Annotated[str | None, Header()] = None,",
+    "+def list_chats(owner: Owner,",
+    "                limit: Annotated[int, Query(ge=1, le=100)] = 20, cursor: str | None = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "     # keyset (cursor) pagination: the cursor is the (created_at, id) of the last row already seen",
+    "@@ -215,7 +216,4 @@",
+    " async def send_message(chat_id: str, body: MessageIn,",
+    "-                       authorization: Annotated[str | None, Header()] = None,",
+    "+                       owner: Owner,",
+    "                        idempotency_key: Annotated[str | None, Header(max_length=255)] = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "     limit_headers = enforce_rate_limit(owner)"
+   ],
+   "diff_add": 15,
+   "diff_del": 17
+  },
+  {
+   "step": 9,
+   "title": "Decide, then tidy: the handler reads top to bottom",
+   "why": "The red test was a real behaviour change (401 now wins over 422). Checking identity first is what we want, so the test is updated in its own reviewed commit; then the handler is tidied to one level of abstraction.",
+   "file": "steps/step9.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       owner: Owner,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    limit_headers = enforce_rate_limit(owner)\n    key = require_key(idempotency_key)\n    if replay := claim_key(owner, key, request_fingerprint(chat_id, body)):\n        return replay\n    if not chat_exists(owner, chat_id):\n        release_key(owner, key)\n        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n    if body.stream:\n        release_key(owner, key)\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while\n    out = save_reply(owner, chat_id, key, make_reply(body.content))\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 18,
+   "handler_sloc": 18,
+   "cc_handler": 4,
+   "cc_max": 5,
+   "cc_mean": 1.96,
+   "n_funcs": 24,
+   "mi": 46.9,
+   "module_sloc": 190,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 14,
+   "total": 14,
+   "diff": [
+    "@@ -164,2 +164,11 @@",
+    " ",
+    "+def require_key(key: str | None) -> str:",
+    "+    if not key:",
+    "+        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",",
+    "+                           \"Generate a UUID per logical message and resend it on every retry.\")",
+    "+    return key",
+    "+",
+    "+def chat_exists(owner: str, chat_id: str) -> bool:",
+    "+    return DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone() is not None",
+    "+",
+    " ",
+    "@@ -219,16 +228,10 @@",
+    "     limit_headers = enforce_rate_limit(owner)",
+    "-    if not idempotency_key:",
+    "-        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",",
+    "-                       \"Generate a UUID per logical message and resend it on every retry.\")",
+    "-    req_hash = request_fingerprint(chat_id, body)",
+    "-    # 1. claim the key atomically: the primary key makes a second insert fail",
+    "-    replay = claim_key(owner, idempotency_key, req_hash)",
+    "-    if replay:",
+    "+    key = require_key(idempotency_key)",
+    "+    if replay := claim_key(owner, key, request_fingerprint(chat_id, body)):",
+    "         return replay",
+    "-    # 2. do the work once: store the message, charge credits, \"call the model\"",
+    "-    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():",
+    "-        release_key(owner, idempotency_key)",
+    "+    if not chat_exists(owner, chat_id):",
+    "+        release_key(owner, key)",
+    "         raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "     if body.stream:",
+    "-        release_key(owner, idempotency_key)",
+    "+        release_key(owner, key)",
+    "         return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",",
+    "@@ -236,4 +239,3 @@",
+    "     await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while",
+    "-    # 3. one transaction: the message, the charge and the stored response",
+    "-    out = save_reply(owner, chat_id, idempotency_key, make_reply(body.content))",
+    "+    out = save_reply(owner, chat_id, key, make_reply(body.content))",
+    "     return JSONResponse(out, status_code=201, headers=limit_headers)"
+   ],
+   "diff_add": 15,
+   "diff_del": 13
+  },
+  {
+   "step": 10,
+   "title": "Deepen: one object owns the key's lifetime",
+   "why": "Steps 5 and 6 left the handler responsible for releasing the key on two paths (information leakage, in Ousterhout's terms). A context manager claims the key and releases it on every exit that did not save a response, including a crash: a latent bug in every earlier step.",
+   "file": "steps/step10.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn,\n                       owner: Owner,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    limit_headers = enforce_rate_limit(owner)\n    key = require_key(idempotency_key)\n    with idempotency_claim(owner, key, request_fingerprint(chat_id, body)) as replay:\n        if replay:\n            return replay\n        if not chat_exists(owner, chat_id):\n            raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")\n        if body.stream:\n            return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                     headers={\"Cache-Control\": \"no-cache\"})\n        await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))     # pretend the model takes a while\n        out = save_reply(owner, chat_id, key, make_reply(body.content))\n    return JSONResponse(out, status_code=201, headers=limit_headers)",
+   "handler_lines": 17,
+   "handler_sloc": 17,
+   "cc_handler": 4,
+   "cc_max": 5,
+   "cc_mean": 2.0,
+   "n_funcs": 24,
+   "mi": 46.7,
+   "module_sloc": 197,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_crash_after_claim_frees_the_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 15,
+   "total": 15,
+   "diff": [
+    "@@ -10,2 +10,4 @@",
+    " from typing import Annotated, Literal",
+    "+from contextlib import contextmanager",
+    "+from collections.abc import Iterator",
+    " ",
+    "@@ -160,6 +162,2 @@",
+    " ",
+    "-def release_key(owner: str, key: str) -> None:",
+    "-    \"\"\"Give a key back when the request ends without a stored response.\"\"\"",
+    "-    DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, key))",
+    "-",
+    " def require_key(key: str | None) -> str:",
+    "@@ -172,2 +170,13 @@",
+    "     return DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone() is not None",
+    "+",
+    "+@contextmanager",
+    "+def idempotency_claim(owner: str, key: str, fingerprint: str) -> Iterator[JSONResponse | None]:",
+    "+    \"\"\"Claim the key for the duration of the block; yields a saved response to replay, or None.",
+    "+    On any exit without a stored response (an error, a 404, a stream, a crash) the key is released.\"\"\"",
+    "+    replay = claim_key(owner, key, fingerprint)",
+    "+    try:",
+    "+        yield replay",
+    "+    finally:",
+    "+        if replay is None:",
+    "+            DB.execute(\"delete from idempotency_keys where owner=? and key=? and status='started'\", (owner, key))",
+    " ",
+    "@@ -229,13 +238,12 @@",
+    "     key = require_key(idempotency_key)",
+    "-    if replay := claim_key(owner, key, request_fingerprint(chat_id, body)):",
+    "-        return replay",
+    "-    if not chat_exists(owner, chat_id):",
+    "-        release_key(owner, key)",
+    "-        raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "-    if body.stream:",
+    "-        release_key(owner, key)",
+    "-        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",",
+    "-                                 headers={\"Cache-Control\": \"no-cache\"})",
+    "-    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while",
+    "-    out = save_reply(owner, chat_id, key, make_reply(body.content))",
+    "+    with idempotency_claim(owner, key, request_fingerprint(chat_id, body)) as replay:",
+    "+        if replay:",
+    "+            return replay",
+    "+        if not chat_exists(owner, chat_id):",
+    "+            raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "+        if body.stream:",
+    "+            return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",",
+    "+                                     headers={\"Cache-Control\": \"no-cache\"})",
+    "+        await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))     # pretend the model takes a while",
+    "+        out = save_reply(owner, chat_id, key, make_reply(body.content))",
+    "     return JSONResponse(out, status_code=201, headers=limit_headers)"
+   ],
+   "diff_add": 23,
+   "diff_del": 15
+  },
+  {
+   "step": "bigbang",
+   "title": "The same end state in one rewrite",
+   "why": "Written for this page: the handler rewritten in one go as a MessageService class, without running the old tests until the end.",
+   "file": "steps/bigbang.py",
+   "handler": "@app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)\nasync def send_message(chat_id: str, body: MessageIn, owner: Owner,\n                       idempotency_key: Annotated[str | None, Header(max_length=255)] = None):\n    limit_headers = enforce_rate_limit(owner)\n    key = require_key(idempotency_key)\n    if body.stream:\n        return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",\n                                 headers={\"Cache-Control\": \"no-cache\"})\n    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))\n    return JSONResponse(service.send(owner, chat_id, key, body), status_code=201, headers=limit_headers)",
+   "handler_lines": 10,
+   "handler_sloc": 10,
+   "cc_handler": 2,
+   "cc_max": 5,
+   "cc_mean": 1.93,
+   "n_funcs": 28,
+   "mi": 43.6,
+   "module_sloc": 210,
+   "ruff": [],
+   "tests": [
+    {
+     "name": "test_success_charges_credits_and_echoes",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_api_key_is_401_with_challenge",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_missing_idempotency_key_is_400",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_retry_with_same_key_replays_without_charging_twice",
+     "ok": false,
+     "msg": "KeyError: 'Idempotent-Replayed'"
+    },
+    {
+     "name": "test_same_key_different_body_is_422",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_same_key_different_chat_is_422",
+     "ok": false,
+     "msg": "assert 201 == 422"
+    },
+    {
+     "name": "test_key_in_progress_is_409",
+     "ok": false,
+     "msg": "assert (422 == 409)"
+    },
+    {
+     "name": "test_unknown_chat_is_404_and_frees_the_key",
+     "ok": false,
+     "msg": "AssertionError: assert 409 == 201"
+    },
+    {
+     "name": "test_rate_limit_after_burst_of_five",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_429_has_retry_after_and_ratelimit_headers",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_stream_returns_sse_and_frees_the_key",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_validation_error_shape_unchanged",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_other_endpoints_still_require_auth",
+     "ok": true,
+     "msg": ""
+    },
+    {
+     "name": "test_invalid_body_without_api_key",
+     "ok": true,
+     "msg": ""
+    }
+   ],
+   "passed": 10,
+   "total": 14,
+   "diff": [
+    "@@ -11,3 +11,3 @@",
+    " ",
+    "-from fastapi import FastAPI, Header, Request, Query",
+    "+from fastapi import Depends, FastAPI, Header, Request, Query",
+    " from fastapi.exceptions import RequestValidationError",
+    "@@ -38,2 +38,16 @@",
+    " ",
+    "+class ProblemError(Exception):",
+    "+    \"\"\"A failure the client should see as an RFC 9457 problem.\"\"\"",
+    "+    def __init__(self, status: int, type_: str, title: str, detail: str,",
+    "+                 headers: dict[str, str] | None = None):",
+    "+        super().__init__(detail)",
+    "+        self.status, self.type_, self.title, self.detail = status, type_, title, detail",
+    "+        self.headers = headers or {}",
+    "+",
+    "+@app.exception_handler(ProblemError)",
+    "+async def on_problem(request: Request, exc: ProblemError):",
+    "+    r = problem(exc.status, exc.type_, exc.title, exc.detail)",
+    "+    r.headers.update(exc.headers)",
+    "+    return r",
+    "+",
+    " if PROBLEM_JSON:",
+    "@@ -65,2 +79,12 @@",
+    " ",
+    "+def current_owner(authorization: Annotated[str | None, Header()] = None) -> str:",
+    "+    \"\"\"FastAPI dependency: the owner of a valid API key, or 401.\"\"\"",
+    "+    owner = who(authorization)",
+    "+    if not owner:",
+    "+        raise ProblemError(401, \"unauthorized\", \"Missing or invalid API key.\",",
+    "+                           \"Send Authorization: Bearer <key>.\", {\"WWW-Authenticate\": 'Bearer realm=\"chat\"'})",
+    "+    return owner",
+    "+",
+    "+Owner = Annotated[str, Depends(current_owner)]",
+    "+",
+    " ",
+    "@@ -85,2 +109,11 @@",
+    " ",
+    "+def enforce_rate_limit(owner: str) -> dict[str, str]:",
+    "+    \"\"\"Take one token for this owner or raise 429. Returns the RateLimit headers.\"\"\"",
+    "+    ok, remaining, reset = take_token(owner)",
+    "+    if not ok:",
+    "+        raise ProblemError(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\",",
+    "+                           {\"Retry-After\": str(reset), **rate_headers(remaining, reset)})",
+    "+    return rate_headers(remaining, reset)",
+    "+",
+    "+",
+    " # ---------- the data shapes (pydantic models) ----------",
+    "@@ -103,2 +136,58 @@",
+    " ",
+    "+# ---------- idempotency keys ----------",
+    "+def request_fingerprint(chat_id: str, body: MessageIn) -> str:",
+    "+    \"\"\"Hash of everything that makes two requests 'the same request'.\"\"\"",
+    "+    return hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()",
+    "+",
+    "+def claim_key(owner: str, key: str, fingerprint: str) -> JSONResponse | None:",
+    "+    \"\"\"Claim an idempotency key. None: this request owns it now. A response: replay it.",
+    "+    Raises 422 if the key was used for a different request, 409 if that one is still running.\"\"\"",
+    "+    try:",
+    "+        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",",
+    "+                   (owner, key, fingerprint, int(time.time())))",
+    "+        return None",
+    "+    except sqlite3.IntegrityError:",
+    "+        status, old_hash, code, saved = DB.execute(",
+    "+            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",",
+    "+            (owner, key)).fetchone()",
+    "+    if old_hash != fingerprint:",
+    "+        raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",",
+    "+                           \"Use a new key for a new message.\")",
+    "+    if status == \"started\":",
+    "+        raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",",
+    "+                           \"Retry after it finishes.\")",
+    "+    return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})",
+    "+",
+    "+def release_key(owner: str, key: str) -> None:",
+    "+    \"\"\"Give a key back when the request ends without a stored response.\"\"\"",
+    "+    DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, key))",
+    "+",
+    "+def require_key(key: str | None) -> str:",
+    "+    if not key:",
+    "+        raise ProblemError(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",",
+    "+                           \"Generate a UUID per logical message and resend it on every retry.\")",
+    "+    return key",
+    "+",
+    "+def chat_exists(owner: str, chat_id: str) -> bool:",
+    "+    return DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone() is not None",
+    "+",
+    "+",
+    "+# ---------- the reply: a pure decision, then one transaction ----------",
+    "+def make_reply(content: str) -> str:",
+    "+    return \"Echo: \" + content[:40]",
+    "+",
+    "+def save_reply(owner: str, chat_id: str, key: str, reply: str) -> dict:",
+    "+    \"\"\"The message, the charge and the stored response commit together or not at all.\"\"\"",
+    "+    msg_id = \"msg_\" + uuid.uuid4().hex[:12]",
+    "+    DB.execute(\"begin\")",
+    "+    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))",
+    "+    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))",
+    "+    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,",
+    "+           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}",
+    "+    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"",
+    "+               \"where owner=? and key=?\", (json.dumps(out), owner, key))",
+    "+    DB.execute(\"commit\")",
+    "+    return out",
+    "+",
+    "+",
+    " # ---------- endpoints ----------",
+    "@@ -109,6 +198,3 @@",
+    " @app.post(\"/v1/chats\", status_code=201)",
+    "-def create_chat(body: ChatIn, authorization: Annotated[str | None, Header()] = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "+def create_chat(body: ChatIn, owner: Owner):",
+    "     chat = Chat(id=\"chat_\" + uuid.uuid4().hex[:12], title=body.title, created_at=int(time.time()))",
+    "@@ -118,6 +204,3 @@",
+    " @app.get(\"/v1/chats/{chat_id}\")",
+    "-def get_chat(chat_id: str, authorization: Annotated[str | None, Header()] = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "+def get_chat(chat_id: str, owner: Owner):",
+    "     row = DB.execute(\"select id,title,created_at from chats where id=? and owner=?\", (chat_id, owner)).fetchone()",
+    "@@ -128,7 +211,4 @@",
+    " @app.get(\"/v1/chats\")",
+    "-def list_chats(authorization: Annotated[str | None, Header()] = None,",
+    "+def list_chats(owner: Owner,",
+    "                limit: Annotated[int, Query(ge=1, le=100)] = 20, cursor: str | None = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "     # keyset (cursor) pagination: the cursor is the (created_at, id) of the last row already seen",
+    "@@ -143,54 +223,48 @@",
+    " ",
+    "+class MessageService:",
+    "+    \"\"\"Everything about sending a message, in one place (rewritten in one go).\"\"\"",
+    "+    def __init__(self, db: sqlite3.Connection):",
+    "+        self.db = db",
+    "+",
+    "+    def fingerprint(self, body: MessageIn) -> str:",
+    "+        return hashlib.sha256(body.model_dump_json().encode()).hexdigest()",
+    "+",
+    "+    def claim(self, owner: str, key: str, fp: str) -> dict | None:",
+    "+        row = self.db.execute(\"select status,request_hash,response_body from idempotency_keys \"",
+    "+                              \"where owner=? and key=?\", (owner, key)).fetchone()",
+    "+        if row is None:",
+    "+            self.db.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",",
+    "+                            (owner, key, fp, int(time.time())))",
+    "+            return None",
+    "+        status, old_fp, saved = row",
+    "+        if old_fp != fp:",
+    "+            raise ProblemError(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",",
+    "+                               \"Use a new key for a new message.\")",
+    "+        if status == \"started\":",
+    "+            raise ProblemError(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",",
+    "+                               \"Retry after it finishes.\")",
+    "+        return json.loads(saved)",
+    "+",
+    "+    def send(self, owner: str, chat_id: str, key: str, body: MessageIn) -> dict:",
+    "+        saved = self.claim(owner, key, self.fingerprint(body))",
+    "+        if saved is not None:",
+    "+            return saved",
+    "+        if not chat_exists(owner, chat_id):",
+    "+            raise ProblemError(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "+        return save_reply(owner, chat_id, key, make_reply(body.content))",
+    "+",
+    "+",
+    "+service = MessageService(DB)",
+    "+",
+    "+",
+    " @app.post(\"/v1/chats/{chat_id}/messages\", status_code=201)",
+    "-async def send_message(chat_id: str, body: MessageIn,",
+    "-                       authorization: Annotated[str | None, Header()] = None,",
+    "+async def send_message(chat_id: str, body: MessageIn, owner: Owner,",
+    "                        idempotency_key: Annotated[str | None, Header(max_length=255)] = None):",
+    "-    owner = who(authorization)",
+    "-    if not owner:",
+    "-        return unauthorized()",
+    "-    ok, remaining, reset = take_token(owner)",
+    "-    if not ok:",
+    "-        r = problem(429, \"rate-limited\", \"Too many requests.\", f\"Retry in {reset} s.\")",
+    "-        r.headers.update({\"Retry-After\": str(reset), **rate_headers(remaining, reset)})",
+    "-        return r",
+    "-    if not idempotency_key:",
+    "-        return problem(400, \"idempotency-key-missing\", \"Idempotency-Key header required.\",",
+    "-                       \"Generate a UUID per logical message and resend it on every retry.\")",
+    "-    req_hash = hashlib.sha256(body.model_dump_json().encode() + chat_id.encode()).hexdigest()",
+    "-    # 1. claim the key atomically: the primary key makes a second insert fail",
+    "-    try:",
+    "-        DB.execute(\"insert into idempotency_keys values(?,?,?,'started',null,null,?)\",",
+    "-                   (owner, idempotency_key, req_hash, int(time.time())))",
+    "-    except sqlite3.IntegrityError:",
+    "-        status, old_hash, code, saved = DB.execute(",
+    "-            \"select status,request_hash,response_code,response_body from idempotency_keys where owner=? and key=?\",",
+    "-            (owner, idempotency_key)).fetchone()",
+    "-        if old_hash != req_hash:",
+    "-            return problem(422, \"idempotency-key-reused\", \"Idempotency-Key reused with a different request.\",",
+    "-                           \"Use a new key for a new message.\")",
+    "-        if status == \"started\":",
+    "-            return problem(409, \"idempotency-key-in-use\", \"A request with this key is still in progress.\",",
+    "-                           \"Retry after it finishes.\")",
+    "-        return JSONResponse(json.loads(saved), status_code=code, headers={\"Idempotent-Replayed\": \"true\"})",
+    "-    # 2. do the work once: store the message, charge credits, \"call the model\"",
+    "-    if not DB.execute(\"select 1 from chats where id=? and owner=?\", (chat_id, owner)).fetchone():",
+    "-        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))",
+    "-        return problem(404, \"not-found\", \"Chat not found.\", f\"No chat {chat_id} for this API key.\")",
+    "+    limit_headers = enforce_rate_limit(owner)",
+    "+    key = require_key(idempotency_key)",
+    "     if body.stream:",
+    "-        DB.execute(\"delete from idempotency_keys where owner=? and key=?\", (owner, idempotency_key))",
+    "         return StreamingResponse(fake_stream(body.content), media_type=\"text/event-stream\",",
+    "                                  headers={\"Cache-Control\": \"no-cache\"})",
+    "-    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))         # pretend the model takes a while",
+    "-    msg_id = \"msg_\" + uuid.uuid4().hex[:12]",
+    "-    reply = \"Echo: \" + body.content[:40]",
+    "-    # 3. one transaction: the message, the charge and the stored response commit together or not at all",
+    "-    DB.execute(\"begin\")",
+    "-    DB.execute(\"insert into messages values(?,?,?,?,?)\", (msg_id, chat_id, \"assistant\", reply, int(time.time())))",
+    "-    DB.execute(\"update credits set balance = balance - 10 where owner=?\", (owner,))",
+    "-    out = {\"id\": msg_id, \"chat_id\": chat_id, \"role\": \"assistant\", \"content\": reply,",
+    "-           \"credits_left\": DB.execute(\"select balance from credits where owner=?\", (owner,)).fetchone()[0]}",
+    "-    DB.execute(\"update idempotency_keys set status='done', response_code=201, response_body=? \"",
+    "-               \"where owner=? and key=?\", (json.dumps(out), owner, idempotency_key))",
+    "-    DB.execute(\"commit\")",
+    "-    return JSONResponse(out, status_code=201, headers=rate_headers(remaining, reset))",
+    "+    await asyncio.sleep(float(os.environ.get(\"SLOW_S\", \"0\")))",
+    "+    return JSONResponse(service.send(owner, chat_id, key, body), status_code=201, headers=limit_headers)",
+    " "
+   ],
+   "diff_add": 134,
+   "diff_del": 60
+  }
+ ]
+}
