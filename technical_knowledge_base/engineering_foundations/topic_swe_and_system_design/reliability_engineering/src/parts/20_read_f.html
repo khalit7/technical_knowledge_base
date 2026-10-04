@@ -1,0 +1,83 @@
+<section id="s-prod">
+<h2>What pros run in production today</h2>
+<p>A starting configuration for a service like our chat API, with where each choice comes from. Tune from measurements; these are defaults to beat, not laws.</p>
+<div class="tw"><table>
+<thead><tr><th>Mechanism</th><th>Starting point</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Timeouts</td><td>Every outbound call; about p99.9 of the dependency plus padding; connect timeout well under a second; deadline passed down</td><td>Brooker's percentile rule; gRPC and SRE book on deadlines</td></tr>
+<tr><td>Retries</td><td>At one layer only; 3 attempts in all; full jitter from a 50 to 100 ms base; only transient errors on idempotent calls</td><td>AWS SDK and tenacity defaults; Envoy jitters by default</td></tr>
+<tr><td>Retry budget</td><td>About 10% of requests (gRPC throttle 10 tokens, ratio 0.1; Finagle 20%; Envoy 20%)</td><td>SRE book ch. 21; the measured storm above</td></tr>
+<tr><td>Circuit breaker</td><td>Per dependency (per host if hosts fail independently); about 50% failures over enough calls; open 5 to 60 s; a defined fallback</td><td>resilience4j, Polly, Hystrix defaults</td></tr>
+<tr><td>Bulkheads</td><td>Separate worker and connection pools per critical dependency; per-cluster concurrency caps in the proxy</td><td>Envoy defaults (1,024 each) are a ceiling, not a design</td></tr>
+<tr><td>Queues</td><td>Bounded, at most about half the worker count; drop expired work; shed lowest priority first</td><td>SRE book ch. 21 and 22; Stripe's shedders</td></tr>
+<tr><td>Rate limits</td><td>Token bucket per tenant at the edge, in Redis or the gateway; tokens per minute for LLM calls; 429 with <code>Retry-After</code></td><td>Stripe; Cloudflare</td></tr>
+<tr><td>Health checks</td><td>Liveness: process answers. Readiness: dependencies. Fail open when everything fails</td><td>Kubernetes docs; Builders' Library</td></tr>
+<tr><td>Deploys</td><td>One box, then waves with bake time; automatic rollback on alarms; config and flags rolled out the same way</td><td>Liguori; SRE workbook ch. 16</td></tr>
+<tr><td>SLOs</td><td>Two to five SLIs per user journey, 28-day window, burn-rate alerts at 14.4x/1 h and 6x/6 h (page), 1x/3 d (ticket)</td><td>SRE workbook ch. 2 and 5</td></tr>
+<tr><td>Practice</td><td>Game days and fault injection in office hours</td><td>Netflix Chaos Monkey (2011, in the root's Case files)</td></tr>
+</tbody></table></div>
+<p>The habits behind the table, as the old Distributed Systems Basics page put them: make every mutation idempotent, bound every queue, jitter every retry (and budget it), and name the failure you are defending against when you add a component.</p>
+<p class="small mute">Where these live today: in the client library (tenacity, resilience4j, Polly, the AWS SDKs, gRPC service config), in a sidecar or gateway (Envoy, Istio, an LLM gateway), or in the platform (Kubernetes probes, deployment controllers). Putting retries, timeouts and breakers in a proxy gives one consistent policy; putting them in code gives knowledge of what is idempotent. Many teams do both, and must then make sure only one layer retries.</p>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Calling a dependency with no timeout</summary><div class="b">Library defaults (requests, gRPC) wait forever. One slow dependency then holds every worker. Set a timeout on every call, and a deadline on every request.</div></details>
+<details class="mist"><summary>Retrying at every layer</summary><div class="b">Attempts multiply: 3 tries at 5 layers is 243 calls to the database. Retry at one layer and make the others fail fast.</div></details>
+<details class="mist"><summary>Believing backoff and jitter prevent retry storms</summary><div class="b">They prevent synchronised waves. In an open system every failed request still makes all its attempts, so the load is the same, only later; the measured experiment did not recover with them. Cap the total with a retry budget.</div></details>
+<details class="mist"><summary>Retrying non-idempotent writes</summary><div class="b">A retried "charge" or "send email" happens twice. Use idempotency keys, or do not retry.</div></details>
+<details class="mist"><summary>Unbounded queues</summary><div class="b">They turn overload into latency and then into timeouts for everyone, and keep the server busy with work whose clients have gone. Bound them and reject early.</div></details>
+<details class="mist"><summary>Liveness probes that check the database</summary><div class="b">A database slowdown becomes a restart of every pod. Liveness checks the process; readiness checks dependencies.</div></details>
+<details class="mist"><summary>A circuit breaker with no fallback, or one breaker for a whole fleet</summary><div class="b">An open breaker without a defined answer is a faster outage; one breaker over many independent hosts lets one bad host block all of them.</div></details>
+<details class="mist"><summary>Measuring availability only from inside the server</summary><div class="b">Gray failure: the server is fine, users are not (DNS, load balancer, client bugs). Measure SLIs as close to the user as possible.</div></details>
+<details class="mist"><summary>Shipping config to everyone at once</summary><div class="b">Config, flags, prompts and model versions are changes. Roll them out in waves with automatic rollback, like code.</div></details>
+<details class="mist"><summary>Debugging before mitigating</summary><div class="b">During an incident, undo the most recent change first and understand it later.</div></details>
+<details class="mist"><summary>Postmortems that name a person</summary><div class="b">People then hide what happened and the same failure returns. Fix the system that let a normal mistake become an outage.</div></details>
+<details class="mist"><summary>Untested fallbacks</summary><div class="b">Code that only runs in emergencies is the least tested you own. Exercise it on purpose, regularly.</div></details>
+</section>
+
+<section id="s-gl">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#d-avail">Availability</a></b>: share of time or requests the service works.</div>
+<div><b><a href="#d-durab">Durability</a></b>: saved data stays saved.</div>
+<div><b><a href="#d-correct">Correctness</a></b>: the answer is right, not just returned.</div>
+<div><b><a href="#d-nines">Nines</a></b>: 99.9% is three nines; each nine is 10x less downtime.</div>
+<div><b><a href="#d-open">Open system</a></b>: new work arrives whatever the system does.</div>
+<div><b><a href="#d-trigger">Trigger</a></b>: what pushes a system into a bad state.</div>
+<div><b><a href="#d-sustain">Sustaining effect</a></b>: what keeps it there after the trigger ends (often retries).</div>
+<div><b><a href="#d-pct">Percentile</a></b>: p99.9 is the latency 99.9% of calls beat.</div>
+<div><b><a href="#d-timeout">Timeout</a></b>: the longest a caller waits before giving up.</div>
+<div><b><a href="#d-deadline">Deadline</a></b>: an absolute time after which the answer is useless.</div>
+<div><b><a href="#d-dprop">Deadline propagation</a></b>: passing the remaining time to every downstream call.</div>
+<div><b><a href="#d-retry">Retry</a></b>: sending the same request again after a failure.</div>
+<div><b><a href="#d-backoff">Exponential backoff</a></b>: doubling the wait before each retry, up to a cap.</div>
+<div><b><a href="#d-jitter">Jitter</a></b>: randomising waits so clients do not retry together.</div>
+<div><b><a href="#d-rbudget">Retry budget</a></b>: retries capped at a share of normal traffic.</div>
+<div><b><a href="#d-tbucket">Token bucket</a></b>: a refilling allowance that permits bursts but caps the average.</div>
+<div><b><a href="#d-hedge">Hedged request</a></b>: a second copy sent when the first is slow.</div>
+<div><b><a href="#d-idem">Idempotent</a></b>: doing it twice equals doing it once.</div>
+<div><b><a href="#d-idemkey">Idempotency key</a></b>: a client-made ID that lets the server recognise a repeat.</div>
+<div><b><a href="#d-breaker">Circuit breaker</a></b>: stops calling a failing dependency for a while.</div>
+<div><b><a href="#d-outlier">Outlier detection</a></b>: removing one misbehaving host from a pool.</div>
+<div><b><a href="#d-bulkhead">Bulkhead</a></b>: separate pools so one failure cannot use all capacity.</div>
+<div><b><a href="#d-shed">Load shedding</a></b>: rejecting excess work early and cheaply.</div>
+<div><b><a href="#d-goodput">Goodput</a></b>: useful, timely answers per second.</div>
+<div><b><a href="#d-degrade">Graceful degradation</a></b>: a cheaper answer instead of none.</div>
+<div><b><a href="#d-brownout">Brownout</a></b>: switching off optional features under load.</div>
+<div><b><a href="#d-kill">Kill switch</a></b>: a flag that turns a feature off in seconds.</div>
+<div><b><a href="#d-ratelimit">Rate limit</a></b>: a cap per client, answered with 429.</div>
+<div><b><a href="#d-fixedwin">Fixed window</a></b>, <b><a href="#d-slidelog">sliding log</a></b>, <b><a href="#d-slidewin">sliding window counter</a></b>, <b><a href="#d-leaky">leaky bucket</a></b>: rate limiting algorithms.</div>
+<div><b><a href="#d-hc">Health check</a></b>: a probe deciding whether a server gets traffic.</div>
+<div><b><a href="#d-liveness">Liveness</a></b> / <b><a href="#d-readiness">readiness</a></b>: restart it / stop sending it traffic.</div>
+<div><b><a href="#d-canary">Canary</a></b>: a small first slice of a release.</div>
+<div><b><a href="#d-waves">Waves</a></b> and <b><a href="#d-bake">bake time</a></b>: growing rollout stages and the wait between them.</div>
+<div><b><a href="#d-rollback">Rollback</a></b>: returning to the last good version.</div>
+<div><b><a href="#d-flag">Feature flag</a></b>: a switch that turns code on without a deploy.</div>
+<div><b><a href="#d-sli">SLI</a></b> / <b><a href="#d-slo">SLO</a></b> / <b><a href="#d-sla">SLA</a></b>: the measure / the target / the contract.</div>
+<div><b><a href="#d-budget2">Error budget</a></b>: 100% minus the SLO, spent on change.</div>
+<div><b><a href="#d-burn">Burn rate</a></b>: how fast the budget is being spent (1 = exactly on time).</div>
+<div><b><a href="#d-incident">Incident</a></b>: an unplanned event needing coordinated response.</div>
+<div><b><a href="#d-pm">Postmortem</a></b> (<b><a href="#d-blameless">blameless</a></b>): the written account, aimed at systems not people.</div>
+</div>
+</section>

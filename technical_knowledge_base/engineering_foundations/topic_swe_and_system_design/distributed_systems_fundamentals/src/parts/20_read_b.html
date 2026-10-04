@@ -1,0 +1,32 @@
+
+<section id="rd-one">
+<h2>The whole page in one screen</h2>
+<p class="small mute" id="rd-time">About 45 minutes to read (tables and the glossary can be skimmed), plus the animations and the two lab tabs. Sections stand alone: jump in from the bar above. Every term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>.</p>
+<p class="lead"><b>A distributed system is several computers that talk only by sending messages over a network and still have to behave like one.</b> The moment your data lives on more than one machine you get four new jobs: keep copies in step (<i>replication</i>), decide which machine holds which data (<i>partitioning</i>), decide what a reader is allowed to see while copies disagree (<i>consistency</i>), and make machines agree on one answer when some of them are down (<i>consensus</i>). Each job has a handful of standard techniques, and every one of them is paid for in latency, availability or complexity.</p>
+<p>The running example is the one from the parent page, {{Topic: swe-and-system-design|n:3c65c17b0d0d81048ae0dd14ac399b4d}}: an LLM chat product. Its data is <b>users</b>, their <b>chats</b>, the <b>messages</b> in each chat, and each user's paid <b>credit balance</b>. Ana is a user. She sends "hello", the page refreshes, and the question this whole page answers is: <i>which copy of the data does that refresh read, and is "hello" in it?</i></p>
+<div class="tw"><table>
+<thead><tr><th>Problem</th><th>Technique</th><th>What it costs</th><th>Where you meet it</th></tr></thead>
+<tbody>
+<tr><td>One machine dies, or cannot keep up with reads</td><td><a href="#rd-repl">Replication</a>: copies on several machines, one leader takes writes</td><td>Copies lag; a reader can see the past (<a href="#rd-repl-card">animation</a>)</td><td>Postgres streaming replication, MySQL, MongoDB</td></tr>
+<tr><td>You want to write in several places</td><td>Multi-leader, or <a href="#rd-quorum">leaderless with quorums</a> (N, R, W)</td><td>Conflicting writes; someone must decide which wins</td><td>Cassandra, DynamoDB global tables, CouchDB</td></tr>
+<tr><td>The data or write rate outgrows one machine</td><td><a href="#rd-part">Partitioning</a> (sharding) by key range or hash; consistent hashing</td><td>Hot keys; moving data when machines are added; queries across shards</td><td>Every large database; Notion, Figma, Instagram, Discord</td></tr>
+<tr><td>"Did my write happen? Will others see it?"</td><td><a href="#rd-cons">Consistency models</a>: linearizable, sequential, causal, eventual</td><td>Stronger means more waiting and less availability during failures</td><td>Every database's docs; <a href="#rd-cap">CAP and PACELC</a></td></tr>
+<tr><td>Machines must agree on one leader or one order</td><td><a href="#rd-raft">Consensus</a>: Raft or Paxos over a majority</td><td>A round trip to a majority per decision; no progress without a majority</td><td>etcd (Kubernetes), Consul, Kafka KRaft, Spanner, DynamoDB</td></tr>
+<tr><td>A paused process still thinks it is in charge</td><td><a href="#rd-lease">Leases and fencing tokens</a></td><td>The storage must check a number on every write</td><td>ZooKeeper zxid, etcd revision, Chubby sequencers</td></tr>
+<tr><td>Ordering events when clocks disagree</td><td><a href="#rd-clock">Logical clocks</a> (Lamport, vector, hybrid) or bounded clocks (TrueTime)</td><td>Metadata on every message, or waiting out the uncertainty</td><td>CockroachDB, Spanner, Dynamo, Cassandra's last-write-wins</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">The habit to take away</div>Start from the <b>invariant</b>, the thing that must never happen ("never spend the same credit twice", "a sent message never vanishes for its sender"), then pick the weakest guarantee that still protects it, per piece of data. The sidebar's chat order can be a second stale; the credit balance cannot. The parent page's {{How a senior engineer reasons|n:3c65c17b0d0d81048ae0dd14ac399b4d}} section says the same; this page gives you the vocabulary and the machinery to do it.</div>
+<div class="deepnote"><b>Where this sits.</b> The parent page met replicas, sharding, CAP and PACELC in one paragraph each (Reading, Step 2) and its {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab holds the real outages linked below. Retries, timeouts and idempotency keys belong to {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}} and {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}; queues, delivery guarantees and the outbox to {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}; SQL, indexes and isolation in depth to {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}.</div>
+</section>
+
+<section id="rd-why">
+<h2>Why one machine is not enough</h2>
+<p>Start with the honest default: <b>one database server</b>. One machine has one copy of the truth; a write is visible to the next read; there is nothing to disagree with. The parent page's advice stands: "a bigger machine and one Postgres go a long way". You leave it for four reasons, and it pays to know which one you are leaving for, because each points at a different technique:</p>
+<div class="grid">
+<div class="sp"><div class="n">1. It dies</div><p>A disk fails, a kernel panics, a data centre loses power. With one machine the product is down until it is repaired, and writes since the last backup may be gone. <b>Fix: replication</b> (copies elsewhere, ready to take over).</p></div>
+<div class="sp"><div class="n">2. Too many reads</div><p>Every page load reads chats and messages. Reads usually outnumber writes many times over. <b>Fix: replication</b> again (spread reads over copies), or a cache (parent page, Step 2).</p></div>
+<div class="sp"><div class="n">3. Too many writes or too much data</div><p>Copies do not help here: every copy must take every write. <b>Fix: partitioning</b> (each machine holds a slice).</p></div>
+<div class="sp"><div class="n">4. Users far away</div><p>Light in fibre needs about 59 ms just to cross the Atlantic and back; Azure measures 78 ms East US to UK South ({{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} on the parent page). <b>Fix: replicas near the users</b>, which makes the copies far from each other.</p></div>
+</div>
+<p>Each fix puts the same data, or related data, on machines that can only talk by message. That is the whole source of difficulty, so the next section is about what messages do.</p>
+</section>

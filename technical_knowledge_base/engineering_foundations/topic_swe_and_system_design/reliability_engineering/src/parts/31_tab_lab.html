@@ -1,0 +1,35 @@
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>
+#t-lab .grp{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:8px 0}
+#t-lab .grp>summary{cursor:pointer;font-weight:600;font-size:14px}
+#t-lab .ctl label{font-size:12.5px}
+#t-lab .tog{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:6px 0}
+#t-lab .tog label{white-space:nowrap}
+#t-lab .vs{font-size:12.5px;color:var(--mute)}
+#t-lab .stat .v{font-size:17px}
+</style>
+<section id="lab-top">
+<h2>Resilience lab</h2>
+<p>A simulated service under a dependency slowdown. Users send requests to <b>our service</b> (worker slots and a queue); some requests call a <b>dependency</b> (its own slots, queue and latency). From second 10 the dependency slows down; you choose how the service defends itself and watch what users get. Everything is computed in your browser by the same engine as the Reading's animation, one millisecond per step, deterministic for a given seed.</p>
+<div class="try"><b>Try:</b> load "Measured: retry at once" and note that it never recovers; switch backoff to full jitter (still no recovery), then tick the retry budget (recovers). Load "Hung provider: no protection", then add only a 100 ms timeout, then the breaker, then the fallback, and watch which change does what. Raise the traffic until even the defended service sheds.</div>
+<div class="chips" id="lab-pre"></div>
+<p class="small mute" id="lab-pre-note"></p>
+<div id="lab-ctl"></div>
+<div class="out" id="lab-out"></div>
+<p class="small" id="lab-vs"></p>
+<div class="card"><b>What users got each second</b><div class="chart" id="lab-c1"></div><div class="leg" id="lab-l1"></div></div>
+<div class="card"><b>Calls to the dependency each second, against its capacity</b><div class="chart" id="lab-c2"></div><div class="leg" id="lab-l2"></div></div>
+<div class="card"><b>Queues (most waiting in each second)</b><div class="chart" id="lab-c3"></div><div class="leg" id="lab-l3"></div></div>
+<h3>How the model works, and how it was checked</h3>
+<ul class="small">
+<li><b>Arrivals:</b> each millisecond a new request arrives with probability rate/1000 (close to random, Poisson-like arrivals; at most one per millisecond). A share of them need the dependency; the rest finish after our own work.</li>
+<li><b>Our service:</b> W worker slots (0 means unlimited: every request is its own caller, as in the measured experiment) and a FIFO queue, optionally bounded (excess rejected at once). A worker is held for the whole request, including waits, timeouts and backoff sleeps, as in ordinary synchronous code.</li>
+<li><b>The dependency:</b> Kd slots and an unbounded FIFO queue (or bounded, answering 503 at once). Each call takes the normal latency, or the slow latency if it starts inside the slowdown window. It keeps working on calls whose caller has timed out (wasted work), unless deadline propagation is on, in which case it skips calls whose deadline has passed.</li>
+<li><b>Retries:</b> up to the attempt limit, at once or after a full-jitter wait of random(0, min(cap, base &times; 2<sup>k</sup>)) before retry k. Retry budget: gRPC's throttle (10 tokens, each failure &minus;1, each success +0.1, no retries while tokens &le; 5).</li>
+<li><b>Breaker:</b> count-based like resilience4j: opens when the failure share of the last N calls reaches the threshold; stays open for the chosen time; then lets the chosen number of trial calls through and closes if their failure share is below the threshold. While open, calls fail at once (or return the fallback).</li>
+<li><b>Users:</b> with a patience set, a request finished after it counts as failed (the user has left), and with deadline propagation our own queue drops such requests unprocessed.</li>
+<li><b>Checks:</b> <code>src/engine.py</code> is a line-by-line Python port; <code>src/check_engine.mjs</code> runs this page's engine on the 8 presets and 30 random settings and compares every series and total exactly (0 differences). The six "Measured" presets are the configuration of the real experiment in the Reading; their outcome is compared with the 3 measured runs above the charts.</li>
+<li><b>What it leaves out:</b> network time, CPU cost of rejecting, connection setup, the dependency getting slower as its queue grows, clients that retry at several layers, and autoscaling. It is a model for building intuition, not a capacity planner (that is {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}).</li>
+</ul>
+</section>
+</div>
