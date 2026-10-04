@@ -1,0 +1,70 @@
+<section id="s-job">
+<h2 class="dhead"><span class="dnum">Design 7</span>A distributed job scheduler: cron for a whole company</h2>
+<p>The brief offered a notification system or a job scheduler; the scheduler has the better public sources (Google's distributed cron, Dropbox's task framework, Slack's job queue, all with numbers), so it is the worked design here. A notification system reuses most of designs 3 and 7, and is a prompt in the {{Design drill|#t-drill}}, with Netflix's published design as its reference.</p>
+<p>A <b>job scheduler</b> runs work at a given time: "every day at 02:00, rebuild the search index"; "in 30 minutes, send this reminder"; "every 5 minutes, poll this partner". <b>Cron</b> is the classic Unix program that does this on one machine, from a table of schedules written like <code>0 2 * * *</code> (minute, hour, day, month, weekday). The company-wide version must survive machines dying without running jobs twice or skipping them silently.</p>
+<div class="req"><div class="t">Requirements</div><div class="cols">
+<div><h5>Functional</h5><ul><li>Register recurring (cron syntax) and one-off delayed jobs; cancel; pause.</li><li>Run each due job on a worker; record each run (start, end, result, logs link).</li><li>Retries with backoff for failed runs; alert the owner after N failures.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>10 million runs a day, 30% of them scheduled at the top of an hour (illustrative).</li><li>Start within a few seconds of the due time (Dropbox's target: 95% within 5 s, below).</li><li>No double runs of non-idempotent jobs; no silent skips.</li><li>Survives the loss of any machine.</li></ul></div></div></div>
+<div class="est" id="est-job"></div>
+<p><b>What the numbers say.</b> The average is small: 116 runs a second, about 2,300 running at once, 48 worker machines. The danger is the clock: people write <code>0 * * * *</code>, so 30% of the day's runs, 125,000 of them, become due in the same second, which would need 2,500 machines for one second and 48 the rest of the time. Spreading each hourly batch over a minute with <b>jitter</b> (a random delay per job) brings the burst to about 2,100 a second. Run history (5 GB a day) is easy.</p>
+
+<h3>API</h3>
+<div class="code">POST /v1/jobs {"name": "rebuild-index", "schedule": "0 2 * * *", "timezone": "Europe/London",
+              "target": {"queue": "search", "payload": {...}}, "max_runtime_s": 3600,
+              "overlap": "skip" | "queue" | "allow", "misfire": "run_once" | "skip"}
+POST /v1/jobs/{id}/pause     DELETE /v1/jobs/{id}
+GET  /v1/jobs/{id}/runs?cursor=...</div>
+<p><code>overlap</code> says what happens if the previous run is still going; <code>misfire</code> says what happens to runs missed while the scheduler was down: two decisions every scheduler forces, which the queues sibling discusses under {{Queues, streams and async work, Scheduling and cron|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</p>
+
+<h3>Data model</h3>
+<div class="code">jobs(id, schedule, timezone, next_run_at TIMESTAMPTZ, target, overlap, misfire, paused)
+  INDEX ON (next_run_at) WHERE NOT paused
+runs(job_id, scheduled_for, attempt, state, lease_until, started_at, ended_at, result,
+     PRIMARY KEY (job_id, scheduled_for))         <span class="cm">-- one row per intended run: the idempotency key</span></div>
+
+<h3>The design, built step by step</h3>
+<div class="card" id="dia-job"></div>
+
+<h3>Deep dive: deciding what is due, exactly once</h3>
+<p>Two machines both reading "what is due?" will both run the same job. Two standard fixes:</p>
+<ul class="rej">
+<li><b>One leader.</b> The scheduler replicas elect a leader (with a consensus system such as etcd or ZooKeeper, or Paxos/Raft directly) and only the leader launches. Clean, but failover takes seconds, and a deposed leader that does not yet know it is deposed can still launch, hence leases and fencing tokens ({{Distributed systems fundamentals, Leader election, leases and fencing tokens|n:3c65c17b0d0d8115bc45c31d915b4d33}}).</li>
+<li><b>Row claiming in the database.</b> Every scheduler instance runs <code>SELECT ... FROM jobs WHERE next_run_at &lt;= now() ORDER BY next_run_at LIMIT 100 FOR UPDATE SKIP LOCKED</code>; <code>SKIP LOCKED</code> makes each instance skip rows another has locked, so they divide the work without a leader. In the same transaction each inserts the run row and advances <code>next_run_at</code>. <i>Chosen</i> at this scale: no extra system, and the database's transaction is the coordination.</li>
+</ul>
+<p>Either way, the <code>runs</code> primary key <code>(job_id, scheduled_for)</code> makes "the 02:00 run of job 7" one row that can exist only once: a second scheduler that tries to create it gets a conflict instead of a second run. That is idempotency on the launch side.</p>
+
+<h3>Deep dive: the scheduler only enqueues</h3>
+<p>The scheduler must never run jobs itself: a slow job would delay every other launch. It writes the run to a queue; workers pull from the queue, take a <b>lease</b> on the run (a claim that expires unless renewed by heartbeats) and execute. If a worker dies, its lease expires and another worker retries the run. That gives <b>at-least-once</b> execution: a run that finished its work but died before recording success will run again. So jobs with side effects must be idempotent (use <code>job_id</code> plus <code>scheduled_for</code> as the idempotency key for anything they write or send), or they must check whether their effect already happened. Delivery semantics, visibility timeouts and dead-letter queues are taught in {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</p>
+<div class="co"><div class="t">Skip or double-run? Say which you prefer, and why</div><p>Google's distributed cron, which keeps its state consistent with Paxos across replicas, chose: "In general, we favor skipping launches rather than risking double launches, as much as the infrastructure allows", because "it is more acceptable to not launch Cron jobs for a while than to mistakenly launch the same Cron job ten times instead of once", and "all operations on external systems, which we may need to continue upon re-election, either have to be idempotent ... or we need to be able to look up their state" ({{Google SRE book, Distributed Periodic Scheduling with Cron|https://sre.google/sre-book/distributed-periodic-scheduling/}}; {{Davidovič and Guliani, ACM Queue, 2015|https://queue.acm.org/detail.cfm?id=2745840}}). A billing job prefers a skip plus an alert; a cache-warming job prefers a double run. Make it a per-job setting.</p></div>
+
+<h3>Deep dive: time is harder than it looks</h3>
+<ul>
+<li><b>Time zones and daylight saving:</b> "02:30 every day" does not exist on the spring-forward day in London and happens twice on the autumn one. Store the job's time zone, compute <code>next_run_at</code> in UTC with a real time-zone library, and decide the rule for missing and repeated local times.</li>
+<li><b>Thundering herd:</b> add deterministic jitter (hash of the job id modulo the spread) to jobs that do not need an exact minute, so the same job runs at the same offset every hour.</li>
+<li><b>Clock skew:</b> scheduler machines disagree by milliseconds; use the database's <code>now()</code> as the one clock for "due".</li>
+</ul>
+<div class="real"><div class="t">What real companies built</div>
+<p><b>Dropbox ATF (2020-11-11):</b> "currently serving 9,000 async tasks scheduled per second and in use by 28 engineering teams". It guarantees "that a task is executed at least once after being scheduled" and "that at most one instance of a task will be actively executing at any given in point"; "95% of tasks begin execution within five seconds from their scheduled execution time". Its parts match this design: a Store Consumer "periodically polls the task store to find tasks that are ready for execution and pushes them onto the right queues" (Amazon SQS), and executors send heartbeats while they run ({{Krishnan, Dropbox|https://dropbox.tech/infrastructure/asynchronous-task-scheduling-at-dropbox}}).</p>
+<p><b>Slack's job queue:</b> "On our busiest days, the system processes over 1.4 billion jobs at a peak rate of 33,000 per second". When a database slowdown filled Redis to its memory limit, Slack "decided to add Kafka in front of Redis rather than replacing Redis with Kafka outright": a durable log absorbs the burst, and a relay feeds Redis at the rate it can take ({{Slack engineering, page dated 2017-12-06, updated 2020-06-25|https://slack.engineering/scaling-slacks-job-queue/}}).</p>
+<p><b>Netflix Maestro (2024-07-22):</b> a workflow orchestrator that "runs half a million jobs daily on average, and has completed around 2 million jobs on particularly busy days" ({{Netflix tech blog|https://netflixtechblog.com/maestro-netflixs-workflow-orchestrator-ee13a06f9c78}}): when jobs depend on each other, a scheduler grows into a workflow engine (durable workflows are in the queues sibling).</p>
+</div>
+
+<h3>Failure modes</h3>
+<div class="tw"><table>
+<thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>Scheduler instance dies mid-claim</td><td>Its transaction rolls back; another instance claims the rows</td><td>Claim, insert run and advance <code>next_run_at</code> in one transaction</td></tr>
+<tr><td>Worker dies mid-run</td><td>Lease expires; the run is retried</td><td>Idempotent jobs; heartbeats; <code>max_runtime</code> kills stuck runs</td></tr>
+<tr><td>Scheduler down for an hour</td><td>Missed runs</td><td>Per-job misfire policy (run once now, or skip and alert)</td></tr>
+<tr><td>Top-of-hour burst</td><td>Queue backs up; jobs start late</td><td>Jitter; bounded queues with priorities; autoscale workers ahead of the hour</td></tr>
+<tr><td>A job that always fails</td><td>Retries forever, crowding others</td><td>Capped retries with backoff, dead-letter, page the owner</td></tr>
+</tbody></table></div>
+<div class="say"><div class="t">What interviewers listen for</div>
+<ul>
+<li>You separated "decide what is due" from "do the work" with a queue between.</li>
+<li>You made a run unique by <code>(job, scheduled time)</code> and explained at-least-once execution.</li>
+<li>You found the top-of-the-hour spike from the numbers and answered it with jitter.</li>
+<li>You chose between skipping and double-running per job, citing why.</li>
+<li>Time zones, daylight saving and misfires were mentioned.</li>
+</ul></div>
+</section>

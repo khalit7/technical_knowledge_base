@@ -1,0 +1,74 @@
+<section id="s-url">
+<h2 class="dhead"><span class="dnum">Design 1</span>URL shortener: IDs, base62, caching, read-heavy scaling</h2>
+<p>The warm-up question, asked because it is small enough to finish and still touches IDs, caching, HTTP and storage. A <b>URL shortener</b> turns a long address into a short one (<code>sho.rt/aZ3kQ9x</code>); visiting the short one <b>redirects</b> the browser, meaning the server answers "go here instead" with the long address, and the browser follows it.</p>
+<div class="req"><div class="t">Requirements (agreed with the interviewer)</div><div class="cols">
+<div><h5>Functional</h5><ul><li>Create a short link for a long URL; optionally a custom alias.</li><li>Visiting the short link redirects to the long URL.</li><li>Count clicks per link (owners see analytics).</li><li>Out of scope: accounts, editing, link previews.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>Sized like Bitly in 2014: 600 million new links and 6 billion clicks a month ({{High Scalability, 2014|http://web.archive.org/web/2015/http://highscalability.com/blog/2014/7/14/bitly-lessons-learned-building-a-distributed-system-that-han.html}}, a summary of a Bitly engineer's talk).</li><li>Redirect fast: under 50 ms at the server, p99.</li><li>Links never break, kept 5 years; never give two users the same code.</li><li>Click counts may lag by minutes; a few lost clicks are acceptable.</li></ul></div></div></div>
+<div class="est" id="est-url"></div>
+<p><b>What the numbers say.</b> Writes are 230 a second: one database handles that with ease. Redirects are 10 times more, and under 5,000 a second at peak: still within one database (about 17,500 a second at our half-benchmark planning figure), so the cache is about latency and headroom, not survival. Two numbers do change the design: 36 billion links after five years fill <b>63%</b> of the 6-character code space, so random 6-character codes would collide on most attempts and 7 characters are needed; and 18 TB of rows is more than one comfortable database server, so the storage must be <a href="#d-url-store">split later</a>. The app tier needs about a dozen servers, which matches the order of magnitude Bitly reported: "~30 servers handle all incoming traffic from the outside world including shortens, redirects, api requests, web ui, etc." (same source).</p>
+
+<h3>API</h3>
+<div class="code">POST /v1/links                       <span class="cm">create; Idempotency-Key header makes retries safe</span>
+  {"url": "https://example.com/a/very/long/path", "alias": null}
+  -> 201 {"code": "aZ3kQ9x", "short_url": "https://sho.rt/aZ3kQ9x"}
+  -> 409 if the alias is taken; 422 if the URL is not http(s)
+
+GET /{code}                          <span class="cm">the redirect: the hot path</span>
+  -> 302 Found, Location: https://example.com/a/very/long/path
+  -> 404 if unknown, 410 Gone if taken down for abuse
+
+GET /v1/links/{code}/stats?from=..   <span class="cm">owner analytics, read from the analytics store</span></div>
+<p>Status codes, the <code>Idempotency-Key</code> header (a client-chosen ID that lets the server recognise a retried request and return the first answer instead of creating a second link) and error bodies are taught in {{Building a backend API, sections 7 and 10|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
+
+<h3>Data model</h3>
+<div class="code">links(code TEXT PRIMARY KEY,          <span class="cm">7 base62 characters</span>
+      long_url TEXT NOT NULL,
+      owner_id BIGINT, created_at TIMESTAMPTZ, status SMALLINT)
+<span class="cm">-- the redirect is one primary-key lookup: no other index is on the hot path</span>
+click_events -> a queue, then an analytics store (counts per link per hour)</div>
+
+<h3>The design, built step by step</h3>
+<p class="try"><b>Try:</b> play it, or step with the arrows. Each red step is a bottleneck the estimate exposed; the next green step fixes it. The counters show the naive design's value struck through beside the current one, for the same traffic.</p>
+<div class="card" id="dia-url"></div>
+
+<h3>Deep dive: where do short codes come from?</h3>
+<p><b>Base62</b> writes a number with 62 symbols (0 to 9, a to z, A to Z), so each character carries one of 62 values: 6 characters give 62<sup>6</sup> = 56.8 billion codes, 7 give 3.52 trillion. Three ways to fill them, each with a cost:</p>
+<ul class="rej">
+<li><b>Hash the long URL</b> (for example the first 7 base62 characters of its SHA-256). The same URL always gets the same code, which deduplicates for free. But different URLs can produce the same 7 characters, so every create must check and handle a collision, and two users shortening the same URL share one code and one click count, which breaks per-owner analytics. <i>Rejected as the main scheme.</i></li>
+<li><b>Random codes</b>, checked for uniqueness on insert (a unique index makes the database refuse a duplicate, and the server retries). Simple and unguessable; the chance a new code collides is the share of the space already used: about 1% at 7 characters after five years, 63% at 6. <i>Acceptable at 7 characters.</i></li>
+<li><b>A counter turned into base62.</b> No collisions ever, and IDs are short. Its two costs: a single counter is a coordination point every create must reach, and sequential codes let anyone walk through every link (<code>aZ3kQ9x</code>, <code>aZ3kQ9y</code>, ...), which leaks private links. <i>Chosen, with both costs removed:</i> each app server leases a block of, say, 10,000 numbers at a time from an <b>ID range service</b> (one row incremented in a database), so a create needs no network call, and the number is passed through a fixed reversible scramble (a permutation of the 7-character space) before encoding, so neighbouring numbers give unrelated codes.</li>
+</ul>
+<div class="real"><div class="t">What real companies built</div>
+<p><b>Flickr, 2010:</b> "Ticket servers give us globally (Flickr-wide) unique integers to serve as primary keys in our distributed setup": a MySQL table where <code>REPLACE INTO</code> plus <code>LAST_INSERT_ID()</code> hands out the next number, run on two servers, one giving odd and one even numbers, so either can fail ({{Kremerskothen, Flickr, 2010-02-08|https://code.flickr.net/2010/02/08/ticket-servers-distributed-unique-primary-keys-on-the-cheap/}}).</p>
+<p><b>Twitter Snowflake, 2010:</b> a 64-bit ID made of "time - 41 bits (millisecond precision w/ a custom epoch gives us 69 years)", a "configured machine id - 10 bits - gives us up to 1024 machines" and a "sequence number - 12 bits - rolls over every 4096 per machine", so machines "should not have to coordinate with each other" and IDs sort roughly by time ({{snowflake README, 2010|https://github.com/twitter-archive/snowflake/blob/snowflake-2010/README.mkd}}; {{announcement, 2010-06-01|http://web.archive.org/web/2011/http://engineering.twitter.com/2010/06/announcing-snowflake.html}}). Snowflake IDs are too long for a shortener (a 64-bit number needs 11 base62 characters) but are the standard answer for "unique IDs across many machines", and Discord uses them for every message (<a href="#s-chat">design 3</a>). Instagram built the same idea inside PostgreSQL (root {{Case files: Instagram 2012|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p>
+</div>
+
+<h3>Deep dive: 301 or 302?</h3>
+<p>Both status codes redirect. The difference is caching. RFC 9110 says "A 301 response is heuristically cacheable", meaning a browser or proxy may reuse it without asking again, while 302 "Found" says the target "resides temporarily under a different URI" and is not on the list of heuristically cacheable codes ({{RFC 9110 §15.4.2, §15.4.3, §15.1|https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2}}). A cached 301 is free for you, but the browser stops coming back, so you lose its later clicks and cannot change or take down the destination for that browser. Choose 302 (or 301 with an explicit short cache lifetime) when analytics or takedowns matter. Bitly answers <code>301</code> with <code>cache-control: private, max-age=90</code> (checked with <code>curl -I</code> on 2026-10-04, <code>src/inputs/bitly_headers.txt</code>): shared caches may not store it and a browser may reuse it for only 90 seconds, so nearly every click still reaches Bitly. Bitly's reason is not published; this is an observation, not their statement.</p>
+
+<h3>Deep dive: the cache, and counting clicks without slowing redirects</h3>
+<p>The redirect path is: look up the code in <b>Redis</b> (an in-memory key-value store, about 0.14 ms a lookup); on a miss, read the database and put the answer in Redis with a <b>TTL</b> (time to live, after which the entry expires). That pattern is <b>cache-aside</b>, taught with its traps (stampedes when a hot key expires, stale entries after a takedown: delete the key on takedown) in {{Capacity planning and performance, Caching strategy|n:3ef5c17b0d0d81458291d55d7443700c}}. Links are written once and almost never change, the easiest possible thing to cache. Click counting must not sit on the redirect path: an <code>UPDATE links SET clicks = clicks + 1</code> on every visit turns each redirect into a write, and a viral link becomes one row that thousands of requests lock in turn. Instead the server emits a click event to a queue and answers immediately; consumers aggregate counts per link per hour. Bitly did exactly this: "Data about the conversion is popped onto a queue for the analytics and other downstream systems" (High Scalability, 2014). Delivery is <b>at-least-once</b> (an event may arrive twice after a crash), which a few duplicate clicks tolerate; how queues behave is in {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</p>
+
+<h3 id="d-url-store">Deep dive: 18 TB, and when to split the database</h3>
+<p>The access pattern is a pure key lookup by code, with no joins: the easiest data to <b>partition</b> (split rows across several databases by a key). Hash the code to pick a shard; each shard has a replica for failover. Do not do this on day one: the first year is 3.6 TB and 230 writes a second, which one PostgreSQL primary with a replica handles. Plan the split (use a shard key now, so moving later is mechanical) and execute it when storage or write rate demands it. A partitioned key-value store (DynamoDB, Cassandra) fits this pattern natively and is an equally good answer; pick what the team can operate. How partitioning and consistent hashing work: {{Distributed systems fundamentals, Partitioning|n:3c65c17b0d0d8115bc45c31d915b4d33}}.</p>
+
+<h3>Failure modes</h3>
+<div class="tw"><table>
+<thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>The cache cluster</td><td>All 4,630 redirects a second at peak hit the database</td><td>Within its planning capacity (17,500): degraded latency, no outage. Warm a new cache gradually.</td></tr>
+<tr><td>A database primary</td><td>Creates fail for its shard; redirects continue from cache and replica</td><td>Automatic failover to the replica; creates return 503 with Retry-After meanwhile</td></tr>
+<tr><td>The ID range service</td><td>Servers keep issuing from the blocks they hold</td><td>Blocks large enough for minutes of creates; two range servers like Flickr's</td></tr>
+<tr><td>Abuse: phishing and spam links</td><td>The domain gets blocklisted by browsers</td><td>Scan new URLs asynchronously, rate-limit creates per user (<a href="#s-rl">design 2</a>), answer 410 for removed links</td></tr>
+<tr><td>Enumeration</td><td>Private links discovered by walking codes</td><td>Non-sequential codes (scramble or random), rate limits on 404s</td></tr>
+</tbody></table></div>
+
+<div class="say"><div class="t">What interviewers listen for</div>
+<ul>
+<li>You asked about the read-to-write ratio and computed the code space instead of picking "6 characters" by habit.</li>
+<li>You named at least two ID schemes and why you rejected one (collisions, enumeration, coordination).</li>
+<li>You said 301 versus 302 out loud and tied it to analytics.</li>
+<li>Click counting is off the hot path, and you said what at-least-once means for counts.</li>
+<li>You did not shard on day one, and you said when you would.</li>
+</ul></div>
+</section>

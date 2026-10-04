@@ -1,0 +1,58 @@
+<section id="s-feed">
+<h2 class="dhead"><span class="dnum">Design 4</span>News feed and timeline: fan-out on write against on read, and celebrities</h2>
+<p>A <b>news feed</b> (or home timeline) shows each user the recent posts of the accounts they follow, newest first. The classic case is Twitter around 2012, because its engineers published the numbers and because one design decision, when to do the merging work, dominates everything else.</p>
+<div class="req"><div class="t">Requirements</div><div class="cols">
+<div><h5>Functional</h5><ul><li>Post a short message; follow and unfollow.</li><li>Home timeline: newest posts from followed accounts, paginated.</li><li>Out of scope at first: ranking, search, replies.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>Twitter's published scale (2012): "150M world wide active users, handles 300K QPS to generate timelines"; "5K/sec daily average; 7K/sec daily peak; >12K/sec during large events" for posts; "30b deliveries / day" ({{High Scalability, 2013-07-08|http://highscalability.com/blog/2013/7/8/the-architecture-twitter-uses-to-deal-with-150m-active-users.html}}, notes on Raffi Krikorian's QCon 2012 talk {{Timelines at Scale|https://www.infoq.com/presentations/Twitter-Timeline-Scalability/}}; these are the blogger's notes, not a transcript).</li><li>Timeline reads fast (hundreds of ms end to end); a new post visible to followers within seconds.</li></ul></div></div></div>
+<div class="est" id="est-feed"></div>
+<p><b>What the numbers say.</b> Reads outnumber posts 60 to 1. If each read assembles the timeline from scratch (<b>fan-out on read</b>: look up everyone you follow, fetch their recent posts, merge), that is about 22 million index lookups a second. If instead each post is copied into every follower's timeline when it is written (<b>fan-out on write</b>), a read is one lookup, and the work moves to 375,000 deliveries a second, about 1.1 million inserts counting three copies. Twitter chose write. The bill: 2.9 TB of RAM to hold 800 entries for every user, and one post by an account with 31 million followers is 93 million inserts.</p>
+
+<h3>API</h3>
+<div class="code">POST /v1/posts                       {"text": "..."}  -> 201 {"id": "..."}
+POST /v1/follows                     {"followee": "u_7"}
+GET  /v1/timeline?cursor=...&amp;limit=50 -> {"items": [...], "next_cursor": "..."}</div>
+
+<h3>Data model</h3>
+<div class="code">posts(id BIGINT PRIMARY KEY, author_id, created_at, text)    <span class="cm">-- id is time-ordered (Snowflake)</span>
+follows(follower_id, followee_id)  + an index on followee_id     <span class="cm">-- "who must receive this post?"</span>
+timeline:{user_id} -> list of up to 800 post ids, newest first   <span class="cm">-- in Redis, 3 copies</span></div>
+
+<h3>The design, built step by step</h3>
+<div class="card" id="dia-feed"></div>
+
+<h3 id="s-feed-meas">Deep dive: the two strategies, measured</h3>
+<div class="meas"><div class="t">Measured for this page: PostgreSQL 16.2 on a laptop, 10,000 users following 100 accounts each, 100,000 posts</div>
+<div class="tw"><table id="feed-tab"></table></div>
+<p class="small">Followed accounts are chosen with a Zipf-like skew (illustrative: a few accounts are followed by almost everyone, like real social graphs, but this graph is synthetic). <b>On read</b> joins <code>follows</code> to <code>posts</code> (indexed by author and id) for the newest 50; <b>precomputed</b> reads 50 rows from a <code>timelines</code> table capped at 800 entries per user. Fan-out cost is the time to insert one new post into every follower's timeline. 500 users, median and p99. <code>src/lab/measure_pg.py</code>, 2026-10-04. Absolute numbers are a laptop's; the ratios are the lesson.</p></div>
+<p>Reading the precomputed timeline was <span id="feed-speed"></span> times faster, and that gap widens with the number of accounts followed, because on-read work grows with it while a precomputed read stays one index range. The price shows in the other two rows: the timelines table holds every post once per follower (8 million rows, 766 MB for this toy), and writing one post by the most-followed account took <span id="feed-fan"></span> times longer than one by a median account. Scale that to 31 million followers and it is minutes.</p>
+
+<h3>Deep dive: celebrities, and the hybrid</h3>
+<p>Fan-out on write is wrong for a handful of accounts. The talk notes: "it can take up to 5 minutes for a tweet to flow from Lady Gaga's fingers to her 31 million followers", and the plan was "Not fanning out the high value users anymore. For people like Taylor Swift don't bother with fanout anymore, instead merge in her timeline at read time. Balances read and write paths" (High Scalability, 2013). This <b>hybrid</b> is the expected interview answer:</p>
+<ul>
+<li>Accounts under a follower threshold: fan out on write.</li>
+<li>Accounts over it: store their posts once; at read time, merge the user's precomputed timeline with the recent posts of the few celebrities they follow (a handful of extra lookups, not hundreds).</li>
+<li>Inactive users: do not maintain their timeline at all; rebuild it on login from the follow graph. This cuts the 2.9 TB of RAM to the active users' share.</li>
+</ul>
+<p>Other considerations to say out loud: deleting a post must remove it from millions of timelines (store ids, not copies of the text, and filter deleted ids at read time); unfollowing leaves old entries (filter at read time or accept it); the fan-out runs on a queue of delivery jobs, so a burst of posts delays delivery rather than failing posts (backpressure: {{Queues, streams and async work, Backpressure and Little's law|n:3ef5c17b0d0d81aebf91df927f215b6e}}).</p>
+
+<h3>Deep dive: ranking changes the question</h3>
+<p>A chronological timeline is a merge; a ranked one ("For You") is a search problem. Twitter's 2023 description: the system must "distill the roughly 500 million Tweets posted daily down to a handful", first by candidate sourcing ("we attempt to extract the best 1500 Tweets from a pool of hundreds of millions"), then a "~48M parameter neural network" ranks them; the timeline is "50% In-Network Tweets and 50% Out-of-Network Tweets on average"; the pipeline "runs approximately 5 billion times per day and completes in under 1.5 seconds on average", and "A single pipeline execution requires 220 seconds of CPU time". Most strikingly: "We recently stopped using Fanout Service, a 12-year old service that was previously used to provide In-Network Tweets from a cache of Tweets for each user" ({{Twitter engineering, 2023-03-31, Wayback copy|http://web.archive.org/web/2023/https://blog.x.com/engineering/en_us/topics/open-source/2023/twitter-recommendation-algorithm}}). Once most of a feed comes from accounts you do not follow, precomputing per-follower lists stops paying, and the work moves back to read time, with heavy caching and machine learning. Facebook had made the read-time choice from the start: an aggregator "fanned out the request to all the leaves to fetch data, rank and filter data", where leaves keep recent actions in memory ({{Zhu, Facebook Multifeed, 2015-03-10|https://engineering.fb.com/2015/03/10/production-engineering/serving-facebook-multifeed-efficiency-performance-gains-through-redesign/}}).</p>
+<div class="co"><div class="t">The lesson that generalises</div><p>"On write or on read" is a question about where to spend work: when something is produced, or when it is consumed. Spend it at write time when reads vastly outnumber writes and the result is reused; spend it at read time when writes fan out enormously, or when the result is personal and changes per read. Caches (design 1), materialised views and search indexes are the same decision under other names.</p></div>
+
+<h3>Failure modes</h3>
+<div class="tw"><table>
+<thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>A celebrity posts (or many at once, during a live event)</td><td>Fan-out queue backs up; everyone's delivery slows</td><td>Hybrid: no fan-out above the threshold; delivery queue per priority</td></tr>
+<tr><td>Timeline cache node lost</td><td>Those users' timelines missing</td><td>Three copies; rebuild from the graph on demand</td></tr>
+<tr><td>Traffic spike 25&times; average (Twitter's 2013 record)</td><td>Write path and fan-out overwhelmed</td><td>Accept posts into a durable queue first; fan out as capacity allows (root {{Case files: Twitter 2013|n:3c65c17b0d0d81048ae0dd14ac399b4d}})</td></tr>
+<tr><td>Deleted post still visible</td><td>Ids remain in millions of lists</td><td>Filter against a deleted-ids set at read time; clean up lazily</td></tr>
+</tbody></table></div>
+<div class="say"><div class="t">What interviewers listen for</div>
+<ul>
+<li>You computed the read-to-write ratio first and let it choose fan-out on write.</li>
+<li>You raised the celebrity problem yourself and proposed the hybrid, with a threshold.</li>
+<li>You estimated the timeline cache memory and trimmed it (cap at N entries, active users only).</li>
+<li>Deletes, unfollows and ranking were at least mentioned.</li>
+</ul></div>
+</section>
