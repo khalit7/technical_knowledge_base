@@ -1,0 +1,71 @@
+<section id="rd-golden">
+<h2>Golden sets</h2>
+<p>A golden set is the frozen list of inputs, with expected behaviour, that every change is scored on. It is the instrument the gate reads, so it is built and maintained like code.</p>
+<h3>What goes in</h3>
+<ul>
+<li><b>A representative slice of real traffic</b>, deduplicated and scrubbed of personally identifiable information (PII).</li>
+<li><b>Regression cases:</b> every production incident becomes a test.</li>
+<li><b>Adversarial and edge cases,</b> and <b>safety canaries</b> (items that must always be refused or always be answered).</li>
+</ul>
+<p>Each item carries an input, the expected behaviour (a reference answer, a rubric, or programmatic checks) and <b>metadata tags</b>: intent, difficulty, source incident. The tags are what make per-slice gating possible: the animation above could split its 160 turns only because MT-Bench tags every question with a category.</p>
+<h3>How big</h3>
+<p>The practical range has been 100 to 500 items per product surface: smaller sets can only gate large effects, larger ones rot because nobody maintains them. Published teams sit on both sides of it, because they mean different things by an item:</p>
+<div class="tw"><table>
+<thead><tr><th>Team, date</th><th>What they gate on</th></tr></thead>
+<tbody>
+<tr><td>Anthropic, {{Demystifying evals for AI agents|https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents}}, 9 Jan 2026</td><td>"20-50 simple tasks drawn from real failures is a great start"; regression suites "should have a nearly 100% pass rate"</td></tr>
+<tr><td>Uber, {{Enhanced Agentic-RAG|https://www.uber.com/blog/enhanced-agentic-rag/}}, 29 May 2025</td><td>A "golden set of 100+ test queries" curated by experts; evaluation time cut "from weeks to minutes"</td></tr>
+<tr><td>Rechat (Hamel Husain, {{Your AI Product Needs Evals|https://hamel.dev/blog/posts/evals/}}, 29 Mar 2024)</td><td>"hundreds" of assertion-style unit tests, updated from new failures, run in CI on every change</td></tr>
+<tr><td>GitHub Copilot ({{How we evaluate AI models|https://github.blog/ai-and-ml/generative-ai/how-we-evaluate-models-for-github-copilot/}}, 17 Jan 2025)</td><td>"more than 4,000 offline tests, most of them as part of our automated CI pipeline": about 100 containerised repositories with deliberately broken tests, and more than 1,000 chat questions graded by an LLM judge</td></tr>
+<tr><td>GitLab Duo ({{How we validate and test AI models at scale|https://about.gitlab.com/blog/2024/05/09/developing-gitlab-duo-how-we-validate-and-test-ai-models-at-scale/}}, 9 May 2024)</td><td>"thousands of prompts tied to dozens of use cases" as a "proxy for production" without customer data; a focused subset during development, the broad set before release, and a daily run against the previous day's baseline</td></tr>
+</tbody></table></div>
+<p>Hamel Husain and Shreya Shankar's FAQ gives the working numbers for building one from traces: "Start with 100 diverse traces and annotate at least the first 30 yourself", "Label 100 to 200 examples for each failure mode", and expect regression sets to "grow to 100 or more examples"; in CI, "Favor assertions or other deterministic checks over LLM-as-judge" ({{evals FAQ|https://hamel.dev/blog/posts/evals-faq/}}, September 2026 revision). Anthropic's own documentation leans the other way on volume: "More questions with slightly lower signal automated grading is better than fewer questions with high-quality human hand-graded evals" ({{Develop tests|https://platform.claude.com/docs/en/test-and-evaluate/develop-tests}}).</p>
+<p>How many items a given threshold needs is a statistics question, answered on {{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}}. The engineering rule that follows from it: write each gate's <b>minimum detectable effect</b> next to its threshold, so nobody believes a 20-item slice can see a half-point drop.</p>
+<h3>Promotion paths: how production failures become golden items</h3>
+<p>The set grows from error analysis: read raw transcripts of failures (Hamel Husain's core discipline, in his {{evals FAQ|https://hamel.dev/blog/posts/evals-faq/}}), cluster them into named failure modes, then turn each cluster into new tagged items and, where a judge grades it, a new rubric criterion. The last step of the animation is this loop. Teams describe the same path in their own words:</p>
+<ul>
+<li>DoorDash: "Newly identified issues are systematically added to Promptfoo test suites" ({{Dasher support automation|https://careersatdoordash.com/blog/large-language-modules-based-dasher-support-automation/}}, Sep 2024).</li>
+<li>Vercel, for v0: "we add new, failing prompts to the eval set" ({{Eval-driven development|https://vercel.com/blog/eval-driven-development-build-better-ai-faster}}, 17 Oct 2024).</li>
+<li>Anthropic: capability evals that the system has learned to pass "graduate" to the regression suite, and failures from the bug tracker and support queue become new tasks (9 Jan 2026, above).</li>
+</ul>
+<p>Two paths run into a golden set, and they should be kept apart. A <b>regression</b> item guards something that already works and should pass almost always; a <b>capability</b> item measures something the system cannot yet do and is expected to fail often. Mixing them makes the pass rate meaningless. Notion's team, in a {{Braintrust case study|https://www.braintrust.dev/blog/notion}} (vendor page, undated), notes that a new model "might pass a regression eval at 100%", which is why they also keep separate frontier evals: a set everyone passes has stopped measuring.</p>
+<h3>Lifecycle</h3>
+<ul>
+<li><b>Decay.</b> A golden set drifts away from reality three ways: the product changes, traffic changes, and the set leaks into prompts and fine-tunes. Refresh it on a schedule from recent traffic and error analysis.</li>
+<li><b>Criteria drift.</b> Shankar et al. found that "users need criteria to grade outputs, but grading outputs helps users define criteria" ({{Who Validates the Validators?|https://arxiv.org/abs/2404.12272}}, Apr 2024): the expected behaviour itself changes as people read outputs, so rubrics are versioned with the items.</li>
+<li><b>Versioning.</b> Any edit to the set is a reviewed change, and the score history is re-baselined when the set changes: a v2 score is not comparable to a v1 score.</li>
+<li><b>A held-out split</b> that is never published or sent to a vendor that might train on your traffic.</li>
+</ul>
+</section>
+
+<section id="rd-ci">
+<h2>Regression gates in CI</h2>
+<h3>What trips a gate</h3>
+<ul>
+<li><b>A paired drop against the champion, per slice.</b> Same items, both configurations, compare per item; a threshold per tagged slice, not one aggregate, for the reason the animation shows. Gating 8 or 20 slices at once means some will fire by chance on every run: use a stricter level per slice, or gate on the aggregate and the slices that matter and treat the rest as diagnostics ({{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}} has the arithmetic).</li>
+<li><b>Hard floors on safety slices</b>, where no trade is allowed: Vercel keeps refusal and safety evals at "a 100% pass rate" while other evals may move.</li>
+<li><b>Deterministic assertions:</b> the format parses, the tool call is valid, no forbidden string, the right citation. Cheap, exact, and the first layer of Hamel Husain's three levels (assertion tests on every code change, human and model evaluation on a cadence, A/B tests after significant product changes).</li>
+<li><b>Budget limits</b> computed from the same runs (next section).</li>
+</ul>
+<p>A gate result is a <b>decision with three outcomes</b>, not two: pass, fail, and "cannot tell", which escalates to more samples or a human. "Re-run until green" turns a gate into a random number generator with a bias toward shipping.</p>
+<h3>Flaky evals</h3>
+<p>A gate that fails on an unchanged configuration trains everyone to ignore it. Three sources of flakiness are now well documented:</p>
+<ul>
+<li><b>Temperature 0 is not deterministic on a shared server.</b> Thinking Machines sampled the same prompt 1,000 times at temperature 0 and got "80 unique completions", the first divergence at token 103; the cause is that server load changes the batch size, and the kernels are not batch-invariant. With batch-invariant kernels all 1,000 were identical, at a cost of 26 s rising to 55 s for the run (42 s with an improved attention kernel) ({{Defeating Nondeterminism in LLM Inference|https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/}}, 10 Sep 2025). Through a provider API you cannot fix this, only measure it: score each item K times and gate on the mean. OpenAI's <code>seed</code> is "best effort" and "Determinism is not guaranteed" ({{API reference|https://developers.openai.com/api/reference/resources/chat}}); Anthropic's docs say that "Even with temperature set to 0, the results will not be fully deterministic", and the parameter is now deprecated: "Models released after Claude Opus 4.6 do not support setting temperature" ({{Messages API|https://platform.claude.com/docs/en/api/messages}}). A gate that relied on temperature 0 for repeatability has to move to K samples.</li>
+<li><b>The judge is a model too.</b> In the animation's data, one of 320 GPT-4 judge calls looped and never emitted a grade; across the whole file 4 of 5,440 did. Parse failures need an explicit rule, and a judge model or prompt change is a new instrument that needs re-baselining (the root page's {{Calibration section|n:3c65c17b0d0d8181b351e1b8fc6a1546}} and {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}).</li>
+<li><b>Agents fail some trials and pass others.</b> Report pass^k (every one of k trials succeeds) beside pass@k: Anthropic's example is a 75% per-trial success rate becoming (0.75)^3, about 42%, over three trials. {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}} owns this for agents.</li>
+</ul>
+<p>Practice: pin every version, cache champion outputs, re-score K times where decoding is nondeterministic, quarantine items that flip on an unchanged configuration and fix or remove them, and log every gate run with its configuration so a failure can be replayed.</p>
+<h3>What trips the gate in common tools</h3>
+<p>The tools differ in what counts as a failure, and the default is often stricter or looser than you think (docs read 2026-10-04; tool depth on {{Eval harnesses|n:3c65c17b0d0d81ea9cd5eb65795ff5c9}}):</p>
+<div class="tw"><table>
+<thead><tr><th>Tool</th><th>What fails the build</th></tr></thead>
+<tbody>
+<tr><td>{{promptfoo|https://www.promptfoo.dev/docs/usage/command-line/}}</td><td><code>eval</code> exits with code 100 "when there is at least 1 test case failure or when the pass rate is below the threshold set by <code>PROMPTFOO_PASS_RATE_THRESHOLD</code>"; the default is 100%, no failures allowed. Each test passes when the weighted score of its assertions reaches its threshold.</td></tr>
+<tr><td>{{DeepEval|https://deepeval.com/docs/evaluation-unit-testing-in-ci-cd}}</td><td>pytest-style: "when a metric falls below its threshold the assertion fails, so the build goes red". A <code>flaky=True</code> flag turns a failure into a warning for borderline cases that "flip between passing and failing across runs".</td></tr>
+<tr><td>{{Braintrust|https://www.braintrust.dev/docs/evaluate/run-in-ci}}</td><td>A GitHub Action posts per-row score deltas against a baseline experiment (by default the latest on the same branch) to the pull request; <code>bt eval</code> exits non-zero only if an eval throws, so a score gate is your own reporter returning false.</td></tr>
+<tr><td>{{LangSmith|https://docs.langchain.com/langsmith/pytest}}</td><td>pytest assertions fail CI; the comparison view counts runs that "regressed" or "improved" against a chosen experiment.</td></tr>
+<tr><td>{{Inspect|https://inspect.aisi.org.uk/handling-errors.html}}</td><td>No score gate built in: <code>fail_on_error</code> stops a run on sample errors (or above an error share such as 0.1), and the docs say to "always check their status"; a threshold is your own code over the log.</td></tr>
+<tr><td>{{OpenAI Evals API|https://developers.openai.com/api/docs/guides/evals}}</td><td>Graders carry a <code>pass_threshold</code>; a run reports passed, failed and errored counts. <b>Being retired:</b> "Evals will become read-only for existing users on October 31, 2026, and the platform is scheduled to shut down" on 30 November 2026. Export gate history now.</td></tr>
+</tbody></table></div>
+</section>
