@@ -1,0 +1,71 @@
+
+<section id="rd-pass">
+<h2>8. Repeated sampling and pass@k</h2>
+<p>With sampled decoding, run each item K times, average per item, then compute the standard error over items: that is Miller's §3.1, and Inspect does it when a task sets <code>epochs</code>. How many samples are worth it depends on the split between item variance and within-item variance: once E[σ²]/K is small next to Var(x), more samples barely help. The split differs by model and by benchmark, so it is worth measuring. On MathArena's released answers (every model answered every problem 4 times) <i class="nl r">real data</i>:</p>
+<div class="card" id="rd-ma-card">
+<div class="rowctl"><label>Competition <select id="rd-ma-c"></select></label><label>Model <select id="rd-ma-m"></select></label></div>
+<div id="rd-ma-svg" class="rd-svg"></div>
+<div class="an-cnt" id="rd-ma-cnt"></div>
+<p class="small mute" id="rd-ma-cap"></p>
+</div>
+<ul class="tight">
+<li><b>pass@k</b> (any of k samples right) is estimated without bias from n ≥ k samples with c correct as 1 − C(n − c, k)/C(n, k) per problem, averaged over problems ({{Chen et al. 2021, the Codex paper|https://arxiv.org/abs/2107.03374}}, Eq. 1); drawing exactly k samples and checking any is unbiased but noisier, and 1 − (1 − p̂)<sup>k</sup> from a pooled p̂ is biased. Its standard error is still over problems: k samples per problem do not add problems.</li>
+<li><b>pass^k</b> (all k right), the reliability measure of agent benchmarks, is owned by {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}}; the same rule applies.</li>
+<li><b>Seeds are samples too.</b> Hochlehnert et al.'s 5 to 15 point spread on AIME'24 across seeds is this within-item variance seen from the outside; they recommend many seeds on small benchmarks and reporting the mean and its spread.</li>
+<li><b>Bowyer et al.</b> note that pass@k has no obvious CLT interval and sketch a hierarchical Bayesian model for it (their Appendix D).</li>
+</ul>
+</section>
+
+<section id="rd-judge">
+<h2>9. Judge noise is a variance component</h2>
+<p>When an LLM or a person grades each answer, the grade adds its own term: s<sub>i</sub> = x<sub>i</sub> + ε<sub>model</sub> + ε<sub>judge</sub> + b<sub>judge</sub>. The noise ε<sub>judge</sub> behaves exactly like sampling noise: it sits inside σ² in the power formula, and averaging J independent judgments per item divides it by J. The bias b<sub>judge</sub> does not average away: a judge that prefers the first position or the longer answer moves every grade the same way, and more items or more judgments only make the wrong number more precise. Bias is the {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}} page's subject (and the parent topic's {{Judge bias lab|n:3c65c17b0d0d8181b351e1b8fc6a1546}}); this section is about the noise.</p>
+<p>How large is judge noise next to item variance? MT-Bench's released expert votes have several judges on the same question, turn and model pair, so the two can be separated with a one-way random-effects split <i class="nl r">real data</i> (vote scored 1 for a win of the first model, ½ tie, 0 loss):</p>
+<div class="card" id="rd-hv-card">
+<div class="rowctl"><label>Model pair <select id="rd-hv-p"></select></label></div>
+<div id="rd-hv-svg" class="rd-svg"></div>
+<div class="an-cnt" id="rd-hv-cnt"></div>
+<p class="small mute" id="rd-hv-cap"></p>
+</div>
+<p>Across the 15 model pairs, disagreement between expert judges on the same item is a median <span class="esv" data-k="hv_med"></span> of the variance of a single vote <i class="nl r">real data</i>. For a preference eval graded once per item, most of the noise is the grader, not the item: a second independent judgment per item removes half of that part, which can be worth as much as many more items, and the power formula should carry it as σ²/J.</p>
+<ul class="tight">
+<li><b>LLM judges are noisy too,</b> even at temperature 0: serving nondeterminism, parse failures and prompt drift. A judgment that fails to parse is not a score: in LMSYS's released MT-Bench file, averaging one failed grade in as −1 is the most likely reason the leaderboard prints 7.85 for Claude-Instant-1 where the valid grades average 7.906 (worked through on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}). Count failures as their own metric and drop the item from both sides.</li>
+<li><b>Agreement is not reliability.</b> Self-consistency of a judge (test-retest) can be high while it is systematically wrong; calibration against people is on the parent topic and on {{Human evaluation and annotation|n:3ef5c17b0d0d819485bcc54a45d49420}}, which owns inter-annotator agreement.</li>
+</ul>
+</section>
+
+<section id="rd-report">
+<h2>10. Reporting standard</h2>
+<p>A review of 445 LLM benchmark papers by 29 reviewers found that 16.0% "used uncertainty estimates or statistical tests to compare the results" (Bean et al., {{"Measuring what Matters", arXiv:2511.04703|https://arxiv.org/abs/2511.04703}}, NeurIPS 2025 Datasets and Benchmarks). Their checklist asks for the sample size with a power justification and uncertainty for every primary score. Merged with Miller's recommendations, a result is reportable when it carries:</p>
+<ol class="tight">
+<li>the number of items, the number of clusters and what a cluster is;</li>
+<li>each score with its standard error in parentheses (clustered where items cluster), Wilson or Bayesian intervals below a few hundred items;</li>
+<li>for comparisons: the paired difference, its standard error and interval, and the correlation of item scores (Miller's Table 5);</li>
+<li>samples per item K, temperature, seeds, and how pass@k or the mean over samples was computed;</li>
+<li>the test used and how many comparisons were made, with the correction;</li>
+<li>the judge (model, prompt version, J judgments per item) and its parse-failure count;</li>
+<li>the minimum detectable effect, or the power for the effect claimed;</li>
+<li>the harness and its version, so the comparison can be paired by someone else.</li>
+</ol>
+<div class="tw"><table>
+<tr><th>Tool (checked 4 October 2026)</th><th>What it computes</th></tr>
+<tr><td>{{Inspect|https://inspect.aisi.org.uk/scorers.html}} (UK AISI)</td><td><code>stderr()</code> CLT standard error, with <code>cluster=</code>; <code>bootstrap_stderr()</code>; <code>ci()</code> and <code>ci_wilson()</code> intervals; <code>epochs</code> for K samples per item reduced per item before the metric</td></tr>
+<tr><td>{{lm-evaluation-harness|https://github.com/EleutherAI/lm-evaluation-harness}}</td><td>Closed-form standard error of the mean per task, bootstrap for some metrics (<code>bootstrap_iters</code>), pooled standard errors for groups; no clustering or paired comparison found</td></tr>
+<tr><td>{{evalstats|https://github.com/ianarawjo/evalstats}} (Ian Arawjo, statsforevals.com)</td><td>Picks a method from the data: Wilson for 0/1 means, Bonett-Price for paired 0/1 differences, Wilcoxon for one comparison, Šidák or Romano-Wolf for many</td></tr>
+<tr><td>{{bayes_evals|https://github.com/sambowyer/bayes_evals}} (Bowyer et al.)</td><td>Beta-Bernoulli and hierarchical intervals for small, clustered or paired evals</td></tr>
+</table></div>
+<p class="small mute">Lab reports are starting to print error bars: Miller singles out the Llama 3 report as an early one; Anthropic's model cards quote standard errors per trial and per task (see {{Topic: benchmarks|n:3c65c17b0d0d811fb43fece56e40041a}}, "Same model, many numbers"); arena leaderboards publish bootstrap intervals on ratings ({{Human preference and arenas|n:3ef5c17b0d0d814db49ff3b5c9fc3034}}).</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Reading a point difference without its interval</summary><div class="b">On 200 items at 70% a single score is ±6.4 points. State n and the standard error with every number, and the interval with every difference.</div></details>
+<details class="mist"><summary>Comparing unpaired scores when the items were shared</summary><div class="b">Both models ran on the same items, so test the per-item differences. On real data this cut the standard error to <span class="esv" data-k="mist_pair"></span> of the unpaired one.</div></details>
+<details class="mist"><summary>Counting samples or turns as items</summary><div class="b">Four runs of 30 problems are 30 items with 4 samples each, not 120 items; two turns of one conversation are one cluster. Average per item first, cluster on how items were drawn.</div></details>
+<details class="mist"><summary>Lowering the temperature to reduce noise</summary><div class="b">It moves the noise into the item variance and can change the mean (on RACE-H the greedy and the sampled accuracy of the same model differ by <span class="esv" data-k="mist_temp"></span>). Use K samples or next-token probabilities.</div></details>
+<details class="mist"><summary>Using the CLT interval on 30 items</summary><div class="b">It collapses to zero width at 30 of 30 and covers less than it promises. Use Wilson or Bayes ({{Small-n intervals|#t-cov}}).</div></details>
+<details class="mist"><summary>Gating every slice at p &lt; 0.05</summary><div class="b">Twenty slices fail by chance two times in three. Correct the level, use an FDR for diagnostics, or gate the aggregate.</div></details>
+<details class="mist"><summary>Re-running until green</summary><div class="b">Each re-run is another test. Fix K before looking and escalate borderline results to more samples or review.</div></details>
+<details class="mist"><summary>Sizing an eval after running it</summary><div class="b">Power is decided before the run: choose the effect that matters, estimate the variance from earlier data, compute n. After the run, report the MDE so nobody reads more into the result than it can hold.</div></details>
+<details class="mist"><summary>Averaging judge failures in as scores</summary><div class="b">An unparsable verdict is missing data. Drop the item from both sides and count failures.</div></details>
+<details class="mist"><summary>Treating judge bias as noise</summary><div class="b">More items and more judgments shrink noise, never bias. A position-biased judge gives a precise wrong answer.</div></details>
+</section>

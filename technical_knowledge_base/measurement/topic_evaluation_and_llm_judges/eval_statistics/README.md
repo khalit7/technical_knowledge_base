@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3ef5c17b0d0d8187a7b4e5b4ec4a546d (child of Topic: evaluation-and-llm-judges)
 
-New page (2026-10-04): being built.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Standard errors (CLT, Bernoulli, small-n Wilson and Bayes), the variance split between items, samples and judges, clustered standard errors, paired against unpaired comparisons, McNemar, paired bootstrap and permutation tests, multiple comparisons and many-slice gates, power and minimum detectable effect, repeated sampling and pass@k, judge noise, reporting standards. Tabs: Reading (with a before/after animation of one real comparison, unpaired then paired then clustered), Interval lab (RACE-H run for this page on two small open models, and MT-Bench's released GPT-4 grades for 34 models), Sample-size calculator, Small-n intervals (exact coverage), Further reading. New page (October 2026): takes the statistics of the old Production eval engineering page, with its corrections, and the sample-size calculator the parent topic leaves out; no child pages, databases or video.
