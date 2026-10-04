@@ -1,0 +1,100 @@
+<section id="rd-s2">
+<h2>2. What can go wrong, and how it shows</h2>
+<p>Most database incidents are one of a short list. Learn the list, and for each one the first query you would run. The {{Incident lab|#t-lab}} walks through each with real output.</p>
+<div class="tw"><table>
+<thead><tr><th>Failure</th><th>How it shows</th><th>First thing to look at</th><th>What prevents it</th></tr></thead>
+<tbody>
+<tr><td><b>Disk full</b></td><td>Writes fail with <code>could not extend file</code> or <code>No space left on device</code>; at 100% Postgres shuts down (it cannot write WAL)</td><td><code>pg_replication_slots</code> (retained WAL), size of <code>pg_wal/</code>, biggest tables, failing archiver (<code>pg_stat_archiver</code>)</td><td>Slot cap, archive alert, disk alert at 80%, bloat control (sections 4, 6)</td></tr>
+<tr><td><b>Runaway query</b></td><td>CPU or IO at 100%, everything slow</td><td><code>pg_stat_activity</code> ordered by <code>query_start</code></td><td><code>statement_timeout</code> per role (section 11)</td></tr>
+<tr><td><b>Replication lag</b></td><td>Stale reads from replicas; failover would lose data</td><td><code>pg_stat_replication</code>: <code>write_lag</code>, <code>flush_lag</code>, <code>replay_lag</code></td><td>Lag alert, replica sized like the primary, long replica queries kept in check (section 4)</td></tr>
+<tr><td><b>Transaction ID wraparound</b></td><td>Warnings in the log, then <code>database is not accepting commands</code></td><td><code>age(datfrozenxid)</code> per database, what holds the oldest transaction</td><td>Alert at 30 to 50% of the limit, no forgotten transactions or slots (section 7)</td></tr>
+<tr><td><b>Bloat</b></td><td>Tables and indexes much bigger than their data, queries slower</td><td><code>n_dead_tup</code> in <code>pg_stat_user_tables</code>, sessions with an old <code>backend_xmin</code></td><td>Autovacuum tuned per hot table, idle-transaction timeout (section 6)</td></tr>
+<tr><td><b>Connection exhaustion</b></td><td><code>sorry, too many clients already</code> or <code>remaining connection slots are reserved</code></td><td><code>pg_stat_activity</code> grouped by <code>state</code> and application</td><td>A pooler, small app pools, idle timeouts (section 8)</td></tr>
+<tr><td><b>A bad migration</b></td><td>Every query on one table hangs</td><td><code>pg_blocking_pids()</code> and <code>wait_event</code></td><td><code>lock_timeout</code> on migrations; see {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}, "ALTER TABLE, measured"</td></tr>
+<tr><td><b>Lost instance</b></td><td>Connections refused; the host or its disk is gone</td><td>Is a replica healthy and how far behind?</td><td>A replica, automated failover, fencing (section 5)</td></tr>
+<tr><td><b>Data deleted or corrupted by a person or a bug</b></td><td>Users report missing data</td><td>When exactly did it happen? (application logs, <code>pg_waldump</code>)</td><td>Point-in-time recovery, least privilege (sections 3, 10)</td></tr>
+</tbody></table></div>
+<p>Two things are worth noticing. First, only one row (the lost instance) is the hardware failure people imagine; the others are slow accumulations (dead rows, retained WAL, transaction age, connections) or human mistakes. Second, every accumulation can be caught days in advance by an alert on one number, which is why section 11 matters more than any heroics.</p>
+</section>
+
+<section id="rd-s3">
+<h2>3. Backups done right</h2>
+<p>Two numbers define what "backed up" means for you. Agree them with whoever owns the product before choosing any tool.</p>
+<div class="two">
+<div><h4>RPO: how much data you can lose</h4><p class="small">The <dfn>recovery point objective</dfn> is the age of the newest data you can get back, measured in time. "RPO 24 hours" means losing up to a day of writes is acceptable. For a chat product, losing a day of messages is not.</p></div>
+<div><h4>RTO: how long you can be down</h4><p class="small">The <dfn>recovery time objective</dfn> is how long the restore may take, from "we need to restore" to "users are back". It is set by database size, network and disk speed, and how practised the procedure is.</p></div>
+</div>
+<h3>Logical against physical backups</h3>
+<p>A <dfn>logical backup</dfn> (<code>pg_dump</code>) asks the database for its contents as SQL or a compressed archive: <code>CREATE TABLE</code> statements and the rows. A <dfn>physical backup</dfn> (<code>pg_basebackup</code>, or a tool built on the same mechanism) copies the data directory's files as they are on disk, while the server runs, plus the WAL needed to make that copy consistent. On the chat data:</p>
+<div class="tr" data-run="pitr" data-steps="dump,basebackup,verify" data-title="Real run: last night's dump and a base backup of the same 221 MB database"></div>
+<div class="tw"><table>
+<thead><tr><th></th><th>Logical (<code>pg_dump</code>)</th><th>Physical (base backup + WAL)</th></tr></thead>
+<tbody>
+<tr><td>What you get</td><td>The database at the one moment the dump started</td><td>The database at <b>any moment</b> since the base backup, if the WAL is archived</td></tr>
+<tr><td>Size here</td><td id="rd-bk-size1">33.9 MB (compressed rows; indexes are rebuilt on restore)</td><td id="rd-bk-size2">258 MB (every file, indexes included, plus the WAL written during the copy)</td></tr>
+<tr><td>Restore</td><td>Replays SQL and rebuilds every index: slow for big databases</td><td>Copy files, replay WAL: speed of the disk and network</td></tr>
+<tr><td>Portable?</td><td>Yes: across major versions, machines, one table at a time</td><td>No: same major version, same platform, whole cluster only</td></tr>
+<tr><td>Good for</td><td>Copying data elsewhere, upgrades, a second safety net</td><td>Disaster recovery and point-in-time recovery</td></tr>
+</tbody></table></div>
+<h3>WAL archiving and point-in-time recovery</h3>
+<p>Because the WAL records every change, a base backup plus every WAL segment written since lets Postgres rebuild the database at any moment you choose. This is <dfn>point-in-time recovery</dfn> (PITR). You switch it on with three settings: <code>wal_level = replica</code> (the default), <code>archive_mode = on</code>, and an <code>archive_command</code> that copies each finished 16 MB segment somewhere safe; it must return success only once the file is stored ({{WAL settings|https://www.postgresql.org/docs/18/runtime-config-wal.html}}). To recover, you restore the base backup, tell Postgres where the archive is (<code>restore_command</code>) and when to stop (<code>recovery_target_time</code>), and start it.</p>
+<p>The animation below is the most important picture on this page. A chat product, a nightly backup at midnight, a normal day of messages, and at 14:03 an engineer runs a cleanup that lost its <code>WHERE</code> clause. Toggle the recovery method and play it again.</p>
+<div class="card" id="rd-pitr-card">
+<div class="seg" id="rd-pitr-mode"><button data-m="dump" class="on">Restore last night's dump</button><button data-m="pitr">Point-in-time recovery to 14:02:59</button></div>
+<div class="rd-svg" id="rd-pitr"></div>
+<div class="an-cnt" id="rd-pitr-cnt"></div>
+<div class="an-cap" id="rd-pitr-cap"></div>
+<div class="an-ctl" id="rd-pitr-ctl"></div>
+<p class="small mute">Row counts, the recovery log lines and the recovery times are from the real run below; the clock times are <span class="ill">illustrative</span> (the run compressed "the day" into ten seconds: six batches of 2,000 messages, then the <code>DELETE</code>).</p>
+</div>
+<p>Here is the real run. The <code>DELETE</code> removed every message; the recovered server stops replaying just before that transaction's commit record, so the delete simply never happened:</p>
+<div class="tr" data-run="pitr" data-steps="bad_delete,after,waldump,restore_dump,restore_pitr,pitr_count" data-title="Real run: the bad DELETE, then both recoveries"></div>
+<div id="rd-pitr-sum"></div>
+<p>Three details from that output matter in a real incident:</p>
+<ul>
+<li><b>Finding the moment.</b> You rarely know the second the mistake happened. <code>pg_waldump</code> reads WAL files and prints each record; the <code>DELETE</code>'s transaction shows up as a million heap delete records followed by one <code>COMMIT</code> with a timestamp. You can then recover to just before that time, or name the transaction directly with <code>recovery_target_xid</code> (and <code>recovery_target_inclusive = false</code>).</li>
+<li><b>A new timeline.</b> After recovery the server says <code>selected new timeline ID: 2</code>. A <dfn>timeline</dfn> is a branch of history: from this point the recovered database has a different future from the old one, and its WAL files are named with the new timeline so they never mix with the old ones in the archive.</li>
+<li><b>Writes after the mistake.</b> Recovering to 14:02:59 also discards everything written after 14:03 (two messages in the run). So in practice you usually recover into a <em>separate</em> server and copy just the deleted rows back into production with SQL, rather than replacing production. Either way the decision is a product one: say it out loud in the incident channel.</li>
+</ul>
+<h3>Tools: what professionals run</h3>
+<p>Nobody writes <code>cp</code> archive commands in production. Three open-source tools do base backups, WAL archiving, retention, compression, encryption and restores against object storage such as S3:</p>
+<div class="fam">
+<div style="--sc:var(--c1)"><h4>pgBackRest</h4><p>The most common choice for self-managed Postgres: full, differential and incremental backups, parallel compression, encryption, asynchronous archiving, backup verification. Latest {{2.59.3, 2026-10-04|https://github.com/pgbackrest/pgbackrest/releases}}. {{User guide|https://pgbackrest.org/user-guide.html}}.</p></div>
+<div style="--sc:var(--c3)"><h4>WAL-G</h4><p>A single Go binary, popular in Kubernetes and cloud setups; delta backups to S3, GCS or Azure; also backs up MySQL and others. Latest {{v3.0.9, 2026-08-20|https://github.com/wal-g/wal-g/releases}}.</p></div>
+<div style="--sc:var(--c4)"><h4>Barman</h4><p>EDB's backup server: one machine that pulls backups and streams WAL from many Postgres servers. Latest {{3.20.1, 2026-09-29|https://github.com/EnterpriseDB/barman/releases}}.</p></div>
+</div>
+<p>A minimal pgBackRest setup, following its user guide (bucket and paths are <span class="ill">illustrative</span>):</p>
+<pre class="code"># /etc/pgbackrest/pgbackrest.conf
+[global]
+repo1-type=s3
+repo1-s3-bucket=chat-db-backups
+repo1-s3-region=eu-west-1
+repo1-path=/pgbackrest
+repo1-retention-full=4            # keep four full backups and the WAL they need
+repo1-cipher-type=aes-256-cbc     # encrypted before it leaves the machine
+process-max=4
+archive-async=y
+start-fast=y
+
+[main]
+pg1-path=/var/lib/postgresql/18/main
+
+# postgresql.conf
+archive_mode = on
+archive_command = 'pgbackrest --stanza=main archive-push %p'
+
+# weekly full, daily differential (cron); restore to a moment:
+pgbackrest --stanza=main --type=full backup
+pgbackrest --stanza=main --type=diff backup
+pgbackrest --stanza=main --type=time "--target=2026-10-04 14:02:59+00" --target-action=promote restore</pre>
+<p>Since PostgreSQL 17 the built-in tools can also take incremental backups (<code>pg_basebackup --incremental</code>, merged with <code>pg_combinebackup</code>: {{release notes|https://www.postgresql.org/docs/17/release-17.html}}), but they do not manage retention or object storage for you. Managed services do all of this for you: Amazon RDS keeps automated backups for up to 35 days and uploads transaction logs to S3 every five minutes, so its point-in-time restore can lose up to about five minutes ({{RDS PITR docs|https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIT.html}}).</p>
+<h3>A backup you have not restored is not a backup</h3>
+<p>On 31 January 2017, GitLab.com lost about six hours of database changes. An engineer, tired and fighting replication lag, deleted the data directory on the primary instead of the replica. Then the team found that the nightly <code>pg_dump</code> backups had been failing silently for a long time (the dump tool's major version did not match the server's) and disk snapshots had never been enabled; the best copy was a manual snapshot six hours old, which took about 18 hours to copy back ({{GitLab postmortem, 2017-02-10|https://about.gitlab.com/blog/postmortem-of-database-outage-of-january-31/}}; the full case is in the {{SWE topic's Case files tab|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). Every backup method they had existed; none had been restored.</p>
+<div class="co key"><div class="t">What "tested restores" means in practice</div>
+<ul style="margin:4px 0">
+<li>A scheduled job (weekly at least) restores the latest backup to a scratch server, replays WAL to a recent moment, and runs checks: the server starts, row counts of key tables are close to production's, an application smoke query works. It alerts if any step fails.</li>
+<li>It records how long the restore took. That number, not a guess, is your RTO. Here 221 MB took under two seconds; at a realistic 200 MB/s restore speed a 2 TB database takes about three hours before any WAL replay (2,000,000 MB / 200 MB/s = 10,000 s; <span class="ill">illustrative</span> speed).</li>
+<li>Backups go to another account or project with delete protection (object lock), so a compromised production account or a bad script cannot delete them too.</li>
+<li>Alert when the archiver fails (<code>pg_stat_archiver.failed_count</code> rising) and when the newest backup is older than its schedule.</li>
+</ul></div>
+</section>
