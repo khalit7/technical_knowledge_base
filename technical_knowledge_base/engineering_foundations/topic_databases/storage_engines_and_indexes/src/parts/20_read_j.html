@@ -1,0 +1,57 @@
+<section id="rd-pro">
+<h2>In production today (October 2026)</h2>
+<p>Current versions: PostgreSQL 18.6 (2026-08-13) is the latest release; 19 is in beta (Beta 4, 2026-09-24) ({{versioning|https://www.postgresql.org/support/versioning/}}). MySQL 8.4 is the long-term-support line. RocksDB's defaults are those in its {{options.h|https://github.com/facebook/rocksdb/blob/main/include/rocksdb/options.h}}. The settings below are the ones this page's mechanisms point to; each says whether it is a documented default or common practice.</p>
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th>Default</th><th>What pros do, and why</th></tr></thead>
+<tbody>
+<tr><td><code>shared_buffers</code></td><td>128 MB</td><td>About 25% of RAM on a dedicated server, as the docs suggest; rarely above 40% (double buffering, section 2).</td></tr>
+<tr><td><code>max_wal_size</code>, <code>checkpoint_timeout</code></td><td>1 GB, 5 min</td><td>Common practice on write-heavy servers: raise both (several GB, 15 to 30 min) so checkpoints come from the timer, not WAL volume; fewer full-page images, longer crash recovery (sections 3 and 4). Check <code>checkpoints_req</code> against <code>checkpoints_timed</code>.</td></tr>
+<tr><td><code>wal_compression</code></td><td>off</td><td>lz4 or zstd (Postgres 15+) when page images dominate the WAL; costs a little CPU (measured: pglz cut the images to a third).</td></tr>
+<tr><td><code>full_page_writes</code>, <code>fsync</code></td><td>on, on</td><td>Leave on. Turning either off risks corruption after a crash.</td></tr>
+<tr><td><code>synchronous_commit</code></td><td>on</td><td>On globally; <code>SET LOCAL synchronous_commit = off</code> in transactions whose loss after a crash is acceptable (events, logs).</td></tr>
+<tr><td>Table <code>fillfactor</code></td><td>100</td><td>70 to 90 on tables with frequent updates, so updates stay HOT; watch <code>n_tup_hot_upd</code> against <code>n_tup_upd</code>.</td></tr>
+<tr><td>Primary key</td><td>-</td><td><code>bigint GENERATED ALWAYS AS IDENTITY</code>, or <code>uuidv7()</code> (Postgres 18) when ids must be created outside the database; avoid random UUID v4 keys on large tables.</td></tr>
+<tr><td>New indexes</td><td>-</td><td><code>CREATE INDEX CONCURRENTLY</code>; drop indexes with <code>idx_scan = 0</code>; check B-tree health with {{amcheck|https://www.postgresql.org/docs/18/amcheck.html}} and size with {{pgstattuple|https://www.postgresql.org/docs/18/pgstattuple.html}}.</td></tr>
+<tr><td><code>io_method</code> (18)</td><td>worker</td><td>Leave the default unless measured; <code>io_uring</code> needs a Linux build with liburing.</td></tr>
+<tr><td>InnoDB (MySQL 8.4)</td><td>buffer pool 128 MB; O_DIRECT on Linux; change buffering none</td><td>Buffer pool up to about 80% of RAM on a dedicated server ({{InnoDB parameters|https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html}}).</td></tr>
+<tr><td>RocksDB</td><td>64 MB memtable, leveled, dynamic level sizes (default since 8.4)</td><td>Bloom filters at about 10 bits per key; alert on pending compaction bytes and write stalls.</td></tr>
+</tbody></table></div>
+<p>Operating these settings (vacuum, bloat, upgrades, backups) is {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}; reading plans and finding slow queries is {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}.</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Random UUID v4 primary keys on a big, growing table</summary><div class="b">Every insert lands on a random leaf page: more page images in the WAL, about 30% empty space, cache misses once the index outgrows memory (section 5 measured it). Use a sequence or UUID v7.</div></details>
+<details class="mist"><summary>Indexing every column "just in case"</summary><div class="b">Each index is paid on every insert and non-HOT update; one random-order index that does not fit in memory made a bulk insert about 12 times slower here (section 11). Index what queries search by, then measure.</div></details>
+<details class="mist"><summary>Composite index columns in the wrong order</summary><div class="b">(created_at, chat_id) cannot serve "this chat, newest first" well; (chat_id, created_at) can. Equality columns first, then the range or sort column (section 10).</div></details>
+<details class="mist"><summary>Expecting index-only scans on a table that is never vacuumed</summary><div class="b">Without the visibility map's all-visible bits, an index-only scan still visits the table pages (section 1; the root's Query plans tab, case 7).</div></details>
+<details class="mist"><summary>Turning off fsync, full_page_writes or synchronous_commit globally for speed</summary><div class="b">The first two risk corruption; the third loses the last instant of commits for every table, money included. Use group commit, wal_compression, and per-transaction synchronous_commit instead (section 3).</div></details>
+<details class="mist"><summary><code>SELECT *</code> on tables with long text</summary><div class="b">Long values are TOASTed: fetching them costs extra page reads and decompression. List the columns you need (section 1).</div></details>
+<details class="mist"><summary>BRIN on a column that does not follow the row order</summary><div class="b">Each block range then spans almost the whole value range and nothing is skipped (section 9 measured it). BRIN suits append-only time columns.</div></details>
+<details class="mist"><summary>Using an LSM store as a queue, and ignoring compaction debt</summary><div class="b">Deletes become tombstones that reads must step over; compaction that falls behind a write burst ends in write stalls (section 6).</div></details>
+<details class="mist"><summary>Benchmarking with data that fits in memory</summary><div class="b">Everything is a cache hit and index costs vanish (section 11's single-row inserts). Test at production size, or at least with data larger than shared_buffers and the OS cache.</div></details>
+<details class="mist"><summary>A huge shared_buffers</summary><div class="b">Postgres also relies on the OS page cache; above about 40% of RAM the docs say it is unlikely to help, and checkpoints have more dirty pages to write (section 2).</div></details>
+</section>
+
+<section id="rd-num">
+<h2>Numbers to keep in mind for storage</h2>
+<p>The old page's latency table, re-based on measurements (the root's notes and the system design page's {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab, which owns the full list). Rows about networks, caches, vectors and LLMs moved to the pages that own them (listed under the table).</p>
+<div class="tw"><table>
+<thead><tr><th>Operation</th><th>Old page</th><th>Now</th><th>Why it matters here</th></tr></thead>
+<tbody>
+<tr><td>L1 cache reference</td><td>1 ns</td><td>about 1 ns (0.98 ns measured on the system design page)</td><td>The unit</td></tr>
+<tr><td>Main memory reference</td><td>100 ns</td><td>about 70 to 100 ns</td><td>A buffer pool hit</td></tr>
+<tr><td>Read 1 MB sequentially from memory</td><td>50 &#956;s</td><td><b>corrected:</b> 18.3 &#956;s measured on an M1 Pro, one thread (classic list: 250 &#956;s)</td><td>Why scanning cached pages is cheap</td></tr>
+<tr><td>Random 4 KB read from an NVMe SSD</td><td>50 to 100 &#956;s</td><td>about 100 &#956;s (102 &#956;s at queue depth 1, consumer drive)</td><td>A buffer pool miss; why the working set must fit in RAM</td></tr>
+<tr><td>fsync</td><td>0.1 to 1 ms (enterprise SSD)</td><td><b>corrected:</b> 1.6 to 12 &#956;s with power-loss protection; 0.9 to 3 ms consumer SSD; 0.74 ms network block storage; 6.0 ms per commit on this laptop</td><td>The floor on commit latency per connection; why group commit exists</td></tr>
+<tr><td>Read 1 MB sequentially from NVMe</td><td>200 to 500 &#956;s</td><td><b>unconfirmed</b> (depends on the drive; consumer NVMe drives advertise several GB/s, which would be 0.2 to 0.5 ms)</td><td>Why a well-laid-out scan can beat scattered index lookups</td></tr>
+<tr><td>Postgres indexed single-row read, warm</td><td>0.5 to 2 ms</td><td><b>corrected:</b> 0.061 ms inside the server (root), 0.067 ms over loopback (system design page); a network round trip adds 0.5 ms or so</td><td>If you see 50 ms, look for a missing index, a cold cache or N+1 queries</td></tr>
+</tbody></table></div>
+<p class="small mute">Moved: same-datacentre and cross-region round trips and S3 first-byte times to the system design page's {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab; Redis GET (corrected there to about 0.14 ms on loopback, vendor figure) to {{Caching|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}; HNSW query time to {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}}; LLM time to first token to {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}. The habit the old table taught still holds: multiply the number of page reads, flushes or round trips by the cost of one and compare with what you measured; if they disagree, you are optimising the wrong layer.</p>
+</section>
+
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<div class="gl" id="rd-gl"></div>
+</section>
+</div>

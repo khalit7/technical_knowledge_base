@@ -1,0 +1,55 @@
+<section id="rd-s10">
+<h2>10. Schema rules: constraints, soft deletes, tenants, enums, names</h2>
+<h3>Constraints are documentation that the database enforces</h3>
+<p><b>The problem.</b> A rule written only in application code ("a chat always has an owner", "a balance is never negative") holds only as long as every code path, script, migration and teammate remembers it. The schema is the one place every write must pass through.</p>
+<p>So the professional habit is to write every rule you can as a constraint. Each one also tells the next reader something true about the data, which a comment cannot guarantee:</p>
+<ul>
+<li><b>NOT NULL</b> on everything that must exist. Nullable should be a decision, not a default.</li>
+<li><b>CHECK</b> for value rules: <code>CHECK (balance &gt;= 0)</code>, <code>CHECK (role IN ('user', 'assistant'))</code>.</li>
+<li><b>UNIQUE</b> for natural keys, and <b>partial unique indexes</b> for rules that apply to a subset of rows: "at most one pinned chat per user", "one live account per email" (soft deletes, below).</li>
+<li><b>FOREIGN KEY</b> with a deliberate <code>ON DELETE</code>: <code>CASCADE</code> (deleting the parent deletes the children: right for a folder's links), <code>RESTRICT</code> (refuse while children exist: right for anything with history, such as messages), <code>SET NULL</code>. SQLite enforces foreign keys only after <code>PRAGMA foreign_keys = ON</code> ({{SQLite docs|https://www.sqlite.org/foreignkeys.html}}); Postgres always does.</li>
+<li><b>Exclusion constraints</b> (Postgres) for "no two rows overlap": no two active subscriptions of one user with overlapping date ranges ({{documentation|https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-EXCLUSION}}). PostgreSQL 18 added <code>WITHOUT OVERLAPS</code> primary keys and unique constraints for the same idea ({{release notes|https://www.postgresql.org/docs/18/release-18.html}}).</li>
+</ul>
+<div class="rq" data-ex="m_partial" data-title="A partial unique index: one pinned chat per user"></div>
+<div class="rq" data-ex="m_fk" data-title="ON DELETE CASCADE against RESTRICT"></div>
+<p><b>What constraints cost:</b> a check on every write (small; a foreign key check is an index lookup on the parent), and adding one to a big live table needs care (section 11). Their absence costs far more: bad rows found months later, after reports were built on them.</p>
+
+<h3>Soft deletes and their cost</h3>
+<p><b>The idea.</b> Instead of <code>DELETE</code>, set <code>deleted_at = now()</code> and hide those rows, so a deletion can be undone and audited. <b>What it costs</b>, as Brandur Leach catalogued in {{"Soft deletion probably isn't worth it" (2022)|https://brandur.org/soft-deletion}}:</p>
+<ul>
+<li>Every query, report and join must remember <code>WHERE deleted_at IS NULL</code>; one that forgets shows deleted data.</li>
+<li>Foreign keys stop meaning much: a live chat can point at a "deleted" user, and <code>ON DELETE CASCADE</code> never fires.</li>
+<li>UNIQUE constraints break: a user who deletes their account and signs up again collides with their own deleted row, unless the unique index is partial (below).</li>
+<li>The data is not deleted. Privacy law's right to erasure (GDPR Article 17) requires real deletion of personal data, so you still need a purge job.</li>
+</ul>
+<div class="rq" data-ex="m_soft" data-title="Soft delete with a partial unique index"></div>
+<p><b>Alternatives:</b> delete for real and copy the row into an archive or audit table first (a trigger, or the application in the same transaction); or keep history as an append-only event table. Use soft deletes where users genuinely undo (a trash folder), with a view or row-level security policy that hides deleted rows by default and a scheduled hard delete after the retention period.</p>
+
+<h3>Multi-tenancy: many customers in one database</h3>
+<p><b>The problem.</b> A business product serves many customer organisations (<b>tenants</b>). Tenant A must never see tenant B's rows, and one bug in one query is enough to leak.</p>
+<div class="tw"><table>
+<tr><th>Pattern</th><th>How</th><th>Good for</th><th>Costs</th></tr>
+<tr><td><b>Shared tables, <code>tenant_id</code> column</b> ("pool")</td><td>Every tenant-owned table has <code>tenant_id</code>; every index and key starts with it</td><td>Many small tenants; the default for most SaaS products</td><td>Every query must filter by tenant; a noisy tenant affects others</td></tr>
+<tr><td><b>Schema per tenant</b></td><td>Same tables in one Postgres schema per tenant</td><td>Tens to hundreds of tenants needing separation</td><td>Every migration runs N times; thousands of schemas strain the catalog and tooling</td></tr>
+<tr><td><b>Database per tenant</b> ("silo")</td><td>A separate database or server each</td><td>Few large tenants, regulated data, data residency</td><td>Cost and operations multiply; cross-tenant reports need a pipeline</td></tr>
+</table></div>
+<p>For the shared-table pattern, Postgres <b>row-level security</b> (RLS) moves the tenant filter into the database: a policy attached to the table adds its condition to every query and checks every write, using a setting the application sets per request. Two details decide whether it protects you: superusers and roles with BYPASSRLS always bypass it, and <b>the table's owner bypasses it unless you run <code>ALTER TABLE ... FORCE ROW LEVEL SECURITY</code></b> ({{documentation|https://www.postgresql.org/docs/current/ddl-rowsecurity.html}}). So the application must connect as a role that does not own the tables:</p>
+<div class="rq" data-ex="m_rls" data-title="Row-level security: one tenant's view of a shared table"></div>
+<p>Also include <code>tenant_id</code> in foreign keys (<code>FOREIGN KEY (tenant_id, chat_id) REFERENCES chats (tenant_id, id)</code>) so a row cannot point across tenants, and lead indexes with it. With a connection pool, set the tenant with <code>SET LOCAL</code> inside each transaction so it cannot leak into the next request on the same connection (pooling is on {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}).</p>
+
+<h3>Enums, CHECK lists and lookup tables</h3>
+<p>A column with a fixed set of values (a plan, a role, a status) can be declared three ways. A Postgres <b>enum type</b> is compact (4 bytes) and sorts in declared order, and a value can be added, but {{"existing values cannot be removed from an enum type, nor can the sort ordering of such values be changed"|https://www.postgresql.org/docs/current/datatype-enum.html}} short of recreating the type. A <b>text column with a CHECK</b> (what the chat schema uses for <code>role</code>) is portable and easy to change. A <b>lookup table</b> with a foreign key is the most flexible: adding a value is an INSERT, and the value can carry data (a price, a label, a sort order, an "active" flag).</p>
+<div class="rq" data-ex="m_enum" data-title="A Postgres enum: adding works, removing does not"></div>
+<div class="rq" data-ex="m_lookup" data-title="A lookup table that carries data"></div>
+<p><b>Rule of thumb:</b> CHECK for small sets owned by the code (role); a lookup table when the values carry data or are managed by people (plans, countries); an enum only for sets that will genuinely never shrink.</p>
+
+<h3>Naming conventions</h3>
+<p>Names are read far more often than written, by people and by tools. The conventions most Postgres teams converge on:</p>
+<ul class="tight">
+<li><b>lower_snake_case</b> for everything. Postgres folds unquoted names to lower case, so a table created as <code>"ChatTags"</code> must be quoted forever (the wiki: {{don't use upper case names|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_upper_case_table_or_column_names}}).</li>
+<li>Tables plural (<code>users</code>, <code>messages</code>) or singular, but one choice for the whole schema. The primary key <code>id</code>; foreign keys <code>&lt;singular&gt;_id</code> (<code>user_id</code>); timestamps <code>&lt;verb&gt;_at</code> (<code>created_at</code>, <code>deleted_at</code>) as timestamptz; booleans as <code>is_</code> or <code>has_</code> predicates.</li>
+<li>No reserved words (<code>user</code>, <code>order</code>, <code>group</code> need quoting); no abbreviations only the author knows.</li>
+<li>Name constraints and indexes explicitly (<code>chats_user_id_fkey</code>, <code>messages_chat_id_idx</code>): migration tools and error messages refer to them by name, and Alembic {{cannot detect changes to anonymous constraints|https://alembic.sqlalchemy.org/en/latest/autogenerate.html}}.</li>
+</ul>
+<div class="rq" data-ex="m_quote" data-title="The quoted-identifier trap"></div>
+</section>

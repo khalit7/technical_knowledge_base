@@ -1,0 +1,21 @@
+<section id="rd-s1">
+<h2>1. How a query runs: written in one order, evaluated in another</h2>
+<p><b>The problem.</b> You write <code>SELECT</code> first, so it is natural to think the database starts there. It does not, and that mismatch causes most beginner errors: an alias that "does not exist", an aggregate that is "not allowed here", a ranking you cannot filter on.</p>
+<p><b>The idea.</b> A SELECT statement is defined as a pipeline of steps, each producing a table that feeds the next. The {{PostgreSQL SELECT reference|https://www.postgresql.org/docs/current/sql-select.html}} lists the processing order; every SQL database follows the same logical order:</p>
+<div class="two">
+<div><h4>The order you write</h4><ol class="small" style="margin:0"><li>SELECT (and DISTINCT)</li><li>FROM, JOIN</li><li>WHERE</li><li>GROUP BY</li><li>HAVING</li><li>WINDOW</li><li>ORDER BY</li><li>LIMIT, OFFSET</li></ol></div>
+<div><h4>The order it is evaluated</h4><ol class="small" style="margin:0"><li><b>FROM and JOIN</b>: build the combined rows</li><li><b>WHERE</b>: keep rows whose condition is true</li><li><b>GROUP BY</b>: collapse rows into one per group</li><li><b>HAVING</b>: keep groups whose condition is true</li><li><b>SELECT</b>: compute the output columns, including window functions</li><li><b>DISTINCT</b>: remove duplicate output rows</li><li><b>ORDER BY</b>: sort (it can use output names)</li><li><b>LIMIT, OFFSET</b>: cut</li></ol></div>
+</div>
+<p>The root page animates this pipeline on nine sample rows ({{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}, Reading tab, section 2). Four rules follow from the order, and each one is a common error message:</p>
+<ul>
+<li><b>WHERE cannot use a name defined in SELECT</b>, because SELECT has not run yet. ORDER BY can, because it runs after.</li>
+<li><b>WHERE cannot use an aggregate</b> such as <code>COUNT(*)</code>, because groups do not exist yet; filter groups with HAVING.</li>
+<li><b>WHERE cannot use a window function</b> (section 4), because those are computed in the SELECT step; compute it in a subquery and filter outside.</li>
+<li><b>LIMIT without ORDER BY returns whichever rows the engine found first.</b> Without an ORDER BY, SQL promises no order at all, and the order can change when the data or the plan changes.</li>
+</ul>
+<div class="rq" data-ex="q_alias" data-title="An alias used in WHERE" data-why="SQLite resolves the alias as an extension; Postgres follows the standard and refuses. Code that works in a SQLite test can fail in production."></div>
+<p>This first box already shows a difference between engines: SQLite accepts the alias in WHERE, Postgres reports <code>column "doubled" does not exist</code>. Write <code>WHERE tokens * 2 &gt; 1780</code> and both agree. The lesson generalises: <b>test against the database you run in production</b>; SQLite is a fine engine, but its dialect is more permissive.</p>
+<div class="rq" data-ex="q_where_having" data-title="WHERE before grouping, HAVING after"></div>
+<p><b>NULL and three-valued logic.</b> NULL means "unknown", not zero or empty. Any comparison with NULL (<code>= NULL</code>, <code>&lt;&gt; 'US'</code> when the country is NULL) is neither true nor false but <i>unknown</i>, and WHERE keeps only rows where the condition is true. The root's playground has a NULL lesson (<code>COUNT(*)</code> against <code>COUNT(column)</code>, <code>IS NULL</code>, where NULLs sort); section 2 shows the most expensive consequence, in <code>NOT IN</code>.</p>
+<div class="co"><div class="t">The logical order is not the execution order</div>The pipeline above defines what the answer must be, not how it is computed. The planner (the part of the database that chooses how to run a query) is free to filter before joining, use an index instead of reading everything, or stop early under a LIMIT, as long as the result is the same. How it chooses, and how to read its plan, is the {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}} page and the root's Query plans tab.</div>
+</section>

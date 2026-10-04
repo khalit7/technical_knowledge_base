@@ -80,6 +80,8 @@ def bench(port, n, reps=30):
 if __name__ == '__main__':
     start()
     with conn('chat') as c: ver = c.execute('SHOW server_version').fetchone()[0]
+    with conn('chat') as c:  # the foreign-key index section 2 recommends; without it every lazy load scans all messages
+        c.execute('CREATE INDEX IF NOT EXISTS messages_chat_id ON messages (chat_id)'); c.execute('ANALYZE messages')
     px = subprocess.Popen([sys.executable, os.path.join(HERE, 'delay_proxy.py'), '54352', str(PORT), '0.5'])
     time.sleep(1.0)
     res = []
