@@ -208,4 +208,4 @@ R(id='deepswe', n='DeepSWE', fam='code', yr=2026, by='Datacurve', paper=None,
   gr=['tests'], cd=['private'], st='active',
   ev=[GRID('dswe')],
   why='Fixed harness and pass@1 over 4 runs make cross-model readings comparable; the top is mid-70s.',
-  own='planned', old=None, rel=['swebench_pro'])
+  own='root', old=None, rel=['swebench_pro'])

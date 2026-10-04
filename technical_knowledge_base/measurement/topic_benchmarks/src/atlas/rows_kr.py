@@ -60,7 +60,7 @@ R(id='hellaswag_wino_arc', n='HellaSwag / WinoGrande / ARC-Challenge', fam='reas
       EP('wino_grande_external.csv', 'Llama-3.1-405B', 'WinoGrande, as reported in the DeepSeek-V3 technical report'),
       EP('arc_ai2_external.csv', 'GPT-4', 'ARC-Challenge, 25-shot, GPT-4 technical report')],
   why='Scores reached the mid-90s in 2023 and frontier cards dropped them; humans score above 95% on HellaSwag.',
-  own='planned', old='HellaSwag / WinoGrande / ARC-Challenge (AI2)')
+  own='root', old='HellaSwag / WinoGrande / ARC-Challenge (AI2)')
 
 R(id='bbh', n='BIG-Bench Hard (BBH)', fam='reas', yr=2022, by='Suzgun et al. (Google, Stanford)', paper=AX('2210.09261'),
   me='The 23 BIG-Bench tasks where 2022 models trailed average human raters', fmt='Mixed: multiple choice and short answers', met='Accuracy (few-shot, with or without chain of thought)',
@@ -69,7 +69,7 @@ R(id='bbh', n='BIG-Bench Hard (BBH)', fam='reas', yr=2022, by='Suzgun et al. (Go
   ev=[EP('bbh_external.csv', 'gemini-1.5-pro-001', 'BBH average, as reported in the Gemini 1.5 report')],
   why='High-80s by 2024; its successor BBEH (2025) was built because BBH stopped separating models.',
   iss=[X('BIG-Bench Extra Hard replaces each task with a harder one; the best reasoning model averaged 44.8% at release.', AX('2502.19187'))],
-  own='planned', old='BIG-Bench Hard')
+  own='root', old='BIG-Bench Hard')
 
 R(id='simplebench', n='SimpleBench', fam='reas', yr=2024, by='AI Explained (independent)', paper=None,
   me='Trick and commonsense questions (spatial, temporal, social) where people beat models', fmt='6-option multiple choice', met='Accuracy, average of 5 runs',
@@ -77,7 +77,7 @@ R(id='simplebench', n='SimpleBench', fam='reas', yr=2024, by='AI Explained (inde
   gr=['exact'], cd=['private'], st='saturating',
   ev=[EP('simplebench_external.csv', 'claude-fable-5_max', 'SimpleBench leaderboard, AVG@5')],
   why='The best model is now around the human baseline the site reports, so the gap it was built to show is closing.',
-  own='planned', old='SimpleBench')
+  own='root', old='SimpleBench')
 S('simplebench', 'SimpleBench leaderboard and about page', 'https://simple-bench.com/', '2026-10-04', 'leaderboard', read='2026-10-04')
 
 R(id='arc_agi_1', n='ARC-AGI-1', fam='reas', yr=2019, by='Chollet; ARC Prize Foundation', paper=AX('1911.01547'),
@@ -111,6 +111,6 @@ R(id='critpt', n='CritPt', fam='know', yr=2025, by='CritPt collaboration (physic
   ev=[GRID('critpt', note='Artificial Analysis run inside Intelligence Index v4.3.')],
   why='About 32% on the official keys, but expert re-grading suggests most of the gap is broken keys and graders, so the low score overstates the headroom.',
   iss=[X('Re-grading kept 54 of 70 challenges; GPT-5.6 Sol went from 32.3% (Artificial Analysis) to 87.5% against the repaired set, and corrected pass@4 reached 94.4%.', AX('2609.13009'))],
-  own='planned', old=None, rel=['hle', 'aa_index'],
+  own='root', old=None, rel=['hle', 'aa_index'],
   corr=[C('(new row) Low CritPt scores show frontier models still struggle with research physics.', 'Most checked failures were broken questions, keys or graders; on the repaired subset the same model reaches 87.5%. Read the 32% as an upper bound on headroom, not a capability floor.', AX('2609.13009'))])
 S('regrade', 'Re-grading six physics benchmarks (knowledge base paper page)', 'https://app.notion.com/p/3e25c17b0d0d8165b0c8d15600421259', '2026-09-11', 'kb')
