@@ -1,0 +1,35 @@
+<section id="s-why"><h2>1. Why test at all</h2>
+<p>You already test: you run the code, try an input, look at the output. An automated test writes that check down so a machine can repeat it in milliseconds, every time anything changes. Three things follow.</p>
+<ul>
+<li><b>Confidence to change.</b> The real value of a test suite shows up the day you refactor, upgrade a library or swap a model provider: you change the code, run the suite, and know within a minute whether anything a caller relies on broke. Without tests, every change is a gamble, so people stop changing things and the code rots.</li>
+<li><b>Documentation that cannot go stale.</b> <code>test_client_errors_are_not_retried[404]</code> tells the next reader exactly what the retry policy promises, and it fails the moment it stops being true.</li>
+<li><b>Design pressure.</b> Code that is hard to test (it opens its own database connection, reads the clock, calls the model directly) is usually hard to change for the same reasons.</li>
+</ul>
+<p>What tests cannot do is prove the code correct. Edsger Dijkstra, 1970: "Program testing can be used to show the presence of bugs, but never to show their absence!" ({{EWD249|https://www.cs.utexas.edu/~EWD/ewd02xx/EWD249.PDF}}). Each kind of test below is a different net; the craft is choosing nets that catch the bugs you are likely to have, at a cost you can afford to run on every change.</p>
+<div class="corr"><div class="t">Checked: "a bug costs 100 times more in production"</div>
+<p style="margin:2px 0">The number is everywhere and weaker than it sounds. Its usual source is Boehm and Basili's 2001 "Software Defect Reduction Top 10 List" ({{IEEE Computer|https://www.cs.umd.edu/projects/SoftEng/ESEG/papers/82.78.pdf}}): "Finding and fixing a software problem after delivery is often 100 times more expensive than finding and fixing it during the requirements and design phase", which the same article qualifies: for small, noncritical systems the factor is "more like 5:1 than 100:1". It traces back to 1970s and 1980s data from large waterfall projects. Menzies, Nichols, Shull and Layman tested it on 171 modern projects and "found no evidence for the delayed issue effect" ({{arXiv 1609.04886|https://arxiv.org/abs/1609.04886}}, Empirical Software Engineering 2017); Laurent Bossavit traces how the figure spread in {{The Leprechauns of Software Engineering|https://leanpub.com/leprechauns}} (chapter 10).</p>
+<p style="margin:4px 0 0">What does hold, without a multiplier: a bug caught by a test on your laptop costs you seconds and nobody else anything; the same bug in production costs an incident, a rollback, a postmortem and some users' trust ({{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}). Argue for tests from that, not from the 100x.</p></div>
+</section>
+
+<section id="s-shape"><h2>2. The test pyramid, the trophy, and what each layer catches</h2>
+<p>Tests are grouped by how much of the system they run at once:</p>
+<ul>
+<li><dfn id="g-unit">Unit test</dfn>: one function or class, in one process, no network or disk. Milliseconds.</li>
+<li><dfn id="g-int2">Integration test</dfn>: your code together with a real dependency (database, queue, another module). Milliseconds to seconds.</li>
+<li><dfn id="g-e2e">End-to-end test</dfn>: the whole deployed system driven like a user would (HTTP requests to the real API, a browser clicking the UI). Seconds to minutes, and the most likely to be flaky.</li>
+<li><dfn id="g-static">Static checks</dfn>: type checkers and linters (mypy, pyright, ruff) that read the code without running it.</li>
+</ul>
+<p>Because "unit" and "integration" mean different things to different teams, Google sorts tests by the resources they use instead: "small tests run in a single process, medium tests run on a single machine, and large tests run wherever they want" ({{Software Engineering at Google, ch. 11|https://abseil.io/resources/swe-book/html/ch11.html}}). The PostgreSQL tests on this page are medium: one machine, a local server.</p>
+<p>The <dfn id="g-pyramid">test pyramid</dfn> (Mike Cohn, <i>Succeeding with Agile</i>, 2009; {{Fowler's summary|https://martinfowler.com/bliki/TestPyramid.html}}, 2012) says: many fast unit tests at the base, fewer integration tests, very few end-to-end tests at the top. Google's testing blog suggested "a 70/20/10 split: 70% unit tests, 20% integration tests, and 10% end-to-end tests" as a first guess ({{Wacker, 2015|https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html}}). The <dfn id="g-trophy">testing trophy</dfn> (Kent C. Dodds, 2018; {{his 2021 write-up|https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications}}) puts static checks at the base and makes integration the widest layer, after Guillermo Rauch's line "Write tests. Not too many. Mostly integration." (2016). Click a layer.</p>
+<div class="card" id="lay-card">
+<div class="lay">
+<div><div class="small mute" style="text-align:center">Pyramid</div><div class="shape" id="lay-pyr">
+<button data-l="e2e" style="width:34%">End-to-end</button><button data-l="int" style="width:62%">Integration</button><button data-l="unit" style="width:92%">Unit</button></div></div>
+<div><div class="small mute" style="text-align:center">Trophy</div><div class="shape" id="lay-tro">
+<button data-l="e2e" style="width:36%">End-to-end</button><button data-l="int" style="width:90%">Integration</button><button data-l="unit" style="width:58%">Unit</button><button data-l="static" style="width:72%">Static</button></div></div>
+</div>
+<div class="detail" id="lay-detail"></div>
+</div>
+<p><b>Which shape?</b> They agree more than the arguments suggest: both want most of the checking done by fast, reliable tests, and few slow end-to-end ones. The pyramid fits code with a lot of logic of its own (a retry policy, a tokenizer, a pricing engine); the trophy fits code that is mostly wiring between other systems (a web front end, a thin API over a database), where a unit test with everything mocked checks little. A practical rule: <b>test each behaviour at the lowest layer that can catch its bugs</b>. The case-sensitivity bug in <a href="#s-int">section 6</a> cannot be caught below the integration layer; the chunker bug in <a href="#s-prop">section 7</a> needs nothing above a unit test.</p>
+<p>ML systems add a layer on top: <b>evals</b>, which score a model or prompt on a set of cases and compare against a threshold. They are statistical, slow and costly, so they run on merge or nightly; {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}} owns them.</p>
+</section>

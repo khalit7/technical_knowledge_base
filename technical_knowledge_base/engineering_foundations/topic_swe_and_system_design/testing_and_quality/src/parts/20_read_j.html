@@ -1,0 +1,36 @@
+<section id="s-mut"><h2>14. Coverage and mutation testing: is the suite any good?</h2>
+<p><dfn id="g-coverage">Code coverage</dfn> measures which code ran during the tests. <b>Line coverage</b> counts executed lines; <b>branch coverage</b> also checks that every <code>if</code> went both ways. {{coverage.py|https://coverage.readthedocs.io/}} measures both: <code>coverage run --branch -m pytest</code>, then <code>coverage report -m</code> lists the lines that never ran. That list is valuable: code no test executes is certainly untested. The reverse does not hold. Coverage records that a line <i>ran</i>, not that any test <i>checked</i> what it did.</p>
+<p>Here is a weak suite for the retry policy. It calls every function, so every line and branch runs:</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/mut/tests/test_weak.py</code></div>
+<pre class="cv py">def test_should_retry():
+    assert should_retry(503, attempt=1)
+    assert not should_retry(503, attempt=3)
+
+def test_backoff_delay():
+    assert backoff_delay(1) &gt; 0
+
+def test_parse_retry_after():
+    assert parse_retry_after("2") == 2.0
+    assert parse_retry_after(None) is None
+    assert parse_retry_after("soon") is None</pre>
+<div class="term" id="cov-out"></div>
+<p><dfn id="g-mutation">Mutation testing</dfn> asks the better question: if the code had a bug, would a test fail? A tool makes many small changes to the code, one at a time (each change is a <dfn id="g-mutant">mutant</dfn>: <code>&gt;=</code> becomes <code>&gt;</code>, <code>2</code> becomes <code>3</code>, <code>- 1</code> becomes <code>+ 1</code>), and runs the tests against each. A mutant is <b>killed</b> if some test fails, and <b>survives</b> if every test still passes: a bug your suite would not notice. The <dfn id="g-mscore">mutation score</dfn> is the share killed.</p>
+<div class="cvh"><span class="real">real</span> {{mutmut|https://github.com/boxed/mutmut}} <span data-v="env.mutmut"></span>, configured in <code>pyproject.toml</code></div>
+<pre class="cv py">[tool.mutmut]
+source_paths = ["src/"]
+pytest_add_cli_args_test_selection = ["tests/test_weak.py"]
+
+$ mutmut run            # generate mutants, run the suite against each
+$ mutmut results        # list survivors
+$ mutmut show retrypolicy.x_backoff_delay__mutmut_9    # the diff of one mutant</pre>
+<div class="term" id="mut-out"></div>
+<p>The weak suite has 100% line and branch coverage and lets <span data-v="calc.mutSurvValue"></span> planted bugs through, every one of them a wrong value: the base delay 0.5 changed to 1.5, the cap 8 to 9, doubling changed to tripling, an off-by-one in the exponent, a negative <code>Retry-After</code> floored at 1 instead of 0. And <span data-v="calc.mutWeakCrash"></span> of its <span data-v="calc.mutWeak"></span> kills were mutants that crash (<code>min(None, ...)</code>), which any test that merely calls the line would kill. The improved suite (exact delays for attempts 1 to 6, a custom cap, every retryable and non-retryable status, the boundary at the last allowed attempt, negative and zero headers) kills all <span data-v="calc.mutN"></span>. Toggle tests on and off and watch both numbers in the {{Mutation lab|#t-mut}}.</p>
+<div class="corr"><div class="t">A gap measured here: what mutmut 3 does not mutate</div>mutmut 3 only mutates code inside functions; its README says to use mutmut 2 "if you want to mutate code outside of functions". The module-level <code>RETRYABLE = frozenset({408, 429, 500, 502, 503, 504})</code> produced no mutants at all, so mutmut could not tell you that the weak suite never checks which statuses are retryable. The improved suite covers it by naming every status explicitly. Keep important constants inside functions or test them directly.</div>
+<h3>What the research and practice say</h3>
+<ul>
+<li>Inozemtseva and Holmes measured 31,000 test suites over five Java systems and found "a low to moderate correlation between coverage and effectiveness when the number of test cases in the suite is controlled for", effectiveness being mutants killed ({{ICSE 2014|https://www.cs.ubc.ca/~rtholmes/papers/icse_2014_inozemtseva.pdf}}). Coverage is a floor detector, not a goal.</li>
+<li>Google's guidance treats "60% as 'acceptable', 75% as 'commendable' and 90% as 'exemplary'", while adding "There is no 'ideal code coverage number' that universally applies to all products" and "We should not be obsessing on how to get from 90% code coverage to 95%" ({{Google Testing Blog, 2020|https://testing.googleblog.com/2020/08/code-coverage-best-practices.html}}).</li>
+<li>Google runs mutation testing incrementally, "mutating only changed code during code review", showing at most one mutant per line as a review comment; "82% of all surfaced mutants with feedback were labeled as productive by developers" ({{Petrović et al., 2021|https://arxiv.org/abs/2102.11378}}). Developers exposed to it "write more tests, and actively improve their test suites" ({{Petrović et al., ICSE 2021|https://arxiv.org/abs/2103.07189}}).</li>
+</ul>
+<p><b>What it costs.</b> One run of the suite per mutant: here <span data-v="calc.mutN"></span> mutants at <span data-v="mut.rate_weak"></span> mutants per second, under a second, but a large service has tens of thousands of mutants and a suite that takes minutes. So run it on changed code only (as Google does), nightly, or on the modules that matter most (pricing, permissions, retries). Some mutants are <b>equivalent</b>: they change the code but not its behaviour, cannot be killed, and need a human to dismiss them. Skip it for glue code and prototypes; use it where a silent wrong value is expensive.</p>
+</section>

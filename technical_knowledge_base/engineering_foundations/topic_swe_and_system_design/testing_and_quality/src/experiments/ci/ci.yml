@@ -1,0 +1,65 @@
+# .github/workflows/ci.yml  (written 2026-10-04; action versions checked on GitHub that day)
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"              # nightly: slow and GPU tiers
+
+concurrency:                          # a new push cancels the older run of the same branch
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:                             # seconds: fail fast on the cheapest checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0   # no floating @v10 tag since v8: pin a release or a SHA
+        with: { enable-cache: true }
+      - run: uv sync --locked
+      - run: uv run ruff check . && uv run ruff format --check .
+      - run: uv run mypy src
+
+  unit:                               # minutes at most: every push
+    needs: static
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false                # let every Python version report
+      matrix: { python: ["3.12", "3.13"] }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: true, python-version: "${{ matrix.python }}" }
+      - run: uv sync --locked
+      - run: uv run pytest -m "not slow and not gpu" -n auto -p randomly --junitxml=unit.xml
+
+  integration:                        # real PostgreSQL as a service container
+    needs: unit
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_PASSWORD: test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: true }
+      - run: uv sync --locked
+      - run: uv run pytest -m "integration" --junitxml=integration.xml
+
+  gpu-nightly:                        # smoke training run and evals on a GPU runner
+    if: github.event_name == 'schedule'
+    runs-on: gpu-t4                   # the name you gave your GPU larger runner
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: true }
+      - run: uv sync --locked
+      - run: uv run pytest -m "gpu or slow"

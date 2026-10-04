@@ -1,0 +1,91 @@
+<section id="s-data"><h2>10. Test data: where test inputs come from</h2>
+<p>Every test needs inputs, and bad test data is a quiet source of bad tests: fixtures nobody understands, copies of production that leak personal data, shared files one test edits and another depends on. The options, from smallest to largest:</p>
+<div class="tw"><table><thead><tr><th>Source</th><th>Use it for</th><th>Watch out for</th></tr></thead><tbody>
+<tr><td><b>Literal inputs in the test</b> (a 3-row data frame, a dict)</td><td>Almost every unit test: the expected result can be checked by eye.</td><td>Copying the same 30-line literal into many tests; move it to a fixture.</td></tr>
+<tr><td><b>Factories and builders</b>: a function <code>make_chat(**overrides)</code> with sensible defaults</td><td>Domain objects with many fields, where each test cares about one or two.</td><td>Defaults that hide what the test depends on: pass the field the test is about explicitly.</td></tr>
+<tr><td><b>Generated inputs</b> (Hypothesis strategies)</td><td>Large input spaces (<a href="#s-prop">section 7</a>).</td><td>Strategies narrower than real data.</td></tr>
+<tr><td><b>Golden files</b>: a reviewed input and expected output on disk</td><td>Transforms over bigger data, rendered outputs (<a href="#s-snap">section 8</a>).</td><td>Files nobody reviews when they change.</td></tr>
+<tr><td><b>Recorded traffic</b> (VCR cassettes)</td><td>Third-party APIs (<a href="#s-llm">section 12</a>).</td><td>Secrets and personal data in the recording; recordings going stale.</td></tr>
+<tr><td><b>Sampled production data</b></td><td>Realistic edge cases nobody would invent; eval sets.</td><td>Personal data: anonymise or synthesise, and record where it came from and when.</td></tr>
+</tbody></table></div>
+<p>Two rules keep it sane. <b>Each test creates what it needs and leaves nothing behind</b> (the rollback fixture in <a href="#s-int">section 6</a>, <code>tmp_path</code> for files), so tests can run in any order and in parallel. <b>Large datasets are versioned, not copied</b>: keep them out of git (DVC, Git LFS or object storage with a version in the path), pin the version the test uses, and keep a tiny sample in the repository for the fast tests.</p>
+</section>
+
+<section id="s-ml"><h2>11. Testing data and ML code</h2>
+<p>An ML system has three things to test, and they behave differently:</p>
+<div class="tw"><table><thead><tr><th>Object</th><th>Behaviour</th><th>How you test it</th></tr></thead><tbody>
+<tr><td><b>Code</b> (transforms, feature code, training loop, serving)</td><td>Deterministic, given fixed seeds.</td><td>pytest unit tests, property tests, types; exact or tolerance-based asserts.</td></tr>
+<tr><td><b>Data</b> (inputs, features, labels)</td><td>Changes every day; can be checked against a schema and a distribution.</td><td>Schema checks (pandera, Great Expectations) at pipeline boundaries; drift monitors in production.</td></tr>
+<tr><td><b>Model</b> (weights, prompts, the provider behind them)</td><td>Statistical: right on most inputs, never all.</td><td>Evals with thresholds and behavioural test sets ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</td></tr>
+</tbody></table></div>
+<p>Most "ML testing" failures come from testing only the first row. Eugene Yan's {{How to Test Machine Learning Code and Systems|https://eugeneyan.com/writing/testing-ml/}} (2020) splits model tests into pre-train tests (shapes, the loss goes down, no label leakage) and post-train tests ("Post-train tests check if the learned logic is expected"); Google's {{ML Test Score|https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/}} (Breck et al., 2017) lists "28 specific tests and monitoring needs" across data, model development, infrastructure and monitoring, still the best checklist for production readiness.</p>
+
+<h3>Transforms are ordinary code: test them like it</h3>
+<p>The code between raw data and model input (cleaning, joining, feature computation, tokenisation, prompt assembly) is where most ML bugs live, and it is plain deterministic code. The habits:</p>
+<ul>
+<li><b>Tiny literal fixtures</b>: a few rows built inline, so the expected output can be checked by eye; golden files for bigger cases.</li>
+<li><b>Invariants</b>, not only examples: row count preserved (or changed by exactly the filtered rows), no NaN introduced, dtypes stable, keys unique, output values in the expected set.</li>
+<li><b>Edge inputs production will send</b>: an empty frame, one row, an all-null column, unicode, maximum-length strings, duplicate keys.</li>
+<li><b>Tokenisation and prompt assembly are transforms too</b>: assert round trips where the tokenizer promises them, render templates with empty, huge and injection-shaped fields, and assert exact token counts on cost-critical paths.</li>
+<li><b>Pure functions over explicit inputs</b>; anything that reads S3 or a database sits behind an interface a test can replace.</li>
+</ul>
+<div class="cvh"><span class="real">real</span> <code>experiments/mlt/test_transform.py</code> (3 passed in 0.48 s)</div>
+<pre class="cv py">def clean_chats(df):
+    """Drop duplicate chat ids (keep the latest), strip whitespace, drop empty messages."""
+    out = (df.sort_values("ts").drop_duplicates("chat_id", keep="last")
+             .assign(text=lambda d: d["text"].str.strip()))
+    return out[out["text"] != ""].sort_values("chat_id").reset_index(drop=True)
+
+def test_keeps_latest_duplicate_and_drops_blank():
+    df = pd.DataFrame({"chat_id": ["a", "a", "b", "c"], "ts": [1, 2, 1, 1],
+                       "text": ["old", " new ", "hi", "   "]})
+    want = pd.DataFrame({"chat_id": ["a", "b"], "ts": [2, 1], "text": ["new", "hi"]})
+    pdt.assert_frame_equal(clean_chats(df), want)
+
+def test_empty_frame_stays_empty_with_same_columns():
+    df = pd.DataFrame({"chat_id": pd.Series(dtype=str), "ts": pd.Series(dtype=int),
+                       "text": pd.Series(dtype=str)})
+    out = clean_chats(df)
+    assert out.empty and list(out.columns) == ["chat_id", "ts", "text"]</pre>
+
+<h3>Data validation: a schema the data must pass</h3>
+<p>Tests check code on inputs you chose; production data arrives without asking. A <dfn id="g-schema">data schema</dfn> states what valid data looks like (columns, types, ranges, allowed values, uniqueness), and a validation step rejects or quarantines a batch that breaks it before it reaches training or a dashboard.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/mlt/pandera_demo.py</code> with {{pandera|https://pandera.readthedocs.io/en/stable/}} <span data-v="env.pandera"></span></div>
+<pre class="cv py">import pandera.pandas as pa
+
+schema = pa.DataFrameSchema({
+    "chat_id": pa.Column(str, unique=True),
+    "lang": pa.Column(str, pa.Check.isin(["en", "fr", "de", "es"])),
+    "input_tokens": pa.Column(int, pa.Check.in_range(1, 128_000)),
+    "latency_ms": pa.Column(float, pa.Check.ge(0), nullable=False),
+}, strict=True)                               # strict: unexpected columns are errors too
+
+schema.validate(bad, lazy=True)               # lazy: report every failure, not just the first</pre>
+<div class="term lit">      column                          check failure_case  index
+     chat_id               field_uniqueness           a1      0
+     chat_id               field_uniqueness           a1      1
+        lang isin(['en', 'fr', 'de', 'es'])           pt      1
+input_tokens            in_range(1, 128000)            0      1
+  latency_ms                   not_nullable          NaN      1</div>
+<p>{{Great Expectations|https://docs.greatexpectations.io/docs/core/introduction/gx_overview}} (1.23.2) does the same at a larger scale: suites of "expectations" run against tables in warehouses, with generated HTML reports for the people who own the data. pandera is a library call inside your pipeline; Great Expectations is closer to a service. Note that tutorials written for its old 0.x API (such as the Made With ML lesson's <code>ge.dataset.PandasDataset</code>) no longer run on 1.x. Validate where data crosses a boundary: on ingest, before training, before publishing a partition; and track the distribution over time (drift) in monitoring ({{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}).</p>
+
+<h3>Seeds and tolerances: deterministic enough to test</h3>
+<p>A test that fails once in fifty runs is worse than none (<a href="#s-flaky">section 13</a>). ML code is full of randomness: shuffles, initialisation, dropout, sampling. Pass a seeded generator in (<code>rng = np.random.default_rng(0)</code>) rather than using global state, and set seeds for <code>random</code>, NumPy and PyTorch in a fixture. Even then, exact equality on floats is the wrong check:</p>
+<div class="term" id="float-out"></div>
+<p>The same million <code>float32</code> numbers, summed forwards and backwards, give different answers, because floating-point addition is not associative. Parallel hardware sums in whatever order its threads finish, so GPU results can change between runs and versions: PyTorch states that "completely reproducible results are not guaranteed across PyTorch releases, individual commits, or different platforms", and offers <code>torch.use_deterministic_algorithms(True)</code> at some speed cost ({{PyTorch reproducibility notes|https://docs.pytorch.org/docs/stable/notes/randomness.html}}). So numeric tests assert with a tolerance chosen for the precision: <code>np.testing.assert_allclose(got, want, rtol=1e-5)</code> for float32, looser for bf16, and never <code>==</code>.</p>
+
+<h3>The training smoke test</h3>
+<p>Unit tests cannot see wiring bugs in a training loop: labels shuffled separately from inputs, the wrong tensor detached, a loss that is computed but never back-propagated. The cheapest catch is a <dfn id="g-smoke">smoke test</dfn>: train on ten examples for a few hundred steps and assert the model memorises them.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/mlt/test_smoke.py</code> (a tiny NumPy logistic regression stands in for a real model)</div>
+<pre class="cv py">def test_overfits_ten_examples():
+    losses = train(*ten_examples())
+    assert losses[-1] &lt; 0.1 * losses[0]       # a correct loop memorises 10 examples
+
+def test_smoke_catches_shuffled_labels():
+    losses = train(*ten_examples(), bug=True)  # labels shuffled apart from their inputs
+    assert not losses[-1] &lt; 0.1 * losses[0]   # the broken loop cannot</pre>
+<div class="term" id="smoke-out"></div>
+<p>With a real model, use the smallest configuration that exercises the code path (two layers, a tiny vocabulary, or a 0.5B-parameter checkpoint), on CPU if possible, in seconds. It runs on every pull request; the full training run never does.</p>
+<h3>Model behaviour: where tests end and evals begin</h3>
+<p>Behavioural test sets borrow unit-test ideas for models. CheckList ({{Ribeiro et al., ACL 2020|https://aclanthology.org/2020.acl-main.442.pdf}}) names three kinds: <b>minimum functionality</b> tests (simple cases the model must get right), <b>invariance</b> tests ("label-preserving perturbations": a paraphrase or a swapped name must not change the answer) and <b>directional</b> tests (adding "answer in French" must change the language). Because a model passes them statistically, they are scored with a threshold and per-slice results, versioned with the prompt, and wired in as a merge gate; that machinery is on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}.</p>
+</section>
