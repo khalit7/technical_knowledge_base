@@ -1,0 +1,51 @@
+<section id="rd-s3">
+<h2>3. The anomalies: eight ways two transactions collide</h2>
+<p>An <dfn id="g-anomaly">anomaly</dfn> is an outcome that could not have happened if the transactions had run one after the other, in some order. Each one below is a real recording: two (or three) live sessions on a real database, driven step by step by a script that hands each session one statement, waits up to half a second, and if the statement has not finished records it as <b>blocked</b> (and asks Postgres what it is waiting for) before moving on. A statement that finishes later, because the other session committed or a deadlock was found, is shown in the step during which it finished. The scripts are in <code>src/measure/</code>.</p>
+<p class="small mute">How to read a recording: one column per session, one row per step; the highlighted cell is the statement issued at that step, and what it returned is under it in grey. A dashed red border means the statement is waiting for a lock. The chips under each recording are every isolation level on both databases: red means the anomaly happened, green means it was prevented (and how). Click a chip to see that run. The {{Isolation lab|#t-lab}} steps through any of them one statement at a time.</p>
+<div class="card" id="an-dirty">
+<h3>1. Dirty read: reading what was never committed</h3>
+<p>Session B reads a change that session A has made but not committed, and A then rolls back. B has acted on data that never existed. Here tab A debits all 30 of Ines's credits for a long reply, the model call fails, and A rolls back; meanwhile a billing check in B reads the balance.</p>
+<div class="anx" data-k="dirty" data-def="my|read uncommitted"></div>
+<p>Postgres never shows uncommitted data, at any level: it runs <code>READ UNCOMMITTED</code> as read committed, "the only sensible way to map the standard isolation levels to PostgreSQL's multiversion concurrency control architecture" (<a href="https://www.postgresql.org/docs/16/transaction-iso.html" target="_blank" rel="noopener noreferrer">Postgres 16, transaction isolation</a>). MySQL means it: at <code>READ UNCOMMITTED</code>, B read 0 <span class="meas">measured</span>.</p>
+</div>
+<div class="card" id="an-nonrepeatable">
+<h3>2. Non-repeatable read: the same row, two values</h3>
+<p>B reads a row, A changes it and commits, B reads the row again in the same transaction and gets a different value. An invoice job that reads Ines's balance for the header and again for the footer prints two numbers.</p>
+<div class="anx" data-k="nonrepeatable" data-def="pg|read committed"></div>
+<p>At read committed every <i>statement</i> sees everything committed before it started, so the second read sees A's commit. At repeatable read the whole <i>transaction</i> reads one snapshot taken at its first statement.</p>
+</div>
+<div class="card" id="an-phantom">
+<h3>3. Phantom: rows appear in a range</h3>
+<p>The same as a non-repeatable read, but for a <i>condition</i> instead of a row: B counts Ines's messages today, A inserts one and commits, B counts again and gets one more. The new row is the phantom. The SQL standard allows phantoms at repeatable read; Postgres's repeatable read prevents them because a snapshot hides new rows too (the documentation's table says "allowed, but not in PG"); MySQL's plain reads at repeatable read also use a snapshot, so they did not see it either <span class="meas">measured</span>.</p>
+<div class="anx" data-k="phantom" data-def="pg|read committed"></div>
+</div>
+<div class="card" id="an-lost">
+<h3>4. Lost update: read, compute in the app, write back</h3>
+<p>Section 1's bug. A and B both read 30; A writes 20 and commits; B writes 25 over it. Berenson and colleagues named it P4 in "A Critique of ANSI SQL Isolation Levels" (<a href="https://arxiv.org/abs/cs/0701157" target="_blank" rel="noopener noreferrer">Berenson et al., 1995</a>), the paper that showed the SQL standard's definitions miss it.</p>
+<div class="anx" data-k="lost" data-def="pg|read committed"></div>
+<p>This is the first place the two databases disagree. At repeatable read, Postgres refused B's write: "could not serialize access due to concurrent update" (SQLSTATE 40001), because B tried to change a row that a transaction committed after B's snapshot had already changed. MySQL at repeatable read let B's write through and lost A's 10 credits <span class="meas">measured</span>: InnoDB's <code>UPDATE</code> always works on the latest committed row, not on the snapshot, and does not check that the row changed since the transaction's snapshot (its manual: the snapshot "applies to SELECT statements within a transaction, not necessarily to DML statements", <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html" target="_blank" rel="noopener noreferrer">MySQL 8.4, consistent reads</a>). Two fixes work everywhere and are the chips marked <i>fix</i>: one atomic <code>UPDATE ... SET balance = balance - 10</code>, or <code>SELECT ... FOR UPDATE</code> before computing.</p>
+</div>
+<div class="card" id="an-readskew">
+<h3>5. Read skew: two rows from two different moments</h3>
+<p>A moves 10 credits from Ines (user 7) to Quinn (user 12), the transfer from the root's SQL playground lesson 10; the total is always 50. B, an audit job, reads Ines's balance before the transfer and Quinn's after it, and adds them up to 60. Every row B read was committed; the mix is from two moments. Backups, exports and reports that run for minutes at read committed are exposed to exactly this.</p>
+<div class="anx" data-k="readskew" data-def="pg|read committed"></div>
+</div>
+<div class="card" id="an-writeskew">
+<h3>6. Write skew: two valid decisions, one broken rule</h3>
+<p>The chat product's incident rota needs at least one engineer on call. Ana and Raj are both on call and both feel ill. Each runs "if someone else is on call, take me off": each counts 2, each updates <i>their own</i> row. No row is written twice, so no lock conflicts and no update is lost, yet nobody is on call. This is the on-call doctors example from Kleppmann's <i>Designing Data-Intensive Applications</i>; Berenson et al. named the pattern A5B.</p>
+<div class="anx" data-k="writeskew" data-def="pg|repeatable read"></div>
+<p>Repeatable read does not help: both snapshots honestly showed 2. Only serializable caught it on Postgres, at B's <code>COMMIT</code>, with "could not serialize access due to read/write dependencies among transactions" (SQLSTATE 40001). Or lock the rows you read: <code>SELECT ... FROM oncall WHERE on_call FOR UPDATE</code> makes the second engineer wait, then see 1 <span class="meas">measured</span>.</p>
+</div>
+<div class="card" id="an-quota">
+<h3>7. Write skew on a quota: the row that does not exist yet</h3>
+<p>Ines may send 3 messages a day and has sent 2. Two tabs each count today's messages, see 2, and insert one: 4 messages. The same shape as the rota, with one twist that defeats the usual fix: there is no row to lock. <code>FOR UPDATE</code> on the count would lock the two existing messages, while the conflict is over a third row that neither transaction can see yet.</p>
+<div class="anx" data-k="quota" data-def="pg|repeatable read"></div>
+<p>Three fixes, best first. <b>Materialise the conflict</b> (Kleppmann's term): keep a <code>daily_usage(user_id, day, n)</code> row and make the check and the increment one statement, <code>UPDATE daily_usage SET n = n + 1 WHERE user_id = 7 AND day = ... AND n &lt; 3</code>; zero rows changed means over quota, and two tabs now collide on one row, which read committed handles (section 1's atomic update). <b>Lock a row both must touch</b>: <code>SELECT ... FROM users WHERE id = 7 FOR UPDATE</code> first (the chip marked <i>fix</i>). <b>Use serializable</b> and retry, which caught it on Postgres <span class="meas">measured</span>. MySQL's gap locks, its answer to phantoms, protect only <i>locking</i> reads; the plain <code>SELECT count(*)</code> took none, so MySQL's repeatable read let the fourth message through too.</p>
+</div>
+<div class="card" id="an-readonly">
+<h3>8. A serialization anomaly with a read-only transaction</h3>
+<p>The subtlest one, found by Fekete, O'Neil and O'Neil in 2004 (<a href="https://www.cs.umb.edu/~poneil/ROAnom.pdf" target="_blank" rel="noopener noreferrer">"A Read-Only Transaction Anomaly Under Snapshot Isolation"</a>) and used on the PostgreSQL wiki as the "deposit report" (<a href="https://wiki.postgresql.org/wiki/SSI" target="_blank" rel="noopener noreferrer">PostgreSQL wiki, SSI</a>). Credit purchases are filed under the open billing batch. A, a purchase, reads "batch 1 is open". B closes batch 1 and commits. C, a report, sees batch 1 closed and totals it: 100. A then files its purchase in batch 1 and commits: batch 1 now totals 150, after a report on the closed batch said 100. Remove the report and the history is fine; the read-only transaction is what makes it impossible.</p>
+<div class="anx" data-k="readonly" data-def="pg|repeatable read"></div>
+<p>A <dfn id="g-seranomaly">serialization anomaly</dfn> is the general name for any result that no one-at-a-time order could produce; write skew is the common case. Only serializable prevents all of them: Postgres aborted the purchase A (SQLSTATE 40001), so its retry files under batch 2 <span class="meas">measured</span>.</p>
+</div>
+</section>

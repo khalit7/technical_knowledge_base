@@ -88,7 +88,13 @@ def vac():
     r = re.search(r'tuples: (\d+) removed, (\d+) remain, (\d+) are dead but not yet removable', m)
     return {'removed': int(r.group(1)), 'remain': int(r.group(2)), 'dead_not_removable': int(r.group(3))} if r else {'raw': m[:600]}
 N = 20000
-long = {'updates': N, 'size_before': size(), 'lat_before_us': lat()}
+# control: the same 20,000 updates with no transaction held open (autovacuum off; page pruning only)
+t = time.perf_counter()
+for _ in range(N): c.execute('UPDATE credits SET balance = balance + 1 WHERE user_id = 7')
+control = {'update_s': round(time.perf_counter() - t, 2), 'size': size(), 'lat_us': lat()}
+for s in RESET: c.execute(s)
+c.execute('ALTER TABLE credits SET (autovacuum_enabled = false)')
+long = {'updates': N, 'control': control, 'size_before': size(), 'lat_before_us': lat()}
 L = srv.connect(); L.execute('BEGIN ISOLATION LEVEL REPEATABLE READ'); L.execute('SELECT 1')   # the forgotten transaction
 t = time.perf_counter()
 for _ in range(N): c.execute('UPDATE credits SET balance = balance + 1 WHERE user_id = 7')

@@ -1,0 +1,41 @@
+<section id="rd-s8">
+<h2>8. Optimistic concurrency: check at write time instead of locking</h2>
+<p>Locks are <i>pessimistic</i>: they assume a conflict and make others wait in advance. <dfn id="g-occ">Optimistic concurrency control</dfn> assumes there will be no conflict, lets everyone read freely, and checks at write time that nobody changed the row in between. The usual form is a <dfn id="g-version">version column</dfn> and a compare-and-set: read the row with its version, then <code>UPDATE ... SET ..., version = version + 1 WHERE id = ... AND version = &lt;the version I read&gt;</code>. If someone else wrote first, the version moved and the update changes 0 rows; you re-read and try again. No transaction is held open between the read and the write. Recorded on Postgres <span class="meas">measured</span>:</p>
+<div id="rd-opt"></div>
+<p>B's first write reported <code>UPDATE 0</code>, so B re-read (20, version 2) and wrote 15. The final row is balance 15, version 3: both spends counted, nobody waited.</p>
+<p>This is what web applications do when the read and the write are separated by a person: the user opens a chat's settings, edits the title for a minute, and saves. Holding a transaction (and a lock) open for that minute is out of the question; the version column catches the case where someone else saved in between. Over HTTP the same idea is the <code>ETag</code> header and a conditional <code>If-Match</code> request ({{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}). ORMs build it in: SQLAlchemy's <code>version_id_col</code> adds the version check to every <code>UPDATE</code> and raises <code>StaleDataError</code> when it matches zero rows (<a href="https://docs.sqlalchemy.org/en/20/orm/versioning.html" target="_blank" rel="noopener noreferrer">SQLAlchemy 2.0 docs</a>); Rails does the same with a <code>lock_version</code> column.</p>
+<div class="cost"><div class="t">What it costs, and when not to use it</div>Wasted work under contention: every lost race is a re-read and a retry. It shines when conflicts are rare (a user editing their own settings) and does badly on a hot row that many writers hit at once (a shared counter, a team's credit pool), where a lock or one atomic <code>UPDATE ... SET n = n + 1</code> wins. Always check the affected-row count: an optimistic update that ignores <code>UPDATE 0</code> is just the lost update again.</div>
+</section>
+<section id="rd-s9">
+<h2>9. Retries in application code, and what serializable costs</h2>
+<h3>A real retry loop</h3>
+<p>Serializable and repeatable read refuse a conflicting transaction with SQLSTATE <code>40001</code>, a deadlock victim gets <code>40P01</code>, and the Postgres documentation is direct about it: the application "should abort the current transaction and retry the whole transaction from the beginning" (<a href="https://www.postgresql.org/docs/16/transaction-iso.html" target="_blank" rel="noopener noreferrer">Postgres 16, transaction isolation</a>). The whole transaction, including its reads, because the decisions were made on data that has changed. This is the loop the benchmark below ran, unchanged, with psycopg 3:</p>
+<pre class="py">import random, time
+from psycopg import errors
+
+RETRYABLE = (errors.SerializationFailure, errors.DeadlockDetected)   # SQLSTATE 40001 and 40P01
+
+def run_in_transaction(conn, work, max_attempts=10):
+    """Run work(conn) in a transaction; on a serialization failure or deadlock, roll back and run it again."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with conn.transaction():          # BEGIN ... COMMIT, or ROLLBACK if work raises
+                return work(conn), attempt
+        except RETRYABLE:
+            if attempt == max_attempts:
+                raise
+            time.sleep(random.uniform(0, min(0.05, 0.001 * 2 ** attempt)))   # full jitter, capped
+
+conn.isolation_level = psycopg.IsolationLevel.SERIALIZABLE
+run_in_transaction(conn, lambda c: spend(c, user_id=7, cost=10))</pre>
+<p>Four rules make it safe. <b>Everything inside <code>work</code> must be repeatable:</b> no model call, no e-mail, no payment inside the transaction, because a retry would do it twice; do the slow or external part before or after, and keep only database work inside. <b>Retry only the retryable codes</b>; a constraint violation will fail again. <b>Wait a random, growing time</b> between attempts (exponential backoff with jitter) so that the colliding transactions do not collide again in lock-step. <b>Cap the attempts</b> and surface an error, because under a hot spot some transaction will keep losing.</p>
+<p>When the external step must happen once (charge a card, then record it), the retry belongs to the whole request, and the tool is an <dfn id="g-idem">idempotency key</dfn>: the client sends a unique key with the request, the server stores the key and the result in the same transaction as the work, and a repeated key returns the stored result instead of acting again. The pattern, with "atomic phases" between external calls, is Brandur Leach's "Implementing Stripe-like Idempotency Keys in Postgres" (<a href="https://brandur.org/idempotency-keys" target="_blank" rel="noopener noreferrer">brandur.org, 2017-10-27</a>), and it is taught in full on {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} (section 10).</p>
+<h3>Measured: the price of correctness under contention</h3>
+<p>The chat product's "spend one credit and save the message" transaction, run by 2, 8 and 32 concurrent clients for 8 seconds each on Postgres 16.2, four ways: read committed with the naive read-then-write (section 1's code), read committed with one atomic <code>UPDATE</code>, read committed with <code>FOR UPDATE</code>, and serializable running the naive code inside the retry loop above. Two contention levels: every client spends from one of 4 hot users, or from 10,000 users <span class="meas">measured</span>.</p>
+<div class="seg" id="rd-bench-pool"><button data-m="hot" class="on">4 hot users</button><button data-m="spread">10,000 users</button></div>
+<div class="seg" id="rd-bench-met"><button data-m="tps" class="on">Commits per second</button><button data-m="retry">Retries per commit</button><button data-m="p99">p99 latency</button><button data-m="lost">Lost updates</button></div>
+<div id="rd-bench"></div>
+<p class="small mute" id="rd-bench-note"></p>
+<p>What it says. <b>With the load spread over 10,000 users, correctness was free:</b> all four ways ran at about the same speed, and serializable retried about one transaction in a hundred or fewer. <b>On 4 hot users it was not:</b> serializable fell well behind the atomic <code>UPDATE</code>, with more than one retry per commit and hundreds of transactions that lost ten times in a row at 32 clients, while the naive code was fast and lost tens of thousands of updates. The atomic <code>UPDATE</code> was fastest-correct under contention because the row lock is held only from the <code>UPDATE</code> to the <code>COMMIT</code>, and nothing is computed in between. Even with only 2 clients, dozens of serializable transactions failed ten attempts in a row. A debugging rerun logged the errors: most were SSI's "Canceled on identification as a pivot", not the simple concurrent-update case. With only four users, every read lands on one index page, and Postgres may track reads by page rather than by row, so transactions can look dependent when they are not; this run did not separate that from genuine conflicts on the same user.</p>
+<p class="small mute">One 32-client serializable run (10,000 users) on Postgres 16.2 stalled for over nine minutes: every session waited on an internal lock named <code>SerializableFinishedList</code> while one backend used CPU at <code>COMMIT</code>. Two reruns on 16.2 and one on 16.15 did not stall, so the cause is <b>unconfirmed</b>; the benchmark now has a watchdog and the figures shown are from a complete rerun. It is a reminder that serializable's bookkeeping is real work inside the server.</p>
+</section>
