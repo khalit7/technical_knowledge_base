@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79 (child of Topic: swe-and-system-design)
 
-Rebuilds the old "API and Code Design" page (API half; the code-design half goes to code_design). Being built as an interactive page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). A first real service taught from zero: HTTP byte by byte (RFC 9110), JSON, a FastAPI service walked line by line, pydantic validation, REST resource design, RFC 9457 errors, offset vs cursor pagination (measured on Postgres), filtering, idempotency keys (Stripe's design, the expired IETF draft), authentication and authorisation (API keys, sessions, OAuth 2, OIDC, JWT pitfalls), rate limit headers, webhooks, SSE streaming, versioning and compatibility, OpenAPI, gRPC vs REST. Every exchange shown was captured from the demo service in `src/service/`. Tabs: Reading, Wire lab (all 20 captured exchanges), Breaking or not? (15-change quiz), Further reading. Replaces the API half of the old "API and Code Design" page; its code-design half moved to code_design (`src/handoff_code_design.md`). No child pages, databases or video.
