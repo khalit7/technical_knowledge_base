@@ -1,0 +1,161 @@
+{
+ "_doc": "Back-of-the-envelope estimates for the seven worked designs. Each row's expr is evaluated identically by recompute.py (Python eval) and the page (JavaScript Function): only + - * / ( ) and ceil, max, min, log2 are used. Inputs marked ill are illustrative assumptions; src names a source key in sources.",
+ "consts": {"DAY": 86400, "MONTH": 2592000, "HOURS_MONTH": 730, "SRV_RPS": 500, "SRV_HR": 0.2016, "PG_READ": 35000, "PG_MIX": 18000, "REDIS_OPS": 180180, "DERATE": 0.5, "RTT_MS": 0.5},
+ "designs": {
+  "url": {
+   "inputs": [
+    {"k": "shortens", "l": "New links per month", "v": 600000000, "min": 10000000, "max": 6000000000, "src": "bitly2014"},
+    {"k": "clicks", "l": "Redirects (clicks) per month", "v": 6000000000, "min": 100000000, "max": 60000000000, "src": "bitly2014"},
+    {"k": "years", "l": "Years links are kept", "v": 5, "min": 1, "max": 20, "ill": 1},
+    {"k": "rowb", "l": "Bytes per stored link (URL, code, owner, dates, index share)", "v": 500, "min": 200, "max": 2000, "ill": 1},
+    {"k": "peak", "l": "Peak over average", "v": 2, "min": 1, "max": 10, "ill": 1},
+    {"k": "hit", "l": "Cache hit rate", "v": 0.9, "min": 0, "max": 0.99, "ill": 1}
+   ],
+   "rows": [
+    {"k": "w_avg", "l": "Writes (new links) per second, average", "e": "shortens/MONTH", "f": "links a month / 2,592,000 s"},
+    {"k": "r_avg", "l": "Redirects per second, average", "e": "clicks/MONTH", "f": "clicks a month / 2,592,000 s"},
+    {"k": "ratio", "l": "Reads per write", "e": "clicks/shortens", "f": "clicks / links"},
+    {"k": "r_pk", "l": "Redirects per second at peak", "e": "clicks/MONTH*peak", "f": "average x peak factor"},
+    {"k": "links", "l": "Links stored after the retention period", "e": "shortens*12*years", "f": "links a month x 12 x years"},
+    {"k": "fill6", "l": "Share of the 6-character code space used", "e": "shortens*12*years/56800235584", "f": "links / 62^6 (56.8 billion)", "pct": 1},
+    {"k": "fill7", "l": "Share of the 7-character code space used", "e": "shortens*12*years/3521614606208", "f": "links / 62^7 (3.52 trillion)", "pct": 1},
+    {"k": "tb", "l": "Storage, terabytes", "e": "shortens*12*years*rowb/1e12", "f": "links x bytes per link"},
+    {"k": "db_rd", "l": "Database reads per second at peak, with the cache", "e": "clicks/MONTH*peak*(1-hit)", "f": "peak redirects x miss rate", "cap": "PG_READ*DERATE", "capl": "one Postgres at half its benchmark"},
+    {"k": "srv", "l": "App servers at peak (plus one spare)", "e": "ceil((clicks+shortens)/MONTH*peak/SRV_RPS)+1", "f": "peak requests / 500 per server, rounded up, + 1"},
+    {"k": "cost", "l": "App servers, dollars a month", "e": "(ceil((clicks+shortens)/MONTH*peak/SRV_RPS)+1)*SRV_HR*HOURS_MONTH", "f": "servers x $0.2016 x 730 h"}
+   ]
+  },
+  "rl": {
+   "inputs": [
+    {"k": "rps", "l": "API requests per second at peak, whole fleet", "v": 50000, "min": 1000, "max": 2000000, "ill": 1},
+    {"k": "keys", "l": "Active API keys", "v": 1000000, "min": 1000, "max": 100000000, "ill": 1},
+    {"k": "gw", "l": "Gateway servers", "v": 50, "min": 2, "max": 1000, "ill": 1},
+    {"k": "limit", "l": "Limit per key, requests per second", "v": 100, "min": 1, "max": 10000, "src": "stripe_gist"},
+    {"k": "kb", "l": "Bytes per counter in Redis (key, value, overhead)", "v": 100, "min": 50, "max": 500, "ill": 1}
+   ],
+   "rows": [
+    {"k": "ops", "l": "Limiter checks per second (one script call per request)", "e": "rps", "f": "one check per request"},
+    {"k": "node", "l": "Planning capacity of one Redis node, checks per second", "e": "REDIS_OPS*DERATE", "f": "180,180 SET/s benchmark x 0.5"},
+    {"k": "shards", "l": "Redis primaries needed", "e": "ceil(rps/(REDIS_OPS*DERATE))", "f": "checks / node capacity, rounded up"},
+    {"k": "mem", "l": "Counter memory, megabytes (two windows per key)", "e": "keys*2*kb/1e6", "f": "keys x 2 x bytes"},
+    {"k": "local", "l": "Local-only limiting: what one key can get if it hits every server", "e": "limit*gw", "f": "limit x servers (each server counts alone)", "cap": "limit", "capl": "the intended limit"},
+    {"k": "lat", "l": "Added latency per request, milliseconds", "e": "RTT_MS", "f": "one in-region round trip"}
+   ]
+  },
+  "chat": {
+   "inputs": [
+    {"k": "dau", "l": "Daily active users", "v": 50000000, "min": 100000, "max": 2000000000, "ill": 1},
+    {"k": "per", "l": "Messages sent per user per day", "v": 40, "min": 1, "max": 500, "ill": 1},
+    {"k": "fan", "l": "Average recipients per message", "v": 3, "min": 1, "max": 100, "ill": 1},
+    {"k": "online", "l": "Share of daily users connected at peak", "v": 0.2, "min": 0.01, "max": 1, "ill": 1},
+    {"k": "conn", "l": "Connections per gateway server (planning)", "v": 100000, "min": 1000, "max": 2000000, "ill": 1},
+    {"k": "hb", "l": "Presence heartbeat interval, seconds", "v": 30, "min": 5, "max": 300, "ill": 1},
+    {"k": "msgb", "l": "Bytes per stored message", "v": 300, "min": 100, "max": 2000, "ill": 1},
+    {"k": "peak", "l": "Peak over average", "v": 2, "min": 1, "max": 10, "ill": 1}
+   ],
+   "rows": [
+    {"k": "send", "l": "Messages sent per second, peak", "e": "dau*per/DAY*peak", "f": "users x messages / 86,400 x peak"},
+    {"k": "deliv", "l": "Deliveries per second, peak", "e": "dau*per/DAY*peak*fan", "f": "sent x recipients"},
+    {"k": "conns", "l": "Open connections at peak", "e": "dau*online", "f": "users x share online"},
+    {"k": "gws", "l": "Gateway servers", "e": "ceil(dau*online/conn)", "f": "connections / per server"},
+    {"k": "poll", "l": "If clients polled every 5 s instead: requests per second", "e": "dau*online/5", "f": "connections / 5 s", "cap": "dau*per/DAY*peak", "capl": "the real message rate"},
+    {"k": "pres", "l": "Presence heartbeats per second", "e": "dau*online/hb", "f": "connections / heartbeat interval"},
+    {"k": "gbday", "l": "New message storage per day, gigabytes (one copy)", "e": "dau*per*msgb/1e9", "f": "messages a day x bytes"},
+    {"k": "tbyr", "l": "Per year with 3 replicas, terabytes", "e": "dau*per*msgb*3*365/1e12", "f": "x 3 copies x 365"}
+   ]
+  },
+  "feed": {
+   "inputs": [
+    {"k": "users", "l": "Active users", "v": 150000000, "min": 1000000, "max": 2000000000, "src": "hs2013"},
+    {"k": "reads", "l": "Timeline reads per second", "v": 300000, "min": 1000, "max": 5000000, "src": "hs2013"},
+    {"k": "posts", "l": "Posts per second, average", "v": 5000, "min": 10, "max": 200000, "src": "hs2013"},
+    {"k": "fol", "l": "Deliveries per post (30 billion a day / 400 million posts)", "v": 75, "min": 1, "max": 5000, "src": "hs2013"},
+    {"k": "cap", "l": "Entries kept per timeline", "v": 800, "min": 50, "max": 5000, "src": "hs2013"},
+    {"k": "eb", "l": "Bytes per timeline entry", "v": 8, "min": 8, "max": 64, "ill": 1},
+    {"k": "rep", "l": "Copies of each timeline", "v": 3, "min": 1, "max": 5, "src": "hs2013"},
+    {"k": "celeb", "l": "Followers of the biggest account", "v": 31000000, "min": 100000, "max": 300000000, "src": "hs2013"}
+   ],
+   "rows": [
+    {"k": "rw", "l": "Reads per write", "e": "reads/posts", "f": "reads / posts"},
+    {"k": "onread", "l": "Fan-out on read: index lookups per second", "e": "reads*fol", "f": "reads x accounts read from (taken equal to deliveries per post)"},
+    {"k": "deliv", "l": "Fan-out on write: deliveries per second", "e": "posts*fol", "f": "posts x deliveries per post"},
+    {"k": "onwrite", "l": "Timeline inserts per second, counting 3 copies", "e": "posts*fol*rep", "f": "deliveries x copies"},
+    {"k": "ram", "l": "Timeline cache for every user, terabytes of RAM", "e": "users*cap*eb*rep/1e12", "f": "users x entries x bytes x copies"},
+    {"k": "celeb_ins", "l": "Inserts for one post by the biggest account", "e": "celeb*rep", "f": "followers x copies"},
+    {"k": "celeb_rate", "l": "Implied delivery rate if that takes 5 minutes, inserts per second", "e": "celeb/300", "f": "31 M followers / 300 s (the reported worst case)"}
+   ]
+  },
+  "gw": {
+   "inputs": [
+    {"k": "emp", "l": "Employees", "v": 10000, "min": 100, "max": 500000, "ill": 1},
+    {"k": "act", "l": "Share using an AI tool on a given day", "v": 0.4, "min": 0.05, "max": 1, "ill": 1},
+    {"k": "per", "l": "Interactive requests per active employee per day", "v": 30, "min": 1, "max": 300, "ill": 1},
+    {"k": "auto", "l": "Automated requests per day (pipelines, bots)", "v": 400000, "min": 0, "max": 50000000, "ill": 1},
+    {"k": "tin", "l": "Input tokens per request", "v": 2000, "min": 100, "max": 100000, "ill": 1},
+    {"k": "tout", "l": "Output tokens per request", "v": 400, "min": 10, "max": 8000, "ill": 1},
+    {"k": "pin", "l": "Price per million input tokens, dollars", "v": 2, "min": 0.05, "max": 30, "src": "ml_sd"},
+    {"k": "pout", "l": "Price per million output tokens, dollars", "v": 10, "min": 0.1, "max": 150, "src": "ml_sd"},
+    {"k": "peak", "l": "Peak over average (working hours)", "v": 3, "min": 1, "max": 10, "ill": 1},
+    {"k": "dur", "l": "Seconds a request stays open (streaming)", "v": 10, "min": 1, "max": 120, "ill": 1}
+   ],
+   "rows": [
+    {"k": "rday", "l": "Requests per day", "e": "emp*act*per+auto", "f": "employees x share x requests + automated"},
+    {"k": "rmon", "l": "Requests per month", "e": "(emp*act*per+auto)*30", "f": "x 30"},
+    {"k": "rpk", "l": "Requests per second at peak", "e": "(emp*act*per+auto)/DAY*peak", "f": "per day / 86,400 x peak"},
+    {"k": "open", "l": "Streams open at peak (Little's law)", "e": "(emp*act*per+auto)/DAY*peak*dur", "f": "rate x seconds open"},
+    {"k": "cday", "l": "Model spend per day, dollars", "e": "(emp*act*per+auto)*(tin*pin+tout*pout)/1e6", "f": "requests x (input x price + output x price) / 1M"},
+    {"k": "cyr", "l": "Model spend per year, dollars", "e": "(emp*act*per+auto)*(tin*pin+tout*pout)/1e6*365", "f": "x 365"},
+    {"k": "logs", "l": "Request logs per day, gigabytes (4 bytes per token + 1 KB metadata)", "e": "(emp*act*per+auto)*((tin+tout)*4+1000)/1e9", "f": "requests x (tokens x 4 B + 1 KB)"},
+    {"k": "gsrv", "l": "Gateway servers for throughput alone", "e": "ceil((emp*act*per+auto)/DAY*peak/SRV_RPS)", "f": "peak / 500 per server"}
+   ]
+  },
+  "rag": {
+   "inputs": [
+    {"k": "docs", "l": "Documents", "v": 5000000, "min": 10000, "max": 500000000, "ill": 1},
+    {"k": "dtok", "l": "Tokens per document, average", "v": 3000, "min": 100, "max": 50000, "ill": 1},
+    {"k": "ctok", "l": "Tokens per chunk", "v": 500, "min": 100, "max": 2000, "ill": 1},
+    {"k": "ov", "l": "Overlap between chunks", "v": 0.1, "min": 0, "max": 0.5, "ill": 1},
+    {"k": "dim", "l": "Embedding dimensions", "v": 1536, "min": 256, "max": 3072, "src": "oai_emb"},
+    {"k": "bpd", "l": "Bytes per dimension (4 = vector, 2 = halfvec)", "v": 4, "min": 1, "max": 4, "src": "pgvector"},
+    {"k": "m", "l": "HNSW connections per node (m)", "v": 16, "min": 4, "max": 64, "src": "pgvector"},
+    {"k": "chg", "l": "Share of documents changed per day", "v": 0.02, "min": 0, "max": 0.5, "ill": 1},
+    {"k": "eprice", "l": "Embedding price per million tokens, dollars", "v": 0.02, "min": 0.001, "max": 1, "src": "oai_emb"},
+    {"k": "qday", "l": "Questions per day", "v": 50000, "min": 100, "max": 10000000, "ill": 1},
+    {"k": "k", "l": "Chunks put in each prompt", "v": 8, "min": 1, "max": 50, "ill": 1},
+    {"k": "pin", "l": "Price per million input tokens, dollars", "v": 2, "min": 0.05, "max": 30, "src": "ml_sd"},
+    {"k": "pout", "l": "Price per million output tokens, dollars", "v": 10, "min": 0.1, "max": 150, "src": "ml_sd"},
+    {"k": "aout", "l": "Output tokens per answer", "v": 500, "min": 50, "max": 4000, "ill": 1}
+   ],
+   "rows": [
+    {"k": "chunks", "l": "Chunks", "e": "docs*ceil(dtok/(ctok*(1-ov)))", "f": "documents x ceil(tokens / (chunk x (1 - overlap)))"},
+    {"k": "vgb", "l": "Raw vectors, gigabytes", "e": "docs*ceil(dtok/(ctok*(1-ov)))*(dim*bpd+8)/1e9", "f": "chunks x (dims x bytes + 8)"},
+    {"k": "hgb", "l": "Plus HNSW graph links on the bottom layer, gigabytes", "e": "docs*ceil(dtok/(ctok*(1-ov)))*(2*m*4)/1e9", "f": "chunks x 2m x 4 bytes (a lower bound)"},
+    {"k": "etok", "l": "Tokens to embed once, billions", "e": "docs*ceil(dtok/(ctok*(1-ov)))*ctok/1e9", "f": "chunks x chunk tokens"},
+    {"k": "ecost", "l": "Embedding the corpus once, dollars", "e": "docs*ceil(dtok/(ctok*(1-ov)))*ctok/1e6*eprice", "f": "tokens / 1M x price"},
+    {"k": "reemb", "l": "Chunks re-embedded per second, average", "e": "docs*chg*ceil(dtok/(ctok*(1-ov)))/DAY", "f": "changed documents x chunks / 86,400"},
+    {"k": "qps", "l": "Questions per second at peak (x3)", "e": "qday/DAY*3", "f": "per day / 86,400 x 3"},
+    {"k": "acost", "l": "Cost per answer, dollars", "e": "(k*ctok*pin+aout*pout)/1e6", "f": "(k x chunk tokens x input price + output x output price) / 1M"},
+    {"k": "aday", "l": "Answer spend per day, dollars", "e": "qday*(k*ctok*pin+aout*pout)/1e6", "f": "questions x cost per answer"}
+   ]
+  },
+  "job": {
+   "inputs": [
+    {"k": "runs", "l": "Job runs per day", "v": 10000000, "min": 10000, "max": 1000000000, "ill": 1},
+    {"k": "top", "l": "Share of runs scheduled at the top of an hour", "v": 0.3, "min": 0, "max": 1, "ill": 1},
+    {"k": "dur", "l": "Average run time, seconds", "v": 20, "min": 1, "max": 3600, "ill": 1},
+    {"k": "slots", "l": "Concurrent runs per worker machine", "v": 50, "min": 1, "max": 1000, "ill": 1},
+    {"k": "spread", "l": "Seconds a top-of-hour batch is spread over (jitter)", "v": 60, "min": 1, "max": 3600, "ill": 1},
+    {"k": "recb", "l": "Bytes per run record (history)", "v": 500, "min": 100, "max": 5000, "ill": 1}
+   ],
+   "rows": [
+    {"k": "avg", "l": "Runs per second, average", "e": "runs/DAY", "f": "runs / 86,400"},
+    {"k": "burst", "l": "Runs due in the same second at the top of an hour, no jitter", "e": "runs*top/24", "f": "runs x share / 24 hours"},
+    {"k": "spr", "l": "Same batch spread with jitter, runs per second", "e": "runs*top/24/spread", "f": "burst / spread seconds"},
+    {"k": "conc", "l": "Runs in progress on average (Little's law)", "e": "runs/DAY*dur", "f": "rate x run time"},
+    {"k": "work", "l": "Worker machines for the average (plus one spare)", "e": "ceil(runs/DAY*dur/slots)+1", "f": "in progress / slots + 1"},
+    {"k": "workpk", "l": "Worker machines to start the unjittered burst at once", "e": "ceil(runs*top/24/slots)", "f": "burst / slots", "cap": "ceil(runs/DAY*dur/slots)+1", "capl": "the average fleet"},
+    {"k": "hist", "l": "Run history per day, gigabytes", "e": "runs*recb/1e9", "f": "runs x bytes"}
+   ]
+  }
+ }
+}

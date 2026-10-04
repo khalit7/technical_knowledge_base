@@ -1,0 +1,56 @@
+<div class="tab" id="t-read" role="tabpanel">
+<p class="small mute">About 60 minutes to read in full, but each design stands alone (8 to 10 minutes each): read the first two sections, then any design. Terms are defined at first use (in bold) and collected in the glossary. This page applies the techniques; the sibling pages teach them, and every technique used here links to the exact section that does.</p>
+<nav class="nav" id="rd-nav">
+<a href="#s-one">In one screen</a><a href="#s-method">The method, out loud</a><a href="#s-url">1 URL shortener</a><a href="#s-rl">2 Rate limiter</a><a href="#s-chat">3 Chat</a><a href="#s-feed">4 News feed</a><a href="#s-gw">5 LLM gateway</a><a href="#s-rag">6 RAG service</a><a href="#s-job">7 Job scheduler</a><a href="#s-prac">How to practise</a><a href="#s-gl">Glossary</a>
+</nav>
+
+<section id="s-one">
+<h2>In one screen</h2>
+<p class="lead">A <b>system design</b> question gives you a product ("design a URL shortener") and an hour, and asks for the machines, data and connections that would run it for millions of people. There is no single right answer. What separates a strong answer from a weak one is a <b>method</b>: find out what is really being asked, put numbers on it, and let the numbers tell you which part is hard. The parent topic's Step 6 introduced that method ({{Topic: swe-and-system-design, Reading, Step 6|n:3c65c17b0d0d81048ae0dd14ac399b4d}}); this page runs it seven times, end to end, the way a senior engineer would say it out loud.</p>
+<div class="tw"><table class="onescreen">
+<thead><tr><th>Design</th><th>What the numbers say is hard</th><th>The key move</th><th>Who built it for real</th></tr></thead>
+<tbody>
+<tr><td><a href="#s-url">1. URL shortener</a></td><td>Reads outnumber writes 10 to 1; 36 billion links after five years do not fit 6 characters</td><td>Unique IDs without coordination, base62, a cache in front of the database</td><td>Bitly (2014), Twitter Snowflake (2010), Flickr (2010)</td></tr>
+<tr><td><a href="#s-rl">2. Rate limiter</a></td><td>Many servers must agree on one counter in under a millisecond</td><td>An atomic check-and-increment in a shared store; fail open</td><td>Stripe (2017), Cloudflare (2017), GitHub (2021)</td></tr>
+<tr><td><a href="#s-chat">3. Chat</a></td><td>10 million open connections; presence heartbeats outnumber messages 7 to 1</td><td>Persistent connections, a routing layer from user to connection, storage partitioned by channel and time</td><td>Discord (2017, 2023), Slack (2023), WhatsApp (2012)</td></tr>
+<tr><td><a href="#s-feed">4. News feed</a></td><td>60 reads per write; one celebrity post means 31 million deliveries</td><td>Fan-out on write, except for celebrities (merge them at read time)</td><td>Twitter (2012 to 2023), Facebook Multifeed (2015)</td></tr>
+<tr><td><a href="#s-gw">5. LLM gateway</a></td><td>Throughput is tiny (18 requests a second); money, keys and personal data are the problem</td><td>One front door: virtual keys, budgets in tokens, redaction, fallbacks, usage events</td><td>Uber (2024), Wealthsimple (2023)</td></tr>
+<tr><td><a href="#s-rag">6. RAG service</a></td><td>215 GB of vectors; permissions; freshness; knowing whether answers are right</td><td>An ingestion pipeline, hybrid retrieval, permission filters, an evaluation set</td><td>Anthropic (2024), LinkedIn (2024), Uber (2025), DoorDash (2024)</td></tr>
+<tr><td><a href="#s-job">7. Job scheduler</a></td><td>125,000 jobs due in the same second at the top of the hour; a crash must not run a job twice</td><td>Separate "decide what is due" from "do the work"; leases, jitter, idempotent jobs</td><td>Google cron (2015), Dropbox ATF (2020), Slack (2020)</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">What every design on this page has in common</div>
+<p><b>1. Requirements before boxes.</b> Every design starts with a box of functional and non-functional requirements; the second kind (scale, latency, how wrong you may be) decides the architecture.</p>
+<p><b>2. A computed estimate, live.</b> Each design has a table you can change (try "10&times; the traffic"); rows turn red when they cross a single machine's capacity. That is how a bottleneck is found rather than guessed.</p>
+<p><b>3. A diagram that grows.</b> Each design is animated from its naive version, then each bottleneck is found (red) and fixed (green) in turn, with counters showing the naive design's number beside the current one on the same load.</p>
+<p><b>4. What was rejected, and why.</b> A design is a list of trade-offs. Each section says what it chose, what it turned down, and what real companies did.</p>
+</div>
+<p>Two measurements were run for this page on a laptop with a real PostgreSQL database (<code>src/lab/measure_pg.py</code>, about 2 minutes): the <a href="#s-rl-race">rate limiter race</a> (a check-then-act counter let 17 to 19% too many requests through; the atomic form, exactly 0) and <a href="#s-feed-meas">fan-out on read against on write</a> (reading a precomputed timeline was 34 times faster). To practise, use the {{Design drill|#t-drill}} tab: pick a prompt, run the clock, reveal the method one step at a time and tick a self-check list.</p>
+</section>
+
+<section id="s-method">
+<h2>The method, out loud</h2>
+<p>The parent root lists the steps; here is what each sounds like in the room, and how long it gets in a 45-minute interview (timings from Alex Xu's framework, quoted on the root: scope 3 to 10 minutes, high-level design 10 to 15, deep dive 10 to 25, wrap-up 3 to 5; {{ByteByteGo|https://bytebytego.com/courses/system-design-interview/a-framework-for-system-design-interviews}}). In real work the same steps go into a <b>design document</b>, the written proposal a team reviews before building.</p>
+<div class="tw"><table class="fm2">
+<thead><tr><th>Step</th><th>What you do</th><th>What it sounds like</th></tr></thead>
+<tbody>
+<tr><td>1. Requirements</td><td><b>Functional</b> (what it does) and <b>non-functional</b> (how much, how fast, how reliable, how consistent, how cheap). Agree what is out of scope.</td><td>"Before I draw anything: who uses this, how many, and what happens if a click is lost or counted twice?"</td></tr>
+<tr><td>2. Estimate</td><td>Users to requests a second, to storage, to machines. Round hard; keep one significant figure.</td><td>"600 million new links a month is about 230 a second, so writes are easy. 6 billion clicks is 2,300 a second; doubled for the peak, under 5,000."</td></tr>
+<tr><td>3. API</td><td>The calls clients make, with method, path, body and errors (the {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} page teaches this).</td><td>"POST /links returns the code; the redirect is a GET that answers 302."</td></tr>
+<tr><td>4. Data model</td><td>Tables or keys, and how each read finds its row (which index, which partition key).</td><td>"One table keyed by code; the redirect is a primary-key lookup."</td></tr>
+<tr><td>5. High-level design</td><td>The boxes and arrows, each justified by a requirement or a number.</td><td>"Stateless app servers behind a load balancer, a cache, one database."</td></tr>
+<tr><td>6. Deep dives</td><td>The two or three parts the estimate flagged. Let the interviewer steer.</td><td>"The interesting parts are ID generation and the cache; which would you like first?"</td></tr>
+<tr><td>7. Bottlenecks and failure</td><td>What breaks at 10&times;, what happens when each box dies, what each choice cost.</td><td>"If the cache dies, 4,600 reads a second land on the database: within one machine's capacity, so we survive degraded."</td></tr>
+</tbody></table></div>
+<h3>The estimating toolkit</h3>
+<p>Every estimate on this page uses the same few constants, taken from the parent root's {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab so the topic stays consistent:</p>
+<ul>
+<li><b>A day is 86,400 seconds</b> (call it 100,000 for mental arithmetic: a million a day is about 12 a second), and a month is 2.6 million seconds.</li>
+<li><b>Peak over average:</b> traffic is not flat. The root uses 2 as an illustrative planning factor; Twitter's record second in 2013 was 25 times its average (root, {{Case files: Twitter 2013|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). Say which you assume.</li>
+<li><b>One app server</b> (AWS m7i.xlarge, $0.2016 an hour): 500 requests a second, the root's illustrative default.</li>
+<li><b>One PostgreSQL database:</b> about 35,000 read queries a second, 18,000 in a mixed read-write benchmark (PlanetScale, 4 vCPU; root Numbers). We plan at half a benchmark, the root's derating.</li>
+<li><b>One Redis node:</b> 180,180 SETs a second with 50 clients (Redis docs benchmark); planned at half, 90,090. A Redis operation answers in about 0.14 ms locally; a round trip inside one cloud region is about 0.5 ms.</li>
+<li><b>GPUs:</b> 2,209 output tokens a second per H100 for Llama 3.3 70B in FP8 (TensorRT-LLM, commit 8a9c66c), $3.99 per GPU-hour (Lambda); see {{ML system design, section 1|n:3c65c17b0d0d8117b057dc2586836ec8}}.</li>
+<li><b>Little's law:</b> things in the system = arrival rate &times; time each one stays. It turns "requests a second" into "connections open" or "jobs running" ({{Capacity planning and performance, Queueing theory you actually use|n:3ef5c17b0d0d81458291d55d7443700c}}).</li>
+</ul>
+<div class="co warn"><div class="t">The commonest failure: no numbers, or numbers that change nothing</div><p>An estimate earns its minutes only if it changes a decision. "36 billion links do not fit in 6 base62 characters" changes the code length; "18 TB" changes whether you shard; "333,000 presence heartbeats a second" changes what you optimise first in chat. If a number would not change any box, skip it and say so.</p></div>
+</section>

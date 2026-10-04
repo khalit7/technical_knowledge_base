@@ -1,0 +1,66 @@
+<section id="s-gw">
+<h2 class="dhead"><span class="dnum">Design 5</span>An LLM gateway for a company: routing, quotas, fallbacks, cost</h2>
+<p>Every team in the company now calls large language models (LLMs): a support bot, a code assistant, a document summariser, pipelines that classify tickets. Each team has its own API keys, its own retry code and its own surprise bill. An <b>LLM gateway</b> is one internal service that every model call goes through. The mechanisms (authentication, routing, token-based limits, caching, fallbacks, the degradation ladder) are taught in depth in {{ML system design, sections 3 to 11|n:3c65c17b0d0d8117b057dc2586836ec8}}, with a lab where you can turn each one on (its <b>Gateway lab</b> tab); this section runs the interview: what to ask, what the numbers say, what to build first.</p>
+<div class="req"><div class="t">Requirements</div><div class="cols">
+<div><h5>Functional</h5><ul><li>One API for every model, compatible with the OpenAI chat format so existing SDKs work.</li><li>Per-team keys, budgets and rate limits; usage and cost per team.</li><li>Routing to vendors and self-hosted models; automatic fallback when one fails.</li><li>Remove personal data before it leaves the company; audit log of every call.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>10,000 employees, 40% using AI daily, 30 requests each, plus 400,000 automated requests a day (illustrative).</li><li>Adds under 50 ms before the first token; streams pass through unbuffered.</li><li>Available more than the providers behind it (fallbacks).</li><li>Spend is correct to the cent per team per month.</li></ul></div></div></div>
+<div class="est" id="est-gw"></div>
+<p><b>What the numbers say.</b> This is the design where the estimate tells you throughput is <i>not</i> the problem: 18 requests a second at peak fits on one small server (the row says one, for throughput alone; run at least two). Uber's gateway, a real one, reported "16 million queries per month, with a peak QPS of 25" for "close to 30 customer teams" ({{Wang and Bansal, Uber, 2024-07-11|https://www.uber.com/blog/genai-gateway/}}), the same order as ours (an independent comparison, not a reproduction). What is big is <b>money</b>: about $4,200 a day, $1.5 million a year at the illustrative Sonnet 5.5 price of $2 and $10 per million input and output tokens (from {{ML system design, section 1|n:3c65c17b0d0d8117b057dc2586836ec8}}), where a 10% routing mistake is a salary. Also: about 180 streams open at once (Little's law with 10-second replies), which matters for connection limits and timeouts, and 5.5 GB of request logs a day containing whatever employees typed, which is a security asset to protect.</p>
+
+<h3>API</h3>
+<div class="code">POST /v1/chat/completions             <span class="cm">OpenAI-compatible; the gateway key identifies the team</span>
+Authorization: Bearer gw_team-support_...
+{"model": "fast" | "smart" | "vendor/model-2026-05-01", "messages": [...], "stream": true,
+ "metadata": {"feature": "ticket-triage"}}
+-> streamed SSE chunks, then a usage record
+-> 429 + Retry-After when the team's tokens-per-minute or budget is exhausted
+-> 503 when every route in the fallback chain failed
+
+GET /v1/usage?team=support&amp;from=2026-10-01   <span class="cm">cost and tokens per team, feature, model</span></div>
+<p>Model <b>aliases</b> (<code>fast</code>, <code>smart</code>) let the platform team change the model behind them; teams that need stability pin a dated version. Uber made the same compatibility choice: "A pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API".</p>
+
+<h3>Data model</h3>
+<div class="code">teams(id, monthly_budget_usd, tpm_limit, allowed_models, pii_policy)
+keys(hash, team_id, created_at, revoked_at)                 <span class="cm">store a hash, never the key</span>
+routes(alias, ordered list of (provider, model, weight), timeout_ms)
+budget counters (Redis): spend:{team}:{month}, tokens:{team}:{minute}
+usage_events -> queue -> warehouse: (request_id, team, feature, model, tokens_in, tokens_out, cost, latency, status)</div>
+
+<h3>The design, built step by step</h3>
+<div class="card" id="dia-gw"></div>
+
+<h3>Deep dive: what to build first, in order</h3>
+<ol>
+<li><b>Virtual keys and usage events.</b> The gateway holds the real provider keys; teams get gateway keys. Every call emits a usage event to a queue and on to a warehouse. This alone answers "who spends what", and it is the precondition for everything else. Uber's gateway generates "audit logs for comprehensive cost attribution", and its "centralized nature ... streamlines the management of usage and budgeting across various teams".</li>
+<li><b>Budgets and limits in tokens.</b> A request's cost is unknown until it finishes, so reserve the worst case (input tokens plus <code>max_tokens</code>) before the call and refund the difference after, with atomic counters as in <a href="#s-rl">design 2</a>; the reasoning is in {{ML system design, section 5|n:3c65c17b0d0d8117b057dc2586836ec8}}. Off-the-shelf gateways expose exactly these knobs: LiteLLM's proxy takes per-team <code>tpm_limit</code>, <code>rpm_limit</code>, <code>max_parallel_requests</code> and a <code>max_budget</code> with a <code>budget_duration</code> ({{LiteLLM docs|https://docs.litellm.ai/docs/proxy/users}}).</li>
+<li><b>Fallbacks with one retry layer.</b> An ordered route per alias (vendor A, then vendor B, then a self-hosted model), a timeout per hop and a cooldown for a failing route. Retry in the gateway only; tell team SDKs not to retry on top, or the retries multiply (the 243&times; case in {{Reliability engineering, Retries|n:3ef5c17b0d0d8152b8dececf34196174}}). LiteLLM names the same settings <code>fallbacks</code>, <code>num_retries</code>, <code>allowed_fails</code>, <code>cooldown_time</code>, <code>request_timeout</code> ({{LiteLLM reliability docs|https://docs.litellm.ai/docs/proxy/reliability}}); what a fallback really costs in time is measured in {{ML system design, section 3|n:3c65c17b0d0d8117b057dc2586836ec8}}.</li>
+<li><b>Data protection.</b> Redact personal data before external calls according to each team's policy, and route data that may not leave to self-hosted models. Uber: a "PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors", restoring the entities in the response. Wealthsimple's gateway did the same, "enhanced by a PII removal model we developed in-house" ({{Wealthsimple engineering, date unconfirmed (2023 or 2024)|https://engineering.wealthsimple.com/get-to-know-our-llm-gateway-and-how-it-provides-a-secure-and-reliable-space-to-use-generative-ai}}). Policy enforcement beyond redaction belongs to {{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}.</li>
+<li><b>Cost cuts.</b> Only after measuring: prompt (prefix) caching, tier routing of easy requests to a cheaper model, batch APIs for pipelines that can wait ({{ML system design, sections 4, 7 and 9|n:3c65c17b0d0d8117b057dc2586836ec8}}).</li>
+</ol>
+<h3>Trade-offs considered and rejected</h3>
+<ul class="rej">
+<li><b>A shared client library instead of a service.</b> No extra hop, but every language needs a copy, keys still live in every service, and budgets cannot be enforced across processes. <i>Rejected:</i> the extra few milliseconds are nothing against seconds of generation.</li>
+<li><b>Logging full prompts and responses forever.</b> Useful for evaluation, dangerous for privacy. <i>Chosen instead:</i> metadata always; content sampled, redacted, with a retention limit and access controls.</li>
+<li><b>Exact-match response cache for everything.</b> Cheap, but personal answers can leak between users. <i>Only per team and per opted-in feature</i>; semantic caching only with a measured false-hit rate ({{ML system design, section 9|n:3c65c17b0d0d8117b057dc2586836ec8}}).</li>
+<li><b>Building it.</b> LiteLLM, Envoy AI Gateway, Kong and Portkey exist. Buy or adopt first unless data rules force you; build when your policy needs outgrow theirs.</li>
+</ul>
+
+<h3>Failure modes</h3>
+<div class="tw"><table>
+<thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>A provider outage or 429 storm</td><td>Every product using that model fails at once</td><td>Fallback chain with cooldowns; tested regularly with real traffic (a fallback that has never carried load fails when needed)</td></tr>
+<tr><td>The gateway itself</td><td>Every AI feature in the company stops</td><td>Stateless replicas in two zones; budget store failure means fail open with a local cap, as in design 2</td></tr>
+<tr><td>A runaway script</td><td>Burns a month's budget overnight</td><td>Per-key token limits and budget alerts at 50%, 80%, 100%</td></tr>
+<tr><td>Provider silently changes an alias</td><td>Quality changes with no deploy</td><td>Pin dated versions in routes; log the model version in every usage event; evaluate before switching ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}})</td></tr>
+<tr><td>Buffering proxy</td><td>Users see nothing until the whole reply is done</td><td>Stream pass-through end to end, long idle timeouts</td></tr>
+</tbody></table></div>
+<div class="say"><div class="t">What interviewers listen for</div>
+<ul>
+<li>You noticed throughput is small and moved the discussion to cost, keys, data rules and reliability.</li>
+<li>Limits and budgets are counted in tokens, reserved before and settled after.</li>
+<li>One retry layer, ordered fallbacks, and how you would test the fallback.</li>
+<li>Usage events off the request path, attributed per team and feature.</li>
+<li>A clear build order, and a buy-versus-build opinion.</li>
+</ul></div>
+</section>

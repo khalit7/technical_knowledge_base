@@ -1,0 +1,63 @@
+<section id="s-rag">
+<h2 class="dhead"><span class="dnum">Design 6</span>A RAG service over company documents: ingestion, embeddings, vector index, freshness, evaluation</h2>
+<p><b>Retrieval-augmented generation (RAG)</b> answers a question by first finding the relevant passages in your own documents and then asking an LLM to answer from them, citing them (the original paper: {{RAG, Lewis et al. 2020|n:3c65c17b0d0d816c889decc342a7ad39}}). The design question is the system around that idea: getting millions of documents in, keeping them fresh, never showing someone a document they may not open, and knowing whether the answers are right.</p>
+<div class="req"><div class="t">Requirements</div><div class="cols">
+<div><h5>Functional</h5><ul><li>Ask a question in a chat box; get an answer with links to the source passages.</li><li>Sources: wiki, shared drives, tickets (5 million documents, illustrative).</li><li>Answers use only documents the asker is allowed to read.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>An edited document is searchable within 10 minutes.</li><li>First token in under 3 seconds at p95.</li><li>50,000 questions a day.</li><li>Measured answer quality, tracked over time.</li></ul></div></div></div>
+<div class="est" id="est-rag"></div>
+<p><b>What the numbers say.</b> Queries are trivial (under 2 a second at peak). The corpus is not: 35 million chunks of about 500 tokens, whose 1,536-dimension vectors take 215 GB as 4-byte floats, more RAM than a typical database server, before the index's own graph. Options the numbers suggest: half-precision storage (pgvector's <code>halfvec</code>, 2 bytes a dimension, halves it), fewer dimensions, or a sharded vector store. Embedding the whole corpus once costs about $350 at $0.02 per million tokens ({{OpenAI, text-embedding-3-small|https://developers.openai.com/api/docs/models/text-embedding-3-small}}, read 2026-10-04), so re-embedding is cheap in money; in time, keeping up with 2% of documents changing a day is only 8 chunks a second. Answers cost about $650 a day, mostly the input tokens of the retrieved chunks: the number of chunks per prompt is the cost dial.</p>
+
+<h3>API</h3>
+<div class="code">POST /v1/ask   {"question": "How do I rotate the staging database password?", "conversation_id": "..."}
+  -> SSE stream of the answer, then {"citations": [{"doc_id": "...", "chunk": 3, "url": "...", "title": "..."}]}
+POST /v1/feedback {"answer_id": "...", "rating": "down", "reason": "outdated"}
+<span class="cm">// ingestion is driven by the sources' change events, not by an API users call</span></div>
+
+<h3>Data model</h3>
+<div class="code">documents(doc_id, source, url, title, version, updated_at, acl_groups TEXT[])
+chunks(doc_id, chunk_no, version, text, embedding VECTOR(1536), acl_groups TEXT[],
+       PRIMARY KEY (doc_id, chunk_no))
+<span class="cm">-- HNSW index on embedding; GIN index on acl_groups; full-text index on text for keyword search</span>
+eval_set(question, expected_doc_ids, reference_answer)      <span class="cm">-- the golden set</span></div>
+
+<h3>The design, built step by step</h3>
+<div class="card" id="dia-rag"></div>
+
+<h3>Deep dive: the ingestion pipeline</h3>
+<p>Ingestion is an asynchronous pipeline: a <b>connector</b> per source receives change events (or polls for changes), puts "document d changed" on a queue, and workers fetch the document, extract text, split it into <b>chunks</b> (passages small enough to retrieve precisely; overlapping a little so a sentence cut at a boundary survives), compute an <b>embedding</b> for each (a vector of numbers from a model, placed so that passages with similar meaning have nearby vectors) and upsert them. Three rules make it reliable. Key every chunk by <code>(doc_id, chunk_no)</code> and write it with the document's version, so a redelivered or reordered event is harmless (an older version never overwrites a newer one): the idempotent-consumer pattern of {{Queues, streams and async work, Idempotent consumers|n:3ef5c17b0d0d81aebf91df927f215b6e}}. Delete chunks beyond the new chunk count when a document shrinks. And keep the embedding model's name with every vector: changing the model means re-embedding everything, because vectors from different models are not comparable ({{ML system design, section 13|n:3c65c17b0d0d8117b057dc2586836ec8}}).</p>
+
+<h3>Deep dive: retrieval that actually finds the passage</h3>
+<p>A <b>vector index</b> finds the chunks nearest to the question's embedding without comparing against all 35 million. The common choice is <b>HNSW</b> (hierarchical navigable small world), a layered graph searched from coarse to fine, which "allows a logarithmic complexity scaling" ({{Malkov and Yashunin, 2016|https://arxiv.org/abs/1603.09320}}). In PostgreSQL, pgvector offers HNSW, which "has better query performance than IVFFlat (in terms of speed-recall tradeoff), but has slower build times and uses more memory", and IVFFlat, which "has faster build times and uses less memory than HNSW, but has lower query performance"; indexable vectors go up to 2,000 dimensions, and <code>halfvec</code> up to 4,000 ({{pgvector README|https://github.com/pgvector/pgvector}}). Start with pgvector if you already run PostgreSQL and the index fits in memory; move to a dedicated vector store when it does not. Database choices in general: {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}.</p>
+<p>Vectors alone miss exact terms (error codes, product names, people). The fix is <b>hybrid retrieval</b>: run keyword search (BM25, the classic ranking by term frequency) alongside vector search, merge, then <b>rerank</b> the top candidates with a slower, more accurate model. Anthropic measured the effect on its own benchmark: adding a short generated context to each chunk ("usually 50-100 tokens") and combining contextual embeddings with contextual BM25 "reduced the top-20-chunk retrieval failure rate by 49% (5.7% → 2.9%)", and "when combined with reranking, by 67%"; the one-time cost of generating the context was "$1.02 per million document tokens" with prompt caching ({{Anthropic, Introducing Contextual Retrieval, 2024-09-19|https://www.anthropic.com/news/contextual-retrieval}}).</p>
+
+<h3>Deep dive: permissions and freshness</h3>
+<p><b>Permissions.</b> Copy each document's access groups onto its chunks and filter at query time by the asker's groups. Beware a trap in approximate indexes: pgvector warns "With approximate indexes, filtering is applied <i>after</i> the index is scanned", so a filter matching few rows can return fewer results than asked unless iterative index scans are enabled (pgvector README). Permission changes must flow through the same pipeline as edits, and fast: a revoked permission that takes a day to apply is a data leak for a day. Never rely on the LLM to "not mention" documents it was given.</p>
+<p><b>Freshness.</b> Event-driven connectors plus a short queue meet "searchable in 10 minutes"; a nightly full re-sync catches missed events. Show each citation's last-updated date so users can judge staleness.</p>
+
+<h3>Deep dive: knowing whether it works</h3>
+<p>A RAG system fails in two separate places: retrieval did not find the passage, or generation did not use it faithfully. Measure both, on a <b>golden set</b> of real questions with the documents that answer them, before every change of chunking, model or prompt, and on sampled production traffic. The metrics (recall at k, faithfulness, groundedness), how to build the test set from your own corpus and how LLM judges fail are on {{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}}; gates and shadow tests on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}.</p>
+<div class="real"><div class="t">What real companies built</div>
+<p><b>LinkedIn (2024):</b> customer-service question answering over a knowledge graph built from past tickets, which "outperforms the baseline by 77.6% in MRR" and, deployed, "reduced the median per-issue resolution time by 28.6%" ({{Xu et al., arXiv 2404.17723|https://arxiv.org/abs/2404.17723}}).</p>
+<p><b>DoorDash (2024):</b> a support assistant that "first condenses the entire conversation to pinpoint the core problem" and then searches past resolved cases and articles; an LLM guardrail "reduced overall hallucinations by 90% and cut down potentially severe compliance issues by 99%" ({{DoorDash engineering, repost dated 2024-09-17|https://careersatdoordash.com/blog/large-language-modules-based-dasher-support-automation/}}).</p>
+<p><b>Uber (2025-05-29):</b> moving from plain RAG to an agentic version with "an additional BM25-based retriever alongside traditional vector search" raised acceptable answers "by a relative 27%" and cut incorrect advice "by a relative 60%" ({{Uber, Enhanced Agentic-RAG|https://www.uber.com/blog/enhanced-agentic-rag/}}). All three are vendor-reported results on their own data.</p>
+</div>
+
+<h3>Failure modes</h3>
+<div class="tw"><table>
+<thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>Permission sync lags</td><td>Someone sees a passage they should not</td><td>Permission events on a priority queue; deny by default for unknown groups</td></tr>
+<tr><td>Connector misses events</td><td>Stale answers, silently</td><td>Nightly reconciliation; alert on age of the newest indexed change per source</td></tr>
+<tr><td>Embedding model changed</td><td>Old and new vectors mixed: garbage retrieval</td><td>Store model version per vector; re-embed into a new index, switch atomically</td></tr>
+<tr><td>Index outgrows memory</td><td>Latency jumps by orders of magnitude</td><td>halfvec or fewer dimensions; shard; watch index size against RAM</td></tr>
+<tr><td>Prompt injection inside a document</td><td>A document instructs the model</td><td>Treat retrieved text as data; guardrails; restrict tools ({{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}})</td></tr>
+</tbody></table></div>
+<div class="say"><div class="t">What interviewers listen for</div>
+<ul>
+<li>You sized the vectors and saw memory, not queries, is the constraint.</li>
+<li>Ingestion is an idempotent, versioned pipeline with deletes handled.</li>
+<li>Permissions enforced at retrieval, with the post-filtering trap named.</li>
+<li>Hybrid retrieval and reranking, justified by what vectors miss.</li>
+<li>An evaluation plan that separates retrieval from generation.</li>
+</ul></div>
+</section>
