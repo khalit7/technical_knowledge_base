@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174 (child of Topic: swe-and-system-design)
 
-New page (2026-10-04). Being built as an interactive page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Taught from zero on the parent's chat-assistant example: availability, durability and correctness, the nines and their cost, failure modes (slow, partial, gray, metastable), timeouts and deadline propagation, retries with backoff, jitter and retry budgets, idempotency (depth on Building a backend API), circuit breakers, bulkheads, load shedding, degradation, five rate limiting algorithms, health checks, deployment safety, SLIs, SLOs, error budgets and burn-rate alerts, incident response and blameless postmortems. Includes a retry storm measured on a real local service (6 policies x 3 seeds). Tabs: Reading, Resilience lab (simulation engine checked against the measurement), Error budget and alerts, Further reading. New page (2026-10-04); no child pages, databases or video.

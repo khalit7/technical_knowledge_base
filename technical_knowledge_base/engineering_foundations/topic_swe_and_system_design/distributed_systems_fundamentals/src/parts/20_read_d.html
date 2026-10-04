@@ -1,0 +1,64 @@
+
+<section id="rd-repl">
+<h2>Replication: keeping copies</h2>
+<p><dfn id="d-repl">Replication</dfn> means keeping a copy of the same data on several machines, each copy a <dfn id="d-replica">replica</dfn>. It solves reasons 1, 2 and 4 above (a dead machine, too many reads, far-away users). Copying data that never changes is trivial; all the difficulty is in <b>changes</b>. There are three ways to organise who accepts changes.</p>
+
+<h3>Single leader (leader and followers)</h3>
+<p>One replica is the <dfn id="d-leader">leader</dfn> (also called primary or master): every write goes to it. It records each change in an ordered <dfn id="d-log">log</dfn> (Postgres calls it the write-ahead log, WAL: every change is written there before the tables are touched, which is also how it survives a crash). The other replicas, <dfn id="d-follower">followers</dfn> (secondaries, standbys, read replicas), receive that log and replay it in the same order, so they pass through the same states. Reads may go to any replica. This is Postgres streaming replication, MySQL replication, MongoDB replica sets and Kafka partitions; it is what the parent page called a read replica.</p>
+
+<h3>Synchronous or asynchronous: when does the leader say "saved"?</h3>
+<p>The leader can confirm a write to the client before or after followers have it:</p>
+<ul>
+<li><dfn id="d-async">Asynchronous</dfn>: confirm after the leader's own disk has it. Fast, and a slow follower never slows writes. Cost: if the leader dies, writes its followers had not received are lost, even though the client was told "saved".</li>
+<li><dfn id="d-sync">Synchronous</dfn>: confirm only after a follower has it too. A confirmed write survives the leader's death. Cost: every commit waits a round trip to the follower, and if that follower is down, writes stop (so real setups wait for "any one of several").</li>
+</ul>
+<p>Postgres makes this one setting, <code>synchronous_commit</code>, and its documentation is exact about what each value waits for ({{PostgreSQL 18 docs, synchronous_commit|https://www.postgresql.org/docs/current/runtime-config-wal.html}}). With no synchronous standby named, only the leader's flush counts. With one named in <code>synchronous_standby_names</code>: <code>on</code> waits until the standby has "flushed it to durable storage"; <code>remote_apply</code> waits until it has "applied it, so that it has become visible to queries on the standby(s)". Those are different moments, and the difference is exactly the stale-read question. So it was measured.</p>
+<div class="card" id="rd-meas">
+<div class="t"><b>Measured for this page: real Postgres replication on one laptop</b></div>
+<p class="small">A real primary and a real streaming replica (PostgreSQL 16.2 from the <code>pgserver</code> wheel, built with <code>pg_basebackup</code>), on one Apple M1 Pro laptop over TCP loopback, 4 October 2026. In each mode: 2,000 single-row inserts on the primary; right after each commit returns, read that row on the replica. Script <code>src/measure_replication.py</code>, output <code>src/inputs/replication_local.json</code>; takes about a minute.</p>
+<div class="tw"><table id="rd-meas-t">
+<thead><tr><th>Mode</th><th>Commit waits for</th><th class="num">Reads that missed the write</th><th class="num">Commit, median</th><th class="num">Commit, p99</th></tr></thead>
+<tbody>
+<tr><td>Asynchronous (default)</td><td>primary's own flush</td><td class="num">1,993 of 2,000 (99.65%)</td><td class="num">0.150 ms</td><td class="num">0.588 ms</td></tr>
+<tr><td>Synchronous, <code>on</code></td><td>replica has flushed WAL</td><td class="num">1 of 2,000 (0.05%)</td><td class="num">0.244 ms</td><td class="num">0.821 ms</td></tr>
+<tr><td>Synchronous, <code>remote_apply</code></td><td>replica has replayed it</td><td class="num">0 of 2,000</td><td class="num">0.266 ms</td><td class="num">0.859 ms</td></tr>
+<tr><td>Asynchronous + client waits for position</td><td>primary's flush; the reader waits for replay</td><td class="num">0 of 2,000</td><td class="num">0.206 ms</td><td class="num">0.684 ms</td></tr>
+</tbody></table></div>
+<p class="small">How to read it. <b>Even with both copies on one machine, asynchronous replication missed nearly every immediate read</b>: the write became visible on the replica a median 0.236 ms later (worst 6.8 ms), but the read was faster. <b>Synchronous <code>on</code> is not read-your-writes</b>: it guarantees the write is durable on the replica, not visible there, and one read in 2,000 still slipped through the gap between flush and replay. Only <code>remote_apply</code>, or the client waiting for the replica to reach its own write position (median extra wait 0.105 ms, p99 0.624 ms), closed it.</p>
+<p class="small"><b>What does not transfer to production:</b> here the "network" is loopback and macOS <code>fsync</code> returns before the drive truly flushes (see the parent's {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}}), so every commit is unrealistically cheap. With the replica in another availability zone, each synchronous commit adds at least one round trip (Microsoft targets under about 2 ms between zones); across the US, 69 ms. Lag grows the same way, so stale reads get more likely, not less.</p>
+</div>
+
+<h3>What lag does to readers: the before and after</h3>
+<p>Asynchronous followers are behind by some amount, the <dfn id="d-lag">replication lag</dfn>: usually milliseconds, sometimes seconds or minutes when a follower is overloaded or recovering. Three anomalies follow, and each has a standard fix. The animation runs the same write ("hello") through four ways of reading it back.</p>
+<div class="card" id="rd-repl-card">
+<div class="seg" id="rd-repl-seg"><button data-m="0" class="on">Before: stale read</button><button data-m="1">After: read-your-writes</button><button data-m="2">Before: reads go backwards</button><button data-m="3">After: monotonic reads</button></div>
+<div id="rd-repl-svg" class="rd-svg"></div>
+<div class="an-cnt" id="rd-repl-cnt"></div>
+<div class="an-cap" id="rd-repl-cap" aria-live="polite"></div>
+<div class="an-ctl" id="rd-repl-ctl"></div>
+<p class="small mute"><span class="ill">Illustrative</span> positions and timing; the stale-read rate and the wait are the measured ones above.</p>
+</div>
+<ul>
+<li><dfn id="d-ryw">Read-your-writes</dfn> (read-after-write): a user always sees their own writes. Fixes: read data the user may have just changed from the leader (for example, for one minute after their last write), or remember the log position of their last write and have the replica wait until it has replayed that far. In Postgres the second is two functions:
+<div class="fm" style="font-size:12.5px"><code>-- on the primary, right after the write commits<br>SELECT pg_current_wal_insert_lsn();   -- e.g. 0/3000148, keep it in the session<br>-- on the replica, before reading<br>SELECT pg_last_wal_replay_lsn() &gt;= '0/3000148'::pg_lsn;   -- wait until true</code></div>
+This is exactly what the measurement's fourth row ran. The cost is a short wait on the reads that need it, and the session must carry a position.</li>
+<li><dfn id="d-mono-r">Monotonic reads</dfn>: once a user has seen some state, they never see an older one. Fix: send each user's reads to the same replica (hash the user id), as in the animation.</li>
+<li><dfn id="d-prefix">Consistent prefix reads</dfn>: if writes happened in an order, readers see them in that order. In the chat, Ben asks "lunch?" and Ana answers "yes". If the two messages are stored on different machines with different lag, a third user can see "yes" before "lunch?". Fix: keep things that are causally related (one chat's messages) on the same partition, so one log orders them; the general tool is <a href="#rd-clock">causal ordering</a>.</li>
+</ul>
+
+<h3>Failover: when the leader dies</h3>
+<p>If the leader dies, a follower must be <dfn id="d-promote">promoted</dfn> to leader and clients must switch to it: <dfn id="d-failover">failover</dfn>. Done by hand it takes minutes; done automatically it is fast and dangerous, for three reasons:</p>
+<ol>
+<li><b>Is it really dead?</b> Only a timeout says so (the four silences above). A leader that was merely slow or cut off comes back still believing it is the leader: two leaders accepting writes, <dfn id="d-splitbrain">split brain</dfn>. Preventing this is what consensus and fencing are for.</li>
+<li><b>Lost writes.</b> With asynchronous replication, the promoted follower may lack the last writes the old leader confirmed. Those confirmed writes are gone, and if the old leader returns its extra writes conflict with the new history.</li>
+<li><b>Across regions.</b> GitHub's 2018 outage is all three in one: 43 seconds of partition, automatic promotion of the other coast's replicas, writes on both sides, and a 24-hour repair because GitHub "chose data integrity" over a fast fail-back ({{GitHub|https://github.blog/news-insights/company-news/oct21-post-incident-analysis/}}). Afterwards it stopped automatic promotion across regions.</li>
+</ol>
+<p>In practice, Postgres itself never promotes anything; tools such as Patroni do it. Patroni "supports a variety of distributed configuration stores like ZooKeeper, etcd, Consul or Kubernetes" ({{Patroni 4.1 documentation|https://patroni.readthedocs.io/en/latest/}}): consensus-backed stores that decide which single node holds the leader key at any moment. Managed services (Amazon RDS Multi-AZ, Cloud SQL) do the same internally.</p>
+
+<h3>Multi-leader: writes in several places</h3>
+<p>With users on several continents, you may want a leader in each region so writes do not cross an ocean. Each leader accepts writes and replicates them to the others. The price is <dfn id="d-conflict">write conflicts</dfn>: Ana renames a chat to "Trip" on her phone (Europe leader) while her laptop renames it to "Holiday" (US leader). Both succeed locally; when the changes meet, something must choose. Options: <b>last write wins</b> (keep the one with the later timestamp; simple, silently discards the other, and clocks can lie), merge both values, ask the user, or use data types designed to merge automatically (<dfn id="d-crdt">CRDTs</dfn>, conflict-free replicated data types: counters, sets and text that merge the same way whatever the order). Avoid multi-leader unless you need it; the usual trick is to route all writes for one item (one user, one chat) to one "home" leader, which avoids most conflicts.</p>
+
+<h3>Leaderless: any replica takes writes</h3>
+<p>Amazon's Dynamo paper (2007) made the third style famous: no leader at all. The client (or a coordinator acting for it) sends each write to several replicas and each read to several replicas, and counts answers. Cassandra, Riak and ScyllaDB work this way. Its central idea, the quorum, is the next section.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Replication internals (WAL shipping, logical replication, MVCC) in {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}; the parent's {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab for GitHub 2018 and Discord 2023 in full.</div>
+</section>

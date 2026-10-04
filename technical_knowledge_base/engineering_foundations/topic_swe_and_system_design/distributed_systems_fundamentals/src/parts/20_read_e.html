@@ -1,0 +1,50 @@
+
+<section id="rd-quorum">
+<h2>Quorums: N, R and W</h2>
+<p>In a leaderless system each piece of data is stored on <b>N</b> replicas. A write is sent to all N and counts as successful once <b>W</b> of them confirm. A read asks replicas and waits for <b>R</b> answers, then takes the newest version among them (every value carries a version). The rule that makes this work is one line:</p>
+<div class="fm"><div class="eq">R + W &gt; N</div><dl><dt>N</dt><dd>replicas that hold each item</dd><dt>W</dt><dd>replicas that must confirm a write</dd><dt>R</dt><dd>replicas a read must hear from</dd></dl></div>
+<p>If R + W &gt; N, every read set and every write set share at least R + W − N replicas, so at least one replica the read hears from has the latest successful write. This overlapping set is a <dfn id="d-quorum">quorum</dfn>. Amazon's Dynamo paper: "The common (N,R,W) configuration used by several instances of Dynamo is (3,2,2)" ({{DeCandia et al., SOSP 2007|https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf}}). Try it; the read is drawn picking the worst replicas it could.</p>
+<div class="widget" id="rd-q-card">
+<div class="ctl">
+<label>N, replicas <b id="rd-q-nv"></b><input type="range" id="rd-q-n" min="1" max="7" value="3"></label>
+<label>W, write confirmations <b id="rd-q-wv"></b><input type="range" id="rd-q-w" min="1" max="3" value="2"></label>
+<label>R, read answers <b id="rd-q-rv"></b><input type="range" id="rd-q-r" min="1" max="3" value="2"></label>
+</div>
+<div class="chips" id="rd-q-pre"><button data-p="3,2,2">Dynamo (3,2,2)</button><button data-p="3,1,1">Cassandra ONE / ONE</button><button data-p="5,3,3">QUORUM with 5 copies</button><button data-p="3,3,1">Write ALL, read ONE</button></div>
+<div id="rd-q-svg" class="rd-svg"></div>
+<div class="out" id="rd-q-out"></div>
+<p class="small" id="rd-q-cap"></p>
+</div>
+<p>The knobs trade against each other: lower W makes writes faster and keeps them working with more replicas down (N − W may be down), lower R does the same for reads (N − R). Cassandra exposes this per query as <dfn id="d-cl">consistency levels</dfn>: "QUORUM: A majority (n/2 + 1) of the replicas must respond", ONE, ALL, LOCAL_QUORUM (a majority in the local data centre) and others, and its docs call them "a version of Dynamo's R + W &gt; N consistency mechanism" ({{Apache Cassandra docs, Dynamo architecture|https://cassandra.apache.org/doc/latest/cassandra/architecture/dynamo.html}}). Replicas that missed a write catch up by <b>read repair</b> (a read that sees an old version writes the new one back) and by <b>anti-entropy</b>: background comparison of Merkle trees, hash trees that let two replicas find differing ranges without sending all the data (Dynamo, Table 1).</p>
+<div class="corr"><div class="t">R + W &gt; N is not the same as strong consistency</div>It guarantees overlap, not linearizability (defined <a href="#rd-cons">below</a>). Abadi: by increasing R + W such systems "gain more consistency at the expense of latency (although they cannot achieve full consistency as defined by Gilbert and Lynch, even if R + W &gt; N)" ({{Abadi, IEEE Computer, Feb 2012|https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf}}). The gaps: two concurrent writes, settled by timestamps (Cassandra uses "a simpler last-write-wins model where every mutation is timestamped", so a skewed clock picks the winner); a write that reached fewer than W replicas reports failure but is not rolled back where it landed; and a <b>sloppy quorum</b>, Dynamo's choice under failures, accepts writes on replicas outside the usual N ("hinted handoff") so the overlap no longer holds. Discord, which read and wrote "with quorum consistency level" on Cassandra, also found that one slow replica in a busy partition slowed everyone ("discord-2023" in the parent's Case files).</div>
+</section>
+
+<section id="rd-part">
+<h2>Partitioning: splitting the data</h2>
+<p>Replication copies everything everywhere, so it cannot help when the data or the write rate outgrow one machine. <dfn id="d-partition">Partitioning</dfn> (sharding; each piece is a partition or shard) gives each machine a slice. Each slice is usually also replicated, so a real cluster is partitioned <i>and</i> replicated: DynamoDB keeps every partition as three replicas in three availability zones ({{Elhemali et al., USENIX ATC 2022|https://www.usenix.org/system/files/atc22-elhemali.pdf}}). The design question is which machine holds which key.</p>
+<h3>By key range or by hash</h3>
+<ul>
+<li><dfn id="d-range">Key-range partitioning</dfn>: shard 1 holds users A to F, shard 2 G to M, and so on, like volumes of an encyclopedia. Range queries ("all messages in this chat between Monday and Friday") hit one shard. Danger: keys that arrive in order all land on the same shard; partitioning messages by timestamp sends every new message to the last shard.</li>
+<li><dfn id="d-hashp">Hash partitioning</dfn>: run the key through a hash function and use the hash to pick the shard. Keys spread evenly whatever their pattern. Cost: range queries must ask every shard.</li>
+</ul>
+<p>The obvious way to turn a hash into a shard is <code>hash(key) mod N</code>. It is a trap: add one machine (N to N + 1) and almost every key's remainder changes, so almost all data must move. <dfn id="d-ch">Consistent hashing</dfn> fixes this. Place each machine at several random points on a circle of hash values; a key belongs to the first machine point clockwise from its own hash. Adding a machine only takes over the arcs just before its points, about 1/(N + 1) of the keys. Each machine gets many points (<dfn id="d-vnode">virtual nodes</dfn>, Dynamo's "tokens") so its share is even. More is not free: the Cassandra docs warn that every token adds ring neighbours, so "The more tokens you have, the higher the probability of an outage" when several machines fail at once ({{Cassandra docs|https://cassandra.apache.org/doc/latest/cassandra/architecture/dynamo.html}}). The widget hashes 10,000 real keys with a real hash function and adds one machine:</p>
+<div class="widget" id="rd-ring-card">
+<div class="seg" id="rd-ring-seg"><button data-m="mod" class="on">Before: hash mod N</button><button data-m="ring">After: consistent hashing</button></div>
+<div class="ctl">
+<label>Machines before adding one: <b id="rd-ring-nv"></b><input type="range" id="rd-ring-n" min="2" max="10" value="4"></label>
+<label>Points per machine (virtual nodes): <b id="rd-ring-vv"></b><input type="range" id="rd-ring-v" min="0" max="5" value="3"></label>
+</div>
+<div id="rd-ring-svg" class="rd-svg"></div>
+<div class="out" id="rd-ring-out"></div>
+<p class="small mute" id="rd-ring-cap"></p>
+</div>
+<p class="small mute">Keys are the strings <code>user:0</code> to <code>user:9999</code>; the hash is 32-bit FNV-1a followed by MurmurHash3's 32-bit finalizer (plain FNV-1a placed similar names such as <code>node-0-vn-1</code> and <code>node-0-vn-2</code> next to each other, clumping a machine's points); machine <i>m</i>'s points are the hashes of <code>node-m-vn-v</code>. Every figure is recomputed by <code>src/recompute.py</code> and matches the page's JavaScript.</p>
+<h3>Hot keys, rebalancing, and finding the right shard</h3>
+<ul>
+<li><dfn id="d-hot">Hot keys</dfn>. Hashing spreads keys, not load. One celebrity user, or one busy Discord channel, is one key on one shard. Discord's fix was to stop sending the same query a thousand times (request coalescing) before buying a bigger database ("discord-2023" in Case files). Other fixes: add a random suffix to a hot key so it spreads over several shards (reads must then gather all of them), or cache it.</li>
+<li><dfn id="d-rebal">Rebalancing</dfn>. Rather than consistent hashing, many databases create many more partitions than machines from day one and move whole partitions when machines are added: Instagram created thousands of logical shards on a few Postgres servers in 2012, and Notion split its Postgres into 480 logical shards on 32 physical databases in 2021, choosing 480 because it divides evenly over 40 or 48 hosts later ("insta-2012" and "notion-2021" in the parent's {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). Moving data is slow and loads the network, so it is throttled and usually triggered by a person or a careful controller.</li>
+<li><b>Secondary indexes.</b> Looking a chat up by id is one shard; "all chats mentioning Lisbon" is all of them. A <i>local</i> index (one per shard) makes writes cheap and reads ask every shard; a <i>global</i> index is itself partitioned and kept up to date asynchronously. In DynamoDB, "All reads from GSIs and streams are eventually consistent" ({{DynamoDB read consistency|https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html}}).</li>
+<li><b>Routing.</b> Someone must know the map from key to shard: the client library (Cassandra drivers), a routing tier (Vitess, MongoDB's mongos), or any node that forwards. The map itself must be agreed, which is a job for consensus.</li>
+</ul>
+<p>Choose the <dfn id="d-shardkey">shard key</dfn> so the common queries hit one shard and related data lands together: for the chat product, <b>by user</b> (or by workspace, as Notion did). It is among the most expensive decisions to change later.</p>
+</section>

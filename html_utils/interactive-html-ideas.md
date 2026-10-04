@@ -2024,3 +2024,36 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | 7 | Request timeline (queue, prefill, decode) as an animated Gantt | 3 / 3 / medium | Reading s2 | rejected: the parent root's continuous-batching animation and the PagedAttention page cover the engine side; a flow strip is enough |
 | 8 | Degradation ladder simulator | 3 / 2 (no published data on rung effects) / medium | s11 | rejected: would be invented numbers; the lab's outage presets carry the fallback rung |
 | 9 | Feature store point-in-time join animation | 3 / 3 / medium | s13 | rejected for now: classic ML is one section here; a candidate if Khalid wants a classic-ML child |
+
+### Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/reliability_engineering/src/viz_ideas.md`.
+
+| Idea | Placement | T | R | N | Notes |
+|---|---|---|---|---|---|
+| A retry storm, measured: six retry policies against the same 5 s slowdown on a real local HTTP service (3 seeds each), with per-second answers, attempts and server queue | Reading, inline card plus table | 5 | 5 | 5 | `src/lab/` (server.py, loadgen.py, run_all.sh, summarize.py), about 14 min of runs. Headline: backoff + jitter alone did not recover; budget and bounded queue did. |
+| Before/after animation: the same provider slowdown hitting the chat API without and with timeout + breaker + shedding + fallback (worker strip, queue, per-second outcomes, captions, counters) | Reading, Graceful degradation | 5 | 2 (model) | 5 | RD.anim controller from the root; engine shared with the lab. |
+| Resilience lab: 21 controls (traffic, workers, queue limits, patience, dependency slots and latency, timeout, attempts, backoff, budget, breaker, fallback, deadline propagation, seed), 8 presets, 3 charts, measured overlay | Tab | 5 | 4 (calibrated to the measurement) | 4 | Root's Scale simulator has a retry toggle on an M/M/c model; this one is a ms-step discrete-event model with breakers, budgets and deadlines. |
+| Five rate limiters on one fixed burst trace (fixed window, sliding log, sliding window counter, token bucket, leaky bucket queue) | Reading, Rate limiting | 4 | 2 (illustrative trace) | 5 | Shows the fixed-window boundary burst (20 in one second), the token bucket burst (15) and the leaky bucket's wait. |
+| Error budget and alerts: SLO, traffic, normal error ratio, incident ratio and length against the workbook's multiwindow burn-rate alerts; budget over 28 days | Tab | 5 | 3 (published thresholds) | 5 | Minute-step simulation; compares with the workbook's detection-time formula. |
+| Nines table, dependency chain, burn-rate threshold table, fan-out 63% | Reading, computed tables | 3 | 4 | 3 | Numbers to know on the root has an availability calculator; linked rather than rebuilt. |
+
+### Distributed systems fundamentals: replication, partitioning, consistency, consensus (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals/src/viz_ideas.md`.
+
+| Idea | Placement | T | D | C | Status | Notes |
+|---|---|---|---|---|---|---|
+| Raft lab: five-server simulation, guided 10-step tour (election, commit, leader crash, re-election, restart and catch-up, split with leader on the minority side, heal and overwrite, loss of majority) and free mode (crash, restart, split off, write, next event) | Tab "Raft lab" | 5 | real algorithm (paper's Figure 2), simulated time | 5 | built | Model separate from UI; fuzz-tested by check_raft.mjs (300 runs, safety invariants after every event, liveness after heal). Reduced motion: tour steps jump to their end state |
+| Replication lag before/after: the same write "hello" read back four ways (stale read; read-your-writes wait; reads going backwards; sticky replica) | Reading, Replication | 5 | illustrative positions, measured rates beside | 2 | built | DeepSeek-style step animation with counters |
+| Real Postgres primary + streaming replica measured: async / sync on / remote_apply / async + LSN wait, 2,000 writes each | Reading, table | 5 | real (measure_replication.py, ~1 min) | 2 | built | Key finding: sync `on` still let 1 of 2,000 reads be stale; async missed 99.65% even on loopback |
+| Fencing token before/after on the same GC pause (Ana's credits) | Reading, Leases | 5 | illustrative amounts, Kleppmann's tokens | 2 | built | |
+| Consistency lab: seven histories, brute-force linearizable and sequential checker, editable reads | Tab "Consistency lab"; two histories inline in Reading | 5 | computed | 3 | built | Causal/RYW/eventual verdicts hand-written for presets, shown as "?" after edits |
+| hash mod N vs consistent hashing on 10,000 real keys, adding one machine, vnode slider | Reading, Partitioning | 4 | computed (FNV-1a + fmix32) | 2 | built | Plain FNV-1a clumped vnode tokens (busiest machine x1.86 at 64 vnodes); finalizer added and said on the page |
+| Quorum N/R/W widget with worst-case read | Reading, Quorums | 4 | computed | 1 | built | |
+| Lamport vs vector clocks on one diagram, tap two events | Reading, Clocks | 4 | computed | 2 | built | |
+| Four silences (request lost, crash, slow, reply lost) | Reading, What goes wrong | 4 | conceptual | 1 | built | |
+| Local etcd cluster: kill the leader, measure re-election | - | 4 | real | 3 | rejected for now | Would need a 20 MB binary download; the Raft paper's own measurements are quoted instead. Good follow-up |
+| Partition simulator for CAP (two halves, a write, a read) | - | 3 | conceptual | 2 | rejected | The Raft lab's split step shows the same choice with a real algorithm |
+| Replication lag with injected network delay (tc/netem) | - | 3 | real | 3 | rejected | macOS has no netem; loopback result already makes the point |
+| Jepsen findings timeline chart | - | 2 | real | 1 | rejected | A dated table reads better than a chart for ten findings |

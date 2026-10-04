@@ -1,0 +1,1236 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+#ovBars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 6.6em;margin:5px 0}#ovBars .row .nm{white-space:normal;line-height:1.2}#ovBars .ml{display:block;font-size:11.5px;color:var(--mute)}
+#ovBars .track{height:12px}
+#pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+@media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:12px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+.an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.an-ctl select{padding:3px 6px}.an-play{min-width:6.4em}
+.an-cap{min-height:6.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+.an-cap .t{font-weight:600;font-size:14px}.an-cap p{margin:2px 0;font-size:13.5px}
+.an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:6px;margin:6px 0}
+.an-cnt .stat .v{font-size:16px}
+.seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}.seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+.seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+.rd-svg{width:100%;overflow:hidden}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.prob{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:10px 0;counter-reset:pb}
+.prob a{display:block;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:8px;padding:7px 10px;background:var(--soft);font-size:13.5px;min-width:0}
+.prob a b{display:block;font-size:13.5px}.prob a b:before{counter-increment:pb;content:counter(pb) ". ";color:var(--mute)}
+.prob a span{color:var(--mute);font-size:12.5px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:10px 0}
+.two>div{min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.two h4{margin:0 0 4px;font-size:13.5px}
+.step-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.snum{display:inline-block;font-size:12px;font-weight:600;color:var(--bg);background:var(--sc,var(--acc));border-radius:99px;padding:0 9px;line-height:1.7}
+.wall{border:1px solid var(--bad);border-radius:8px;padding:8px 12px;margin:10px 0;background:var(--soft)}
+.wall .t{color:var(--bad);font-weight:600;font-size:13px}
+.fix{border:1px solid var(--good);border-radius:8px;padding:8px 12px;margin:10px 0}
+.fix .t{color:var(--good);font-weight:600;font-size:13px}
+.cost{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:8px;padding:8px 12px;margin:10px 0}
+.cost .t{font-weight:600;font-size:13px}
+dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}dfn{scroll-margin-top:60px}
+.gl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:4px 14px;font-size:13.5px}
+.gl div{min-width:0;padding:3px 0;border-bottom:1px solid var(--line)}
+.gl b a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--acc)}
+.leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+.leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+.flow{display:flex;flex-wrap:wrap;gap:4px;align-items:stretch;margin:8px 0;font-size:12.5px}
+.flow>div{border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:var(--soft);min-width:0;flex:1 1 120px}
+.flow>div b{display:block;font-size:12.5px}
+.flow>i{align-self:center;color:var(--mute);font-style:normal}
+.reason{counter-reset:rs}.reason>div{border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+.reason>div b:before{counter-increment:rs;content:counter(rs) ". ";color:var(--mute)}
+@media (max-width:520px){.an-cap{min-height:9em}.flow>i{display:none}}
+
+.chart{width:100%;overflow:hidden;margin:6px 0}
+.code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:8px 0;overflow-x:auto;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+.code .cm{color:var(--mute)}
+.corr{border:1px solid var(--bad);border-left:4px solid var(--bad);border-radius:8px;padding:8px 12px;margin:10px 0;background:var(--soft)}.corr .t{color:var(--bad);font-weight:600;font-size:13px}
+.meas{border:1px solid var(--line);border-left:4px solid var(--c6);border-radius:8px;padding:8px 12px;margin:10px 0}.meas .t{font-weight:600;font-size:13px;color:var(--c6)}
+blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--line);color:var(--ink);font-size:14px}
+.when{font-size:13.5px;margin:6px 0}.when b{color:var(--mute);font-weight:600}
+.onescreen td:first-child{font-weight:600}
+</style></head><body><div class="w">
+<h1>Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents</h1>
+<div class="sub">How a service keeps working when the things it depends on do not, taught from zero: what "reliable" means and costs, how systems fail, the defences (timeouts, retries, idempotency, circuit breakers, bulkheads, load shedding, rate limits, health checks, safe deploys), how much failure to allow (SLOs and error budgets), and what to do when it happens anyway (incidents and postmortems). Child page of <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a>. Includes a retry storm measured on a real local service. Sources linked inline; checked October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Resilience lab</button><button role="tab" data-t="t-slo" aria-selected="false">Error budget and alerts</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<p class="small mute">About 45 minutes to read. Every section can be read alone; terms are defined at first use (in bold) and collected in the glossary at the end. This page owns the depth on failure and reliability; the parent root's Step 4 gives the five-minute version.</p>
+<nav class="nav" id="rd-nav">
+<a href="#s-one">In one screen</a><a href="#s-mean">What reliable means</a><a href="#s-fail">How things fail</a><a href="#s-to">Timeouts</a><a href="#s-re">Retries</a><a href="#s-meas">A storm, measured</a><a href="#s-idem">Idempotency</a><a href="#s-cb">Circuit breakers</a><a href="#s-bh">Bulkheads</a><a href="#s-shed">Load shedding</a><a href="#s-deg">Degradation</a><a href="#s-rl">Rate limiting</a><a href="#s-hc">Health checks</a><a href="#s-dep">Safe deploys</a><a href="#s-slo">SLOs</a><a href="#s-inc">Incidents</a><a href="#s-pm">Postmortems</a><a href="#s-prod">In production</a><a href="#s-mist">Mistakes</a><a href="#s-gl">Glossary</a>
+</nav>
+
+<section id="s-one">
+<h2>In one screen</h2>
+<p class="lead">Our running example is the parent topic's chat assistant: a phone app sends a message to <b>our chat API</b> (the program we run on our servers), which saves the message in a database and calls a <b>model provider</b> (a separate company's service that generates the reply). Every arrow in that sentence is a network call to something we do not control, and at the parent root's scale of 10 million messages a day, "rarely" means "every few minutes". Reliability engineering is the craft of keeping the product working anyway, and of deciding how much "working" is enough.</p>
+<div class="tw"><table class="onescreen">
+<thead><tr><th>Problem</th><th>Defence</th><th>What it costs</th><th>When not to use it</th></tr></thead>
+<tbody>
+<tr><td>A call hangs and holds a worker forever</td><td><a href="#s-to">Timeout</a> on every call; a <a href="#s-to">deadline</a> passed down the chain</td><td>Abandons some calls that would have succeeded</td><td>Never skip it; only tune it</td></tr>
+<tr><td>A blip fails a request that would succeed a moment later</td><td><a href="#s-re">Retry</a> with backoff and jitter, capped by a retry budget</td><td>Extra load exactly when the system struggles</td><td>Non-idempotent writes without a key; at more than one layer; when the dependency is overloaded</td></tr>
+<tr><td>A retried payment charges twice</td><td><a href="#s-idem">Idempotency key</a></td><td>Storage for keys and results, with an expiry</td><td>Naturally idempotent reads</td></tr>
+<tr><td>A sick dependency is called anyway and every call waits for its timeout</td><td><a href="#s-cb">Circuit breaker</a>: fail fast for a while</td><td>Rejects some calls that would have worked; one more state machine to test</td><td>Low traffic (too few calls to judge); when one breaker would cover many independent hosts</td></tr>
+<tr><td>One slow dependency eats every worker</td><td><a href="#s-bh">Bulkhead</a>: separate pools</td><td>Idle capacity in each pool</td><td>When pools would be too small to be useful</td></tr>
+<tr><td>More work arrives than the service can do</td><td><a href="#s-shed">Load shedding</a>, bounded queues, <a href="#s-rl">rate limits</a></td><td>Some users get a fast "try later"</td><td>Never let a queue grow without bound instead</td></tr>
+<tr><td>A part of the product is down</td><td><a href="#s-deg">Graceful degradation</a>: a worse answer instead of none</td><td>A second code path that must be tested</td><td>When a wrong answer is worse than no answer (payments)</td></tr>
+<tr><td>A bad change reaches everyone at once</td><td><a href="#s-dep">Canaries, waves, feature flags, automatic rollback</a></td><td>Slower releases</td><td>Never for changes that can break production, config included</td></tr>
+<tr><td>How much failure is acceptable?</td><td><a href="#s-slo">SLIs, SLOs, error budgets</a>, burn-rate alerts</td><td>Measurement, and the discipline to slow down when the budget is spent</td><td>Too many SLOs, or targets nobody acts on</td></tr>
+<tr><td>It broke anyway</td><td><a href="#s-inc">Incident response</a> roles and <a href="#s-pm">blameless postmortems</a></td><td>Time and a culture that does not punish honesty</td><td>Skipping the postmortem because the fix was quick</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Three ideas carry most of this page</div>
+<p><b>1. Slow is worse than down.</b> A dependency that is down fails fast; one that is slow quietly holds your workers, queues and memory until you fall over too. Timeouts, breakers and bulkheads exist to turn "slow" back into "fast failure".</p>
+<p><b>2. Every defence adds load or removes work.</b> Retries add load; shedding, breakers and deadlines remove work. A system recovers only when the work removed beats the work added, which is why <a href="#s-meas">the measured retry storm below</a> never recovered with backoff and jitter alone, and recovered at once with a retry budget or a bounded queue.</p>
+<p><b>3. Reliability is a number you choose and then spend.</b> 100% is impossible and each extra nine costs roughly ten times the last; pick a target per user journey, measure it, and spend the remainder on shipping.</p>
+</div>
+</section>
+
+<section id="s-mean">
+<h2>What "reliable" means, and what it costs</h2>
+<p>"Reliable" bundles three different promises, and a product can keep one while breaking another:</p>
+<ul>
+<li><dfn id="d-avail">Availability</dfn>: the service answers when asked. Google's SRE book gives two ways to measure it: by time, <i>uptime / (uptime + downtime)</i>, or by requests, <i>successful requests / total requests</i>; for a service spread over many machines, which is never fully up or fully down, it uses the request form, "availability in terms of the request success rate" (<a href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener noreferrer">SRE book, ch. 3</a>).</li>
+<li><dfn id="d-durab">Durability</dfn>: data you were told is saved is still there later. It is a separate number: Amazon S3 is "designed to provide 99.999999999% (11 nines) data durability" while S3 Standard is designed for "99.99% availability" (<a href="https://aws.amazon.com/s3/faqs/" target="_blank" rel="noopener noreferrer">S3 FAQ</a>). A chat history that is temporarily unreachable is an availability problem; one that is gone is a durability problem, and far worse.</li>
+<li><dfn id="d-correct">Correctness</dfn>: the answer is right. A model service can return 200 OK with a worse answer; the root's Case files hold Anthropic's 2025 account of three serving bugs that quietly degraded Claude's answers, which no error counter saw (the root's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files</a> tab). For LLM products, quality is measured with evaluations (<a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>).</li>
+</ul>
+<h3>The nines, and what each one costs</h3>
+<p>Availability targets are spoken in <dfn id="d-nines">nines</dfn>: 99.9% is "three nines". The table converts each into allowed downtime (computed as (1 − target) × period; the SRE book's <a href="https://sre.google/sre-book/availability-table/" target="_blank" rel="noopener noreferrer">availability table</a> gives the same values with a 30-day month).</p>
+<div class="tw"><table id="rd-nines"></table></div>
+<p>Each step down the table is ten times less downtime, and the cost grows faster than that: "an incremental improvement in reliability may cost 100x more than the previous increment" (SRE book, ch. 3). The book's own worked example: moving a service with $1M of revenue from 99.9% to 99.99% is worth at most $900 ($1M × 0.09%), so a nine that costs more is not worth buying. Users also cannot tell the difference past a point, because their phone network and Wi-Fi fail more often than that.</p>
+<p><b>Dependencies multiply.</b> If our chat API needs the load balancer, our servers, the database, the cache and the model provider all to work, its availability is at most the product of theirs. With the parent's example figures (99.99%, 99.9%, 99.95%, 99.9%, 99.5%) that is <b id="rd-chain">99.24%</b>, below the weakest link. Treynor and colleagues put it as a rule: "A service cannot be more available than the intersection of all its critical dependencies", so critical dependencies "must offer one additional 9 relative to your service", the "rule of the extra 9" (<a href="https://web.archive.org/web/20231218074029/https://queue.acm.org/detail.cfm?id=3096459" target="_blank" rel="noopener noreferrer">Treynor, Dahlin, Rau, Beyer, ACM Queue 2017 (archived copy)</a>). The ways out are to need fewer things (make a dependency optional, with a fallback), or to have copies of them (two providers, three replicas). The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Numbers to know</a> tab has an availability calculator for chains like this.</p>
+<p>A second rule from the same article: "A service cannot be more available than its incident frequency multiplied by its detection and recovery time." Three 20-minute outages a year are 60 minutes, already more than the 52.56 minutes that 99.99% allows. Past three nines, reliability is mostly about how fast you notice and undo a problem, not about how rarely it happens.</p>
+<div class="when"><b>What the big services actually show (2026-10-04, 90-day uptime on their own status pages):</b> OpenAI APIs 99.96%, ChatGPT 99.65% (<a href="https://status.openai.com/" target="_blank" rel="noopener noreferrer">status.openai.com</a>); Claude API 99.52%, claude.ai 99.44% (<a href="https://status.claude.com/" target="_blank" rel="noopener noreferrer">status.claude.com</a>). These are each company's own aggregate definitions, not comparable SLOs, but they show that LLM products live around two to three nines today.</div>
+</section>
+
+<section id="s-fail">
+<h2>How things fail</h2>
+<p>Design against the failure you will actually get. From easiest to hardest to handle:</p>
+<div class="two">
+<div><h4>Crash (fail-stop)</h4><p class="small">The process dies or the machine disappears; connections are refused at once. Easy to detect, easy to route around: the load balancer stops sending traffic to it.</p></div>
+<div><h4>Slow</h4><p class="small">It answers, but in 3 seconds instead of 30 ms. Nothing errors, so nothing alarms, while every caller holds a worker, a connection and memory for 100 times longer. Most cascades start here.</p></div>
+<div><h4>Partial</h4><p class="small">One shard, one zone, one in ten requests, or one kind of request fails. Averages hide it: 1% of users completely broken looks like a 99% healthy service.</p></div>
+<div><h4>Gray failure</h4><p class="small">The system's own health checks say "fine" while its users see failures. Huang and colleagues name the key feature "differential observability: that the system's failure detectors may not notice problems even when applications are afflicted by them" (<a href="https://web.eecs.umich.edu/~ryanph/paper/grayfailure-hotos17.pdf" target="_blank" rel="noopener noreferrer">HotOS 2017</a>). The defence is to measure from the user's side (<a href="#s-slo">SLIs</a>) as well as the server's.</p></div>
+</div>
+<h3>Metastable failure: when the system stays broken after the cause is gone</h3>
+<p>The most dangerous pattern has a name. Bronson, Aghayev, Charapko and Zhu: "Metastable failures occur in open systems with an uncontrolled source of load where a trigger causes the system to enter a bad state that persists even when the trigger is removed" (<a href="https://sigops.org/s/conferences/hotos/2021/papers/hotos21-s11-bronson.pdf" target="_blank" rel="noopener noreferrer">HotOS 2021</a>). An <dfn id="d-open">open system</dfn> is one where new work keeps arriving whatever the system does (users keep sending messages); its opposite, a closed system, has a fixed set of clients that each wait for an answer before sending more. The paper describes three states:</p>
+<div class="flow"><div><b>Stable</b>Load is low enough that a hiccup is absorbed.</div><i>&rarr;</i><div><b>Vulnerable</b>Load is above a hidden threshold. Still healthy, and efficient, so many systems run here all the time.</div><i>&rarr;</i><div><b>Metastable</b>A <dfn id="d-trigger">trigger</dfn> (a slowdown, a deploy, a spike) tips it over, and a <dfn id="d-sustain">sustaining effect</dfn> keeps it there.</div></div>
+<p>"One of the most common failure-sustaining mechanisms is request retries" (same paper). A follow-up study of 22 metastable failures at 11 organisations found retry policy "by far, the most common sustaining effect ... affecting more than 50% of the studied incidents", and that at least 4 of 15 major AWS outages in a decade were metastable (<a href="https://www.usenix.org/system/files/osdi22-huang-lexiang.pdf" target="_blank" rel="noopener noreferrer">Huang et al., OSDI 2022</a>). The practical lesson from Bronson: "It is common for an outage that involves a metastable failure to be initially blamed on the trigger, but the true root cause is the sustaining effect." The root's Case files hold real ones: AWS's October 2025 EC2 outage (a queue that never drained), Google Cloud's June 2025 restart stampede and Roblox's 73-hour outage. You will watch one happen, on a real service, in <a href="#s-meas">A retry storm, measured</a>.</p>
+</section>
+<section id="s-to">
+<h2>Timeouts and deadlines: never wait forever</h2>
+<p>A <dfn id="d-timeout">timeout</dfn> is the longest a caller will wait for an answer before giving up and freeing whatever it was holding (a worker thread, a connection, memory). Without one, a single hung dependency can hold every worker in our chat API, and then requests that never needed that dependency (loading a conversation list) fail too. Many libraries do not set one for you:</p>
+<ul>
+<li>Python <code>requests</code>: "By default, requests do not time out unless a timeout value is set explicitly"; the docs add "Nearly all production code should use this parameter in nearly all requests" (<a href="https://requests.readthedocs.io/en/latest/user/quickstart/" target="_blank" rel="noopener noreferrer">requests docs</a>).</li>
+<li>gRPC: "By default, gRPC does not set a deadline which means it is possible for a client to end up waiting for a response effectively forever" (<a href="https://grpc.io/docs/guides/deadlines/" target="_blank" rel="noopener noreferrer">gRPC deadlines guide</a>).</li>
+<li><code>httpx</code> is the exception: it raises after "5 seconds of network inactivity" by default, and splits the timeout into connect, read, write and pool parts (<a href="https://www.python-httpx.org/advanced/timeouts/" target="_blank" rel="noopener noreferrer">httpx docs</a>).</li>
+</ul>
+<h3>Choosing the number</h3>
+<p>Too long and workers pile up behind a slow dependency; too short and you abandon calls that were about to succeed (and, if you retry them, you double the load). Marc Brooker's method at AWS: "we choose an acceptable rate of false timeouts (such as 0.1%). Then, we look at the corresponding latency percentile on the downstream service (p99.9 in this example)" (<a href="https://web.archive.org/web/2024/https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">Builders' Library, archived copy</a>). A <dfn id="d-pct">percentile</dfn> such as p99.9 is the latency that 99.9% of calls beat. He adds a caveat: when p99.9 is close to p50 (the median), "adding some padding helps us avoid small latency increases that cause high numbers of timeouts."</p>
+<div class="meas"><div class="t">Measured for this page</div>The tiny service used in <a href="#s-meas">the experiment below</a> (4 worker slots, each call taking 25 ms, 100 requests a second arriving at random) answered 2,972 requests in 30 s with p50 <b>27.5 ms</b>, p90 42.5 ms, p99 62.3 ms, p99.9 <b>72.3 ms</b>, max 77.6 ms (Apple M1 Pro, 2026-10-04, <code>src/lab/</code>). By Brooker's rule the timeout is about 72 ms; we padded it to <b>100 ms</b>. Note how far p99.9 sits from p50: waiting in the queue, not the 25 ms of work, makes the tail.</div>
+<h3>Deadlines, and passing them down</h3>
+<p>A timeout is relative ("wait 2 s"); a <dfn id="d-deadline">deadline</dfn> is absolute ("this request is worthless after 12:00:03.200"). When our chat API has a 10 s budget for the whole user request and has already spent 7 s, its call to the model provider should get the remaining 3 s, not a fresh 10. Passing the deadline along every hop is <dfn id="d-dprop">deadline propagation</dfn>: "a deadline is set high in the stack (e.g., in the frontend). The tree of RPCs emanating from an initial request will all have the same absolute deadline" (<a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener noreferrer">SRE book, ch. 22</a>). gRPC does it by converting "the deadline to a timeout from which the already elapsed time is already deducted", automatically in some languages and opt-in in others such as C++ (gRPC deadlines guide). Over HTTP there is no standard header; teams send their own (our experiment's service reads an <code>X-Deadline</code> header). The payoff is on the server side: a server that sees an expired deadline can skip the work, because nobody is waiting for the answer (Yanacek, <a href="https://builder.aws.com/content/3Eun1EEyX6p2e3VYNyRLSJzLuMV/using-load-shedding-to-avoid-overload" target="_blank" rel="noopener noreferrer">Using load shedding to avoid overload</a>).</p>
+<div class="code"><span class="cm"># Python, httpx 0.28: separate connect and read limits, and a per-call budget</span>
+client = httpx.Client(timeout=httpx.Timeout(2.0, connect=0.5))  <span class="cm"># 2 s read/write/pool, 0.5 s to connect</span>
+remaining = deadline - time.monotonic()
+r = client.post(url, json=body, timeout=max(0.05, remaining))   <span class="cm"># never more than the time left</span></div>
+<div class="cost"><div class="t">Common timeout mistakes</div>No timeout at all (the library default). One timeout for the whole stack, so an inner call outlives the outer caller who already gave up. An outer timeout shorter than inner timeout plus retries (the outer gives up while the inner is still retrying; Envoy counts retries inside the route timeout "to avoid an exponential retry/timeout explosion", <a href="https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/router_filter" target="_blank" rel="noopener noreferrer">Envoy router docs</a>). Streaming LLM replies with a total timeout of 10 s that kills long but healthy answers: use a time-to-first-token timeout plus an idle timeout between tokens instead.</div>
+</section>
+
+<section id="s-re">
+<h2>Retries: when they help, and how they hurt</h2>
+<p>Many failures are momentary: a connection reset, a server restarting, a 503 from an instance that was being replaced. A <dfn id="d-retry">retry</dfn> (sending the same request again) turns those into successes. Retry only when all three hold:</p>
+<ol>
+<li><b>The error is transient.</b> Connection errors, timeouts, 503 (unavailable), 429 (too many requests, after the server's <code>Retry-After</code> time). Not 400 or 422 (the request itself is wrong and will fail again), not 401 or 403.</li>
+<li><b>The operation is safe to repeat.</b> Reads are; "charge $20" is not unless it carries an <a href="#s-idem">idempotency key</a>. gRPC only retries before the reply headers arrive: "Once the response header is received, the RPC is committed. No further retries will be attempted" (<a href="https://grpc.io/docs/guides/retry/" target="_blank" rel="noopener noreferrer">gRPC retry guide</a>).</li>
+<li><b>The dependency is healthy overall.</b> Retrying into an overloaded service adds load to the thing that is already drowning. Brooker: "We avoid this amplification by retrying only when we observe that the dependency is healthy" (Builders' Library).</li>
+</ol>
+<h3>Amplification across layers</h3>
+<p>If each layer retries on its own, attempts multiply. Brooker's example is a five-deep stack with three tries at each layer: "the load on the database will increase 243x" (3<sup>5</sup> = 243), "making it unlikely to ever recover". The SRE book says the same: one request "may produce a number of attempts as large as the product of the number of attempts at each layer" (ch. 22). Hence the rule "retry at a single point in the stack" (Brooker), usually the layer closest to the user or the one that knows the operation is idempotent. In our chat product, if the phone app retries 3 times, our API retries the provider 3 times and the provider's gateway retries its GPU servers 3 times, one tap becomes up to 27 model calls.</p>
+<h3>Backoff and jitter</h3>
+<p><dfn id="d-backoff">Exponential backoff</dfn> waits longer before each retry, so a struggling service sees retries thin out. <dfn id="d-jitter">Jitter</dfn> randomises each wait, because clients that failed at the same moment and back off by the same amounts come back at the same moment, in waves. The formulas from Brooker's 2015 post (<a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener noreferrer">AWS Architecture Blog</a>), where <i>attempt</i> counts retries from 0, <i>base</i> is the first wait and <i>cap</i> the longest:</p>
+<div class="tw"><table>
+<thead><tr><th>Variant</th><th>Wait before the next try</th><th>Brooker's finding</th></tr></thead>
+<tbody>
+<tr><td>Capped exponential, no jitter</td><td><code>min(cap, base * 2 ** attempt)</code></td><td>"the clear loser. It not only takes more work, but also takes more time"</td></tr>
+<tr><td>Full jitter</td><td><code>random_between(0, min(cap, base * 2 ** attempt))</code></td><td>"uses less work, but slightly more time"; the usual default today</td></tr>
+<tr><td>Equal jitter</td><td>half the backoff fixed, half random</td><td>"Of the jittered approaches, 'Equal Jitter' is the loser"</td></tr>
+<tr><td>Decorrelated jitter</td><td><code>min(cap, random_between(base, sleep * 3))</code></td><td>close to full jitter</td></tr>
+</tbody></table></div>
+<p>With 100 clients contending, jitter "reduced our call count by more than half". The post's 2023 update says the scheme "continues to serve as a pillar for how Amazon builds remote client libraries", and most AWS SDKs use it. One limit the post states plainly: "none of these approaches fundamentally change the N<sup>2</sup> nature of the work" when N clients contend. Backoff spreads retries out in time; it does not reduce how many there are. That matters in the experiment below.</p>
+<h3>Retry budgets: capping the total</h3>
+<p>A <dfn id="d-rbudget">retry budget</dfn> limits retries to a share of normal traffic, so that when most calls fail, retries switch themselves off. It is usually a <dfn id="d-tbucket">token bucket</dfn>: a counter that fills slowly up to a maximum and is spent by each retry. Real implementations, with their defaults:</p>
+<div class="tw"><table>
+<thead><tr><th>Where</th><th>Rule</th><th>Default</th></tr></thead>
+<tbody>
+<tr><td>gRPC <code>retryThrottling</code> (<a href="https://github.com/grpc/proposal/blob/master/A6-client-retries.md" target="_blank" rel="noopener noreferrer">gRFC A6</a>)</td><td>Each failure takes 1 token, each success adds <code>tokenRatio</code>; no retries while tokens &le; <code>maxTokens</code>/2</td><td>No default; example 10 tokens, ratio 0.1. <code>maxAttempts</code> above 5 is treated as 5</td></tr>
+<tr><td>Google (SRE book, <a href="https://sre.google/sre-book/handling-overload/" target="_blank" rel="noopener noreferrer">ch. 21</a>)</td><td>At most 3 attempts per request, and retries only while they are under 10% of a client's requests</td><td>Three attempts alone let load grow to "somewhere just below 3X"; the 10% budget "reduces the growth to just 1.1x in the general case"</td></tr>
+<tr><td>Finagle <code>RetryBudget</code> (<a href="https://twitter.github.io/finagle/guide/Clients.html" target="_blank" rel="noopener noreferrer">docs</a>)</td><td>Retries up to a share of requests, plus a floor per second</td><td>20% plus 10 retries a second, 10 s window</td></tr>
+<tr><td>Envoy retry budget (<a href="https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/circuit_breaker.proto" target="_blank" rel="noopener noreferrer">API docs</a>)</td><td>Concurrent retries capped at a share of active requests</td><td>20%, at least 3; route retries default to 1, full jitter from a 25 ms base</td></tr>
+<tr><td>AWS SDKs (<a href="https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html" target="_blank" rel="noopener noreferrer">retry behaviour</a>)</td><td>3 attempts; a 500-token quota per client; a first-try success refunds 1 token</td><td>Before 2026: 5 tokens a retry, 10 after a timeout. The opt-in 2026 behaviour (<code>AWS_NEW_RETRIES_2026=true</code>): 14 tokens per transient retry, 5 per throttling retry, base delay 50 ms (1 s for throttling), cap 20 s</td></tr>
+</tbody></table></div>
+<p>The AWS docs state when their quota starts to drain: when "more than approximately 22% of requests result in sustained transient failures". Brooker credits the token bucket idea to the SDK: it "allows all calls to retry as long as there are tokens, and then retry at a fixed rate when the tokens are exhausted. AWS added this behavior to the AWS SDK in 2016."</p>
+<div class="code"><span class="cm"># Python, tenacity 9.1.4: full jitter, 3 attempts, only on transient errors</span>
+from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+
+@retry(stop=stop_after_attempt(3),                         <span class="cm"># 1 try + 2 retries</span>
+       wait=wait_random_exponential(multiplier=0.1, max=2), <span class="cm"># "Full Jitter" per its docstring</span>
+       retry=retry_if_exception_type((httpx.ConnectError, httpx.ReadTimeout)))
+def call_provider(body): ...</div>
+<div class="code"><span class="cm"># gRPC service config (gRFC A6): retry policy plus the retry throttle</span>
+{"methodConfig": [{"name": [{"service": "chat.Model"}],
+   "retryPolicy": {"maxAttempts": 3, "initialBackoff": "0.1s", "maxBackoff": "1s",
+                   "backoffMultiplier": 2, "retryableStatusCodes": ["UNAVAILABLE"]}}],
+ "retryThrottling": {"maxTokens": 10, "tokenRatio": 0.1}}</div>
+<p class="small mute">gRPC's own jitter is narrower than full jitter: each wait is the exponential value times random(0.8, 1.2) (gRFC A6). tenacity's <code>wait_random_exponential</code> is documented as corresponding "to the 'Full Jitter' algorithm" (<a href="https://raw.githubusercontent.com/jd/tenacity/9.1.4/tenacity/wait.py" target="_blank" rel="noopener noreferrer">source, 9.1.4</a>).</p>
+<h3>Hedging: a retry before the failure</h3>
+<p>A <dfn id="d-hedge">hedged request</dfn> sends a second copy when the first is merely slow, and uses whichever answers first. Dean and Barroso: defer the second request "until the first request has been outstanding for more than the 95th-percentile expected latency", which limits the extra load to about 5%; in a Google BigTable benchmark, hedging after 10 ms cut the 99.9th-percentile latency of reading 1,000 values "from 1,800ms to 74ms while sending just 2% more requests" (<a href="https://www.barroso.org/publications/TheTailAtScale.pdf" target="_blank" rel="noopener noreferrer">The Tail at Scale, CACM 2013</a>). Their reason it matters: if one call in 100 is slow and a page needs 100 calls in parallel, "63% of user requests will take more than one second" (1 − 0.99<sup>100</sup> = <span id="rd-fan">63.4%</span>). Hedge only idempotent reads, and never toward a dependency that is overloaded rather than unlucky; for LLM calls hedging doubles GPU cost, so it is rare.</p>
+</section>
+
+<section id="s-meas">
+<h2>A retry storm, measured</h2>
+<p>To see a metastable failure rather than read about one, this page ran one. <b>The setup</b> (code in <code>src/lab/</code>, Python standard library only, run 2026-10-04 on an Apple M1 Pro): a real HTTP service on a local socket with 4 worker slots; each request holds a slot for 25 ms (think: a call to a dependency through a pool of 4 connections), so it can serve about 160 requests a second. A load generator sends 100 new requests a second at random moments (an open system: arrivals do not wait for answers) for 40 s, with the 100 ms client timeout chosen above and at most 3 attempts. <b>The trigger:</b> from second 10 to second 15 the dependency slows to 100 ms per call, so capacity drops to 40 a second. Like most real servers, ours keeps working on a request even after its client has given up. Each configuration ran with 3 random seeds.</p>
+<div class="card" id="rd-ms-card">
+<b>Measured: the same 5-second slowdown under six retry policies</b>
+<div class="seg" id="rd-ms-seg"></div>
+<div class="seg" id="rd-ms-seed"></div>
+<div class="chart" id="rd-ms-svg"></div>
+<div class="leg" id="rd-ms-leg"></div>
+<div class="an-cnt" id="rd-ms-cnt"></div>
+<p class="small" id="rd-ms-note"></p>
+</div>
+<div class="tw"><table id="rd-ms-tab"></table></div>
+<p class="small mute">Success: share of the 4,000 logical requests that got an answer on some attempt. Attempts per request: how many HTTP requests each logical request caused. Useful work: share of the server's completed work whose client was still waiting. Recovery: seconds after the slowdown ended until every later second answered at least 90% of its arrivals ("never" means not within the 25 s left). Mean of 3 seeds, with the range. Model: the Resilience lab engine on the same configuration and seeds.</p>
+<p><b>What it shows.</b> With timeouts and no retries the service falls behind during the slowdown and then drains its queue and recovers. With immediate retries it never recovers: every request that times out comes back up to twice more, so about 300 attempts a second arrive at a service that can do 160; the queue grows without end, the wait in it is far beyond the 100 ms timeout, and the server spends its time answering clients who already left. That is a metastable failure: the trigger lasted 5 seconds, the outage lasted until the experiment ended. <b>Exponential backoff with full jitter did not help at all here</b>, which surprises most people. Jitter fixes synchronised waves and contention among a fixed set of clients; in an open system each request still makes its 3 attempts, only later, so the average load is the same. What fixed it was removing work: a <b>retry budget</b> cut retries to almost nothing once failures dominated, and a <b>bounded queue</b> (shed at 8 waiting) answered the excess with an immediate 503, keeping the wait short enough that accepted requests succeeded. Passing the deadline to the server (skip expired work) raised the share of useful work but did not end the storm, because every retry still had to be queued and rejected.</p>
+<div class="co warn"><div class="t">Honest limits of this experiment</div>One laptop, Python's asyncio, a socket on the same machine, an artificial dependency (a sleep), and a small scale. Real networks add their own delays and real services have more layers. The direction of every result matches the sources above and the model in the <a href="#" data-tab="t-lab">Resilience lab</a>, which was checked against these runs: with the per-call time set to the measured 28 ms (25 ms of work plus about 3 ms of overhead, read from the baseline p50) and 103 ms in the slowdown, its "Measured" presets land within 2.5 points of the measured success and on the same recovery verdict for all six configurations (last column of the table). That agreement is by construction for the per-call time and independent for everything else.</div>
+</section>
+<section id="s-idem">
+<h2>Idempotency: making a retry safe</h2>
+<p>An operation is <dfn id="d-idem">idempotent</dfn> if doing it twice has the same effect as doing it once: "set the title to X" is, "append a message" and "charge $20" are not. HTTP defines GET, PUT and DELETE as idempotent and POST as not (RFC 9110 §9.2.2). The problem a retry creates: when a call times out, the client cannot tell whether the server never got it or did the work and the reply was lost. The fix is an <dfn id="d-idemkey">idempotency key</dfn>: the client makes up a unique ID for one intended action and sends it with every attempt; the server stores the key with the result and, on a repeat, returns the stored result instead of acting again (<a href="https://stripe.com/blog/idempotency" target="_blank" rel="noopener noreferrer">Brandur Leach, Stripe, 2017</a>). The parent root's Step 4 animates the double charge it prevents. How to build it in an API (where to store keys, the race between two attempts with the same key, expiry, what to return when a key is reused with a different body) belongs to <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>; how queues and consumers deduplicate belongs to <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>.</p>
+<p>Retries hidden inside a client library are the easy ones to miss. Jepsen found in 2024 that the etcd Java client "jetcd incorrectly retries non-idempotent requests which may have actually succeeded", which "allows transactions to execute multiple times, or to appear to fail but actually succeed"; the fix offered was to disable its retries (<a href="https://jepsen.io/analyses/jetcd-0.8.2" target="_blank" rel="noopener noreferrer">Kingsbury, Jepsen, jetcd 0.8.2, 2024-08-08</a>; carried from the <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a> page). Read what your client libraries retry.</p>
+<p class="when"><b>Reliability rule:</b> no automatic retry of a non-idempotent call without a key. For an LLM call, a retry is idempotent in effect (you pay twice, nothing else changes) unless the call has side effects such as tool calls that send email; those need keys at the tool.</p>
+</section>
+
+<section id="s-cb">
+<h2>Circuit breakers: stop calling what is broken</h2>
+<p>Timeouts bound how long each call to a sick dependency wastes; a <dfn id="d-breaker">circuit breaker</dfn> stops making the calls. It wraps a dependency and watches outcomes: "Once the failures reach a certain threshold, the circuit breaker trips, and all further calls to the circuit breaker return with an error, without the protected call being made at all" (<a href="https://martinfowler.com/bliki/CircuitBreaker.html" target="_blank" rel="noopener noreferrer">Fowler, 2014</a>). Michael Nygard popularised it in the book <i>Release It!</i> (Fowler credits him). Three states:</p>
+<div class="flow"><div><b>Closed</b>Normal. Calls go through; outcomes are counted in a sliding window.</div><i>&rarr;</i><div><b>Open</b>Failure rate crossed the threshold. Calls fail at once (or go to a fallback) for a wait period.</div><i>&rarr;</i><div><b>Half-open</b>After the wait, a few trial calls go through. If they succeed, close; if not, open again.</div></div>
+<p>What it buys: callers stop waiting a full timeout per call, workers are freed at once, the dependency gets breathing room to recover, and the fallback (a smaller model, a cached answer) runs immediately instead of after the timeout.</p>
+<h3>Real defaults, so you know what you get</h3>
+<div class="tw"><table>
+<thead><tr><th>Library</th><th>Trips when</th><th>Stays open</th><th>Half-open trials</th></tr></thead>
+<tbody>
+<tr><td>resilience4j 2.4.0 (Java, released 2026-03-14; <a href="https://raw.githubusercontent.com/resilience4j/resilience4j/v2.4.0/resilience4j-circuitbreaker/src/main/java/io/github/resilience4j/circuitbreaker/CircuitBreakerConfig.java" target="_blank" rel="noopener noreferrer">CircuitBreakerConfig.java</a>)</td><td>&ge;50% of the last 100 calls failed (needs at least 100 calls); also counts slow calls (60 s, 100% threshold by default)</td><td>60 s</td><td>10</td></tr>
+<tr><td>Polly 8 (.NET; <a href="https://raw.githubusercontent.com/App-vNext/Polly/main/docs/strategies/circuit-breaker.md" target="_blank" rel="noopener noreferrer">docs</a>)</td><td>&ge;10% failures over 30 s, with at least 100 calls</td><td>5 s</td><td>not listed in the defaults table</td></tr>
+<tr><td>pybreaker 1.4.1 (Python; <a href="https://raw.githubusercontent.com/danielfm/pybreaker/v1.4.1/src/pybreaker/__init__.py" target="_blank" rel="noopener noreferrer">source</a>)</td><td>5 consecutive failures</td><td>60 s</td><td>1 success closes it</td></tr>
+<tr><td>Hystrix (Netflix; in maintenance mode since 2018)</td><td>&ge;50% errors with at least 20 requests in a 10 s window</td><td>5 s</td><td>"allowing attempts again" (count not stated)</td></tr>
+</tbody></table></div>
+<p class="small mute">Hystrix values from its <a href="https://raw.githubusercontent.com/wiki/Netflix/Hystrix/Configuration.md" target="_blank" rel="noopener noreferrer">configuration wiki</a>.</p>
+<p><b>History in one paragraph.</b> Netflix's Hystrix made breakers mainstream in Java; its README now says "Hystrix is no longer in active development, and is currently in maintenance mode", that Netflix would use "open and active projects like resilience4j for new internal projects", and that its "focus has shifted towards more adaptive implementations that react to an application's real time performance rather than pre-configured settings" (<a href="https://raw.githubusercontent.com/Netflix/Hystrix/master/README.md" target="_blank" rel="noopener noreferrer">Hystrix README, 2018-11-19</a>). Today the same protection often lives outside the application, in a proxy such as Envoy, configured once for every service.</p>
+<div class="corr"><div class="t">Envoy's "circuit breakers" are not Fowler's</div>Envoy calls its limits circuit breakers, but they are "fully distributed (not coordinated)" caps on concurrency per upstream cluster: by default at most 1,024 connections, 1,024 pending requests, 1,024 parallel requests and 3 parallel retries (<a href="https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking" target="_blank" rel="noopener noreferrer">Envoy docs</a>). That is a <a href="#s-bh">bulkhead</a>. The closest thing to a breaker in Envoy is <dfn id="d-outlier">outlier detection</dfn>, which ejects one bad host from the pool: after 5 consecutive 5xx, checked every 10 s, ejected for 30 s times the number of ejections, never more than 10% of the cluster at once (<a href="https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/outlier_detection.proto" target="_blank" rel="noopener noreferrer">outlier detection API</a>). The 10% cap is the important part: it stops a bad health signal from ejecting everything.</div>
+<div class="cost"><div class="t">What breakers cost, and when not to use one</div>A breaker rejects calls that might have worked, and adds a mode that only appears during failures. Brooker argues breakers "introduce modal behavior into systems that can be difficult to test" and prefers the retry token bucket for that reason (Builders' Library). Do not put one breaker in front of a dependency made of many independent hosts or tenants (one bad shard would open the breaker for all; use outlier detection or a breaker per host); do not use one on low-traffic calls where 5 failures are noise; and decide what the open state returns, or an open breaker is just a faster outage.</div>
+</section>
+
+<section id="s-bh">
+<h2>Bulkheads: one leak does not sink the ship</h2>
+<p>A <dfn id="d-bulkhead">bulkhead</dfn> splits capacity into separate pools so that one consumer cannot take it all: "Isolate the elements of an application into pools so that if one element fails, the others continue to function", named after the watertight compartments of a ship's hull (<a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead" target="_blank" rel="noopener noreferrer">Azure Architecture Center</a>). For our chat API: give model-provider calls at most 30 of the 50 workers and a separate connection pool, so that a provider stall leaves 20 workers for login, history and billing. The same idea at larger scale is cell or shard isolation: the root's Case files include Shopify's "pods", many small isolated copies of the platform so one shop's bad day stays theirs. The cost is idle capacity, since a pool cannot borrow from its neighbour; the mistake is pools so small they fail under normal peaks.</p>
+</section>
+
+<section id="s-shed">
+<h2>Load shedding and admission control: say no early</h2>
+<p>When more work arrives than a service can finish, something must give. A queue that grows without limit turns overload into latency, then into timeouts, then (with retries) into a metastable failure. <dfn id="d-shed">Load shedding</dfn> rejects the excess on purpose, cheaply and early, so the work you accept still succeeds. The quantity to protect is <dfn id="d-goodput">goodput</dfn>: "the subset of the throughput that is handled without errors and with low enough latency for the client to make use of the response"; "If load shedding is working, goodput will remain steady even as offered throughput increases well beyond the scaled capabilities of the service" (<a href="https://builder.aws.com/content/3Eun1EEyX6p2e3VYNyRLSJzLuMV/using-load-shedding-to-avoid-overload" target="_blank" rel="noopener noreferrer">Yanacek, Builders' Library</a>).</p>
+<ul>
+<li><b>Bound every queue.</b> The SRE book: "it is usually better to have small queue lengths relative to the thread pool size (e.g., 50% or less), which results in the server rejecting requests early when it can't sustain the rate of incoming requests" (ch. 22). In the measured experiment, a queue of 8 was the fix.</li>
+<li><b>Reject cheaply.</b> A rejection that costs as much as the work saves nothing; reject before parsing the body or calling anything (Yanacek notes that even <code>iptables</code> connection limits "can reject excess connections far more cheaply than any server process").</li>
+<li><b>Drop work nobody waits for.</b> If the deadline has passed, skip it ("it can skip doing the rest of the work", same essay).</li>
+<li><b>Shed by priority.</b> Google tags each request with a criticality, from CRITICAL_PLUS ("the most critical requests") to SHEDDABLE ("frequent partial unavailability and occasional full unavailability is expected"), provisions capacity for the critical classes, and sheds from the bottom (<a href="https://sre.google/sre-book/handling-overload/" target="_blank" rel="noopener noreferrer">SRE book, ch. 21</a>). Stripe reserves "a fraction of our infrastructure for critical requests. If our reservation number is 20%, then any non-critical request over their 80% allocation would be rejected with status code 503" (<a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Tarjan, Stripe, 2017</a>). For our chat product: paid users before free, interactive chat before batch summarisation.</li>
+<li><b>Adapt the limit.</b> Instead of a fixed concurrency limit, measure it. Netflix's concurrency-limits library treats the limit like a TCP congestion window and uses Little's law, "Limit = Average RPS * Average Latency" (<a href="https://raw.githubusercontent.com/Netflix/concurrency-limits/master/README.md" target="_blank" rel="noopener noreferrer">README</a>); its gradient algorithm shrinks the limit as latency rises above the no-load latency (<a href="https://web.archive.org/web/2019id_/https://medium.com/@NetflixTechBlog/performance-under-load-3e6fa9a60581" target="_blank" rel="noopener noreferrer">Netflix, 2018, archived</a>). Google's clients throttle themselves too, rejecting locally with probability max(0, (requests − K × accepts) / (requests + 1)), K = 2 (SRE book, ch. 21).</li>
+</ul>
+</section>
+
+<section id="s-deg">
+<h2>Graceful degradation and brownouts</h2>
+<p><dfn id="d-degrade">Graceful degradation</dfn> "takes the concept of load shedding one step further by reducing the amount of work that needs to be performed" (SRE book, ch. 22): instead of refusing, serve a cheaper answer, "responses that are not as accurate as or that contain less data than normal responses, but that are easier to compute" (ch. 21). A <dfn id="d-brownout">brownout</dfn> is the deliberate version under load: switch off optional features (Amazon's load-shedding essay uses the word for the overload state itself). Decide the ladder in advance; for our chat assistant:</p>
+<div class="flow"><div><b>Full</b>Large model, retrieval, tools</div><i>&rarr;</i><div><b>Lighter</b>Smaller or other provider's model</div><i>&rarr;</i><div><b>Leaner</b>No retrieval, shorter context</div><i>&rarr;</i><div><b>Cached</b>A cached answer for common questions</div><i>&rarr;</i><div><b>Honest error</b>"Busy, try in a minute", fast</div></div>
+<p>Each rung needs a switch an operator can flip in seconds (an ops toggle or <dfn id="d-kill">kill switch</dfn>, <a href="https://martinfowler.com/articles/feature-toggles.html" target="_blank" rel="noopener noreferrer">Fowler and Hodgson, Feature Toggles</a>) and a test. The SRE book's advice for code that only runs in emergencies: run "a small subset of servers near overload in order to exercise this code path". Do not degrade where a wrong answer is worse than none (a payment, a medical dosage).</p>
+<h3>Before and after: one slowdown, two designs</h3>
+<p>The animation runs the same event through two versions of our chat API. Half the requests need the model provider (sending a message) and half do not (loading history). The API has 20 worker slots; users give up after 2 s. At second 10 the provider starts taking 3 s per call instead of 25 ms, for 5 seconds. <b>Before:</b> no timeout on the provider call, no breaker, an unbounded queue. <b>After:</b> a 100 ms timeout, a circuit breaker (opens at 50% failures over the last 20 calls, waits 2 s, then tries 5 calls), a fallback answer (a smaller model) and a queue bounded at 40. Same simulation engine as the Resilience lab, every run deterministic.</p>
+<div class="card" id="rd-ba-card">
+<div class="seg" id="rd-ba-seg"><button data-m="before" class="on">Before: no protection</button><button data-m="after">After: timeout + breaker + shedding</button></div>
+<div class="chart" id="rd-ba-svg"></div>
+<div class="leg" id="rd-ba-leg"></div>
+<div class="an-cap" id="rd-ba-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rd-ba-cnt"></div>
+<div class="an-ctl" id="rd-ba-ctl"></div>
+</div>
+</section>
+<section id="s-rl">
+<h2>Rate limiting: per-client fairness</h2>
+<p>Load shedding protects the service from the total; a <dfn id="d-ratelimit">rate limit</dfn> protects it from one client, and other clients from that client. It caps each client (an API key, a user, an IP address, a tenant) at a rate such as 10 requests a second, and rejects the rest with HTTP 429 Too Many Requests, ideally with a <code>Retry-After</code> header saying when to come back (RFC 6585 §4). LLM APIs limit tokens per minute as well as requests, because one request can cost 100 times another. Stripe runs four limiters: a request rate limiter ("by far the most important one", N requests per second per user), a concurrent-requests limiter ("You can only have 20 API requests in progress at the same time"), and two load shedders, and warns: "Make sure you have kill switches to disable the rate limiters should they kick in erroneously" (<a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Tarjan, Stripe, 2017</a>).</p>
+<h3>Five algorithms on one burst</h3>
+<ul>
+<li><dfn id="d-fixedwin">Fixed window</dfn>: count requests per calendar second; reset at each boundary. One counter, but a client can send the limit at the end of one second and again at the start of the next: twice the limit within one real second.</li>
+<li><dfn id="d-slidelog">Sliding log</dfn>: remember the time of every accepted request and count those in the last second. Exact, but memory grows with the limit.</li>
+<li><dfn id="d-slidewin">Sliding window counter</dfn>: keep only this window's and the previous window's counts and assume the previous one was spread evenly. Cloudflare's example: 42 requests last minute, 18 so far in a minute that started 15 s ago gives 42 × (45/60) + 18 = 49.5. Over 400 million requests, "0.003% of requests have been wrongly allowed or rate limited", with "an average difference of 6% between real rate and the approximate rate" (<a href="https://blog.cloudflare.com/counting-things-a-lot-of-different-things/" target="_blank" rel="noopener noreferrer">Cloudflare, 2017</a>).</li>
+<li><dfn id="d-tb2">Token bucket</dfn>: a bucket holds up to B tokens and refills at R per second; each request takes one or is rejected. Allows bursts up to B, average R. Stripe: "We use the token bucket algorithm to do rate limiting", implemented in Redis. Standardised in networking as early as RFC 2697 (1999), whose meter uses token buckets that are refilled "CIR times per second" (<a href="https://www.rfc-editor.org/rfc/rfc2697.txt" target="_blank" rel="noopener noreferrer">RFC 2697</a>).</li>
+<li><dfn id="d-leaky">Leaky bucket</dfn> (as a queue): requests wait in a bounded queue that drains at a fixed rate; when it is full, new ones are rejected. It smooths bursts into a steady stream at the cost of delay, like Linux's token bucket filter which "is a pure shaper" and queues packets "up to a configured limit" (<a href="https://man7.org/linux/man-pages/man8/tc-tbf.8.html" target="_blank" rel="noopener noreferrer">tc-tbf(8)</a>). (Confusingly, "leaky bucket as a meter" is equivalent to a token bucket; GCRA, used by some Redis rate limiters, is that form.)</li>
+</ul>
+<div class="card" id="rd-rl-card">
+<b>The same 7 seconds of one client's traffic through each limiter (limit: 10 per second)</b>
+<div class="chart" id="rd-rl-svg"></div>
+<div class="leg"><span style="--sw:var(--good)">accepted</span><span style="--sw:var(--bad)">rejected (429)</span><span style="--sw:var(--c4)">accepted after waiting (line shows the wait)</span></div>
+<div class="tw"><table id="rd-rl-tab"></table></div>
+<p class="small mute">The trace (illustrative, fixed): 5 requests a second, then 10 just before and 10 just after the 3-second boundary, then a burst of 25 at 4.5 s. "Most in any 1 s" counts accepted requests in the busiest sliding one-second span, which is what the dependency behind the limiter feels. Computed in the page and checked by <code>src/recompute.py</code>.</p>
+</div>
+<p><b>In production:</b> limits live at the edge (API gateway, Envoy, Cloudflare) or in a shared store (Redis, with the check-and-decrement done atomically in one Lua script so two servers cannot both take the last token). Limit per tenant and per expensive resource (tokens per minute per model), tell clients their remaining allowance in headers, and make your own clients obey 429 with jitter: the root's Case files include Cloudflare's September 2025 dashboard outage, where the company's own dashboard overwhelmed its API. The capacity side (how many requests a server can take at all) is in <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>.</p>
+</section>
+
+<section id="s-hc">
+<h2>Health checks done right</h2>
+<p>A <dfn id="d-hc">health check</dfn> is a request a load balancer or orchestrator sends to each server to decide whether to send it traffic or restart it. AWS's Builders' Library separates three depths (<a href="https://builder.aws.com/content/3Ev53O39izHCtWLzp4XU6t8PC1O/implementing-health-checks" target="_blank" rel="noopener noreferrer">Implementing health checks</a>): <b>liveness</b> checks "test the basic connectivity to a service and the presence of a server process"; <b>local</b> checks "verify that the application is likely to be able to function" (disk not full, config loaded); <b>dependency</b> checks are "a thorough inspection of the ability of an application to interact with its adjacent systems".</p>
+<p>Kubernetes has three probes: <dfn id="d-liveness">liveness</dfn> (fail it and the container is restarted), <dfn id="d-readiness">readiness</dfn> (fail it and the pod is taken out of the load balancer, not restarted) and startup (holds the other two off while a slow app starts, useful for a model server loading weights). Defaults: probe every 10 s, 1 s timeout, 3 failures in a row to fail, 1 success to pass (<a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/" target="_blank" rel="noopener noreferrer">Kubernetes docs</a>). The docs' own warning: "Incorrect implementation of liveness probes can lead to cascading failures. This results in restarting of container under high load", and their pattern is that "the liveness probe passes when the app itself is healthy, but the readiness probe additionally checks that each required back-end service is available."</p>
+<div class="cost"><div class="t">Health-check mistakes that cause outages</div>
+<b>Liveness checks a dependency.</b> The database has a slow minute, every pod fails liveness, Kubernetes restarts all of them, and the restart stampede (cold caches, new connections) keeps the database down. Keep liveness to "the process can answer".<br>
+<b>Every server fails at once and the balancer obeys.</b> If all hosts look unhealthy, the problem is probably shared (the check, or a dependency), and removing every host guarantees an outage. AWS load balancers do the opposite: "when all servers fail health checks at the same time, the load balancer fails open, allowing traffic to all servers" (Builders' Library). Envoy's 10% ejection cap is the same idea. The root's Case files hold Meta's October 2021 outage, where a health rule correct for one site withdrew every data center at once.<br>
+<b>The check is cheaper than real work.</b> A <code>/health</code> that returns 200 while real requests fail is gray failure by design; pair health checks with user-side SLIs.</div>
+</section>
+
+<section id="s-dep">
+<h2>Deployment safety: most outages are changes</h2>
+<p>"SRE has found that roughly 70% of outages are due to changes in a live system", and the book's remedies are to automate "progressive rollouts", "quickly and accurately detecting problems" and "rolling back changes safely when problems arise" (<a href="https://sre.google/sre-book/introduction/" target="_blank" rel="noopener noreferrer">SRE book, ch. 1</a>). A change includes code, config, feature flags, model versions, prompts, dependency upgrades and infrastructure.</p>
+<ul>
+<li><dfn id="d-canary">Canary</dfn>: release to a small slice first and compare it with the rest. The SRE workbook's arithmetic: if a bad build fails 20% of requests, a 5% canary gives "a 1% overall error rate" instead of 20% (<a href="https://sre.google/workbook/canarying-releases/" target="_blank" rel="noopener noreferrer">Canarying releases</a>). It should be "sizeable and last long enough to be representative", and "We strongly advise running only one canary deployment at a time."</li>
+<li><dfn id="d-waves">Progressive rollout in waves</dfn>: AWS deploys first to a "one-box" stage ("a single virtual machine or single container"), then in "waves" of increasing size; "A typical pipeline waits at least one hour after each one-box stage, at least 12 hours after the first regional wave" (<a href="https://builder.aws.com/content/3ErTKQOTKc5NIw031UePBPxTQ6I/automating-safe-hands-off-deployments" target="_blank" rel="noopener noreferrer">Liguori, Automating safe, hands-off deployments</a>). The wait is called <dfn id="d-bake">bake time</dfn>.</li>
+<li><dfn id="d-rollback">Automatic rollback</dfn>: alarms watch the canary and each wave; a high-severity alarm is used "to page the oncall engineer and to automatically roll back the service if a deployment is in progress" (same essay). Make rollback the default reaction, debug later.</li>
+<li><dfn id="d-flag">Feature flags</dfn>: ship code switched off and turn it on separately, per user group or percentage. Fowler and Hodgson's four kinds: release toggles (latent code "which may never be turned on"), experiment toggles (A/B tests), ops toggles ("disable or degrade that feature quickly in production"), permissioning toggles (<a href="https://martinfowler.com/articles/feature-toggles.html" target="_blank" rel="noopener noreferrer">Feature Toggles</a>). A flag flip is itself a change: roll it out in stages too.</li>
+</ul>
+<p><b>Config is code.</b> The root's Case files hold four outages that were config or content pushed everywhere at once: Cloudflare's November 2025 proxy crash from a doubled feature file, Cloudflare's 2026 follow-up that now rolls config out like code, CrowdStrike's July 2024 content update that crashed 8.5 million PCs, and Knight Capital's 2012 deploy that reached seven of eight servers. For model and prompt changes (shadow traffic, canaries judged by evals, A/B tests), see <a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a>.</p>
+</section>
+<section id="s-slo">
+<h2>SLIs, SLOs and error budgets: how reliable is enough</h2>
+<p>Three terms, from the SRE book (<a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener noreferrer">ch. 4</a>):</p>
+<ul>
+<li>An <dfn id="d-sli">SLI</dfn> (service level indicator) is "a carefully defined quantitative measure of some aspect of the level of service that is provided". The workbook recommends writing it as a ratio: "the number of good events divided by the total number of events" (<a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener noreferrer">SRE workbook, ch. 2</a>), so it always runs from 0 to 100%.</li>
+<li>An <dfn id="d-slo">SLO</dfn> (objective) is "a target value or range of values for a service level that is measured by an SLI", over a window. The workbook's default window: "a four-week rolling window", a whole number of weeks "so it always contains the same number of weekends".</li>
+<li>An <dfn id="d-sla">SLA</dfn> (agreement) is a contract "that includes consequences of meeting (or missing) the SLOs". The book's test: "if there is no explicit consequence, then you are almost certainly looking at an SLO." S3 shows the gap kept on purpose: designed for 99.99% availability, with "an availability SLA of 99.9%" (<a href="https://aws.amazon.com/s3/storage-classes/" target="_blank" rel="noopener noreferrer">S3 storage classes</a>).</li>
+</ul>
+<h3>Choosing SLIs for the chat assistant</h3>
+<p>The workbook's menu for request-driven services is availability, latency and quality (the share of responses "served in an undegraded state"); for pipelines, freshness, correctness and coverage; for storage, durability. It recommends "five or fewer" SLI types. A sensible first set for our product, each measured where the user is (at the load balancer or in the app, not inside one server):</p>
+<div class="tw"><table>
+<thead><tr><th>User journey</th><th>SLI (good / valid events)</th><th>SLO, 28 days</th></tr></thead>
+<tbody>
+<tr><td>Send a message</td><td>Replies that start streaming without a 5xx or a timeout / messages sent</td><td>99.9%</td></tr>
+<tr><td>Send a message (latency)</td><td>Replies whose first token arrives within 2 s / messages sent</td><td>95% (a percentile target: averages hide the tail; the book prefers "percentiles rather than the mean")</td></tr>
+<tr><td>Send a message (quality)</td><td>Replies served by the full model, not a fallback rung / messages sent</td><td>99%</td></tr>
+<tr><td>Load history</td><td>History loads without error within 500 ms / loads</td><td>99.95%</td></tr>
+<tr><td>Saved messages</td><td>Messages that can be read back / messages saved (durability)</td><td>far more nines; checked by restore tests</td></tr>
+</tbody></table></div>
+<p class="small mute">The targets are illustrative choices for this page, not sourced figures. Set the external promise looser than the internal target: "Using a tighter internal SLO than the SLO advertised to users gives you room to respond to chronic problems" (SRE book, ch. 4).</p>
+<h3>The error budget</h3>
+<p>The <dfn id="d-budget2">error budget</dfn> is what the SLO leaves over: "the error budget is 100% minus the SLO" (workbook). At the parent root's estimate of 10 million messages a day and a 99.9% SLO, the budget is <b id="rd-b-day">10,000</b> failed messages a day, <b id="rd-b-mo">300,000</b> per 30 days. The SRE book's own example: "a system that serves 2.5M requests in a day with a daily availability target of 99.99% can serve up to 250 errors". The budget turns arguments into arithmetic: "as long as there is error budget remaining ... new releases can be pushed"; when SLO misses "expend the error budget, releases are temporarily halted" (<a href="https://sre.google/sre-book/embracing-risk/" target="_blank" rel="noopener noreferrer">SRE book, ch. 3</a>). Google's example policy: when the budget for the last four weeks is spent, "halt all changes and releases other than P0 issues or security fixes until the service is back within its SLO", and any single incident that uses more than 20% of the budget gets a postmortem with at least one top-priority action item. It adds: "This policy is not intended to serve as a punishment for missing SLOs" (<a href="https://sre.google/workbook/error-budget-policy/" target="_blank" rel="noopener noreferrer">Example error budget policy, 2018</a>).</p>
+<h3>Alerting on the budget: burn rate</h3>
+<p>Alerting on "error rate above 0.1%" pages people for blips and misses slow leaks. The workbook alerts on the <dfn id="d-burn">burn rate</dfn> instead: "Burn rate is how fast, relative to the SLO, the service consumes the error budget"; with a 99.9% SLO over 30 days, "a constant 0.1% error rate uses exactly all of the error budget: a burn rate of 1" (<a href="https://sre.google/workbook/alerting-on-slos/" target="_blank" rel="noopener noreferrer">SRE workbook, ch. 5</a>). Its recommended starting point pages on 2% of the budget gone in one hour or 5% in six hours, and opens a ticket at 10% in three days. Since the share spent is burn rate × window / period, the thresholds follow:</p>
+<div class="tw"><table id="rd-burn"></table></div>
+<p>Each alert checks two windows, a long one (is it real?) and a short one, "1/12 the duration of the long window" (is it still happening?), so the page stops soon after the problem does. The <a href="#" data-tab="t-slo">Error budget and alerts</a> tab lets you set the SLO and traffic and play an incident against these alerts to see when each fires.</p>
+</section>
+
+<section id="s-inc">
+<h2>Incident response: what to do when it breaks</h2>
+<p>An <dfn id="d-incident">incident</dfn> is an unplanned event that hurts or threatens users and needs coordinated work. The SRE book's rule for declaring one: if any of "Do you need to involve a second team in fixing the problem? Is the outage visible to customers? Is the issue unsolved even after an hour's concentrated analysis?" is true; and "It is better to declare an incident early and then find a simple fix and close out the incident than to have to spin up the incident management framework hours into a burgeoning problem" (<a href="https://sre.google/sre-book/managing-incidents/" target="_blank" rel="noopener noreferrer">SRE book, ch. 14</a>).</p>
+<h3>Severity</h3>
+<div class="tw"><table>
+<thead><tr><th>PagerDuty level (<a href="https://response.pagerduty.com/before/severity_levels/" target="_blank" rel="noopener noreferrer">severity levels</a>)</th><th>Definition</th><th>Chat assistant example</th></tr></thead>
+<tbody>
+<tr><td>SEV-1</td><td>"Critical issue that warrants public notification and liaison with executive teams."</td><td>No one can send messages</td></tr>
+<tr><td>SEV-2</td><td>"Critical system issue actively impacting many customers' ability to use the product."</td><td>Replies fail for 20% of users, or all paid users</td></tr>
+<tr><td>SEV-3</td><td>"Stability or minor customer-impacting issues that require immediate attention from service owners."</td><td>Fallback model serving for an hour</td></tr>
+<tr><td>SEV-4</td><td>"Minor issues requiring action, but not affecting customer ability to use the product."</td><td>Error budget burning at 1x for days</td></tr>
+<tr><td>SEV-5</td><td>"Cosmetic issues or bugs, not affecting customer ability to use the product."</td><td>Wrong icon on the status page</td></tr>
+</tbody></table></div>
+<p class="small">PagerDuty's rule when unsure: "treat it as the higher one. During an incident is not the time to discuss or litigate severities." Atlassian uses three levels (SEV 1 to 3) and pages on-call only for SEV 1 and 2 (<a href="https://www.atlassian.com/incident-management/kpis/severity-levels" target="_blank" rel="noopener noreferrer">Atlassian</a>).</p>
+<h3>Roles</h3>
+<p>Google's system is based on the Incident Command System used by fire services; its workbook names the "three Cs": coordinate, communicate, and maintain control (<a href="https://sre.google/workbook/incident-response/" target="_blank" rel="noopener noreferrer">SRE workbook, ch. 9</a>).</p>
+<ul>
+<li><b>Incident commander (IC)</b>: "holds the high-level state about the incident" and every role not delegated (SRE book). PagerDuty: "the single source of truth" and "NOT a resolver": the IC coordinates and decides, others type (<a href="https://response.pagerduty.com/before/different_roles/" target="_blank" rel="noopener noreferrer">PagerDuty roles</a>).</li>
+<li><b>Operations lead</b>: "The operations team should be the only group modifying the system during an incident" (SRE book).</li>
+<li><b>Communications lead</b>: "the public face of the incident response task force", issuing "periodic updates" to stakeholders and the status page.</li>
+<li><b>Scribe</b>: "documents the timeline of an incident as it progresses and makes sure all important decisions and data are captured" (PagerDuty). The IC's "most important responsibility is to keep a living incident document" (SRE book).</li>
+</ul>
+<h3>The sequence</h3>
+<div class="flow"><div><b>Detect</b>An SLO burn alert pages on-call</div><i>&rarr;</i><div><b>Declare</b>Name an IC, open a channel and a doc, set severity</div><i>&rarr;</i><div><b>Mitigate</b>Stop the harm first: roll back, flip the flag, shed load, fail over</div><i>&rarr;</i><div><b>Communicate</b>Status page and stakeholders, on a fixed rhythm</div><i>&rarr;</i><div><b>Resolve</b>Confirm the SLI is back; close; schedule the postmortem</div></div>
+<p><b>Mitigate before you understand.</b> If a deploy went out an hour ago, roll it back now and find out later whether it was the cause. A status update can be short: what users see, what we are doing, when the next update comes ("Some replies are failing. We have rolled back a recent change and are watching recovery. Next update 14:30 UTC."). PagerDuty's advice to responders: "Never hesitate to page the IC. It's much better to have them and not need them than the other way around" (<a href="https://response.pagerduty.com/during/during_an_incident/" target="_blank" rel="noopener noreferrer">During an incident</a>).</p>
+</section>
+
+<section id="s-pm">
+<h2>Blameless postmortems: learning from it</h2>
+<p>A <dfn id="d-pm">postmortem</dfn> is the written account of an incident: what happened, why, and what will change. Google writes one for user-visible downtime beyond a threshold, any data loss, any on-call intervention such as a rollback, a resolution time above a threshold, or a monitoring failure (<a href="https://sre.google/sre-book/postmortem-culture/" target="_blank" rel="noopener noreferrer">SRE book, ch. 15</a>). <dfn id="d-blameless">Blameless</dfn> means it "must focus on identifying the contributing causes of the incident without indicting any individual or team for bad or inappropriate behavior", because "You can't 'fix' people, but you can fix systems and processes". John Allspaw's reason, from Etsy in 2012: people must be able to give a detailed account "without fear of punishment or retribution", or the organisation never learns how the accident happened, and that "all but guarantees that it will repeat" (<a href="https://web.archive.org/web/20231230191519/https://www.etsy.com/codeascraft/blameless-postmortems/" target="_blank" rel="noopener noreferrer">Code as Craft, archived</a>).</p>
+<h3>How to write one</h3>
+<p>The SRE book's <a href="https://sre.google/sre-book/example-postmortem/" target="_blank" rel="noopener noreferrer">example postmortem</a> (Shakespeare search, "down for 66 minutes", ending with "Freeze production until 2015-11-20 due to error budget exhaustion") uses these headings, which work for any team: <b>Summary</b>, <b>Impact</b> (users, requests, money, error budget spent), <b>Root causes</b> (usually several contributing causes, and remember Bronson: the sustaining effect, not just the trigger), <b>Trigger</b>, <b>Resolution</b>, <b>Detection</b> (how did we find out, and how could we have found out sooner), <b>Action items</b> (each with a type, an owner and a tracking bug), <b>Lessons learned</b> (what went well, what went wrong, where we got lucky) and a <b>Timeline</b>. Atlassian's template adds leadup, backlog check and recurrence (<a href="https://www.atlassian.com/incident-management/postmortem/templates" target="_blank" rel="noopener noreferrer">Atlassian templates</a>).</p>
+<div class="card"><b>A short example on the running product</b> <span class="ill">illustrative incident</span>
+<p class="small"><b>Summary.</b> For 23 minutes, 31% of chat replies failed. <b>Impact.</b> About 50,000 failed messages: 17% of the 30-day error budget at a 99.9% SLO and 10 million messages a day. <b>Trigger.</b> The model provider's latency rose from 1 s to 20 s in one region for 4 minutes. <b>Root causes.</b> (1) Provider calls had a 60 s timeout, so workers filled; (2) the app, the API and the gateway each retried 3 times (27 attempts per message), which kept the provider overloaded after its incident ended, a metastable failure; (3) the history page shared the same worker pool and failed too. <b>Detection.</b> The 14.4x burn-rate page fired 5 minutes in. <b>Resolution.</b> Flipped the kill switch to the fallback model; the retries drained. <b>Action items.</b> Time-to-first-token timeout of 5 s (owner, bug); retries only in the API, with a 10% budget; separate pool for history (bulkhead); breaker with the fallback model as its open state; game day to test the fallback monthly. <b>Where we got lucky.</b> The fallback provider had spare capacity.</p></div>
+<div class="cost"><div class="t">Postmortem mistakes</div>Naming a person as the root cause ("human error" is where the investigation should start). Stopping at the trigger. Action items without owners or that nobody tracks. Five Whys chains that pick one linear story out of several contributing causes. Writing them only for big outages: near misses teach the same lessons for free.</div>
+</section>
+<section id="s-prod">
+<h2>What pros run in production today</h2>
+<p>A starting configuration for a service like our chat API, with where each choice comes from. Tune from measurements; these are defaults to beat, not laws.</p>
+<div class="tw"><table>
+<thead><tr><th>Mechanism</th><th>Starting point</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Timeouts</td><td>Every outbound call; about p99.9 of the dependency plus padding; connect timeout well under a second; deadline passed down</td><td>Brooker's percentile rule; gRPC and SRE book on deadlines</td></tr>
+<tr><td>Retries</td><td>At one layer only; 3 attempts in all; full jitter from a 50 to 100 ms base; only transient errors on idempotent calls</td><td>AWS SDK and tenacity defaults; Envoy jitters by default</td></tr>
+<tr><td>Retry budget</td><td>About 10% of requests (gRPC throttle 10 tokens, ratio 0.1; Finagle 20%; Envoy 20%)</td><td>SRE book ch. 21; the measured storm above</td></tr>
+<tr><td>Circuit breaker</td><td>Per dependency (per host if hosts fail independently); about 50% failures over enough calls; open 5 to 60 s; a defined fallback</td><td>resilience4j, Polly, Hystrix defaults</td></tr>
+<tr><td>Bulkheads</td><td>Separate worker and connection pools per critical dependency; per-cluster concurrency caps in the proxy</td><td>Envoy defaults (1,024 each) are a ceiling, not a design</td></tr>
+<tr><td>Queues</td><td>Bounded, at most about half the worker count; drop expired work; shed lowest priority first</td><td>SRE book ch. 21 and 22; Stripe's shedders</td></tr>
+<tr><td>Rate limits</td><td>Token bucket per tenant at the edge, in Redis or the gateway; tokens per minute for LLM calls; 429 with <code>Retry-After</code></td><td>Stripe; Cloudflare</td></tr>
+<tr><td>Health checks</td><td>Liveness: process answers. Readiness: dependencies. Fail open when everything fails</td><td>Kubernetes docs; Builders' Library</td></tr>
+<tr><td>Deploys</td><td>One box, then waves with bake time; automatic rollback on alarms; config and flags rolled out the same way</td><td>Liguori; SRE workbook ch. 16</td></tr>
+<tr><td>SLOs</td><td>Two to five SLIs per user journey, 28-day window, burn-rate alerts at 14.4x/1 h and 6x/6 h (page), 1x/3 d (ticket)</td><td>SRE workbook ch. 2 and 5</td></tr>
+<tr><td>Practice</td><td>Game days and fault injection in office hours</td><td>Netflix Chaos Monkey (2011, in the root's Case files)</td></tr>
+</tbody></table></div>
+<p>The habits behind the table, as the old Distributed Systems Basics page put them: make every mutation idempotent, bound every queue, jitter every retry (and budget it), and name the failure you are defending against when you add a component.</p>
+<p class="small mute">Where these live today: in the client library (tenacity, resilience4j, Polly, the AWS SDKs, gRPC service config), in a sidecar or gateway (Envoy, Istio, an LLM gateway), or in the platform (Kubernetes probes, deployment controllers). Putting retries, timeouts and breakers in a proxy gives one consistent policy; putting them in code gives knowledge of what is idempotent. Many teams do both, and must then make sure only one layer retries.</p>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Calling a dependency with no timeout</summary><div class="b">Library defaults (requests, gRPC) wait forever. One slow dependency then holds every worker. Set a timeout on every call, and a deadline on every request.</div></details>
+<details class="mist"><summary>Retrying at every layer</summary><div class="b">Attempts multiply: 3 tries at 5 layers is 243 calls to the database. Retry at one layer and make the others fail fast.</div></details>
+<details class="mist"><summary>Believing backoff and jitter prevent retry storms</summary><div class="b">They prevent synchronised waves. In an open system every failed request still makes all its attempts, so the load is the same, only later; the measured experiment did not recover with them. Cap the total with a retry budget.</div></details>
+<details class="mist"><summary>Retrying non-idempotent writes</summary><div class="b">A retried "charge" or "send email" happens twice. Use idempotency keys, or do not retry.</div></details>
+<details class="mist"><summary>Unbounded queues</summary><div class="b">They turn overload into latency and then into timeouts for everyone, and keep the server busy with work whose clients have gone. Bound them and reject early.</div></details>
+<details class="mist"><summary>Liveness probes that check the database</summary><div class="b">A database slowdown becomes a restart of every pod. Liveness checks the process; readiness checks dependencies.</div></details>
+<details class="mist"><summary>A circuit breaker with no fallback, or one breaker for a whole fleet</summary><div class="b">An open breaker without a defined answer is a faster outage; one breaker over many independent hosts lets one bad host block all of them.</div></details>
+<details class="mist"><summary>Measuring availability only from inside the server</summary><div class="b">Gray failure: the server is fine, users are not (DNS, load balancer, client bugs). Measure SLIs as close to the user as possible.</div></details>
+<details class="mist"><summary>Shipping config to everyone at once</summary><div class="b">Config, flags, prompts and model versions are changes. Roll them out in waves with automatic rollback, like code.</div></details>
+<details class="mist"><summary>Debugging before mitigating</summary><div class="b">During an incident, undo the most recent change first and understand it later.</div></details>
+<details class="mist"><summary>Postmortems that name a person</summary><div class="b">People then hide what happened and the same failure returns. Fix the system that let a normal mistake become an outage.</div></details>
+<details class="mist"><summary>Untested fallbacks</summary><div class="b">Code that only runs in emergencies is the least tested you own. Exercise it on purpose, regularly.</div></details>
+</section>
+
+<section id="s-gl">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#d-avail">Availability</a></b>: share of time or requests the service works.</div>
+<div><b><a href="#d-durab">Durability</a></b>: saved data stays saved.</div>
+<div><b><a href="#d-correct">Correctness</a></b>: the answer is right, not just returned.</div>
+<div><b><a href="#d-nines">Nines</a></b>: 99.9% is three nines; each nine is 10x less downtime.</div>
+<div><b><a href="#d-open">Open system</a></b>: new work arrives whatever the system does.</div>
+<div><b><a href="#d-trigger">Trigger</a></b>: what pushes a system into a bad state.</div>
+<div><b><a href="#d-sustain">Sustaining effect</a></b>: what keeps it there after the trigger ends (often retries).</div>
+<div><b><a href="#d-pct">Percentile</a></b>: p99.9 is the latency 99.9% of calls beat.</div>
+<div><b><a href="#d-timeout">Timeout</a></b>: the longest a caller waits before giving up.</div>
+<div><b><a href="#d-deadline">Deadline</a></b>: an absolute time after which the answer is useless.</div>
+<div><b><a href="#d-dprop">Deadline propagation</a></b>: passing the remaining time to every downstream call.</div>
+<div><b><a href="#d-retry">Retry</a></b>: sending the same request again after a failure.</div>
+<div><b><a href="#d-backoff">Exponential backoff</a></b>: doubling the wait before each retry, up to a cap.</div>
+<div><b><a href="#d-jitter">Jitter</a></b>: randomising waits so clients do not retry together.</div>
+<div><b><a href="#d-rbudget">Retry budget</a></b>: retries capped at a share of normal traffic.</div>
+<div><b><a href="#d-tbucket">Token bucket</a></b>: a refilling allowance that permits bursts but caps the average.</div>
+<div><b><a href="#d-hedge">Hedged request</a></b>: a second copy sent when the first is slow.</div>
+<div><b><a href="#d-idem">Idempotent</a></b>: doing it twice equals doing it once.</div>
+<div><b><a href="#d-idemkey">Idempotency key</a></b>: a client-made ID that lets the server recognise a repeat.</div>
+<div><b><a href="#d-breaker">Circuit breaker</a></b>: stops calling a failing dependency for a while.</div>
+<div><b><a href="#d-outlier">Outlier detection</a></b>: removing one misbehaving host from a pool.</div>
+<div><b><a href="#d-bulkhead">Bulkhead</a></b>: separate pools so one failure cannot use all capacity.</div>
+<div><b><a href="#d-shed">Load shedding</a></b>: rejecting excess work early and cheaply.</div>
+<div><b><a href="#d-goodput">Goodput</a></b>: useful, timely answers per second.</div>
+<div><b><a href="#d-degrade">Graceful degradation</a></b>: a cheaper answer instead of none.</div>
+<div><b><a href="#d-brownout">Brownout</a></b>: switching off optional features under load.</div>
+<div><b><a href="#d-kill">Kill switch</a></b>: a flag that turns a feature off in seconds.</div>
+<div><b><a href="#d-ratelimit">Rate limit</a></b>: a cap per client, answered with 429.</div>
+<div><b><a href="#d-fixedwin">Fixed window</a></b>, <b><a href="#d-slidelog">sliding log</a></b>, <b><a href="#d-slidewin">sliding window counter</a></b>, <b><a href="#d-leaky">leaky bucket</a></b>: rate limiting algorithms.</div>
+<div><b><a href="#d-hc">Health check</a></b>: a probe deciding whether a server gets traffic.</div>
+<div><b><a href="#d-liveness">Liveness</a></b> / <b><a href="#d-readiness">readiness</a></b>: restart it / stop sending it traffic.</div>
+<div><b><a href="#d-canary">Canary</a></b>: a small first slice of a release.</div>
+<div><b><a href="#d-waves">Waves</a></b> and <b><a href="#d-bake">bake time</a></b>: growing rollout stages and the wait between them.</div>
+<div><b><a href="#d-rollback">Rollback</a></b>: returning to the last good version.</div>
+<div><b><a href="#d-flag">Feature flag</a></b>: a switch that turns code on without a deploy.</div>
+<div><b><a href="#d-sli">SLI</a></b> / <b><a href="#d-slo">SLO</a></b> / <b><a href="#d-sla">SLA</a></b>: the measure / the target / the contract.</div>
+<div><b><a href="#d-budget2">Error budget</a></b>: 100% minus the SLO, spent on change.</div>
+<div><b><a href="#d-burn">Burn rate</a></b>: how fast the budget is being spent (1 = exactly on time).</div>
+<div><b><a href="#d-incident">Incident</a></b>: an unplanned event needing coordinated response.</div>
+<div><b><a href="#d-pm">Postmortem</a></b> (<b><a href="#d-blameless">blameless</a></b>): the written account, aimed at systems not people.</div>
+</div>
+</section>
+</div>
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>
+#t-lab .grp{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:8px 0}
+#t-lab .grp>summary{cursor:pointer;font-weight:600;font-size:14px}
+#t-lab .ctl label{font-size:12.5px}
+#t-lab .tog{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:6px 0}
+#t-lab .tog label{white-space:nowrap}
+#t-lab .vs{font-size:12.5px;color:var(--mute)}
+#t-lab .stat .v{font-size:17px}
+</style>
+<section id="lab-top">
+<h2>Resilience lab</h2>
+<p>A simulated service under a dependency slowdown. Users send requests to <b>our service</b> (worker slots and a queue); some requests call a <b>dependency</b> (its own slots, queue and latency). From second 10 the dependency slows down; you choose how the service defends itself and watch what users get. Everything is computed in your browser by the same engine as the Reading's animation, one millisecond per step, deterministic for a given seed.</p>
+<div class="try"><b>Try:</b> load "Measured: retry at once" and note that it never recovers; switch backoff to full jitter (still no recovery), then tick the retry budget (recovers). Load "Hung provider: no protection", then add only a 100 ms timeout, then the breaker, then the fallback, and watch which change does what. Raise the traffic until even the defended service sheds.</div>
+<div class="chips" id="lab-pre"></div>
+<p class="small mute" id="lab-pre-note"></p>
+<div id="lab-ctl"></div>
+<div class="out" id="lab-out"></div>
+<p class="small" id="lab-vs"></p>
+<div class="card"><b>What users got each second</b><div class="chart" id="lab-c1"></div><div class="leg" id="lab-l1"></div></div>
+<div class="card"><b>Calls to the dependency each second, against its capacity</b><div class="chart" id="lab-c2"></div><div class="leg" id="lab-l2"></div></div>
+<div class="card"><b>Queues (most waiting in each second)</b><div class="chart" id="lab-c3"></div><div class="leg" id="lab-l3"></div></div>
+<h3>How the model works, and how it was checked</h3>
+<ul class="small">
+<li><b>Arrivals:</b> each millisecond a new request arrives with probability rate/1000 (close to random, Poisson-like arrivals; at most one per millisecond). A share of them need the dependency; the rest finish after our own work.</li>
+<li><b>Our service:</b> W worker slots (0 means unlimited: every request is its own caller, as in the measured experiment) and a FIFO queue, optionally bounded (excess rejected at once). A worker is held for the whole request, including waits, timeouts and backoff sleeps, as in ordinary synchronous code.</li>
+<li><b>The dependency:</b> Kd slots and an unbounded FIFO queue (or bounded, answering 503 at once). Each call takes the normal latency, or the slow latency if it starts inside the slowdown window. It keeps working on calls whose caller has timed out (wasted work), unless deadline propagation is on, in which case it skips calls whose deadline has passed.</li>
+<li><b>Retries:</b> up to the attempt limit, at once or after a full-jitter wait of random(0, min(cap, base &times; 2<sup>k</sup>)) before retry k. Retry budget: gRPC's throttle (10 tokens, each failure &minus;1, each success +0.1, no retries while tokens &le; 5).</li>
+<li><b>Breaker:</b> count-based like resilience4j: opens when the failure share of the last N calls reaches the threshold; stays open for the chosen time; then lets the chosen number of trial calls through and closes if their failure share is below the threshold. While open, calls fail at once (or return the fallback).</li>
+<li><b>Users:</b> with a patience set, a request finished after it counts as failed (the user has left), and with deadline propagation our own queue drops such requests unprocessed.</li>
+<li><b>Checks:</b> <code>src/engine.py</code> is a line-by-line Python port; <code>src/check_engine.mjs</code> runs this page's engine on the 8 presets and 30 random settings and compares every series and total exactly (0 differences). The six "Measured" presets are the configuration of the real experiment in the Reading; their outcome is compared with the 3 measured runs above the charts.</li>
+<li><b>What it leaves out:</b> network time, CPU cost of rejecting, connection setup, the dependency getting slower as its queue grows, clients that retry at several layers, and autoscaling. It is a model for building intuition, not a capacity planner (that is <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>).</li>
+</ul>
+</section>
+</div>
+<div class="tab" id="t-slo" role="tabpanel" hidden>
+<section id="slo-top">
+<h2>Error budget and alerts</h2>
+<p>Pick an SLO and a traffic level for the chat assistant, then play an incident against the SRE workbook's recommended multiwindow, multi-burn-rate alerts (page at 14.4x over 1 h and 5 min, or 6x over 6 h and 30 min; ticket at 1x over 3 days and 6 h). See how much budget it spends, and whether and when each alert fires. Every number follows from the formulas shown; the incidents are illustrative.</p>
+<div class="try"><b>Try:</b> the 5-minute spike of 10% errors (no alert: it spends about 1% of the budget, not worth waking anyone), then the 30-minute full outage (pages after one minute: a full outage spends the budget 1,000 times too fast), then the slow leak (never pages, opens a ticket after about 1.3 days, yet spends a large share of the month). Move the SLO from 99.9% to 99.99% and watch the same incident become a budget emergency.</div>
+<div class="chips" id="slo-pre"></div>
+<div class="ctl">
+<label>SLO <span id="slo-v-slo"></span><select id="slo-slo" aria-label="SLO"><option value="0.99">99%</option><option value="0.995">99.5%</option><option value="0.999" selected>99.9%</option><option value="0.9995">99.95%</option><option value="0.9999">99.99%</option></select></label>
+<label>Messages per day: <b id="slo-v-rpd"></b><input type="range" id="slo-rpd" min="0" max="5" step="1" value="4" aria-label="Messages per day"></label>
+<label>Normal error ratio: <b id="slo-v-e0"></b><input type="range" id="slo-e0" min="0" max="50" step="1" value="2" aria-label="Normal error ratio, hundredths of a percent"></label>
+<label>Incident error ratio: <b id="slo-v-e"></b><input type="range" id="slo-e" min="0" max="20" step="1" value="20" aria-label="Incident error ratio"></label>
+<label>Incident length: <b id="slo-v-d"></b><input type="range" id="slo-d" min="0" max="16" step="1" value="7" aria-label="Incident length"></label>
+</div>
+<div class="out" id="slo-out"></div>
+<div class="card"><b>The incident and the alerts (time from the start of the incident)</b><div class="chart" id="slo-c1"></div><div class="leg" id="slo-l1"></div></div>
+<div class="card"><b>Error budget left over the 28-day window (incident on day 14)</b><div class="chart" id="slo-c2"></div></div>
+<div class="fm"><div class="eq">budget = (1 &minus; SLO) &times; requests in the window</div><div class="eq">burn rate = error ratio / (1 &minus; SLO)</div>
+<div class="eq">share spent = burn rate &times; duration / window</div>
+<dl><dt>window</dt><dd>28 days, the workbook's "four-week rolling window" (its alert thresholds are quoted for 30 days; over 28 days the same thresholds spend 7% more budget, which this tab shows rather than hides)</dd><dt>alert</dt><dd>fires when the error ratio averaged over the long window and over the short window both exceed threshold &times; (1 &minus; SLO) (SRE workbook, ch. 5)</dd></dl></div>
+<p class="small mute">Detection is computed minute by minute on the error-ratio timeline; the line under the cards compares the time to the first page with the workbook's formula ((1 &minus; SLO) / error ratio) &times; window &times; burn rate, which assumes no errors before the incident. Requests are spread evenly over the day (real traffic has a daily cycle, so a night-time incident spends less budget). Checked by <code>src/recompute.py</code>.</p>
+</section>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<style>#t-more .sp .n{text-transform:none;font-size:13.5px;letter-spacing:0;color:var(--ink)}</style>
+<section id="s-more"><h2>Further reading</h2>
+<p class="small mute">Times are estimates for a careful first read. Links checked 2026-10-04; Amazon Builders' Library essays now live on builder.aws.com (the old aws.amazon.com/builders-library addresses redirect).</p>
+
+<h3>On this page</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="#" data-tab="t-lab">Resilience lab</a></div><p>Set timeouts, retries, jitter, budgets, breaker thresholds and queue limits against a dependency slowdown and watch goodput. <span class="rt">About 20 min to explore.</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-slo">Error budget and alerts</a></div><p>SLO arithmetic and the workbook's burn-rate alerts played against four incidents. <span class="rt">About 10 min.</span></p></div>
+</div>
+
+<h3>The parent topic and its other children</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a></div><p>The root: one request to an LLM product from 1 user to 10 million. Its Step 4 is the five-minute version of this page; its Scale simulator has a retry storm toggle; Numbers to know has the availability calculator; Case files has 33 real outages and designs, many cited here. <span class="rt">About 25 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a></div><p>HTTP design, errors, versioning, and idempotency keys built properly. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a></div><p>Replication, partitioning, consistency, consensus: why "the database failed over" is never simple. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a></div><p>Delivery semantics, dead-letter queues, backpressure across a queue, the outbox pattern. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a></div><p>Logs, metrics, traces and alerting: how the SLIs on this page are actually measured. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a></div><p>Load balancing, caching, queueing theory and load testing: how many servers so that shedding is rare. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a></div><p>LLM-specific failure: GPU capacity in big blocks, routing, provider failover. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a></div><p>Tests and CI: the cheapest place to catch the change that would have caused the outage. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a></div><p>Shadow traffic, canaries judged by evals, A/B tests for model and prompt changes. <span class="rt">About 30 min.</span></p></div>
+</div>
+
+<h3>Primary sources, in the order to read them</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://web.archive.org/web/2024/https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/" target="_blank" rel="noopener noreferrer">Timeouts, retries, and backoff with jitter (Brooker, Builders' Library)</a></div><p>The single best short essay on this page's core. Archived copy (the new site renders text by script). <span class="rt">About 15 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener noreferrer">Exponential Backoff And Jitter (Brooker, 2015)</a></div><p>The simulation behind full jitter. <span class="rt">About 10 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://sigops.org/s/conferences/hotos/2021/papers/hotos21-s11-bronson.pdf" target="_blank" rel="noopener noreferrer">Metastable Failures in Distributed Systems (HotOS 2021)</a></div><p>Six pages that name the failure mode behind most long outages. <span class="rt">About 25 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://www.usenix.org/system/files/osdi22-huang-lexiang.pdf" target="_blank" rel="noopener noreferrer">Metastable Failures in the Wild (OSDI 2022)</a></div><p>22 real incidents dissected; retries sustain more than half. <span class="rt">About 1 h.</span></p></div>
+<div class="sp"><div class="n"><a href="https://builder.aws.com/content/3Eun1EEyX6p2e3VYNyRLSJzLuMV/using-load-shedding-to-avoid-overload" target="_blank" rel="noopener noreferrer">Using load shedding to avoid overload (Builders' Library)</a></div><p>Goodput, cheap rejection, priorities. <span class="rt">About 20 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://builder.aws.com/content/3Ev53O39izHCtWLzp4XU6t8PC1O/implementing-health-checks" target="_blank" rel="noopener noreferrer">Implementing health checks (Builders' Library)</a></div><p>Liveness, local and dependency checks; failing open. <span class="rt">About 20 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://builder.aws.com/content/3ErTKQOTKc5NIw031UePBPxTQ6I/automating-safe-hands-off-deployments" target="_blank" rel="noopener noreferrer">Automating safe, hands-off deployments (Liguori, Builders' Library)</a></div><p>One-box, waves, bake time, automatic rollback, as AWS does it. <span class="rt">About 25 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://sre.google/sre-book/table-of-contents/" target="_blank" rel="noopener noreferrer">Google SRE book: ch. 3, 4, 14, 15, 21, 22</a></div><p>Embracing risk, SLOs, managing incidents, postmortem culture, handling overload, cascading failures. <span class="rt">About 3 h for these six.</span></p></div>
+<div class="sp"><div class="n"><a href="https://sre.google/workbook/table-of-contents/" target="_blank" rel="noopener noreferrer">Google SRE workbook: ch. 2, 5, 9 and the error budget policy</a></div><p>Implementing SLOs, alerting on SLOs (the burn-rate tables), incident response. <span class="rt">About 2 h.</span></p></div>
+<div class="sp"><div class="n"><a href="https://web.archive.org/web/20231218074029/https://queue.acm.org/detail.cfm?id=3096459" target="_blank" rel="noopener noreferrer">The Calculus of Service Availability (ACM Queue 2017, archived)</a></div><p>Why dependencies need an extra nine, and why detection time dominates. <span class="rt">About 25 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://www.barroso.org/publications/TheTailAtScale.pdf" target="_blank" rel="noopener noreferrer">The Tail at Scale (Dean and Barroso, 2013)</a></div><p>Fan-out, tail latency and hedged requests. <span class="rt">About 30 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://stripe.com/blog/rate-limiters" target="_blank" rel="noopener noreferrer">Scaling your API with rate limiters (Stripe, 2017)</a></div><p>Four limiters in production, with code. <span class="rt">About 15 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://blog.cloudflare.com/counting-things-a-lot-of-different-things/" target="_blank" rel="noopener noreferrer">Counting things, a lot of different things (Cloudflare, 2017)</a></div><p>The sliding window counter and its measured error. <span class="rt">About 10 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://github.com/grpc/proposal/blob/master/A6-client-retries.md" target="_blank" rel="noopener noreferrer">gRFC A6: gRPC client retries</a></div><p>A complete, precise retry design: policy, throttling, hedging, commit points. <span class="rt">About 30 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://response.pagerduty.com/" target="_blank" rel="noopener noreferrer">PagerDuty Incident Response</a></div><p>Free, practical handbook: severities, roles, what to do during and after. <span class="rt">About 1 h.</span></p></div>
+<div class="sp"><div class="n"><a href="https://web.archive.org/web/20231230191519/https://www.etsy.com/codeascraft/blameless-postmortems/" target="_blank" rel="noopener noreferrer">Blameless PostMortems and a Just Culture (Allspaw, 2012, archived)</a></div><p>Why blame makes systems less safe. <span class="rt">About 10 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://queue.acm.org/detail.cfm?id=2839461" target="_blank" rel="noopener noreferrer">Fail at Scale (Maurer, Facebook, ACM Queue 2015)</a></div><p>Controlled delay and adaptive LIFO queues under overload. Not checked for this page (the site refused access). <span class="rt">About 25 min.</span></p></div>
+<div class="sp"><div class="n">Release It!, 2nd ed. (Nygard, Pragmatic, 2018)</div><p>The book that named circuit breakers and bulkheads; its stability patterns chapter is the classic. <a href="https://pragprog.com/titles/mnee2/release-it-second-edition/" target="_blank" rel="noopener noreferrer">Publisher page</a>. <span class="rt">About 10 h.</span></p></div>
+</div>
+
+<h3>Related topics</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a></div><p>The GPU serving layer whose failures (cold starts, KV memory) sit under the chat API. <span class="rt">Its own topic.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>Kubernetes, schedulers and the platform that runs the probes and rollouts. <span class="rt">Its own topic.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a></div><p>TCP, TLS and HTTP: connection timeouts, keep-alive and what a reset means. <span class="rt">Its own topic.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a></div><p>Runtime safety checks for LLM output, another stage that can fail open or closed. <span class="rt">About 25 min.</span></p></div>
+</div>
+</section>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Shared helpers (copied from the parent root Topic: swe-and-system-design): the step-animation controller (play, pause, step, scrub, speed) ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_engine.js */
+// ---- Shared simulation engine (used by the Reading animation and the Resilience lab) ----
+// One millisecond per step, deterministic (seeded LCG, no Math.random, no logarithms), so that
+// src/recompute.py (a line-by-line Python port) reproduces every number exactly.
+// Model: users -> our service (W worker slots, FIFO queue, optional bound = load shedding)
+//        -> for type-A requests, a call to a dependency (Kd slots, FIFO queue, latency that
+//        rises during the slowdown window), with a client timeout, retries (none, immediate,
+//        exponential backoff with full jitter), gRPC-style retry throttling, a count-based
+//        circuit breaker and an optional fallback (degraded answer).
+// The dependency never notices that a caller gave up, unless deadline propagation is on.
+window.RE=(function(){
+  function lcg(seed){let s=seed>>>0;return function(){s=(Math.imul(s,1103515245)+12345)&0x7fffffff;return s/2147483648}}
+  const DEF={T:40000,slowFrom:10000,slowTo:15000,rate:100,pA:1,W:0,own:0,maxQ:0,Tu:0,
+    Kd:4,dmaxQ:0,Ld:25,Ls:100,Td:100,att:3,back:'none',base:100,cap:2000,budget:0,tokMax:10,tokRatio:0.1,
+    brk:0,brkN:20,brkF:50,brkOpen:5000,brkHalf:5,fb:0,drop:0,seed:1};
+  function sim(cfg){
+    const c=Object.assign({},DEF,cfg);
+    const rnd=lcg(c.seed*7919+17),jit=lcg(c.seed*104729+3);
+    const NS=Math.ceil(c.T/1000)+6,END=c.T+6000;
+    const z=()=>new Array(NS).fill(0);
+    const S={arr:z(),good:z(),deg:z(),fail:z(),att:z(),q:z(),dq:z(),open:z(),waste:z(),depdone:z(),shed:z(),failB:z(),wdep:z()};
+    const sec=t=>Math.min(NS-1,Math.floor(t/1000));
+    const ev=new Map();const at=(t,e)=>{let a=ev.get(t);if(!a){a=[];ev.set(t,a)}a.push(e)};
+    const Q=[];let qh=0;const DQ=[];let dqh=0;
+    let busyW=0,busyD=0,tokens=c.tokMax,inDep=0;
+    const unlimitedW=c.W<=0;
+    // breaker
+    let bst=0,bwin=[],bopenUntil=0,bhalfLeft=0,bhalfRes=[];// 0 closed, 1 open, 2 half-open
+    let nReq=0,nA=0,nGood=0,nDeg=0,nFail=0,nAtt=0,nDepDone=0,nWaste=0,nShed=0,nBrkRej=0,nLate=0;
+    const lat=[];
+    function brkAllow(t){if(!c.brk)return true;
+      if(bst===1){if(t>=bopenUntil){bst=2;bhalfLeft=c.brkHalf;bhalfRes=[]}else return false}
+      if(bst===2){if(bhalfLeft>0){bhalfLeft--;return true}return false}
+      return true}
+    function brkRecord(t,okk){if(!c.brk)return;
+      if(bst===0){bwin.push(okk?0:1);if(bwin.length>c.brkN)bwin.shift();
+        if(bwin.length>=c.brkN){let f=0;for(const x of bwin)f+=x;if(f*100>=c.brkF*bwin.length){bst=1;bopenUntil=t+c.brkOpen;bwin=[]}}}
+      else if(bst===2){bhalfRes.push(okk?0:1);if(bhalfRes.length>=c.brkHalf){let f=0;for(const x of bhalfRes)f+=x;
+        if(f*100>=c.brkF*bhalfRes.length){bst=1;bopenUntil=t+c.brkOpen}else{bst=0;bwin=[]}bhalfRes=[]}}}
+    function finish(t,r,kind){// kind: 'good' | 'deg' | 'fail'
+      if(r.done)return;r.done=1;
+      if(!unlimitedW){busyW--}
+      if(r.inDep){inDep--;r.inDep=0}
+      if(kind!=='fail'&&c.Tu>0&&t-r.t0>c.Tu){nLate++;kind='late'}
+      if(kind==='good'){nGood++;S.good[sec(t)]++;lat.push(t-r.t0)}
+      else if(kind==='deg'){nDeg++;S.deg[sec(t)]++;lat.push(t-r.t0)}
+      else if(kind==='late'){nFail++;S.fail[sec(r.t0+c.Tu)]++;if(!r.A)S.failB[sec(r.t0+c.Tu)]++}
+      else{nFail++;S.fail[sec(t)]++;if(!r.A)S.failB[sec(t)]++}
+    }
+    function attempt(t,r){
+      if(!brkAllow(t)){nBrkRej++;
+        if(c.fb)finish(t,r,'deg');else finish(t,r,'fail');return}
+      const a={r:r,k:r.k,dl:c.Td>0?t+c.Td:Infinity,over:0};
+      nAtt++;S.att[sec(t)]++;
+      if(c.dmaxQ>0&&DQ.length-dqh>=c.dmaxQ){nShed++;S.shed[sec(t)]++;attemptEnd(t,a,false);return}
+      DQ.push(a);
+      if(c.Td>0)at(t+c.Td,{y:3,a:a});
+    }
+    function attemptEnd(t,a,okk){// first outcome of an attempt (reply or timeout)
+      if(a.over)return;a.over=1;const r=a.r;
+      brkRecord(t,okk);
+      if(c.budget){if(okk)tokens=Math.min(c.tokMax,tokens+c.tokRatio);else tokens=Math.max(0,tokens-1)}
+      if(okk){finish(t,r,'good');return}
+      if(r.k+1>=c.att||(c.budget&&tokens<=c.tokMax/2)){if(c.fb)finish(t,r,'deg');else finish(t,r,'fail');return}
+      r.k++;
+      if(c.back==='none'){attempt(t,r);return}
+      const range=Math.min(c.cap,c.base*Math.pow(2,r.k));
+      const d=Math.max(1,Math.floor(jit()*range));
+      at(t+d,{y:4,r:r});
+    }
+    function startReq(t,r){
+      if(c.drop&&c.Tu>0&&t-r.t0>c.Tu){finish(t,r,'fail');return}
+      if(c.own>0)at(t+c.own,{y:1,r:r});else afterOwn(t,r);
+    }
+    function afterOwn(t,r){if(r.A){r.inDep=1;inDep++;attempt(t,r);return}finish(t,r,'good')}
+    const thr=c.rate/1000;
+    for(let t=0;t<END;t++){
+      // 1. arrivals (at most one per millisecond: Bernoulli with p = rate/1000)
+      if(t<c.T&&rnd()<thr){const r={t0:t,A:rnd()<c.pA,k:0,done:0};nReq++;if(r.A)nA++;S.arr[sec(t)]++;
+        if(unlimitedW){startReq(t,r)}
+        else if(c.maxQ>0&&Q.length-qh>=c.maxQ){nShed++;S.shed[sec(t)]++;r.done=1;nFail++;S.fail[sec(t)]++;if(!r.A)S.failB[sec(t)]++}
+        else Q.push(r)}
+      // 2. events due now, in the order they were scheduled
+      const es=ev.get(t);
+      if(es){ev.delete(t);for(let i=0;i<es.length;i++){const e=es[i];
+        if(e.y===1)afterOwn(t,e.r);
+        else if(e.y===2){busyD--;nDepDone++;S.depdone[sec(t)]++;const a=e.a;if(a.over){nWaste++;S.waste[sec(t)]++}else attemptEnd(t,a,true)}
+        else if(e.y===3){if(!a_over(e.a))attemptEnd(t,e.a,false)}
+        else if(e.y===4){attempt(t,e.r)}}}
+      // 3. the dependency starts calls while it has free slots
+      while(busyD<c.Kd&&dqh<DQ.length){const a=DQ[dqh++];
+        if(c.drop&&a.dl<=t){continue}
+        busyD++;const L=(t>=c.slowFrom&&t<c.slowTo)?c.Ls:c.Ld;at(t+L,{y:2,a:a})}
+      if(dqh>4096&&dqh*2>DQ.length){DQ.splice(0,dqh);dqh=0}
+      // 4. our service starts requests while it has free workers
+      if(!unlimitedW){while(busyW<c.W&&qh<Q.length){const r=Q[qh++];busyW++;startReq(t,r)}
+        if(qh>4096&&qh*2>Q.length){Q.splice(0,qh);qh=0}}
+      // 5. samples
+      const s=sec(t);const ql=Q.length-qh,dql=DQ.length-dqh;
+      if(ql>S.q[s])S.q[s]=ql;if(inDep>S.wdep[s])S.wdep[s]=inDep;if(dql>S.dq[s])S.dq[s]=dql;
+      if(c.brk&&bst===1&&t<bopenUntil)S.open[s]++;
+    }
+    function a_over(a){return a.over}
+    // requests that never finished: the user saw a failure at t0+Tu (or at the end of the run)
+    const tot=nGood+nDeg+nFail;const unfinished=nReq-tot;
+    // recovery: first second >= slowTo/1000 from which every later second (to T) has good+deg >= 90% of arrivals
+    const s0=Math.floor(c.slowTo/1000),sN=Math.floor(c.T/1000);let rec=null;
+    for(let s=s0;s<sN;s++){let okk=true;for(let x=s;x<sN;x++){if(S.arr[x]>0&&S.good[x]+S.deg[x]<0.9*S.arr[x]){okk=false;break}}if(okk){rec=s-s0;break}}
+    lat.sort((a,b)=>a-b);
+    return {S:S,NS:NS,c:c,tot:{req:nReq,A:nA,good:nGood,deg:nDeg,fail:nFail+unfinished,late:nLate,att:nAtt,depDone:nDepDone,waste:nWaste,shed:nShed,brkRej:nBrkRej,
+      success:nReq?(nGood+nDeg)/nReq:0,full:nReq?nGood/nReq:0,attPerA:nA?nAtt/nA:0,useful:nDepDone?(nDepDone-nWaste)/nDepDone:0,recovery:rec,
+      p50:lat.length?lat[Math.floor(lat.length*0.5)]:null,p99:lat.length?lat[Math.floor(lat.length*0.99)]:null}};
+  }
+  // presets: the measured setup (validation) and the before/after of the Reading animation
+  const P={
+    // the measured setup; 28 and 103 ms = the configured 25 and 100 ms plus the ~3 ms per-request overhead measured at low load (p50 27.5 ms)
+    m_none:{att:1,Ld:28,Ls:103},
+    m_naive:{back:'none',Ld:28,Ls:103},
+    m_backoff:{back:'full',Ld:28,Ls:103},
+    m_budget:{back:'full',budget:1,Ld:28,Ls:103},
+    m_deadline:{back:'none',drop:1,Ld:28,Ls:103},
+    m_shed:{back:'none',dmaxQ:8,Ld:28,Ls:103},
+    // Reading animation: our chat API (20 workers) calls a model provider that hangs for 5 s
+    before:{rate:100,pA:0.5,W:20,own:5,Tu:2000,Kd:1000,Ld:25,Ls:3000,Td:0,att:1,back:'none',brk:0,fb:0,maxQ:0},
+    after:{rate:100,pA:0.5,W:20,own:5,Tu:2000,Kd:1000,Ld:25,Ls:3000,Td:100,att:1,back:'none',brk:1,brkN:20,brkF:50,brkOpen:2000,brkHalf:5,fb:1,maxQ:40}
+  };
+  return {sim:sim,lcg:lcg,DEF:DEF,P:P};
+})();
+</script>
+<script>/* 23_js_meas_data.js */
+// ---- Measured retry-storm runs (generated by src/gen_meas_js.py from inputs/lab_measured.json; do not edit) ----
+window.MEAS={"meta":{"what":"Measured on an Apple M1 Pro laptop, 2026-10-04: server.py (4 worker slots, dependency latency 25 ms, 100 ms from second 10 to 15) and loadgen.py (Poisson 100 requests/s for 40 s, client timeout 100 ms, at most 3 attempts) over a Unix socket; 3 seeds per configuration.","configs":{"none":"timeouts only, no retries","naive":"3 attempts, retry at once","backoff":"3 attempts, exponential backoff with full jitter (base 100 ms, cap 2 s)","budget":"backoff plus gRPC-style retry throttling (10 tokens, ratio 0.1)","deadline":"retry at once, server skips work whose deadline has passed","shed":"retry at once, server answers 503 when 8 requests are already queued"}},"runs":{"none":{"1":{"series":{"arr":[97,114,89,109,89,101,103,95,85,85,111,100,91,113,82,105,102,117,105,94,109,105,93,94,99,117,94,91,90,93,95,121,110,98,88,94,104,93,103,106,1,0,0,0,0,0],"ok":[95,112,89,111,88,104,102,95,85,81,4,0,0,0,0,0,0,0,0,0,0,86,96,93,97,120,93,92,89,92,97,114,113,102,87,95,102,89,106,105,6,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,103,104,84,115,81,103,101,119,105,97,110,23,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[97,114,89,109,89,101,103,95,85,85,111,100,91,113,82,105,102,117,105,94,109,105,93,94,99,117,94,91,90,93,95,121,110,98,88,94,104,93,103,106,1,0,0,0,0,0],"q":[3,8,2,3,2,2,3,3,3,2,67,131,179,255,297,307,251,207,169,120,62,16,5,1,1,4,0,2,0,0,1,7,2,3,1,3,2,2,1,2,0,0,0,0,0,0],"work":[90,112,88,110,93,102,102,98,86,72,47,40,40,40,40,144,140,156,156,160,156,124,96,94,85,123,94,93,93,90,101,111,116,96,90,96,102,87,108,107,7,0,0,0,0,0]},"requests":3985,"success":0.7127,"attempts_per_req":1.0,"server_work":3985,"useful_share":0.7127,"recovery_s":7,"p50_ms":27.4,"p99_ms":63.9,"max_queue":307},"2":{"series":{"arr":[80,116,93,99,102,97,108,100,87,111,101,95,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,98,104,102,106,94,106,81,106,111,110,111,1,0,0,0,0,0],"ok":[79,111,98,98,98,97,108,101,88,112,3,0,0,0,0,0,0,0,0,0,7,97,88,93,92,116,100,88,116,98,106,100,103,97,107,79,105,108,114,110,5,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,89,95,99,93,103,101,100,117,115,98,87,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[80,116,93,99,102,97,108,100,87,111,101,95,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,98,104,102,106,94,106,81,106,111,110,111,1,0,0,0,0,0],"q":[1,4,1,1,5,2,2,3,0,3,56,113,169,228,294,299,241,200,157,117,59,2,2,1,0,2,1,1,4,1,1,0,4,1,2,0,2,2,3,0,0,0,0,0,0,0],"work":[70,112,103,96,95,101,110,101,82,109,46,40,40,40,40,144,140,156,156,152,156,105,87,92,93,105,104,87,119,101,103,102,107,96,108,74,99,111,114,112,11,0,0,0,0,0]},"requests":4019,"success":0.727,"attempts_per_req":1.0,"server_work":4019,"useful_share":0.727,"recovery_s":6,"p50_ms":27.3,"p99_ms":59.7,"max_queue":299},"3":{"series":{"arr":[81,108,106,106,113,117,106,87,99,86,98,102,104,100,110,103,106,92,92,97,95,91,116,109,86,87,96,101,103,103,112,103,95,110,112,112,108,101,90,85,0,0,0,0,0,0],"ok":[81,106,107,104,111,112,114,86,97,90,1,0,0,0,0,0,0,0,0,0,49,94,116,110,83,88,93,102,102,104,112,103,98,107,114,113,101,102,93,88,1,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,82,113,97,100,112,105,101,94,92,98,52,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[81,108,106,106,113,117,106,87,99,86,98,102,104,100,110,103,106,92,92,97,95,91,116,109,86,87,96,101,103,103,112,103,95,110,112,112,108,101,90,85,0,0,0,0,0,0],"q":[0,3,1,3,0,9,3,2,3,0,49,121,179,244,316,318,261,228,157,101,44,0,1,3,2,0,2,2,1,2,2,1,2,0,2,3,7,3,3,2,0,0,0,0,0,0],"work":[73,111,104,105,110,111,117,89,97,84,40,40,40,40,40,146,156,152,140,156,148,97,108,114,89,85,92,106,102,90,116,106,101,107,115,111,103,105,82,90,10,0,0,0,0,0]},"requests":4028,"success":0.7403,"attempts_per_req":1.0,"server_work":4028,"useful_share":0.7403,"recovery_s":6,"p50_ms":27.5,"p99_ms":71.9,"max_queue":318}},"naive":{"1":{"series":{"arr":[97,114,91,107,89,101,103,95,84,86,111,100,91,112,83,105,102,117,105,94,109,105,93,94,98,118,94,91,90,93,95,121,110,98,88,94,104,92,104,106,1,0,0,0,0,0],"ok":[95,112,90,110,88,104,102,95,85,81,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,71,114,92,108,86,94,105,118,106,99,107,101,113,86,94,110,98,98,90,88,95,108,119,100,92,92,103,90,100,109,33,0,0,0,0,0],"att":[97,114,91,107,89,101,103,95,84,86,296,319,262,338,250,302,308,351,322,285,330,314,293,271,286,354,287,277,273,267,295,338,345,304,265,277,316,256,314,323,38,0,0,0,0,0],"q":[4,7,2,4,2,2,3,1,1,2,232,529,754,1046,1259,1419,1555,1759,1920,2055,2235,2383,2533,2648,2782,2964,3097,3229,3341,3459,3600,3781,3972,4129,4239,4358,4508,4611,4769,4938,4957,4833,4681,4533,4401,4249],"work":[90,112,91,107,93,102,102,98,79,82,44,40,40,40,40,146,144,156,156,160,156,156,160,156,156,144,156,160,156,156,156,148,160,156,156,160,140,152,156,160,148,152,148,136,152,152]},"requests":3985,"success":0.2424,"attempts_per_req":2.515,"server_work":6210,"useful_share":0.1556,"recovery_s":null,"p50_ms":27.4,"p99_ms":61.8,"max_queue":4957},"2":{"series":{"arr":[80,116,94,98,102,97,108,100,87,111,102,94,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,99,103,102,105,95,106,82,105,111,110,111,1,0,0,0,0,0],"ok":[79,111,98,98,98,97,108,101,88,113,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,62,103,104,91,99,98,102,107,120,107,86,87,102,91,89,107,112,91,111,99,100,101,108,95,104,88,92,115,103,113,39,0,0,0,0,0],"att":[80,116,94,98,102,97,108,100,87,111,265,290,289,284,311,296,307,339,354,293,278,277,271,274,276,334,310,265,353,298,305,296,322,288,323,241,298,337,334,328,42,0,0,0,0,0],"q":[1,5,2,1,2,2,2,3,0,3,193,456,714,958,1223,1378,1533,1717,1914,2054,2177,2278,2410,2526,2650,2825,2982,3097,3297,3437,3586,3722,3896,4031,4192,4286,4428,4607,4785,4962,4978,4846,4710,4558,4406,4258],"work":[70,111,104,96,98,98,110,101,82,109,46,40,40,40,40,148,156,156,160,156,156,140,156,160,156,156,156,156,152,160,156,140,156,156,156,156,156,160,156,154,154,136,148,152,148,152]},"requests":4019,"success":0.2471,"attempts_per_req":2.506,"server_work":6229,"useful_share":0.1594,"recovery_s":null,"p50_ms":27.3,"p99_ms":58.7,"max_queue":4978},"3":{"series":{"arr":[81,108,106,106,113,118,105,87,99,86,98,102,104,100,110,103,106,92,92,97,95,91,116,109,86,87,96,101,103,103,112,103,96,109,112,112,108,101,90,85,0,0,0,0,0,0],"ok":[81,106,107,105,110,111,115,86,97,90,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,62,108,105,109,106,101,93,110,86,96,89,104,99,114,100,77,101,97,98,103,106,106,106,106,114,107,99,109,96,81,31,0,0,0,0,0],"att":[81,108,106,106,113,118,105,87,99,86,254,326,297,310,326,313,303,291,273,289,286,284,333,334,268,251,283,306,300,306,342,309,297,325,336,334,306,315,271,261,28,0,0,0,0,0],"q":[0,3,3,3,6,10,3,2,4,1,193,488,739,1025,1305,1480,1627,1768,1876,2005,2136,2281,2447,2627,2747,2841,2970,3130,3273,3423,3604,3771,3914,4072,4256,4432,4569,4747,4864,4969,4984,4851,4703,4567,4419,4267],"work":[73,111,103,106,110,112,116,90,89,91,40,40,40,40,40,144,154,156,140,160,154,154,156,160,156,152,156,152,156,156,156,152,156,140,156,160,156,156,152,156,148,152,132,152,148,152]},"requests":4028,"success":0.2505,"attempts_per_req":2.499,"server_work":6231,"useful_share":0.1619,"recovery_s":null,"p50_ms":27.7,"p99_ms":83.1,"max_queue":4984}},"backoff":{"1":{"series":{"arr":[97,114,92,106,90,100,103,95,85,85,112,99,92,112,82,105,102,117,105,94,109,105,93,94,99,117,94,91,90,93,95,121,110,98,88,94,104,93,104,105,1,0,0,0,0,0],"ok":[95,112,89,111,88,104,102,95,85,81,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,35,119,98,94,106,84,108,110,108,107,92,111,108,95,90,107,101,97,91,89,94,110,107,109,98,84,100,95,99,109,64,0,0,0,0,0],"att":[97,114,92,106,90,100,103,95,85,85,242,331,271,322,271,285,314,348,321,290,321,311,312,268,285,350,288,283,268,272,289,327,343,311,268,280,301,277,306,324,77,0,0,0,0,0],"q":[4,7,4,3,3,0,1,1,1,1,183,488,714,1000,1233,1370,1531,1717,1886,2022,2176,2328,2487,2605,2732,2915,3056,3184,3295,3414,3544,3716,3901,4061,4170,4299,4443,4564,4698,4865,4894,4803,4651,4499,4351,4199],"work":[90,112,92,107,93,102,105,91,82,82,46,40,40,38,40,148,156,160,156,156,140,160,156,156,156,160,156,156,156,156,160,156,156,160,156,156,160,156,140,160,152,152,152,152,148,136]},"requests":3985,"success":0.2424,"attempts_per_req":2.515,"server_work":6240,"useful_share":0.1548,"recovery_s":null,"p50_ms":27.4,"p99_ms":62.3,"max_queue":4894},"2":{"series":{"arr":[80,116,93,99,102,97,108,100,87,111,102,94,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,99,103,102,106,94,106,81,106,112,109,111,1,0,0,0,0,0],"ok":[79,111,98,98,98,97,108,101,88,112,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,31,110,91,103,90,105,98,109,117,113,86,94,96,83,97,99,115,94,109,97,104,98,108,93,106,94,87,110,102,118,69,0,0,0,0,0],"att":[80,116,93,99,102,97,108,100,87,111,218,303,278,298,295,302,311,328,356,306,274,273,276,264,279,328,330,270,334,296,309,298,326,280,321,253,288,344,310,341,89,0,0,0,0,0],"q":[1,5,2,1,2,1,2,3,0,1,147,422,673,930,1179,1348,1493,1670,1873,2015,2127,2247,2376,2483,2610,2774,2946,3063,3243,3388,3543,3691,3861,3987,4153,4244,4369,4550,4716,4902,4926,4842,4694,4542,4394,4258],"work":[70,111,104,96,98,98,110,101,90,101,46,40,40,40,40,144,160,160,156,140,156,160,156,156,156,156,156,156,160,152,156,152,156,160,156,140,156,156,156,160,152,148,152,152,136,148]},"requests":4019,"success":0.2471,"attempts_per_req":2.506,"server_work":6245,"useful_share":0.159,"recovery_s":null,"p50_ms":27.4,"p99_ms":57.7,"max_queue":4926},"3":{"series":{"arr":[81,108,106,106,113,118,105,87,99,86,98,102,104,100,110,103,106,92,92,97,95,91,116,110,85,87,96,101,103,103,112,103,96,109,112,112,108,101,90,85,0,0,0,0,0,0],"ok":[81,106,107,102,113,111,115,86,96,91,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,34,103,103,102,112,97,103,111,92,93,87,96,100,118,94,100,84,96,97,109,99,116,93,112,111,107,103,110,95,89,53,0,0,0,0,0],"att":[81,108,106,106,113,118,106,87,99,86,217,319,300,311,325,310,306,299,276,283,274,292,323,340,272,263,282,295,294,314,326,325,292,328,340,328,303,321,278,254,67,0,0,0,0,0],"q":[0,3,3,2,0,10,3,2,4,1,150,437,696,971,1262,1431,1573,1729,1843,1972,2095,2233,2383,2567,2690,2796,2921,3062,3203,3366,3524,3705,3844,4017,4203,4371,4528,4686,4810,4911,4913,4826,4678,4526,4378,4226],"work":[73,111,104,104,111,111,118,89,97,84,40,40,40,40,40,143,156,160,156,156,156,156,140,156,160,156,156,156,156,156,160,148,156,156,160,156,156,160,156,156,136,152,148,152,148,152]},"requests":4028,"success":0.2505,"attempts_per_req":2.499,"server_work":6261,"useful_share":0.1612,"recovery_s":null,"p50_ms":27.7,"p99_ms":84.2,"max_queue":4913}},"budget":{"1":{"series":{"arr":[96,114,89,110,88,102,102,96,84,84,113,100,90,113,81,104,105,117,103,95,109,106,93,93,98,118,95,90,91,90,98,121,108,99,89,94,103,90,105,107,2,0,0,0,0,0],"ok":[94,113,89,109,90,101,102,97,85,81,4,0,0,0,0,0,0,0,0,0,0,79,96,92,98,119,94,91,90,90,99,112,114,103,87,94,103,86,108,104,8,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,98,109,85,115,79,105,98,121,106,97,109,31,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[96,114,89,110,88,102,102,96,84,84,117,100,90,113,81,104,105,117,103,95,109,106,93,93,98,118,95,90,95,90,98,121,108,99,89,94,103,90,105,107,2,0,0,0,0,0],"q":[3,5,1,3,3,2,3,1,3,4,73,136,183,261,302,311,253,204,170,129,67,23,1,1,3,0,1,0,3,1,1,5,3,5,1,4,1,1,2,1,0,0,0,0,0,0],"work":[89,111,90,110,93,102,102,98,85,70,47,40,40,40,40,147,152,152,140,156,156,137,97,90,98,122,92,93,90,89,102,112,118,102,80,94,107,84,107,106,13,0,0,0,0,0]},"requests":3985,"success":0.7107,"attempts_per_req":1.002,"server_work":3993,"useful_share":0.7092,"recovery_s":7,"p50_ms":27.5,"p99_ms":66.0,"max_queue":311},"2":{"series":{"arr":[80,116,93,99,102,96,109,100,87,111,101,95,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,98,104,102,106,94,106,81,106,111,110,111,1,0,0,0,0,0],"ok":[79,111,98,98,98,97,108,101,88,112,3,0,0,0,0,0,0,0,0,0,0,90,88,93,92,116,100,88,116,98,106,101,102,97,107,79,105,108,113,111,5,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,89,95,99,93,102,102,100,117,115,98,93,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[80,116,93,99,102,96,109,100,87,111,105,95,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,98,104,102,106,94,106,81,106,111,110,111,1,0,0,0,0,0],"q":[1,5,2,1,5,2,2,3,0,1,60,117,173,230,295,300,244,201,158,121,65,11,0,1,0,1,3,3,2,1,2,0,2,1,2,0,2,3,4,1,0,0,0,0,0,0],"work":[70,111,103,97,95,101,110,101,90,101,46,40,40,40,40,144,152,156,152,140,152,112,90,91,95,115,101,79,120,102,101,101,108,97,107,76,98,112,114,112,11,0,0,0,0,0]},"requests":4019,"success":0.7236,"attempts_per_req":1.001,"server_work":4023,"useful_share":0.7228,"recovery_s":6,"p50_ms":27.5,"p99_ms":60.6,"max_queue":300},"3":{"series":{"arr":[81,108,106,106,113,118,105,87,99,86,98,102,104,100,110,103,106,92,92,97,95,91,116,110,85,87,96,101,103,105,110,103,96,109,112,112,108,101,90,85,0,0,0,0,0,0],"ok":[81,106,107,105,110,112,114,86,97,90,1,0,0,0,0,0,0,0,0,0,7,97,116,110,83,88,93,102,103,103,112,103,98,107,114,113,101,103,92,88,1,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,82,113,97,102,110,105,101,95,91,98,89,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[81,108,106,106,113,118,105,87,99,86,102,102,104,100,110,103,106,92,92,97,95,91,116,110,85,87,96,101,103,105,110,103,96,109,112,112,108,101,90,85,0,0,0,0,0,0],"q":[0,3,3,2,2,9,3,2,3,1,52,125,181,245,317,321,276,237,173,115,62,6,2,3,2,0,3,2,2,2,0,1,0,1,2,1,7,3,3,0,0,0,0,0,0,0],"work":[73,112,102,105,111,111,117,89,97,84,40,40,40,40,40,134,156,152,152,140,156,108,109,114,89,85,94,97,100,104,114,105,100,106,118,112,87,111,92,90,6,0,0,0,0,0]},"requests":4028,"success":0.7306,"attempts_per_req":1.001,"server_work":4032,"useful_share":0.7299,"recovery_s":6,"p50_ms":27.9,"p99_ms":74.0,"max_queue":321}},"deadline":{"1":{"series":{"arr":[98,113,92,106,90,100,103,95,85,85,112,99,92,112,82,105,102,117,105,94,109,106,93,93,99,117,94,91,90,93,96,120,110,99,87,94,104,93,104,105,1,0,0,0,0,0],"ok":[95,112,90,110,88,104,102,95,85,81,4,0,0,0,0,2,1,7,5,10,8,9,0,25,2,5,4,10,2,5,8,2,0,14,5,5,4,7,1,4,8,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,71,114,92,109,86,91,104,112,101,91,98,91,112,61,93,108,91,88,87,83,91,102,119,89,85,87,102,81,98,104,25,0,0,0,0,0],"att":[98,113,92,106,90,100,103,95,85,85,301,314,264,338,248,299,309,342,318,273,323,302,293,233,284,349,275,267,269,264,285,333,346,285,257,273,312,249,312,319,36,0,0,0,0,0],"q":[4,7,2,3,4,1,3,1,3,3,72,78,41,96,48,46,36,44,40,31,50,34,37,35,37,40,35,36,36,31,37,44,47,39,28,32,41,29,38,37,24,0,0,0,0,0],"work":[90,112,91,107,93,102,102,98,85,82,36,40,40,40,40,142,156,156,158,138,156,156,160,152,156,156,152,156,156,140,155,153,160,156,156,156,156,152,156,156,46,0,0,0,0,0]},"requests":3985,"success":0.2808,"attempts_per_req":2.469,"server_work":5050,"useful_share":0.2216,"recovery_s":null,"p50_ms":27.6,"p99_ms":298.7,"max_queue":96},"2":{"series":{"arr":[80,116,93,99,102,97,108,100,87,111,102,94,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,99,103,102,106,94,106,81,106,112,109,111,1,0,0,0,0,0],"ok":[79,111,98,98,98,97,108,101,87,113,3,0,0,0,0,7,7,3,3,3,6,5,7,9,7,6,2,14,18,4,3,1,0,5,4,3,8,1,4,3,6,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,61,104,102,93,99,91,94,105,119,103,79,83,94,83,82,100,110,83,88,94,97,100,108,90,100,86,84,113,99,110,33,0,0,0,0,0],"att":[80,116,93,99,102,97,108,100,87,111,263,292,289,284,311,286,299,337,350,285,270,274,265,262,274,327,306,257,319,292,300,294,323,280,319,238,286,339,327,326,41,0,0,0,0,0],"q":[1,5,1,1,5,2,2,3,0,2,57,70,49,55,39,35,33,44,43,37,37,38,39,34,29,41,41,36,49,36,36,36,42,41,38,30,33,39,42,37,26,0,0,0,0,0],"work":[70,111,104,96,97,99,110,101,82,108,47,40,40,40,40,140,156,152,156,156,136,156,156,156,152,156,152,156,152,156,156,144,152,156,156,156,156,156,156,156,51,0,0,0,0,0]},"requests":4019,"success":0.2817,"attempts_per_req":2.465,"server_work":5068,"useful_share":0.2234,"recovery_s":null,"p50_ms":27.8,"p99_ms":296.9,"max_queue":70},"3":{"series":{"arr":[81,108,106,106,113,118,105,87,99,86,98,102,104,100,110,103,106,92,92,97,95,91,116,109,86,87,96,101,103,105,110,103,96,109,112,112,108,101,90,85,0,0,0,0,0,0],"ok":[81,106,107,104,111,110,116,86,97,90,1,0,0,0,0,5,7,7,3,10,5,8,3,3,2,8,3,2,6,2,2,6,4,0,2,13,5,6,3,12,5,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,62,108,105,109,106,96,87,102,84,85,86,94,97,110,96,72,97,95,93,100,106,98,103,105,112,98,90,102,96,69,24,0,0,0,0,0],"att":[81,108,106,106,113,119,105,87,99,86,254,326,297,310,326,305,298,279,270,282,280,275,330,329,263,242,279,305,292,305,338,302,295,324,335,321,300,311,268,243,28,0,0,0,0,0],"q":[0,3,3,2,2,8,6,2,4,0,48,62,58,56,65,50,38,43,33,33,34,39,43,52,38,33,32,33,37,34,43,39,37,49,45,34,47,50,31,30,21,0,0,0,0,0],"work":[73,111,104,104,109,113,118,89,97,84,40,40,40,40,40,146,152,156,156,154,140,152,156,156,152,156,153,155,152,156,140,152,152,156,156,156,156,152,148,152,44,0,0,0,0,0]},"requests":4028,"success":0.2833,"attempts_per_req":2.463,"server_work":5058,"useful_share":0.2256,"recovery_s":null,"p50_ms":27.8,"p99_ms":299.3,"max_queue":65}},"shed":{"1":{"series":{"arr":[97,114,92,106,90,100,103,95,85,85,111,100,92,112,82,105,102,117,105,94,109,105,93,94,99,117,94,91,90,93,95,121,110,98,88,94,104,93,104,105,1,0,0,0,0,0],"ok":[95,112,90,110,88,104,102,95,85,81,4,0,0,0,0,94,101,121,103,95,109,103,96,93,98,119,93,92,90,91,97,114,112,102,87,95,102,89,106,104,7,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,108,100,92,112,81,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[97,114,92,106,90,100,103,95,85,85,330,301,273,339,245,128,102,117,105,94,109,105,93,94,99,117,94,91,90,93,95,123,110,98,88,94,104,93,104,105,1,0,0,0,0,0],"q":[4,8,2,3,2,2,3,1,3,3,8,8,8,8,8,8,3,4,3,1,3,2,1,3,1,3,2,1,2,2,0,4,1,5,1,3,2,2,2,2,0,0,0,0,0,0],"work":[90,112,91,107,93,101,103,98,85,72,46,40,40,40,40,107,100,125,91,100,111,105,96,92,97,123,94,83,93,87,103,109,118,101,88,97,103,88,107,95,16,0,0,0,0,0]},"requests":3985,"success":0.873,"attempts_per_req":1.255,"server_work":3687,"useful_share":0.9436,"recovery_s":1,"p50_ms":27.3,"p99_ms":63.4,"max_queue":8},"2":{"series":{"arr":[80,116,94,98,102,97,108,100,87,111,102,94,90,99,108,94,105,114,115,96,95,92,86,94,90,118,102,88,114,99,103,102,106,94,106,81,106,111,110,111,1,0,0,0,0,0],"ok":[79,111,98,98,98,97,108,101,88,113,2,0,0,0,0,89,102,115,118,95,94,92,88,93,92,116,100,88,116,98,105,102,102,97,107,79,105,108,114,110,5,0,0,0,0,0],"fail":[0,0,0,0,0,0,0,0,0,0,97,94,91,99,106,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[80,116,94,98,102,97,108,100,87,111,300,282,272,295,321,114,105,114,115,96,95,92,86,94,90,118,102,88,114,99,103,102,106,94,106,81,106,111,110,111,1,0,0,0,0,0],"q":[1,4,1,0,2,2,2,3,0,2,8,8,8,8,8,8,1,4,2,1,0,1,1,1,0,2,2,3,4,1,1,0,4,1,2,0,1,2,5,1,0,0,0,0,0,0],"work":[70,112,103,96,98,98,109,102,82,109,46,40,40,40,40,105,102,102,123,98,94,94,90,92,93,105,103,88,119,101,103,102,107,96,108,74,100,111,115,111,10,0,0,0,0,0]},"requests":4019,"success":0.8766,"attempts_per_req":1.248,"server_work":3731,"useful_share":0.9443,"recovery_s":0,"p50_ms":27.5,"p99_ms":56.9,"max_queue":8},"3":{"series":{"arr":[81,107,107,105,111,117,108,88,99,86,97,103,101,103,108,105,106,92,90,97,96,91,117,109,85,87,97,98,105,102,113,104,94,108,114,112,109,100,89,87,0,0,0,0,0,0],"ok":[80,107,106,102,111,112,112,88,96,90,2,0,0,0,0,104,104,93,92,93,98,93,115,109,86,87,91,105,102,103,111,105,98,106,115,112,102,101,92,90,1,0,0,0,0,0],"fail":[0,0,0,0,0,3,0,0,0,0,93,103,100,105,107,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"att":[81,107,107,105,111,123,108,88,99,86,286,311,299,310,324,114,106,92,90,97,96,91,117,109,85,87,97,98,105,102,113,104,94,108,114,112,109,100,89,87,0,0,0,0,0,0],"q":[0,3,2,2,2,6,2,2,4,2,8,8,8,8,8,5,1,3,0,1,1,0,2,3,3,2,3,2,1,5,2,3,0,3,2,2,7,4,2,0,0,0,0,0,0,0],"work":[70,112,104,106,109,113,114,89,90,91,40,40,40,40,40,116,90,99,92,98,97,97,111,113,86,77,98,103,98,104,115,106,98,109,105,114,95,111,93,89,6,0,0,0,0,0]},"requests":4028,"success":0.8724,"attempts_per_req":1.256,"server_work":3718,"useful_share":0.9451,"recovery_s":0,"p50_ms":27.6,"p99_ms":63.6,"max_queue":8}}},"model":{"none":{"1":{"success":0.7534,"attPerA":1.0,"useful":0.7534,"recovery":6},"2":{"success":0.7426,"attPerA":1.0,"useful":0.7426,"recovery":6},"3":{"success":0.6762,"attPerA":1.0,"useful":0.6762,"recovery":8}},"naive":{"1":{"success":0.2511,"attPerA":2.4977,"useful":0.1768,"recovery":null},"2":{"success":0.2556,"attPerA":2.4888,"useful":0.1776,"recovery":null},"3":{"success":0.2602,"attPerA":2.4797,"useful":0.1843,"recovery":null}},"backoff":{"1":{"success":0.2511,"attPerA":2.4977,"useful":0.1768,"recovery":null},"2":{"success":0.2556,"attPerA":2.4888,"useful":0.1776,"recovery":null},"3":{"success":0.2602,"attPerA":2.4797,"useful":0.1843,"recovery":null}},"budget":{"1":{"success":0.7529,"attPerA":1.001,"useful":0.7522,"recovery":6},"2":{"success":0.7413,"attPerA":1.001,"useful":0.7406,"recovery":6},"3":{"success":0.6712,"attPerA":1.001,"useful":0.6705,"recovery":8}},"deadline":{"1":{"success":0.2519,"attPerA":2.4972,"useful":0.2075,"recovery":null},"2":{"success":0.2589,"attPerA":2.4868,"useful":0.2106,"recovery":null},"3":{"success":0.2624,"attPerA":2.4774,"useful":0.2171,"recovery":null}},"shed":{"1":{"success":0.8829,"attPerA":1.2349,"useful":0.9449,"recovery":0},"2":{"success":0.8761,"attPerA":1.2479,"useful":0.9436,"recovery":1},"3":{"success":0.8662,"attPerA":1.2687,"useful":0.9445,"recovery":1}}},"baseline":{"n":2972,"p50":27.5,"p90":42.5,"p99":62.3,"p999":72.3,"max":77.6}};
+</script>
+<script>/* 24_js_rd_static.js */
+// ---- Reading: small computed tables (nines, dependency chain, error budget, burn-rate thresholds, fan-out). Checked by src/recompute.py ----
+window.RCALC={
+  nines:function(){return [0.99,0.995,0.999,0.9995,0.9999,0.99999].map(a=>({a:a,yr_min:Math.round((1-a)*365*24*60*100)/100,mo_min:Math.round((1-a)*30*24*60*100)/100,wk_min:Math.round((1-a)*7*24*60*100)/100}))},
+  chain:function(){let p=1;[0.9999,0.999,0.9995,0.999,0.995].forEach(a=>p*=a);return Math.round(p*1e6)/1e6},
+  burn:function(){const W=30*24;return [[0.02,1],[0.05,6],[0.10,72]].map(x=>({share:x[0],hours:x[1],burn:Math.round(x[0]*W/x[1]*100)/100}))},
+  fanout:function(){return Math.round((1-Math.pow(0.99,100))*1e4)/1e4}
+};
+(function(){
+  const fmtDur=m=>m>=1440?(m/1440).toFixed(2)+' days':m>=60?(m/60).toFixed(2)+' h':m>=1?m.toFixed(m<10?2:1)+' min':(m*60).toFixed(1)+' s';
+  const t=document.getElementById('rd-nines');
+  if(t){t.innerHTML='<thead><tr><th>Target</th><th>Nines</th><th class="num">Down per year</th><th class="num">per 30 days</th><th class="num">per week</th></tr></thead><tbody>'+
+    RCALC.nines().map((r,i)=>'<tr><td>'+['99','99.5','99.9','99.95','99.99','99.999'][i]+'%</td><td>'+['two','two and a half','three','three and a half','four','five'][i]+'</td><td class="num">'+fmtDur(r.yr_min)+'</td><td class="num">'+fmtDur(r.mo_min)+'</td><td class="num">'+fmtDur(r.wk_min)+'</td></tr>').join('')+'</tbody>'}
+  const c=document.getElementById('rd-chain');if(c)c.textContent=(RCALC.chain()*100).toFixed(2)+'%';
+  const f=document.getElementById('rd-fan');if(f)f.textContent=(RCALC.fanout()*100).toFixed(1)+'%';
+  const b=document.getElementById('rd-burn');
+  if(b){b.innerHTML='<thead><tr><th>Budget spent</th><th>Long window</th><th>Short window</th><th class="num">Burn rate = share &times; 720 h / window</th><th>Action</th><th class="num">Whole budget gone in</th></tr></thead><tbody>'+
+    RCALC.burn().map((r,i)=>'<tr><td>'+(r.share*100)+'%</td><td>'+(r.hours<24?r.hours+' h':(r.hours/24)+' days')+'</td><td>'+['5 min','30 min','6 h'][i]+'</td><td class="num">'+r.burn+'</td><td>'+(i<2?'page':'ticket')+'</td><td class="num">'+(720/r.burn).toFixed(0)+' h</td></tr>').join('')+'</tbody>'}
+})();
+</script>
+<script>/* 25_js_rd_ba.js */
+// ---- Reading, Degradation: the same 5 s provider slowdown hitting the chat API before and after timeouts + breaker + shedding ----
+// Both runs come from RE.sim (22_js_engine.js) with presets RE.P.before / RE.P.after; recompute.py reproduces them.
+(function(){
+  const svg=document.getElementById('rd-ba-svg');if(!svg||!window.RE)return;
+  const cap=document.getElementById('rd-ba-cap'),cnt=document.getElementById('rd-ba-cnt'),leg=document.getElementById('rd-ba-leg');
+  const R={before:RE.sim(RE.P.before),after:RE.sim(RE.P.after)};
+  const S0=7,S1=22,N=S1-S0+1;let mode='before';
+  const qMax=Math.max(1,...R.before.S.q,...R.after.S.q);
+  const W20=RE.P.before.W;
+  const OMX=Math.max(140,...['before','after'].flatMap(m=>R[m].S.good.map((g,k)=>g+R[m].S.deg[k]+R[m].S.fail[k])));
+  function draw(i){
+    const r=R[mode],S=r.S,s=S0+i;
+    const W=Math.max(300,Math.min(860,RD.width(svg)));const x0=34,x1=W-6,bw=(x1-x0)/N;
+    const X=k=>x0+(k-S0)*bw;
+    let b='';
+    // slowdown band
+    b+='<rect x="'+X(10)+'" y="60" width="'+(bw*5)+'" height="234" fill="var(--bad)" opacity=".09"/>';
+    // worker strip
+    const nw=S.wdep[Math.min(s,S.wdep.length-1)];const sq=Math.min(14,(W-4)/W20-2);
+    b+=RD.t(0,14,'Workers waiting on the provider at second '+s+': '+nw+' of '+W20,{fs:11.5,w:600});
+    for(let k=0;k<W20;k++)b+='<rect x="'+(k*(sq+2))+'" y="22" width="'+sq+'" height="'+sq+'" rx="2" fill="'+(k<nw?'var(--c2)':'var(--soft)')+'" stroke="var(--line)"/>';
+    // panel 1: queue
+    const p1y=74,p1h=80,Yq=v=>p1y+p1h*(1-v/qMax);
+    b+=RD.t(0,p1y-4,'Requests waiting in our queue (most in the second)',{fs:10.5,fill:'var(--mute)'});
+    b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+(p1y+p1h)+'" y2="'+(p1y+p1h)+'" stroke="var(--line)"/>'+RD.t(x0-4,p1y+8,String(qMax),{fs:9.5,a:'end'})+RD.t(x0-4,p1y+p1h,'0',{fs:9.5,a:'end'});
+    for(let k=S0;k<=S1;k++){const on=k<=s,v=S.q[k];const x=X(k)+1,w=Math.max(2,bw-2);
+      if(v>0)b+='<rect x="'+x+'" y="'+Yq(v)+'" width="'+w+'" height="'+(p1y+p1h-Yq(v))+'" fill="var(--c4)" opacity="'+(on?1:.12)+'"/>';
+      if(on&&S.open[k]>0)b+='<rect x="'+x+'" y="'+(p1y+p1h+2)+'" width="'+(w*S.open[k]/1000)+'" height="4" fill="var(--c5)"/>'}
+    // panel 2: outcomes
+    const p2y=184,p2h=96,mx=OMX,Y=v=>p2y+p2h*(1-v/mx);
+    b+=RD.t(0,p2y-6,'What users got each second',{fs:10.5,fill:'var(--mute)'});
+    b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(0)+'" y2="'+Y(0)+'" stroke="var(--line)"/>'+RD.t(x0-4,Y(100)+3,'100',{fs:9.5,a:'end'})+RD.t(x0-4,Y(0),'0',{fs:9.5,a:'end'});
+    b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(100)+'" y2="'+Y(100)+'" stroke="var(--line)" stroke-dasharray="3 3"/>';
+    for(let k=S0;k<=S1;k++){const on=k<=s,x=X(k)+1,w=Math.max(2,bw-2),o=on?1:.12;let y=Y(0);
+      [[S.good[k],'var(--good)'],[S.deg[k],'var(--c5)'],[S.fail[k],'var(--bad)']].forEach(p=>{const h=p2h*p[0]/mx;if(h>0){y-=h;b+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+p[1]+'" opacity="'+o+'"/>'}});
+      if(k%2===0||bw>26)b+=RD.t(x+w/2,p2y+p2h+14,String(k),{fs:9.5,a:'middle',fill:k===s?'var(--ink)':'var(--mute)'})}
+    b+=RD.t((x0+x1)/2,p2y+p2h+27,'second',{fs:10,a:'middle',fill:'var(--mute)'});
+    svg.innerHTML=RD.svg(W,312,b,'Queue length and per-second outcomes of the chat API during a provider slowdown, '+mode);
+    leg.innerHTML='<span style="--sw:var(--bad)">provider slow, 3 s per call (shaded)</span><span style="--sw:var(--c2)">worker stuck on provider</span><span style="--sw:var(--c4)">queue</span><span style="--sw:var(--c5)">breaker open (bar under queue) / fallback answer</span><span style="--sw:var(--good)">full answer</span><span style="--sw:var(--bad)">failed or too late (over 2 s)</span>';
+    let cg=0,cd=0,cf=0,cb=0;for(let k=0;k<=s;k++){cg+=S.good[k];cd+=S.deg[k];cf+=S.fail[k];cb+=S.failB[k]}
+    const tot=S.good[s]+S.deg[s]+S.fail[s];
+    cnt.innerHTML=RD.stat('Second',s,'slowdown: 10 to 15')+RD.stat('Queue',S.q[s],'requests waiting')+RD.stat('Answered this second',tot?Math.round(100*(S.good[s]+S.deg[s])/tot)+'%':'n/a',S.deg[s]?S.deg[s]+' by fallback':'')+RD.stat('Failed so far',cf,cb+' never needed the provider');
+    let t,p;const B=mode==='before';
+    if(s<10){t='Normal traffic';p='100 requests a second: half send a message (need the provider, 25 ms), half load history (5 ms of our own work). 20 workers are plenty; nothing waits.'}
+    else if(s===10){t='The provider slows to 3 s per call';p=B?'With no timeout, each message request holds a worker for 3 s. At 50 such requests a second, all 20 workers are stuck within half a second.':'Calls now hit the 100 ms timeout. After 20 calls with at least half failing, the breaker opens and message requests get the fallback model at once.'}
+    else if(s<15){t='Second '+s+': '+(B?'the cascade':'contained');p=B?'Every worker waits on the provider, so history loads, which never needed it, queue behind them too. The queue grows by about 100 a second and everyone waits past 2 s: '+S.failB[s]+' history loads failed this second.':'Workers are free: history loads are untouched, message requests get the fallback model. Every 2 s the breaker lets 5 trial calls through; they time out, so it opens again. The queue never forms.'}
+    else if(s===15){t='The provider recovers';p=B?'Calls started before second 15 still take 3 s, and the queue holds hundreds of requests whose users already gave up; we still process them.':'The next half-open trial succeeds and the breaker closes; full answers return.'}
+    else if(s<S1){t='Second '+s+': '+(B?'draining':'normal');p=B?(S.q[s]>0?'The backlog is being worked off, mostly for users who left.':'The backlog is gone; service is normal again.'):'Nothing to drain: nothing piled up.'}
+    else{t='Totals';const T=r.tot;p=(B?'Before':'After')+': '+Math.round(T.success*1000)/10+'% of all requests answered in time ('+Math.round(T.full*1000)/10+'% with the full model); '+T.fail+' failed. '+(B?'Switch to After to run the same slowdown with the defences on.':'Compare with Before: the same slowdown, no user saw an error.')}
+    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
+  }
+  const A=RD.anim({card:'rd-ba-card',ctl:'rd-ba-ctl',n:N,draw:draw,ms:1300,label:'Second'});
+  RD.seg(document.getElementById('rd-ba-seg'),m=>{mode=m;A.reset(N);A.play()});
+  RD.onResize(()=>A.redraw());
+})();
+</script>
+<script>/* 26_js_rd_rl.js */
+// ---- Reading, Rate limiting: one fixed trace through five limiters (limit 10 per second). recompute.py runs the same code ----
+window.RLIM=(function(){
+  function trace(){const a=[];let k;
+    for(k=0;k<14;k++)a.push(100+200*k);
+    for(k=0;k<10;k++)a.push(2900+10*k);for(k=0;k<10;k++)a.push(3000+10*k);
+    for(k=0;k<6;k++)a.push(3300+200*k);
+    for(k=0;k<25;k++)a.push(4500+10*k);
+    for(k=0;k<10;k++)a.push(5000+200*k);
+    return a}
+  const L=10,WIN=1000;
+  function run(alg){const T=trace(),out=[];const acc=[];
+    let tokens=L,last=0,lastRel=-1e9;const cnt={};
+    T.forEach(t=>{let ok=false,rel=t;
+      if(alg==='fixed'){const w=Math.floor(t/WIN);cnt[w]=cnt[w]||0;if(cnt[w]<L){cnt[w]++;ok=true}}
+      else if(alg==='log'){let n=0;for(const x of acc)if(x>t-WIN)n++;ok=n<L}
+      else if(alg==='slide'){const w=Math.floor(t/WIN);const cur=cnt[w]||0,prev=cnt[w-1]||0;const est=prev*(WIN-(t-w*WIN))/WIN+cur;if(est<L){cnt[w]=cur+1;ok=true}}
+      else if(alg==='token'){tokens=Math.min(L,tokens+(t-last)*L/WIN);last=t;if(tokens>=1){tokens-=1;ok=true}}
+      else if(alg==='leaky'){let waiting=0;for(const x of acc)if(x>t)waiting++;
+        if(waiting<L){rel=Math.max(t,lastRel+WIN/L);lastRel=rel;ok=true}}
+      if(ok)acc.push(rel);
+      out.push({t:t,ok:ok,rel:rel});
+    });
+    // busiest one-second span of accepted (released) requests
+    const r=acc.slice().sort((a,b)=>a-b);let mx=0;for(let i=0;i<r.length;i++){let j=i;while(j<r.length&&r[j]<r[i]+WIN)j++;mx=Math.max(mx,j-i)}
+    let maxWait=0;out.forEach(o=>{if(o.ok)maxWait=Math.max(maxWait,o.rel-o.t)});
+    return {out:out,accepted:acc.length,rejected:T.length-acc.length,busiest:mx,maxWait:maxWait}}
+  const ALGS=[['fixed','Fixed window'],['log','Sliding log'],['slide','Sliding window counter'],['token','Token bucket (10, refill 10/s)'],['leaky','Leaky bucket queue (10 waiting)']];
+  return {trace:trace,run:run,ALGS:ALGS};
+})();
+(function(){
+  const svg=document.getElementById('rd-rl-svg'),tab=document.getElementById('rd-rl-tab');if(!svg)return;
+  const res=RLIM.ALGS.map(a=>[a,RLIM.run(a[0])]);
+  function draw(){const W=Math.max(300,Math.min(860,RD.width(svg)));const x0=0,x1=W-4,T=7000,X=t=>x0+(x1-x0)*t/T;const rh=40;let b='';
+    for(let s=0;s<=7;s++)b+='<line x1="'+X(s*1000)+'" x2="'+X(s*1000)+'" y1="0" y2="'+(res.length*rh+4)+'" stroke="var(--line)"/>'+RD.t(X(s*1000)+(s===7?-2:2),res.length*rh+16,s+' s',{fs:9.5,a:s===7?'end':'start',fill:'var(--mute)'});
+    res.forEach((p,i)=>{const y=i*rh+20;b+=RD.t(2,y-6,p[0][1],{fs:10.5,w:600});
+      p[1].out.forEach(o=>{const c=!o.ok?'var(--bad)':(o.rel>o.t?'var(--c4)':'var(--good)');
+        if(o.ok&&o.rel>o.t)b+='<line x1="'+X(o.t)+'" x2="'+X(o.rel)+'" y1="'+(y+6)+'" y2="'+(y+6)+'" stroke="var(--c4)" stroke-width="1" opacity=".5"/>';
+        b+='<rect x="'+(X(o.ok?o.rel:o.t)-1)+'" y="'+(o.ok?y:y+9)+'" width="2" height="'+(o.ok?12:8)+'" fill="'+c+'"/>'})});
+    svg.innerHTML=RD.svg(W,res.length*rh+20,b,'Accepted and rejected requests over 7 seconds for five rate limiting algorithms')}
+  tab.innerHTML='<thead><tr><th>Algorithm</th><th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Most in any 1 s</th><th class="num">Longest wait</th></tr></thead><tbody>'+
+    res.map(p=>'<tr><td>'+p[0][1]+'</td><td class="num">'+p[1].accepted+'</td><td class="num">'+p[1].rejected+'</td><td class="num">'+p[1].busiest+'</td><td class="num">'+(p[1].maxWait?p[1].maxWait+' ms':'0')+'</td></tr>').join('')+'</tbody>';
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 27_js_rd_meas.js */
+// ---- Reading, "A retry storm, measured": the real runs (window.MEAS from 23_js_meas_data.js) ----
+(function(){
+  const svg=document.getElementById('rd-ms-svg');if(!svg||!window.MEAS)return;
+  const M=MEAS,CF=['none','naive','backoff','budget','deadline','shed'];
+  const LB={none:'Timeouts, no retries',naive:'Retry at once',backoff:'Backoff + full jitter',budget:'Backoff + retry budget',deadline:'Retry at once + server skips expired work',shed:'Retry at once + bounded queue (8)'};
+  let cf='naive',seed='1';
+  const seg=document.getElementById('rd-ms-seg'),sseg=document.getElementById('rd-ms-seed');
+  seg.innerHTML=CF.map(c=>'<button data-m="'+c+'"'+(c===cf?' class="on"':'')+'>'+LB[c]+'</button>').join('');
+  sseg.innerHTML=['1','2','3'].map(s=>'<button data-m="'+s+'"'+(s===seed?' class="on"':'')+'>Seed '+s+'</button>').join('');
+  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const pct=v=>(v*100).toFixed(1)+'%';
+  function draw(){
+    const r=M.runs[cf][seed],S=r.series,NS=41;
+    const W=Math.max(300,Math.min(860,RD.width(svg)));const x0=34,x1=W-6,bw=(x1-x0)/NS,X=k=>x0+k*bw;
+    let b='';const mx=Math.max(120,...S.att.slice(0,NS));const p1=10,h1=130,Y=v=>p1+h1*(1-v/mx);
+    b+='<rect x="'+X(10)+'" y="'+p1+'" width="'+(5*bw)+'" height="'+(h1+110)+'" fill="var(--bad)" opacity=".09"/>'+RD.t(X(10)+3,p1+10,'slowdown',{fs:10,fill:'var(--bad)'});
+    b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(0)+'" y2="'+Y(0)+'" stroke="var(--line)"/>'+RD.t(x0-4,Y(mx)+8,String(mx),{fs:9.5,a:'end'})+RD.t(x0-4,Y(0),'0',{fs:9.5,a:'end'});
+    b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(160)+'" y2="'+Y(160)+'" stroke="var(--ink)" stroke-dasharray="4 3"/>'+RD.t(x1,Y(160)-3,'normal capacity 160/s',{fs:9.5,a:'end',fill:'var(--mute)'});
+    let pa='',pr='';
+    for(let k=0;k<NS;k++){const x=X(k)+1,w=Math.max(2,bw-2);
+      if(S.ok[k])b+='<rect x="'+x+'" y="'+Y(S.ok[k])+'" width="'+w+'" height="'+(Y(0)-Y(S.ok[k]))+'" fill="var(--good)"/>';
+      if(S.fail[k])b+='<rect x="'+x+'" y="'+Y(S.ok[k]+S.fail[k])+'" width="'+w+'" height="'+(Y(S.ok[k])-Y(S.ok[k]+S.fail[k]))+'" fill="var(--bad)" opacity=".75"/>';
+      pa+=(k?'L':'M')+(x+w/2).toFixed(1)+' '+Y(S.att[k]).toFixed(1);pr+=(k?'L':'M')+(x+w/2).toFixed(1)+' '+Y(S.arr[k]).toFixed(1)}
+    b+='<path d="'+pa+'" fill="none" stroke="var(--c4)" stroke-width="2"/><path d="'+pr+'" fill="none" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 2"/>';
+    // queue panel
+    const qm=Math.max(10,...S.q.slice(0,NS)),p2=p1+h1+30,h2=70,Yq=v=>p2+h2*(1-v/qm);
+    b+=RD.t(0,p2-6,'Server queue (most waiting in the second), max '+qm,{fs:10.5,fill:'var(--mute)'});
+    b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Yq(0)+'" y2="'+Yq(0)+'" stroke="var(--line)"/>';
+    for(let k=0;k<NS;k++){const x=X(k)+1,w=Math.max(2,bw-2);if(S.q[k])b+='<rect x="'+x+'" y="'+Yq(S.q[k])+'" width="'+w+'" height="'+(Yq(0)-Yq(S.q[k]))+'" fill="var(--c6)"/>';
+      if(k%5===0)b+=RD.t(x+w/2,p2+h2+13,String(k),{fs:9.5,a:'middle',fill:'var(--mute)'})}
+    b+=RD.t((x0+x1)/2,p2+h2+25,'second',{fs:10,a:'middle',fill:'var(--mute)'});
+    svg.innerHTML=RD.svg(W,p2+h2+30,b,'Measured successes, failures and attempts per second, and server queue length, for '+LB[cf]);
+    document.getElementById('rd-ms-leg').innerHTML='<span style="--sw:var(--good)">requests answered</span><span style="--sw:var(--bad)">requests failed (all attempts)</span><span style="--sw:var(--c4)">HTTP attempts sent</span><span style="--sw:var(--ink)">new requests (dotted)</span><span style="--sw:var(--c6)">server queue</span>';
+    document.getElementById('rd-ms-cnt').innerHTML=RD.stat('Success',pct(r.success),'of '+r.requests+' requests')+RD.stat('Attempts per request',r.attempts_per_req.toFixed(2),'')+RD.stat('Useful server work',pct(r.useful_share),'client still waiting')+RD.stat('Recovery',r.recovery_s===null?'never':r.recovery_s+' s','after the slowdown ends');
+    document.getElementById('rd-ms-note').textContent='Seed '+seed+' of 3. '+M.meta.configs[cf]+'.';
+  }
+  function table(){const t=document.getElementById('rd-ms-tab');
+    const rng=a=>{const lo=Math.min(...a),hi=Math.max(...a);return lo===hi?'':' <span class="mute small">('+(lo*100).toFixed(1)+' to '+(hi*100).toFixed(1)+')</span>'};
+    const rec=a=>a.every(x=>x===null)?'never':a.some(x=>x===null)?a.map(x=>x===null?'never':x).join(', ')+' s':Math.min(...a)+' to '+Math.max(...a)+' s';
+    t.innerHTML='<thead><tr><th>Configuration</th><th class="num">Success (measured)</th><th class="num">Attempts / request</th><th class="num">Useful work</th><th class="num">Recovery (measured)</th><th class="num">Model: success, recovery</th></tr></thead><tbody>'+
+    CF.map(c=>{const rs=['1','2','3'].map(s=>M.runs[c][s]),ms=['1','2','3'].map(s=>M.model[c][s]);
+      return '<tr><td>'+LB[c]+'</td><td class="num">'+pct(mean(rs.map(r=>r.success)))+rng(rs.map(r=>r.success))+'</td><td class="num">'+mean(rs.map(r=>r.attempts_per_req)).toFixed(2)+'</td><td class="num">'+pct(mean(rs.map(r=>r.useful_share)))+'</td><td class="num">'+rec(rs.map(r=>r.recovery_s))+'</td><td class="num">'+pct(mean(ms.map(m=>m.success)))+', '+rec(ms.map(m=>m.recovery))+'</td></tr>'}).join('')+'</tbody>'}
+  RD.seg(seg,m=>{cf=m;draw()});RD.seg(sseg,m=>{seed=m;draw()});
+  table();draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 31_js_lab.js */
+// ---- Resilience lab tab: controls -> RE.sim -> stats and three charts ----
+(function(){
+  const root=document.getElementById('t-lab');if(!root||!window.RE)return;
+  const $=id=>document.getElementById(id);
+  // [key, label, min, max, step, formatter]
+  const ms=v=>v+' ms',sec=v=>(v/1000)+' s';
+  const G=[
+    ['Traffic and our service',[
+      ['rate','New requests per second',10,400,10,v=>v],
+      ['pA','Share that call the dependency',0,1,0.05,v=>Math.round(v*100)+'%'],
+      ['W','Our worker slots (0 = unlimited)',0,200,1,v=>v?v:'unlimited'],
+      ['own','Our own work per request',0,50,1,ms],
+      ['maxQ','Our queue limit (0 = unbounded)',0,500,5,v=>v?v:'unbounded'],
+      ['Tu','User patience (0 = waits forever)',0,10000,250,v=>v?sec(v):'forever']]],
+    ['The dependency and the slowdown',[
+      ['Kd','Dependency slots',1,1000,1,v=>v],
+      ['Ld','Normal latency per call',5,300,1,ms],
+      ['Ls','Latency during the slowdown',10,5000,10,ms],
+      ['dur','Slowdown length (starts at 10 s)',1,25,1,v=>v+' s'],
+      ['dmaxQ','Dependency queue limit (0 = unbounded)',0,200,1,v=>v?v:'unbounded']]],
+    ['Timeouts and retries',[
+      ['Td','Timeout per call (0 = none)',0,3000,10,v=>v?ms(v):'none'],
+      ['att','Attempts in all (1 = no retry)',1,5,1,v=>v],
+      ['base','Backoff base',10,1000,10,ms],
+      ['cap','Backoff cap',100,10000,100,ms]]],
+    ['Circuit breaker',[
+      ['brkN','Window (last N calls)',5,200,1,v=>v],
+      ['brkF','Opens at failure share',10,100,5,v=>v+'%'],
+      ['brkOpen','Stays open for',500,60000,500,sec],
+      ['brkHalf','Trial calls when half-open',1,20,1,v=>v]]]
+  ];
+  const TOG=[['back','Backoff with full jitter (otherwise retry at once)'],['budget','Retry budget (gRPC throttle)'],['brk','Circuit breaker'],['fb','Fallback answer when the call fails'],['drop','Deadline propagation (skip expired work)']];
+  const PRE=[
+    ['m_none','Measured: timeouts only'],['m_naive','Measured: retry at once'],['m_backoff','Measured: backoff + jitter'],['m_budget','Measured: retry budget'],['m_deadline','Measured: deadline'],['m_shed','Measured: bounded queue'],
+    ['before','Hung provider: no protection'],['after','Hung provider: defended']];
+  let st={},cur='m_naive',seed=1;
+  function fromCfg(c){const d=Object.assign({},RE.DEF,c);const o={};G.forEach(g=>g[1].forEach(x=>{o[x[0]]=x[0]==='dur'?(d.slowTo-d.slowFrom)/1000:d[x[0]]}));
+    o.back=d.back==='full'?1:0;['budget','brk','fb','drop'].forEach(k=>o[k]=d[k]?1:0);return o}
+  function toCfg(){const c={seed:seed};G.forEach(g=>g[1].forEach(x=>{if(x[0]!=='dur')c[x[0]]=+st[x[0]]}));c.slowTo=10000+st.dur*1000;c.back=st.back?'full':'none';
+    ['budget','brk','fb','drop'].forEach(k=>c[k]=st[k]?1:0);return c}
+  // controls
+  let h='';G.forEach((g,gi)=>{h+='<details class="grp"'+(gi<3?' open':'')+'><summary>'+g[0]+'</summary><div class="ctl">';
+    g[1].forEach(x=>h+='<label>'+x[1]+': <b id="lab-v-'+x[0]+'"></b><input type="range" id="lab-'+x[0]+'" min="'+x[2]+'" max="'+x[3]+'" step="'+x[4]+'" aria-label="'+x[1]+'"></label>');
+    h+='</div></details>'});
+  h+='<div class="tog">'+TOG.map(t=>'<label><input type="checkbox" id="lab-'+t[0]+'"> '+t[1]+'</label>').join('')+'<label>Seed <select id="lab-seed">'+[1,2,3,4,5,6,7,8,9].map(s=>'<option>'+s+'</option>').join('')+'</select></label></div>';
+  $('lab-ctl').innerHTML=h;
+  $('lab-pre').innerHTML=PRE.map(p=>'<button data-p="'+p[0]+'">'+p[1]+'</button>').join('');
+  function sync(){G.forEach(g=>g[1].forEach(x=>{$('lab-'+x[0]).value=st[x[0]];$('lab-v-'+x[0]).textContent=x[5](+st[x[0]])}));TOG.forEach(t=>$('lab-'+t[0]).checked=!!st[t[0]]);$('lab-seed').value=String(seed);
+    $('lab-pre').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.p===cur))}
+  function load(p){cur=p;st=fromCfg(RE.P[p]);sync();run()}
+  $('lab-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(b)load(b.dataset.p)});
+  G.forEach(g=>g[1].forEach(x=>$('lab-'+x[0]).addEventListener('input',e=>{st[x[0]]=+e.target.value;cur=null;sync();sched()})));
+  TOG.forEach(t=>$('lab-'+t[0]).addEventListener('change',e=>{st[t[0]]=e.target.checked?1:0;cur=null;sync();run()}));
+  $('lab-seed').addEventListener('change',e=>{seed=+e.target.value;run()});
+  let tm=0;function sched(){clearTimeout(tm);tm=setTimeout(run,120)}
+  let R=null;
+  const pct=v=>(v*100).toFixed(1)+'%';
+  function run(){R=RE.sim(toCfg());stats();draw()}
+  function stats(){const T=R.tot,c=R.c;
+    $('lab-out').innerHTML=RD.stat('Users answered',pct(T.success),T.deg?pct(T.deg/T.req)+' by fallback':'all full answers')+RD.stat('Failed',T.fail,'of '+T.req+' requests')+
+      RD.stat('Recovery',T.recovery===null?'never':T.recovery+' s','after the slowdown ends')+RD.stat('Dependency calls per request needing it',T.attPerA.toFixed(2),T.brkRej?T.brkRej+' rejected by the breaker':'')+
+      RD.stat('Useful dependency work',pct(T.useful),T.waste+' calls finished after the caller gave up')+RD.stat('Latency of answers',T.p50===null?'n/a':'p50 '+T.p50+' ms',T.p99===null?'':'p99 '+T.p99+' ms')+(T.shed?RD.stat('Shed',T.shed,'rejected at once by a queue limit'):'');
+    const k=cur&&cur.indexOf('m_')===0?cur.slice(2):null;let v='';
+    if(k&&window.MEAS){const rs=['1','2','3'].map(s=>MEAS.runs[k][s]);const m=rs.reduce((a,r)=>a+r.success,0)/3;
+      v='<b>Against the real runs:</b> measured success '+pct(m)+' (3 seeds; recovery '+rs.map(r=>r.recovery_s===null?'never':r.recovery_s+' s').join(', ')+'), model '+pct(T.success)+' for seed '+seed+'. The dotted line in the first chart is the measured answers per second (mean of 3 seeds).'}
+    else if(cur==='before'||cur==='after')v='The Reading animates this preset second by second (section Graceful degradation).';
+    else v='Your own setting: compare with a preset to see what each change did.';
+    $('lab-vs').innerHTML=v;
+    $('lab-pre-note').textContent=cur?'Preset: '+PRE.find(p=>p[0]===cur)[1]+'.':'Custom setting.'}
+  function axes(W,top,h,mx,x0,x1,NS,X){let b='<line x1="'+x0+'" x2="'+x1+'" y1="'+(top+h)+'" y2="'+(top+h)+'" stroke="var(--line)"/>'+RD.t(x0-4,top+8,String(Math.round(mx)),{fs:9.5,a:'end'})+RD.t(x0-4,top+h,'0',{fs:9.5,a:'end'});
+    for(let k=0;k<NS;k+=5)b+=RD.t(X(k)+2,top+h+13,String(k),{fs:9.5,fill:'var(--mute)'});return b}
+  function band(c,top,h,X){return '<rect x="'+X(c.slowFrom/1000)+'" y="'+top+'" width="'+(X(c.slowTo/1000)-X(c.slowFrom/1000))+'" height="'+h+'" fill="var(--bad)" opacity=".09"/>'}
+  function draw(){if(!R||root.hidden)return;const S=R.S,c=R.c,NS=Math.floor(c.T/1000)+3;
+    const W=Math.max(300,Math.min(860,RD.width($('lab-c1'))));const x0=38,x1=W-6,bw=(x1-x0)/NS,X=k=>x0+k*bw,h=150,top=8;
+    // chart 1
+    let mx=Math.max(10,...S.arr.slice(0,NS).map((a,k)=>Math.max(a,S.good[k]+S.deg[k]+S.fail[k])));let b=band(c,top,h,X)+axes(W,top,h,mx,x0,x1,NS,X);const Y=v=>top+h*(1-v/mx);
+    for(let k=0;k<NS;k++){let y=Y(0);[[S.good[k],'var(--good)'],[S.deg[k],'var(--c5)'],[S.fail[k],'var(--bad)']].forEach(p=>{const hh=h*p[0]/mx;if(hh>0){y-=hh;b+='<rect x="'+(X(k)+1)+'" y="'+y+'" width="'+Math.max(1.5,bw-2)+'" height="'+hh+'" fill="'+p[1]+'"/>'}})}
+    let pa='';for(let k=0;k<NS;k++)pa+=(k?'L':'M')+(X(k)+bw/2).toFixed(1)+' '+Y(S.arr[k]).toFixed(1);b+='<path d="'+pa+'" fill="none" stroke="var(--ink)" stroke-width="1"/>';
+    const k0=cur&&cur.indexOf('m_')===0?cur.slice(2):null;
+    if(k0&&window.MEAS){let pm='';for(let k=0;k<Math.min(NS,41);k++){const v=(MEAS.runs[k0]['1'].series.ok[k]+MEAS.runs[k0]['2'].series.ok[k]+MEAS.runs[k0]['3'].series.ok[k])/3;pm+=(k?'L':'M')+(X(k)+bw/2).toFixed(1)+' '+Y(v).toFixed(1)}
+      b+='<path d="'+pm+'" fill="none" stroke="var(--c6)" stroke-width="2" stroke-dasharray="3 2"/>'}
+    $('lab-c1').innerHTML=RD.svg(W,top+h+18,b,'Answers per second: full, fallback, failed, and arrivals');
+    $('lab-l1').innerHTML='<span style="--sw:var(--good)">full answer</span><span style="--sw:var(--c5)">fallback answer</span><span style="--sw:var(--bad)">failed or too late</span><span style="--sw:var(--ink)">new requests (line)</span>'+(k0?'<span style="--sw:var(--c6)">measured answers (dotted)</span>':'');
+    // chart 2
+    const capOf=k=>{const L=(k*1000>=c.slowFrom&&k*1000<c.slowTo)?c.Ls:c.Ld;return c.Kd*1000/L};
+    mx=Math.max(10,...S.att.slice(0,NS),...Array.from({length:NS},(_,k)=>Math.min(capOf(k),Math.max(...S.att)*1.5+10)));
+    b=band(c,top,h,X)+axes(W,top,h,mx,x0,x1,NS,X);const Y2=v=>top+h*(1-Math.min(v,mx)/mx);
+    for(let k=0;k<NS;k++){if(S.att[k])b+='<rect x="'+(X(k)+1)+'" y="'+Y2(S.att[k])+'" width="'+Math.max(1.5,bw-2)+'" height="'+(Y2(0)-Y2(S.att[k]))+'" fill="var(--c4)" opacity=".85"/>';
+      if(S.waste[k])b+='<rect x="'+(X(k)+1)+'" y="'+Y2(S.waste[k])+'" width="'+Math.max(1.5,bw-2)+'" height="'+(Y2(0)-Y2(S.waste[k]))+'" fill="var(--bad)" opacity=".55"/>'}
+    let pc='';for(let k=0;k<NS;k++){const y=Y2(capOf(k)).toFixed(1);pc+=(k?'L':'M')+X(k).toFixed(1)+' '+y+'L'+X(k+1).toFixed(1)+' '+y}
+    b+='<path d="'+pc+'" fill="none" stroke="var(--ink)" stroke-dasharray="4 3"/>';
+    $('lab-c2').innerHTML=RD.svg(W,top+h+18,b,'Dependency calls per second against capacity');
+    $('lab-l2').innerHTML='<span style="--sw:var(--c4)">calls sent</span><span style="--sw:var(--bad)">calls finished after the caller gave up (wasted)</span><span style="--sw:var(--ink)">dependency capacity (dashed; clipped at the top if far above)</span>';
+    // chart 3
+    mx=Math.max(5,...S.q.slice(0,NS),...S.dq.slice(0,NS));b=band(c,top,h,X)+axes(W,top,h,mx,x0,x1,NS,X);const Y3=v=>top+h*(1-v/mx);
+    for(let k=0;k<NS;k++)if(S.open[k])b+='<rect x="'+X(k)+'" y="'+top+'" width="'+(bw*S.open[k]/1000)+'" height="6" fill="var(--c5)"/>';
+    [['q','var(--c1)'],['dq','var(--c2)']].forEach(p=>{let d='';for(let k=0;k<NS;k++)d+=(k?'L':'M')+(X(k)+bw/2).toFixed(1)+' '+Y3(S[p[0]][k]).toFixed(1);b+='<path d="'+d+'" fill="none" stroke="'+p[1]+'" stroke-width="2"/>'});
+    $('lab-c3').innerHTML=RD.svg(W,top+h+18,b,'Queue lengths per second, ours and the dependency, with breaker-open time');
+    $('lab-l3').innerHTML='<span style="--sw:var(--c1)">our queue</span><span style="--sw:var(--c2)">dependency queue</span><span style="--sw:var(--c5)">breaker open (top strip)</span><span style="--sw:var(--bad)">slowdown (shaded)</span>';
+  }
+  (window.TAB_RENDER=window.TAB_RENDER||{})['t-lab']=[draw];
+  addEventListener('resize',()=>{if(!root.hidden){clearTimeout(tm);tm=setTimeout(draw,80)}});
+  load(cur);
+})();
+</script>
+<script>/* 32_js_slo.js */
+// ---- Error budget and alerts tab. SLOC.run is mirrored in src/recompute.py (slo_run) ----
+window.SLOC=(function(){
+  const RPD=[1e4,1e5,1e6,3e6,1e7,1e8];
+  const ER=[0.001,0.002,0.003,0.005,0.0075,0.01,0.015,0.02,0.03,0.05,0.075,0.1,0.15,0.2,0.3,0.4,0.5,0.6,0.75,0.9,1.0];
+  const DUR=[1,2,3,5,10,15,20,30,45,60,120,180,360,720,1440,2880,5760];
+  // SRE workbook ch. 5, Table 5-8 (99.9% SLO starting point)
+  const AL=[{n:'Page: 14.4x over 1 h and 5 min',B:14.4,L:60,S:5,page:1},{n:'Page: 6x over 6 h and 30 min',B:6,L:360,S:30,page:1},{n:'Ticket: 1x over 3 days and 6 h',B:1,L:4320,S:360,page:0}];
+  const DAYS=28,M=DAYS*1440,START=14*1440;
+  function run(slo,rpd,e0,e,d){
+    const rpm=rpd/1440,bud=(1-slo)*rpd*DAYS;
+    const er=new Float64Array(M);for(let t=0;t<M;t++)er[t]=(t>=START&&t<START+d)?e:e0;
+    const pre=new Float64Array(M+1);for(let t=0;t<M;t++)pre[t+1]=pre[t]+er[t];
+    const avg=(t,w)=>{const a=Math.max(0,t+1-w);return (pre[t+1]-pre[a])/(t+1-a)};
+    const alerts=AL.map(a=>{const th=a.B*(1-slo);let fire=null,reset=null;
+      for(let t=START;t<M;t++){const on=avg(t,a.L)>=th-1e-12&&avg(t,a.S)>=th-1e-12;
+        if(fire===null){if(on)fire=t-START+1}else if(!on){reset=t-START+1;break}}
+      // fire/reset in minutes after the incident began (end of that minute)
+      return {fire:fire,reset:reset}});
+    const spentInc=Math.min(d,M-START)*e*rpm,spentAll=pre[M]*rpm;
+    const formula=e>0?(1-slo)/e*60*14.4:null;
+    return {budget:bud,budgetMin:(1-slo)*DAYS*1440,burn:e/(1-slo),burn0:e0/(1-slo),spentInc:spentInc,incShare:spentInc/bud,spentAll:spentAll,left:bud-spentAll,alerts:alerts,formula14:formula,curveStep:60,
+      curve:Array.from({length:DAYS*24+1},(_,h)=>bud-pre[Math.min(M,h*60)]*rpm)}}
+  return {run:run,RPD:RPD,ER:ER,DUR:DUR,AL:AL,START:START};
+})();
+(function(){
+  const root=document.getElementById('t-slo');if(!root)return;const $=id=>document.getElementById(id);
+  const PRE=[['Spike: 10% for 5 min',11,3],['Full outage: 30 min',20,7],['Partial: 5% for 3 h',9,11],['Slow leak: 0.2% for 4 days',1,16]];
+  $('slo-pre').innerHTML=PRE.map((p,i)=>'<button data-i="'+i+'">'+p[0]+'</button>').join('');
+  const fm=n=>n>=1e6?(n/1e6).toFixed(n>=1e7?0:1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(Math.round(n));
+  const fd=m=>m===null?'never':m<60?m+' min':m<1440?(m/60).toFixed(m%60?1:0)+' h':(m/1440).toFixed(1)+' days';
+  const fp=v=>{const p=v*100;return (p>=1?p.toFixed(p%1?1:0):p>=0.1?p.toFixed(2).replace(/0$/,''):p.toFixed(3).replace(/0+$/,''))+'%'};
+  let R=null;
+  function get(){return {slo:+$('slo-slo').value,rpd:SLOC.RPD[+$('slo-rpd').value],e0:+$('slo-e0').value/10000,e:SLOC.ER[+$('slo-e').value],d:SLOC.DUR[+$('slo-d').value]}}
+  function run(){const p=get();$('slo-v-slo').textContent='';$('slo-v-rpd').textContent=fm(p.rpd);$('slo-v-e0').textContent=fp(p.e0);$('slo-v-e').textContent=fp(p.e);$('slo-v-d').textContent=fd(p.d);
+    R=SLOC.run(p.slo,p.rpd,p.e0,p.e,p.d);R.p=p;
+    const a=R.alerts;const pg=[0,1].map(i=>a[i].fire).filter(x=>x!==null);const firstPage=pg.length?Math.min(...pg):null;
+    $('slo-out').innerHTML=RD.stat('Budget, 28 days',fm(R.budget)+' failed messages','= '+fd(Math.round(R.budgetMin))+' of full outage')+RD.stat('Incident burn rate',R.burn.toFixed(R.burn<10?1:0)+'x','normal traffic burns '+R.burn0.toFixed(2)+'x')+
+      RD.stat('Incident spends',(R.incShare*100).toFixed(1)+'% of budget',fm(R.spentInc)+' failed messages')+RD.stat('First page',fd(firstPage),firstPage===null?'no page alert fired':'after the incident began')+RD.stat('Ticket',fd(a[2].fire),'')+RD.stat('Budget left at day 28',R.left>=0?(R.left/R.budget*100).toFixed(0)+'%':'overspent','including normal errors');
+    draw()}
+  function draw(){if(!R||root.hidden)return;const p=R.p;const W=Math.max(300,Math.min(860,RD.width($('slo-c1'))));
+    // chart 1: error ratio (log) and alert strips
+    const span=Math.max(120,Math.min(10080,Math.max(p.d*1.6,...R.alerts.map(a=>(a.reset||a.fire||0)*1.1))));
+    const t0=-span*0.08,x0=48,x1=W-6,X=t=>x0+(x1-x0)*(t-t0)/(span-t0);
+    const lo=Math.log10(1e-5),hi=0,top=10,h=130,Y=v=>top+h*(1-(Math.log10(Math.max(v,1e-5))-lo)/(hi-lo));let b='';
+    [1e-4,1e-3,1e-2,1e-1,1].forEach(v=>{b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(x0-4,Y(v)+3,fp(v),{fs:9.5,a:'end',fill:'var(--mute)'})});
+    SLOC.AL.forEach((a,i)=>{const th=a.B*(1-p.slo);if(th<=1)b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(th)+'" y2="'+Y(th)+'" stroke="'+['var(--bad)','var(--c2)','var(--c5)'][i]+'" stroke-dasharray="4 3"/>'+RD.t(x1-[0,34,0][i],Y(th)+(i===1?11:-3),a.B+'x',{fs:9.5,a:'end',fill:['var(--bad)','var(--c2)','var(--c5)'][i]})});
+    const ed=Math.min(p.d,span);b+='<path d="M'+X(t0)+' '+Y(p.e0)+'L'+X(0)+' '+Y(p.e0)+'L'+X(0)+' '+Y(p.e)+'L'+X(ed)+' '+Y(p.e)+(p.d<span?'L'+X(p.d)+' '+Y(p.e0)+'L'+X(span)+' '+Y(p.e0):'')+'" fill="none" stroke="var(--ink)" stroke-width="2"/>';
+    SLOC.AL.forEach((a,i)=>{const y=top+h+26+i*28,al=R.alerts[i];
+      b+='<rect x="'+x0+'" y="'+y+'" width="'+(x1-x0)+'" height="11" fill="var(--soft)"/>';
+      if(al.fire!==null&&al.fire<=span){const xe=al.reset===null?x1:X(Math.min(span,al.reset));b+='<rect x="'+X(al.fire)+'" y="'+y+'" width="'+Math.max(2,xe-X(al.fire))+'" height="11" fill="'+['var(--bad)','var(--c2)','var(--c5)'][i]+'"/>'}
+      b+=RD.t(x0,y-3,a.n+(al.fire===null?': does not fire':': fires at '+fd(al.fire)+(al.reset?', clears at '+fd(al.reset):'')),{fs:9.5})});
+    const yb=top+h+26+3*28+4;[0,span/4,span/2,3*span/4,span].forEach((t,i)=>{b+=RD.t(X(t),yb,fd(Math.round(t)),{fs:9.5,a:i===4?'end':'middle',fill:'var(--mute)'})});
+    $('slo-c1').innerHTML=RD.svg(W,yb+4,b,'Error ratio before, during and after the incident, with alert thresholds and when each alert fires');
+    $('slo-l1').innerHTML='<span style="--sw:var(--ink)">error ratio (log scale)</span><span style="--sw:var(--bad)">14.4x page</span><span style="--sw:var(--c2)">6x page</span><span style="--sw:var(--c5)">1x ticket</span>'+(R.formula14!==null&&R.alerts[0].fire!==null?'<span style="--sw:transparent">Workbook formula for the 14.4x page: '+R.formula14.toFixed(1)+' min; simulated: '+R.alerts[0].fire+' min (the difference is the normal errors already in the window, and whole-minute steps)</span>':'');
+    // chart 2: budget left
+    const c=R.curve,n=c.length,X2=i=>x0+(x1-x0)*i/(n-1),mx=R.budget,mn=Math.min(0,...c),h2=110,Y2=v=>10+h2*(mx-v)/(mx-mn);let b2='';
+    b2+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y2(0)+'" y2="'+Y2(0)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>'+RD.t(x0-4,Y2(mx)+4,'100%',{fs:9.5,a:'end'})+RD.t(x0-4,Y2(0)+3,'0',{fs:9.5,a:'end'});
+    let d2='';c.forEach((v,i)=>d2+=(i?'L':'M')+X2(i).toFixed(1)+' '+Y2(v).toFixed(1));b2+='<path d="'+d2+'" fill="none" stroke="var(--acc)" stroke-width="2"/>';
+    [0,7,14,21,28].forEach(dd=>b2+=RD.t(X2(dd*24),10+h2+14,'day '+dd,{fs:9.5,a:dd===28?'end':dd===0?'start':'middle',fill:'var(--mute)'}));
+    $('slo-c2').innerHTML=RD.svg(W,10+h2+18,b2,'Error budget left over the 28-day window')}
+  ['slo-slo','slo-rpd','slo-e0','slo-e','slo-d'].forEach(id=>$(id).addEventListener('input',run));
+  $('slo-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const p=PRE[+b.dataset.i];$('slo-e').value=p[1];$('slo-d').value=p[2];
+    $('slo-pre').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));run()});
+  (window.TAB_RENDER=window.TAB_RENDER||{})['t-slo']=[draw];
+  let tm=0;addEventListener('resize',()=>{if(!root.hidden){clearTimeout(tm);tm=setTimeout(draw,80)}});
+  run();
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('rel-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('rel-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  show(start,false);
+})();
+</script>
+</body></html>
