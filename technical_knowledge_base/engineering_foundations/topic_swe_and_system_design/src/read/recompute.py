@@ -110,7 +110,7 @@ def a5(continuous):
             'mean_done': round(sum(end) / n, 2), 'start': start, 'end': end}
 
 # ---- A6: back-of-envelope for the chat assistant (every input illustrative) ----
-E = dict(users=10_000_000, dau_frac=0.10, msgs_per_dau=10, out_tok=500, in_tok=2000, peak_x=2.0,
+E = dict(users=10_000_000, dau_frac=0.10, msgs_per_dau=10, out_tok=400, in_tok=1000, peak_x=2.0,
          tok_per_gpu=2000, stream_s=10, bytes_per_msg=2000, headroom=1.2)
 def a6():
     dau = E['users'] * E['dau_frac']; msgs = dau * E['msgs_per_dau']
