@@ -1616,3 +1616,47 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 10 | Jack's car rental policy sequence (Figure 4.2) | 1 | 2 (shape: π4 optimal) | 2 (Poisson truncation conventions differ by implementation) | 2 | 1 | 1 | 1 | 1 | −2 | 9 | **rejected for now**: the figure is an image, its conventions are not fully stated; cited in text |
 | 11 | RTDP animation on a racetrack | 1 | 0 (book table needs 25 runs of an unstated track) | 2 | 2 | 1 | 1 | 1 | 1 | −2 | 7 | **rejected**: belongs with trajectory sampling on Model-based RL and planning; numbers quoted in §14 |
 | 12 | Flashcards and quiz (old embed) | | | | | | | | | | | **rejected**: every answer is in the text |
+
+### Policy gradients and actor-critic: from REINFORCE to PPO and SAC (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_rl/policy_gradients_and_actor_critic/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score | Reproduces | Decision |
+|---|---|---|---|---|---|
+| PG-1 | Policy gradient with and without a baseline: one softmax policy, same random draws, 60 updates, 200-run bands, reward offset (before/after animation) | Reading, inline | 15 | Old page's worked numbers (gradient, variance 7.56 to 1.56) exactly; 86 of 200 runs stuck at offset 10 (derived) | reused from Topic: rl reading_full |
+| PG-2 | Variance against any constant baseline, with b = 0, b = V and b* marked; logit slider makes b* leave V | Reading, inline | 11 | Greensmith et al.'s optimal-baseline formula, checked by golden-section minimisation | built (old embed idea) |
+| PG-3 | GAE computed backwards, A_t = delta_t + gamma lambda A_{t+1}, on the worked episode and an 8-step chain with a wrong critic; A_0 against lambda (animation) | Reading, inline | 13 | Old page's 0.1 / 0.4705 / 0.5 exactly; checked against the k-step weighted-average form | built (old embed idea, animated) |
+| PG-4 | Clipped surrogate against the ratio for A > 0 and A < 0 side by side, with both terms and gradient status | Reading, inline | 10 | Old page's four-case table exactly | built (old embed idea, both signs) |
+| PG-5 | PPO: one sample, ten epochs, with and without the clip; overshoot shows the clip does not bound the ratio (before/after animation) | Reading, inline | 13 | Illustrative; supports Engstrom et al.'s finding qualitatively | reused from Topic: rl reading_full |
+| PG-6 | Maximum entropy on a 1-D action: soft-optimal policy exp(r/alpha)/Z, best Gaussian actor, entropy against alpha, SAC's automatic alpha (target -dim(A)) | Reading, inline | 12 | Illustrative reward; exact computation (closed form vs quadrature checked); shows the Gaussian's mode switch | built |
+| PG-7 | Short corridor: J(p) exact with three learners moving on it (REINFORCE, with baseline, actor-critic) (before/after animation) | tab | 16 | Example 13.1's 0.59, -11.6, -44, -82 exactly and independently | built |
+| PG-8 | Figures 13.1 and 13.2 rerun: 100 runs x 1,000 episodes per curve in the browser, floor toggle, summary table | tab | 15 | 13.2 in shape (baseline far faster); 13.1's 2^-13 and 2^-14 in shape; 13.1's 2^-12 plateau NOT reproduced (said on the page) | built |
+| PG-9 | One-step actor-critic with an aliased one-number critic on the corridor | tab (+ Reading text) | 10 | New: drifts to the 0.95 floor (-44), a concrete case of actor-critic bias | built |
+| PG-10 | Natural gradient against vanilla gradient on a 2-action softmax: same Euclidean step, different KL | Reading text with derived numbers | 7 | KL 0.120 vs 0.0037; quadratic approximation's looseness at p 0.99 | numbers in prose only; a widget would add little over the two numbers |
+| PG-11 | TD3 twin-critic minimum: E[min] vs E[max] of noisy estimates | Reading text | 6 | -sigma/sqrt(pi) exactly | prose only; the max-bias widget lives on Model-free prediction and control |
+| PG-12 | PPO vs TRPO vs no clip on a small continuous-control task trained live (e.g. Pendulum) | tab | 9 | Would not reproduce any published number; seconds per run too slow on a phone; Engstrom's point is about code-level details a toy cannot show | rejected (cost, no reproduction) |
+| PG-13 | PPO Table 1 ablation as a bar chart | Reading | 6 | Table values | rejected for a table: seven numbers read better as a table |
+| PG-14 | Quiz like the old embed | Reading | n/a | n/a | kept as a collapsible "Check yourself" list |
+| PG-15 | Clip on a rare token, PPO vs clip-higher vs CISPO | n/a | n/a | n/a | not built: exists on RL for LLMs (linked) |
+
+### Value-based deep RL: from DQN to Rainbow (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_rl/value_based_deep_rl/src/viz_ideas.md`.
+
+| # | Idea | What it shows, what the reader does | Data and formulas | Placement | Score | Status |
+|---|---|---|---|---|---|---|
+| VB-1 | **Moving target against frozen target**, before/after animation | Two states whose features share a weight; exact expected semi-gradient updates; online target (C = 1) diverges, target network (C = 5) converges, "C = ∞" is fitted Q iteration; value-space plot of estimate and target, log-error chart of both runs, sliders C, replay share, α | Constructed example (labelled illustrative): features (1, 0), (2, 2); true values 9 and 10; online growth about 4% per update; Python reference | Reading §4 | 14 | built |
+| VB-2 | **Deadly triad, w and 2w plus Baird**, before/after animation | Off-policy against on-policy distribution on S&B §11.2's example and Baird's seven states (expected updates, 1,000 sweeps) | S&B factor 1 + α(2γ − 1); Figure 11.2 right setting (α 0.01, w0); reproduces in shape (the book prints only curves) | Reading §2 | 14 | built (extends the archived root widget) |
+| VB-3 | **Overestimation from function approximation**: van Hasselt et al. 2015 Figure 2 rebuilt, animated | Ten polynomial fits added one by one, their max, max − true, double estimator − true; three presets and a degree slider | Deterministic construction from the paper's text and footnotes; printed averages +0.61/−0.02, +0.47/+0.02, +3.35/−0.02 reproduced independently | Reading §5 | 16 | built |
+| VB-4 | **C51 projection step by step**, with Algorithm 1 as printed against equation 7 | Shrink by γ, shift by r, clip, split to neighbours; DQN's scalar target as a dashed line; mass kept; r = 0, γ = 1 button | Equation 7 and Algorithm 1 of Bellemare et al.; illustrative two-bump distribution; finding: the printed pseudocode drops exact grid hits | Reading §9 | 13 | built |
+| VB-5 | **Rainbow ablation, game by game** | All 330 bars of Figure 4 decoded from the PDF's vector rectangles; summary table (median, mean, hurt, helped, strongest, clipped), every game per component, one game across six components, predict-reveal on double Q | `inputs/rainbow_fig4_decoded.json`; validated (highlight = max in 55/55 games; medians rank as the text) | Own tab, summary bars in §11 | 13 | built |
+| VB-6 | Extended Data Table 3 bars | Replay x target network on five games, relative or raw | Nature DQN, image table transcribed and labelled | Reading §4 | 9 | built |
+| VB-7 | Prioritised replay probabilities and weights | α, β, proportional or rank; P(i), w(i), effective weight N·P·w | Schaul et al. eq. 1 and IS weights; illustrative TD errors | Reading §7 | 8 | built |
+| VB-8 | "One agent, several medians" bars | DQN, Rainbow, QR-DQN medians under different protocols and tables, each bar labelled | Printed values: Double DQN Tables 1 and 2, Dueling Table 1, Rainbow Table 2, QR-DQN Table 1, IQN Table 1 | Reading §13 | 9 | built (static) |
+| VB-9 | Soft-divergence rates by bootstrap target | 61/33/14/10% | van Hasselt et al. 2018 Figure 2 labels (transcribed) | Reading §2 | 6 | built (static) |
+| VB-10 | Maximisation bias slider (E[max of N normals]) | | Already a tab on Model-free prediction and control | linked | | rejected: repeats a sibling |
+| VB-11 | Atari leaderboard or per-game chart | | The parent's Milestones tab owns the Atari tables with protocols | linked | | rejected: belongs to the root |
+| VB-12 | Rainbow median curves (Figure 3) | | Curves only; the method forbids reading curves | none | | rejected |
+| VB-13 | Real DQN trained offline on a small task, with and without target network | Seeds on CartPole-like tasks often show no clear difference; a noisy result would teach less than the exact example and invite over-reading | | none | 6 | rejected for VB-1 |
+| VB-14 | Dueling V/A decomposition widget | One example already in the text; nothing to move that teaches beyond it | | none | 4 | rejected |
+| VB-15 | NoisyNet weight-noise toy | No published figure to reproduce; the effect needs a full agent | | none | 4 | rejected |

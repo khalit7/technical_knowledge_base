@@ -1,0 +1,63 @@
+
+<section id="rd-eval">
+<h2><span class="num">13</span>Reading Atari numbers: protocols and pitfalls</h2>
+<p>Every score on this page is a <b>human-normalised score</b>, (agent − random) / (human − random) per game, aggregated over games by a median or a mean. The formula hides a dozen choices, and two papers rarely make them the same way. The same agent, DQN, has at least four published medians:</p>
+<div class="bars" id="vb-ev"></div>
+<p class="small mute">Each bar is a printed median from the table named, with its protocol. They are on one axis here only to show the spread; reading any two as a comparison of agents is exactly the mistake this section is about.</p>
+<h3>The choices that move the number</h3>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Choice</th><th>Variants in the papers on this page</th><th>Why it matters</th></tr></thead>
+<tbody>
+<tr><td>Start condition</td><td><b>No-op starts</b>: up to 30 random "do nothing" actions (DQN Nature). <b>Human starts</b>: 100 starting points sampled from a human expert's play ({{Nair et al. 2015|https://arxiv.org/abs/1507.04296}}), scoring only rewards after the start point</td><td>Deterministic games let an agent memorise one action sequence; human starts test whether it generalises. Rainbow: "the difference between the two regimes indicates the extent to which the agent has over-fit to its own trajectories" (223% against 153%)</td></tr>
+<tr><td>Episode cap</td><td>5 minutes (18,000 frames) in DQN and Double DQN's no-op tables; 30 minutes (108,000 frames) in human-start tables and Rainbow</td><td>Long games score more with a longer cap; DQN's Extended Data Table 3 notes its uncapped Enduro scores are higher than the capped ones</td></tr>
+<tr><td>Stochasticity</td><td>Deterministic emulator, or <b>sticky actions</b>: with probability ς = 0.25 the previous action repeats ({{Machado et al. 2018|https://arxiv.org/abs/1709.06009}}, who recommend it as the standard)</td><td>Sticky actions break open-loop memorised play while keeping the game the same</td></tr>
+<tr><td>Which snapshot</td><td>The best evaluation during training (C51, QR-DQN, Rainbow's "best agent snapshot"; Agent57 reports "the maximum over training" for baselines), or the final agent (R2D2, averaged over 3 seeds)</td><td>A maximum over many evaluations is biased upward; Agarwal et al. find results under protocols "involving maximum are generally incomparable with end-performance reported results"</td></tr>
+<tr><td>Seeds and aggregate</td><td>Often 1 to 5 runs per game; median or mean over games</td><td>{{Agarwal et al. 2021|https://arxiv.org/abs/2108.13264}}: "substantial uncertainty in median scores even with 50 runs"; they recommend stratified bootstrap confidence intervals and the <b>interquartile mean</b> (IQM). The mean is "dominated by a few games (e.g., Atlantis)" (Rainbow)</td></tr>
+<tr><td>Game set</td><td>49 games (DQN, Double DQN) or 57 (dueling onward)</td><td>Rainbow takes DQN's 57-game scores from the dueling paper "since DQN's paper did not report scores for all 57 games"</td></tr>
+<tr><td>Human baseline</td><td>DQN's professional tester (about 2 hours of practice, about 20 episodes per game), or the human starts' expert</td><td>Agent57 notes the baseline may underestimate what humans can do; a game where human and random scores are close makes the ratio fragile (the parent's Milestones tab shows Agent57's median game, Double Dunk, moving the median by about 42 points with a 0.05-point change of baseline)</td></tr>
+<tr><td>Training rules</td><td>Life loss as episode end (DQN) or not (R2D2, Machado et al.); reward clipping (DQN) or value rescaling (R2D2); minimal or full 18-action set</td><td>These change what the agent optimises, not just how it is scored</td></tr>
+<tr><td>What a "frame" is</td><td>Emulator frames, or agent steps of 4 frames</td><td>A factor of 4 in every budget; see section 4's note</td></tr>
+</tbody></table></div>
+<p>Two more traps, both found by recomputing printed tables on the parent page: a paper's per-game table can contradict its own summary (Agent57's table prints two MuZero scores with an extra digit, which reorders the medians), and two of a paper's own numbers can disagree (EfficientZero's abstract and section 5.2). Both are on the {{Milestones and benchmarks|https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e}} tab of Topic: rl, with the arithmetic.</p>
+<p class="small mute"><b>The data-efficient regime.</b> Atari 100k limits an agent to 100K steps (400K frames, about two hours of play; {{Kaiser et al. 2019|https://arxiv.org/abs/1903.00374}}). The value-based line continues there with data-efficient Rainbow, DrQ, SPR and BBF, a scaled-up value-based agent; their IQM, median and mean, each with its seed count, are in the same Milestones tab.</p>
+</section>
+
+<section id="rd-use">
+<h2><span class="num">14</span>When to use a value-based deep method, and what people use now</h2>
+<ul class="tight">
+<li><b>Discrete actions, and data that is precious or a simulator that is cheap to replay from:</b> the DQN family. Replay makes it sample-efficient, and off-policy learning lets it reuse old data. The price is sensitivity to the deadly triad, many interacting hyperparameters, and no natural way to handle continuous actions, where the max over actions is itself an optimisation problem (DDPG, TD3 and SAC learn an actor to do that max; on {{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}).</li>
+<li><b>Stability over sample efficiency, or any action space:</b> PPO-style on-policy methods, same page.</li>
+<li><b>Planning matters:</b> MuZero's search uses a value network trained with the same <i>n</i>-step value targets and, on Atari, R2D2's value rescaling; on {{Model-based RL and planning|n:3ee5c17b0d0d8116be5fd39e10bd94c5}}.</li>
+<li><b>No interaction at all:</b> offline variants of Q-learning (CQL and others) must keep Q-values down on actions the data never shows; on {{Offline RL and imitation|n:3ee5c17b0d0d81d4995ec47e428de9b3}}.</li>
+<li><b>Language models:</b> post-training uses policy-gradient methods (PPO, GRPO), not Q-learning over a 100,000-token action space; on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}.</li>
+</ul>
+<h3>The recipe in today's libraries</h3>
+<p>Common libraries implement DQN and a few descendants rather than full Rainbow: {{Stable-Baselines3|https://github.com/DLR-RM/stable-baselines3}} lists DQN for discrete actions only, with QR-DQN in its contrib package; {{CleanRL|https://github.com/vwxyzjn/cleanrl}} has single-file DQN and C51; Google's {{Dopamine|https://github.com/google/dopamine}} implements DQN, C51, Rainbow and IQN (with SAC and PPO). The defaults have drifted from the Nature paper:</p>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Setting</th><th>DQN, Nature 2015</th><th>CleanRL <code>dqn_atari.py</code> (master, read 4 October 2026)</th></tr></thead>
+<tbody>
+<tr><td>Optimiser, learning rate</td><td>RMSProp, 0.00025</td><td>Adam, 0.0001</td></tr>
+<tr><td>Loss</td><td>squared error with the TD error clipped to [−1, 1] (Huber)</td><td>mean squared error</td></tr>
+<tr><td>Target network refresh</td><td>every 10,000 updates</td><td>every 1,000 environment steps (250 updates at one update per 4 steps)</td></tr>
+<tr><td>ε schedule</td><td>1.0 to 0.1 over the first 1M frames</td><td>1.0 to 0.01 over the first 10% of 10M steps</td></tr>
+<tr><td>Learning starts</td><td>50,000</td><td>80,000 steps</td></tr>
+<tr><td>Same in both</td><td colspan="2">replay of 1M transitions, minibatch 32, γ = 0.99, one update per 4 steps, 30 no-op starts, frame skip 4 with max-pooling, life loss as episode end in training, reward clipping</td></tr>
+</tbody></table></div>
+<p class="small mute">From the {{CleanRL source|https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/dqn_atari.py}}. Its <code>tau</code> option allows soft (Polyak) target updates, θ<sup>−</sup> ← τθ + (1 − τ)θ<sup>−</sup>, the form DDPG introduced; the default τ = 1 is DQN's hard copy.</p>
+</section>
+
+<section id="rd-wrong">
+<h2>Common mistakes and misconceptions</h2>
+<details class="mist"><summary>"DQN was stabilised by replay and a target network from the start."</summary><div class="b">The 2013 version used replay only; the target network arrived with the 2015 Nature version (section 4). The atlas on the parent page keeps them as two rows for this reason.</div></details>
+<details class="mist"><summary>"Overestimation needs biased estimates."</summary><div class="b">Every individual estimate can be unbiased, and the max of noisy estimates is still biased upward (Theorem 1 of Double DQN). With function approximation it appears even with exact, noise-free samples (Figure 2, section 5).</div></details>
+<details class="mist"><summary>"The target network solves the deadly triad."</summary><div class="b">It reduces divergence a great deal in practice (14% against 61% soft-divergence in the 2018 study), but fitting the frozen target exactly can still diverge when the features cannot represent the target (Tsitsiklis and Van Roy's counterexample, section 3).</div></details>
+<details class="mist"><summary>"Off-policy means offline."</summary><div class="b">DQN (and SAC) interact with the environment online and learn off-policy from a replay buffer. Offline RL learns from a fixed dataset with no interaction, a much harder setting with its own page.</div></details>
+<details class="mist"><summary>"Replay works with any RL algorithm."</summary><div class="b">Replaying old data requires an off-policy learner: Q-learning's target does not depend on which policy chose the stored action. A policy-gradient method such as A2C needs data from the current policy, or importance ratios for slightly stale data (PPO).</div></details>
+<details class="mist"><summary>"Multi-step returns are free."</summary><div class="b">Uncorrected <i>n</i>-step targets in a replay buffer assume the intermediate actions were greedy; they were not. Rainbow and R2D2 accept that bias for faster propagation; Retrace corrects it.</div></details>
+<details class="mist"><summary>"The dueling head's V is the state value."</summary><div class="b">Only with the max-subtracting form. The mean-subtracting form every experiment used shifts <i>V</i> and <i>A</i> by a constant; it keeps the action ranking, not the meaning (section 6).</div></details>
+<details class="mist"><summary>"C51's projection is Algorithm 1 as printed."</summary><div class="b">The printed pseudocode drops the probability of any atom that lands exactly on the grid; use equation 7 or special-case the tie (section 9).</div></details>
+<details class="mist"><summary>"Rainbow shows that double Q-learning and dueling do not matter."</summary><div class="b">It shows no significant aggregate difference when either is removed from Rainbow, where the [−10, 10] support itself limits overestimation. Per game, both helped some games and hurt others (the ablation tab), and the authors expected double Q-learning to matter more with a wider support.</div></details>
+<details class="mist"><summary>"Agent57 is better than MuZero at Atari."</summary><div class="b">It is above the human benchmark on all 57 games, which MuZero is not (51); MuZero has the higher mean and median. Which aggregate is "better" is a choice, and Agent57's own comparison table contains two misprinted MuZero scores (parent's Milestones tab).</div></details>
+<details class="mist"><summary>Comparing medians across papers</summary><div class="b">DQN's median is 93.5%, 79%, 68% or 47.5% depending on the protocol (section 13). Compare only within one table, or recompute from per-game scores under one protocol.</div></details>
+</section>
+</div>
