@@ -1,0 +1,31 @@
+<section id="rd-s5">
+<h2>5. Functional splits: different tables on different databases</h2>
+<h3>The problem appears</h3>
+<p>The single primary takes every write: messages, credits, billing events, audit logs, rate-limit counters. They have nothing to do with each other except that they share a machine, and the busiest one slows all the others.</p>
+<h3>The idea</h3>
+<p>A <dfn>functional split</dfn> (Figma calls it <dfn>vertical partitioning</dfn>) moves whole groups of tables to their own database server: messages to one, billing to another. Each group keeps full SQL and transactions inside itself, and each server now carries only its share of writes. For the chat product: users, chats and messages stay together (they are read together), billing moves out, rate-limit counters move to Redis.</p>
+<div class="stories">
+<div class="story"><h4>GitHub, 2019 to 2021</h4><p>GitHub grouped its tables into "schema domains", added linters that fail the build when a query or transaction crosses a domain, then moved domains to their own MySQL clusters, 130 tables in one move. The main cluster had served 950,000 queries per second in 2019 (900,000 on replicas); after the splits the same tables served 1.2 million per second with half the load per host (<a href="https://github.blog/engineering/infrastructure/partitioning-githubs-relational-databases-scale/" target="_blank" rel="noopener noreferrer">GitHub, 27 Sep 2021</a>).</p></div>
+<div class="story"><h4>Figma, 2020 to 2022</h4><p>After scaling up, Figma moved groups of tables to separate databases, growing from 2 to 50 tables moved by October 2022, each move costing about 30 seconds of partial impact (about 2% of requests) (<a href="https://www.figma.com/blog/how-figma-scaled-to-multiple-databases/" target="_blank" rel="noopener noreferrer">Figma, 4 Apr 2023</a>). It bought them time; their largest tables still outgrew one machine.</p></div>
+</div>
+<div class="cost"><div class="t">What it costs</div><p>Every JOIN and every transaction that crossed the split is gone. In the chat product, "deduct a credit and save the reply" was one transaction (the root's section 3); with billing on another server it becomes two writes that can half-fail, so it needs the outbox pattern or a saga ({{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}). That is why GitHub built linters before moving anything: first stop new code from crossing the line, then move. <b>Enough when</b> no single group of tables is too big or too busy for one server. <b>Not enough when</b> one table (here, messages) is.</p></div>
+</section>
+
+<section id="rd-s6">
+<h2>6. Sharding: split one table's rows across servers</h2>
+<h3>The problem appears</h3>
+<p>The messages table alone writes more than the largest machine can absorb, or is larger than it can hold. No rung below splits a single table across machines.</p>
+<h3>The idea</h3>
+<p><dfn>Sharding</dfn> (horizontal partitioning across servers) gives each server a slice of the rows. Each slice is a <dfn>shard</dfn>; the column that decides a row's shard is the <dfn>shard key</dfn> (Citus calls it the distribution column). Something must know which shard holds which key: the <dfn>router</dfn>, which can be application code, a proxy or the database itself. Each shard is a normal Postgres server, usually with its own replicas. The theory (range against hash, consistent hashing, hot keys) is on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}} (section "Partitioning: splitting the data"); this page does it for real on the chat data.</p>
+<p>The rule that decides everything: <b>a query that names the shard key goes to one shard; a query that does not must ask every shard</b> and combine the answers (<dfn>scatter-gather</dfn>, or fan-out). The animation runs two of the chat product's queries against one big Postgres and against the same data sharded by user with Citus (3 workers, 32 shards), both measured on this laptop.</p>
+<div class="card" id="fanCard">
+<div class="seg" id="fanQ"><button data-m="user" class="on">A user's chat list</button><button data-m="mention">All messages mentioning "c0ffee"</button></div>
+<div class="seg" id="fanM"><button data-m="big" class="on">Before: one big node</button><button data-m="shard">After: sharded by user</button></div>
+<div class="rd-svg" id="fanSvg"></div>
+<div class="an-ctl" id="fanCtl"></div>
+<div class="an-cap" id="fanCap" aria-live="polite"></div>
+<div class="an-cnt" id="fanCnt"></div>
+</div>
+<p><b>How to read it.</b> The chat list names <code>user_id</code>, the shard key: the router sends it to the one shard that holds user 4242 (<code>Task Count: 1</code> in Citus's plan). It got <i>slower</i>, about 0.46 ms against 0.10 ms at the median, because it now crosses an extra hop (the coordinator) before reaching Postgres; with a real network each hop adds a round trip, typically a few hundred microseconds inside one data centre. The mention search names no shard key, so it goes to all 32 shards (<code>Task Count: 32</code>), each scans its slice, and the coordinator merges the top 50. Here it got faster, about 375 ms against 1,502 ms, because 32 shard scans ran on more of the laptop's 10 cores at once than one Postgres query uses (2 parallel workers by default): <b>the total work did not shrink, it was spread out</b>. On a busy cluster every scatter query occupies every shard, so scatter queries are what stop a sharded system from scaling.</p>
+<div class="co warn"><div class="t">The common misunderstanding</div>Sharding does not make single queries faster. It makes the <i>system</i> able to hold more data and take more writes, by adding servers. Single-shard queries pay an extra hop; scatter queries pay every shard. A shard key is good when almost every frequent query is single-shard.</div>
+</section>

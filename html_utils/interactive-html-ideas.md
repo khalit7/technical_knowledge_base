@@ -2303,3 +2303,26 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | 8 | Synchronous commit bars, connection cost bars, VACUUM vs VACUUM FULL bars, support-window timeline, managed cost tiles | Reading 4, 8, 6, 9, 12 | 5 to 6 | measured / docs / price lists | Small static comparisons; inline, no tab. |
 | 9 | Production checklist tab (30 items, ticks in localStorage) | Tab | 6 | | Something to act on, not just read. |
 | 10 | Server diagram (processes, shared buffers, data files, WAL, archive, replica) | Reading 1 | 5 | drawn | Everything later refers back to it. |
+
+### Scaling a database: read replicas, sharding Postgres, distributed SQL (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/scaling_a_database/src/viz_ideas.md`.
+
+| Idea | Score | Placement | Data | Status |
+|---|---|---|---|---|
+| Scaling ladder, clickable rungs (what it fixes, cost, when enough) | 5/4/5 | Reading, one screen | sourced facts from sections 2 to 11 | built |
+| Before/after fan-out animation: a user's chat list and a "mentioning X" search on one Postgres against Citus sharded by user (servers, shards, rows, measured time per step) | 5/5/3 | Reading section 6 | Citus 14.2 on the root's 10M-message data, measured (`inputs/citus.json`) | built; the main animation |
+| Which partitions a query reads: 3 queries x 3 layouts (one table, monthly range, hash by chat), highlighted partitions and EXPLAIN numbers | 5/5/4 | Reading section 4 | real EXPLAIN (ANALYZE, BUFFERS), `inputs/part.json` | built |
+| Retention: DELETE a month against DROP a partition (time, WAL MB) | 4/5/5 | Reading section 4 | measured | built (stat tiles) |
+| Planning time against partition count (12 to 3,000) | 4/5/5 | Reading section 4 | measured on empty tables | built (bars) |
+| Shard-key comparison table at 8 shards | 5/5/5 | Reading section 7 | counted on real data (`inputs/lab_data.json`) | built |
+| Shard-key lab: 5 keys x 2 to 16 shards x stored/last-week load, giant-tenant slider (illustrative), 9 access patterns single-shard or scatter | 5/5/4 | own tab | counted on real data | built |
+| Resharding 3 to 4: rows moved under mod N, consistent hashing, 48 logical shards | 5/5/5 | Reading section 9 | counted on real data; ring re-derived independently in recompute.py | built (bars) |
+| Citus rebalance with writes running (time, shard groups, MB, writes and latency) | 4/5/4 | Reading section 9 | measured | built (stat tiles) |
+| CockroachDB node-kill timeline (inserts per second; kill node 3, kill node 2, restarts) | 5/5/4 | Reading section 11 | measured (`inputs/crdb.json`) | built |
+| Commit latency floor by replica placement | 4/4/5 | Reading section 11 | CloudPing medians, formula shown | built as a table |
+| Interactive cross-region latency calculator | 3/2/3 | | only some region pairs sourced | rejected: an incomplete RTT matrix would need invented pairs |
+| Consistent hashing ring animation | 4/5/3 | | | rejected: Distributed systems fundamentals already has it; linked |
+| Replica lag / read-your-writes animation and measurement | 4/5/3 | | | rejected: measured on Distributed systems fundamentals (anomalies) and Running Postgres in production (lag); linked |
+| Price chart of instance sizes | 2/4/4 | | | rejected: a 3-row table carries it (Khalid removed price-history tabs elsewhere) |
+| Application-level router across 3 local Postgres servers | 3/5/3 | | | not built: Citus built from source cheaply, so the real system replaced the hand-made one; the logical-shard and ring routers are counted on the data instead |
