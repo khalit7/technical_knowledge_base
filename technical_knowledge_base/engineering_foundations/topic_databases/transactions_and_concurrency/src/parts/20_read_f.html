@@ -1,0 +1,34 @@
+<section id="rd-s5">
+<h2>5. MVCC: how a database isolates without stopping everyone</h2>
+<h3>The problem</h3>
+<p>The simplest way to isolate transactions is to lock everything each one reads or writes until it commits, so everyone else waits. That was how databases worked for decades (two-phase locking), and it makes a long report block every writer it touches. Postgres, MySQL's InnoDB, Oracle and most modern databases instead keep several versions of a row, so a reader can see an older version while a writer prepares a newer one: <dfn id="g-mvcc">multi-version concurrency control</dfn> (MVCC). In the Postgres documentation's words, "reading never blocks writing and writing never blocks reading" (<a href="https://www.postgresql.org/docs/16/mvcc-intro.html" target="_blank" rel="noopener noreferrer">Postgres 16, MVCC introduction</a>).</p>
+<h3>Row versions in Postgres: xmin and xmax</h3>
+<p>Every transaction that writes gets a number, its <dfn id="g-xid">transaction id</dfn> (xid), from a counter. Every row version (Postgres calls it a <i>tuple</i>) carries two hidden fields: <dfn id="g-xmin">xmin</dfn>, the xid that created it, and <dfn id="g-xmax">xmax</dfn>, the xid that deleted or replaced it (0 if none). An <code>UPDATE</code> sets xmax on the old version and writes a new version with xmin = its own xid. You can see them: <code>SELECT xmin, xmax, * FROM credits</code>.</p>
+<p>A <dfn id="g-snapshot">snapshot</dfn> is a note of which transactions had committed at one moment, written <code>xmin:xmax:list</code>: every xid below the first number had finished, every xid from the second number on had not started, and the list names those in between still running. A version is visible to a snapshot if its creator had committed by then and its deleter had not. At read committed each statement takes a new snapshot; at repeatable read and serializable the first statement's snapshot serves the whole transaction.</p>
+<p>The animation replays the lost update of section 1 on a real Postgres, three ways, with the real heap page read after every step (with the <code>pageinspect</code> extension) and each session's real snapshot (read by <code>pg_current_snapshot()</code> inside the same statement). Watch where B's write comes from.</p>
+<div class="card" id="rd-mv-card">
+<div class="seg" id="rd-mv-mode"><button data-m="naive" class="on">Read committed, read then write</button><button data-m="for_update">SELECT ... FOR UPDATE</button><button data-m="serializable">Serializable, with a retry</button></div>
+<div class="an-ctl" id="rd-mv-ctl"></div>
+<div class="an-cnt" id="rd-mv-cnt"></div>
+<div id="rd-mv-lanes"></div>
+<div class="small mute" style="margin-top:6px"><b>Heap page 0 of credits</b>: every version of Ines's row; green border = the latest committed version, faded = dead (replaced by a committed transaction).</div>
+<div class="pg" id="rd-mv-page"></div>
+<div class="snaps" id="rd-mv-snaps"></div>
+<div class="an-cap" id="rd-mv-cap"></div>
+<p class="small mute" id="rd-mv-note"></p>
+</div>
+<p>Three things the recording shows. At read committed, B's <code>UPDATE</code> ran with a <i>fresh</i> snapshot that includes A's commit, and wrote the value it had computed from an old read: the database did exactly what it was told. With <code>FOR UPDATE</code>, A's lock is itself written into the row (xmax set to A's xid, marked lock-only), and B waits on A's transaction, then reads the new version. Under serializable, B's snapshot is fixed at its first read, so its update finds that the version it can see has already been replaced by a transaction it cannot see, and Postgres refuses.</p>
+<h3>Why VACUUM exists</h3>
+<p>Old versions are not removed when they stop being current, because some transaction with an old snapshot might still need them. Once no running transaction can see a dead version, its space can be reused, and that is <code>VACUUM</code>'s job (run automatically by <dfn id="g-autovacuum">autovacuum</dfn>). It also freezes very old versions so the 32-bit transaction counter can wrap around safely; skipping that for about 2 billion transactions makes Postgres refuse writes, which is what took Sentry's writes down for hours in July 2015 (<a href="https://www.postgresql.org/docs/16/routine-vacuuming.html" target="_blank" rel="noopener noreferrer">Postgres 16, routine vacuuming</a>; <a href="https://blog.sentry.io/transaction-id-wraparound-in-postgres/" target="_blank" rel="noopener noreferrer">Sentry, 2015</a>). Plain <code>VACUUM</code> makes space reusable but does not give it back to the operating system; the table stays large, which is called <dfn id="g-bloat">bloat</dfn>. Tuning autovacuum, freezing and fixing bloat belong to {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}; the part that is about transactions, a long transaction stopping clean-up, is measured in section 10.</p>
+<p>Updating a row only within its own page, with no indexed column changed, is a <dfn id="g-hot">HOT update</dfn> (heap-only tuple): no index entry is added, and later readers can prune the dead versions on that page without waiting for <code>VACUUM</code>. That is why section 10's control run updated one row 20,000 times and the table never grew past one page.</p>
+<h3>The other design: InnoDB's undo log</h3>
+<div class="tw"><table>
+<tr><th></th><th>PostgreSQL</th><th>MySQL InnoDB</th></tr>
+<tr><td>Where the new version goes</td><td>A new tuple in the table, old one left in place</td><td>Written in place in the table; the old values go to the undo log</td></tr>
+<tr><td>Reading an old version</td><td>Read the old tuple directly</td><td>Start from the current row and apply undo records backwards (<code>DB_ROLL_PTR</code> points to them)</td></tr>
+<tr><td>Rollback</td><td>Mark the transaction aborted: instant</td><td>Apply the undo log: proportional to the work done</td></tr>
+<tr><td>Clean-up</td><td><code>VACUUM</code> removes dead tuples from tables and indexes</td><td>The purge thread discards undo records no snapshot needs</td></tr>
+<tr><td>What a long transaction does</td><td>Dead tuples pile up in the tables (bloat)</td><td>The undo log ("history list") grows; reads of hot rows walk longer undo chains</td></tr>
+</table></div>
+<p class="small mute">InnoDB side from the MySQL 8.4 manual, which recommends committing "regularly, including transactions that issue only consistent reads. Otherwise, InnoDB cannot discard data from the update undo logs" (<a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html" target="_blank" rel="noopener noreferrer">InnoDB multi-versioning</a>). Page layout, the WAL and index structures are on {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}.</p>
+</section>
