@@ -1836,3 +1836,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/measure
 | 6 | Best-of-N private variants: expected inflation σ·E[max of N], checked against Arena's "+11 after 50 tests and 3000 votes" | 4/4/5 | Reading, widget | σ from a real CI on the Oct 2026 board; exact integral |
 | 7 | Arena score against the AA Intelligence Index for 35 matched models, Spearman overall and frontier only | 4/4/4 | Reading | leaderboard-dataset; topic_llms aa_snapshot.json |
 | 8 | Null model against best real entry on three judge boards | 3/4/5 | Reading | arXiv 2410.07137; board readings |
+
+### Topic: evaluation-and-llm-judges (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/measurement/topic_evaluation_and_llm_judges/src/viz_ideas.md`.
+
