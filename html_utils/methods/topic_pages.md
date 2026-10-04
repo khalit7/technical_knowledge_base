@@ -48,7 +48,7 @@ A **high-level comparison along a few axes**, plus the definitions needed to fol
 ### How it is built
 - **In parallel, one subagent per tab,** each owning only its own part files (CSS scoped under its tab id, element ids prefixed), with the build script giving each tab its own slot. The Reading tab is one agent's; it links the data tabs by id and does not repeat them.
 - **Reconcile at assembly:** when two tab agents cite the same fact, check that they agree before review (the Reading tab and Price list disagreed on what Thomson Reuters' $40M covered; the Price list's sourced reading won).
-- **Publishing a root with child pages:** never `replace_content`. Insert the embed and source line with `update_content`, then remove the old text block by block (headings, paragraphs, lists, the table, each matched exactly), and fetch afterwards to confirm only the embed, source line, video and `<page>` tags remain.
+- **Publishing a root with child pages:** never `replace_content`. Insert the embed and source line with `update_content`, then remove the old text (headings, paragraphs, lists, tables, each matched exactly; a run of consecutive blocks can be matched as one span, which saves many calls on a long page), and fetch afterwards to confirm only the embed, source line, video and `<page>` tags remain.
 
 ### Lessons (root)
 - 2026-10-01: build folded-in tabs in parallel, the Reading tab written last by one hand from their drafts; give the build script per-tab slots.
