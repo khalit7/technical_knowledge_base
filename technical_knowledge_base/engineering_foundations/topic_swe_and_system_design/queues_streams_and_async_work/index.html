@@ -1,0 +1,1063 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Queues, streams and async work: delivery semantics, Kafka, the outbox pattern</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+#ovBars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 6.6em;margin:5px 0}#ovBars .row .nm{white-space:normal;line-height:1.2}#ovBars .ml{display:block;font-size:11.5px;color:var(--mute)}
+#ovBars .track{height:12px}
+#pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+@media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:12px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+.an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.an-ctl select{padding:3px 6px}.an-play{min-width:6.4em}
+.an-cap{min-height:6.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+.an-cap .t{font-weight:600;font-size:14px}.an-cap p{margin:2px 0;font-size:13.5px}
+.an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:6px;margin:6px 0}
+.an-cnt .stat .v{font-size:16px}
+.seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}.seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+.seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+.rd-svg{width:100%;overflow:hidden}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.prob{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:10px 0;counter-reset:pb}
+.prob a{display:block;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:8px;padding:7px 10px;background:var(--soft);font-size:13.5px;min-width:0}
+.prob a b{display:block;font-size:13.5px}.prob a b:before{counter-increment:pb;content:counter(pb) ". ";color:var(--mute)}
+.prob a span{color:var(--mute);font-size:12.5px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:10px 0}
+.two>div{min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.two h4{margin:0 0 4px;font-size:13.5px}
+.step-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.snum{display:inline-block;font-size:12px;font-weight:600;color:var(--bg);background:var(--sc,var(--acc));border-radius:99px;padding:0 9px;line-height:1.7}
+.wall{border:1px solid var(--bad);border-radius:8px;padding:8px 12px;margin:10px 0;background:var(--soft)}
+.wall .t{color:var(--bad);font-weight:600;font-size:13px}
+.fix{border:1px solid var(--good);border-radius:8px;padding:8px 12px;margin:10px 0}
+.fix .t{color:var(--good);font-weight:600;font-size:13px}
+.cost{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:8px;padding:8px 12px;margin:10px 0}
+.cost .t{font-weight:600;font-size:13px}
+dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}dfn{scroll-margin-top:60px}
+.gl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:4px 14px;font-size:13.5px}
+.gl div{min-width:0;padding:3px 0;border-bottom:1px solid var(--line)}
+.gl b a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--acc)}
+.leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+.leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+.flow{display:flex;flex-wrap:wrap;gap:4px;align-items:stretch;margin:8px 0;font-size:12.5px}
+.flow>div{border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:var(--soft);min-width:0;flex:1 1 120px}
+.flow>div b{display:block;font-size:12.5px}
+.flow>i{align-self:center;color:var(--mute);font-style:normal}
+.reason{counter-reset:rs}.reason>div{border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+.reason>div b:before{counter-increment:rs;content:counter(rs) ". ";color:var(--mute)}
+@media (max-width:520px){.an-cap{min-height:9em}.flow>i{display:none}}
+
+.chart{width:100%;overflow:hidden;margin:6px 0}
+.code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:8px 0;overflow-x:auto;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+.code .cm{color:var(--mute)}
+.corr{border:1px solid var(--bad);border-left:4px solid var(--bad);border-radius:8px;padding:8px 12px;margin:10px 0;background:var(--soft)}.corr .t{color:var(--bad);font-weight:600;font-size:13px}
+.meas{border:1px solid var(--line);border-left:4px solid var(--c6);border-radius:8px;padding:8px 12px;margin:10px 0}.meas .t{font-weight:600;font-size:13px;color:var(--c6)}
+blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--line);color:var(--ink);font-size:14px}
+.when{font-size:13.5px;margin:6px 0}.when b{color:var(--mute);font-weight:600}
+.onescreen td:first-child{font-weight:600}
+.sg-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.sg-st{flex:1 1 150px;min-width:0;border:1px solid var(--line);border-left:4px solid var(--mute);border-radius:7px;padding:5px 9px;background:var(--soft);font-size:12.5px}.sg-st b{display:block;font-size:12.5px}.sg-st.ok{border-left-color:var(--good)}.sg-st.bad{border-left-color:var(--bad)}.sg-st.comp{border-left-color:var(--c4)}
+</style></head><body><div class="w">
+<h1>Queues, streams and async work: delivery semantics, Kafka, the outbox pattern</h1>
+<div class="sub">How work leaves the request path and still gets done exactly as often as it should, taught from zero: queues and logs, Kafka's partitions, offsets and consumer groups, at-most-once, at-least-once and what "exactly-once" really means, idempotent consumers, visibility timeouts, dead-letter queues, backpressure, the dual-write problem and the transactional outbox, sagas, events, Python job queues and durable workflows, cron, and async work around LLMs. Child page of <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a>. Includes three experiments run on a real local PostgreSQL. Sources linked inline; checked October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Queue lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<p class="small mute">About 50 minutes to read. Every section can be read alone; terms are defined at first use (in bold) and collected in the glossary at the end. This page owns the depth on queues, streams and background work; the parent root's Step 3 ("Slow work leaves the request path") gives the five-minute version.</p>
+<nav class="nav" id="rd-nav">
+<a href="#s-one">In one screen</a><a href="#s-why">Why async</a><a href="#s-kinds">Queues and logs</a><a href="#s-kafka">Kafka</a><a href="#s-sem">Delivery semantics</a><a href="#s-meas">Measured</a><a href="#s-eos">Exactly-once</a><a href="#s-idem">Idempotent consumers</a><a href="#s-vt">Visibility timeouts</a><a href="#s-dlq">Dead letters</a><a href="#s-bp">Backpressure</a><a href="#s-dual">Dual write and outbox</a><a href="#s-saga">Sagas</a><a href="#s-eda">Events</a><a href="#s-jobs">Python job queues</a><a href="#s-cron">Cron</a><a href="#s-llm">LLM async</a><a href="#s-prod">In production</a><a href="#s-mist">Mistakes</a><a href="#s-gl">Glossary</a>
+</nav>
+
+<section id="s-one">
+<h2>In one screen</h2>
+<p class="lead">Our running example is the parent topic's chat assistant. When a user sends a message, the reply has to come back now; but a lot of other work hangs off that message and can happen a few seconds later: give the conversation a title, embed an uploaded PDF so it can be searched, count the tokens for billing, send a receipt when someone buys a subscription, tell the analytics system. This page is about that second kind of work: how it is handed off (<b>queues</b> and <b>logs</b>), how often it runs when machines crash (<b>delivery semantics</b>), and how to keep a database and a message system in agreement (<b>the outbox</b>).</p>
+<div class="tw"><table class="onescreen">
+<thead><tr><th>Problem</th><th>Tool</th><th>What it costs</th><th>When not to use it</th></tr></thead>
+<tbody>
+<tr><td>Slow work holds the user's request</td><td><a href="#s-why">A queue and background workers</a>; reply <code>202 Accepted</code></td><td>The result arrives later; one more system to run</td><td>The answer the user is waiting to read</td></tr>
+<tr><td>Many services need the same events, or a replay</td><td><a href="#s-kinds">A log</a> (Kafka, Kinesis, Redpanda) instead of a queue</td><td>Partitions to plan, offsets to manage, a cluster to run</td><td>A simple job queue with one kind of worker</td></tr>
+<tr><td>A worker crashes halfway through a job</td><td><a href="#s-sem">At-least-once delivery</a>: acknowledge after the work</td><td>Duplicates: a job can run twice</td><td>Never acknowledge first unless losing work is acceptable</td></tr>
+<tr><td>Duplicates do damage (two e-mails, two charges)</td><td><a href="#s-idem">Idempotent consumer</a>: a unique key on the message id</td><td>A table of processed ids, and an expiry policy</td><td>When the effect is already naturally idempotent</td></tr>
+<tr><td>"Exactly once" is promised</td><td><a href="#s-eos">Kafka transactions</a>, or at-least-once plus deduplication</td><td>Latency and complexity; covers Kafka-to-Kafka only</td><td>When the side effect is outside Kafka (then deduplicate)</td></tr>
+<tr><td>A job is slower than the timeout and runs twice</td><td><a href="#s-vt">Visibility timeout</a> set above the slowest job, extended by a heartbeat</td><td>Slower recovery after a real crash</td><td>Never set it below normal processing time</td></tr>
+<tr><td>One bad message fails forever</td><td><a href="#s-dlq">Dead-letter queue</a> after N tries, with an alert and a replay path</td><td>Someone must look at it</td><td>Strictly ordered streams, where skipping breaks order</td></tr>
+<tr><td>Work arrives faster than it is done</td><td><a href="#s-bp">Backpressure</a>, bounded queues, Little's law to size workers</td><td>Some producers are told "not now"</td><td>Never let a queue grow without bound instead</td></tr>
+<tr><td>Save a row and publish an event, atomically</td><td><a href="#s-dual">Transactional outbox</a> (polling relay or Debezium)</td><td>A relay to run; events arrive at least once</td><td>When the database itself is the queue (enqueue in the same transaction)</td></tr>
+<tr><td>One business action spans several services</td><td><a href="#s-saga">Saga</a> with compensating steps (not two-phase commit)</td><td>No isolation between steps; compensations to write</td><td>When one database transaction can do it</td></tr>
+<tr><td>Multi-step jobs that must survive crashes for hours</td><td><a href="#s-jobs">Durable workflows</a> (Temporal, DBOS, Restate)</td><td>A new programming model; deterministic code</td><td>Single-step jobs a plain queue handles</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Three ideas carry most of this page</div>
+<p><b>1. A network cannot give you "exactly once"; you build it.</b> When a crash or a lost reply leaves the sender unsure whether a message arrived, it must either send again (and risk a duplicate) or not (and risk a loss). Real systems choose "send again" and make the receiver ignore repeats. Measured below on a real Postgres: 1,000 jobs with a 5% crash chance were done 1,046 to 1,053 times; with a unique key on the message id, exactly 1,000.</p>
+<p><b>2. Two writes to two systems are never atomic.</b> Saving an order and then publishing its event loses the event whenever the process dies in between (measured: 19 to 28 lost per 500 orders at a 5% crash chance). The outbox turns the two writes into one database transaction, then publishes later, at least once.</p>
+<p><b>3. A queue hides overload instead of removing it.</b> If work arrives faster than workers finish it, nothing errors: the queue just grows, and every job waits longer. Watch the age of the oldest message, size workers with Little's law, and push back on producers.</p>
+</div>
+</section>
+
+<section id="s-why">
+<h2>Why async: taking slow work off the request path</h2>
+<p>A <dfn id="d-req">request path</dfn> is everything that happens between a client sending a request and receiving the response. On the chat assistant, the path for "send message" is: check the user, save the message, call the model, stream the reply. Anything else done on that path makes every user wait for it, and holds one of the server's limited request slots while they wait. The parent root shows the effect with PDF uploads: 5 uploads among 30 chat messages made chat messages wait up to 3 seconds that should have waited none (the root's Step 3 animation, <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a>).</p>
+<p>The fix is to separate <b>accepting</b> work from <b>doing</b> it. The request handler writes a description of the job somewhere durable and answers at once; other processes do the job later. That "somewhere" is a <dfn id="d-mq">message queue</dfn> or a <dfn id="d-log">log</dfn> (both explained in the next section). Vocabulary used for the rest of the page:</p>
+<ul>
+<li>A <dfn id="d-msg">message</dfn> (or event, or job) is one unit of handed-off work or information: a small record such as <code>{"type": "embed_document", "doc_id": 981}</code>.</li>
+<li>The <dfn id="d-producer">producer</dfn> writes messages; the <dfn id="d-consumer">consumer</dfn> (or <dfn id="d-worker">worker</dfn>) reads and handles them; the <dfn id="d-broker">broker</dfn> is the system in between that stores them (SQS, RabbitMQ, Kafka, or a table in Postgres).</li>
+<li>To <dfn id="d-ack">acknowledge</dfn> (ack) a message is to tell the broker "done, you may forget it" (a queue deletes it; a log records how far you got).</li>
+</ul>
+<p>The HTTP side of the hand-off is <code>202 Accepted</code>, which RFC 9110 defines as "the request has been accepted for processing, but the processing has not been completed" (<a href="https://www.rfc-editor.org/rfc/rfc9110#section-15.3.3" target="_blank" rel="noopener noreferrer">RFC 9110 §15.3.3</a>). The response usually carries a job id and a URL the client can poll, or the client is told later through a webhook or a server-sent event. How to design those endpoints is on <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>.</p>
+<div class="two">
+<div><h4>Goes async on the chat assistant</h4><ul class="tight"><li>Embedding an uploaded document (tens of seconds)</li><li>Generating a conversation title after the first reply</li><li>Usage metering and billing events</li><li>Receipts, e-mails, outgoing webhooks to customers</li><li>Nightly evaluation runs, re-embedding the corpus (batch APIs, <a href="#s-llm">below</a>)</li><li>Long agent tasks that run for minutes</li></ul></div>
+<div><h4>Stays on the request path</h4><ul class="tight"><li>The reply the user is reading (stream it instead: <a href="#s-llm">below</a>)</li><li>Anything the next screen needs to show correctly</li><li>Checks that must reject the request (auth, rate limits, validation)</li><li>Writes the user must see confirmed (saving the message itself)</li></ul></div>
+</div>
+<div class="cost"><div class="t">What async costs</div>The result is late, so the product must show progress and handle "not ready yet". Failures happen where no user sees them, so they need their own alerts. Jobs can run twice (the rest of this page). And the broker is one more system to run, monitor and pay for. A rule of thumb (opinion, not a sourced rule): make work async when it is slow, can fail and be retried independently, or fans out to several consumers; keep it synchronous when the caller needs the result to continue.</div>
+</section>
+
+<section id="s-kinds">
+<h2>Two shapes: queues and logs</h2>
+<p>Brokers come in two shapes, and most confusion about "queues versus Kafka" is confusion between them.</p>
+<div class="two">
+<div><h4>A queue: a to-do list</h4><p class="small">Each message is meant for one worker. A worker takes a message, does it, acknowledges, and the broker <b>deletes</b> it. Several workers on one queue share the work (they are called <dfn id="d-compete">competing consumers</dfn>). Progress is tracked per message. Examples: Amazon SQS, RabbitMQ queues, a jobs table in Postgres, Redis lists behind Celery or RQ.</p></div>
+<div><h4>A log (a stream): an append-only record</h4><p class="small">Messages are appended in order and <b>kept</b> for a retention period whether or not anyone has read them. Each reader remembers its own position, a number called the <dfn id="d-offset">offset</dfn>. Many independent readers can read the same messages, and a reader can rewind and replay. Examples: Apache Kafka, Amazon Kinesis Data Streams, Redpanda, Apache Pulsar, Redis Streams, RabbitMQ Streams.</p></div>
+</div>
+<p>Kafka's own introduction states the difference: "events are not deleted after consumption. Instead, you define for how long Kafka should retain your events through a per-topic configuration setting" (<a href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener noreferrer">Kafka 4.3 introduction</a>); the default retention is 7 days (<code>retention.ms</code>, <a href="https://kafka.apache.org/43/configuration/topic-configs/" target="_blank" rel="noopener noreferrer">topic configs</a>). RabbitMQ added a log type for the same reason: "Streams model an append-only log of messages that can be repeatedly read until they expire" (<a href="https://www.rabbitmq.com/docs/streams" target="_blank" rel="noopener noreferrer">RabbitMQ Streams</a>).</p>
+<p>Which to use follows from who reads the messages:</p>
+<ul>
+<li><b>A queue</b> when each message is a job for one kind of worker: "embed document 981", "send receipt for order 42". You want per-message acknowledgement, per-message retries and dead-lettering, and you never want the job again once done.</li>
+<li><b>A log</b> when the message is a fact several systems care about: "order 42 was placed" read by the e-mail service, the warehouse and analytics, each at its own pace; or when you may need to replay history (rebuild a search index, backfill a new service). You pay with partitions to plan, offsets to manage and usually a cluster to run.</li>
+</ul>
+<div class="tw"><table>
+<thead><tr><th>System</th><th>Shape</th><th>Delivery and acks</th><th>Limits and defaults worth knowing</th></tr></thead>
+<tbody>
+<tr><td>Amazon SQS standard</td><td>Queue (managed)</td><td>"at-least-once message delivery, but due to the highly distributed architecture, more than one copy of a message might be delivered, and messages may occasionally arrive out of order" (<a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html" target="_blank" rel="noopener noreferrer">SQS standard queues</a>)</td><td>Visibility timeout default 30 s, max 12 h; retention default 4 days, max 14; message up to 1 MiB (<a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-messages.html" target="_blank" rel="noopener noreferrer">SQS quotas</a>; raised from 256 KiB on <a href="https://aws.amazon.com/about-aws/whats-new/2025/08/amazon-sqs-max-payload-size-1mib/" target="_blank" rel="noopener noreferrer">2025-08-04</a>)</td></tr>
+<tr><td>Amazon SQS FIFO</td><td>Queue, ordered per message group</td><td>Ordered within a message group; deduplicates sends with the same id within 5 minutes (<a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-exactly-once-processing" target="_blank" rel="noopener noreferrer">FIFO exactly-once processing</a>)</td><td>300 transactions per second per API action per partition, 3,000 messages per second with batching, more in high-throughput mode (<a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/quotas-messages.html" target="_blank" rel="noopener noreferrer">SQS quotas</a>)</td></tr>
+<tr><td>RabbitMQ (quorum queues)</td><td>Queue (self-run or hosted)</td><td>Manual acks; in automatic mode "a message is considered to be successfully delivered immediately after it is sent" (<a href="https://www.rabbitmq.com/docs/confirms" target="_blank" rel="noopener noreferrer">RabbitMQ confirms</a>)</td><td>Prefetch (<code>basic.qos</code>) caps unacknowledged messages per channel; "Starting with RabbitMQ 4.0, the delivery limit for quorum queues defaults to 20" (<a href="https://www.rabbitmq.com/docs/quorum-queues" target="_blank" rel="noopener noreferrer">quorum queues</a>)</td></tr>
+<tr><td>Postgres table + <code>SKIP LOCKED</code></td><td>Queue inside your database</td><td>Whatever your transaction does: the job and your data can commit together</td><td>Measured below: one laptop drained 960 jobs a second with 8 workers; libraries: River, Oban, Solid Queue, graphile-worker, Procrastinate, pgmq</td></tr>
+<tr><td>Apache Kafka</td><td>Log (self-run or hosted)</td><td>At-least-once by default; idempotent producer and transactions for Kafka-to-Kafka exactly-once (<a href="#s-eos">below</a>)</td><td>Retention 7 days by default; benchmark: 605 MB/s peak on 3 brokers, p99 5 ms at 200 MB/s (<a href="https://www.confluent.io/blog/kafka-fastest-messaging-system/" target="_blank" rel="noopener noreferrer">Confluent, 2020</a>, vendor-run, fsync off by default)</td></tr>
+<tr><td>Amazon Kinesis Data Streams</td><td>Log (managed)</td><td>At-least-once to readers; shards instead of partitions</td><td>Per shard: writes up to 1,000 records or 1 MB per second, reads 2 MB per second (<a href="https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html" target="_blank" rel="noopener noreferrer">Kinesis concepts</a>); retention 24 h by default, up to 365 days (<a href="https://docs.aws.amazon.com/streams/latest/dev/kinesis-extended-retention.html" target="_blank" rel="noopener noreferrer">retention</a>)</td></tr>
+<tr><td>Redpanda</td><td>Log, Kafka API</td><td>"Producers and consumers interact with Redpanda using the Kafka API" (<a href="https://docs.redpanda.com/current/get-started/architecture/" target="_blank" rel="noopener noreferrer">Redpanda architecture</a>)</td><td>C++, single binary; Jepsen's 2022 test of 21.10.1 found "three liveness and seven safety issues" in that version (<a href="https://jepsen.io/analyses/redpanda-21.10.1" target="_blank" rel="noopener noreferrer">Jepsen</a>)</td></tr>
+</tbody></table></div>
+<p class="small mute">The same 2020 Confluent benchmark measured mirrored RabbitMQ at 38 MB/s peak, with p99 latency of about 1 ms only at a reduced 30 MB/s load. Numbers from a vendor comparing itself to rivals; read them as orders of magnitude. The parent root's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Numbers to know</a> tab carries the same Kafka figures.</p>
+</section>
+
+<section id="s-kafka">
+<h2>Kafka from zero: topics, partitions, offsets, consumer groups</h2>
+<p>Kafka is the log most teams meet first, and its vocabulary is used by Redpanda, Kinesis (with different names) and most stream processors.</p>
+<ul>
+<li>A <dfn id="d-topic">topic</dfn> is a named log, such as <code>orders</code> or <code>chat_messages</code>.</li>
+<li>A topic is split into <dfn id="d-partition">partitions</dfn>: several independent logs, each stored and replicated on brokers. Partitions are how Kafka scales: different partitions live on different machines and are read in parallel. (How each partition is replicated, with a leader, followers and a Raft-based controller since Kafka 4.0, is on <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>.)</li>
+<li>Each message in a partition gets an increasing number, its <b>offset</b>. A consumer's progress is "the next offset I will read" for each partition.</li>
+<li>A message can carry a <dfn id="d-key">key</dfn>. Kafka hashes the key to choose the partition, so "if the key chosen was a user id then all data for a given user would be sent to the same partition" (<a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka design</a>).</li>
+</ul>
+<p><b>Ordering is per partition only.</b> "Events with the same event key (e.g., a customer or vehicle ID) are written to the same partition, and Kafka guarantees that any consumer of a given topic-partition will always read that partition's events in exactly the same order as they were written" (<a href="https://kafka.apache.org/43/getting-started/introduction/" target="_blank" rel="noopener noreferrer">Kafka introduction</a>). Two messages in different partitions have no order between them. So choose the key by what must stay in order: a user's messages, an order's state changes.</p>
+<p><b>Consumer groups share the work.</b> Consumers that share a group id form a <dfn id="d-group">consumer group</dfn>; each partition "is consumed by exactly one consumer within each subscribing consumer group at any given time" (<a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka design</a>). Two consequences: a group can never use more consumers than there are partitions (the extras sit idle), and a different group (analytics, say) gets every message again. When consumers join or leave, the group <dfn id="d-rebalance">rebalances</dfn>, moving partitions between members; Kafka 4.0 made a new protocol (KIP-848) generally available that "says goodbye to 'stop-the-world' rebalances" (<a href="https://kafka.apache.org/blog/2025/03/18/apache-kafka-4.0.0-release-announcement/" target="_blank" rel="noopener noreferrer">Kafka 4.0 release</a>), but clients still default to the classic one (<code>group.protocol</code> "The default value is classic", <a href="https://kafka.apache.org/43/configuration/consumer-configs/" target="_blank" rel="noopener noreferrer">consumer configs, 4.3</a>).</p>
+<div class="card" id="rd-pt-card">
+<b>Try it: keys to partitions, partitions to consumers</b>
+<p class="small mute">Twelve chat messages from four users (user-1, user-4, user-6, user-8), keyed by user id. The partition is computed with Kafka's real default partitioner for keyed records, <code>murmur2(key bytes) mod partitions</code> (a port of Kafka's <code>Utils.murmur2</code> that reproduces the six test vectors in <a href="https://github.com/apache/kafka/blob/trunk/clients/src/test/java/org/apache/kafka/common/utils/UtilsTest.java" target="_blank" rel="noopener noreferrer">Kafka's UtilsTest</a>). Partitions are dealt to consumers round-robin for the picture; the real assignor may pair them differently. <span class="ill">Message order illustrative</span></p>
+<div class="ctl"><label>Partitions: <b id="rd-pt-pv">3</b><input type="range" id="rd-pt-p" min="1" max="8" value="3"></label><label>Consumers in the group: <b id="rd-pt-cv">2</b><input type="range" id="rd-pt-c" min="1" max="8" value="2"></label></div>
+<div class="chart" id="rd-pt-svg"></div>
+<div id="rd-pt-out"></div>
+<div class="try"><b>Try:</b> set consumers above partitions and watch consumers go idle; change the partition count and see users move to new partitions (which is why adding partitions to a keyed topic breaks per-key ordering for messages already written).</div>
+</div>
+<p><b>Committing offsets.</b> A consumer saves its position by <dfn id="d-commit">committing</dfn> offsets, which Kafka stores in an internal topic, <code>__consumer_offsets</code> (<a href="https://kafka.apache.org/43/implementation/distribution/" target="_blank" rel="noopener noreferrer">Kafka implementation</a>). By default the client does it for you: <code>enable.auto.commit</code> is true and commits "periodically ... in the background", every 5 seconds (<a href="https://kafka.apache.org/43/configuration/consumer-configs/" target="_blank" rel="noopener noreferrer">consumer configs</a>). When to commit relative to the work decides your delivery semantics, which is the next section. Two timers decide when a consumer is declared dead and its partitions handed to someone else: <code>session.timeout.ms</code> (45 s without heartbeats) and <code>max.poll.interval.ms</code> (5 minutes between calls to <code>poll()</code>; slower than that and "the consumer is considered failed and the group will rebalance"). That second timer is Kafka's version of a visibility timeout: a job slower than it gets its partition taken away mid-work.</p>
+<p><b>Lag</b> is how far a group is behind: the partition's latest offset minus the group's committed offset. Kafka ships "a tool that will show the position of all consumers in a consumer group as well as how far behind the end of the log they are" (<code>kafka-consumer-groups.sh --describe</code>, <a href="https://kafka.apache.org/43/operations/basic-kafka-operations/" target="_blank" rel="noopener noreferrer">Kafka operations</a>). Lag in messages is the log's queue depth; divide by the consume rate to get it in seconds, the number users feel.</p>
+<p><b>Kafka as a queue, now.</b> Because a partition goes to one consumer, Kafka was a poor job queue: one slow message holds up its whole partition, and parallelism is capped by the partition count. Kafka 4.2 (February 2026) made <dfn id="d-share">share groups</dfn> ("Queues for Kafka", KIP-932) production-ready (<a href="https://kafka.apache.org/blog/2026/02/17/apache-kafka-4.2.0-release-announcement/" target="_blank" rel="noopener noreferrer">Kafka 4.2 release</a>): in a share group "partitions may be assigned to multiple consumers", "The number of consumers in a share group can exceed the number of partitions", "Records are acknowledged individually", and "Delivery attempts to consumers in a share group are counted" (<a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka design, The Share Consumer</a>). A delivered record is locked for 30 seconds by default and can be acknowledged, released, rejected or renewed: the SQS model, inside Kafka. It was early access in 4.0 and a preview in 4.1.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Kafka's design document is unusually readable: <a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka 4.3 design</a> (about 1 h). Replication, ISR and KRaft: <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>.</div>
+</section>
+
+<section id="s-sem">
+<h2>Delivery semantics: at-most-once, at-least-once, "exactly-once"</h2>
+<p>Every consumer does two things with a message: the <b>work</b> (send the e-mail, write the embedding) and the <b>acknowledgement</b> (delete it from the queue, or commit the offset). A crash can land between them. Which one you do first decides what a crash costs you, and that choice has three names. Kafka's documentation defines them: "At most once: Messages may be lost but are never redelivered. At least once: Messages are never lost but may be redelivered. Exactly once: Each message is processed once and only once" (<a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka design, Message Delivery Semantics</a>).</p>
+<div class="two">
+<div><h4><dfn id="d-amo">At-most-once</dfn>: acknowledge, then work</h4>
+<div class="code">msg = queue.receive()
+queue.delete(msg)        <span class="cm"># ack first</span>
+send_receipt(msg.order)  <span class="cm"># crash here: receipt never sent</span></div>
+<p class="small">A crash after the ack loses the job. Kafka: the consumer "crashes after saving its position but before saving the output ... This corresponds to 'at-most-once' semantics". Fine for metrics samples or a "typing..." indicator; wrong for anything a user paid for.</p></div>
+<div><h4><dfn id="d-alo">At-least-once</dfn>: work, then acknowledge</h4>
+<div class="code">msg = queue.receive()
+send_receipt(msg.order)  <span class="cm"># crash after this line...</span>
+queue.delete(msg)        <span class="cm"># ...and msg comes back: sent twice</span></div>
+<p class="small">A crash after the work but before the ack redelivers the job, which then runs again. Kafka: "the first few messages it receives will already have been processed. This corresponds to the 'at-least-once' semantics". This is the default almost everywhere, because a duplicate can be detected and a loss cannot.</p></div>
+</div>
+<p><b>Why not just "exactly once"?</b> Because the sender cannot know what the receiver did. Kafka's docs give the producer's version: "If a producer attempts to publish a message and experiences a network error, it cannot be sure if this error happened before or after the message was committed." The consumer's version is the crash above. The general result is old. Jim Gray's 1978 notes prove that two parties who can only talk through messengers that may be lost cannot be certain they agree: "Let P be the shortest such protocol. Suppose the last messenger in P gets lost. Then either this messenger is useless or one of the generals doesn't get a needed message" (<a href="https://jimgray.azurewebsites.net/papers/dbos.pdf" target="_blank" rel="noopener noreferrer">Gray, Notes on Data Base Operating Systems, §5.8.3.3.1</a>; the "two generals" problem). So no protocol can make the <i>delivery</i> happen exactly once over a network that can lose messages. What systems offer instead is an <i>effect</i> that happens once: <b>at-least-once delivery plus deduplication</b>, sometimes called <dfn id="d-eff1">effectively-once</dfn> or exactly-once processing.</p>
+<div class="co warn"><div class="t">Read the fine print on "exactly-once"</div>Kafka's own docs: "Many systems claim to provide 'exactly-once' delivery semantics, but it is important to read the fine print, because sometimes these claims are misleading (i.e. they don't translate to the case where consumers or producers can fail, cases where there are multiple consumer processes, or cases where data written to disk can be lost)." Two current examples: SQS FIFO's "exactly-once processing" means the queue drops a <i>re-sent</i> message with the same deduplication id "within the 5-minute deduplication interval" (<a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues-exactly-once-processing.html" target="_blank" rel="noopener noreferrer">SQS FIFO</a>); a consumer that crashes before deleting still gets the message again. And an acknowledgement is only as good as the disk behind it: Jepsen found that NATS JetStream "calls fsync to flush data to disk only once every two minutes, but acknowledges messages immediately", and simulated power failures lost "roughly thirty seconds of writes" (<a href="https://jepsen.io/analyses/nats-2.12.1" target="_blank" rel="noopener noreferrer">Jepsen, NATS 2.12.1, 2025-12-08</a>).</div>
+<p>Where to say it in an interview: "at-least-once delivery, with idempotent consumers, so the effect happens once", then name the deduplication key. That shows you know delivery and effect are different things (advice kept from the old page).</p>
+</section>
+
+<section id="s-meas">
+<h2>Measured: crashes, redelivery and duplicates on a real Postgres</h2>
+<p>To see these semantics rather than take them on trust, this page ran three small experiments on a laptop (Apple M1 Pro, PostgreSQL 16 from the <code>pgserver</code> wheel, 2026-10-04; script <code>src/lab/pg_lab.py</code>, about 3 minutes in all). Everything is real: separate OS processes, real transactions, real row locks, real redelivery by timeout. The only artificial part is the crash, injected with <code>os._exit()</code> at a chosen line, which kills the process with no clean-up, as a kill signal or a power cut would.</p>
+<p><b>The queue.</b> A <code>jobs</code> table used the way SQS works. A worker claims the oldest visible job and hides it for a visibility timeout (2 s here), all in one statement:</p>
+<div class="code">UPDATE jobs SET visible_at = now() + interval '2 seconds', receives = receives + 1
+WHERE id = (SELECT id FROM jobs WHERE visible_at &lt;= now()
+            ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED)
+RETURNING id, order_id, receives;</div>
+<p>It then "sends a receipt" by inserting a row into a second database (standing in for an e-mail provider: outside the queue's transaction, as a real one would be) and finally deletes the job. Four worker processes, 1,000 jobs, a 5% chance of crashing per job; a supervisor restarts crashed workers, as systemd or Kubernetes would. Three runs per mode.</p>
+<div class="card" id="rd-ms-card">
+<b>What 1,000 jobs became, three runs per mode</b>
+<div class="chart" id="rd-ms-svg"></div>
+<div class="leg" id="rd-ms-leg"></div>
+<p class="small mute" id="rd-ms-note"></p>
+</div>
+<ul>
+<li><b>At-most-once</b> (delete, then send): 52, 44 and 53 receipts lost, exactly one per crash. No error anywhere.</li>
+<li><b>At-least-once</b> (send, then delete): every order got its receipt, and 52, 46 and 53 customers got two. Again one per crash: the redelivered job runs in full.</li>
+<li><b>At-least-once with an idempotent receiver</b>: the receipts table has a primary key on the job id, so the second insert does nothing (<code>ON CONFLICT DO NOTHING</code>). Exactly 1,000 receipts in all three runs; the 52, 46 and 53 repeats were caught and counted.</li>
+<li><b>No crashes at all, but a visibility timeout of 0.3 s</b> with job times averaging 0.1 s (exponential, so about 5% of jobs take longer than 0.3 s): 20, 24 and 23 duplicates per 600 jobs. A slow job is indistinguishable from a dead worker; the queue hands it to a second worker while the first is still busy (<a href="#s-vt">visibility timeouts</a>, below).</li>
+</ul>
+<p>The expected count is simple: if each delivery crashes after the side effect with probability p, a job is delivered on average 1/(1 &minus; p) times, so 1,000 jobs at p = 0.05 give about 1,000 &times; 0.05 / 0.95 = 52.6 duplicates; the three runs gave 50.3 on average. The <a href="#" data-tab="t-lab">Queue lab</a> tab simulates the same queue with any settings; its model of these two runs, averaged over 20 seeds, gives 53.0 duplicates (range 38 to 76) for the crash run and 21.5 (range 15 to 28) for the 0.3 s timeout run, against 50.3 and 22.3 measured. The defaults of its two "Lab run" presets reproduce the measurement independently: the model shares the settings and was not fitted to the results (checked in <code>src/recompute.py</code>).</p>
+</section>
+
+<section id="s-eos">
+<h2>What Kafka's "exactly-once" really guarantees</h2>
+<p>Kafka is the system that most often advertises exactly-once (EOS, exactly-once semantics), so it is worth knowing precisely what it does. Two mechanisms, added in Kafka 0.11 (2017) by <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-98+-+Exactly+Once+Delivery+and+Transactional+Messaging" target="_blank" rel="noopener noreferrer">KIP-98</a>:</p>
+<p><b>1. The <dfn id="d-idprod">idempotent producer</dfn> removes duplicates caused by producer retries.</b> "The broker assigns each producer an ID and deduplicates messages using a sequence number that is sent by the producer along with every message" (<a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka design</a>). If a send times out and is retried, the broker sees the same (producer id, sequence) and does not append it twice. It has been on by default since Kafka 3.0, together with <code>acks=all</code> (wait for all in-sync replicas), though "In 3.0.0 and 3.1.0, a bug prevented the idempotence default from being applied" until 3.0.1, 3.1.1 and 3.2.0 (<a href="https://kafka.apache.org/30/getting-started/upgrade/" target="_blank" rel="noopener noreferrer">Kafka 3.0 upgrade notes</a>). It covers one producer session writing to one partition; it says nothing about consumers.</p>
+<p><b>2. Transactions make read-process-write atomic.</b> A stream processor reads from topic A, computes, and writes to topic B. Exactly-once there means: the output and the "I have consumed up to offset N" record become visible together or not at all. The steps, in brief:</p>
+<ol>
+<li>The producer is configured with a <code>transactional.id</code>, a stable name that survives restarts. A broker acting as <b>transaction coordinator</b> keeps the state of its transactions in an internal, replicated transaction log.</li>
+<li>On start, the producer registers its <code>transactional.id</code>; the coordinator bumps an <b>epoch</b> number, so "any previous zombie instance of the producer is fenced off" (KIP-98). A <dfn id="d-zombie">zombie</dfn> is an old instance that was presumed dead but is still running; fencing means its writes are rejected.</li>
+<li>Within a transaction the producer writes output records to any partitions, and also the consumer's new offsets (<code>sendOffsetsToTransaction</code>). "The consumer's position is stored as a message in an internal topic, so we can write the offset to Kafka in the same transaction as the output topics" (<a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka design</a>).</li>
+<li>On commit, the coordinator writes COMMIT markers into every partition involved. Downstream consumers with <code>isolation.level=read_committed</code> only see records of committed transactions. The default is <code>read_uncommitted</code>, which shows aborted records too (<a href="https://kafka.apache.org/43/configuration/consumer-configs/" target="_blank" rel="noopener noreferrer">consumer configs</a>).</li>
+</ol>
+<p><b>The scope is Kafka to Kafka.</b> The docs: the transactional producer and read-committed consumer "can be used generally to provide exactly-once delivery when reading, processing and writing data on Kafka topics. Exactly-once delivery for other destination systems generally requires cooperation with such systems ... Otherwise, Kafka guarantees at-least-once delivery by default." If the consumer's work is "send an e-mail" or "write to Postgres", Kafka's transaction cannot include it; you are back to at-least-once plus deduplication, or to storing the offset in the same database transaction as the output, which the docs recommend: "letting the consumer store its offset in the same place as its output".</p>
+<div class="corr"><div class="t">Correction to the old page</div>The old "Distributed Systems Basics" page listed "Kafka transactional producer + idempotent consumer offsets" as a way to get exactly-once processing. "Idempotent consumer offsets" is loose: what Kafka does is commit the consumer's offsets inside the producer's transaction, and that gives exactly-once only when input and output are both Kafka topics. Any external effect still needs its own deduplication.</div>
+<p><b>What it costs, and how solid it is.</b> Confluent's 2017 measurement: with 1 KB messages and 100 ms transactions, producer throughput fell 3% against an at-least-once, in-order producer, and 20% against the then-default <code>acks=1</code> (<a href="https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/" target="_blank" rel="noopener noreferrer">Narkhede, Confluent, 2017</a>); with Kafka Streams and a 100 ms commit interval the loss was 15 to 30%. The docs add that "using a replication factor lower than 3 effectively voids EOS" (recommend 3 with <code>min.insync.replicas=2</code>, <a href="https://kafka.apache.org/43/_print/" target="_blank" rel="noopener noreferrer">Kafka Streams docs</a>). And the protocol had real bugs: in 2024 Jepsen found that "There is no concept of a transaction number. When a server receives a commit (or abort) message, it has no way to know what transaction the client intended to commit", reproduced aborted reads and torn transactions in Kafka itself (KAFKA-17754), and Kafka's engineers expected KIP-890 to fix it (<a href="https://jepsen.io/analyses/bufstream-0.1.0" target="_blank" rel="noopener noreferrer">Jepsen, Bufstream 0.1.0, 2024-11-12</a>). KIP-890 bumps the epoch "after every commit/abort marker" so each transaction is identified by (producer id, epoch) (<a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-890%3A+Transactions+Server-Side+Defense" target="_blank" rel="noopener noreferrer">KIP-890</a>); its second phase shipped in Kafka 4.0, where it "reduces the chances of 'zombie transactions'" (<a href="https://kafka.apache.org/blog/2025/03/18/apache-kafka-4.0.0-release-announcement/" target="_blank" rel="noopener noreferrer">Kafka 4.0 release</a>). Whether KAFKA-17754 is fully closed was not checked for this page.</p>
+<div class="when"><b>When not to use Kafka transactions:</b> when the output is not a Kafka topic (they cannot cover it), and when a duplicate is cheap to absorb downstream (an idempotent consumer is simpler and faster).</div>
+</section>
+
+<section id="s-idem">
+<h2>Idempotent consumers and deduplication</h2>
+<p>At-least-once delivery is safe only if running a job twice does no harm. An operation is <dfn id="d-idem">idempotent</dfn> when doing it twice has the same effect as doing it once. There are four ways to get there, from cheapest to most general.</p>
+<ol>
+<li><b>Make the work naturally idempotent.</b> Write absolute values, not increments: "set document 981's embeddings to X" instead of "append embeddings"; <code>UPDATE ... SET status = 'paid'</code> instead of <code>balance = balance + 10</code>; write a file to a path derived from its input and overwrite. Kafka's docs note the common case: "In many cases messages have a primary key and so the updates are idempotent (receiving the same message twice just overwrites a record with another copy of itself)". Costs nothing; not always possible (an e-mail cannot be "set").</li>
+<li><b>Record what you processed, in the same transaction as the effect.</b> This is the <dfn id="d-idcons">idempotent consumer</dfn> pattern: "the message handler inserts the message's ID into the PROCESSED_MESSAGE table. Since the (subscriberId, messageID) is the PROCESSED_MESSAGE table's primary key the INSERT will fail if the message has been already processed successfully" (<a href="https://microservices.io/patterns/communication-style/idempotent-consumer.html" target="_blank" rel="noopener noreferrer">microservices.io, Idempotent Consumer</a>). The id must come from the producer (an event id, an order id), never be generated by the consumer. Works whenever the effect lives in your own database.</li>
+<li><b>Pass an idempotency key to the system that does the effect.</b> When the effect is in someone else's system (a payment, an e-mail provider, a model provider), send a key derived from the message (<code>Idempotency-Key: order-42-receipt</code>) and let them deduplicate. Stripe-style idempotency keys, and how a server should implement them, are on <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>. The client half (when to retry) is on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>.</li>
+<li><b>Version or sequence checks</b> for state updates that can arrive out of order: keep a version per entity and ignore a message whose version is not newer (<code>UPDATE orders SET ..., version = 7 WHERE id = 42 AND version &lt; 7</code>). Deduplicates and reorders at once.</li>
+</ol>
+<p>The code for way 2, in Python with psycopg (the same shape the measured lab used, with the effect in the consumer's own database):</p>
+<div class="code">def handle(msg):                       <span class="cm"># called for every delivery, including redeliveries</span>
+    with conn.transaction():
+        cur = conn.execute(
+            "INSERT INTO processed_events (event_id) VALUES (%s) ON CONFLICT DO NOTHING",
+            (msg["event_id"],))
+        if cur.rowcount == 0:
+            return                         <span class="cm"># seen before: do nothing, but still ack</span>
+        conn.execute("INSERT INTO receipts (order_id, ...) VALUES (%s, ...)", (msg["order_id"],))
+    queue.ack(msg)                         <span class="cm"># a crash before this line is now harmless</span></div>
+<div class="cost"><div class="t">What it costs</div>A row per processed message, so the table needs an expiry: keep ids for longer than the longest possible redelivery window (the broker's retention or maximum retry period), then delete them. A dedup window shorter than the redelivery window lets duplicates through: SQS FIFO's 5-minute window means a re-send after 6 minutes is a new message. Some producers send two different ids for one change: Stripe warns that "two separate Event objects are generated and sent" in some cases and says to deduplicate by "the ID of the object in data.object along with the event.type" (<a href="https://docs.stripe.com/webhooks" target="_blank" rel="noopener noreferrer">Stripe webhooks</a>). Choose the key by what must happen once, not by what the transport calls a message.</div>
+</section>
+
+<section id="s-vt">
+<h2>Visibility timeouts, leases and redelivery</h2>
+<p>How does a queue know a worker died? It cannot see the process; it can only see that no acknowledgement came. So it lends each message out for a fixed time. SQS calls it the <dfn id="d-vt">visibility timeout</dfn>: "The visibility timeout starts as soon as a message is delivered to you. During this period, you're expected to process and delete the message. If you don't delete it before the timeout expires, the message becomes visible again" (<a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener noreferrer">SQS visibility timeout</a>); default 30 s, maximum 12 h. The general name for a time-limited claim is a <dfn id="d-lease">lease</dfn>. Every system has one under some name: Kafka's <code>max.poll.interval.ms</code> (5 minutes), Kafka share groups' record lock (30 s), Celery on Redis's <code>visibility_timeout</code> (1 hour), RabbitMQ's redelivery when a consumer's channel closes.</p>
+<p>The timeout trades two failures against each other:</p>
+<ul>
+<li><b>Too short:</b> a slow job looks dead and is handed to a second worker while the first is still working: duplicates without any crash (measured above: 20 to 24 per 600 jobs at a 0.3 s timeout). Even a correct setting is not a hard guarantee: SQS says "there's no absolute guarantee that a message won't be delivered more than once during the visibility timeout period".</li>
+<li><b>Too long:</b> after a real crash the job waits the whole timeout before anyone retries it; with a 12-hour timeout, a crashed job is 12 hours late.</li>
+</ul>
+<p>The production answer is a timeout comfortably above the normal job time plus a <dfn id="d-heartbeat">heartbeat</dfn>: a long job periodically extends its own lease. SQS: "use the <code>ChangeMessageVisibility</code> action to extend the visibility timeout while processing the message", within the 12-hour limit from first receipt; Kafka share groups added a RENEW acknowledgement in 4.2 "for extended processing times". To give a message back early (you cannot handle it now), set its timeout to 0.</p>
+<div class="co warn"><div class="t">A real trap: Celery's defaults</div>Celery acknowledges <i>before</i> running a task by default: "the default behavior is to acknowledge the message in advance, just before it's executed, so that a task invocation that already started is never executed again" (<a href="https://github.com/celery/celery/blob/v5.6.3/docs/userguide/tasks.rst" target="_blank" rel="noopener noreferrer">Celery 5.6.3 tasks guide</a>). That is at-most-once: a worker killed mid-task loses the task. <code>task_acks_late = True</code> makes it at-least-once, but "Even if task_acks_late is enabled, the worker will acknowledge tasks when the worker process executing them abruptly exits or is signaled" unless <code>task_reject_on_worker_lost = True</code>, which the docs warn "can cause message loops" (<a href="https://github.com/celery/celery/blob/v5.6.3/docs/userguide/configuration.rst" target="_blank" rel="noopener noreferrer">Celery configuration</a>). On Redis, a task not acknowledged within the 1-hour visibility timeout "will be redelivered to another worker and executed", which breaks ETA and countdown tasks scheduled further out than that: "it will be executed again, and again in a loop" (<a href="https://github.com/celery/celery/blob/v5.6.3/docs/getting-started/backends-and-brokers/redis.rst" target="_blank" rel="noopener noreferrer">Celery Redis broker</a>).</div>
+</section>
+
+<section id="s-dlq">
+<h2>Dead-letter queues and poison messages</h2>
+<p>A <dfn id="d-poison">poison message</dfn> is one that fails every time: malformed data, a bug triggered by one input, a document too large to embed. Under at-least-once delivery it comes back forever, wasting a worker each time, and in an ordered stream it blocks everything behind it. The fix is a <dfn id="d-dlq">dead-letter queue</dfn> (DLQ): after N failed attempts the message is moved aside to a separate queue for a human or a repair job. SQS: "The <code>maxReceiveCount</code> is the number of times a consumer can receive a message from a source queue before it is moved to a dead-letter queue" (<a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html" target="_blank" rel="noopener noreferrer">SQS DLQs</a>). RabbitMQ quorum queues count deliveries and default to a limit of 20 since 4.0; without a dead-letter exchange configured, a message over the limit is dropped (<a href="https://www.rabbitmq.com/docs/quorum-queues" target="_blank" rel="noopener noreferrer">quorum queues</a>). Dramatiq moves a message to its dead letter queue after its retries (20 by default) "where it's kept for up to 7 days and then automatically dropped" (<a href="https://github.com/Bogdanp/dramatiq/blob/v2.2.1/docs/source/guide.rst" target="_blank" rel="noopener noreferrer">Dramatiq 2.2.1 guide</a>). Kafka consumer groups have no built-in DLQ: the application (or Kafka Connect's error handling) writes failures to a separate topic; share groups count delivery attempts and let a consumer reject a record.</p>
+<p>Three rules, all about what happens after:</p>
+<ul>
+<li><b>Alert on DLQ depth.</b> A DLQ nobody watches is a slower way of losing data. Any message in it means a customer's job did not happen.</li>
+<li><b>Design the replay path before you need it.</b> SQS has a "dead-letter queue redrive" that moves messages back to the source queue once the bug is fixed; elsewhere you write a script. Because replayed messages run again, the consumer must be idempotent (previous section). Keep DLQ retention longer than the source queue's: AWS calls it "a best practice to always set the retention period of a dead-letter queue to be longer than the retention period of the original queue."</li>
+<li><b>Mind ordering.</b> Moving a message aside lets later ones overtake it: "Don't use a dead-letter queue with a FIFO queue if you don't want to break the exact order of messages or operations" (AWS). For ordered streams, either stop and page someone, or park every later message for the same key too.</li>
+</ul>
+<p>How often to retry before dead-lettering, and with what backoff and jitter, is retry policy: owned by <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>, whose measured retry storm shows why retries without a budget make outages worse.</p>
+</section>
+
+<section id="s-bp">
+<h2>Backpressure and Little's law on a queue</h2>
+<p>A queue absorbs bursts: if uploads arrive at 3 times the usual rate for a minute, the queue grows and then drains. But it absorbs <i>everything</i>, including overload that never ends, and it does so silently. David Yanacek of Amazon describes the two modes: "When there is no backlog in the queue, the system's latency is low, and the system is in fast mode. But if a failure or unexpected load pattern causes the arrival rate to exceed the processing rate, it quickly flips into a more sinister operating mode. In this mode, the end-to-end latency grows higher and higher" (<a href="https://builder.aws.com/content/3EuRcgkTP1MI0c7zM8W6HL3WIqA/avoiding-insurmountable-queue-backlogs" target="_blank" rel="noopener noreferrer">Yanacek, Avoiding insurmountable queue backlogs, Amazon Builders' Library</a>; quotes checked against the 2024 archived copy).</p>
+<p><b>The arithmetic.</b> Call the arrival rate &lambda; (messages per second), the time one worker needs per message S, and the number of workers C. The workers can finish at most C / S messages per second, so the <dfn id="d-util">utilisation</dfn> is &rho; = &lambda;S / C.</p>
+<ul>
+<li>If &rho; &lt; 1 the queue stays short on average, but waiting time rises steeply as &rho; approaches 1 (with random arrivals, a queue at 90% utilisation waits several times longer than at 50%; the shape and the formulas are on <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>).</li>
+<li>If &rho; &gt; 1 the backlog grows by &lambda; &minus; C/S messages every second, forever. Adding queue space does not help; only more workers, less work per message, or fewer messages do.</li>
+<li>Worse, a backlog can keep itself alive after the cause is gone: old messages time out at their callers, who retry and add more. Bronson et al. call this a <b>metastable failure</b>, "a bad state that persists even when the trigger is removed" (<a href="https://sigops.org/s/conferences/hotos/2021/papers/hotos21-s11-bronson.pdf" target="_blank" rel="noopener noreferrer">Metastable Failures in Distributed Systems, HotOS 2021</a>). Hence the old page's rule: bound the queue, and prefer rejecting at admission over timing out deep in the stack.</li>
+<li>Draining a backlog of B messages takes B / (C/S &minus; &lambda;): only the spare capacity drains it. Yanacek: after an hour-long outage, "recovering from the outage requires double the system's capacity for another hour after the recovery", and a backlog "10x the capacity that the consumer side was scaled to" took "300 minutes" to work through.</li>
+</ul>
+<p><dfn id="d-little">Little's law</dfn> ties the averages together: "the average number of items in a queuing system, denoted L, equals the average arrival rate of items to the system, &lambda;, multiplied by the average waiting time of an item in the system, W. Thus, L = &lambda;W" (<a href="https://doi.org/10.1287/opre.1110.0940" target="_blank" rel="noopener noreferrer">Little, Operations Research 59(3), 2011</a>). It holds for long-run averages of a stable system, whatever the distributions; a backlog that keeps growing has no stable average, so the law does not describe it. Two uses: size workers (embedding 5 documents a second at 20 s each keeps 5 &times; 20 = 100 jobs in progress, so at least 100 worker slots: the parent root's example), and turn a backlog into a wait (500 messages in the queue at 50 per second means about 10 s of waiting). Yanacek uses it to show how latency spikes eat thread pools: 100 messages a second at 100 ms is 10 busy threads; at 10 s it is 1,000. The <a href="#" data-tab="t-lab">Queue lab</a> checks L against &lambda;W on every run.</p>
+<p><dfn id="d-bp">Backpressure</dfn> is how "we cannot keep up" travels back to whoever produces the work, so the system degrades at the edge instead of everywhere:</p>
+<ul>
+<li><b>Bound the queue and reject at admission:</b> when the queue is over its limit, the API answers <code>429 Too Many Requests</code> (RFC 6585 says it "MAY include a Retry-After header", <a href="https://www.rfc-editor.org/rfc/rfc6585#section-4" target="_blank" rel="noopener noreferrer">RFC 6585 §4</a>) or <code>503</code>, and the client backs off. Fail fast at the door rather than time out deep inside.</li>
+<li><b>Block the producer:</b> Kafka's producer buffers up to <code>buffer.memory</code> and then blocks <code>send()</code> for up to <code>max.block.ms</code> (<a href="https://kafka.apache.org/43/configuration/producer-configs/" target="_blank" rel="noopener noreferrer">producer configs</a>); a bounded <code>asyncio.Queue(maxsize=...)</code> makes <code>await q.put()</code> wait.</li>
+<li><b>Limit what each consumer holds:</b> RabbitMQ's prefetch "defines the max number of unacknowledged deliveries that are permitted on a channel" (<a href="https://www.rabbitmq.com/docs/confirms" target="_blank" rel="noopener noreferrer">RabbitMQ confirms</a>); Celery prefetches 4 messages per process by default (<code>worker_prefetch_multiplier</code>), which is why long tasks are usually run with 1.</li>
+<li><b>Credit-based flow control</b> in protocols: HTTP/2 and gRPC use per-stream windows (WINDOW_UPDATE, <a href="https://www.rfc-editor.org/rfc/rfc9113#section-5.2" target="_blank" rel="noopener noreferrer">RFC 9113 §5.2</a>); depth on <a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a>.</li>
+<li><b>Shed or sideline old work:</b> when a backlog has formed, the newest work is often the most valuable. Yanacek: real-time systems "often are implemented with FIFO-ish queues, but prefer LIFO-ish behavior"; Amazon moves messages older than a threshold "into a backlog queue that we work through only after we're caught up on the live queue", drops messages a periodic full sync will redo anyway, and isolates noisy customers by hashing each to a few of many queues (shuffle sharding). Load shedding by priority is on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>.</li>
+</ul>
+<p><b>What to watch:</b> the <b>age of the oldest message</b>, not just the queue length. Yanacek: "we focus more on measuring the age of messages that are in the queue. This quickly catches cases where the systems are behind, or are frequently erroring out and causing retries." In SQS that is <code>ApproximateAgeOfOldestMessage</code>; in Kafka, lag converted to time. The parent root's Case files hold a real example of a backlog that never drained ("EC2 could not hand out servers: a queue that never drained", the root's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Case files</a> tab).</p>
+</section>
+
+<section id="s-dual">
+<h2>The dual-write problem and the transactional outbox</h2>
+<p>When an order is placed, the order service must save the order in its database <i>and</i> publish "order placed" for the e-mail service, the warehouse and analytics. That is a <dfn id="d-dual">dual write</dfn>: two writes to two systems that share no transaction. Gunnar Morling, then Debezium's lead: "we cannot have one shared transaction that would span the service's database as well as Apache Kafka, as the latter doesn't support to be enlisted in distributed (XA) transactions" (<a href="https://debezium.io/blog/2019/02/19/reliable-microservices-data-exchange-with-the-outbox-pattern/" target="_blank" rel="noopener noreferrer">Debezium blog, 2019-02-19</a>). Whichever write goes first, a crash between them leaves the two systems disagreeing. Watch the same order go through three designs:</p>
+<div class="card" id="rd-ob-card">
+<b>Animation: order 42, with a naive dual write and with the outbox</b>
+<div class="seg" id="rd-ob-seg"><button data-m="naive" class="on">Before: commit, then publish</button><button data-m="first">Before: publish, then commit</button><button data-m="outbox">After: transactional outbox</button></div>
+<div class="chart" id="rd-ob-svg"></div>
+<div class="an-cap" id="rd-ob-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rd-ob-cnt"></div>
+<div class="an-ctl" id="rd-ob-ctl"></div>
+<p class="small mute">Crash points are the ones the measured lab injects; counts in the captions are from that lab (500 orders, 5% crash chance, three runs).</p>
+</div>
+<p>The <dfn id="d-outbox">transactional outbox</dfn> (Chris Richardson's name for it): "the service that sends the message to first store the message in the database as part of the transaction that updates the business entities. A separate process then sends the messages to the message broker" (<a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener noreferrer">microservices.io, Transactional outbox</a>). Its cost is stated on the same page: the relay "might, for example, crash after publishing a message but before recording the fact that it has done so. When it restarts, it will then publish the message again. As a result, a message consumer must be idempotent". So the outbox converts "sometimes lost" into "sometimes duplicated", and the idempotent consumer converts that into "once".</p>
+<p><b>Measured</b> on the same laptop Postgres (the "broker" is a second database, so there is genuinely no shared transaction; 500 orders, 5% crash chance at the dangerous line, three runs):</p>
+<div class="tw"><table id="rd-ob-tbl"></table></div>
+<p class="small mute">With a batch of 10 events per relay transaction, a crash mid-batch rolls back every "sent" mark in the batch, so all of them are published again: about 4 to 5 duplicates per crash. With one event per transaction, duplicates equal crashes. Batching is faster; it multiplies duplicates.</p>
+<h3>Two ways to run the relay</h3>
+<ul>
+<li><b>Polling publisher:</b> "Publish messages by polling the database's outbox table" (<a href="https://microservices.io/patterns/data/polling-publisher.html" target="_blank" rel="noopener noreferrer">microservices.io</a>). A loop runs <code>SELECT ... WHERE sent_at IS NULL ORDER BY seq LIMIT 100 FOR UPDATE SKIP LOCKED</code>, publishes, marks sent. Simple, works on any database, adds polling load and a little latency; several relays can run thanks to <code>SKIP LOCKED</code>, but then strict ordering across them is lost.</li>
+<li><b>Transaction log tailing, or <dfn id="d-cdc">change data capture</dfn> (CDC):</b> "Tail the database transaction log and publish each message/event inserted into the outbox to the message broker" (<a href="https://microservices.io/patterns/data/transaction-log-tailing.html" target="_blank" rel="noopener noreferrer">microservices.io</a>). In Postgres this uses <b>logical decoding</b>, "the process of extracting all persistent changes to a database's tables into a coherent, easy to understand format" (<a href="https://www.postgresql.org/docs/current/logicaldecoding-explanation.html" target="_blank" rel="noopener noreferrer">PostgreSQL docs</a>), which reads the write-ahead log (WAL). Debezium is the standard tool: its Postgres connector reads the WAL, and its Outbox Event Router expects an outbox table with columns <code>id</code>, <code>aggregatetype</code>, <code>aggregateid</code>, <code>type</code> and <code>payload</code>, routing each row by default to a topic named <code>outbox.event.&lt;aggregatetype&gt;</code> with <code>aggregateid</code> as the message key (<a href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html" target="_blank" rel="noopener noreferrer">Debezium outbox event router</a>). No polling, ordered by commit; costs a Kafka Connect deployment and a replication slot to monitor (an abandoned slot makes Postgres keep WAL forever). Delivery is still at-least-once: "while it is recovering from the fault, it's possible that the connector might emit some duplicate change events" (<a href="https://debezium.io/documentation/reference/stable/connectors/postgresql.html" target="_blank" rel="noopener noreferrer">Debezium Postgres connector</a>).</li>
+</ul>
+<p>The receiving side has a mirror pattern, the <dfn id="d-inbox">inbox</dfn>: store each incoming message's id (and often the message) in the consumer's database in the same transaction as its effects, which is the idempotent consumer by another name. MassTransit: "The inbox is used to keep track of received messages to guarantee exactly-once consumer behavior" (<a href="https://masstransit.io/documentation/patterns/transactional-outbox" target="_blank" rel="noopener noreferrer">MassTransit</a>); NServiceBus "uses the message identity (MessageId) to deduplicate messages" (<a href="https://docs.particular.net/nservicebus/outbox/" target="_blank" rel="noopener noreferrer">NServiceBus outbox</a>).</p>
+<p><b>When you do not need an outbox:</b> when the queue lives in the same database. Postgres-backed job queues let you enqueue in the same transaction as your data: River "encourages the use of the same database for application data and job queue. By enqueueing jobs transactionally along with other database changes, whole classes of distributed systems problems are avoided" (<a href="https://github.com/riverqueue/river/blob/master/docs/README.md" target="_blank" rel="noopener noreferrer">River docs</a>); Oban lists "Transactional Control: Enqueue a job along with other database changes, ensuring that everything is committed or rolled back atomically" (<a href="https://github.com/oban-bg/oban/blob/main/README.md" target="_blank" rel="noopener noreferrer">Oban</a>). The outbox <i>is</i> such a queue, with a relay that forwards to Kafka for the consumers that live elsewhere.</p>
+<p><b>Webhooks are the same problem facing outwards.</b> Sending a webhook to a customer after a database change is a dual write to their server. The sending side uses an outbox (write "deliver event X to customer Y" in the transaction, deliver from a worker with retries); the receiving side answers <code>2xx</code> at once and queues the work. Stripe: "Your endpoint must quickly return a successful status code (2xx) before any complex logic that could cause a timeout", and it retries "for up to three days with an exponential back off in live mode" (<a href="https://docs.stripe.com/webhooks" target="_blank" rel="noopener noreferrer">Stripe webhooks</a>). GitHub expects a 2XX "within 10 seconds" and "does not automatically redeliver failed deliveries" (<a href="https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks" target="_blank" rel="noopener noreferrer">GitHub best practices</a>, <a href="https://docs.github.com/en/webhooks/using-webhooks/handling-failed-webhook-deliveries" target="_blank" rel="noopener noreferrer">failed deliveries</a>), so a receiver that is down simply misses them. Webhook API design (signatures, payloads) is on <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>.</p>
+<div class="cost"><div class="t">What the outbox costs</div>A table that grows (delete or partition sent rows), a relay process or a CDC pipeline to run and monitor, events that arrive a little later than the commit, and duplicates every consumer must absorb. <b>When not to use it:</b> when the event is not critical (a lost analytics ping is fine), or when the consumers can read your database's job queue directly.</div>
+</section>
+
+<section id="s-saga">
+<h2>Sagas versus two-phase commit</h2>
+<p>The outbox makes <i>one</i> service's write and event atomic. A business action often spans several services, each with its own database: the chat product's "upgrade to Pro" must charge the card (payments service), raise the user's token quota (quota service) and send a receipt (e-mail). If the quota update fails after the charge, the user has paid for nothing. Two families of answer:</p>
+<p><dfn id="d-2pc">Two-phase commit</dfn> (2PC) makes several databases commit together. A coordinator asks every participant to <i>prepare</i> (do the work, hold the locks, promise to commit if told); if all say yes it tells all to <i>commit</i>, otherwise all <i>abort</i>. Its weakness was stated by Jim Gray and Leslie Lamport: "The classic Two-Phase Commit protocol blocks if the coordinator fails" (<a href="https://arxiv.org/abs/cs/0408036" target="_blank" rel="noopener noreferrer">Gray and Lamport, Consensus on Transaction Commit</a>): prepared participants hold their locks and cannot decide alone. Postgres supports the prepare step but warns "PREPARE TRANSACTION is not intended for use in applications ... Unless you're writing a transaction manager, you probably shouldn't be using PREPARE TRANSACTION" (<a href="https://www.postgresql.org/docs/current/sql-prepare-transaction.html" target="_blank" rel="noopener noreferrer">PostgreSQL docs</a>). And most systems a service talks to (Kafka, SaaS APIs, a payment provider) cannot take part at all. 2PC lives on inside distributed databases (Spanner, CockroachDB), run over consensus so the coordinator cannot simply vanish; the theory is on <a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a>.</p>
+<p>A <dfn id="d-saga">saga</dfn> gives up atomicity and adds undo. The idea is from Garcia-Molina and Salem (1987): a long transaction "is a saga if it can be written as a sequence of transactions that can be interleaved with other transactions", and the system "guarantees that either all the transactions in a saga are successfully completed or compensating transactions are run to amend a partial execution" (<a href="https://www.cs.cornell.edu/andru/cs711/2002fa/reading/sagas.pdf" target="_blank" rel="noopener noreferrer">Sagas, SIGMOD 1987</a>). In services: "A saga is a sequence of local transactions. Each local transaction updates the database and publishes a message or event to trigger the next local transaction in the saga. If a local transaction fails because it violates a business rule then the saga executes a series of compensating transactions" (<a href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener noreferrer">microservices.io, Saga</a>).</p>
+<div class="card" id="rd-sg-card">
+<b>The same upgrade, three ways</b>
+<div class="seg" id="rd-sg-seg"><button data-m="ok" class="on">Saga: all steps succeed</button><button data-m="fail">Saga: quota step fails</button><button data-m="tpc">Two-phase commit</button></div>
+<div id="rd-sg-out"></div>
+</div>
+<ul>
+<li><b>Choreography or orchestration.</b> In choreography "each local transaction publishes domain events that trigger local transactions in other services"; in orchestration "an orchestrator (object) tells the participants what local transactions to execute" (microservices.io). Choreography has no central piece but the flow is spread across services and hard to see; orchestration puts the flow in one place, which is what durable workflow engines (<a href="#s-jobs">below</a>) are built for.</li>
+<li><b>Compensations are business actions, not rollbacks.</b> "Refund the charge" is not "the charge never happened": the customer may have seen it, a receipt may be out. Some steps cannot be compensated (an e-mail sent); put them last.</li>
+<li><b>No isolation.</b> Between steps, others see the half-done state. The 1987 paper: "other transactions might see the effects of a partial saga execution"; microservices.io lists "Lack of isolation" as the main drawback. Defences: a status field (<code>PENDING</code>) that other code respects, re-reading values before acting, ordering steps so the riskiest comes first.</li>
+<li><b>Every step and every compensation runs at least once,</b> because it is driven by messages: each must be idempotent.</li>
+</ul>
+<div class="when"><b>When not to use either:</b> if all the data can live in one database, use one transaction. Splitting data across services is what creates the need for sagas; do it for a reason.</div>
+</section>
+
+<section id="s-eda">
+<h2>Event-driven architecture, event sourcing and CQRS, in brief</h2>
+<p>In an <dfn id="d-eda">event-driven architecture</dfn>, services announce facts ("order 42 placed") on a log instead of calling each other ("e-mail service, send a receipt"). The old page listed the trade, and it holds: the benefits are temporal decoupling (the e-mail service can be down and catch up later), fan-out (any number of consumers per event, added without touching the producer), a natural audit trail, and replay (rebuild a projection by re-reading the log); the costs are eventual consistency between views, harder end-to-end tracing (use trace ids propagated in message headers: <a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a>), and schema discipline. Two distinctions that prevent most design mistakes:</p>
+<ul>
+<li><b>Events versus commands.</b> An event is a fact in the past tense, owned by its producer, with any number of readers. A command ("send receipt") is a request to one recipient that may refuse. Putting commands on a shared log hides who is responsible.</li>
+<li><b>Thin versus fat events.</b> A thin event carries ids ("order 42 changed"), and the consumer fetches current data; a fat event carries the data. Thin events are always current and leak less; fat events let consumers work while the producer is down. Schema changes must be backward compatible (add optional fields, never rename or remove), usually enforced by a schema registry (old page, kept as practice).</li>
+</ul>
+<p><dfn id="d-es">Event sourcing</dfn> goes further: the events are the source of truth. Martin Fowler: "every change to the state of an application is captured in an event object, and that these event objects are themselves stored in the sequence they were applied for the same lifetime as the application state itself" (<a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener noreferrer">Fowler, Event Sourcing, 2005</a>); current state is computed by replaying them. <dfn id="d-cqrs">CQRS</dfn> (command query responsibility segregation) uses "a different model to update information than the model you use to read information" (<a href="https://martinfowler.com/bliki/CQRS.html" target="_blank" rel="noopener noreferrer">Fowler, CQRS, 2011</a>); event sourcing usually needs it, and a Kafka-to-ClickHouse analytics pipeline is a mild form of it.</p>
+<div class="co warn"><div class="t">When not to</div>Fowler on CQRS: "beware that for most systems CQRS adds risky complexity." Microsoft's architecture guide on event sourcing (2026): "It's costly to migrate to or from an event sourcing solution ... For most systems and most parts of a system, traditional data management is sufficient", and it is not suitable when systems "have straightforward CRUD operations that don't require auditability, replay, or historical reconstruction of state" (<a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing" target="_blank" rel="noopener noreferrer">Azure Architecture Center, Event Sourcing</a>). The same page corrects a common belief: "Message brokers such as Apache Kafka typically lack per-entity stream queries and optimistic concurrency. They work well as a distribution layer ... but they aren't a substitute for an event store." The old page's verdict, "rarely worth it outside ledgers", is an opinion, but it matches both sources. For an ML platform the useful part is the log, not event sourcing: usage events, feedback events and pipeline triggers fanned out from one stream (on AWS: EventBridge or SNS into SQS into Lambda, each with a DLQ and idempotent handlers).</div>
+</section>
+
+<section id="s-jobs">
+<h2>Job queues for Python, and durable workflows</h2>
+<p>Most Python services do not talk to SQS or Kafka by hand; they use a <dfn id="d-taskq">task queue library</dfn>: you decorate a function, call <code>.delay()</code> or <code>enqueue()</code> in the request handler, and worker processes run it. The libraries differ mainly in the broker they use and in their delivery defaults, which is what this page has been about.</p>
+<div class="tw"><table>
+<thead><tr><th>Library</th><th>Broker</th><th>Default delivery</th><th>Worth knowing</th></tr></thead>
+<tbody>
+<tr><td>Celery 5.6</td><td>RabbitMQ, Redis, SQS</td><td><b>At-most-once</b> per started task: acks "just before it's executed"</td><td>Set <code>task_acks_late</code>, <code>task_reject_on_worker_lost</code>, <code>worker_prefetch_multiplier = 1</code> for long tasks; Redis visibility timeout 1 h; run exactly one beat scheduler (<a href="https://github.com/celery/celery/tree/v5.6.3/docs" target="_blank" rel="noopener noreferrer">Celery docs, v5.6.3</a>)</td></tr>
+<tr><td>RQ (2.x)</td><td>Redis</td><td>Failed jobs go to a <code>FailedJobRegistry</code>; retries opt-in</td><td><code>queue.enqueue(f, retry=Retry(max=3, interval=[10, 30, 60]))</code> (<a href="https://github.com/rq/rq/blob/master/docs/docs/exceptions.md" target="_blank" rel="noopener noreferrer">RQ docs</a>); simplest to start with</td></tr>
+<tr><td>Arq (0.28)</td><td>Redis, asyncio</td><td>"Jobs may be called more than once!"</td><td>A job id "cannot be enqueued again until its execution has finished and its result has cleared": built-in enqueue deduplication (<a href="https://github.com/python-arq/arq/blob/main/docs/index.rst" target="_blank" rel="noopener noreferrer">Arq docs</a>); fits async FastAPI services</td></tr>
+<tr><td>Dramatiq (2.2)</td><td>RabbitMQ, Redis</td><td><b>At-least-once</b>: "tasks are only ever acked when they're done processing"</td><td>Retries with backoff (20 by default), then a dead letter queue kept 7 days (<a href="https://github.com/Bogdanp/dramatiq/blob/v2.2.1/docs/source/motivation.rst" target="_blank" rel="noopener noreferrer">Dramatiq 2.2.1</a>)</td></tr>
+<tr><td>Procrastinate</td><td>PostgreSQL</td><td>Jobs are rows; enqueue in your own transaction</td><td>"leveraging PostgreSQL 13+ to store task definitions, manage locks and dispatch tasks" (<a href="https://github.com/procrastinate-org/procrastinate/blob/main/README.md" target="_blank" rel="noopener noreferrer">Procrastinate</a>); no extra infrastructure, no outbox needed</td></tr>
+</tbody></table></div>
+<p class="small mute">Versions are the latest at fetch time (2026-10-04); RQ, Arq and Procrastinate quotes read from their main branches. In other languages the Postgres-backed equivalents are River (Go), Oban (Elixir), Solid Queue (Rails 8's default, which "leverages the <code>FOR UPDATE SKIP LOCKED</code> clause", <a href="https://github.com/rails/solid_queue/blob/main/README.md" target="_blank" rel="noopener noreferrer">Solid Queue</a>), graphile-worker (Node: "each job will execute at least once. Most jobs will execute exactly once", <a href="https://github.com/graphile/worker/blob/main/website/docs/index.md" target="_blank" rel="noopener noreferrer">graphile-worker</a>) and pgmq (an SQS-like extension).</p>
+<div class="meas"><div class="t">Measured: why SKIP LOCKED is the whole trick</div><p>A Postgres queue works only if workers do not wait for each other. Postgres: "With SKIP LOCKED, any selected rows that cannot be immediately locked are skipped. Skipping locked rows provides an inconsistent view of the data, so this is not suitable for general purpose work, but can be used to avoid lock contention with multiple consumers accessing a queue-like table" (<a href="https://www.postgresql.org/docs/current/sql-select.html" target="_blank" rel="noopener noreferrer">SELECT docs</a>). On the laptop, 400 jobs of 5 ms each, the worker holding the row lock while it works:</p>
+<div class="chart" id="rd-sk-svg"></div>
+<p class="small mute">With plain <code>FOR UPDATE</code> every worker queues on the same first row, so 8 workers are no faster than 1 (about 123 jobs a second). With <code>SKIP LOCKED</code> each takes a different row: 960 jobs a second with 8 workers, against an ideal of 1,600 (8 / 5 ms; the gap is Postgres round trips and the timer granularity of <code>time.sleep</code>). Same script, <code>src/lab/pg_lab.py</code>.</p></div>
+<p><b>Durable workflows</b> are for jobs with many steps that must survive crashes for minutes to weeks: an agent run, a saga, onboarding with waits. Instead of chaining queue messages by hand, you write the steps as ordinary code and the engine records each completed step, so after a crash it resumes from the last one. Temporal calls this durable execution: a workflow keeps its state and progress through failures, crashes and server outages (<a href="https://docs.temporal.io/temporal" target="_blank" rel="noopener noreferrer">Temporal docs</a>). Two rules come with it. Workflow code must be deterministic: run again on the same input it must make "the same Workflow API calls in the same sequence" (<a href="https://docs.temporal.io/workflow-definition" target="_blank" rel="noopener noreferrer">workflow definition</a>), because the engine rebuilds state by replaying the recorded history; so no clocks, random numbers or network calls in the workflow itself. Side effects go in <dfn id="d-activity">activities</dfn>, which are retried by default (1 s initial interval, backoff 2.0, up to 100 s, unlimited attempts, <a href="https://docs.temporal.io/encyclopedia/retry-policies" target="_blank" rel="noopener noreferrer">retry policies</a>), so "Temporal recommends that Activities be idempotent" (<a href="https://docs.temporal.io/activity-definition" target="_blank" rel="noopener noreferrer">activity definition</a>). Lighter alternatives keep the state in your own Postgres (DBOS: "Add a few annotations to your application to durably execute it", <a href="https://docs.dbos.dev/" target="_blank" rel="noopener noreferrer">DBOS</a>) or in a log (Restate); Cloudflare Workflows "persist state for minutes, hours, or even weeks" (<a href="https://developers.cloudflare.com/workflows/" target="_blank" rel="noopener noreferrer">Cloudflare</a>).</p>
+<div class="when"><b>When not to:</b> a single-step job is a plain queue's work; a workflow engine is a new system and a new programming model (the determinism rule bites people). Reach for one when you find yourself writing a state machine over queue messages with timeouts and compensations.</div>
+</section>
+
+<section id="s-cron">
+<h2>Scheduling and cron</h2>
+<p>Scheduled work (nightly evaluation, hourly usage roll-ups, cleanup of old outbox rows) looks simple and fails in its own ways. Classic <dfn id="d-cron">cron</dfn> runs a command on one machine at set times, so it inherits that machine's fate: if the machine is down at 02:00, the job does not run; if two machines both have the crontab, it runs twice. Distributed schedulers make the same trade explicit. Kubernetes: "A CronJob creates a Job object approximately once per execution time of its schedule. The scheduling is approximate because there are certain circumstances where two Jobs might be created, or no Job might be created ... Therefore, the Jobs that you define should be idempotent" (<a href="https://kubernetes.io/docs/concepts/workloads/controllers/cron-job/" target="_blank" rel="noopener noreferrer">Kubernetes CronJob</a>). Celery: "You have to ensure only a single scheduler is running for a schedule at a time, otherwise you'd end up with duplicate tasks" (<a href="https://github.com/celery/celery/blob/v5.6.3/docs/userguide/periodic-tasks.rst" target="_blank" rel="noopener noreferrer">Celery periodic tasks</a>).</p>
+<ul>
+<li><b>Key each run by its scheduled time,</b> not by "now": the 02:00 roll-up for 2026-10-03 writes to a partition named for that date and overwrites it. A rerun, a duplicate or a backfill then produces the same result. Airflow's best practices say the same of pipeline tasks: "Airflow can retry a task if it fails. Thus, the tasks should produce the same outcome on every re-run" (<a href="https://airflow.apache.org/docs/apache-airflow/stable/best-practices.html" target="_blank" rel="noopener noreferrer">Airflow best practices</a>): write outputs to deterministic locations and overwrite, never append.</li>
+<li><b>Decide what overlap means.</b> Kubernetes' <code>concurrencyPolicy</code> is <code>Allow</code> by default (runs may overlap); <code>Forbid</code> skips a run while the previous one is still going; <code>Replace</code> kills the old one.</li>
+<li><b>Decide what a missed run means.</b> <code>startingDeadlineSeconds</code> skips a run that could not start in time; without it, Kubernetes will not start a job that has missed more than 100 schedules.</li>
+<li><b>Let the scheduler only enqueue.</b> The scheduler puts a message on the queue; ordinary workers, with their retries, DLQ and idempotency, do the work.</li>
+</ul>
+</section>
+
+<section id="s-llm">
+<h2>Async work around LLMs</h2>
+<p>LLM products stretch every idea on this page, because one unit of work can take a second (a chat reply), minutes (a deep-research answer, an agent run) or hours (a batch over a million documents), and costs real money each time it runs.</p>
+<h3>Stream to the user while the work continues</h3>
+<p>The chat reply stays on the request path but is <b>streamed</b>: the server sends tokens as they are generated over server-sent events (SSE), one long HTTP response with one event per chunk. Anthropic: set <code>"stream": true</code> "to incrementally stream the response using server-sent events (SSE)" (<a href="https://platform.claude.com/docs/en/build-with-claude/streaming" target="_blank" rel="noopener noreferrer">Anthropic streaming</a>). The design question is what happens when the connection drops halfway. If generation is tied to the HTTP connection, a closed tab or a phone switching networks kills a paid-for answer. The better shape separates the two: the generation runs as a background job writing chunks somewhere durable, and the HTTP stream is just a reader that can reconnect. Vercel's AI SDK: "In a resumable stream setup, client-side aborts are treated as disconnects. Closing a tab, refreshing the page, or calling stop() only closes the current HTTP connection and should not cancel the underlying generation" (<a href="https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-resume-streams" target="_blank" rel="noopener noreferrer">AI SDK resumable streams</a>). OpenAI's background mode does it on the provider side: create a response with <code>background</code> and <code>stream</code> both true and "keep track of a 'cursor' corresponding to the sequence_number you receive in each streaming event", then resume with <code>starting_after</code> (<a href="https://platform.openai.com/docs/guides/background" target="_blank" rel="noopener noreferrer">OpenAI background mode</a>). Note its retention: "Response data is temporarily stored to disk for roughly 10 minutes to enable asynchronous execution and polling". Server-sent events in API design: <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>.</p>
+<h3>Long-running agent jobs</h3>
+<p>An agent run is a saga of model calls and tool calls, some with side effects (open a pull request, send an e-mail, charge a card). Treat it as a durable workflow: return <code>202</code> with a run id, execute the steps in a worker or workflow engine that records each completed step, and push progress to the client (SSE or WebSocket) or let it poll. Three rules from the sections above, applied:</p>
+<ul>
+<li><b>Every tool call with a side effect carries an idempotency key</b> derived from the run id and step number, because a crashed run will be resumed and a timed-out call retried (<a href="#s-idem">idempotent consumers</a>).</li>
+<li><b>Record model outputs as completed steps,</b> so a resumed run does not pay for the same tokens again; that is the point of durable execution for agents. Temporal's announcement of its OpenAI Agents SDK integration (public preview, July 2025): "Temporal keeps track of application progress and stores all Activity results" (<a href="https://temporal.io/blog/announcing-openai-agents-sdk-integration" target="_blank" rel="noopener noreferrer">Temporal blog</a>, vendor post). An OpenAI infrastructure VP is quoted in Temporal's September 2026 funding post as saying OpenAI built "a durable orchestration framework powered by Temporal" (<a href="https://temporal.io/blog/temporal-raises-usd550m-series-e-at-usd12-55b-valuation-ai" target="_blank" rel="noopener noreferrer">Temporal, 2026-09-14</a>; a vendor post, not an OpenAI source).</li>
+<li><b>Leases must outlast the slowest step or be renewed:</b> a 20-minute agent step on a queue with a 5-minute visibility timeout runs four times in parallel (<a href="#s-vt">visibility timeouts</a>).</li>
+</ul>
+<h3>Batch APIs: a queue the provider runs for you</h3>
+<p>For work that can wait hours (evaluations, re-embedding a corpus, classifying a backlog), providers sell a queue with a discount: OpenAI's Batch API offers "50% lower costs, a separate pool of significantly higher rate limits, and a clear 24-hour turnaround time" (<a href="https://platform.openai.com/docs/guides/batch" target="_blank" rel="noopener noreferrer">OpenAI Batch</a>); Anthropic's Message Batches have "most batches finishing in less than 1 hour while reducing costs by 50%", up to 100,000 requests or 256 MB per batch (<a href="https://platform.claude.com/docs/en/build-with-claude/batch-processing" target="_blank" rel="noopener noreferrer">Anthropic batch processing</a>). Your side is still a job: submit, store the batch id, poll or get notified, fetch results, and handle the requests that expired or failed (resubmit them, idempotently, keyed by your own request ids). When to batch and what it saves is on <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>.</p>
+<h3>A queue in front of the GPUs</h3>
+<p>Inference servers queue requests internally and batch them on the GPU (the parent root's Step 5). Two lessons from this page carry over: a queue in front of a GPU pool must be bounded and shed load early, because an unbounded one turns a traffic spike into minutes of latency for everyone (the degradation ladder and priorities are on <a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a>); and autoscaling should follow queue depth or the age of the oldest request, not CPU. Serving engines themselves are <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>.</p>
+</section>
+
+<section id="s-prod">
+<h2>What pros do in production</h2>
+<p>Practices below are sourced where a source states them; the rest are common practice (marked).</p>
+<div class="tw"><table>
+<thead><tr><th>Decision</th><th>Typical choice</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>First queue for a new service</td><td>A Postgres-backed queue (Procrastinate, River, Solid Queue) or SQS</td><td>No new infrastructure; enqueue in the same transaction as the data (common practice; River and Oban docs)</td></tr>
+<tr><td>When to add Kafka</td><td>Several consumers of the same events, replay, or high event volume</td><td>A log's strengths; operational cost is real (common practice)</td></tr>
+<tr><td>Kafka producer</td><td><code>acks=all</code>, idempotence on (defaults since 3.0), replication factor 3, <code>min.insync.replicas=2</code></td><td>No loss if one broker fails; Kafka docs recommend RF 3 with min ISR 2 for EOS</td></tr>
+<tr><td>Kafka consumer</td><td>Commit offsets after processing (manual commit) or process idempotently; <code>read_committed</code> if upstream uses transactions</td><td>At-least-once on purpose, not by accident of the auto-commit timer</td></tr>
+<tr><td>Message ids</td><td>A producer-assigned unique id (UUID, or entity id plus version) in every message</td><td>Deduplication needs a key the producer controls</td></tr>
+<tr><td>Visibility timeout</td><td>Several times the p99 job time, with a heartbeat for long jobs</td><td>SQS docs: extend with <code>ChangeMessageVisibility</code></td></tr>
+<tr><td>DLQ</td><td>After 3 to 5 receives; alarm on any message; tested redrive</td><td>SQS redrive policy; the numbers are common practice</td></tr>
+<tr><td>Monitoring</td><td>Age of oldest message (or lag in seconds), DLQ depth, consumer error rate, redelivery rate</td><td>Yanacek: age catches both slowness and retry loops</td></tr>
+<tr><td>Events to other services</td><td>Outbox, relayed by polling or by Debezium</td><td>Removes the dual write</td></tr>
+<tr><td>Multi-step, long-running work</td><td>A durable workflow engine (Temporal, DBOS, Restate, Cloudflare Workflows)</td><td>Resumes after crashes without hand-written state machines</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Assuming the queue gives exactly-once</summary><div class="b">Every common broker delivers at least once in practice. Design every consumer to receive a message twice; test it by delivering twice.</div></details>
+<details class="mist"><summary>Generating the dedup id in the consumer</summary><div class="b">A random id made on receipt is new on every redelivery, so nothing is ever deduplicated. The id must come from the producer, or be derived from the content (order id plus event type).</div></details>
+<details class="mist"><summary>Running Celery with default acks for important work</summary><div class="b">The default acknowledges before running, so a killed worker loses the task. Use <code>acks_late</code> plus <code>reject_on_worker_lost</code>, and idempotent tasks.</div></details>
+<details class="mist"><summary>A visibility timeout shorter than the slowest job</summary><div class="b">Slow jobs run on two workers at once (measured above). Set it above p99, or heartbeat.</div></details>
+<details class="mist"><summary>Publishing an event right after a commit, "it is usually fine"</summary><div class="b">It is fine until a deploy or crash lands between the two lines; then events are lost silently (measured: one per crash). Use an outbox, or enqueue in the database.</div></details>
+<details class="mist"><summary>Watching queue length instead of message age</summary><div class="b">A queue of 10,000 may be healthy (fast consumers) and a queue of 50 may be stuck (one poison message retried forever). Age tells you which.</div></details>
+<details class="mist"><summary>No DLQ, or a DLQ nobody watches</summary><div class="b">Without one, a poison message burns a worker forever (try it in the Queue lab); with an unwatched one, failed jobs vanish quietly.</div></details>
+<details class="mist"><summary>More consumers than partitions</summary><div class="b">In a Kafka consumer group the extra consumers sit idle. Plan partition counts for peak parallelism, or use share groups (Kafka 4.2+).</div></details>
+<details class="mist"><summary>Changing the partition count of a keyed topic</summary><div class="b">Keys move to new partitions, so per-key ordering breaks across the change (try it in the Kafka widget above).</div></details>
+<details class="mist"><summary>Doing slow work inside the database transaction that holds the job lock</summary><div class="b">Fine for milliseconds (the throughput experiment did it), harmful for minutes: long transactions hold locks and stop Postgres from cleaning up old row versions. For long jobs use a lease (a <code>visible_at</code> column) and commit the claim at once.</div></details>
+<details class="mist"><summary>Unbounded queues in front of expensive resources</summary><div class="b">Bound them, reject early with 429, and scale on queue age. An unbounded queue in front of a GPU pool turns a spike into minutes of latency for everyone.</div></details>
+</section>
+
+<section id="s-gl">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#d-req">Request path</a></b>: everything between a request arriving and its response.</div>
+<div><b><a href="#d-mq">Message queue</a></b>: a broker that deletes each message once a worker acknowledges it.</div>
+<div><b><a href="#d-log">Log (stream)</a></b>: an append-only, retained sequence of messages read by position.</div>
+<div><b><a href="#d-msg">Message</a></b>: one unit of handed-off work or information (job, event).</div>
+<div><b><a href="#d-producer">Producer</a></b>: writes messages.</div>
+<div><b><a href="#d-consumer">Consumer</a></b>, <b><a href="#d-worker">worker</a></b>: reads and handles messages.</div>
+<div><b><a href="#d-broker">Broker</a></b>: the system that stores messages between them.</div>
+<div><b><a href="#d-ack">Acknowledge (ack)</a></b>: tell the broker a message is done.</div>
+<div><b><a href="#d-compete">Competing consumers</a></b>: several workers sharing one queue.</div>
+<div><b><a href="#d-offset">Offset</a></b>: a message's position in a log partition; a reader's progress.</div>
+<div><b><a href="#d-topic">Topic</a></b>: a named log in Kafka.</div>
+<div><b><a href="#d-partition">Partition</a></b>: one of the ordered sub-logs a topic is split into.</div>
+<div><b><a href="#d-key">Key</a></b>: the value hashed to choose a message's partition.</div>
+<div><b><a href="#d-group">Consumer group</a></b>: consumers sharing a topic's partitions, one consumer per partition.</div>
+<div><b><a href="#d-rebalance">Rebalance</a></b>: reassigning partitions when group members change.</div>
+<div><b><a href="#d-commit">Commit (offsets)</a></b>: saving a consumer's position.</div>
+<div><b><a href="#d-share">Share group</a></b>: Kafka's queue mode (4.2+): many consumers per partition, per-record acks.</div>
+<div><b><a href="#d-amo">At-most-once</a></b>: ack before work; may lose, never repeats.</div>
+<div><b><a href="#d-alo">At-least-once</a></b>: ack after work; never loses, may repeat.</div>
+<div><b><a href="#d-eff1">Effectively-once</a></b>: at-least-once delivery plus deduplication, so the effect happens once.</div>
+<div><b><a href="#d-idprod">Idempotent producer</a></b>: Kafka broker drops retried sends by producer id and sequence.</div>
+<div><b><a href="#d-zombie">Zombie</a></b>: an old instance presumed dead but still running; fenced by epochs.</div>
+<div><b><a href="#d-idem">Idempotent</a></b>: doing it twice has the same effect as once.</div>
+<div><b><a href="#d-idcons">Idempotent consumer</a></b>: records processed message ids with its effects, skipping repeats.</div>
+<div><b><a href="#d-vt">Visibility timeout</a></b>: how long a claimed message stays hidden before redelivery.</div>
+<div><b><a href="#d-lease">Lease</a></b>: any time-limited claim on work.</div>
+<div><b><a href="#d-heartbeat">Heartbeat</a></b>: periodically extending a lease while still working.</div>
+<div><b><a href="#d-poison">Poison message</a></b>: a message that fails every time.</div>
+<div><b><a href="#d-dlq">Dead-letter queue</a></b>: where messages go after too many failed attempts.</div>
+<div><b><a href="#d-util">Utilisation</a></b>: &rho; = &lambda;S / C, the share of worker capacity in use.</div>
+<div><b><a href="#d-little">Little's law</a></b>: L = &lambda;W for a stable system's averages.</div>
+<div><b><a href="#d-bp">Backpressure</a></b>: telling producers to slow down when consumers cannot keep up.</div>
+<div><b><a href="#d-dual">Dual write</a></b>: writing to two systems with no shared transaction.</div>
+<div><b><a href="#d-outbox">Transactional outbox</a></b>: write the event to a table in the same transaction; relay it later.</div>
+<div><b><a href="#d-cdc">Change data capture</a></b>: reading a database's changes from its log (Debezium).</div>
+<div><b><a href="#d-inbox">Inbox</a></b>: the receiving side's table of handled message ids.</div>
+<div><b><a href="#d-2pc">Two-phase commit</a></b>: prepare everywhere, then commit everywhere; blocks if the coordinator fails.</div>
+<div><b><a href="#d-saga">Saga</a></b>: a sequence of local transactions with compensations for failure.</div>
+<div><b><a href="#d-eda">Event-driven architecture</a></b>: services announce facts on a log instead of calling each other.</div>
+<div><b><a href="#d-es">Event sourcing</a></b>: the event log is the source of truth; state is replayed from it.</div>
+<div><b><a href="#d-cqrs">CQRS</a></b>: separate models for writing and reading.</div>
+<div><b><a href="#d-taskq">Task queue library</a></b>: Celery, RQ, Arq, Dramatiq, Procrastinate.</div>
+<div><b><a href="#d-activity">Activity</a></b>: a durable workflow's side-effecting step, retried by the engine.</div>
+<div><b><a href="#d-cron">Cron</a></b>: running jobs at set times.</div>
+</div>
+</section>
+</div>
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>
+#t-lab .ctl label{font-size:12.5px}
+#t-lab .tog{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin:6px 0}
+#t-lab .tog label{white-space:nowrap}
+#t-lab .stat .v{font-size:17px}
+#t-lab .out{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+#t-lab .ctl{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+#t-lab .grp{border:1px solid var(--line);border-radius:10px;padding:6px 12px;margin:8px 0}
+#t-lab .grp>summary{cursor:pointer;font-weight:600;font-size:14px}
+#t-lab select{max-width:100%}
+</style>
+<section id="lab-top">
+<h2>Queue lab</h2>
+<p>A simulated queue with the semantics of SQS (and of the measured Postgres queue): messages arrive, wait, are claimed by workers, hidden for a visibility timeout, and deleted when a worker acknowledges them after doing the side effect. You choose the traffic, the workers, the timeout and how often workers crash, and watch the backlog, the age of the oldest message, redeliveries and duplicates. Everything runs in your browser, deterministic for a given seed; the same model in Python is <code>qsim</code> in <code>src/recompute.py</code>.</p>
+<div class="try"><b>Try:</b> start with "Healthy" and raise the arrival rate until utilisation passes 100%: the backlog stops draining and the age of the oldest message climbs without limit. Load "Crashes, naive", then tick the idempotent consumer: redeliveries stay, duplicates vanish. Load "Poison, no DLQ" and set max receives to 5. Load the two "Lab run" presets to compare the model with the real Postgres runs.</div>
+<div class="chips" id="lab-pre"></div>
+<p class="small mute" id="lab-pre-note"></p>
+<div id="lab-ctl"></div>
+<div class="out" id="lab-out"></div>
+<div class="chart" id="lab-svg"></div>
+<p class="small mute" id="lab-little"></p>
+<details class="grp"><summary>The model, exactly</summary>
+<ul class="tight small">
+<li>Arrivals: Poisson at rate &lambda; for T seconds (optionally 3 times &lambda; from T/4 to T/2), or a backlog of N messages at time 0. The run lasts 1.5 T (steady) or T (backlog), so a steady run shows the drain after arrivals stop.</li>
+<li>Waiting messages are claimed oldest first (a redelivered message goes to the front, as <code>ORDER BY id</code> did in the measured lab). A claim hides the message for the visibility timeout V.</li>
+<li>Service time: exponential with mean S, or fixed S. At the end of service: the side effect, then the acknowledgement (delete).</li>
+<li>Crash: with probability p per delivery, after the side effect and before the acknowledgement (the dangerous spot). The worker is down for the restart time, then takes new work. The message reappears when its timeout expires.</li>
+<li>If a message's timeout expires while its first worker is still busy, another worker may take it; both do the side effect (a duplicate) and the second acknowledgement finds it already deleted.</li>
+<li>Idempotent consumer: a repeated side effect is detected and skipped (counted as "caught").</li>
+<li>Poison messages (a fraction of arrivals) fail every time: no effect, no acknowledgement. With max receives M &gt; 0, a message already received M times goes to the dead-letter queue when it is next claimed (the SQS <code>maxReceiveCount</code> rule).</li>
+<li>Queue bound B: an arrival finding B messages in the system is rejected (the producer would get 429).</li>
+<li>Little's law check: L is the time-average number of messages in the system over the run; X is completions per second; W the mean time from arrival to acknowledgement. L = XW when the queue ends empty.</li>
+</ul></details>
+</section>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<section id="s-more">
+<h2>Further reading</h2>
+<h3>On this page</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="#" data-tab="t-lab">Queue lab</a></div><p>Arrival rate, workers, visibility timeout, crashes, poison messages, DLQ and a queue bound: backlog, age, redeliveries and duplicates. <span class="rt">10 to 20 min.</span></p></div>
+</div>
+<h3>The parent topic and its siblings</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a></div><p>The root: one request to a chat product from 1 user to 10M users. Step 3 is the short version of this page; its Scale simulator turns a queue on and off, Numbers to know carries queue throughput figures, and Case files holds "EC2 could not hand out servers: a queue that never drained". <span class="rt">About 25 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a></div><p>Timeouts, retries with backoff, jitter and retry budgets (with a measured retry storm), circuit breakers, load shedding, SLOs. Owns retry policy. <span class="rt">About 45 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a></div><p>202 Accepted, idempotency keys on the server, webhooks as an API, server-sent events. <span class="rt">About 45 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8115bc45c31d915b4d33" target="_blank" rel="noopener noreferrer">Distributed systems fundamentals</a></div><p>Replication (including Kafka partitions), consensus, why a dual write is a distributed-systems problem, 2PC over consensus. <span class="rt">About 45 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8117b057dc2586836ec8" target="_blank" rel="noopener noreferrer">ML system design</a></div><p>Batch versus realtime inference, batch API pricing, the degradation ladder, queues in front of GPUs. <span class="rt">About 50 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a></div><p>Queueing theory in depth: why waiting explodes near 100% utilisation, load testing. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d811e8490c54dd42c2b9b" target="_blank" rel="noopener noreferrer">Observability</a></div><p>Tracing a request across a queue, lag and age metrics, alerting. <span class="rt">Its own page.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded" target="_blank" rel="noopener noreferrer">System design case studies</a></div><p>Worked designs that use these pieces end to end. <span class="rt">Its own page.</span></p></div>
+</div>
+<h3>Related topics</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>Pipelines and job orchestration (Airflow, Dagster) where idempotent tasks and backfills live. <span class="rt">Its own topic.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324" target="_blank" rel="noopener noreferrer">Topic: databases</a></div><p>Transactions, isolation, locks and the WAL behind SKIP LOCKED and change data capture. <span class="rt">Its own topic.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" target="_blank" rel="noopener noreferrer">Topic: protocols</a></div><p>HTTP/2 flow control, SSE and WebSockets for streaming results. <span class="rt">Its own topic.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a></div><p>Request queues and batching inside inference servers. <span class="rt">Its own topic.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb" target="_blank" rel="noopener noreferrer">Topic: agentic-harnesses</a></div><p>The agent loops whose long runs this page makes durable. <span class="rt">Its own topic.</span></p></div>
+</div>
+<h3>Best resources</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener noreferrer">Kafka 4.3 design document</a></div><p>Delivery semantics, transactions and share groups from the source; clearer than most books. <span class="rt">About 1 h.</span></p></div>
+<div class="sp"><div class="n"><a href="https://builder.aws.com/content/3EuRcgkTP1MI0c7zM8W6HL3WIqA/avoiding-insurmountable-queue-backlogs" target="_blank" rel="noopener noreferrer">Yanacek, Avoiding insurmountable queue backlogs</a></div><p>Amazon's playbook for backlogs: age metrics, LIFO, sidelining, shuffle sharding. <span class="rt">About 30 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://debezium.io/blog/2019/02/19/reliable-microservices-data-exchange-with-the-outbox-pattern/" target="_blank" rel="noopener noreferrer">Morling, Reliable microservices data exchange with the outbox pattern</a></div><p>The outbox with Debezium, by its lead. <span class="rt">About 25 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener noreferrer">microservices.io patterns: outbox, idempotent consumer, saga</a></div><p>Short canonical pattern pages by Chris Richardson. <span class="rt">About 30 min for the set.</span></p></div>
+<div class="sp"><div class="n"><a href="https://jepsen.io/analyses/bufstream-0.1.0" target="_blank" rel="noopener noreferrer">Jepsen, Bufstream 0.1.0</a></div><p>How Kafka-compatible transactions fail in practice; read the Kafka sections. <span class="rt">About 45 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://www.cs.cornell.edu/andru/cs711/2002fa/reading/sagas.pdf" target="_blank" rel="noopener noreferrer">Garcia-Molina and Salem, Sagas (1987)</a></div><p>The original saga paper, short and readable. <span class="rt">About 40 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://martin.kleppmann.com/" target="_blank" rel="noopener noreferrer">Designing Data-Intensive Applications, 2nd ed.</a></div><p>Kleppmann and Riccomini, O'Reilly, 2026: the chapters on stream processing and on transactions. <span class="rt">About 3 h for those chapters.</span></p></div>
+<div class="sp"><div class="n"><a href="https://github.com/celery/celery/blob/v5.6.3/docs/userguide/tasks.rst" target="_blank" rel="noopener noreferrer">Celery: tasks guide (v5.6.3)</a></div><p>Read the sections on acks, retries and idempotence before running Celery in production. <span class="rt">About 30 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.temporal.io/temporal" target="_blank" rel="noopener noreferrer">Temporal: understanding durable execution</a></div><p>Workflows, activities, determinism and replay. <span class="rt">About 30 min.</span></p></div>
+</div>
+</section>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Shared helpers (copied from the parent root Topic: swe-and-system-design): the step-animation controller (play, pause, step, scrub, speed) ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_qsim.js */
+// ---- Queue simulator: a seeded discrete-event model of a lease-style queue (the SQS model) ----
+// Mirrored line by line in src/recompute.py (qsim); src/check_sim.mjs runs this file in node and compares.
+// Messages arrive (steady Poisson rate, optional 3x burst, or a backlog at t=0), wait among the visible messages (oldest first,
+// as `ORDER BY id ... FOR UPDATE SKIP LOCKED` in the measured Postgres lab, so a redelivered message goes to the front),
+// are claimed by C workers. A claim hides the message for V seconds (visibility timeout); if it is not deleted (acked)
+// by then it becomes visible again and is redelivered. Each delivery: service time, then the side effect, then the ack.
+// A crash (probability pc per delivery) happens after the side effect and before the ack; the worker is down for R s.
+// Poison messages always fail (no effect, no ack). With maxReceives M > 0 a message received M times goes to the DLQ
+// on its next claim. With a bound B > 0, arrivals beyond B messages in the queue are rejected (backpressure: 429).
+(function(root){
+  function rng(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}}
+  function Heap(){this.a=[]}
+  Heap.prototype.less=function(x,y){return x.t<y.t||(x.t===y.t&&x.s<y.s)};
+  Heap.prototype.push=function(e){const a=this.a;a.push(e);let i=a.length-1;while(i>0){const p=(i-1)>>1;if(this.less(a[i],a[p])){const t=a[i];a[i]=a[p];a[p]=t;i=p}else break}};
+  Heap.prototype.pop=function(){const a=this.a,top=a[0],last=a.pop();if(a.length){a[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<a.length&&this.less(a[l],a[m]))m=l;if(r<a.length&&this.less(a[r],a[m]))m=r;if(m===i)break;const t=a[i];a[i]=a[m];a[m]=t;i=m}}return top};
+  function IHeap(){this.a=[]}
+  IHeap.prototype.push=function(v){const a=this.a;a.push(v);let i=a.length-1;while(i>0){const q=(i-1)>>1;if(a[i]<a[q]){const t=a[i];a[i]=a[q];a[q]=t;i=q}else break}};
+  IHeap.prototype.pop=function(){const a=this.a,top=a[0],last=a.pop();if(a.length){a[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<a.length&&a[l]<a[m])m=l;if(r<a.length&&a[r]<a[m])m=r;if(m===i)break;const t=a[i];a[i]=a[m];a[m]=t;i=m}}return top};
+  function run(p){
+    const R=rng(p.seed||1),H=p.mode==='backlog'?p.T:p.T*1.5;
+    const ev=new Heap();let seq=0;const push=(t,k,x)=>ev.push({t:t,s:seq++,k:k,x:x});
+    const msgs=[],ready=new IHeap();
+    const W=[];for(let i=0;i<p.C;i++)W.push(0); // 0 idle, 1 busy, 2 down
+    const st={admitted:0,rejected:0,completed:0,redeliveries:0,duplicates:0,dedup:0,dlq:0,crashes:0,poisonFails:0,lateAcks:0,effects:0};
+    const lat=[];let depth=0,inflight=0,area=0,tl=0,oldest=0;
+    const samples=[];let nextS=0;
+    const rate=t=>p.lam*(p.burst&&t>=p.T/4&&t<p.T/2?3:1);
+    const expo=m=>-m*Math.log(1-R());
+    function sample(t){while(oldest<msgs.length&&msgs[oldest].done)oldest++;
+      samples.push({t:t,depth:depth,inflight:inflight,age:oldest<msgs.length?t-msgs[oldest].t0:0,completed:st.completed,redeliveries:st.redeliveries,duplicates:st.duplicates,dlq:st.dlq,rejected:st.rejected})}
+    function admit(t){
+      if(p.B>0&&depth>=p.B){st.rejected++;return}
+      const m={id:msgs.length,t0:t,rec:0,claim:0,eff:0,done:false,poison:R()<p.pp};msgs.push(m);ready.push(m.id);depth++;st.admitted++}
+    function dispatch(t){
+      for(let i=0;i<W.length;i++){if(W[i]!==0)continue;
+        let m=null;while(ready.a.length){const c=msgs[ready.pop()];if(!c.done&&c.vis!==false){m=c;break}}
+        if(!m)return;
+        if(p.M>0&&m.rec>=p.M){m.done=true;st.dlq++;depth--;i--;continue}
+        m.rec++;if(m.rec>1)st.redeliveries++;m.claim++;m.vis=false;inflight++;
+        push(t+p.V,'vis',{m:m.id,c:m.claim});
+        const w=p.dist==='exp'?expo(p.S):p.S;const crash=R()<p.pc;
+        W[i]=1;push(t+w,'done',{w:i,m:m.id,c:m.claim,crash:crash})}}
+    // arrivals
+    if(p.mode==='backlog'){for(let i=0;i<p.N;i++)admit(0)}
+    else if(p.lam>0)push(expo(1/rate(0)),'arr',null);
+    dispatch(0);
+    while(ev.a.length){const e=ev.pop();if(e.t>H)break;
+      while(nextS<=e.t&&nextS<=H){area+=depth*(nextS-tl);tl=nextS;sample(nextS);nextS+=1}
+      area+=depth*(e.t-tl);tl=e.t;const t=e.t,x=e.x;
+      if(e.k==='arr'){admit(t);if(t<p.T)push(t+expo(1/rate(t)),'arr',null);dispatch(t)}
+      else if(e.k==='vis'){const m=msgs[x.m];if(!m.done&&m.claim===x.c&&m.vis===false){m.vis=true;inflight--;ready.push(m.id);dispatch(t)}}
+      else if(e.k==='done'){const m=msgs[x.m];
+        if(m.poison){st.poisonFails++;W[x.w]=0;dispatch(t);continue}
+        if(p.idem&&m.eff>=1)st.dedup++;else{m.eff++;st.effects++;if(m.eff>1)st.duplicates++}
+        if(x.crash){st.crashes++;W[x.w]=2;push(t+p.Rs,'up',{w:x.w})}
+        else{if(!m.done){m.done=true;depth--;st.completed++;lat.push(t-m.t0);if(m.vis===false)inflight--}else st.lateAcks++;W[x.w]=0}
+        dispatch(t)}
+      else if(e.k==='up'){W[x.w]=0;dispatch(t)}}
+    while(nextS<=H){area+=depth*(nextS-tl);tl=nextS;sample(nextS);nextS+=1}
+    lat.sort((a,b)=>a-b);const q=f=>lat.length?lat[Math.min(lat.length-1,Math.floor(f*lat.length))]:0;
+    const meanW=lat.length?lat.reduce((a,b)=>a+b,0)/lat.length:0;
+    st.left=depth;st.L=area/H;st.X=st.completed/H;st.Wmean=meanW;st.p50=q(.5);st.p99=q(.99);st.H=H;
+    st.maxAge=samples.reduce((a,s)=>Math.max(a,s.age),0);
+    return {st:st,samples:samples}}
+  root.QSIM={run:run,rng:rng};
+})(typeof window!=='undefined'?window:globalThis);
+</script>
+<script>/* 23_js_rd_outbox.js */
+// ---- Reading, dual write: the same order 42 through a naive dual write (two orders of the writes) and the transactional outbox ----
+// Each step is a snapshot of what every system holds; the crash points are the ones the measured lab injects (lab/pg_lab.py).
+(function(){
+  const box=document.getElementById('rd-ob-svg');if(!box)return;
+  const cap=document.getElementById('rd-ob-cap'),cnt=document.getElementById('rd-ob-cnt');
+  // snapshot fields: a = active box, x = crashed box, o = orders, ob = outbox rows [event, sent], b = broker events,
+  // p = processed_events (consumer's dedup table), m = e-mails sent, ar = arrow [from,to], t/c = caption title/text
+  const S={
+   naive:[
+    {a:'api',o:[],ob:null,b:[],p:null,m:[],t:'Order 42 arrives',c:'A customer places order 42. Our order API must do two things: save the order in Postgres, and tell the rest of the company (e-mail, warehouse, analytics) by publishing an "order placed" event to the broker. Two systems, and no transaction spans both.'},
+    {a:'db',o:['42'],ob:null,b:[],p:null,m:[],ar:['api','db'],t:'Write 1: save the order, COMMIT',c:'<code>INSERT INTO orders ...; COMMIT;</code> The order is now durable: Postgres has promised it survives a crash.'},
+    {a:'api',x:'api',o:['42'],ob:null,b:[],p:null,m:[],t:'The process dies before write 2',c:'A deploy, an out-of-memory kill, a lost network packet to the broker: anything that stops the process between the two writes. In the measured lab this is <code>os._exit()</code> at exactly this line.'},
+    {a:'api',o:['42'],ob:null,b:[],p:null,m:[],t:'Restart: nothing remembers the event',c:'The new process handles the next order. The event for order 42 lived only in the dead process\'s memory. No error was logged anywhere: the database is fine and the broker is fine.'},
+    {a:'cons',o:['42'],ob:null,b:[],p:null,m:[],t:'Result: a lost event',c:'Order 42 exists, but no receipt is ever sent, the warehouse never ships it, analytics never counts it. Measured on a real Postgres: 500 orders with a 5% crash chance lost 19, 28 and 27 events in three runs, one per crash, silently.'}],
+   first:[
+    {a:'api',o:[],ob:null,b:[],p:null,m:[],t:'Order 42 arrives',c:'Same order, the writes the other way round: publish first, so the event cannot be lost, then save.'},
+    {a:'broker',o:[],ob:null,b:['e42'],p:null,m:[],ar:['api','broker'],t:'Write 1: publish "order 42 placed"',c:'The broker has the event durably. Consumers may read it at once.'},
+    {a:'api',x:'api',o:[],ob:null,b:['e42'],p:null,m:[],t:'The process dies before write 2',c:'The order\'s transaction never commits; Postgres rolls it back.'},
+    {a:'cons',o:[],ob:null,b:['e42'],p:null,m:['42'],ar:['broker','cons'],t:'A consumer acts on an order that does not exist',c:'The e-mail service sends a receipt for order 42; the warehouse may ship it. But order 42 is in no database. A <b>phantom event</b>.'},
+    {a:'cons',o:[],ob:null,b:['e42'],p:null,m:['42'],t:'Result: the opposite failure',c:'Swapping the order of two writes only swaps which failure you get. Measured: 19, 28 and 27 phantom events per 500 orders. Any fix must make the two writes one.'}],
+   outbox:[
+    {a:'api',o:[],ob:[],b:[],p:[],m:[],t:'Order 42 arrives',c:'The outbox pattern: the API never talks to the broker. It writes the event as a row in an <code>outbox</code> table in the same database as the order.'},
+    {a:'db',o:['42'],ob:[['e42',0]],b:[],p:[],m:[],ar:['api','db'],t:'One transaction: the order and its event',c:'<code>BEGIN; INSERT INTO orders ...; INSERT INTO outbox (event_id, payload) ...; COMMIT;</code> Both rows commit, or neither does. There is only one write.'},
+    {a:'api',x:'api',o:['42'],ob:[['e42',0]],b:[],p:[],m:[],t:'The API crashes now: nothing is lost',c:'Unlike the naive version, the event is already durable, waiting in the outbox with <code>sent_at</code> empty.'},
+    {a:'relay',o:['42'],ob:[['e42',0]],b:[],p:[],m:[],ar:['db','relay'],t:'The relay finds unsent rows',c:'A separate process, the <b>relay</b>, polls: <code>SELECT ... FROM outbox WHERE sent_at IS NULL ORDER BY seq LIMIT 10 FOR UPDATE SKIP LOCKED</code>. (Or a change-data-capture tool such as Debezium reads the same rows from the database\'s log.)'},
+    {a:'broker',o:['42'],ob:[['e42',0]],b:['e42'],p:[],m:[],ar:['relay','broker'],t:'It publishes e42 to the broker',c:'The broker now has the event.'},
+    {a:'relay',x:'relay',o:['42'],ob:[['e42',0]],b:['e42'],p:[],m:[],t:'The relay crashes before marking the row sent',c:'The same two-writes gap, moved to a place where it is harmless: the row still says unsent, so the event will be sent again.'},
+    {a:'broker',o:['42'],ob:[['e42',1]],b:['e42','e42'],p:[],m:[],ar:['relay','broker'],t:'Restart: e42 is published again, then marked sent',c:'The broker holds e42 twice. The outbox gives <b>at-least-once</b> publishing: never lost, sometimes duplicated. Measured: 0 events lost in three runs; 24 to 32 duplicates per 500 orders with one event per relay transaction, 147 to 185 with batches of 10.'},
+    {a:'cons',o:['42'],ob:[['e42',1]],b:['e42','e42'],p:['e42'],m:['42'],ar:['broker','cons'],t:'The consumer handles e42 once',c:'In one transaction it records <code>e42</code> in its <code>processed_events</code> table (a primary key on the event id) and does its work: one receipt.'},
+    {a:'cons',o:['42'],ob:[['e42',1]],b:['e42','e42'],p:['e42'],m:['42'],ar:['broker','cons'],t:'The duplicate arrives and is skipped',c:'Inserting <code>e42</code> again violates the primary key, so the consumer knows it has seen it and acknowledges without acting. This is the <b>idempotent consumer</b> (also called the inbox pattern).'},
+    {a:'cons',o:['42'],ob:[['e42',1]],b:['e42','e42'],p:['e42'],m:['42'],t:'Result: nothing lost, nothing doubled',c:'One order, one event delivered at least once, one e-mail. The outbox removes loss; the consumer\'s deduplication removes the duplicates. Together they give the effect people mean by "exactly once".'}]};
+  let mode='naive';
+  const NM={api:'Order API',db:'Postgres',relay:'Outbox relay',broker:'Broker (a Kafka topic or a queue)',cons:'E-mail service'};
+  function chips(arr,x,y,w,col,lab){let s='',cx=x;for(const v of arr){const t=Array.isArray(v)?v[0]+(v[1]?' sent':' unsent'):v;const ww=Math.min(w,8+t.length*6.4);
+      s+='<rect x="'+cx+'" y="'+y+'" width="'+ww+'" height="18" rx="4" fill="'+col+'" opacity="'+(Array.isArray(v)&&v[1]?.45:.9)+'"/>'+RD.t(cx+ww/2,y+13,t,{fs:10.5,a:'middle',fill:'var(--bg)',w:600});cx+=ww+4}
+    if(!arr.length)s+=RD.t(x,y+13,lab||'(empty)',{fs:10.5,fill:'var(--mute)'});return s}
+  function draw(i){
+    const st=S[mode][Math.min(i,S[mode].length-1)];
+    const W=Math.max(300,Math.min(860,RD.width(box)));const narrow=W<560;
+    const bw=narrow?W-2:W-2,bh=54,gap=18;
+    const rows=mode==='outbox'?['api','db','relay','broker','cons']:['api','db','broker','cons'];
+    const Y={};rows.forEach((r,k)=>Y[r]=4+k*(bh+gap));
+    const H=4+rows.length*(bh+gap);
+    let b='<defs><marker id="obar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--acc)"/></marker></defs>';
+    for(const r of rows){const y=Y[r],on=st.a===r,dead=st.x===r;
+      b+='<rect x="1" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="var(--soft)" stroke="'+(dead?'var(--bad)':on?'var(--acc)':'var(--line)')+'" stroke-width="'+(on||dead?2:1)+'"/>';
+      b+=RD.t(10,y+16,NM[r],{fs:12,w:600});
+      if(dead)b+=RD.t(bw-8,y+16,'crashed',{fs:11.5,a:'end',fill:'var(--bad)',w:600});
+      const cx=10,cy=y+26;
+      if(r==='db'){const half=narrow?bw:bw/2;
+        b+=RD.t(cx,cy+13,'orders:',{fs:10.5,fill:'var(--mute)'})+chips(st.o,cx+48,cy,60,'var(--c1)');
+        if(st.ob){const ox=narrow?cx+120:cx+half;b+=RD.t(ox,cy+13,'outbox:',{fs:10.5,fill:'var(--mute)'})+chips(st.ob,ox+50,cy,100,'var(--c4)')}
+        else if(!narrow)b+=RD.t(cx+half,cy+13,'(no outbox table)',{fs:10.5,fill:'var(--mute)'})}
+      if(r==='broker')b+=RD.t(cx,cy+13,'events:',{fs:10.5,fill:'var(--mute)'})+chips(st.b,cx+50,cy,40,'var(--c2)');
+      if(r==='cons'){b+=RD.t(cx,cy+13,'receipts sent:',{fs:10.5,fill:'var(--mute)'})+chips(st.m,cx+86,cy,40,st.o.indexOf('42')<0&&st.m.length?'var(--bad)':'var(--c3)');
+        if(st.p)b+=RD.t(narrow?cx+150:bw/2,cy+13,'processed_events: '+(st.p.length?st.p.join(', '):'(empty)'),{fs:10.5,fill:'var(--mute)'})}
+      if(r==='relay')b+=RD.t(cx,cy+13,'polls the outbox, publishes, marks sent',{fs:10.5,fill:'var(--mute)'});
+      if(r==='api')b+=RD.t(cx,cy+13,mode==='outbox'?'writes only to its own database':'writes to the database and to the broker',{fs:10.5,fill:'var(--mute)'})}
+    if(st.ar){const f=st.ar[0],t=st.ar[1];const y1=Y[f]+bh,y2=Y[t];const xx=bw-40;
+      b+='<line x1="'+xx+'" y1="'+(y1>y2?Y[f]:y1)+'" x2="'+xx+'" y2="'+(y1>y2?Y[t]+bh:y2-2)+'" stroke="var(--acc)" stroke-width="2.5" marker-end="url(#obar)"/>'}
+    box.innerHTML=RD.svg(W,H,b,'Order 42 through '+(mode==='outbox'?'the outbox pattern':'a naive dual write'));
+    cap.innerHTML='<div class="t">Step '+(i+1)+' of '+S[mode].length+': '+st.t+'</div><p>'+st.c+'</p>';
+    const lost=st.o.length&&!st.b.length&&i===S[mode].length-1?1:0,ph=!st.o.length&&st.b.length?1:0;
+    cnt.innerHTML=RD.stat('Orders saved',st.o.length)+RD.stat('Events in broker',st.b.length,st.b.length>1?'one is a duplicate':'')+
+      RD.stat('Lost events',lost,lost?'order with no event':'')+RD.stat('Phantom events',ph,ph?'event with no order':'')+RD.stat('Receipts sent',st.m.length)}
+  const A=RD.anim({card:'rd-ob-card',ctl:'rd-ob-ctl',n:S.naive.length,draw:draw,ms:2600,label:'Dual write step'});
+  RD.seg(document.getElementById('rd-ob-seg'),m=>{mode=m;A.reset(S[m].length);A.play()});
+  RD.onResize(()=>A.redraw());
+})();
+</script>
+<script>/* 24_js_rd_part.js */
+// ---- Reading, Kafka: keys to partitions (Kafka's real murmur2 partitioner), partitions to the consumers of a group ----
+// murmur2 is a port of org.apache.kafka.common.utils.Utils.murmur2; it reproduces the six test vectors in Kafka's UtilsTest
+// (checked in src/recompute.py and src/check_sim.mjs). Partition = toPositive(murmur2(key bytes)) % partitions.
+(function(){
+  function murmur2(str){const d=new TextEncoder().encode(str);const len=d.length,m=0x5bd1e995;let h=(0x9747b28c^len)|0;const l4=len>>2;
+    for(let i=0;i<l4;i++){const j=i*4;let k=(d[j]|(d[j+1]<<8)|(d[j+2]<<16)|(d[j+3]<<24));k=Math.imul(k,m);k^=k>>>24;k=Math.imul(k,m);h=Math.imul(h,m);h^=k}
+    const t=len&~3;switch(len%4){case 3:h^=d[t+2]<<16;case 2:h^=d[t+1]<<8;case 1:h^=d[t];h=Math.imul(h,m)}
+    h^=h>>>13;h=Math.imul(h,m);h^=h>>>15;return h|0}
+  window.KMURMUR=murmur2;
+  const box=document.getElementById('rd-pt-svg');if(!box)return;
+  const out=document.getElementById('rd-pt-out'),pS=document.getElementById('rd-pt-p'),cS=document.getElementById('rd-pt-c');
+  // 12 chat messages from 4 users, in the order they were sent (illustrative traffic; the keys are real strings)
+  const seq=['user-1','user-4','user-1','user-6','user-8','user-4','user-1','user-6','user-6','user-8','user-4','user-1'];
+  const users=['user-1','user-4','user-6','user-8'],col={'user-1':'var(--c1)','user-4':'var(--c2)','user-6':'var(--c3)','user-8':'var(--c4)'};
+  function draw(){
+    const P=+pS.value,C=+cS.value;document.getElementById('rd-pt-pv').textContent=P;document.getElementById('rd-pt-cv').textContent=C;
+    const lanes=[];for(let p=0;p<P;p++)lanes.push([]);const nth={};
+    seq.forEach((k,i)=>{const p=(murmur2(k)&0x7fffffff)%P;nth[k]=(nth[k]||0)+1;lanes[p].push({k:k,n:nth[k],i:i})});
+    const W=Math.max(300,Math.min(860,RD.width(box)));const lh=30,x0=70,H=P*lh+6;
+    const cw=Math.min(58,(W-x0-4)/Math.max(1,Math.max(...lanes.map(l=>l.length))));const fs=cw<36?9:10;
+    let b='';
+    lanes.forEach((l,p)=>{const y=4+p*lh;const c=p%C;
+      b+='<rect x="0" y="'+y+'" width="'+(W-1)+'" height="'+(lh-4)+'" rx="5" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(6,y+17,'P'+p,{fs:11.5,w:600})+RD.t(28,y+17,'c'+(c+1),{fs:10.5,fill:'var(--mute)'});
+      l.forEach((m,o)=>{const x=x0+o*cw;b+='<rect x="'+x+'" y="'+(y+3)+'" width="'+(cw-3)+'" height="'+(lh-10)+'" rx="3" fill="'+col[m.k]+'"/>'+
+        RD.t(x+(cw-3)/2,y+17,'u'+m.k.slice(5)+'#'+m.n,{fs:fs,a:'middle',fill:'var(--bg)',w:600})})});
+    box.innerHTML=RD.svg(W,H,b,'Messages placed in '+P+' partitions by key');
+    const asg=[];for(let c=0;c<C;c++)asg.push([]);for(let p=0;p<P;p++)asg[p%C].push('P'+p);
+    const idle=asg.filter(a=>!a.length).length;
+    const where=users.map(u=>u+' to P'+((murmur2(u)&0x7fffffff)%P)).join(', ');
+    out.innerHTML='<p class="small"><b>Placement:</b> '+where+'. Each user\'s messages stay in order inside their partition (u1#1 before u1#2 ...), whatever the partition count. Messages from different users in different partitions have no order between them.'+(Math.max(...lanes.map(l=>l.length))>=9?' <b>Uneven:</b> with only four keys, the hash can put most of them in one partition (a hot partition); real topics have many keys.':'')+'</p>'+
+      '<p class="small"><b>Group "receipts", '+C+' consumer'+(C>1?'s':'')+':</b> '+asg.map((a,c)=>'consumer '+(c+1)+' reads '+(a.length?a.join(', '):'<b style="color:var(--bad)">nothing (idle)</b>')).join('; ')+'.'+
+      (idle?' A partition is read by at most one consumer of a group, so consumers beyond the partition count sit idle: the partition count caps a group\'s parallelism.':'')+
+      ' A second group (say "analytics") would read all 12 messages again, at its own offsets.</p>'}
+  [pS,cS].forEach(e=>e.addEventListener('input',draw));
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
+<script>/* 25_js_lab_data.js */
+// ---- Generated by src/gen_lab_js.py from inputs/lab_measured.json and inputs/lab_outbox_batch1.json: do not edit ----
+window.LABDATA={"date":"2026-10-04","postgres":"16.2","machine":"arm64 laptop, macOS 27.0.1, 10 cores, TCP loopback","throughput":[{"mode":"skip_locked","workers":1,"jobs":400,"seconds":3.16,"jobs_per_s":126.6,"empty_claims":0,"ideal_jobs_per_s":200.0},{"mode":"skip_locked","workers":2,"jobs":400,"seconds":1.551,"jobs_per_s":257.9,"empty_claims":4,"ideal_jobs_per_s":400.0},{"mode":"skip_locked","workers":4,"jobs":400,"seconds":0.785,"jobs_per_s":509.3,"empty_claims":37,"ideal_jobs_per_s":800.0},{"mode":"skip_locked","workers":8,"jobs":400,"seconds":0.417,"jobs_per_s":960.3,"empty_claims":21,"ideal_jobs_per_s":1600.0},{"mode":"for_update","workers":1,"jobs":400,"seconds":3.157,"jobs_per_s":126.7,"empty_claims":0,"ideal_jobs_per_s":200.0},{"mode":"for_update","workers":2,"jobs":400,"seconds":3.236,"jobs_per_s":123.6,"empty_claims":0,"ideal_jobs_per_s":400.0},{"mode":"for_update","workers":4,"jobs":400,"seconds":3.234,"jobs_per_s":123.7,"empty_claims":0,"ideal_jobs_per_s":800.0},{"mode":"for_update","workers":8,"jobs":400,"seconds":3.258,"jobs_per_s":122.8,"empty_claims":0,"ideal_jobs_per_s":1600.0}],"redelivery":[{"mode":"at_most_once","name":"at-most-once (delete first), 5% crashes","seed":1,"crashes":52,"effects":948,"distinct_orders":948,"duplicates":0,"lost":52,"dedup_hits":0,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"at_most_once","name":"at-most-once (delete first), 5% crashes","seed":2,"crashes":44,"effects":956,"distinct_orders":956,"duplicates":0,"lost":44,"dedup_hits":0,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"at_most_once","name":"at-most-once (delete first), 5% crashes","seed":3,"crashes":53,"effects":947,"distinct_orders":947,"duplicates":0,"lost":53,"dedup_hits":0,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"naive","name":"at-least-once, 5% crashes","seed":1,"crashes":52,"effects":1052,"distinct_orders":1000,"duplicates":52,"lost":0,"dedup_hits":0,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"naive","name":"at-least-once, 5% crashes","seed":2,"crashes":46,"effects":1046,"distinct_orders":1000,"duplicates":46,"lost":0,"dedup_hits":0,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"naive","name":"at-least-once, 5% crashes","seed":3,"crashes":53,"effects":1053,"distinct_orders":1000,"duplicates":53,"lost":0,"dedup_hits":0,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"idempotent","name":"at-least-once + idempotent receiver, 5% crashes","seed":1,"crashes":52,"effects":1000,"distinct_orders":1000,"duplicates":0,"lost":0,"dedup_hits":52,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"idempotent","name":"at-least-once + idempotent receiver, 5% crashes","seed":2,"crashes":46,"effects":1000,"distinct_orders":1000,"duplicates":0,"lost":0,"dedup_hits":46,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"idempotent","name":"at-least-once + idempotent receiver, 5% crashes","seed":3,"crashes":53,"effects":1000,"distinct_orders":1000,"duplicates":0,"lost":0,"dedup_hits":53,"jobs":1000,"vt":2.0,"p_crash":0.05},{"mode":"naive","name":"at-least-once, no crashes, visibility timeout 0.3 s, work exponential mean 0.1 s","seed":1,"crashes":0,"effects":620,"distinct_orders":600,"duplicates":20,"lost":0,"dedup_hits":0,"jobs":600,"vt":0.3,"p_crash":0.0},{"mode":"naive","name":"at-least-once, no crashes, visibility timeout 0.3 s, work exponential mean 0.1 s","seed":2,"crashes":0,"effects":624,"distinct_orders":600,"duplicates":24,"lost":0,"dedup_hits":0,"jobs":600,"vt":0.3,"p_crash":0.0},{"mode":"naive","name":"at-least-once, no crashes, visibility timeout 0.3 s, work exponential mean 0.1 s","seed":3,"crashes":0,"effects":623,"distinct_orders":600,"duplicates":23,"lost":0,"dedup_hits":0,"jobs":600,"vt":0.3,"p_crash":0.0},{"mode":"idempotent","name":"same, idempotent receiver","seed":1,"crashes":0,"effects":600,"distinct_orders":600,"duplicates":0,"lost":0,"dedup_hits":22,"jobs":600,"vt":0.3,"p_crash":0.0},{"mode":"idempotent","name":"same, idempotent receiver","seed":2,"crashes":0,"effects":600,"distinct_orders":600,"duplicates":0,"lost":0,"dedup_hits":21,"jobs":600,"vt":0.3,"p_crash":0.0},{"mode":"idempotent","name":"same, idempotent receiver","seed":3,"crashes":0,"effects":600,"distinct_orders":600,"duplicates":0,"lost":0,"dedup_hits":25,"jobs":600,"vt":0.3,"p_crash":0.0}],"outbox":[{"mode":"naive","orders_attempted":500,"p_crash":0.05,"seed":1,"producer_crashes":19,"relay_crashes":0,"orders_saved":500,"events_in_broker":481,"distinct_events":481,"lost_events":19,"phantom_events":0,"duplicate_events":0,"after_dedup_exact":false,"seconds":2.44},{"mode":"naive","orders_attempted":500,"p_crash":0.05,"seed":2,"producer_crashes":28,"relay_crashes":0,"orders_saved":500,"events_in_broker":472,"distinct_events":472,"lost_events":28,"phantom_events":0,"duplicate_events":0,"after_dedup_exact":false,"seconds":3.66},{"mode":"naive","orders_attempted":500,"p_crash":0.05,"seed":3,"producer_crashes":27,"relay_crashes":0,"orders_saved":500,"events_in_broker":473,"distinct_events":473,"lost_events":27,"phantom_events":0,"duplicate_events":0,"after_dedup_exact":false,"seconds":3.29},{"mode":"naive_publish_first","orders_attempted":500,"p_crash":0.05,"seed":1,"producer_crashes":19,"relay_crashes":0,"orders_saved":481,"events_in_broker":500,"distinct_events":500,"lost_events":0,"phantom_events":19,"duplicate_events":0,"after_dedup_exact":false,"seconds":2.58},{"mode":"naive_publish_first","orders_attempted":500,"p_crash":0.05,"seed":2,"producer_crashes":28,"relay_crashes":0,"orders_saved":472,"events_in_broker":500,"distinct_events":500,"lost_events":0,"phantom_events":28,"duplicate_events":0,"after_dedup_exact":false,"seconds":3.44},{"mode":"naive_publish_first","orders_attempted":500,"p_crash":0.05,"seed":3,"producer_crashes":27,"relay_crashes":0,"orders_saved":473,"events_in_broker":500,"distinct_events":500,"lost_events":0,"phantom_events":27,"duplicate_events":0,"after_dedup_exact":false,"seconds":3.46},{"mode":"outbox","orders_attempted":500,"p_crash":0.05,"seed":1,"producer_crashes":19,"relay_crashes":36,"orders_saved":500,"events_in_broker":659,"distinct_events":500,"lost_events":0,"phantom_events":0,"duplicate_events":159,"after_dedup_exact":true,"seconds":8.03},{"mode":"outbox","orders_attempted":500,"p_crash":0.05,"seed":2,"producer_crashes":28,"relay_crashes":42,"orders_saved":500,"events_in_broker":685,"distinct_events":500,"lost_events":0,"phantom_events":0,"duplicate_events":185,"after_dedup_exact":true,"seconds":9.58},{"mode":"outbox","orders_attempted":500,"p_crash":0.05,"seed":3,"producer_crashes":27,"relay_crashes":32,"orders_saved":500,"events_in_broker":647,"distinct_events":500,"lost_events":0,"phantom_events":0,"duplicate_events":147,"after_dedup_exact":true,"seconds":8.12},{"mode":"outbox_batch1","seed":1,"producer_crashes":19,"relay_crashes":25,"orders_saved":500,"events_in_broker":525,"distinct_events":500,"duplicate_events":25,"lost_events":0},{"mode":"outbox_batch1","seed":2,"producer_crashes":28,"relay_crashes":32,"orders_saved":500,"events_in_broker":532,"distinct_events":500,"duplicate_events":32,"lost_events":0},{"mode":"outbox_batch1","seed":3,"producer_crashes":27,"relay_crashes":24,"orders_saved":500,"events_in_broker":524,"distinct_events":500,"duplicate_events":24,"lost_events":0}]};
+</script>
+<script>/* 26_js_rd_saga.js */
+// ---- Reading, Sagas: the "upgrade to Pro" action as a saga (success, failure with compensation) and as two-phase commit ----
+(function(){
+  const out=document.getElementById('rd-sg-out');if(!out)return;
+  const st=(n,svc,txt,cls)=>'<div class="sg-st '+(cls||'')+'"><b>'+n+'. '+svc+'</b><span>'+txt+'</span></div>';
+  const V={
+    ok:'<div class="sg-row">'+st(1,'Payments','charge card, commit; publish "charged"','ok')+st(2,'Quota','raise quota to Pro, commit; publish "upgraded"','ok')+st(3,'E-mail','send receipt (cannot be undone, so it goes last)','ok')+'</div>'+
+       '<p class="small">Three local transactions, each in its own service and database, each triggered by the previous one\'s event (via an outbox). Between steps 1 and 2 the user has paid but is not yet Pro: other code can see that half-done state.</p>',
+    fail:'<div class="sg-row">'+st(1,'Payments','charge card, commit','ok')+st(2,'Quota','fails: account suspended','bad')+st('C1','Payments','compensate: refund the charge','comp')+'</div>'+
+       '<p class="small">No rollback across services exists, so the saga runs a compensating transaction for every step that committed, in reverse order. The refund is a new business action (the customer sees a charge and a refund), and it too may be retried, so it must be idempotent (keyed by the saga id).</p>',
+    tpc:'<div class="sg-row">'+st('1a','Coordinator','"prepare" to payments and quota','')+st('1b','Both','do the work, hold locks, vote yes','')+st(2,'Coordinator','"commit" to both','ok')+'</div>'+
+       '<p class="small">Atomic: both commit or neither. But between 1b and 2 both participants hold locks and cannot decide alone; if the coordinator dies there, they wait ("blocks if the coordinator fails"). And the card processor and the e-mail provider cannot take part in your 2PC at all, which is why services use sagas.</p>'};
+  function show(m){out.innerHTML=V[m]}
+  RD.seg(document.getElementById('rd-sg-seg'),show);show('ok');
+})();
+</script>
+<script>/* 27_js_rd_meas.js */
+// ---- Reading, measured lab: redelivery outcomes, SKIP LOCKED throughput, dual write vs outbox (data: 25_js_lab_data.js) ----
+(function(){
+  const D=window.LABDATA;if(!D)return;
+  const fmt=n=>Math.round(n).toLocaleString('en-US');
+  const by=(arr,k)=>{const o={};arr.forEach(r=>{(o[r[k]]=o[r[k]]||[]).push(r)});return o};
+  // 1. redelivery outcomes
+  const ms=document.getElementById('rd-ms-svg');
+  const groups=[];const seen={};D.redelivery.forEach(r=>{if(!seen[r.name]){seen[r.name]=[];groups.push(r.name)}seen[r.name].push(r)});
+  const short={'at-most-once (delete first), 5% crashes':'At-most-once, 5% crashes','at-least-once, 5% crashes':'At-least-once, 5% crashes',
+    'at-least-once + idempotent receiver, 5% crashes':'At-least-once + idempotent receiver','at-least-once, no crashes, visibility timeout 0.3 s, work exponential mean 0.1 s':'Timeout 0.3 s, no crashes (600 jobs)',
+    'same, idempotent receiver':'Timeout 0.3 s + idempotent receiver'};
+  const series=[['lost','Receipts lost','var(--bad)'],['duplicates','Duplicate receipts','var(--c5)'],['dedup_hits','Repeats caught by the key','var(--c3)']];
+  function drawMs(){
+    const W=Math.max(300,Math.min(860,RD.width(ms)));const narrow=W<560;const lw=narrow?0:230,x0=lw+4,x1=W-40,mx=60;
+    const rowH=narrow?66:54;let b='',y=4;
+    groups.forEach(g=>{const rs=seen[g];
+      b+=RD.t(0,y+(narrow?11:20),short[g]||g,{fs:11.5,w:600});const yb=y+(narrow?16:6);
+      series.forEach((s,k)=>{const vals=rs.map(r=>r[s[0]]||0);const mean=vals.reduce((a,c)=>a+c,0)/vals.length;
+        const yy=yb+k*14,w=Math.max(mean>0?2:0,(x1-x0)*mean/mx);
+        b+='<rect x="'+x0+'" y="'+yy+'" width="'+w+'" height="11" rx="2" fill="'+s[2]+'"/>'+(mean>0?RD.t(x0+w+4,yy+9.5,vals.join(', '),{fs:10,fill:'var(--mute)'}):RD.t(x0+2,yy+9.5,'0',{fs:10,fill:'var(--mute)'}))});
+      y+=rowH});
+    ms.innerHTML=RD.svg(W,y,b,'Outcomes of the redelivery experiment');}
+  document.getElementById('rd-ms-leg').innerHTML=series.map(s=>'<span style="--sw:'+s[2]+'">'+s[1]+'</span>').join('');
+  document.getElementById('rd-ms-note').textContent='Bars: mean of 3 runs (the three values are printed); 1,000 jobs unless noted, 4 worker processes. '+D.machine+', PostgreSQL '+D.postgres+', '+D.date+'.';
+  // 2. SKIP LOCKED throughput
+  const sk=document.getElementById('rd-sk-svg');
+  function drawSk(){
+    const T=by(D.throughput,'mode');const ws=T.skip_locked.map(r=>r.workers);
+    const W=Math.max(300,Math.min(860,RD.width(sk)));const x0=86,x1=W-60,mx=Math.max(...D.throughput.map(r=>r.jobs_per_s));
+    let b='',y=2;
+    ws.forEach(w=>{b+=RD.t(0,y+15,w+' worker'+(w>1?'s':''),{fs:11.5,w:600});
+      [['skip_locked','SKIP LOCKED','var(--c3)'],['for_update','FOR UPDATE','var(--c2)']].forEach((m,k)=>{const r=T[m[0]].find(q=>q.workers===w);const bw=(x1-x0)*r.jobs_per_s/mx;
+        b+='<rect x="'+x0+'" y="'+(y+k*13)+'" width="'+bw+'" height="11" rx="2" fill="'+m[2]+'"/>'+RD.t(x0+bw+4,y+k*13+9.5,fmt(r.jobs_per_s)+'/s',{fs:10,fill:'var(--mute)'})});
+      y+=32});
+    b+='<rect x="'+x0+'" y="'+(y+2)+'" width="10" height="10" fill="var(--c3)"/>'+RD.t(x0+14,y+11,'SKIP LOCKED',{fs:10.5})+'<rect x="'+(x0+100)+'" y="'+(y+2)+'" width="10" height="10" fill="var(--c2)"/>'+RD.t(x0+114,y+11,'plain FOR UPDATE',{fs:10.5});
+    sk.innerHTML=RD.svg(W,y+16,b,'Jobs per second by number of workers');}
+  // 3. outbox table
+  const tb=document.getElementById('rd-ob-tbl');
+  const O=by(D.outbox,'mode');const rng=(rs,k)=>{const v=rs.map(r=>r[k]||0);return v.join(', ')};
+  const NM={naive:'Commit, then publish',naive_publish_first:'Publish, then commit',outbox:'Outbox, relay batches of 10',outbox_batch1:'Outbox, relay one event per transaction'};
+  tb.innerHTML='<thead><tr><th>Design</th><th class="num">Crashes (producer; relay)</th><th class="num">Lost events</th><th class="num">Phantom events</th><th class="num">Duplicate events</th><th>After deduplication</th></tr></thead><tbody>'+
+    ['naive','naive_publish_first','outbox','outbox_batch1'].map(m=>{const rs=O[m];if(!rs)return '';const ok=rs.every(r=>(r.lost_events||0)===0&&(r.phantom_events||0)===0);
+      return '<tr><td>'+NM[m]+'</td><td class="num">'+rng(rs,'producer_crashes')+(m.indexOf('outbox')===0?'; '+rng(rs,'relay_crashes'):'')+'</td><td class="num">'+rng(rs,'lost_events')+'</td><td class="num">'+rng(rs,'phantom_events')+'</td><td class="num">'+rng(rs,'duplicate_events')+'</td><td>'+(ok?'<b style="color:var(--good)">exact: 500 orders, 500 events</b>':'<b style="color:var(--bad)">wrong</b>')+'</td></tr>'}).join('')+'</tbody>';
+  function all(){drawMs();drawSk()}
+  RD.onRender(all);RD.onResize(all);all();
+})();
+</script>
+<script>/* 31_js_lab.js */
+// ---- Queue lab tab: controls, presets and charts over QSIM.run (22_js_qsim.js) ----
+(function(){
+  const host=document.getElementById('lab-ctl');if(!host||!window.QSIM)return;
+  const base={mode:'rate',lam:20,N:1000,T:120,C:4,S:0.15,dist:'exp',V:30,pc:0,Rs:1,idem:false,M:0,pp:0,B:0,burst:false,seed:1};
+  const L=window.LABDATA;
+  const meanOf=(name,k)=>{if(!L)return null;const rs=L.redelivery.filter(r=>r.name===name);return rs.map(r=>r[k])};
+  const P=[
+    ['Healthy',{},'Utilisation 75%: 20 messages a second, 4 workers, 0.15 s each. The queue stays short and drains.'],
+    ['Overloaded',{lam:30},'Utilisation 113%: the backlog grows by about 3.3 messages a second while arrivals last, and the oldest message ages without limit.'],
+    ['Burst, then drain',{burst:true},'Three times the traffic between T/4 and T/2 (utilisation 225% during the burst). Watch how long the drain takes after the burst ends: only the 25% spare capacity drains it.'],
+    ['Bounded queue',{lam:30,B:200},'Overloaded, but the queue refuses arrivals beyond 200 messages: some producers are told "not now" (429), and everyone admitted waits at most about 8 s.'],
+    ['Crashes, naive',{pc:0.05},'5% of deliveries crash after the side effect. Each crash is a redelivery and a duplicate; each crash also idles a worker for the 1 s restart, which pushes utilisation to about 100%.'],
+    ['Crashes, idempotent',{pc:0.05,idem:true},'Same crashes; the consumer records message ids, so every repeat is caught and the duplicate count is zero.'],
+    ['Timeout too short',{V:0.3},'No crashes, but a 0.3 s visibility timeout with 0.15 s average jobs: about 13% of jobs outlive their lease and run twice.'],
+    ['Poison, no DLQ',{pp:0.02,V:5},'2% of messages always fail. Without a dead-letter queue they return every 5 s forever, piling up.'],
+    ['Poison, DLQ after 5',{pp:0.02,V:5,M:5},'Same poison, maxReceiveCount 5: each poison message is tried 5 times, then parked for a human.'],
+    ['Lab run: 5% crashes',{mode:'backlog',N:1000,T:30,C:4,S:0.01,dist:'fixed',V:2,pc:0.05,Rs:0.5},'The measured Postgres run: 1,000 jobs, 4 workers, 2 s visibility timeout, 5% crash chance after the e-mail. Measured duplicates: '+(meanOf('at-least-once, 5% crashes','duplicates')||[]).join(', ')+' (mean 50.3); expected 1,000 x 0.05/0.95 = 52.6; this model over 20 seeds: mean 53.0, range 38 to 76.'],
+    ['Lab run: timeout 0.3 s',{mode:'backlog',N:600,T:40,C:4,S:0.1,dist:'exp',V:0.3},'The measured run with no crashes: 600 jobs, exponential work with mean 0.1 s, 0.3 s timeout. Measured duplicates: '+(meanOf('at-least-once, no crashes, visibility timeout 0.3 s, work exponential mean 0.1 s','duplicates')||[]).join(', ')+' (mean 22.3); this model over 20 seeds: mean 21.5, range 15 to 28.']];
+  let cur=Object.assign({},base);
+  const defs=[
+    ['mode','Producer','sel',[['rate','Steady arrivals'],['backlog','Backlog at time 0']]],
+    ['lam','Arrival rate &lambda; (per s)','rng',1,100,1],['N','Backlog size N','rng',100,5000,100],['T','Duration T (s)','rng',20,300,10],
+    ['C','Workers C','rng',1,32,1],['S','Mean work time S (s)','rng',0.01,2,0.01],['dist','Work time','sel',[['exp','Exponential'],['fixed','Fixed']]],
+    ['V','Visibility timeout V (s)','rng',0.1,60,0.1],['pc','Crash chance per delivery','rng',0,0.2,0.01],['Rs','Restart time (s)','rng',0.1,10,0.1],
+    ['pp','Poison fraction','rng',0,0.1,0.005],['M','Max receives before DLQ (0 = no DLQ)','rng',0,10,1],['B','Queue bound (0 = unbounded)','rng',0,2000,50],['seed','Seed','rng',1,20,1]];
+  let h='<div class="ctl">';
+  defs.forEach(d=>{const id='lab-'+d[0];
+    if(d[2]==='sel')h+='<label>'+d[1]+'<br><select id="'+id+'">'+d[3].map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('')+'</select></label>';
+    else h+='<label>'+d[1]+': <b id="'+id+'-v"></b><input type="range" id="'+id+'" min="'+d[3]+'" max="'+d[4]+'" step="'+d[5]+'"></label>'});
+  h+='</div><div class="tog"><label><input type="checkbox" id="lab-burst"> 3x burst from T/4 to T/2</label><label><input type="checkbox" id="lab-idem"> Idempotent consumer</label></div>';
+  host.innerHTML=h;
+  const el=k=>document.getElementById('lab-'+k);
+  const show=(k,v)=>{const e=document.getElementById('lab-'+k+'-v');if(e)e.textContent=k==='pc'||k==='pp'?(v*100).toFixed(1)+'%':(k==='M'&&+v===0?'off':(k==='B'&&+v===0?'off':v))};
+  function syncUI(){defs.forEach(d=>{const e=el(d[0]);e.value=cur[d[0]];show(d[0],cur[d[0]])});el('burst').checked=cur.burst;el('idem').checked=cur.idem;
+    el('lam').closest('label').style.opacity=cur.mode==='rate'?1:.45;el('N').closest('label').style.opacity=cur.mode==='backlog'?1:.45}
+  defs.forEach(d=>el(d[0]).addEventListener('input',e=>{cur[d[0]]=d[2]==='sel'?e.target.value:+e.target.value;show(d[0],cur[d[0]]);mark(-1);syncUI();run()}));
+  ['burst','idem'].forEach(k=>el(k).addEventListener('change',e=>{cur[k]=e.target.checked;mark(-1);run()}));
+  const pre=document.getElementById('lab-pre'),note=document.getElementById('lab-pre-note');
+  pre.innerHTML=P.map((p,i)=>'<button data-i="'+i+'">'+p[0]+'</button>').join('');
+  function mark(i){[...pre.children].forEach((b,k)=>b.classList.toggle('on',k===i));note.textContent=i>=0?P[i][2]:'Custom settings.'}
+  pre.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const i=+b.dataset.i;cur=Object.assign({},base,P[i][1]);mark(i);syncUI();run()});
+  const out=document.getElementById('lab-out'),svg=document.getElementById('lab-svg'),lit=document.getElementById('lab-little');
+  let last=null;
+  function run(){last=QSIM.run(cur);draw()}
+  function f1(v,d){return (Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toLocaleString('en-US')}
+  function draw(){if(!last)return;const s=last.st,sm=last.samples;
+    const rho=cur.mode==='rate'?cur.lam*cur.S/cur.C:null;
+    out.innerHTML=RD.stat('Utilisation &rho; = &lambda;S/C',rho===null?'n/a':f1(rho*100,0)+'%',rho===null?'backlog mode':(rho>=1?'over capacity':'below capacity'))+
+      RD.stat('Completed',f1(s.completed,0),'of '+f1(s.admitted,0)+' admitted; '+f1(s.left,0)+' left at the end')+
+      RD.stat('Rejected (429)',f1(s.rejected,0),cur.B>0?'queue bound '+cur.B:'no bound')+
+      RD.stat('Redeliveries',f1(s.redeliveries,0),f1(s.crashes,0)+' crashes')+
+      RD.stat('Duplicate side effects',f1(s.duplicates,0),cur.idem?f1(s.dedup,0)+' repeats caught':'no deduplication')+
+      RD.stat('Dead-lettered',f1(s.dlq,0),cur.M>0?'after '+cur.M+' receives':'no DLQ')+
+      RD.stat('Wait, p50 / p99',f1(s.p50,2)+' / '+f1(s.p99,2)+' s','arrival to acknowledgement')+
+      RD.stat('Oldest message, max age',f1(s.maxAge,1)+' s','the number to alert on');
+    const W=Math.max(300,Math.min(860,RD.width(svg)));const x0=44,x1=W-8,H=sm.length?sm[sm.length-1].t:1;const X=t=>x0+(x1-x0)*t/Math.max(1,H);
+    let b='';const panels=[['Messages in the queue (waiting + in flight)',sm.map(r=>r.depth),'var(--c4)'],['Age of the oldest message (s)',sm.map(r=>r.age),'var(--c2)'],
+      ['Completions per second',sm.map((r,i)=>i?r.completed-sm[i-1].completed:0),'var(--c3)']];
+    let y=0;panels.forEach(p=>{const vals=p[1],mx=Math.max(1,...vals),ph=78;y+=16;b+=RD.t(0,y-4,p[0],{fs:11,fill:'var(--mute)'});
+      b+='<line x1="'+x0+'" x2="'+x1+'" y1="'+(y+ph)+'" y2="'+(y+ph)+'" stroke="var(--line)"/>'+RD.t(x0-4,y+8,f1(mx,mx<10?1:0),{fs:9.5,a:'end'})+RD.t(x0-4,y+ph,'0',{fs:9.5,a:'end'});
+      if(cur.mode==='rate'&&cur.burst)b+='<rect x="'+X(cur.T/4)+'" y="'+y+'" width="'+(X(cur.T/2)-X(cur.T/4))+'" height="'+ph+'" fill="var(--bad)" opacity=".08"/>';
+      if(cur.mode==='rate')b+='<line x1="'+X(cur.T)+'" x2="'+X(cur.T)+'" y1="'+y+'" y2="'+(y+ph)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>';
+      b+='<polyline fill="none" stroke="'+p[2]+'" stroke-width="1.6" points="'+sm.map((r,i)=>X(r.t).toFixed(1)+','+(y+ph-ph*vals[i]/mx).toFixed(1)).join(' ')+'"/>';y+=ph+10});
+    b+=RD.t(x0,y+8,'0 s',{fs:9.5})+RD.t(x1,y+8,f1(H,0)+' s',{fs:9.5,a:'end'})+(cur.mode==='rate'?RD.t(X(cur.T),y+8,'arrivals stop',{fs:9.5,a:'middle',fill:'var(--mute)'}):'');
+    svg.innerHTML=RD.svg(W,y+12,b,'Queue depth, oldest age and completions over time');
+    lit.innerHTML='Little\'s law: time-average messages in the system L = '+f1(s.L,2)+'; completions per second X = '+f1(s.X,2)+' times mean time in system W = '+f1(s.Wmean,2)+' s gives XW = '+f1(s.X*s.Wmean,2)+
+      (s.left===0&&s.dlq===0?' (equal, as the law says, because the queue ended empty).':' (they differ because '+(s.left?f1(s.left,0)+' messages were still in the queue at the end':'dead-lettered messages spent time in the queue without completing')+': the law needs a system that empties).')}
+  const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lab']=window.TAB_RENDER['t-lab']||[]).push(f)};
+  reg(draw);addEventListener('resize',()=>{const t=document.getElementById('t-lab');if(t&&!t.hidden)draw()});
+  mark(0);syncUI();run();
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('qsa-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('qsa-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  show(start,false);
+})();
+</script>
+</body></html>
