@@ -1,0 +1,97 @@
+<section id="s-prop"><h2>7. Property-based testing: let the computer pick the inputs</h2>
+<p>An example-based test checks the inputs you thought of. Bugs live in the inputs you did not think of: the empty string, the one-character document, the emoji, the negative number. A <dfn id="g-property">property</dfn> is a statement that must hold for <i>every</i> valid input, such as "cutting a document into chunks and gluing them back gives the document". A <dfn id="g-pbt">property-based test</dfn> states the property, and a library generates hundreds of inputs trying to break it. The idea comes from Haskell's QuickCheck (Claessen and Hughes, 2000); in Python the library is {{Hypothesis|https://hypothesis.readthedocs.io/}}.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_chunking_property.py</code></div>
+<pre class="cv py">from hypothesis import given, strategies as st
+from chunking import chunk, unchunk
+
+@st.composite
+def chunk_args(draw):                       # a custom strategy: valid (size, overlap) pairs
+    size = draw(st.integers(min_value=1, max_value=50))
+    overlap = draw(st.integers(min_value=0, max_value=size - 1))
+    return size, overlap
+
+@given(text=st.text(), args=chunk_args())
+def test_round_trip_loses_nothing(text, args):
+    size, overlap = args
+    assert unchunk(chunk(text, size, overlap), overlap) == text</pre>
+<div class="term">$ pytest -q test_chunking_property.py
+E       AssertionError: assert '' == '0'
+E       Failing test case: test_round_trip_loses_nothing(
+E           text='0',
+E           args=(2, 0),
+E       )
+<span class="r">1 failed in 1.81s</span></div>
+<p>Two words to learn. A <dfn id="g-strategy">strategy</dfn> describes how to generate one kind of value (<code>st.text()</code>, <code>st.integers(1, 50)</code>, your own with <code>@st.composite</code>). <dfn id="g-shrink">Shrinking</dfn> is what happens after a failure: Hypothesis keeps trying simpler versions of the failing input (shorter strings, smaller numbers, simpler characters) and keeps any that still fail, so the report is <code>text='0', size=2, overlap=0</code> instead of a random 30-character unicode string. A one-character document with a two-character window: the bug, in one line.</p>
+
+<div class="card" id="pb-card">
+<h3 style="margin-top:0">Same bug, two kinds of test</h3>
+<p class="small mute">The buggy <code>chunk()</code> from section 3. "Examples" runs the three hand-written tests. "Property" replays the real Hypothesis run (seed <span data-v="hyp.seed"></span>, every one of its <span data-v="calc.hypCalls"></span> calls to the test logged). "Property, fixed code" is the same property on the corrected function. Green boxes are characters that survive the round trip; red ones are lost.</p>
+<div class="seg" id="pb-mode"><button data-m="ex" class="on">Examples (3 tests)</button><button data-m="pb">Property (Hypothesis)</button><button data-m="fx">Property, fixed code</button></div>
+<div class="an-ctl" id="pb-ctl"></div>
+<div id="pb-wrap">
+<div class="an-cnt" id="pb-cnt"></div>
+<div class="small mute" id="pb-in"></div>
+<div class="chars" id="pb-chars"></div>
+<div class="tlist" id="pb-out"></div>
+<div class="small mute" style="margin-top:6px">Every call so far (green passed, red failed; outlined: this step; highlighted: smallest failure found so far)</div>
+<div class="strip" id="pb-strip"></div>
+</div>
+<div class="an-cap" id="pb-cap"></div>
+</div>
+
+<p><b>Across runs.</b> Hypothesis is random, so the search differs from run to run. Over <span data-v="hyp.nseeds"></span> fixed seeds it found the bug in every run, always within the first <span data-v="calc.hypMaxTries"></span> generated inputs, because most random documents trip it. Shrinking ended at the true minimum (<code>'0'</code>, size 2, overlap 0) in <span data-v="calc.hypMinimal"></span> of <span data-v="hyp.nseeds"></span> runs; the others stopped at slightly larger inputs such as <code>'0000'</code> with size 3, which are just as readable. Shrinking is a local search: it guarantees that no simpler variant it tried still fails, not that no smaller failing input exists.</p>
+<p><b>The fix</b> starts a window wherever there is text the previous window did not cover: <code>range(0, max(len(text) - overlap, 1), step)</code>, plus an early return for empty text. The same property then passed 5,000 generated cases (<code>experiments/hyp/test_fixed_property.py</code>, 2.3 s). The fix also cures a second symptom the examples never hit: the tail of any document whose length does not line up with the step, such as the last character of "abcde" with size 4 and overlap 1.</p>
+
+<h3>The example database, and determinism in CI</h3>
+<p>When a test fails, Hypothesis saves the failing input in a local <dfn id="g-hdb">example database</dfn> (<code>.hypothesis/examples</code>) and replays it first on the next run, so a bug found once is not lost to randomness. On a CI machine that folder starts empty, so Hypothesis {{now defaults|https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings}} to <code>derandomize=True</code> when it detects CI ("If running on CI, the default is True"): every CI run tries the same inputs, so a red build reproduces, and new inputs are explored on developers' machines. The alternative is to keep randomness in CI and cache the database between runs. Add <code>@example(text="0", args=(2, 0))</code> above <code>@given</code> to pin a found bug as a permanent regression case.</p>
+
+<h3>Stateful testing: random sequences of operations</h3>
+<p>Some bugs need a particular <i>sequence</i> of calls. A <dfn id="g-stateful">stateful test</dfn> lists the operations (rules), and Hypothesis runs random sequences of them against your code and a simple trusted model, comparing after each step. Here it tests the least-recently-used cache that holds embeddings by text hash: it should keep the two most recently <i>used</i> keys, but <code>get</code> forgets to mark a key as used.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/hyp/test_lru_stateful.py</code></div>
+<pre class="cv py">class LRUMatchesModel(RuleBasedStateMachine):
+    def __init__(self):
+        super().__init__()
+        self.cache = LRUCache(capacity=2)
+        self.model = OrderedDict()            # the obviously-correct reference
+
+    @rule(k=keys, v=st.integers())
+    def put(self, k, v):
+        self.cache.put(k, v)
+        self.model[k] = v
+        self.model.move_to_end(k)
+        if len(self.model) &gt; 2:
+            self.model.popitem(last=False)
+
+    @rule(k=keys)
+    def get(self, k):
+        expected = self.model.get(k)
+        if k in self.model:
+            self.model.move_to_end(k)
+        assert self.cache.get(k) == expected
+
+TestLRU = LRUMatchesModel.TestCase</pre>
+<div class="term">E       AssertionError: assert 0 == None
+E       Failing test case:
+E       state = LRUMatchesModel()
+E       state.put(k='b', v=0)
+E       state.put(k='a', v=0)
+E       state.get(k='b')          <b># b is now the most recently used</b>
+E       state.put(k='c', v=0)     <b># so a should be evicted, but the cache evicts b</b>
+E       state.get(k='a')
+<span class="r">1 failed in 0.14s</span></div>
+<p>Five steps, shrunk from random sequences: the exact recipe for the bug. Writing that sequence by hand requires already knowing the bug.</p>
+
+<h3>Properties that pay off, especially in ML code</h3>
+<ul>
+<li><b>Round trip</b>: decode(encode(x)) == x; config to YAML and back; a tokenizer where it promises it.</li>
+<li><b>Invariants</b>: shape and dtype preserved; row count preserved (or changed by exactly the filtered rows); no NaN introduced; output vocabulary within the expected set; probabilities sum to 1.</li>
+<li><b>Idempotence</b>: normalising twice equals normalising once, <code>f(f(x)) == f(x)</code>.</li>
+<li><b>Equivalence to a slow reference</b>: the vectorised implementation equals a plain loop on every input (a <dfn id="g-oracle">test oracle</dfn>).</li>
+<li><b>Monotonicity</b>: a higher score never ranks lower.</li>
+<li><b>Never crashes</b>: a parser for model output returns a value or raises your own error type, for any string.</li>
+</ul>
+<p><code>hypothesis.extra.numpy</code> and <code>hypothesis.extra.pandas</code> generate arrays and data frames directly. Build domain objects with <code>st.builds</code> or <code>@st.composite</code> and reuse them across tests as a library of typed inputs.</p>
+<div class="corr"><div class="t">Checked: the old page's NumPy example, run as written</div>
+The old page's example property, <code>@given(hnp.arrays(dtype=np.float32, shape=st.integers(1, 1000)))</code> asserting that min-max normalisation produces no NaN, fails at once. Two reasons. First, by default the float strategy also generates NaN and infinity, so the test partly checks its own inputs; restrict them with <code>elements=st.floats(-1e6, 1e6, width=32)</code>. Second, with finite inputs it still fails, and Hypothesis shrinks to <code>x = array([0.])</code>: a constant column makes <code>max - min</code> zero, and 0/0 is NaN. A real bug in every naive min-max scaler, found in under a second (<code>experiments/mlt/test_normalize.py</code>).</div>
+<p><b>What it costs, and when not to use it.</b> Each property runs 100 examples by default, so it is slower than one example (seconds, not milliseconds). Thinking of a true property is the hard part; a property that restates the implementation proves nothing. A strategy narrower than real inputs gives false confidence. Keep a few readable example tests as documentation, and add properties where the input space is large: parsers, serialisers, numeric transforms, data structures, anything with an inverse.</p>
+</section>

@@ -1,0 +1,42 @@
+<section id="s-ai"><h2>16. Very large changes and AI-written code: where tests are silent</h2>
+<p>A green suite says the behaviours someone thought to test still hold. It says nothing about the rest, and a big change travels straight through the rest. Nous Research's refactor of its Hermes agent codebase is a measured example: about nineteen active hours, 1,393 subagents (up to 218 at once) working on a repository of 1,063,826 non-test Python lines, cutting non-test source by 34.4% for about $19,300 in model costs for the main run (roughly $25k with follow-ups). Per-agent worktrees and a frozen baseline made the parallel edits integrable. Community review then caught public names that had been removed and a <code>suppress()</code> rewrite that changed exception handling at about 65 sites: "These were real regressions the existing tests had missed" ({{Nous Research, 2026|https://nousresearch.com/refactoring-hermes-with-1393-agents}}).</p>
+<p>What closes that gap:</p>
+<ul>
+<li><b>Public-API diffing as a merge gate.</b> List the exported surface (<code>__all__</code>, public classes, function signatures) before and after, and fail on any removal or signature change the change does not declare. Tests cover what someone called; the public surface is the promise.</li>
+<li><b>Exception-contract tests.</b> Assert the exception type and the condition that raises it (<code>pytest.raises(RateLimited)</code> on the 429 path), not only that an error happens. Broadened or swallowed exceptions are exactly the change a happy-path suite cannot see.</li>
+<li><b>Frozen baselines.</b> Compare behaviour against the pinned pre-change commit, not a moving main branch; run the old and new code on the same recorded inputs and diff the outputs.</li>
+<li><b>Review by surface, not by file.</b> Nobody reads a million-line diff. Spend human attention on the public interface, the error paths and the deleted code; mutation testing on the changed lines shows where the tests are silent.</li>
+</ul>
+<p>The same rules apply to one AI-written pull request: read the tests first, and check they would fail if the code were wrong. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} (section 13 and its Review lab) covers reviewing AI-written code.</p>
+</section>
+
+<section id="s-prod"><h2>17. What pros run in production today</h2>
+<div class="tw"><table><thead><tr><th>Concern</th><th>Common choice (2026-10-04)</th></tr></thead><tbody>
+<tr><td>Runner and plugins</td><td>pytest <span data-v="env.pytest"></span> with pytest-xdist (parallel), pytest-randomly (order), pytest-asyncio or AnyIO (async), pytest-recording or vcrpy (HTTP), syrupy or inline-snapshot (snapshots).</td></tr>
+<tr><td>Inputs</td><td>Literal fixtures and factories; Hypothesis <span data-v="env.hypothesis"></span> for parsers, transforms and data structures.</td></tr>
+<tr><td>Real dependencies</td><td>testcontainers or CI service containers for PostgreSQL, Redis and Kafka; in-memory fakes for third-party APIs; Pact where both sides are your teams.</td></tr>
+<tr><td>Static checks</td><td>ruff for lint and format, mypy or pyright for types, in pre-commit and as the first CI job.</td></tr>
+<tr><td>Data</td><td>pandera schemas inside pipelines, Great Expectations for warehouse tables, drift monitoring in production.</td></tr>
+<tr><td>ML and LLM</td><td>Seeded, tolerance-based numeric tests; a training smoke test per pull request; pydantic contracts on model output; fake model servers; evals as a separate gate.</td></tr>
+<tr><td>Suite health</td><td>Coverage reported on every pull request (no mandate on the number); mutation testing on critical modules or changed lines; flaky tests tracked, quarantined and owned.</td></tr>
+<tr><td>CI</td><td>GitHub Actions (or GitLab CI, Buildkite) with uv caching, cheapest checks first, a merge queue, nightly slow and GPU tiers.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-mist"><h2>Common mistakes</h2>
+<details class="mist"><summary>Testing the implementation instead of the behaviour</summary><div class="b">Asserting which internal functions were called, or the exact SQL string. Every refactor breaks the tests, so people stop refactoring. Assert outputs and visible effects (<a href="#s-beh">section 4</a>).</div></details>
+<details class="mist"><summary>Mocking everything</summary><div class="b">A suite of mocks restates the code and passes while production breaks. Use real objects, then fakes, and mocks only where the interaction is the behaviour (<a href="#s-dbl">section 5</a>).</div></details>
+<details class="mist"><summary>SQLite in tests, PostgreSQL in production</summary><div class="b">Different engines read the same SQL differently: here a search was case-insensitive in tests and case-sensitive in production. A real PostgreSQL costs about a second per run (<a href="#s-int">section 6</a>).</div></details>
+<details class="mist"><summary>Treating coverage as the goal</summary><div class="b">100% line and branch coverage killed only <span data-v="calc.mutWeak"></span> of <span data-v="calc.mutN"></span> mutants. Coverage finds untested code; it does not prove tested code is checked (<a href="#s-mut">section 14</a>).</div></details>
+<details class="mist"><summary>Rerunning until green</summary><div class="b">A flaky test hides real races in your code. Measure, quarantine with an owner, fix or delete (<a href="#s-flaky">section 13</a>).</div></details>
+<details class="mist"><summary>Sleeping in tests</summary><div class="b"><code>time.sleep(1)</code> to "let the worker finish" is slow and flaky. Wait on the event, await the task, or inject a fake clock (<a href="#s-async">section 9</a>).</div></details>
+<details class="mist"><summary>Exact float equality in ML tests</summary><div class="b">The same numbers summed in a different order give a different float32 result. Use <code>assert_allclose</code> with a tolerance chosen for the dtype (<a href="#s-ml">section 11</a>).</div></details>
+<details class="mist"><summary>Calling the real model in unit tests</summary><div class="b">Slow, costly, nondeterministic and needs a key in CI. Test the code with a fake server or a cassette; measure the model with evals (<a href="#s-llm">section 12</a>).</div></details>
+<details class="mist"><summary>Blindly updating snapshots</summary><div class="b"><code>--snapshot-update</code> turns a failing test into one that blesses the bug. Read the snapshot diff like code (<a href="#s-snap">section 8</a>).</div></details>
+<details class="mist"><summary>One slow CI job for everything</summary><div class="b">A 40-minute single job means people stop waiting for it. Split by cost, run the cheapest first, cache dependencies, cancel stale runs (<a href="#s-ci">section 15</a>).</div></details>
+<details class="mist"><summary>Fixing a bug without a test</summary><div class="b">Write the failing test first: it proves you reproduced the bug and stops it coming back.</div></details>
+</section>
+
+<section id="s-gloss"><h2>Glossary</h2>
+<div class="gl" id="gloss"></div>
+</section>

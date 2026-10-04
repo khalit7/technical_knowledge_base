@@ -1,0 +1,58 @@
+<section id="s-snap"><h2>8. Snapshot and golden tests</h2>
+<p>Some outputs are too big to write by hand in a test: the full message list sent to the model, a rendered email, a transformed data frame. A <dfn id="g-snapshot">snapshot test</dfn> (also <dfn id="g-golden">golden test</dfn>) records the output once into a file, you review that file like code, and every later run compares against it. Any difference fails the test and shows a diff. Here it pins the exact prompt the chat product sends.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/snap/</code> with {{syrupy|https://github.com/syrupy-project/syrupy}} <span data-v="env.syrupy"></span></div>
+<pre class="cv py">SYSTEM = "You are a helpful assistant for Acme. Answer briefly."
+
+def build_messages(history, user_msg, max_turns=2):
+    """The exact message list sent to the model: system prompt, the last few turns, the new message."""
+    return [{"role": "system", "content": SYSTEM}] + history[-2 * max_turns:] + [{"role": "user", "content": user_msg}]
+
+def test_prompt_is_stable(snapshot):      # syrupy's fixture
+    assert build_messages(HISTORY, "refund?") == snapshot</pre>
+<div class="term">$ pytest --snapshot-update      <b># first run: writes __snapshots__/test_prompt_snapshot.ambr</b>
+1 snapshot generated.
+<i># someone changes max_turns=2 to max_turns=1</i>
+$ pytest
+E       AssertionError: assert [+ received] == [- snapshot]
+E         -   dict({
+E         -     'content': 'price?',
+E         -     'role': 'user',...
+<span class="r">1 snapshot failed.</span></div>
+<p>The change dropped a whole turn of conversation from every prompt; a snapshot makes that visible in review, where an assertion on "the last message is the user's" would not. {{inline-snapshot|https://15r10nk.github.io/inline-snapshot/}} does the same with the value written into the test file itself, which keeps small snapshots next to the code that checks them.</p>
+<p><b>The danger</b> is the update flag. When a snapshot fails, the easy move is <code>--snapshot-update</code> and commit, and the test now blesses the bug. Treat a snapshot diff as a code change: read it in review. Scrub values that change on every run (timestamps, generated ids) before comparing, or the test is flaky. Do not snapshot huge outputs nobody will read; snapshot a small, meaningful view of them.</p>
+<p><b>When to use:</b> prompt assembly, rendered templates, API response shapes, data transforms checked against a reviewed output file (a <i>golden file</i>). <b>When not:</b> anything nondeterministic, such as live model output; that needs an eval with a tolerance, not equality (<a href="#s-llm">section 12</a>).</p>
+</section>
+
+<section id="s-async"><h2>9. Testing async code</h2>
+<p>A chat backend is mostly <dfn id="g-async">async</dfn> code: functions declared <code>async def</code> that pause at <code>await</code> while waiting on the network, so one process can serve many requests at once. pytest itself cannot run an <code>async def</code> test; a plugin such as {{pytest-asyncio|https://pytest-asyncio.readthedocs.io/}} (or AnyIO's pytest plugin) runs it in an event loop. In pytest-asyncio's default strict mode each async test needs <code>@pytest.mark.asyncio</code>.</p>
+<div class="cvh"><span class="real">real</span> <code>experiments/asy/test_async.py</code> with pytest <span data-v="env.pytest"></span>, pytest-asyncio <span data-v="env.pytest_asyncio"></span></div>
+<pre class="cv py">async def first_token(stream, timeout):
+    """Wait for the first token of a streamed reply, give up after `timeout` seconds."""
+    return await asyncio.wait_for(anext(stream), timeout)
+
+async def slow_stream(delay):
+    await asyncio.sleep(delay)
+    yield "Hello"
+
+@pytest.mark.asyncio
+async def test_first_token_arrives():
+    assert await first_token(slow_stream(0.01), timeout=1) == "Hello"
+
+@pytest.mark.asyncio
+async def test_slow_model_times_out():
+    with pytest.raises(TimeoutError):
+        await first_token(slow_stream(10), timeout=0.05)
+
+async def test_no_marker():                    # forgot the marker
+    assert await first_token(slow_stream(0), 1) == "WRONG"</pre>
+<div class="term">PASSED test_async.py::test_first_token_arrives
+PASSED test_async.py::test_slow_model_times_out
+<span class="r">FAILED test_async.py::test_no_marker - Failed: async def functions are not natively supported.</span></div>
+<div class="corr"><div class="t">A trap that used to pass silently</div>The unmarked test asserts something false, and it fails here only because pytest refuses to run it. In older pytest versions an async test with no plugin was <i>skipped with a warning</i>, so a suite could show green while its async tests never ran; current pytest fails it instead ({{pytest 8.4.0 changelog|https://docs.pytest.org/en/stable/changelog.html}}, 2025-06-02: "Async tests will now fail, instead of warning+skipping, if you don't have any suitable plugin installed."). If your project pins an old pytest, check the warnings summary.</div>
+<ul>
+<li><b>Timeouts</b> belong in async tests: a hung await hangs CI forever. Give every network wait a timeout in the code, and test it with a delay far beyond the timeout (10 s against 0.05 s above) so the test is not flaky.</li>
+<li><b>Do not sleep to wait for something.</b> <code>await asyncio.sleep(0.1)</code> "so the background task finishes" is the classic flaky test (<a href="#s-flaky">section 13</a>). Await the task, or wait on an event the code sets.</li>
+<li><b>Time-dependent logic</b> (rate limiters, cache expiry, retries with backoff): pass the clock in as a function, and give the test a fake clock it can advance instantly, instead of sleeping for real.</li>
+<li>Test web endpoints in-process: FastAPI's <code>TestClient</code> or <code>httpx.AsyncClient</code> with an ASGI transport calls your app without a network; {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} has the service.</li>
+</ul>
+</section>
