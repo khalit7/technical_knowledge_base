@@ -1,0 +1,60 @@
+
+<section id="s-rest">
+<h2>6. Resources and URLs: designing in nouns</h2>
+<p><dfn id="d-rest">REST</dfn> (representational state transfer) is the style Roy Fielding described in his 2000 dissertation ({{Fielding, ch. 5|https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm}}); in everyday use it means: model your API as <dfn id="d-resource">resources</dfn> (things with an identity: a chat, a message), give each a URL, and let the HTTP method say what to do with it. Very few APIs follow Fielding's full definition; what pros copy is the convention, as written down in public style guides such as {{Zalando's RESTful API guidelines|https://opensource.zalando.com/restful-api-guidelines/}} and {{Google's AIPs|https://google.aip.dev/121}}.</p>
+<div class="tw"><table>
+<thead><tr><th>Rule</th><th>Good</th><th>Avoid</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Nouns, plural collections</td><td><code>POST /v1/chats</code></td><td><code>POST /v1/createChat</code></td><td>The method is already the verb; one URL per thing (Zalando #134 "MUST pluralize resource names")</td></tr>
+<tr><td>Nest only real ownership, one level</td><td><code>/v1/chats/{id}/messages</code></td><td><code>/v1/users/{u}/chats/{c}/messages/{m}/feedback</code></td><td>Deep paths force clients to know every parent ID</td></tr>
+<tr><td>Opaque, prefixed, string IDs</td><td><code>chat_ae8136d1b896</code></td><td><code>17</code></td><td>Sequential numbers leak your volume and invite guessing other users' IDs; strings survive JavaScript</td></tr>
+<tr><td>Lower case, hyphens in paths, one case style for JSON fields</td><td><code>/v1/api-keys</code>, <code>created_at</code></td><td><code>/v1/APIKeys</code>, mixed <code>createdAt</code> and <code>created_at</code></td><td>Consistency is the whole point (Zalando #129 "MUST use kebab-case for path segments")</td></tr>
+<tr><td>Actions that are not CRUD: a sub-resource or a custom method</td><td><code>POST /v1/chats/{id}/messages/{m}/cancel</code> or Google style <code>POST /v1/messages/{m}:cancel</code></td><td><code>GET /v1/cancel?msg=...</code></td><td>A GET must be safe: crawlers, previews and caches send GETs freely ({{AIP-136|https://google.aip.dev/136}})</td></tr>
+<tr><td>Return the created object, with 201 and Location</td><td>Captured above</td><td>200 with <code>{"ok": true}</code></td><td>Saves the client a second request, and shows server-set fields (ID, timestamps)</td></tr>
+</tbody></table></div>
+<p><b>PUT or PATCH?</b> PUT replaces the whole resource with the body you send, so sending it twice is harmless (idempotent). PATCH sends only what changes; with a JSON merge patch ({{RFC 7396|https://www.rfc-editor.org/rfc/rfc7396.html}}) <code>{"title": "Trips 2027"}</code> changes the title and leaves the rest. Most JSON APIs use PATCH for edits and POST for creation, and simply do not offer PUT.</p>
+<p class="small mute">Why does a chat API with an LLM behind it still use CRUD resources? Because the expensive call (the model) hangs off an ordinary resource: a message is created, stored, billed and listed like any other row. Treating "generate" as a create on <code>messages</code> gives you storage, idempotency and pagination for free.</p>
+</section>
+
+<section id="s-err">
+<h2>7. Errors: a contract of their own</h2>
+<p>A client's code has to decide, for every failure: show the user a message? retry? give up? ask for a new login? It can only decide if errors are machine-readable and stable. Three layers, from coarse to fine:</p>
+<ol>
+<li><b>The status code</b> says whose fault and whether to retry (the table in <a href="#s-http">section 2</a>).</li>
+<li><b>A stable, documented error type</b> says exactly what happened: <code>idempotency-key-reused</code>, <code>rate-limited</code>, <code>context_length_exceeded</code>. Clients switch on it, so it is append-only: never rename or reuse one.</li>
+<li><b>Human text</b> for the developer reading logs, never parsed by code, free to improve.</li>
+</ol>
+<p>Plus a <dfn id="d-reqid">request ID</dfn>: a unique ID for every request, returned in a header and in error bodies, and written into your logs, so that "it failed" in a support ticket becomes one log search. Anthropic returns it as the <code>request-id</code> header and a <code>request_id</code> field ({{Claude API errors|https://platform.claude.com/docs/en/api/errors}}); OpenAI as <code>x-request-id</code> ({{OpenAI API reference|https://developers.openai.com/api/reference/overview}}). (The demo omits it to keep the captures short; the {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}} page owns request and trace IDs.)</p>
+<h3>RFC 9457 problem details: the standard shape</h3>
+<p>{{RFC 9457 (July 2023, obsoletes RFC 7807)|https://www.rfc-editor.org/rfc/rfc9457.html}} defines one JSON error shape with media type <code>application/problem+json</code> and five standard members:</p>
+<div class="tw"><table>
+<thead><tr><th>Member</th><th>RFC 9457's definition</th><th>In the demo</th></tr></thead>
+<tbody>
+<tr><td><code>type</code></td><td>"a URI reference that identifies the problem type" (the stable code; ideally a page documenting it). Default <code>about:blank</code>: "no additional semantics beyond that of the HTTP status code"</td><td><code>https://chat.example.com/problems/rate-limited</code></td></tr>
+<tr><td><code>status</code></td><td>the HTTP status code, repeated for convenience</td><td><code>429</code></td></tr>
+<tr><td><code>title</code></td><td>"a short, human-readable summary of the problem type"</td><td><code>Too many requests.</code></td></tr>
+<tr><td><code>detail</code></td><td>"a human-readable explanation specific to this occurrence"</td><td><code>Retry in 1 s.</code></td></tr>
+<tr><td><code>instance</code></td><td>"a URI reference that identifies the specific occurrence"</td><td>(a request ID would go here)</td></tr>
+</tbody></table></div>
+<p>Anything else is an <dfn>extension member</dfn>, such as the <code>errors</code> array with pointers in the validation example. Zalando makes it a rule ("#176 MUST support problem JSON"). The big LLM providers predate it and use their own shapes, which carry the same three layers:</p>
+<div class="grid">
+<div><div class="small mute">Anthropic (from its docs, fetched 2026-10-04)</div><div class="raw">{
+  "type": "error",
+  "error": {
+    "type": "not_found_error",
+    "message": "The requested resource could not be found."
+  },
+  "request_id": "req_011CSHoEeqs5C35K2UUqR7Fy"
+}</div></div>
+<div><div class="small mute">The demo's 404 (captured)</div><div class="raw" data-body="get_missing"></div></div>
+</div>
+<p class="small mute">Anthropic's types include <code>invalid_request_error</code> (400), <code>authentication_error</code> (401), <code>permission_error</code> (403), <code>not_found_error</code> (404), <code>conflict_error</code> (409), <code>request_too_large</code> (413), <code>rate_limit_error</code> (429), <code>api_error</code> (500), <code>timeout_error</code> (504) and <code>overloaded_error</code> (529, a non-standard code); its docs warn that "the <code>type</code> values will grow over time", so a client must handle types it does not know. OpenAI's errors carry <code>message</code>, <code>type</code>, <code>param</code> and <code>code</code> inside an <code>error</code> object <span class="uncf">(shape from the old page, not re-fetched)</span>.</p>
+<div class="cost"><div class="t">Rules pros follow</div>
+<ul>
+<li><b>Say whether to retry.</b> 429 and 503 with <code>Retry-After</code> mean "yes, later"; 400 and 422 mean "no". Stripe goes further with a <code>Stripe-Should-Retry</code> header for cases the status alone cannot settle ({{Stripe, advanced error handling|https://docs.stripe.com/error-low-level}}).</li>
+<li><b>Never leak internals.</b> No stack traces, SQL, file paths or library versions in responses; log them under the request ID instead.</li>
+<li><b>404, not 403, for other people's objects.</b> Answering "forbidden" confirms the chat exists.</li>
+<li><b>One shape for every error</b>, including the ones your framework, proxy and load balancer generate (a gateway's HTML 502 page breaks a client that expects JSON). Install handlers for validation errors and unhandled exceptions, as the demo does.</li>
+<li><b>Errors after a 200 exist.</b> Once a stream has started, the status code is already sent; Anthropic sends an <code>error</code> event inside the stream instead ({{Claude API errors|https://platform.claude.com/docs/en/api/errors}}). See <a href="#s-sse">section 14</a>.</li>
+</ul></div>
+</section>

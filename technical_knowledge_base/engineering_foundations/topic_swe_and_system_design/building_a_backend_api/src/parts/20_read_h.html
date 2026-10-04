@@ -1,0 +1,55 @@
+
+<section id="s-ver">
+<h2>15. Versioning and backwards compatibility</h2>
+<p>You will want to change the API. Clients you cannot see depend on the current one. A <dfn id="d-breaking">breaking change</dfn> is any change after which a correct, existing client stops working or starts doing something different. The goal of versioning is simple to state: never break an existing client, and still be able to improve.</p>
+<h3>What breaks and what does not</h3>
+<div class="two">
+<div><h4>Usually safe (additive)</h4><ul class="small">
+<li>A new endpoint</li><li>A new <em>optional</em> request field with a default that keeps old behaviour</li><li>A new field in a response</li><li>A new error type or event type, <em>if</em> clients were told to expect unknown ones</li><li>Loosening validation (a longer max length)</li></ul></div>
+<div><h4>Breaking</h4><ul class="small">
+<li>Removing or renaming a field, endpoint or error type</li><li>Changing a field's type (<code>123</code> to <code>"123"</code>) or format</li><li>Making an optional field required; tightening validation</li><li>Changing a default value ({{AIP-180|https://google.aip.dev/180}}: "Changing the default value is considered breaking and must not be done")</li><li>Changing behaviour under the same shape (now charges per token instead of per message)</li></ul></div>
+</div>
+<p>The additive column only works if clients are <dfn>tolerant readers</dfn>: they ignore fields they do not know and handle unknown enum values ({{Fowler, TolerantReader|https://martinfowler.com/bliki/TolerantReader.html}}; Zalando "#108 MUST prepare clients to accept compatible API extensions"). Anthropic says so in its contract: within a version it may "add additional optional inputs", "add additional values to the output" and "add new variants to enum-like output values (for example, streaming event types)" ({{Claude API versioning|https://platform.claude.com/docs/en/api/versioning}}). Note the tension with <a href="#s-val">section 5</a>: be strict about what clients send you, and tell clients to be tolerant of what you send them. Test your judgement on 15 changes in the {{Breaking or not?|#t-break}} tab.</p>
+<h3>Four ways to version</h3>
+<div class="tw"><table>
+<thead><tr><th>Strategy</th><th>How it looks</th><th>Who uses it</th><th>Costs</th></tr></thead>
+<tbody>
+<tr><td>Major version in the path</td><td><code>/v1/chats</code>, later <code>/v2/chats</code></td><td>OpenAI (<code>/v1/</code>), Anthropic (<code>/v1/messages</code>), most public APIs</td><td>Simple and visible. A v2 is a second API to run, document and eventually retire; so v2s are rare and everything between them must be additive</td></tr>
+<tr><td>Version in a header</td><td><code>anthropic-version: 2023-06-01</code></td><td>Anthropic (required on every request)</td><td>URLs stay stable; easy to forget in a hand-written client (SDKs set it)</td></tr>
+<tr><td>Dated versions, pinned per account, with transforms</td><td><code>Stripe-Version: 2017-05-24</code></td><td>Stripe</td><td>Clients never break and upgrade one change at a time. The server keeps a transform module per change forever</td></tr>
+<tr><td>No URL versions at all; evolve compatibly, new media types if forced</td><td><code>/chats</code></td><td>Zalando ("#115 MUST not use URL versioning")</td><td>Forces discipline; a true break needs a new resource or media type</td></tr>
+</tbody></table></div>
+<div class="card" id="rd-ver-card">
+<b>How Stripe-style dated versions work: one response, walked back to each client's version</b>
+<div class="seg" id="rd-ver-seg"><button data-m="0">Client pinned to 2026-10-01</button><button data-m="1">Pinned to 2026-06-01</button><button data-m="2" class="on">Pinned to 2025-11-01</button></div>
+<div id="rd-ver-view"></div>
+<p class="small mute"><span class="ill">Illustrative</span> versions and changes on the chat API; the mechanism is Stripe's, as described by Brandur Leach ({{"APIs as infrastructure: future-proofing Stripe with versioning", 2017-08-05|https://stripe.com/blog/api-versioning}}).</p>
+</div>
+<p>Stripe's design: "The first time a user makes an API request, their account is automatically pinned to the most recent version available." Each breaking change is a small module that converts a response from the new shape to the old one; the core code only ever produces the newest shape, and the chain of modules walks it back to whatever date the caller is pinned to. A request can override with the <code>Stripe-Version</code> header. The post reports close to 100 backwards-incompatible upgrades over six years handled this way without breaking integrations. It is the gold standard and expensive; most teams should start with <code>/v1/</code> plus strictly additive changes, and add a version header when the first unavoidable break arrives.</p>
+<div class="co"><div class="t">For LLM APIs, the model is part of the contract</div>The same request to a new model gives different answers, lengths and costs. Pin exact model versions (dated snapshot names rather than moving aliases) in production, publish deprecation dates for the models you serve, and gate a model change behind your evals like any other release ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</div>
+<p class="small mute">Retiring anything: announce it with a date, return a warning while it still works (the {{Deprecation (RFC 9745)|https://www.rfc-editor.org/rfc/rfc9745.html}} and {{Sunset (RFC 8594)|https://www.rfc-editor.org/rfc/rfc8594.html}} headers exist for this), watch your logs until no one calls it, then remove it.</p>
+</section>
+
+<section id="s-oas">
+<h2>16. OpenAPI: the contract as data</h2>
+<p>An <dfn id="d-openapi">OpenAPI</dfn> document is a machine-readable description of every endpoint: paths, methods, parameters, request and response schemas, auth. FastAPI generates one from the code, served at <code>/openapi.json</code> with interactive docs at <code>/docs</code>; the demo's is OpenAPI <span data-v="openapi.version"></span>. Here is the schema it generated for the message body, straight from the pydantic model:</p>
+<div class="raw" id="rd-oas"></div>
+<p>Because the contract is data, you get from it: documentation that cannot drift from the code; <b>generated client libraries</b> in many languages ({{OpenAPI Generator|https://openapi-generator.tech/}} is the open-source standard; several API companies, LLM providers among them, generate their official SDKs from an OpenAPI spec with commercial generators); request validation at a gateway; mock servers; and <b>breaking-change checks in CI</b> that diff the new spec against the published one and fail the build if a field disappeared (tools such as oasdiff do this). Two schools: <em>code-first</em> (write FastAPI, export the spec, as here) and <em>spec-first</em> (write the spec, generate server stubs and clients); larger organisations with many teams tend to the second.</p>
+<p class="small mute">Versions: OpenAPI 3.1 aligned its schemas with JSON Schema; {{OpenAPI 3.2.0 (19 September 2025)|https://spec.openapis.org/oas/v3.2.0.html}} adds sequential and streaming media types such as <code>text/event-stream</code>, so SSE endpoints can finally be described.</p>
+</section>
+
+<section id="s-grpc">
+<h2>17. gRPC or REST, in one section</h2>
+<p><dfn id="d-grpc">gRPC</dfn> is Google's remote procedure call framework: you define services and messages in a <code>.proto</code> file (protocol buffers, a compact binary format), and generated code lets a client call a remote method like a local function. It runs over HTTP/2 and supports four call shapes: unary, server streaming, client streaming and bidirectional streaming, with deadlines built in ({{grpc.io, core concepts|https://grpc.io/docs/what-is-grpc/core-concepts/}}).</p>
+<div class="tw"><table>
+<thead><tr><th></th><th>REST with JSON</th><th>gRPC</th></tr></thead>
+<tbody>
+<tr><td>Payload</td><td>JSON text, readable with curl</td><td>Protocol buffers, binary, smaller and faster to parse</td></tr>
+<tr><td>Contract</td><td>OpenAPI, often generated after the fact</td><td><code>.proto</code> first; clients always generated</td></tr>
+<tr><td>Browsers</td><td>Native</td><td>Needs gRPC-Web and a proxy</td></tr>
+<tr><td>Streaming</td><td>SSE (server to client), WebSockets</td><td>All four directions, first class</td></tr>
+<tr><td>Typical use</td><td>Public APIs, anything a browser or third party calls</td><td>Internal service-to-service calls; model servers (Triton and others expose gRPC)</td></tr>
+<tr><td>Debugging</td><td>Any HTTP tool</td><td>Needs gRPC tools (grpcurl) and the schema</td></tr>
+</tbody></table></div>
+<p>The usual production answer is both: REST and JSON at the public edge, gRPC between internal services where many small calls make parsing cost and strict contracts pay. The compatibility rules of the previous section apply unchanged (protobuf field numbers must never be reused, AIP-180's rules are written for it). Depth on HTTP/2, gRPC, WebSockets and the agent protocols (MCP) is in {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}.</p>
+</section>
