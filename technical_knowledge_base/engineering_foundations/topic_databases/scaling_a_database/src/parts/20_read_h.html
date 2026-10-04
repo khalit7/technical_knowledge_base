@@ -1,0 +1,72 @@
+<section id="rd-s13">
+<h2>13. How real companies climbed, with their numbers</h2>
+<p>Each story names the rungs it used. Where the SWE topic has the story as a case file, it is linked rather than retold. Dates are publication dates; numbers are the companies' own.</p>
+<div class="stories">
+<div class="story"><h4>OpenAI: one primary, nearly 50 replicas</h4><div class="when">22 Jan 2026 <span class="rung">queries</span><span class="rung">bigger box</span><span class="rung">pooling</span><span class="rung">cache</span><span class="rung">replicas</span><span class="rung">functional split</span></div>
+<p>ChatGPT and the API run on "a single primary Azure PostgreSQL flexible server instance" with "nearly 50 read replicas across multiple geographic regions", at millions of queries per second after load grew more than 10x in a year. Write-heavy, shardable workloads moved to Azure Cosmos DB, and "we also no longer allow adding new tables". Schema changes have "a strict 5-second timeout"; PgBouncer cut connection time from 50 to 5 ms; cascading replication was being tested to go past 100 replicas. Result: "low double-digit millisecond p99" and five-nines availability, with one top-severity Postgres incident in a year (<a href="https://openai.com/index/scaling-postgresql/" target="_blank" rel="noopener noreferrer">OpenAI</a>; earlier detail in the <a href="https://www.pgevents.ca/events/pgconfdev2025/schedule/session/433/" target="_blank" rel="noopener noreferrer">PGConf.dev 2025 talk</a>).</p></div>
+<div class="story"><h4>Notion: 480 logical shards, then a re-shard</h4><div class="when">6 Oct 2021 and 17 Jul 2023 <span class="rung">sharding (application)</span></div>
+<p>Sharded by workspace id into 480 logical shards (Postgres schemas) on 32 machines, 15 each; limits they set: 500 GB per table, 10 TB per database. Migration: double-write, a backfill of about three days, verification, a five-minute cutover. In 2023, 32 machines became 96 (5 schemas each) by moving schemas with logical replication; syncing took 12 hours instead of 3 days, and users saw at most about a second's pause. The 480 shards never changed ({{Case files: notion-2021|n:3c65c17b0d0d81048ae0dd14ac399b4d}}; <a href="https://www.notion.com/blog/the-great-re-shard" target="_blank" rel="noopener noreferrer">re-shard post</a>).</p></div>
+<div class="story"><h4>Figma: up, apart, then sharded, still Postgres</h4><div class="when">4 Apr 2023 and 14 Mar 2024 <span class="rung">bigger box</span><span class="rung">functional split</span><span class="rung">sharding (proxy)</span></div>
+<p>Bigger instance first, then 50 tables moved to separate databases, then horizontal sharding of the biggest tables after "almost 100x" growth since 2020. They considered CockroachDB, TiDB, Spanner and Vitess and built their own: a DBProxy that parses SQL and routes it, "colos" of tables sharing a shard key, and logical sharding (views) before physical. First sharded table in September 2023, with about 10 seconds of partial availability ({{Case files: figma-2024|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p></div>
+<div class="story"><h4>Instagram: thousands of logical shards</h4><div class="when">2012 <span class="rung">sharding (application)</span></div>
+<p>Users split into several thousand logical shards (Postgres schemas) on a few servers; growing means moving schemas, never re-bucketing. Ids carry time, shard and sequence (section 8) ({{Case files: insta-2012|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p></div>
+<div class="story"><h4>GitHub: functional splits, Vitess for the biggest</h4><div class="when">27 Sep 2021 and 7 Dec 2023 <span class="rung">replicas</span><span class="rung">functional split</span><span class="rung">sharding (Vitess)</span></div>
+<p>Schema domains and linters, then clusters per domain (section 5). By 2023: more than 1,200 MySQL hosts, more than 300 TB, 5.5 million queries per second across more than 50 clusters, with Vitess used only for the largest areas (<a href="https://github.blog/engineering/infrastructure/upgrading-github-com-to-mysql-8-0/" target="_blank" rel="noopener noreferrer">GitHub</a>).</p></div>
+<div class="story"><h4>Slack: workspace shards, then Vitess</h4><div class="when">1 Dec 2020 <span class="rung">sharding (application, then Vitess)</span></div>
+<p>Thousands of MySQL hosts sharded by workspace by 2016, which broke down for big workspaces and cross-workspace features. Moved to Vitess: 99% of queries, 2.3 million per second at peak (2 million reads, 300,000 writes), median 2 ms, p99 11 ms (<a href="https://slack.engineering/scaling-datastores-at-slack-with-vitess/" target="_blank" rel="noopener noreferrer">Slack</a>).</p></div>
+<div class="story"><h4>Shopify: pods, and moving shops between them</h4><div class="when">2 Mar 2018 and 24 Sep 2021 <span class="rung">sharding by tenant</span><span class="rung">multi-region</span></div>
+<p>Shops grouped into pods with isolated datastores ({{Case files: shopify-2018|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). Hot shards appear anyway, because shops grow unevenly; moving shops online (batch copy plus following the binary log, the Ghostferry tool) cut the load spread between shards from about 4x to about 2x (<a href="https://shopify.engineering/mysql-database-shard-balancing-terabyte-scale" target="_blank" rel="noopener noreferrer">Shopify</a>).</p></div>
+<div class="story"><h4>Discord: partition key (channel, time bucket)</h4><div class="when">13 Jan 2017 and 6 Mar 2023 <span class="rung">a different store</span></div>
+<p>Messages in Cassandra keyed by channel and a 10-day bucket so partitions stay under 100 MB; later 177 Cassandra nodes became 72 ScyllaDB nodes, with hot channels handled by request coalescing ({{Case files: discord-2023|n:3c65c17b0d0d81048ae0dd14ac399b4d}}; wide-column design is on {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}}).</p></div>
+<div class="story"><h4>Uber: Docstore, MySQL plus Raft</h4><div class="when">23 Feb 2021 <span class="rung">distributed SQL (built in-house)</span></div>
+<p>Uber turned its Schemaless store into Docstore: partitions of 3 to 5 MySQL nodes kept consistent with Raft, tens of petabytes, tens of millions of requests per second (<a href="https://www.uber.com/blog/schemaless-sql-database/" target="_blank" rel="noopener noreferrer">Uber</a>). Most companies buy this layer instead of building it.</p></div>
+</div>
+<p>The pattern across all of them: everyone climbed the cheap rungs first; those who sharded chose a tenant-like key (workspace, user, shop, channel) and many logical shards; and the hardest part was never the router but migrating live data and rewriting the queries that crossed shards.</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Sharding before measuring</summary><div class="b">Most "the database cannot keep up" moments are a missing index, a query that should not run per request, or too many connections. Fix those (section 2); they are needed after sharding anyway.</div></details>
+<details class="mist"><summary>Expecting replicas to help with writes</summary><div class="b">Every replica replays every write. Replicas scale reads only, and their lag grows with write load (section 3).</div></details>
+<details class="mist"><summary>Reading your own write from a replica</summary><div class="b">A user saves and the page reloads without the change. Route a user's reads to the primary briefly after their write, or wait for the replica to pass the write's log position (section 3).</div></details>
+<details class="mist"><summary>Partitioning to fix a server that is full</summary><div class="b">Partitions share the server's CPU, memory and disk. Partition for retention, vacuum and archiving; shard for capacity (section 4).</div></details>
+<details class="mist"><summary>Partitioning by a column the queries do not use</summary><div class="b">Queries without the partition key read every partition and plan slower: 0.21 ms against 0.05 ms for opening a chat, measured (section 4).</div></details>
+<details class="mist"><summary>A shard key that increases (time, sequential id)</summary><div class="b">All new writes land on one shard: 100% of last week's writes on one of 8 shards, counted on the chat data (section 7).</div></details>
+<details class="mist"><summary>Routing with hash(key) mod number_of_servers</summary><div class="b">Going from 3 to 4 servers moves about 75% of the data. Use many logical shards mapped to servers, or consistent hashing (section 9).</div></details>
+<details class="mist"><summary>Forgetting the lookups that do not carry the shard key</summary><div class="b">Login by email, admin search, uniqueness of usernames: each becomes a scatter on every request unless you add a lookup table (section 8).</div></details>
+<details class="mist"><summary>Cross-shard transactions in the hot path</summary><div class="b">2PC more than doubles commit time and makes failures harder; Vitess's default is not even atomic. Design the key so a transaction stays in one shard (section 8).</div></details>
+<details class="mist"><summary>Treating "Postgres-compatible" as "Postgres"</summary><div class="b">Distributed SQL systems differ in isolation, extensions, limits (DSQL: 3,000 rows per transaction) and performance. Test your real queries and your retry logic (section 11).</div></details>
+<details class="mist"><summary>Starting the next rung too late</summary><div class="b">Sharding a live system took Notion, Figma and Slack many months. Start when the forecast shows the ceiling a year away, not when the pager does.</div></details>
+</section>
+
+<section id="rd-gl">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b>Vertical scaling</b>: a bigger machine for the same database.</div>
+<div><b>Horizontal scaling</b>: more machines, each with part of the work.</div>
+<div><b>Read replica</b>: a copy that replays the primary's log and answers reads, a little behind.</div>
+<div><b>Replication lag</b>: how far a replica is behind the primary, in time or log bytes.</div>
+<div><b>Read-your-writes</b>: a user always sees their own last write.</div>
+<div><b>Long Fork</b>: two readers see two independent writes in opposite orders.</div>
+<div><b>Partition</b>: a physical piece of one table on the same server.</div>
+<div><b>Partition pruning</b>: skipping partitions a query cannot need.</div>
+<div><b>Functional split</b> (vertical partitioning): whole tables moved to another database.</div>
+<div><b>Shard</b>: a slice of a table's rows on its own server.</div>
+<div><b>Shard key</b> (distribution column): the column that decides a row's shard.</div>
+<div><b>Router</b>: the code or proxy that maps a key to its shard.</div>
+<div><b>Scatter-gather</b> (fan-out): sending a query to every shard and merging the answers.</div>
+<div><b>Logical shard</b>: a small fixed bucket of keys; many live on one server and move as a unit.</div>
+<div><b>Co-location</b>: related tables sharded on the same key so their rows share a server.</div>
+<div><b>Reference table</b>: a small table copied to every server.</div>
+<div><b>Lookup table</b> (lookup vindex): maps a non-key column (email) to the shard key.</div>
+<div><b>Two-phase commit</b> (2PC): prepare on every server, then commit on all.</div>
+<div><b>Hot shard / hot key</b>: a shard or single key receiving far more than its share of load.</div>
+<div><b>Resharding</b>: changing the number of shards or the key; moves data.</div>
+<div><b>Range</b> (region, tablet, split): a contiguous piece of a distributed SQL table, replicated by consensus.</div>
+<div><b>Leaseholder</b>: the replica of a range that serves its reads and proposes its writes.</div>
+<div><b>Follower read</b>: a read from a nearby replica at a slightly past timestamp.</div>
+<div><b>Geo-partitioning</b>: storing and leading each row in its owner's region.</div>
+<div><b>Data residency</b>: keeping data inside a given jurisdiction.</div>
+</div>
+</section>
+</div>
