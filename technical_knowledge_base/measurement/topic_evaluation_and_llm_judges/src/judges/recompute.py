@@ -73,12 +73,13 @@ ok('RewardBench 2 top printed average 84.1', max(rb2) == 84.1)
 low_if = sum(1 for r in tsv('rewardbench2_T3')[1:] if float(r[3]) == min(float(x) for x in r[2:8]))
 out['rb2_rows_with_IF_lowest'] = '%d of %d' % (low_if, len(rb2))
 ok('Precise IF lowest domain for nearly all RewardBench 2 rows', low_if >= len(rb2) - 2, low_if)
-# EvalBiasBench per-bias sizes 24 to 34
+# EvalBiasBench per-bias sizes: 24 to 34 items in both orders, i.e. 12 to 17 pairs per bias, 80 pairs
 ok('EvalBiasBench 80 pairs = 34+28+26+24+24+24 halves', (34 + 28 + 26 + 24 + 24 + 24) == 160)
+ok('EvalBiasBench 12 to 17 pairs per bias', [x // 2 for x in (34, 28, 26, 24, 24, 24)] == [17, 14, 13, 12, 12, 12] and sum(x // 2 for x in (34, 28, 26, 24, 24, 24)) == 80)
 # LLMBar 100 natural + 319 adversarial
 ok('LLMBar 419 = 100 + 319', 100 + 319 == 419)
 # Every number written in a row's "why" text must be a reading value, a stated derived value or a size
-nums_allowed = {round(r['v'], 4) for r in D['readings']} | {round(r['v'], 3) for r in D['readings']} | {13, 24, 34} | {33, 41, 60.4, 13.5, 0.376, 0.511, 0.271, 0.875, 12.85, 13.41, 20, 14, 21, 3, 66, 55, 2026, 2023, 2024, 2025, 0.956, 10, 30, 4, 8, 5, 1, 2, 9, 32, 0.965, 0.979, 6, 2.29, 2.36, 2.28}
+nums_allowed = {round(r['v'], 4) for r in D['readings']} | {round(r['v'], 3) for r in D['readings']} | {13, 24, 34, 12, 17, 80} | {33, 41, 60.4, 13.5, 0.376, 0.511, 0.271, 0.875, 12.85, 13.41, 20, 14, 21, 3, 66, 55, 2026, 2023, 2024, 2025, 0.956, 10, 30, 4, 8, 5, 1, 2, 9, 32, 0.965, 0.979, 6, 2.29, 2.36, 2.28}
 for w in D['rows']:
     txt = re.sub(r'(GPT-|Gemini |Opus |Sonnet |Haiku |Claude |Llama |Qwen|V|K|GLM-|Flash|Pro|-)\d[\w.]*|\b\d+(x\d+)?B\b|-\d+\b', ' ', w['why'])
     for m in re.findall(r'(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?', txt):

@@ -336,7 +336,7 @@ W(id='judgebench', n='JudgeBench', sub='Hard pairs where one answer is objective
 W(id='evalbiasbench', n='EvalBiasBench', sub='Hand-written pairs that trigger six known judge biases', kind='meta', modes=['pairwise'], d='2024-07', s='offsetbias',
   size='80 pairs, each in both orders (160 items)', chance='50%', st='active',
   what='Length, concreteness, empty reference, content continuation, nested instruction and familiar knowledge: each pair is built so the biased choice is the wrong one.',
-  why='Separates judges sharply: GPT-4o 86.9%, Llama 3 70B 75.0%, but PandaLM 18.1% and Prometheus 2 near 34%. Small: 24 to 34 pairs per bias, so per-bias numbers carry wide error bars. The Judge bias lab tab goes deeper on the biases themselves.')
+  why='Separates judges sharply: GPT-4o 86.9%, Llama 3 70B 75.0%, but PandaLM 18.1% and Prometheus 2 near 34%. Small: 80 pairs, 12 to 17 per bias (24 to 34 items each once both orders are counted), so per-bias numbers carry wide error bars. The Judge bias lab tab goes deeper on the biases themselves.')
 W(id='rmbench', n='RM-Bench', sub='Reward models on subtle content changes and style bias', kind='meta', modes=['pairwise'], d='2024-10', s='rmbench',
   size='Chat, safety, code, math; normal, easy and hard settings', chance='50%', st='active',
   what='Pairs that differ in one subtle factual point, shown with the style of each side varied, so a judge that prefers style over substance fails the hard setting.',
