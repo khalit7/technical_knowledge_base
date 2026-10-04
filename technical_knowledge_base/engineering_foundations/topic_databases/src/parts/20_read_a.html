@@ -1,0 +1,29 @@
+
+<section id="rd-s1">
+<h2>1. Why not just a file</h2>
+<h3>The problem appears</h3>
+<p>Day one, the chat app keeps everything in one file, <code>chats.json</code>: the server reads it when it starts, changes it in memory, and writes the whole file back after every message. It works for you alone. Then three things go wrong, each at a different number.</p>
+<ul>
+<li><b>Two requests at once lose a write.</b> You send a message from your phone and your laptop in the same second. Both requests read the file, each adds its own message, each writes the whole file back: the second write replaces the first, and one message is gone with no error.</li>
+<li><b>A crash in the middle breaks the file.</b> The power goes out half-way through writing; the file is now half old, half new, and may not even parse.</li>
+<li><b>Every question reads everything.</b> "Show user 17's chats" means loading and scanning the whole file. At a thousand messages nobody notices; at ten million messages (a few gigabytes) every page view reads gigabytes. <span class="ill">illustrative</span></li>
+</ul>
+<h3>The idea: a database makes four promises</h3>
+<p>A <dfn id="g-dbms">database</dfn> (properly a database management system) is a separate program that owns the data and lets many clients use it at once. Your app sends it requests over a connection instead of touching files. In exchange it promises four things a file cannot:</p>
+<div class="qa">
+<div><b>Durability</b>Once it says "saved", the data survives a crash or a power cut (section 4 shows how).</div>
+<div><b>Safe concurrent access</b>Many requests at once cannot overwrite each other's work by accident (section 3).</div>
+<div><b>Queries</b>You ask a question ("user 17's chats, newest first") and it finds the answer without reading everything (sections 2 and 4).</div>
+<div><b>Constraints</b>Rules the data must always obey ("every message belongs to an existing chat", "a balance is never negative"), checked on every write.</div>
+</div>
+<h3>The relational model in plain words</h3>
+<p>Most databases you will meet first are <dfn id="g-rel">relational</dfn>: the data sits in <dfn id="g-table">tables</dfn>, one per kind of thing. A table has named <dfn id="g-col">columns</dfn> (the fields) and <dfn id="g-row">rows</dfn> (one per thing). Each row has a <dfn id="g-pk">primary key</dfn>, a value that identifies it uniquely, usually a number called <code>id</code>. A row points to a row of another table by storing that row's key: a <dfn id="g-fk">foreign key</dfn>. That pointer is the "relation". The idea is from Edgar Codd's 1970 paper ({{Codd, CACM 1970|https://dl.acm.org/doi/10.1145/362384.362685}}); its lasting point is that you describe data as tables and ask for what you want, and the system decides how to fetch it.</p>
+<p>The chat product needs four tables. Click any row: the rows it points to, and the rows that point to it, light up.</p>
+<div class="card">
+<div class="tbls" id="rd-schema"></div>
+<p class="small mute" id="rd-schema-cap">Click a row to follow its keys.</p>
+</div>
+<p>Notice what is <i>not</i> there: the message row does not repeat the user's email or name. It stores only <code>chat_id</code>; the chat stores <code>user_id</code>; the email lives once, in <code>users</code>. Section 2 explains why that matters.</p>
+<div class="cost"><div class="t">What it costs</div>A separate server to run, back up and upgrade; a network hop on every request (a fraction of a millisecond in the same data centre); and a schema (the declared tables, columns and rules) that you change through deliberate <dfn id="g-migration">migrations</dfn> rather than by editing a file. For anything more than a prototype the trade is overwhelmingly worth it. When you want the promises without a server, an <i>embedded</i> database such as SQLite runs inside your program and stores everything in one file (section 6).</div>
+<div class="deepnote"><b>Go deeper (optional):</b> type the tables above into the {{SQL playground|#t-sql}}; for the API that sits in front of the database, see {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</div>
+</section>

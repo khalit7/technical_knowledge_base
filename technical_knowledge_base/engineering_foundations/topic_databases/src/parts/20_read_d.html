@@ -1,0 +1,39 @@
+
+<section id="rd-s4">
+<h2>4. Inside the engine: pages, the log, the index, the planner</h2>
+<h3>The problem appears</h3>
+<p>The messages table reaches a million rows. Opening a chat runs "the messages of chat 42000", and on the laptop measured for this page that query read <b>19,349 pages and took 28 ms</b> <span class="meas">measured</span> to return 6 rows. Every chat opened by every user pays that, and it grows with the table. Meanwhile section 1 promised that "saved" survives a power cut, yet writing to disk is slow. Both problems are solved inside the engine, and knowing the four pieces below is what lets you read a slow query instead of guessing.</p>
+
+<h3>Pages and the buffer pool</h3>
+<p>A database does not store rows one by one. Postgres keeps every table and index as an array of fixed-size <dfn id="g-page">pages</dfn>, usually 8 KB each ({{Postgres page layout|https://www.postgresql.org/docs/current/storage-page-layout.html}}), and always reads and writes whole pages. The million-message table is 19,235 pages (157 MB) <span class="meas">measured</span>; each page holds about 52 rows. Pages in use are kept in RAM in the <dfn id="g-bufpool">buffer pool</dfn> (in Postgres, <code>shared_buffers</code>, 128 MB by default and commonly set to about a quarter of the machine's memory, {{Postgres docs|https://www.postgresql.org/docs/current/runtime-config-resource.html}}). The reason it matters: reading memory takes about 100 nanoseconds, a random read from a fast SSD about 100 microseconds, a thousand times longer (see the {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab of the system design page). Of the 19,349 page reads above, 14,435 were found in the buffer pool and 4,914 had to come from the operating system, because a 157 MB table does not fit in 128 MB.</p>
+
+<h3>The write-ahead log: how "saved" survives a crash</h3>
+<p>Writing every changed page to disk at every commit would be slow (random writes all over the disk) and still unsafe: a crash between two page writes leaves half a transaction on disk. The fix is the <dfn id="g-wal">write-ahead log</dfn> (WAL): before any data page changes on disk, a description of the change is appended to a sequential log file and forced to the disk with <dfn id="g-fsync">fsync</dfn> (the operating-system call that waits until bytes are really on stable storage). The commit is acknowledged once the log record is safe; the changed pages are written later, in bulk, at a <dfn id="g-checkpoint">checkpoint</dfn>. After a crash the database replays the log from the last checkpoint and redoes anything missing ({{Postgres WAL|https://www.postgresql.org/docs/current/wal-intro.html}}: "roll-forward recovery, also known as REDO").</p>
+<div class="card" id="rd-wal-card">
+<div class="seg" id="rd-wal-mode"><button data-m="no" class="on">Before: write pages in place</button><button data-m="wal">After: write-ahead log</button></div>
+<div class="an-ctl" id="rd-wal-ctl"></div>
+<div class="an-cnt" id="rd-wal-cnt"></div>
+<div class="rd-svg" id="rd-wal-svg"></div>
+<div class="an-cap" id="rd-wal-cap"></div>
+<p class="small mute">One transaction from section 3: save Ben's reply (a page of <code>messages</code>) and charge his credit (a page of <code>credits</code>). The power fails at the same moment in both runs. The order of events is the mechanism Postgres documents; the drawing is <span class="ill">illustrative</span>.</p>
+</div>
+<p>The log is one of the most reused ideas in data systems: the same records, shipped to another machine, keep a <dfn id="g-replica">replica</dfn> (a full copy of the database on another machine) up to date; replayed to a chosen moment, they restore a backup to that moment; read by another program, they become a stream of changes. Waiting for the fsync is the cost of durability: on this page's laptop a small write transaction took 6.3 ms with a real flush against 0.42 ms without one <span class="meas">measured</span> (the {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab has both and server SSDs, which flush far faster). Because one fsync can cover many transactions committing at once, a busy database pays it less than once per commit: with real flushes the same laptop ran 148 write transactions per second from one client and 2,133 from 32 clients <span class="meas">measured</span> (pgbench, run for the {{Database atlas|#t-atlas}}).</p>
+
+<h3>The B-tree index: a few page reads instead of all of them</h3>
+<p>An <dfn id="g-index">index</dfn> is a separate structure, kept sorted by some column, that maps each value to where its rows are, like the index at the back of a book. The default kind is the <dfn id="g-btree">B-tree</dfn>: a tree of pages, each holding hundreds of sorted keys, so even millions of rows sit only three or four levels below the root ({{Postgres B-tree|https://www.postgresql.org/docs/current/btree.html}}). Finding a value means reading one page per level, then the table pages that hold the matching rows. The animation runs the same lookup without and with <code>CREATE INDEX ON messages (chat_id)</code>.</p>
+<div class="card" id="rd-idx-card">
+<div class="seg" id="rd-idx-mode"><button data-m="seq" class="on">Before: sequential scan</button><button data-m="idx">After: B-tree index on chat_id</button></div>
+<div class="an-ctl" id="rd-idx-ctl"></div>
+<div class="an-cnt" id="rd-idx-cnt"></div>
+<div class="rd-svg" id="rd-idx-svg"></div>
+<div class="an-cap" id="rd-idx-cap"></div>
+<p class="small mute" id="rd-idx-note"></p>
+</div>
+<div class="cost"><div class="t">What an index costs</div>Every insert and update must also update every index on the table, so writes get slower with each index; indexes take space (9.3 MB here, 6% of the table <span class="meas">measured</span>); and an index only helps queries that filter or sort on its leading column. Index the columns your queries search by, measure, and drop indexes nobody uses.</div>
+
+<h3>The planner, and how to ask it what it did</h3>
+<p>Because SQL says what, not how, something must choose how. The <dfn id="g-planner">query planner</dfn> (or optimiser) considers alternative plans (scan the whole table or use an index; which table to join first; which join method) and estimates the cost of each from statistics it keeps about the data, such as row counts and common values. It runs the cheapest estimate. <dfn id="g-explain">EXPLAIN</dfn> shows the chosen plan, and <code>EXPLAIN ANALYZE</code> runs it and adds the real row counts and times ({{Using EXPLAIN|https://www.postgresql.org/docs/current/using-explain.html}}). For the lookup above it prints <code>Index Scan using messages_chat_idx on messages ... (actual rows=6)</code> with <code>Buffers: shared hit=12</code>.</p>
+<p>The planner goes wrong when its estimates do: statistics that are stale after a bulk load, or two columns that are correlated (city and country) when it assumes they are independent. The habit that finds the problem is to compare estimated rows with actual rows at each step of the plan; the lowest step where they diverge badly is where to look.</p>
+<div class="cost"><div class="t">What the planner costs</div>Planning takes time on every query (a fraction of a millisecond for simple ones; prepared statements reuse plans), and a plan that was right yesterday can go wrong after the data changes. You trade control for convenience: most of the time that is a good trade.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> real plans for real queries on a 10-million-message table, with estimates against actual rows, are in {{Query plans|#t-plan}}; the families of storage engines (B-tree against LSM-tree) are compared in {{Database atlas|#t-atlas}}; a child page on storage engines, indexes and the planner is coming.</div>
+</section>

@@ -1,0 +1,71 @@
+
+<section id="rd-pro">
+<h2>How a pro chooses, in one list</h2>
+<div class="reason">
+<p><b>1. Start with one Postgres and a normalised schema</b> with keys and constraints, so the database refuses bad data whichever code path sends it (sections 1 and 2).</p>
+<p><b>2. Put every check-then-change inside one statement or one short transaction</b>: a conditional <code>UPDATE ... WHERE balance &gt; 0</code> first, a row lock or serializable-with-retry when the rule spans rows; never hold a transaction open across a model call (section 3).</p>
+<p><b>3. Index for the queries you actually run, and read the plan</b>: <code>EXPLAIN (ANALYZE, BUFFERS)</code>, estimated against actual rows, pages read (section 4).</p>
+<p><b>4. Move analytics off the app database</b> into a column store fed from it, and accept that it lags (section 5).</p>
+<p><b>5. Add a family only for a measured problem</b>, and write down what it costs: the copy, its lag, its staleness and who runs it (section 6).</p>
+<p><b>6. Treat the shard key and the partition key as permanent</b>; everything else can be migrated (section 7).</p>
+<p><b>7. Keep embeddings next to the rows they describe</b> until a measurement says otherwise (section 8).</p>
+<p><b>8. Trust, but test</b>: restore a backup on a schedule, and read what independent testers such as Jepsen found about the systems you run.</p>
+</div>
+</section>
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<p class="small mute">Every term this page introduces, in the order it appears; each links to where it is explained.</p>
+<div class="gl">
+<div><b><a href="#g-dbms">Database</a></b>: a program that owns data and lets many clients store and query it safely.</div>
+<div><b><a href="#g-rel">Relational</a></b>: data as tables linked by keys, queried with SQL.</div>
+<div><b><a href="#g-table">Table</a>, <a href="#g-row">row</a>, <a href="#g-col">column</a></b>: one table per kind of thing, one row per thing, one column per field.</div>
+<div><b><a href="#g-pk">Primary key</a></b>: the value that identifies a row uniquely.</div>
+<div><b><a href="#g-fk">Foreign key</a></b>: a column holding another row's primary key; the link between tables.</div>
+<div><b><a href="#g-migration">Migration</a></b>: a deliberate, versioned change to the schema.</div>
+<div><b><a href="#g-sql">SQL</a></b>: the language of relational databases.</div>
+<div><b><a href="#g-declarative">Declarative</a></b>: describing the result, not the steps.</div>
+<div><b><a href="#g-join">JOIN</a></b>: combining rows of two tables whose keys match.</div>
+<div><b><a href="#g-groupby">GROUP BY</a></b>: one result row per distinct value, with aggregates such as count and sum.</div>
+<div><b><a href="#g-schema">Schema</a></b>: the declared tables, columns and rules.</div>
+<div><b><a href="#g-constraint">Constraint</a></b>: a rule checked on every write (NOT NULL, CHECK, REFERENCES, UNIQUE).</div>
+<div><b><a href="#g-anomaly">Update anomaly</a></b>: copies of one fact that disagree after a change.</div>
+<div><b><a href="#g-norm">Normalisation</a></b>: storing each fact once.</div>
+<div><b><a href="#g-denorm">Denormalisation</a></b>: copying facts on purpose to make reads faster.</div>
+<div><b><a href="#g-lostupdate">Lost update</a></b>: a write based on a stale read silently overwriting another.</div>
+<div><b><a href="#g-tx">Transaction</a></b>: reads and writes treated as one all-or-nothing unit.</div>
+<div><b><a href="#g-acid">ACID</a></b>: atomic, consistent, isolated, durable.</div>
+<div><b><a href="#g-isolation">Isolation level</a></b>: how much concurrent transactions may see of each other; read committed, repeatable read, serializable.</div>
+<div><b><a href="#g-writeskew">Write skew</a></b>: two transactions each valid alone, breaking a rule together.</div>
+<div><b><a href="#g-mvcc">MVCC</a></b>: keeping several versions of a row so readers and writers do not block each other.</div>
+<div><b><a href="#g-deadlock">Deadlock</a></b>: two transactions waiting on each other's locks; the database aborts one.</div>
+<div><b><a href="#g-page">Page</a></b>: the fixed-size block (8 KB in Postgres) data is stored and read in.</div>
+<div><b><a href="#g-bufpool">Buffer pool</a></b>: the database's cache of pages in RAM.</div>
+<div><b><a href="#g-wal">Write-ahead log (WAL)</a></b>: changes appended to a log and flushed before data pages change; replayed after a crash.</div>
+<div><b><a href="#g-fsync">fsync</a></b>: the call that waits until written bytes are on stable storage.</div>
+<div><b><a href="#g-checkpoint">Checkpoint</a></b>: writing changed pages to the data files so the log can be trimmed.</div>
+<div><b><a href="#g-replica">Replica</a></b>: a full copy of the database on another machine, kept current from the log.</div>
+<div><b><a href="#g-index">Index</a></b>: a sorted structure mapping values to the rows that hold them.</div>
+<div><b><a href="#g-btree">B-tree</a></b>: the default index: a shallow tree of pages of sorted keys.</div>
+<div><b><a href="#g-planner">Query planner</a></b>: the part that chooses how to run a query from cost estimates.</div>
+<div><b><a href="#g-explain">EXPLAIN</a></b>: shows the chosen plan; with ANALYZE, the real counts and times.</div>
+<div><b><a href="#g-oltp">OLTP</a></b>: many small reads and writes of whole rows; what apps do.</div>
+<div><b><a href="#g-olap">OLAP</a></b>: few large scans and aggregates over a few columns; what analytics does.</div>
+<div><b><a href="#g-rowstore">Row store</a> / <a href="#g-colstore">column store</a></b>: rows kept together, or each column kept together.</div>
+<div><b><a href="#g-parquet">Parquet</a></b>: an open, compressed, column-oriented file format.</div>
+<div><b><a href="#g-duckdb">DuckDB</a></b>: an in-process, column-oriented analytical database.</div>
+<div><b><a href="#g-lakehouse">Lakehouse</a></b>: Parquet files on object storage plus a table format that several engines share.</div>
+<div><b><a href="#g-partkey">Partition key</a></b>: the column that decides which machine holds a row in a wide-column store.</div>
+<div><b><a href="#g-inverted">Inverted index</a></b>: word to the documents that contain it.</div>
+<div><b><a href="#g-bm25">BM25</a></b>: the standard formula for ranking documents by the words they share with a query.</div>
+<div><b><a href="#g-embedding">Embedding</a></b>: a list of numbers a model produces so that similar meanings land close together.</div>
+<div><b><a href="#g-cache">Cache</a></b>: a fast store holding copies of answers already computed.</div>
+<div><b><a href="#g-ttl">TTL</a></b>: time to live; when a cached entry expires.</div>
+<div><b><a href="#g-shard">Sharding</a></b>: splitting data across machines by a shard key.</div>
+<div><b><a href="#g-rag">RAG</a></b>: retrieving relevant passages and putting them in the model's prompt.</div>
+<div><b><a href="#g-ann">ANN</a></b>: approximate nearest-neighbour search: fast, slightly inexact.</div>
+<div><b><a href="#g-recall">Recall</a></b>: the share of the true nearest neighbours an ANN search returns.</div>
+<div><b><a href="#g-hnsw">HNSW</a></b>: a layered graph index for ANN search.</div>
+<div><b><a href="#g-pgvector">pgvector</a></b>: the Postgres extension for vector columns and ANN indexes.</div>
+<div><b><a href="#g-featurestore">Feature store</a></b>: an offline history store plus an online latest-value store for model features.</div>
+</div>
+</section>

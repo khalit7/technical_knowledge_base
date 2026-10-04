@@ -1,0 +1,340 @@
+[
+ {
+  "id": "pg_tps",
+  "claim": "A single modern Postgres node handles low tens of thousands of transactions per second and comfortably holds several terabytes.",
+  "verdict": "corrected",
+  "finding": "True for reads, too strong as a blanket statement for writes. Measured for this page (pgbench tpcb-like: 3 updates, 1 select, 1 insert per transaction, PostgreSQL 16.2, 5M account rows, Apple M1 Pro laptop, 4 Oct 2026): 1,045 transactions/s with 1 client, 5,759 with 8 and 9,212 with 32 using macOS's default flush (which does not force the drive cache); with a real flush (fsync_writethrough) 148, 715 and 2,133. The same laptop answers 65,098 indexed reads/s with 8 clients (Topic: swe-and-system-design measurement). PlanetScale's own benchmark (vendor) reports about 18,000 queries/s for a TPCC-like read and write mix on 4 vCPUs and 32 GB with local NVMe. Server SSDs with power-loss protection flush far faster than a laptop, so tens of thousands of small write transactions per second is reachable on server hardware, but it depends on the transaction's size and the disk's flush latency.",
+  "now": "One Postgres server handles thousands to tens of thousands of small write transactions per second, depending on how much each transaction does and how fast the disk flushes, and many more simple reads.",
+  "src": [
+   {
+    "t": "measure_tps.py result (inputs/pg_tps.json), measured 2026-10-04",
+    "u": "https://www.postgresql.org/docs/current/pgbench.html"
+   },
+   {
+    "t": "PlanetScale, Benchmarks vs Amazon Aurora (vendor)",
+    "u": "https://planetscale.com/benchmarks/aurora"
+   },
+   {
+    "t": "PostgreSQL docs: WAL configuration, wal_sync_method",
+    "u": "https://www.postgresql.org/docs/current/wal-configuration.html"
+   }
+  ],
+  "rows": [
+   "postgresql"
+  ]
+ },
+ {
+  "id": "vec_bytes",
+  "claim": "A float32 vector at 1536 dimensions is about 6 KB, so 100M vectors is roughly 600 GB before the index.",
+  "verdict": "verified",
+  "finding": "1536 dimensions x 4 bytes = 6,144 bytes; pgvector stores each vector in 4 x dimensions + 8 bytes = 6,152 bytes (pgvector README). 100M x 6,152 bytes = 615 GB (573 GiB) before any index. halfvec (2 bytes per dimension) halves it to about 308 GB.",
+  "now": "",
+  "src": [
+   {
+    "t": "pgvector README, Vector type storage",
+    "u": "https://github.com/pgvector/pgvector#vector-type"
+   }
+  ],
+  "rows": [
+   "pgvector"
+  ]
+ },
+ {
+  "id": "pgv_10m",
+  "claim": "Under roughly 10M vectors, pgvector next to your existing data wins on operational simplicity.",
+  "verdict": "unconfirmed",
+  "finding": "No primary source states a 10M threshold; it is a rule of thumb. The arithmetic behind it: at 1536 dimensions, 10M float32 vectors are 61.5 GB before the HNSW graph, which is about where the index stops fitting in the memory of an ordinary database server (pgvector's HNSW builds fastest when the graph fits in maintenance_work_mem). Evidence pushes the line higher: Tiger Data (vendor, June 2024) reports Postgres with pgvector and pgvectorscale serving 50M 768-dimension vectors at 99% recall with lower p95 latency than Pinecone's s1 pods. Treat 10M as where to start measuring, not a measured crossover.",
+  "now": "pgvector is the simple choice until the index no longer fits comfortably in one server's memory or filtered queries lose recall; at 1536 dimensions that starts around tens of millions of vectors, and halfvec or quantisation moves the line.",
+  "src": [
+   {
+    "t": "pgvector README, HNSW index build",
+    "u": "https://github.com/pgvector/pgvector#hnsw"
+   },
+   {
+    "t": "Tiger Data blog, pgvector is now as fast as Pinecone at 75% less cost (vendor, 2024-06-11)",
+    "u": "https://www.tigerdata.com/blog/pgvector-is-now-as-fast-as-pinecone-at-75-less-cost"
+   }
+  ],
+  "rows": [
+   "pgvector",
+   "qdrant",
+   "pinecone"
+  ]
+ },
+ {
+  "id": "pg_iso",
+  "claim": "Read committed (the Postgres default) still allows non-repeatable reads, lost updates and write skew; repeatable read and snapshot isolation stop most of that but not write skew; serialisable stops everything.",
+  "verdict": "verified",
+  "finding": "PostgreSQL 18 docs: \"Read Committed is the default isolation level\". Table 13.1 lists nonrepeatable reads, phantoms and serialization anomalies as possible under Read Committed; under Repeatable Read only serialization anomalies remain (write skew is one), and a Repeatable Read transaction that tries to update a row changed concurrently fails with \"could not serialize access due to concurrent update\", which is what stops lost updates. \"The Repeatable Read isolation level is implemented using a technique known ... as Snapshot Isolation.\"",
+  "now": "",
+  "src": [
+   {
+    "t": "PostgreSQL 18 docs, 13.2 Transaction Isolation",
+    "u": "https://www.postgresql.org/docs/current/transaction-iso.html"
+   }
+  ],
+  "rows": [
+   "postgresql"
+  ]
+ },
+ {
+  "id": "vitess",
+  "claim": "Vitess is sharded MySQL behind a proxy, which is how YouTube and Slack scaled.",
+  "verdict": "verified",
+  "finding": "Vitess docs: \"Vitess was created in 2010 to solve the MySQL scalability challenges that the team at YouTube faced.\" Slack Engineering (1 Dec 2020): \"we are sitting at 99% of all Slack MySQL traffic having been migrated to Vitess.\"",
+  "now": "",
+  "src": [
+   {
+    "t": "Vitess docs, History",
+    "u": "https://vitess.io/docs/overview/history/"
+   },
+   {
+    "t": "Slack Engineering, Scaling Datastores at Slack with Vitess (2020-12-01)",
+    "u": "https://slack.engineering/scaling-datastores-at-slack-with-vitess/"
+   }
+  ],
+  "rows": [
+   "vitess"
+  ]
+ },
+ {
+  "id": "spanner",
+  "claim": "Spanner buys strict consistency by paying commit-wait latency against TrueTime bounds.",
+  "verdict": "verified",
+  "finding": "Spanner paper (OSDI 2012), section 4.1.2: the coordinator leader waits until TrueTime guarantees the commit timestamp has passed (\"commit wait\") before making the write visible, which gives external consistency (Google's name for linearizable transactions); the expected wait is about twice the clock uncertainty.",
+  "now": "",
+  "src": [
+   {
+    "t": "Corbett et al., Spanner: Google's Globally-Distributed Database, OSDI 2012",
+    "u": "https://static.googleusercontent.com/media/research.google.com/en//archive/spanner-osdi2012.pdf"
+   }
+  ],
+  "rows": [
+   "spanner"
+  ]
+ },
+ {
+  "id": "duckdb_aws",
+  "claim": "In August 2026 AWS bought DuckLabs, the Amsterdam company behind DuckDB, while explicitly not acquiring the open-source project: DuckDB stays MIT-licensed under the independent DuckDB Foundation, and Hannes Muhleisen and Mark Raasveldt continue to lead the team and the technical direction.",
+  "verdict": "verified",
+  "finding": "Amazon (26 Aug 2026): \"We are not acquiring the DuckDB open source project, which will remain free and open source under the independent DuckDB Foundation ... and available under the MIT license\"; Muhleisen and Raasveldt \"will continue leading the team and the open source project's technical direction.\" Two precisions: 26 August was the signed agreement, and DuckLabs reports the process \"concluded successfully on Aug 31, 2026\"; the company was founded as DuckDB Labs in 2021 and renamed DuckLabs on 27 May 2026, so DuckLabs is the current name. The DuckDB licence file shows no change (MIT).",
+  "now": "AWS agreed to buy DuckLabs (formerly DuckDB Labs) on 26 August 2026, completed 31 August; DuckDB itself stays MIT-licensed, owned by the DuckDB Foundation.",
+  "src": [
+   {
+    "t": "About Amazon, AWS to acquire DuckLabs (2026-08-26)",
+    "u": "https://www.aboutamazon.com/news/company-news/aws-ducklabs"
+   },
+   {
+    "t": "DuckLabs, DuckLabs to join AWS (2026-08-26, updated)",
+    "u": "https://ducklabs.com/news/2026/08/26/ducklabs-to-join-aws"
+   },
+   {
+    "t": "DuckLabs, DuckDB Labs becomes DuckLabs (2026-05-27)",
+    "u": "https://ducklabs.com/news/2026/05/27/duckdb-labs-becomes-ducklabs.html"
+   },
+   {
+    "t": "duckdb.org, DuckLabs to join AWS (2026-08-26)",
+    "u": "https://duckdb.org/2026/08/26/ducklabs-to-join-aws.html"
+   }
+  ],
+  "rows": [
+   "duckdb"
+  ]
+ },
+ {
+  "id": "influx",
+  "claim": "InfluxDB v3 is now a Parquet and DataFusion engine.",
+  "verdict": "verified",
+  "finding": "The InfluxDB 3 README: \"powered by Apache Arrow, DataFusion, and Parquet\"; \"Storage format: Apache Parquet on object storage (S3, Azure, GCP) or local disk\". InfluxDB 3 Core and Enterprise reached general availability on 15 April 2025. Fuller wording: Arrow in memory, DataFusion to run queries, Parquet files on disk or object storage; recent writes sit in a write-ahead log and an in-memory buffer and are persisted to Parquet every ten minutes by default.",
+  "now": "",
+  "src": [
+   {
+    "t": "InfluxDB README (GitHub)",
+    "u": "https://github.com/influxdata/influxdb"
+   },
+   {
+    "t": "InfluxData, InfluxDB 3 Core and Enterprise GA (2025-04-15)",
+    "u": "https://www.influxdata.com/blog/influxdb-3-oss-ga/"
+   }
+  ],
+  "rows": [
+   "influxdb3"
+  ]
+ },
+ {
+  "id": "qdrant",
+  "claim": "Qdrant evaluates the filter during graph traversal rather than before or after it.",
+  "verdict": "verified",
+  "finding": "Qdrant's Filtrable HNSW article (24 Nov 2019) applies the filter to the nodes visited in the greedy graph search and adds extra edges per category so filtered parts of the graph stay connected; the indexing docs say HNSW is modified so \"Qdrant [can] use filters during a search\". Nuance: when a filter matches very few points, the query planner skips the graph and does a full scan over the matching points (full_scan_threshold), which is effectively filter-first.",
+  "now": "Qdrant applies the filter while walking the HNSW graph, and switches to a direct scan of the matching points when the filter is very selective.",
+  "src": [
+   {
+    "t": "Qdrant, Filtrable HNSW (2019-11-24)",
+    "u": "https://qdrant.tech/articles/filterable-hnsw/"
+   },
+   {
+    "t": "Qdrant docs, Indexing",
+    "u": "https://qdrant.tech/documentation/concepts/indexing/"
+   }
+  ],
+  "rows": [
+   "qdrant",
+   "pgvector"
+  ]
+ },
+ {
+  "id": "tpuf",
+  "claim": "Turbopuffer keeps vectors on object storage behind an SSD cache, trading a few milliseconds of latency for roughly an order of magnitude less cost per stored vector.",
+  "verdict": "corrected",
+  "finding": "Architecture verified: data lives in object storage and is cached on NVMe SSD after the first query. Latency corrected: Turbopuffer's docs give p50 14 ms for a cached query on 1M documents but p50 874 ms for the first, cold query that reads object storage, so the trade is \"slow first query\", not a few milliseconds. Cost is a vendor claim: the founder's post (2024-07-08, updated 2026-03-05) prices RAM at \"$2+ per GB\", replicated SSD at \"$0.6 per GB\", object storage at \"$0.02 per GB\" plus SSD cache at \"$0.1 per GB\", concluding \"up to 100x cheaper than memory for cold storage, and 6-20x cheaper for warm storage\"; the homepage says \"10x cheaper\". No independent cost comparison found.",
+  "now": "Turbopuffer stores vectors in object storage with an SSD cache: warm queries take tens of milliseconds (p50 14 ms on 1M documents), a cold first query close to a second (p50 874 ms); the vendor claims 6 to 20 times cheaper than RAM-based stores for warm data.",
+  "src": [
+   {
+    "t": "Turbopuffer docs, Architecture",
+    "u": "https://turbopuffer.com/docs/architecture"
+   },
+   {
+    "t": "Turbopuffer blog, turbopuffer (founder post, vendor)",
+    "u": "https://turbopuffer.com/blog/turbopuffer"
+   }
+  ],
+  "rows": [
+   "turbopuffer"
+  ]
+ },
+ {
+  "id": "prom",
+  "claim": "Prometheus is deliberately a single node with local storage, so long retention means putting a remote-storage layer behind it.",
+  "verdict": "verified",
+  "finding": "Prometheus storage docs: local storage \"is not clustered or replicated\" and \"should be managed like any other single node database\"; \"Instead of trying to solve clustered storage in Prometheus itself, Prometheus offers a set of interfaces that allow integrating with remote storage systems.\"",
+  "now": "",
+  "src": [
+   {
+    "t": "Prometheus docs, Storage",
+    "u": "https://prometheus.io/docs/prometheus/latest/storage/"
+   }
+  ],
+  "rows": [
+   "prometheus",
+   "victoriametrics",
+   "thanos_mimir"
+  ]
+ },
+ {
+  "id": "thanos",
+  "claim": "Thanos, Mimir and Cortex all ship Prometheus's immutable blocks into object storage.",
+  "verdict": "corrected",
+  "finding": "True for Thanos in sidecar mode: \"All data is uploaded as it is created by the Prometheus server/storage engine\" (Thanos design doc). Not true for Mimir and Cortex: Prometheus sends them samples by remote write, and their own ingesters build Prometheus-format blocks and upload those to object storage (every two hours by default, Mimir docs). Thanos Receive works the same way as Mimir.",
+  "now": "Thanos (sidecar) uploads Prometheus's own blocks; Mimir and Cortex receive samples by remote write and write the same block format to object storage themselves.",
+  "src": [
+   {
+    "t": "Thanos, Design",
+    "u": "https://thanos.io/tip/thanos/design.md/"
+   },
+   {
+    "t": "Grafana Mimir docs, Ingester",
+    "u": "https://grafana.com/docs/mimir/latest/references/architecture/components/ingester/"
+   },
+   {
+    "t": "Cortex docs, Blocks storage",
+    "u": "https://cortexmetrics.io/docs/blocks-storage/"
+   }
+  ],
+  "rows": [
+   "thanos_mimir"
+  ]
+ },
+ {
+  "id": "ddb",
+  "claim": "DynamoDB: per-item ACID, single-digit millisecond access at any scale.",
+  "verdict": "corrected",
+  "finding": "Single items are atomic and durable on return, but DynamoDB has had multi-item transactions since November 2018: TransactWriteItems and TransactGetItems cover up to 100 items in one Region and are serializable against single-item operations (read committed against Query and Scan). Reads are eventually consistent by default; strongly consistent reads are an option (not on global secondary indexes). \"Single-digit millisecond\" is AWS's own performance claim, not an independent measurement.",
+  "now": "DynamoDB: atomic single items plus transactions of up to 100 items in one Region; eventually consistent reads by default, strong reads as an option.",
+  "src": [
+   {
+    "t": "DynamoDB docs, Transactions",
+    "u": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html"
+   },
+   {
+    "t": "DynamoDB docs, Read consistency",
+    "u": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html"
+   }
+  ],
+  "rows": [
+   "dynamodb"
+  ]
+ },
+ {
+  "id": "redis",
+  "claim": "Redis: single-threaded shard, async replication, gaps on failover; microsecond operations with optional weak durability.",
+  "verdict": "verified",
+  "finding": "Redis runs commands on a single thread (I/O threads can help with networking). Replication is asynchronous; the docs say Redis Cluster \"will lose writes that were acknowledged by the system to the client\" and \"WAIT does not make Redis a strongly consistent store\". Persistence (RDB snapshots, append-only file) is optional and by default an append-only file fsyncs once per second when enabled. \"Microsecond operations\" holds for the server's own work; a network round trip adds more (0.143 ms measured on the Topic: swe-and-system-design laptop).",
+  "now": "",
+  "src": [
+   {
+    "t": "Redis docs, WAIT",
+    "u": "https://redis.io/docs/latest/commands/wait/"
+   },
+   {
+    "t": "Redis docs, Scale with Redis Cluster",
+    "u": "https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/"
+   },
+   {
+    "t": "Redis docs, Persistence",
+    "u": "https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/"
+   }
+  ],
+  "rows": [
+   "redis",
+   "valkey"
+  ]
+ },
+ {
+  "id": "etcd",
+  "claim": "etcd is a small Raft-replicated key-value store for strongly consistent coordination metadata (where Kubernetes keeps cluster state), right for leader election and configuration, wrong for anything hot.",
+  "verdict": "verified",
+  "finding": "etcd's API guarantees page: operations are strictly serializable, reads linearizable by default, and a write is acknowledged only after a Raft majority has it. Kubernetes documents etcd as the backing store for all cluster data. \"Small\" is literal: the default storage quota is 2 GiB and the docs suggest at most 8 GiB.",
+  "now": "",
+  "src": [
+   {
+    "t": "etcd docs, API guarantees",
+    "u": "https://etcd.io/docs/v3.7/learning/api_guarantees/"
+   },
+   {
+    "t": "etcd docs, System limits",
+    "u": "https://etcd.io/docs/v3.7/dev-guide/limit/"
+   },
+   {
+    "t": "Kubernetes docs, Operating etcd clusters",
+    "u": "https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/"
+   }
+  ],
+  "rows": [
+   "etcd"
+  ]
+ },
+ {
+  "id": "mongo_txn",
+  "claim": "MongoDB: replica set with one primary, tunable read and write concern, sharded by shard key; multi-document transactions are a bolt-on.",
+  "verdict": "verified",
+  "finding": "MongoDB docs: single-document writes are atomic; multi-document transactions (snapshot isolation) are available for replica sets since 4.0 and sharded clusters since 4.2, and the docs advise modelling data so that most operations touch one document. Default write concern is majority (since 5.0) while the default read concern is local, so a read can return data that is later rolled back. \"Bolt-on\" is the old page's word for \"added later and meant to be the exception\".",
+  "now": "",
+  "src": [
+   {
+    "t": "MongoDB docs, Transactions",
+    "u": "https://www.mongodb.com/docs/manual/core/transactions/"
+   },
+   {
+    "t": "MongoDB docs, Write concern",
+    "u": "https://www.mongodb.com/docs/manual/reference/write-concern/"
+   },
+   {
+    "t": "MongoDB docs, Read concern",
+    "u": "https://www.mongodb.com/docs/manual/reference/read-concern/"
+   }
+  ],
+  "rows": [
+   "mongodb"
+  ]
+ }
+]

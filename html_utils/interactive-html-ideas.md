@@ -2155,3 +2155,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | CI pipeline timeline simulator (jobs, caching, cancel-in-progress) | 3 | 1 (no real CI run) | 2 | - | rejected: would be illustrative only; the dated YAML plus the rules list is enough |
 | Flakiness rate calculator (P(suite green) from N tests at p flakiness) | 3 | 2 | 4 | - | rejected: the measured strip makes the point with real data; maybe later |
 | SQLite vs PostgreSQL side-by-side query animation | 2 | 5 | 4 | - | rejected: one failing assert says it; static output kept |
+
+### Topic: databases (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/src/viz_ideas.md`.
+
