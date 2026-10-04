@@ -1,0 +1,640 @@
+Dynamic programming: planning with a known model
+Built from the page as of 2026-09-30 · policy evaluation, policy iteration and value iteration, run live on a corridor and a gridworld
+Read
+Explore
+Check
+Go further
+What it is and why it matters
+Definitions
+Policy evaluation (the prediction problem)
+Policy improvement
+Policy iteration (control, with an explicit policy)
+Value iteration (control, no explicit policy)
+Worked example: a three-state corridor
+Why it converges, and how fast
+Policy iteration vs value iteration
+Cost, scale and asynchronous DP
+Common mistakes and misconceptions
+How it connects, and why it still matters for LLM work
+What it is and why it matters
+
+Dynamic programming (DP) in reinforcement learning computes value functions and optimal policies when the full model of the environment is known: the transition probabilities P(s′ | s, a) and the expected reward R(s, a) for every state and action. Nothing is learned from interaction; the algorithms compute. That makes DP model-based planning, not learning.
+
+The idea is Bellman's: a long-horizon problem breaks into one-step pieces. A state's value is the reward now plus the discounted value of where you land. Start from a guess everywhere and apply that one-line computation, a backup, to every state, again and again. Each sweep pushes reward information one step further back, and the guesses converge to the true values.
+
+s
+new V(s)
+action a₁
+action a₂
+successors s′, each weighted by P(s′ | s, a) and valued at r + γ V(s′)
+p
+p
+One backup: look at every action, every successor it can lead to, weight by probability, and combine. DP does this for every state in every sweep, using the known model.
+Why it matters, 1: the ideal
+Monte Carlo, TD, SARSA and Q-learning replace DP's exact expectation over all successors with one sampled successor. DP is what they approximate.
+Why it matters, 2: the template
+A TD target, a DQN target and PPO's value target are all reward plus discounted value of the next state: a DP backup.
+
+Two problems: prediction (how good is a given policy? policy evaluation) and control (find the best policy: policy iteration and value iteration, both iterative solutions of the Bellman optimality equation). Their model-free counterparts, SARSA and Q-learning, are on Model-free methods.
+
+Definitions
+
+An MDP (Markov decision process) is (𝒮, 𝒜, P, R, γ): states, actions, a transition model P(s′ | s, a), an expected immediate reward R(s, a), and a discount γ ∈ [0, 1]. The Markov property (the next state depends only on the current state and action) makes one-step recursion valid. Full vocabulary: RL foundations.
+
+A policy π(a | s) is the probability of action a in state s; a deterministic policy is written π(s).
+The return Gt = Rt+1 + γRt+2 + γ2Rt+3 + ... is the discounted sum of future rewards.
+State value Vπ(s): expected return from s following π. Action value Qπ(s, a): expected return taking a in s, then following π.
+Optimal value V∗(s) = max over policies of Vπ(s); an optimal policy π∗ achieves it in every state. Every finite MDP has at least one deterministic optimal policy.
+One-step lookahead (this is the step that needs the model)
+Qπ(s,a) = R(s,a) + γ 
+ 
+∑
+s′
+ P(s′ | s,a) Vπ(s′)
+s
+the current state; s′ a possible next state
+a
+an action
+R(s,a)
+expected immediate reward for taking a in s
+P(s′ | s,a)
+probability that a taken in s leads to s′
+γ
+discount factor: a reward one step later is weighted by γ
+Bellman expectation equation (a fixed policy)
+Vπ(s) = 
+ 
+∑
+a
+ π(a | s) [ R(s,a) + γ 
+ 
+∑
+s′
+ P(s′ | s,a) Vπ(s′) ]
+π(a | s)
+the policy's probability of choosing a in s
+[ ... ]
+the one-step lookahead value of action a
+Linear: one equation per state. Small problems can solve it directly, Vπ = (I − γPπ)−1 Rπ, where Pπ is the state-to-state transition matrix and Rπ the expected-reward vector under π; the inversion costs of the order of the number of states cubed.
+Bellman optimality equation (the optimal values)
+V*(s) = 
+ 
+max
+a
+ [ R(s,a) + γ 
+ 
+∑
+s′
+ P(s′ | s,a) V*(s′) ]
+maxa
+the best action replaces the average under a policy
+Nonlinear because of the max; no closed form. DP solves both equations by iteration.
+Word	Meaning
+Backup	Apply the right-hand side of a Bellman equation to one state, as an update
+Sweep	Back up every state once
+Synchronous	New values computed only from the previous sweep's values: two arrays
+In-place	Overwrite as you go, so later states already see this sweep's values: one array, usually faster, and the sweep order matters
+Policy evaluation (the prediction problem)
+
+Estimate Vπ for a given, fixed policy by turning the Bellman expectation equation into an update rule.
+
+Iterative policy evaluation
+Vk+1(s) = 
+ 
+∑
+a
+ π(a | s) [ R(s,a) + γ 
+ 
+∑
+s′
+ P(s′ | s,a) Vk(s′) ]
+Vk
+the estimate after k sweeps
+Vk+1
+the estimate after one more sweep
+others
+as in the Bellman equations
+Start with arbitrary values, usually zeros. Terminal states have value 0 and stay there.
+For every state, look one step ahead: for each action the policy may take, reward plus discounted successor values, weighted by probability.
+Set the new value to the policy-weighted average of those lookahead values.
+Repeat until the largest change in any state, maxs |Vk+1(s) − Vk(s)|, is below a small threshold θ.
+Convergence
+The backup is a γ-contraction (see Why it converges), so it converges to the unique Vπ from any start. With γ = 1 that argument is gone; convergence then needs every state to reach a terminal state eventually under π.
+Policy improvement
+
+Knowing Vπ, act greedily on it: compute every action's lookahead value Qπ(s, a) and take the best.
+
+Greedy improvement
+π′(s) = arg maxa [ R(s,a) + γ 
+ 
+∑
+s′
+ P(s′ | s,a) Vπ(s′) ] = arg maxa Qπ(s,a)
+π′
+the new, deterministic policy
+arg maxa
+the action with the largest bracket
+Policy improvement theorem
+If Qπ(s, π′(s)) ≥ Vπ(s) in every state, then Vπ′(s) ≥ Vπ(s) in every state: taking the better action once and then following π is at least as good as π, and repeating the argument at every later step only adds improvement. The greedy policy meets the premise automatically, since the best action's value is at least the policy-weighted average, which is Vπ(s). If greedy improvement changes nothing, Vπ(s) = maxa Qπ(s, a) everywhere: the Bellman optimality equation. π is already optimal.
+Policy iteration (control, with an explicit policy)
+
+Alternate evaluation (values of the current policy) and improvement (greedy on those values) until the policy stops changing.
+
+Start with an arbitrary policy (for example uniformly random) and arbitrary values.
+Evaluate: policy evaluation sweeps until the values settle (or a direct linear solve).
+Improve: replace the policy by the greedy policy on those values.
+If the policy did not change, stop: it is optimal. Otherwise evaluate again.
+
+Why it terminates. There are finitely many deterministic policies (actions to the power of states). Each improvement is at least as good everywhere and strictly better somewhere unless already optimal, so no policy repeats and the loop ends at a policy satisfying the Bellman optimality equation. It needs few outer iterations: the policy changes in whole jumps and often becomes optimal long before its values converge. There is an explicit policy throughout: the policy-flavoured member of the DP pair.
+
+Evaluation does not have to converge
+Stop evaluation after k sweeps and improve anyway: modified policy iteration, still convergent. Interleaving any amount of evaluation with any amount of improvement is generalised policy iteration (GPI). In Silver's 4 by 4 gridworld (reward of minus 1 per step, uniform random start, no discount) k = 3 sweeps already gave the optimal greedy policy. k = 1 is exactly value iteration. One catch: after a truncated evaluation, an unchanged policy is no longer proof of optimality (the values were not yet its own), so stop only when the values have also stopped changing.
+Value iteration (control, no explicit policy)
+
+Turn the Bellman optimality equation into an update rule. No policy is stored anywhere.
+
+Value iteration
+Vk+1(s) = 
+ 
+max
+a
+ [ R(s,a) + γ 
+ 
+∑
+s′
+ P(s′ | s,a) Vk(s′) ]
+Vk
+the estimate after k sweeps
+maxa
+over every action available in s
+Start with arbitrary values, usually zeros.
+For every state, compute the lookahead value of every action and keep the best.
+Repeat until the largest change in a sweep is below a threshold.
+Read off the policy once, at the end, greedily: π(s) = arg maxa of the same bracket.
+Policy evaluation sweep
+Average over actions under a fixed π. Converges to Vπ.
+Value iteration sweep
+Max over all actions. Equivalent to one evaluation sweep of the policy that is greedy on the current values. Converges to V∗.
+Intermediate values
+Before convergence, value iteration's values need not be the value of any policy at all; only the limit is, and it is the optimal policy's.
+Worked example: a three-state corridor
+A
+B
+C
+G (terminal)
+right: +10
+wall: left from A stays in A · every other move earns 0 · γ = 0.9
+Two deterministic actions, left and right. V(G) = 0 always.
+Predict: Value iteration from all zeros: after which sweep does V(A) first become non-zero?
+Reveal
+Sweep 3. Sweep 1 gives C its value (10), sweep 2 reaches B (0.9 × 10 = 9), sweep 3 reaches A (0.9 × 9 = 8.1). Synchronous value iteration moves reward back one state per sweep.
+Sweep	V(A)	V(B)	V(C)	What happened
+0	0	0	0	Initial guess
+1	0	0	10	C: right gives 10 + 0.9 × 0 = 10, left gives 0.9 × 0 = 0
+2	0	9	10	B: right gives 0.9 × 10 = 9
+3	8.1	9	10	A: right gives 0.9 × 9 = 8.1
+4	8.1	9	10	No change: converged
+
+So V∗ = (8.1, 9, 10) and the greedy policy is right everywhere. An in-place sweep in the order C, B, A converges in one sweep (C becomes 10, B sees it and becomes 9, A becomes 8.1): sweep order matters.
+
+Run the corridor yourself
+
+Every number is computed by the page's update rules. Switch method to compare synchronous, in-place and policy evaluation.
+
+Value iteration
+Value iteration, in place (C, B, A)
+Evaluate the random policy
+One more sweep
+Reset to zeros
+Sweep	V(A)	V(B)	V(C)	Greedy policy
+0	0	0	0	↔ ↔ →
+1	0	0	10	↔ → →
+2	0	9	10	→ → →
+3	8.1	9	10	→ → →
+4	8.1	9	10	→ → →
+limit	8.1	9	10	→ → →
+Backups in sweep 4 (synchronous: every state reads the previous row):
+A: max(left 0.9 × 8.1 = 7.29, right 0.9 × 9 = 8.1) = 8.1
+B: max(left 0.9 × 8.1 = 7.29, right 0.9 × 10 = 9) = 9
+C: max(left 0.9 × 9 = 8.1, right 10 + 0.9 × 0 = 10) = 10
+
+V(A) first becomes non-zero at sweep 3: the reward travels back one state per synchronous sweep.
+
+Policy iteration on the corridor
+
+Start from the uniformly random policy (left and right with probability 0.5). Evaluation backups: V(A) ← 0.45 V(A) + 0.45 V(B), V(B) ← 0.45 V(A) + 0.45 V(C), V(C) ← 0.45 V(B) + 5 (0.45 = 0.5 × 0.9; 5 = 0.5 × 10).
+
+Evaluation sweeps from zeros: (0, 0, 5), (0, 2.25, 5), (1.0125, 2.25, 6.0125), (1.4681, 3.1612, 6.0125), converging to Vπ ≈ (4.29, 5.24, 7.36).
+Improve. A: left 0.9 × 4.29 = 3.86, right 0.9 × 5.24 = 4.72. B: left 3.86, right 0.9 × 7.36 = 6.62. C: left 0.9 × 5.24 = 4.72, right 10. Right wins everywhere.
+Evaluate the new policy: (8.1, 9, 10). Improve again: nothing changes. Stop after two outer iterations.
+Truncated check: after only three sweeps, (1.0125, 2.25, 6.0125), greedy is already right everywhere (A: 2.025 against 0.91; B: 5.41 against 0.91; C: 10 against 2.025). Modified policy iteration paying off.
+Result: the optimal policy is right in every state, V∗ = (8.1, 9, 10), reached by both algorithms.
+Why it converges, and how fast
+
+Measure the distance between value functions by the largest difference in any state, ‖u − v‖∞ = maxs |u(s) − v(s)|. Let T be one full sweep of backups (expectation for a fixed π, or optimality).
+
+Both backups are γ-contractions
+‖ T u − T v ‖∞ ≤ γ ‖ u − v ‖∞
+T u
+the value function after one sweep applied to u
+‖ · ‖∞
+the largest absolute difference in any state
+By the contraction mapping theorem, sweeps converge to a unique fixed point (Vπ or V∗) from any start, at a linear rate γ.
+Error after k sweeps
+‖ Vk − V* ‖∞ ≤ γk ‖ V0 − V* ‖∞
+V0
+the starting guess
+Vk
+the estimate after k sweeps
+Sweeps needed for a target accuracy
+k ≥ 
+ln(1/ε)
+ln(1/γ)
+ε
+the target fraction of the initial error, for example 0.001
+k
+number of sweeps
+γ = 0.9, factor 1,000: 66 sweeps (0.966 ≈ 0.00096). γ = 0.99: 688. Cost grows roughly with the effective horizon 1/(1 − γ).
+A small last change does not mean you are close
+If one sweep changes no value by more than θ, then ‖Vk+1 − V∗‖∞ ≤ γθ/(1 − γ). At γ = 0.99 and θ = 0.001 the values can still be off by up to 0.099, about a hundred times the last change.
+How many sweeps?
+
+The page's formulas: sweeps needed for a given accuracy, and the error a stopping threshold can hide.
+
+discount γ
+0.900
+shrink the error by a factor of
+10
+100
+1,000
+1,000,000
+stopping threshold θ
+0.1
+0.01
+0.001
+66
+sweeps needed, ln(1/ε) / ln(1/γ) rounded up
+0.00900
+error bound hidden by a last change of θ: γθ/(1 − γ)
+10.0
+effective horizon 1/(1 − γ)
+0
+500
+1000
+0.5
+0.6
+0.7
+0.8
+0.9
+discount γ
+sweeps needed
+now
+Policy iteration vs value iteration
+	Policy iteration	Value iteration
+Flavour	Policy-based (explicit policy stored and improved)	Value-based (no explicit policy until the end)
+Model needed	Yes: model-based	Yes: model-based
+Update rule	Bellman expectation equation + greedy improvement	Bellman optimality equation directly
+Intermediate values	At every step, V corresponds to some actual policy	Intermediate V may correspond to no policy; only the final V corresponds to (the optimal) one
+Per-sweep cost	An evaluation sweep under a deterministic policy looks at one action per state: cheaper by a factor of the number of actions. Only improvement looks at all actions. But evaluation is a loop inside the outer loop	Every sweep maxes over all actions; single loop
+Typical behaviour	Few outer iterations; policy often stabilises before values fully converge	More sweeps, each simple
+Stops when	The policy does not change: exact, finite	Largest change below a threshold: approximate
+
+Both converge to the same V∗ and π∗. Neither dominates: policy iteration wins when evaluation is cheap (few actions, or an affordable linear solve); value iteration wins when states have many actions or the policy would change many times. Modified policy iteration, a handful of evaluation sweeps per improvement, sits between and is often the practical choice.
+
+Cost, scale and asynchronous DP
+
+Each backup looks at every action and every successor: full-width backups. With n states and m actions:
+
+a sweep over state values costs O(m n2);
+a sweep over action values Q(s, a) costs O(m2 n2): mn entries, each looking at mn successor pairs.
+
+Fine for medium-sized problems (Silver's slides put the limit at millions of states), but the number of states grows exponentially with the number of state variables: Bellman's curse of dimensionality. Ten variables with ten values each is already ten billion states, and even one backup can be too expensive.
+
+The curse of dimensionality
+
+States grow as values per variable to the power of the number of variables; one sweep over state values costs about m n² operations.
+
+state variables
+4
+values per variable
+10
+actions m
+4
+10,000
+states n = values^variables
+400,000,000
+operations per sweep, about m n²
+Asynchronous DP
+
+Back up states in any order rather than in full sweeps; it still converges as long as every state keeps being backed up.
+
+In-place DP: one array; each backup is immediately visible (the corridor converges in one sweep in the right order).
+Prioritised sweeping: back up the state with the largest Bellman error (how much its backup would change it) first, from a priority queue; then update its predecessors' errors, which needs the reverse dynamics.
+Real-time DP: back up only the states an agent actually visits.
+Drop the model: sample backups
+One sampled transition replaces the sum over successors; cost per backup no longer depends on the number of states. That is Model-free methods.
+Drop the table: approximate DP
+A function approximator, backed up on sampled states (fitted value iteration), leads to DQN on Deep RL.
+Common mistakes and misconceptions
+Calling DP learning. It computes from a given model; without one you need sampling methods.
+Acting greedily on V without a model. The greedy step needs the lookahead, so P and R. Model-free control uses Q(s, a) so the greedy step is a plain arg max.
+Reading intermediate value iteration values as a policy's value. They may belong to no policy.
+Trusting a small last change. A change of θ can hide an error up to γθ/(1 − γ): a hundred times θ at γ = 0.99.
+Letting policy iteration flip between equally good actions. Break ties consistently (keep the current action unless another is strictly better) or stop when the values stop changing.
+Assuming full evaluation is needed before improving. A few sweeps are usually enough; one sweep is value iteration.
+Stopping modified policy iteration on an unchanged policy alone. After a truncated evaluation the values are not yet the policy's own; also require the values to have converged.
+Using γ = 1 carelessly. No contraction; evaluation converges only if every evaluated policy eventually reaches a terminal state.
+Treating DP as obsolete. Evaluate then improve, and reward plus discounted next value, are inside every modern RL algorithm.
+How it connects, and why it still matters for LLM work
+Up the tree: Topic: rl places DP as the model-based solution of the Bellman equations whose vocabulary is on RL foundations.
+GPI is the shape of nearly every RL algorithm, including PPO for RLHF: the critic update is approximate policy evaluation, the policy-gradient step approximate policy improvement. AlphaZero is GPI with Monte Carlo tree search as the improvement operator.
+The one-step backup is the template for every target: V(s) ← r + γV(s′) is a DP backup with one sample in place of the expectation. It is the TD target, Q-learning is sampled value iteration, DQN regresses onto the same target, and GAE (generalised advantage estimation) is built from the TD errors r + γV(s′) − V(s) that PPO's critic produces.
+Token generation is an MDP with a trivial, known transition (append the token), so DP's model is available; the obstacle is the size of the state space, every possible prefix, which is why LLM RL samples instead (RL for LLMs).
+Key takeaways
+DP plans with a known model; it computes, it does not learn.
+Policy evaluation = Bellman expectation equation as an update; value iteration = Bellman optimality equation as an update.
+Policy iteration alternates evaluation and greedy improvement; the policy improvement theorem guarantees each step is no worse, and it terminates in finitely many steps.
+Evaluation can be truncated (modified policy iteration, GPI); one sweep per improvement is value iteration.
+Both backups are γ-contractions: error shrinks by at least γ per sweep, so sweeps needed grow with 1/(1 − γ), and a small last change can hide a much larger error.
+A sweep costs O(m n²): fine up to millions of states, killed by the curse of dimensionality. Sampling (model-free) and function approximation (deep RL) are the ways out.
+Every TD, DQN and PPO value target is a sampled DP backup.
+Done reading: open Explore
+Value iteration against policy iteration, on the same grid
+
+An illustrative 5 by 5 grid: +10 for entering the goal, −10 for entering the pit (both end the episode), 0 for every other move, walls block. With slip probability p the agent moves to each side of its intended direction with probability p/2. Step both algorithms, click any cell for its backup with the numbers, move the walls, change γ and the slip. Policy iteration starts with 3 evaluation sweeps per improvement (modified policy iteration); pick "to convergence" for the textbook version, or 1 to see it become value iteration.
+
+discount γ
+0.50
+slip probability
+0.00
+policy iteration: evaluation sweeps per improvement
+1
+3
+10
+to convergence
+Step
+▶ Play
+Reset to zeros
+Editing walls: click cells (done)
+Default walls
+Value iteration
+sweeps: 3 · largest change in the last sweep: 2.5 · arrows are read off greedily (· = all actions tie), no policy is stored
+0
+→
+2.5
+→
+5
+→
+10
+→
+goal
++10
+0
+·
+5
+↑
+pit
+-10
+0
+·
+0
+·
+0
+→
+2.5
+↑
+0
+←
+0
+·
+0
+·
+0
+·
+0
+·
+0
+·
+0
+·
+0
+·
+0
+·
+Policy iteration
+outer iterations: 3 · evaluation sweeps: 3 · states whose action changed: 3 · ✣ = uniform random start
+0
+→
+0.63
+→
+5
+→
+10
+→
+goal
++10
+0
+↑
+5
+↑
+pit
+-10
+0
+↑
+0
+↑
+0
+→
+0.63
+↑
+0
+←
+0
+↑
+0
+↑
+0
+→
+0
+↑
+0
+↑
+0
+↑
+0
+↑
+0
+↑
+Reading. After 3 sweeps value iteration is at most 1.25 from the optimal values in any state; policy iteration, after 3 improvements and 3 evaluation sweeps, is at most 1.875 away. Notice how value iteration's non-zero values only reach as far from the goal as the number of sweeps.
+Click any open cell to see its Bellman backup with the real numbers. "Edit walls" lets you move the walls.
+Error against the optimal values, per sweep
+
+Vertical axis: log10 of the largest error in any state, so each unit down is ten times more accurate (floored at −12). Policy iteration is counted in evaluation sweeps; once its policy is stable it keeps evaluating that policy. With evaluation to convergence it spends many sweeps per improvement, but each of those sweeps looks at one action per state, so it costs about a quarter of a value iteration sweep here (4 actions). Computed on the grid and settings above.
+
+value iteration
+policy iteration
+γ^k bound
+-10
+-5
+0
+0
+25
+50
+75
+100
+125
+150
+sweeps over all states
+log10 of largest error
+now
+The page's corridor, sweep by sweep
+
+A, B, C and a goal worth 10, γ = 0.9, exactly as in the worked example. Compare synchronous value iteration, in-place value iteration and evaluation of the random policy.
+
+Value iteration
+Value iteration, in place (C, B, A)
+Evaluate the random policy
+One more sweep
+Reset to zeros
+Sweep	V(A)	V(B)	V(C)	Greedy policy
+0	0	0	0	↔ ↔ →
+limit	8.1	9	10	→ → →
+Press "One more sweep" to see each backup with its numbers.
+
+Keep sweeping and watch the reward travel back from the goal.
+
+Which method?
+
+The page's guidance as a tree.
+
+Do you know the transition model P and reward R?
+Yes
+No
+Is the state space small enough to store and sweep (up to millions of states)?
+Yes
+No
+start over
+Section map
+
+Jump back to any part of the Read tab.
+
+1. What it is and why it matters
+Dynamic programming (DP) in reinforcement learning computes value functions and optimal policies when the full model of the environment is...
+2. Definitions
+An MDP (Markov decision process) is (𝒮, 𝒜, P, R, γ): states, actions, a transition model P(s′ | s, a), an expected immediate reward R(s,...
+3. Policy evaluation (the prediction problem)
+Estimate Vπ for a given, fixed policy by turning the Bellman expectation equation into an update rule.
+4. Policy improvement
+Knowing Vπ, act greedily on it: compute every action's lookahead value Qπ(s, a) and take the best.
+5. Policy iteration (control, with an explicit policy)
+Alternate evaluation (values of the current policy) and improvement (greedy on those values) until the policy stops changing.
+6. Value iteration (control, no explicit policy)
+Turn the Bellman optimality equation into an update rule. No policy is stored anywhere.
+7. Worked example: a three-state corridor
+So V∗ = (8.1, 9, 10) and the greedy policy is right everywhere. An in-place sweep in the order C, B, A converges in one sweep (C becomes...
+8. Why it converges, and how fast
+Measure the distance between value functions by the largest difference in any state, ‖u − v‖∞ = maxs |u(s) − v(s)|. Let T be one full sweep...
+9. Policy iteration vs value iteration
+Both converge to the same V∗ and π∗. Neither dominates: policy iteration wins when evaluation is cheap (few actions, or an affordable...
+10. Cost, scale and asynchronous DP
+Each backup looks at every action and every successor: full-width backups. With n states and m actions:
+11. Common mistakes and misconceptions
+12. How it connects, and why it still matters for LLM work
+Glossary
+
+Every term the page defines.
+
+Asynchronous DP · Backing up states in any order (in-place, prioritised sweeping, real-time DP).
+Backup · One application of a Bellman equation's right-hand side to one state, as an update.
+Curse of dimensionality · The number of states grows exponentially with the number of state variables.
+Full-width backup · A backup over every action and every successor, using the model.
+GPI · Generalised policy iteration: any interleaving of evaluation and improvement.
+In-place sweep · Values overwritten as the sweep goes; later states see new values (one array).
+MDP · Markov decision process: states, actions, transition model P(s′ | s, a), reward R(s, a), discount γ.
+Modified policy iteration · Policy iteration with evaluation truncated to k sweeps; k = 1 is value iteration.
+Policy evaluation · Computing Vπ for a fixed policy by iterating the Bellman expectation backup.
+Policy improvement · Making the policy greedy with respect to the current values via the one-step lookahead.
+Policy improvement theorem · If Qπ(s, π′(s)) ≥ Vπ(s) in every state, then π′ is at least as good as π in every state.
+Policy iteration · Alternate evaluation and greedy improvement until the policy stops changing.
+Sweep · Backing up every state once.
+Synchronous sweep · Every new value computed from the previous sweep's values (two arrays).
+Value iteration · Iterate the Bellman optimality backup (max over actions); read the policy off at the end.
+γ-contraction · A map that brings any two value functions at least a factor γ closer in the max norm.
+Flashcards
+
+Say the answer out loud, then turn the card over.
+
+What does DP assume that model-free methods do not?
+click to turn over
+‹ Prev
+Next ›
+I knew it
+Shuffle
+card 1 of 13 · 0 marked known
+Quiz
+
+Every question is answered on this page; each answer explains itself.
+
+1. Synchronous value iteration on the corridor starts from zeros. After two sweeps the values of (A, B, C) are:
+(0, 0, 10)
+(0, 9, 10)
+(8.1, 9, 10)
+(4.29, 5.24, 7.36)
+2. Policy iteration's evaluation is stopped after 3 sweeps instead of running to convergence. What happens?
+It no longer converges to the optimal policy
+It still converges: this is modified policy iteration
+It becomes value iteration
+It becomes model-free
+3. Which statement about value iteration's intermediate values is correct?
+They are always the value of the current greedy policy
+They may correspond to no policy at all
+They are always below Vπ for the random policy
+They are the value of the optimal policy from sweep 1
+4. You raise γ from 0.9 to 0.99. Roughly how does the number of sweeps for the same accuracy change?
+About the same
+About twice
+About ten times
+About a hundred times
+5. Why is a policy evaluation sweep under a deterministic policy cheaper than a value iteration sweep?
+It skips terminal states
+It looks at one action per state instead of all m
+It does not need the model
+It uses sampled transitions
+6. Policy iteration keeps reporting that the policy changed, though the values stopped improving. Most likely cause?
+γ is too small
+Ties in the arg max are broken arbitrarily between equally good actions
+The model is wrong
+Evaluation is truncated
+7. Which is the sampled, model-free counterpart of value iteration?
+SARSA
+Monte Carlo evaluation
+Q-learning
+REINFORCE
+8. In LLM RL the transition model (append the token) is known. Why is DP still not used?
+The reward is unknown
+The state space, every possible prefix, is far too large to sweep
+DP needs γ = 1
+Tokens are not Markov
+Score: 0 of 0 answered (8 questions)
+Reset quiz
+
+Optional. Everything needed to understand this page is in Read and Explore; these go deeper.
+
+External resources
+David Silver's UCL course, Lecture 3 "Planning by Dynamic Programming" · 1h 30m
+The clearest walkthrough of policy iteration vs value iteration, with the gridworld demo.
+Sutton & Barto, Chapter 4 "Dynamic Programming" · 45 min
+Includes the proof sketches (policy improvement theorem, contraction).
+GridWorld: DP demo (Karpathy's REINFORCEjs) · about 10 min
+Interactive; watch values propagate.
+Related pages in the knowledge base
+Topic: rl
+The parent map: where DP sits among model-free, deep RL and RL for LLMs.
+RL foundations
+MDPs, V and Q, and the Bellman equations that DP solves.
+Model-free methods: Monte Carlo, TD, SARSA, Q-learning
+The same evaluate-and-improve loop with sampled backups instead of the model.
+Deep RL: from DQN to PPO to MuZero
+Function approximation replaces the table; DQN's target is a sampled value iteration backup.
+RL for LLMs: RLHF, GRPO, RLVR
+GPI at scale: PPO's critic as approximate evaluation, GAE built from TD errors.
