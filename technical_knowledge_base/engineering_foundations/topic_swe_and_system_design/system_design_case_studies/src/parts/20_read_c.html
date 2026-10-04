@@ -1,0 +1,80 @@
+<section id="s-rl">
+<h2 class="dhead"><span class="dnum">Design 2</span>Rate limiter as a service: algorithms, distributed counters, Redis Lua</h2>
+<p>A <b>rate limiter</b> caps how often one client (an API key, a user, an IP address) may call you, and rejects the excess with <code>429 Too Many Requests</code>. The algorithms themselves (fixed window, sliding window, token bucket, leaky bucket) are taught, animated on one burst of traffic, in {{Reliability engineering, Rate limiting: per-client fairness|n:3ef5c17b0d0d8152b8dececf34196174}}, and what a client sees (the 429, <code>Retry-After</code>, remaining-allowance headers) in {{Building a backend API, section 12|n:3c65c17b0d0d8190ade6c34e8f653e79}}. The design question is different: <b>many servers must enforce one limit together</b>, in well under a millisecond, without becoming the thing that takes the API down.</p>
+<div class="req"><div class="t">Requirements</div><div class="cols">
+<div><h5>Functional</h5><ul><li>Limits per API key per second and per minute, configurable per plan.</li><li>A check call: "may key K do one more request?" answering allow or deny, plus remaining allowance.</li><li>Rules change without a deploy.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>50,000 requests a second at peak across 50 gateway servers; 1 million active keys (illustrative).</li><li>Adds under 1 ms at p99.</li><li>Accuracy: a few percent over the limit is fine; 50 times over is not.</li><li>If the limiter breaks, the API must keep working (fail open).</li></ul></div></div></div>
+<div class="est" id="est-rl"></div>
+<p><b>What the numbers say.</b> One Redis node, planned at half its benchmark, handles the whole fleet's checks today, and the counters fit in 200 MB, so this is not a big-data problem. Two things are hard. First, the network round trip (about 0.5 ms in a region) is most of the latency budget, so a check must be one round trip, not three. Second, counting only inside each server gives a client up to 50 times its limit if its requests spread over all 50 servers: the row turns red. At 10&times; traffic you need several Redis primaries, which brings sharding and hot keys.</p>
+
+<h3>API</h3>
+<div class="code"><span class="cm">// internal gRPC or HTTP call from each gateway, or a library that talks to Redis directly</span>
+Check(domain="public_api", descriptors=[("key","k_123"),("plan","pro")], cost=1)
+  -> {allowed: true, remaining: 41, reset_after_ms: 380}
+<span class="cm">// what the public client sees when denied</span>
+HTTP/1.1 429 Too Many Requests
+Retry-After: 1</div>
+<p>The shape mirrors Envoy's open-source limiter, "a Go/gRPC service designed to enable generic rate limit scenarios", where "A descriptor is a list of key/value pairs owned by a domain that the Ratelimit service uses to select the correct rate limit" and counters live in Redis ({{envoyproxy/ratelimit README|https://github.com/envoyproxy/ratelimit/blob/main/README.md}}).</p>
+
+<h3>Data model</h3>
+<div class="code"><span class="cm">-- token bucket per key: two fields, one Redis hash, expiring when idle</span>
+rl:{k_123}  ->  tokens = 41.7, ts = 1759600000123      TTL 2 x (capacity / refill rate)
+<span class="cm">-- rules: a small table or config file, cached in every gateway</span>
+rules(plan, window, limit, burst)</div>
+
+<h3>The design, built step by step</h3>
+<div class="card" id="dia-rl"></div>
+
+<h3 id="s-rl-race">Deep dive: the race, measured</h3>
+<p>The naive shared counter reads the count, compares it with the limit, then writes count + 1. Between the read and the write another server can read the same count, so both admit a request the limit should have refused. This is a <b>race condition</b> (the result depends on the timing of concurrent operations), the same check-then-act bug that makes a retried payment charge twice. It is easy to dismiss as rare; it is not.</p>
+<div class="meas"><div class="t">Measured for this page: one key, limit 100, 32 clients at once (PostgreSQL 16.2, laptop, 3 runs)</div>
+<div id="race-out"></div>
+<p class="small">Each of 32 threads sent 25 requests for the same key at the same moment. <b>Check-then-act</b> (<code>SELECT n</code>, then <code>UPDATE n = n + 1</code> if under the limit) admitted <span id="race-n"></span>. <b>Atomic</b> (<code>UPDATE ... SET n = n + 1 WHERE n &lt; 100 RETURNING n</code>, one statement) admitted exactly 100 every time. Measured on PostgreSQL because no Redis was installed on this machine; the race and the fix are the same in Redis, where <code>GET</code> then <code>SET</code> races and a Lua script or <code>INCR</code>-then-compare does not. <code>src/lab/measure_pg.py</code>, 2026-10-04.</p></div>
+<p>Redis gives two atomic forms. <code>INCR</code> increments and returns the new value in one step; the Redis docs show the classic "Pattern: rate limiter" with <code>INCR</code> and <code>EXPIRE</code>, and warn that "If for some reason the client performs the INCR command but does not perform the EXPIRE the key will be leaked" ({{Redis INCR docs|https://redis.io/docs/latest/commands/incr/}}). For anything more than a counter (a token bucket reads tokens and a timestamp, computes, writes both), send a <b>Lua script</b>: "Redis guarantees the script's atomic execution. While executing the script, all server activities are blocked during its entire runtime" ({{Redis scripting docs|https://redis.io/docs/latest/develop/programmability/eval-intro/}}). The cost is that a slow script blocks every other client of that node, so scripts must be short.</p>
+<div class="code"><span class="cm">-- token bucket in one round trip (KEYS[1] = rl:{key}; ARGV = rate, capacity, now_ms, cost)</span>
+local b = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
+local rate, cap, now, cost = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3]), tonumber(ARGV[4])
+local tokens = tonumber(b[1]) or cap
+local ts = tonumber(b[2]) or now
+tokens = math.min(cap, tokens + (now - ts) / 1000 * rate)      <span class="cm">-- refill for the time elapsed</span>
+local ok = tokens >= cost
+if ok then tokens = tokens - cost end
+redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', now)
+redis.call('PEXPIRE', KEYS[1], math.ceil(cap / rate * 2000))
+return {ok and 1 or 0, tokens}</div>
+<p class="small mute">Written for this page, following the structure of Stripe's published gist (below); the clock comes from the caller, so gateways need roughly synchronised clocks, or the script can call <code>TIME</code> on the Redis server instead.</p>
+
+<h3>Deep dive: where the limiter lives, and what happens when it breaks</h3>
+<ul class="rej">
+<li><b>In each server's memory only.</b> No network call, zero added latency. Each server enforces limit &divide; servers, which is exact only if the load balancer spreads every client evenly; a client hitting few servers is throttled too hard, and one hitting all of them less. <i>Rejected as the only layer; kept as a coarse local backstop for when Redis is unreachable.</i></li>
+<li><b>A central store (Redis), one atomic call per request.</b> Accurate, one round trip. <i>Chosen.</i></li>
+<li><b>Batching: each server takes a lease of N tokens</b> from the central store and spends them locally. Fewer round trips, slightly over-admits when leases go unused. <i>Kept in reserve for hot keys at 10&times; traffic.</i></li>
+</ul>
+<p><b>Fail open.</b> When the limiter cannot answer (Redis timeout, script error), allow the request and count the failure. A limiter that fails closed turns a Redis blip into a full API outage. Stripe's rule: "Make sure that if there were bugs in the rate limiting code (or if Redis were to go down), requests wouldn't be affected", plus "Dark launch each rate limiter to watch the traffic they would block" ({{Tarjan, Stripe, 2017-03-30|https://stripe.com/blog/rate-limiters}}). The call to Redis needs a short timeout (a few milliseconds) and a circuit breaker, as taught in {{Reliability engineering, Circuit breakers|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+<p><b>Sharding and hot keys.</b> Beyond one node, shard counters by key (hash of the key picks the node), so each key's counter lives on exactly one node and stays atomic. One enormous tenant still lands on one node; give it leased tokens or its own node. Replicas help availability but not accuracy: a replica can serve a stale count, and GitHub hit a subtler bug, below.</p>
+
+<div class="real"><div class="t">What real companies built</div>
+<p><b>Stripe (2017-03-30):</b> "At Stripe, we operate 4 different types of limiters in production. The first one, the Request Rate Limiter, is by far the most important one", restricting "each user to N requests per second"; then a concurrent-requests limiter ("You can only have 20 API requests in progress at the same time") and two load shedders that reserve capacity for critical traffic. "We use the token bucket algorithm to do rate limiting. ... We implement our rate limiters using Redis" (one quote joined from two sentences; {{Stripe blog|https://stripe.com/blog/rate-limiters}}). The companion gist "relies on the fact that Redis scripts execute atomically. No other operations can run between fetching the count and writing the new count" ({{gist|https://gist.github.com/ptarjan/e38f45f2dfe601419ca3af937fff574d}}).</p>
+<p><b>Cloudflare (2017-06-07):</b> counts in memcache inside each data centre, where "the only operations available were GET, SET and INCR", using the sliding window counter approximation (worked example: "rate = 42 * ((60-15)/60) + 18 = 42 * 0.75 + 18 = 49.5 requests"). Measured on real traffic, "0.003% of requests have been wrongly allowed or rate limited"; increments run asynchronously "without slowing down the requests"; it "handles several billion requests per day" and absorbed "as many as 400,000 requests per second to a single domain" ({{Desgats, Cloudflare|https://blog.cloudflare.com/counting-things-a-lot-of-different-things/}}). Note the trade: Cloudflare counts per data centre, not globally, accepting that an attacker spread across the world is judged locally.</p>
+<p><b>GitHub (2021-04-05, updated 2023):</b> moved off shared Memcached because "when it filled up, it would sometimes evict rate limiter data, even when it was still active", to "a replicated Redis backend with client-side sharding", with storage logic "in Lua, to guarantee atomicity", rolled out behind a feature flag. The surprise: "replicas don't expire data until they receive instructions to do so from their primaries", so reads from replicas saw expired windows; they stored the reset time explicitly ({{Mosolgo, GitHub|https://github.blog/engineering/infrastructure/how-we-scaled-github-api-sharded-replicated-rate-limiter-redis/}}).</p>
+</div>
+
+<h3>Failure modes</h3>
+<div class="tw"><table>
+<thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>Redis node down or slow</td><td>Checks time out</td><td>Fail open after a few ms; local backstop limits; breaker; replica promotion</td></tr>
+<tr><td>Cache eviction of counters</td><td>Limits silently reset (GitHub's Memcached problem)</td><td>A dedicated store with no eviction (<code>maxmemory-policy noeviction</code>) or enough memory</td></tr>
+<tr><td>Replica reads</td><td>Stale or not-yet-expired counts</td><td>Read and write counters on the primary; store explicit reset times</td></tr>
+<tr><td>A bad rule</td><td>Legitimate traffic rejected at scale</td><td>Dark launch (log would-be rejections first), a kill switch per limiter</td></tr>
+<tr><td>Clock skew between gateways</td><td>Token refill computed wrongly</td><td>Use the Redis server's <code>TIME</code> inside the script</td></tr>
+</tbody></table></div>
+<div class="say"><div class="t">What interviewers listen for</div>
+<ul>
+<li>You named the race between read and write and made the check atomic (Lua or <code>INCR</code>), in one round trip.</li>
+<li>You chose fail-open and explained why a limiter must never be the outage.</li>
+<li>You said what local-only limiting gets wrong (limit &times; servers) and where it is still useful.</li>
+<li>You knew per-data-centre counting (Cloudflare) versus global counting is a trade-off, not a mistake.</li>
+<li>You mentioned hot keys and dark launches.</li>
+</ul></div>
+</section>

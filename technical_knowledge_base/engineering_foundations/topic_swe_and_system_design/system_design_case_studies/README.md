@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3ef5c17b0d0d81c3b211d75127ef5ded (child of Topic: swe-and-system-design)
 
-New page (2026-10-04). Being built as an interactive page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). The capstone of the topic: seven worked designs (URL shortener, rate limiter as a service, chat, news feed, LLM gateway, RAG service over company documents, distributed job scheduler), each in the same template (requirements box, live back-of-the-envelope estimate checked in `src/recompute.py`, API, data model, a build-up diagram animated from the naive design through each bottleneck and fix, deep dives, failure modes, what real companies built, what interviewers listen for), plus how to practise and a glossary. Two local PostgreSQL measurements (a rate-limiter race; fan-out on read against on write). Tabs: Reading, Design drill (twelve prompts, a 45-minute clock, the method revealed step by step with self-check lists), Further reading. New page (2026-10-04); no child pages, databases or video.

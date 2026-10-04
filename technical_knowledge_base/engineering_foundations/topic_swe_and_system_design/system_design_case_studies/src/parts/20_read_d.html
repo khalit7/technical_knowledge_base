@@ -1,0 +1,71 @@
+<section id="s-chat">
+<h2 class="dhead"><span class="dnum">Design 3</span>Chat and messaging: WebSockets, fan-out, ordering, presence, storage</h2>
+<p>A chat system delivers a message from one person to the others in a conversation within a second, keeps the history forever, and shows who is online. The new ingredient compared with designs 1 and 2 is that the server must <b>push</b>: a message arrives for you while you are not asking for anything.</p>
+<div class="req"><div class="t">Requirements</div><div class="cols">
+<div><h5>Functional</h5><ul><li>One-to-one and group conversations (we call both <b>channels</b>), groups up to a few thousand members.</li><li>Real-time delivery to online members; offline members see the messages when they return, and get a push notification.</li><li>Full history, scrollable; presence (online dots); read receipts.</li></ul></div>
+<div><h5>Non-functional</h5><ul><li>50 million daily users, 40 messages each a day, 20% connected at the peak (illustrative).</li><li>Delivery under 500 ms for online members.</li><li>Messages are never lost once acknowledged; order within a channel is the same for everyone.</li><li>History kept forever.</li></ul></div></div></div>
+<div class="est" id="est-chat"></div>
+<p><b>What the numbers say.</b> The message rate (46,000 a second at peak) is not the hard part. Three numbers are: <b>10 million open connections</b>, which need about 100 servers that do nothing but hold connections; <b>333,000 presence heartbeats a second</b>, seven times the message rate, so presence must be cheap and lossy; and <b>657 TB a year</b> of stored messages with three copies, which no single database holds. If clients instead asked "anything new?" every 5 seconds, that is 2 million mostly empty requests a second, 43 times the real message rate: the row turns red, and that is why chat uses persistent connections.</p>
+
+<h3>The connection: why WebSockets</h3>
+<p>HTTP is request and response: the client asks, the server answers. To push, the server needs a connection that stays open. A <b>WebSocket</b> is that connection: "The protocol consists of an opening handshake followed by basic message framing, layered over TCP" ({{RFC 6455|https://www.rfc-editor.org/rfc/rfc6455}}), meaning it starts as an HTTP request that asks to "upgrade" and then both sides can send messages at any time for as long as it lasts. Alternatives: <b>long polling</b> (the server holds each request open until there is news, then the client asks again: works everywhere, costs a request per message) and <b>server-sent events</b> (one-way server push over HTTP, what LLM APIs use to stream tokens: {{Building a backend API, section 14|n:3c65c17b0d0d8190ade6c34e8f653e79}}). Chat needs both directions often, so WebSockets, with long polling as a fallback for hostile networks. Connection setup and TLS cost are in {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}.</p>
+
+<h3>API</h3>
+<div class="code"><span class="cm">// over the WebSocket, as small JSON frames</span>
+client -> {"op":"send", "channel":"c_42", "client_msg_id":"7f3a...", "text":"hi"}
+server -> {"op":"ack", "client_msg_id":"7f3a...", "msg_id":"1124203949381050368"}
+server -> {"op":"message", "channel":"c_42", "msg_id":"1124...", "from":"u_9", "text":"hi"}
+server -> {"op":"presence", "user":"u_9", "status":"online"}
+<span class="cm">// over plain HTTP</span>
+GET /v1/channels/c_42/messages?before=1124203949381050368&amp;limit=50     <span class="cm">history, by cursor</span></div>
+<p>The <code>client_msg_id</code> is an idempotency key: if the acknowledgement is lost and the phone resends, the server recognises the ID and does not store the message twice. The server-assigned <code>msg_id</code> is a Snowflake-style ID (time first), so sorting by it sorts by time, and it doubles as the pagination cursor ({{Building a backend API, section 8|n:3c65c17b0d0d8190ade6c34e8f653e79}}).</p>
+
+<h3>Data model</h3>
+<div class="code">messages  PRIMARY KEY ((channel_id, bucket), message_id)    <span class="cm">-- Discord's key, below</span>
+          author_id, content, edited_at, ...
+<span class="cm">-- bucket = time window (Discord: about 10 days), so one channel's history is many bounded partitions</span>
+channel_members(channel_id, user_id, last_read_message_id)  <span class="cm">-- read receipts and unread counts</span>
+sessions (in memory, e.g. Redis): user_id -> set of gateway servers holding that user's connections
+presence (in memory, with TTL):    user_id -> online, expires unless refreshed by a heartbeat</div>
+
+<h3>The design, built step by step</h3>
+<div class="card" id="dia-chat"></div>
+
+<h3>Deep dive: getting a message to the right connection</h3>
+<p>The sender is connected to gateway server 17; the recipients to servers 3, 58 and 90. Something must know who is where and fan the message out. Two shapes work:</p>
+<ul class="rej">
+<li><b>A session registry plus direct routing:</b> every gateway records "user u is on me" in a shared store; the message service looks up each recipient and forwards to their gateways. Simple for one-to-one chat; for a 5,000-member group it is 5,000 lookups per message.</li>
+<li><b>Channel servers (publish and subscribe):</b> each channel is owned by one server, chosen by <b>consistent hashing</b> (a way to map keys to servers so adding a server moves only a small share of keys: {{Distributed systems fundamentals, Partitioning|n:3c65c17b0d0d8115bc45c31d915b4d33}}). Gateways subscribe to the channels their users are in; a message goes to the channel's server, which forwards it once to each subscribed gateway, which forwards it to its local connections. <i>Chosen:</i> the fan-out is one message per gateway, not per user, and the channel's server is a natural place to assign order.</li>
+</ul>
+<p><b>Ordering.</b> "Same order for everyone" needs one place that decides the order per channel: the channel's server assigns increasing message IDs as messages arrive. Order across channels is not promised (nobody can see it). Clients sort by ID and use it to detect gaps after a reconnect: "give me everything after the last ID I have".</p>
+<p><b>Offline and reconnect.</b> The message is stored before it is acknowledged, so delivery to connections is best effort: a recipient who misses a push catches up from storage with the cursor. Recipients with no live connection get a mobile push notification through a separate, asynchronous path (a queue, as in {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}).</p>
+<p><b>Presence, cheaply.</b> Each connection sends a heartbeat; presence is a key with a TTL that the heartbeat refreshes, so a dead phone goes offline when the key expires instead of needing a "goodbye" message. To keep 333,000 updates a second from becoming millions of fan-out messages, presence changes go only to people who are looking (open conversations, visible contacts), are batched, and may be seconds stale. Discord's own numbers show why: "When a user comes online, they connect to a guild, and the guild publishes a presence to all other connected sessions", and in servers with "up to 30,000 concurrent users", "publishing an event from a large guild could take anywhere from 900ms to 2.1s" until they batched sends per node ({{Vishnevskiy, Discord, 2017-07-06|https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users}}).</p>
+
+<h3>Deep dive: storing every message forever</h3>
+<p>Reads are "the latest 50 messages in channel c, then the 50 before that", always within one channel. That access pattern points to a <b>wide-column store</b> (Cassandra, ScyllaDB: tables partitioned by a key across many machines, rows sorted within a partition) keyed by channel. Bucketing by time keeps a busy channel's partition from growing without limit. Writes are spread by channel; a very busy channel is a <b>hot partition</b> (one key getting a large share of traffic). Fixes: cache recent messages in the channel servers, and coalesce identical concurrent reads.</p>
+<div class="real"><div class="t">What real companies built</div>
+<p><b>Discord, 2017:</b> from one MongoDB collection "with a single compound index on channel_id and created_at" to Cassandra, because "our read/write ratio was about 50/50" and "Cassandra was the only database that fulfilled all of our requirements"; "channel_id became the partition key", message IDs are Snowflakes, and "if we stored about 10 days of messages within a bucket that we could comfortably stay under 100MB", giving the key "((channel_id, bucket), message_id)". They ran "a 12 node cluster with a replica factor of 3" at "well past 120 million" messages a day ({{Vishnevskiy, Discord, 2017-01-13|https://discord.com/blog/how-discord-stores-billions-of-messages}}).</p>
+<p><b>Discord, 2023:</b> "At the beginning of 2022, it had 177 nodes with trillions of messages"; hot partitions led to data services that coalesce reads ("If multiple users are requesting the same row at the same time, we'll only query the database once") and a move to "just 72 ScyllaDB nodes", with history p99 from "between 40-125ms" to 15 ms ({{Ingram, Discord, 2023-03-06|https://discord.com/blog/how-discord-stores-trillions-of-messages}}; root {{Case files: Discord 2023|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p>
+<p><b>Slack, 2023:</b> "Every Slack client has a persistent websocket connection to Slack's servers"; Channel Servers "are stateful and in-memory", mapped to channels "based on consistent hashing"; a message goes from the web app to an Admin Server, which "discovers CS through a consistent hash ring", then to Gateway Servers and clients; "At peak times, about 16 million channels are served per host", messages arrive "across the world in 500ms", and "a new CS is ready to serve traffic in under 20 seconds" ({{Thangudu, Slack, 2023-04-11|https://slack.engineering/real-time-messaging/}}). Slack's January 2021 outage (root {{Case files: Slack 2021|n:3c65c17b0d0d81048ae0dd14ac399b4d}}) shows the other side: when the network, not the servers, is the bottleneck, autoscaling on CPU misreads it.</p>
+<p><b>WhatsApp, 2012:</b> one tuned Erlang server held "over 2 million tcp connections", "with plenty of CPU and memory to spare" ({{WhatsApp blog, 2012-01-06|https://blog.whatsapp.com/1-million-is-so-2011}}). Our planning figure of 100,000 per server is deliberately 20 times lower: a conservative default you would raise after load testing.</p>
+</div>
+
+<h3>Failure modes</h3>
+<div class="tw"><table>
+<thead><tr><th>What fails</th><th>What happens</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>A gateway server</td><td>100,000 clients disconnect at once and reconnect at once</td><td>Reconnect with jittered backoff; catch up by cursor from storage, not from the server that died</td></tr>
+<tr><td>A channel server</td><td>Live delivery for its channels pauses</td><td>The hash ring moves its channels to others; Slack's replacement is ready in under 20 s</td></tr>
+<tr><td>A hot channel (a giant group)</td><td>One partition and one channel server overloaded</td><td>Recent messages served from memory; coalesced reads; batched fan-out per gateway</td></tr>
+<tr><td>Lost acknowledgement</td><td>The client resends; risk of a duplicate</td><td><code>client_msg_id</code> deduplication</td></tr>
+<tr><td>Presence storm after an outage</td><td>Millions of "online" events in seconds</td><td>Batch and throttle presence; it may be stale</td></tr>
+</tbody></table></div>
+<div class="say"><div class="t">What interviewers listen for</div>
+<ul>
+<li>You computed connections, not just messages, and noticed presence outweighs messaging.</li>
+<li>You justified WebSockets against polling with a number.</li>
+<li>Order is per channel, assigned in one place; you did not promise global order.</li>
+<li>Store before acknowledging; deliver best effort; catch up by cursor.</li>
+<li>The storage key follows the read pattern (channel and time), and you named the hot-partition risk.</li>
+</ul></div>
+</section>
