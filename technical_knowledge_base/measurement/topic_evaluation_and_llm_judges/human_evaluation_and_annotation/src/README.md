@@ -1,0 +1,12 @@
+# Source for Human evaluation and annotation
+
+`sh build.sh` writes `../index.html` from `parts/` and `inputs/`.
+
+- `parts/`: `01_head.html` (shared look, copied from the Production sibling), `02_style.html` (page rules), `10_header.html`, Reading `20_read_a.html` to `20_read_h.html`, tabs `31_tab_agree.html`, `32_tab_audit.html`, `39_tab_more.html`; JS `21_js_common.js` (all statistics, prose numbers via `data-k`, `window.HE_CHECK`), `22_js_ag_anim.js` (agreement animation), `23_js_au_anim.js` (audit re-ranking animation), `24_js_read_small.js` (HelpSteer2 bars, budget calculator, prevalence widget, nav), `31_js_agree.js`, `32_js_audit.js`, `99_js_tabs.js`.
+- `fetch_data.py`: downloads raw data to a cache outside the repo (MMLU-Redux 2.0 rows for six subjects, Open LLM Leaderboard v1 per-question details for 18 models, MT-Bench human judgments, HelpSteer2 disagreements). `mk_data.py <cache>` writes the extracts in `inputs/` (`audit.json`, `agree.json`); `inputs/northcutt.json` is Northcutt et al. Tables 1 and S1, transcribed from arXiv HTML v4.
+- `recompute.py` recomputes every derived number into `recompute.json`; `check_page.mjs` clicks every control at 390 px dark and 920 px light, steps both animations through every mode, and compares the page's JavaScript (`HE_CHECK`) against `recompute.json` (567 comparisons, 0 mismatches).
+- `coverage.json`: every fact of the inherited gold-label text and the root mentions this page owns, with where it is carried or how it was corrected. `viz_ideas.md`: visuals built and rejected.
+
+Shape: Part B (child page) of `html_utils/methods/topic_pages.md`, ordered by the life of a label (decide, design, staff, measure agreement, interpret disagreement, control quality, build gold, audit gold, find errors, preference data). Departure: two labs instead of one, because agreement and auditing are separate mechanisms each with its own released data.
+
+Reproductions: MT-Bench expert-expert agreement 63.0% (721 pairs) and 81.0% (479), turn 2 66.6% and 81.9%, equal to Zheng et al. Table 5 (independently, from released votes). Northcutt Table 1 mean 3.33% ("at least 3.3%"); Table S1 ranks recomputed from printed accuracies match 30 of 34 and 33 of 34 (the rest are ties ordered arbitrarily). Not reproduced, said on the page: HelpSteer2's quadratic weighted kappa (needs rater identities, not released); Northcutt's "ResNet-18 beats ResNet-50 at +6% noise prevalence" (needs untabulated per-model accuracies).

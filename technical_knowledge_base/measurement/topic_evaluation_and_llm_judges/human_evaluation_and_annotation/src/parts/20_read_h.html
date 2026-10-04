@@ -1,0 +1,51 @@
+
+<section id="rd-find">
+<h2>Finding the wrong labels</h2>
+<p>Nobody can re-check a whole test set by hand. Every audit above used the same trick: let models propose suspects, let people decide. Three ways to rank the suspects:</p>
+<ul>
+<li><b>Disagreement with the key.</b> PlatinumBench ran several frontier models and inspected every item at least one of them got wrong; a wrong key shows up as models disagreeing with the key, a badly posed question as models disagreeing with each other. It finds a lower bound: an item where every model shares the key's mistake is never inspected ({{Vendrow et al. 2025, §2.2|https://arxiv.org/abs/2502.03461}}).</li>
+<li><b>Confident learning.</b> Get out-of-sample predicted probabilities for every item (cross-validation, so no model has seen the label it is judging), set a per-class threshold at the average confidence of items carrying that label, count items confidently predicted as a different class (the "confident joint"), and rank the suspects by normalized margin, the probability of the given label minus the largest other one ({{Northcutt, Jiang and Chuang 2021|https://arxiv.org/abs/1911.00068}}). The open-source {{cleanlab|https://github.com/cleanlab/cleanlab}} library implements it. In the test-set study, people confirmed 51% of what it flagged, so it ranks the review queue; it does not replace the review.</li>
+<li><b>Consensus votes.</b> Count how many independent models pick the same answer that is not the key. Simple, and it needs no probabilities, so it works with API models.</li>
+</ul>
+<p>How well do they work on a real key? MMLU-Redux tells us which of its sampled questions are flawed, and the Open LLM Leaderboard released every model's per-question 5-shot probabilities on the same questions, so each ranking can be scored against the audit. Ranking Virology's 100 questions by the 18 models' average probability for the official answer ("self-confidence", one of cleanlab's scores), the first <span data-k="auK"></span> reviewed are all real errors: <span data-k="auVir20"></span> <span class="der">derived</span>. The same ranking finds <span data-k="auChem20"></span> in College Chemistry (25 flawed), and on High School Biology, with 5 flawed questions in 100, its first 20 hold <span data-k="auBio20"></span>. Precision follows the base rate: the cleaner the set, the more of the queue is false alarms, which is why a review queue is sized by budget, not by a threshold. The {{Audit lab|#t-audit}} runs the three rankings on six subjects with a review budget you set.</p>
+<div class="co warn"><div class="t">Two caveats on model-proposed audits</div>The models may have seen the test set (MMLU is widely contaminated), so agreement with the key can be memory rather than knowledge, which hides wrong keys. And models share training data, so their mistakes are correlated: "every model disagrees with the key" is strong evidence, but "every model agrees" is weak evidence that the key is right.</div>
+
+<h3>Making it a routine: gold-error-aware scoring</h3>
+<p>The pattern applies to any internal golden set. It was the core of the old Production eval engineering page and is carried here in full:</p>
+<ol>
+<li><b>Never treat gold as infallible:</b> store a confidence and provenance field per label (<a href="#rd-gold">above</a>).</li>
+<li><b>Route model-against-gold disagreements through a consensus battery:</b> several strong models from different families (or judges with retrieval and tools) re-answer the item independently; strong consensus against the key flags the label, not the model.</li>
+<li><b>Have people adjudicate the flagged items.</b> The output is a corrected label or an "ambiguous, exclude from gating" tag: ambiguity is a valid label state, and forcing it corrupts metrics.</li>
+<li><b>Score with error-awareness:</b> gate on the verified (platinum) subset and track the full set, or down-weight low-confidence labels.</li>
+<li><b>Make it continuous:</b> every gate failure triggers an audit of the failing items before the failure is believed. In mature systems, disagreement mining doubles as golden-set quality control and as discovery of genuinely hard items.</li>
+</ol>
+<p>This is the same machinery as judge calibration, pointed at the dataset instead of the judge. An evaluation has three fallible parts, the model, the grader and the gold, and any observed delta has to be attributed to one of them before anyone acts; the parent page animates that attribution on the physics re-grading's 250 rejections ({{Topic: evaluation-and-llm-judges, Reading tab, "How it breaks"|n:3c65c17b0d0d8181b351e1b8fc6a1546}}). The production page keeps the routine's gate rule in its own words ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}). When the grader rather than the key is the suspect, see {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}; the statistics of a judge-corrected pass rate are {{arXiv:2511.21140|https://arxiv.org/abs/2511.21140}}.</p>
+</section>
+
+<section id="rd-pref">
+<h2>Collecting human preference data</h2>
+<p>Preference data (which of two responses is better) is both an evaluation and the training signal for reward models. The choices that matter, with what large collections did:</p>
+<ul>
+<li><b>Forced choice or a tie option.</b> Llama 2 forced a choice and asked how much better (significantly, better, slightly, negligibly or unsure), collecting 1,418,091 comparisons ({{Touvron et al. 2023, §3.2.1 and Table 6|https://arxiv.org/abs/2307.09288}}). MT-Bench and Arena allow a tie; Arena adds "both are bad". A forced choice gives more training pairs; a tie option gives a cleaner measurement of near-equal pairs, at the cost of the agreement arithmetic above.</li>
+<li><b>Agreement falls as the pair gets closer.</b> Llama 2 reports that human agreement is higher on clearly different responses than on similar ones, and its reward models' accuracy falls the same way from "significantly better" to "negligibly better" (Table 8). Agreement on a preference set is a property of how different its pairs are, not only of the raters.</li>
+<li><b>Who writes the prompts.</b> Llama 2's raters wrote their own prompts, to maximise diversity; Arena's users bring their own; MT-Bench fixes 80 questions. Self-written prompts drift toward what raters find interesting, not what your users ask.</li>
+<li><b>Anonymity and order.</b> Hide which model wrote which response, and randomise the side, so that brand and position cannot steer a vote.</li>
+<li><b>Several attributes, not one.</b> HelpSteer2 rated each response on five attributes so that a reward model can separate helpfulness from verbosity.</li>
+</ul>
+<p>How millions of anonymous votes become a leaderboard (Bradley-Terry, confidence intervals, style control, the arena's critiques) is on {{Human preference and arenas|n:3ef5c17b0d0d814db49ff3b5c9fc3034}}; training reward models and policies on such data is on {{Alignment: SFT, RLHF, DPO family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}}.</p>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Reporting raw agreement alone</summary><div class="b">With one dominant label, raw agreement is high for raters who know nothing. Report a chance-corrected statistic beside it, with the label shares.</div></details>
+<details class="mist"><summary>Not saying how ties were handled</summary><div class="b">The same MT-Bench votes give 63% or 81% expert agreement depending on whether ties count. Say which, or report both.</div></details>
+<details class="mist"><summary>Cohen's kappa on a crowd</summary><div class="b">Cohen's kappa assumes the same two raters on every item. With varying raters or missing labels, use Fleiss' kappa (fixed count) or Krippendorff's alpha.</div></details>
+<details class="mist"><summary>Filtering out disagreement, then reporting agreement</summary><div class="b">Removing the items people disagree on raises any agreement statistic by construction. Report agreement before filtering, and say what was filtered.</div></details>
+<details class="mist"><summary>Treating every disagreement as error</summary><div class="b">On subjective criteria, the distribution of labels is the measurement. Keep it, and score against it.</div></details>
+<details class="mist"><summary>Treating the gold set as infallible</summary><div class="b">Every audited benchmark has a few percent of wrong or unanswerable items. When a better model fails a gate, audit the failing items before believing the failure.</div></details>
+<details class="mist"><summary>Letting the system's builders produce the gold</summary><div class="b">They share the system's blind spots, and they know which output came from which version. Use independent, blinded raters for gold.</div></details>
+<details class="mist"><summary>Calibrating a judge on the items used to write its prompt</summary><div class="b">The reported agreement is then in-sample. Hold out part of the gold slice.</div></details>
+<details class="mist"><summary>Paying the crowd per item with no quality incentive</summary><div class="b">You get fast labels and, increasingly, LLM-written ones. Pay for time, check with gold items, and tie bonuses to what makes a label good.</div></details>
+</section>
+<div class="foot">Built from the gold-label section of the old Production eval engineering page (handed over verbatim, fetched read only on 2026-10-04), released annotation data (MT-Bench human judgments, HelpSteer2 disagreements, MMLU-Redux 2.0, Open LLM Leaderboard per-question details) and the primary sources linked inline. Source and data scripts: <code>src/</code> in the knowledge base repository.</div>
+</div>
