@@ -1570,3 +1570,49 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | BE8 | Combination-lock chain, random walk against deep exploration | 2^N attempts | Derived | 7 | none | rejected: one sentence with the derivation says it; the gridworld shows the same failure with a trap |
 | BE9 | Re-plotting RND or Go-Explore learning curves | | | | none | rejected: values exist only as figure images (method forbids reading curves); the table carries printed numbers |
 | BE10 | Agent57 meta-controller bandit replay | | | | none | rejected: no released per-episode arm choices; quoted instead |
+
+### Model-free prediction and control: Monte Carlo, TD, SARSA, Q-learning (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_rl/model_free_prediction_and_control/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score | Reproduces | Decision |
+|---|---|---|---|---|---|
+| MF-1 | One episode, four learners (MC, SARSA, Expected SARSA, Q-learning on the same recorded episode, small cliff), before/after per step, counters | Reading, inline | 15 | Worked SARSA -53 / Q-learning -5 logic on a whole episode; checked by recompute.py | built |
+| MF-2 | TD or Monte Carlo (Example 6.2, Figure 6.2) | tab | 16 | shape; start error sqrt(1/18) | reused from Topic: rl lab |
+| MF-3 | n-step and TD(lambda) (Figures 7.2, 12.3, 12.6) | tab | 14 | shape | reused |
+| MF-4 | Cliff walking (Example 6.6) with exact eps-greedy return -50.80 | tab | 16 | shape + exact | reused |
+| MF-5 | Maximisation bias (Figure 6.5) with one run animated and E[max] widget | tab | 15 | shape; 10 B actions assumed (book: "many"; Zhang uses 10) | built |
+| MF-6 | Importance sampling: Example 5.4 (Figure 5.3) with exact state value; Example 5.5 (Figure 5.4) | tab | 15 | Example 5.4 value independently (-0.277204 vs -0.27726); figures in shape | built |
+| MF-7 | lambda-return weights slider on the worked episode | Reading | 9 | 0.625 worked value | built (from old embed) |
+| MF-8 | One transition, two targets calculator (+ Expected SARSA) | Reading | 8 | -53 / -5 | built (from old embed) |
+| MF-9 | Cliff edge fall chance (eps, m, k) | Reading | 7 | 0.776, 22% | built (from old embed) |
+| MF-10 | Which method decision tree | Reading | static | old embed | built |
+| MF-11 | Blackjack MC ES policy against the exact optimal policy (Figure 5.2) | tab | 12 | would need the book's policy read off an image; millions of episodes to settle near-ties | rejected for cost; candidate if Khalid wants MC control shown live |
+| MF-12 | Expected SARSA step-size sweep (Figure 6.3) | tab | 10 | asymptotic curve needs 100,000 episodes per setting | rejected (phone cost); Expected SARSA offered as an agent in the cliff tab |
+| MF-13 | Quiz / flashcards like the old embed | Reading | n/a | n/a | kept as a collapsible "Check yourself" list (content carried, no scoring UI) |
+
+### Dynamic programming: planning with a known model (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_rl/dynamic_programming/src/viz_ideas.md`.
+
+| Where | Visual | Consequence here |
+|---|---|---|
+| Topic: rl, Reading | One-episode targets animation; decision tree | Linked by name; not rebuilt |
+| Topic: rl, Method atlas and Taxonomy | Value and policy iteration placed on every axis, with Bellman 1957 and Howard 1960 | Linked; history section consistent with the atlas rows |
+| Topic: rl, `for_children/reading_full/` | Student MDP diagram (`rd-sm`), Monte Carlo sampler (`rd-mc`), 4 × 3 value iteration against Q-learning (`rd-gw`) | Reused here (adapted, checked again) |
+| Topic: rl, `for_children/estimator_lab/` experiment 1 | Figure 4.1, DP against TD and MC | The DP side is rebuilt in the Sweep lab (same 92 of 96 result); the sampled side belongs to Model-free prediction and control |
+| Old embed of this page | Corridor replay; gridworld VI against PI with sliders; sweep calculator; curse calculator; flashcards | Corridor and gridworld rebuilt with checked engines; calculators folded into the contraction widget and the curse card; flashcards rejected (every answer is in the text) |
+| # | Idea | Q | R×2 | C×2 | S | M | X | A | N | −B | Total | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **Sweep lab**: 8 methods (PE sync/in place, PI, MPI-3, VI sync/in place/reverse, prioritised sweeping) on 4 worlds, two panels on one budget of model look-ups, greedy arrows (all ties), click a cell for its backup, error-against-look-ups chart with the γ^k bound | 2 | 4 (Figure 4.1 92/96; Silver V1 to V7 exact; AIMA 17.3 exact; all independently) | 4 | 2 | 2 (PI is not always cheaper; in-place order matters; VI's intermediate values are no policy's) | 2 | 2 | 1 | −2 | 17 | **built, own tab** ("across methods and worlds, what does each spend") |
+| 2 | **Corridor, four ways**: sync VI, in place C→B→A and A→B→C, random-policy evaluation, one backup per step with the arithmetic | 1 | 4 (old page's tables, independently) | 4 | 2 | 1 (sweep order) | 2 | 1 | 2 | −1 | 16 | **built, Reading §10** (before/after animation) |
+| 3 | **Contraction chart**: two VI runs from different starts on the 4 × 3 world, γ slider, gap against γ^k bound; sweeps-needed and stopping-bound tiles | 2 | 2 (66 and 688; 0.099) | 4 | 2 | 2 (small change is not small error; γ = 1 converges by termination) | 2 | 1 | 0 | −1 | 14 | **built, Reading §11** |
+| 4 | **Student MDP with clickable Bellman equations** (reused) | 2 | 4 (Silver L2 tables; corrects 8.4 to 9.4) | 4 | 2 | 2 | 1 | 0 (built for the root's long tab, now only here) | 0 | 0 | 15 | **reused, Reading §3** |
+| 5 | **VI against Q-learning on the 4 × 3 world** (reused) | 1 | 2 (AIMA 17.3) | 4 | 2 | 1 | 1 | 0 | 2 | 0 | 13 | **reused, Reading §15** |
+| 6 | **Monte Carlo sampler of the student MRP** (reused) | 1 | 2 | 4 | 1 | 1 | 1 | 0 | 0 | 0 | 10 | **reused, Reading §2** (the exact value DP computes against sampled means) |
+| 7 | **Gambler's problem** (Example 4.3): value per sweep and the set of optimal stakes, p_h select | 1 | 0 (curves only as an image: shape only) | 4 | 2 | 2 (many optimal policies from ties; bold play only when the coin is unfavourable) | 1 | 1 | 0 | −1 | 10 | **built, Sweep lab section** |
+| 8 | **Curse-of-dimensionality calculator** (variables, values, actions → n, dense and sparse look-ups, m^n policies) | 2 | 0 | 4 | 1 | 1 (S&B's "over a thousand years" is 3.2 million) | 1 | 0 | 0 | 0 | 9 | **built, Reading §13** (small card) |
+| 9 | LP view: constraints drawn for the corridor, feasible region | 1 | 0 | 4 | 1 | 1 | 0 | 2 | 0 | −2 | 7 | **rejected**: three-dimensional region on a phone; the LP's agreement with V* is stated and checked in recompute.py instead |
+| 10 | Jack's car rental policy sequence (Figure 4.2) | 1 | 2 (shape: π4 optimal) | 2 (Poisson truncation conventions differ by implementation) | 2 | 1 | 1 | 1 | 1 | −2 | 9 | **rejected for now**: the figure is an image, its conventions are not fully stated; cited in text |
+| 11 | RTDP animation on a racetrack | 1 | 0 (book table needs 25 runs of an unstated track) | 2 | 2 | 1 | 1 | 1 | 1 | −2 | 7 | **rejected**: belongs with trajectory sampling on Model-based RL and planning; numbers quoted in §14 |
+| 12 | Flashcards and quiz (old embed) | | | | | | | | | | | **rejected**: every answer is in the text |
