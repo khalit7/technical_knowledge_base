@@ -1,0 +1,52 @@
+<section id="rd-s1">
+<h2>1. What a planner does</h2>
+<p>When the app sends <code>SELECT * FROM messages WHERE chat_id = 42 ORDER BY created_at</code>, nothing in that sentence says which file to open, whether to use an index, or in what order to do things. SQL is <dfn>declarative</dfn>: it describes the result. Turning that description into steps is the job of a chain of components, the same in every relational database and documented for Postgres in {{The Path of a Query|https://www.postgresql.org/docs/current/query-path.html}}:</p>
+<div class="pipe">
+<div><b>Parse</b>Check the grammar and build a tree of the statement.</div>
+<div><b>Analyse</b>Look up every name: which table is <code>messages</code>, which type is <code>chat_id</code>.</div>
+<div><b>Rewrite</b>Replace views by the queries that define them and apply rules.</div>
+<div><b>Plan</b>Enumerate ways to run it, estimate the cost of each, keep the cheapest.</div>
+<div><b>Execute</b>Run the chosen plan and stream rows back.</div>
+</div>
+<p>Step 4 is the <dfn id="g-planner">planner</dfn> (also called the <dfn>optimizer</dfn>). Its output, the <dfn id="g-plan">plan</dfn>, is a tree of <dfn id="g-node">nodes</dfn>. The leaves read data: a <b>Seq Scan</b> (sequential scan) reads every page of a table in order; an <b>Index Scan</b> walks an index and fetches the matching rows; a <b>Bitmap Heap Scan</b> first collects matching row addresses from an index and then reads their pages in physical order; an <b>Index Only Scan</b> answers from the index without touching the table. Nodes above the leaves combine rows: the three join algorithms (nested loop, hash join, merge join, compared on real data in the parent's {{Query plans|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab), and Sort, Aggregate, Limit and others. Rows flow upward: each node asks its child for the next row, so a Limit at the top can stop the whole tree early.</p>
+<p>The planner cannot try the plans; running them would cost more than the query. It <b>predicts</b>. For each candidate it estimates how many rows each node will produce (the <dfn id="g-card">cardinality</dfn>) and what that will cost, using a formula (section 2) fed by statistics about the data (section 3). For a query on one table there are a handful of candidates; for joins the number of candidates explodes, and the planner searches them cleverly (section 5). Planning itself takes time: about a millisecond for the queries on this page, and 1.6 seconds for one 16-table join in section 5 <span class="meas">measured</span>.</p>
+<div class="co key"><div class="t">The one sentence to keep</div>The planner picks the plan with the lowest <i>estimated</i> cost. Every bad plan on this page is a correct choice made on a wrong estimate, or on a cost model that does not match the machine. That is why the routine in section 7 always compares estimated rows with actual rows.</div>
+</section>
+
+<section id="rd-s2">
+<h2>2. How the planner prices a plan</h2>
+<h3>The units</h3>
+<p>A <dfn id="g-cost">cost</dfn> is a number in arbitrary units, not milliseconds. By convention reading one 8 KB page as part of a sequential run costs <b>1.0</b>, and everything else is priced relative to that ({{Planner cost constants|https://www.postgresql.org/docs/current/runtime-config-query.html#RUNTIME-CONFIG-QUERY-CONSTANTS}}, defaults unchanged since long before version 16):</p>
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th class="num">Default</th><th>What it prices</th></tr></thead>
+<tbody>
+<tr><td><code>seq_page_cost</code></td><td class="num">1.0</td><td>One page read as part of a sequential run</td></tr>
+<tr><td><code>random_page_cost</code></td><td class="num">4.0</td><td>One page read by jumping to it (an index lookup)</td></tr>
+<tr><td><code>cpu_tuple_cost</code></td><td class="num">0.01</td><td>Handling one row</td></tr>
+<tr><td><code>cpu_index_tuple_cost</code></td><td class="num">0.005</td><td>Handling one index entry</td></tr>
+<tr><td><code>cpu_operator_cost</code></td><td class="num">0.0025</td><td>Evaluating one operator, such as <code>=</code> or <code>&lt;=</code>, once</td></tr>
+<tr><td><code>parallel_setup_cost</code>, <code>parallel_tuple_cost</code></td><td class="num">1000, 0.1</td><td>Starting parallel workers; passing one row from a worker to the leader</td></tr>
+<tr><td><code>effective_cache_size</code></td><td class="num">4 GB</td><td>Not a cost: how much of the data the planner may assume is cached, used when pricing repeated index reads</td></tr>
+</tbody></table></div>
+<p>Why is a random page only 4 times a sequential one, when on a spinning disk it is closer to 100 times? The documentation says so directly: random access "is normally much more expensive than four times sequential access", but the default assumes most random reads are served from memory. That assumption matters again in section 9.</p>
+<h3>A sequential scan, priced by hand</h3>
+<p>Take <code>SELECT * FROM users WHERE id BETWEEN 5001 AND 25000</code>. Postgres's catalogue (<code>pg_class</code>) says <code>users</code> occupies <b>1,280 pages</b> and holds <b>100,000 rows</b>. A sequential scan reads every page and checks two comparisons (<code>&gt;=</code> and <code>&lt;=</code>) on every row:</p>
+<div class="fm"><div class="eq">cost = 1,280 &times; 1.0 + 100,000 &times; (0.01 + 2 &times; 0.0025) = 1,280 + 1,500 = 2,780</div></div>
+<p>EXPLAIN prints exactly <code>Seq Scan on users (cost=0.00..2780.00 ...)</code>. The two numbers are the <dfn id="g-startup">startup cost</dfn> (before the first row comes out: 0 here) and the <dfn>total cost</dfn> (after the last). Startup cost matters when a Limit only wants the first few rows; section 7's slow query turns on exactly that.</p>
+<h3>An index scan: pages depend on physical order</h3>
+<p>An index scan pays for the index pages and entries it reads, then one table page fetch per matching row, unless consecutive matches sit on the same page. How often they do depends on the <dfn id="g-corr">correlation</dfn>: how closely the table's physical row order follows the column's order, from -1 to 1, measured by <code>ANALYZE</code>. In this database <code>messages.id</code> has correlation 1.00 (messages were inserted in id order) while <code>users.id</code> has -0.03 (rows sit in no useful order) <span class="meas">measured</span>. The planner estimates heap pages fetched two ways and interpolates by correlation squared: for no correlation it uses the Mackert and Lohman approximation of how many distinct pages <i>N</i> random fetches touch from a table of <i>T</i> pages, about 2<i>TN</i>/(2<i>T</i>+<i>N</i>) when the table fits in cache, each priced at <code>random_page_cost</code>; for perfect correlation it is the matching fraction of the table read nearly sequentially (one random page, the rest at 1.0) ({{costsize.c, cost_index|https://github.com/postgres/postgres/blob/REL_16_2/src/backend/optimizer/path/costsize.c}}).</p>
+<p>A <b>bitmap scan</b> sits between the two: it reads the index, sorts the matching row addresses by page, and then visits each page once in physical order, priced between random and sequential depending on how much of the table it touches. What the three cost, for 20,000 users and for a million messages:</p>
+<div class="tw"><table>
+<thead><tr><th>Query</th><th>Path</th><th class="num">Planner cost</th><th class="num">Pages touched</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td rowspan="3">20,000 <code>users</code> by id (correlation -0.03)</td><td>Seq Scan</td><td class="num">2,780</td><td class="num">1,280</td><td class="num">5.4 ms</td></tr>
+<tr><td>Index Scan</td><td class="num">5,733</td><td class="num">19,460</td><td class="num">3.4 ms</td></tr>
+<tr><td><b>Bitmap Heap Scan</b> (chosen)</td><td class="num">2,003</td><td class="num">375</td><td class="num">2.4 ms</td></tr>
+<tr><td rowspan="3">1,000,000 <code>messages</code> by id (correlation 1.00)</td><td>Seq Scan</td><td class="num">342,345</td><td class="num">192,356</td><td class="num">659 ms</td></tr>
+<tr><td><b>Index Scan</b> (chosen)</td><td class="num">51,384</td><td class="num">25,294</td><td class="num">137 ms</td></tr>
+<tr><td>Bitmap Heap Scan</td><td class="num">341,127</td><td class="num">21,977</td><td class="num">139 ms</td></tr>
+</tbody></table></div>
+<p class="small mute">Measured: each path forced in turn with the <code>enable_*</code> switches, serial plans, warm cache, best of three; "pages touched" counts buffer hits plus reads, so a page visited twice counts twice: the index scan pays one visit per row fetched, even when the next row is on the page it just read. Correlation is one number for the whole table; these 20,000 users happen to sit on just 315 of its 1,280 pages (the table was rewritten earlier in its life), which the planner cannot know and which is why the bitmap scan touched so few pages. The planner's ranking matched the stopwatch in both cases, and it chose an index scan for up to 6,000,000 of the 10,000,000 messages because the rows it needs sit together.</p>
+<div class="co"><div class="t">Defaults reproduce Postgres's own costs, independently</div>This page's formulas, transcribed from the PostgreSQL 16.2 source (<code>cost_seqscan</code>, <code>cost_index</code>, <code>index_pages_fetched</code>, <code>cost_bitmap_heap_scan</code>, <code>genericcostestimate</code>, <code>btcostestimate</code> and the histogram code), reproduce <b>150 of 150</b> figures that EXPLAIN printed (row estimates, sequential, index and bitmap costs) across 25 ranges on the two tables, to the cent (checked in <code>src/recompute.py</code>). The {{Cost model|#t-cost}} tab runs them live: change the range or any cost setting and watch which plan wins.</div>
+<div class="wall"><div class="t">What the cost model does not know</div>Whether a page is already in memory (except through <code>effective_cache_size</code>), how fast your disk really is, what other queries are running, and anything about the data beyond its statistics. It is deliberately crude. Leis and colleagues found on real join queries that the cost model "has much less influence on query performance than the cardinality estimates" ({{How Good Are Query Optimizers, Really?, PVLDB 2015|https://www.vldb.org/pvldb/vol9/p204-leis.pdf}}): get the row counts right and a crude cost model is enough.</div>
+</section>
