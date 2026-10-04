@@ -1,0 +1,30 @@
+
+<section id="rd-gen">
+<h2>Generation metrics</h2>
+<p>The generation half is graded on what the generator did with the passages it was given. Five checks cover it; the names vary by framework (next section), the ideas do not. All but citation checks are usually produced by prompting a judge model, so everything on {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}} applies to them.</p>
+<h3>Faithfulness (groundedness)</h3>
+<p>Split the answer into atomic claims and ask, claim by claim, whether the retrieved passages support it:</p>
+<div class="fm"><div class="eq">faithfulness = claims in the answer supported by the passages / claims in the answer</div></div>
+<p>RAGAS's own example: the passage says Einstein was born on 14 March 1879 in Germany; the answer says "Einstein was born in Germany on 20th March 1879". The judge splits it into "born in Germany" (supported) and "born on 20th March 1879" (not supported), so faithfulness = 1/2 = 0.5 ({{RAGAS docs|https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/}}). Low faithfulness is hallucination despite retrieval. Two things it is not:</p>
+<ul class="tight">
+<li><b>Not correctness.</b> It checks the answer against the passages, not the passages against the world. In the animation's first question, GPT-4's answer is perfectly faithful and four of its six "still alive" are now wrong, because the passage dates from about 2014 (June Whitfield died in 2018, Barbara Windsor in 2020, Leslie Phillips in 2022 and Julian Holloway in 2025, per Wikipedia as read on 4 October 2026). Freshness and source checks are a separate test.</li>
+<li><b>Not the same as "true".</b> RAGTruth's annotators flagged whether each hallucinated span was nevertheless true in the world (<code>implicit_true</code>): 846 of the 2,927 question-answering spans were (28.9%; the model filled the gap from memory, correctly). A faithfulness metric counts them as failures, which is right for a system that must answer from its sources and wrong if you only care about accuracy. Decide which you are measuring.</li>
+</ul>
+<h3>Answer relevance</h3>
+<p>Does the answer address the question? It says nothing about truth: Llama-2-13B's answer in the animation is about whether Kenneth Williams is alive, true, and irrelevant. RAGAS measures it backwards: an LLM writes N questions the answer would answer (N = 3 by default), and the score is their mean cosine similarity to the real question in embedding space. In RAGAS's code, not its docs, the score is set to 0 when the judge flags every generated question as noncommittal ("I don't know"; <code>_answer_relevance.py</code>, February 2026). DeepEval measures it forwards, as the share of the answer's statements that are relevant to the question. Same name, different instruments: the next section sets them side by side.</p>
+<h3>Context relevance and context precision</h3>
+<p>Graded on the retrieved passages, but by a judge rather than by labels, so they work without qrels. <b>Context relevance</b> (TruLens) asks whether each retrieved passage is relevant to the question. <b>Context precision</b> (RAGAS) asks whether the relevant passages were ranked above the irrelevant ones:</p>
+<div class="fm"><div class="eq">context precision@K = &Sigma;<sub>k=1..K</sub> (precision@k &times; v<sub>k</sub>) / (relevant passages in the top K)</div>
+<dl><dt>v<sub>k</sub></dt><dd>the judge's 0 or 1 verdict on the passage at rank k (against the reference answer, or against the response when there is none)</dd></dl></div>
+<p>It is the average precision of the judged list. Irrelevant passages ranked above relevant ones lower it; irrelevant passages ranked below every relevant one do not, so one relevant passage at rank 1 followed by nine misses scores 1.0 while precision@10 is 0.1 (the third preset in the calculator above). On the worked example with binary verdicts, the first-stage list (relevant at ranks 2 and 4) scores (1/2 + 2/4) / 2 = 0.5 and the reranked list (ranks 1, 2 and 4) scores (1 + 1 + 3/4) / 3 = 0.917.</p>
+<h3>Context recall</h3>
+<p>The share of the reference answer's claims that the retrieved passages could support: the judged cousin of retrieval recall, usable when you have reference answers but no passage labels. A reference answer with 4 claims of which the passages support 3 scores 0.75: a quarter of what a correct answer needs never reached the generator.</p>
+<h3>Citation accuracy</h3>
+<p>When the system cites, check the citations themselves. ALCE ({{Gao et al., EMNLP 2023|https://arxiv.org/abs/2305.14627}}) splits the answer into statements, each citing a set of passages C<sub>i</sub>, and uses an NLI model (TRUE, a T5-11B fine-tuned for entailment) as the checker:</p>
+<ul class="tight">
+<li><b>citation recall</b> of a statement is 1 if it cites at least one passage and the cited passages, concatenated, entail it; averaged over statements;</li>
+<li><b>citation precision</b> of a citation is 0 if it is "irrelevant": it does not entail the statement on its own, and the other citations entail the statement without it; averaged over citations. Redundant but supporting citations are not penalised.</li>
+</ul>
+<p>ALCE's headline: on ELI5, even the best models of 2023 lacked complete citation support about half the time. Citation checks are the cheapest groundedness test in production, because they need no reference answer and the NLI check is a small model; their blind spot is a claim left uncited.</p>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Hallucination spans|#t-spans}} tab shows six models' answers to the same questions with every RAGTruth span marked, and what a response-level and a span-level detector each see.</div>
+</section>
