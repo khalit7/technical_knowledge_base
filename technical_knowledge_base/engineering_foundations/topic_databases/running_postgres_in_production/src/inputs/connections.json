@@ -1,0 +1,133 @@
+{
+ "machine": {
+  "cpu": "Apple M1 Pro",
+  "ram_gb": 16,
+  "os": "macOS-27.0.1-arm64-arm-64bit",
+  "date": "2026-10-05"
+ },
+ "version": "16.2 (pgserver wheel); PgBouncer 1.24.1",
+ "psycopg": "3.3.6",
+ "steps": [
+  {
+   "step": "memory",
+   "cmd": "vmmap -summary <backend pid>  (Physical footprint)",
+   "out": "fresh idle backend: 4.6 MB\nafter reading information_schema.columns: 11.8 MB\nafter a 64 MB work_mem sort of 200k rows: 33.1 MB",
+   "secs": null,
+   "per_n": [
+    {
+     "n": 1,
+     "footprint_mb_median": 4.52,
+     "rss_mb_median": 7.52
+    },
+    {
+     "n": 50,
+     "footprint_mb_median": 4.55,
+     "rss_mb_median": 6.28
+    },
+    {
+     "n": 96,
+     "footprint_mb_median": 4.58,
+     "rss_mb_median": 7.56
+    }
+   ],
+   "fresh": 4.578125,
+   "catalog": 11.8,
+   "sort": 33.1
+  },
+  {
+   "step": "setup",
+   "cmd": "connect, SELECT 1, close: 300 times each way",
+   "out": "direct to Postgres: median 2.154 ms, p99 9.775 ms\nthrough PgBouncer: median 2.674 ms, p99 4.788 ms",
+   "secs": null,
+   "direct": {
+    "median_ms": 2.154,
+    "p99_ms": 9.775
+   },
+   "bouncer": {
+    "median_ms": 2.674,
+    "p99_ms": 4.788
+   }
+  },
+  {
+   "step": "pgbench",
+   "cmd": "pgbench -c 8 -f select1.sql  (-T 8 on persistent connections; -C -t 400: a new connection for every transaction)",
+   "out": "direct     persistent connections     87,487 tps\ndirect     new connection each time   1,660 tps\nPgBouncer  persistent connections     32,093 tps\nPgBouncer  new connection each time   9,337 tps",
+   "secs": null,
+   "rows": [
+    {
+     "path": "direct",
+     "reconnect": false,
+     "tps": 87486.783521
+    },
+    {
+     "path": "direct",
+     "reconnect": true,
+     "tps": 1659.520357
+    },
+    {
+     "path": "PgBouncer",
+     "reconnect": false,
+     "tps": 32093.499188
+    },
+    {
+     "path": "PgBouncer",
+     "reconnect": true,
+     "tps": 9336.877456
+    }
+   ]
+  },
+  {
+   "step": "exhaust",
+   "cmd": "open connections as role app until one is refused (max_connections = 100)",
+   "out": "97 connections opened, then:\nconnection failed: connection to server at \"127.0.0.1\", port 55460 failed: FATAL:  remaining connection slots are reserved for roles with the SUPERUSER attribute",
+   "secs": null,
+   "opened": 97
+  },
+  {
+   "step": "bouncer_1000",
+   "cmd": "1,000 clients connected to PgBouncer, 300 of them running a 50 ms transaction at once; SHOW POOLS;",
+   "out": "  database        user   cl_active  cl_waiting   sv_active     sv_idle     maxwait   pool_mode\n      chat         app         832         168          20           0           0  transaction\n\nserver connections seen by Postgres: 20",
+   "secs": 0.78,
+   "server_conns": 20,
+   "batch_secs": 0.78
+  },
+  {
+   "step": "set_leak",
+   "cmd": "client A: SET statement_timeout = '5s'; then SHOW statement_timeout ten times from client A and ten from client B (pool of 2 server connections)",
+   "out": "client A saw: 5s 5s 5s 5s 5s 5s 5s 5s 5s 5s\nclient B saw: 5s 5s 5s 5s 5s 5s 5s 5s 5s 5s",
+   "secs": null,
+   "a": [
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s"
+   ],
+   "b": [
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s",
+    "5s"
+   ]
+  },
+  {
+   "step": "prepared",
+   "cmd": "three psycopg 3 clients with default settings take turns running the same query 30 times, through PgBouncer in transaction mode, 2 server connections",
+   "out": "max_prepared_statements = 0:   3 of 30 failed; first error: DuplicatePreparedStatement: prepared statement \"_pg3_0\" already exists\nmax_prepared_statements = 200: 0 of 30 failed",
+   "secs": null,
+   "fail0": 3,
+   "fail200": 0
+  }
+ ]
+}

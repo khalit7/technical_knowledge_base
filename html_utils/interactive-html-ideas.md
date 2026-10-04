@@ -2286,3 +2286,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | 11 | Live Lucene segment merge simulator | 3 | 2 | 3 | | rejected: the storage sibling's LSM lab already teaches the merge pattern; linked instead |
 | 12 | Product quantisation codebook animation | 3 | 2 | 3 | | rejected for now: pgvector has no PQ to measure; the arithmetic is given in prose |
 | 13 | Running a dedicated vector DB (Qdrant) locally for a measured comparison | 4 | 5 | 4 | | not done: time budget; the page says the dedicated-store numbers are vendor-run and tells the reader to measure |
+
+### Running Postgres in production: backups, replication, vacuum, upgrades, pooling (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/running_postgres_in_production/src/viz_ideas.md`.
+
+| # | Visual | Where | Score | Data | Why it earns its place |
+|---|---|---|---|---|---|
+| 1 | **Bad DELETE at 14:03: restore last night's dump vs point-in-time recovery to 14:02:59** (before/after animation, 8 steps, counters, play/pause/step/scrub/speed) | Reading 3 | 10 | `inputs/pitr.json` (real row counts, recovery log, measured restore times); clock times illustrative | The single most important operational idea (RPO), shown on one input with the old method and the new. Khalid's requested animation. |
+| 2 | **Autovacuum replay**: 187 real seconds of `pg_stat_user_tables` on a churned table, HOT phase, non-HOT sawtooth, forgotten transaction, manual VACUUM (animated, scrubbable) | Reading 6 | 9 | `inputs/vacuum.json` | Before/after on the same table: healthy sawtooth vs blocked cleanup; also shows HOT pruning keeping dead tuples low without VACUUM (found by accident on the first run). |
+| 3 | **Replication lag chart** with toggle: normal replay vs replay paused 10 s | Reading 4 | 8 | `inputs/replication.json` series (250 ms samples) | Separates write, flush and replay lag: the diagnostic the three columns exist for. |
+| 4 | **Slot retention bars**: pg_wal size with a stopped replica, then with max_slot_wal_keep_size | Reading 4 | 8 | `replication.json` retention | The disk-full mechanism, and the fix, in one picture. |
+| 5 | **Incident lab** tab: 10 alerts, each a sequence of real diagnosis outputs, what to notice, fix, prevention | Tab | 9 | every run | The brief's requested tab; turns the page into a runbook. |
+| 6 | Real transcripts everywhere (`.tr` boxes filled from the JSON) and the **Lab notebook** tab with all 70 | Reading, tab | 8 | all runs | "Real commands and output" is the page's promise; one renderer keeps text and data from drifting. |
+| 7 | Autovacuum threshold calculator (rows, scale factor, PG18 cap) | Reading 6 | 6 | formula from docs | Shows why defaults fail on billion-row tables. |
+| 8 | Synchronous commit bars, connection cost bars, VACUUM vs VACUUM FULL bars, support-window timeline, managed cost tiles | Reading 4, 8, 6, 9, 12 | 5 to 6 | measured / docs / price lists | Small static comparisons; inline, no tab. |
+| 9 | Production checklist tab (30 items, ticks in localStorage) | Tab | 6 | | Something to act on, not just read. |
+| 10 | Server diagram (processes, shared buffers, data files, WAL, archive, replica) | Reading 1 | 5 | drawn | Everything later refers back to it. |

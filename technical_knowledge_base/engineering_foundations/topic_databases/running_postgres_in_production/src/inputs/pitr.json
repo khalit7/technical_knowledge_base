@@ -1,0 +1,129 @@
+{
+ "machine": {
+  "cpu": "Apple M1 Pro",
+  "ram_gb": 16,
+  "os": "macOS-27.0.1-arm64-arm-64bit",
+  "date": "2026-10-05"
+ },
+ "version": "16.2 (pgserver wheel)",
+ "dump_taken_at": "23:09:07.934",
+ "day": [
+  "23:09:08.896 1002000",
+  "23:09:10.462 1004000",
+  "23:09:12.029 1006000",
+  "23:09:13.594 1008000",
+  "23:09:15.154 1010000",
+  "23:09:16.711 1012000"
+ ],
+ "before_delete": 1012000,
+ "good_time": "2026-10-04 23:09:18.287328+00",
+ "delete_time": "2026-10-04 23:09:20.604513+00",
+ "count_dump": 1000000,
+ "count_pitr": 1012000,
+ "lost_dump": 12000,
+ "lost_pitr": 0,
+ "timeline_after": "2",
+ "steps": [
+  {
+   "step": "load",
+   "cmd": "load the chat data (10k users, 100k chats, 1M messages)",
+   "out": "messages | db_size \n----------+---------\n  1000000 | 221 MB\n(1 row)",
+   "secs": 6.8
+  },
+  {
+   "step": "dump",
+   "cmd": "pg_dump -Fc -f nightly.dump chat",
+   "out": "33.9 MB written",
+   "secs": 2.72,
+   "bytes": 35498505
+  },
+  {
+   "step": "basebackup",
+   "cmd": "pg_basebackup -D base -X stream -c fast -P -v",
+   "out": "pg_basebackup: initiating base backup, waiting for checkpoint to complete\npg_basebackup: checkpoint completed\npg_basebackup: write-ahead log start point: 0/14000028 on timeline 1\npg_basebackup: starting background WAL receiver\npg_basebackup: created temporary replication slot \"pg_basebackup_97761\"\n248624/248624 kB (100%), 0/1 tablespace (...data/pitr_base/global/pg_control)\n248624/248624 kB (100%), 1/1 tablespace                                         \npg_basebackup: write-ahead log end point: 0/14000100\npg_basebackup: waiting for background process to finish streaming ...\npg_basebackup: syncing data to disk ...\npg_basebackup: renaming backup_manifest.tmp to backup_manifest\npg_basebackup: base backup completed",
+   "secs": 0.76,
+   "bytes": 270872634
+  },
+  {
+   "step": "verify",
+   "cmd": "pg_verifybackup base",
+   "out": "backup successfully verified",
+   "secs": 0.15
+  },
+  {
+   "step": "bad_delete",
+   "cmd": "DELETE FROM messages;   -- meant: DELETE FROM messages WHERE chat_id = 4242;",
+   "out": "DELETE 1012000",
+   "secs": 1.1,
+   "before": 1012000,
+   "good_time": "2026-10-04 23:09:18.287328+00",
+   "del_time": "2026-10-04 23:09:20.604513+00",
+   "xid": "738"
+  },
+  {
+   "step": "after",
+   "cmd": "SELECT count(*) FROM messages;",
+   "out": "messages_left \n---------------\n             2\n(1 row)",
+   "secs": null
+  },
+  {
+   "step": "archive",
+   "cmd": "ls archive/  (WAL segments copied by archive_command)",
+   "out": "35 files, 000000010000000000000001 .. 000000010000000000000022",
+   "secs": null,
+   "files": 35
+  },
+  {
+   "step": "waldump",
+   "cmd": "pg_waldump <archived segments> | grep \"tx: 738\"",
+   "out": "1,012,000 Heap DELETE records for transaction 738, then:\nrmgr: Transaction len (rec/tot): 34/ 34, tx: 738, lsn: 0/2209DC60, prev 0/2209DC28, desc: COMMIT 2026-10-04 23:09:20.595307 UTC",
+   "secs": null,
+   "ndel": 1012000
+  },
+  {
+   "step": "restore_dump",
+   "cmd": "createdb chat && pg_restore -j 4 -d chat nightly.dump",
+   "out": "messages \n----------\n  1000000\n(1 row)",
+   "secs": 2.18,
+   "count": 1000000
+  },
+  {
+   "step": "restore_pitr",
+   "cmd": "cp -r base data && (set restore_command, recovery_target_time) && pg_ctl start",
+   "out": "restore_command = 'cp /archive/%f %p'\nrecovery_target_time = '2026-10-04 23:09:18.287328+00'\nrecovery_target_action = 'promote'\n# plus an empty file named recovery.signal in the data directory",
+   "secs": 1.64,
+   "count": 1012000,
+   "log": [
+    "LOG:  starting point-in-time recovery to 2026-10-04 23:09:18.287328+00",
+    "LOG:  restored log file \"000000010000000000000014\" from archive",
+    "LOG:  consistent recovery state reached at 0/14000100",
+    "LOG:  database system is ready to accept read-only connections",
+    "LOG:  restored log file \"000000010000000000000015\" from archive",
+    "LOG:  restored log file \"000000010000000000000016\" from archive",
+    "LOG:  restored log file \"000000010000000000000017\" from archive",
+    "LOG:  restored log file \"000000010000000000000018\" from archive",
+    "LOG:  restored log file \"000000010000000000000019\" from archive",
+    "LOG:  restored log file \"00000001000000000000001A\" from archive",
+    "LOG:  restored log file \"00000001000000000000001B\" from archive",
+    "LOG:  restored log file \"00000001000000000000001C\" from archive",
+    "LOG:  restored log file \"00000001000000000000001D\" from archive",
+    "LOG:  restored log file \"00000001000000000000001E\" from archive",
+    "LOG:  restored log file \"00000001000000000000001F\" from archive",
+    "LOG:  restored log file \"000000010000000000000020\" from archive",
+    "LOG:  restored log file \"000000010000000000000021\" from archive",
+    "LOG:  restored log file \"000000010000000000000022\" from archive",
+    "LOG:  recovery stopping before commit of transaction 738, time 2026-10-04 23:09:20.595307+00",
+    "LOG:  redo done at 0/2209DC60 system usage: CPU: user: 0.20 s, system: 0.06 s, elapsed: 0.56 s",
+    "LOG:  selected new timeline ID: 2",
+    "LOG:  archive recovery complete",
+    "LOG:  database system is ready to accept connections"
+   ]
+  },
+  {
+   "step": "pitr_count",
+   "cmd": "SELECT count(*) FROM messages;",
+   "out": "messages | written_today \n----------+---------------\n  1012000 |         12000\n(1 row)",
+   "secs": null
+  }
+ ]
+}
