@@ -1,0 +1,36 @@
+
+<section id="s-duck">
+<h2>6. DuckDB in depth</h2>
+<p><b>What it is.</b> DuckDB is a column-oriented, vectorised SQL engine that runs <b>inside your process</b>, like SQLite: <code>pip install duckdb</code>, no server, no network hop, no users to manage ({{SIGMOD 2019 demo paper|https://mytherin.github.io/papers/2019-duckdbdemo.pdf}}). A database is one file (or none, in memory). Version 1.5.6 (2026-09-28); 1.4 is the long-term-support line; a 2.0 is scheduled for 2026-10-21 and was in public preview at the time of writing ({{release calendar|https://duckdb.org/release_calendar.html}}). MIT licensed; in August 2026 DuckLabs agreed to join AWS (announced 2026-08-26, closed 2026-08-31), with DuckDB staying MIT under the non-profit DuckDB Foundation (root's Database atlas, {{announcement|https://www.aboutamazon.com/news/company-news/aws-ducklabs}}).</p>
+<h3>Querying files in place</h3>
+<p>Its most useful habit for analytics: it reads Parquet, CSV and JSON files directly, with no load step, and treats a glob of files as one table.</p>
+<pre class="fm" style="font-size:12.5px;white-space:pre;overflow-x:auto">import duckdb
+con = duckdb.connect()                      # in memory; or duckdb.connect('chat.duckdb')
+con.sql("""
+  SELECT model, count(*) AS messages, sum(tokens) AS tokens
+  FROM 'exports/messages/*.parquet'          -- every file in the folder, one table
+  WHERE created_at &gt;= '2026-03-01'
+  GROUP BY model ORDER BY model
+""").df()                                   # a pandas DataFrame; .pl() gives Polars, .arrow() Arrow
+con.sql("COPY (SELECT * FROM read_csv('events.csv')) TO 'events.parquet' (FORMAT parquet, COMPRESSION zstd)")</pre>
+<p>Results move to pandas, Polars and Arrow without copying the data value by value, and DuckDB can query a pandas or Polars DataFrame in scope by its variable name. The same SQL runs over a 10 KB CSV or a folder of 500 GB of Parquet.</p>
+<h3>Reading from object storage, measured</h3>
+<p>The <code>httpfs</code> extension reads files over HTTP(S) and S3 and, for Parquet, uses the footer plus HTTP <b>range requests</b> to download only the parts a query needs ({{httpfs docs|https://duckdb.org/docs/current/core_extensions/httpfs/https.html}}). To see exactly which bytes, the 534 MB file was served by a small local HTTP server that logs every request (<code>src/measure/remote_small.py</code>):</p>
+<div class="card" id="httpCard">
+<div class="seg" id="httpQ"><button data-m="one_day" class="on">One day</button><button data-m="case6">Tokens per model</button><button data-m="one_row">One message by id</button></div>
+<div id="httpSvg" class="plot"></div>
+<div class="small" id="httpNote"></div>
+</div>
+<p>On S3 every request costs time (tens of milliseconds of latency) and a small fee, so the shape of the file shows up on the bill: few, large row groups sorted by the main filter mean few requests. DuckDB issues them from many threads at once.</p>
+<h3>Bigger than memory, measured</h3>
+<p>Operators that must see all their input before producing output (sorting, grouping, joining, window functions) <b>spill</b> to a temporary directory when they exceed <code>memory_limit</code>, which defaults to 80% of RAM ({{tuning guide|https://duckdb.org/docs/current/guides/performance/how_to_tune_workloads.html}}). Sorting all 10 million messages by their text (about 1 GB of strings) with the limit set to 300 MB took 3.6 s and wrote up to 790 MB of temporary files; with the default limit (12.7 GiB on this laptop) it took 2.6 s and spilled nothing (<code>vec_ooc.py</code>). Slower, but it finishes: this is what lets one laptop chew through data several times its memory.</p>
+<h3>When DuckDB beats Spark, and when it does not</h3>
+<p>Spark spreads work over a cluster; that costs start-up time, shuffles over the network and an operations burden, and pays off only when the data or the computation is too big for one machine. Most analytical data is not: Jordan Tigani, a founding engineer of BigQuery now running MotherDuck (so not neutral), reported that most BigQuery customers stored under a terabyte and that 90% of queries processed under 100 MB ({{Big data is dead, 2023|https://motherduck.com/blog/big-data-is-dead/}}). Coiled's TPC-H benchmark (2024, by a Dask vendor) found "no project wins": DuckDB was the clear winner for SQL on 100 GB of local data, Spark was beaten by about 10 times or more at small scales, and at 10 TB the distributed engines scaled where single-machine DuckDB and Polars did not ({{Coiled TPC-H|https://docs.coiled.io/blog/tpch.html}}). The rule of thumb: up to a few hundred GB on one machine, start with DuckDB (or Polars); past what one large machine can hold, or with many concurrent users, use a distributed engine or a warehouse.</p>
+<h3>Where it stops, and what grew around it</h3>
+<ul>
+<li><b>One writing process at a time</b> per database file (many threads inside it); snapshot isolation is its only level (atlas). It is not the live store behind a web app with many writers.</li>
+<li><b>Lakehouse formats:</b> the <code>iceberg</code> extension reads tables directly and reads and writes through an Iceberg REST catalog; the <code>delta</code> extension, built on Delta Kernel, reads and does blind appends ({{iceberg|https://duckdb.org/docs/current/core_extensions/iceberg/overview.html}}, {{delta|https://duckdb.org/docs/current/core_extensions/delta.html}}).</li>
+<li><b>DuckLake</b>, the DuckDB team's own table format, keeps all lakehouse metadata in a SQL database (Postgres, MySQL, SQLite or DuckDB) and the data in Parquet, which gives multi-writer access; announced 2025-05-27, v1.0 declared production-ready 2026-04-13 ({{ducklake.select|https://ducklake.select/news/}}).</li>
+<li><b>MotherDuck</b> runs DuckDB as a cloud service (storage $0.043 per GB-month; compute instances from $2.93 an hour, or $0.73 per compute-unit hour metered per query; {{pricing|https://motherduck.com/product/pricing/}}).</li>
+</ul>
+</section>

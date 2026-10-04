@@ -1,0 +1,21 @@
+
+<section id="s-skip">
+<h2>3. Skipping data: min/max statistics and sort order</h2>
+<p><b>The problem.</b> Reading only two columns is good; reading only the part of those columns that can matter is better. "Messages on 1 March 2026" needs 28,800 of 10 million rows. A column store has no B-tree to find them (an index per column would cost as much to maintain as the data), so it needs a cheaper trick.</p>
+<p><b>The idea: a zone map.</b> When a block of rows is written, record the smallest and largest value of each column in it (its <b>min/max statistics</b>, also called a <b>zone map</b>). At query time, compare the filter with each block's range: if 1 March lies outside [min, max], no row in the block can match, and the block is skipped without being read. Postgres has the same idea as the BRIN index; Parquet keeps the statistics per row group in its footer; Snowflake keeps them per micro-partition; ClickHouse per granule of 8,192 rows (section 7).</p>
+<p>The animation runs one query on the real 534 MB Parquet file of 10 million messages written by DuckDB (82 row groups of 122,880 rows; each bar is one row group, its height the real compressed bytes of the two columns the query needs). Toggle between a reader that ignores the statistics and one that uses them.</p>
+<div class="card" id="prCard">
+<div class="seg" id="prMode"><button data-m="off">Without statistics</button><button data-m="on" class="on">With min/max pruning</button></div>
+<div class="seg" id="prQ"><button data-m="day" class="on">One day</button><button data-m="chat">One chat</button></div>
+<div class="small mute" id="prLeg"></div><div id="prSvg" class="plot"></div>
+<div class="an" id="prCtl" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0"></div>
+<div id="prCap" class="small" style="min-height:3.2em"></div>
+<div class="out" id="prStats"></div>
+</div>
+<p><b>The catch: skipping only works on sorted data.</b> The file above was written in time order (message ids grow with time), so each row group covers about four consecutive days and a date filter lands in one or two of them. A chat's messages are spread over about 20,000 consecutive rows (the generator interleaves chats that are active at the same time), so a chat filter also lands in one or two row groups, by luck of how the app writes. Shuffle the rows and every row group spans every date and every chat: nothing can be skipped. The {{Parquet lab|#t-lab}} tab measures this on 36 files; with row groups of 100,000 rows, one chat costs 0.46 to 0.69 MB read from a file sorted by time or by chat, and 34 to 86 MB from a shuffled one (any row-group size).</p>
+<ul>
+<li><b>What it costs:</b> almost nothing to keep (82 pairs of values per column here, inside a 76,648-byte footer), but it constrains how you write: data has to be sorted, or at least clustered, on the column people filter by. You can only pick one primary order, so pick the filter that matters most (usually time), and accept that other filters scan.</li>
+<li><b>When it does not help:</b> filters on columns with no order (a model name in a time-sorted file: all 82 row groups contain all four models), and filters that match a few rows spread through the whole file (the 6,950 messages over 1,495 tokens: their row groups' maxima all exceed 1,495, so none is skipped).</li>
+<li><b>What pros add:</b> sort within each file by a second key (Snowflake's clustering keys, Delta's liquid clustering, ClickHouse's ORDER BY tuple, Iceberg sort orders), bloom filters for equality on unsorted columns (section 5), and partitioning by time so whole files are skipped before any footer is read (section 9).</li>
+</ul>
+</section>

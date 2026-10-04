@@ -1,0 +1,57 @@
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>
+#t-lab .lab2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:10px 0}
+@media (max-width:760px){#t-lab .lab2{grid-template-columns:minmax(0,1fr)}}
+#t-lab .pane{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+#t-lab .pane h3{margin:0 0 6px;font-size:14.5px}
+#t-lab .ap{border:1px solid var(--line);border-left:5px solid var(--dim);border-radius:8px;padding:6px 9px;margin:6px 0;font-size:13px;cursor:pointer;background:var(--bg)}
+#t-lab .ap.sel{outline:2px solid var(--acc);outline-offset:1px}
+#t-lab .ap .nm{font-weight:600;display:block}#t-lab .ap .op{font-family:ui-monospace,Menlo,monospace;font-size:12px;display:block;overflow-wrap:anywhere}
+#t-lab .ap .m{color:var(--mute);font-size:12px;display:block}
+#t-lab .ap.k0{border-left-color:var(--good)}#t-lab .ap.k1{border-left-color:var(--c6)}#t-lab .ap.k2{border-left-color:var(--c5)}#t-lab .ap.k3{border-left-color:var(--bad)}
+#t-lab .ent{border-bottom:1px solid var(--line);padding:6px 0;font-size:13px}
+#t-lab .ent:last-child{border-bottom:0}
+#t-lab .ent b{display:block;font-size:13px}
+#t-lab .ent label{display:block;margin:3px 0;font-size:12.5px}
+#t-lab .ent select{max-width:100%;font-size:12.5px;padding:2px 6px}
+#t-lab .ent .chk{white-space:normal;display:block;margin:3px 0}
+#t-lab .presets{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-lab .presets button{font-size:12.5px}
+#t-lab .legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-lab .legend span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-lab .why{border-left:3px solid var(--acc);padding:4px 10px;margin:8px 0;font-size:13.5px;background:var(--soft);border-radius:0 6px 6px 0;min-height:4em}
+#t-lab .items{overflow-x:auto;max-width:100%}
+#t-lab table.it{font-size:12px;border-collapse:collapse;width:auto;min-width:100%}
+#t-lab table.it td,#t-lab table.it th{border:1px solid var(--line);padding:3px 6px;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
+#t-lab table.it th{background:var(--soft);font-family:inherit}
+#t-lab table.it tr.hit td{background:var(--hl)}
+#t-lab table.it td.pk{font-weight:600}
+#t-lab .score{font-size:14px;margin:6px 0}
+#t-lab .hot{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px 16px}
+</style>
+<section id="lab-top">
+<h2>Single-table lab: design DynamoDB keys for the chat product</h2>
+<p>DynamoDB answers only questions that name a key. You list the questions first (the <b>access patterns</b>), then choose how each kind of item is keyed so that every question becomes one request. Pick the keys on the right; the left side shows, for each access pattern, which request it becomes and how many items DynamoDB must read. The rules are DynamoDB's own (sections 4.2 to 4.4 of the Reading tab) and were checked on DynamoDB Local with the chat data; the item counts use that data: <span id="lab-data"></span>.</p>
+<div class="try"><b>Try:</b> start from <i>Relational habit</i> (one kind of item per table, keyed by its own id) and see how many questions turn into scans; then switch to <i>Single-table design</i>. Change only the message key to <code>MSG#{messageId}</code> and watch "latest 50 messages" collapse into a scan. Turn on the model-per-day index and read the hot-partition warning.</div>
+<div class="presets" id="lab-presets"><button data-p="rel">Relational habit</button><button data-p="st" class="on">Single-table design</button><button data-p="bad">Messages keyed by id</button></div>
+<div class="legend"><span style="--sw:var(--good)">one request, reads only what it returns</span><span style="--sw:var(--c6)">one request on an index (eventually consistent)</span><span style="--sw:var(--c5)">works, but reads more than it returns or needs several requests</span><span style="--sw:var(--bad)">scan of the whole table</span></div>
+<div class="lab2">
+<div class="pane"><h3>Access patterns (what the app asks)</h3><div id="lab-aps"></div><div class="score" id="lab-score"></div></div>
+<div class="pane"><h3>Key design (how each item is keyed)</h3><div id="lab-keys"></div></div>
+</div>
+<div class="why" id="lab-why"></div>
+<h3>The table, as DynamoDB stores it</h3>
+<p class="small mute">A sample of items under the current design, grouped by partition key and sorted by sort key, the way a Query sees them. Rows the selected access pattern reads are highlighted.</p>
+<div class="items" id="lab-items"></div>
+<h3>Hot partitions and what it costs</h3>
+<p>Every partition serves at most 3,000 read units and 1,000 write units a second ({{DynamoDB docs, partition key design|https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html}}). A key that concentrates traffic, such as one very busy group chat or "all messages of model X today", hits that ceiling however large the table is. Adaptive capacity moves busy items onto their own partitions, but a single key still cannot pass the per-partition maximum ({{burst and adaptive capacity|https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html}}).</p>
+<div class="hot">
+<label class="small">Messages written per second to the busiest key: <b id="lab-w-v"></b><input type="range" id="lab-w" min="10" max="5000" step="10" value="1500"></label>
+<label class="small">Write shards (suffix #0 to #N-1 on the key): <b id="lab-s-v"></b><input type="range" id="lab-s" min="1" max="10" step="1" value="1"></label>
+<label class="small">Messages a day, whole product: <b id="lab-md-v"></b><input type="range" id="lab-md" min="4" max="9" step="0.1" value="7"></label>
+<label class="small">Reads per message written: <b id="lab-rr-v"></b><input type="range" id="lab-rr" min="1" max="50" step="1" value="10"></label>
+</div>
+<div class="out" id="lab-hot-out"></div>
+<p class="small mute" id="lab-cost-note"></p>
+</section>
+</div>
