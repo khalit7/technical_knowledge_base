@@ -1,0 +1,53 @@
+
+<section id="rd-app">
+<h2>App-level tools: promptfoo and Braintrust</h2>
+<p>A different job: evaluating <b>your application</b> (prompt, model, retrieval, tools and code together) on your own cases, not a model on public tasks.</p>
+<ul>
+<li><b>{{promptfoo|https://github.com/promptfoo/promptfoo}}</b>: open source (MIT), command line and YAML first, local first. A <code>promptfooconfig.yaml</code> declares a matrix: prompts x providers x test cases, each test with assertions ({{getting-started example|https://github.com/promptfoo/promptfoo/blob/5fde786d0c296339be3fd189d1542157e1d4217a/examples/getting-started/promptfooconfig.yaml}}). At commit 5fde786 its docs list 44 deterministic assertion types (from <code>equals</code>, <code>contains</code> and <code>regex</code> to <code>is-json</code>, <code>latency</code>, <code>cost</code>, tool-call F1 and trajectory checks such as <code>trajectory:tool-sequence</code>) and 17 model-assisted ones (<code>llm-rubric</code>, <code>g-eval</code>, <code>factuality</code>, <code>context-faithfulness</code>, <code>trajectory:goal-success</code> and others) ({{assertions|https://github.com/promptfoo/promptfoo/blob/5fde786d0c296339be3fd189d1542157e1d4217a/site/docs/configuration/expected-outputs/index.md}}). It has a diff view, CI integration and a serious red-teaming and vulnerability-scanning mode. On 9 March 2026 Promptfoo announced it "has agreed to be acquired by OpenAI" and "will remain open source"; the README now says it "is now part of OpenAI" and remains MIT licensed ({{announcement|https://www.promptfoo.dev/blog/promptfoo-joining-openai/}}). Choose it for repository-local prompt regression tests and multi-model comparisons with the fastest setup.</li>
+<li><b>{{Braintrust|https://www.braintrust.dev/docs/evaluate}}</b>: a commercial platform. Every evaluation has three parts, data, task and scorers: <code>Eval("My project", data=init_dataset(...), task=..., scores=[Factuality])</code>, run with <code>bt eval</code> ({{run in code|https://braintrust.dev/docs/evaluate/run-in-code}}). Playground runs overwrite themselves; experiments are immutable snapshots meant for comparison and CI gates; datasets are versioned so experiments can pin a version; scorers come from its open-source {{autoevals|https://github.com/braintrustdata/autoevals}} library, code or LLM judges; online scoring rules grade production traces asynchronously, which, with no ground truth on live traffic, means judge scorers ({{online scoring|https://braintrust.dev/docs/evaluate/score-online}}). Human review is built in. Choose it when you want the loop from offline evaluation to production observability in one place and are willing to pay for it.</li>
+</ul>
+<p>Alternatives in the same niche, named here without a review: {{Langfuse|https://github.com/langfuse/langfuse}}, {{Arize Phoenix|https://github.com/Arize-ai/phoenix}} and {{W&amp;B Weave|https://github.com/wandb/weave}}. Observability of agent systems belongs to {{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}; how to build gates, golden sets and promotion paths with any of these tools belongs to {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}.</p>
+<div class="co"><div class="t">The boundary rule</div>Model-level harnesses answer "is this checkpoint good?"; app-level tools answer "is this system change safe to ship?". Khalid's regression-gate work is the second kind even when the trigger is a model swap. The pattern that works: a harness for the swap candidate's general capabilities, app-level golden sets for the product surface.</div>
+</section>
+
+<section id="rd-repro">
+<h2>Reproducibility and logging</h2>
+<p>A score is reproducible only if every input to it is pinned and every output is kept. The harnesses differ most in the second.</p>
+<div class="tw"><table class="cards">
+<thead><tr><th>What to pin</th><th>lm-eval</th><th>Inspect / inspect_evals</th><th>HELM</th></tr></thead>
+<tbody>
+<tr><td>Harness code</td><td><code>git_hash</code> and package version written to the results file</td><td>Package versions and the task file's git revision in the log's <code>eval</code> header</td><td>Package version; per-run spec JSON</td></tr>
+<tr><td>Task definition</td><td><code>metadata.version</code> in the YAML (GSM8K: 3.0), plus the full rendered config in the results file</td><td>Eval version metadata from each eval's <code>eval.yaml</code>; task arguments recorded</td><td>Run spec name and arguments</td></tr>
+<tr><td>Dataset</td><td>A Hub path; no revision unless the YAML adds <code>dataset_kwargs</code></td><td>GSM8K pins dataset revision <code>cc7b047</code> in code</td><td>GSM8K downloads <code>train.jsonl</code> and <code>test.jsonl</code> from the GitHub repository's <code>master</code> branch, unpinned</td></tr>
+<tr><td>Few-shot examples</td><td>Sampled from the train split with seed 1234 (defaults "0,1234,1234,1234" for Python, NumPy, torch and few-shot)</td><td>Ten random train examples, fixed seed, shuffle on by default</td><td>Five sampled train instances</td></tr>
+<tr><td>Prompt as sent</td><td><code>prompt_hash</code>, <code>doc_hash</code>, <code>target_hash</code> per sample; chat template and system instruction hashes</td><td>Every message of every model call, in full</td><td>Every request and response per instance</td></tr>
+<tr><td>Output and score</td><td><code>--log_samples</code>: raw response, filtered response per filter, metric</td><td>Model output, score, answer, explanation, timing and token usage per sample</td><td>Per-instance stats and metrics</td></tr>
+</tbody></table></div>
+<p>What the logs are for: when a number moves, the first three suspects are a genuine capability change, a broken extraction filter, and a truncated completion. Only per-sample logs separate them. The tab {{Inside a run log|#t-logs}} shows both formats from real runs.</p>
+<ul>
+<li><b>Seeds and sampling.</b> Greedy decoding is not the default everywhere (Inspect's local Hugging Face provider samples, above). With sampling, run several epochs and report the spread; see {{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}} for how many items and repeats a difference needs.</li>
+<li><b>Token counts can be the batch's.</b> Inspect's local Hugging Face provider records each sample's usage as the padded batch shape: in this page's run every one of the ten samples logged 2,269 input and 494 output tokens, while the real prompts were 2,184 to 2,269 tokens and the outputs 146 to 493 ({{<code>hf.py</code> lines 651 to 652|https://github.com/UKGovernmentBEIS/inspect_ai/blob/9f6accda8dce5ccd754e6be1a22fbcee96042e82/src/inspect_ai/model/_providers/hf.py#L651-L652}}; counts in <code>src/data/runs.json</code>). Its stop reason was logged as "unknown". API providers report real usage; for a local model, count tokens yourself before using the log to spot truncation.</li>
+<li><b>Serving.</b> The same weights behind different providers or precisions are different instruments; lighteval's own example compares one model across three Inference Providers for this reason.</li>
+<li><b>Caching</b> makes reruns cheap and can also replay a stale answer: lm-eval's <code>--use_cache</code> is keyed by model and task, and Inspect's <code>generate(cache=True)</code> by the model, its settings and the messages.</li>
+</ul>
+</section>
+
+<section id="rd-sandbox">
+<h2>Sandboxes for agentic evals</h2>
+<p>An agent eval lets model-written code and commands run. Inspect makes that a first-class part of the task: tools such as <code>bash()</code>, <code>python()</code> and <code>text_editor()</code> require a sandbox, each sample can get its own, and the environment is declared next to the task as a <code>Dockerfile</code> or <code>compose.yaml</code> ({{Sandboxing|https://inspect.aisi.org.uk/sandboxing.html}}). On 4 October 2026 the docs list two built-in environments and seven as packages:</p>
+<div class="tw"><table class="cards">
+<thead><tr><th>Type</th><th>Package</th><th>Accepts a Dockerfile</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td><code>docker</code></td><td>built in</td><td>yes</td><td>Local Docker installation</td></tr>
+<tr><td><code>k8s</code></td><td>inspect-k8s-sandbox</td><td>yes</td><td>Kubernetes cluster</td></tr>
+<tr><td><code>daytona</code>, <code>modal</code></td><td>inspect-sandboxes</td><td>yes</td><td>Cloud sandboxes</td></tr>
+<tr><td><code>ec2</code></td><td>inspect_ec2_sandbox</td><td>no</td><td>AWS EC2 virtual machine</td></tr>
+<tr><td><code>proxmox</code></td><td>inspect_proxmox_sandbox</td><td>no</td><td>Proxmox virtual machines</td></tr>
+<tr><td><code>vagrant</code></td><td>inspect_vagrant_sandbox</td><td>no</td><td>Vagrant virtual machines</td></tr>
+<tr><td><code>openshell</code></td><td>inspect-openshell-sandbox</td><td>yes</td><td>NVIDIA OpenShell, with filesystem and network policies</td></tr>
+<tr><td><code>local</code></td><td>built in</td><td>no</td><td>Local file system: <b>no sandbox</b>, runs as the current user</td></tr>
+</tbody></table></div>
+<p class="small mute">Source: {{<code>docs/sandboxing.qmd</code> lines 94 to 110|https://github.com/UKGovernmentBEIS/inspect_ai/blob/9f6accda8dce5ccd754e6be1a22fbcee96042e82/docs/sandboxing.qmd#L94-L110}}. The old version of this page named Docker, Kubernetes and Proxmox only.</p>
+<p>Nothing else here compares. lm-eval runs code tasks such as HumanEval on the host, gated by <code>unsafe_code: true</code> in the task and <code>--confirm_run_unsafe_code</code> on the command line; HELM, simple-evals and openai/evals have no sandbox layer; Braintrust connects agent code to its playground through "remote evals or sandboxes" ({{docs|https://braintrust.dev/docs/evaluate/remote-evals}}); promptfoo grades agent trajectories but does not isolate them. How to grade what an agent did, rather than its last message, is {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}}; public agentic benchmarks (pass^k, METR horizons, Terminal-Bench exploits) are on Topic: benchmarks' {{Agentic|n:3c65c17b0d0d811fb926d7b91ef8234e}} page.</p>
+<div class="co"><div class="t">The opposite trade: a harness inside an enclave</div>Google DeepMind's August 2026 double-blind pilot ran a proprietary model and private items inside a confidential-computing enclave so neither side saw the other's secret; its cost is the thing Inspect's log viewer exists for: no one can read the transcripts, so a bad score cannot be attributed to capability, a broken extraction filter or a truncated completion. Details and caveats: {{Topic: benchmarks|n:3c65c17b0d0d811fb43fece56e40041a}} (Reading, "What a number leaves out").</div>
+</section>
