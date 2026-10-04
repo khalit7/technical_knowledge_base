@@ -1,0 +1,97 @@
+<section id="s-lt">
+<h2>Load testing without fooling yourself</h2>
+<p>A <dfn id="g-loadtest">load test</dfn> sends synthetic traffic at a system to learn what it does under load before real users find out. Its kinds differ by the question: a <b>load test</b> (can it carry the expected peak?), a <b>stress</b> or breakpoint test (where and how does it break?), a <b>soak test</b> (hours at normal load: leaks, slow growth), a <b>spike test</b> (a sudden jump: does autoscaling keep up?). All of them share two traps that make a test report numbers far better than reality.</p>
+
+<h3 id="s-openclosed">Trap 1: the workload model</h3>
+<p>A <dfn id="g-closed">closed</dfn> workload has a fixed number of virtual users; each sends a request, waits for the answer, maybe "thinks", and only then sends the next. An <dfn id="g-open">open</dfn> workload has requests arriving at a rate, whatever the system is doing. Bianca Schroeder, Adam Wierman and Mor Harchol-Balter showed how different the answers are ({{"Open Versus Closed: A Cautionary Tale", NSDI 2006|https://www.usenix.org/legacy/event/nsdi06/tech/full_papers/schroeder/schroeder.pdf}}): "for a fixed load, the mean response time for an open system model can exceed that for a closed system model by an order of magnitude or more", and variability in request sizes "has a huge impact on response times in open systems" but "much less of an effect in closed models". A closed test is self-limiting: when the server slows down, the users slow down with it, so the queue never builds the way it would in production. Users on the internet do not wait for each other, so a public API is close to open (strictly, "partly open": sessions arrive independently, and inside a session a user waits for each reply).</p>
+
+<h3 id="s-co">Trap 2: coordinated omission</h3>
+<p>Gil Tene named the measurement version of the same problem ({{"How NOT to Measure Latency", Strange Loop 2015|https://www.youtube.com/watch?v=lJ8ydIuPFeU}}). A closed-loop tool measures each request from when it was actually sent. During a stall it sends nothing, so the requests that real users would have sent during the stall, and that would have waited, are never measured: the tool has coordinated with the server to omit the bad moments. That is <dfn id="g-co">coordinated omission</dfn>. wrk2's README: wrk "exhibits a strong Coordinated Omission effect, through which most of the high latency artifacts exhibited by the measured server will be ignored"; wrk2 instead "measures response latency from the time the transmission should have occurred according to the constant throughput configured for the run" ({{wrk2|https://github.com/giltene/wrk2}}). Its example with a 1.4 second server pause: corrected p99 1.27 s, uncorrected p99 6.04 ms.</p>
+<div class="meas" id="s-meas-co"><div class="t">Experiment 2: the same stalling server, measured closed-loop and open-loop</div>
+<p>Experiment 1's server (one request at a time, exponential service, mean 10 ms nominal), set to freeze for 1.5 s every 15 s, as a stop-the-world garbage-collection pause or a slow disk flush would. 30 requests a second for 60 s, twice: a closed-loop generator (3 users, each sending at most 10 a second, waiting for each answer, catching up immediately when late: what wrk, Locust users and k6's <code>constant-vus</code> do), and an open-loop one (evenly spaced sends at the same rate, never waiting). The closed run also logged when each request should have been sent, which gives the corrected reading.</p></div>
+<div class="card" id="co-card">
+<div class="seg" id="co-seg"><button class="on" data-m="closed">Closed loop, as the tool reports</button><button data-m="corr">Closed loop, corrected</button><button data-m="open">Open loop</button></div>
+<div class="chart" id="co-chart"></div>
+<div class="tw"><table id="co-table"></table></div>
+<p class="small mute" id="co-note"></p>
+</div>
+<p id="co-text"></p>
+
+<h3 id="s-tools">Tools, and how to make each one open-loop</h3>
+<div class="tw"><table>
+<thead><tr><th>Tool</th><th>Version (2026-10-04)</th><th>Default model</th><th>Open-loop mode</th></tr></thead>
+<tbody>
+<tr><td>k6 (Grafana; tests in JavaScript)</td><td>2.3.0, 21 Sep 2026</td><td>Closed (<code>constant-vus</code>, <code>ramping-vus</code>)</td><td><code>constant-arrival-rate</code>, <code>ramping-arrival-rate</code>: "The response times of the target system no longer influence the load" ({{k6 docs|https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/}})</td></tr>
+<tr><td>Locust (tests in Python)</td><td>2.46.6, 17 Sep 2026</td><td>Closed: each user runs tasks with a <code>wait_time</code></td><td>None built in; <code>constant_throughput</code> paces each user but a slow answer still delays its next request</td></tr>
+<tr><td>wrk2 (Gil Tene's modified wrk; C)</td><td>no tagged releases</td><td>Constant rate <code>-R</code></td><td>Built in: latency from the scheduled send time</td></tr>
+<tr><td>wrk, ab, hey</td><td></td><td>Closed, as fast as possible</td><td>None: use for raw throughput, never for latency</td></tr>
+</tbody></table></div>
+<div class="code"><span class="cm">// k6: an open-model step test for the chat API's "load conversation" endpoint</span>
+import http from 'k6/http';
+export const options = {
+  scenarios: {
+    steps: {
+      executor: 'ramping-arrival-rate',          <span class="cm">// open model: arrivals per second, not users</span>
+      startRate: 100, timeUnit: '1s',
+      preAllocatedVUs: 200, maxVUs: 2000,       <span class="cm">// enough VUs that the generator never waits</span>
+      stages: [ { target: 400, duration: '2m' }, { target: 400, duration: '3m' },
+                { target: 800, duration: '2m' }, { target: 800, duration: '3m' },
+                { target: 1200, duration: '2m' }, { target: 1200, duration: '3m' } ],
+    },
+  },
+  thresholds: { http_req_duration: ['p(99)<300'], http_req_failed: ['rate<0.001'] },
+};
+export default function () {
+  const chat = 1 + Math.floor(Math.random() * 100000);   <span class="cm">// many keys: realistic cache hit rate</span>
+  http.get(`https://staging.example.com/chats/${chat}/messages?limit=50`);
+}</div>
+<p class="small mute">Structure from the k6 docs above; rates, stages and thresholds are illustrative (the 1,200 a second step is the chat API's busy-hour rate from the root). If k6 reports "dropped_iterations", it ran out of VUs and the test stopped being open.</p>
+
+<h3 id="s-design">Designing a realistic test</h3>
+<ol>
+<li><b>Model the traffic from production</b>: the mix of endpoints (for every message, our app also loads history, lists chats, refreshes auth: 1 + 4 requests), the request sizes, the spread of keys. A test that reads one chat a million times measures the cache, not the system.</li>
+<li><b>Model the slow dependencies honestly.</b> If the model provider is stubbed out, stub it with its real latency distribution, streaming for about 10 seconds, or the test will never find the connection pool and worker limits that a 10-second call exposes.</li>
+<li><b>Ramp in steps and hold each step</b> long enough for queues to settle and for the p99 to rest on enough samples (thousands of requests per step).</li>
+<li><b>Record offered against achieved throughput, errors and every resource's utilisation</b> (USE). If achieved stops following offered, you are past the knee; if errors rise, the latency numbers are flattered by the failures.</li>
+<li><b>Check the load generator.</b> If its own CPU is saturated, its latency numbers are its own queueing. Our Experiment 1 logged how late each send was against its schedule for this reason (its p99 lateness was 3 to 7 ms, small next to latencies of 50 ms and more, and counted in the measurement because latency runs from the scheduled time).</li>
+<li><b>Test in an environment shaped like production</b> (same instance types, same database size, same cache warmth) and say what differs.</li>
+</ol>
+
+<h3 id="s-knee">Finding the knee</h3>
+<p>Plot the p99 (y) against achieved throughput (x) across the steps: flat, then bending up, then vertical. The <b>knee</b> is where it bends; the <b>usable capacity</b> is the highest throughput whose p99 still meets your target with headroom left. From Experiment 1 (one server, about 11 ms of work): p99 54 ms at 11% busy, 114 ms at 57%, 190 ms at 79%, 321 ms at 89%, 556 ms at 95%, then seconds. With a p99 target of 200 ms this server's usable capacity is about 80% of its maximum; with 100 ms, about 50%. The target, not the hardware, sets the usable fraction. Little's law checks the result: achieved throughput &times; mean latency must equal the concurrency the generator held in flight.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> The {{Load-test lab|#t-lab}} draws these curves for any number of servers, service-time distribution and balancing policy, and overlays Experiment 3's measured points.</div>
+</section>
+
+<section id="s-cap">
+<h2>Capacity planning</h2>
+<p><dfn id="g-capplan">Capacity planning</dfn> decides how much hardware to have, and when, so that the peak is served with the required reliability at the lowest cost. Google's SRE book lists what it needs: "An accurate organic demand forecast, which extends beyond the lead time required for acquiring capacity", "An accurate incorporation of inorganic demand sources into the demand forecast", and "Regular load testing of the system to correlate raw capacity (servers, disks, and so on) to service capacity" ({{SRE book, ch. 1|https://sre.google/sre-book/introduction/}}). Organic demand is steady growth; inorganic is a launch, a marketing push, a viral post. The load test supplies the per-server capacity; the rest of this section turns the forecast into a number of servers.</p>
+
+<h3 id="s-peak">Peak factors: the root's 2&times; explained</h3>
+<p>Capacity is sized for the peak, not the average: the <dfn id="g-peak">peak factor</dfn> is the busiest period's rate divided by the average. The root assumed 2&times; (busy hour over daily average) and labelled it illustrative. Real hourly traffic says it is a sensible number for one region and too high for a global product. Wikipedia's hourly page views by human users for September 2026 (Wikimedia's public API):</p>
+<div class="card" id="pk-card"><div class="chart" id="pk-chart"></div><div class="leg" id="pk-leg"></div>
+<div class="tw"><table id="pk-table"></table></div>
+<p class="small mute">Source: {{Wikimedia REST API, hourly aggregate page views, agent "user", 2026-09-01 to 2026-09-30 UTC|https://wikimedia.org/api/rest_v1/metrics/pageviews/aggregate/de.wikipedia/all-access/user/hourly/2026090100/2026093023}} (fetched 2026-10-04 by src/fetch_peaks.py; 720 hours per project). Curves: the average September day, each hour's mean divided by the month's mean. Table: busy hour over its day's average (median day), quietest hour of the average day over the mean, and the busiest hour of the month over the month's mean.</p></div>
+<p id="pk-text"></p>
+<p>The window matters as much as the product. Per second, peaks are far sharper: Twitter's busiest second in August 2013 was 143,199 Tweets against an average of about 5,700, a factor of 25 (root Case files: "A peak 25 times the average"). Servers absorb second-scale bursts with queues and headroom; hours-scale peaks need capacity; known events (a launch, a match final) need a separate inorganic forecast.</p>
+
+<h3 id="s-nplus">Headroom, N+1 and N+2</h3>
+<p>Let N be the number of servers needed to carry the peak at the target utilisation. <b>N+1</b> adds one spare so that losing any single server still leaves the peak served. <b>N+2</b> adds two, so that one server can be down for maintenance or a deploy while another fails. Google's capacity planning tool expresses requirements this way: "I want to meet service Foo's demand in each geographic region, and have N + 2 redundancy" ({{SRE book, ch. 18|https://sre.google/sre-book/software-engineering-in-sre/}}). The same logic applies to bigger failure units. Spread across Z availability zones (separate data centres in one region), losing a zone loses 1/Z of capacity, so the fleet must be Z/(Z &minus; 1) times the peak need: 1.5&times; with 3 zones, 2&times; with 2.</p>
+<p><b>Autoscaling</b> adds and removes servers as load moves (AWS target tracking on CPU or requests per target, Kubernetes' Horizontal Pod Autoscaler). It does not remove the need to plan: it needs a floor that survives a failure, a ceiling that the database behind it can take, a signal that tracks real load (Slack's autoscaler removed servers that looked idle because they were waiting on a saturated network: root Case files, "The first Monday of the year: autoscaling made it worse"), and it is too slow for the first minutes of a spike. GPU replicas take minutes to start, which changes the whole approach: {{ML system design, section 8|n:3c65c17b0d0d8117b057dc2586836ec8}}.</p>
+
+<h3 id="s-planner">The plan for the chat API</h3>
+<div class="card" id="pl-card">
+<div class="ctl">
+<label>Average requests/s today: <b id="pl-av"></b><input type="range" id="pl-a" min="50" max="20000" step="1" value="579" aria-label="Average requests per second"></label>
+<label>Growth per month: <b id="pl-gv"></b><input type="range" id="pl-g" min="0" max="50" step="1" value="0" aria-label="Monthly growth"></label>
+<label>Months ahead (lead time): <b id="pl-mv"></b><input type="range" id="pl-m" min="0" max="24" step="1" value="0" aria-label="Months ahead"></label>
+<label>Peak factor: <b id="pl-pv"></b><input type="range" id="pl-p" min="10" max="50" step="1" value="20" aria-label="Peak factor"></label>
+<label>Target utilisation at peak: <b id="pl-uv"></b><input type="range" id="pl-u" min="30" max="100" step="5" value="60" aria-label="Target utilisation"></label>
+<label>Spares (N+k): <b id="pl-kv"></b><input type="range" id="pl-k" min="0" max="3" step="1" value="1" aria-label="Spares"></label>
+</div>
+<div class="chips" id="pl-pre"></div>
+<div class="out" id="pl-out"></div>
+<p class="small mute">One server: an m7i.xlarge (4 vCPU, $0.2016 an hour on demand in us-east-1, 730 hours a month, the root's price) carrying 769 requests a second at 100% (4 cores / 5.2 ms of CPU per request, the Scale simulator's figure with background jobs on a queue). Defaults: the root's chat assistant, 1 million daily users &times; 10 messages &times; 5 requests per message / 86,400 s = 579 requests a second on average. Servers = ceil(peak / (769 &times; target)) + spares. Checked in src/recompute.py.</p>
+</div>
+<p>With the defaults the arithmetic is: peak 1,157 requests a second, 769 &times; 0.6 = 462 per server, so 3 servers carry the peak at 50% each, and N+1 makes 4 ($589 a month). With all 4 up, the peak runs at 38%; with one down, 50%, the same as the root's Scale simulator after its suggested fixes (3 app servers at 50%). Growing 10% a month for 6 months nearly doubles the load (1.77&times;), which needs 6 servers. The app tier is the cheap part: the root's Step 6 shows the GPU fleet dominating the bill, and the same method sizes it with a per-GPU throughput instead of a per-server one.</p>
+<div class="when"><b>When not to over-plan:</b> stateless app servers in a cloud autoscale in minutes, so plan their floor and limits rather than a year of growth; spend the forecasting effort where lead times are long (GPUs, database instances, reserved capacity contracts).</div>
+</section>
