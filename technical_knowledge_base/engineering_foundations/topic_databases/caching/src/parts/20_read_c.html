@@ -1,0 +1,18 @@
+<section id="rd-s2">
+<h2>2. The layers: from the CPU to the browser</h2>
+<p>When a user opens a conversation, the request passes through up to nine caches, and each one exists because the thing behind it is slower. Read the ladder top to bottom as "where could this answer already be?". Every step down the list is between about ten and a hundred times slower than the one above it, which is the whole argument for caching.</p>
+<div class="card" id="rd-lad-card">
+<div class="rd-svg" id="rd-lad-svg"></div>
+<p class="small mute">Log scale: each grid line is ten times the one before. Sources per bar in the table below; <span class="meas">measured</span> bars were timed for this page or for the {{system design root's Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} on the same laptop.</p>
+</div>
+<div class="tw"><table id="rd-lad-tbl"></table></div>
+<p>Four things change as you move outward, and they explain most design decisions:</p>
+<ul>
+<li><b>Who invalidates.</b> Hardware keeps CPU caches correct by itself (a coherence protocol called MESI makes cores agree on each 64-byte line). The kernel keeps the page cache correct; Postgres keeps its buffer pool correct (it is the only copy writers change). From the application cache outward, <b>you</b> must invalidate, and the further out, the fewer tools you have: you can delete a Redis key, ask a CDN to purge (a request that must reach every edge city), but you cannot reach into a browser at all.</li>
+<li><b>How many copies.</b> One Redis serves every app server. An in-process cache (a Python dict, <code>functools.lru_cache</code>) exists once per process: 8 servers with 4 workers each hold 32 independent copies, each warming and going stale on its own.</li>
+<li><b>Who shares it.</b> A browser cache is one user's; a CDN is everyone's, so a personalised response cached at the edge leaks to other users unless it is marked private (section 9).</li>
+<li><b>What a miss costs.</b> An L1 miss costs nanoseconds; a CDN miss crosses an ocean to your servers. The value of a layer is how much it saves per hit, times how often it hits (section 6).</li>
+</ul>
+<div class="co"><div class="t">The two caches you do not configure but must understand</div>The <dfn id="g-pagecache">page cache</dfn> is the operating system keeping recently read file blocks in otherwise free RAM: an 8 KiB read of a cached block took <span class="nv" data-n="layers.pagecache_us" data-f="x2"></span> microseconds here, against about 100 microseconds from an NVMe SSD. The <dfn id="g-bufpool">buffer pool</dfn> (Postgres's <code>shared_buffers</code>) is the database's own page cache, on top of the operating system's, so a page can be cached twice ("double buffering"). Both are taught with measurements on {{Storage engines and indexes, section 2|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}; this page measures only what happens to the buffer pool across a restart (section 8). A practical rule from both: before adding Redis in front of Postgres, check that the working set fits in the database server's RAM; a database whose hot pages stay in memory answers a primary-key lookup in well under a millisecond.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> how the in-process, shared, reverse-proxy and CDN layers are used (with nginx and Go code) is on {{Capacity planning and performance, Where caches live|n:3ef5c17b0d0d81458291d55d7443700c}}; the full latency ladder with sources is the Numbers to know tab of {{Topic: swe-and-system-design|n:3c65c17b0d0d81048ae0dd14ac399b4d}}.</div>
+</section>

@@ -1,0 +1,33 @@
+<section id="rd-s6">
+<h2>6. Cost-weighted hit ratio: counting the work saved, not the requests</h2>
+<h3>The problem</h3>
+<p>The hit ratio treats every request alike. But a miss on "chat 42 by its id" costs Postgres <span class="nv" data-n="pg.costs.pk_lookup.median_ms" data-f="x3"></span> ms, while a miss on "this user's token usage by model" costs <span class="nv" data-n="pg.costs.usage_aggregate.median_ms" data-f="x1"></span> ms (medians over random keys, measured on the root's 10-million-message database, client round trips over a local connection) <span class="meas">measured</span>; a Redis GET took <span class="nv" data-n="pg.costs.redis_get.median_ms" data-f="x3"></span> ms on the same machine. Caching the first kind saves almost nothing (a Redis round trip costs about as much as the query); caching the second saves <span class="nv" data-n="pg_note.agg_over_get" data-f="raw"></span> times the cost of the lookup. A cache that hits 95% of cheap requests and misses every expensive one has a beautiful hit ratio and saves the database almost nothing.</p>
+<h3>The measure</h3>
+<div class="fm"><div class="eq">CWHR = &Sigma;<sub>hits</sub> cost(miss avoided) / &Sigma;<sub>all requests</sub> cost(miss)</div>
+<dl><dt>cost</dt><dd>what a miss on that request would cost: backend milliseconds, database CPU, or dollars</dd><dt>CWHR</dt><dd>the share of backend work the cache removed; equal to the hit ratio only when every miss costs the same</dd></dl></div>
+<p>In the Redis runs of section 5, one key in ten was marked expensive at random (independent of popularity), so the cost-weighted hit ratio equals the plain one up to noise: no Redis policy knows what a miss costs. A <b>cost-aware</b> policy does. GreedyDual (Young 1994; with sizes, Cao and Irani, {{USENIX 1997|https://www.usenix.org/legacy/publications/library/proceedings/usits97/full_papers/cao/cao.pdf}}) gives each entry a priority of "L + the cost of missing it"; the victim is the lowest priority, and L rises to each victim's priority, so cheap entries leave first and expensive ones leave only when they stop being used. Simulated on the same Wikipedia requests with the measured costs <span class="ill">simulated, not a Redis policy</span>:</p>
+<div class="tw"><table id="rd-cw-tbl"></table></div>
+<p>The trade is visible: GreedyDual gives up some plain hits to keep the expensive keys, and the work saved goes up. Redis has no such policy, so production systems get the same effect by hand:</p>
+<ul>
+<li><b>Separate pools.</b> Facebook partitions memcached into pools: "a small pool for keys that are accessed frequently but for which a cache miss is inexpensive", and "a large pool for infrequently accessed keys for which cache misses are prohibitively expensive" (Nishtala et al.). In Redis terms: two instances (or two logical caches with their own memory), so cheap churn cannot evict expensive results.</li>
+<li><b>Longer TTLs for expensive results,</b> or caching only results whose measured cost is above a threshold (do not cache a 0.07 ms lookup at all).</li>
+<li><b>Precompute the expensive ones</b> (a materialised view, section 8), which turns the expensive miss into a cheap one.</li>
+</ul>
+<p><b>What to put on the dashboard</b> (Redis exposes the first three in <code>INFO stats</code>): hits and misses (<code>keyspace_hits</code>, <code>keyspace_misses</code>); <code>evicted_keys</code> next to <code>expired_keys</code> (many evictions: memory too small or wrong policy; many expiries: TTL too short); latency split by hit and miss, since the tail of the request latency is the miss path; database load with and without the cache; and the number of distinct keys, whose unbounded growth means a timestamp or request id got into a key. For an LLM cache the cost has an exact money form, section 11.</p>
+</section>
+
+<section id="rd-s7">
+<h2>7. Redis, Valkey or Memcached</h2>
+<p>All three hold keys and values in memory behind a network protocol, and any of them is a fine cache. They differ in what else they do:</p>
+<div class="tw"><table>
+<tr><th></th><th>Memcached 1.6</th><th>Redis 8 / Valkey 9</th></tr>
+<tr><td>Values</td><td>Opaque bytes with an expiry; get, set, delete, increment, compare-and-swap</td><td>Strings plus hashes, lists, sets, sorted sets, streams; Redis 8 adds JSON, vector sets, search and time series</td></tr>
+<tr><td>Threads</td><td>Multithreaded: "By default 4 threads are allocated" ({{memcached wiki|https://github.com/memcached/memcached/wiki/ConfiguringServer}})</td><td>Commands run one at a time on one thread (so each command is atomic); network I/O can use extra threads (<code>io-threads</code>; Valkey 8 reworked this, see its {{1 million requests a second post|https://valkey.io/blog/unlock-one-million-rps-part2/}})</td></tr>
+<tr><td>Memory</td><td>A slab allocator: memory in 1 MB pages split into fixed-size chunks per size class, each class with its own LRU ({{memcached internals|https://github.com/memcached/memcached/wiki/UserInternals}}), a segmented LRU (hot, warm, cold) since 1.5 ({{memcached blog|https://memcached.org/blog/modern-lru/}})</td><td>One heap; the ten policies of section 5</td></tr>
+<tr><td>Durability, replication</td><td>None in the server: a restart empties it</td><td>Optional snapshots and an append-only file; asynchronous replicas (acknowledged writes can be lost on failover: {{measured on NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}})</td></tr>
+<tr><td>Scaling out</td><td>Clients hash each key to a server; servers never talk to each other</td><td>Cluster mode: 16,384 hash slots spread over primaries</td></tr>
+<tr><td>Licence</td><td>BSD 3-Clause</td><td>Redis: your choice of RSALv2, SSPLv1 or AGPLv3 from 8.0; Valkey: BSD 3-Clause fork of Redis 7.2.4 (Linux Foundation, 2024)</td></tr>
+</table></div>
+<p class="small mute">Versions and licences as in the root's {{Database atlas|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab (Redis 8.10.2 of 17 September 2026 is the latest there; this page measured 8.8.0, the conda-forge build).</p>
+<p><b>How to choose.</b> If you already run Redis or Valkey for anything else (rate limits, queues, sessions, leaderboards), use it for caching too: one fewer system. Memcached remains a good choice for a pure, very large cache of opaque blobs where multithreading per box and the absence of persistence are features. Most new systems pick Redis or Valkey; managed services (Amazon ElastiCache, Google Memorystore) offer both.</p>
+</section>
