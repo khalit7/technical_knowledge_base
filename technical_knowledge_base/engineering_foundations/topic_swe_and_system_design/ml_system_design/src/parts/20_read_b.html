@@ -1,0 +1,95 @@
+
+<section id="rd-anat">
+<h2>2. Anatomy of one LLM request, and the numbers that describe it</h2>
+<p>Follow one message from the chat assistant through the system. Each phase has its own number, and each number has its own fix, so a pro never says "latency" about an LLM service without saying which one.</p>
+<div class="flow"><div><b>1. Arrive</b>network, API server, gateway checks: milliseconds</div><i>&rarr;</i><div><b>2. Wait</b>in the engine's queue until a batch slot frees: 0 when there is room, unbounded when there is not</div><i>&rarr;</i><div><b>3. Prefill</b>the model reads all input tokens at once; ends with the first output token</div><i>&rarr;</i><div><b>4. Decode</b>one token per step, each streamed to the user</div><i>&rarr;</i><div><b>5. Finish</b>stop token or <code>max_tokens</code>; usage recorded</div></div>
+<ul>
+<li><dfn id="d-ttft">Time to first token (TTFT)</dfn>: from sending the request to receiving the first output token. Phases 1 to 3. It is what the user feels as "is it working?", and it is where queueing shows up first.</li>
+<li><dfn id="d-tpot">Time per output token (TPOT)</dfn>, also <dfn id="d-itl">inter-token latency (ITL)</dfn>: the gap between streamed tokens in phase 4. vLLM defines the per-request TPOT as "(end-to-end latency - TTFT) / (number of output tokens - 1)" ({{vLLM metrics design doc, v0.30.0|https://github.com/vllm-project/vllm/blob/v0.30.0/docs/design/metrics.md}}); ITL is measured gap by gap, and the two differ when a step emits several tokens at once (speculative decoding, owned by {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}).</li>
+<li><dfn id="d-e2e">End-to-end latency</dfn> = TTFT + (output tokens &minus; 1) &times; TPOT. For the chat assistant: about 0.09 s of prefill (derived for 1,000 input tokens on two H100s at an illustrative 40% of peak arithmetic, as in the parent's Scale simulator) plus 399 &times; 14.5 ms = <b>about 5.9 seconds</b>, of which the user waits only the first 0.09 s before text appears.</li>
+<li><dfn id="d-tps">Tokens per second</dfn>, which means two different things: <i>per user</i> (1 &divide; TPOT, about 69 here) and <i>per GPU</i> (4,418 &divide; 2 = 2,209 at full load). Bigger batches raise the second and lower the first. Every serving decision is a point on that trade-off.</li>
+<li><dfn id="d-cpr">Cost per request</dfn>: tokens in and out times their prices, or GPU-seconds times the GPU price. It belongs on the same dashboard as latency (section 12).</li>
+</ul>
+<p>The engine reports these directly. In vLLM v0.30.0 (released 2026-09-22) the Prometheus metrics a system designer reads are <code>vllm:num_requests_waiting</code> ("Number of requests waiting to be processed"), <code>vllm:num_requests_running</code> ("Number of requests in model execution batches"), <code>vllm:kv_cache_usage_perc</code> ("KV-cache usage. 1 means 100 percent usage", a fraction despite the name), and the histograms <code>vllm:time_to_first_token_seconds</code>, <code>vllm:inter_token_latency_seconds</code> and <code>vllm:e2e_request_latency_seconds</code> ({{vllm/v1/metrics/loggers.py at v0.30.0|https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/v1/metrics/loggers.py}}). Names change between versions: <code>vllm:gpu_cache_usage_perc</code> was renamed to <code>vllm:kv_cache_usage_perc</code> in 0.9.2 and removed in 0.12, and <code>vllm:time_per_output_token_seconds</code> gave way to <code>vllm:inter_token_latency_seconds</code> in 0.11. Dashboards and autoscalers that query the old names go silent after an upgrade, which is a real way to lose autoscaling.</p>
+<p>The <dfn id="d-kv">KV cache</dfn> in that list is the engine's memory of each conversation: for every token so far, the model keeps intermediate results (keys and values) so it need not recompute them for the next token. It lives in GPU memory and grows with every token, so it caps how many conversations a replica can hold at once. For this model it is 2 &times; 80 layers &times; 8 key-value heads &times; 128 dimensions &times; 1 byte = 160 KiB per token (from the model's config; FP8 cache), so one 1,400-token conversation holds about 219 MiB. How engines manage it is the subject of the {{PagedAttention paper page|n:3c65c17b0d0d81bf8b90ca93fee19f5f}}; a system designer needs only to know that "KV cache full" means "no room for more conversations on this replica".</p>
+<div class="co"><div class="t">Targets you will meet</div>A latency target for an LLM service is a pair: a TTFT target and a TPOT target, usually at a percentile (p50, p99). Chat products care most about TTFT; agents and code tools that read the whole answer care about end-to-end time; batch jobs care only about tokens per dollar. For scale, the industry benchmark MLPerf Inference sets, for Llama 2 70B, TTFT 2,000 ms and TPOT 200 ms in its "conversational" category and 450 ms and 40 ms in its "interactive" one; for DeepSeek-R1, 2,000/80 ms and 1,500/15 ms ({{MLPerf inference rules, commit d3eba2f|https://github.com/mlcommons/inference_policies/blob/d3eba2f21026d868ad65cdcad2bb81e4a17ce3d3/inference_rules.adoc}}). Our chat example's 14.5 ms TPOT would pass the strictest of these; its TTFT depends on the queue, which is the whole of section 8. <dfn id="d-goodput">Goodput</dfn> is the highest request rate per GPU at which the latency targets are still met for a chosen share of requests (say 90%), as opposed to raw throughput; DistServe introduced it for LLM serving ({{Zhong et al., OSDI 2024|https://www.usenix.org/conference/osdi24/presentation/zhong-yinmin}}) because a system tuned for raw tokens per second can serve many tokens late.</div>
+</section>
+
+<section id="rd-gw">
+<h2>3. The LLM gateway: one front door for every model call</h2>
+<div class="wall"><div class="t">The problem appears</div>The first feature calls a model API directly from the app with a key in an environment variable. By the fifth feature there are five copies of retry logic, three provider keys in three services, no idea which team spent $40,000 last month, no way to switch providers during an outage, and a customer's personal data going to a vendor nobody approved.</div>
+<p>An <dfn id="d-gateway">LLM gateway</dfn> is a service that every model call in the company passes through. Your code calls the gateway with one API shape (almost always OpenAI's chat completions format); the gateway calls the actual model. It is the parent topic's load balancer and API gateway idea, specialised for model traffic. In the order a request meets them, its jobs are:</p>
+<ol>
+<li><b>Authenticate</b>: who is calling (a team, a service, a customer), from a gateway-issued key, so provider keys live in one place.</li>
+<li><b>Authorise</b>: may this caller use this model? (Some data may go only to approved vendors or to self-hosted models.)</li>
+<li><b>Check limits and budget</b>: tokens per minute and money per month (section 5).</li>
+<li><b>Transform and guard</b>: redact personal data, apply input guardrails ({{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}).</li>
+<li><b>Look up caches</b> (section 9).</li>
+<li><b>Route</b>: pick the model and the deployment (section 4).</li>
+<li><b>Call, with a timeout</b>, retry or fall back on failure (sections 4 and 11).</li>
+<li><b>Stream the reply back</b> unbuffered.</li>
+<li><b>Meter</b>: write one usage event (caller, model, input, cached and output tokens, cost, latency) for billing and dashboards (section 12).</li>
+</ol>
+<h3>What it looks like in production</h3>
+<p><b>Uber</b> built its GenAI Gateway as "a Go service that acts as an encompassing layer around the clients for third-party vendors", and "a pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API". It includes "a PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors" (PII: personally identifiable information), and audit logs used for "cost attribution, security audit purposes, quality evaluation". In mid-2024 it was "used by close to 30 customer teams and serves 16 million queries per month, with a peak QPS of 25" ({{Uber Engineering, 11 Jul 2024|https://www.uber.com/blog/genai-gateway/}}). Note how small 25 queries a second is: the gateway exists for control, not for throughput. <b>Bloomberg</b> and Tetrate started Envoy AI Gateway because "traditional rate-limiting based on number of requests doesn't work for controlling usage of LLM providers" ({{Envoy AI Gateway announcement, 18 Oct 2024|https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/blog/2024/2024-10-18-introducing-envoy-ai-gw.md}}). Chip Huyen's <i>AI Engineering</i> (O'Reilly, 2025) puts "Add Model Router and Gateway" as step 3 of its five-step platform architecture, after enhancing context and adding guardrails and before caches ({{book table of contents|https://github.com/chiphuyen/aie-book/blob/main/ToC.md}}, chapter 10).</p>
+<p><b>Open-source gateways</b> you can run today:</p>
+<ul>
+<li><b>LiteLLM</b> (Python; v1.104.0, 3 Oct 2026): a library and a proxy server with model lists, retries, fallbacks, per-key budgets and rate limits, caching and spend tracking. A real proxy config, from its reliability docs (model names as the docs show them):
+<pre class="code">model_list:
+  - model_name: zephyr-beta            # self-hosted, behind its own URL
+    litellm_params:
+      model: huggingface/HuggingFaceH4/zephyr-7b-beta
+      api_base: http://0.0.0.0:8001
+  - model_name: gpt-5.6-luna
+    litellm_params:
+      model: gpt-5.6-luna
+      api_key: &lt;my-openai-key&gt;
+  - model_name: gpt-5.6-terra
+    litellm_params:
+      model: gpt-5.6-terra
+      api_key: &lt;my-openai-key&gt;
+
+litellm_settings:
+  num_retries: 3
+  request_timeout: 10
+  fallbacks: [{"zephyr-beta": ["gpt-5.6-luna"]}]
+  context_window_fallbacks: [{"gpt-5.6-luna": ["gpt-5.6-terra"]}]
+  content_policy_fallbacks: [{"gpt-5.6-luna": ["gpt-5.6-terra"]}]
+  allowed_fails: 3
+  cooldown_time: 30</pre>
+<span class="small mute">({{LiteLLM docs, Proxy reliability|https://docs.litellm.ai/docs/proxy/reliability}}, read 2026-10-04.) Three kinds of fallback: on any failure after retries, on a prompt too long for the model (mapped across providers to one error type), and on a content-policy refusal. <code>allowed_fails</code> and <code>cooldown_time</code> take a failing deployment out of rotation for a while; the docs example sets them to 3 failures and 30 seconds; if you leave them out, the v1.104.0 source defaults to 3 failures and 5 seconds ({{constants.py at v1.104.0|https://github.com/BerriAI/litellm/blob/v1.104.0/litellm/constants.py}}).</span></li>
+<li><b>Envoy AI Gateway</b>, renamed Agent Router (v1.1.0, 21 Aug 2026), built on the Envoy proxy and Kubernetes Gateway API. Its README describes a two-tier pattern: "The Tier One Gateway handles authentication, top-level routing, and global rate limiting", and a tier-two gateway in front of self-hosted models picks the endpoint ({{README at v1.1.0|https://github.com/theagentrouter/agent-router/blob/v1.1.0/README.md}}).</li>
+<li>Kong AI Gateway and Portkey are other options the old version of this page named (not checked here). Managed equivalents exist in each cloud.</li>
+</ul>
+<div class="card"><b>Measured: what a fallback really does (LiteLLM 1.104.0, run locally)</b>
+<p class="small">We ran LiteLLM's <code>Router</code> on a laptop with mocked providers (no network; script <code>src/litellm_fallback.py</code>, output <code>src/inputs/litellm_fallback_run.json</code>, 2026-10-04). Router settings: one retry, a fallback from <code>chat-big</code> to <code>chat-fallback</code>, and a context-window fallback from <code>chat-small</code> to <code>chat-long</code>.</p>
+<div class="tw"><table><thead><tr><th>Primary returns</th><th>What the router did</th><th class="num">Time</th></tr></thead><tbody>
+<tr><td>429 rate limit (provider overloaded)</td><td>called the primary, failed; waited and retried, failed; called the fallback provider, succeeded. Cost recorded from the fallback's price.</td><td class="num">2.9 s</td></tr>
+<tr><td>prompt too long for the model</td><td>no retry (a retry cannot fix a long prompt); went straight to the long-context model</td><td class="num">0.02 s</td></tr>
+</tbody></table></div>
+<p class="small mute">Two lessons. A retry before a fallback costs seconds of TTFT, almost all of it backoff, so the order "retry, then fall back" is a latency decision. And spend is computed from a price table shipped with the library: in 1.104.0's bundled copy the newest Claude model is Sonnet 4.5 at $3 and $15 per million tokens, so cost accounting is only as current as that table (LiteLLM can fetch it at start-up, or take your own prices).</p></div>
+<div class="cost"><div class="t">What a gateway costs</div>One more network hop (milliseconds, small against seconds of generation), one more service that must not go down (run several copies behind a load balancer, keep it stateless, keep its own dependencies like Redis for counters off the critical path when they fail), and the risk that it buffers streams or caps connection times. It also concentrates power: whoever owns it decides which models the company may use, which is usually the point.</div>
+<p><b>When not to build one:</b> a single product calling a single provider, owned by one team. A client library with retries and a usage log is enough until a second model, a second team or a budget question appears.</p>
+</section>
+
+<section id="rd-route">
+<h2>4. Routing, fallbacks and model tiers</h2>
+<p>A <dfn id="d-router">router</dfn> decides, for each request, which model and which copy of it serves the request. Routing happens at two levels that are easy to confuse.</p>
+<h3>Level 1: which model (the gateway's decision)</h3>
+<ul>
+<li><b>Tier routing.</b> Send easy requests to a small, cheap model and hard ones to a large model. Prices differ by a factor of 2 to 40 between tiers of the same vendor (Claude 4.5 Haiku at $1/$5 per million input/output tokens, Sonnet 5.5 at $2/$10, Opus 5.5 at $4/$20; GPT-6 Luna at $0.10/$0.50; knowledge base price snapshot of 2026-10-01). The router is usually a rule ("summaries go small") or a small classifier; Huyen describes "an intent classifier that predicts what the user is trying to do" so "simpler queries" go "to cheaper models" ({{Building A Generative AI Platform, 25 Jul 2024|https://huyenchip.com/2024/07/25/genai-platform.html}}). The cost: a misrouted hard question gets a worse answer, which no error counter sees. Measure the router as a classifier, on labelled traffic.</li>
+<li><b>Context routing.</b> Long prompts go to models or pools configured for long context. Getting this wrong is exactly Anthropic's August 2025 bug (section 1).</li>
+<li><b>Policy routing.</b> Tenant pinning (a customer contracted for one vendor), region and data-residency rules, and "self-hosted only" for sensitive data.</li>
+<li><b>Fallbacks.</b> When the chosen model fails: another deployment of the same model, the same model at another provider (Claude is also sold through AWS Bedrock and Google Vertex AI; open models through many), or a different model. Fallbacks must be planned like a backup generator: is the fallback's quota big enough to take all the traffic, does it understand the same prompt and tool format, and does it have the same safety behaviour? A fallback provider also starts with a cold prompt cache (section 9), so it costs more per request at first.</li>
+</ul>
+<h3>Level 2: which replica (inside a self-hosted pool)</h3>
+<p>Below the gateway, a pool of identical replicas still needs a load balancer, and round robin is a poor one for LLMs: requests differ wildly in size, and a replica that already holds a conversation's prefix in its KV cache can skip most of its prefill. LLM-aware load balancers score each replica on its queue, its KV cache use and how much of the prompt it already has cached. Examples, all open source:</p>
+<ul>
+<li>The vLLM production stack router (Helm chart vllm-stack-0.1.13, 29 Sep 2026) offers <code>roundrobin</code>, <code>session</code>, <code>prefixaware</code>, <code>kvaware</code>, <code>loadaware</code> and others; its load-aware rule is "score(i) = matched_tokens(i) / prompt_tokens - beta * relative_load(i)", so "a warm-but-saturated instance can lose to a cold-but-idle one" ({{routing_logic.py at vllm-stack-0.1.13|https://github.com/vllm-project/production-stack/blob/vllm-stack-0.1.13/src/vllm_router/routers/routing_logic.py}}).</li>
+<li>Kubernetes' Gateway API Inference Extension (v1.6.2) replaces a plain Kubernetes Service with an <code>InferencePool</code>, "an extensible request scheduling algorithm that is kv-cache and request cost aware" ({{README at v1.6.2|https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/v1.6.2/README.md}}); its endpoint picker now lives in llm-d, whose scorers include KV cache utilisation ("score = 1 - kvCacheUsagePercent"), queue depth and prefix-cache match ({{llm-d scheduling docs, v0.10.0|https://github.com/llm-d/llm-d/blob/v0.10.0/docs/architecture/core/router/epp/scheduling.md}}). llm-d reports "3x higher output throughput and 2x faster TTFT with prefix-cache-aware routing vs round-robin" on its benchmark (vendor claim, Llama 3.1 70B on 4 MI300X).</li>
+<li>Character.AI routes all messages of one dialogue to the same server ("sticky sessions") so its cached KV state is reused between turns (parent topic's Case files, "20,000 LLM queries a second").</li>
+</ul>
+<p>Stickiness has a price: it concentrates load and it concentrates harm. In Anthropic's postmortem, "some users were affected more severely, as our routing is 'sticky'": a user routed to a bad server kept going back to it. How these engines and schedulers work inside belongs to {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}; the system designer's job is to know that the replica-level balancer must see queue and cache state, and to pick one that does.</p>
+<div class="cost"><div class="t">What routing costs</div>A tier router saves money in proportion to the share of easy traffic and loses quality in proportion to its mistakes; the {{Gateway lab|#t-gw}} lets you put numbers on both. Fallbacks add latency (detection plus retries, 2.9 s in the LiteLLM run above) and need standing capacity elsewhere. Sticky and cache-aware routing raise throughput and make load uneven. <b>When not to:</b> one model that is cheap enough and good enough needs no tier router; a pool of two replicas does not need a KV-aware scheduler.</div>
+<div class="deepnote"><b>Try it.</b> The {{Gateway lab|#t-gw}} puts a router, two tiers, caches and a fallback provider in front of the chat assistant's traffic, and shows cost per thousand requests, latency, errors and wrong answers as you change them.</div>
+</section>
