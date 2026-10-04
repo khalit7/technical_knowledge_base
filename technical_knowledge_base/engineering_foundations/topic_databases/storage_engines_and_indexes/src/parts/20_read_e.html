@@ -1,0 +1,49 @@
+<section id="rd-s5">
+<h2>5. B-trees: the default index, from page to production</h2>
+<h3>The problem appears</h3>
+<p>"The messages of chat 42000" are 6 rows scattered over 19,235 pages. Without help the database reads every page (the root measured 19,349 page reads and 28 ms for 6 rows). We need a structure that leads from a value to the pages holding it in a handful of reads, stays correct while thousands of inserts arrive, and also answers "between" and "in order".</p>
+<h3>The idea: a sorted tree of pages</h3>
+<p>A <dfn id="g-btree">B-tree</dfn> (strictly a B+tree, the variant every relational database uses) is a tree whose nodes are pages. <b>Leaf pages</b> hold the indexed values in sorted order, each with the ctid of its row; each leaf links to its right neighbour, so a range scan walks sideways along the leaves. <b>Internal pages</b> hold only separator keys and downlinks (page numbers of children): "keys below 25,047 are under page 3". The <b>root</b> is the single page at the top; page 0 of the file, the <b>metapage</b>, says where the root is. Postgres's version follows Lehman and Yao's 1981 design for concurrency: every page also stores a <b>high key</b> (an upper bound for its contents) and a link to its right sibling, so a reader that arrives at a page just split can notice and step right instead of waiting for a lock ({{nbtree README|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/access/nbtree/README}}).</p>
+<p>The real path to chat 42000 in the 1M-row index on chat_id <span class="meas">measured</span> with pageinspect's <code>bt_metap</code>, <code>bt_page_stats</code> and <code>bt_page_items</code>:</p>
+<ol class="steps">
+<li><b>Metapage</b> (page 0): root is page 289, at level 2, so the tree has 3 levels.</li>
+<li><b>Root</b> (page 289): 4 entries. Separators 25,047, 50,199 and 75,331 split the key space in four; 42000 falls in the second range, so go to page 288.</li>
+<li><b>Internal page</b> (page 288): 285 entries, each a separator and a downlink; binary search leads to leaf page 478.</li>
+<li><b>Leaf page</b> (page 478): 92 entries. Key 42000 appears once, followed by a list of 6 ctids: (7973,10), (8004,13), (8077,46), (8146,16), (8202,45), (8240,8).</li>
+<li><b>Table pages</b>: 6 different pages, one per message, because the chat's messages arrived at different times.</li>
+</ol>
+<p>So 3 index pages and 6 table pages instead of 19,235. {{Inside real pages|#t-page}} shows each of these pages' contents.</p>
+<h3>Fan-out: why a billion rows need only about four levels</h3>
+<p>The number of children per internal page, the <dfn id="g-fanout">fan-out</dfn>, is what keeps the tree shallow. An index entry is an 8-byte header plus the key, rounded up to 8 bytes, plus a 4-byte line pointer: 20 bytes for a <code>bigint</code>. A page has 8,152 usable bytes (8,192 minus the 24-byte header and a 16-byte trailer), so about 407 entries fit; Postgres fills leaves to 90% when it builds an index or appends at the right edge (367 entries) and internal pages to 70% (about 285) ({{B-tree fillfactor|https://www.postgresql.org/docs/18/sql-createindex.html}}, constants in {{nbtree.h|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/include/access/nbtree.h}}). Each level multiplies the reach by about 285:</p>
+<div class="fm"><div class="eq">levels = 1 + &#8968;log<sub>f</sub>(N / l)&#8969;</div>
+<dl><dt>N</dt><dd>number of keys</dd><dt>l</dt><dd>keys per leaf page (367 for bigint at 90% fill)</dd><dt>f</dt><dd>fan-out of internal pages (about 285 for bigint at 70% fill)</dd></dl></div>
+<div class="card">
+<div class="calc">
+<label>Rows: <b id="rd-fo-nv"></b><input type="range" id="rd-fo-n" min="3" max="12" step="0.5" value="9"></label>
+<label>Key type <select id="rd-fo-k"><option value="4">integer (4 bytes)</option><option value="8" selected>bigint (8 bytes)</option><option value="16">uuid (16 bytes)</option><option value="37">text, 36 characters (37 bytes)</option><option value="101">text, 100 characters (101 bytes)</option></select></label>
+</div>
+<div class="out" id="rd-fo-out"></div>
+<p class="small mute" id="rd-fo-note"></p>
+</div>
+<p>Measured, a bigint key built with <code>CREATE INDEX</code> at growing sizes <span class="meas">measured</span>:</p>
+<div class="tw"><table id="rd-depth"></table></div>
+<p class="small mute" id="rd-depth-note"></p>
+<p>The top one or two levels are touched by every lookup, so they stay in the buffer pool; a lookup on a big table costs about one or two physical reads, not four. That is why the old page's "3 to 4 page reads for a large table plus one heap fetch, mostly cached" holds, and why the root measured 12 page touches, all cache hits, for the 6-row chat lookup.</p>
+<h3>Inserting: splits, and why random keys waste space</h3>
+<p>An insert walks down to the right leaf and adds the entry in order. When the leaf is full it <b>splits</b>: a new page is allocated, the upper half of the entries moves there, and a separator for the new page is added to the parent; if the parent is full it splits too, and when the root splits the tree gains a level (it grows at the top, which is why every leaf is always at the same depth). Section 6 animates one split next to the LSM-tree's way of absorbing the same insert, and the {{B-tree and LSM lab|#t-lab}} runs thousands.</p>
+<p>Postgres splits the rightmost leaf differently when the new key is the largest: it keeps the left page at the fillfactor (90%) instead of half, because an index on an increasing key (ids, timestamps) never inserts into the left page again ({{nbtree.h|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/include/access/nbtree.h}}: "The fillfactor is applied during index build and when splitting a rightmost page"). Random keys split pages in the middle, and half-empty pages fill only partly before splitting again; the classic result is about 69% average fill (ln 2). The same million bigint keys <span class="meas">measured</span>:</p>
+<div class="tw"><table id="rd-splits"></table></div>
+<p class="small mute" id="rd-splits-note"></p>
+<h3>Primary keys: bigint, UUID v4 or UUID v7</h3>
+<p>This matters most for the primary key, because every row inserts into it. A <b>UUID</b> is a 16-byte identifier that can be generated anywhere without coordination; version 4 is random, so consecutive rows land on random leaf pages; version 7 starts with a timestamp, so new rows go to the right edge like a sequence ({{RFC 9562|https://www.rfc-editor.org/rfc/rfc9562}}, 2024). Postgres 18 added <code>uuidv7()</code> ({{PG 18 release notes|https://www.postgresql.org/docs/18/release-18.html}}). Three million rows inserted in batches of 100,000 into a table whose only index is the primary key, with a 128 MB buffer pool <span class="meas">measured</span>:</p>
+<div class="tw"><table id="rd-pk"></table></div>
+<p class="small mute" id="rd-pk-note"></p>
+<h3>Duplicates, dead entries and the newest feature</h3>
+<ul>
+<li><b>Deduplication</b> (Postgres 13): when many rows share a key, the leaf stores the key once followed by a sorted list of ctids, a <dfn id="g-posting">posting list</dfn> ({{PG 13 notes|https://www.postgresql.org/docs/release/13.0/}}; <code>deduplicate_items</code>, on by default). Chat 42000's entry is one 56-byte item holding 6 ctids. On a column with 4 distinct values (model), the index is <span id="rd-dedup"></span> <span class="meas">measured</span>.</li>
+<li><b>Bottom-up deletion</b> (Postgres 14): an update that is not HOT adds a new entry to every index even when the key did not change. Before splitting a page full of such versions, Postgres now checks which entries point to dead row versions and deletes them, so version churn does not bloat the index ({{PG 14 notes|https://www.postgresql.org/docs/release/14.0/}}, {{B-tree deletion|https://www.postgresql.org/docs/18/btree.html#BTREE-DELETION}}).</li>
+<li><b>Skip scan</b> (Postgres 18): an index on (a, b) used to be nearly useless for a query on b alone. Postgres 18 can "skip" through the distinct values of a, doing one small descent per value ({{PG 18 notes|https://www.postgresql.org/docs/18/release-18.html}}: "allows multi-column btree indexes to be used in more cases such as when there are no restrictions on the first or early indexed columns"). An index on (model, created_at), four models, and a one-hour window on created_at <span class="meas">measured</span>: <span id="rd-skip"></span></li>
+</ul>
+<p>Limits worth knowing: an index entry cannot exceed about a third of a page (2,704 bytes), so long text needs a hash or expression index; an index can have up to 32 columns; only B-trees can enforce <code>UNIQUE</code> ({{B-tree docs|https://www.postgresql.org/docs/18/btree.html}}, {{unique indexes|https://www.postgresql.org/docs/18/indexes-unique.html}}).</p>
+<div class="cost"><div class="t">What a B-tree costs</div>Every insert dirties at least one leaf page somewhere in the file; random keys dirty pages all over it (random writes, more full-page images, about 30% empty space); splits need short page locks; and every index on a table repeats all of this for every row. When NOT to use one: on a column you never search by; on a tiny table (a sequential scan of a few pages is cheaper); on a huge append-only table queried by time ranges (BRIN, section 9, was about 3,000 times smaller here); on a write stream far faster than random page writes can absorb (an LSM-tree, next).</div>
+</section>

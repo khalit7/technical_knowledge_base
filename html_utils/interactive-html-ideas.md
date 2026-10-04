@@ -2160,3 +2160,40 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/src/viz_ideas.md`.
 
+### SQL and data modelling: queries, joins, schema design, normalisation, migrations (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/sql_and_data_modelling/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score | Data |
+|---|---|---|---|---|
+| 1 | **Runnable example boxes** (38): every example runs live in the page's SQLite (sql.js 1.14.2, the root's engine) next to the PostgreSQL 16.2 result recorded offline; disagreements flagged per statement | Reading, every section | 2+2+2+2+2 | examples.py, pg/run_examples.py, inputs/examples.json |
+| 2 | **Normalisation before/after animation**: user 7's 59 real message rows; the same rename and the same buggy code path in a wide table (59 rows to write, 5 written, two names) and in the normalised schema (1 row) | Reading 9 | 2+2+2+2+2 | root data.json; counters checked by recompute.py |
+| 3 | **Lock queue before/after animation** from three measured runs: long transaction without lock_timeout (7 reads wait up to 3.26 s for a 1 ms change), with lock_timeout 500 ms and retry (worst 0.27 s), no long transaction | Reading 11 | 2+2+2+2+2 | pg/measure_queue.py, inputs/queue.json (pg_locks snapshot shown) |
+| 4 | **ALTER TABLE, measured** tab: 21 changes on 2,000,000 rows, locks read from pg_locks, rewrite from relfilenode, read/write blocking probed, safe recipe, linear scaling to your row count (labelled estimate); cards on phones | Own tab | 2+2+2+2+2 | pg/measure_alter.py, inputs/alter.json |
+| 5 | **Exercises lab** tab: 28 graded exercises in 4 levels, graded by comparing result sets in the page's engine; offline expectations checked | Own tab | 2+1+2+1+2 | ex/exercises.py, ex/check.py, check_page.mjs |
+| 6 | **Join explorer**: 8 joins (incl. semi, anti, NOT IN) on the same 5 users and 3 markets, with a NULL-market toggle that empties NOT IN | Reading 2 | 2+1+2+2+1 | in page |
+| 7 | **Window frame stepper** over chat 11's real rows: SUM, 3-row AVG, LAG, RANK, LAST_VALUE default vs whole frame | Reading 4 | 2+1+2+2+1 | values checked against recompute.py |
+| 8 | **B-tree leaf before/after** (illustrative, 6 keys per page): sequential vs random keys, fill, splits, pages touched | Reading 8 | 1+1+2+1+1 | model re-implemented in recompute.py |
+| 9 | **Key type bars, measured**: bigint vs UUID v4 vs v7 at 1M and 10M rows: insert time, index size, WAL | Reading 8 | 2+2+1+2+1 | pg/measure_keys.py |
+| 10 | **N+1 bars, measured** with SQLAlchemy 2.1.3: lazy vs selectinload vs joinedload vs one SQL, N = 10/50/200, direct and through a 1 ms delay proxy; the queries x round trip model shown against the measurement | Reading 12 | 2+2+1+2+1 | pg/measure_n1.py, pg/delay_proxy.py |
+| 11 | **Live SQL injection** (concatenated vs bound, five payloads incl. a stacked UPDATE) | Reading 13 | 2+0+2+2+1 | in page |
+| 12 | Real Alembic autogenerate output and its offline SQL | Reading 11 | 2+0+1+1+1 | pg/alembic_demo.py |
+| 13 | Predict-then-reveal on NOT IN | Reading 2 | 1+1+1+2+1 | recorded results |
+
+### Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_databases/storage_engines_and_indexes/src/viz_ideas.md`.
+
+| # | Idea | Score | Placement | Data | Why it earns its place |
+|---|---|---|---|---|---|
+| 1 | One insert, two engines: B-tree page split (before) against LSM memtable, flush, compaction (after) | 8 | Reading s6, animation with toggle, counters, caption per step | illustrative, 4 keys per page | The suggested before/after: the same key through both engines; shows where each pays (random page writes now against rewrites later) |
+| 2 | B-tree and LSM lab: insert ascending, random or hot keys into both; splits, checkpoints, page images, flushes, compactions; write, space, read amplification side by side | 8 | Tab | model with Postgres split rule (90% rightmost) and checkpoints; LSM leveled and tiered | Lets the reader reproduce the measured lessons (random keys: about 70% fill and more page writes; tiered: fewer rewrites, more runs) |
+| 3 | Inside real pages: heap page 0 to scale, slot table, tuple header decoded; update with and without HOT; B-tree path to chat 42000 with every entry | 8 | Tab | pageinspect on PostgreSQL 16.2 | Real structures instead of drawings; the root had to label its tree "as drawn" because pageinspect was missing |
+| 4 | Clock sweep animation, 8 buffers | 6 | Reading s2 | illustrative request list, real rule (cap 5) | The eviction rule is easy to state and hard to picture |
+| 5 | Page 0 drawn to scale (header, line pointers, free, tuples) | 6 | Reading s1 | measured page_header | Shows the two-ended layout at a glance |
+| 6 | WAL bars: one insert with and without page images; 1,000 random updates with images on, off, compressed, repeated | 7 | Reading s3 | pg_walinspect | The surprising 50x is the lesson |
+| 7 | Commit-rate bars: synchronous_commit on and off, 1 and 32 clients, real flushes | 6 | Reading s3 | pgbench | Group commit and the cost of the flush in one picture |
+| 8 | Fan-out calculator (rows, key type) with measured depth table | 7 | Reading s5 | formula reproduces measured 367 keys per leaf and levels at every size, independently | "Why 4 levels for a billion" answered by the reader |
+| 9 | Bloom filter calculator | 5 | Reading s6 | formula; RocksDB measured FP rate beside it | Connects bits per key to wasted reads |
+| 10 | Measured tables: depth, splits, UUID keys, write cost bars, RocksDB amplification, Postgres amplification, BRIN | 7 | Reading s5, s7, s9, s11 | m3, m4, m5 | Replace the old page's unsourced numbers |
+| 11 | Real crash log with the recovery steps | 6 | Reading s4 | kill -9 on a real server | Recovery shown, not described |

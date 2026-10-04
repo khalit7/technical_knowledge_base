@@ -1,0 +1,58 @@
+<section id="rd-s3">
+<h2>3. Aggregation: GROUP BY, HAVING, FILTER, ROLLUP</h2>
+<p><b>The problem.</b> Reports ask for one number per thing: messages per model, tokens per user per month. <b>GROUP BY</b> collapses all rows sharing the grouping values into one row, and <b>aggregate functions</b> (<code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>) summarise each group. Every column in the SELECT list must then be either grouped or aggregated; SQLite's leniency here (it picks an arbitrary row) is a lesson in the root's playground.</p>
+<p><b>Several counts in one pass.</b> A question like "per model: messages, replies, reply tokens, distinct users" needs conditional aggregation. The standard spelling is the <code>FILTER (WHERE ...)</code> clause, supported by Postgres and SQLite (see {{modern-sql.com's support table|https://modern-sql.com/feature/filter}}); in databases without it, write <code>SUM(CASE WHEN ... THEN 1 ELSE 0 END)</code>. One scan replaces four queries:</p>
+<div class="rq" data-ex="a_filter" data-title="Conditional aggregation with FILTER"></div>
+<p><b>Subtotals.</b> <code>GROUP BY ROLLUP (plan, model)</code> returns the per-plan-and-model rows, a subtotal row per plan (model shown as NULL) and a grand total (both NULL). <code>CUBE</code> and <code>GROUPING SETS</code> generalise it. SQLite has none of them, which is why this box is Postgres only:</p>
+<div class="rq" data-ex="a_rollup" data-title="Subtotals with ROLLUP" data-cap="14"></div>
+<div class="mist-list">
+<details class="mist"><summary>Common aggregation mistakes</summary><div class="b"><ul class="tight">
+<li><code>AVG</code> of an integer column in Postgres is a numeric with many digits, in SQLite a float: round explicitly when you compare.</li>
+<li><code>COUNT(column)</code> skips NULLs; <code>COUNT(*)</code> counts rows. After a LEFT JOIN, count the right table's key, not <code>*</code>, or every empty group counts as 1.</li>
+<li>Averages of averages are wrong when groups differ in size: average the raw rows, or weight by count.</li>
+<li><code>SUM</code> over zero rows is NULL, not 0: wrap it in <code>COALESCE(SUM(x), 0)</code> when a zero is meant.</li>
+</ul></div></details>
+</div>
+</section>
+
+<section id="rd-s4">
+<h2>4. Window functions: calculations across rows without collapsing them</h2>
+<p><b>The problem.</b> GROUP BY gives one row per group, but many questions need every row <i>and</i> something about its neighbours: rank each user by tokens, the time since the previous message, a running total, the latest message per chat. Before window functions these needed self joins or correlated subqueries that were slow and hard to read.</p>
+<p><b>The idea.</b> A <b>window function</b> computes a value for each row from a set of related rows, its <b>window</b>, and leaves the rows in place. Its <code>OVER (...)</code> clause has three parts:</p>
+<ul>
+<li><code>PARTITION BY</code> splits rows into independent groups (each chat, each user). Without it, all rows form one partition.</li>
+<li><code>ORDER BY</code> orders rows inside each partition; ranking and LAG/LEAD need it.</li>
+<li>The <b>frame</b> says which rows around the current one an aggregate sees: <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> means "this row and the two before it". If you give an ORDER BY and no frame, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>: from the start of the partition to the current row <i>and every row tied with it</i> ({{SQLite window functions|https://www.sqlite.org/windowfunctions.html}}; Postgres {{documents the same default|https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS}}).</li>
+</ul>
+<div class="card" id="rd-win-card">
+<h3 style="margin-top:0">Watch a window slide over chat 11</h3>
+<p class="small">The messages of chat 11, in id order. Step through the rows: the frame (outlined) is what the function sees for the current row (highlighted), and the result column fills in row by row. Change the function or the frame and replay. The values are computed from the real rows.</p>
+<div class="seg" id="rd-win-fn"><button data-m="sum" class="on">SUM(tokens)</button><button data-m="avg3">AVG, last 3 rows</button><button data-m="lag">LAG(tokens)</button><button data-m="rank">RANK() by tokens</button><button data-m="last">LAST_VALUE, default frame</button><button data-m="lastall">LAST_VALUE, whole partition</button></div>
+<pre class="code" id="rd-win-sql"></pre>
+<div class="an-ctl" id="rd-win-ctl"></div>
+<div class="rd-svg" id="rd-win-svg"></div>
+<div class="an-cap" id="rd-win-cap"></div>
+</div>
+<p><b>Rankings.</b> <code>ROW_NUMBER()</code> numbers rows 1, 2, 3 even through ties (so add a tie-breaker to its ORDER BY, or two runs can number tied rows differently); <code>RANK()</code> gives ties the same number and leaves a gap (1, 1, 3); <code>DENSE_RANK()</code> leaves no gap (1, 1, 2):</p>
+<div class="rq" data-ex="w_rank" data-title="ROW_NUMBER, RANK and DENSE_RANK on tied counts" data-cap="10"></div>
+<p><b>Previous and next rows.</b> <code>LAG(x)</code> and <code>LEAD(x)</code> read a column from the row before or after. Time arithmetic is a dialect difference: Postgres subtracts timestamps into an interval, SQLite has no time type, so this box uses <code>julianday</code> there:</p>
+<div class="rq" data-ex="w_lag" data-title="Seconds between messages with LAG"></div>
+<div class="rq" data-ex="w_running" data-title="Running total and a 3-row moving average" data-cap="6"></div>
+<p><b>Two frame traps.</b> First, <code>LAST_VALUE</code> with the default frame returns the <i>current</i> row's value, because the default frame ends at the current row; ask for the whole partition explicitly. Second, the default frame is RANGE, so rows tied on the ORDER BY value are all included at once: two chats opened on the same day get the same running count. Say <code>ROWS</code> when you mean rows:</p>
+<div class="rq" data-ex="w_last" data-title="LAST_VALUE: the default frame surprises"></div>
+<div class="rq" data-ex="w_range" data-title="RANGE (the default) against ROWS on tied days"></div>
+<p><b>Top N per group</b> is the most common production use: number the rows per partition in a subquery, keep <code>rn &lt;= N</code> outside (a window result cannot be filtered in the same SELECT's WHERE, section 1). The root's playground shows "latest message per chat"; here, each user's two biggest chats. Postgres also has <code>DISTINCT ON (user_id) ... ORDER BY user_id, ...</code> for the N = 1 case.</p>
+<div class="rq" data-ex="w_topn" data-title="Top 2 chats per user"></div>
+</section>
+
+<section id="rd-s5">
+<h2>5. CTEs and recursive queries</h2>
+<p><b>The problem.</b> A real query has steps (aggregate messages per chat, then rank chats per user, then keep the top two). Nested subqueries hide the steps inside each other.</p>
+<p><b>The idea.</b> A <b>common table expression</b> (CTE), <code>WITH name AS (SELECT ...)</code>, names a step so later steps can use it like a table. The fan-out fix in section 2 used two. <b>What it costs:</b> usually nothing. Since PostgreSQL 12, a CTE that is referenced once, is not recursive and has no side effects is inlined into the main query and optimised with it; <code>MATERIALIZED</code> forces it to be computed once on its own, <code>NOT MATERIALIZED</code> forces inlining ({{PostgreSQL 12 release notes|https://www.postgresql.org/docs/release/12.0/}}; {{WITH queries|https://www.postgresql.org/docs/current/queries-with.html}}). Older advice that "CTEs are an optimisation fence" describes Postgres 11 and earlier.</p>
+<p><b>Recursion.</b> <code>WITH RECURSIVE</code> lets a CTE refer to itself: a starting query (the anchor), <code>UNION ALL</code>, and a step that joins the CTE's previous rows to find the next ones, repeated until a step adds no rows. It is how SQL walks a tree or a graph of unknown depth: a reply thread, an org chart, a bill of materials, a category tree.</p>
+<div class="rq" data-ex="c_up" data-title="Walk a thread upwards through parent_id"></div>
+<div class="rq" data-ex="c_tree" data-title="An org chart, depth and path"></div>
+<p>A third use is generating rows that do not exist in any table: every day in a range, so that days with no messages show as zero instead of vanishing from a chart. Postgres has <code>generate_series</code> for this; in SQLite a recursive CTE does it:</p>
+<div class="rq" data-ex="c_days" data-title="Fill the empty days" data-cap="10"></div>
+<div class="co warn"><div class="t">What it costs, and when not to</div>A recursive query on a cycle (a message that is its own ancestor through bad data) never ends: guard with a depth limit (<code>WHERE depth &lt; 100</code>) or, in Postgres 14 and later, the <code>CYCLE</code> clause. Deep trees read many times are often better stored with a materialised path or a closure table (one row per ancestor and descendant pair); for traversals many hops deep across large graphs, see the graph section of {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}}.</div>
+</section>

@@ -1,0 +1,19 @@
+<div class="tab" id="t-alter" role="tabpanel" hidden>
+<style>
+#t-alter td code{font-size:11.5px;overflow-wrap:anywhere}
+#t-alter .lk{display:inline-block;font-size:11px;border-radius:99px;padding:0 7px;margin:1px 2px 1px 0;border:1px solid var(--line);white-space:nowrap}
+#t-alter .lk.ae{color:var(--bad);border-color:var(--bad);font-weight:600}#t-alter .lk.sre,#t-alter .lk.sh{color:var(--c5);border-color:var(--c5)}#t-alter .lk.sue{color:var(--good);border-color:var(--good)}
+#t-alter .y{color:var(--bad);font-weight:600}#t-alter .n{color:var(--good)}
+#t-alter table{font-size:12.5px}#t-alter td{vertical-align:top}
+#t-alter .est{font-size:11.5px;color:var(--mute)}
+</style>
+<h2 style="margin-top:14px">ALTER TABLE, measured: what each schema change locks, rewrites and costs</h2>
+<p class="lead">Twenty-one common schema changes, each run on a copy of the chat messages grown to <span data-num="alter_rows"></span> rows (<span data-num="alter_size"></span> of table data) on PostgreSQL 16.2, with what it actually did.</p>
+<p class="small"><b>How it was measured</b> (<code>src/pg/measure_alter.py</code>): each change ran inside its own transaction; while that transaction was still open, <code>pg_locks</code> was read for the locks it held on the table, and a second session tried a point SELECT and an INSERT with <code>lock_timeout = 300ms</code> to see whether they were blocked; the table's file node was compared before and after to see whether the table was rewritten; then the transaction was rolled back so every change started from the same table. CREATE INDEX CONCURRENTLY cannot run in a transaction, so it was watched from a second session while it ran. Times are medians of 3 runs on a laptop. <b>Lock names:</b> <span class="lk ae">AccessExclusive</span> blocks everything, reads included; <span class="lk sre">ShareRowExclusive</span> and <span class="lk sh">Share</span> block writes but not reads; <span class="lk sue">ShareUpdateExclusive</span> blocks neither, only other schema changes and VACUUM ({{PostgreSQL table-level locks|https://www.postgresql.org/docs/current/explicit-locking.html}}).</p>
+<div class="ctl"><label>Your table's rows: <b id="al-rows-v"></b><input type="range" id="al-rows" min="5" max="10" step="0.1" value="6.3" aria-label="Rows in your table (log scale)"></label>
+<label><input type="checkbox" id="al-only"> only changes that block reads</label></div>
+<p class="est" id="al-est-note"></p>
+<div class="seg" id="al-grp"></div>
+<div class="tw"><table id="al-table"></table></div>
+<div class="co"><div class="t">Read the times in context</div>A metadata-only change finishes in about a millisecond whatever the table size; the danger is the lock queue in front of it (Reading, section 11). A rewrite or a scan grows with the table: the "your table" column scales the measured time linearly with the row count, which is a rough guide only (it ignores memory, disk speed, indexes and concurrent load). Plan with a measurement on a production-sized copy.</div>
+</div>
