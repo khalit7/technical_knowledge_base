@@ -31,7 +31,7 @@ Calculator presets: each item count is linked on the page (Real-SWE 10, AIME 30,
 - ARC-AGI-3 "62.7% vs 99.9%" pairs max effort (standard) with high effort (adapter); equal-effort pairs are 62.7/98.6 and 54.8/99.9.
 - Prime Agent "30% to 95.5% on the same model": different harnesses and game sets; 95.5% is best of three on the public set; the released median run is 95.24%.
 - SWE-Bench Pro V2 "about 23%": that sentence is the original 2025 Pro description still printed on Scale's page; V2 top scores are 89.9% to 99.4% (Opus 5 638/642). "47 to 80%" for one benchmark mixed models and versions.
-- HLE "tools move it 10 to 20 points": 3.3 points for Opus 5.5 and 7.0 for Opus 5 in Anthropic's own runs.
+- HLE "tools move it 10 to 20 points": set-specific. 3.3 points for Opus 5.5 and 7.0 for Opus 5 on full HLE in Anthropic's own runs (HLE sources blocklisted); 19.3 to 32.2 points on HLE-Diamond in the maintainers' runs (GPT-6 Astra 59.9% to 82.9%, 22 Sep 2026), from the Knowledge and reasoning child.
 - Opus 5's OSWorld 2.0 74.0% is a partial-credit score on the 10 Sep task files with a changed harness; strict is 37.2%; the maintainers' run is 68.3% partial, 31.4% strict.
 - Astra for Law: same weights but also legal instructions, on OpenAI's private validation set; Vals AI's own leaderboard has GPT-6 Astra at 39.42% and no Astra for Law entry.
 - SchrodingerRepo "6 to 14 points" is the paper's own figure (sections I and VIII); the 14.4 end is on a 300-task leakage-selected subset.

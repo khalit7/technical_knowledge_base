@@ -1,7 +1,7 @@
 """Updates applied after rows_*.py: readings and corrections from the research passes of 4 October 2026
 (official leaderboards and data files fetched that day; raw notes kept outside the repo), and the orchestrator's
 verified facts. Each entry names its source; nothing here is from memory."""
-from lib import ROWS, S, E, I, X, C, AX, EP
+from lib import ROWS, R, S, E, I, X, C, AX, EP
 
 BY = {r['id']: r for r in ROWS}
 
@@ -536,3 +536,123 @@ CORR('osworld_2', C('"Claude Opus 5 74.0%"', 'Unconfirmed as a leaderboard figur
 ISS('tb4', X('One model, one board: GPT-6 Astra ranges from 50.6% to 58.2% pass@1 across effort levels on the official leaderboard.', 'tbench'))
 ISS('aime', X('AIME 2026 reached 98.3% from GPT-5.2 (high), a model already public on the day of the contest, so even the freshest vintage was near the ceiling at once.', 'maaime26'))
 EV('truthfulqa', E(58, '% truthful', 'best model in the 2021 paper (GPT-3 family); humans 94%', '2021-09-08', 'generation task, original paper', 'ind', AX('2109.07958'), q='The best model was truthful on 58% of questions'))
+
+
+# ==== child-page reconciliation (4 October 2026) ====
+# The seven child pages are built; their verified facts override older readings here. Each fact below is taken
+# from a child page's own sourced text (named in the comment) and keeps that page's primary source.
+
+# Owners: every row points at the child page that now owns it; 'root' marks the families no child owns
+# (multilingual translation, the classic era, aggregators, Vals Legal).
+OWNMAP = {'hellaswag_wino_arc': 'kr', 'bbh': 'kr', 'simplebench': 'kr', 'aa_briefcase': 'kr', 'mgsm': 'kr', 'global_mmlu': 'kr',
+          'critpt': 'math', 'deepswe': 'code', 'bfcl': 'ag', 'vals_legal': 'root', 'aa_index': 'root', 'flores': 'root'}
+FAMOWN = {'long': 'lcm', 'mm': 'lcm', 'instr': 'pref', 'pref': 'pref', 'safe': 'safe', 'classic': 'root', 'math': 'math', 'code': 'code'}
+for _r in ROWS:
+    if _r['id'] in OWNMAP:
+        _r['own'] = OWNMAP[_r['id']]
+    elif _r['own'] in ('root', 'mc'):
+        _r['own'] = FAMOWN.get(_r['fam'], 'root')
+
+# SWE-bench Verified: the independent Vals AI reading (Coding child, "Where Verified stands").
+S('valsswe', 'Vals AI, SWE-bench leaderboard (bash-only, mini-SWE-agent)', 'https://www.vals.ai/benchmarks/swebench', '2026-09-01', 'leaderboard', read=R4)
+EV('swebench_verified', E(97.0, '%', 'Claude Opus 5', '2026-09-01', 'Vals AI\'s bash-only run (mini-SWE-agent, one tool); eight models between 93.4% and 97.0%; board updated 1 September 2026', 'ind', 'valsswe',
+                          note='Epoch\'s 83.5% below is an earlier model on Epoch\'s own scaffold (April 2026); the two runs are separate readings, not one series.'), first=True)
+U('swebench_verified', why='Eight models between 93.4% and 97.0% in one independent bash-only run, and measurable repository memorisation: what headroom is left is partly contamination.')
+
+# FrontierMath: v2 set sizes (Math child, from Epoch's v2 changelog of 12 June 2026).
+S('epfmv2', 'Epoch AI, FrontierMath v2 changelog', 'https://epoch.ai/benchmarks/frontiermath-tier-4-v2', '2026-06-12', 'page', read=R4)
+U('frontiermath', it=I('Tiers 1-3 v2: 295 problems, 285 private (v1 had 300; v2 corrected 123 and removed 5)', 'epfmv2', n=295))
+U('frontiermath_t4', it=I('Tier 4 v2: 43 problems, 41 private (v1 had 50; v2 corrected 12 and removed 7)', 'epfmv2', n=43),
+  why='A perfect score from GPT-6.1 Sol (max effort) on the 41 private problems, and 97.6% from GPT-6 Astra a month earlier: nothing is left to separate the top.')
+for _x in BY['frontiermath']['iss']:
+    if _x['t'].startswith('OpenAI commissioned the 300 core'):
+        _x['t'] = 'OpenAI commissioned the v1 sets (300 core and 50 Tier 4 problems) and has access to most statements and solutions; 53 core solutions and 20 Tier 4 problems are held out. Disclosed 23 January 2025.'
+
+# HLE: the tools effect is set-specific (Knowledge and reasoning child, "Correction, made precise").
+for _c in BY['hle']['corr']:
+    if _c['c'].startswith('"~46% no-tools SOTA'):
+        _c['f'] = ('Scale\'s board now has GPT-6 Astra at 54.8% (9 September 2026); vendor with-tools figures run 57.2 to 67.7% (Claude Opus 5.5, lab). '
+                   'How much tools add depends on the set: 3.3 to 7.0 points on full HLE in Anthropic\'s runs, 19.3 to 32.2 on HLE-Diamond in the maintainers\'.')
+    if _c['c'].startswith('"Search access moves'):
+        _c['f'] = ('Set-specific. On full HLE, in Anthropic\'s own runs with HLE sources blocklisted from search, tools add 3.3 points (Opus 5.5: 64.4 to 67.7) and 7.0 (Opus 5: 56.6 to 63.6). '
+                   'On HLE-Diamond the maintainers\' runs with web and code tools add 19.3 to 32.2 points (GPT-6 Astra 59.9 to 82.9, 22 September 2026).')
+ISS('hle', X('The tools effect belongs to set, harness and blocklist: 3.3 to 7.0 points on full HLE (Anthropic, HLE sources blocklisted), 19.3 to 32.2 on HLE-Diamond (maintainers, web and code tools).', 'hlediamond'))
+
+# Terminal-Bench (Agentic child; StateM paper page).
+S('tb4tasks', 'Terminal-Bench v4.0.0 task folders (harbor-framework/terminal-bench)', 'https://github.com/harbor-framework/terminal-bench/tree/v4.0.0/tasks', '2026-08-26', 'code', read=R4)
+U('tb4', it=I('66 tasks, counted from the 66 task folders of the v4.0.0 release; the official board runs 330 trials per entry (5 per task)', 'tb4tasks', n=66))
+for _x in BY['tb2']['iss']:
+    if 'StateM' in _x['t']:
+        _x['t'] = ('A harness alone lifted GPT-5.5 from 83.1% to 92.1% on 2.1, and reported 95.3% raw with GPT-5.6 Sol, using a runbook developed on the same 89 tasks (StateM). '
+                   'The leaderboard\'s judge flagged 13 of its 424 rewarded trajectories, four as harness cheating, and the submission was closed unmerged on 19 September 2026.')
+
+# Long context (Long-context and multimodal child).
+S('claude21', 'Anthropic, Long context prompting for Claude 2.1', 'https://claude.com/blog/claude-2-1-prompting', '2023-12-06', 'blog')
+EV('niah', E(98, '%', 'Claude 2.1', '2023-12-06', 'Anthropic\'s 200K needle test: 27% as first run, 98% after adding one sentence to the start of the answer ("Here is the most relevant sentence in the context:")', 'lab', 'claude21',
+             note='A prompt sentence, not memory, moved it 71 points: one reason single-needle retrieval stopped being evidence.'))
+U('mrcr', st='active', why='Vendor figures reach 96 to 100% in the long 8-needle bins, but independent runs at 1M still separate models (best 63.5%): saturating only in one lab\'s own numbers.')
+BY['mrcr']['ev'] = [e for e in BY['mrcr']['ev'] if e.get('s') == 'ctxarena'] + [e for e in BY['mrcr']['ev'] if e.get('s') != 'ctxarena']
+
+# Safety (Safety and honesty child).
+S('gpt52card', 'OpenAI, GPT-5.2 system card (PDF)', 'https://cdn.openai.com/pdf/3a4153c8-c748-4b71-8e31-aecbde944f8d/oai_5_2_system-card.pdf', '2025-12-11', 'vendor')
+for _e in BY['harmbench']['ev']:
+    if _e.get('v') == 0.975:
+        _e['s'] = 'gpt52card'
+        _e['set'] = 'OpenAI\'s StrongREJECT adaptation, filtered to drop every item all models passed "as it was otherwise highly saturated"; OpenAI graders'
+U('harmbench', why='OpenAI filtered StrongREJECT as saturated in December 2025 and replaced it with a multi-turn red-teaming evaluation before GPT-5.4 (March 2026); HarmBench is a research staple that left frontier cards.')
+for _c in BY['harmbench']['corr']:
+    if _c['c'].startswith('"HarmBench / StrongREJECT / AgentHarm'):
+        _c['f'] = ('HarmBench and StrongREJECT are research staples but have left frontier cards: OpenAI filtered StrongREJECT as saturated (GPT-5.2 card, December 2025) and replaced it with a multi-turn red-teaming evaluation before GPT-5.4. '
+                   'AgentHarm is a separate row: its metric is a harm score plus refusal rate, not attack success.')
+        _c['s'] = 'gpt52card'
+
+# Preference (Human preference and arenas child).
+S('arenawiki', 'Wikipedia, Arena (AI platform)', 'https://en.wikipedia.org/wiki/Arena_(AI_platform)', R4, 'page', read=R4)
+S('arenafact', 'Arena, Factuality in Arena', 'https://arena.ai/blog/factuality-in-arena', '2026-07-14', 'blog')
+S('arenaagent', 'Arena, Agent Arena methodology', 'https://arena.ai/blog/agent-arena-methodology', '2026-06-04', 'blog')
+U('lmarena', n='Arena (formerly LMArena, Chatbot Arena)', by='LMSYS, then LMArena; renamed Arena on 28 January 2026',
+  it=I('Open-ended: 8,626,731 votes and 413 models on the text board (2 October 2026)', 'arena', n=None))
+ISS('lmarena', X('LMArena was renamed Arena on 28 January 2026.', 'arenawiki'),
+    X('Style control is the default view; a factuality toggle (search agents check claims, weighted 25% against 75% human votes) since 14 July 2026.', 'arenafact'),
+    X('Agent Arena (4 June 2026) is not a vote: it ranks models by their causal effect on outcomes of real agent sessions.', 'arenaagent'))
+
+# New rows: benchmarks the children own that the Reading names (facts from the children's sourced text).
+R(id='nolima', n='NoLiMa', fam='long', yr=2025, by='Adobe Research and LMU Munich (Modarressi et al.)', paper=AX('2502.05167'),
+  me='Needle retrieval when the question and the needle share no words, so finding it takes an inference, not a string match',
+  fmt='Question over a long haystack with one needle', met='Accuracy by context length; effective length (largest length above 85% of the short-context base)',
+  it=I('58 question-needle pairs, 1K to 128K tokens', AX('2502.05167')), gr=['exact'], cd=['none'], st='active',
+  ev=[E(64.7, '%', 'GPT-4.1', '2025-06', 'at 128K; claimed window 1M, effective length 16K (paper Table 10, authors\' run)', 'ind', AX('2502.05167')),
+      E(69.7, '%', 'GPT-4o', '2025-02-07', 'at 32K, from a 99.3% short-context base', 'ind', AX('2502.05167'), q='Even GPT-4o, one of the top-performing exceptions, experiences a reduction from an almost-perfect baseline of 99.3% to 69.7%')],
+  why='A diagnostic rather than a leaderboard: effective lengths far below advertised windows, and no model near the ceiling at 128K.',
+  own='lcm', old=None, rel=['niah', 'ruler'])
+R(id='charxiv', n='CharXiv', fam='mm', yr=2024, by='Princeton (Wang et al.)', paper=AX('2406.18521'),
+  me='Understanding real scientific charts: descriptive and reasoning questions', fmt='Questions on charts from arXiv papers', met='Accuracy',
+  it=I('2,323 charts from arXiv papers, hand-checked', AX('2406.18521'), n=2323, q='2,323 natural, challenging, and diverse charts from arXiv papers'), gr=['exact'], cd=['none'], st='active',
+  ev=[E(47.1, '%', 'GPT-4o', '2024-06-26', 'reasoning questions at launch; humans 80.5%', 'ind', AX('2406.18521'), q='which achieves 47.1% accuracy')],
+  why='Built against templated chart sets (open models dropped up to 34.5% on a stress test); the successor chart understanding moved to.',
+  own='lcm', old=None, rel=['mathvista_chartqa_docvqa'])
+R(id='zerobench', n='ZeroBench', fam='mm', yr=2025, by='Roberts et al. (Cambridge and others)', paper=AX('2502.09696'),
+  me='Visual reasoning questions filtered to be impossible for frontier models at release', fmt='Image questions', met='pass@1, pass@5 and pass^5 (all five tries right)',
+  it=I('100 questions, adversarially filtered', AX('2502.09696'), n=100), gr=['exact'], cd=['none'], st='active',
+  ev=[E(6, '% pass^5', 'best model after a year of tracking (19% pass@5)', '2026', 'authors\' tracking in the paper\'s v3; 0% pass@1 and pass^5 at release', 'ind', AX('2502.09696'), q='observing SotA reaching 6% pass^5 and 19% pass@5')],
+  why='Designed to start at zero; a year later the best reliable score is 6%.',
+  own='lcm', old=None, rel=['mmmu_pro'])
+R(id='video_mme_v2', n='Video-MME-v2', fam='mm', yr=2026, by='Video-MME team', paper=AX('2604.05015'),
+  me='Video understanding with linked questions that must be answered consistently', fmt='800 recent, decontaminated videos, 4 linked 8-option questions each', met='Group-based non-linear score',
+  it=I('800 videos, 4 linked questions each', AX('2604.05015'), n=800), gr=['exact'], cd=['none'], st='active',
+  ev=[E(49.4, 'score', 'Gemini-3-Pro', '2026-04-06', 'with audio (38.2 on frames alone); human experts 90.7', 'ind', AX('2604.05015'))],
+  why='The best model is near half the human expert score.',
+  own='lcm', old=None, rel=['video_mme'])
+R(id='xstest', n='XSTest', fam='safe', yr=2023, by='Rottger et al. (Bocconi, Oxford, Stanford)', paper=AX('2308.01263'),
+  me='Over-refusal and under-refusal on paired prompts that share a trigger word', fmt='Safe prompts with unsafe contrasts', met='Refusal rate on each half, labelled by people',
+  it=I('250 safe and 200 unsafe prompts', AX('2308.01263'), n=450, q='XSTest comprises 250 safe prompts across ten prompt types'), gr=['rubric'], cd=['none'], st='saturated',
+  ev=[], why='The public set is saturated for frontier models; it survives as the cleanest construction of the two-sided refusal test.',
+  own='safe', old=None, rel=['harmbench'])
+S('mythoscard', 'Anthropic, Claude Mythos Preview system card', 'https://www.anthropic.com/claude-mythos-preview-system-card', '2026-04-07', 'vendor')
+R(id='cybench', n='Cybench', fam='safe', yr=2024, by='Stanford (Zhang et al.)', paper=AX('2408.08926'),
+  me='Offensive cyber capability: professional capture-the-flag tasks timed on human teams', fmt='Agent in an environment, unguided or by subtasks', met='Tasks solved (flag match)',
+  it=I('40 capture-the-flag tasks from 4 competitions', AX('2408.08926'), n=40, q='We include 40 professional-level Capture the Flag (CTF) tasks from 4 distinct CTF competitions'), gr=['exact'], cd=['none'], st='saturated',
+  ev=[E(100.0, '% pass@1', 'Claude Mythos Preview', '2026-04-07', '35-task subset, 10 trials each; the card calls it "no longer sufficiently informative"', 'lab', 'mythoscard'),
+      E(17.5, '%', 'Claude 3.5 Sonnet', '2024-08-15', 'unguided, paper\'s launch run', 'ind', AX('2408.08926'))],
+  why='From 17.5% in 2024 to 100% on a subset in 2026; dropped from the Opus 5.5 and GPT-6 cards.',
+  own='safe', old=None, rel=[])

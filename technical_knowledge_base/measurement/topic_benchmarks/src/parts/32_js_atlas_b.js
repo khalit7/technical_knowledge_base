@@ -46,7 +46,7 @@
     {k:'it',t:'Size',sv:r=>r.it.n==null?1e12:-r.it.n,f:r=>esc(r.it.t)},
     {k:'gr',t:'Graded by',sv:r=>r.gr.join(),f:r=>r.gr.map(g=>esc(EN.gr[g][0])).join(', ')},
     {k:'cd',t:'Contamination defence',sv:r=>r.cd.join(),f:r=>r.cd.map(g=>esc(EN.cd[g][0])).join(', ')},
-    {k:'own',t:'Owner',sv:r=>r.own,f:r=>esc(r.own==='planned'?'planned':EN.own[r.own][0].replace(' benchmarks',''))}];
+    {k:'own',t:'Owner',sv:r=>r.own,f:r=>esc(r.own==='root'?'this page':EN.own[r.own][0].replace(' benchmarks',''))}];
   function sortRows(rs){const c=sortK==='n'?{sv:r=>r.n.toLowerCase()}:COLS.find(c=>c.k===sortK);
     return rs.slice().sort((a,b)=>{const x=c.sv(a),y=c.sv(b);return (x<y?-1:x>y?1:a.yr-b.yr)*sortD})}
   function draw(){

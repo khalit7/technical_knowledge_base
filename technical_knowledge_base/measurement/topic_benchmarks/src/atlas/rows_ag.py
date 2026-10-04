@@ -216,5 +216,5 @@ R(id='vals_legal', n='Vals AI Legal Research Bench', fam='agent', yr=2025, by='V
   it=I('Validation set (see Vals AI)', 'vals'),
   gr=['rubric'], cd=['private'], st='active',
   why='Retrieval-sensitive: the same weights differ by about 15 points depending on the index searched.',
-  own='planned', old='Vals AI Legal Research Bench')
+  own='root', old='Vals AI Legal Research Bench')
 S('vals', 'Vals AI benchmarks', 'https://www.vals.ai/benchmarks', '2026-10-04', 'leaderboard', read='2026-10-04')

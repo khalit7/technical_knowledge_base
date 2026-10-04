@@ -47,9 +47,13 @@ ST = {'active': ('Active', 'Still separates frontier models: the best score is w
       'saturated': ('Saturated', 'The top is at the ceiling or inside the noise of the answer key: no frontier signal left.'),
       'retired': ('Retired', 'Replaced by a successor or no longer reported on frontier model cards.')}
 OWN = {'kr': ('Knowledge and reasoning benchmarks', 'https://app.notion.com/p/3c65c17b0d0d810f8574da3ffb860be5'),
-       'mc': ('Math and coding benchmarks', 'https://app.notion.com/p/3c65c17b0d0d8146b127fe43f5761bf0'),
+       'math': ('Math benchmarks', 'https://app.notion.com/p/3ef5c17b0d0d81ec942edf0040a2f596'),
+       'code': ('Coding benchmarks', 'https://app.notion.com/p/3ef5c17b0d0d81bfa09ad4ba5eef0c4e'),
        'ag': ('Agentic benchmarks', 'https://app.notion.com/p/3c65c17b0d0d811fb926d7b91ef8234e'),
-       'planned': ('Planned (no child page yet)', None)}
+       'lcm': ('Long-context and multimodal benchmarks', 'https://app.notion.com/p/3ef5c17b0d0d810bb4dfc98919c9be8a'),
+       'pref': ('Human preference and arenas', 'https://app.notion.com/p/3ef5c17b0d0d814db49ff3b5c9fc3034'),
+       'safe': ('Safety and honesty benchmarks', 'https://app.notion.com/p/3ef5c17b0d0d818da9d5efda1a443166'),
+       'root': ('This page only (no child page)', None)}
 
 errs = []
 S = lib.SOURCES

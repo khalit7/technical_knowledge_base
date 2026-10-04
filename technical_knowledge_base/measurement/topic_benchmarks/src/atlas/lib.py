@@ -9,7 +9,7 @@ Row fields (short keys keep the JS payload small):
   ev: evidence list (first entry is the headline reading), each E(...)
   why: one sentence tying the evidence to the status
   iss: known issues [{t, s}]
-  own: owning child page id ('kr', 'mc', 'ag') or 'planned'
+  own: owning child page id ('kr', 'math', 'code', 'ag', 'lcm', 'pref', 'safe'; set in rows_fix.py) or 'root' (no child page)
   old: old-table row name (exact), corr: corrections to the old page [{c: claim, f: fix, s: source}]
   rel: related rows that must not be spliced with this one (other versions), mem: members of a grouped row
 """
@@ -73,7 +73,6 @@ S('ep', 'Epoch AI, Benchmarking hub data (benchmark_data.zip, CC BY 4.0)', EPOCH
 S('grid', 'Topic: llms, Benchmarks tab data (Artificial Analysis, ARC Prize, Epoch, LMArena, Datacurve readings)', 'https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286', '2026-10-01', 'kb', read='2026-10-01')
 S('oldpage', 'Topic: benchmarks, old Notion page (master table)', 'https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a', '2026-10-01', 'kb')
 S('kr', 'Knowledge and reasoning benchmarks (child page, old text)', 'https://app.notion.com/p/3c65c17b0d0d810f8574da3ffb860be5', '2026-09-22', 'kb')
-S('mc', 'Math and coding benchmarks (child page, old text)', 'https://app.notion.com/p/3c65c17b0d0d8146b127fe43f5761bf0', '2026-09-22', 'kb')
 S('ag', 'Agentic benchmarks (child page, old text)', 'https://app.notion.com/p/3c65c17b0d0d811fb926d7b91ef8234e', '2026-09-22', 'kb')
 
 
