@@ -1,0 +1,76 @@
+<section id="rd-s3">
+<h2>3. Invalidation: retiring a copy that is no longer true</h2>
+<h3>The problem</h3>
+<p>Throughout, the app uses <dfn id="g-aside">cache-aside</dfn>, the most common pattern: to read, ask the cache; on a miss, read Postgres and put the value in the cache; to write, update Postgres and then delete the cached key. ({{Capacity planning, The patterns|n:3ef5c17b0d0d81458291d55d7443700c}} compares it with read-through, write-through and write-back.)</p>
+<p>Ada renames her chat "Trip plan" to "Trip plan v2". Postgres now holds the new title; the cache still holds the old one. <dfn id="g-inval">Invalidation</dfn> is whatever retires that old copy. It is hard for a reason that has nothing to do with Redis: a cache creates a second copy of a fact, and two copies of a fact is a small distributed system. Five questions must each have an answer, and every caching bug is one of them left unanswered: <b>what</b> invalidates this entry, <b>who</b> knows it must happen, <b>how</b> the message gets there, <b>what if</b> it is lost or reordered, and <b>how would you notice</b>. (The famous line that "there are only two hard things in computer science: cache invalidation and naming things" is attributed to Phil Karlton; {{Martin Fowler's note on it|https://martinfowler.com/bliki/TwoHardThings.html}} records the attribution, which is by word of mouth.)</p>
+<h3>Four ways to retire a copy</h3>
+<div class="tw"><table>
+<tr><th>Method</th><th>How it works</th><th>What it costs</th><th>When not to use it</th></tr>
+<tr><td><b>TTL</b> (time to live)</td><td>Every entry expires a fixed time after it was written (<code>SET key value EX 300</code>)</td><td>Stale for up to the whole TTL even right after a change; a miss at expiry even if nothing changed</td><td>Alone, for anything a user just changed and expects to see (read-your-writes)</td></tr>
+<tr><td><b>Explicit delete</b></td><td>The code that writes Postgres deletes the cache key right after the commit</td><td>The writer must know every key derived from the row; a forgotten path (an admin script, a migration) fails silently; races (below)</td><td>When many caches derive from one row in many services: use events</td></tr>
+<tr><td><b>Event-driven</b></td><td>Postgres's change stream (logical replication, read by a tool such as Debezium) or an outbox table feeds a consumer that deletes affected keys</td><td>A pipeline to run; at-least-once delivery and lag of its own; still needs a TTL</td><td>Small systems with one writer path: explicit delete is simpler</td></tr>
+<tr><td><b>Versioned keys</b></td><td>The key contains a version (<code>chat:42:v7</code>); a write bumps the version, so readers simply stop asking for the old key, which ages out</td><td>One extra lookup for the current version; old entries use memory until evicted</td><td>When the version itself cannot be read cheaply and reliably</td></tr>
+</table></div>
+<p>Facebook runs the event-driven kind at the largest scale on record: daemons called mcsqueal on every database read the committed SQL, extract the cache deletes embedded in it and broadcast them to every cache cluster in the region; they report that "only 4% of all deletes issued result in the actual invalidation of cached data" ({{Nishtala et al., Scaling Memcache at Facebook, NSDI 2013|https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf}}). The outbox and change-data-capture machinery is taught on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}. Whatever the method, keep a TTL underneath: it is the only mechanism that also repairs the bugs of the others.</p>
+<h3>Delete, do not update</h3>
+<p>On a write you could put the new value into the cache instead of deleting the key. With one writer that works; with two it breaks, because two writers can commit to Postgres in one order and reach the cache in the other, leaving the older value cached until the TTL. Measured with two real writers renaming the same chat, each setting the cache after its commit with a small random delay: the cache disagreed with Postgres after <span class="nv" data-n="race.strategies.set_on_write.stale_share" data-f="pct"></span> of <span class="nv" data-n="race.trials" data-f="int"></span> trials <span class="meas">measured</span>. A delete is idempotent (doing it twice equals doing it once) and order does not matter, which is why Facebook's write path deletes ("We choose to delete cached data instead of updating it because deletes are idempotent", same paper).</p>
+<h3 id="rd-race">The race that delete alone does not close</h3>
+<p>Cache-aside with delete-on-write still has a hole. A reader misses, reads the <b>old</b> title from Postgres, and is then delayed for a few milliseconds (a garbage-collection pause, a busy CPU, a slow network hop). Meanwhile a writer commits the new title and deletes the key, which is already empty. The reader wakes up and writes the old title into the cache, where it stays until the TTL. Facebook calls this a <dfn id="g-staleset">stale set</dfn>. The animation replays real trials: two Python clients against the local Postgres 16.2 and Redis 8.8, timestamps as recorded. The same trial number has the same delays under every strategy, so you are watching the same race with and without the fix.</p>
+<div class="card" id="rd-race-card">
+<div class="seg" id="rd-race-mode"><button data-m="delete" class="on">Delete on write</button><button data-m="lease">With a lease</button><button data-m="version">Versioned keys</button><button data-m="double_delete">Delayed double delete</button></div>
+<div class="small mute" id="rd-race-trial"></div>
+<div class="an-ctl" id="rd-race-ctl"></div>
+<div class="an-cnt" id="rd-race-cnt"></div>
+<div class="rd-svg" id="rd-race-svg"></div>
+<div class="an-cap" id="rd-race-cap"></div>
+</div>
+<p><b>Measured over <span class="nv" data-n="race.trials" data-f="int"></span> trials per strategy</b>, with timings chosen to force overlap (the reader pauses 0 to 10 ms in 90% of trials and 10 to 100 ms in 10%; the writer starts 0 to 10 ms in) <span class="meas">measured</span>:</p>
+<div class="tw"><table id="rd-race-tbl"></table></div>
+<p class="small mute">The stale shares are a property of these forced timings, not a production rate: in production the window is rare per request, but a busy key gets millions of requests, and one stale set leaves a wrong value for the whole TTL. The point is the zeros.</p>
+<h3>Leases, the fix Facebook uses</h3>
+<p>A <dfn id="g-lease">lease</dfn> is a token the cache hands to a client on a miss: "you may fill this key". The paper: "The lease is a 64-bit token bound to the specific key the client originally requested. The client provides the lease token when setting the value in the cache... Verification can fail if memcached has invalidated the lease token due to receiving a delete request for that item." In the race above, the writer's delete revokes the slow reader's lease, so its old value is refused. The same token also fixes the stampede (many clients missing the same hot key at once): memcached hands out "a token only once every 10 seconds per key", and other clients are told to wait briefly and retry, by which time the first has usually filled the key. On keys prone to stampedes this cut the peak database query rate from 17,000 to 1,300 a second (Nishtala et al.). Redis has no built-in lease, but a few lines emulate it; this is the code the measurement ran:</p>
+<pre class="sql"><span class="c"># reader, on a miss: take the lease (fails if another client holds it)</span>
+tok = str(r.incr("lease:ctr"))
+if not r.set("lease:" + key, tok, nx=True, px=10_000):
+    time.sleep(0.005); retry()                  <span class="c"># someone else is filling: wait and read again</span>
+value = db.execute("SELECT title FROM chats WHERE id = %s", (42,)).fetchone()[0]
+<span class="c"># fill only while our lease is still valid (one atomic Lua script)</span>
+FILL = r.register_script("""
+  if redis.call('GET', KEYS[2]) == ARGV[1] then
+    redis.call('SET', KEYS[1], ARGV[2], 'EX', 300); redis.call('DEL', KEYS[2]); return 1
+  end
+  return 0""")
+FILL(keys=[key, "lease:" + key], args=[tok, value])
+<span class="c"># writer: commit first, then delete the value AND the lease in one command</span>
+db.execute("UPDATE chats SET title = %s WHERE id = 42", (new,))      <span class="c"># autocommit</span>
+r.delete(key, "lease:" + key)</pre>
+<p><b>Costs:</b> a second key per miss and a script call; a client that dies holding a lease blocks fills of that key until the lease expires (10 seconds here, as in the paper). <b>When not to:</b> keys that are never written while being read (static configuration) or whose staleness for one TTL is harmless.</p>
+<h3>Versioned keys, the fix that needs no new primitive</h3>
+<pre class="sql"><span class="c"># writer: commit, then bump the version (after the commit, never before)</span>
+db.execute("UPDATE chats SET title = %s WHERE id = 42", (new,))
+r.incr("ver:chat:42")
+<span class="c"># reader: ask for the current version's key; a slow reader can only fill an old version nobody reads any more</span>
+v = r.get("ver:chat:42") or b"0"
+key = f"chat:42:v{v.decode()}"</pre>
+<p>The ordering matters: the version is bumped after the commit, so any reader that sees the new version also reads the new row. One trap the measurement does not show: if the version counter itself is evicted, readers fall back to version 0 and may find an ancient entry. Give version keys no TTL under a <code>volatile-*</code> policy, or take the version from the database row the caller already holds (an <code>updated_at</code> column), which is how many HTTP caches use ETags (section 9).</p>
+<h3>Delayed double delete, the folk fix</h3>
+<p>Delete after the commit, then delete again a little later (here 50 ms), hoping the slow reader has filled by then. It narrows the window but cannot close it: any reader slower than the delay still wins, as <span class="nv" data-n="race.strategies.double_delete.stale" data-f="int"></span> of <span class="nv" data-n="race.trials" data-f="int"></span> trials showed <span class="meas">measured</span>. It is cheap and better than nothing; it is not a guarantee.</p>
+</section>
+
+<section id="rd-s4">
+<h2>4. Consistency: every window in which a reader sees an old value</h2>
+<p>Pros do not ask "is my cache consistent?" (it is not; it is a copy) but "<b>in which windows can a reader see a value older than the last commit, and how long can each last?</b>". Listing them is the whole skill. For cache-aside in front of one Postgres:</p>
+<div class="tw"><table>
+<tr><th>Window</th><th>How it opens</th><th>How long it lasts</th><th>Fix</th></tr>
+<tr><td><b>Between the commit and the delete</b></td><td>Readers between the two steps of the writer get the old cached value</td><td>Microseconds to milliseconds</td><td>Accept it: it is the minimum for any cache. If one user must see their own write, read from Postgres for that user for a few seconds</td></tr>
+<tr><td><b>Delete before the commit</b> (an ordering bug)</td><td>The writer deletes, then commits. A reader misses in between, reads the <b>old</b> row (the transaction is not committed yet) and fills</td><td>The whole TTL</td><td>Always commit first, then delete. Inside an ORM, delete in an after-commit hook, not inside the transaction</td></tr>
+<tr><td><b>Write-through before the commit</b></td><td>The writer sets the cache, then the transaction fails or rolls back</td><td>The whole TTL, for a value that never existed</td><td>Never write a cache inside a transaction that can still fail; delete after commit</td></tr>
+<tr><td><b>The stale set</b> (section 3)</td><td>A slow reader fills the old value after the writer's delete</td><td>The whole TTL</td><td>Leases or versioned keys</td></tr>
+<tr><td><b>Fill from a lagging replica</b></td><td>The reader's miss goes to a read replica that has not yet received the write, and caches the old value</td><td>The whole TTL: the cache turns milliseconds of replication lag into minutes of staleness</td><td>Fill from the primary for keys just written, or mark "recently written" (Facebook's remote markers, below)</td></tr>
+<tr><td><b>A lost or late invalidation</b></td><td>The delete message is dropped (a crash between commit and delete) or the event pipeline lags</td><td>Until the TTL, or until the pipeline catches up</td><td>The TTL backstop; an outbox or change data capture makes the delete durable</td></tr>
+<tr><td><b>Write-back</b> (write the cache now, Postgres later)</td><td>Anything that reads Postgres directly (analytics, other services) sees old data; a cache crash loses acknowledged writes</td><td>Until the flush, or forever</td><td>Use only for data you can lose or rebuild (counters); see {{Capacity planning, The patterns|n:3ef5c17b0d0d81458291d55d7443700c}}</td></tr>
+</table></div>
+<p><b>Replicas, in Facebook's words.</b> Their regions read from local replica databases while writes go to one master region, so a cache miss right after a write could fill from a replica that lags. Their fix, the <dfn id="g-remote">remote marker</dfn>: the writer "(1) sets a remote marker r<sub>k</sub> in the region, (2) performs the write to the master embedding k and r<sub>k</sub> to be invalidated in the SQL statement, and (3) deletes k in the local cluster"; a later miss that finds the marker reads from the master instead (Nishtala et al., "Across Regions: Consistency"). They also delete with a two-second "hold-off" when warming a cold cluster from a warm one, refusing fills for that time, for the same reason. For the chat product the simple version is enough: after a user writes, route that user's reads to the primary for a few seconds (read-your-writes), which is taught on {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}.</p>
+<div class="co warn"><div class="t">The rule that ties it together</div>A cache is an optimisation: the system must stay correct with it empty. If deleting every key would lose data or break behaviour, it is not a cache but a database with no durability, and it needs the treatment of one (the {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}} page measured how many acknowledged writes a Redis failover loses).</div>
+<div class="deepnote"><b>Go deeper (optional):</b> consistency models (what "linearizable" and "read-your-writes" mean exactly) are on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}; stampedes, request coalescing and XFetch, with an animation of one hot key expiring, are on {{Capacity planning, Thundering herds|n:3ef5c17b0d0d81458291d55d7443700c}}.</div>
+</section>
