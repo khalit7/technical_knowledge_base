@@ -1,0 +1,111 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav">
+<a href="#rd-over">One screen</a><a href="#rd-model">1 Models</a><a href="#rd-dyna">2 Dyna</a><a href="#rd-wrong">3 Wrong models</a><a href="#rd-focus">4 Where to plan</a><a href="#rd-dt">5 Decision time, MCTS</a><a href="#rd-ag">6 AlphaGo</a><a href="#rd-az">7 AlphaZero</a><a href="#rd-mu">8 MuZero</a><a href="#rd-ez">9 EfficientZero</a><a href="#rd-wm">10 World models</a><a href="#rd-mpc">11 MPC, PETS, MBPO</a><a href="#rd-err">12 Model error</a><a href="#rd-pays">13 When it pays</a><a href="#rd-mist">Mistakes</a>
+</nav>
+
+<section id="rd-over">
+<h2>Model-based RL and planning in one screen</h2>
+<p class="lead">A <b>model</b> predicts what the environment will do: given a state and an action, the next state and the reward. <b>Planning</b> is any computation that takes a model and produces or improves a policy, without touching the real environment. Model-free methods learn only from real experience; model-based methods also learn from experience they imagine. Two questions sort every method on this page: <b>where does the model come from</b> (given, as the rules of Go are, or learned from data), and <b>when does the planning happen</b> (in the background, improving values that every later decision uses, or at decision time, searching from the state the agent is in).</p>
+<div class="tw"><table class="rd-t">
+<thead><tr><th>Method</th><th>Model</th><th>What the model predicts</th><th>How it plans</th><th>Headline</th></tr></thead>
+<tbody>
+<tr><td>Dyna-Q (1990)</td><td>Learned table</td><td>Last seen next state and reward</td><td>Background: extra Q-learning updates on remembered transitions</td><td>Maze solved in 3 episodes instead of about 25 (section 2)</td></tr>
+<tr><td>Prioritised sweeping (1993)</td><td>Learned table with predecessors</td><td>Next state, reward, and who leads where</td><td>Background, most urgent update first</td><td>5 to 10 times fewer updates on mazes (section 4)</td></tr>
+<tr><td>Rollouts, MCTS, UCT (1996, 2006)</td><td>Given simulator</td><td>Exact next state</td><td>Decision time: simulate from the current state, act, discard</td><td>Computer Go from weak amateur (2005) to 6 dan (2015) (section 5)</td></tr>
+<tr><td>AlphaGo (2016)</td><td>Given (rules of Go)</td><td>Exact; networks give priors and values</td><td>MCTS with policy and value networks plus rollouts</td><td>Beat Fan Hui 5-0, Lee Sedol 4-1 (section 6)</td></tr>
+<tr><td>AlphaGo Zero, AlphaZero (2017)</td><td>Given (rules)</td><td>Exact; one network gives p and v</td><td>MCTS with no rollouts, at every self-play move; search is the policy improvement step</td><td>Superhuman Go, chess and shogi from the rules alone (section 7)</td></tr>
+<tr><td>MuZero (2019)</td><td>Learned, latent</td><td>Only reward, policy and value, never the observation</td><td>MCTS inside the learned model</td><td>Matched AlphaZero without the rules; Atari-57 state of the art (section 8)</td></tr>
+<tr><td>EfficientZero (2021)</td><td>Learned, latent</td><td>As MuZero, plus a consistency target</td><td>MCTS, with model-corrected value targets</td><td>Above human median on Atari 100k, about two hours of play (section 9)</td></tr>
+<tr><td>World Models, PlaNet, Dreamer (2018 to 2023)</td><td>Learned, latent</td><td>Next latent state and reward; usually also the image</td><td>Policy trained in imagination (World Models, Dreamer) or MPC in latent space (PlaNet)</td><td>DreamerV3: one configuration over 150+ tasks; Minecraft diamonds (section 10)</td></tr>
+<tr><td>PETS, MBPO (2018, 2019)</td><td>Learned ensemble</td><td>Distribution of the next state</td><td>MPC (PETS); short branched rollouts feeding SAC (MBPO)</td><td>Model-free final scores with far fewer samples (section 11)</td></tr>
+</tbody></table></div>
+<p class="small mute">Every row is derived and sourced in its section. The parent page, {{Topic: rl|n:3c65c17b0d0d8195a6c6c11ad093c16e}}, places these methods among all the others: its <b>Method atlas</b> tab has rows for Dyna-Q, AlphaGo, AlphaGo Zero, AlphaZero, MuZero and Dreamer, and its <b>Milestones and benchmarks</b> tab has the AlphaGo, AlphaZero, MuZero and EfficientZero results with their compute. Planning with a known model by sweeping every state, dynamic programming, has its own page: {{Dynamic programming|n:3c65c17b0d0d81baada7e1c05ce69d01}}.</p>
+<div class="co key"><div class="t">The thread through the page</div>Planning and learning are the same operation, a backup of values, applied to different experience: simulated or real. What separates the methods is where the simulated experience comes from (a table, the rules, a network), where the backups are spent (uniformly, by priority, from the current state), and how far a learned model is trusted before its errors pile up.</div>
+</section>
+
+<section id="rd-model">
+<h2><span class="num">1</span>What a model is, and what planning means</h2>
+<p>"By a model of the environment we mean anything that an agent can use to predict how the environment will respond to its actions. Given a state and an action, a model produces a prediction of the resultant next state and next reward" ({{Sutton and Barto §8.1|http://incompleteideas.net/book/RLbook2020.pdf#page=181}}). Two kinds:</p>
+<ul>
+<li>A <b>distribution model</b> gives every possible next state and reward with its probability, <i>p</i>(<i>s′</i>, <i>r</i> | <i>s</i>, <i>a</i>). Dynamic programming needs this kind, because its expected updates sum over all successors.</li>
+<li>A <b>sample model</b> returns one possible outcome, drawn with the right probability. The book's example is the sum of a dozen dice: a program that rolls twelve dice is easy to write; the table of all sums and their probabilities is "harder and more error-prone". Sample models are what simulators, game engines and most learned models are.</li>
+</ul>
+<p>A model has two parts, <b>transitions</b> (where an action leads) and <b>rewards</b> (what it pays), and either can be <b>given</b> or <b>learned</b>. The rules of Go give both exactly. A robot's physics simulator is given but approximate. Dyna learns both as a table; MuZero learns neither in the usual sense, only what its search needs (section 8). Learning a model from data is what control engineers call <b>system identification</b>; Sutton and Barto borrow <b>direct RL</b> (values from real experience) and <b>indirect RL</b> (values through a model) from the adaptive control literature (chapter 8 notes, {{p. 192|http://incompleteideas.net/book/RLbook2020.pdf#page=214}}).</p>
+<p><b>Planning</b>, in the book's sense, is "any computational process that takes a model as input and produces or improves a policy for interacting with the modeled environment". This page is about <b>state-space planning</b>: search through states, computing values on the way. (Plan-space planning, which edits whole plans, is "difficult to apply efficiently to the stochastic sequential decision problems" of RL, and is left aside.) The chapter's unifying claim has two parts: all state-space planning computes value functions as the step towards a better policy, and it computes them by backups applied to simulated experience. So:</p>
+<div class="fm"><div class="eq">model → simulated experience → backups → values → policy</div>
+<dl><dt>learning</dt><dd>the same backups applied to real experience from the environment</dd><dt>planning</dt><dd>the same backups applied to experience generated by the model</dd></dl></div>
+<p>The smallest example makes the point: <b>random-sample one-step tabular Q-planning</b> picks a state and action at random, asks a sample model for a reward and next state, and applies the Q-learning update to them. It converges to the optimal policy for the model under the same conditions as Q-learning in the real environment ({{§8.1|http://incompleteideas.net/book/RLbook2020.pdf#page=183}}). The Q-learning rule itself is on {{Model-free prediction and control|n:3c65c17b0d0d81898a0cd4c05c744969}}.</p>
+<p><b>Two times to plan.</b> In <b>background planning</b> (DP, Dyna), simulated experience gradually improves a value table or network, and an action is later read off it cheaply. In <b>decision-time planning</b> (heuristic search, rollouts, MCTS), planning starts when a new state is reached and its output is one action; most of the computed values are then discarded ({{§8.8|http://incompleteideas.net/book/RLbook2020.pdf#page=202}}). Decision-time planning suits problems with time to think per move, such as chess; background planning suits those that need fast reactions. AlphaZero does both: search at every move, and a network that learns from the search.</p>
+<p><b>What "model-based" does not mean.</b> It does not mean "learned model": DP and AlphaZero use a given one. And the reward model of RLHF does not make RLHF model-based: nothing plans with it; it stands in for the reward ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}).</p>
+</section>
+
+<section id="rd-dyna">
+<h2><span class="num">2</span>Dyna: learning, planning and acting together</h2>
+<p><b>Dyna</b> (Sutton 1990, "Integrated architectures for learning, planning, and reacting", cited in {{Sutton and Barto's chapter 8 notes|http://incompleteideas.net/book/RLbook2020.pdf#page=214}}) is the simplest agent that does all of it at once. Real experience is used twice: for <b>direct RL</b>, updating values at once, and for <b>model learning</b>. The model then generates simulated experience, and <b>planning</b> applies the same RL update to it, "just as if they had really happened". The choice of which simulated transitions to generate is called <b>search control</b>. Learning and planning share "almost all the same machinery, differing only in the source of their experience" ({{§8.2|http://incompleteideas.net/book/RLbook2020.pdf#page=185}}). The trade-off between the two routes is stated plainly: indirect methods "often make fuller use of a limited amount of experience"; direct methods "are much simpler and are not affected by biases in the design of the model".</p>
+<div class="algo">Tabular Dyna-Q (Sutton and Barto, p. 164)
+Initialise Q(s, a) and Model(s, a) for all s, a
+Loop forever:
+  (a) S ← current state
+  (b) A ← ε-greedy(S, Q)
+  (c) take A; observe R, S′
+  (d) direct RL:
+      Q(S, A) ← Q(S, A) + α [R + γ max_a Q(S′, a) − Q(S, A)]
+  (e) model learning:
+      Model(S, A) ← R, S′   (deterministic environment assumed)
+  (f) planning, repeat n times:
+        S ← a random previously observed state
+        A ← a random action previously taken in S
+        R, S′ ← Model(S, A)
+        Q(S, A) ← Q(S, A) + α [R + γ max_a Q(S′, a) − Q(S, A)]</div>
+<p>Without (e) and (f) this is one-step Q-learning. The model is a table that remembers the last outcome of each state-action pair, and planning only replays pairs actually experienced, so the model is never asked about something it has not seen.</p>
+<p><b>Example 8.1, the Dyna maze.</b> A 6 × 9 grid with 47 open cells, four actions, reward 0 everywhere except +1 for entering the goal, γ = 0.95, α = 0.1, ε = 0.1, ties broken at random, 30 repetitions. In the book, the agent with no planning (n = 0) needed "about 25 episodes" to reach ε-optimal performance, n = 5 about five, and n = 50 "only three episodes" ({{Example 8.1|http://incompleteideas.net/book/RLbook2020.pdf#page=186}}). Why is visible halfway through the second episode: the animation below runs the same agent with the same random numbers, with and without planning.</p>
+
+<div class="card" id="rd-dq">
+<div class="rd-ph">Episode 2 of the Dyna maze, the same run with n = 0, 5 or 50 planning steps per real step (Figure 8.3, recomputed)</div>
+<div class="seg" id="rd-dqM" role="group" aria-label="Planning steps"><button data-n="0">n = 0 (Q-learning only)</button><button data-n="5">n = 5</button><button data-n="50" class="on">n = 50</button></div>
+<div class="rd-svg" id="rd-dqP"></div>
+<div class="an-ctl" id="rd-dqC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rd-dqT"></div><p id="rd-dqX"></p></div>
+<div class="an-cnt" id="rd-dqN"></div>
+<p class="small mute">Arrows: the greedy action wherever the four action values are not all equal (as in the book's figure). Episode 1 is identical for every n, because planning draws from its own random stream and every reward is zero until the goal is first reached; so the toggle changes only what planning does. Same run (run 0 of 30), same parameters as Example 8.1.</p>
+</div>
+
+<p>In episode 1 nothing can be planned: every value is zero, and the first non-zero value appears only on the final step into the goal. In episode 2 the non-planning agent learns one more step per episode, since a value moves back one cell each time the agent walks through. The planning agent replays remembered transitions 50 times per real step, so the goal's value spreads back along everything it has already walked while it is still wandering near the start. In our run 0, at the midpoint of episode 2, the n = 0 agent has a greedy arrow in 1 cell, n = 5 in 17 cells and n = 50 in 26 cells; episode 2 took 809, 233 and 47 steps.</p>
+<div class="card" id="rd-f82">
+<div class="rd-ph">Figure 8.2, recomputed: steps per episode, mean of 30 runs</div>
+<div class="rd-svg" id="rd-f82P"></div><div class="leg" id="rd-f82L"></div>
+<div class="repro" id="rd-f82R"></div>
+</div>
+<p>The planning steps are not free: n = 50 does 50 table updates for every real one. Dyna's point is that when real steps are expensive (a robot, a user) and computation is cheap, those updates are worth it. The {{Dyna lab|#t-dyna}} tab reruns the curves with any n, α and ε.</p>
+</section>
+
+<section id="rd-wrong">
+<h2><span class="num">3</span>When the model is wrong</h2>
+<p>Dyna's maze model started empty and was only ever filled with correct facts. In general, models are wrong because the environment is stochastic and few samples were seen, because function approximation generalised badly, or because the environment changed ({{§8.3|http://incompleteideas.net/book/RLbook2020.pdf#page=188}}). The book separates two cases.</p>
+<ul>
+<li><b>An optimistic model corrects itself.</b> If the model promises more than the world gives, the planned policy goes to collect it and finds out. In the <b>blocking maze</b> (Example 8.2) a short path to the right of a wall is closed after 1,000 steps and a longer one opens on the left. Both agents stall while they bump into the new wall, then find the new route.</li>
+<li><b>A pessimistic model may never be corrected.</b> In the <b>shortcut maze</b> (Example 8.3) the long path on the left stays open and, after 3,000 steps, a shortcut opens on the right. Plain Dyna-Q "never switched to the shortcut. In fact, it never realized that it existed. Its model said that there was no shortcut, so the more it planned, the less likely it was to step to the right and discover it."</li>
+</ul>
+<p><b>Dyna-Q+</b> treats this as exploration of the model. It records, for each state-action pair, how many steps τ have passed since it was last tried for real, and plans as if that transition paid a bonus:</p>
+<div class="fm"><div class="eq">planned reward = <i>r</i> + κ √τ</div>
+<dl><dt>r</dt><dd>the reward the model predicts for that transition</dd><dt>τ</dt><dd>real time steps since the pair was last tried</dd><dt>κ</dt><dd>a small constant (the book gives no value; this page uses 10<sup>−3</sup>)</dd></dl></div>
+<p>The bonus is used only in planning updates, so the values themselves become optimistic about long-untested actions and the agent goes to test them, even through long detours. Two more changes are in the book's footnote: actions never tried from a state may be planned with, and their initial model leads back to the same state with reward 0.</p>
+<div class="card" id="rd-f845">
+<div class="rd-ph">Figures 8.4 and 8.5, recomputed: cumulative reward (goals reached), mean of 20 runs</div>
+<div class="rd-two"><div><div class="small mute">Blocking maze: the gap moves from right to left at step 1,000</div><div class="rd-svg" id="rd-f84P"></div></div><div><div class="small mute">Shortcut maze: a second gap opens on the right at step 3,000</div><div class="rd-svg" id="rd-f85P"></div></div></div>
+<div class="leg"><span><i style="background:var(--c2)"></i>Dyna-Q</span><span><i style="background:var(--c1)"></i>Dyna-Q+ (κ = 10<sup>−3</sup>)</span></div>
+<div class="repro" id="rd-f845R"></div>
+</div>
+<p>Exploration bonuses taken "to its logical extreme" become provably efficient model-based algorithms: <b>E<sup>3</sup></b> (Kearns and Singh 2002) and <b>R-max</b> (Brafman and Tennenholtz 2003) assume every incompletely explored choice is maximally rewarding and plan to test it, and find a near-optimal policy in time polynomial in the number of states and actions; "usually too slow for practical algorithms but ... probably the best that can be done in the worst case" (chapter 8 notes). Exploration in general is on {{Bandits and exploration|n:3ee5c17b0d0d81acba54d70ac51c601c}}.</p>
+</section>
+
+<section id="rd-focus">
+<h2><span class="num">4</span>Where to spend planning: priorities, samples and trajectories</h2>
+<p>Dyna picks remembered transitions uniformly at random, which is wasteful: at the start of episode 2 of the maze only the pair leading into the goal has a non-zero value, so almost every replayed transition moves zero into zero. Three refinements decide where backups go. They are covered as forms of asynchronous DP on {{Dynamic programming|n:3c65c17b0d0d81baada7e1c05ce69d01}} (section 14 and its Sweep lab, which races them on this same maze); here is what each adds to a planning agent.</p>
+<ul>
+<li><b>Prioritised sweeping</b> ({{§8.4|http://incompleteideas.net/book/RLbook2020.pdf#page=190}}; Moore and Atkeson 1993, Peng and Williams 1993) keeps a queue of state-action pairs ordered by how much their value would change, |<i>R</i> + γ max<sub><i>a</i></sub> <i>Q</i>(<i>S′</i>, <i>a</i>) − <i>Q</i>(<i>S</i>, <i>A</i>)|, and after each update pushes the predecessors of the changed state. It works backwards from wherever values changed, so the model must also predict predecessors. On mazes of the Dyna maze's shape at growing resolution it reached the optimal solution with fewer updates, "often by a factor of 5 to 10" (Example 8.4, with at most n = 5 updates per real step).</li>
+<li><b>Sample against expected updates</b> ({{§8.5|http://incompleteideas.net/book/RLbook2020.pdf#page=194}}). An expected update of one pair costs about <i>b</i> times a sample update, where <i>b</i> is the number of possible next states. With equally likely successors and correct successor values, <i>t</i> sample updates leave an error of √((<i>b</i> − 1)/(<i>b t</i>)) of the initial error, so for large <i>b</i> a small fraction of <i>b</i> samples already removes most of it. The book concludes sample updates are likely better "on problems with large stochastic branching factors and too many states to be solved exactly". Learned models in deep RL are sample models for this reason.</li>
+<li><b>Trajectory sampling and RTDP</b> ({{§8.6 to 8.7|http://incompleteideas.net/book/RLbook2020.pdf#page=196}}). Simulating whole trajectories under the current policy puts updates where the policy goes. In the book's random tasks this helped early and hurt late, and helped more with more states and fewer branches; real-time DP solved a racetrack with about half the updates of sweeping value iteration. Both are on the Dynamic programming page.</li>
+</ul>
+<p>Decision-time planning, next, is the extreme of this forward focusing: all computation goes to the state the agent is in.</p>
+</section>
