@@ -1,0 +1,100 @@
+
+<section id="rd-trpo">
+<h2><span class="num">8</span>Natural gradients and TRPO: measure the step in policy space</h2>
+<p><b>Why the step size is dangerous.</b> The policy gradient is only valid near the policy that collected the data. In supervised learning a too-large step costs one bad update; in RL the next batch is sampled from the broken policy, so the data itself degrades and training may never recover. Two goals follow: the largest step that is still safe, and several gradient steps on one expensive batch of rollouts.</p>
+<p><b>The step is measured in the wrong units.</b> A step of fixed length in θ can move the policy a lot or barely at all, depending on where it is. Take two actions with logit difference <i>z</i>, so <i>p</i> = σ(<i>z</i>). From <i>p</i> = 0.5, a step Δ<i>z</i> = 1 moves <i>p</i> to 0.731, a KL divergence of 0.120; from <i>p</i> = 0.99 the same step moves it to 0.996, a KL of 0.0037, 33 times less <i class="nl d">derived</i>. Gradient ascent is not covariant: reparameterise the policy and its steps change. The fix is to measure distance by how much the <b>action distribution</b> changes. To second order, KL(π<sub>θ</sub> ‖ π<sub>θ+Δ</sub>) ≈ ½ Δ<sup>⊤</sup><i>F</i>Δ, where <i>F</i> = 𝔼[∇ log π ∇ log π<sup>⊤</sup>] is the <b>Fisher information matrix</b> (for the two-action case, <i>F</i> = <i>p</i>(1 − <i>p</i>): 0.25 at <i>p</i> = 0.5, 0.0099 at <i>p</i> = 0.99).</p>
+<div class="fm"><div class="eq">Natural gradient step: &nbsp; Δθ = √( 2δ / (<i>g</i><sup>⊤</sup><i>F</i><sup>−1</sup><i>g</i>) ) · <i>F</i><sup>−1</sup><i>g</i></div>
+<dl><dt>g</dt><dd>the ordinary policy gradient</dd><dt>F<sup>−1</sup>g</dt><dd>the steepest-ascent direction when distance is the KL (to second order) rather than Euclidean distance in θ</dd><dt>δ</dt><dd>the KL budget for the step; the square root scales the step so that ½ Δ<sup>⊤</sup><i>F</i>Δ = δ</dd></dl></div>
+<p>{{Kakade (2001)|https://proceedings.neurips.cc/paper_files/paper/2001/file/4b86abe48d358ecf194c56c69108433e-Paper.pdf}} introduced this <b>natural policy gradient</b>: "the standard gradient descent rule is non-covariant ... we present a covariant gradient by defining a metric based on the underlying structure of the policy", and showed that "the natural gradient is moving toward choosing a greedy optimal action rather than just a better action." (He also notes that the averaged <i>F</i> is not fully invariant, because of the weighting by the state distribution.) In the example, a KL budget of 0.01 allows Δ<i>z</i> = 0.283 at <i>p</i> = 0.5 (exact KL 0.00997) and Δ<i>z</i> = 1.42 at <i>p</i> = 0.99 (exact KL 0.0066: the quadratic approximation is loose far from the centre, which is why TRPO checks the true KL with a line search) <i class="nl d">derived</i>.</p>
+<p><b>TRPO</b>, trust region policy optimisation ({{Schulman et al. 2015|https://arxiv.org/abs/1502.05477}}), turns this into an algorithm with a guarantee. With the <b>importance ratio</b> <i>r<sub>t</sub></i>(θ) = π<sub>θ</sub>(<i>a<sub>t</sub></i> | <i>s<sub>t</sub></i>) / π<sub>θ<sub>old</sub></sub>(<i>a<sub>t</sub></i> | <i>s<sub>t</sub></i>) between the policy being optimised and the one that collected the batch, maximising the surrogate 𝔼<sub><i>t</i></sub>[<i>r<sub>t</sub></i>(θ) Â<sub><i>t</i></sub>] has the same gradient as the policy gradient at θ = θ<sub>old</sub>, and the ratio corrects for the drift as θ moves away (the importance-sampling correction of {{Model-free prediction and control|n:3c65c17b0d0d81898a0cd4c05c744969}}, applied to a slightly stale policy). The paper bounds how far the surrogate can mislead: from its Theorem 1 (stated with total variation) it derives η(π̃) ≥ <i>L</i><sub>π</sub>(π̃) − <i>C</i> · max<sub><i>s</i></sub> KL(π ‖ π̃), with <i>C</i> = 4εγ / (1 − γ)<sup>2</sup> and ε = max |<i>A</i><sub>π</sub>(<i>s</i>, <i>a</i>)| (Eq. 9), so maximising the penalised surrogate improves the true return monotonically. The penalty coefficient that theory gives is far too conservative, so TRPO uses a <b>hard constraint</b> instead:</p>
+<div class="fm"><div class="eq">max<sub>θ</sub> 𝔼<sub><i>t</i></sub>[ <i>r<sub>t</sub></i>(θ) Â<sub><i>t</i></sub> ] &nbsp; subject to &nbsp; 𝔼<sub><i>t</i></sub>[ KL(π<sub>θ<sub>old</sub></sub>(· | <i>s<sub>t</sub></i>) ‖ π<sub>θ</sub>(· | <i>s<sub>t</sub></i>)) ] ≤ δ</div>
+<dl><dt>δ</dt><dd>the trust region: "We used δ = 0.01 for all experiments"</dd><dt>the solver</dt><dd>a natural-gradient direction by conjugate gradient using Fisher-vector products (no matrix is ever formed; "k = 10" iterations "to be quite effective"), then a line search that shrinks the step "until the objective improves. Without this line search, the algorithm occasionally computes large steps that cause a catastrophic degradation" (Appendix C)</dd></dl></div>
+<p>The paper tried two ways of collecting data, "single path" (ordinary rollouts) and "vine" (branching rollouts from states along a trunk, which needs a resettable simulator), and learned "simulated robotic swimming, hopping, and walking gaits; and playing Atari games using images of the screen as input". It works, but the second-order machinery is heavy, and TRPO is "not compatible with architectures that include noise (such as dropout) or parameter sharing (between the policy and value function, or with auxiliary tasks)" ({{PPO, §1|https://arxiv.org/abs/1707.06347}}). PPO keeps the idea and drops the machinery.</p>
+</section>
+
+<section id="rd-ppo">
+<h2><span class="num">9</span>PPO: the trust region from a clipped first-order objective</h2>
+<p><b>PPO</b>, proximal policy optimisation ({{Schulman et al. 2017|https://arxiv.org/abs/1707.06347}}), replaces the constraint with a pessimistic objective that plain stochastic gradient ascent can optimise:</p>
+<div class="fm"><div class="eq"><i>L</i><sup>CLIP</sup>(θ) = 𝔼<sub><i>t</i></sub>[ min( <i>r<sub>t</sub></i>(θ) Â<sub><i>t</i></sub>, &nbsp;clip(<i>r<sub>t</sub></i>(θ), 1 − ε, 1 + ε) Â<sub><i>t</i></sub> ) ]</div>
+<dl><dt>clip(x, 1 − ε, 1 + ε)</dt><dd>forces the ratio into that interval</dd><dt>ε</dt><dd>the clip range; among 0.1, 0.2 and 0.3 on the continuous-control tasks 0.2 did best; the Atari runs used 0.1 × α with α annealed linearly from 1 to 0</dd><dt>min</dt><dd>takes the more pessimistic of the clipped and unclipped terms, so clipping can only remove an incentive, never add one</dd></dl></div>
+<p>How the min works, one case at a time:</p>
+<ul>
+<li><b>Good action (Â &gt; 0).</b> The surrogate wants <i>r</i> up. Once <i>r</i> &gt; 1 + ε the clipped term is the smaller one and it is constant in θ: the objective goes flat, the gradient is zero, there is no incentive to push further.</li>
+<li><b>Bad action (Â &lt; 0).</b> The surrogate wants <i>r</i> down. Once <i>r</i> &lt; 1 − ε the objective goes flat in the same way.</li>
+<li><b>A ratio that moved the wrong way</b> (down for a good action, up for a bad one) is never clipped: there the unclipped term is the smaller one, so the full gradient pulls it back. The clip removes the incentive to exploit further; it never stops the correction of a mistake.</li>
+</ul>
+<div class="tw"><table class="rd-t">
+<tr><th>Case (ε = 0.2)</th><th class="num"><i>r</i> Â</th><th class="num">clip(<i>r</i>) Â</th><th class="num">Objective (the min)</th><th>Gradient</th></tr>
+<tr><td>Â = +2, <i>r</i> = 1.5</td><td class="num">3.0</td><td class="num">1.2 × 2 = 2.4</td><td class="num">2.4</td><td>zero: already raised past 1 + ε</td></tr>
+<tr><td>Â = +2, <i>r</i> = 0.7</td><td class="num">1.4</td><td class="num">0.8 × 2 = 1.6</td><td class="num">1.4</td><td>active: a good action became less likely, so push it back up</td></tr>
+<tr><td>Â = −1, <i>r</i> = 0.7</td><td class="num">−0.7</td><td class="num">0.8 × (−1) = −0.8</td><td class="num">−0.8</td><td>zero: already lowered past 1 − ε</td></tr>
+<tr><td>Â = −1, <i>r</i> = 1.5</td><td class="num">−1.5</td><td class="num">1.2 × (−1) = −1.2</td><td class="num">−1.5</td><td>active: a bad action became more likely, so push it back down</td></tr>
+</table></div>
+<div class="card" id="rd-cl">
+<div class="rd-ph">The clipped objective against the ratio, for a good and a bad action</div>
+<div class="rd-sl"><label>Ratio <i>r</i> = <b id="rd-clRv">1.50</b><input type="range" id="rd-clR" min="0" max="250" value="150" aria-label="Ratio"></label><label>Clip ε = <b id="rd-clEv">0.20</b><input type="range" id="rd-clE" min="5" max="50" value="20" aria-label="Clip range"></label></div>
+<div class="rd-two"><div><div class="rd-ph">Â = +1</div><div class="rd-svg" id="rd-clA"></div></div><div><div class="rd-ph">Â = −1</div><div class="rd-svg" id="rd-clB"></div></div></div>
+<div class="leg"><span><i class="ln" style="background:var(--c1)"></i>L<sup>CLIP</sup> (the min)</span><span><i class="ln" style="background:var(--c2)"></i>unclipped r·Â</span><span><i class="ln" style="background:var(--c5)"></i>clip(r)·Â</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>1 ± ε</span></div>
+<p class="small" id="rd-clO"></p>
+<p class="small mute">The dot is grey where the gradient is zero. Try: <i>r</i> = 0.7 (the good action's objective still slopes, the bad action's is flat), then <i>r</i> = 1.5 (the reverse).</p>
+</div>
+<p>What makes the min useful is reuse: several epochs of minibatch SGD on each batch of rollouts (10 epochs in the paper's MuJoCo runs, 3 on Atari). The animation follows one sample through ten epochs with and without the clip:</p>
+<div class="card" id="rd-pp">
+<div class="rd-ph">The same sample, ten epochs, with and without the clip</div>
+<div class="seg" id="rd-ppM" role="group" aria-label="Advantage sign"><button data-a="1" class="on">Advantage +1 (a good action)</button><button data-a="-1">Advantage −1 (a bad action)</button></div>
+<div class="rd-sl"><label>Clip ε = <b id="rd-ppEv">0.20</b><input type="range" id="rd-ppE" min="5" max="50" value="20" aria-label="Clip range"></label><label>Step size η = <b id="rd-ppHv">0.20</b><input type="range" id="rd-ppH" min="5" max="60" value="20" aria-label="Step size"></label></div>
+<div class="rd-two"><div><div class="rd-ph">The objective against the ratio</div><div class="rd-svg" id="rd-ppO"></div></div><div><div class="rd-ph">The ratio, epoch by epoch</div><div class="rd-svg" id="rd-ppR"></div></div></div>
+<div class="an-ctl" id="rd-ppC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rd-ppT"></div><p id="rd-ppX"></p></div>
+<div class="an-cnt" id="rd-ppN"></div>
+<p class="small mute">A softmax policy over three actions with starting logits (0, 0.5, −0.5), one sampled action (probability 0.307 under the old policy), its advantage, and plain gradient ascent on the surrogate for ten epochs <i class="nl i">illustrative</i>. Raise η and the clipped run overshoots 1 + ε on its first step and then stops: <b>the clip removes the incentive, it does not bound the ratio</b>, which is why practitioners also watch the KL and the fraction of clipped samples.</p>
+</div>
+<h3>The KL-penalty variant, and the paper's ablation</h3>
+<p>The paper also tried a soft version of TRPO's constraint, maximising 𝔼[<i>r<sub>t</sub></i> Â<sub><i>t</i></sub> − β KL(π<sub>old</sub> ‖ π<sub>θ</sub>)] with β either fixed or adapted after each update toward a target KL <i>d</i><sub>targ</sub>: "If <i>d</i> &lt; <i>d</i><sub>targ</sub>/1.5, β ← β/2; If <i>d</i> &gt; <i>d</i><sub>targ</sub> × 1.5, β ← β × 2" ("chosen heuristically, but the algorithm is not very sensitive to them"). Its Table 1 compares all of them on 7 MuJoCo tasks, 3 seeds each, one million timesteps, scores normalised so a random policy is 0 and the best result 1:</p>
+<div class="tw"><table class="rd-t">
+<tr><th>Variant</th><th class="num">Normalised score</th></tr>
+<tr><td>No clipping or penalty</td><td class="num">−0.39</td></tr>
+<tr><td>Clipping, ε = 0.1 / 0.2 / 0.3</td><td class="num">0.76 / <b>0.82</b> / 0.70</td></tr>
+<tr><td>Adaptive KL, <i>d</i><sub>targ</sub> = 0.003 / 0.01 / 0.03</td><td class="num">0.68 / 0.74 / 0.71</td></tr>
+<tr><td>Fixed KL, β = 0.3 / 1 / 3 / 10</td><td class="num">0.62 / 0.71 / 0.72 / 0.69</td></tr>
+</table></div>
+<p class="small mute">The unclipped score is negative "because for one environment (half cheetah) it leads to a very negative score" ({{PPO, §6.1, Table 1|https://arxiv.org/abs/1707.06347}}).</p>
+<p><b>The full loss.</b> With a network shared between policy and value, PPO maximises <i>L</i><sup>CLIP+VF+S</sup> = 𝔼<sub><i>t</i></sub>[<i>L</i><sup>CLIP</sup> − <i>c</i><sub>1</sub>(<i>V</i><sub>θ</sub>(<i>s<sub>t</sub></i>) − <i>V</i><sup>targ</sup><sub><i>t</i></sub>)<sup>2</sup> + <i>c</i><sub>2</sub> <i>S</i>[π<sub>θ</sub>](<i>s<sub>t</sub></i>)], a value regression term and an entropy bonus <i>S</i>. The algorithm: <i>N</i> parallel actors each run the policy for <i>T</i> steps, compute truncated GAE advantages, then optimise the loss for <i>K</i> epochs with minibatches, then repeat.</p>
+<div class="tw"><table class="rd-t">
+<tr><th>PPO paper settings</th><th>MuJoCo (Table 3)</th><th>Atari (Table 5)</th></tr>
+<tr><td>Horizon <i>T</i></td><td>2048</td><td>128</td></tr>
+<tr><td>Adam step size</td><td>3 × 10<sup>−4</sup></td><td>2.5 × 10<sup>−4</sup> × α</td></tr>
+<tr><td>Epochs <i>K</i></td><td>10</td><td>3</td></tr>
+<tr><td>Minibatch</td><td>64</td><td>32 × 8</td></tr>
+<tr><td>γ, λ</td><td>0.99, 0.95</td><td>0.99, 0.95</td></tr>
+<tr><td>Parallel actors</td><td>not listed</td><td>8</td></tr>
+<tr><td>Clip ε</td><td>0.2</td><td>0.1 × α</td></tr>
+<tr><td><i>c</i><sub>1</sub>, <i>c</i><sub>2</sub></td><td>separate networks, no entropy bonus</td><td>1, 0.01</td></tr>
+</table></div>
+<p>On 49 Atari games, PPO had the best average reward over all of training in 30 games (ACER 18, A2C 1), but the best over the last 100 episodes in only 19 (ACER 28, A2C 1, one tie) (Table 2): PPO learns fast and simply rather than reaching the highest final scores. Its practical success is what made it the default on-policy algorithm (in Stable-Baselines3, CleanRL and verl; OpenAI Five was trained with it), and the template that RLHF and GRPO adapt ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}).</p>
+<div class="co"><div class="t">PPO is on-policy, approximately</div>It reuses each batch for several epochs, and the ratio corrects for the drift within those epochs; it cannot learn from data collected by much older policies, and the batch is thrown away afterwards. That is the "approximately on-policy" cell of the root's Method atlas, and the reason PPO needs far more environment steps than the off-policy methods below.</div>
+</section>
+
+<section id="rd-impl">
+<h2><span class="num">10</span>What actually makes PPO work: the implementation</h2>
+<p>PPO's paper describes an objective; its results come from an implementation. {{Engstrom et al. (2020)|https://arxiv.org/abs/2005.12729}} isolated nine "code-level optimisations" in the reference code (value function clipping, reward scaling, orthogonal initialisation and layer scaling, Adam learning-rate annealing, reward clipping, observation normalisation, observation clipping, tanh activations, global gradient clipping) and found they "are responsible for most of PPO's gain in cumulative reward over TRPO". With them, TRPO ("TRPO+") matched or beat PPO: on Hopper, PPO 2513, PPO without them ("PPO-M") 2142, TRPO 2043, TRPO+ 2466; on Humanoid TRPO+ 1030 against PPO's 806. And the clip does not do what its name suggests: "all three algorithms fail to maintain a ratio-based trust region, despite PPO and PPO-M being trained directly with a ratio-clipping objective", although all keep a KL-based one. Their summary: "code-level optimizations contribute to algorithms' increased performance often significantly more than the choice of algorithm."</p>
+<p>{{Huang et al., "The 37 Implementation Details of Proximal Policy Optimization"|https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/}} (ICLR blog track, 2022) reproduced the official code detail by detail: 13 core details, 9 for Atari, 9 for continuous actions, 5 for LSTMs and 1 for multi-discrete actions. The 13 core ones:</p>
+<ol class="small">
+<li>Vectorised environments (many copies stepped together; the rollout is <i>N</i> × <i>T</i>)</li>
+<li>Orthogonal initialisation of weights, constant initialisation of biases (policy output layer scaled by 0.01, value output by 1)</li>
+<li>Adam's epsilon parameter (1e-5 in the reference code, not PyTorch's default 1e-8)</li>
+<li>Adam learning-rate annealing to 0</li>
+<li>Generalised advantage estimation, with correct handling of episode ends and of truncation at the rollout's end (bootstrap from <i>V</i>)</li>
+<li>Minibatch updates over shuffled indices</li>
+<li>Normalisation of advantages, per minibatch</li>
+<li>The clipped surrogate objective</li>
+<li>Value function loss clipping</li>
+<li>The overall loss and entropy bonus</li>
+<li>Global gradient clipping (norm 0.5)</li>
+<li>Debug variables: approximate KL, clip fraction, explained variance</li>
+<li>Shared or separate networks for policy and value</li>
+</ol>
+<p>The largest study, {{Andrychowicz et al. (2021)|https://arxiv.org/abs/2006.05990}}, trained "over 250'000 agents in five continuous control environments" across more than 50 choices. Its recommendations: "Use the PPO policy loss. Start with the clipping threshold set to 0.25"; "Initialize the last policy layer with 100× smaller weights" and use softplus for the standard deviation; "Always use observation normalization"; "Use GAE with λ = 0.9 but neither Huber loss nor PPO-style value loss clipping"; the discount γ "is one of the most important hyperparameters and should be tuned per environment (start with γ = 0.99)"; and Adam with 0.0003 as "a safe default".</p>
+<p><b>Seeds and reporting.</b> Deep RL results vary so much across random seeds that one run misleads. {{Henderson et al. (2018)|https://arxiv.org/abs/1709.06560}} split ten TRPO runs on HalfCheetah into two groups of five seeds and got significantly different curves (t = −9.09, p = 0.0016): "the variance between runs is enough to create statistically different distributions just from varying random seeds." {{Agarwal et al. (2021)|https://arxiv.org/abs/2108.13264}} recommend "interval estimates via stratified bootstrap confidence intervals, as opposed to point estimates", and the interquartile mean, which "discards the bottom and top 25% of the runs".</p>
+<div class="co key"><div class="t">What to watch while PPO trains</div>Approximate KL between old and new policy per update (a sudden jump means the step is too large); clip fraction (the share of samples whose ratio left 1 ± ε; a steady rise means the policy is moving further per batch); policy entropy (a collapse to near zero means exploration has stopped); explained variance of the critic (near 0 or negative means the advantages are mostly noise). These are the "debug variables" of detail 12, and the same four are watched in LLM RL.</div>
+</section>
