@@ -1803,3 +1803,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/measure
 | LM10 | Redistribute NoLiMa needles as a browsable set | Adobe Research licence (non-commercial, licence must travel with copies) | rejected | | | rejected |
 | LM11 | ANLS calculator for DocVQA | Small gain; the formula in text suffices and no released per-item model outputs to grade | rejected | | | rejected |
 | LM12 | Depth-by-length NIAH heatmap | Saturated test; a heatmap of all green would only restate it | rejected | | | rejected |
+
+### Safety and honesty benchmarks (2026-10-04)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/measurement/topic_benchmarks/safety_and_honesty/src/viz_ideas.md`.
+
+| # | Idea | Q | R | C | S | M | P | N | A | Cost | Total | Placement | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **Same 450 XSTest prompts, over-refusing against under-refusing model** (Llama 2 70B chat with original system prompt, Mistral 7B Instruct with none, GPT-4): squares to scale, filled family by family (8 steps, each with its real safe/unsafe pair and both answers), counters for safe refused and unsafe answered, tap a square for the prompt and answers | 1 | 2 (x2: Table 1 exactly, all five configs) | 2 (x2) | 2 | 2 (one refusal number hides its mirror) | 2 | 2 | 2 | -1 | 19 | Reading, Refusal: two numbers | built |
+| 2 | **XSTest every prompt tab**: per-type error heatmap for five configurations under three graders, prompt list with disagreement filters, per-prompt labels and excerpts, the repository's string-match rule ported to run on the reader's text | 2 | 2 (x2: Tables 1 and 2; rule reproduces all 2,250 released string-match labels) | 2 (x2) | 2 | 2 | 2 | 2 | 0 | -1 | 19 | Own tab | built |
+| 3 | **Same answers, three graders** table (human, string match, GPT-4 classifier) computed from the released labels, with the 30 refusals the GPT-4 classifier calls compliance | 0 | 2 (x2: Table 2) | 2 (x2) | 1 | 2 | 2 | 2 | 0 | 0 | 15 | Reading, Who grades | built |
+| 4 | **HarmBench attack matrix tab**: 29 models x 16 attacks x 4 test sets, sortable by plain request, worst attack, mean; bump chart of rank under two attacks with Spearman (average ranks) | 2 | 2 (x2: transcribed tables) | 2 (x2) | 2 | 2 (ASR without the attack) | 2 | 2 | 0 | -1 | 19 | Own tab | built |
+| 5 | **One model, many ASRs** dumbbells for 13 models on standard behaviours | 0 | 2 | 2 | 2 | 2 | 2 | 1 | 0 | 0 | 13 | Reading, Jailbreaks | built |
+| 6 | Refusal text against tool actions on an agentic harm task (animation) | 1 | 0 | 0 | 2 | 2 | 2 | 1 | 2 | -2 | | | rejected: AgentHarm's per-run transcripts are not released (private split, run in Inspect); MOLE's refusal-against-completion scatter already exists on its paper page and is linked; AgentHarm numbers in a table |
+| 7 | MASK honesty against accuracy scatter | 1 | 1 | 0 | 2 | 2 | 2 | 2 | 0 | -1 | | | rejected: per-model accuracy values are only plotted; P(lie) listed in text |
+| 8 | Evaluation-awareness trend chart across 2025 to 2026 models | 1 | 0 | 0 | 1 | 1 | 2 | 2 | 0 | 0 | | | rejected: metrics differ by source (verbalised, scored, white-box), so a chart would splice incompatible series; given in prose with the caveat |
+| 9 | BBQ bias-score calculator | 1 | 1 | 1 | 0 | 1 | 0 | 1 | 0 | 0 | | | rejected: the two formulas in text suffice; set is saturated |
+| 10 | Threshold ladder chart (RSP, Preparedness, FSF) | 0 | 0 | 0 | 1 | 1 | 1 | 2 | 0 | 0 | | | rejected: a table carries it better |
+| 11 | Re-draw saturation curves for TruthfulQA, Cybench | | | | | | | | | | | | rejected: the root's Saturation timeline owns trajectories |

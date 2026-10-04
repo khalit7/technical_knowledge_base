@@ -1,0 +1,14 @@
+# Source of the Safety and honesty benchmarks page
+
+Build: `sh fetch_inputs.sh` (downloads XSTest into the gitignored `inputs/raw/`), `python3 mk_data.py` (writes `parts/22_js_data.js`: XSTest prompts, labels from three graders for five configurations, short excerpts for two; HarmBench ASR tables), then `sh build.sh` (writes `../index.html`).
+Checks: `node checks/check_page.mjs` (every control at 390 dark and 920 light, 372 actions, 0 problems; dumps the page's computations to `checks/js_out.json`), `python3 recompute.py` (ALL OK on 2026-10-04: XSTest Tables 1 and 2 for all five configurations, the string-match rule against all 2,250 released labels, the grader table and note, animation counters, HarmBench readings quoted in the text, Spearman), `python3 mk_coverage.py` (writes `coverage.json`, 37 of 37 found), `sh ../../../../../html_utils/checkpage.sh ..`. `checks/shots.mjs` takes element screenshots (reduced motion, so the animation stays where it is put).
+
+Shape: Part B of `html_utils/methods/topic_pages.md`. A new page (the Notion page held only a placeholder), so there is no `live.md`; `coverage.json` lists the root's safety atlas rows and the root mentions this page now owns. Reading is organised by the four questions safety benchmarks ask: one screen; refusal (two numbers, with the XSTest before/after on real answers; who grades; jailbreaks; agents); truthfulness, honesty, sycophancy, bias; dangerous capabilities, third-party testing, thresholds; scheming and evaluation awareness; mistakes; checklist. About 31 minutes, because dangerous-capability evaluation and the 2026 threshold determinations had no page anywhere in the knowledge base.
+
+Parts: `01_head`, `02_css` (shared look, from the Agentic page), `03_css_page`, `10_header`, `20_read_a` to `_d`, `30_tab_xs`, `31_tab_hb`, `39_tab_more`; JS `21_js_common` (animation controller), `22_js_data` (generated), `23_js_xsanim` (also window.XSU), `24_js_xstab`, `25_js_grade`, `26_js_hbmini`, `31_js_hb`, `99_js_tabs`.
+
+Content rules: answers to unsafe XSTest prompts that were not full refusals are withheld (the label is shown); excerpts are the first 100 characters. Lab figures are tagged `lab`, third-party results quoted in a lab card `third party via lab`.
+
+Inputs (read 2026-10-04): XSTest repository (prompts CC BY 4.0; completions under the model owners' licences, only labels and short excerpts extracted), HarmBench appendix tables transcribed from arXiv 2402.04249v2 (`inputs/harmbench_asr_raw.csv`). Research notes from papers, leaderboards (Scale MASK, HELM AIR-Bench, Artificial Analysis) and system cards (Claude Opus 4, Sonnet 4.5, Mythos Preview, Opus 5.5; GPT-5, 5.2, 5.4, 5.5, 5.6 Preview, 6 Astra, 6.1 Sol) are cited inline.
+
+Root data reused: `../../src/data/atlas.json` (safety rows, corrections, dated readings); MOLE and Emergence World paper pages for corrected facts; the Agentic page's MOLE reading.
