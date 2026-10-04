@@ -4,8 +4,8 @@ pg (the PostgreSQL text when it differs; run offline on PostgreSQL 16 and the re
 Data: the root page's chat dataset plus messages.parent_id (see pg/pgc.py PARENT_SQL)."""
 
 EX = {}
-def ex(id, sql, pg=None, only=None, note=''):
-    EX[id] = dict(id=id, sql=sql.strip(), pg=(pg.strip() if pg else None), only=only, note=note)
+def ex(id, sql, pg=None, only=None, note='', cmp=None):
+    EX[id] = dict(id=id, sql=sql.strip(), pg=(pg.strip() if pg else None), only=only, note=note, cmp=cmp)
 
 # ---------- 1. logical order ----------
 ex('q_alias', """SELECT id, tokens * 2 AS doubled
@@ -290,7 +290,7 @@ UPDATE messages SET meta = json_object(
     THEN json_array(json_object('name', 'web_search', 'args', json_object('q', 'lisbon')))
     ELSE json_array() END)
 WHERE role = 'assistant';
-SELECT id, meta ->> '$.model' AS model, meta -> '$.tool_calls[0].name' AS first_tool
+SELECT id, meta ->> '$.model' AS model, meta ->> '$.tool_calls[0].name' AS first_tool
 FROM messages WHERE role = 'assistant' AND id % 7 = 0 ORDER BY id LIMIT 3;
 SELECT COUNT(*) AS with_web_search FROM messages
 WHERE EXISTS (SELECT 1 FROM json_each(meta, '$.tool_calls') t
@@ -303,13 +303,13 @@ UPDATE messages m SET meta = jsonb_build_object(
     THEN jsonb_build_array(jsonb_build_object('name', 'web_search', 'args', jsonb_build_object('q', 'lisbon')))
     ELSE '[]'::jsonb END)
 FROM chats c WHERE c.id = m.chat_id AND m.role = 'assistant';
-SELECT id, meta ->> 'model' AS model, meta -> 'tool_calls' -> 0 -> 'name' AS first_tool
+SELECT id, meta ->> 'model' AS model, meta -> 'tool_calls' -> 0 ->> 'name' AS first_tool
 FROM messages WHERE role = 'assistant' AND id % 7 = 0 ORDER BY id LIMIT 3;
 SELECT COUNT(*) AS with_web_search FROM messages
 WHERE meta @> '{"tool_calls": [{"name": "web_search"}]}';
 CREATE INDEX messages_meta_gin ON messages USING gin (meta jsonb_path_ops);
 SET enable_seqscan = off;
-EXPLAIN (COSTS OFF) SELECT id FROM messages WHERE meta @> '{"tool_calls": [{"name": "web_search"}]}';""")
+EXPLAIN (COSTS OFF) SELECT id FROM messages WHERE meta @> '{"tool_calls": [{"name": "web_search"}]}';""", cmp=2)
 
 # ---------- 9. time ----------
 ex('t_tz', """SET TimeZone = 'UTC';
@@ -364,10 +364,12 @@ CREATE TABLE folder_chats (
   chat_id   INTEGER NOT NULL REFERENCES chats(id)   ON DELETE RESTRICT,
   PRIMARY KEY (folder_id, chat_id)
 );
+INSERT INTO chats (id, user_id, title, model, created_at)
+VALUES (900, 35, 'Drafts', 'mini', '2026-10-04 09:00:00');          -- a chat with no messages yet
 INSERT INTO folders VALUES (1, 35, 'Work');
 INSERT INTO folder_chats SELECT 1, id FROM chats WHERE user_id = 35;
-DELETE FROM chats WHERE id = (SELECT MIN(chat_id) FROM folder_chats);  -- refused: RESTRICT
-DELETE FROM folders WHERE id = 1;                                     -- allowed: CASCADE
+DELETE FROM chats WHERE id = 900;   -- refused: RESTRICT, the chat is still in a folder
+DELETE FROM folders WHERE id = 1;   -- allowed: CASCADE removes the folder's links
 SELECT COUNT(*) AS links_left FROM folder_chats;""",
    pg="""-- Postgres always enforces foreign keys
 CREATE TABLE folders (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), name TEXT NOT NULL);
@@ -376,10 +378,12 @@ CREATE TABLE folder_chats (
   chat_id   INTEGER NOT NULL REFERENCES chats(id)   ON DELETE RESTRICT,
   PRIMARY KEY (folder_id, chat_id)
 );
+INSERT INTO chats (id, user_id, title, model, created_at)
+VALUES (900, 35, 'Drafts', 'mini', '2026-10-04 09:00:00');          -- a chat with no messages yet
 INSERT INTO folders VALUES (1, 35, 'Work');
 INSERT INTO folder_chats SELECT 1, id FROM chats WHERE user_id = 35;
-DELETE FROM chats WHERE id = (SELECT MIN(chat_id) FROM folder_chats);  -- refused: RESTRICT
-DELETE FROM folders WHERE id = 1;                                     -- allowed: CASCADE
+DELETE FROM chats WHERE id = 900;   -- refused: RESTRICT, the chat is still in a folder
+DELETE FROM folders WHERE id = 1;   -- allowed: CASCADE removes the folder's links
 SELECT COUNT(*) AS links_left FROM folder_chats;""")
 ex('m_trigger', """ALTER TABLE chats ADD COLUMN message_count INTEGER NOT NULL DEFAULT 0;
 UPDATE chats SET message_count = (SELECT COUNT(*) FROM messages WHERE chat_id = chats.id);

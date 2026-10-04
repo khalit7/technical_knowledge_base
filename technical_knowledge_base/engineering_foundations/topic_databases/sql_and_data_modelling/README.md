@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3ef5c17b0d0d813980dcd474e19f6c3f (child of Topic: databases)
 
-New page (2026-10-04). Being built as an interactive page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). SQL from logical evaluation order to fluency: joins in depth (semi, anti, the NOT IN NULL trap, fan-out), aggregation with FILTER and ROLLUP, window functions and frames, CTEs and recursive queries, set operations, upserts and MERGE, jsonb, time zones; data modelling (entities, keys, bigint vs UUID v4 vs v7 measured), normalisation 1NF to BCNF animated on the chat data, denormalisation, constraints, soft deletes, multi-tenancy with row-level security, enums, naming; migrations (tools dated, real Alembic output, 21 ALTER TABLE forms measured, the lock queue measured, expand and contract), ORMs and the N+1 problem measured with SQLAlchemy 2.1, SQL injection live. Every example runs in the page's SQLite (the root's engine and data) beside its PostgreSQL 16.2 result. Tabs: Reading, Exercises lab (28 graded exercises), ALTER TABLE measured, Further reading. New page; no child pages, databases or video.

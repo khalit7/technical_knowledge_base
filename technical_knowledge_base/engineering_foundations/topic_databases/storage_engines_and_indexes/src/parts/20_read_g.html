@@ -1,0 +1,32 @@
+<section id="rd-s7">
+<h2>7. The RUM trade-off, measured</h2>
+<h3>The idea</h3>
+<p>Every way of storing and indexing data pays three overheads: extra <b>R</b>eads beyond the data you asked for, extra <b>U</b>pdate work beyond the bytes you changed, and extra <b>M</b>emory or space beyond the data itself. The <dfn id="g-rum">RUM conjecture</dfn> says you cannot minimise all three: "designing access methods that set an upper bound for two of the RUM overheads, leads to a hard lower bound for the third overhead which cannot be further reduced" ({{Athanassoulis et al., EDBT 2016|https://openproceedings.org/2016/conf/edbt/paper-12.pdf}}). A B-tree bounds reads and space and pays on updates; an LSM-tree bounds update cost and pays on reads (several runs) or space (old versions); an index pays space and update cost to cut reads; compression pays CPU to cut space. The three overheads are measured as amplification factors:</p>
+<ul>
+<li><dfn id="g-wamp">Write amplification</dfn>: bytes written to storage per byte of data the application wrote (log, pages, compaction rewrites).</li>
+<li><b>Read amplification</b>: pages or files read per lookup.</li>
+<li><b>Space amplification</b>: bytes on disk per byte of live data.</li>
+</ul>
+<h3>Measured on two real engines</h3>
+<p><b>RocksDB</b> through the rocksdict Python binding, statistics on <span class="meas">measured</span>: <span id="rd-rocks-setup"></span></p>
+<div class="tw"><table id="rd-rocks"></table></div>
+<p class="small mute" id="rd-rocks-note"></p>
+<p><b>Postgres</b> on the 1M-message table <span class="meas">measured</span>: write amplification depends on where the writes land far more than on the engine.</p>
+<div class="tw"><table id="rd-pgamp"></table></div>
+<p class="small mute" id="rd-pgamp-note"></p>
+<div class="corr"><div class="t">Correction to the old page</div>The old page gave B-tree write amplification as "easily 10x to 40x", LSM leveled as "roughly 10x to 30x", and space amplification as 1.3x (B-tree), 1.1x (leveled) and "up to 2x or more" (tiered), without sources. The measurements above show why a single number misleads: a Postgres B-tree measured about 3.4 times for appends and about 300 times for scattered single-row updates right after a checkpoint; RocksDB measured about 5 to 6 times for leveled compaction, a figure that grows with the number of levels the data spans (half a gigabyte here sits in two levels; RocksDB's own worked example reaches 33). Tiered (universal) compaction wrote about as much as leveled at this size but needed 1.7 times the space against 1.1: the space penalty holds; the write saving appears as data spans more levels (Luo and Carey: L against T times L). Quote amplification with its workload, or measure your own.</div>
+<div class="cost"><div class="t">How a pro uses this</div>Name the corner you are giving up before choosing: a ledger that is read and updated by key wants bounded reads (B-tree); an event firehose wants cheap writes (LSM, or an append-only Postgres table with BRIN); a cold archive wants little space (columnar, compressed, section 12). Then measure write amplification on your own workload; on flash it decides how fast you wear out the drives and how much I/O budget compaction or checkpoints take from your queries.</div>
+</section>
+
+<section id="rd-s8">
+<h2>8. Heap tables and clustered tables: where the row itself lives</h2>
+<h3>The problem appears</h3>
+<p>Opening chat 42000 read 6 table pages for 6 messages because the rows sit in arrival order and the chat's messages arrived at different times. If the table itself were sorted by chat, those messages would share one page.</p>
+<h3>Two designs</h3>
+<div class="two">
+<div><h4>Heap plus indexes (Postgres)</h4><p class="small">The table is a <dfn id="g-heap">heap</dfn>: rows go wherever there is room, in no particular order. Every index, the primary key included, is a separate B-tree whose leaves point to ctids. All indexes are equal, a lookup by any of them costs the same, and a row's address changes only when a non-HOT update moves it (then every index gets a new entry, section 1). <code>CLUSTER</code> can sort the table once by an index, but new rows are not kept in order.</p></div>
+<div><h4>Index-organised (InnoDB, SQLite)</h4><p class="small">The table <i>is</i> the primary-key B-tree: its leaves hold the whole rows, in key order, a <dfn id="g-clustered">clustered index</dfn>. InnoDB clusters on the primary key, or the first unique non-null index, or a hidden 6-byte row id; every secondary index stores the primary key, not a page address, so a lookup by a secondary index walks two B-trees ({{InnoDB index types|https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html}}). SQLite tables are B-trees keyed by rowid; <code>WITHOUT ROWID</code> tables cluster on the primary key ({{SQLite docs|https://www.sqlite.org/withoutrowid.html}}).</p></div>
+</div>
+<p>Consequences a pro knows. In InnoDB, a primary key of (chat_id, id) puts each chat's messages together, so reading a chat is one or two leaf pages, the effect Postgres lacks; but a random primary key (UUID v4) scatters every insert across the whole table, not just across an index, and every secondary index carries the full 16-byte key. In Postgres the primary key's order barely affects the table, a secondary-index lookup costs the same as a primary-key lookup, and moving rows is cheap for indexes only when updates are HOT. Postgres can approximate clustering for a read-heavy access path with a covering index (section 10) or with partitioning.</p>
+<div class="cost"><div class="t">What clustering costs</div>Clustered tables make primary-key range reads cheap and secondary lookups dearer (two descents), and the choice of primary key now decides physical layout: changing it rewrites the table. Heap tables pay one table-page read per matching row unless the index covers the query.</div>
+</section>

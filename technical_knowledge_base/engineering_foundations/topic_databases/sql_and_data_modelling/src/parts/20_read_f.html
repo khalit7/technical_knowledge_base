@@ -1,0 +1,79 @@
+<section id="rd-s8">
+<h2>8. Data modelling: entities, relationships and keys</h2>
+<p><b>The problem.</b> Before any SQL, someone decides which tables exist. Get it wrong and every later query fights the shape: facts duplicated, relationships that cannot be expressed, keys that change.</p>
+<p><b>Entities and attributes.</b> Start from the nouns the product must remember, each with its own identity and lifecycle: a user, a chat, a message. Each becomes a table (an <b>entity</b>); its facts become columns (<b>attributes</b>). Then the verbs between them become <b>relationships</b>, and the kind of relationship decides where the key goes:</p>
+<div class="fam">
+<div style="--sc:var(--c1)"><h4>One to many</h4><p>A user has many chats; a chat has one user. The foreign key goes on the "many" side: <code>chats.user_id</code>. This is most relationships.</p></div>
+<div style="--sc:var(--c2)"><h4>Many to many</h4><p>If chats could be shared, a chat would have many members and a user many shared chats. Neither table can hold the other's key, so a third <b>join table</b> holds pairs: <code>chat_members(chat_id, user_id, role)</code> with the pair as its primary key. The pair is the natural place for facts about the membership itself (the role, when it started).</p></div>
+<div style="--sc:var(--c3)"><h4>One to one</h4><p>A user has one credits balance: <code>credits.user_id</code> is both the primary key and a foreign key to users. Split one-to-one only for a reason: a different write rate (a balance changes on every message; a profile rarely), optional data, or tighter access control.</p></div>
+</div>
+<h3>Which column is the key</h3>
+<p>A <b>natural key</b> is a real-world value that already identifies the row, such as an email address. A <b>surrogate key</b> is an id the database invents, with no meaning. Natural keys look attractive and age badly: people change emails, case and whitespace make two spellings of one address, a key copied into every foreign key must change everywhere when it changes. <b>The production default:</b> a surrogate primary key, plus a UNIQUE constraint on the natural key so duplicates are still refused. Join tables are the exception: their natural key, the pair, is the right primary key.</p>
+<p>Which surrogate? Three serious options in 2026:</p>
+<ul>
+<li><b>bigint identity</b> (<code>bigint GENERATED ALWAYS AS IDENTITY</code>, the SQL-standard spelling Postgres has supported since version 10; the older <code>serial</code> is on the wiki's {{Don't Do This|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_serial}} list). 8 bytes, sequential, compact. Use <code>bigint</code> rather than <code>integer</code>: a 4-byte integer runs out at 2,147,483,647, and changing a key's type later rewrites the table and every index (see the {{ALTER TABLE, measured|#t-alter}} tab).</li>
+<li><b>UUID version 4</b>: 16 random bytes (122 of them random). Any machine can generate one without asking the database, so clients can create ids offline, ids from separate databases never collide, and nobody can guess the next one. The cost: each new key lands at a random place in the index.</li>
+<li><b>UUID version 7</b>: standardised in {{RFC 9562 (May 2024)|https://www.rfc-editor.org/rfc/rfc9562.html#name-uuid-version-7}}, it puts the Unix time in milliseconds in the first 48 bits and random bits after. Generated anywhere like v4, but new keys sort after old ones like bigint. It reveals when a row was created, which matters for some public ids. PostgreSQL 18 (released {{2025-09-25|https://www.postgresql.org/docs/18/release-18.html}}) has a built-in <code>uuidv7()</code>; on 16 and 17 generate it in the application or with a small function (the measurement below used one).</li>
+</ul>
+<div class="card" id="rd-btree-card">
+<h3 style="margin-top:0">Why the order of keys matters: the same inserts into an index, twice</h3>
+<p class="small">An index stores keys sorted in fixed-size pages (8 KB in Postgres; here each page holds 6 keys so it fits on screen). The same 36 inserts arrive in time order. With sequential keys (bigint, UUID v7) each new key belongs at the end, so only the last page is touched and full pages are left full. With random keys (UUID v4) each key belongs somewhere in the middle: pages split in half when full, and almost every page is touched. <span class="ill">Illustrative</span> page size; the measured effect on a real server follows.</p>
+<div class="seg" id="rd-bt-mode"><button data-m="seq" class="on">Sequential keys (bigint, v7)</button><button data-m="rand">Random keys (UUID v4)</button></div>
+<div class="an-ctl" id="rd-bt-ctl"></div>
+<div class="rd-svg" id="rd-bt-svg"></div>
+<div class="an-cnt" id="rd-bt-cnt"></div>
+<div class="an-cap" id="rd-bt-cap"></div>
+</div>
+<div class="card" id="rd-keys-card">
+<h3 style="margin-top:0">Measured: 1 million and 10 million inserts by key type <span class="meas">measured</span></h3>
+<p class="small">PostgreSQL 16.2 on a laptop, default settings (128 MB of shared buffers). For each key type, the keys were generated first into a temporary table (generation timed apart) and then inserted in generation order with one <code>INSERT ... SELECT</code>; the table has the key plus two integers. Choose the measure; the 1M figures are medians of 3 runs, the 10M figures single runs.</p>
+<div class="seg" id="rd-keys-n"><button data-m="1000000" class="on">1M rows</button><button data-m="10000000">10M rows</button></div>
+<div class="seg" id="rd-keys-m"><button data-m="seconds" class="on">insert time</button><button data-m="index_bytes">primary-key index size</button><button data-m="wal_bytes">WAL written</button></div>
+<div class="bars" id="rd-keys-bars"></div>
+<p class="small" id="rd-keys-note"></p>
+</div>
+<p><b>Reading the measurement.</b> Two effects are mixed in it. A UUID is twice as wide as a bigint, so its index is bigger whatever the order. Random order adds a second cost: half-empty pages after splits (a bigger index for the same keys) and writes scattered over the whole index, which stops fitting in memory as the table grows and makes the write-ahead log (WAL: the record of every change, written before the data, which replicas and backups also consume) larger, because after each checkpoint the first change to a page writes the whole 8 KB page to the WAL ({{full_page_writes|https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-FULL-PAGE-WRITES}}), and random inserts touch many more pages. Version 7 removes the second cost and keeps the first. <b>What professionals do:</b> bigint identity for internal keys is the simple default; UUID v7 when ids must be generated outside the database or merged across databases; UUID v4 only when unguessable, time-free ids matter more than write cost. If a public id must not reveal volume or creation time, keep a bigint primary key and add a separate random public id with a UNIQUE index.</p>
+</section>
+
+<section id="rd-s9">
+<h2>9. Normalisation: one fact in one place</h2>
+<p><b>The problem.</b> The tempting first design is one wide table: every message row also carries its chat's title and its user's name, email and plan, so any screen is one query with no joins. It works until a fact changes. The root page gives the one-line rule; this section makes it precise and shows what each step prevents.</p>
+<p><b>The vocabulary.</b> Column B <b>depends on</b> column A (a <i>functional dependency</i>, written A &rarr; B) if knowing A fixes B: <code>user_id &rarr; email</code>. A <b>candidate key</b> is a minimal set of columns that fixes all the others. An <b>anomaly</b> is a change the design makes easy to get wrong:</p>
+<ul>
+<li><b>Update anomaly</b>: one fact is stored in many rows, so changing it means changing all of them, and missing one leaves two versions.</li>
+<li><b>Insert anomaly</b>: a fact cannot be stored without some unrelated fact (in the wide table, a user who has not sent a message has no row).</li>
+<li><b>Delete anomaly</b>: removing one fact removes another (delete a user's last message and their email is gone).</li>
+</ul>
+<div class="card" id="rd-norm-card">
+<h3 style="margin-top:0">One rename, two designs</h3>
+<p class="small">The real messages of Ines Novak (user 7), one square per message row. In the wide table every square stores her name; in the normalised schema her name is stored once in <code>users</code> and each message reaches it through its chat. Play both: the same rename, the same buggy code path that only updates the chat she is in, the same question afterwards.</p>
+<div class="seg" id="rd-norm-mode"><button data-m="wide" class="on">One wide table</button><button data-m="norm">Normalised: users, chats, messages</button></div>
+<div class="an-ctl" id="rd-norm-ctl"></div>
+<div class="rd-svg" id="rd-norm-svg"></div>
+<div class="leg"><span style="--sw:var(--c1)">row stores "Ines Novak"</span><span style="--sw:var(--c2)">row stores "Ines Novak-Reyes"</span><span style="--sw:var(--dim)">row stores no name</span></div>
+<div class="an-cnt" id="rd-norm-cnt"></div>
+<div class="an-cap" id="rd-norm-cap"></div>
+</div>
+<div class="rq" data-ex="n_anomaly" data-title="The update anomaly, in the page's database"></div>
+<h3>The normal forms, by the anomaly each one removes</h3>
+<p>Codd defined the first normal form with the relational model in {{1970|https://doi.org/10.1145/362384.362685}}, the second and third in 1971, and Boyce and Codd the stricter BCNF in 1974 (history summarised on {{Wikipedia|https://en.wikipedia.org/wiki/Third_normal_form}}). William Kent's {{four-page guide (CACM, 1983)|https://doi.org/10.1145/358024.358054}} is still the best short explanation. Each form adds one rule:</p>
+<div class="tw"><table>
+<tr><th>Form</th><th>Rule</th><th>A violation in the chat product</th><th>The anomaly it causes</th><th>The fix</th></tr>
+<tr><td><b>1NF</b></td><td>Each cell holds one value; no repeated groups of columns.</td><td><code>chats.tags = 'sql,python'</code>, or columns <code>tag1, tag2, tag3</code>.</td><td>"Chats tagged sql" needs string matching; a fourth tag needs a schema change; no foreign key can check a tag.</td><td>A table <code>chat_tags(chat_id, tag)</code>, one row per tag.</td></tr>
+<tr><td><b>2NF</b></td><td>In a table with a multi-column key, no column depends on only part of the key.</td><td><code>chat_members(chat_id, user_id, role, user_email)</code>: the email depends on <code>user_id</code> alone.</td><td>Update: an email change must touch every membership row.</td><td>Keep email in <code>users</code>.</td></tr>
+<tr><td><b>3NF</b></td><td>No column depends on another non-key column.</td><td><code>users(id, country, country_name)</code>: the name depends on the country code; or <code>messages(id, chat_id, chat_title)</code>.</td><td>Update: renaming a country or a chat touches many rows; insert: no country without a user.</td><td>A <code>countries</code> table; keep the title in <code>chats</code>.</td></tr>
+<tr><td><b>BCNF</b></td><td>Every column set that determines another column is a candidate key.</td><td>Reviews <code>(chat_id, language, reviewer)</code>, each chat has one reviewer per language, each reviewer handles one language. Key (chat_id, language); but <code>reviewer &rarr; language</code> and reviewer is not a key.</td><td>A reviewer switching language must be updated in every row, and a reviewer with no chats yet cannot be recorded.</td><td><code>reviewers(reviewer, language)</code> and <code>chat_reviews(chat_id, reviewer)</code>.</td></tr>
+</table></div>
+<p>Beyond BCNF, the fourth and fifth normal forms deal with independent multi-valued facts in one table (a user's languages and a user's devices stored as all combinations); Kent's guide covers them. In practice, a schema designed from entities and relationships as in section 8 is usually in BCNF already, and the forms are most useful as a checklist when reviewing a table that "has everything in it".</p>
+<h3>When to denormalise, and how to keep the copy right</h3>
+<p><b>Denormalisation</b> is storing a derived or copied fact on purpose to make reads cheaper. It is right when a hot read path would otherwise do expensive work on every request, and you accept owning the copy. Every copy needs three things: an owner, a mechanism that keeps it in step, and a check that it still is.</p>
+<ul>
+<li><b>Counters and totals</b> on the parent (<code>chats.message_count</code>): kept by a trigger (code the database runs on every insert, as below) or by the application in the same transaction as the write.</li>
+<li><b>Materialised views</b> (Postgres <code>CREATE MATERIALIZED VIEW</code>): a stored query result, refreshed on a schedule; stale between refreshes.</li>
+<li><b>Read models and search indexes</b> built from the change stream; the outbox and change data capture patterns are on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}. Caches are the {{Caching|n:3cd5c17b0d0d817ebd6ccadd4750c23a}} page.</li>
+<li><b>Analytics</b>: wide denormalised tables in a columnar store, rebuilt from the normalised source (root section 5; {{Analytics: columnar engines, DuckDB and the lakehouse|n:3ef5c17b0d0d8157814ec5dd8a0d4fb5}}).</li>
+</ul>
+<div class="rq" data-ex="m_trigger" data-title="A counter kept by a trigger"></div>
+<div class="co key"><div class="t">A copy that is not denormalisation</div>A <b>snapshot of a historical fact</b> is a different fact, not a copy: the price a customer paid (not today's price), the model that produced a message (not the chat's current model), the billing address on an invoice. Storing it on the row is correct normalised design, and looking it up "live" would be the bug.</div>
+<div class="co"><div class="t">Check that a copy is still right</div>A reconciliation query compares the copy with the source and should return nothing: <code>SELECT id FROM chats c WHERE message_count &lt;&gt; (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id)</code>. Run it on a schedule and alert on any row. The Exercises lab has one ("Find the impossible rows").</div>
+</section>

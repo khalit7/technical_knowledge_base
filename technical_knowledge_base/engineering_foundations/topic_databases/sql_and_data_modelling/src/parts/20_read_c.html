@@ -1,0 +1,41 @@
+<section id="rd-s2">
+<h2>2. Joins in depth</h2>
+<p><b>The problem.</b> Normalised data (section 9) puts each fact in one table, so almost every real question needs rows from two or more tables at once: a chat's title with its owner's name, users with no chats, each reply next to its prompt. A <b>join</b> combines them.</p>
+<p><b>The idea.</b> A join pairs rows from a left table and a right table and keeps the pairs for which the <code>ON</code> condition is true. Read it that way, as "every pair, filtered", and every kind of join below follows. It is <i>not</i> a set intersection, which is why the familiar Venn-diagram pictures mislead: a left row appears once per matching right row, so zero, one or many times ({{Lukas Eder, "Say NO to Venn diagrams when explaining JOINs", jOOQ blog, 2016|https://blog.jooq.org/say-no-to-venn-diagrams-when-explaining-joins/}}).</p>
+<div class="card" id="rd-join-card">
+<h3 style="margin-top:0">Seven joins on the same two tables</h3>
+<p class="small">Five users (one with no country) and a small list of markets the company sells in (one market has no users). Pick a join; every output row is coloured by where its parts came from. Then add a market whose code is NULL and watch what happens to NOT IN.</p>
+<div class="seg" id="rd-join-mode"><button data-m="inner" class="on">INNER</button><button data-m="left">LEFT</button><button data-m="right">RIGHT</button><button data-m="full">FULL</button><button data-m="cross">CROSS</button><button data-m="semi">semi (EXISTS)</button><button data-m="anti">anti (NOT EXISTS)</button><button data-m="notin">NOT IN</button></div>
+<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="rd-join-null"> add a market whose code is NULL</label>
+<pre class="code" id="rd-join-sql"></pre>
+<div id="rd-join-out"></div>
+<p class="small mute" id="rd-join-cap"></p>
+</div>
+<h3>Inner, left, right, full, cross</h3>
+<ul>
+<li><b>INNER JOIN</b> keeps only pairs that match. A user with no chats disappears; a user with seven chats appears seven times.</li>
+<li><b>LEFT JOIN</b> (LEFT OUTER JOIN) keeps every left row; where nothing matches, the right side's columns are NULL. This is how you get "every user, with their chats if any". <b>RIGHT JOIN</b> is the mirror image; most people rewrite it as a LEFT JOIN with the tables swapped.</li>
+<li><b>FULL OUTER JOIN</b> keeps unmatched rows from both sides. It is the join for reconciling two lists ("which markets have no users, and which users are in no market?"). SQLite gained RIGHT and FULL joins only in {{version 3.39.0, 2022-06-25|https://www.sqlite.org/releaselog/3_39_0.html}}.</li>
+<li><b>CROSS JOIN</b> pairs every row with every row (no ON). 50 users and 200 chats make 10,000 rows. Useful on purpose for building a grid of every combination, as below; dangerous by accident (a forgotten join condition does the same).</li>
+</ul>
+<div class="rq" data-ex="j_full" data-title="FULL OUTER JOIN: reconcile two lists"></div>
+<div class="rq" data-ex="j_cross" data-title="CROSS JOIN to report empty combinations as zero"></div>
+<h3>The LEFT JOIN that silently becomes an inner join</h3>
+<p>Put a condition on the right table in <code>WHERE</code> and the NULL rows that LEFT JOIN kept are thrown away, because <code>NULL = 'reasoning'</code> is not true. The query still runs and returns plausible numbers. Conditions that should only limit what is matched belong in <code>ON</code>:</p>
+<div class="rq" data-ex="j_left_trap" data-title="Same LEFT JOIN, filter in WHERE against filter in ON"></div>
+<h3>Self joins</h3>
+<p>A <b>self join</b> joins a table to itself under two names. With <code>parent_id</code>, each assistant reply can sit next to the prompt it answers:</p>
+<div class="rq" data-ex="j_self" data-title="A self join: replies next to their prompts" data-cap="6"></div>
+<h3>Semi and anti joins: "has at least one" and "has none"</h3>
+<p>A <b>semi join</b> keeps a left row if <i>some</i> right row matches, without repeating it per match: <code>EXISTS (subquery)</code> or <code>IN (subquery)</code>. An <b>anti join</b> keeps a left row if <i>no</i> right row matches: <code>NOT EXISTS</code>, or a LEFT JOIN keeping rows where the right key IS NULL. Writing a semi join as a plain JOIN repeats rows, the classic source of "why do I have duplicates?" and of a <code>DISTINCT</code> added to hide it:</p>
+<div class="rq" data-ex="j_semi" data-title="JOIN repeats rows; EXISTS does not"></div>
+<div class="rq" data-ex="j_anti" data-title="Users with no chats, three ways"></div>
+<div class="pr" id="rd-pr-notin"></div>
+<div class="rq" data-ex="j_notin_null" data-title="The NOT IN trap, on real data"></div>
+<p><b>Why.</b> <code>x NOT IN (a, b, NULL)</code> means <code>x &lt;&gt; a AND x &lt;&gt; b AND x &lt;&gt; NULL</code>; the last comparison is unknown for every x, so the whole condition is never true and every row is dropped. Two of the five team-plan users have no country, so the subquery contains NULL. <code>NOT EXISTS</code> asks a different question ("is there a matching row?") and is not affected. The Postgres project's own advice is blunt: {{"Don't use NOT IN"|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_NOT_IN}} (PostgreSQL wiki); it also tends to plan badly on large subqueries. Use NOT EXISTS.</p>
+<h3>Fan-out: the join that doubles your totals</h3>
+<p>Join a parent to two different child tables (or to a child and a grandchild) and aggregate, and each parent row is repeated once per child row before the aggregate runs. Counts and sums come out too large, and nothing errors:</p>
+<div class="rq" data-ex="j_fanout" data-title="Counting chats through messages: wrong, then right"></div>
+<p>The rule: <b>aggregate each child table on its own, then join the results</b> (CTEs make this readable, section 5). <code>COUNT(DISTINCT c.id)</code> fixes a count but not a sum.</p>
+<div class="co"><div class="t">What a join costs</div>A join is work proportional to how the database finds matching rows: by looping, by building a hash table, or by walking two sorted inputs. Which one it picks, and why joining on an indexed column matters, is on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}. One modelling consequence belongs here: <b>Postgres indexes primary keys and UNIQUE columns automatically, but not foreign key columns</b>; the {{documentation on foreign keys|https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK}} recommends indexing the referencing column yourself, because joins and deletes of the parent need it.</div>
+</section>
