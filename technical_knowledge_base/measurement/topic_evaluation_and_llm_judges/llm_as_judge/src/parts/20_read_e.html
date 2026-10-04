@@ -1,0 +1,38 @@
+
+<section id="rd-list">
+<h2>List-level against instance-level reliability</h2>
+<p>A judge can rank systems well while being wrong on many single items, because item errors that are not correlated with the system cancel in the average. The two must be reported separately, and used separately.</p>
+<ul>
+<li><b>MT-Bench, released data:</b> GPT-4's pairwise verdicts rank the six models with Spearman 0.94 against the human ranking (one swap: Claude-v1 and GPT-3.5-turbo, 1.1 points apart for humans), while agreeing with only 66.2% of single human votes. The judge also stretches the scale: it gives GPT-4 a 92.5% win rate where humans give 79.7%, and LLaMA-13B 1.6% where humans give 8.4%. See the dumbbells in the {{Protocol lab|#t-proto}}.</li>
+<li><b>RocketEval</b> (ICLR 2025; {{paper page|n:3cd5c17b0d0d81ffa8e5f8fa5a5806c8}}): with checklists written once by a frontier model, Gemma-2-2B as the grader ranks WildBench models at Spearman 0.965 against Chatbot Arena, against 0.979 for GPT-4o (Mistral-Nemo 0.986), one discordant pair of 66 more; but on single MT-Bench comparisons it agrees with humans 57.9% of the time, against 66.6% for GPT-4o and a 64.7% human-to-human level. Its cost: $27.70 for 1,000 WildBench tests with Gemma-2-2B against $3,400 with GPT-4o (123 times less; OpenAI batch prices for GPT-4o). The checklist questions (3 to 25 per query in the released data) never show the grader the other answers, so position and anchoring have no path into the grade, and the score is read from the logits as P(Yes)/(P(Yes)+P(No)), which keeps the grader's uncertainty.</li>
+</ul>
+<p>Use list-level reliability for leaderboards, drift monitoring and distribution-level regression gates ("did the pass rate on 2,000 items drop"); never use it to adjudicate one item, to gate a change on one case, or to generate preference labels for training. And note the prerequisite: a checklist needs a frontier model to read every query (never the responses), which weakens the privacy argument for a small local grader.</p>
+</section>
+
+<section id="rd-ops">
+<h2>Operational checklist</h2>
+<ol>
+<li><b>Pin the instrument:</b> judge model version and prompt hash in the eval config; any change is a new instrument and needs recalibrating.</li>
+<li><b>Both orders</b> for pairwise; a disagreement is a tie; report the tie rate.</li>
+<li><b>Validate before judging:</b> finish_reason is "stop", length within bounds, the answer parses; failures go to an infrastructure bucket, not a quality bucket.</li>
+<li><b>Canaries in every run:</b> a null-model answer that must lose, an injected instruction that must not change the verdict, a padded copy of a passing answer that must not gain.</li>
+<li><b>Gold slice and kappa:</b> a few hundred human-labelled items (about 100 per failure mode); kappa, sensitivity and specificity, recomputed on a schedule and on any distribution shift.</li>
+<li><b>Another family</b> for judge and judged; for batch scoring, a jury pooled by vote or median, with per-juror agreement tracked.</li>
+<li><b>Report the corrected pass rate with its interval,</b> never a raw judge rate; compare systems only with paired tests ({{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}}) and wire the gate into the promotion path ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</li>
+<li><b>Run the five-step validation protocol</b> (chance-correct, swap, replicate, cross-validate, audit the consistency-bias paradox) before a judge goes into production.</li>
+</ol>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Quoting raw agreement as the judge's accuracy</summary><div class="b">66% agreement on MT-Bench is kappa 0.34. Raw agreement overstated kappa by 33 to 41 points for every judge Norman et al. tested. Report kappa, or sensitivity and specificity, beside it.</div></details>
+<details class="mist"><summary>Treating the judge's pass rate as the pass rate</summary><div class="b">A judge that calls GPT-3.5-turbo's wins ties reports 55.6% where humans give 70.8%. Correct it with the judge's error rates measured on a gold slice, and carry the interval; if the interval is wider than the gap you care about, label more.</div></details>
+<details class="mist"><summary>Calling a reproducible judge reliable</summary><div class="b">Test-retest above 0.99 coexisted with position bias of 0.19 in Qwen 3 8B. Swap positions and measure the bias separately.</div></details>
+<details class="mist"><summary>Comparing non-tie agreement across protocols</summary><div class="b">A protocol that declares more ties abstains on the hard items, so its agreement "without ties" goes up. On MT-Bench, pointwise scoring reaches 89.2% without ties against 86.9% for pairwise on the same pairs, with equal kappa when ties count. Compare protocols with ties counted, and show the tie rate.</div></details>
+<details class="mist"><summary>Judging a model with its own family</summary><div class="b">The GPT-4 judge sided with GPT-4 on 63% of the comparisons humans gave to the other model. Part of that may be GPT-4 being better than the voters thought; nothing in the raw numbers separates the two, which is why the rule is "another family".</div></details>
+<details class="mist"><summary>Using a fine-tuned judge off its training distribution</summary><div class="b">Prometheus 2, JudgeLM, PandaLM and Auto-J each near GPT-4 on their own test sets fell to 13 to 40% on JudgeBench in independent runs.</div></details>
+<details class="mist"><summary>Trusting a leaderboard judge's single-item verdicts</summary><div class="b">A judge that ranks systems at Spearman 0.94 to 0.97 can still be wrong on a third or more of single items. Gate a release on aggregates, not on one case.</div></details>
+<details class="mist"><summary>Letting the candidate talk to the judge</summary><div class="b">A constant string reached 86.5% LC on AlpacaEval 2.0 by imitating the judge's template. Fence the candidate, call it data, and run null-model and injection canaries.</div></details>
+<p class="foot">Written for the Technical knowledge base, October 2026. Every number on this page is either linked to its source or computed in the page from the released MT-Bench judgments; <code>src/recompute.py</code> reproduces the computed ones independently.</p>
+</section>
+</div>
