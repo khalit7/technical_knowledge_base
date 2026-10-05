@@ -1,0 +1,33 @@
+
+<section id="rd-dbg">
+<h2>12. Debugging DNS: commands and a symptom table</h2>
+<p><b>Rule one: ask the way your program asks.</b> <code>dig</code> talks DNS directly to one server and ignores the search list, <code>/etc/hosts</code> and every cache in your C library; your program goes through <code>getaddrinfo</code>. When they disagree, both are telling the truth. Use <code>getent ahosts name</code> on Linux (it goes through the same path as your program) and <code>dscacheutil -q host -a name name</code> or <code>scutil --dns</code> on macOS, where apps and <code>dig</code> can use different resolvers.</p>
+<div class="tw"><table><thead><tr><th>Command</th><th>What it tells you</th></tr></thead><tbody>
+<tr><td><code>dig name</code></td><td>The status (NOERROR, NXDOMAIN, SERVFAIL), flags, answer and the remaining TTL from your resolver</td></tr>
+<tr><td><code>dig name</code> twice, a few seconds apart</td><td>TTL falling: served from a cache; TTL back at its maximum: the resolver just fetched it. Different numbers each time: several caches behind one address (seen in section 5: 292, then 212 five seconds later, for api.anthropic.com from one public resolver)</td></tr>
+<tr><td><code>dig @ns1.zone.example name +norecurse</code></td><td>What the zone's own server says, with no cache in between (look for the <code>aa</code> flag)</td></tr>
+<tr><td><code>dig +trace name</code></td><td>The walk from the root, done by dig itself: separates "the zone is wrong" from "my resolver cached something wrong". Fails behind interception (section 2)</td></tr>
+<tr><td><code>dig zone SOA</code></td><td>The SOA's TTL and last field: how long a "no" will be cached</td></tr>
+<tr><td><code>dig name +dnssec</code> and <code>dig name +cd</code></td><td>The <code>ad</code> flag means validated; a SERVFAIL that turns into an answer with <code>+cd</code> is a DNSSEC failure</td></tr>
+<tr><td><code>delv name</code></td><td>Validates the chain itself and says which link failed</td></tr>
+<tr><td><code>dig +tcp name</code>, <code>dig +bufsize=512 name</code></td><td>Whether TCP 53 works; whether big answers truncate</td></tr>
+<tr><td><code>dig +tls @1.1.1.1 name</code>, <code>dig +https @1.1.1.1 name</code></td><td>Encrypted DNS (dig 9.18 and later); add <code>+tls-ca</code> to check the certificate. <code>kdig</code> (Knot) and <code>doggo</code> do the same and DoQ</td></tr>
+<tr><td><code>dig @1.1.1.1 id.server CH TXT</code></td><td>Which instance of a public resolver answered, or whether something else did</td></tr>
+<tr><td><code>dig name +nsid</code></td><td>Asks the server to say which instance answered (the NSID option, {{RFC 5001|https://www.rfc-editor.org/rfc/rfc5001}}), useful behind anycast</td></tr>
+<tr><td><code>dig -x 10.53.0.80</code></td><td>Reverse lookup (PTR under <code>in-addr.arpa</code>)</td></tr>
+<tr><td><code>curl -w '%{time_namelookup}\n' -o /dev/null -s URL</code></td><td>How long the lookup took inside a real client: about 5.0 s means a lost packet</td></tr>
+</tbody></table></div>
+<p><b>Compare three answers</b>: the zone's own server, your resolver and a public resolver. If the zone's server is wrong, fix the zone; if only your resolver is wrong, it is a cache or split horizon; if only the public one is wrong, it is still caching the old answer. <code>nslookup</code> works but uses its own resolution path and hides details; ISC once deprecated it and then reversed that ({{BIND changes, entry 1700|https://ftp.isc.org/isc/bind9/9.9.0/CHANGES}}), so prefer <code>dig</code> and <code>getent</code>.</p>
+<div class="tw"><table class="symp"><thead><tr><th>Symptom</th><th>Usual cause</th><th>Command that shows it</th><th>Fix</th></tr></thead><tbody>
+<tr><td>Lookups that take 5.0 s (2.5 s on Alpine), sometimes</td><td>A lost UDP packet: conntrack race, overloaded resolver, packet-rate limit</td><td><code>curl -w '%{time_namelookup}'</code>; resolver drop counters</td><td>Newer kernel, NodeLocal DNSCache, <code>timeout:1</code>, fewer queries</td></tr>
+<tr><td>Every lookup 5 s slower, always</td><td>The first <code>nameserver</code> is dead (glibc asks in order)</td><td><code>cat /etc/resolv.conf</code>; <code>dig @each-server name</code></td><td>Remove or reorder it</td></tr>
+<tr><td>CoreDNS hot, mostly NXDOMAIN</td><td>ndots:5 search-list amplification</td><td>CoreDNS NXDOMAIN rate; a capture in one pod</td><td>Trailing dots, ndots 1 or 2, autopath</td></tr>
+<tr><td>"Name or service not known" for a record you just created</td><td>Negative caching of an earlier miss (Failure lab: "NXDOMAIN")</td><td><code>dig zone SOA</code></td><td>Wait min(SOA TTL, MINIMUM); keep MINIMUM low</td></tr>
+<tr><td>Some clients still on the old address</td><td>TTL not lowered in advance; JVM cache; long-lived connections (Failure lab: "Stale answer")</td><td><code>dig</code> through each resolver; check connection age</td><td>Lower the TTL one old-TTL ahead; recycle connections</td></tr>
+<tr><td>Works on the laptop, NXDOMAIN in CI</td><td>Split horizon: internal name, public resolver (Failure lab: "Wrong resolver")</td><td><code>dig @internal name</code> against <code>dig @public name</code></td><td>Use the internal resolver, or publish the name</td></tr>
+<tr><td>SERVFAIL for one zone, everything else fine</td><td>Broken DNSSEC, or the zone's servers down or lame (Failure lab: "SERVFAIL")</td><td><code>dig +cd name</code>; <code>dig +trace name</code></td><td>Fix signatures or delegation; ask the zone owner</td></tr>
+<tr><td>SERVFAIL for every name after 11 October 2026</td><td>A validating resolver with only the old root key</td><td><code>dig +cd .</code> works, <code>dig . SOA</code> fails</td><td>Update the trust anchor (section 9)</td></tr>
+<tr><td>A TLS error for a big public site on one machine</td><td>DNS answered by a filter or proxy (Failure lab: "A TLS error caused by DNS")</td><td><code>dig @1.1.1.1 id.server CH TXT</code></td><td>Encrypted DNS or the network's own resolver</td></tr>
+<tr><td>Big answers fail, small work</td><td>TCP 53 blocked, or fragments dropped</td><td><code>dig +tcp</code>, <code>dig +bufsize=512</code></td><td>Open TCP 53; advertise 1,232</td></tr>
+</tbody></table></div>
+</section>
