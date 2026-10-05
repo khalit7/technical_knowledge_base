@@ -1,0 +1,43 @@
+{
+ "case": "jwt_alg",
+ "recorded": "2026-10-05 15:04 BST",
+ "runs": [
+  {
+   "cmd": "T=$($PY mint.py $WORK alg_none); curl -sS -i http://127.0.0.1:27200/v1/messages -H \"authorization: Bearer $T\" -H 'content-type: application/json' --data-binary @../wire/request.json | grep -vE '^(Server|Date|content-length):'",
+   "out": "HTTP/1.0 401 Unauthorized\r\nwww-authenticate: Bearer error=\"invalid_token\", error_description=\"The specified alg value is not allowed\"\r\ncontent-type: application/json\r\n\r\n{\"error\": \"invalid_token\", \"detail\": \"InvalidAlgorithmError: The specified alg value is not allowed\"}",
+   "rc": 0,
+   "ms": 97
+  },
+  {
+   "cmd": "$PY jwt_peek.py $($PY mint.py $WORK alg_none)",
+   "out": "header : {\"alg\": \"none\", \"typ\": \"JWT\"}\npayload: {\"iss\": \"https://auth.lab.test\", \"sub\": \"agent:research-bot\", \"aud\": \"https://api.llm.test\", \"iat\": 1791209043, \"exp\": 1791209643, \"scope\": \"messages:write\"}\n  iat = 2026-10-05 14:04:03 UTC (+0 s from now)\n  exp = 2026-10-05 14:14:03 UTC (+600 s from now)\n  now = 2026-10-05 14:04:03 UTC",
+   "rc": 0,
+   "ms": 140
+  },
+  {
+   "cmd": "T=$($PY mint.py $WORK hs256_pubkey); curl -sS -i http://127.0.0.1:27200/v1/messages -H \"authorization: Bearer $T\" -H 'content-type: application/json' --data-binary @../wire/request.json | grep -vE '^(Server|Date|content-length):'",
+   "out": "HTTP/1.0 401 Unauthorized\r\nwww-authenticate: Bearer error=\"invalid_token\", error_description=\"The specified alg value is not allowed\"\r\ncontent-type: application/json\r\n\r\n{\"error\": \"invalid_token\", \"detail\": \"InvalidAlgorithmError: The specified alg value is not allowed\"}",
+   "rc": 0,
+   "ms": 100
+  },
+  {
+   "cmd": "$PY jwt_peek.py $($PY mint.py $WORK hs256_pubkey)",
+   "out": "header : {\"alg\": \"HS256\", \"typ\": \"JWT\"}\npayload: {\"iss\": \"https://auth.lab.test\", \"sub\": \"agent:research-bot\", \"aud\": \"https://api.llm.test\", \"iat\": 1791209043, \"exp\": 1791209643, \"scope\": \"messages:write\"}\n  iat = 2026-10-05 14:04:03 UTC (-1 s from now)\n  exp = 2026-10-05 14:14:03 UTC (+599 s from now)\n  now = 2026-10-05 14:04:04 UTC",
+   "rc": 0,
+   "ms": 117
+  },
+  {
+   "cmd": "$PY mint.py $WORK alg_none | cut -d. -f1 | $PY -c \"import sys,base64; s=sys.stdin.read().strip(); print(s, '->', base64.urlsafe_b64decode(s+'='*(-len(s)%4)))\"",
+   "out": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0 -> b'{\"alg\":\"none\",\"typ\":\"JWT\"}'",
+   "rc": 0,
+   "ms": 91
+  },
+  {
+   "cmd": "$PY -c \"import jwt; jwt.encode({'sub':'x'}, open('$WORK/issuer_pub.pem').read(), algorithm='HS256')\" 2>&1 | tail -1",
+   "out": "jwt.exceptions.InvalidKeyError: The specified key is an asymmetric key or x509 certificate and should not be used as an HMAC secret.",
+   "rc": 0,
+   "ms": 112,
+   "note": "PyJWT will not even create the forgery: it refuses a PEM public key as an HMAC secret"
+  }
+ ]
+}
