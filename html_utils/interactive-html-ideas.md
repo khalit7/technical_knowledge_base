@@ -2930,3 +2930,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | Animated ioctl trace of a real GPU process | No GPU here and no citable public trace with exact calls; replaced by the first-call stepper built from the open interface and labelled |
 | Shadow page tables animation | Historical; one paragraph and the OSTEP reference are enough next to the nested-walk animation |
 | Steal-time chart | This hypervisor reports none (always 0), so there is nothing to plot |
+
+### Interconnects and scaling: PCIe, NVLink, InfiniBand and RoCE, why the network picks your parallelism (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_hardware/interconnects_and_scaling/src/viz_ideas.md`.
+
