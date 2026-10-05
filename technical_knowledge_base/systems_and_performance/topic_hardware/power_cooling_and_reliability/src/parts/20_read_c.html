@@ -1,0 +1,43 @@
+
+<section id="pw-s4">
+<h2>4. Cooling: why dense racks need liquid</h2>
+<p><b>The problem.</b> Every watt a rack draws becomes a watt of heat inside it. If the heat is not carried away as fast as it is made, chips throttle (section 2) and then shut down. How much coolant you must push through the rack follows from one line of physics:</p>
+<div class="fm"><div class="eq">Q = &#7745; &times; c<sub>p</sub> &times; &Delta;T</div>
+<dl><dt>&#7745;</dt><dd>mass flow of coolant, kg per second</dd><dt>Q</dt><dd>heat removed per second (watts), equal to the rack's power at steady state</dd><dt>c<sub>p</sub></dt><dd>specific heat: joules to warm 1 kg by 1 &deg;C (air about 1,005, water about 4,186)</dd><dt>&Delta;T</dt><dd>how much warmer the coolant leaves than it arrived</dd></dl></div>
+<p>Per litre, water carries about <b>3,464 times</b> as much heat as air for the same temperature rise ({{standard properties near 20 &deg;C|https://webbook.nist.gov/chemistry/fluid/}}: air 1.2 kg/m&sup3;, water 998 kg/m&sup3;) <span class="pill d">derived</span>. That single ratio is the whole argument.</p>
+<p><b>Check it on a real server.</b> NVIDIA rates a DGX H100 at 10.2 kW maximum with 1,105 cubic feet per minute (CFM) of front-to-back airflow at 80% fan speed ({{user guide|https://docs.nvidia.com/dgx/dgxh100-user-guide/introduction-to-dgxh100.html}}). If all 10.2 kW left in that air, it would warm by 16.2 &deg;C <span class="pill d">derived</span>, a sensible design rise for an air-cooled server, so the formula and the spec sheet agree.</p>
+<div class="card" id="pw-cool">
+<div class="ctl">
+<label>Rack power <b id="pw-cool-kwv"></b><input type="range" id="pw-cool-kw" min="10" max="1000" step="10" value="120" aria-label="Rack power in kilowatts"></label>
+<label>Air temperature rise <b id="pw-cool-dav"></b><input type="range" id="pw-cool-da" min="5" max="25" step="1" value="15" aria-label="Air temperature rise"></label>
+<label>Water temperature rise <b id="pw-cool-dwv"></b><input type="range" id="pw-cool-dw" min="3" max="20" step="1" value="10" aria-label="Water temperature rise"></label>
+</div>
+<div class="chips" id="pw-cool-pre"><button data-kw="10.2">One DGX H100 (10.2 kW)</button><button data-kw="40.8">Four DGX H100 (40.8 kW)</button><button data-kw="120" class="on">GB200 NVL72 (about 120 kW)</button><button data-kw="200">54 V limit (200 kW)</button><button data-kw="1000">1 MW rack (2027 plan)</button></div>
+<div id="pw-cool-out"></div>
+<p class="small mute">Same heat, two coolants <span class="pill d">derived</span>: air flow = Q / (1.2 &times; 1,005 &times; &Delta;T) m&sup3;/s; water flow = Q / (4,186 &times; &Delta;T) kg/s. Rack powers <span class="pill v">vendor</span> (sections 3 and 4). A real rack also has limits this ignores: fan power grows steeply with airflow, and a rack's front face is only so large.</p>
+</div>
+<p><b>What liquid cooling looks like.</b> In a GB200 NVL72, cold plates sit directly on the CPUs and GPUs of every compute tray and liquid runs through them; "the rest of the components like networking and storage devices are air cooled" by fans ({{DGX GB200 user guide|https://docs.nvidia.com/dgx/dgxgb200-user-guide/hardware.html}}). This direct-to-chip design is the common one; the warm liquid goes to a coolant distribution unit that passes the heat to the building's water loop. Google moved its TPUs to liquid at v3 in 2018 ({{Jouppi et al. 2020|https://doi.org/10.1145/3360307}}), and Ironwood pods are liquid cooled.</p>
+<p><b>Water.</b> Many sites reject heat by evaporating water in cooling towers, so cooling has a water cost as well as an energy cost. Google counts 0.26 mL of water for the median Gemini Apps text prompt, data-centre water consumption included ({{Google Cloud, Aug 21 2025|https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference}}) <span class="pill i">published</span>.</p>
+</section>
+
+<section id="pw-s5">
+<h2>5. Power swings: tens of thousands of GPUs in lockstep</h2>
+<p><b>The problem.</b> In synchronous data-parallel training every GPU computes its part of a step, then all of them wait for the gradient all-reduce, then all start the next step together. Computing draws close to full power; communicating draws close to idle. One GPU swinging by a few hundred watts is nothing. Sixteen thousand of them swinging at the same instant is a load the grid can see.</p>
+<p>Meta reported exactly that on Llama 3: "tens of thousands of GPUs may increase or decrease power consumption at the same time", for instance all waiting for a checkpoint or a collective, giving "instant fluctuations of power consumption across the data center on the order of tens of megawatts, stretching the limits of the power grid" ({{Llama 3 &sect;3.3.4|https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4}}) <span class="pill i">published</span>. The order of magnitude checks out: 16,384 H100s at 700 W are 11.5 MW of GPU power alone, and 2,048 servers at a DGX H100's 10.2 kW maximum would be 20.9 MW <span class="pill d">derived</span>.</p>
+<p>A 57-author team led by Microsoft described the problem in detail in August 2025: swings of "tens or hundreds of megawatts" within one data centre, concentrated around 0.2 to 3 Hz, a range that can resonate with parts of the grid's own equipment and damage it ({{Choukse et al., arXiv 2508.14318|https://arxiv.org/abs/2508.14318}}) <span class="pill i">published</span>. Utilities therefore set limits on how fast a site may ramp up and down, in megawatts per second.</p>
+<div class="card" id="pw-swing-card">
+<div class="seg" id="pw-swing-seg"><button data-m="raw" class="on">No smoothing</button><button data-m="smooth">Power floor 90% + ramp limit</button></div>
+<div id="pw-swing-svg" class="plot"></div>
+<div class="an-ctl" id="pw-swing-ctl"></div>
+<div class="cap" id="pw-swing-cap"></div>
+<div class="out" id="pw-swing-out"></div>
+<p class="small mute">An illustrative trace <span class="pill u">illustrative</span>: 16,384 GPUs at 1,200 W, steps of 6 s compute and 2 s all-reduce at 15% of full power, one 12 s checkpoint pause after the third step. Only the 90% floor and the idea of ramp limits come from the paper; the step times, idle level and ramp rate are chosen for teaching. The same trace is recomputed in <code>src/recompute.py</code>.</p>
+</div>
+<p><b>Three fixes, each with a cost</b> (from that paper and NVIDIA):</p>
+<ul>
+<li><b>Software fill:</b> run filler work (the paper's "Firefly" ran scaled matrix multiplications) when a GPU would otherwise idle, keeping power up. Measured overhead was under 5% of performance, and the energy is spent on nothing.</li>
+<li><b>GPU power smoothing:</b> GB200 GPUs accept programmable ramp-up and ramp-down rates and a "Minimum Power Floor" of up to 90% of TDP. With the floor at 90%, the paper measured "a total energy overhead of 10.5%" on real training. GB300 NVL72 adds a power cap that rises gradually at the start of a job and a "power burner" mode at the end ({{NVIDIA, Jul 28 2025|https://developer.nvidia.com/blog/how-new-gb300-nvl72-features-provide-steady-power-for-ai/}}) <span class="pill v">vendor</span>.</li>
+<li><b>Energy storage:</b> batteries or capacitors absorb the ripple so the grid sees a flatter load. GB300 NVL72 power supplies hold "65 joules/GPU" in capacitors, and NVIDIA reports the grid's peak demand fell by 30% training a Megatron LLM <span class="pill v">vendor</span>. 65 J covers 46 ms of a 1,400 W GPU <span class="pill d">derived</span>: enough for the sub-second ripple, nowhere near a checkpoint pause, which is why the paper pairs rack-level storage with the GPU-level floor.</li>
+</ul>
+<p class="small">Why it matters for you: a power floor or filler work means paying for energy that trains nothing, and a cluster running under a site power cap may run its GPUs below their rated clocks. Both show up as lower MFU for reasons no profiler of your code will find.</p>
+</section>

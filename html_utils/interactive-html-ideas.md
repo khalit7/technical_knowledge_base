@@ -2957,3 +2957,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 6 | PaLM HFU rebuilt from Appendix B, Llama 3 step time from Table 4, four MFU cards | Reading s4, s5 | 0 | 2 (x2) | 2 (x2) | 1 | 2 (HFU flatters) | 0 | 11 |
 | 7 | Run planner (chips for a deadline, cost with goodput) and serving frontier (per-user against total tokens/s, $ per M tokens, out-of-memory points) | tab | 2 | 1 | 2 (x2) | 2 | 2 (batching is the economics; MoE loses its bandwidth edge at batch) | 0 | 13 |
 | 8 | Ten predict-then-reveal drills (different from the parent's ten) | Reading s10 | 1 | 1 | 2 (x2) | 1 | 2 | 0 | 10 |
+
+### Power, cooling, reliability and the data centre: failures at scale, the per-gigawatt view (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_hardware/power_cooling_and_reliability/src/viz_ideas.md`.
+
+| Idea | Score | Placement | Data |
+|---|---|---|---|
+| One day of a job, same failures, two checkpoint intervals (before/after animation, counters, captions per failure) | 9 | Checkpoint simulator tab | Llama 3 rate (419 / 54 days / 2,048 servers); C, D, R illustrative inside Kokolis et al.'s assumptions; engine checked against `recompute.py` |
+| Useful time against interval: exact formula, first-order formula, live Monte Carlo, Young and your markers | 9 | Checkpoint simulator tab | Aupy et al. 2013 eq. 12 and the exact Poisson expectation; Table 2 reproduced |
+| Scale table: exact optimum against first-order prediction from 1,024 to 524,288 GPUs, 5 min vs 10 s pause | 8 | Reading s7 | derived |
+| Power swing trace, no smoothing vs 90% floor and ramp limit (before/after animation on one input) | 8 | Reading s5 | 90% floor and 10.5% overhead from Choukse et al. 2025; trace illustrative |
+| Air against water for the same rack heat, with presets from 10.2 kW to 1 MW | 7 | Reading s4 | Q = m cp dT; checked against DGX H100's 1,105 CFM at 10.2 kW (16.2 C rise) |
+| Watts per chip vs pJ per BF16 FLOP toggle, 2017 to 2026 | 7 | Reading s2 | FACTS.md vendor figures |
+| Table 5 coloured by hardware location | 7 | Reading s6 | Llama 3 Table 5 counts |
+| Log-scale power ladder chip to gigawatt | 6 | Reading s1 | vendor figures |
+| Gigawatt planner (site MW, PUE, average draw, price) | 7 | tab | DGX H100/B200/B300, GB200 NVL72, Ironwood pod; EIA price; rental prices from FACTS.md |
+| Predict-then-reveal: B300 energy per FLOP; Young at 131,072 GPUs | 6 | Reading s2, s7 | derived |

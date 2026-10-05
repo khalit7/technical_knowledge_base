@@ -1,0 +1,40 @@
+
+<div class="tab" id="t-ckpt" role="tabpanel" hidden>
+<style>
+#t-ckpt .ctl input[type=number]{width:7.5em}#t-ckpt .chips{margin:3px 0}#t-ckpt .chips button{font-size:12px;padding:1px 9px}
+#t-ckpt .lane{font-size:13px;font-weight:600;margin:8px 0 2px}#t-ckpt .lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}#t-ckpt .lg i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-ckpt .repro li{margin:4px 0;font-size:13.5px}
+</style>
+<h2 style="margin-top:14px">Checkpoint simulator</h2>
+<p>One synchronous training job, one day, failures arriving at random at the rate your cluster size and failure rate imply. The same failures hit two copies of the job: one checkpointing at an interval you choose, one at Young's interval. Below, the useful fraction of time against the interval: the exact formula, the first-order formula, and this page's own Monte Carlo. The model and the formulas are explained in {{Reading, section 7|#t-read}}; the engine is a port of <code>src/recompute.py</code>, which checks it against Aupy et al.'s Table 2 and a long Monte Carlo.</p>
+<div class="ctl">
+<label>GPUs in the job <b id="ck-gv"></b><input type="number" id="ck-g" min="8" max="2000000" step="8" value="16384" aria-label="GPUs in the job">
+<span class="chips" id="ck-gp"><button data-v="1024">1,024</button><button data-v="16384" class="on">16,384 (Llama 3)</button><button data-v="100000">100,000</button><button data-v="131072">131,072</button></span></label>
+<label>Failures per 1,000 server-days <b id="ck-rv"></b><input type="number" id="ck-r" min="0.1" max="50" step="0.01" value="3.789" aria-label="Failures per thousand server-days">
+<span class="chips" id="ck-rp"><button data-v="2.34">2.34 (Meta RSC-2)</button><button data-v="3.789" class="on">3.79 (Llama 3)</button><button data-v="6.5">6.50 (Meta RSC-1)</button></span></label>
+<label>Checkpoint pause C <b id="ck-cv"></b><input type="number" id="ck-c" min="0.05" max="60" step="0.05" value="5" aria-label="Checkpoint pause in minutes"> min
+<span class="chips" id="ck-cp"><button data-v="0.1667">10 s</button><button data-v="1">1 min</button><button data-v="5" class="on">5 min</button><button data-v="20">20 min</button></span></label>
+<label>Downtime D and recovery R (minutes) <b id="ck-drv"></b><span style="display:flex;gap:6px"><input type="number" id="ck-d" min="0" max="120" step="1" value="10" aria-label="Downtime in minutes"><input type="number" id="ck-rr" min="0" max="120" step="1" value="5" aria-label="Recovery in minutes"></span></label>
+<label>Your interval T <b id="ck-tv"></b><input type="range" id="ck-t" min="0" max="1000" step="1" value="0" aria-label="Your checkpoint interval"></label>
+<label>The day <b id="ck-sv"></b><span style="display:flex;gap:6px"><button id="ck-seed">Another day</button><button id="ck-seed0">The default day</button></span></label>
+</div>
+<div class="out" id="ck-stats"></div>
+<div class="card" id="ck-card">
+<div class="lg"><span><i style="background:var(--c3)"></i>training, saved by a checkpoint</span><span><i style="background:var(--c3);opacity:.45"></i>training, not yet saved</span><span><i style="background:var(--c1)"></i>checkpointing</span><span><i style="background:var(--bad)"></i>work thrown away by a failure</span><span><i style="background:var(--dim)"></i>down and recovering</span><span><i style="background:var(--ink);width:3px"></i>failure</span></div>
+<div id="ck-svg" class="plot"></div>
+<div class="an-ctl" id="ck-ctl"></div>
+<div class="cap" id="ck-cap"></div>
+<div class="out" id="ck-out"></div>
+</div>
+<h3>Useful time against the interval</h3>
+<div id="ck-curve" class="plot"></div>
+<div class="lg"><span><i style="background:var(--c1)"></i>exact (Poisson failures)</span><span><i style="background:var(--c2)"></i>first-order formula</span><span><i style="background:var(--c4);border-radius:50%"></i>Monte Carlo (this page, 6 runs of 400 MTBFs, range)</span><span><i style="background:var(--good);width:3px"></i>Young</span><span><i style="background:var(--bad);width:3px"></i>your interval</span></div>
+<p class="small mute">The first-order line is the waste formula from Reading section 7; it falls below the exact curve as the interval grows and can go negative at large scale. The Monte Carlo runs the same engine as the animation over long horizons and should straddle the exact curve.</p>
+<h3>What reproduces what</h3>
+<ul class="repro">
+<li>Aupy et al.'s Table 2 (C = R = 600 s, D = 60 s, ten platform sizes): Young, Daly, refined first-order and exact-optimum periods, all forty reproduced within <span id="ck-aupy"></span> <span class="pill d">independently</span> (<code>src/recompute.py</code>; the largest gaps are in the two smallest platforms, where the paper fixed a two-hour job).</li>
+<li>Kokolis et al.'s projected 1.8 h and 0.23 h job MTBF at 6.50 per 1,000 node-days for 16,384 and 131,072 GPUs: the presets give them <span class="pill d">by construction</span> (same formula).</li>
+<li>Llama 3's rate, 3.79 per 1,000 server-days, is 419 failures / (54 days &times; 2,048 servers) <span class="pill d">derived</span>.</li>
+<li>Defaults <span class="pill u">illustrative</span>: C = 5 min is Meta's assumed synchronous pause (Kokolis et al.); D = 10 and R = 5 min are chosen inside Meta's assumed 5 to 20 minutes of restart overhead; the 3-hour "your interval" is a deliberately poor choice. The default day is seed 54, chosen because its eight failures are spread evenly; press "Another day" for others.</li>
+</ul>
+</div>

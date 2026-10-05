@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22 (child of Topic: hardware)
 
-Not migrated yet: a new page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Power per chip, server, rack and site (TDP, DVFS, picojoules per FLOP by generation, 54 V against 800 V DC delivery, PUE, how many accelerators a gigawatt holds and what its electricity costs), air against liquid cooling from Q = m cp dT, power swings of synchronous training and their fixes (power floors, ramp limits, rack energy storage), Llama 3's 419 interruptions read by hardware part, ECC, row remapping and Xid errors, checkpoint-interval math (Young, Daly, the exact Poisson formula, where first-order breaks), silent data corruption, and energy per token for training and inference. Tabs: Reading, Checkpoint simulator (one day of a job with the same failures under two intervals; exact, first-order and Monte Carlo curves), Gigawatt planner, Further reading. A new page: no old written text; power, cooling and failure claims from the parent root and its old pages are reconciled in `src/coverage.json`. No child pages, databases or video.
