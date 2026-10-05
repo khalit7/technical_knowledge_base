@@ -2877,3 +2877,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | Tensor-core rates of B200 from Jarmusch and Chandrasekaran | Their tables are internally inconsistent (H200 BF16 1,513.5 "achieved" above its 989.5 dense peak); configuration section used only |
 | Die photos | Images not computable, and positions of disabled SMs are not published |
 | simdgroup_matrix vs FMA on the M1 (no tensor core) | The CUDA topic's Kernel lab already measures simdgroup_matrix matmul; would not teach NVIDIA's tensor cores |
+
+### Memory technology: HBM, GDDR, SRAM, capacity against bandwidth, the KV cache (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_hardware/memory_technology/src/viz_ideas.md`.
+
+| Idea | Placement | Score | Why |
+|---|---|---|---|
+| **One DRAM bank, the same 16 reads in three orders** (sequential row hits, random rows in one bank, random rows over 16 banks): Gantt of precharge, activate, column latency, burst on one time scale, banks strip, counters for time, rows opened, bytes opened vs used, effective rate | Reading s2 | 13 (anim 1) | The mechanism behind coalescing, row-buffer locality and bank parallelism, before/after on one input, drawn to scale. Timings illustrative and labelled; the JS (`BANKSIM`) equals `bank_sim()` in `code/build_data.py`. |
+| **One conversation grows** on 7 real architectures (MHA, GQA, sliding window, local/global, alternating, hybrid linear, MLA): weights and KV drawn to scale inside one GPU's memory, 1K to 128K tokens, counters for KV, KV/weights, batch-1 ceiling, conversations that fit | KV tab | 13 (anim 1) | Khalid's favourite pattern: same input, the replaced and the new method, to scale. Does not repeat the DeepSeek page's MLA mechanism animation; this one is the memory view across architectures. |
+| **Growth since A100** (BF16, bandwidth, capacity indexed; ridge; full-memory reads per second) | Reading s1 | 10 | The memory wall in NVIDIA's own numbers: bandwidth kept pace, capacity did not. |
+| **Measured ladder** (bandwidth and latency against working set on the M1 Pro GPU, published cache sizes shaded) | Reading s3 and Memory lab | 12 (real data) | Real measurements; Little's law check against the CUDA root's simulator. |
+| **Width x rate rectangles** (RTX 5090, H100, MI300X, one HBM4 stack; area = bandwidth) | Reading s4 | 9 | Makes the bandwidth equation visible: wide-and-slow vs narrow-and-fast. |
+| **Energy bars** (Horowitz 45 nm table, log scale) | Reading s2 | 8 | Why bandwidth costs power, in one glance. |
+| **Bandwidth ladder of tiers** (published SRAM to NIC; toggle: this laptop measured from caches to random 4 KiB SSD reads) | Reading s5 | 10 | Capacity against bandwidth as rungs, with measured rungs. |
+| **Random-block bandwidth** (16 B to 16 KiB) | Memory lab 2, cited in s2 | 11 (real data) | Shows the line-granularity cliff and why KV blocks of a few KB read near full speed. |
+| **Decode attention against cache bytes** (MHA, GQA, MQA; 1K to 128K) | Memory lab 3, cited in s6 | 11 (real data) | Decode is bound by bytes when the kernel is good; MQA shows when it is not. |
+| **KV against context for 13 configs** + table + planner (conversations that fit, decode ceilings) | KV tab | 12 | Real configs; the planner's JS equals `plan()` on 1,170 cases. |
