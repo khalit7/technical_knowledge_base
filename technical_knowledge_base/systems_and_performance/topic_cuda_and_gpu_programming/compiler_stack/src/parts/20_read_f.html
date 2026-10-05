@@ -1,0 +1,27 @@
+<section id="rd-s7">
+<h2>7. Other roads to PTX: LLVM, MLIR, Triton, CUDA Tile IR</h2>
+<p>nvcc is not the only program that writes PTX. Since PTX is text with a published specification, any compiler can target it and let ptxas (or the driver) do the rest. Most do it through <dfn>LLVM</dfn>, the open compiler framework whose <dfn>NVPTX back end</dfn> turns LLVM IR into PTX ({{LLVM, User Guide for NVPTX|https://llvm.org/docs/NVPTXUsage.html}}): clang compiles CUDA C++ with it ({{Compiling CUDA with clang|https://llvm.org/docs/CompileCudaWithLLVM.html}}), Rust has an <code>nvptx64-nvidia-cuda</code> target built on it ({{rustc platform support|https://doc.rust-lang.org/rustc/platform-support/nvptx64-nvidia-cuda.html}}), and Triton uses it. NVIDIA's own cicc is also LLVM-based but closed; you can tell the two apart from the first line of the PTX:</p>
+<div class="rd-two"><div><div class="small mute">cicc (nvcc), CUDA 13.4</div><pre class="code" id="cs-hdA"></pre></div><div><div class="small mute">Triton 3.8.0 (LLVM NVPTX)</div><pre class="code" id="cs-hdB"></pre></div></div>
+<p><dfn>MLIR</dfn> is LLVM's framework for building compilers out of <dfn>dialects</dfn>, small intermediate languages each at its own level of abstraction, lowered one into the next ({{mlir.llvm.org|https://mlir.llvm.org/}}). The newer GPU languages are built on it, and differ in which level you write at:</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Road</th><th>You write</th><th>Intermediate forms</th><th>Down to SASS via</th></tr>
+<tr><td>nvcc</td><td>CUDA C++: threads</td><td>NVVM IR, PTX</td><td>ptxas</td></tr>
+<tr><td>Triton</td><td>Python: one block of data per program</td><td>TTIR, TTGIR (MLIR dialects), LLVM IR, PTX</td><td>LLVM NVPTX, then Triton's bundled ptxas</td></tr>
+<tr><td>CuTe DSL (CUTLASS 4)</td><td>Python with CuTe layouts, copy and MMA atoms</td><td>MLIR</td><td>"the CUTLASS Python compiler stack and NVIDIA CUDA toolchain" ({{CuTe DSL overview|https://docs.nvidia.com/cutlass/latest/media/docs/pythonDSL/overview.html}})</td></tr>
+<tr><td>cuTile Python</td><td>Python: tiles, with no threads at all</td><td>CUDA Tile IR (an MLIR dialect), serialised as bytecode</td><td><code>tileiras</code>, shipped with CUDA 13.x</td></tr>
+<tr><td>torch.compile</td><td>PyTorch</td><td>FX graphs, Inductor IR, then Triton (GPU) or C++ (CPU)</td><td>the Triton road</td></tr>
+</table></div>
+<p>Triton's own stages and passes, with real dumps, are the subject of the {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}} page (its Compiler stages tab); the CuTe DSL belongs to {{Libraries and tensor cores|n:3c65c17b0d0d81a7adcaebee2f44a087}}. CUDA Tile IR is the newest road, so here it is, run end to end.</p>
+<h3>CUDA Tile IR, compiled here without a GPU</h3>
+<p>NVIDIA describes Tile IR as "a portable, low-level tile virtual machine and instruction set that models the GPU as a tile-based processor" ({{CUDA Tile IR documentation|https://docs.nvidia.com/cuda/tile-ir/latest/}}); the open repository calls it "an MLIR-based intermediate representation", released with CUDA 13.1 ({{NVIDIA/cuda-tile|https://github.com/NVIDIA/cuda-tile}}) <span class="ev pub">documented</span>. It plays the role PTX plays for threads: a portable form that a back-end assembler, <code>tileiras</code>, turns into SASS. With cuTile Python <span id="cs-tileV"></span> (the pip package <code>cuda-tile</code>) a vector-add kernel was exported to Tile IR bytecode and to cubins for four targets inside the CUDA 13.4.2 image <span class="ev cmp">compiled here</span>:</p>
+<pre class="code"><span class="c"># cuTile: one block of the grid adds one tile of 1024 numbers; no thread index anywhere</span>
+@ct.kernel
+def vector_add(a, b, out):
+    i = ct.bid(0)
+    x = ct.load(a, index=(i,), shape=(TILE,))
+    y = ct.load(b, index=(i,), shape=(TILE,))
+    ct.store(out, index=(i,), tile=x + y)</pre>
+<details class="mist"><summary>The Tile IR it became (<span id="cs-tileBC"></span>-byte bytecode, printed by <code>tileirdisasm</code>)</summary><div class="b"><pre class="code tall" id="cs-tileIR"></pre></div></details>
+<div class="tw"><table class="tbl-sm" id="cs-tileT"></table></div>
+<p>The same 703-byte file became four different machine codes, with no thread, warp or layout in the source: <code>tileiras</code> decided how many threads, how each one walks the tile and how wide each load is. That is the same promise Triton makes one level up, and the reason NVIDIA and the Triton project are also connecting the two (an incubator back end that sends Triton through Tile IR, {{triton-lang/Triton-to-tile-IR|https://github.com/triton-lang/Triton-to-tile-IR}}; not part of Triton 3.8.0, per this topic's shared facts). Running these cubins needs a driver of r580 or later, per cuTile's README; not run here.</p>
+</section>

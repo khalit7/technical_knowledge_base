@@ -1,0 +1,32 @@
+<section id="rd-s8">
+<h2>8. torch.compile, part 1: Dynamo captures a graph</h2>
+<p><code>torch.compile(fn)</code> returns a function that, when called, does not simply run <code>fn</code>. CPython lets a library replace the function that evaluates every Python frame (PEP 523, "the frame evaluation API"); <dfn>TorchDynamo</dfn> installs itself there, so it sees each call to <code>fn</code> before CPython runs it ({{Ansel et al., PyTorch 2, ASPLOS 2024, section 3|https://docs.pytorch.org/assets/pytorch2-2.pdf}}) <span class="ev pub">documented</span>. It then reads the function's <dfn>bytecode</dfn> (the instructions CPython would execute) symbolically: tensor operations are recorded into an <dfn>FX graph</dfn>, a list of PyTorch operations with their inputs; everything else (Python arithmetic on ints, loops over lists, attribute lookups) is executed at trace time and its result baked into the graph. Here is the graph Dynamo recorded for the running example <span class="ev run">run here, torch 2.14.1, CPU</span>:</p>
+<pre class="code" id="cs-fx"></pre>
+<p>Baking values in is only safe if the next call looks the same, so Dynamo also writes <dfn>guards</dfn>: cheap checks run on every call before the compiled code is reused. This graph got <span id="cs-gN"></span> guard lines; the important ones check each input tensor's dtype, device, <code>requires_grad</code>, sizes and strides, and the global state (grad mode, autocast, default dtype, thread count):</p>
+<pre class="code" id="cs-guards" style="max-height:200px;overflow:auto"></pre>
+<p>If every guard passes, the cached code runs. If one fails, Dynamo compiles again (a <dfn>recompilation</dfn>) and keeps both versions, up to a limit (<code>torch._dynamo.config.recompile_limit</code> = <span id="cs-rlim"></span> here).</p>
+<h3>Before and after: one call with a graph break, and with fullgraph=True</h3>
+<p>When Dynamo meets something it cannot put in a graph, it does not fail by default: it compiles what it has so far, lets CPython run the unsupported part, and resumes tracing after it. That split is a <dfn>graph break</dfn>. The function below has one, a <code>print</code>. Step through what Dynamo really did <span class="ev run">run here</span>, then switch to <code>fullgraph=True</code>, where the same function is an error instead.</p>
+<pre class="code"><span class="c"># src/code/tc_programs.py, lines 11 to 14</span>
+def with_print(x):
+    y = torch.softmax(x * 0.125, dim=-1)
+    print("max prob", "(printed from Python)")
+    return y.sum(dim=-1)</pre>
+<div class="card" id="cs-dynCard">
+<div class="seg" id="cs-dynMode"><button data-m="b" class="on">default: break and resume</button><button data-m="f">fullgraph=True</button></div>
+<div class="an-ctl" id="cs-dynCtl"></div>
+<div class="an-cap" id="cs-dynCap"></div>
+<div class="cs-dyn"><div><div class="small mute" id="cs-dynLt"></div><pre class="code" id="cs-dynL"></pre></div><div><div class="small mute" id="cs-dynRt"></div><pre class="code" id="cs-dynR"></pre></div></div>
+<div class="an-cnt" id="cs-dynCnt"></div>
+</div>
+<p>Every graph break costs twice: the graphs on either side are optimised separately (no fusion across the break), and every call pays Python again in between. <code>torch._dynamo.explain(fn)(*args)</code> counts them without your having to read logs; on four small functions <span class="ev run">run here</span>:</p>
+<div class="tw"><table class="tbl-sm" id="cs-expl"></table></div>
+<p>Under <code>fullgraph=True</code> the <code>print</code> and the data-dependent <code>if</code> are errors, but <code>.item()</code> is not: when a single graph is required, Dynamo captures the scalar as a symbolic value instead of breaking (in torch 2.14.1's source, <code>allow_scalar_outputs=one_graph or config.capture_scalar_outputs</code>, <code>torch/_dynamo/output_graph.py</code>) <span class="ev run">run here</span>.</p>
+<h3>Recompilations: what changed, and what it cost</h3>
+<p>The running example called four times with a different number of rows each time <span class="ev run">run here, CPU</span>:</p>
+<div id="cs-recBars"></div>
+<pre class="code" id="cs-recLog" style="white-space:pre-wrap"></pre>
+<p>The first call compiled a graph specialised to 64 rows. The second failed the size guard; Dynamo recompiled with the row count as a symbol (<code>s77</code>, valid from 2 upward) because <code>automatic_dynamic_shapes</code> is on by default; from then on any row count reuses that code. This is the default <code>dynamic=None</code>, which the docs describe as "automatically detect if dynamism has occurred and compile a more dynamic kernel upon recompile" ({{torch.compile, PyTorch 2.14|https://docs.pytorch.org/docs/2.14/generated/torch.compile.html}}). Python numbers behave the same way: a float argument <code>s</code> was first guarded by value, then, after one change, made symbolic <span class="ev run">run here</span>:</p>
+<pre class="code" id="cs-scal" style="white-space:pre-wrap"></pre>
+<p>In training, the usual sources of recompilation are the last batch of an epoch being shorter, variable sequence lengths, a learning rate or step count passed as a Python number, and switching between <code>train()</code> and <code>eval()</code>. <code>TORCH_LOGS=recompiles</code> prints each one with the guard that failed, as above.</p>
+</section>

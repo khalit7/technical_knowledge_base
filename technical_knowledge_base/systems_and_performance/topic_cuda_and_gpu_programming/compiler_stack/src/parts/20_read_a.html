@@ -1,0 +1,40 @@
+<section id="rd-one">
+<h2>In one screen: two roads to the same machine code</h2>
+<p class="lead">An NVIDIA GPU executes only one thing: <dfn>SASS</dfn>, the machine code of one GPU generation. Whatever you write, CUDA C++ or a line of PyTorch, reaches the GPU after a chain of compilers has turned it into SASS. This page follows that chain on the two roads an ML engineer uses: a hand-written CUDA kernel through <code>nvcc</code>, and PyTorch code through <code>torch.compile</code>. The running examples are the parent topic's: the row softmax kernel of its {{Compiler explorer|n:3c65c17b0d0d81c39f34d5e070d783c1}} tab, and <code>softmax(x * 0.125) @ w</code>, the attention-shaped graph the parent page follows from PyTorch to the instructions.</p>
+<div class="co key"><div class="t">What is real here, and what is not</div>Every listing, error message, file size and log on this page was produced by the real tools: the CUDA 13.4.2 toolkit (nvcc, ptxas, cuobjdump, nvdisasm, NVRTC, tileiras) and torch 2.14.1 with Triton 3.8.0, inside the Docker image <code>kb-gpu-lab:1</code> on an Apple M1 Pro laptop. There is no NVIDIA GPU, so <b>nothing here ran on one</b>: compiling needs no GPU, running does. Kernels were compiled, not executed; torch.compile ran for real on the CPU, where Inductor writes C++; its GPU code (Triton) was generated without a device by the method of the {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}} page. Where the page says what a GPU or driver would do, it cites NVIDIA's documentation and says "not run here". Labels: <span class="ev cmp">compiled here</span> <span class="ev run">run here (CPU)</span> <span class="ev pub">documented</span> <span class="ev der">derived</span>.</div>
+<div class="cs-road">Road 1: CUDA C++ with nvcc (click a stage)</div>
+<div class="cs-flow" id="cs-flowA"></div>
+<div class="cs-road">Road 2: PyTorch with torch.compile (click a stage)</div>
+<div class="cs-flow" id="cs-flowB"></div>
+<div class="card" id="cs-flowInfo" style="font-size:14px"></div>
+<p>The two roads meet at the same assembler: Triton writes PTX through LLVM and hands it to <code>ptxas</code>, exactly as <code>nvcc</code> does. Three side roads join them: <b>NVRTC</b> compiles CUDA C++ while your program runs (section 5), <b>inline PTX</b> lets C++ name one exact instruction (section 6), and the newer MLIR-based languages (Triton, the CuTe DSL, cuTile with CUDA Tile IR) build their own front ends on the same back end (section 7).</p>
+<div class="ff"><div class="t">Why an ML engineer needs this</div><ul>
+<li><b>"no kernel image is available for execution on the device"</b>, a slow first iteration on a new GPU, or a wheel that will not load on a B300: all are questions of which images a binary carries and what the driver does with them (section 4, and the {{Will it run?|#t-run}} tab).</li>
+<li><b>Is my kernel using tensor cores, vector loads, no spills?</b> Only the SASS answers that; PTX can mislead, because <code>ptxas</code> rewrites a lot (sections 2 and 3, and the {{SASS, decoded|#t-sass}} tab).</li>
+<li><b>The first training step takes minutes, then a shape changes and it happens again:</b> torch.compile's compile cost, graph breaks and recompilations, and how to see each one (sections 8 and 9, and the {{Inside torch.compile|#t-tc}} tab).</li>
+</ul></div>
+<div class="pr" id="cs-pr0"><div class="q">Predict first: you compile with <code>nvcc -arch=sm_90a</code>. How many GPU code images end up inside the object file?</div><div class="opts"><button data-a="0">1: the H100 machine code</button><button data-a="1">2: machine code plus its PTX</button><button data-a="2">3</button><button data-a="3">4</button></div><div class="ans" hidden></div></div>
+</section>
+
+<section id="rd-s1">
+<h2>1. nvcc is a driver, not a compiler</h2>
+<p><code>nvcc</code> runs a sequence of other programs. A <code>.cu</code> file holds two programs at once: host code for the CPU and device code for the GPU. nvcc splits them, compiles the device code once per target you asked for, packs the results into a <dfn>fat binary</dfn> (a container holding several GPU code images), embeds that container in the host object as data, and hands the host code to your normal C++ compiler. <code>nvcc --dryrun</code> prints every command without running it. Here are the real commands for the row softmax kernel <span class="ev cmp">compiled here, CUDA 13.4.2</span>, with the toggle running the same file with <code>-arch=sm_90</code> instead of <code>-arch=sm_90a</code>:</p>
+<div class="card" id="cs-nvccCard">
+<div class="seg" id="cs-nvccMode"><button data-m="a" class="on">-arch=sm_90a (11 commands)</button><button data-m="p">-arch=sm_90 (8 commands)</button></div>
+<div class="an-ctl" id="cs-nvccCtl"></div>
+<div class="an-cap" id="cs-nvccCap"></div>
+<pre class="code" id="cs-nvccCmd" style="white-space:pre-wrap;word-break:break-all;max-height:140px;overflow:auto"></pre>
+<div id="cs-nvccFiles"></div>
+<div class="an-cnt" id="cs-nvccCnt"></div>
+</div>
+<p class="small mute">Commands from <code>nvcc --dryrun -O3 -arch=sm_90a -c softmax.cu</code>, temporary paths shortened to <code>&lt;tmp&gt;</code>. File sizes from the same build with <code>--keep</code>, which leaves every intermediate file on disk. Script: <code>src/code/nvcc_stages.sh</code>.</p>
+<p>What each program does:</p>
+<ul>
+<li><b>gcc -E</b> (your host compiler as preprocessor) expands includes and macros. It runs once for the host side and once per device target, each time with a different <code>__CUDA_ARCH__</code>, which is how one source file can contain code for several generations behind <code>#if __CUDA_ARCH__ &gt;= 900</code>. The preprocessed device file is 1.4 MB for a 32-line kernel: almost all of it is the CUDA headers.</li>
+<li><b>cudafe++</b> is NVIDIA's C++ front end. It parses CUDA C++, separates host from device, and replaces each <code>kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(args)</code> with a call to a generated <dfn>launch stub</dfn>, a host function that packs the arguments and calls the CUDA runtime.</li>
+<li><b>cicc</b> is the device compiler: it parses the preprocessed device source with its own copy of the front end, lowers it to NVVM IR (NVIDIA's dialect of LLVM IR; {{NVVM IR specification|https://docs.nvidia.com/cuda/nvvm-ir-spec/index.html}}), runs an optimiser built on LLVM (inlining, unrolling, constant folding, deciding which pointer points into which memory) and prints <dfn>PTX</dfn>. It runs once per virtual target.</li>
+<li><b>ptxas</b> is the assembler that is really a second optimising compiler: it allocates real registers, schedules instructions, and emits SASS inside a <dfn>cubin</dfn> (an ELF file for the GPU). With <code>-arch=sm_90a</code>, nvcc also runs ptxas once on the generic <code>compute_90</code> PTX just to check it (step 5); no file comes out.</li>
+<li><b>fatbinary</b> packs the images; the host compiler then builds the host object with the fat binary inside it. With <code>-rdc=true</code> (separate compilation, device functions called across files) a device link step, <code>nvlink</code>, joins cubins first; that is the one program this build did not need.</li>
+</ul>
+<p>The toggle shows the answer to the question above: <code>-arch=sm_90a</code> puts <b>three</b> images in the object, the sm_90a machine code and two PTX copies (generic <code>compute_90</code> and Hopper-specific <code>compute_90a</code>), where <code>-arch=sm_90</code> puts two. Section 4 explains why the extra copy exists and the trap it sets.</p>
+</section>

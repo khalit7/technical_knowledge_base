@@ -1,0 +1,37 @@
+<section id="rd-s5">
+<h2>5. NVRTC: compiling while the program runs</h2>
+<p>Sometimes the kernel does not exist until the program runs: its shapes, data types or the operation itself are only known then. <dfn>NVRTC</dfn> is NVIDIA's library for that case: "It accepts CUDA C++ source code in character string form and creates handles that can be used to obtain the GPU executable code", without spawning nvcc or needing it installed ({{NVRTC 13.4 documentation|https://docs.nvidia.com/cuda/nvrtc/index.html}}) <span class="ev pub">documented</span>. Ask for <code>--gpu-architecture=sm_90a</code> and you get a cubin; ask for <code>compute_90a</code> and you get PTX for the driver to finish. You then load the result with the driver API (<code>cuModuleLoadData</code> or <code>cuLibraryLoadData</code>) and launch it; that last part needs a GPU and is not run here.</p>
+<p>Who uses it: PyTorch's jiterator (<code>torch.cuda.jiterator</code>) inlines your elementwise expression into a kernel template and compiles it through NVRTC ({{aten/src/ATen/native/cuda/jit_utils.cpp|https://github.com/pytorch/pytorch/blob/v2.14.0/aten/src/ATen/native/cuda/jit_utils.cpp}}); CuPy's <code>RawKernel</code> uses NVRTC by default and caches binaries under <code>$HOME/.cupy/kernel_cache/</code> ({{CuPy RawKernel|https://docs.cupy.dev/en/stable/reference/generated/cupy.RawKernel.html}}). Triton does not: it writes PTX itself and runs the <code>ptxas</code> binary it ships.</p>
+<p>A small C++ program (<code>src/code/nvrtc_demo.cpp</code>) compiles a row-scaling kernel and a templated kernel from a string <span class="ev run">run here, CPU only</span>:</p>
+<div class="stepbox">
+<div style="--sc:var(--c1)"><div class="k">string to cubin (sm_90a)</div><div class="v" id="cs-nvC"></div><p>median of 7 compiles; one compile is an ordinary function call</p></div>
+<div style="--sc:var(--c4)"><div class="k">string to PTX (compute_90a)</div><div class="v" id="cs-nvP"></div><p>no ptxas step; the driver would finish it</p></div>
+<div style="--sc:var(--c5)"><div class="k">setting</div><div class="v" style="font-size:15px">NVRTC <span id="cs-nvV"></span>, 2 CPU cores</div><p id="cs-nvL"></p></div>
+</div>
+<p>Tens of milliseconds per kernel is why every runtime-compiling library caches: in memory for the process, and on disk across processes.</p>
+<h3>Why compile at run time: constants the compiler can see</h3>
+<p>The same kernel compiled twice, once with the row length as an argument and once with <code>-DNCOLS=4096</code> on the NVRTC command line, so it is a compile-time constant <span class="ev cmp">compiled here, sm_90a</span>:</p>
+<div class="seg" id="cs-specSeg"><button data-m="g" class="on">ncols at run time</button><button data-m="s">NCOLS = 4096, baked in</button></div>
+<div class="rd-two"><div><pre class="code tall" id="cs-specSass"></pre></div><div id="cs-specTxt" style="font-size:13.5px"></div></div>
+<h3>Templates and names</h3>
+<p>A C++ template kernel only exists once it is instantiated, and its symbol in the cubin is a mangled name. nvcc compiling <code>scale&lt;float, 256&gt;</code> and <code>scale&lt;double, 128&gt;</code> produces these symbols, demangled by <code>cu++filt</code> <span class="ev cmp">compiled here</span>:</p>
+<pre class="code" id="cs-templ"></pre>
+<p>With NVRTC you do not guess mangled names: <code>nvrtcAddNameExpression("axpy&lt;float, 4&gt;")</code> before compiling and <code>nvrtcGetLoweredName</code> after gives the symbol to look up. Here: <span id="cs-low"></span>.</p>
+<div class="co warn"><div class="t">The mistake everyone makes once</div>NVRTC searches no CUDA include directory by itself (it adds only the current directory for quoted includes). Forget <code>-I&lt;cuda&gt;/include</code> and even <code>cuda_fp16.h</code> is missing <span class="ev run">run here</span>: <code id="cs-noinc"></code></div>
+</section>
+
+<section id="rd-s6">
+<h2>6. Inline PTX: naming one exact instruction from C++</h2>
+<p><code>asm("instruction %0, %1;" : "=r"(out) : "r"(in));</code> puts one PTX instruction into CUDA C++. The constraint letters give the operand's register type: <code>h</code> .u16, <code>r</code> .u32, <code>l</code> .u64, <code>q</code> .u128, <code>f</code> .f32, <code>d</code> .f64; <code>n</code> is an immediate integer and <code>"="</code> marks an output. <code>asm volatile</code> stops the compiler deleting or moving it, and a <code>"memory"</code> clobber stops it moving memory accesses across it ({{Inline PTX Assembly in CUDA|https://docs.nvidia.com/cuda/inline-ptx-assembly/index.html}}) <span class="ev pub">documented</span>. You need it for three things: instructions CUDA C++ has no function for (wgmma and tcgen05, which is why the parent page's Hopper and Blackwell kernels are mostly <code>asm</code>), registers it cannot name, and forcing one variant of an instruction. All three, compiled for sm_90a <span class="ev cmp">compiled here</span>:</p>
+<div class="rd-two"><div><div class="small mute">The PTX your <code>asm</code> wrote</div><pre class="code" id="cs-inlP"></pre></div><div><div class="small mute">What ptxas made of it</div><pre class="code" id="cs-inlS"></pre></div></div>
+<p><code>%smid</code> becomes <code>SR_VIRTUALSMID</code>; the PTX manual says the value "may change during execution, e.g. due to rescheduling of threads following preemption" and is "intended mainly to enable profiling and diagnostic code", so never use it for correctness. <code>ld.global.cs</code> (cache streaming, evict first) becomes <code>LDG.E.EF</code>, the same instruction the <code>__ldcs</code> intrinsic gives on the memory hierarchy page.</p>
+<h3>Before and after: four ways to write e<sup>x</sup></h3>
+<p>The softmax's exponential is where accuracy and speed trade. The same one-line kernel <code>y[i] = exp(x[i])</code>, four ways <span class="ev cmp">compiled here, sm_90a</span>. Step through them; the arithmetic between the load and the store is all that changes.</p>
+<div class="card" id="cs-expCard">
+<div class="an-ctl" id="cs-expCtl"></div>
+<div class="an-cap" id="cs-expCap"></div>
+<div class="rd-two"><div><div class="small mute">PTX (arithmetic only)</div><pre class="code" id="cs-expP"></pre></div><div><div class="small mute">SASS (arithmetic only)</div><pre class="code" id="cs-expS"></pre></div></div>
+<div class="an-cnt" id="cs-expCnt"></div>
+</div>
+<p>The hardware has one fast exponential, <code>MUFU.EX2</code> (2<sup>x</sup> on the special function unit). <code>expf</code> wraps it in a careful range reduction so the result is accurate to 2 ulp (units in the last place); <code>__expf</code> multiplies by log<sub>2</sub>e and calls it, with three extra instructions that keep tiny results out of the denormal range, and its error grows with the input: 2 + floor(|1.173 x|) ulp ({{CUDA Programming Guide, mathematical functions|https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/mathematical-functions.html}}) <span class="ev pub">documented</span>; inline <code>ex2.approx.ftz</code> drops even those; <code>-use_fast_math</code> turns every <code>expf</code> in the file into the shortest form. FlashAttention-style kernels use the fast form on purpose and fold log<sub>2</sub>e into the softmax scale, so the multiply disappears too.</p>
+</section>
