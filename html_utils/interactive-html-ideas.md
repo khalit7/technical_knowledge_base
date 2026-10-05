@@ -2506,3 +2506,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/python/src/viz_ideas.md`.
 
+### C++: the language, the machine underneath, and reading llama.cpp (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/cpp/src/viz_ideas.md`.
+

@@ -1,0 +1,52 @@
+
+<section id="cl-s8">
+<h2>8. From graph to memory to compute</h2>
+<p><code>llama_process</code> (the C entry point that <code>simple.cpp</code> calls) forwards to a C++ method:</p>
+<div class="cl-ex" data-ex="llama_process"></div>
+<p><code>llama_context::decode</code> splits the batch into micro-batches, finds room for them in the KV cache, and calls <code>process_ubatch</code> for each. This function is the heart of the engine: build the graph (or reuse the last one), allocate memory for it, copy the inputs in, compute.</p>
+<div class="cl-ex" data-ex="process_ubatch"></div>
+<p><b>Graph reuse.</b> Building <span data-clv="v.nodes"></span> nodes and planning their memory costs time, and for the next token the graph is the same except for its inputs. <code>can_reuse</code> checks that the shapes match; if they do, only <code>set_inputs</code> runs. Our run logged <code>graphs reused = <span data-clv="v.graphs_reused"></span></code>: the prompt's graph was built, the first one-token graph was built, and the other 6 decoding steps reused it.</p>
+<p><b>Memory planning.</b> <code>ggml_backend_sched_alloc_graph</code> gives every intermediate tensor an address in one buffer. The allocator (<code>ggml-alloc.c</code>) walks the nodes in order and counts, for each tensor, how many later nodes still read it. When the count reaches zero its memory is released and the next node can take it:</p>
+<div class="cl-ex" data-ex="alloc_refcount"></div>
+<p>Result, from the log: <code>CPU compute buffer size = <span data-clv="v.compute_mib" data-d="2"></span> MiB</code> for every intermediate of a forward pass, against 143 MB of weights. The plan is made once (<code>sched_reserve</code>, at context creation, for the worst case) and reused.</p>
+<div class="cl-py"><div class="t">From Python</div>This is CPython's reference counting, done ahead of time: a tensor is freed when the last operation that uses it has run. PyTorch's caching allocator does it at run time, as tensors go out of scope.</div>
+<p><b>The scheduler and backends.</b> A backend is an object that can run operations on one device. In C, "an object with methods" is a struct of function pointers, one per method, filled in differently by each backend:</p>
+<div class="cl-ex" data-ex="backend_iface"></div>
+<p>The scheduler (<code>ggml_backend_sched</code>) decides which backend runs each node, in passes. The first pass pins a node to the backend that already holds its data; operations on weights go where the weights are:</p>
+<div class="cl-ex" data-ex="sched_assign"></div>
+<p>Then it cuts the graph into <b>splits</b>, runs of consecutive nodes on the same backend, with copies between them. Measured on our model:</p>
+<pre class="cl-o" data-out="out.sched_splits"></pre>
+<p>With repacking off and a 64-token prompt, the graph is cut into <span class="cl-num" data-clv="v.splits_off"></span> pieces: each large matrix product goes to the BLAS backend (Apple's Accelerate) and everything else stays on the CPU backend. For one token (<code>tg bs=1</code>) it is 1 split, because BLAS only takes products of at least 32 rows each way (section 2). With repacking on, the weights live in a buffer only the CPU backend understands, so it is 1 split either way. On the GPU (<code>-ngl 99</code>) the log showed <code>splits = <span data-clv="v.metal_splits"></span></code>: the embedding lookup runs on the CPU, where the embedding table stayed (<span data-clv="v.metal_cpu_mib" data-d="2"></span> MiB), and the rest on Metal.</p>
+<div class="cl-pr"><p class="q"><b>Predict.</b> The 302-split graph runs at 1 thread. Is it faster or slower than the 1-split repacked graph, for a 64-token prompt?</p>
+<button class="cl-rv" data-for="cl-a8">Reveal the real answer</button><div class="cl-ans" id="cl-a8" hidden>Faster: median <span class="cl-num" data-clv="v.pp1_off" data-d="0"></span> tokens/s with repacking off against <span class="cl-num" data-clv="v.pp1_on" data-d="0"></span> with it on (5 runs each, busy laptop; all samples on the {{Run it|#t-cl-run}} tab). Accelerate's matrix product is very fast and does not depend on ggml's thread count. More splits is not always slower; measure.</div></div>
+</section>
+
+<section id="cl-s9">
+<h2>9. The CPU backend: threads, barriers, chunks</h2>
+<p>The CPU backend runs the graph with a pool of threads (4 by default, <code>GGML_DEFAULT_N_THREADS</code>). The design is simple and strict: <b>every thread walks every node</b>; each does its share of that node; then all wait at a <b>barrier</b> (a point no thread passes until all have arrived) before the next node. Here is the loop each thread runs:</p>
+<div class="cl-ex" data-ex="compute_thread"></div>
+<p>Views, reshapes and permutes are skipped (<code>ggml_op_is_empty</code>), so of the <span data-clv="v.nodes"></span> nodes, <span class="cl-num" data-clv="v.real_ops"></span> are real operations: up to <span data-clv="v.real_ops"></span> barriers per token (a few fewer when fused operations run as one). The barrier itself is a few atomic operations; a waiting thread spins instead of sleeping, which is fast when every thread has a core and wasteful when it does not:</p>
+<div class="cl-ex" data-ex="barrier"></div>
+<p>The barriers make the slowest thread set the pace. Inside a node, each operation splits its work with two numbers in <code>params</code>: <code>ith</code>, this thread's index, and <code>nth</code>, the number of threads (the root page's {{Design space|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab quotes the two lines from <code>ops.cpp</code>).</p>
+<p>For matrix products a static split is fragile: if one thread is slow (an efficiency core, or another program takes its core), everyone waits. So the rows are cut into more chunks than threads, and a thread that finishes takes the next chunk from a shared atomic counter. The generic version:</p>
+<div class="cl-ex" data-ex="chunks"></div>
+<p>and the repacked kernel's version, which aims at 4 chunks per thread:</p>
+<div class="cl-ex" data-ex="repack_chunks"></div>
+<p>Measured with call counters (section 10): every decoded token makes <span class="cl-num" data-clv="v.gemv_tok"></span> kernel calls = <span data-clv="v.n_mulmat"></span> matrix products &times; <span data-clv="v.chunks_per_mm" data-d="0"></span> chunks (4 threads &times; 4). The animation shows why chunks help, with one thread made slow on purpose (illustrative durations; the scheme and the 16 chunks are the real ones):</p>
+<div class="card" id="cl-chk">
+<div class="seg" id="cl-chk-m"><button data-m="dyn" class="on">16 chunks, atomic counter</button><button data-m="static">4 fixed shares (one per thread)</button></div>
+<svg id="cl-chk-svg" class="cl-chart" role="img" aria-label="Four threads taking chunks of a matrix product"></svg>
+<div class="an-ctl" id="cl-chk-ctl"></div>
+<div class="an-cap" id="cl-chk-cap"></div>
+</div>
+<p>The atomic operations are <code>memory_order_relaxed</code>: a thread only needs a unique chunk number, not to see other threads' writes in order ({{Part 2|#t-cb-read}}, section 8, threads and atomics). The counters live in the thread pool, each aligned to a cache line:</p>
+<div class="cl-ex" data-ex="threadpool"></div>
+<div class="cl-ex" data-ex="cache_align"></div>
+<div class="co warn"><div class="t">A real mismatch on this machine</div><code>GGML_CACHE_LINE</code> is 64 on every platform, but Part 2 measured <b>128-byte</b> cache lines on this M1 Pro (<a href="#" class="cl-x" data-xt="t-cb-read" data-xs="cb-s8">false-sharing test, section 8</a>). Compiling the struct's own definition and printing the offsets (<code>src/cl/code/threadpool_offsets.sh</code>; the pool is allocated with <code>vm_allocate</code>, so its start is page-aligned):<pre class="cl-o" data-out="out.threadpool"></pre>
+With 128-byte lines, <code>n_graph</code> (byte <span data-clv="tp.n_graph"></span>) and <code>n_barrier</code> (<span data-clv="tp.n_barrier"></span>) share the line from byte 128, and <code>n_barrier_passed</code> (<span data-clv="tp.n_barrier_passed"></span>) and <code>current_chunk</code> (<span data-clv="tp.current_chunk"></span>) share the line from byte 256: the false sharing the alignment was meant to prevent. How much this costs per token was <b>not measured here</b>; it is a reading, not a benchmark.</div>
+<h3>Threads and speed</h3>
+<div class="seg" id="cl-thr-m"><button data-m="tg" class="on">Generating (one token at a time)</button><button data-m="pp">Prompt (64 tokens at once)</button></div>
+<div id="cl-thr" class="cl-chart" role="img" aria-label="Tokens per second against thread count"></div>
+<div class="cl-tip" id="cl-thr-cap">Median of 5 runs of <code>llama-bench</code>; dots are the individual runs. The laptop was busy (load average <span data-clv="v.load_lo" data-d="0"></span> to <span data-clv="v.load_hi" data-d="0"></span> on 10 cores).</div>
+<p>Two lessons, both visible despite the noise. Generation peaks at a few threads: a token reads 143 MB once, so once memory bandwidth is the limit, more threads add barrier waiting, not speed. And 8 threads collapse (<span class="cl-num" data-clv="v.tg8" data-d="0"></span> tokens/s against <span class="cl-num" data-clv="v.tg4" data-d="0"></span> at 4) on a laptop where other programs already used most cores: with a barrier after every node, one thread that loses its core stalls the other seven, at each of hundreds of barriers per token. On a quiet machine the 8-thread number would be much better; on a shared server, set the thread count below the number of free cores.</p>
+</section>

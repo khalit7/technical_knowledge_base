@@ -1,0 +1,34 @@
+<style>
+#t-cl-quant .qb-hex{display:flex;flex-wrap:wrap;gap:3px;margin:8px 0;font:12px/1 ui-monospace,Menlo,Consolas,monospace}
+#t-cl-quant .qb-hex span{border:1px solid var(--line);border-radius:4px;padding:5px 4px;min-width:2.1em;text-align:center;background:var(--soft)}
+#t-cl-quant .qb-hex span.d{background:var(--hl);border-color:var(--c5)}
+#t-cl-quant .qb-hex span.on{outline:2px solid var(--acc)}
+#t-cl-quant .qb-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:8px 0}
+#t-cl-quant .qb-stats>div{border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:var(--bg)}
+#t-cl-quant .qb-stats .k{font-size:11.5px;color:var(--mute)}
+#t-cl-quant .qb-stats .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+</style>
+<div class="tab" id="t-cl-quant" role="tabpanel" hidden>
+<p class="lead">One real block of our model, opened byte by byte, and the same 32 weights quantised two ways. The bytes are the first 34 bytes of <code>blk.0.attn_q.weight</code> in the GGUF file (layer 0's query projection, row 0, weights 0 to 31), read by <code>src/cl/code/quant_demo.py</code>; the arithmetic follows <code>quantize_row_q8_0_ref</code> and <code>quantize_row_q4_0_ref</code> in <code>ggml-quants.c</code>, line for line.</p>
+<h3>The 34 bytes as stored (Q8_0)</h3>
+<div class="qb-hex" id="qb-hex8"></div>
+<p class="small">The first 2 bytes (highlighted) are the scale <code>d</code> as a 16-bit float, little-endian: <code class="cl-mono" id="qb-d8"></code>. Each of the next 32 bytes is one weight as a signed 8-bit integer <code>q</code>; the weight is <code>d &times; q</code>. Tap a byte.</p>
+<div class="cl-tip" id="qb-hextip"></div>
+<h3>Quantise the same 32 weights: Q8_0, then Q4_0</h3>
+<p>The file's weights are already Q8_0, so requantising them as Q8_0 must give back the stored bytes exactly: that is our check that the Python matches ggml (it does). Q4_0 then shows what 4 bits cost on the same input.</p>
+<div class="card" id="qb-card">
+<div class="seg" id="qb-mode"><button data-m="q8" class="on">Q8_0: 34 bytes</button><button data-m="q4">Q4_0: 18 bytes</button></div>
+<svg id="qb-svg" class="cl-chart" role="img" aria-label="32 weights, their quantised values and the error"></svg>
+<div class="an-ctl" id="qb-ctl"></div>
+<div class="an-cap" id="qb-cap"></div>
+<div class="qb-stats" id="qb-stats"></div>
+<div class="qb-hex" id="qb-out"></div>
+</div>
+<p>Over the whole matrix (576 &times; 576 weights, 10,368 blocks), Q4_0 has a relative root-mean-square error of <b><span data-clv="quant.rel_rms_q4_tensor" data-d="4"></span></b> against the Q8_0 weights it was made from: about a tenth of the signal. Methods that keep more accuracy at 4 bits (k-quants, importance matrices) are the {{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}} page's subject; the Reading tab, section 10, shows the change in the model's output.</p>
+<h3>A k-quant block: Q4_K</h3>
+<p>The "K" types group 256 weights into a super-block of 8 sub-blocks of 32. Each sub-block gets its own scale and minimum (<code>x = a &times; q + b</code>), stored in 6 bits each, and those 6-bit numbers are themselves scaled by two 16-bit floats per super-block. The struct, then drawn to scale:</p>
+<div class="cl-ex" data-ex="block_q4_K"></div>
+<svg id="qb-k" class="cl-chart" role="img" aria-label="The 144 bytes of a Q4_K block to scale"></svg>
+<div class="cl-tip" id="qb-ktip">144 bytes for 256 weights: (2 + 2 + 12 + 128) &times; 8 / 256 = 4.5 bits per weight, the same as Q4_0, but with a scale and a minimum per 32 weights instead of a scale alone.</div>
+<div class="cl-ex" data-ex="quant_q4_0"></div>
+</div>

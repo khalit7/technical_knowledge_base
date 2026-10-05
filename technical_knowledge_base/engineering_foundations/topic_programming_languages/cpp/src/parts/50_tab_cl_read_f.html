@@ -1,0 +1,60 @@
+
+<section id="cl-s12">
+<h2>12. The server</h2>
+<p><code>llama-server</code> (in <code>tools/server/</code>, 20,000 lines of C++) serves the model over HTTP with an OpenAI-compatible API. Its central idea: several requests share one context, each in a <b>slot</b>, and every step puts the next token of every active slot into <b>one batch</b> (continuous batching; the idea and its trade-offs are {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}'s). A slot is a C++ struct with owning smart pointers:</p>
+<div class="cl-ex" data-ex="server_slot"></div>
+<p>The step loop calls the same <code>llama_process</code> as <code>simple.cpp</code>, inside a <b>lambda</b> that captures everything by reference (<code>[&amp;]</code>), handed to the task queue so that metrics requests can be answered while the model runs (<a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-lam">Part 1 section 10, Lambdas</a>):</p>
+<div class="cl-ex" data-ex="server_decode"></div>
+<p>A real request to the server started with 2 slots (<code>-np 2</code>) on the CPU:</p>
+<pre class="cl-o" data-out="out.server"></pre>
+<pre class="cl-o" data-out="out.server_log"></pre>
+<p>The same 8 tokens as <code>simple.cpp</code>, about <span class="cl-num" data-clv="v.srv_tg_ms_tok" data-d="1"></span> ms each instead of <span class="cl-num" data-clv="v.tg_ms_tok" data-d="1"></span>: the server adds HTTP, JSON, a task queue and per-token work for streaming and stop strings, and ran on the same busy laptop. A Python service calling it (or the Node and Rust clients on the sibling pages) only sees the JSON.</p>
+<div class="cl-py"><div class="t">From Python</div>This is the role vLLM or Text Generation Inference play in Python land: a scheduler that batches requests around one model. llama-server is the C++ version for a single machine, often a laptop.</div>
+</section>
+
+<section id="cl-s13">
+<h2>13. One token, end to end, timed</h2>
+<p>Put together, the path of one generated token on the CPU (the {{Code tour|#t-cl-tour}} tab animates it, file by file):</p>
+<ol>
+<li><code>simple.cpp</code> puts the token in a batch at the next position and calls <code>llama_process</code>.</li>
+<li><code>llama_context::decode</code> finds a KV cell for it; <code>process_ubatch</code> sees the graph can be reused, so it only writes the token id and position into the input tensors.</li>
+<li>The scheduler hands the graph to the CPU backend; 4 threads walk the <span data-clv="v.real_ops"></span> real operations with a barrier after each.</li>
+<li>Each of the <span data-clv="v.n_mulmat"></span> matrix products quantises its input row to Q8_0 and splits the repacked weight rows into 16 chunks; <code>ggml_gemv_q8_0_4x4_q8_0</code> does the SDOT arithmetic.</li>
+<li>Attention writes this token's K and V into the cache (<code>SET_ROWS</code>) and reads all previous positions through a view (<code>FLASH_ATTN_EXT</code>).</li>
+<li>The output projection produces 49,152 logits, copied out of the graph; the greedy sampler takes the largest; <code>llama_token_to_piece</code> turns the id into text.</li>
+</ol>
+<p>And the clock, from the run of <code>simple.cpp</code> (<code>llama_perf_context_print</code>):</p>
+<div class="tw"><table class="cl-t"><thead><tr><th>Phase</th><th>Measured</th><th>What it is</th></tr></thead><tbody>
+<tr><td>Load</td><td><span class="cl-num" data-clv="v.load_ms" data-d="0"></span> ms</td><td>From the start of model loading to the end of the first evaluation (that is how <code>llama-context.cpp</code> measures it, line 796): read the header, map the file, repack 136 MiB of weights, create the context, plan the graph's memory, and run the prompt</td></tr>
+<tr><td>Prompt (5 tokens)</td><td><span class="cl-num" data-clv="v.pp_ms" data-d="1"></span> ms, <span data-clv="v.pp_ms_tok" data-d="2"></span> ms per token</td><td>One forward pass over all 5 tokens; reading the weights once serves all five rows</td></tr>
+<tr><td>Each next token</td><td><span class="cl-num" data-clv="v.tg_ms_tok" data-d="2"></span> ms (<span data-clv="v.tg_runs"></span> runs)</td><td>One forward pass for one row: every weight read for a single dot product</td></tr>
+</tbody></table></div>
+<p>Per token, the prompt is cheaper than generation because the weights read from memory are reused across five rows (Part 2's {{Roofline|#t-cb-roof}}: more arithmetic per byte). The GPU shows the same split more sharply: on Metal a 64-token prompt ran at <span class="cl-num" data-clv="v.metal_pp" data-d="0"></span> tokens/s, against <span class="cl-num" data-clv="v.pp1_on" data-d="0"></span> on one CPU thread, while generation ran at <span class="cl-num" data-clv="v.metal_tg" data-d="0"></span> tokens/s, slower than the CPU's <span class="cl-num" data-clv="v.tg4" data-d="0"></span>: for a model this small, launching hundreds of tiny GPU kernels per token costs more than the arithmetic. Bigger models change that; measure your own.</p>
+</section>
+
+<section id="cl-s14">
+<h2>14. Mistakes when reading or running llama.cpp</h2>
+<details class="mist"><summary>Reading the generic kernel and assuming it runs</summary><div class="b">The function a guide shows (<code>ggml_vec_dot_*</code>) may run zero times: repacking, llamafile's tinyBLAS, BLAS or a GPU backend may take the product. Count calls, or check the log for <code>repack</code>, <code>splits</code> and <code>offloaded</code> lines (sections 5, 8, 10).</div></details>
+<details class="mist"><summary>Reading shapes in PyTorch order</summary><div class="b"><code>ne[0]</code> is the innermost, contiguous dimension. A weight that PyTorch calls <code>(out, in)</code> is <code>{in, out}</code> in ggml, and <code>ggml_mul_mat(a, b)</code> computes rows of <code>a</code> times rows of <code>b</code> (section 6).</div></details>
+<details class="mist"><summary>Thinking a ggml call computes something</summary><div class="b"><code>ggml_add</code>, <code>ggml_mul_mat</code> and friends only add a node to a graph. Values exist after the graph has been computed; inspect them with an eval callback (<code>llama-eval-callback</code>), not by reading <code>tensor-&gt;data</code> right after the call.</div></details>
+<details class="mist"><summary>Forgetting the default GPU offload</summary><div class="b"><code>simple.cpp</code> and the tools default to offloading every layer (<code>-ngl 99</code> or "auto"). On a Mac that means Metal; if you are studying the CPU path, pass <code>-ngl 0</code> and check the log says no layers were offloaded.</div></details>
+<details class="mist"><summary>Benchmarking on a busy machine, or with too many threads</summary><div class="b">The barrier after every operation turns one descheduled thread into a stall for all. Use <code>llama-bench</code> with repetitions (<code>-r 5</code>), look at every sample, record the load average, and try fewer threads than cores (section 9).</div></details>
+<details class="mist"><summary>Building without Release</summary><div class="b">A Debug build (<code>-O0</code>) is many times slower and teaches nothing about speed. Always <code>-DCMAKE_BUILD_TYPE=Release</code> for timing; keep a Debug build only for stepping through code in a debugger.</div></details>
+<details class="mist"><summary>Trusting log labels</summary><div class="b"><code>model type = 256M</code> for a 135M model (section 5). Logs are written by people; when one looks wrong, grep for its text.</div></details>
+<details class="mist"><summary>Editing the clone you are measuring</summary><div class="b">Instrument a copy (as <code>src/cl/code/instrument.py</code> does) and keep the pinned clone clean, so every excerpt and line number stays true to the commit.</div></details>
+</section>
+
+<section id="cl-s15">
+<h2>Further reading for Part 3, and notes</h2>
+<ul>
+<li>{{Part 1: The language|#t-ca-read}} and {{Part 2: The machine|#t-cb-read}}: everything this tour leaned on.</li>
+<li>{{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} (root page): its Design space tab quotes llama.cpp excerpts from the same commit. 10 minutes.</li>
+<li>{{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}: KV cache, batching, serving, the ideas behind sections 11 and 12. {{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}: the maths of Q8_0, Q4_0 and k-quants. {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}: what <code>ggml-cuda</code> does on NVIDIA GPUs.</li>
+<li><a href="https://github.com/ggml-org/llama.cpp/tree/8e1642198dcd4e408f8776222d6ae31b74d01187" target="_blank" rel="noopener noreferrer">llama.cpp at the pinned commit</a>: start with <code>examples/simple/simple.cpp</code>, then <code>src/llama-context.cpp</code> (<code>process_ubatch</code>), then <code>ggml/src/ggml-cpu/</code>. 2 to 4 hours for a first pass.</li>
+<li><a href="https://github.com/ggml-org/ggml/blob/master/docs/gguf.md" target="_blank" rel="noopener noreferrer">GGUF specification</a> (ggml repository): every type and metadata key. 20 minutes.</li>
+<li><a href="https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md" target="_blank" rel="noopener noreferrer">llama.cpp build guide</a>: every backend's options. 15 minutes.</li>
+<li><a href="https://huggingface.co/blog/introduction-to-ggml" target="_blank" rel="noopener noreferrer">Introduction to ggml</a> (Hugging Face blog, Xuan Son Nguyen): contexts, graphs and backends with a small program. 25 minutes.</li>
+</ul>
+<p class="small mute">Notes. Model: <code class="cl-mono" data-clv="v.model_url"></code>, sha256 <code class="cl-mono" data-clv="v.model_sha"></code>, <span data-clv="v.model_bytes"></span> bytes; repository revision of the model files 2024-10-31. Built with Apple clang 17 (Command Line Tools, macOS 26 SDK), CMake 4.4.4, Ninja; Python 3.13 for the GGUF scripts. Kernel counts come from an instrumented copy built without Metal and BLAS (the CPU path is the same as <code>-ngl 0</code> for these prompt sizes, where BLAS is not used). Not done: profiling with Instruments or <code>perf</code> (Instruments did not start on this machine, as Part 2 reports), and a quiet-machine benchmark. Versions and every command: <code>src/cl/versions.txt</code> and <code>src/cl/run_all.sh</code>.</p>
+</section>
+</div>

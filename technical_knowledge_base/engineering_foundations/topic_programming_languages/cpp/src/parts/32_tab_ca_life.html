@@ -1,0 +1,192 @@
+<div class="tab" id="t-ca-life" role="tabpanel" hidden>
+<h2>Object lifetimes, replayed from real runs</h2>
+<p>Nine short functions, each run once with a class, <code>Tracer</code>, that prints a line whenever one of its objects is constructed, copied, moved, assigned or destroyed. The animation replays that real output line by line: the code on the left (the highlighted line is the one that caused the event, taken from <code>std::source_location</code>), the live objects in the stack and heap columns, and the output below. Compiled with Apple clang 17, <code>-std=c++23 -O2</code>. Read with sections {{4|#t-ca-read}} to {{6|#t-ca-read}} of the Reading.</p>
+<div class="card" id="ca-lf-card">
+<div class="chips" id="ca-lf-seg" role="group" aria-label="Scenario"><button data-m="scope" class="on">Scopes</button><button data-m="copymove">Copy vs move</button><button data-m="calls">Passing and returning</button><button data-m="growth">vector growth, noexcept move</button><button data-m="growth_nx">vector growth, move may throw</button><button data-m="reserve">reserve + emplace_back</button><button data-m="unique">unique_ptr</button><button data-m="shared">shared_ptr</button><button data-m="unwind">Exception unwinding</button></div>
+<div class="small mute" id="ca-lf-what"></div>
+<div id="ca-lf"></div>
+<div class="ca-ctl" id="ca-lf-ctl"></div>
+</div>
+<h3>What to notice</h3>
+<ul>
+<li><b>Scopes:</b> destruction is in reverse order of construction, at each closing brace.</li>
+<li><b>Copy vs move:</b> <code>b = c</code> is an <i>assignment</i> (b already exists), so no object is created; the moved-from <code>a</code> still gets destroyed.</li>
+<li><b>Passing and returning:</b> <code>m</code> is the object constructed inside <code>make()</code> at line 10: returning it cost no copy and no move (copy elision).</li>
+<li><b>vector growth, the two versions:</b> the same three <code>push_back</code> calls, 9 objects either way; with a <code>noexcept</code> move the reallocations move the old elements, without it they copy them. Compare the counters.</li>
+<li><b>reserve + emplace_back:</b> three objects, built directly in the vector's buffer: no temporaries, no moves.</li>
+<li><b>unique_ptr and shared_ptr:</b> one heap object each, never copied; it dies when its last owner lets go.</li>
+<li><b>Exception unwinding:</b> <code>b</code> is destroyed before the <code>catch</code> block runs.</li>
+</ul>
+<details class="mist"><summary>The Tracer class (tracer.h)</summary><div class="b"><div class="ca-src"><div class="ca-fn">tracer.h</div><pre class="ca-code"><span class="ca-cm">// tracer.h: a class that reports every special member function call.</span>
+<span class="ca-cm">// Each object gets a number (#1, #2, ...) and says whether it lives on the stack or the heap.</span>
+<span class="ca-pp">#pragma once</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;cstdlib&gt;</span>
+<span class="ca-pp">#include &lt;cstring&gt;</span>
+<span class="ca-pp">#include &lt;source_location&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;utility&gt;</span>
+
+<span class="ca-kw">inline</span> <span class="ca-kw">const</span> <span class="ca-kw">char</span>* stack_anchor = <span class="ca-kw">nullptr</span>;   <span class="ca-cm">// set to a local's address in main()</span>
+<span class="ca-kw">inline</span> <span class="ca-kw">int</span> next_id = 1;
+
+<span class="ca-kw">inline</span> <span class="ca-kw">const</span> <span class="ca-kw">char</span>* where(<span class="ca-kw">const</span> <span class="ca-kw">void</span>* p) &#123;
+    <span class="ca-kw">long</span> d = <span class="ca-kw">static_cast</span>&lt;<span class="ca-kw">const</span> <span class="ca-kw">char</span>*&gt;(p) - stack_anchor;
+    <span class="ca-kw">return</span> std::labs(d) &lt; (8L &lt;&lt; 20) ? <span class="ca-st">"stack"</span> : <span class="ca-st">"heap"</span>;
+&#125;
+<span class="ca-pp">#define STEP(text) std::printf("@%d %s\n", __LINE__, text)</span>
+<span class="ca-cm">// The line in lifetime.cpp that caused a constructor call (blank when called from inside the library)</span>
+<span class="ca-kw">inline</span> <span class="ca-kw">int</span> at(<span class="ca-kw">const</span> std::source_location&amp; l) &#123;
+    <span class="ca-kw">return</span> std::strstr(l.file_name(), <span class="ca-st">"lifetime.cpp"</span>) ? <span class="ca-kw">static_cast</span>&lt;<span class="ca-kw">int</span>&gt;(l.line()) : 0;
+&#125;
+<span class="ca-kw">using</span> Loc = std::source_location;
+
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">bool</span> NoexceptMove&gt;
+<span class="ca-kw">struct</span> BasicTracer &#123;
+    <span class="ca-kw">int</span> id;
+    std::string name;
+    <span class="ca-kw">explicit</span> BasicTracer(std::string n, Loc l = Loc::current()) : id(next_id++), name(std::move(n)) &#123;
+        std::printf(<span class="ca-st">"ctor #%d %s %s L%d\n"</span>, id, name.c_str(), where(<span class="ca-kw">this</span>), at(l));
+    &#125;
+    BasicTracer(<span class="ca-kw">const</span> BasicTracer&amp; o, Loc l = Loc::current()) : id(next_id++), name(o.name) &#123;
+        std::printf(<span class="ca-st">"copy #%d from #%d %s %s L%d\n"</span>, id, o.id, name.c_str(), where(<span class="ca-kw">this</span>), at(l));
+    &#125;
+    BasicTracer(BasicTracer&amp;&amp; o, Loc l = Loc::current()) <span class="ca-kw">noexcept</span>(NoexceptMove) : id(next_id++), name(std::move(o.name)) &#123;
+        std::printf(<span class="ca-st">"move #%d from #%d %s %s L%d\n"</span>, id, o.id, name.c_str(), where(<span class="ca-kw">this</span>), at(l));
+    &#125;
+    BasicTracer&amp; <span class="ca-kw">operator</span>=(<span class="ca-kw">const</span> BasicTracer&amp; o) &#123;
+        name = o.name;
+        std::printf(<span class="ca-st">"copy= #%d from #%d\n"</span>, id, o.id);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    BasicTracer&amp; <span class="ca-kw">operator</span>=(BasicTracer&amp;&amp; o) <span class="ca-kw">noexcept</span>(NoexceptMove) &#123;
+        name = std::move(o.name);
+        std::printf(<span class="ca-st">"move= #%d from #%d\n"</span>, id, o.id);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    ~BasicTracer() &#123; std::printf(<span class="ca-st">"dtor #%d\n"</span>, id); &#125;
+&#125;;
+<span class="ca-kw">using</span> Tracer = BasicTracer&lt;<span class="ca-kw">true</span>&gt;;     <span class="ca-cm">// move constructor marked noexcept</span>
+<span class="ca-kw">using</span> TracerNX = BasicTracer&lt;<span class="ca-kw">false</span>&gt;;  <span class="ca-cm">// the same class without noexcept</span></pre></div></div></details>
+<details class="mist"><summary>The whole program (lifetime.cpp)</summary><div class="b"><div class="ca-src"><div class="ca-fn">lifetime.cpp</div><pre class="ca-code"><span class="ca-pp">#include "tracer.h"</span>
+<span class="ca-pp">#include &lt;cstring&gt;</span>
+<span class="ca-pp">#include &lt;memory&gt;</span>
+<span class="ca-pp">#include &lt;stdexcept&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-cm">// &lt;helpers&gt;</span>
+<span class="ca-kw">void</span> by_value(Tracer) &#123; STEP(<span class="ca-st">"inside by_value"</span>); &#125;
+<span class="ca-kw">void</span> by_ref(<span class="ca-kw">const</span> Tracer&amp;) &#123; STEP(<span class="ca-st">"inside by_ref"</span>); &#125;
+Tracer make(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* n) &#123; Tracer t&#123;n&#125;; <span class="ca-kw">return</span> t; &#125;
+<span class="ca-cm">// &lt;/helpers&gt;</span>
+
+<span class="ca-cm">// &lt;scope&gt;</span>
+<span class="ca-kw">void</span> scope() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    &#123;
+        Tracer b&#123;<span class="ca-st">"b"</span>&#125;;
+        STEP(<span class="ca-st">"end of inner block"</span>);
+    &#125;
+    Tracer c&#123;<span class="ca-st">"c"</span>&#125;;
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/scope&gt;</span>
+
+<span class="ca-cm">// &lt;copymove&gt;</span>
+<span class="ca-kw">void</span> copymove() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    Tracer b = a;             <span class="ca-cm">// copy constructor</span>
+    Tracer c = std::move(a);  <span class="ca-cm">// move constructor: steals a's string</span>
+    std::printf(<span class="ca-st">"a.name is now \"%s\"\n"</span>, a.name.c_str());
+    b = c;                    <span class="ca-cm">// copy assignment (b already exists)</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/copymove&gt;</span>
+
+<span class="ca-cm">// &lt;calls&gt;</span>
+<span class="ca-kw">void</span> calls() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    by_ref(a);                <span class="ca-cm">// no new object</span>
+    by_value(a);              <span class="ca-cm">// a copy for the parameter</span>
+    by_value(std::move(a));   <span class="ca-cm">// a move for the parameter</span>
+    Tracer m = make(<span class="ca-st">"m"</span>);     <span class="ca-cm">// no copy, no move: built in place</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/calls&gt;</span>
+
+<span class="ca-cm">// &lt;growth&gt;</span>
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">class</span> T&gt;
+<span class="ca-kw">void</span> growth() &#123;
+    std::vector&lt;T&gt; v;
+    v.push_back(T&#123;<span class="ca-st">"x"</span>&#125;);
+    STEP(<span class="ca-st">"capacity 1, now push y"</span>);
+    v.push_back(T&#123;<span class="ca-st">"y"</span>&#125;);
+    STEP(<span class="ca-st">"capacity 2, now push z"</span>);
+    v.push_back(T&#123;<span class="ca-st">"z"</span>&#125;);
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/growth&gt;</span>
+
+<span class="ca-cm">// &lt;reserve&gt;</span>
+<span class="ca-kw">void</span> reserve() &#123;
+    std::vector&lt;Tracer&gt; v;
+    v.reserve(3);             <span class="ca-cm">// one allocation up front</span>
+    v.emplace_back(<span class="ca-st">"x"</span>);      <span class="ca-cm">// built directly inside the vector</span>
+    v.emplace_back(<span class="ca-st">"y"</span>);
+    v.emplace_back(<span class="ca-st">"z"</span>);
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/reserve&gt;</span>
+
+<span class="ca-cm">// &lt;unique&gt;</span>
+<span class="ca-kw">void</span> unique() &#123;
+    <span class="ca-kw">auto</span> p = std::make_unique&lt;Tracer&gt;(<span class="ca-st">"h"</span>);   <span class="ca-cm">// the Tracer lives on the heap</span>
+    std::unique_ptr&lt;Tracer&gt; q = std::move(p);  <span class="ca-cm">// ownership moves; the Tracer does not</span>
+    std::printf(<span class="ca-st">"p is %s, q owns #%d\n"</span>, p ? <span class="ca-st">"set"</span> : <span class="ca-st">"null"</span>, q-&gt;id);
+    q.reset();                                 <span class="ca-cm">// the owner lets go: destroyed now</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/unique&gt;</span>
+
+<span class="ca-cm">// &lt;shared&gt;</span>
+<span class="ca-kw">void</span> shared() &#123;
+    <span class="ca-kw">auto</span> s = std::make_shared&lt;Tracer&gt;(<span class="ca-st">"s"</span>);
+    &#123;
+        std::shared_ptr&lt;Tracer&gt; t = s;         <span class="ca-cm">// a second owner</span>
+        std::printf(<span class="ca-st">"use_count %ld\n"</span>, s.use_count());
+    &#125;
+    std::printf(<span class="ca-st">"use_count %ld\n"</span>, s.use_count());
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/shared&gt;</span>
+
+<span class="ca-cm">// &lt;unwind&gt;</span>
+<span class="ca-kw">void</span> unwind() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    <span class="ca-kw">try</span> &#123;
+        Tracer b&#123;<span class="ca-st">"b"</span>&#125;;
+        <span class="ca-kw">throw</span> std::runtime_error(<span class="ca-st">"boom"</span>);
+        STEP(<span class="ca-st">"never reached"</span>);
+    &#125; <span class="ca-kw">catch</span> (<span class="ca-kw">const</span> std::exception&amp; e) &#123;
+        std::printf(<span class="ca-st">"caught %s\n"</span>, e.what());
+    &#125;
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/unwind&gt;</span>
+
+<span class="ca-kw">int</span> main(<span class="ca-kw">int</span> argc, <span class="ca-kw">char</span>** argv) &#123;
+    <span class="ca-kw">char</span> here;
+    stack_anchor = &amp;here;
+    <span class="ca-kw">const</span> <span class="ca-kw">char</span>* s = argc &gt; 1 ? argv[1] : <span class="ca-st">""</span>;
+    <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"scope"</span>)) scope();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"copymove"</span>)) copymove();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"calls"</span>)) calls();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"growth"</span>)) growth&lt;Tracer&gt;();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"growth_nx"</span>)) growth&lt;TracerNX&gt;();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"reserve"</span>)) reserve();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"unique"</span>)) unique();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"shared"</span>)) shared();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"unwind"</span>)) unwind();
+    std::printf(<span class="ca-st">"@0 back in main\n"</span>);
+&#125;</pre></div></div></details>
+</div>

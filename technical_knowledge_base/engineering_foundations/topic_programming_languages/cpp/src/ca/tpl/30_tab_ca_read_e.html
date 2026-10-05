@@ -1,0 +1,50 @@
+
+<section id="ca-ub">
+<h2>12. Undefined behaviour</h2>
+<p>The C++ standard lists operations whose result it does not define: reading outside an array, reading freed memory, overflowing a signed integer, reading an uninitialised variable, two threads writing the same variable without synchronisation, falling off the end of a function that should return a value, and others. Such a program has <b>undefined behaviour</b> (UB): not "a wrong answer" but no meaning at all. The compiler is allowed to <i>assume UB never happens</i>, and its optimiser uses that assumption to delete checks and simplify code. So a program with UB can work at <code>-O0</code> and break at <code>-O2</code>, or work today and break after a compiler upgrade. This is the deepest difference from Python, where every one of these is either impossible or an exception.</p>
+<p>The classic example: "will <code>x + 1</code> overflow?" written the obvious way.</p>
+[[code:ub/overflow.cpp]]
+<div class="ca-two"><div>[[out:ub_overflow_O0]]</div><div>[[out:ub_overflow_O2]]</div></div>
+<p>At <code>-O0</code> the addition wrapped around to a negative number and the test said 1. At <code>-O2</code> the compiler reasoned "signed overflow cannot happen, so <code>x + 1 &lt; x</code> is always false" and compiled the function to <code>return false</code>. Neither build reported anything. <b>Sanitizers</b> are compiler modes that add run-time checks for UB; UndefinedBehaviorSanitizer (UBSan) catches this one:</p>
+[[out:ub_overflow_san]]
+<p>(Under UBSan the program prints 1 again: the instrumented build computes the addition so it can check it.) The fix is to test before adding: <code>x == INT_MAX</code>, or <code>__builtin_add_overflow</code>, or C++26's <code>&lt;stdckdint.h&gt;</code> checked arithmetic. Unsigned integers do not have this problem: they wrap around by definition.</p>
+<p>A second one, the uninitialised variable, shows how odd UB can look. <code>seen</code> is never set when <code>flag</code> is false:</p>
+[[code:ub/uninit.cpp]]
+<div class="ca-two"><div>[[out:ub_uninit_O0]]</div><div>[[out:ub_uninit_O2]]</div></div>
+<p>The same call printed "not seen" at <code>-O0</code> and "seen" at <code>-O2</code>. The compiler warned, though only with <code>-Wall</code>:</p>
+[[out:ub_uninit_warn]]
+<p>The {{UB gallery|#t-ca-ub}} tab has ten cases (overflow, uninitialised read, out-of-bounds index, off-by-one loop, reference into a reallocated vector, <code>string_view</code> of a temporary, dangling lambda capture, double free, missing return, data race), each with its <code>-O0</code> run, <code>-O2</code> run and the tool that catches it.</p>
+<h3>Your defences</h3>
+<ol>
+<li><b>Warnings</b>: <code>-Wall -Wextra</code> always; <code>-Werror</code> in CI. They caught the uninitialised read, the dangling <code>string_view</code> and the missing return above.</li>
+<li><b>Sanitizers in tests</b>: <code>-fsanitize=address</code> (ASan: out of bounds, use after free, double free), <code>-fsanitize=undefined</code> (UBSan: overflow, bad shifts, missing return), <code>-fsanitize=thread</code> (TSan: data races). They slow the program down (about 2 times for ASan per its {{documentation|https://clang.llvm.org/docs/AddressSanitizer.html}}, 5 to 15 times for TSan per {{its documentation|https://clang.llvm.org/docs/ThreadSanitizer.html}}), so they run in tests, not production. On this Mac Apple's own ASan did not start (the root's Toolchain atlas records it); LLVM clang 23's worked, and every sanitizer report on this page is from it.</li>
+<li><b>A hardened standard library</b>: libc++ can check <code>v[i]</code>, <code>front()</code>, <code>string_view</code> bounds and more, turning silent UB into a trap ({{libc++ hardening|https://libcxx.llvm.org/Hardening.html}}). <code>-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST</code> is meant for production (cheap checks, a silent trap); the <code>_DEBUG</code> mode prints why:</li>
+</ol>
+[[code:ub/index_oob.cpp]]
+<div class="ca-two"><div>[[out:ub_index_oob_O2]]</div><div>[[out:ub_index_oob_hard_dbg]]</div></div>
+<ol start="4">
+<li><b>Initialise everything</b>, or let the compiler do it: <code>-ftrivial-auto-var-init=zero</code> made the uninitialised example print "not seen" at <code>-O2</code>. C++26 makes this the language rule: reading an uninitialised local becomes <b>erroneous behaviour</b>, a defined (wrong) value the implementation may diagnose, instead of UB ({{P2795|https://wg21.link/P2795}}).</li>
+<li><b>Prefer what cannot be misused</b>: <code>.at(i)</code> or a hardened library over raw indexing in non-hot code, smart pointers over <code>new</code>, values over references when lifetimes are unclear.</li>
+</ol>
+<div class="co warn"><div class="t">The honest summary</div>No tool catches all UB, and sanitizers find only what your tests execute. C++ makes you responsible for memory safety; Rust moves most of this list into compile errors (the root page's section 10, and the {{Rust page|n:3c65c17b0d0d8156bed9ead8a22f33b0}}).</div>
+</section>
+
+<section id="ca-libs">
+<h2>13. Libraries: header-only, static, dynamic, and getting them</h2>
+<p>Python has <code>pip install</code> and wheels. C++ has <b>no official package manager</b>, and the reason is technical: a compiled C++ library works with your program only if it was built with a compatible compiler, standard library and flags (the same <b>ABI</b>, application binary interface). A mismatch gives link errors or, worse, silent memory corruption. Shipping prebuilt binaries is therefore much harder than in Python, and the community's historical answer was "build it yourself" or "copy the source in". Three ways a library reaches your program:</p>
+<ul>
+<li><b>Header-only</b>: the whole library is headers (all <code>inline</code> functions and templates), so there is nothing to build or link: nlohmann/json, Catch2, Eigen. It sidesteps packaging and ABI, and costs compile time in every file that includes it.</li>
+<li><b>Static library</b> (<code>.a</code>, <code>.lib</code>): object files copied into your executable at link time, like <code>libtokens.a</code> in section 1. One self-contained binary; every program carries its own copy.</li>
+<li><b>Dynamic (shared) library</b> (<code>.dylib</code>, <code>.so</code>, <code>.dll</code>): loaded when the program starts. Smaller binaries and shared updates, but the library must be present, at a compatible version, on the machine that runs it. Even the small program from section 1 depends on two:</li>
+</ul>
+[[out:b_otool]]
+<p>Ways to get dependencies, oldest to newest (from the old page, still accurate; the root's {{Toolchain atlas|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab compares the four languages' tools):</p>
+<div class="tw"><table><thead><tr><th>Approach</th><th>How</th><th>Good for</th><th>Cost</th></tr></thead><tbody>
+<tr><td>System packages</td><td><code>brew install</code>, <code>apt install libfoo-dev</code>, found with <code>find_package</code> or <code>pkg-config</code></td><td>Quick local work</td><td>Whatever version the system ships; not reproducible</td></tr>
+<tr><td>Vendoring, git submodules</td><td>Copy the source into your repo</td><td>Total control; very common: llama.cpp's <code>vendor/</code> folder holds nlohmann/json, cpp-httplib, stb and miniaudio at the pinned commit</td><td>Manual updates</td></tr>
+<tr><td>CMake <code>FetchContent</code></td><td>Name a git URL and tag in <code>CMakeLists.txt</code>; built with your project</td><td>A handful of dependencies</td><td>No lock file, no binary cache</td></tr>
+<tr><td>vcpkg (Microsoft)</td><td><code>vcpkg.json</code> manifest; builds from source with binary caching; a CMake toolchain file</td><td>New CMake projects</td><td>Another tool to learn</td></tr>
+<tr><td>Conan (JFrog)</td><td>Binary packages described by profiles (compiler, standard library, architecture, build type)</td><td>Enterprises, CI-heavy setups</td><td>Heavier</td></tr>
+</tbody></table></div>
+<p>Keep in mind: the build system (CMake) and the package manager (vcpkg, Conan) are separate tools; there is no lock-file culture like <code>uv.lock</code>, so pin versions and record the toolchain; and two files compiled with different flags that see different definitions of the same thing break the one definition rule, silently. For Python bindings of C++ code, the root page's section 13 and Benchmark tab cover pybind11 and nanobind.</p>
+</section>

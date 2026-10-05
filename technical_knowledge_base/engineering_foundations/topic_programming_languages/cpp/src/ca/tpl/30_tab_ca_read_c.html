@@ -1,0 +1,82 @@
+
+<section id="ca-move">
+<h2>6. Move semantics</h2>
+<p>Copy-by-default has an obvious cost: returning a vector of a million elements, or putting a string into a container, would copy every byte. C++11 added <b>moves</b>: when the source object is about to die anyway, the new object may <i>steal</i> its heap buffer (copy three pointers, set the source's to null) instead of copying the contents.</p>
+<p>The compiler needs to know when stealing is safe. It sorts expressions into two families (simplified):</p>
+<ul>
+<li>an <b>lvalue</b> has a name and an address you can take: <code>a</code>, <code>v[3]</code>, <code>*p</code>. It will be used again, so it must be copied.</li>
+<li>an <b>rvalue</b> is a temporary about to disappear: <code>make_name()</code>, <code>a + b</code>, <code>Tracer{"x"}</code>. It may be moved from.</li>
+</ul>
+<p>A class gets a <b>move constructor</b> <code>T(T&amp;&amp; other)</code> (the <code>&amp;&amp;</code> means "rvalue reference": binds only to things that may be moved from) alongside its copy constructor <code>T(const T&amp; other)</code>, and overload resolution picks one. <b><code>std::move(x)</code> moves nothing.</b> It is a cast that says "treat x as an rvalue; I will not need its value again" ({{cppreference: "exactly equivalent to a static_cast to an rvalue reference type"|https://en.cppreference.com/w/cpp/utility/move}}); the move constructor that it selects does the stealing.</p>
+[[code:lang/lifetime.cpp:26-33]]
+[[pr:lt_copymove|which constructors run, and what is left in a.name?]]
+<p>The moved-from <code>a</code> is still a valid object (its destructor runs, #1, at the end) but its value is unspecified; libc++ leaves the string empty. You may assign to it or destroy it; do not read it. What moving buys, and one trap:</p>
+[[code:lang/moved_from.cpp]]
+[[out:l_moved_from]]
+<p>The million-element vector changed hands in constant time: <code>w</code> owns the very same buffer. The last line is the trap: <code>std::move</code> of a <code>const</code> object silently copies, because a move constructor needs to modify its source.</p>
+
+<h3>When the compiler copies, moves or does neither</h3>
+<p>Passing and returning values is where moves matter most. One rule removes most of the worry: since C++17, returning a temporary, and in practice a local variable, constructs the result directly in the caller's variable, with no copy and no move (<b>copy elision</b>, {{cppreference|https://en.cppreference.com/w/cpp/language/copy_elision}}). So return big objects by value; never write <code>return std::move(local);</code>, which can only prevent elision.</p>
+[[code:lang/lifetime.cpp:8-10]]
+[[code:lang/lifetime.cpp:37-44]]
+[[pr:lt_calls|how many Tracer objects get made in total, and where does m come from?]]
+
+<h3>Why noexcept on a move constructor matters: one vector, two classes</h3>
+<p>A <code>std::vector</code> keeps its elements in one buffer. When the buffer is full, <code>push_back</code> allocates a bigger one, transfers the old elements and frees the old buffer. It would like to <i>move</i> them, but if a move threw an exception halfway, the old buffer would be half-emptied and the vector could not restore it. So the standard library moves only if the move constructor is declared <code>noexcept</code> ("this never throws"); otherwise it copies, to keep its strong exception guarantee ({{std::move_if_noexcept|https://en.cppreference.com/w/cpp/utility/move_if_noexcept}}). The animation runs the same three <code>push_back</code> calls on two versions of Tracer that differ only in that one keyword. Everything shown is the program's real output.</p>
+<div class="card" id="ca-gr-card">
+<div class="seg" id="ca-gr-seg" role="group" aria-label="Which class"><button data-m="growth" class="on">Move is noexcept</button><button data-m="growth_nx">Move without noexcept (before)</button></div>
+<div id="ca-gr"></div>
+<div class="ca-ctl" id="ca-gr-ctl"></div>
+</div>
+<p>With <code>noexcept</code>, each reallocation moves (cheap); without it, the same code copies every existing element on every growth: for a vector of strings, that is a heap allocation and a byte copy per element. The compiler writes a <code>noexcept</code> move constructor for you when every member's is <code>noexcept</code> (the rule of zero, below), which is one more reason not to write them by hand.</p>
+
+<h3>The rule of zero and the rule of five</h3>
+<p>Five special member functions control a class's lifetime: destructor, copy constructor, copy assignment, move constructor, move assignment. The compiler writes all five for you, member by member. That is correct when every member manages itself (<code>std::vector</code>, <code>std::string</code>, <code>std::unique_ptr</code>): the <b>rule of zero</b> says write none of them. A class that owns a raw resource must write all five (the <b>rule of five</b>), because the compiler-written copy would copy the pointer, not the buffer:</p>
+[[code:lang/rule_of_five.cpp:5-35]]
+[[out:l_rule_of_five]]
+<p>Thirty lines of careful code against one line (<code>std::vector&lt;float&gt; data;</code>). Write only a destructor and forget the other four, and copying the object gives two owners of one buffer, freed twice: the {{UB gallery|#t-ca-ub}}'s "double free" case shows the crash, and shows the bug vanishing at <code>-O2</code>, where the compiler removed the allocation altogether.</p>
+<div class="ca-cost"><div><b>Problem it solves</b>Copy-by-default without paying for copies of temporaries and returned values.</div><div><b>What it costs</b>The rules (value categories, <code>noexcept</code>, moved-from states) are the hardest part of the language to learn.</div><div><b>Common mistakes</b>Using an object after <code>std::move</code>; <code>return std::move(x)</code>; a hand-written move constructor without <code>noexcept</code>; moving from <code>const</code>.</div></div>
+</section>
+
+<section id="ca-class">
+<h2>7. Classes, operators, inheritance and virtual functions</h2>
+<p>A <code>class</code> and a <code>struct</code> are the same thing except for the default: <code>struct</code> members are public, <code>class</code> members private. Python's conventions become rules the compiler checks: <code>private</code> really is private, <code>const</code> methods really cannot modify the object, and members must be declared with their types.</p>
+[[code:lang/classes.cpp]]
+[[out:l_classes]]
+<ul>
+<li><b>Member initialiser list</b> (<code>: user_(...), tokens_(...)</code>): members are constructed there, before the body runs, in the order they are <i>declared</i> in the class (not the order you list them; clang warns when they differ).</li>
+<li><b><code>explicit</code></b> forbids using the constructor as a silent conversion. Without it, any function taking a <code>Usage</code> would accept a <code>std::string</code> and build a <code>Usage</code> behind your back:</li>
+</ul>
+[[out:l_explicit_err]]
+<ul>
+<li><b>Operator overloading</b>: <code>operator+=</code> and <code>operator+</code> are ordinary functions with special names, like Python's <code>__iadd__</code> and <code>__add__</code>. <code>operator&lt;=&gt;</code> = <code>default</code> (C++20, "spaceship") generates all six comparisons, member by member, like <code>@dataclass(order=True)</code>.</li>
+</ul>
+<h3>Inheritance and virtual functions</h3>
+<p>A <b>virtual</b> function is chosen at run time by the object's actual type, like every method call in Python. A non-virtual one is chosen at compile time by the declared type, and can be inlined. Making a function virtual adds a hidden pointer to every object (the <b>vtable pointer</b>, pointing to a table of function addresses for that class): the <code>Virtual</code> struct above measured 16 bytes against 8. <code>= 0</code> makes a function <b>pure virtual</b>: the class is abstract, like a Python ABC.</p>
+[[code:lang/virtual.cpp]]
+[[out:l_virtual]]
+<p>What a virtual call costs here: the same sum over 10 million objects, called three ways (best of 7 runs, the laptop's load average printed first):</p>
+[[code:lang/vcost.cpp:7-9]][[code:lang/vcost.cpp:24-35]]
+[[out:t_vcost]]
+<p>The virtual call itself (a vs b) roughly doubled the time per object, mostly because the compiler cannot inline a call it cannot predict; storing the values flat (c) helped again, because the CPU reads memory in order ({{Part 2|#t-cb-read}} explains why). A few nanoseconds per call is nothing for a call per request and a lot for a call per element of a tensor. That is why performance code uses templates (section 8) instead of virtual functions in hot loops, and keeps data in flat arrays.</p>
+<p>Two inheritance traps, both silent:</p>
+<div class="ca-two"><div>[[code:lang/slicing.cpp:12-19]][[out:l_slicing]]</div><div>[[code:lang/nonvirtual_dtor.cpp]][[out:l_nonvirtual_dtor]]</div></div>
+<p><b>Slicing</b>: passing a <code>Derived</code> by value as a <code>Base</code> copies only the base part; the copy forgets it was a <code>Derived</code>. Pass polymorphic objects by reference or pointer. <b>Non-virtual destructor</b>: deleting a <code>Derived</code> through a <code>Base*</code> ran only <code>~Base</code>, so the 400-byte buffer leaked; formally it is undefined behaviour. A base class meant for polymorphic use needs <code>virtual ~Base() = default;</code>.</p>
+<div class="ca-cost"><div><b>Problem it solves</b>Types with invariants, natural syntax for maths types, run-time polymorphism.</div><div><b>What it costs</b>Virtual: 8 bytes per object and an indirect, non-inlinable call.</div><div><b>Common mistakes</b>Missing <code>explicit</code> on one-argument constructors; slicing; non-virtual base destructor; forgetting <code>override</code> (it makes the compiler check that you really override something).</div></div>
+</section>
+
+<section id="ca-tmpl">
+<h2>8. Templates and concepts</h2>
+<p>Python functions accept anything with the right methods (duck typing), checked when the line runs. A C++ <b>template</b> is a pattern from which the compiler writes a separate function or class for each type you use it with (<b>instantiation</b>, or monomorphisation), checked at compile time. The generated code is as fast as if you had written each version by hand: no boxing, no dispatch.</p>
+[[code:lang/templates.cpp]]
+[[out:l_templates]]
+<p>One template, three real functions in the object file:</p>
+[[out:l_templates_nm]]
+<p>The cost shows up when the type does not fit. Without constraints, the error appears deep inside the template body, at the line that failed, and the compiler explains the whole chain of instantiations that led there. For a small template that is readable; for a standard algorithm it is not. Here is <code>std::sort</code> on a struct with no <code>&lt;</code>, against C++20's <code>std::ranges::sort</code>, which states its requirements as <b>concepts</b>:</p>
+[[out:l_sort_err_count]]
+<p>A <b>concept</b> is a named, compile-time predicate on types. Using it in a template's signature makes the compiler check it at the call, and the error names the requirement that failed:</p>
+[[code:lang/concept_err.cpp]]
+[[out:l_concept_err]]
+<div class="ca-py"><div class="t">Python bridge</div>A concept is like a <code>typing.Protocol</code> that the compiler enforces at every call, and a template is like a generic function where the type checker is the compiler. The difference: Python runs one function for all types; C++ compiles one per type, which costs compile time and binary size.</div>
+<div class="ca-cost"><div><b>Problem it solves</b>Generic code at full speed (the standard library is almost all templates).</div><div><b>What it costs</b>Compile time, binary size, and template code must live in headers (the compiler needs the body to instantiate it).</div><div><b>Common mistakes</b>Unconstrained templates with unreadable errors; heavy template metaprogramming where a plain function would do.</div></div>
+</section>

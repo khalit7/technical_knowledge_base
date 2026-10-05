@@ -1,0 +1,54 @@
+<style>
+[id^="t-cb-"] pre{margin:6px 0;border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow:auto;max-height:420px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;tab-size:4;white-space:pre;background:var(--soft)}
+[id^="t-cb-"] pre.cb-o{background:var(--bg);border-style:dashed}
+[id^="t-cb-"] .cb-cm{color:var(--mute)}
+[id^="t-cb-"] .cb-lbl{font-size:11.5px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin:10px 0 0}
+[id^="t-cb-"] .cb-py{border-left:3px solid var(--c3);background:var(--soft);padding:8px 12px;border-radius:0 6px 6px 0;margin:10px 0;font-size:14px}
+[id^="t-cb-"] .cb-py .t{font-weight:600;font-size:13px;margin-bottom:2px;color:var(--good)}
+[id^="t-cb-"] .cb-pr{border:1px solid var(--acc);border-radius:8px;padding:8px 12px;margin:12px 0}
+[id^="t-cb-"] .cb-pr .q{color:var(--ink);font-size:14px;margin:0 0 6px}
+[id^="t-cb-"] .cb-pr .q b:first-child{color:var(--acc)}
+[id^="t-cb-"] .cb-rv{font-size:13px}
+[id^="t-cb-"] .seg{flex-wrap:wrap;max-width:100%}
+[id^="t-cb-"] .cb-ans{margin-top:6px}
+[id^="t-cb-"] .cb-num{font-weight:600;font-variant-numeric:tabular-nums}
+[id^="t-cb-"] .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+[id^="t-cb-"] .an-ctl input[type=range]{flex:1 1 120px;min-width:100px}
+[id^="t-cb-"] .an-play{min-width:6.4em}
+[id^="t-cb-"] .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:14px}
+[id^="t-cb-"] .cb-src{font-size:12px;color:var(--mute);margin:2px 0 8px}
+[id^="t-cb-"] table.cb-t td,[id^="t-cb-"] table.cb-t th{font-size:13px}
+[id^="t-cb-"] .cb-chart{width:100%;min-height:120px}
+[id^="t-cb-"] .cb-tip{font-size:12.5px;color:var(--mute);min-height:1.5em}
+[id^="t-cb-"] .cb-mach{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+[id^="t-cb-"] .cb-lv{border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--bg);font-size:13px;line-height:1.35}
+[id^="t-cb-"] .cb-lv b{display:block;font-size:13.5px}
+[id^="t-cb-"] .cb-lv .s{color:var(--mute);font-size:12px}
+@media (max-width:520px){[id^="t-cb-"] pre{font-size:11px}#cb-s0 thead{display:none}#cb-s0 tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}#cb-s0 td{display:block;border:0;padding:1px 4px}#cb-s0 td:first-child{font-weight:600}#cb-s0 td:last-child{color:var(--mute)}#cb-s0 code{overflow-wrap:anywhere}}
+</style>
+<div class="tab" id="t-cb-read" role="tabpanel" hidden>
+<p class="lead">Python hides the machine. C++ hands it to you: the same loop can be 50 times faster or slower depending on where its data sits, how the compiler translated it and what other cores are doing. This part teaches what the processor and memory actually do, with every number measured on this laptop (an Apple M1 Pro, 8 performance cores and 2 efficiency cores, macOS 27) by small C++ programs you can read in full.</p>
+<p class="small mute">About 40 minutes. Every output block is the real output, recorded on 2026-10-05 with Apple clang 17 (and LLVM clang 23 for ThreadSanitizer); timings are the first of three runs, with the spread of all three given beside them. The laptop was in normal use (load average about 5 to 12 on 10 cores during the runs), so treat the second digit of any timing as noise. Sources and the scripts that reproduce everything: <code>src/cb/</code> in the repository.</p>
+<nav class="nav" id="cb-nav" aria-label="Sections of Part 2"><a href="#cb-s0">In one screen</a><a href="#cb-s1">Memory hierarchy</a><a href="#cb-s2">Cache lines</a><a href="#cb-s3">Data layout</a><a href="#cb-s4">Pages and mmap</a><a href="#cb-s5">Compiler's view</a><a href="#cb-s6">SIMD</a><a href="#cb-s7">Branches</a><a href="#cb-s8">Threads and atomics</a><a href="#cb-s9">Roofline</a><a href="#cb-s10">Allocation</a><a href="#cb-s11">Profiling</a><a href="#cb-s12">ABI</a><a href="#cb-s13">To the GPU</a><a href="#cb-s14">Mistakes</a><a href="#cb-s15">Further reading</a></nav>
+
+<section id="cb-s0">
+<h2>In one screen</h2>
+<p>Each row is one idea of this part, the number that shows it (measured here) and what it changes in the code you write.</p>
+<div class="tw"><table class="cb-t">
+<thead><tr><th>Idea</th><th>Measured on this M1 Pro</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><a href="#cb-s1">Memory is a ladder of caches</a></td><td>A load takes <span class="cb-num" data-cbv="ladder.random.0.pts.3.1" data-d="2"></span> ns from L1 and about <span class="cb-num" data-cbv="ladder.random.0.pts.34.1" data-d="0"></span> ns from DRAM when the address is unpredictable</td><td>Keep the working set small; reuse data while it is hot</td></tr>
+<tr><td><a href="#cb-s2">Memory moves in 128-byte lines</a></td><td>Summing a matrix by columns is <span class="cb-num" data-cbv="rowcol.v.ratio.runs.0" data-d="0"></span>x slower than by rows</td><td>Walk memory in the order it is laid out</td></tr>
+<tr><td><a href="#cb-s3">Layout decides what you read</a></td><td>Struct of arrays is <span class="cb-num" data-cbratio="aos.v.i_aos.runs.0|aos.v.i_soa.runs.0"></span>x faster than array of structs for one field of eight</td><td>Group the fields that are used together</td></tr>
+<tr><td><a href="#cb-s4">Addresses are virtual; memory comes in 16 KB pages</a></td><td>A page fault costs about <span class="cb-num" data-cbv="mmap.v.fault_us.runs.0" data-d="2"></span> microseconds; mapping a 512 MB file costs almost nothing until it is touched</td><td>mmap big read-only files (as llama.cpp does)</td></tr>
+<tr><td><a href="#cb-s5">The compiler rewrites your code</a></td><td>At -O2 a loop of n calls became a formula with no loop</td><td>Read the assembly before guessing</td></tr>
+<tr><td><a href="#cb-s6">SIMD: one instruction, four floats</a></td><td>Dot product: <span class="cb-num" data-cbratio="dot.v.l1_scalar.runs.0|dot.v.l1_neon.runs.0" data-d="0"></span>x faster with NEON and independent accumulators</td><td>Let the compiler vectorise (and know when it cannot)</td></tr>
+<tr><td><a href="#cb-s7">The processor guesses branches</a></td><td>Unpredictable branch: <span class="cb-num" data-cbv="br_keep.v.r.runs.0" data-d="1"></span>x slower than the same loop on sorted data</td><td>Make branches predictable or remove them</td></tr>
+<tr><td><a href="#cb-s8">Cores see memory in different orders</a></td><td>Relaxed atomics: <span class="cb-num" data-cbv="litmus.v.relaxed.runs.0" data-d="0"></span> reordered messages in 52 million; false sharing: <span class="cb-num" data-cbratio="fs.v.b8.runs.0|fs.v.b128.runs.0" data-d="0"></span>x slower</td><td>Release/acquire to publish data; one cache line per hot counter</td></tr>
+<tr><td><a href="#cb-s9">Most code is memory-bound</a></td><td>Matrix-vector product: <span class="cb-num" data-cbv="roof.v.mv1.runs.0"></span> GFLOP/s of a <span class="cb-num" data-cbv="roof.v.p1.runs.0" data-d="0"></span> GFLOP/s core</td><td>Count bytes, not FLOPs, for LLM decode</td></tr>
+<tr><td><a href="#cb-s10">Allocation is a hidden cost</a></td><td>10 M separate heap objects: <span class="cb-num" data-cbratio="alloc.v.box.runs.0|alloc.v.res.runs.0" data-d="0"></span>x slower than one reserved vector</td><td>reserve(); store values, not pointers</td></tr>
+<tr><td><a href="#cb-s11">Measure, with counters</a></td><td>Column walk: <span class="cb-num" data-cbv="profile.v.ipc_c.runs.0" data-d="2"></span> instructions per cycle against <span class="cb-num" data-cbv="profile.v.ipc_r.runs.0" data-d="2"></span></td><td>Profile first; microbenchmarks mislead</td></tr>
+<tr><td><a href="#cb-s12">The ABI is a binary contract</a></td><td><code>dot(const float*, ...)</code> is the symbol <code>__ZN9ggml_like3dotEPKfS1_i</code></td><td><code>extern "C"</code> at language boundaries</td></tr>
+</tbody></table></div>
+<div class="cb-py"><div class="t">The bridge from Python</div>In Python, <code>total += x</code> inside a loop costs tens of nanoseconds whatever the data looks like, because the interpreter's own work dwarfs the memory access (the root page's {{Reading, section 2|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} counts 29 bytecode instructions per character). Once a loop compiles to a handful of machine instructions, as in C++, Rust or inside NumPy, the memory system is what is left, and everything below starts to matter. That is also why <code>numpy.sum</code> on a contiguous array is fast and on a strided view can be much slower.</div>
+</section>

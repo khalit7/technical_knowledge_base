@@ -1,0 +1,71 @@
+commit 8e1642198dcd4e408f8776222d6ae31b74d01187
+=== ggml/src/ggml-cpu/simd-mappings.h:331-345
+#elif defined(__ARM_NEON) && defined(__ARM_FEATURE_FMA) && defined(__ARM_FP16_FORMAT_IEEE)
+
+#define GGML_SIMD
+
+// F32 NEON
+
+#define GGML_F32_STEP 16
+#define GGML_F32_EPR  4
+
+#define GGML_F32x4              float32x4_t
+#define GGML_F32x4_ZERO         vdupq_n_f32(0.0f)
+#define GGML_F32x4_SET1(x)      vdupq_n_f32(x)
+#define GGML_F32x4_LOAD         vld1q_f32
+#define GGML_F32x4_STORE        vst1q_f32
+#define GGML_F32x4_FMA(a, b, c) vfmaq_f32(a, b, c)
+=== ggml/src/ggml-cpu/vec.cpp:104-126
+        const int np = (n & ~(GGML_F32_STEP - 1));
+
+        GGML_F32_VEC sum[GGML_F32_ARR] = { GGML_F32_VEC_ZERO };
+
+        GGML_F32_VEC ax[GGML_F32_ARR];
+        GGML_F32_VEC ay[GGML_F32_ARR];
+
+        for (int i = 0; i < np; i += GGML_F32_STEP) {
+            for (int j = 0; j < GGML_F32_ARR; j++) {
+                ax[j] = GGML_F32_VEC_LOAD(x + i + j*GGML_F32_EPR);
+                ay[j] = GGML_F32_VEC_LOAD(y + i + j*GGML_F32_EPR);
+
+                sum[j] = GGML_F32_VEC_FMA(sum[j], ax[j], ay[j]);
+            }
+        }
+
+        // reduce sum0..sum3 to sum0
+        GGML_F32_VEC_REDUCE(sumf, sum);
+
+        // leftovers
+        for (int i = np; i < n; ++i) {
+            sumf += x[i]*y[i];
+        }
+=== ggml/src/ggml-cpu/ops.h:8-18
+// TODO: rework CACHE_LINE_SIZE so std::hardware_destructive_interference_size
+// can be used consistently between C and C++ TUs; the previous macro form
+// diverged based on include order and undersized the work buffer.
+// ref: https://github.com/ggml-org/llama.cpp/pull/28882
+#if defined(__POWER9_VECTOR__)
+#define CACHE_LINE_SIZE 128
+#elif defined(__VXE__) || defined(__VXE2__)
+#define CACHE_LINE_SIZE 256
+#else
+#define CACHE_LINE_SIZE 64
+#endif
+=== src/llama-mmap.cpp:482-498
+    impl(struct llama_file * file, size_t prefetch, bool numa, const llama_mmap::ranges & lazy_ranges) {
+        size = file->size();
+        int fd = file->file_id();
+        int flags = MAP_SHARED;
+        if (numa) { prefetch = 0; }
+#ifdef __linux__
+        if (posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL)) {
+            LLAMA_LOG_WARN("warning: posix_fadvise(.., POSIX_FADV_SEQUENTIAL) failed: %s\n",
+                    strerror(errno));
+        }
+        // MAP_POPULATE would fault in the lazy ranges too
+        if (prefetch && lazy_ranges.empty()) { flags |= MAP_POPULATE; }
+#endif
+        addr = mmap(NULL, file->size(), PROT_READ, flags, fd, 0);
+        if (addr == MAP_FAILED) {
+            throw std::runtime_error(format("mmap failed: %s", strerror(errno)));
+        }

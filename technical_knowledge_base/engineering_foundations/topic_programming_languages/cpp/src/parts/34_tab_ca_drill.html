@@ -1,0 +1,223 @@
+<div class="tab" id="t-ca-drill" role="tabpanel" hidden>
+<style>
+.ca-q{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
+.ca-q .qq{font-weight:600;margin:0 0 6px}
+.ca-ch{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.ca-ch button{white-space:pre;font:12.5px ui-monospace,Menlo,Consolas,monospace;text-align:left}
+.ca-ch button.right{border-color:var(--good);background:var(--open2)}.ca-ch button.wrong{border-color:var(--bad);text-decoration:line-through}
+.ca-ans{display:none}.ca-q.done .ca-ans{display:block}
+.ca-why{font-size:13.5px;margin:4px 0}
+#ca-dr-score{font-weight:600}
+</style>
+<h2>Predict the output</h2>
+<p>Twelve programs from this part. Read the code, pick what you think it prints, and the real recorded output appears with the reason. Score: <span id="ca-dr-score">0 of 0</span>. <button id="ca-dr-reset">Start again</button></p>
+
+<div class="ca-q"><p class="qq">1. After b.push_back(4), what are the sizes? (Reading 2)</p><div class="ca-src"><div class="ca-fn">copy.cpp (lines 4 to 8)</div><pre class="ca-code"><span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; a&#123;1, 2, 3&#125;;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; b = a;    <span class="ca-cm">// a COPY: b gets its own three ints</span>
+    b.push_back(4);
+    std::printf(<span class="ca-st">"a has %zu, b has %zu\n"</span>, a.size(), b.size());</pre></div>
+<div class="ca-ch"><button>a has 4, b has 4</button><button>a has 3, b has 4</button><button>a has 3, b has 3</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_copy"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra copy.cpp -o copy &amp;&amp; ./copy</span>
+a has 3, b has 4
+a has 4 after r.push_back
+a has 5 after p-&gt;push_back; p == &amp;a is 1
+p is now null</pre><p class="ca-why"><code>auto b = a</code> copies the vector. Python's <code>b = a</code> would have aliased it (4 and 4).</p></div></div>
+
+<div class="ca-q"><p class="qq">2. Which object is destroyed last? (Reading 4)</p><div class="ca-src"><div class="ca-fn">lifetime.cpp (lines 14 to 22)</div><pre class="ca-code"><span class="ca-kw">void</span> scope() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    &#123;
+        Tracer b&#123;<span class="ca-st">"b"</span>&#125;;
+        STEP(<span class="ca-st">"end of inner block"</span>);
+    &#125;
+    Tracer c&#123;<span class="ca-st">"c"</span>&#125;;
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;</pre></div>
+<div class="ca-ch"><button>dtor #2
+dtor #3</button><button>dtor #3
+dtor #1</button><button>dtor #1
+dtor #3</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="lt_scope"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp -o lifetime &amp;&amp; ./lifetime scope</span>
+ctor #1 a stack L15
+ctor #2 b stack L17
+@18 end of inner block
+dtor #2
+ctor #3 c stack L20
+@21 end of function
+dtor #3
+dtor #1
+@0 back in main</pre><p class="ca-why">Reverse order of construction: c (#3) then a (#1); b (#2) died earlier at its own brace.</p></div></div>
+
+<div class="ca-q"><p class="qq">3. What is in a.name after the move? (Reading 6)</p><div class="ca-src"><div class="ca-fn">lifetime.cpp (lines 26 to 33)</div><pre class="ca-code"><span class="ca-kw">void</span> copymove() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    Tracer b = a;             <span class="ca-cm">// copy constructor</span>
+    Tracer c = std::move(a);  <span class="ca-cm">// move constructor: steals a's string</span>
+    std::printf(<span class="ca-st">"a.name is now \"%s\"\n"</span>, a.name.c_str());
+    b = c;                    <span class="ca-cm">// copy assignment (b already exists)</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;</pre></div>
+<div class="ca-ch"><button>a.name is now "a"</button><button>a.name is now ""</button><button>a crash</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="lt_copymove"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp -o lifetime &amp;&amp; ./lifetime copymove</span>
+ctor #1 a stack L27
+copy #2 from #1 a stack L28
+move #3 from #1 a stack L29
+a.name is now ""
+copy= #2 from #3
+@32 end of function
+dtor #3
+dtor #2
+dtor #1
+@0 back in main</pre><p class="ca-why">c's move constructor took a's string; libc++ leaves the source empty. The standard only promises "valid but unspecified".</p></div></div>
+
+<div class="ca-q"><p class="qq">4. Which constructor builds m? (Reading 6)</p><div class="ca-src"><div class="ca-fn">lifetime.cpp (lines 8 to 10)</div><pre class="ca-code"><span class="ca-kw">void</span> by_value(Tracer) &#123; STEP(<span class="ca-st">"inside by_value"</span>); &#125;
+<span class="ca-kw">void</span> by_ref(<span class="ca-kw">const</span> Tracer&amp;) &#123; STEP(<span class="ca-st">"inside by_ref"</span>); &#125;
+Tracer make(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* n) &#123; Tracer t&#123;n&#125;; <span class="ca-kw">return</span> t; &#125;</pre></div><div class="ca-src"><div class="ca-fn">lifetime.cpp (lines 42 to 42)</div><pre class="ca-code">    Tracer m = make(<span class="ca-st">"m"</span>);     <span class="ca-cm">// no copy, no move: built in place</span></pre></div>
+<div class="ca-ch"><button>move #5 from #4</button><button>copy #5 from #4</button><button>ctor #4 m stack L10</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="lt_calls"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp -o lifetime &amp;&amp; ./lifetime calls</span>
+ctor #1 a stack L38
+@9 inside by_ref
+copy #2 from #1 a stack L40
+@8 inside by_value
+dtor #2
+move #3 from #1 a stack L41
+@8 inside by_value
+dtor #3
+ctor #4 m stack L10
+@43 end of function
+dtor #4
+dtor #1
+@0 back in main</pre><p class="ca-why">Copy elision: the local t in make() is built directly in m's place (note L10: the constructor ran at line 10, inside make). No copy, no move.</p></div></div>
+
+<div class="ca-q"><p class="qq">5. threshold changes to 100 after both lambdas were made. What do they return for 50? (Reading 10)</p><div class="ca-src"><div class="ca-fn">lambdas.cpp (lines 6 to 10)</div><pre class="ca-code">    <span class="ca-kw">int</span> threshold = 10;
+    <span class="ca-kw">auto</span> by_value = [threshold](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n &gt; threshold; &#125;;   <span class="ca-cm">// copies threshold now</span>
+    <span class="ca-kw">auto</span> by_ref   = [&amp;threshold](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n &gt; threshold; &#125;;  <span class="ca-cm">// refers to the variable</span>
+    threshold = 100;
+    std::printf(<span class="ca-st">"by_value(50)=%d by_ref(50)=%d\n"</span>, by_value(50), by_ref(50));</pre></div>
+<div class="ca-ch"><button>by_value(50)=1 by_ref(50)=1</button><button>by_value(50)=1 by_ref(50)=0</button><button>by_value(50)=0 by_ref(50)=0</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_lambdas"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lambdas.cpp -o lambdas &amp;&amp; ./lambdas</span>
+by_value(50)=1 by_ref(50)=0
+counter() -&gt; 3, outer calls still 0
+twice(21)=42 twice(1.5)=3.0
+sizeof: no capture 1, one int 4, one reference 8
+sizeof(std::function) 32</pre><p class="ca-why">By value froze threshold at 10; by reference sees 100.</p></div></div>
+
+<div class="ca-q"><p class="qq">6. How many numbers get squared? (Reading 9)</p><div class="ca-src"><div class="ca-fn">ranges.cpp (lines 5 to 13)</div><pre class="ca-code"><span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; counts&#123;12, 0, 7, 31, 0, 5, 18&#125;;
+    <span class="ca-cm">// A lazy pipeline: nothing runs until the loop pulls values (like a Python generator)</span>
+    <span class="ca-kw">auto</span> pipeline = counts
+        | std::views::filter([](<span class="ca-kw">int</span> n) &#123; std::printf(<span class="ca-st">"  filter %d\n"</span>, n); <span class="ca-kw">return</span> n &gt; 0; &#125;)
+        | std::views::transform([](<span class="ca-kw">int</span> n) &#123; std::printf(<span class="ca-st">"  square %d\n"</span>, n); <span class="ca-kw">return</span> n * n; &#125;)
+        | std::views::take(2);
+    std::printf(<span class="ca-st">"pipeline built, nothing computed yet\n"</span>);
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> x : pipeline) std::printf(<span class="ca-st">"got %d\n"</span>, x);</pre></div>
+<div class="ca-ch"><button>got 144
+  filter 0
+  filter 7
+  square 7
+got 49
+  filter 31</button><button>got 144
+got 961</button><button>got 144
+got 49
+  square 31</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_ranges"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra ranges.cpp -o ranges &amp;&amp; ./ranges</span>
+pipeline built, nothing computed yet
+  filter 12
+  square 12
+got 144
+  filter 0
+  filter 7
+  square 7
+got 49
+  filter 31
+evens: 5 values, last 10</pre><p class="ca-why">Lazy: 12 and 7 were squared; 31 was filtered while take advanced, never squared; 5 and 18 were never touched.</p></div></div>
+
+<div class="ca-q"><p class="qq">7. A vector starts empty. At which size does the capacity first reach 16? (Reading 9)</p><div class="ca-src"><div class="ca-fn">vector_growth.cpp (lines 5 to 13)</div><pre class="ca-code">    std::vector&lt;<span class="ca-kw">int</span>&gt; v;
+    std::size_t last = v.capacity();
+    std::printf(<span class="ca-st">"size 0 capacity %zu\n"</span>, last);
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> i = 0; i &lt; 1000; ++i) &#123;
+        v.push_back(i);
+        <span class="ca-kw">if</span> (v.capacity() != last) &#123;     <span class="ca-cm">// a new, bigger buffer: everything was moved</span>
+            last = v.capacity();
+            std::printf(<span class="ca-st">"size %zu capacity %zu\n"</span>, v.size(), last);
+        &#125;</pre></div>
+<div class="ca-ch"><button>size 16 capacity 16</button><button>size 9 capacity 16</button><button>size 11 capacity 16</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_vector_growth"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra vector_growth.cpp -o vector_growth &amp;&amp; ./vector_growth</span>
+size 0 capacity 0
+size 1 capacity 1
+size 2 capacity 2
+size 3 capacity 4
+size 5 capacity 8
+size 9 capacity 16
+size 17 capacity 32
+size 33 capacity 64
+size 65 capacity 128
+size 129 capacity 256
+size 257 capacity 512
+size 513 capacity 1024</pre><p class="ca-why">libc++ doubles: 8 is full at size 8, so the 9th push_back allocates 16. (MSVC's growth factor differs; never rely on it.)</p></div></div>
+
+<div class="ca-q"><p class="qq">8. Does per_user["u0099"] change the map? (Reading 9)</p><div class="ca-src"><div class="ca-fn">containers.cpp (lines 21 to 23)</div><pre class="ca-code">    std::printf(<span class="ca-st">"contains u0099? %d (contains() does not insert)\n"</span>, per_user.contains(<span class="ca-st">"u0099"</span>));
+    <span class="ca-kw">long</span>&amp; ref = per_user[<span class="ca-st">"u0099"</span>];                    <span class="ca-cm">// operator[] DOES insert</span>
+    std::printf(<span class="ca-st">"after per_user[\"u0099\"]: size %zu, value %ld\n"</span>, per_user.size(), ref);</pre></div>
+<div class="ca-ch"><button>after per_user["u0099"]: size 3, value 0</button><button>after per_user["u0099"]: size 4, value 0</button><button>an exception: key not found</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_containers"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra containers.cpp -o containers &amp;&amp; ./containers</span>
+contains u0099? 0 (contains() does not insert)
+after per_user["u0099"]: size 4, value 0
+u0029 18
+u0042 9
+u0005 8
+u0099 0
+sum(v)=14 sum(arr)=17 sum(first 2 of v)=4</pre><p class="ca-why">operator[] inserts a zero for a missing key. Python's dict raises KeyError; C++ silently grows.</p></div></div>
+
+<div class="ca-q"><p class="qq">9. A const string is "moved". What is left in c? (Reading 6)</p><div class="ca-src"><div class="ca-fn">moved_from.cpp (lines 18 to 20)</div><pre class="ca-code">    <span class="ca-kw">const</span> std::string c = <span class="ca-st">"const"</span>;
+    std::string d = std::move(c);       <span class="ca-cm">// compiles, but COPIES: you cannot steal from const</span>
+    std::printf(<span class="ca-st">"c after 'move': %s\n"</span>, c.c_str());</pre></div>
+<div class="ca-ch"><button>c after 'move': </button><button>c after 'move': const</button><button>compile error</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_moved_from"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra moved_from.cpp -o moved_from &amp;&amp; ./moved_from</span>
+t: 40 chars, s: 0 chars
+s: reusable
+w.data() == old v.data(): 1, v.size() now 0
+c after 'move': const</pre><p class="ca-why">A move constructor needs a non-const source, so overload resolution picked the copy constructor. It compiles and copies.</p></div></div>
+
+<div class="ca-q"><p class="qq">10. Which name() runs for a Derived passed by value? (Reading 7)</p><div class="ca-src"><div class="ca-fn">slicing.cpp (lines 12 to 19)</div><pre class="ca-code"><span class="ca-kw">void</span> by_value(Base b) &#123; std::printf(<span class="ca-st">"by value: %s\n"</span>, b.name()); &#125;
+<span class="ca-kw">void</span> by_ref(<span class="ca-kw">const</span> Base&amp; b) &#123; std::printf(<span class="ca-st">"by reference: %s\n"</span>, b.name()); &#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    Derived d;
+    by_value(d);   <span class="ca-cm">// copies only the Base part: "sliced"</span>
+    by_ref(d);
+&#125;</pre></div>
+<div class="ca-ch"><button>by value: Derived</button><button>by value: Base</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_slicing"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra slicing.cpp -o slicing &amp;&amp; ./slicing</span>
+by value: Base
+by reference: Derived</pre><p class="ca-why">By value copies only the Base part (slicing); by reference keeps the real object.</p></div></div>
+
+<div class="ca-q"><p class="qq">11. How big is a std::shared_ptr&lt;int&gt; on this Mac? (Reading 5)</p>
+<div class="ca-ch"><button>std::shared_ptr&lt;int&gt;           8</button><button>std::shared_ptr&lt;int&gt;           16</button><button>std::shared_ptr&lt;int&gt;           24</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="l_sizes"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra sizes.cpp -o sizes &amp;&amp; ./sizes</span>
+int*                           8
+std::unique_ptr&lt;int&gt;           8
+std::shared_ptr&lt;int&gt;           16
+std::vector&lt;int&gt;               24
+std::string                    24
+std::string_view               16
+std::span&lt;int&gt;                 16
+std::optional&lt;int&gt;             8
+std::function&lt;int(int)&gt;        32
+Plain &#123;double; f()&#125;            8
+Virtual &#123;double; virtual f()&#125;  16</pre><p class="ca-why">Two pointers: one to the object, one to the control block holding the counts.</p></div></div>
+
+<div class="ca-q"><p class="qq">12. Compiled with -O2, what does will_overflow(INT_MAX) return? (Reading 12)</p><div class="ca-src"><div class="ca-fn">overflow.cpp (lines 4 to 7)</div><pre class="ca-code"><span class="ca-cm">// "Will adding 1 overflow?" written the way you would in Python</span>
+__attribute__((noinline)) <span class="ca-kw">bool</span> will_overflow(<span class="ca-kw">int</span> x) &#123;
+    <span class="ca-kw">return</span> x + 1 &lt; x;   <span class="ca-cm">// signed overflow is UB, so the compiler may assume x + 1 &gt; x</span>
+&#125;</pre></div>
+<div class="ca-ch"><button>will_overflow(INT_MAX) = 1</button><button>will_overflow(INT_MAX) = 0</button><button>a run-time error</button></div>
+<div class="ca-ans"><pre class="ca-out" data-ca-out="ub_overflow_O2"><span class="ca-cmd">$ clang++-23 -std=c++23 -O2 overflow.cpp -o overflow &amp;&amp; ./overflow</span>
+will_overflow(INT_MAX) = 0</pre><p class="ca-why">Signed overflow is UB, so the compiler assumed x + 1 &gt; x and returned false. At -O0 the same code returned 1.</p></div></div>
+
+<h2>The gates, with answers</h2>
+<p>The questions that end each stage of the learning path (Reading {{16|#t-ca-read}}). Answer aloud first.</p>
+<details class="mist"><summary>Stage 0: what does the linker say when a non-inline function is defined in a header included from two .cpp files?</summary><div class="b">"duplicate symbol" (ld on macOS; GNU ld says "multiple definition"). Each translation unit compiled its own copy, so two object files define the same symbol; the one definition rule allows only one. Fix with <code>inline</code>, or keep only a declaration in the header. The {{Build pipeline|#t-ca-build}} tab shows the real error.</div></details>
+<details class="mist"><summary>Stage 1: when is each object in a function destroyed, and in what order?</summary><div class="b">Locals: at the closing brace of their block, in reverse order of construction; also during unwinding when an exception leaves the block. Temporaries: at the end of the full expression (the semicolon), unless bound to a <code>const&amp;</code> or <code>&amp;&amp;</code> local, which extends them to that local's lifetime. Members: after the class's destructor body, in reverse declaration order. Heap objects: when their owner (a smart pointer) dies or is reset.</div></details>
+<details class="mist"><summary>Stage 2: a class holds a <code>unique_ptr</code> and a <code>vector</code>. Which special members does the compiler generate, which does it delete, and why?</summary><div class="b">It generates the destructor, the move constructor and the move assignment (member-wise; <code>noexcept</code> because both members' are). It defines the copy constructor and copy assignment as <b>deleted</b>, because <code>unique_ptr</code>'s copy operations are deleted: a member-wise copy is impossible. The class is move-only, like <code>unique_ptr</code> itself. Declaring any of the five yourself would suppress the implicit moves, which is why the rule of zero says declare none.</div></details>
+<details class="mist"><summary>Stage 3: why is <code>std::vector&lt;bool&gt;</code> a mistake, what does <code>noexcept</code> on a move constructor buy, and what may the optimiser assume about a signed loop counter?</summary><div class="b"><code>vector&lt;bool&gt;</code> is specialised to pack bits, so it is not a container of <code>bool</code>: <code>v[i]</code> returns a proxy object, not a <code>bool&amp;</code>, so <code>bool&amp; r = v[0]</code> does not compile, <code>&amp;v[0]</code> is not a <code>bool*</code>, and concurrent writes to different elements can race. <code>noexcept</code> lets <code>vector</code> move elements on reallocation instead of copying them (the {{Object lifetimes|#t-ca-life}} tab's two growth scenarios). A signed counter never overflows, so <code>i + 1 &gt; i</code> and the loop's trip count can be computed without wrap-around checks, which enables vectorisation and widening it to 64 bits.</div></details>
+</div>

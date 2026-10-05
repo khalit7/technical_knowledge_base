@@ -1,0 +1,46 @@
+<section id="cb-s3">
+<h2>3. Data layout: size, alignment, padding, AoS and SoA</h2>
+<p>In C++ a <code>struct</code> is laid out in memory exactly as declared: fields one after another, in order. Two rules shape the result:</p>
+<ul>
+<li><b>Alignment.</b> Each type has an alignment (<code>alignof</code>): a 4-byte <code>int32_t</code> must start at an address divisible by 4, an 8-byte <code>double</code> or pointer at one divisible by 8. The processor loads aligned values in one go.</li>
+<li><b>Padding.</b> To satisfy alignment the compiler inserts unused bytes between fields, and at the end so that the next element of an array is aligned too. <code>sizeof</code> includes the padding.</li>
+</ul>
+<pre data-src="layout.cpp" data-lines="1-12"></pre>
+<div class="cb-pr"><p class="q"><b>Predict.</b> <code>Bad</code> holds 1 + 8 + 4 = 13 bytes of data. What does <code>sizeof(Bad)</code> print? And <code>Good</code>, the same fields largest first?</p>
+<button class="cb-rv" data-for="cb-a3" aria-expanded="false">Reveal the real output</button>
+<div class="cb-ans" id="cb-a3" hidden><pre class="cb-o" data-out="layout"></pre><p>24 and 16 bytes: 11 of <code>Bad</code>'s 24 bytes are padding (7 after <code>flag</code> so that <code>score</code> starts at 8, and 4 at the end so that the struct's size is a multiple of its alignment, 8). Sorting fields from largest to smallest alignment removes most of it: a third less memory, so a third fewer cache lines for an array of them. Clang's <code>-Wpadded</code> warning lists every hole. The last line is explained in <a href="#cb-s8">section 8</a>.</p></div></div>
+<h3>Array of structs against struct of arrays</h3>
+<p>An <b>array of structs</b> (AoS) stores records one after another: <code>std::vector&lt;Token&gt;</code>. A <b>struct of arrays</b> (SoA) stores one array per field: all the <code>logprob</code>s together, all the <code>user</code>s together. AoS is what object-oriented code produces naturally; SoA is what columnar formats (Arrow, Parquet), dataframes and tensors use. The test: 20 million token records of 8 four-byte fields (32 bytes each), summing one field, then all eight.</p>
+<pre data-src="aos_soa.cpp" data-lines="7-16"></pre>
+<div class="cb-pr"><p class="q"><b>Predict.</b> Summing one 4-byte field, AoS drags 32 bytes through the cache per record and SoA 4. Is SoA 8 times faster?</p>
+<button class="cb-rv" data-for="cb-a4" aria-expanded="false">Reveal the real output</button>
+<div class="cb-ans" id="cb-a4" hidden><pre class="cb-o" data-out="aos.raw"></pre>
+<p>It depends on the field, and the reason is a lesson in itself.</p>
+<ul>
+<li><b>Integer field: <span data-cbsp="aos.v.i_aos" data-d="2"></span> ns against <span data-cbsp="aos.v.i_soa" data-d="3"></span> ns per record over three runs, about 8x,</b> the ratio of bytes read (32 against 4). Both loops stream memory at roughly the same rate (about 50 GB/s); SoA simply has 8 times fewer bytes to stream.</li>
+<li><b>Float field: no difference.</b> Both take about 1 ns per record, because both are limited by something else: adding floats in order. The C++ standard says <code>s += x</code> on floats must happen one after another, since float addition is not associative (rounding makes <code>(a+b)+c</code> differ from <code>a+(b+c)</code>), and each addition waits about 3 cycles for the previous one. The memory system is never the bottleneck. Allow the compiler to reorder the additions with <code>-ffast-math</code> and the 8x appears: AoS <span class="cb-num" data-cbv="aosfm.v.f_aos.runs.0"></span> ns, SoA <span class="cb-num" data-cbv="aosfm.v.f_soa.runs.0"></span> ns. <a href="#cb-s6">Section 6</a> explains why.</li>
+<li><b>All 8 fields: AoS only about 1.2x slower,</b> since it uses every byte it reads.</li>
+</ul></div></div>
+<div class="co warn"><div class="t">Correction to the old page</div>"C++: zero to expert" said array-of-structs versus struct-of-arrays "changes throughput by an order of magnitude". Measured here, the gain is the ratio of bytes read to bytes used, and only when memory is the bottleneck: about 8x for one field of a 32-byte record, about 1.2x when all fields are used, and nothing at all when the loop is limited by a chain of dependent float additions. A wider record (64 or 128 bytes) would give more than 10x for one field; a loop that uses every field gives little. Measure your own access pattern.</div>
+<div class="cb-py"><div class="t">Why ML code is SoA</div>A tensor is SoA taken to the limit: one contiguous buffer per quantity. llama.cpp's quantised weights are a careful AoS: each <code>block_q4_0</code> packs one 2-byte scale with the 32 four-bit weights it scales (18 bytes), because the dot product needs both together (the root's {{Reading, section 5|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows the struct, and {{Part 3|#t-cl-read}} reads its kernels).</div>
+</section>
+
+<section id="cb-s4">
+<h2>4. Virtual memory, pages and mmap</h2>
+<p>The addresses your program sees are not physical locations in the RAM chips. They are <b>virtual addresses</b>: each process has its own private address space, and the operating system keeps a <b>page table</b> that maps it, one <b>page</b> at a time, to physical memory or to nothing yet. On Apple silicon a page is 16 KB (<code>hw.pagesize</code> printed 16384; Intel and most Linux machines use 4 KB). Every load translates its address; the <b>TLB</b> (translation lookaside buffer) is the small cache of recent translations, and a miss in it costs extra loads to walk the page table, part of the slope you saw in the latency ladder.</p>
+<p>Two consequences matter for C++ programmers:</p>
+<ul>
+<li><b>Memory is given lazily.</b> <code>malloc</code> or <code>new</code> of a big block only reserves addresses. The first touch of each page triggers a <b>page fault</b>: the processor stops, the kernel finds a physical page, zeroes it, maps it, and the instruction retries.</li>
+<li><b>A file can be mapped instead of read.</b> <code>mmap</code> puts a file's bytes into your address space; pages are read from disk (or from the operating system's <b>page cache</b>, the copy of recently used files it keeps in RAM) only when touched, and pages that are never touched cost nothing.</li>
+</ul>
+<pre data-src="mmap_demo.cpp" data-lines="40-60"></pre>
+<pre class="cb-o" data-out="mmap.raw"></pre>
+<p>Filling fresh memory the first time took <span class="cb-num" data-cbv="mmap.v.first.runs.0"></span> ms and the second time <span class="cb-num" data-cbv="mmap.v.second.runs.0"></span> ms: the difference, spread over 16,384 page faults, is about <span class="cb-num" data-cbv="mmap.v.fault_us.runs.0"></span> microseconds per fault (three runs: <span data-cbsp="mmap.v.fault_us" data-d="2"></span>). Mapping the 512 MB file took <span data-cbsp="mmap.v.map_ms" data-d="3"></span> ms over three runs, whatever the file's size, and reading 8 bytes spread through it cost just 8 page faults; reading the whole file with <code>read()</code> took <span class="cb-num" data-cbv="mmap.v.read_ms.runs.0"></span> ms before the first byte was usable and doubled the memory in use. Whether "touching every page" is fast depends on where the file is: in the page cache (minor faults, about 25 ms here) or only on the SSD (major faults: run 1 took about 0.9 s, because other programs had pushed the file out of RAM; its <code>read()</code> afterwards was fast because the mapping had just brought the file back into the page cache):</p>
+<div class="seg cb-sw" data-pre="cb-mmruns"><button data-m="mmap.raws.0" class="on">Run 1</button><button data-m="mmap.raws.1">Run 2</button><button data-m="mmap.raws.2">Run 3</button></div>
+<pre class="cb-o" id="cb-mmruns"></pre>
+<h3>Why llama.cpp maps model files</h3>
+<p>A model file is gigabytes of read-only weights. Mapping it means loading is nearly instant, a second process running the same model shares the same physical pages through the page cache, a restart finds the weights still cached, and the operating system can drop pages under memory pressure and re-read them later instead of swapping. The pinned llama.cpp source (commit <code>8e16421</code>) does exactly this, with hints to the kernel about the access pattern:</p>
+<pre data-out="llamaex.mmap" data-lang="cpp"></pre>
+<p class="small mute">{{src/llama-mmap.cpp lines 482 to 498|https://github.com/ggml-org/llama.cpp/blob/8e1642198dcd4e408f8776222d6ae31b74d01187/src/llama-mmap.cpp#L482-L498}}. {{Part 3|#t-cl-read}} follows the loader that calls it.</p>
+<div class="cb-py"><div class="t">In Python</div><code>numpy.memmap</code>, <code>safetensors</code>' lazy loading and <code>torch.load(..., mmap=True)</code> are the same system call. "The model loaded instantly but the first token was slow" is page faults being paid on first use.</div>
+</section>

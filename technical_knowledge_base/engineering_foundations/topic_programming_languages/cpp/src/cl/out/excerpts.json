@@ -1,0 +1,305 @@
+{
+ "commit": "8e1642198dcd4e408f8776222d6ae31b74d01187",
+ "excerpts": {
+  "simple_setup": {
+   "file": "examples/simple/simple.cpp",
+   "start": 91,
+   "end": 141,
+   "text": "    llama_backend_init();\n\n    // initialize the model\n\n    llama_model_params model_params = llama_model_default_params();\n    model_params.n_gpu_layers = ngl;\n\n    llama_model * model = llama_model_load_from_file(model_path.c_str(), model_params);\n\n    if (model == NULL) {\n        fprintf(stderr , \"%s: error: unable to load model\\n\" , __func__);\n        return 1;\n    }\n\n    const llama_vocab * vocab = llama_model_get_vocab(model);\n    // tokenize the prompt\n\n    // find the number of tokens in the prompt\n    const int n_prompt = -llama_tokenize(vocab, prompt.c_str(), prompt.size(), NULL, 0, true, true);\n\n    // allocate space for the tokens and tokenize the prompt\n    std::vector<llama_token> prompt_tokens(n_prompt);\n    if (llama_tokenize(vocab, prompt.c_str(), prompt.size(), prompt_tokens.data(), prompt_tokens.size(), true, true) < 0) {\n        fprintf(stderr, \"%s: error: failed to tokenize the prompt\\n\", __func__);\n        return 1;\n    }\n\n    // initialize the context\n\n    llama_context_params ctx_params = llama_context_default_params();\n    // n_ctx is the context size\n    ctx_params.n_ctx = n_prompt + n_predict - 1;\n    // n_batch is the maximum number of tokens that can be processed in a single call to llama_decode\n    ctx_params.n_batch = n_prompt;\n    // enable performance counters\n    ctx_params.no_perf = false;\n\n    llama_context * ctx = llama_init_from_model(model, ctx_params);\n\n    if (ctx == NULL) {\n        fprintf(stderr , \"%s: error: failed to create the llama_context\\n\" , __func__);\n        return 1;\n    }\n\n    // initialize the sampler\n\n    auto sparams = llama_sampler_chain_default_params();\n    sparams.no_perf = false;\n    llama_sampler * smpl = llama_sampler_chain_init(sparams);\n\n    llama_sampler_chain_add(smpl, llama_sampler_init_greedy());"
+  },
+  "simple_loop": {
+   "file": "examples/simple/simple.cpp",
+   "start": 178,
+   "end": 218,
+   "text": "    // main loop\n\n    const auto t_main_start = ggml_time_us();\n    int n_decode = 0;\n    llama_token new_token_id;\n\n    for (int n_pos = 0; n_pos + n_tokens < n_prompt + n_predict; ) {\n        // evaluate the current batch with the transformer model\n        if (llama_process(ctx, LLAMA_PROCESS_TYPE_DECODE, batch)) {\n            fprintf(stderr, \"%s : failed to eval, return code %d\\n\", __func__, 1);\n            return 1;\n        }\n\n        n_pos += n_tokens;\n\n        // sample the next token\n        {\n            new_token_id = llama_sampler_sample(smpl, ctx, -1);\n\n            // is it an end of generation?\n            if (llama_vocab_is_eog(vocab, new_token_id)) {\n                break;\n            }\n\n            char buf[128];\n            int n = llama_token_to_piece(vocab, new_token_id, buf, sizeof(buf), 0, true);\n            if (n < 0) {\n                fprintf(stderr, \"%s: error: failed to convert token to piece\\n\", __func__);\n                return 1;\n            }\n            std::string s(buf, n);\n            printf(\"%s\", s.c_str());\n            fflush(stdout);\n\n            // prepare the next batch with the sampled token\n            batch_set_tokens(batch, &new_token_id, 1, n_pos);\n            n_tokens = 1;\n\n            n_decode += 1;\n        }\n    }"
+  },
+  "batch_helper": {
+   "file": "examples/simple/simple.cpp",
+   "start": 8,
+   "end": 17,
+   "text": "// fill the batch with tokens at consecutive positions starting from pos_0, output logits only for the last one\nstatic void batch_set_tokens(llama_batch_ext * batch, const llama_token * tokens, int32_t n_tokens, llama_pos pos_0) {\n    llama_batch_ext_clear(batch);\n    for (int32_t i = 0; i < n_tokens; ++i) {\n        const int32_t idx = llama_batch_ext_add_token(batch, 0, tokens[i]);\n        const llama_pos pos = pos_0 + i;\n        llama_batch_ext_set_pos(batch, idx, &pos);\n    }\n    llama_batch_ext_set_output_logits(batch, n_tokens - 1, true);\n}"
+  },
+  "api_process": {
+   "file": "include/llama.h",
+   "start": 1086,
+   "end": 1090,
+   "text": "    // Return values are the same as llama_decode()\n    LLAMA_API int32_t llama_process(\n                                struct llama_context * ctx,\n                             enum llama_process_type   type,\n                              struct llama_batch_ext * batch);"
+  },
+  "deleters": {
+   "file": "include/llama-cpp.h",
+   "start": 11,
+   "end": 13,
+   "text": "struct llama_model_deleter {\n    void operator()(llama_model * model) { llama_model_free(model); }\n};"
+  },
+  "unique_ptr": {
+   "file": "include/llama-cpp.h",
+   "start": 31,
+   "end": 31,
+   "text": "typedef std::unique_ptr<llama_model, llama_model_deleter> llama_model_ptr;"
+  },
+  "cmake_opts": {
+   "file": "ggml/CMakeLists.txt",
+   "start": 189,
+   "end": 199,
+   "text": "option(GGML_CPU                             \"ggml: enable CPU backend\"                        ON)\noption(GGML_SCHED_NO_REALLOC                \"ggml: disallow reallocations in ggml-alloc (for debugging)\" OFF)\n\n# 3rd party libs / backends\noption(GGML_ACCELERATE                      \"ggml: enable Accelerate framework\"               ON)\noption(GGML_BLAS                            \"ggml: use BLAS\"                                  ${GGML_BLAS_DEFAULT})\nset(GGML_BLAS_VENDOR ${GGML_BLAS_VENDOR_DEFAULT} CACHE STRING\n                                            \"ggml: BLAS library vendor\")\noption(GGML_LLAMAFILE                       \"ggml: use LLAMAFILE\"                             ${GGML_LLAMAFILE_DEFAULT})\n\noption(GGML_CUDA                            \"ggml: use CUDA\"                                  OFF)"
+  },
+  "gguf_format": {
+   "file": "ggml/include/gguf.h",
+   "start": 1,
+   "end": 30,
+   "text": "// This file contains functionality related to \"GGUF\" files, the binary file format used by ggml.\n// GGUF files have the following structure:\n//\n// 1. File magic \"GGUF\" (4 bytes).\n// 2. File version (uint32_t).\n// 3. Number of ggml tensors in file (int64_t).\n// 4. Number of key-value-pairs in file (int64_t).\n// 5. For each KV pair:\n//   1. The key (string).\n//   2. The value type (gguf_type).\n//   3a. If the value type is GGUF_TYPE_ARRAY:\n//     1. The type of the array (gguf_type).\n//     2. The number of elements in the array (uint64_t).\n//     3. The binary representation of each element in the array.\n//   3b. Otherwise:\n//     1. The binary representation of the value.\n// 6. For each ggml tensor:\n//   1. The tensor name (string).\n//   2. The number of dimensions of the tensor (uint32_t).\n//   3. For each dimension:\n//     1. The size of the tensor in the dimension (int64_t).\n//   4. The tensor data type (ggml_type).\n//   5. The tensor data offset in the tensor data binary blob (uint64_t).\n// 7. The tensor data binary blob (optional, aligned).\n//\n// Strings are serialized as the string length (uint64_t) followed by the C string without the null terminator.\n// All enums are stored as int32_t.\n// All bool values are stored as int8_t.\n// If the special key \"general.alignment\" (uint32_t) is defined it is used for alignment,\n//   otherwise GGUF_DEFAULT_ALIGNMENT is used."
+  },
+  "gguf_strides": {
+   "file": "ggml/src/gguf.cpp",
+   "start": 756,
+   "end": 768,
+   "text": "            // calculate byte offsets given the tensor shape and type\n            info.t.nb[0] = type_size;\n            info.t.nb[1] = info.t.nb[0]*(info.t.ne[0]/blck_size);\n            for (int j = 2; j < GGML_MAX_DIMS; ++j) {\n                info.t.nb[j] = info.t.nb[j - 1]*info.t.ne[j - 1];\n            }\n        }\n        if (!ok) {\n            break;\n        }\n\n        // tensor data offset within buffer\n        ok = ok && gr.read(info.offset);"
+  },
+  "gguf_align": {
+   "file": "ggml/src/gguf.cpp",
+   "start": 780,
+   "end": 788,
+   "text": "    // we require the data section to be aligned, so take into account any padding\n    if (n_tensors > 0 && !gr.seek(gr.start() + GGML_PAD(gr.tell() - gr.start(), ctx->alignment))) {\n        GGML_LOG_ERROR(\"%s: failed to seek to beginning of data section\\n\", __func__);\n        gguf_free(ctx);\n        return nullptr;\n    }\n\n    // store the current file offset - this is where the data section starts\n    ctx->offset = gr.tell();"
+  },
+  "loader_mmap": {
+   "file": "src/llama-model-loader.cpp",
+   "start": 1638,
+   "end": 1656,
+   "text": "\n        const bool from_mapping = use_mmap || lazy.has(cur);\n\n        if (from_mapping) {\n            const auto & mapping = mappings.at(weight->idx);\n            ggml_backend_buffer_t buf_mmap = nullptr;\n            if (bufs.count(weight->idx)) {\n                buf_mmap = bufs.at(weight->idx);\n            }\n            uint8_t * data = (uint8_t *) mapping->addr() + weight->offs;\n\n            if (check_tensors) {\n                validation_result.emplace_back(std::async(std::launch::async, [cur, data, n_size] {\n                    return std::make_pair(cur, ggml_validate_row_data(cur->type, data, n_size));\n                }));\n            }\n\n            GGML_ASSERT(buf_mmap || cur->data); // either we have a buffer to allocate the tensor in, or it is already allocated\n            if (buf_mmap && cur->data == nullptr) {"
+  },
+  "arch_types": {
+   "file": "src/models/llama.cpp",
+   "start": 15,
+   "end": 22,
+   "text": "    } else {\n        switch (hparams.n_layer()) {\n            case 16: type = LLM_TYPE_1B; break; // Llama 3.2 1B\n            case 22: type = LLM_TYPE_1B; break;\n            case 26: type = LLM_TYPE_3B; break;\n            case 28: type = LLM_TYPE_3B; break; // Llama 3.2 3B\n            case 30: type = LLM_TYPE_256M; break; // smoldocling 256M\n            // granite uses a vocab with len 49152"
+  },
+  "repack_pick": {
+   "file": "ggml/src/ggml-cpu/repack.cpp",
+   "start": 5105,
+   "end": 5115,
+   "text": "    } else if (cur->type == GGML_TYPE_Q8_0) {\n        if (ggml_cpu_has_neon() && ggml_cpu_has_matmul_int8()) {\n            if (cur->ne[1] % 4 == 0) {\n                return &q8_0_4x8_q8_0;\n            }\n        }\n        if (ggml_cpu_has_neon() && ggml_cpu_has_dotprod()) {\n            if (cur->ne[1] % 4 == 0) {\n                return &q8_0_4x4_q8_0;\n            }\n        }"
+  },
+  "tensor": {
+   "file": "ggml/include/ggml.h",
+   "start": 685,
+   "end": 717,
+   "text": "    struct ggml_tensor {\n        enum ggml_type type;\n\n        struct ggml_backend_buffer * buffer;\n\n        int64_t ne[GGML_MAX_DIMS]; // number of elements\n        size_t  nb[GGML_MAX_DIMS]; // stride in bytes:\n                                   // nb[0] = ggml_type_size(type)\n                                   // nb[1] = nb[0]   * (ne[0] / ggml_blck_size(type)) + padding\n                                   // nb[i] = nb[i-1] * ne[i-1]\n\n        // compute data\n        enum ggml_op op;\n\n        // op params - allocated as int32_t for alignment\n        int32_t op_params[GGML_MAX_OP_PARAMS / sizeof(int32_t)];\n\n        int32_t flags;\n\n        struct ggml_tensor * src[GGML_MAX_SRC];\n\n        // source tensor and offset for views\n        struct ggml_tensor * view_src;\n        size_t               view_offs;\n\n        void * data;\n\n        char name[GGML_MAX_NAME];\n\n        void * extra; // extra things e.g. for ggml-cuda.cu\n\n        char padding[8];\n    };"
+  },
+  "mul_mat_lazy": {
+   "file": "ggml/src/ggml.c",
+   "start": 3350,
+   "end": 3365,
+   "text": "struct ggml_tensor * ggml_mul_mat(\n        struct ggml_context * ctx,\n        struct ggml_tensor  * a,\n        struct ggml_tensor  * b) {\n    GGML_ASSERT(ggml_can_mul_mat(a, b));\n    GGML_ASSERT(!ggml_is_transposed(a));\n\n    const int64_t ne[4] = { a->ne[1], b->ne[1], b->ne[2], b->ne[3] };\n    struct ggml_tensor * result = ggml_new_tensor(ctx, GGML_TYPE_F32, 4, ne);\n\n    result->op     = GGML_OP_MUL_MAT;\n    result->src[0] = a;\n    result->src[1] = b;\n\n    return result;\n}"
+  },
+  "transpose_view": {
+   "file": "ggml/src/ggml.c",
+   "start": 3943,
+   "end": 3959,
+   "text": "struct ggml_tensor * ggml_transpose(\n        struct ggml_context * ctx,\n        struct ggml_tensor  * a) {\n    struct ggml_tensor * result = ggml_view_tensor(ctx, a);\n    ggml_format_name(result, \"%s (transposed)\", a->name);\n\n    result->ne[0] = a->ne[1];\n    result->ne[1] = a->ne[0];\n\n    result->nb[0] = a->nb[1];\n    result->nb[1] = a->nb[0];\n\n    result->op     = GGML_OP_TRANSPOSE;\n    result->src[0] = a;\n\n    return result;\n}"
+  },
+  "graph_template": {
+   "file": "src/models/llama.cpp",
+   "start": 94,
+   "end": 124,
+   "text": "std::unique_ptr<llm_graph_context> llama_model_llama::build_arch_graph(const llm_graph_params & params) const {\n    return std::make_unique<graph<false>>(*this, params);\n}\n\ntemplate <bool embed>\nllama_model_llama::graph<embed>::graph(const llama_model & model, const llm_graph_params & params) : llm_graph_context(params) {\n    const int64_t n_embd_head = hparams.n_embd_head_v();\n\n    GGML_ASSERT(n_embd_head == hparams.n_embd_head_k());\n    GGML_ASSERT(n_embd_head == n_rot);\n\n    ggml_tensor * cur;\n    ggml_tensor * inpL;\n\n    inpL = build_inp_embd(model.tok_embd);\n\n    // inp_pos - contains the positions\n    ggml_tensor * inp_pos = build_inp_pos();\n\n    using inp_attn_type = std::conditional_t<embed, llm_graph_input_attn_no_cache, llm_graph_input_attn_kv>;\n\n    inp_attn_type * inp_attn = nullptr;\n    if constexpr (embed) {\n        inp_attn = build_attn_inp_no_cache();\n    } else {\n        inp_attn = build_attn_inp_kv();\n    }\n\n    const float kq_scale = hparams.f_attention_scale == 0.0f ? 1.0f/sqrtf(float(n_embd_head)) : hparams.f_attention_scale;\n\n    ggml_tensor * inp_out_ids = build_inp_out_ids();"
+  },
+  "graph_attn": {
+   "file": "src/models/llama.cpp",
+   "start": 137,
+   "end": 178,
+   "text": "        // self-attention\n        {\n            // rope freq factors for llama3; may return nullptr for llama2 and other models\n            ggml_tensor * rope_factors = model.get_rope_factors(cparams, il);\n\n            // compute Q and K and RoPE them\n            auto [Qcur, Kcur, Vcur] = build_qkv(model.layers[il], cur,\n                    n_embd_head, n_head, n_head_kv, il);\n\n            Qcur = ggml_rope_ext(\n                    ctx0, Qcur, inp_pos, rope_factors,\n                    n_rot, rope_type, n_ctx_orig, freq_base, freq_scale,\n                    ext_factor, attn_factor, beta_fast, beta_slow\n                    );\n\n            Kcur = ggml_rope_ext(\n                    ctx0, Kcur, inp_pos, rope_factors,\n                    n_rot, rope_type, n_ctx_orig, freq_base, freq_scale,\n                    ext_factor, attn_factor, beta_fast, beta_slow\n                    );\n\n            cb(Qcur, \"Qcur\", il);\n            cb(Kcur, \"Kcur\", il);\n            cb(Vcur, \"Vcur\", il);\n\n            if (hparams.use_kq_norm) {\n                // Llama4TextL2Norm\n                Qcur = ggml_rms_norm(ctx0, Qcur, hparams.f_norm_rms_eps);\n                Kcur = ggml_rms_norm(ctx0, Kcur, hparams.f_norm_rms_eps);\n                cb(Qcur, \"Qcur_normed\", il);\n                cb(Kcur, \"Kcur_normed\", il);\n            }\n            cur = build_attn(inp_attn,\n                    model.layers[il].wo, model.layers[il].wo_b, model.layers[il].wo_s,\n                    Qcur, Kcur, Vcur, nullptr, nullptr, nullptr, kq_scale, il);\n            cb(cur, \"attn_out\", il);\n        }\n        if (il == n_layer - 1 && inp_out_ids) {\n            cur   = ggml_get_rows(ctx0,   cur, inp_out_ids);\n            inpSA = ggml_get_rows(ctx0, inpSA, inp_out_ids);\n        }\n        ggml_tensor * ffn_inp = ggml_add(ctx0, cur, inpSA);"
+  },
+  "graph_head": {
+   "file": "src/models/llama.cpp",
+   "start": 229,
+   "end": 250,
+   "text": "    cur = inpL;\n\n    cur = build_norm(cur,\n            model.output_norm, NULL,\n            LLM_NORM_RMS, -1);\n\n    cb(cur, \"result_norm\", -1);\n    res->t_embd = cur;\n\n    if constexpr (!embed) {\n        // lm_head\n        cur = build_lora_mm(model.output, cur, model.output_s);\n\n        cb(cur, \"result_output\", -1);\n        res->t_logits = cur;\n    }\n\n    ggml_build_forward_expand(gf, cur);\n}\n\ntemplate struct llama_model_llama::graph<false>;\ntemplate struct llama_model_llama::graph<true>;"
+  },
+  "llama_process": {
+   "file": "src/llama-context.cpp",
+   "start": 4480,
+   "end": 4486,
+   "text": "int32_t llama_process(llama_context * ctx, llama_process_type type, llama_batch_ext * batch) {\n    switch (type) {\n        case LLAMA_PROCESS_TYPE_ENCODE: return ctx->encode(*batch);\n        case LLAMA_PROCESS_TYPE_DECODE: return ctx->decode(*batch);\n    }\n    return -1;\n}"
+  },
+  "process_ubatch": {
+   "file": "src/llama-context.cpp",
+   "start": 1400,
+   "end": 1475,
+   "text": "llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, llm_graph_type gtype, llama_memory_context_i * mctx, ggml_status & ret) {\n    if (mctx && !mctx->apply()) {\n        LLAMA_LOG_ERROR(\"%s: failed to apply memory context\\n\", __func__);\n        ret = GGML_STATUS_FAILED;\n        return nullptr;\n    }\n\n    auto * res = get_gf_res_prev();\n    auto * gf  = res->get_gf();\n\n    // the new graph parameters\n    // in order to correctly reuse a graph, it's full topology has to be uniquely determined by these parameters\n    const auto gparams = graph_params(res, ubatch, mctx, gtype);\n\n    if (!graph_reuse_disable && gf_res_prev_active == res && res->can_reuse(gparams)) {\n        //LLAMA_LOG_DEBUG(\"%s: reusing previous graph\\n\", __func__);\n\n        // with pipeline parallelism, the previous graph_compute_async may still be running\n        // on the GPU. we must synchronize before set_inputs to avoid overwriting input tensors\n        // that the previous compute is still reading.\n        if (cparams.pipeline_parallel) {\n            ggml_backend_sched_synchronize(sched.get());\n        }\n\n        n_reused++;\n    } else {\n        gf_res_prev_active = nullptr;\n        res->reset();\n\n        ggml_backend_sched_reset(sched.get());\n        ggml_backend_sched_set_eval_callback(sched.get(), cparams.cb_eval, cparams.cb_eval_user_data);\n\n        //const auto t_start_us = ggml_time_us();\n\n        gf = model.build_graph(gparams);\n\n        //LLAMA_LOG_INFO(\"graph build time: %.3f ms\\n\", (ggml_time_us() - t_start_us)/1000.0);\n\n        if (!gf) {\n            LLAMA_LOG_ERROR(\"%s: failed to initialize graph\\n\", __func__);\n            ret = GGML_STATUS_FAILED;\n            return nullptr;\n        }\n\n        if (!ggml_backend_sched_alloc_graph(sched.get(), gf)) {\n            LLAMA_LOG_ERROR(\"%s: failed to allocate graph\\n\", __func__);\n            ret = GGML_STATUS_ALLOC_FAILED;\n            return nullptr;\n        }\n\n        gf_res_prev_active = res;\n    }\n\n    // set the input data for the input tensors\n    {\n        //const auto t_start_us = ggml_time_us();\n\n        // FIXME this call causes a crash if any model inputs were not used in the graph and were therefore not allocated\n        res->set_inputs(&ubatch);\n\n        //LLAMA_LOG_INFO(\"graph set inputs time: %.3f ms\\n\", (ggml_time_us() - t_start_us)/1000.0);\n    }\n\n    const auto status = graph_compute(res->get_gf(), ubatch.n_tokens > 1);\n    if (status != GGML_STATUS_SUCCESS) {\n        LLAMA_LOG_ERROR(\"%s: failed to compute graph, compute status: %d\\n\", __func__, status);\n        ret = status;\n        return nullptr;\n    }\n\n    ret = GGML_STATUS_SUCCESS;\n\n    return res;\n}\n\nint llama_context::encode(const llama_batch_ext & batch_inp) {"
+  },
+  "alloc_refcount": {
+   "file": "ggml/src/ggml-alloc.c",
+   "start": 793,
+   "end": 818,
+   "text": "        // update parents\n        for (int j = 0; j < GGML_MAX_SRC; j++) {\n            struct ggml_tensor * parent = node->src[j];\n            if (parent == NULL) {\n                continue;\n            }\n            struct hash_node * p_hn = ggml_gallocr_hash_get(galloc, parent);\n            p_hn->n_children -= 1;\n\n            AT_PRINTF(\"parent %s: %d children, %d views, allocated: %d\\n\",\n                parent->name, p_hn->n_children, p_hn->n_views, p_hn->allocated);\n\n            if (p_hn->n_children == 0 && p_hn->n_views == 0) {\n                if (ggml_impl_is_view(parent)) {\n                    struct ggml_tensor * view_src = parent->view_src;\n                    struct hash_node * view_src_hn = ggml_gallocr_hash_get(galloc, view_src);\n                    view_src_hn->n_views -= 1;\n                    AT_PRINTF(\"view_src %s: %d children, %d views\\n\",\n                        view_src->name, view_src_hn->n_children, view_src_hn->n_views);\n                    if (view_src_hn->n_views == 0 && view_src_hn->n_children == 0 && view_src_hn->allocated) {\n                        ggml_gallocr_free_node(galloc, view_src);\n                    }\n                }\n                else if (p_hn->allocated) {\n                    ggml_gallocr_free_node(galloc, parent);\n                }"
+  },
+  "backend_iface": {
+   "file": "ggml/src/ggml-backend-impl.h",
+   "start": 122,
+   "end": 128,
+   "text": "    struct ggml_backend_i {\n        const char * (*get_name)(ggml_backend_t backend);\n\n        void (*free)(ggml_backend_t backend);\n\n        // (optional) asynchronous tensor data access\n        void (*set_tensor_async)   (ggml_backend_t backend,       struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);"
+  },
+  "sched_assign": {
+   "file": "ggml/src/ggml-backend.cpp",
+   "start": 1061,
+   "end": 1090,
+   "text": "static int ggml_backend_sched_backend_id_from_cur(ggml_backend_sched_t sched, struct ggml_tensor * tensor) {\n    // assign pre-allocated nodes to their backend\n    int cur_backend_id = ggml_backend_sched_backend_from_buffer(sched, tensor, tensor);\n    if (cur_backend_id != -1) {\n        SET_CAUSE(tensor, \"1.dst\");\n        return cur_backend_id;\n    }\n\n    // view_src\n    if (tensor->view_src != NULL) {\n        cur_backend_id = ggml_backend_sched_backend_from_buffer(sched, tensor->view_src, tensor);\n        if (cur_backend_id != -1) {\n            SET_CAUSE(tensor, \"1.vsrc\");\n            return cur_backend_id;\n        }\n    }\n\n    if (tensor->buffer || (tensor->view_src && tensor->view_src->buffer)) {\n        // since the tensor is pre-allocated, it cannot be moved to another backend\n        ggml_backend_buffer_t buffer = tensor->view_src ? tensor->view_src->buffer : tensor->buffer;\n        GGML_ABORT(\"pre-allocated tensor (%s) in a buffer (%s) that cannot run the operation (%s)\", tensor->name, ggml_backend_buffer_name(buffer), ggml_op_name(tensor->op));\n    }\n\n    // graph input\n    if (tensor->flags & GGML_TENSOR_FLAG_INPUT) {\n        cur_backend_id = sched->n_backends - 1; // last backend (assumed CPU)\n        SET_CAUSE(tensor, \"1.inp\");\n        return cur_backend_id;\n    }\n"
+  },
+  "threadpool": {
+   "file": "ggml/src/ggml-cpu/ggml-cpu.c",
+   "start": 481,
+   "end": 492,
+   "text": "struct ggml_threadpool {\n    ggml_mutex_t mutex;       // mutex for cond.var\n    ggml_cond_t  cond;        // cond.var for waiting for new work\n\n    struct ggml_cgraph * cgraph;\n    struct ggml_cplan  * cplan;\n\n    // synchronization primitives\n    atomic_int n_graph;       // updated when there is work to be done (i.e each graph) holds graph and active thread counts.\n    atomic_int GGML_CACHE_ALIGN n_barrier;\n    atomic_int GGML_CACHE_ALIGN n_barrier_passed;\n    atomic_int GGML_CACHE_ALIGN current_chunk; // currently processing chunk during Mat_Mul, shared between all the threads."
+  },
+  "barrier": {
+   "file": "ggml/src/ggml-cpu/ggml-cpu.c",
+   "start": 576,
+   "end": 610,
+   "text": "void ggml_barrier(struct ggml_threadpool * tp) {\n    int n_threads = atomic_load_explicit(&tp->n_graph, memory_order_relaxed) & GGML_THREADPOOL_N_THREADS_MASK;\n    if (n_threads == 1) {\n        return;\n    }\n\n#ifdef GGML_USE_OPENMP\n    #pragma omp barrier\n#else\n    int n_passed = atomic_load_explicit(&tp->n_barrier_passed, memory_order_relaxed);\n\n    // enter barrier (full seq-cst fence)\n    int n_barrier = atomic_fetch_add_explicit(&tp->n_barrier, 1, memory_order_seq_cst);\n\n    if (n_barrier == (n_threads - 1)) {\n        // last thread\n        atomic_store_explicit(&tp->n_barrier, 0, memory_order_relaxed);\n\n        // exit barrier (full seq-cst fence)\n        atomic_fetch_add_explicit(&tp->n_barrier_passed, 1, memory_order_seq_cst);\n        return;\n    }\n\n    // wait for other threads\n    while (atomic_load_explicit(&tp->n_barrier_passed, memory_order_relaxed) == n_passed) {\n        ggml_thread_cpu_relax();\n    }\n\n    // exit barrier (full seq-cst fence)\n    // TSAN doesn't support standalone fence yet, we use a dummy read-modify-write instead\n    #ifdef GGML_TSAN_ENABLED\n    atomic_fetch_add_explicit(&tp->n_barrier_passed, 0, memory_order_seq_cst);\n    #else\n    atomic_thread_fence(memory_order_seq_cst);\n    #endif"
+  },
+  "cache_align": {
+   "file": "ggml/src/ggml-cpu/ggml-cpu.c",
+   "start": 61,
+   "end": 64,
+   "text": "#define GGML_CACHE_LINE  64\n\n#if defined(__clang__) || defined(__GNUC__)\n#define GGML_CACHE_ALIGN __attribute__((aligned(GGML_CACHE_LINE)))"
+  },
+  "compute_thread": {
+   "file": "ggml/src/ggml-cpu/ggml-cpu.c",
+   "start": 3129,
+   "end": 3159,
+   "text": "    for (int node_n = 0; node_n < cgraph->n_nodes && atomic_load_explicit(&tp->abort, memory_order_relaxed) != node_n; node_n++) {\n        struct ggml_tensor * node = cgraph->nodes[node_n];\n\n        if (ggml_op_is_empty(node->op)) {\n            // skip NOPs\n            continue;\n        }\n\n        if ((node->flags & GGML_TENSOR_FLAG_COMPUTE) == 0) {\n            continue;\n        }\n\n        // TODO: move fused-op detection into ggml_graph_plan so fusion decisions are made once at planning time\n        // Try fused ops, fall back to normal compute\n        const int n_fused = ggml_cpu_try_fuse_ops(cgraph, node_n, &params, cplan);\n        if (n_fused > 0) {\n            node_n += n_fused;\n        } else {\n            ggml_compute_forward(&params, node);\n        }\n\n        if (state->ith == 0 && cplan->abort_callback &&\n                cplan->abort_callback(cplan->abort_callback_data)) {\n            atomic_store_explicit(&tp->abort, node_n + 1, memory_order_relaxed);\n            tp->ec    = GGML_STATUS_ABORTED;\n        }\n\n        if (node_n + 1 < cgraph->n_nodes) {\n            ggml_barrier(state->threadpool);\n        }\n    }"
+  },
+  "chunks": {
+   "file": "ggml/src/ggml-cpu/ggml-cpu.c",
+   "start": 1410,
+   "end": 1471,
+   "text": "    // This is the size of the first dimension of the result, so we can iterate that way. (see the ASSERT above, these are the same numbers)\n    const int64_t nr0 = ne0;\n\n    // This is the size of the rest of the dimensions of the result\n    const int64_t nr1 = ne1 * ne2 * ne3;\n\n    // Now select a reasonable chunk size.\n    int chunk_size = 16;\n\n    // We need to step up the size if it's small\n    if (nr0 == 1 || nr1 == 1) {\n        chunk_size = 64;\n    }\n\n    // distribute the work across the inner or outer loop based on which one is larger\n    // The number of chunks in the 0/1 dim.\n    // CEIL(nr0/chunk_size)\n    int64_t nchunk0 = (nr0 + chunk_size - 1) / chunk_size;\n    int64_t nchunk1 = (nr1 + chunk_size - 1) / chunk_size;\n\n    // If the chunking is poor for the number of threads on this setup, scrap the whole plan.  Re-chunk it by thread.\n    //   Also, chunking by thread was measured to have perform better on NUMA systems.  See https://github.com/ggml-org/llama.cpp/pull/6915\n    //   In theory, chunking should be just as useful on NUMA and non NUMA systems, but testing disagreed with that.\n    if (nchunk0 * nchunk1 < nth * 4 || ggml_is_numa()) {\n        // distribute the thread work across the inner or outer loop based on which one is larger\n        nchunk0 = nr0 > nr1 ? nth : 1; // parallelize by src0 rows\n        nchunk1 = nr0 > nr1 ? 1 : nth; // parallelize by src1 rows\n    }\n\n    // The number of elements in each chunk\n    const int64_t dr0 = (nr0 + nchunk0 - 1) / nchunk0;\n    const int64_t dr1 = (nr1 + nchunk1 - 1) / nchunk1;\n\n    // The first chunk comes from our thread_id, the rest will get auto-assigned.\n    int current_chunk = ith;\n\n    while (current_chunk < nchunk0 * nchunk1) {\n        const int64_t ith0 = current_chunk % nchunk0;\n        const int64_t ith1 = current_chunk / nchunk0;\n\n        const int64_t ir0_start = dr0 * ith0;\n        const int64_t ir0_end = MIN(ir0_start + dr0, nr0);\n\n        const int64_t ir1_start = dr1 * ith1;\n        const int64_t ir1_end = MIN(ir1_start + dr1, nr1);\n\n        // dot kernels can handle 1 row and col at a time, but mmla kernels can process 2 rows and cols\n        int64_t num_rows_per_vec_dot = vec_dot_num_rows;\n\n        // these checks are needed to avoid crossing dim1 boundaries\n        // can be optimized, but the logic would become more complicated, so keeping it like this for simplicity\n        if ((nr0 % 2 != 0) || (ne11 % 2 != 0) || ((ir0_end - ir0_start) % 2 != 0) || ((ir1_end - ir1_start) % 2 != 0)) {\n            num_rows_per_vec_dot = 1;\n        }\n        ggml_compute_forward_mul_mat_one_chunk(params, dst, src0->type, num_rows_per_vec_dot, ir0_start, ir0_end, ir1_start, ir1_end);\n\n        if (nth >= nchunk0 * nchunk1) {\n            break;\n        }\n\n        current_chunk = atomic_fetch_add_explicit(&params->threadpool->current_chunk, 1, memory_order_relaxed);\n    }"
+  },
+  "repack_chunks": {
+   "file": "ggml/src/ggml-cpu/repack.cpp",
+   "start": 4711,
+   "end": 4716,
+   "text": "        // 4x chunks per thread\n        const int64_t nr0 = ggml_nrows(op->src[0]);\n\n        int     nth_scaled  = nth * 4;\n        int64_t chunk_size0 = (nr0 + nth_scaled - 1) / nth_scaled;\n        int64_t nchunk0     = (nr0 + chunk_size0 - 1) / chunk_size0;"
+  },
+  "gemm_or_gemv": {
+   "file": "ggml/src/ggml-cpu/repack.cpp",
+   "start": 4636,
+   "end": 4647,
+   "text": "\n        // If there are more than three rows in src1, use gemm; otherwise, use gemv.\n        if (nrows > 3) {\n            gemm<BLOC_TYPE, INTER_SIZE, NB_COLS, PARAM_TYPE>(ne00, (float *) (dst_ptr) + src0_start, nb1 / nb0,\n                                                             src0_ptr + src0_start * nb01, src1_ptr,\n                                                             nrows - (nrows % 4), ncols);\n        }\n        for (int iter = nrows - (nrows % 4); iter < nrows; iter++) {\n            gemv<BLOC_TYPE, INTER_SIZE, NB_COLS, PARAM_TYPE>(ne00, (float *) (dst_ptr + (iter * nb1)) + src0_start,\n                                                             ne01, src0_ptr + src0_start * nb01,\n                                                             src1_ptr + (src1_col_stride * iter), 1 /* nrows */, ncols);\n        }"
+  },
+  "block_x4": {
+   "file": "ggml/src/ggml-cpu/repack.h",
+   "start": 26,
+   "end": 29,
+   "text": "template <int K, int N> struct block {\n    ggml_half d[N];                         // deltas for N qK_0 blocks\n    int8_t    qs[(QK_0<K>() * N * K) / 8];  // quants for N qK_0 blocks\n};"
+  },
+  "block_x4_use": {
+   "file": "ggml/src/ggml-cpu/repack.h",
+   "start": 44,
+   "end": 44,
+   "text": "using block_q8_0x4 = block<8, 4>;"
+  },
+  "gemv_kernel": {
+   "file": "ggml/src/ggml-cpu/arch/arm/repack.cpp",
+   "start": 1736,
+   "end": 1767,
+   "text": "#if defined(__aarch64__) && defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)\n    const block_q8_0x4 * b_ptr = (const block_q8_0x4 *) vx;\n\n    for (int c = 0; c < nc; c += ncols_interleaved) {\n        const block_q8_0 * a_ptr = (const block_q8_0 *) vy;\n        float32x4_t        acc   = vdupq_n_f32(0);\n        for (int b = 0; b < nb; b++) {\n            int8x16x4_t b_low  = vld1q_s8_x4((const int8_t *) b_ptr->qs);\n            int8x16x4_t b_high = vld1q_s8_x4((const int8_t *) b_ptr->qs + 64);\n            float16x4_t bd     = vld1_f16((const __fp16 *) b_ptr->d);\n\n            int8x16x2_t a  = vld1q_s8_x2(a_ptr->qs);\n            float16x4_t ad = vld1_dup_f16((const __fp16 *) &a_ptr->d);\n\n            int32x4_t ret = vdupq_n_s32(0);\n\n            ret = vdotq_laneq_s32(ret, b_low.val[0], a.val[0], 0);\n            ret = vdotq_laneq_s32(ret, b_low.val[1], a.val[0], 1);\n            ret = vdotq_laneq_s32(ret, b_low.val[2], a.val[0], 2);\n            ret = vdotq_laneq_s32(ret, b_low.val[3], a.val[0], 3);\n\n            ret = vdotq_laneq_s32(ret, b_high.val[0], a.val[1], 0);\n            ret = vdotq_laneq_s32(ret, b_high.val[1], a.val[1], 1);\n            ret = vdotq_laneq_s32(ret, b_high.val[2], a.val[1], 2);\n            ret = vdotq_laneq_s32(ret, b_high.val[3], a.val[1], 3);\n\n            acc = vfmaq_f32(acc, vcvtq_f32_s32(ret), vmulq_f32(vcvt_f32_f16(ad), vcvt_f32_f16(bd)));\n            a_ptr++;\n            b_ptr++;\n        }\n        vst1q_f32(s, acc);\n        s += ncols_interleaved;"
+  },
+  "logits_out": {
+   "file": "src/llama-context.cpp",
+   "start": 1939,
+   "end": 1951,
+   "text": "        // extract logits\n        if (logits.data && t_logits && n_outputs > 0 && needs_raw_logits(ubatch, sampling.samplers)) {\n            ggml_backend_t backend_res = ggml_backend_sched_get_tensor_backend(sched.get(), t_logits);\n            GGML_ASSERT(backend_res != nullptr);\n            GGML_ASSERT(logits.data != nullptr);\n\n            float * logits_out = logits.data + n_outputs_prev*n_vocab;\n\n            if (n_outputs) {\n                GGML_ASSERT( n_outputs_prev + n_outputs <= n_outputs_all);\n                GGML_ASSERT((n_outputs_prev + n_outputs)*n_vocab <= (int64_t) logits.size);\n                ggml_backend_tensor_get_async(backend_res, t_logits, logits_out, 0, n_outputs*n_vocab*sizeof(float));\n            }"
+  },
+  "block_q4_0": {
+   "file": "ggml/src/ggml-common.h",
+   "start": 194,
+   "end": 199,
+   "text": "#define QK4_0 32\ntypedef struct {\n    ggml_half d;           // delta\n    uint8_t qs[QK4_0 / 2]; // nibbles / quants\n} block_q4_0;\nstatic_assert(sizeof(block_q4_0) == sizeof(ggml_half) + QK4_0 / 2, \"wrong q4_0 block size/padding\");"
+  },
+  "block_q8_0": {
+   "file": "ggml/src/ggml-common.h",
+   "start": 251,
+   "end": 256,
+   "text": "#define QK8_0 32\ntypedef struct {\n    ggml_half d;       // delta\n    int8_t  qs[QK8_0]; // quants\n} block_q8_0;\nstatic_assert(sizeof(block_q8_0) == sizeof(ggml_half) + QK8_0, \"wrong q8_0 block size/padding\");"
+  },
+  "block_q4_K": {
+   "file": "ggml/src/ggml-common.h",
+   "start": 323,
+   "end": 338,
+   "text": "// 4-bit quantization\n// 8 blocks of 32 elements each\n// weight is represented as x = a * q + b\n// Effectively 4.5 bits per weight\ntypedef struct {\n    GGML_EXTENSION union {\n        struct {\n            ggml_half d;    // super-block scale for quantized scales\n            ggml_half dmin; // super-block scale for quantized mins\n        } GGML_COMMON_AGGR_S;\n        ggml_half2 dm;\n    } GGML_COMMON_AGGR_U;\n    uint8_t scales[K_SCALE_SIZE]; // scales and mins, quantized with 6 bits\n    uint8_t qs[QK_K/2];           // 4--bit quants\n} block_q4_K;\nstatic_assert(sizeof(block_q4_K) == 2*sizeof(ggml_half) + K_SCALE_SIZE + QK_K/2, \"wrong q4_K block size/padding\");"
+  },
+  "quant_q8_0": {
+   "file": "ggml/src/ggml-quants.c",
+   "start": 276,
+   "end": 299,
+   "text": "void quantize_row_q8_0_ref(const float * GGML_RESTRICT x, block_q8_0 * GGML_RESTRICT y, int64_t k) {\n    assert(k % QK8_0 == 0);\n    const int nb = k / QK8_0;\n\n    for (int i = 0; i < nb; i++) {\n        float amax = 0.0f; // absolute max\n\n        for (int j = 0; j < QK8_0; j++) {\n            const float v = x[i*QK8_0 + j];\n            amax = MAX(amax, fabsf(v));\n        }\n\n        const float d = amax / ((1 << 7) - 1);\n        const float id = d ? 1.0f/d : 0.0f;\n\n        y[i].d = GGML_FP32_TO_FP16(d);\n\n        for (int j = 0; j < QK8_0; ++j) {\n            const float x0 = x[i*QK8_0 + j]*id;\n\n            y[i].qs[j] = roundf(x0);\n        }\n    }\n}"
+  },
+  "quant_q4_0": {
+   "file": "ggml/src/ggml-quants.c",
+   "start": 113,
+   "end": 148,
+   "text": "void quantize_row_q4_0_ref(const float * GGML_RESTRICT x, block_q4_0 * GGML_RESTRICT y, int64_t k) {\n    static const int qk = QK4_0;\n\n    assert(k % qk == 0);\n\n    const int nb = k / qk;\n\n    for (int i = 0; i < nb; i++) {\n        float amax = 0.0f; // absolute max\n        float max  = 0.0f;\n\n        for (int j = 0; j < qk; j++) {\n            const float v = x[i*qk + j];\n            if (amax < fabsf(v)) {\n                amax = fabsf(v);\n                max  = v;\n            }\n        }\n\n        const float d  = max / -8;\n        const float id = d ? 1.0f/d : 0.0f;\n\n        y[i].d = GGML_FP32_TO_FP16(d);\n\n        for (int j = 0; j < qk/2; ++j) {\n            const float x0 = x[i*qk + 0    + j]*id;\n            const float x1 = x[i*qk + qk/2 + j]*id;\n\n            const uint8_t xi0 = MIN(15, (int8_t)(x0 + 8.5f));\n            const uint8_t xi1 = MIN(15, (int8_t)(x1 + 8.5f));\n\n            y[i].qs[j]  = xi0;\n            y[i].qs[j] |= xi1 << 4;\n        }\n    }\n}"
+  },
+  "dot_q8_generic": {
+   "file": "ggml/src/ggml-cpu/quants.c",
+   "start": 451,
+   "end": 479,
+   "text": "void ggml_vec_dot_q8_0_q8_0_generic(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {\n    const int qk = QK8_0;\n    const int nb = n / qk;\n\n    assert(n % qk == 0);\n    assert(nrc == 1);\n    UNUSED(nrc);\n    UNUSED(bx);\n    UNUSED(by);\n    UNUSED(bs);\n\n    const block_q8_0 * GGML_RESTRICT x = vx;\n    const block_q8_0 * GGML_RESTRICT y = vy;\n\n    int ib = 0;\n    float sumf = 0;\n\n    for (; ib < nb; ++ib) {\n        int sumi = 0;\n\n        for (int j = 0; j < qk; j++) {\n            sumi += x[ib].qs[j]*y[ib].qs[j];\n        }\n\n        sumf += sumi*(GGML_CPU_FP16_TO_FP32(x[ib].d)*GGML_CPU_FP16_TO_FP32(y[ib].d));\n    }\n\n    *s = sumf;\n}"
+  },
+  "dot_q8_neon": {
+   "file": "ggml/src/ggml-cpu/arch/arm/quants.c",
+   "start": 1352,
+   "end": 1379,
+   "text": "#elif defined(__ARM_NEON)\n    float32x4_t sumv0 = vdupq_n_f32(0.0f);\n    float32x4_t sumv1 = vdupq_n_f32(0.0f);\n\n    for (; ib + 1 < nb; ib += 2) {\n        const block_q8_0 * GGML_RESTRICT x0 = &x[ib + 0];\n        const block_q8_0 * GGML_RESTRICT x1 = &x[ib + 1];\n        const block_q8_0 * GGML_RESTRICT y0 = &y[ib + 0];\n        const block_q8_0 * GGML_RESTRICT y1 = &y[ib + 1];\n\n        const int8x16_t x0_0 = vld1q_s8(x0->qs);\n        const int8x16_t x0_1 = vld1q_s8(x0->qs + 16);\n        const int8x16_t x1_0 = vld1q_s8(x1->qs);\n        const int8x16_t x1_1 = vld1q_s8(x1->qs + 16);\n\n        // load y\n        const int8x16_t y0_0 = vld1q_s8(y0->qs);\n        const int8x16_t y0_1 = vld1q_s8(y0->qs + 16);\n        const int8x16_t y1_0 = vld1q_s8(y1->qs);\n        const int8x16_t y1_1 = vld1q_s8(y1->qs + 16);\n\n        sumv0 = vmlaq_n_f32(sumv0, vcvtq_f32_s32(vaddq_s32(\n                        ggml_vdotq_s32(vdupq_n_s32(0), x0_0, y0_0),\n                        ggml_vdotq_s32(vdupq_n_s32(0), x0_1, y0_1))), GGML_CPU_FP16_TO_FP32(x0->d)*GGML_CPU_FP16_TO_FP32(y0->d));\n\n        sumv1 = vmlaq_n_f32(sumv1, vcvtq_f32_s32(vaddq_s32(\n                        ggml_vdotq_s32(vdupq_n_s32(0), x1_0, y1_0),\n                        ggml_vdotq_s32(vdupq_n_s32(0), x1_1, y1_1))), GGML_CPU_FP16_TO_FP32(x1->d)*GGML_CPU_FP16_TO_FP32(y1->d));"
+  },
+  "kv_class": {
+   "file": "src/llama-kv-cache.h",
+   "start": 20,
+   "end": 21,
+   "text": "class llama_kv_cache : public llama_memory_i {\npublic:"
+  },
+  "kv_get_k": {
+   "file": "src/llama-kv-cache.cpp",
+   "start": 1296,
+   "end": 1314,
+   "text": "ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const {\n    const int32_t ikv = map_layer_ids.at(il);\n\n    auto * k = layers[ikv].k;\n\n    const uint64_t kv_size      = get_size();\n    const uint64_t n_embd_k_gqa = k->ne[0];\n\n    assert(n_embd_k_gqa == hparams.n_embd_k_gqa(il));\n\n    const uint32_t ns = sinfo.s1 - sinfo.s0 + 1;\n\n    return ggml_view_4d(ctx, k,\n            hparams.n_embd_head_k(il), hparams.n_head_kv(il), n_kv, ns,\n            ggml_row_size(k->type, hparams.n_embd_head_k(il)),\n            ggml_row_size(k->type, n_embd_k_gqa),\n            ggml_row_size(k->type, n_embd_k_gqa*kv_size),\n            ggml_row_size(k->type, n_embd_k_gqa*kv_size)*sinfo.s0);\n}"
+  },
+  "kv_cpy_k": {
+   "file": "src/llama-kv-cache.cpp",
+   "start": 1348,
+   "end": 1378,
+   "text": "ggml_tensor * llama_kv_cache::cpy_k(ggml_context * ctx, ggml_tensor * k_cur, ggml_tensor * k_idxs, int32_t il, const slot_info & sinfo) const {\n    GGML_UNUSED(sinfo);\n\n    const int32_t ikv = map_layer_ids.at(il);\n\n    ggml_tensor * k = layers[ikv].k;\n\n    const int64_t n_embd_head = k_cur->ne[0];\n    const int64_t n_head      = k_cur->ne[1];\n    const int64_t n_tokens    = k_cur->ne[2];\n\n    const int64_t n_embd_gqa = n_embd_head*n_head;\n\n    // we can merge dims 0 and 1\n    // TODO: add ggml helper function for this?\n    GGML_ASSERT(ggml_row_size(k_cur->type, n_embd_head) == k_cur->nb[1]);\n\n    k_cur = ggml_view_2d(ctx, k_cur, n_embd_gqa, n_tokens, k_cur->nb[2], 0);\n\n    const int64_t n_stream = k->ne[2];\n\n    if (n_stream > 1) {\n        const int64_t kv_size = get_size();\n\n        assert(n_embd_gqa == k->ne[0]);\n        assert(kv_size    == k->ne[1]);\n\n        // merge the buffer across all streams because the idxs are global\n        k = ggml_reshape_2d(ctx, k, n_embd_gqa, kv_size*n_stream);\n    }\n"
+  },
+  "sampler_iface": {
+   "file": "include/llama.h",
+   "start": 1380,
+   "end": 1386,
+   "text": "    struct llama_sampler_i {\n        const char *           (*name)  (const struct llama_sampler * smpl);                                 // can be NULL\n        void                   (*accept)(      struct llama_sampler * smpl, llama_token token);              // can be NULL\n        void                   (*apply) (      struct llama_sampler * smpl, llama_token_data_array * cur_p); // required\n        void                   (*reset) (      struct llama_sampler * smpl);                                 // can be NULL\n        struct llama_sampler * (*clone) (const struct llama_sampler * smpl);                                 // can be NULL if ctx is NULL\n        void                   (*free)  (      struct llama_sampler * smpl);                                 // can be NULL if ctx is NULL"
+  },
+  "greedy": {
+   "file": "src/llama-sampler.cpp",
+   "start": 1053,
+   "end": 1060,
+   "text": "static void llama_sampler_greedy_apply(struct llama_sampler * /*smpl*/, llama_token_data_array * cur_p) {\n    cur_p->selected = 0;\n    for (size_t i = 1; i < cur_p->size; ++i) {\n        if (cur_p->data[i].logit > cur_p->data[cur_p->selected].logit) {\n            cur_p->selected = i;\n        }\n    }\n}"
+  },
+  "greedy_vtable": {
+   "file": "src/llama-sampler.cpp",
+   "start": 1092,
+   "end": 1098,
+   "text": "static struct llama_sampler_i llama_sampler_greedy_i = {\n    /* .name              = */ llama_sampler_greedy_name,\n    /* .accept            = */ nullptr,\n    /* .apply             = */ llama_sampler_greedy_apply,\n    /* .reset             = */ llama_sampler_greedy_reset,\n    /* .clone             = */ llama_sampler_greedy_clone,\n    /* .free              = */ llama_sampler_greedy_free,"
+  },
+  "server_slot": {
+   "file": "tools/server/server-context.cpp",
+   "start": 231,
+   "end": 237,
+   "text": "struct server_slot {\n    int id;\n\n    llama_context * ctx_tgt = nullptr;\n    llama_context * ctx_dft = nullptr;\n\n    common_memory mem;"
+  },
+  "server_decode": {
+   "file": "tools/server/server-context.cpp",
+   "start": 3874,
+   "end": 3882,
+   "text": "\n        // yield to the queue, so we can still handle metrics tasks while decoding\n        // note: the sync is done here too, so that the wait is also covered by the yield\n        int ret = 0;\n        queue_tasks.yield_to_queue([&]() {\n            ret = llama_process(ctx_tgt, LLAMA_PROCESS_TYPE_DECODE, batch.view.get());\n            if (ret == 0 && has_output) {\n                llama_synchronize(ctx_tgt);\n            }"
+  }
+ }
+}
