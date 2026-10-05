@@ -1,0 +1,20 @@
+
+<section id="rd-udp">
+<h2>11. UDP: a thin wrapper, and everything else is your problem</h2>
+<p><b>What it is.</b> UDP adds an 8-byte header to IP: source port, destination port, length, checksum ({{RFC 768|https://www.rfc-editor.org/rfc/rfc768}}). No connection, no handshake, no acknowledgement, no retransmission, no ordering, no flow or congestion control. What it does keep is <b>message boundaries</b>: each <code>sendto</code> is one datagram, delivered whole or not at all (the recording in section 2 shows three sends arriving as three reads, where TCP merged them).</p>
+<p><b>Why use it.</b> When a late packet is worthless (voice, video, game state), when a question and its answer each fit in one packet (DNS), or when you want to build your own transport in user space without waiting for every operating system and middlebox to change (QUIC). The price is that you must do the rest yourself, including congestion control: an application that blasts UDP at a fixed rate harms everyone sharing the link, which is why the IETF's {{UDP usage guidelines|https://www.rfc-editor.org/rfc/rfc8085}} ask UDP applications to control their rate.</p>
+<h3>Sizes that matter</h3>
+<div class="tw"><table>
+<thead><tr><th>Size (UDP payload)</th><th>Where it comes from</th></tr></thead>
+<tbody>
+<tr><td class="num">1,472 / 1,452</td><td>largest payload in one 1,500-byte packet over IPv4 / IPv6 (1,500 &minus; 20 or 40 &minus; 8, derived); larger datagrams are fragmented, and losing one fragment loses the datagram</td></tr>
+<tr><td class="num">1,232</td><td>the EDNS buffer size DNS Flag Day 2020 recommends as the default: IPv6's 1,280 minimum MTU minus 48 bytes of IPv6 and UDP headers ({{dnsflagday.net/2020|https://www.dnsflagday.net/2020/}}); larger DNS answers fall back to TCP</td></tr>
+<tr><td class="num">1,200</td><td>the smallest maximum datagram size QUIC requires a path to carry, and the size a client pads its first datagram to ({{RFC 9000 s14|https://www.rfc-editor.org/rfc/rfc9000#section-14}}; measured in section 12)</td></tr>
+<tr><td class="num">9,216</td><td>the largest datagram this Mac's kernel accepts at all (<span class="meas">measured</span>: 9,216 bytes sent, 9,217 refused with "Message too long", <code>net.inet.udp.maxdgram</code>); the protocol itself allows up to 65,507 over IPv4 (65,535 &minus; 20 &minus; 8, derived)</td></tr>
+</tbody></table></div>
+<h3>No autotuning: the receive buffer drops what it cannot hold</h3>
+<p>TCP's receive buffer grows and its window tells the sender to slow down. A UDP socket has a fixed buffer and no way to push back: datagrams that arrive while it is full are discarded by the kernel, and only a counter records it. <span class="meas">measured</span> on loopback: 5,000 datagrams of 1,200 bytes sent in one burst at a socket that reads only after the burst:</p>
+<div class="plot" id="rd-udpdrop"></div>
+<p>A QUIC implementation treats those drops as network loss and slows down, so an undersized UDP buffer silently caps HTTP/3 throughput. quic-go's documentation recommends raising the Linux limits to about 7.5 MB (<code>net.core.rmem_max</code> and <code>wmem_max</code> = 7,500,000, {{quic-go wiki|https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes}}); Linux's default limit was 212,992 bytes until 6.18 raised it to 4 MB (section 5). HTTP/3 is no longer niche: W3Techs counted it on 40.8 percent of websites on 5 October 2026 ({{W3Techs|https://w3techs.com/technologies/details/ce-http3}}).</p>
+<div class="deepnote"><b>Commands.</b> Linux: <code>nstat -az | grep -i udp</code>, where a growing <code>UdpRcvbufErrors</code> means the buffer overflowed; <code>ss -uam</code> shows each socket's buffer use. macOS: <code>netstat -s -p udp</code>, "dropped due to full socket buffers" (the counter this page's measurement read before and after). Where you meet UDP in ML: DNS on port 53, HTTP/3 on 443, NTP for clocks (TLS and token validity depend on them), and RoCEv2 between GPUs (section 14).</div>
+</section>
