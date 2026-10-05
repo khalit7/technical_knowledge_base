@@ -1,0 +1,20 @@
+<section id="sg-s5">
+<h2>5. Several GPUs from one process: devices, peer access, IPC</h2>
+<p><b>Selecting a device.</b> The runtime has a "current device" per host thread; <code>cudaSetDevice(d)</code> switches it, and allocations, streams and launches made afterwards belong to device <i>d</i>. A stream belongs to one device; an event can be waited on by a stream of another device, which is how work on two GPUs is ordered. In PyTorch: <code>torch.cuda.set_device(d)</code>, <code>with torch.cuda.device(d)</code>, or explicit <code>device="cuda:1"</code>.</p>
+<p><b>One address space.</b> On 64-bit systems the host and all GPUs share one virtual address space (unified virtual addressing), so a pointer says which device it belongs to and <code>cudaMemcpyAsync(..., cudaMemcpyDefault, s)</code> can copy between any two. <b>Peer access</b> goes further: after <code>cudaDeviceEnablePeerAccess</code>, a kernel on GPU 0 can dereference a pointer into GPU 1's memory, and the loads and stores travel over NVLink or PCIe with no copy.</p>
+<pre class="rd-code"><span class="c">// s3_peer.cu (compiled here)</span>
+cudaDeviceCanAccessPeer(&amp;can01, 0, 1);           <span class="c">// is there a path GPU 0 can use?</span>
+cudaSetDevice(1); cudaMalloc(&amp;b, n * 4);
+cudaSetDevice(0); cudaMalloc(&amp;a, n * 4);
+if (can01) {
+  cudaDeviceEnablePeerAccess(1, 0);               <span class="c">// GPU 0 may now dereference GPU 1 pointers</span>
+  add_remote&lt;&lt;&lt;n / 256, 256&gt;&gt;&gt;(a, b, n);          <span class="c">// b is read across the link</span>
+} else {
+  cudaMemcpyPeerAsync(tmp, 0, b, 1, n * 4, 0);    <span class="c">// copy first, then compute locally</span>
+  add_remote&lt;&lt;&lt;n / 256, 256&gt;&gt;&gt;(a, tmp, n);
+}
+cudaIpcGetMemHandle(&amp;hnd, a);                     <span class="c">// let another process map this allocation</span></pre>
+<p>Whether peer access exists depends on the wiring: GPUs on one NVLink/NVSwitch fabric, or under one PCIe switch on a platform that allows it. <code>nvidia-smi topo -m</code> prints the matrix (NV#, PIX, PXB, PHB, SYS), and consumer cards from the RTX 4090 on have no NVLink at all. The wires, their speeds and the switch layouts are {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}'s subject; the programmer's question is only "can this pointer be read from there, and how fast".</p>
+<p><b>Across processes.</b> PyTorch training uses one process per GPU (<code>torchrun</code>), so peer memory crosses process boundaries: <code>cudaIpcGetMemHandle</code> turns an allocation into a small handle that another process opens with <code>cudaIpcOpenMemHandle</code> (newer code uses the driver's virtual memory API and exports a file descriptor). NCCL and symmetric memory (section 8) do exactly this under the hood to read each other's buffers.</p>
+<div class="co"><div class="t">One process, many GPUs, or one process per GPU?</div>One process per GPU is the PyTorch default and avoids Python's single interpreter becoming the launch bottleneck for eight GPUs. One process driving several GPUs is fine in C++ (and is what <code>ncclCommInitAll</code> and section 6's program do), but NCCL warns that "using multiple GPUs per process with CUDA graph capture may result in deadlocks" ({{NCCL user guide, CUDA graphs|https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/cudagraph.html}}) <span class="rd-vend">vendor doc</span>.</div>
+</section>

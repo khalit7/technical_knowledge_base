@@ -3040,3 +3040,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | TV layouts of 4 instructions (incl. wgmma 64 x 64 C, 128 threads) | Layout lab | 7 | CuTe MMA_Traits | scale of Hopper fragments |
 | Instruction atlas (20 kernels x 8 targets, click for PTX/ptxas/SASS) + 3 newer targets + cuBLAS opcode scan | tab | 9 | 160 real compiles | the evidence base, browsable |
 | GEMM scheduler (DP, split-K, Stream-K, hybrid; Gantt with time scrub; schedule comparison) | tab | 8 | model mirrored in recompute.py, 11 cases equal | waves and Stream-K are spatial; reproduces NVIDIA's 108 vs 117 tiles example |
+
+### Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu/src/viz_ideas.md`.
+

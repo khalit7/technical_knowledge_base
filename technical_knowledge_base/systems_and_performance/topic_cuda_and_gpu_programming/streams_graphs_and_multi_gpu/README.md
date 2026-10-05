@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75 (child of Topic: cuda-and-gpu-programming)
 
-Not migrated yet: a new page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Streams and events, the legacy and per-thread default streams, priorities and hardware work queues, pinned memory and the chunked copy/compute pipeline, launch overhead and CUDA graphs (capture, update, conditional nodes compiled to SASS), `torch.cuda.graph`, CUDAGraph Trees in `torch.compile(mode="reduce-overhead")` and graphs in inference engines, several GPUs in one process (peer access, IPC), NCCL as an API, DDP bucketing and FSDP prefetch, debugging hangs, symmetric memory and NVSHMEM. Tabs: Reading, Step timeline (a data-parallel step model with every input exposed), Further reading. A new page (no old Notion text); no child pages, databases or video. Evidence: CUDA 13.4.2 and NCCL 2.31.2 compiled in kb-gpu-lab:1 (no GPU, runs fail at the first runtime call and say so), real PyTorch 2.14.1 DDP on CPU with Gloo, launch and queue costs measured on the Apple M1 Pro GPU through Metal.

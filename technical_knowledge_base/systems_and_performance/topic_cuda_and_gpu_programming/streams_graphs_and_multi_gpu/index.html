@@ -1,0 +1,926 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+#ovBars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 6.6em;margin:5px 0}#ovBars .row .nm{white-space:normal;line-height:1.2}#ovBars .ml{display:block;font-size:11.5px;color:var(--mute)}
+#ovBars .track{height:12px}
+#pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+@media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<h1>Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL</h1>
+<div class="sub">How to keep a GPU busy, taught from zero: streams and events, the default-stream trap, pinned memory and copy/compute overlap, launch overhead and CUDA graphs (capture, update, conditional nodes, PyTorch's graphs and CUDAGraph Trees, inference engines), several GPUs in one process, NCCL as an API, how data-parallel training hides its all-reduce, debugging hangs, and symmetric memory. Real CUDA 13.4.2 and NCCL 2.31.2 compiled here; overlap measured with PyTorch on CPU; launch costs measured on an Apple M1 Pro GPU. Child of Topic: cuda-and-gpu-programming. Data as of October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-step" aria-selected="false">Step timeline</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .rd-cap{min-height:5.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-read .rd-cap .t{font-weight:600;font-size:14px}#t-read .rd-cap p{margin:2px 0;font-size:13.5px}
+#t-read .rd-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
+#t-read .rd-cnt .stat .v{font-size:15px}
+#t-read .rd-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#t-read .rd-seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-read .rd-seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-read .rd-meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-read .rd-vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-read .rd-pub{font-size:11.5px;color:var(--c6);font-weight:600}
+#t-read .rd-der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-read .rd-ill{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-read .rd-unc{font-size:11.5px;color:var(--bad);font-weight:600;font-style:italic}
+#t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
+#t-read .rd-fig{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rd-fig svg text{font-size:11px}
+#t-read .rd-step{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:10px 0}
+#t-read .rd-step>a{display:block;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:8px;padding:7px 10px;background:var(--soft);font-size:13px;min-width:0}
+#t-read .rd-step>a b{display:block;font-size:13.5px}#t-read .rd-step>a span{color:var(--mute);font-size:12.5px}
+#t-read pre.rd-code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;margin:8px 0;white-space:pre}
+#t-read pre.rd-code .c{color:var(--mute)}#t-read pre.rd-code .k{color:var(--c4)}#t-read pre.rd-code .h{background:var(--hl)}
+#t-read .rd-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:8px 0}
+#t-read .rd-two>div{min-width:0}
+#t-read .rd-pr{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+#t-read .rd-pr .q{font-weight:600;font-size:14px;color:var(--ink)}
+#t-read .rd-pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#t-read .rd-pr .opts button{font-size:13px}
+#t-read .rd-pr .opts button.right{background:var(--open2);border-color:var(--good)}
+#t-read .rd-pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-read .rd-pr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-read details.rd-qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}
+#t-read details.rd-qa summary{cursor:pointer;padding:6px 12px;font-size:14px}
+#t-read details.rd-qa>div{padding:0 12px 8px;font-size:13.5px}
+#t-read .rd-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .rd-leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-read .rd-kids{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px;margin:8px 0}
+#t-read .rd-kids>div{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;font-size:13.5px;min-width:0}
+#t-read .rd-kids b{display:block}
+#t-read .rd-ladder{display:grid;gap:4px;margin:8px 0}
+#t-read .rd-ladder>div{display:grid;grid-template-columns:minmax(0,10em) minmax(0,1fr);gap:8px;align-items:start;border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:13px;background:var(--bg)}
+#t-read .rd-ladder>div b{font-size:13px}
+#t-read table td,#t-read table th{font-size:12.5px}
+#t-read .rd-ctlrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-read .rd-ctlrow label{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 200px}
+#t-read .rd-ctlrow input[type=range]{flex:1 1 90px;min-width:0}
+@media (max-width:520px){#t-read .rd-ladder>div{grid-template-columns:1fr}#t-read pre.rd-code{font-size:11px}}
+#t-read pre.rd-code.sass{font-size:11.5px;max-height:300px;overflow:auto}
+</style>
+<style>
+#t-read .sg-tl{width:100%;overflow:hidden;margin:6px 0}
+#t-read .sg-tl svg text{font-size:11px}
+#t-read .sg-note{font-size:12.5px;color:var(--mute)}
+#t-read p code,#t-read li code,#t-read td code,#t-step code{overflow-wrap:anywhere}
+</style>
+<nav class="nav" id="rd-nav">
+<a href="#sg-s0">In one screen</a><a href="#sg-s1">1 Streams</a><a href="#sg-s2">2 Copies</a><a href="#sg-s3">3 Launch cost, graphs</a><a href="#sg-s4">4 Graphs in PyTorch</a><a href="#sg-s5">5 Many GPUs, one process</a><a href="#sg-s6">6 NCCL and training</a><a href="#sg-s7">7 Hangs</a><a href="#sg-s8">8 Symmetric memory</a><a href="#sg-s9">Mistakes, interview</a>
+</nav>
+<section id="sg-s0">
+<p class="lead">A GPU is fast only while it has work. Between the kernels this topic teaches you to write, a training step leaves the GPU idle in three ways: it waits for the <b>CPU</b> to launch the next kernel, it waits for a <b>copy</b> over PCIe, and it waits for <b>other GPUs</b> to exchange gradients. This page is about the tools that remove those waits: streams (run things side by side), CUDA graphs (launch many kernels with one call) and NCCL on its own stream (communicate while computing).</p>
+<p><b>Where this sits.</b> <a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a> taught what one launch is and what it costs, and left streams, events, pinned-memory pipelines and NCCL streams to this page; <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> has pinned, mapped and managed memory. Below the API, <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a> follows a launch down to the doorbell write, and the wires (PCIe, NVLink, InfiniBand) and NCCL's algorithms are on <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>. This page is the programmer's side.</p>
+<p><b>What could run here.</b> There is no NVIDIA GPU. So: every CUDA program on this page was compiled with CUDA 13.4.2 and NCCL 2.31.2 in a container <span class="rd-pub">compiled here</span>, and the runs fail at the first runtime call with "<span data-sgv="cuda.run_errors.s1_pipeline">CUDA driver version is insufficient for CUDA runtime version (35)</span>", which is shown rather than hidden. The overlap of gradient all-reduce with backward was <b>run</b> with real PyTorch DDP on CPU processes (Gloo instead of NCCL) <span class="rd-meas">measured on CPU</span>. Launch and queueing costs were <b>measured</b> on the Apple M1 Pro's GPU through Metal <span class="rd-meas">measured on Apple M1 Pro GPU</span>. NVIDIA timings come from NVIDIA's posts and docs <span class="rd-pub">published</span>; the training-step timelines are a model built from stated inputs <span class="rd-der">derived</span>.</p>
+<div class="tw"><table>
+<thead><tr><th>Idea</th><th>In one line</th><th>How to check it</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td><b>Stream</b></td><td>A queue of GPU work: in order inside a stream, possibly overlapping across streams.</td><td>Nsight Systems shows one row per stream</td><td>1</td></tr>
+<tr><td><b>Event</b></td><td>A marker in a stream: other streams can wait on it, and two events time the GPU.</td><td><code>cudaEventElapsedTime</code>, <code>torch.cuda.Event</code></td><td>1</td></tr>
+<tr><td><b>Legacy default stream</b></td><td>Stream 0: work on it waits for, and blocks, every other blocking stream.</td><td>the binary calls <code>cudaMemcpyAsync</code>, not <code>cudaMemcpyAsync_ptsz</code></td><td>1</td></tr>
+<tr><td><b>Pinned memory</b></td><td>Page-locked host memory: required for a copy to run asynchronously and overlap.</td><td><code>pin_memory=True</code>, <code>non_blocking=True</code></td><td>2</td></tr>
+<tr><td><b>CUDA graph</b></td><td>A recorded sequence of kernels and copies, instantiated once, launched with one call.</td><td>gaps between kernels vanish on the timeline</td><td>3, 4</td></tr>
+<tr><td><b>Peer access</b></td><td>One GPU reads another's memory directly over NVLink or PCIe.</td><td><code>cudaDeviceCanAccessPeer</code>, <code>nvidia-smi topo -m</code></td><td>5</td></tr>
+<tr><td><b>NCCL collective</b></td><td>All-reduce and friends as kernels queued on a stream; every rank must call them in the same order.</td><td><code>NCCL_DEBUG=INFO</code>, the flight recorder</td><td>6, 7</td></tr>
+<tr><td><b>Comm/compute overlap</b></td><td>DDP all-reduces gradient buckets while backward is still running; FSDP prefetches all-gathers.</td><td>the timeline: NCCL kernels under backward kernels</td><td>6</td></tr>
+<tr><td><b>Symmetric memory</b></td><td>The same buffer on every GPU, readable and writable by kernels on the others.</td><td><code>symm_mem.rendezvous</code></td><td>8</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">The one picture to keep</div>A step's time is the sum of the parts that do <b>not</b> overlap. Overlap hides the smaller of two things under the larger; it never makes the larger one shorter, and the two often slow each other down a little (both use the GPU's SMs and memory). Section 6's measurement shows both effects on real DDP.</div>
+</section>
+<section id="sg-s1">
+<h2>1. Streams and events, from zero</h2>
+<p><b>The problem.</b> A launch only queues work (programming model, section 8). Something must say what order the queued work runs in, and which pieces are independent enough to run at the same time. That something is the stream.</p>
+<p><b>A stream</b> is a queue of GPU operations: kernel launches, copies, memsets, waits. NVIDIA's guide: "the order of execution of operations in a stream is the same as the order in which those operations were enqueued", and operations in different streams have no order between them unless you add one (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.5</a>) <span class="rd-vend">vendor doc</span>. Every launch names its stream as the fourth launch argument, <code>k&lt;&lt;&lt;grid, block, smem, stream&gt;&gt;&gt;</code>; every async copy takes one as its last argument. "Different streams may overlap" means the hardware is allowed to run them together, not that it will: a kernel that fills every SM leaves no room for another.</p>
+<p><b>An event</b> is a marker you record into a stream. It completes when everything queued before it in that stream has completed. Three uses:</p>
+<ul>
+<li><b>Order two streams:</b> <code>cudaEventRecord(e, s1); cudaStreamWaitEvent(s2, e)</code> makes everything queued on <code>s2</code> afterwards wait for <code>s1</code>'s work up to <code>e</code>, without stopping the CPU.</li>
+<li><b>Time the GPU:</b> two events and <code>cudaEventElapsedTime</code> give milliseconds between them as the GPU saw them (honest timing is on <a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>). An event created with <code>cudaEventDisableTiming</code> is cheaper and is the right kind for pure ordering.</li>
+<li><b>Wait on the CPU</b> for one point only: <code>cudaEventSynchronize(e)</code>, instead of draining everything.</li>
+</ul>
+<p><b>Host waits, from narrowest to widest:</b> <code>cudaEventSynchronize</code> (one point), <code>cudaStreamSynchronize</code> (one stream), <code>cudaDeviceSynchronize</code> (everything on the GPU); <code>cudaStreamQuery</code> and <code>cudaEventQuery</code> only ask. Some calls wait without saying so: <code>cudaMemcpy</code> is synchronous, <code>cudaFree</code> synchronises the device (programming model, section 7), and in PyTorch <code>.item()</code>, <code>.cpu()</code>, <code>print(t)</code> and a boolean test of a GPU tensor all wait. A callback can be queued too: <code>cudaLaunchHostFunc(stream, fn, data)</code> runs <code>fn</code> on a CPU thread when the stream reaches it, and such functions "may not call any CUDA APIs" (guide 2.5.4).</p>
+<h3>The default stream trap</h3>
+<p>A launch without a stream argument goes to <b>stream 0</b>, the default stream, and there are two kinds. The <dfn>legacy default stream</dfn> (nvcc's default) is shared by every host thread and is a <b>blocking</b> stream: work launched into it "will wait for all other blocking streams to complete before it can execute", and the other blocking streams wait for it (guide 2.5.6.1). Streams made with <code>cudaStreamCreate</code> are blocking; <code>cudaStreamCreateWithFlags(&amp;s, cudaStreamNonBlocking)</code> makes one that ignores stream 0. The <dfn>per-thread default stream</dfn> (<code>nvcc --default-stream per-thread</code>, or <code>CUDA_API_PER_THREAD_DEFAULT_STREAM</code> before including the headers) gives "each host thread its own independent default stream which will not synchronize with other streams" (guide 2.5.6.2) <span class="rd-vend">vendor doc</span>.</p>
+<pre class="rd-code"><span class="c">// s5_default_stream.cu (compiled here): A on s1, B on stream 0, C on s2, then a copy on stream 0</span>
+cudaStreamCreate(&amp;s1); cudaStreamCreate(&amp;s2);   <span class="c">// blocking streams (the default flag)</span>
+k&lt;&lt;&lt;1, 256, 0, s1&gt;&gt;&gt;(d);          <span class="c">// A</span>
+k&lt;&lt;&lt;1, 256&gt;&gt;&gt;(d + 256);           <span class="c">// B: default stream</span>
+k&lt;&lt;&lt;1, 256, 0, s2&gt;&gt;&gt;(d + 512);    <span class="c">// C</span>
+cudaMemcpyAsync(d, d + 512, 1024, cudaMemcpyDeviceToDevice);   <span class="c">// default stream again</span></pre>
+<div class="rd-pr"><div class="q">Predict: with nvcc's default settings, can kernel C run at the same time as kernel A?</div>
+<div class="opts"><button data-v="a">Yes, they are on different streams</button><button data-v="b" data-ok="1">No: B on the legacy default stream sits between them</button><button data-v="c">Only if A and C are small</button></div>
+<div class="ans" hidden>B waits for A (A is on a blocking stream), and C, queued after B, waits for B. The three run one after another although they share nothing. Compiled with <code>--default-stream per-thread</code>, B goes to this thread's own stream and A, B and C may all overlap. The chart below draws both.</div></div>
+<div class="card" id="sg-ds-card"><div class="rd-seg" id="sg-ds-seg"><button data-m="legacy" class="on">legacy default stream (nvcc default)</button><button data-m="ptd">--default-stream per-thread</button></div>
+<div class="sg-tl" id="sg-ds-fig"></div><p class="small mute" id="sg-ds-cap"></p></div>
+<p><b>How to tell which one a binary uses.</b> The flag changes which runtime functions the code calls. Compiling the program above both ways and listing the CUDA functions each object file needs <span class="rd-pub">compiled here</span>: legacy <code data-sgv="cuda.sym_legacy.2">cudaMemcpyAsync</code>, per-thread <code data-sgv="cuda.sym_ptd.2">cudaMemcpyAsync_ptsz</code>, the <code>_ptsz</code> ("per-thread stream") entry point. Note also what the run printed without a driver: nothing, with exit code 0 (<code data-sgv="cuda.s5_run">run_exit=0</code>), because this program checks no return codes; the four programs that do check stop at their first call.</p>
+<p><b>PyTorch's version.</b> PyTorch never uses the legacy stream for its own work by accident: every operation goes to the <b>current stream</b> of its device, which starts as the default stream and is changed with a context manager:</p>
+<pre class="rd-code">s = torch.cuda.Stream()
+s.wait_stream(torch.cuda.current_stream())   <span class="c"># s must see x fully written</span>
+with torch.cuda.stream(s):
+    y = f(x)                                   <span class="c"># queued on s</span>
+torch.cuda.current_stream().wait_stream(s)   <span class="c"># before anyone on the main stream reads y</span>
+y.record_stream(torch.cuda.current_stream())  <span class="c"># or the allocator may hand y's memory out early</span></pre>
+<p>The last line is the subtle one. PyTorch's caching allocator records which stream a block was allocated on and reuses freed blocks in that stream's order; a tensor used on a second stream can be freed and reused while the second stream still reads it. The PyTorch notes say it plainly: even when "no other uses of <code>A</code>" exist, "it is still necessary to synchronize" (<a href="https://docs.pytorch.org/docs/2.14/notes/cuda.html" target="_blank" rel="noopener noreferrer">CUDA semantics, 2.14</a>) <span class="rd-vend">vendor doc</span>. <code>torch.cuda.Event(enable_timing=True)</code> wraps the CUDA event.</p>
+<h3>What "may overlap" depends on</h3>
+<p><b>SMs.</b> Two kernels run side by side only if the first leaves SMs (or room on them) free. Concurrency pays when kernels are small, a few blocks each; a big GEMM takes the whole GPU and the second kernel simply starts on SMs as they free up. <b>Work queues.</b> The GPU takes work from a limited number of hardware queues. <code>CUDA_DEVICE_MAX_CONNECTIONS</code> sets how many: "1 to 32 connections, default is 8"; with more streams than queues, independent streams can share a queue and serialise through "false dependencies" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/environment-variables.html" target="_blank" rel="noopener noreferrer">Programming Guide 3.1 and 5.2</a>) <span class="rd-vend">vendor doc</span>. Megatron-LM uses the opposite effect on purpose: it sets the variable to 1 so that launch order becomes execution order, and comments in its tensor-parallel layers say "we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the all-reduce is scheduled before the weight gradient computation" (<a href="https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/tensor_parallel/layers.py" target="_blank" rel="noopener noreferrer">Megatron-LM layers.py, main, Sep 30 2026</a>) <span class="rd-pub">source</span>. One queue means the communication kernel is guaranteed to start first and then runs under the GEMM.</p>
+<p><b>Priorities.</b> <code>cudaStreamCreateWithPriority</code> gives a stream a priority; "lower numbers correspond to higher priorities", and <code>cudaDeviceGetStreamPriorityRange</code> returns the range for the device (guide 2.5.9.1) <span class="rd-vend">vendor doc</span>. Waiting blocks of a high-priority stream get SMs first, which is how communication kernels are kept from queueing behind a long compute kernel; PyTorch exposes it as <code>torch.cuda.Stream(priority=-1)</code> and, for NCCL, <code>TORCH_NCCL_HIGH_PRIORITY</code> (<a href="https://docs.pytorch.org/docs/2.14/torch_nccl_environment_variables.html" target="_blank" rel="noopener noreferrer">PyTorch NCCL environment variables</a>).</p>
+<div class="card" id="sg-conc-card"><div class="rd-fig" id="sg-conc-fig"></div>
+<p class="small mute" id="sg-conc-cap"></p></div>
+<p>The measurement above is a contrast, not a CUDA number: Metal has command queues instead of streams, and on this M1 Pro, eight independent one-threadgroup kernels on eight separate queues took as long as eight in one queue, while the same eight in one encoder marked "concurrent" ran together. Separate queues allowed overlap but did not produce it here. The lesson transfers: <b>never assume overlap, look for it on a timeline.</b></p>
+<div class="deepnote"><b>Go deeper:</b> how a stream maps to a hardware channel, a GPFIFO ring and a doorbell register is on <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>; reading a stream timeline in Nsight Systems is on <a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>.</div>
+</section>
+<section id="sg-s2">
+<h2>2. Copies: pinned memory and copy/compute overlap</h2>
+<p><b>The problem.</b> Host memory is far away. A PCIe 5.0 x16 link moves about 63 GB/s each way (the figure <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a> uses), while an H100 SXM reads its own HBM at 3.35 TB/s <span class="rd-vend">vendor spec</span>, about 53 times faster <span class="rd-der">derived: 3,350 / 63</span>. A kernel that waits for its input to cross PCIe runs at PCIe speed. The fix is to move data while the GPU computes on something else.</p>
+<p><b>Pinned memory first.</b> The GPU's copy engines move data by DMA: they read physical pages directly, so those pages must not move or be swapped out while the copy runs. Ordinary (pageable) memory can be, so the driver first copies it into a pinned staging buffer, and the copy is not truly asynchronous. NVIDIA: "In order for memory copies involving CPU memory to be carried out asynchronously, the host buffers must be pinned and page-locked" (guide 2.5.2.3) <span class="rd-vend">vendor doc</span>. Allocate pinned memory with <code>cudaMallocHost</code> (PyTorch: <code>pin_memory=True</code> in the DataLoader, or <code>t.pin_memory()</code>); do not pin everything, because pinned pages are taken away from the OS.</p>
+<p><b>Copy engines.</b> Copies are done by separate hardware units, not by the SMs, so a copy and a kernel can run at the same time; with two copy engines a host-to-device and a device-to-host copy can also overlap each other. <code>cudaGetDeviceProperties</code> reports how many as <code>asyncEngineCount</code>. With one engine, the two directions take turns.</p>
+<h3>The chunked pipeline</h3>
+<p>Cut the data into chunks and give each chunk its own sequence (copy in, kernel, copy out) on one of a few streams. While chunk 2 is copied in, chunk 1's kernel runs and chunk 0 is copied out. The program, compiled here <span class="rd-pub">compiled here</span>:</p>
+<pre class="rd-code"><span class="c">// s1_pipeline.cu: 256 MiB in 8 chunks on 3 non-blocking streams (error checks shortened)</span>
+cudaMallocHost(&amp;h_in, N * sizeof(float));                 <span class="c">// pinned</span>
+for (int k = 0; k &lt; NS; ++k)
+  cudaStreamCreateWithPriority(&amp;s[k], cudaStreamNonBlocking, k == 0 ? hi : lo);
+for (int c = 0; c &lt; CHUNKS; ++c) {
+  cudaStream_t st = s[c % NS];  size_t off = (size_t)c * C;
+  cudaMemcpyAsync(d_in + off, h_in + off, C * 4, cudaMemcpyHostToDevice, st);
+  scale&lt;&lt;&lt;(C + 255) / 256, 256, 0, st&gt;&gt;&gt;(d_out + off, d_in + off, C, 2.0f);
+  cudaMemcpyAsync(h_out + off, d_out + off, C * 4, cudaMemcpyDeviceToHost, st);
+}
+<span class="c">// s[0] waits on an event from each other stream, records t1, then: cudaEventSynchronize(t1)</span></pre>
+<div class="card" id="sg-pipe-card">
+<div class="rd-ctlrow"><label>Chunks <input type="range" id="sg-pipe-k" min="1" max="16" value="8"> <b id="sg-pipe-kv">8</b></label>
+<label><input type="checkbox" id="sg-pipe-two" checked> two copy engines</label></div>
+<div class="sg-tl" id="sg-pipe-fig"></div><div class="rd-cnt" id="sg-pipe-cnt"></div>
+<p class="small mute">Model <span class="rd-der">derived</span>: 256 MiB at 63 GB/s each way = <span data-sgv="pipe.h2d_ms">4.26</span> ms per direction; the kernel reads and writes 256 MiB at 3.35 TB/s = <span data-sgv="pipe.k_ms">0.16</span> ms. Serial: <span data-sgv="pipe.serial_ms">8.68</span> ms. Eight chunks with two engines: <span data-sgv="pipe.pipe8_ms">4.81</span> ms; with one engine: <span data-sgv="pipe.pipe8_one_engine_ms">8.54</span> ms. Launch and per-copy latencies are ignored. Not run here: no GPU.</p></div>
+<p>Read the chart before the numbers. The kernel was never the problem; the copies were. Pipelining hides the kernel under the copies (a saving of 0.16 ms) and, with two engines, the copy out under the copy in, which is where the factor of nearly two comes from. <b>Overlap hides the smaller thing under the larger one.</b> If the copies dominate, the real fixes are to copy less (keep data on the GPU, compress it, use lower precision) or to use a faster link.</p>
+<h3>In PyTorch, and when it matters for training</h3>
+<pre class="rd-code">loader = DataLoader(ds, batch_size=16, pin_memory=True, num_workers=4)
+for x, y in loader:
+    x = x.to("cuda", non_blocking=True)   <span class="c"># returns at once; ordered before the forward on the stream</span>
+    y = y.to("cuda", non_blocking=True)
+    loss = model(x, y)</pre>
+<p>Host-to-device with <code>non_blocking=True</code> is safe because later kernels on the same stream wait for the copy. The other direction is not: "attempting <code>cuda_tensor.to("cpu", non_blocking=True).mean()</code> will result in erroneous outputs", since the CPU reads the buffer before the copy lands; synchronise first. Calling <code>.pin_memory()</code> on a tensor just to copy it once is usually slower than a plain copy: the tutorial measured 0.4364 ms against 0.3704 ms (<a href="https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html" target="_blank" rel="noopener noreferrer">Moens, "A guide on good usage of non_blocking and pin_memory()", PyTorch tutorials, updated Apr 1 2026</a>) <span class="rd-pub">published</span>. Pinning pays when the buffer is reused, which is what the DataLoader's pinned buffers do.</p>
+<p><b>For LLM pretraining the input copy is tiny.</b> 16 sequences of 1,024 tokens as int64 ids, inputs plus targets, are <span data-sgv="step.cfg.batch_bytes">262,144</span> bytes, about <span data-sgv="step.serial.copy">0.004</span> ms over PCIe <span class="rd-der">derived</span>, against tens of milliseconds of compute. Copy/compute overlap matters when the bytes are large next to the work: activations or optimizer state offloaded to the CPU (<code>torch.autograd.graph.save_on_cpu(pin_memory=True)</code>, FSDP's CPU offload), inference that streams weights or KV cache from host memory, and image or video pipelines that decode on the CPU. In each case the same rule decides: if copying a layer's bytes takes longer than computing that layer, overlap cannot hide it.</p>
+<div class="deepnote"><b>Go deeper:</b> pinned, mapped (zero-copy) and managed memory and their costs are on <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>; PCIe generations and why the NIC and GPU share a switch are on <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>.</div>
+</section>
+<section id="sg-s3">
+<h2>3. Launch overhead and CUDA graphs</h2>
+<p><b>The problem.</b> Every launch costs CPU time in the runtime and driver. When kernels are long, the CPU queues them far ahead and the cost is hidden. When kernels are short, as in LLM decoding (one token at a time, every matmul small) or a model built from many small operations, the GPU finishes each kernel before the CPU has queued the next one and sits idle between them. The programming model page measured the M1 version of this; here is NVIDIA's.</p>
+<p><b>NVIDIA's measurement</b> (<a href="https://developer.nvidia.com/blog/cuda-graphs/" target="_blank" rel="noopener noreferrer">Alan Gray, "Getting Started with CUDA Graphs", NVIDIA blog, Sep 5 2019, V100</a>) <span class="rd-pub">published</span>: 20 kernels per step, 1,000 steps, each kernel <span data-sgv="blog.kernel">2.9</span> &micro;s of GPU work. Synchronising after every launch: <span data-sgv="blog.sync_each">9.6</span> &micro;s per kernel. Launching the 20 back to back on a stream and synchronising once per step: <span data-sgv="blog.stream">3.8</span> &micro;s. The same 20 as one CUDA graph: <span data-sgv="blog.graph">3.4</span> &micro;s. Creating and instantiating the graph took "around 400&micro;s", once.</p>
+<p>Those four numbers fit a simple model <span class="rd-der">derived</span>: with a stream the GPU waits for the CPU, so a launch costs the CPU about <span data-sgv="blog.launch_cpu">3.8</span> &micro;s; a synchronisation adds about <span data-sgv="blog.sync_cost">2.9</span> &micro;s of wait and wake-up (9.6 &minus; 3.8 &minus; 2.9); inside a graph the GPU still leaves about <span data-sgv="blog.graph_gap">0.5</span> &micro;s between nodes (3.4 &minus; 2.9). The animation runs one 20-kernel step under each mode with these values.</p>
+<div class="card" id="sg-ln-card">
+<div class="rd-seg" id="sg-ln-seg"><button data-m="sync" class="on">launch + sync each</button><button data-m="stream">stream, sync once</button><button data-m="graph">CUDA graph</button></div>
+<div class="sg-tl" id="sg-ln-fig"></div><div class="an-ctl" id="sg-ln-ctl"></div>
+<div class="rd-cap" id="sg-ln-capt"></div><div class="rd-cnt" id="sg-ln-cnt"></div>
+<p class="small mute">To scale. Per-kernel values fitted to NVIDIA's four published V100 figures <span class="rd-der">derived</span>; the shape, not the exact microseconds, carries over to newer GPUs and drivers.</p></div>
+<p><b>The same experiment on the M1 Pro's GPU</b> <span class="rd-meas">measured on Apple M1 Pro GPU</span>. Metal has no streams or graphs, but it has the same three choices: one command buffer per kernel and wait (like launch-and-sync), one command buffer per kernel committed back to back (like a stream), and N dispatches recorded once into an <dfn>indirect command buffer</dfn> and replayed with one call (the nearest thing Metal has to a CUDA graph). <span data-sgv="m1.metal.n">200</span> dependent kernels of <span data-sgv="m1.metal.threads">1,024</span> threads, Python driving Metal through PyObjC, all four giving the same result (<span data-sgv="m1.metal.check.0">101.002</span>):</p>
+<div class="card" id="sg-m1-card"><div class="rd-fig" id="sg-m1-fig"></div>
+<p class="small mute">Median of <span data-sgv="m1.metal.runs">3</span> runs, each the median of 7 trials; load average <span data-sgv="m1.metal.load.0">10.6</span> to <span data-sgv="m1.metal.load.1">11.3</span> (the laptop was shared). Launch and wait: <span data-sgv="m1.metal.wait_each.us">179.9</span> &micro;s per kernel (runs <span data-sgv="m1.metal.wait_each.runs.0">179.9</span>, <span data-sgv="m1.metal.wait_each.runs.1">188.7</span>, <span data-sgv="m1.metal.wait_each.runs.2">174.2</span>). Queued: <span data-sgv="m1.metal.queue.us">21.9</span>. One command buffer: <span data-sgv="m1.metal.one_cb.us">5.3</span>, of which the GPU's own clock counts <span data-sgv="m1.metal.one_cb.gpu_us">1.92</span>, and encoding cost the CPU <span data-sgv="m1.metal.one_cb.enc_us_total">453.5</span> &micro;s for all 200 (<span data-sgv="m1.metal.enc_per_dispatch_us">2.27</span> &micro;s each, mostly Python). Replay: <span data-sgv="m1.metal.icb_replay.us">3.3</span> &micro;s per kernel with <span data-sgv="m1.metal.icb_replay.enc_us_total">21.7</span> &micro;s of CPU for the whole sequence; recording it once took <span data-sgv="m1.metal.icb_record_us_total">853</span> &micro;s. PyTorch on MPS, 200 dependent <code>x * a + b</code>: <span data-sgv="m1.mps.sync_each">226.2</span> &micro;s per iteration synchronising each time, <span data-sgv="m1.mps.sync_once">12.3</span> once (PyTorch <span data-sgv="m1.mps.torch">2.14.1</span>).</p></div>
+<p>The same three lessons as NVIDIA's numbers, measured: waiting after each launch is the disaster (<span data-sgv="m1.metal.ratio_wait_queue">8.2</span>&times; slower than queueing here); queueing still pays a CPU cost per kernel; recording once and replaying removes the per-kernel CPU cost and leaves the GPU's own time. What does not transfer: Metal command buffers are not CUDA launches, Python adds its own cost, and the absolute microseconds belong to this machine.</p>
+<h3>What a CUDA graph is</h3>
+<p>"A graph is a series of operations such as kernel launches, data movement, etc., connected by dependencies", used in three stages: <b>definition</b>, <b>instantiation</b> (which "takes a snapshot of the graph template, validates it, and performs much of the setup and initialization of work with the aim of minimizing what needs to be done at launch") and <b>execution</b>, launching the executable graph into a stream like any other work, as often as you like (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cuda-graphs.html" target="_blank" rel="noopener noreferrer">Programming Guide 4.2, CUDA Graphs, v13.4.2</a>) <span class="rd-vend">vendor doc</span>. A node can be a kernel, a copy, a memset, a host function, a child graph, an event record or wait, an allocation or free, or a conditional; CUDA 13.4.2's header lists <span id="sg-nodetypes"></span> <span class="rd-pub">read here</span>.</p>
+<p>There are two ways to define one. <b>Stream capture</b> records what you would have launched anyway; <b>the explicit API</b> (<code>cudaGraphAddNode</code>) builds nodes and edges by hand. Capture is what libraries use:</p>
+<pre class="rd-code"><span class="c">// s2_graph.cu, part 1 (compiled here)</span>
+cudaStreamBeginCapture(s, cudaStreamCaptureModeGlobal);
+for (int k = 0; k &lt; 20; ++k) axpb&lt;&lt;&lt;n / 256, 256, 0, s&gt;&gt;&gt;(d, n, 1.0001f, 0.5f);   <span class="c">// recorded, not run</span>
+cudaStreamEndCapture(s, &amp;g);
+cudaGraphInstantiate(&amp;ge, g, 0);                       <span class="c">// once: the expensive step</span>
+for (int it = 0; it &lt; 1000; ++it) cudaGraphLaunch(ge, s);   <span class="c">// one call per 20 kernels</span></pre>
+<p><b>What a graph freezes.</b> Everything about each node: which kernel, the grid, and the argument values, including every pointer. A replay reads and writes the same addresses with the same shapes. Changing data means writing new values into the same buffers; changing a scalar argument means updating the graph. <b>Updating</b> is cheaper than re-instantiating: capture again with the same structure and call <code>cudaGraphExecUpdate(ge, g2, &amp;info)</code>, or set one node's parameters with <code>cudaGraphExecKernelNodeSetParams</code>. Node parameters "such as kernel parameters and memory addresses" may change; "major changes to graph structure (such as topology or node types) require re-instantiation" (guide 4.2). The header's failure codes say what can go wrong: <span id="sg-upd"></span>.</p>
+<p><b>What breaks capture.</b> Anything that needs the GPU to have actually run: "It is invalid to synchronize or query the execution status of a stream which is being captured"; synchronous calls such as <code>cudaMemcpy</code> are invalid; while any stream is capturing, using the legacy default stream from a blocking stream is invalid; and "when an invalid operation is attempted during stream capture, any associated capture graphs are invalidated" (guide 4.2). The capture mode decides how strict this is across threads: <span id="sg-capmodes"></span> (PyTorch's <code>capture_error_mode</code>, default "global"). Other streams join a capture by waiting on an event recorded in a capturing stream, which is how multi-stream work, NCCL included, ends up in one graph.</p>
+<h3>Control flow on the GPU: conditional nodes</h3>
+<p>A graph replays a fixed sequence, so a loop whose trip count depends on data (iterate until converged, decode until end-of-sequence) used to mean returning to the CPU. <b>Conditional nodes</b> keep the decision on the GPU: an IF node runs its body once if a condition value is non-zero (with an optional ELSE body), a WHILE node repeats its body while it is non-zero, and a SWITCH node runs body <i>n</i>. IF and WHILE arrived in CUDA 12.4, ELSE and SWITCH in 12.8 (<a href="https://developer.nvidia.com/blog/dynamic-control-flow-in-cuda-graphs-with-conditional-nodes/" target="_blank" rel="noopener noreferrer">NVIDIA blog, May 10 2024, updated Feb 3 2025</a>) <span class="rd-pub">published</span>. A kernel in the graph sets the condition:</p>
+<pre class="rd-code"><span class="c">// s2_graph.cu, part 3: a WHILE loop that lives on the GPU</span>
+__global__ void halve_and_test(float* x, cudaGraphConditionalHandle h) {
+  x[0] *= 0.5f;
+  cudaGraphSetConditional(h, x[0] &gt; 1.0f ? 1u : 0u);    <span class="c">// 0 ends the loop</span>
+}
+cudaGraphConditionalHandleCreate(&amp;h, w, 1, cudaGraphCondAssignDefault);
+cp.type = cudaGraphNodeTypeConditional; cp.conditional.handle = h;
+cp.conditional.type = cudaGraphCondTypeWhile; cp.conditional.size = 1;
+cudaGraphAddNode(&amp;cn, w, nullptr, nullptr, 0, &amp;cp);
+cudaStreamBeginCaptureToGraph(s, cp.conditional.phGraph_out[0], nullptr, nullptr, 0, cudaStreamCaptureModeGlobal);
+halve_and_test&lt;&lt;&lt;1, 1, 0, s&gt;&gt;&gt;(d, h);                    <span class="c">// captured into the loop body</span>
+cudaStreamEndCapture(s, nullptr);</pre>
+<p>What <code>cudaGraphSetConditional</code> compiles to on sm_90a <span class="rd-pub">compiled here</span>: the kernel loads a function address from constant bank 4, which the driver fills, and calls it (<code>CALL.ABS.NOINC</code>); the sm_100a build does the same. The condition is set by a driver routine running on the GPU, not by a special instruction.</p>
+<pre class="rd-code sass" id="sg-cond-sass"></pre>
+<p><b>Other graph features worth knowing.</b> Graphs can allocate and free memory as nodes (<code>cudaGraphInstantiateFlagAutoFreeOnLaunch</code>); a graph instantiated with <code>cudaGraphInstantiateFlagDeviceLaunch</code> can be launched from a kernel ("fire and forget", "tail" or "sibling" launch, guide 4.2); <code>cudaGraphUpload</code> moves the setup out of the first launch (NVIDIA's post saw the first launch "around 33% slower"); and <code>cudaGraphDebugDotPrint</code> writes the graph as a DOT file to look at.</p>
+<div class="rd-pr"><div class="q">Predict: instantiating costs 400 &micro;s once and saves 0.4 &micro;s per kernel against a stream (NVIDIA's numbers). After how many kernel launches does the graph pay for itself?</div>
+<div class="opts"><button data-v="a">About 20 (one step)</button><button data-v="b" data-ok="1">About 1,000</button><button data-v="c">About 100,000</button></div>
+<div class="ans" hidden>400 / (3.8 &minus; 3.4) = <span data-sgv="blog.break_even_kernels">1,000</span> kernels <span class="rd-der">derived</span>, 50 steps of 20. Training and serving replay the same graph millions of times, so it pays; a graph re-captured every step because shapes keep changing never does. That is the whole design problem of section 4.</div></div>
+</section>
+<section id="sg-s4">
+<h2>4. CUDA graphs in PyTorch, torch.compile and inference engines</h2>
+<p><b>By hand: <code>torch.cuda.graph</code>.</b> PyTorch wraps capture in a context manager. The rules follow from what a graph freezes (section 3): inputs and outputs live at fixed addresses, so you copy new data into static tensors; no CPU-GPU synchronisation inside (no <code>.item()</code>); no data-dependent Python control flow; and warm-up must run first, on a side stream, so that lazy initialisation (cuBLAS handles, autotuning, allocator growth) happens outside the capture (<a href="https://docs.pytorch.org/docs/2.14/notes/cuda.html" target="_blank" rel="noopener noreferrer">CUDA semantics, CUDA Graphs, 2.14</a>) <span class="rd-vend">vendor doc</span>.</p>
+<pre class="rd-code">static_x = torch.randn(B, D, device="cuda")
+s = torch.cuda.Stream(); s.wait_stream(torch.cuda.current_stream())
+with torch.cuda.stream(s):                       <span class="c"># warm-up on a side stream</span>
+    for _ in range(3):
+        static_y = model(static_x)
+torch.cuda.current_stream().wait_stream(s)
+g = torch.cuda.CUDAGraph()
+with torch.cuda.graph(g):                        <span class="c"># capture: kernels recorded, memory from a private pool</span>
+    static_y = model(static_x)
+for x in batches:
+    static_x.copy_(x)                            <span class="c"># new data, same address</span>
+    g.replay()                                   <span class="c"># one call for every kernel in the model</span>
+    out = static_y.clone()                       <span class="c"># the next replay overwrites static_y</span></pre>
+<p>Memory allocated during capture comes from a pool private to the graph, kept for its whole life; graphs can share a pool (<code>pool=</code>, <code>torch.cuda.graph_pool_handle()</code>). <code>torch.cuda.make_graphed_callables</code> captures a module's forward and backward together, with <code>num_warmup_iters</code> = <span data-sgv="torchsrc.make_graphed_callables_num_warmup_iters">3</span> by default; its docstring adds that DDP "needs 11 iterations for warm up" <span class="rd-pub">read here: PyTorch 2.14.1 source</span>. With DDP and NCCL inside a graph, the PyTorch notes require async error handling off (<code>NCCL_ASYNC_ERROR_HANDLING=0</code>, now spelled <code>TORCH_NCCL_ASYNC_ERROR_HANDLING</code>) and at least 11 DDP-enabled warm-up iterations before capturing the backward.</p>
+<h3>Automatic: <code>torch.compile(mode="reduce-overhead")</code> and CUDAGraph Trees</h3>
+<p><code>torch.compile</code> has four modes, "default", "reduce-overhead", "max-autotune" and "max-autotune-no-cudagraphs"; "reduce-overhead" "reduces the overhead of python with CUDA graphs, useful for small batches", at "the cost of more memory usage" (docstring, PyTorch 2.14.1). The graphs are managed by <dfn>CUDAGraph Trees</dfn>, whose design note in <code>torch/_inductor/cudagraph_trees.py</code> explains the name: graphs recorded across graph breaks share one memory pool, and "we support arbitrary trees of CUDA graph operations, not just sequences", using only the memory of the largest path <span class="rd-pub">read here</span>. What a user meets in practice:</p>
+<ul>
+<li><b>Warm-up, record, replay.</b> The first calls run eagerly, the next records, later calls replay. Outputs live in the shared pool, so an output kept from one iteration can be overwritten by the next replay; PyTorch raises an error when you read such a stale output, and the fix is to <code>.clone()</code> it.</li>
+<li><b>One graph per shape.</b> <code>cudagraph_skip_dynamic_graphs</code> is <span data-sgv="torchsrc.inductor.cudagraph_skip_dynamic_graphs">false</span> by default, so each new input shape records a new graph, and Inductor warns when the count passes <code>cudagraph_dynamic_shape_warn_limit</code> = <span data-sgv="torchsrc.inductor.cudagraph_dynamic_shape_warn_limit">8</span>. Pad batch sizes to a few buckets.</li>
+<li><b>Skips, with a reason.</b> Inductor declines to graph a region and logs "skipping cudagraphs due to ..." for, among others: <span id="sg-skips"></span>. <code>TORCH_LOGS=perf_hints</code> shows them.</li>
+<li><b>Partitions instead of all or nothing.</b> <code>graph_partition</code> is <span data-sgv="torchsrc.inductor.graph_partition">true</span> by default in 2.14.1: Inductor splits a compiled graph around the parts that cannot be graphed and graphs the rest.</li>
+</ul>
+<div class="co warn"><div class="t">When not to bother</div>A training step for a large model spends tens of milliseconds per kernel sequence on big matmuls; launch overhead is a rounding error there and graphs mainly cost memory and constraints. Graphs earn their keep where kernels are small: decoding, small-batch inference, small models, and the many tiny kernels of optimizers and norms. Check first: if the profiler's GPU row has no gaps, graphs will not help.</div>
+<h3>Inference engines</h3>
+<p>Decoding is the textbook case: one token per step, every kernel small, the same sequence of kernels every step. Engines therefore capture one graph per batch size from a list of capture sizes and pad each real batch up to the nearest one. vLLM's design doc lists five modes (<code>NONE</code>, <code>PIECEWISE</code>, <code>FULL</code>, <code>FULL_DECODE_ONLY</code>, <code>FULL_AND_PIECEWISE</code>) and defaults to <code>FULL_AND_PIECEWISE</code> with piecewise compilation: full graphs for uniform decode batches and piecewise graphs otherwise, where piecewise means capturing everything except operations graphs cannot handle, "mainly attention", whose shapes change with every request (<a href="https://docs.vllm.ai/en/latest/design/cuda_graphs.html" target="_blank" rel="noopener noreferrer">vLLM docs, CUDA graphs design, Sep 26 2026</a>) <span class="rd-pub">published</span>. The same trade-off as <code>graph_partition</code>: graph what is static, run the dynamic part eagerly between graphs.</p>
+<div class="deepnote"><b>Go deeper:</b> how Dynamo and Inductor turn Python into the code these graphs capture is on <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>; serving engines are on <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">inference-and-serving</a>; PyTorch's caching allocator, which the graph pools build on, is on <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a>.</div>
+</section>
+<section id="sg-s5">
+<h2>5. Several GPUs from one process: devices, peer access, IPC</h2>
+<p><b>Selecting a device.</b> The runtime has a "current device" per host thread; <code>cudaSetDevice(d)</code> switches it, and allocations, streams and launches made afterwards belong to device <i>d</i>. A stream belongs to one device; an event can be waited on by a stream of another device, which is how work on two GPUs is ordered. In PyTorch: <code>torch.cuda.set_device(d)</code>, <code>with torch.cuda.device(d)</code>, or explicit <code>device="cuda:1"</code>.</p>
+<p><b>One address space.</b> On 64-bit systems the host and all GPUs share one virtual address space (unified virtual addressing), so a pointer says which device it belongs to and <code>cudaMemcpyAsync(..., cudaMemcpyDefault, s)</code> can copy between any two. <b>Peer access</b> goes further: after <code>cudaDeviceEnablePeerAccess</code>, a kernel on GPU 0 can dereference a pointer into GPU 1's memory, and the loads and stores travel over NVLink or PCIe with no copy.</p>
+<pre class="rd-code"><span class="c">// s3_peer.cu (compiled here)</span>
+cudaDeviceCanAccessPeer(&amp;can01, 0, 1);           <span class="c">// is there a path GPU 0 can use?</span>
+cudaSetDevice(1); cudaMalloc(&amp;b, n * 4);
+cudaSetDevice(0); cudaMalloc(&amp;a, n * 4);
+if (can01) {
+  cudaDeviceEnablePeerAccess(1, 0);               <span class="c">// GPU 0 may now dereference GPU 1 pointers</span>
+  add_remote&lt;&lt;&lt;n / 256, 256&gt;&gt;&gt;(a, b, n);          <span class="c">// b is read across the link</span>
+} else {
+  cudaMemcpyPeerAsync(tmp, 0, b, 1, n * 4, 0);    <span class="c">// copy first, then compute locally</span>
+  add_remote&lt;&lt;&lt;n / 256, 256&gt;&gt;&gt;(a, tmp, n);
+}
+cudaIpcGetMemHandle(&amp;hnd, a);                     <span class="c">// let another process map this allocation</span></pre>
+<p>Whether peer access exists depends on the wiring: GPUs on one NVLink/NVSwitch fabric, or under one PCIe switch on a platform that allows it. <code>nvidia-smi topo -m</code> prints the matrix (NV#, PIX, PXB, PHB, SYS), and consumer cards from the RTX 4090 on have no NVLink at all. The wires, their speeds and the switch layouts are <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>'s subject; the programmer's question is only "can this pointer be read from there, and how fast".</p>
+<p><b>Across processes.</b> PyTorch training uses one process per GPU (<code>torchrun</code>), so peer memory crosses process boundaries: <code>cudaIpcGetMemHandle</code> turns an allocation into a small handle that another process opens with <code>cudaIpcOpenMemHandle</code> (newer code uses the driver's virtual memory API and exports a file descriptor). NCCL and symmetric memory (section 8) do exactly this under the hood to read each other's buffers.</p>
+<div class="co"><div class="t">One process, many GPUs, or one process per GPU?</div>One process per GPU is the PyTorch default and avoids Python's single interpreter becoming the launch bottleneck for eight GPUs. One process driving several GPUs is fine in C++ (and is what <code>ncclCommInitAll</code> and section 6's program do), but NCCL warns that "using multiple GPUs per process with CUDA graph capture may result in deadlocks" (<a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/cudagraph.html" target="_blank" rel="noopener noreferrer">NCCL user guide, CUDA graphs</a>) <span class="rd-vend">vendor doc</span>.</div>
+</section>
+<section id="sg-s6">
+<h2>6. NCCL as an API, and how training hides communication</h2>
+<p><b>The problem.</b> Data-parallel training runs the same model on every GPU with different data, then averages the gradients so every copy takes the same step. That average is an <dfn>all-reduce</dfn>, and for a model of <i>N</i> parameters it moves about 2<i>N</i> values per GPU per step. On a fast fabric it is cheap; across nodes it can cost as much as the backward pass. The idea of this section: start each piece of the all-reduce the moment its gradients exist, while backward is still computing the rest. Which collectives each parallelism needs is on <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>; how NCCL schedules bytes over rings and trees, and what the network sustains, is on <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a> (its Collective simulator tab animates rings and trees). Here: what the programmer calls and what runs where.</p>
+<h3>The API in five calls</h3>
+<ol>
+<li><b>One id for the group.</b> Rank 0 calls <code>ncclGetUniqueId</code>, and the id is "broadcast to all participating threads and processes using any CPU communication system" (in PyTorch, the TCP store set up by <code>init_process_group</code>).</li>
+<li><b>A communicator per GPU.</b> <code>ncclCommInitRank(&amp;comm, nranks, id, rank)</code> on each, ranks 0 to <i>n</i> &minus; 1; <code>ncclCommInitAll</code> when one process owns all the GPUs; <code>ncclCommSplit</code> to carve sub-groups (tensor-parallel and data-parallel groups) (<a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/communicators.html" target="_blank" rel="noopener noreferrer">NCCL user guide, communicators</a>).</li>
+<li><b>Collectives on a stream.</b> <code>ncclAllReduce(sendbuff, recvbuff, count, ncclBfloat16, ncclSum, comm, stream)</code>. "The NCCL call returns when the operation has been effectively enqueued to the given stream"; it runs asynchronously, and you wait with stream semantics, events or <code>cudaStreamSynchronize</code> (<a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/streams.html" target="_blank" rel="noopener noreferrer">NCCL user guide, CUDA stream semantics</a>) <span class="rd-vend">vendor doc</span>.</li>
+<li><b>Groups.</b> Calls between <code>ncclGroupStart()</code> and <code>ncclGroupEnd()</code> are "fused into a single NCCL operation"; one thread driving several GPUs must group, and grouping many small collectives saves launches. <code>ncclGroupEnd</code> "only guarantees that the operations are enqueued on the streams, not that the operation is effectively done" (nccl.h).</li>
+<li><b>Tear down</b> with <code>ncclCommDestroy</code>, or <code>ncclCommAbort</code> when a peer is gone (section 7).</li>
+</ol>
+<p>NCCL <span data-sgv="cuda.nccl_version">2.31.2</span>'s header, as shipped in the CUDA 13.4.2 image, exports <span id="sg-ncclapi"></span> <span class="rd-pub">read here</span>. Beyond the classic collectives it now has one-sided calls (<code>ncclPutSignal</code>, <code>ncclSignal</code>, <code>ncclWaitSignal</code>) on registered memory windows, which are section 8's territory.</p>
+<div class="co warn"><div class="t">Two rules that cause most NCCL bugs</div><b>Same calls, same order, on every rank.</b> A collective completes only when every rank has joined it; if rank 3 skips an all-reduce (an <code>if</code> on local data, an unused parameter, an exception caught on one rank), everyone else waits forever. With several communicators per GPU, "users must ensure the order of host-side launches matches for all devices"; before NCCL 2.26 that meant serialising all of them, and 2.26 added <code>NCCL_LAUNCH_ORDER_IMPLICIT</code> to follow host issue order (communicators page). <b>NCCL collectives are kernels.</b> They run on SMs, as thread blocks (CTAs), next to your kernels, and they need the other ranks' matching kernels to be running too.</div>
+<p><b>Communication costs SMs.</b> Because a collective is a kernel, it competes with compute. NCCL's communicator config, fields read from nccl.h (<span id="sg-ncclcfg"></span>), lets you bound it: <code>minCTAs</code> "up to 32. The default value is 1", <code>maxCTAs</code> default 32; <code>CTAPolicy</code> <code>NCCL_CTA_POLICY_EFFICIENCY</code> uses the "minimal number of CTAs to achieve the decent performance", recommended for compute/communication overlap, and <code>NCCL_CTA_POLICY_ZERO</code> uses "zero CTA whenever it can" (<a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/api/types.html" target="_blank" rel="noopener noreferrer">NCCL API types</a>, <a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/api/flags.html" target="_blank" rel="noopener noreferrer">flags</a>, NCCL 2.32.3 docs) <span class="rd-vend">vendor doc</span>. DeepSeek-V3's training gave communication 20 of the H800's 132 SMs and called that a cost: it "relies on expensive SMs ... which will limit the computational throughput" (<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener noreferrer">DeepSeek-V3 report</a>) <span class="rd-pub">published</span>.</p>
+<h3>The DDP pattern, by hand</h3>
+<p>The program below does what PyTorch's DistributedDataParallel does: a compute stream runs backward, which fills gradient <b>buckets</b> from the last layer to the first; an event marks each bucket ready; a second, communication stream waits for that event only and all-reduces the bucket; the optimizer waits for the communication stream at the end <span class="rd-pub">compiled here</span> (with <code>-lnccl</code>; the run prints NCCL's version code <span data-sgv="cuda.nccl_version_code">23102</span>, then stops at the first CUDA call).</p>
+<pre class="rd-code"><span class="c">// s4_nccl_overlap.cu (abridged; error checks removed)</span>
+ncclCommInitAll(comm.data(), nd, devs.data());
+for (int b = B - 1; b &gt;= 0; --b) {                       <span class="c">// backward: last layers first</span>
+  for (int d = 0; d &lt; nd; ++d) {
+    cudaSetDevice(d);
+    fake_backward&lt;&lt;&lt;n / 256, 256, 0, compute[d]&gt;&gt;&gt;(grad[d] + b * n, n, 1.0f + d);
+    cudaEventRecord(ready, compute[d]);
+    cudaStreamWaitEvent(comms[d], ready, 0);              <span class="c">// wait for this bucket only</span>
+  }
+  ncclGroupStart();
+  for (int d = 0; d &lt; nd; ++d)
+    ncclAllReduce(grad[d] + b * n, grad[d] + b * n, n, ncclFloat, ncclAvg, comm[d], comms[d]);
+  ncclGroupEnd();                                         <span class="c">// queued; backward keeps going</span>
+}
+<span class="c">// each compute stream waits on an event from its comm stream, then the optimizer step</span></pre>
+<p><b>What PyTorch adds.</b> DDP registers a hook on every parameter's gradient and launches a bucket's all-reduce when the bucket's last gradient arrives. Buckets follow the reverse order of <code>model.parameters()</code>, are rebuilt after the first iteration in the order gradients actually arrived, and default to 25 MiB, with a smaller first bucket of 1 MiB so the first all-reduce starts early (<code>_DEFAULT_BUCKET_CAP_MB</code> = <span data-sgv="torchsrc.ddp_default_bucket_cap_mb">25</span>, <code>_DEFAULT_FIRST_BUCKET_BYTES</code> = <span data-sgv="torchsrc.ddp_first_bucket_bytes">1,048,576</span>, PyTorch <span data-sgv="torchsrc.torch">2.14.1</span> source) <span class="rd-pub">read here</span>. The NCCL calls run on a stream owned by the process group, ordered after the gradient kernels by events. <code>dist.all_reduce(t, async_op=True)</code> returns a work handle whose <code>wait()</code> makes the current stream wait without blocking the CPU. <code>no_sync()</code> skips the all-reduce during gradient accumulation; comm hooks (<code>register_comm_hook</code>) can compress buckets to BF16.</p>
+<h3>One training step, before and after</h3>
+<p>The animation runs one data-parallel step of a GPT-2-small-shaped model (<span data-sgv="step.cfg.N">124,439,808</span> parameters) on 64 H100 SXM GPUs over 400 Gb/s InfiniBand, first with nothing overlapped, then with the next batch prefetched on a copy stream and the gradient buckets all-reduced during backward. Inputs <span class="rd-der">derived</span>: 16,384 tokens per GPU; forward 2<i>N</i> FLOPs per token and backward twice that, at 40% of 989.5 TFLOP/s (an assumed MFU); bucket all-reduce time = bytes &times; 2(<i>n</i> &minus; 1)/<i>n</i> / busbw with busbw = 92% of 50 GB/s (the acceptance target the Interconnects page quotes); BF16 gradients bucketed with DDP's rules; optimizer as 32 bytes per parameter at 3.35 TB/s. Attention-score FLOPs and NCCL latency are left out.</p>
+<div class="card" id="sg-st-card">
+<div class="rd-seg" id="sg-st-seg"><button data-m="serial" class="on">no overlap</button><button data-m="overlap">copy and comm overlapped</button></div>
+<div class="sg-tl" id="sg-st-fig"></div><div class="an-ctl" id="sg-st-ctl"></div>
+<div class="rd-cap" id="sg-st-capt"></div><div class="rd-cnt" id="sg-st-cnt"></div>
+<p class="small mute">To scale. Lanes are streams on one GPU; every GPU runs the same timeline. The <a href="#" data-tab="t-step">Step timeline</a> tab lets you change every input.</p></div>
+<p><b>What the model says.</b> Without overlap the step is <span data-sgv="step.serial.total">42.8</span> ms, of which <span data-sgv="step.serial.comm">10.7</span> ms is all-reduce with the SMs idle. With overlap it is <span data-sgv="step.overlap.total">36.5</span> ms, <span data-sgv="step.saved_pct">15</span>% less, and <span data-sgv="step.overlap.exposed">4.4</span> ms of communication is still exposed. The reason is the last bucket: GPT-2 ties its token embedding to the output layer, and that 38.6 M-parameter matrix's gradient is complete only when backward reaches the embedding lookup at the very end, so the final bucket (<span data-sgv="step.last_bucket_mb">97.7</span> MiB of <span data-sgv="step.grad_mb">237.4</span>) cannot start until backward is over. The copy lane is honest too: the batch is a hairline, because token ids are tiny (section 2).</p>
+<h3>Measured: DDP's buckets on real processes</h3>
+<p>The mechanism can be run without GPUs. Two CPU processes, real <code>DistributedDataParallel</code> with the Gloo backend instead of NCCL, a <span data-sgv="ddp.setup.layers">12</span>-layer MLP of width <span data-sgv="ddp.setup.hidden">1,024</span> (<span data-sgv="ddp.setup.buckets">6</span> buckets of <span data-sgv="ddp.setup.bucket_mb">8.01</span> MiB with <code>bucket_cap_mb=8</code>), two threads per process, PyTorch <span data-sgv="ddp.setup.torch">2.14.1</span>. A comm hook timestamps each bucket when DDP hands it over and when its all-reduce completes; a hook on the first layer's weight marks the end of backward's compute. "No overlap" is the same model under <code>no_sync()</code> followed by the same buckets all-reduced one by one <span class="rd-meas">measured on CPU</span>:</p>
+<div class="card" id="sg-ddp-card"><div class="sg-tl" id="sg-ddp-fig"></div>
+<p class="small mute">One representative step of each mode (the median step of run 2). Medians over 3 runs of 5 steps: backward plus communication <span data-sgv="ddp.overlap.end_ms">64.6</span> ms overlapped against <span data-sgv="ddp.serial.end_ms">96.1</span> ms serial (<span data-sgv="ddp.saved_pct">33</span>% less); per-run <span data-sgv="ddp.overlap.end_runs.0">64.6</span>, <span data-sgv="ddp.overlap.end_runs.1">61.5</span>, <span data-sgv="ddp.overlap.end_runs.2">66.3</span> and <span data-sgv="ddp.serial.end_runs.0">92.6</span>, <span data-sgv="ddp.serial.end_runs.1">96.1</span>, <span data-sgv="ddp.serial.end_runs.2">105.7</span> ms; load average 5 to 7.</p></div>
+<p>Two things show. The overlap is real: buckets leave during backward, and only about <span data-sgv="ddp.exposed_ms">7.0</span> ms of communication remains after the compute ends, against <span data-sgv="ddp.serial_comm_ms">45.9</span> ms when nothing overlaps. And overlap is not free: backward's compute itself took <span data-sgv="ddp.slowdown_pct">15</span>% longer (<span data-sgv="ddp.overlap.compute_ms">57.6</span> against <span data-sgv="ddp.serial.compute_ms">50.2</span> ms) because the all-reduce threads compete for the same cores. On a GPU the competitors are SMs and memory bandwidth instead of CPU cores, the reason for NCCL's CTA limits above. PyTorch's profiler sees the same thing: in a traced step, Gloo all-reduces run on their own threads while <code>AddmmBackward0</code> runs on the autograd thread:</p>
+<div class="card" id="sg-prof-card"><div class="sg-tl" id="sg-prof-fig"></div>
+<p class="small mute">torch.profiler, CPU activities, rank 0 of a 2-process DDP step after 3 warm-up steps; events named <code>autograd::engine::evaluate_function: AddmmBackward0</code> and <code>gloo:all_reduce</code> <span class="rd-meas">measured on CPU</span>.</p></div>
+<p>What does not transfer: Gloo on loopback is not NCCL on NVLink, CPU threads are not SMs, and the times are milliseconds on a laptop. What does: the bucket order, the hand-over during backward, the exposed tail, and the slowdown from sharing hardware.</p>
+<h3>FSDP: the same idea in both directions</h3>
+<p>Fully sharded data parallelism stores each parameter in pieces, so it must <b>all-gather</b> a layer's parameters before using them, forward and backward, and <b>reduce-scatter</b> its gradients afterwards. Overlap again decides the cost. FSDP2's docs: "In forward, all-gathers run on a separate CUDA stream, so the next module's all-gather can overlap with the current module's forward compute"; "in backward, FSDP2 additionally prefetches the next module's all-gather explicitly and runs reduce-scatters on a separate CUDA stream"; <code>set_modules_to_forward_prefetch</code> issues all-gathers earlier when CPU overhead eats the natural lead; <code>reshard_after_forward</code> defaults to true for non-root modules (free after forward, gather again in backward) and false for the root (<a href="https://docs.pytorch.org/docs/2.14/distributed.fsdp.fully_shard.html" target="_blank" rel="noopener noreferrer">fully_shard docs, 2.14</a>) <span class="rd-vend">vendor doc</span>. Prefetching one layer ahead costs one extra layer of unsharded parameters in memory: overlap is bought with memory.</p>
+<p><b>Tensor parallelism is the hard case.</b> Its all-reduces sit between two matmuls that need the result, so there is nothing independent to hide them under, unless the matmul is cut into pieces that start as their slice of data arrives (Megatron's ordering trick in section 1, async TP in section 8). That is why tensor parallelism stays inside the fastest domain (<a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a> works the numbers).</p>
+</section>
+<section id="sg-s7">
+<h2>7. When it hangs: NCCL errors, timeouts and debugging</h2>
+<p><b>Why hangs, not crashes.</b> A collective waits for every rank. If one rank never arrives, because it crashed, took a different branch, ran out of memory or is stuck on I/O, the others do not fail: their NCCL kernels spin on the GPU waiting for data that never comes, and the CPU blocks at the next synchronisation. A 1,000-GPU job then stops with 999 healthy-looking processes. Debugging a hang is mostly finding the rank, and the call, that differs.</p>
+<h3>The usual causes</h3>
+<div class="tw"><table>
+<thead><tr><th>Cause</th><th>What it looks like</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>Ranks disagree on the sequence of collectives</td><td>All ranks wait; one is in a different collective or none</td><td>Remove rank-dependent branches around collectives; <code>TORCH_DISTRIBUTED_DEBUG=DETAIL</code> checks that collectives match</td></tr>
+<tr><td>Unused parameters in DDP</td><td>Hang or error after the first step: a bucket never fills</td><td><code>find_unused_parameters=True</code>, or make every parameter take part</td></tr>
+<tr><td>Sizes or dtypes differ across ranks</td><td>Hang or garbage</td><td>The flight recorder (below) records sizes per call</td></tr>
+<tr><td>One rank crashed or was killed (OOM, a bad node)</td><td>Survivors wait until the timeout</td><td>Watchdog timeout, then restart from a checkpoint</td></tr>
+<tr><td>Wrong network interface, a firewall, IB disabled</td><td>Hang at the first collective, or very slow</td><td><code>NCCL_DEBUG=INFO</code> shows the transport chosen; <code>NCCL_SOCKET_IFNAME</code> picks the interface</td></tr>
+<tr><td>Several communicators used in different orders</td><td>Deadlock between process groups</td><td>Same issue order on every rank (section 6)</td></tr>
+<tr><td>A collective inside a CUDA graph on one rank but not another</td><td>Hang at replay</td><td>Capture the same collectives everywhere; NCCL requires graph launches "uniform across all participating ranks"</td></tr>
+</tbody></table></div>
+<h3>What PyTorch gives you</h3>
+<p><code>ProcessGroupNCCL</code> runs a <b>watchdog</b> thread that checks every outstanding collective against the timeout passed to <code>init_process_group(timeout=...)</code>. The behaviour is set by environment variables documented for PyTorch 2.14 (<a href="https://docs.pytorch.org/docs/2.14/torch_nccl_environment_variables.html" target="_blank" rel="noopener noreferrer">PyTorch NCCL environment variables</a>) <span class="rd-vend">vendor doc</span>:</p>
+<ul>
+<li><code>TORCH_NCCL_ASYNC_ERROR_HANDLING</code> (default 3): what the watchdog does when a collective fails or times out (tear down the communicator and the process, so the job fails instead of hanging).</li>
+<li><code>TORCH_NCCL_BLOCKING_WAIT</code>: makes <code>wait()</code> block the CPU, so the timeout raises in your own code.</li>
+<li><code>TORCH_NCCL_TRACE_BUFFER_SIZE</code>: the size of the <b>flight recorder</b>, a ring buffer of the last collectives on each rank (which call, sizes, state); <code>TORCH_NCCL_DUMP_ON_TIMEOUT</code> writes it out when the watchdog fires, and comparing the dumps across ranks shows who is behind. <code>TORCH_NCCL_DESYNC_DEBUG</code> tries to name the rank that caused a desync.</li>
+<li><code>TORCH_NCCL_ENABLE_MONITORING</code> and <code>TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC</code>: a second thread that kills the process if the watchdog itself is stuck; <code>TORCH_NCCL_NAN_CHECK</code> checks inputs for not-a-number values.</li>
+</ul>
+<p>The older names without <code>TORCH_</code> (<code>NCCL_BLOCKING_WAIT</code>, <code>NCCL_ASYNC_ERROR_HANDLING</code>) were always PyTorch's, not NCCL's: neither string is in the NCCL <span data-sgv="cuda.nccl_version">2.31.2</span> library, while every <code>NCCL_*</code> variable named on this page is <span class="rd-pub">checked here with <code>strings libnccl.so</code></span>.</p>
+<h3>What NCCL gives you</h3>
+<ul>
+<li><code>NCCL_DEBUG=INFO</code> (with <code>NCCL_DEBUG_SUBSYS</code> to filter): the version, the transport for each peer (NVLink, P2P, shared memory, IB, sockets), rings and trees. A job that fell back to TCP sockets is visible in the first lines.</li>
+<li><code>NCCL_P2P_DISABLE</code>, <code>NCCL_SHM_DISABLE</code>, <code>NCCL_IB_DISABLE</code>: switch transports off one at a time to isolate a broken one; <code>NCCL_ALGO</code> and <code>NCCL_PROTO</code> force an algorithm or protocol (for experiments, not production).</li>
+<li><code>ncclCommGetAsyncError</code> and <code>ncclCommAbort</code>: a non-blocking communicator (<code>blocking = 0</code> in its config) reports errors asynchronously, and abort unblocks the kernels so the process can exit or recover; NCCL 2.31.2 also has <code>ncclCommRevoke</code>, <code>ncclCommShrink</code> and <code>ncclCommGrow</code> for removing and adding ranks without restarting everything.</li>
+</ul>
+<div class="co key"><div class="t">A first-response checklist</div>1. Which ranks are stuck, and in which call? (py-spy dump on every rank, or the flight recorder.) 2. Do all ranks agree on the last collective's sequence number and size? 3. Did one rank die first (OOM, a hardware error in the kernel log)? 4. Is the transport the expected one (<code>NCCL_DEBUG=INFO</code>)? 5. Does a tiny all-reduce test across the same nodes pass (nccl-tests)? Hardware failure rates at scale are on <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling and reliability</a>.</div>
+</section>
+<section id="sg-s8">
+<h2>8. Beyond collectives: symmetric memory, NVSHMEM and kernels that communicate</h2>
+<p><b>The problem.</b> A collective is a separate kernel launched from the CPU, with a fixed shape, between compute kernels. Two things it cannot do well: overlap with the inside of a matmul (tensor parallelism, section 6), and move small, data-dependent messages (sending each token to the GPU that holds its expert in a mixture-of-experts layer). Both want the <b>compute kernel itself</b> to read or write another GPU's memory.</p>
+<p><b>Symmetric memory</b> is the enabling idea: every rank allocates the same buffer, at the same offset in a shared heap, so "this buffer on rank <i>j</i>" can be computed from a local pointer, and a kernel can load or store it over NVLink (peer access, section 5) or put it across the network. Two lineages:</p>
+<ul>
+<li><b>NVSHMEM</b>: "a parallel programming interface based on OpenSHMEM" that creates "a global address space for data that spans the memory of multiple GPUs", with "a low-overhead, in-kernel communication API for use by GPU threads" (one-sided put, get, atomics and signals) alongside operations on CUDA streams; version 3.8 is current and supports CUDA 13.4 (<a href="https://developer.nvidia.com/nvshmem" target="_blank" rel="noopener noreferrer">NVIDIA NVSHMEM page</a>) <span class="rd-vend">vendor doc</span>. It is the classic way to write kernels that communicate across nodes.</li>
+<li><b>NCCL's own device API.</b> Recent NCCL registers symmetric memory windows (<code>ncclCommWindowRegister</code>, flag <code>NCCL_WIN_COLL_SYMMETRIC</code>) and ships a device-side header; in NCCL <span data-sgv="cuda.nccl_version">2.31.2</span> it is <code>nccl_device.h</code>, with parts named <span id="sg-nccldev"></span> <span class="rd-pub">read here</span>. LSA (load/store accessible) covers peers reachable by plain loads and stores; GIN (GPU-initiated networking) covers peers across the network.</li>
+</ul>
+<p><b>In PyTorch</b>, <code>torch.distributed._symmetric_memory</code>: <code>symm_mem.empty(size, device=...)</code> allocates, <code>symm_mem.rendezvous(tensor, group)</code> exchanges handles (both "must be called in the same order on all ranks in the group"), with backends for CUDA peer memory within a node, NVSHMEM across nodes, and NCCL symmetric kernels (NCCL 2.27 or newer); each buffer comes with "signal pads" for synchronisation; uses named are async tensor parallelism and MoE token dispatch (<code>all_to_all_vdev_2d</code>) (<a href="https://docs.pytorch.org/docs/2.14/symmetric_memory.html" target="_blank" rel="noopener noreferrer">PyTorch symmetric memory docs, 2.14</a>) <span class="rd-vend">vendor doc</span>. <b>Async TP</b> splits a tensor-parallel matmul so that each slice of the all-gather feeds a slice of the matmul as it arrives, which is the way around section 6's "nothing to hide it under".</p>
+<div class="co"><div class="t">A current example, checked</div>DeepSeek's DeepEP, the expert-parallel all-to-all library, was the best-known NVSHMEM user. Its README now says V2 moved to "the lightweight NCCL Gin backend" and V2.5 removed "V1, including its APIs, NVSHMEM backend ... NVSHMEM is no longer a dependency"; it also notes "EP dispatch and combine require GPU SMs" (<a href="https://github.com/deepseek-ai/DeepEP" target="_blank" rel="noopener noreferrer">DeepEP README, Sep 30 2026</a>) <span class="rd-pub">source</span>. Older write-ups that describe DeepEP as built on NVSHMEM describe V1.</div>
+<p>For the reader who will write kernels: this is where the line between "kernel" and "communication" disappears. The tools are the same as everywhere on this page (streams, events, signals, keeping SMs busy), applied inside one kernel instead of between kernels.</p>
+</section>
+<section id="sg-s9">
+<h2>Common mistakes, a checklist, interview questions</h2>
+<details class="mist"><summary>Timing GPU work with a CPU clock and no synchronisation</summary><div class="b">The clock measures how long it took to queue the work. Use CUDA events, or synchronise before reading the clock (section 1; methodology on <a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>).</div></details>
+<details class="mist"><summary>A hidden synchronisation in the training loop</summary><div class="b"><code>loss.item()</code> every step, <code>print(tensor)</code>, <code>if (x &gt; 0).any():</code>, a <code>.cpu()</code> for logging, <code>torch.cuda.empty_cache()</code>: each drains the queue so the CPU can no longer run ahead. Log every N steps, or copy to pinned memory with a non-blocking copy and read it a step later.</div></details>
+<details class="mist"><summary>Expecting two streams to overlap because they are two streams</summary><div class="b">The legacy default stream serialises blocking streams; big kernels leave no SMs; few hardware queues create false dependencies; the M1 measurement in section 1 overlapped nothing across queues. Check on a timeline.</div></details>
+<details class="mist"><summary>Using a tensor on a side stream without <code>wait_stream</code> and <code>record_stream</code></summary><div class="b">Either a race (reading before the producer finished) or a use-after-free through the caching allocator. Both give wrong numbers, not errors.</div></details>
+<details class="mist"><summary><code>non_blocking=True</code> on a device-to-host copy, then reading the result</summary><div class="b">The CPU reads the buffer before the copy lands. Synchronise (an event) before use.</div></details>
+<details class="mist"><summary>Capturing a CUDA graph and then feeding it new tensors</summary><div class="b">A replay reads the addresses captured, not your new tensor. Copy new data into the static input; clone outputs you keep. Shape changes need a new graph.</div></details>
+<details class="mist"><summary>A rank-dependent branch around a collective</summary><div class="b">The classic hang (section 7). Every rank must make the same collective calls in the same order with the same sizes.</div></details>
+<details class="mist"><summary>Expecting overlap to remove communication cost</summary><div class="b">It hides the communication that is smaller than the compute running beside it, minus the slowdown from sharing SMs. The last bucket is always exposed; tensor-parallel all-reduces are on the critical path.</div></details>
+<h3>How to check, in order</h3>
+<ol>
+<li>Profile one step with Nsight Systems or <code>torch.profiler</code> and look at the GPU rows: gaps between kernels (launch-bound or a sync), copies not under kernels (no overlap), NCCL kernels after backward ends (exposed communication).</li>
+<li>Gaps with tiny kernels: remove syncs, fuse, then CUDA graphs (<code>mode="reduce-overhead"</code>), and confirm the gaps close.</li>
+<li>Exposed all-reduce: check bucket sizes and order, look for a huge last bucket (tied embeddings), consider gradient accumulation (fewer all-reduces per sample) or a faster group layout.</li>
+<li>Hangs: the checklist in section 7.</li>
+</ol>
+<h3>Interview questions</h3>
+<details class="rd-qa"><summary>What is a CUDA stream, and what does an event add?</summary><div>A FIFO queue of GPU operations: in order within a stream, unordered across streams. An event is a marker in a stream that other streams can wait on (ordering without blocking the CPU) and that can time GPU work.</div></details>
+<details class="rd-qa"><summary>Why might two kernels on two streams still run one after the other?</summary><div>The legacy default stream between them; the first kernel occupies every SM; false dependencies through a limited number of hardware queues (<code>CUDA_DEVICE_MAX_CONNECTIONS</code>); an implicit synchronisation such as <code>cudaMalloc</code> or a pageable copy.</div></details>
+<details class="rd-qa"><summary>Why does an async copy need pinned memory?</summary><div>The copy engine reads physical pages by DMA. Pageable pages could move, so the driver stages them through a pinned buffer and the copy cannot overlap freely.</div></details>
+<details class="rd-qa"><summary>What does a CUDA graph save, and what does it cost?</summary><div>It replaces per-kernel CPU launch work with one launch of a pre-validated graph, and lets the GPU run nodes with smaller gaps. It costs an instantiation (hundreds of microseconds), fixed addresses and shapes, no host syncs inside, and memory held by the graph's pool.</div></details>
+<details class="rd-qa"><summary>How does DDP overlap communication with backward?</summary><div>Gradient hooks fill buckets in reverse parameter order; when a bucket is full its all-reduce is launched on NCCL's stream while autograd keeps computing earlier layers; the optimizer waits for all of them. Default buckets 25 MiB, first bucket 1 MiB.</div></details>
+<details class="rd-qa"><summary>Why can't tensor-parallel all-reduces be hidden the same way?</summary><div>The next matmul needs their result, so no independent work exists to overlap them with, unless the matmul is split and pipelined with the communication (async TP, symmetric memory).</div></details>
+<details class="rd-qa"><summary>A 512-GPU job hangs at step 40,000. What do you do?</summary><div>Find the rank and call that differ: the flight-recorder dumps on watchdog timeout, py-spy on each rank, the kernel log for a dead GPU or node; check the last collective's sequence number across ranks; restart from the checkpoint without the bad node.</div></details>
+<details class="rd-qa"><summary>Why do NCCL collectives slow down your compute kernels?</summary><div>They are kernels too: they take SMs (CTAs) and memory bandwidth while they run. NCCL lets you cap CTAs (<code>maxCTAs</code>, <code>NCCL_CTA_POLICY_EFFICIENCY</code>); DeepSeek-V3 reserved 20 of 132 SMs for communication.</div></details>
+</section>
+</div>
+<div class="tab" id="t-step" role="tabpanel" hidden>
+<style>
+#t-step .st-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px 16px;margin:8px 0}
+#t-step .st-ctl label{font-size:13px;display:block;min-width:0}
+#t-step .st-ctl select{width:100%;margin-top:2px}
+#t-step .st-ctl input[type=range]{display:block;margin-top:4px}
+#t-step .st-fig{width:100%;overflow:hidden;margin:6px 0}
+#t-step .st-fig svg text{font-size:11px}
+#t-step h3{font-size:15px;margin:16px 0 4px}
+#t-step .st-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:6px;margin:8px 0}
+#t-step .st-pill{font-size:11.5px;font-weight:600}
+</style>
+<h2 style="margin-top:14px">Step timeline</h2>
+<p>The data-parallel step from the Reading tab's section 6, with every input exposed. Both timelines are drawn to the same scale: on top nothing overlaps, below the gradient buckets are all-reduced during backward and the batch is prefetched. Change the model, the number of GPUs and the network and watch where the exposed communication comes from. Everything here is a model <span class="st-pill" style="color:var(--c5)">derived</span> from the formulas listed under the chart; the defaults are exactly the Reading tab's case, and the same model in Python (<code>recompute.py</code>) gives the same numbers.</p>
+<div class="card">
+<div class="st-ctl">
+<label>Model shape (GPT-2 family) <select id="st-model"><option value="768,12">small: d = 768, 12 layers</option><option value="1024,24">medium: d = 1,024, 24 layers</option><option value="1280,36">large: d = 1,280, 36 layers</option><option value="1600,48">XL: d = 1,600, 48 layers</option></select></label>
+<label>Network <select id="st-net"><option value="46">400 Gb/s InfiniBand per GPU, busbw 46 GB/s</option><option value="365.6">8 GPUs on NVLink, busbw 365.6 GB/s</option><option value="11.5">100 Gb/s Ethernet per GPU, busbw 11.5 GB/s</option></select></label>
+<label>GPUs <b id="st-gv">64</b><input type="range" id="st-g" min="1" max="10" value="6" aria-label="GPUs, powers of two"></label>
+<label>Tokens per GPU per step <b id="st-tv">16,384</b><input type="range" id="st-t" min="11" max="17" value="14" aria-label="Tokens, powers of two"></label>
+<label>MFU (assumed) <b id="st-mv">40%</b><input type="range" id="st-m" min="10" max="70" value="40" step="5"></label>
+<label>Bucket size <b id="st-bv">25 MiB</b><input type="range" id="st-b" min="0" max="8" value="4" aria-label="Bucket size"></label>
+<label>Latency per all-reduce <b id="st-av">0 &micro;s</b><input type="range" id="st-a" min="0" max="200" value="0" step="10"></label>
+<label>Compute slowdown while overlapped <b id="st-sv">0%</b><input type="range" id="st-s" min="0" max="30" value="0" step="1"></label>
+<label><input type="checkbox" id="st-tied" checked> tie the embedding and output layer</label>
+</div>
+<p class="small mute" style="margin:6px 0 0">A: nothing overlapped. B: batch prefetched, buckets all-reduced during backward. Dashed lines: the end of each step.</p>
+<div class="st-fig" id="st-fig"></div>
+<div class="st-out" id="st-out"></div>
+<p class="small mute" id="st-note"></p>
+</div>
+<h3>Step time against bucket size</h3>
+<p>The overlapped step for the same settings, one point per bucket size. Without a latency term smaller buckets always win (the first one leaves sooner); with the latency each all-reduce really pays (tens of microseconds across nodes), very small buckets lose again. DDP's 25 MiB default sits on the flat part for most settings.</p>
+<div class="card"><div class="st-fig" id="st-sweep"></div></div>
+<h3>The formulas</h3>
+<ul class="small">
+<li>Parameters: GPT-2 layout, vocabulary 50,257, context 1,024; per block 12<i>d</i>&sup2; + 13<i>d</i> (layer norms, attention, MLP with 4<i>d</i>); an untied output layer adds 50,257<i>d</i>.</li>
+<li>Forward = 2<i>N</i> &times; tokens / (989.5 TFLOP/s &times; MFU), H100 SXM dense BF16 (vendor spec); backward = 2 &times; forward, split across layers in proportion to their matmul parameters; attention-score FLOPs ignored.</li>
+<li>Gradient readiness: output layer first, then blocks from last to first; with tied weights the embedding's gradient is complete only at the end of backward.</li>
+<li>Buckets: DDP's rule, reverse parameter order, close a bucket once it reaches the cap; BF16 gradients (2 bytes); first bucket 1 MiB (or the cap if smaller).</li>
+<li>All-reduce of <i>B</i> bytes on <i>n</i> GPUs = <i>B</i> &times; 2(<i>n</i> &minus; 1)/<i>n</i> / busbw + latency, one bucket at a time on the NCCL stream. Busbw presets: 92% of 50 GB/s (InfiniBand, the acceptance target quoted on Interconnects and scaling), 365.6 GB/s (8&times; H200 ring, nccl-tests at 8 GiB, measured by Bekman), 92% of 12.5 GB/s = 11.5 (100 Gb/s Ethernet, same efficiency assumed). The NVLink preset assumes all the GPUs share one NVLink domain (8 on an HGX board).</li>
+<li>Optimizer = 32 bytes per parameter at 3.35 TB/s. Batch = tokens &times; 8 bytes &times; 2 (ids and targets) at 63 GB/s.</li>
+<li>Slowdown: backward stretched by this percentage when overlapped, standing in for NCCL's use of SMs and memory bandwidth; the CPU measurement on the Reading tab found 15% with Gloo threads.</li>
+</ul>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<style>#t-more h3{font-size:14px;margin:16px 0 4px}#t-more .sp{margin:6px 0}#t-more .rd-mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:8px}</style>
+<h2 style="margin-top:14px">Further reading</h2>
+<p class="small mute">Every link opens in a new tab; times are reading or watching estimates. Links checked 2026-10-05.</p>
+<h3>On this page</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="#" data-tab="t-step">Step timeline</a> <span class="rt">10 min</span></div><p>The data-parallel step model with every input exposed: model size, GPUs, network, bucket size, latency, slowdown; plus step time against bucket size.</p></div>
+</div>
+<h3>The parent topic</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a> <span class="rt">about 45 min</span></div><p>One operation from PyTorch to the instructions. Tabs: <b>GPU simulator</b>, <b>Compiler explorer</b> (real PTX and SASS for four generations), <b>Kernel lab</b> (kernels measured on the M1 Pro).</p></div>
+</div>
+<h3>Sibling pages</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a> <span class="rt">40 min</span></div><p>Kernels and launches, indexing, warps, synchronisation, occupancy, errors, the memory API and what one launch costs.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a></div><p>Coalescing, shared memory and bank conflicts, registers and spills; pinned, mapped and managed memory.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a></div><p>Reductions, softmax, the matmul ladder, fusion (the other cure for launch overhead), FlashAttention.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a></div><p>Block-level kernels, autotuning, what the Triton compiler does.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a></div><p>cuBLAS, cuDNN, CUTLASS and CuTe; mma, wgmma, TMA, tcgen05.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a></div><p>Nsight Systems timelines (where overlap is checked), Nsight Compute, honest timing with events.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a></div><p>nvcc, PTX, SASS, NVRTC, and torch.compile with Inductor, the code that reduce-overhead graphs capture.</p></div>
+</div>
+<h3>Hardware, systems and training pages</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a></div><p>PCIe, NVLink, InfiniBand and RoCE; NCCL's algorithms and protocols, busbw, and why the network picks the parallelism.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a></div><p>The SMs, copy engines and schedulers that streams map onto.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a></div><p>One CUDA call down to the ioctl, the channel, the GPFIFO and the doorbell.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>Data, tensor, pipeline, expert and context parallelism, ZeRO and FSDP, and which collective each needs.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c9b2cac997583bf572" target="_blank" rel="noopener noreferrer">Training Infrastructure</a></div><p>Clusters, checkpointing and failures in practice.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a></div><p>PyTorch's caching allocator, which <code>record_stream</code> and graph pools build on.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling and reliability</a></div><p>Failure rates at scale: why hangs and restarts are routine.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">inference-and-serving</a> and <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">pytorch-ecosystem</a></div><p>Serving engines and their CUDA graphs; the PyTorch stack around DDP, FSDP and torch.compile.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO (paper page)</a> and <a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron-LM (paper page)</a></div><p>The sharding and tensor-parallel designs whose communication this page overlaps.</p></div>
+</div>
+<h3>Primary sources</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide 2.5: asynchronous execution</a> <span class="rt">40 min</span></div><p>Streams, events, default streams, priorities, host functions (v13.4.2).</p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cuda-graphs.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide 4.2: CUDA Graphs</a> <span class="rt">60 min</span></div><p>Capture, update, conditional nodes, memory nodes, device launch.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/cuda-graphs/" target="_blank" rel="noopener noreferrer">Getting Started with CUDA Graphs (2019)</a> <span class="rt">15 min</span></div><p>The launch-overhead measurement this page's animation is fitted to.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/dynamic-control-flow-in-cuda-graphs-with-conditional-nodes/" target="_blank" rel="noopener noreferrer">Dynamic control flow with conditional nodes</a> <span class="rt">20 min</span></div><p>IF, WHILE, ELSE and SWITCH nodes with examples.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.pytorch.org/docs/2.14/notes/cuda.html" target="_blank" rel="noopener noreferrer">PyTorch CUDA semantics (2.14)</a> <span class="rt">45 min</span></div><p>Streams, the caching allocator, record_stream, CUDA graphs and their constraints.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html" target="_blank" rel="noopener noreferrer">Guide to non_blocking and pin_memory()</a> <span class="rt">30 min</span></div><p>When pinning and non-blocking copies help, and when they are wrong.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html" target="_blank" rel="noopener noreferrer">NCCL user guide</a> <span class="rt">60 min</span></div><p>Communicators, stream semantics, groups, CUDA graphs, environment variables.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.pytorch.org/docs/2.14/torch_nccl_environment_variables.html" target="_blank" rel="noopener noreferrer">PyTorch NCCL environment variables</a> <span class="rt">10 min</span></div><p>Watchdog, error handling, flight recorder.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.pytorch.org/docs/2.14/distributed.fsdp.fully_shard.html" target="_blank" rel="noopener noreferrer">FSDP2 fully_shard</a> <span class="rt">30 min</span></div><p>Prefetching, separate streams, resharding after forward.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.pytorch.org/docs/2.14/symmetric_memory.html" target="_blank" rel="noopener noreferrer">PyTorch symmetric memory</a> <span class="rt">25 min</span></div><p>Allocation, rendezvous, backends, one-sided operations.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.vllm.ai/en/latest/design/cuda_graphs.html" target="_blank" rel="noopener noreferrer">vLLM: CUDA graphs design</a> <span class="rt">25 min</span></div><p>Full and piecewise graphs in a serving engine.</p></div>
+<div class="sp"><div class="n"><a href="https://horace.io/brrr_intro.html" target="_blank" rel="noopener noreferrer">Horace He, Making Deep Learning Go Brrrr</a> <span class="rt">25 min</span></div><p>Compute, memory and overhead as the three regimes.</p></div>
+</div>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers, copied from the CUDA root (Topic: cuda-and-gpu-programming), with the step-animation controller (play, pause, step, scrub, speed) ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_sg_data.js */
+// generated by recompute.py from the raw outputs: do not edit
+window.SG={"cuda":{"nvcc":"Build cuda_13.4.r13.4/compiler.38855100_0","builds":{"s1_pipeline":true,"s2_graph":true,"s3_peer":true,"s4_nccl_overlap":true,"s5_default_stream":true},"run_errors":{"s1_pipeline":"CUDA driver version is insufficient for CUDA runtime version (35)","s2_graph":"CUDA driver version is insufficient for CUDA runtime version (35)","s3_peer":"CUDA driver version is insufficient for CUDA runtime version (35)","s4_nccl_overlap":"CUDA driver version is insufficient for CUDA runtime version (35)"},"s5_run":"run_exit=0","nccl_version_code":23102,"sym_legacy":["cudaDeviceSynchronize","cudaMalloc","cudaMemcpyAsync","cudaStreamCreate"],"sym_ptd":["cudaDeviceSynchronize","cudaMalloc","cudaMemcpyAsync_ptsz","cudaStreamCreate"],"node_types":[["Kernel","0x00"],["Memcpy","0x01"],["Memset","0x02"],["Host","0x03"],["Graph","0x04"],["Empty","0x05"],["WaitEvent","0x06"],["EventRecord","0x07"],["ExtSemaphoreSignal","0x08"],["ExtSemaphoreWait","0x09"],["MemAlloc","0x0a"],["MemFree","0x0b"],["Conditional","0x0d"],["Reserved16","0x10"]],"cond_types":["If","While","Switch"],"capture_modes":["Global","ThreadLocal","Relaxed"],"update_results":["Success","Error","ErrorTopologyChanged","ErrorNodeTypeChanged","ErrorFunctionChanged","ErrorParametersChanged","ErrorNotSupported","ErrorUnsupportedFunctionChange","ErrorAttributesChanged"],"instantiate_flags":["AutoFreeOnLaunch","Upload","DeviceLaunch","UseNodePriority"],"nccl_version":"2.31.2","nccl_entry_points":["ncclAllGather","ncclAllGatherConfig","ncclAllReduce","ncclAllReduceConfig","ncclAlltoAll","ncclAlltoAllConfig","ncclBcast","ncclBroadcast","ncclBroadcastConfig","ncclCommAbort","ncclCommCount","ncclCommCuDevice","ncclCommDeregister","ncclCommDestroy","ncclCommFinalize","ncclCommGetAsyncError","ncclCommGetUniqueId","ncclCommGrow","ncclCommInitAll","ncclCommInitRank","ncclCommInitRankConfig","ncclCommInitRankScalable","ncclCommMemStats","ncclCommRegister","ncclCommResume","ncclCommRevoke","ncclCommShrink","ncclCommSplit","ncclCommSuspend","ncclCommUserRank","ncclCommWindowDeregister","ncclCommWindowRegister","ncclGather","ncclGatherConfig","ncclGetUniqueId","ncclGetVersion","ncclGroupEnd","ncclGroupSimulateEnd","ncclGroupStart","ncclMemAlloc","ncclMemFree","ncclParamBind","ncclParamGet","ncclParamGetAllParameterKeys","ncclParamGetI","ncclParamGetParameter","ncclParamGetStr","ncclParamGetU","ncclPutSignal","ncclRecv","ncclRedOpCreatePreMulSum","ncclRedOpDestroy","ncclReduce","ncclReduceConfig","ncclReduceScatter","ncclReduceScatterConfig","ncclScatter","ncclScatterConfig","ncclSend","ncclSignal","ncclWaitSignal","ncclWinGetUserPtr"],"nccl_device_headers":["barrier.h","cft.h","cft_barrier.h","comm.h","coop.h","core.h","gin.h","gin_barrier.h","gin_win_stub.h","ll_a2a.h","lsa_barrier.h","net_device.h","ptr.h","reduce_copy.h","utility.h"],"nccl_config_fields":["blocking","cgaClusterSize","minCTAs","maxCTAs","netName","splitShare","trafficClass","commName","collnetEnable","CTAPolicy","shrinkShare","nvlsCTAs","nChannelsPerNetPeer","nvlinkCentricSched","graphUsageMode","numRmaCtx","maxP2pPeers","graphStreamOrdering","launchOrderImplicit","numRmaSig","rmaEagerInit","hostCftMode"],"nccl_env_in_lib":{"NCCL_DEBUG":true,"NCCL_DEBUG_SUBSYS":true,"NCCL_ALGO":true,"NCCL_PROTO":true,"NCCL_P2P_DISABLE":true,"NCCL_SHM_DISABLE":true,"NCCL_IB_DISABLE":true,"NCCL_SOCKET_IFNAME":true,"NCCL_MIN_NCHANNELS":true,"NCCL_MAX_NCHANNELS":true,"NCCL_MIN_CTAS":true,"NCCL_MAX_CTAS":true,"NCCL_NVLS_ENABLE":true,"NCCL_CUMEM_ENABLE":true,"NCCL_LAUNCH_MODE":true,"NCCL_GRAPH_REGISTER":true,"NCCL_RAS_ENABLE":true,"NCCL_BLOCKING_WAIT":false,"NCCL_ASYNC_ERROR_HANDLING":false},"cond_sass":["/*0000*/                   LDC R1, c[0x0][0x28] ;","/*0010*/                   LDC.64 R2, c[0x0][0x210] ;","/*0020*/                   ULDC.64 UR4, c[0x0][0x208] ;","/*0030*/                   LDG.E R7, desc[UR4][R2.64] ;","/*0040*/                   MOV R0, 0x0 ;","/*0050*/                   LDC.64 R8, c[0x4][R0] ;","/*0060*/                   FMUL R7, R7, 0.5 ;","/*0070*/                   FSETP.GT.AND P0, PT, R7, 1, PT ;","/*0080*/                   STG.E desc[UR4][R2.64], R7 ;","/*0090*/                   ULDC.64 UR4, c[0x0][0x218] ;","/*00a0*/                   IMAD.U32 R4, RZ, RZ, UR4 ;","/*00b0*/                   SEL R6, RZ, 0x1, !P0 ;","/*00c0*/                   IMAD.U32 R5, RZ, RZ, UR5 ;","/*00d0*/                   LEPC R20, 0xf0 ;","/*00e0*/                   CALL.ABS.NOINC R8 ;","/*00f0*/                   EXIT ;"],"cond_sass_sm100_call":true,"cond_regs":24},"m1":{"metal":{"runs":3,"n":200,"threads":1024,"device":"Apple M1 Pro","check":[101.002],"load":[10.6,11.3],"wait_each":{"us":179.9,"runs":[179.9,188.7,174.2]},"queue":{"us":21.9,"runs":[21.8,21.9,22.2]},"one_cb":{"us":5.3,"runs":[5.2,5.3,5.3],"gpu_us":1.92,"enc_us_total":453.5},"icb_replay":{"us":3.3,"runs":[3.3,3.4,3.2],"gpu_us":2.19,"enc_us_total":21.7},"icb_record_us_total":853.0,"ratio_wait_queue":8.2,"ratio_queue_icb":6.6,"enc_per_dispatch_us":2.27},"conc":{"runs":3,"k":8,"iters":400000,"single_ms":11.73,"load":[10.5,11.6],"one_queue":{"ms":91.73,"runs":[91.97,91.72,91.73]},"k_queues":{"ms":92.02,"runs":[91.97,92.02,92.03]},"concurrent":{"ms":11.78,"runs":[11.73,11.78,11.78]}},"mps":{"runs":3,"torch":"2.14.1","n":200,"sync_each":226.2,"sync_once":12.3,"sync_each_runs":[196.5,246.3,226.2],"sync_once_runs":[12.1,17.8,12.3],"ratio":18.4}},"ddp":{"overlap":{"compute_ms":57.6,"end_ms":64.6,"ar_ms":8.4,"end_runs":[64.6,61.5,66.3],"load":[5.3,6.8,6.5],"example":{"compute":55.96,"end":61.5,"buckets":[[0,8.01,9.2,17.16],[1,8.01,19.89,28.02],[2,8.01,30.56,39.11],[3,8.01,40.15,48.43],[4,8.01,49.56,57.23],[5,8.01,56.07,60.45]]}},"serial":{"compute_ms":50.2,"end_ms":96.1,"ar_ms":7.5,"end_runs":[92.6,96.1,105.7],"load":[6.8,6.6,6.5],"example":{"compute":50.24,"end":96.05,"buckets":[[0,8.01,50.66,59.49],[1,8.01,59.75,67.15],[2,8.01,67.47,75.36],[3,8.01,75.64,83.64],[4,8.01,84.0,91.37],[5,8.01,91.6,96.05]]}},"setup":{"world":2,"layers":12,"hidden":1024,"batch":512,"cap":8,"threads":2,"torch":"2.14.1","buckets":6,"bucket_mb":8.01},"saved_pct":33.0,"slowdown_pct":15.0,"exposed_ms":7.0,"serial_comm_ms":45.9,"profile":[["bw",0.0,3.455],["bw",4.783,3.684],["ar",9.2,6.814],["bw",9.868,3.726],["bw",15.155,4.924],["ar",20.769,6.157],["bw",21.911,5.393],["bw",28.474,3.665],["ar",32.546,6.812],["bw",33.238,4.243],["bw",38.678,3.479],["ar",42.667,6.17],["bw",43.493,4.246],["bw",49.447,3.523],["ar",53.397,6.162],["bw",54.092,3.508],["bw",59.571,1.189],["ar",61.469,6.058]]},"torchsrc":{"torch":"2.14.1","ddp_default_bucket_cap_mb":25,"ddp_first_bucket_bytes":1048576,"ddp_side_stream_env":true,"inductor":{"cudagraph_trees":true,"cudagraph_skip_dynamic_graphs":false,"cudagraph_dynamic_shape_warn_limit":8,"cudagraph_unexpected_rerecord_limit":128,"cudagraph_support_input_mutation":true,"graph_partition":true},"skip_reasons_cudagraph_utils":["cpu device (","cudagraph capture requires the caching allocator; ","input storage mutation (","multiple devices: ","mutated inputs","mutated inputs ("],"skip_reasons_lowering":["control flow operator: torch.cond.","control flow operator: torch.switch.","control flow operator: torch.while_loop.","index_put_ fallback with boolean indexing is not compatible with CUDA graphs"],"make_graphed_callables_num_warmup_iters":3,"capture_error_modes":["global","thread_local","relaxed"],"compile_modes":["\"default\", \"reduce-overhead\", \"max-autotune\" or \"max-autotune-no-cudagraphs\""]},"blog":{"kernel":2.9,"sync_each":9.6,"stream":3.8,"graph":3.4,"n":20,"steps":1000,"instantiate":400.0,"launch_cpu":3.8,"sync_cost":2.9,"graph_gap":0.5,"break_even_kernels":1000,"step_us":{"sync_each":192.0,"stream":76.0,"graph":68.0}},"pipe":{"mb":256,"h2d_ms":4.26,"d2h_ms":4.26,"k_ms":0.16,"serial_ms":8.68,"pipe8_ms":4.81,"pipe8_one_engine_ms":8.54},"step":{"cfg":{"N":124439808,"wte":38597376,"block":7087872,"tokens":16384,"gpus":64,"peak":989500000000000.0,"mfu":0.4,"busbw":46000000000.0,"grad_bytes":2,"cap":26214400,"first_cap":1048576,"pcie":63000000000.0,"hbm":3350000000000.0,"opt_bytes_per_param":32,"batch_bytes":262144,"alpha":0.0},"serial":{"fwd":10.302,"bwd":20.605,"opt":1.189,"copy":0.004,"comm":10.652,"total":42.751,"exposed":10.652,"buckets":[[7.613,4723200],[9.975,28351488],[12.337,28351488],[14.699,28351488],[17.061,28351488],[19.423,28351488],[20.605,102398976]],"events":[["copy",0.0,0.0042,"batch H2D"],["compute",0.0042,10.3064,"forward"],["compute",10.3064,30.911,"backward"],["comm",30.911,31.1132,"bucket 1"],["comm",31.1132,32.3266,"bucket 2"],["comm",32.3266,33.54,"bucket 3"],["comm",33.54,34.7534,"bucket 4"],["comm",34.7534,35.9668,"bucket 5"],["comm",35.9668,37.1802,"bucket 6"],["comm",37.1802,41.5628,"bucket 7"],["compute",41.5628,42.7515,"optimizer"]]},"overlap":{"fwd":10.302,"bwd":20.605,"opt":1.189,"copy":0.004,"comm":10.652,"total":36.51,"exposed":4.415,"buckets":[[7.613,4723200],[9.975,28351488],[12.337,28351488],[14.699,28351488],[17.061,28351488],[19.423,28351488],[20.605,102398976]],"events":[["copy",0.0,0.0042,"batch H2D (prefetched last step)"],["compute",0.0,10.3023,"forward"],["compute",10.3023,30.9068,"backward"],["comm",17.915,18.1171,"bucket 1"],["comm",20.2771,21.4906,"bucket 2"],["comm",22.6393,23.8527,"bucket 3"],["comm",25.0015,26.2149,"bucket 4"],["comm",27.3636,28.577,"bucket 5"],["comm",29.7258,30.9392,"bucket 6"],["comm",30.9392,35.3217,"bucket 7"],["compute",35.3217,36.5104,"optimizer"]]},"saved_pct":15.0,"n_buckets":7,"last_bucket_mb":97.7,"grad_mb":237.4}};
+</script>
+<script>/* 23_js_sg_static.js */
+// ---- Reading tab: text filled from data, predict-then-reveal, and the static charts ----
+// SGT.lanes draws a to-scale timeline: lanes (rows), events [lane, start, end, label, color, faded].
+window.SGT=(function(){
+  const E=RD.esc;
+  const col={copy:'var(--c6)',compute:'var(--c1)',comm:'var(--c2)',cpu:'var(--c4)',gpu:'var(--c1)',wait:'var(--dim)',opt:'var(--c3)'};
+  function ticks(tmax,n){const raw=tmax/n,p=Math.pow(10,Math.floor(Math.log10(raw))),m=[1,2,2.5,5,10].find(x=>x*p>=raw)*p;const a=[];for(let t=0;t<=tmax+1e-9;t+=m)a.push(+t.toFixed(6));return a}
+  // o: {el, lanes:[[id,label]], ev:[[lane,s,e,label,color,dim]], tmax, unit, marks:[[t,label]], lw}
+  function lanes(o){
+    const W=RD.width(o.el),lw=Math.min(o.lw||92,W*0.28),rh=o.rh||26,top=6,H=top+o.lanes.length*rh+26;
+    const x=t=>lw+(W-lw-10)*t/o.tmax;let s='';
+    const li={};o.lanes.forEach((l,i)=>{li[l[0]]=i;const y=top+i*rh;
+      s+='<rect x="'+lw+'" y="'+(y+3)+'" width="'+(W-lw-10)+'" height="'+(rh-6)+'" fill="var(--soft)" rx="3"/>';
+      s+=RD.t(4,y+rh/2+4,E(l[1]),{fs:11})});
+    o.ev.forEach(e=>{const i=li[e[0]];if(i===undefined)return;const y=top+i*rh,x0=x(e[1]),w=Math.max(1,x(e[2])-x0);
+      s+='<rect x="'+x0.toFixed(1)+'" y="'+(y+4)+'" width="'+w.toFixed(1)+'" height="'+(rh-8)+'" rx="2" fill="'+(e[4]||col[e[0]]||'var(--acc)')+'" opacity="'+(e[5]?0.22:0.9)+'"><title>'+E(e[3]||'')+'</title></rect>';
+      if(e[3]&&w>E(e[3]).length*5.6+6)s+=RD.t(x0+4,y+rh/2+4,E(e[3]),{fs:10.5,fill:'var(--bg)'})});
+    (o.marks||[]).forEach(m=>{const xx=x(m[0]);s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+top+'" y2="'+(top+o.lanes.length*rh)+'" stroke="var(--ink)" stroke-dasharray="3 3" stroke-width="1"/>';
+      if(m[1])s+=RD.t(Math.min(xx+3,W-90),top+o.lanes.length*rh+22,E(m[1]),{fs:10.5,w:600})});
+    const ty=top+o.lanes.length*rh;ticks(o.tmax,Math.max(3,Math.floor((W-lw)/80))).forEach(t=>{const xx=x(t);if(xx>W-8)return;
+      s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+ty+'" y2="'+(ty+4)+'" stroke="var(--mute)"/>'+RD.t(xx,ty+14,(+t.toPrecision(4))+(t===0?' '+o.unit:''),{fs:10,a:'middle',fill:'var(--mute)'})});
+    o.el.innerHTML=RD.svg(W,H,s,o.label||'timeline');
+  }
+  // horizontal bars: rows [label, value, color, note]
+  function bars(el,rows,unit,log){
+    const W=RD.width(el),lw=Math.min(190,W*0.42),rh=24,H=rows.length*rh+8,vmax=Math.max(...rows.map(r=>r[1]));
+    const f=v=>log?Math.log10(1+v)/Math.log10(1+vmax):v/vmax;let s='';
+    rows.forEach((r,i)=>{const y=4+i*rh,w=Math.max(2,(W-lw-70)*f(r[1]));
+      s+=RD.t(lw-6,y+15,E(r[0]),{fs:11,a:'end'})+'<rect x="'+lw+'" y="'+(y+4)+'" width="'+w.toFixed(1)+'" height="'+(rh-9)+'" rx="2" fill="'+r[2]+'"/>'+RD.t(lw+w+5,y+15,E(r[3]||(r[1]+' '+unit)),{fs:11,w:600})});
+    el.innerHTML=RD.svg(W,H,s,'bar chart');
+  }
+  return {lanes,bars,col};
+})();
+(function(){
+  const S=window.SG,E=RD.esc,$=id=>document.getElementById(id);
+  const fmt=v=>typeof v==='number'?v.toLocaleString('en-US',{maximumFractionDigits:3}):String(v);
+  // text lists read from the headers and the PyTorch source
+  if($('sg-nodetypes'))$('sg-nodetypes').innerHTML=S.cuda.node_types.filter(t=>!/Reserved/.test(t[0])).map(t=>'<code>'+E(t[0])+'</code>').join(', ');
+  if($('sg-upd'))$('sg-upd').innerHTML=S.cuda.update_results.filter(x=>x!=='Success').map(x=>'<code>'+E(x)+'</code>').join(', ');
+  if($('sg-capmodes'))$('sg-capmodes').innerHTML=S.cuda.capture_modes.map(x=>'<code>cudaStreamCaptureMode'+E(x)+'</code>').join(', ');
+  if($('sg-skips')){const r=S.torchsrc.skip_reasons_cudagraph_utils.concat(S.torchsrc.skip_reasons_lowering).map(x=>x.replace(/[ (:;.]+$/,'')).filter((x,i,a)=>a.indexOf(x)===i);
+    $('sg-skips').innerHTML=r.map(x=>'"'+E(x)+'"').join('; ')+' (strings from <code>cudagraph_utils.py</code> and <code>lowering.py</code>, PyTorch '+E(S.torchsrc.torch)+') <span class="rd-pub">read here</span>'}
+  if($('sg-ncclapi')){const ep=S.cuda.nccl_entry_points,coll=ep.filter(x=>/^nccl(AllReduce|AllGather|ReduceScatter|Broadcast|Reduce|AlltoAll|Gather|Scatter|Send|Recv)$/.test(x));
+    $('sg-ncclapi').innerHTML=ep.length+' functions; the communication calls are '+coll.map(x=>'<code>'+x+'</code>').join(', ')+', most with a <code>...Config</code> variant taking per-call settings'}
+  if($('sg-ncclcfg'))$('sg-ncclcfg').innerHTML=S.cuda.nccl_config_fields.map(x=>'<code>'+E(x)+'</code>').join(', ');
+  if($('sg-nccldev'))$('sg-nccldev').innerHTML=S.cuda.nccl_device_headers.map(x=>'<code>'+E(x)+'</code>').join(', ');
+  if($('sg-cond-sass'))$('sg-cond-sass').textContent='// halve_and_test, sm_90a, cuobjdump -sass (CUDA 13.4.2); '+S.cuda.cond_regs+' registers\n'+S.cuda.cond_sass.join('\n');
+  // predict-then-reveal
+  document.querySelectorAll('#t-read .rd-pr').forEach(card=>{const ans=card.querySelector('.ans');
+    card.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
+      card.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.ok)x.classList.add('right')});
+      if(!b.dataset.ok)b.classList.add('wrong');ans.hidden=false}))});
+  RD.tabLinks(document.getElementById('t-read'));
+
+  // default-stream toy: A on s1, B on stream 0, C on s2, copy on stream 0; each kernel 1 unit, copy 0.6
+  let dsMode='legacy';
+  function drawDS(){const el=$('sg-ds-fig');if(!el)return;let ev,cap;
+    if(dsMode==='legacy'){ev=[['s1',0,1,'A'],['s0',1,2,'B'],['s2',2,3,'C'],['s0',3,3.6,'copy']];
+      cap='Legacy default stream: B waits for A, C waits for B, the copy waits for C. Four operations, no overlap, 3.6 units.'}
+    else{ev=[['s1',0,1,'A'],['s0',0,1,'B'],['s2',0,1,'C'],['s0',1,1.6,'copy']];
+      cap='Per-thread default stream: A, B and C may run together (they are tiny); only the copy, on the same stream as B, waits for B. 1.6 units if the GPU has room.'}
+    SGT.lanes({el,lanes:[['s1','stream s1'],['s0',dsMode==='legacy'?'stream 0 (legacy)':'stream 0 (per-thread)'],['s2','stream s2']],ev:ev.map(e=>e.concat([e[3]==='copy'?'var(--c6)':'var(--c1)'])),tmax:3.8,unit:'units',lw:120,label:'default stream timeline'});
+    $('sg-ds-cap').textContent=cap+' Illustrative durations; the ordering is the documented rule.'}
+  if($('sg-ds-seg'))RD.seg($('sg-ds-seg'),m=>{dsMode=m;drawDS()});
+  // M1 launch measurements
+  function drawM1(){const el=$('sg-m1-fig');if(!el)return;const m=S.m1.metal,p=S.m1.mps;
+    SGT.bars(el,[['Metal: launch + wait each',m.wait_each.us,'var(--bad)',m.wait_each.us+' µs'],['Metal: queued, wait once',m.queue.us,'var(--c5)',m.queue.us+' µs'],
+      ['Metal: one command buffer',m.one_cb.us,'var(--c1)',m.one_cb.us+' µs'],['Metal: recorded once, replayed',m.icb_replay.us,'var(--c3)',m.icb_replay.us+' µs'],
+      ['PyTorch MPS: sync each',p.sync_each,'var(--bad)',p.sync_each+' µs'],['PyTorch MPS: sync once',p.sync_once,'var(--c1)',p.sync_once+' µs']],'µs',true)}
+  function drawConc(){const el=$('sg-conc-fig');if(!el)return;const c=S.m1.conc;
+    SGT.bars(el,[['one kernel alone',c.single_ms,'var(--mute)',c.single_ms+' ms'],[c.k+' kernels, one queue',c.one_queue.ms,'var(--c5)',c.one_queue.ms+' ms'],[c.k+' kernels, '+c.k+' queues',c.k_queues.ms,'var(--bad)',c.k_queues.ms+' ms'],[c.k+' kernels, concurrent encoder',c.concurrent.ms,'var(--c3)',c.concurrent.ms+' ms']],'ms');
+    $('sg-conc-cap').innerHTML='<span class="rd-meas">measured on Apple M1 Pro GPU</span> '+c.k+' kernels of one 32-thread threadgroup each, a dependent loop of '+c.iters.toLocaleString('en-US')+' FMAs, so each fills one of 16 GPU cores. Median of '+c.runs+' runs of 7 trials (runs for '+c.k+' queues: '+c.k_queues.runs.join(', ')+' ms); load average '+c.load[0]+' to '+c.load[1]+'. Metal through PyObjC.'}
+  // chunked pipeline
+  function pipeSim(k,two){const P=S.pipe,hi=P.h2d_ms/k,ke=P.k_ms/k,ho=P.d2h_ms/k,ev=[];
+    if(k===1){ev.push(['in',0,hi,'H2D']);ev.push(['ker',hi,hi+ke,'kernel']);ev.push([two?'out':'in',hi+ke,hi+ke+ho,'D2H']);return {ev,T:hi+ke+ho}}
+    let inE=0,kE=0,oE=0;const kend=[];
+    if(two){for(let c=0;c<k;c++){const s=inE;inE=s+hi;ev.push(['in',s,inE,'']);const ks=Math.max(inE,kE);kE=ks+ke;ev.push(['ker',ks,kE,'']);kend.push(kE);const os=Math.max(kE,oE);oE=os+ho;ev.push(['out',os,oE,''])}return {ev,T:oE}}
+    // one engine: copies in issue order, an out may run as soon as its kernel is done (greedy, earliest issued ready op)
+    const done=new Array(k).fill(false);let t=0,ni=0,no=0;const ke2=[];let kEnd=0;
+    while(no<k){let op=null;if(no<ni&&ke2[no]<=t)op='o';else if(ni<k)op='i';else{t=ke2[no];op='o'}
+      if(op==='i'){ev.push(['in',t,t+hi,'']);t+=hi;const ks=Math.max(t,kEnd);kEnd=ks+ke;ev.push(['ker',ks,kEnd,'']);ke2.push(kEnd);ni++}
+      else{const s=Math.max(t,ke2[no]);ev.push(['in',s,s+ho,'',`var(--c2)`]);t=s+ho;no++}}
+    return {ev,T:t}}
+  function drawPipe(){const el=$('sg-pipe-fig');if(!el)return;const k=+$('sg-pipe-k').value,two=$('sg-pipe-two').checked;$('sg-pipe-kv').textContent=k;
+    const r=pipeSim(k,two),P=S.pipe;
+    const ev=r.ev.map(e=>[e[0],e[1],e[2],e[3],e[4]||(e[0]==='ker'?'var(--c1)':e[0]==='out'?'var(--c2)':'var(--c6)')]);
+    SGT.lanes({el,lanes:two?[['in','copy in (H2D)'],['ker','kernels'],['out','copy out (D2H)']]:[['in','copy engine'],['ker','kernels']],ev,tmax:Math.max(P.serial_ms,r.T)*1.02,unit:'ms',lw:110,marks:[[r.T,'done '+r.T.toFixed(2)+' ms']],label:'copy pipeline'});
+    $('sg-pipe-cnt').innerHTML=RD.stat('Serial (1 chunk)',P.serial_ms.toFixed(2)+' ms','copy in, kernel, copy out')+RD.stat('This pipeline',r.T.toFixed(2)+' ms',k+' chunks, '+(two?'two engines':'one engine'))+RD.stat('Speed-up',(P.serial_ms/r.T).toFixed(2)+'×','limited by the copies')}
+  if($('sg-pipe-k')){$('sg-pipe-k').addEventListener('input',drawPipe);$('sg-pipe-two').addEventListener('change',drawPipe)}
+  // DDP measured on CPU
+  function drawDDP(){const el=$('sg-ddp-fig');if(!el)return;const d=S.ddp,ev=[];
+    [['overlap','ov'],['serial','se']].forEach(([m,p])=>{const x=d[m].example;ev.push([p+'c',0,x.compute,'backward compute','var(--c1)']);
+      x.buckets.forEach(b=>ev.push([p+'a',b[2],b[3],'b'+(b[0]+1),'var(--c2)']))});
+    const tmax=Math.max(d.overlap.example.end,d.serial.example.end)*1.03;
+    SGT.lanes({el,lanes:[['ovc','overlap: compute'],['ova','overlap: all-reduce'],['sec','serial: compute'],['sea','serial: all-reduce']],ev,tmax,unit:'ms',lw:128,
+      marks:[[d.overlap.example.end,''],[d.serial.example.end,'']],label:'DDP measured timeline'})}
+  function drawProf(){const el=$('sg-prof-fig');if(!el)return;const p=S.ddp.profile,tmax=Math.max(...p.map(e=>e[1]+e[2]))*1.03;
+    SGT.lanes({el,lanes:[['bw','autograd thread'],['ar','Gloo threads']],ev:p.map(e=>[e[0],e[1],e[1]+e[2],'',e[0]==='ar'?'var(--c2)':'var(--c1)']),tmax,unit:'ms',lw:110,label:'profiler events'})}
+  function all(){drawDS();drawM1();drawConc();drawPipe();drawDDP();drawProf()}
+  RD.onRender(all);RD.onResize(all);all();
+})();
+</script>
+<script>/* 24_js_sg_step.js */
+// ---- The training-step model (a port of step_model in recompute.py) and the Reading animation ----
+window.SGM=(function(){
+  // GPT-2-style parameter list in model.parameters() order; tied: the output layer reuses wte
+  function params(h,L,V,ctx,tied){
+    const blk=[2*h,3*h*h+3*h,h*h+h,2*h,4*h*h+4*h,4*h*h+h],p=[['wte',V*h],['wpe',ctx*h]];
+    for(let l=0;l<L;l++)blk.forEach((n,i)=>p.push(['b'+l+'.'+i,n]));
+    p.push(['lnf',2*h]);if(!tied)p.push(['head',V*h]);
+    return {p,blk:blk.reduce((a,b)=>a+b,0)};
+  }
+  // c: {h,L,V,ctx,tied,tokens,gpus,peak,mfu,busbw,grad_bytes,cap,first_cap,pcie,hbm,opt_bytes_per_param,batch_bytes}
+  function step(c,overlap,slow){
+    slow=slow||0;const P=params(c.h,c.L,c.V,c.ctx,c.tied),N=P.p.reduce((a,x)=>a+x[1],0);
+    const rate=c.peak*c.mfu,fwd=2*N*c.tokens/rate,bwd=2*fwd,mmHead=c.V*c.h,tot=mmHead+c.L*P.blk;
+    const tHead=bwd*mmHead/tot,ready={lnf:tHead};if(!c.tied)ready.head=tHead;
+    for(let l=c.L-1;l>=0;l--){const t=tHead+bwd*(c.L-l)*P.blk/tot;for(let i=0;i<6;i++)ready['b'+l+'.'+i]=t}
+    ready.wpe=ready.wte=bwd;
+    const buckets=[];let cur=[],cap=c.first_cap;
+    for(let i=P.p.length-1;i>=0;i--){cur.push(P.p[i]);if(cur.reduce((a,x)=>a+x[1],0)*c.grad_bytes>=cap){buckets.push(cur);cur=[];cap=c.cap}}
+    if(cur.length)buckets.push(cur);
+    const g=c.gpus,ar=b=>b*2*(g-1)/g/c.busbw+(c.alpha||0),copy=c.batch_bytes/c.pcie,opt=N*c.opt_bytes_per_param/c.hbm,ev=[];
+    let t=0;
+    if(!overlap){ev.push(['copy',0,copy,'batch H2D']);t=copy}else ev.push(['copy',0,copy,'batch H2D (prefetched last step)']);
+    ev.push(['compute',t,t+fwd,'forward']);const t0=t+fwd;
+    const bl=buckets.map(b=>[Math.max(...b.map(x=>ready[x[0]])),b.reduce((a,x)=>a+x[1],0)*c.grad_bytes]);
+    let tOpt;
+    if(overlap){const bs=bwd*(1+slow);ev.push(['compute',t0,t0+bs,'backward']);let tc=t0;
+      bl.forEach((b,i)=>{const s=Math.max(t0+b[0]*(1+slow),tc);tc=s+ar(b[1]);ev.push(['comm',s,tc,'bucket '+(i+1)])});
+      tOpt=Math.max(t0+bs,tc)}
+    else{ev.push(['compute',t0,t0+bwd,'backward']);let tc=t0+bwd;bl.forEach((b,i)=>{const s=tc;tc=s+ar(b[1]);ev.push(['comm',s,tc,'bucket '+(i+1)])});tOpt=tc}
+    ev.push(['compute',tOpt,tOpt+opt,'optimizer']);
+    const total=tOpt+opt,comm=bl.reduce((a,b)=>a+ar(b[1]),0);
+    const ms=x=>x*1e3;
+    return {N,fwd:ms(fwd),bwd:ms(bwd),opt:ms(opt),copy:ms(copy),comm:ms(comm),total:ms(total),
+      exposed:ms(total-fwd-bwd*(1+(overlap?slow:0))-opt-(overlap?0:copy)),buckets:bl.map(b=>[ms(b[0]),b[1]]),
+      events:ev.map(e=>[e[0],ms(e[1]),ms(e[2]),e[3]])};
+  }
+  function cfgFromData(){const c=Object.assign({},SG.step.cfg);return Object.assign(c,{h:768,L:12,V:50257,ctx:1024,tied:true})}
+  return {params,step,cfgFromData};
+})();
+(function(){
+  const $=id=>document.getElementById(id);if(!$('sg-st-card'))return;
+  let mode='serial',seq=[],res=null,an=null;
+  const lanes=[['copy','copy stream'],['compute','compute stream'],['comm','NCCL stream']];
+  function build(){const c=SGM.cfgFromData();res=SGM.step(c,mode==='overlap',0);
+    const other=SGM.step(c,mode!=='overlap',0);
+    // steps: one per event, in order of end time
+    seq=res.events.map((e,i)=>({e,i})).sort((a,b)=>a.e[2]-b.e[2]||a.i-b.i);
+    res.tmax=Math.max(res.total,other.total)*1.02;
+  }
+  function caption(e){const L=e[3];
+    if(L.startsWith('batch'))return mode==='serial'?['Copy the batch in','The input ids cross PCIe on the compute stream before the forward can start. It is '+SG.step.cfg.batch_bytes.toLocaleString('en-US')+' bytes, so the bar is a hairline: for LLMs the copy is not the problem.']:['Batch already on the GPU','It was copied on a separate stream with non_blocking=True from pinned memory during the previous step; the forward does not wait.'];
+    if(L==='forward')return ['Forward','2N FLOPs per token at the assumed 40% MFU: '+(e[2]-e[1]).toFixed(1)+' ms.'];
+    if(L==='backward')return ['Backward',mode==='serial'?'Twice the forward. The NCCL stream sits idle: no gradient is sent until backward is over.':'Twice the forward. As each bucket of gradients completes, DDP hands it to the NCCL stream, which all-reduces it while backward continues.'];
+    if(L.startsWith('bucket')){const n=+L.split(' ')[1],nb=SG.step.n_buckets,b=res.buckets[n-1],mb=(b[1]/1048576).toFixed(1);
+      return [L+' of '+nb+' ('+mb+' MiB)',mode==='serial'?'All-reduced after backward, while every SM waits.':(n<nb?'Ready at '+b[0].toFixed(1)+' ms into backward; all-reduced under the backward compute.':'The last bucket holds the tied token embedding, complete only when backward ends: its all-reduce cannot hide.')]}
+    if(L==='optimizer')return ['Optimizer step','Waits for every bucket. Step done at '+res.total.toFixed(2)+' ms.'];
+    return [L,''];
+  }
+  function draw(i){const el=$('sg-st-fig');const shown=new Set(seq.slice(0,i+1).map(x=>x.i));const t=seq[i].e[2];
+    const ev=res.events.map((e,k)=>[e[0],e[1],e[2],e[3]==='forward'||e[3]==='backward'||e[3]==='optimizer'?e[3]:'',e[3]==='optimizer'?'var(--c3)':undefined,!shown.has(k)]);
+    SGT.lanes({el,lanes,ev,tmax:res.tmax,unit:'ms',lw:104,marks:[[t,t.toFixed(1)+' ms']],label:'training step timeline'});
+    const c=caption(seq[i].e);$('sg-st-capt').innerHTML='<div class="t">Step '+(i+1)+' of '+seq.length+': '+RD.esc(c[0])+'</div><p>'+RD.esc(c[1])+'</p>';
+    const commDone=res.events.filter((e,k)=>shown.has(k)&&e[0]==='comm').reduce((a,e)=>a+e[2]-e[1],0);
+    $('sg-st-cnt').innerHTML=RD.stat('Clock',t.toFixed(2)+' ms','this step so far')+RD.stat('All-reduce done',commDone.toFixed(2)+' / '+res.comm.toFixed(2)+' ms',SG.step.n_buckets+' buckets')+
+      RD.stat('Step time',res.total.toFixed(2)+' ms',mode==='serial'?'nothing overlapped':'overlapped, '+res.exposed.toFixed(2)+' ms comm exposed');
+  }
+  build();
+  an=RD.anim({card:'sg-st-card',ctl:'sg-st-ctl',n:seq.length,ms:1300,label:'Training step',draw});
+  RD.seg($('sg-st-seg'),m=>{mode=m;build();an.reset(seq.length);an.play()});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 25_js_sg_launch.js */
+// ---- Launch overhead with and without a CUDA graph: 20 kernels, values fitted to NVIDIA's 2019 post ----
+window.SGL=(function(){
+  // returns events [lane, start, end, label] in microseconds for n kernels
+  function model(mode,B){const n=B.n,K=B.kernel,L=B.launch_cpu,Sy=B.sync_cost,G=B.graph_gap,ev=[];let t=0;
+    if(mode==='sync'){for(let k=0;k<n;k++){ev.push(['cpu',t,t+L,'launch']);ev.push(['gpu',t+L,t+L+K,'k'+(k+1)]);ev.push(['wait',t+L,t+L+K+Sy,'wait']);t=t+L+K+Sy}}
+    else if(mode==='stream'){let g=0;for(let k=0;k<n;k++){ev.push(['cpu',k*L,(k+1)*L,'launch']);const s=Math.max((k+1)*L,g);g=s+K;ev.push(['gpu',s,g,'k'+(k+1)])}ev.push(['wait',n*L,g,'wait']);t=g}
+    else{ev.push(['cpu',0,L,'graph launch']);let g=L;for(let k=0;k<n;k++){const s=g+(k?G:0);g=s+K;ev.push(['gpu',s,g,'k'+(k+1)])}ev.push(['wait',L,g,'wait']);t=g}
+    return {ev,total:t};
+  }
+  // steady state over many steps: what NVIDIA's per-kernel figures measure
+  function steady(mode,B){return mode==='sync'?B.launch_cpu+B.kernel+B.sync_cost:mode==='stream'?Math.max(B.launch_cpu,B.kernel):B.kernel+B.graph_gap}
+  return {model,steady};
+})();
+(function(){
+  const $=id=>document.getElementById(id);if(!$('sg-ln-card'))return;const B=SG.blog;
+  let mode='sync',res=null,an=null;
+  const tmax=Math.max(...['sync','stream','graph'].map(m=>SGL.model(m,B).total))*1.02;
+  const kEnds=()=>res.ev.filter(e=>e[0]==='gpu').map(e=>e[2]);
+  function draw(i){const el=$('sg-ln-fig');const ends=kEnds(),t=i===0?0:ends[i-1];
+    const ev=res.ev.map(e=>{const vis=e[1]<t||(i===0&&false);const col=e[0]==='cpu'?'var(--c4)':e[0]==='gpu'?'var(--c1)':'var(--dim)';
+      return [e[0]==='wait'?'cpu':e[0],e[1],Math.min(e[2],Math.max(t,e[1])),'',col,!(e[1]<t)]});
+    const evAll=res.ev.map(e=>[e[0]==='wait'?'cpu':e[0],e[1],e[2],'',e[0]==='cpu'?'var(--c4)':e[0]==='gpu'?'var(--c1)':'var(--dim)',true]);
+    SGT.lanes({el,lanes:[['cpu','CPU thread'],['gpu','GPU']],ev:evAll.concat(ev.filter(e=>!e[5])),tmax,unit:'µs',lw:84,marks:i?[[t,t.toFixed(1)+' µs']]:[],label:'launch timeline'});
+    const busy=res.ev.filter(e=>e[0]==='gpu'&&e[2]<=t+1e-9).length*B.kernel;
+    const txt={sync:['Launch, then wait, every kernel','The CPU spends '+B.launch_cpu+' µs launching, then sleeps until the kernel ('+B.kernel+' µs) is done and it has woken up (about '+B.sync_cost+' µs). The GPU works less than a third of the time.'],
+      stream:['Launch all 20, wait once','The CPU queues kernels back to back. Each launch ('+B.launch_cpu+' µs) takes longer than each kernel ('+B.kernel+' µs), so the GPU still waits for the CPU before every kernel: launch-bound.'],
+      graph:['One graph launch for all 20','One call submits the whole sequence; the GPU runs the kernels with about '+B.graph_gap+' µs between them, and the CPU is free after the first few microseconds.']}[mode];
+    $('sg-ln-capt').innerHTML='<div class="t">'+(i===0?'Start':'Kernel '+i+' of '+B.n+' done')+': '+txt[0]+'</div><p>'+txt[1]+'</p>';
+    $('sg-ln-cnt').innerHTML=RD.stat('Elapsed',t.toFixed(1)+' µs','')+RD.stat('GPU busy',t?(100*busy/t).toFixed(0)+'%':'0%',busy.toFixed(1)+' µs of kernels')+
+      RD.stat('Per kernel, steady state',SGL.steady(mode,B).toFixed(1)+' µs','this step alone '+(res.total/B.n).toFixed(1)+'; NVIDIA measured '+B[{sync:'sync_each',stream:'stream',graph:'graph'}[mode]]+' µs');
+  }
+  res=SGL.model(mode,B);
+  an=RD.anim({card:'sg-ln-card',ctl:'sg-ln-ctl',n:B.n+1,ms:420,label:'Kernel',draw});
+  RD.seg($('sg-ln-seg'),m=>{mode=m;res=SGL.model(mode,B);an.reset(B.n+1);an.play()});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 31_js_step.js */
+// ---- Step timeline tab ----
+(function(){
+  const $=id=>document.getElementById(id);if(!$('t-step'))return;
+  const caps=[1,5,10,15,25,50,100,200,400];
+  function cfg(){const c=SGM.cfgFromData();const [h,L]=$('st-model').value.split(',').map(Number);
+    c.h=h;c.L=L;c.tied=$('st-tied').checked;c.gpus=Math.pow(2,+$('st-g').value);c.tokens=Math.pow(2,+$('st-t').value);
+    c.batch_bytes=c.tokens*8*2;c.mfu=+$('st-m').value/100;c.busbw=+$('st-net').value*1e9;c.cap=caps[+$('st-b').value]*1048576;
+    c.first_cap=Math.min(1048576,c.cap);c.alpha=+$('st-a').value*1e-6;return c}
+  function render(){const c=cfg(),slow=+$('st-s').value/100;
+    $('st-gv').textContent=c.gpus.toLocaleString('en-US');$('st-tv').textContent=c.tokens.toLocaleString('en-US');$('st-mv').textContent=Math.round(c.mfu*100)+'%';
+    $('st-bv').textContent=(c.cap/1048576)+' MiB';$('st-av').innerHTML=$('st-a').value+' &micro;s';$('st-sv').textContent=$('st-s').value+'%';
+    const se=SGM.step(c,false,0),ov=SGM.step(c,true,slow),tmax=Math.max(se.total,ov.total)*1.02;
+    const ev=[];se.events.forEach(e=>ev.push(['s'+e[0],e[1],e[2],e[3]==='forward'||e[3]==='backward'?e[3]:'',e[3]==='optimizer'?'var(--c3)':SGT.col[e[0]]]));
+    ov.events.forEach(e=>ev.push(['o'+e[0],e[1],e[2],e[3]==='forward'||e[3]==='backward'?e[3]:'',e[3]==='optimizer'?'var(--c3)':SGT.col[e[0]]]));
+    SGT.lanes({el:$('st-fig'),lanes:[['scompute','A compute'],['scomm','A NCCL'],['ocopy','B copy'],['ocompute','B compute'],['ocomm','B NCCL']],ev,tmax,unit:'ms',lw:84,
+      marks:[[se.total,''],[ov.total,'']],label:'step timelines'});
+    const nb=ov.buckets.length,last=ov.buckets[nb-1][1]/1048576;
+    $('st-out').innerHTML=RD.stat('Parameters',(se.N/1e6).toFixed(1)+' M',(se.N*2/1048576).toFixed(0)+' MiB of BF16 gradients')+
+      RD.stat('Step, no overlap',se.total.toFixed(2)+' ms','comm '+se.comm.toFixed(2)+' ms')+
+      RD.stat('Step, overlapped',ov.total.toFixed(2)+' ms',(100*(1-ov.total/se.total)).toFixed(0)+'% less')+
+      RD.stat('Comm still exposed',Math.max(0,ov.exposed).toFixed(2)+' ms',nb+' buckets, last '+last.toFixed(1)+' MiB')+
+      RD.stat('Compute share, overlapped',(100*(ov.fwd+ov.bwd+ov.opt)/ov.total).toFixed(0)+'%','time the step spends on math');
+    $('st-note').textContent=c.gpus===1?'One GPU: no all-reduce at all.':(ov.comm>ov.bwd?'Communication is longer than backward: overlap can hide at most the backward time; the rest is exposed whatever you do. Fewer, larger steps per all-reduce (more tokens per GPU, gradient accumulation) or a faster network are the fixes.':
+      (c.tied?'The last bucket carries the tied embedding, which is ready only when backward ends; untie it (or reorder buckets) and see the tail shrink.':'Untied: the output layer gradient is ready first and leaves in the first buckets; the embedding still finishes last.'));
+    // sweep
+    const pts=caps.map(cp=>{const c2=Object.assign({},c,{cap:cp*1048576,first_cap:Math.min(1048576,cp*1048576)});return [cp,SGM.step(c2,true,slow).total]});
+    const el=$('st-sweep'),W=RD.width(el),H=190,l=48,r=12,t=10,b=34,ymax=Math.max(...pts.map(p=>p[1]))*1.05,ymin=Math.min(...pts.map(p=>p[1]))*0.95;
+    const X=v=>l+(W-l-r)*Math.log(v)/Math.log(400),Y=v=>t+(H-t-b)*(1-(v-ymin)/(ymax-ymin||1));let s='';
+    [ymin,(ymin+ymax)/2,ymax].forEach(v=>{s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,v.toFixed(1),{fs:10,a:'end',fill:'var(--mute)'})});
+    s+='<polyline fill="none" stroke="var(--c2)" stroke-width="2" points="'+pts.map(p=>X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ')+'"/>';
+    pts.forEach(p=>{s+='<circle cx="'+X(p[0])+'" cy="'+Y(p[1])+'" r="'+(p[0]*1048576===c.cap?5:3)+'" fill="var(--c2)"/>'+RD.t(X(p[0]),H-b+14,p[0],{fs:10,a:'middle',fill:'var(--mute)'})});
+    s+=RD.t(l,H-4,'bucket size, MiB (log scale)',{fs:10.5,fill:'var(--mute)'})+RD.t(l+4,t+10,'overlapped step, ms',{fs:10.5,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,s,'step time against bucket size');
+  }
+  ['st-model','st-net','st-g','st-t','st-m','st-b','st-a','st-s','st-tied'].forEach(id=>{$(id).addEventListener('input',render);$(id).addEventListener('change',render)});
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-step']=window.TAB_RENDER['t-step']||[]).push(render);
+  let tm=0;addEventListener('resize',()=>{if($('t-step').hidden)return;clearTimeout(tm);tm=setTimeout(render,80)});
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('cuda-sg-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('cuda-sg-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  show(start,false);
+})();
+</script>
+</div></body></html>
