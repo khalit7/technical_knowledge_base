@@ -1,0 +1,158 @@
+# Excerpts from PyTorch v2.14.1 (raw.githubusercontent.com/pytorch/pytorch/v2.14.1/<path>), fetched 2026-10-05
+## aten/src/ATen/native/ReduceOps.cpp lines 1543-1558
+static Tensor& logsumexp_out_impl(Tensor& result, const Tensor& self, IntArrayRef dims, bool keepdim) {
+  // can't take max of empty tensor
+  if (self.numel() != 0) {
+    // For complex numbers, use the real part to calculate the max. Based on
+    // https://scicomp.stackexchange.com/questions/34273/log-sum-exp-trick-for-signed-complex-numbers
+    auto maxes = at::amax(at::real(self), dims, true);
+    auto maxes_squeezed = (keepdim ? maxes : at::squeeze(maxes, dims));
+    maxes_squeezed.masked_fill_(maxes_squeezed.abs() == INFINITY, 0);
+    at::sum_out(result, (self - maxes).exp_(), dims, keepdim);
+    result.log_().add_(maxes_squeezed);
+  } else {
+    at::sum_out(result, at::exp(self), dims, keepdim);
+    result.log_();
+  }
+  return result;
+}
+## aten/src/ATen/native/Loss.cpp lines 349-364
+Tensor binary_cross_entropy_with_logits(const Tensor& input, const Tensor& target, const std::optional<Tensor>& weight_opt, const std::optional<Tensor>& pos_weight_opt, int64_t reduction) {
+  auto log_sigmoid_input = at::log_sigmoid(input);
+  if (pos_weight_opt.has_value() && pos_weight_opt->defined()) {
+      // pos_weight need to be broadcasted, thus mul(target) is not inplace.
+      auto log_weight = (*pos_weight_opt- 1).mul(target).add_(1);
+      log_sigmoid_input.mul_(log_weight);
+  }
+
+  Tensor loss = (1 - target).mul_(input).sub_(log_sigmoid_input);
+
+  if (weight_opt.has_value() && weight_opt->defined()) {
+      loss.mul_(*weight_opt);
+  }
+
+  return apply_loss_reduction(loss, reduction);
+}
+## aten/src/ATen/native/cpu/Activation.cpp lines 33-48 (log_sigmoid, reduced float types)
+void log_sigmoid_cpu_kernel(TensorBase &output, TensorBase &buffer, const TensorBase &input) {
+  if (at::isReducedFloatingType(input.scalar_type())) {
+    AT_DISPATCH_REDUCED_FLOATING_TYPES(input.scalar_type(), "log_sigmoid_cpu", [&]() {
+    using Vec = Vectorized<scalar_t>;
+    scalar_t* output_data = output.data_ptr<scalar_t>();
+    scalar_t* buffer_data = buffer.data_ptr<scalar_t>();
+    const scalar_t* input_data = input.const_data_ptr<scalar_t>();
+    parallel_for(0, input.numel(), 1, [&] (int64_t begin, int64_t end) {
+      int64_t size = end - begin;
+      int64_t d = 0;
+      for (; d < size - (size % Vec::size()); d += Vec::size()) {
+        Vec data_vec = Vec::loadu(input_data + begin+ d);
+        auto [data_vec0, data_vec1] = convert_to_float<scalar_t>(data_vec);
+        Vectorized<float> min_vec = minimum(data_vec0, Vectorized<float>(float(0)));
+        Vectorized<float> buffer_vec0 = data_vec0.abs().neg().exp();
+        Vectorized<float> output_vec0 = min_vec - buffer_vec0.log1p();
+## aten/src/ATen/native/cpu/Activation.cpp lines 950-970 (softplus)
+void softplus_kernel(TensorIteratorBase& iter, const Scalar& beta_, const Scalar& threshold_) {
+    if (at::isReducedFloatingType(iter.dtype())) {
+    AT_DISPATCH_REDUCED_FLOATING_TYPES(iter.dtype(), "softplus_cpu", [&]() {
+      using Vec = Vectorized<float>;
+      auto beta = beta_.to<float>();
+      auto threshold = threshold_.to<float>();
+      const Vec beta_vec(beta);
+      const Vec threshold_vec(threshold);
+      cpu_kernel_vec(
+          iter,
+          [beta, threshold](scalar_t a) -> scalar_t {
+            return (float(a) * beta) > threshold ? a
+              : static_cast<scalar_t>((std::log1p(std::exp(float(a) * beta))) / beta);
+          },
+          [beta_vec, threshold_vec](Vectorized<scalar_t> a) -> Vectorized<scalar_t> {
+            auto [a0, a1] = convert_to_float<scalar_t>(a);
+            a0 = Vec::blendv((a0 * beta_vec).exp().log1p() / beta_vec, a0, (a0 * beta_vec) > threshold_vec);
+            a1 = Vec::blendv((a1 * beta_vec).exp().log1p() / beta_vec, a1, (a1 * beta_vec) > threshold_vec);
+            return convert_from_float<scalar_t>(a0, a1);
+          }
+      );
+## aten/src/ATen/native/cpu/SoftMaxKernel.cpp lines 60-91
+
+template<typename scalar_t>
+inline typename std::enable_if_t<std::is_same_v<scalar_t, at::opmath_type<scalar_t>>, void>
+_vec_softmax_lastdim(
+    const scalar_t* input_data_base,
+    scalar_t* output_data_base,
+    int64_t outer_size,
+    int64_t dim_size) {
+  using Vec = vec::Vectorized<scalar_t>;
+  // See Note: grain_size value of 0
+  parallel_for(0, outer_size, 0, [&](int64_t begin, int64_t end) {
+    for (const auto i : c10::irange(begin, end)) {
+      const scalar_t* input_data = input_data_base + i * dim_size;
+      scalar_t* output_data = output_data_base + i * dim_size;
+      scalar_t max_input = vec::reduce_all<scalar_t>(
+          [](Vec& x, Vec& y) { return vec::maximum(x, y); },
+          input_data,
+          dim_size);
+      vec::map(
+          [max_input](Vec x) { return (x - Vec(max_input)).exp(); },
+          output_data,
+          input_data,
+          dim_size);
+      scalar_t tmp_sum = vec::reduce_all<scalar_t>(
+          [](Vec x, Vec y) { return x + y; }, output_data, dim_size);
+      tmp_sum = 1 / tmp_sum;
+      vec::map(
+          [tmp_sum](Vec x) { return x * Vec(tmp_sum); },
+          output_data,
+          output_data,
+          dim_size);
+    }
+## torch/amp/grad_scaler.py lines 123-131
+    def __init__(
+        self,
+        device: str = "cuda",
+        init_scale: float = 2.0**16,
+        growth_factor: float = 2.0,
+        backoff_factor: float = 0.5,
+        growth_interval: int = 2000,
+        enabled: bool = True,
+    ) -> None:
+## torch/nn/modules/normalization.py line 191 (LayerNorm eps), 368-371 (RMSNorm eps)
+    elementwise_affine: bool
+
+    def __init__(
+        self,
+        normalized_shape: _shape_t,
+        eps: float = 1e-5,
+        elementwise_affine: bool = True,
+            If a single integer is used, it is treated as a singleton list, and this module will
+            normalize over the last dimension which is expected to be of that specific size.
+        eps (float, optional): a value added to the denominator for numerical stability.
+            If not specified, uses the machine epsilon of the computation (opmath) type:
+            fp16/bf16 and fp32 inputs use ``torch.finfo(torch.float32).eps``, while fp64
+            inputs use ``torch.finfo(torch.float64).eps``. Default: ``None``
+        elementwise_affine: a boolean value that when set to ``True``, this module
+## torch/nn/modules/activation.py line 992 (Softplus)
+    def __init__(self, beta: float = 1.0, threshold: float = 20.0) -> None:
+## aten/src/ATen/native/SharedReduceOps.h lines 68-90 (Welford)
+struct WelfordData {
+  scalar_t mean;
+  scalar_t m2;
+  index_t n;
+  scalar_t nf;
+
+  C10_HOST_DEVICE WelfordData() : mean(0), m2(0), n(0), nf(0) {}
+
+  C10_HOST_DEVICE WelfordData(
+      scalar_t mean,
+      scalar_t m2,
+      index_t n,
+      scalar_t nf)
+      : mean(mean), m2(m2), n(n), nf(nf) {}
+};
+
+
+template <typename scalar_t, typename acc_scalar_t, typename index_t, typename res_t>
+struct WelfordOps {
+  acc_scalar_t correction;
+  bool take_sqrt;
+ public:
+  using acc_t = WelfordData<acc_scalar_t, index_t>;

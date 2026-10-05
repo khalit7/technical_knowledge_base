@@ -1,0 +1,61 @@
+<section id="rd-sum">
+<h2>7. Summation: order matters, and long sums drift</h2>
+<div class="raise"><b>The question.</b> A loss is a mean over a batch; a matrix multiply is millions of sums; a gradient is a sum over tokens. What happens to a sum of a million numbers in 16 bits?</div>
+<h3>Floating-point addition is not associative</h3>
+<p>In exact arithmetic \((a + b) + c = a + (b + c)\). In floating point each \(+\) rounds, and the rounding depends on the sizes of the operands, so the grouping changes the answer. Measured in float64:</p>
+<ul class="tight">
+<li>\((0.1 + 0.2) + 0.3 = 0.6000000000000001\), but \(0.1 + (0.2 + 0.3) = 0.6\).</li>
+<li>\((10^{16} + 1) - 10^{16} = 0\), but \((10^{16} - 10^{16}) + 1 = 1\). Near \(10^{16}\) float64's gap is 2, so \(10^{16} + 1\) is a tie and rounds back to \(10^{16}\): the 1 is <dfn id="rd-g-absorb">absorbed</dfn>.</li>
+</ul>
+<p>Addition is still <i>commutative</i> (\(a + b = b + a\) exactly), and a single addition is still within \(u\). It is chains of additions in different orders that differ.</p>
+<h3>How large is the error of a long sum?</h3>
+<p>Add \(x_1, \dots, x_n\) left to right (<dfn id="rd-g-recsum">recursive summation</dfn>). Each partial sum is rounded: \(\hat s_k = (\hat s_{k-1} + x_k)(1 + \delta_k)\) with \(|\delta_k| \le u\). Unrolling, \(x_1\) and \(x_2\) pass through \(n - 1\) roundings, \(x_3\) through \(n - 2\), and so on, so to first order in \(u\)</p>
+\[ |\hat s_n - s_n| \le (n - 1)\, u \sum_{i=1}^{n} |x_i| . \]
+<details class="mist"><summary>Where that bound comes from, in three lines</summary><div class="b">
+<p>\(\hat s_2 = (x_1 + x_2)(1 + \delta_2)\), \(\hat s_3 = \bigl((x_1 + x_2)(1 + \delta_2) + x_3\bigr)(1 + \delta_3)\), and so on. Multiplying out, \(\hat s_n = \sum_i x_i \prod_{k = \max(i, 2)}^{n} (1 + \delta_k)\). Each product of at most \(n - 1\) factors \((1 + \delta_k)\) lies within \((1 \pm u)^{n-1} = 1 \pm (n-1)u + O(u^2)\). Subtract the exact sum and bound each term by \(|x_i|\,(n-1)u\). The full statement with the \(O(u^2)\) term is in {{Higham 2002|https://doi.org/10.1137/1.9780898718027}}, chapter 4.</p></div></details>
+<p>The bound grows with \(n\), and it is relative to \(\sum|x_i|\), not to the answer: with mixed signs the answer can be tiny and the relative error huge. Worse than the bound suggests is <dfn id="rd-g-stag">stagnation</dfn>: once the running sum is large, each new small term is below half a gap and is lost entirely. Adding 1 over and over (measured): float16 stops at <b>2,048</b>, bfloat16 at <b>256</b>, float32 at <b>16,777,216</b>. These are \(2^{p}\): at \(2^p\) the gap becomes 2, and adding 1 is a tie that rounds back (to even).</p>
+<h3>Three better algorithms</h3>
+<ul class="tight">
+<li><b>Pairwise summation</b>: add neighbours in pairs, then pairs of pairs, as a binary tree. Each term passes through only \(\lceil \log_2 n \rceil\) roundings, so the bound becomes \(\lceil \log_2 n \rceil\, u \sum|x_i|\): 20 instead of a million for \(n = 10^6\). It is what GPUs do naturally (a tree reduction), and NumPy uses "partial pairwise summation" (its <code>sum</code> docstring).</li>
+<li><dfn id="rd-g-kahan">Kahan (compensated) summation</dfn> ({{Kahan 1965|https://doi.org/10.1145/363707.363723}}) carries a second number \(c\) that holds what the last addition lost, and feeds it back into the next one. Its error bound is \(\bigl(2u + O(n u^2)\bigr)\sum|x_i|\): independent of \(n\) while \(n u \ll 1\). Python's built-in <code>sum</code> of floats switched to a compensated algorithm in 3.12: measured, Python 3.13 gives <code>sum([1e16, 1.0, -1e16]) = 1.0</code> where Python 3.9 gives <code>0.0</code>; <code>math.fsum</code> is exactly rounded.</li>
+<li><b>Accumulate in higher precision</b>: keep 16-bit inputs but add them in a float32 accumulator. This is what tensor cores do for fp16 and bf16 matrix multiplies (PyTorch notes: "intermediate accumulations (reduction) in single-precision"), and what FP8 recipes do every so many elements: DeepSeek-V3 promotes partial sums to FP32 every 128 elements (see {{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}).</li>
+</ul>
+\[ y = x_k - c, \qquad t = s + y, \qquad c = (t - s) - y, \qquad s = t \]
+<p>Read Kahan's four lines as: \(y\) is the new term corrected by last step's loss; \(t\) is the rounded new sum; \((t - s)\) is what actually got added, so \((t - s) - y\) is minus what was lost; keep it in \(c\). In exact arithmetic \(c\) would always be 0, which is why an optimising compiler that assumes associativity can silently delete it.</p>
+<div class="card" id="rd-kahCard">
+<div class="small"><b>Before and after: the same eleven float16 numbers, \(2048\) then ten copies of \(0.4\)</b> (stored as \(0.39990234\)). Exact sum \(2051.999\); the nearest float16 is 2052.</div>
+<div class="seg" id="rd-kahMode"><button data-m="naive" class="on">Naive running sum</button><button data-m="kahan">Kahan summation</button></div>
+<div class="an-stage" id="rd-kahStage"></div>
+<div class="an-cap" id="rd-kahCap"></div>
+<div class="an-cnt" id="rd-kahCnt"></div>
+<div class="an-ctl" id="rd-kahCtl"></div>
+</div>
+<h3>Measured: a long sum in three formats and five ways</h3>
+<p>Sum the first \(N\) of a million numbers drawn uniformly from \([0, 1)\), each first rounded to the format so that only the summation rounds. Relative error against the exact sum (<code>math.fsum</code>), measured on this laptop; "fp32 accumulator" adds the 16-bit inputs in a float32 running sum; <code>torch.sum</code> is PyTorch 2.14.1 on the CPU.</p>
+<div class="tw" id="rd-sumTbl"></div>
+<p>What the table shows: the naive 16-bit running sum is useless past a few thousand terms (stagnation: float16 is 59% low at \(N = 10^4\), bfloat16 is 50% low at \(N = 10^3\)). Pairwise and Kahan stay within one rounding of the final result. Kahan in bfloat16 fails at \(N = 10^6\) (87% error) exactly as its bound warns: \(n u^2 = 10^6 \times 2^{-16} \approx 15\), no longer small. The float32 accumulator is the best by orders of magnitude, which is why hardware does it. At \(N = 10^6\) the true sum, about 500,000, is beyond float16's 65,504, so pairwise, NumPy and <code>torch.sum</code> overflow to infinity and Kahan to NaN (its correction becomes \(\infty - \infty\)); only the naive sum stays finite, because it stalled at 2,048 long before. The {{Summation lab|#t-sum}} reruns this live, with other data and shuffled orders.</p>
+<div class="use"><div class="t">What it is used for in ML</div>Loss means over long sequences, gradient accumulation over micro-batches, metric averages over a test set, the dot products inside every matrix multiply. Rules: accumulate in float32 (or float64 for metrics), prefer the library's reduction to a Python loop, and never keep a running total in bf16.</div>
+</section>
+
+<section id="rd-det">
+<h2>8. Determinism: why the same code gives different numbers</h2>
+<div class="raise"><b>The question.</b> You fix every seed and run the same training step twice. The losses differ in the sixth digit. Where does the randomness come from?</div>
+<p>From the order of additions. A parallel reduction splits a sum into chunks, adds each chunk, then adds the chunk totals; the chunking depends on the number of threads, the block sizes a kernel picks for this tensor shape, and whether a matrix multiply splits its inner dimension (<b>split-K</b>). A GPU kernel that lets many threads add into one location uses <dfn id="rd-g-atomic">atomic adds</dfn>, and then the order is whichever thread finishes first. Measured on this laptop:</p>
+<div class="tw"><table class="mini"><thead><tr><th>Experiment</th><th>Distinct results</th><th>Note</th></tr></thead><tbody>
+<tr><td>8 numbers \(\pm10^{-10}, \pm10^{-5}, \pm10^{-2}, \pm1\) (exact sum 0), 10,000 shuffles, plain left-to-right loop</td><td class="num">258</td><td>results from \(-2.2 \times 10^{-16}\) to \(2.2 \times 10^{-16}\)</td></tr>
+<tr><td>same, Python 3.13 built-in <code>sum</code></td><td class="num">102</td><td>reproduces the 102 printed by {{Thinking Machines, 10 Sep 2025|https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/}}</td></tr>
+<tr><td>\(10^5\) normal float32 values, sequential fp32 sum, 20 random orders</td><td class="num">20 of 20</td><td>spread 0.0043 around the exact 29.3288</td></tr>
+<tr><td><code>torch.sum</code> of \(10^7\) float32 on the CPU, 5 runs each at 1, 2, 4, 8 threads</td><td class="num">1 per thread count, 3 overall</td><td>1 or 2 threads \(-4320.4326\), 4 threads \(-4320.4336\), 8 threads \(-4320.4331\) (exact \(-4320.4332\))</td></tr>
+<tr><td><code>index_add_</code> of \(10^6\) float32 into 10 slots, 20 runs, Apple GPU (MPS)</td><td class="num bad">20 of 20</td><td>the same call on the CPU: 1 of 20; <code>torch.sum</code> on MPS: 1 of 20</td></tr>
+</tbody></table></div>
+<p>So "nondeterminism" has two different meanings. <b>Run-to-run</b>: the same call on the same input differs between runs (atomics, as in the MPS <code>index_add_</code> row). <b>Configuration-dependent</b>: the same call is repeatable, but changes with thread count, batch size or hardware (the <code>torch.sum</code> row). Thinking Machines showed that LLM inference is mostly the second kind: the forward pass "involves no operations that require atomic adds" and is run-to-run deterministic, but kernels are not <dfn id="rd-g-batchinv">batch invariant</dfn>, so a request's numbers depend on how many other requests share its batch. Sampling Qwen3-235B-A22B-Instruct-2507 1,000 times at temperature 0, they got 80 unique completions, all identical for the first 102 tokens; with batch-invariant kernels all 1,000 matched (same post; the serving side is on the {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} page). In training, the backward pass is where atomics live: gradients of embeddings, gathers and scatters add many contributions into the same row.</p>
+<h3>What PyTorch lets you control (v2.14.1)</h3>
+<ul class="tight">
+<li><code>torch.manual_seed(0)</code> seeds "the RNG for all devices"; DataLoader workers need their own seeding function and generator (the notes give a <code>seed_worker</code> recipe).</li>
+<li><code>torch.use_deterministic_algorithms(True)</code> picks deterministic implementations where they exist and raises a <code>RuntimeError</code> for operations that have none. The docstring lists both: made deterministic, for example <code>index_add</code>, <code>scatter_add_</code> and the backward of <code>nn.Embedding</code> on CUDA; raising, for example <code>NLLLoss</code> and <code>histc</code> on CUDA. Deterministic kernels "tend to have worse performance".</li>
+<li><code>torch.backends.cudnn.benchmark = False</code> stops cuDNN choosing among algorithms by timing (which "may select different algorithms on subsequent runs"); <code>torch.backends.cudnn.deterministic = True</code> controls only cuDNN's convolution choice.</li>
+<li>Up to v2.9.1 the docstring also required <code>CUBLAS_WORKSPACE_CONFIG=:4096:8</code> (or <code>:16:8</code>) for some CUDA operations; that paragraph is absent from v2.10.0 onward (checked in both sources).</li>
+<li>Even then: "Completely reproducible results are not guaranteed across PyTorch releases, individual commits, or different platforms" ({{reproducibility notes|https://github.com/pytorch/pytorch/blob/v2.14.1/docs/source/notes/randomness.md}}), and <code>A.sum(-1)[0]</code> "is not guaranteed to be bitwise equal" to the sum of the slice ({{numerical accuracy notes|https://github.com/pytorch/pytorch/blob/v2.14.1/docs/source/notes/numerical_accuracy.md}}).</li>
+</ul>
+<div class="use"><div class="t">What it is used for in ML</div>Debugging (bit-identical reruns let you bisect a divergence), on-policy RL (the sampler and the trainer must compute the same log-probabilities, Thinking Machines' motivation), regression tests on model outputs (compare with a tolerance, not with <code>==</code>), and evaluation at temperature 0 (expect small differences between runs and providers).</div>
+</section>
