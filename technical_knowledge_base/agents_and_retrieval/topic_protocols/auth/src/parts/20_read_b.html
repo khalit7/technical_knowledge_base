@@ -1,0 +1,26 @@
+<section id="sec-words">
+<h2>1. The words, from zero</h2>
+<p>A <b>principal</b> is whoever a request acts for: a person ("alice"), a service ("batch-job") or an agent acting for a person. A <b>credential</b> is the evidence the request carries. The server <b>authenticates</b> the credential (is it genuine, unexpired, meant for me?) and then <b>authorizes</b> the action (may this principal read this file?). The two fail differently, and HTTP gives them different status codes:</p>
+<div class="grid">
+<div class="sp"><div class="n">401 Unauthorized</div><p>Despite its name, this means <i>unauthenticated</i>: no credential, or one the server cannot accept (bad signature, expired, wrong audience). The server MUST say how to authenticate in a <code>WWW-Authenticate</code> header ({{RFC 9110 s15.5.2|https://www.rfc-editor.org/rfc/rfc9110#section-15.5.2}}). Retrying with a fresh credential can fix it.</p></div>
+<div class="sp"><div class="n">403 Forbidden</div><p>The server knows who you are and the answer is no ({{RFC 9110 s15.5.4|https://www.rfc-editor.org/rfc/rfc9110#section-15.5.4}}). A new token with the same rights will not help; more rights (a scope, a role) might. OAuth signals the scope case with <code>error="insufficient_scope"</code> ({{RFC 6750 s3.1|https://www.rfc-editor.org/rfc/rfc6750#section-3.1}}).</p></div>
+</div>
+<p>Here is a real 401 from this page's lab: a token minted for the mail API, presented to the MCP server (recorded). The server names the problem class and, in the MCP style, points to the document that says where to get a proper token.</p>
+<pre class="wire" id="rdW401"></pre>
+<p class="small mute">One detail worth noticing: for a request with <i>no</i> credential, RFC 6750 says the server "SHOULD NOT include an error code" ({{s3.1|https://www.rfc-editor.org/rfc/rfc6750#section-3.1}}); the MCP SDK 2.3.0 server sends <code>error="invalid_token"</code> in that case too (see the first response in the {{MCP auth flow|#t-mcpflow}} tab). Harmless, but it means a client cannot tell "no token" from "bad token" by the error code alone.</p>
+<h3>Where a credential rides</h3>
+<div class="tw"><table>
+<thead><tr><th>Carrier</th><th>Looks like</th><th>Examples</th></tr></thead>
+<tbody>
+<tr><td>A request header</td><td><code>Authorization: Bearer eyJ...</code>, <code>x-api-key: ...</code></td><td>OAuth tokens ({{RFC 6750 s2.1|https://www.rfc-editor.org/rfc/rfc6750#section-2.1}}), LLM provider keys</td></tr>
+<tr><td>A cookie</td><td><code>Cookie: __Host-sid=...</code></td><td>browser sessions; the browser attaches it automatically, which is both the convenience and the danger (section 3)</td></tr>
+<tr><td>The TLS handshake</td><td>a client certificate, below HTTP</td><td>mTLS between services; the HTTP layer never sees a secret</td></tr>
+<tr><td>A signature over the request</td><td><code>Authorization: AWS4-HMAC-SHA256 Credential=..., Signature=...</code></td><td>AWS SigV4; the secret itself never crosses the wire</td></tr>
+<tr><td>The URL (avoid)</td><td><code>?access_token=...</code></td><td>forbidden for bearer tokens in OAuth 2.1 (draft-16 s10) and MCP: URLs end up in logs, browser history and Referer headers</td></tr>
+</tbody></table></div>
+<h3>Bearer versus bound, the distinction that matters most</h3>
+<p>A <b>bearer</b> credential is accepted from anyone who presents it ({{RFC 6750 s1.2|https://www.rfc-editor.org/rfc/rfc6750#section-1.2}} defines the term exactly that way). API keys, session cookies and ordinary OAuth access tokens are bearer credentials: a copy in a log file, a crash dump, a notebook or a model's context window is as good as the original. A <b>sender-constrained</b> (bound) credential also requires proof that the presenter holds a private key: a DPoP proof signed per request, or the TLS client certificate the token was issued to. Section 7 shows a stolen bound token failing three ways.</p>
+<div class="drill"><div class="t">Predict, then reveal</div>
+<p>An agent's token has scope <code>files:read</code>. It calls <code>write_file</code> on an MCP server that checks scopes. Which status, and which header tells the client what to ask for?</p>
+<details><summary>Reveal</summary><div class="ans">403 Forbidden with <code>WWW-Authenticate: Bearer error="insufficient_scope", scope="files:write", resource_metadata="..."</code>. The token is genuine (so not 401); the right fix is a step-up authorization that requests the union of the old and the new scopes, which the MCP specification spells out ({{Scope Challenge Handling|https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling}}). The parent page's {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} reproduces this case as "Missing scope: authenticated but not allowed".</div></details></div>
+</section>

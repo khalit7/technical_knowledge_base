@@ -1,0 +1,47 @@
+<section id="sec-pop">
+<h2>7. Beyond bearer: bound tokens, signed requests, cloud IAM and mTLS</h2>
+<p>Every credential so far is a bearer credential: steal it and you are the owner. This section is about the designs where a stolen copy is not enough.</p>
+<h3>DPoP: a token that only works with its key</h3>
+<p><b>How it works</b> ({{RFC 9449|https://www.rfc-editor.org/rfc/rfc9449}}, September 2023). The client generates a key pair and keeps the private key. With every request (to the token endpoint and to the API) it sends a <code>DPoP</code> header: a small JWT, signed with that key, whose header carries the public key and whose claims name the HTTP method (<code>htm</code>), the URL (<code>htu</code>), the time (<code>iat</code>), a unique ID (<code>jti</code>) and, at the API, the hash of the access token (<code>ath</code>). The AS puts the key's thumbprint ({{RFC 7638|https://www.rfc-editor.org/rfc/rfc7638}}) into the token as <code>cnf.jkt</code>; the API checks that the proof was signed by that same key, for this request, just now. Recorded in the lab, a token bound to the client's key and then stolen:</p>
+<div id="rdDpop"></div>
+<p><b>What it costs:</b> one ES256 signature per request on the client (about <span id="rdEsSign"></span> &micro;s here, from the table in section 6) and one verification plus a replay cache of recent <code>jti</code> values on the server. <b>What it does not stop:</b> malware running inside the client can ask the client to sign proofs (RFC 9449 s11.4 discusses this); the server-provided nonce (s8, s9) limits proofs made in advance. <b>When to use it:</b> public clients holding valuable refresh tokens (OAuth 2.1 accepts it in place of rotation), and APIs where a leaked token in a log would be serious. The older alternative binds the token to a TLS client certificate instead ({{RFC 8705|https://www.rfc-editor.org/rfc/rfc8705}}), natural where mTLS already exists.</p>
+
+<h3>SigV4: AWS signs every request instead of sending a token</h3>
+<p>AWS chose a different shape long ago. You hold an access key ID (public) and a secret access key (never sent). For each request the SDK builds a <b>canonical request</b> (method, path, sorted query, lowercased sorted headers, the list of signed headers, the SHA-256 of the body), hashes it into a <b>string to sign</b> with the timestamp and a credential scope (date, region, service), derives a <b>signing key</b> by chaining HMACs of the secret over date, region, service and the literal <code>aws4_request</code>, and sends the final HMAC as the signature ({{AWS: create a signed request|https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html}}). The calculator below does all of it in this page's JavaScript. Its defaults are the <code>get-vanilla</code> vector of the SigV4 test suite as shipped in botocore (example credentials <code>AKIDEXAMPLE</code>), and they reproduce the suite's expected signature <span id="sgRepro"></span>.</p>
+<div class="card" id="sgCalc">
+<div class="ctl">
+<label>Method <input id="sgM" value="GET" style="width:100%"></label>
+<label>Path <input id="sgP" value="/" style="width:100%"></label>
+<label>Host <input id="sgH" value="example.amazonaws.com" style="width:100%"></label>
+<label>X-Amz-Date <input id="sgD" value="20150830T123600Z" style="width:100%"></label>
+<label>Region <input id="sgR" value="us-east-1" style="width:100%"></label>
+<label>Service <input id="sgS" value="service" style="width:100%"></label>
+<label>Body <input id="sgB" value="" style="width:100%"></label>
+<label>Secret access key (example) <input id="sgK" value="" style="width:100%" spellcheck="false"></label>
+</div>
+<div class="seg" role="group" aria-label="Preset"><button data-sg="0" class="on">get-vanilla</button><button data-sg="1">post-x-www-form-urlencoded</button></div>
+<pre class="wire" id="sgOut"></pre>
+<p class="try"><b>Try:</b> change one character of the path or the body and watch the signature change completely: the signature covers the request, so a proxy cannot alter it. Change the date by one day: the signing key changes too, which is why a leaked derived key is only good for one day, one region, one service.</p>
+</div>
+<p><b>What this buys.</b> The secret never crosses the wire, so a logged request leaks no reusable credential; the body hash means nobody in the middle can change the request; the timestamp means a captured request is refused after a few minutes ("in most cases, a request must reach AWS within five minutes of the time stamp", {{AWS SigV4 overview|https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html}}). <b>What it costs:</b> every client needs an SDK (or this page's dozen steps done exactly right: header case, whitespace and URI encoding rules cause most <code>SignatureDoesNotMatch</code> errors), and clock skew of more than a few minutes breaks every call.</p>
+
+<h3>Cloud IAM and workload identity: no long-lived secrets at all</h3>
+<p>The best secret is one you never store. On AWS, code on an EC2 instance, a Lambda or a pod gets <b>temporary</b> credentials for its <b>role</b> from the platform (access key, secret and a session token sent as <code>X-Amz-Security-Token</code>), the SDK refreshes them before they expire, and IAM policies on the role decide what it may do. Calling Bedrock, SageMaker or S3 from your own AWS code needs no key at all.</p>
+<p>Across clouds and from CI, the same idea uses OIDC: the platform gives the job an ID token about itself, and the cloud's security token service trades it for temporary credentials if a trust policy matches its claims (on AWS, <code>AssumeRoleWithWebIdentity</code>). GitHub Actions is the common case: a workflow with <code>permissions: id-token: write</code> gets a token from the issuer whose discovery document is in section 5. The trust policy is the whole security boundary, so read the subject claim it matches ({{GitHub docs|https://docs.github.com/en/actions/reference/security/oidc}}):</p>
+<div class="tw"><table>
+<thead><tr><th>Subject format</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Branch (format before 15 July 2026)</td><td><code>repo:octo-org/octo-repo:ref:refs/heads/main</code></td></tr>
+<tr><td>Environment</td><td><code>repo:octo-org/octo-repo:environment:Production</code></td></tr>
+<tr><td>Pull request</td><td><code>repo:octo-org/octo-repo:pull_request</code></td></tr>
+<tr><td>Immutable (repositories created after 15 July 2026; opt-in for older ones)</td><td><code>repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main</code></td></tr>
+</tbody></table></div>
+<p>Two traps follow. A trust condition with a wildcard such as <code>repo:octo-org/*</code> lets every workflow on every branch of every repository in the organisation assume the role, so anyone who can push a branch anywhere in the organisation holds the role's permissions; match the exact repository and a protected branch or environment. And a policy written for the old format silently stops matching new repositories, whose subject now includes the numeric IDs; GitHub added the IDs because a deleted organisation or repository name could be re-registered by someone else and inherit the old subject.</p>
+
+<h3>mTLS: identity in the connection</h3>
+<p>With mutual TLS both sides present certificates during the TLS handshake, so a service's identity is proven before any HTTP byte flows, and there is no header to leak. Service meshes automate the hard part (issuing and rotating short-lived certificates per workload); SPIFFE standardises the identity as a URI such as <code>spiffe://prod.example/ns/serving/sa/vllm</code> inside the certificate ({{SPIFFE ID spec|https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md}}). Authorization then works on that name ("the gateway may call vLLM; the notebook may not"). The handshake, the certificate chain and the failure modes belong to the sibling page {{TLS and certificates|n:3c65c17b0d0d8105a37ff2d2f602a421}}; the parent's {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} has "mTLS: client certificate missing".</p>
+<div class="corr"><div class="t">Not carried from the old page</div>The old page said public certificate authorities stop issuing client-authentication certificates in "February 2027". The old TLS page gave a different date, and the parent page's atlas could not confirm either from the browser root programs, so the date is left out here (listed as unconfirmed in the parent's <code>src/atlas/unconfirmed.md</code>). The practical advice does not depend on it: use a private CA (or a mesh) for mTLS between your own services.</div>
+<div class="drill"><div class="t">Predict, then reveal</div>
+<p>A CI job's AWS calls work on GitHub-hosted runners but fail on one self-hosted runner with an error about the signature or the request time. Same code, same role. What do you check first?</p>
+<details><summary>Reveal</summary><div class="ans">The runner's clock (<code>date -u</code> against a trusted time source). The timestamp is part of the string to sign and AWS refuses requests that arrive more than a few minutes away from it. After that, look for a proxy on that runner's network that rewrites a signed header (Host, Content-Type) or re-encodes the path, which changes the canonical request.</div></details></div>
+</section>
