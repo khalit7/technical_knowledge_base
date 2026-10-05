@@ -1,0 +1,23 @@
+<section id="rd-s8">
+<h2>8. Your kernel on a roofline: from bytes and FLOPs to a verdict</h2>
+<p><b>The problem.</b> After all the rules above you still need one number: is this kernel close to what the GPU can do, and which limit is it against? The roofline answers it (the model itself, ridge points per chip and MFU are on {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}} and {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}); here is the programmer's recipe for one kernel.</p>
+<ol>
+<li><b>Count the bytes the kernel must move</b> if every input is read once and every output written once (not what it actually moves: that is what you are judging).</li>
+<li><b>Count the FLOPs</b> (an FMA is 2).</li>
+<li><b>Time it</b> honestly (warm-up, many repetitions, synchronise: {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}).</li>
+<li><b>Divide</b>: achieved bandwidth = bytes / time, achieved FLOP/s = FLOPs / time, arithmetic intensity = FLOPs / bytes.</li>
+<li><b>Compare</b> with the roof at that intensity: min(peak FLOP/s, intensity &times; peak bandwidth). Near the slanted part: memory-bound, so move fewer bytes (fuse, use smaller types). Near the flat part: compute-bound, so use tensor cores or do less math. Far below both: neither; the access pattern or latency hiding is broken, and sections 1 to 6 are where to look.</li>
+</ol>
+<p>To see a real roof rather than a datasheet one, this page measured it: a kernel that reads one float4 per thread, does F steps of 8 independent FMAs, and writes one float, for F from 1 to 1,024, so its intensity runs from 1.35 to 820 FLOP per byte.</p>
+<div class="rd-chart" id="rd-roof"></div>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: dots are the sweep (median of 3 runs; whiskers span the runs), dashed lines are the roofs it implies: <b>156 GB/s</b> (median bandwidth of the sweep's points up to F = 16) and <b>4,992 GFLOP/s</b> (its best point), a ridge at <b>32 FLOP per byte</b> <span class="der">derived</span>: 4,992 / 156.3. Both agree with the independent measurements in {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}} (about 5.0 TFLOP/s FMA, 143 to 165 GB/s streaming) and sit at 94% of the 5,308 GFLOP/s that 16 cores &times; 128 ALUs &times; 2 &times; 1.296 GHz gives ({{metal-benchmarks|https://github.com/philipturner/metal-benchmarks}}). The single coloured points are kernels from the parent's {{Kernel lab|n:3c65c17b0d0d81c39f34d5e070d783c1}} placed by the recipe above, with their minimum bytes.</p>
+<div class="tw" id="rd-rooftbl"></div>
+<p>The two softmaxes do the same math on the same data; the eager one sits at a quarter of the bandwidth roof because, counted against the minimum bytes, it moves the tensor several times (five kernels, each a full pass). The naive matmul has an intensity of 341 FLOP per byte, ten times the ridge, yet runs at a fraction of the compute roof: by the recipe it is "far below both", and indeed its threads re-read A and B from memory for every output (no tiles, section 3 of the parent). Tiles and registers (the 4 &times; 4 per thread kernel) and then the matrix instructions in MLX's library close the gap.</p>
+<div class="card" id="rd-ccard">
+<h3 style="margin-top:0">Place a kernel</h3>
+<div class="ctl" id="rd-calc"></div>
+<div class="an-cnt" id="rd-calcout"></div>
+<p class="small mute" id="rd-calcnote"></p>
+</div>
+<p class="small mute">Peaks in the calculator: H100 SXM BF16 dense 989.5 TFLOP/s and FP32 67, 3.35 TB/s; A100 SXM BF16 312, FP32 19.5, 2,039 GB/s; RTX 5090 BF16 with FP32 accumulate 209.5, FP32 104.8, 1,792 GB/s <span class="vend">vendor spec</span> (shared facts of this topic, from {{NVIDIA H100|https://www.nvidia.com/en-us/data-center/h100/}}, {{A100|https://www.nvidia.com/en-us/data-center/a100/}} and the {{RTX Blackwell whitepaper|https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf}}); M1 Pro: this page's measured roofs. Datasheet peaks are rarely reached: SemiAnalysis measured about 720 of the H100's 989.5 BF16 TFLOP/s on large GEMMs ({{Dec 2024|https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/}}) <span class="indep">independent</span>, so judge against an achievable roof when you have one.</p>
+</section>

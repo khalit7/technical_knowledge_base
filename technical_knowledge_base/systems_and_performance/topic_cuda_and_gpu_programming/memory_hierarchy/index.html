@@ -1,0 +1,1003 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+#ovBars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 6.6em;margin:5px 0}#ovBars .row .nm{white-space:normal;line-height:1.2}#ovBars .ml{display:block;font-size:11.5px;color:var(--mute)}
+#ovBars .track{height:12px}
+#pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+@media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<h1>GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills</h1>
+<div class="sub">The programmer's side of GPU memory: how one warp's load becomes 32-byte sectors, how to steer the caches, how to use shared memory without conflicts, when registers spill and arrays fall into "local" memory, constant memory, asynchronous copies, pinned and managed host memory, and how to place your own kernel on a roofline. Real CUDA 13.4.2 compiler output for sm_80, sm_90a and sm_120; measurements on this laptop's Apple M1 Pro GPU; no NVIDIA GPU was used. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>. Data as of October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-acc" aria-selected="false">Access lab</button><button role="tab" data-t="t-sass" aria-selected="false">Memory instructions</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
+#t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-read .an-cnt .stat .v{font-size:15px}
+#t-read .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-read .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-read .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-read .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-read .vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-read .indep{font-size:11.5px;color:var(--c6);font-weight:600}
+#t-read .der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-read .ann{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-read .prob{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:10px 0;counter-reset:pb}
+#t-read .prob a{display:block;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:8px;padding:7px 10px;background:var(--soft);font-size:13.5px;min-width:0}
+#t-read .prob a b{display:block;font-size:13.5px}#t-read .prob a b:before{counter-increment:pb;content:counter(pb) ". ";color:var(--mute)}
+#t-read .prob a span{color:var(--mute);font-size:12.5px}
+#t-read .cost{border:1px solid var(--line);border-left:4px solid var(--c5);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:14px}
+#t-read .cost .t,#t-read .ff .t{font-weight:600;font-size:13px}
+#t-read .ff{border:1px solid var(--line);border-left:4px solid var(--c4);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:14px;background:var(--soft)}
+#t-read .ff ul{margin:4px 0}#t-read .ff li{font-size:13.5px}
+#t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute);scroll-margin-top:60px}
+#t-read .mech{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:6px;margin:8px 0}
+#t-read .mech>div{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;min-width:0;background:var(--bg)}
+#t-read .mech>div b{display:block;font-size:11.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+#t-read .rd-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rd-chart svg text{font-size:11px}
+#t-read .tbl-sm td,#t-read .tbl-sm th{font-size:12.5px}
+#t-read details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}
+#t-read details.qa summary{cursor:pointer;padding:6px 12px;font-size:14px}
+#t-read details.qa>div{padding:0 12px 8px;font-size:13.5px}
+#t-read .pr{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+#t-read .pr .q{font-weight:600;font-size:14px;color:var(--ink)}
+#t-read .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#t-read .pr .opts button{font-size:13px}
+#t-read .pr .opts button.right{background:var(--open2);border-color:var(--good)}
+#t-read .pr .opts button.wrong{background:var(--soft);border-color:var(--bad);color:var(--bad)}
+#t-read .pr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-read .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-read .symp td:first-child{min-width:11em}
+#t-read .kids{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:8px 0}
+#t-read .kids>div{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;font-size:13.5px;min-width:0}
+#t-read .kids b{display:block}
+#t-read .stepbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:10px 0}
+#t-read .stepbox>div{border:1px solid var(--line);border-top:4px solid var(--sc);border-radius:8px;padding:8px 12px;min-width:0;background:var(--bg)}
+#t-read .stepbox .k{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+#t-read .stepbox .v{font-size:20px;font-weight:600;line-height:1.3}
+#t-read .stepbox p{margin:3px 0 0;font-size:13px}
+@media (max-width:520px){#t-read .stepbox .v{font-size:17px}}
+</style>
+<style>
+#t-read .sec{display:grid;grid-template-columns:repeat(32,minmax(0,1fr));gap:1px;margin:6px 0}
+#t-read pre.sass{font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:6px 0;white-space:pre}
+#t-read pre.sass .c{color:var(--mute)}#t-read pre.sass b{color:var(--acc);font-weight:600}
+#t-read .rd-chart svg{display:block}
+#t-read #rd-rc1 .row{grid-template-columns:minmax(0,5em) minmax(0,1fr) 10em}#t-read #rd-rc2 .row{grid-template-columns:minmax(0,5em) minmax(0,1fr) 5em}
+#t-read .rd-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:8px;margin:8px 0;font-size:13.5px}#t-read .rd-two>div{min-width:0;overflow-wrap:anywhere}
+#t-read .bars .row{grid-template-columns:minmax(0,15em) minmax(0,1fr) 6.4em}
+@media (max-width:520px){#t-read .bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 5.6em}}
+</style>
+<nav class="nav" id="rd-nav">
+<a href="#rd-one">In one screen</a><a href="#rd-s1">1 Global loads</a><a href="#rd-s2">2 Caches</a><a href="#rd-s3">3 Shared memory</a><a href="#rd-s4">4 Registers, spills</a><a href="#rd-s5">5 Constant</a><a href="#rd-s6">6 Async copies</a><a href="#rd-s7">7 Host memory</a><a href="#rd-s8">8 Your roofline</a><a href="#rd-s9">9 Mistakes, interview</a>
+</nav>
+<section id="rd-one">
+<p class="lead">A kernel is fast when the bytes it needs are already close to the arithmetic. This page is the programmer's view of where bytes live on an NVIDIA GPU and how your code decides it: which instruction a line of CUDA becomes, how many bytes the hardware really moves for it, and which mistakes make it move more. Everything marked <span class="der">compiled here</span> is real output of NVIDIA's CUDA 13.4.2 compiler (no GPU is needed to compile); everything marked <span class="meas">measured on Apple M1 Pro GPU</span> was run on this laptop, whose GPU is also a SIMT machine with 32-wide SIMD-groups and a programmer-managed on-chip memory, so the shapes transfer even where the numbers do not.</p>
+<p>The parent <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a> gives the intuition in its section 3 (the ladder, coalescing, banks, tiling, one spill) and its <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">GPU simulator</a> tab has the stride, bank-conflict, transpose, occupancy and tiling simulators; this page does not redo them. What the memory physically is (SRAM against DRAM, HBM stacks, the M1's measured cache ladder) belongs to <a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a>; the SM's insides to <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a>.</p>
+<h3>In one screen: the memory spaces you write code for</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Space</th><th>You get it by</th><th>Who sees it, how long</th><th>Where it physically is</th><th>In the SASS</th><th>The trap</th></tr></thead>
+<tbody>
+<tr><td><b>Registers</b></td><td>local scalars, small arrays indexed by constants</td><td>one thread, one kernel</td><td>the SM's register file: 65,536 &times; 32-bit per SM, at most 255 per thread</td><td>operands R0 to R254</td><td>more than the budget spills to local memory</td></tr>
+<tr><td><b>Local memory</b></td><td>the compiler: spills, arrays indexed at run time, big structs</td><td>one thread</td><td>device DRAM, cached in L1 and L2</td><td><code>LDL</code>, <code>STL</code></td><td>"local" is the scope, not the place: it is as far away as global memory</td></tr>
+<tr><td><b>Shared memory</b></td><td><code>__shared__</code> arrays, or <code>extern __shared__</code> sized at launch</td><td>one block (and its cluster, on Hopper and later)</td><td>SRAM inside the SM, the same pool as L1</td><td><code>LDS</code>, <code>STS</code>, <code>LDGSTS</code></td><td>bank conflicts; over 48 KB per block needs an opt-in</td></tr>
+<tr><td><b>Constant memory</b></td><td><code>__constant__</code> (64 KB in all), and every kernel parameter</td><td>the whole grid, read-only</td><td>device DRAM behind a small constant cache per SM</td><td>an operand like <code>c[0x3][0xc]</code>, or <code>LDC</code></td><td>lanes reading different addresses are served one address at a time</td></tr>
+<tr><td><b>Global memory</b></td><td><code>cudaMalloc</code>; every PyTorch CUDA tensor</td><td>every thread of every kernel, and the host through copies</td><td>HBM or GDDR, through L2 (whole GPU) and L1 (per SM)</td><td><code>LDG</code>, <code>STG</code> with width and cache suffixes</td><td>uncoalesced or misaligned access fetches bytes nobody uses</td></tr>
+<tr><td><b>Pinned host memory</b></td><td><code>cudaMallocHost</code>, <code>tensor.pin_memory()</code></td><td>the host process; the GPU's copy engines</td><td>host DRAM, locked in place</td><td>(copies, not instructions)</td><td>required for truly asynchronous copies; too much starves the OS</td></tr>
+<tr><td><b>Managed memory</b></td><td><code>cudaMallocManaged</code></td><td>host and device, one pointer</td><td>wherever the page last migrated</td><td>ordinary <code>LDG</code>, plus page faults</td><td>silent page migration on first touch</td></tr>
+</tbody></table></div>
+<p class="small mute">Sizes: <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, compute capabilities</a> and <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html" target="_blank" rel="noopener noreferrer">writing CUDA kernels, memory spaces</a> (v13.4.2, last updated Sep 10, 2026) <span class="vend">vendor docs</span>. Latencies of each rung (shared 29.0, L1 40.7, L2 263.0, global 478.8 cycles on an H800) are in the parent's section 3, from Luo et al. <span class="indep">independent</span>.</p>
+<div class="co key"><div class="t">Three questions for every array in a kernel</div>
+<b>Where does it live</b> (which row of the table)? <b>How many times is each byte read</b> (once: stream it; many times: stage it on chip)? <b>In what order do neighbouring threads touch it</b> (neighbours on neighbouring addresses, or not)? Every section below is one of these questions answered for one space.</div>
+</section>
+
+<section id="rd-s1">
+<h2>1. Global loads: what one warp's load really fetches</h2>
+<p><b>The problem.</b> A thread asks for 4 bytes, but DRAM and the caches do not deal in 4 bytes. NVIDIA's rule: "Global memory is accessed via 32-byte memory transactions", and the warp "coalesces the memory requests from all the threads in that warp into the number of memory transactions necessary" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.4.1</a>). A 32-byte piece is a <dfn>sector</dfn>; four sectors make a 128-byte cache line. So the cost of a load is not how many bytes the threads want but how many distinct sectors their 32 addresses fall in. 32 lanes reading 32 consecutive floats: 128 bytes, four sectors, nothing wasted. 32 lanes each 32 bytes or more apart: 32 sectors, 1,024 bytes moved for 128 used.</p>
+<p>The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">GPU simulator</a> sweeps the stride. Three other ways to waste sectors come up in real ML code and are animated here on one warp: a struct field (array of structs), a misaligned start, and narrow loads.</p>
+<div class="card" id="rd-wcard">
+<div class="seg" id="rd-wseg"><button data-m="aos" class="on">Array of structs against struct of arrays</button><button data-m="mis">Misaligned against aligned</button><button data-m="vec">4-byte loads against 16-byte loads</button></div>
+<div class="seg" id="rd-wba"><button data-m="0" class="on">Before</button><button data-m="1">After</button></div>
+<div class="rd-chart" id="rd-wsvg"></div>
+<div class="an-cnt" id="rd-wcnt"></div>
+<div class="an-cap" id="rd-wcap"></div>
+<div class="an-ctl" id="rd-wctl"></div>
+<p class="small mute">One warp, drawn to scale: each small box is 4 bytes, each outlined group of eight is one 32-byte sector, each row is 128 bytes. A sector turns shaded when the warp fetches it; blue words are wanted by some lane, orange ones by the lanes of the current step, grey ones fetched but unused. <span class="der">derived</span> from the 32-byte rule above; the same counts come out of the <a href="#" data-tab="t-acc">Access lab</a>, which lets you type any pattern.</p>
+</div>
+<div class="pr" id="rd-pr1"><div class="q">Predict: particles stored as a struct of eight floats (32 bytes each). A kernel reads only <code>p[i].x</code>. How many sectors does one warp fetch, and what fraction of the fetched bytes is used?</div>
+<div class="opts"><button data-a="0">4 sectors, 100%</button><button data-a="1">8 sectors, 50%</button><button data-a="2" data-right="1">32 sectors, 12.5%</button></div>
+<div class="ans" hidden>32 sectors, 1,024 bytes fetched for 128 used. Each lane's 4 bytes sit in its own 32-byte struct, so every lane needs its own sector. Store each field as its own array (struct of arrays) and the same warp needs 4 sectors.</div></div>
+<h3>What the M1 says</h3>
+<div class="bars" id="rd-aosbars"></div>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: 16M particles of 32 bytes (512 MB), median of 3 runs of 7 trials, load average 9.2 to 9.8 while other agents worked; each bar gives the median and, in brackets, the fastest and slowest run. Reading one field from the structs took <b>3.66 ms</b>, the same as reading all eight fields (<b>3.66 ms</b>): the GPU fetched every byte of every struct either way. The same field kept in its own array took <b>1.03 ms</b>, 3.6 times faster. The ratio of bytes moved (512 MB read + 64 MB written against 64 + 64 MB) is 4.5; the gap is the smaller transfer's fixed costs. <span class="der">derived</span>: 3.66 / 1.03 and 576 / 128.</p>
+<h3>Misalignment and vector width</h3>
+<p><b>Misaligned.</b> If a warp's 128 contiguous bytes start in the middle of a sector, they span five sectors instead of four. NVIDIA's Best Practices Guide measured exactly this on a V100: "we would expect approximately 4/5th of the memory throughput", but got about 9/10 "because adjacent warps reuse the cache lines their neighbors fetched" (<a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">Best Practices Guide 10.2.1.3</a>) <span class="vend">vendor measurement</span>. The parent's simulator found no measurable penalty for an offset of one float on the M1. Allocation keeps you aligned by default: "Memory allocated through the CUDA Runtime API, such as via cudaMalloc(), is guaranteed to be aligned to at least 256 bytes" (same guide). The misalignment comes from you: a tensor view with a storage offset (<code>x[:, 1:]</code>), a block size that is not a multiple of 32, a packed header in front of the data.</p>
+<p><b>Width.</b> A thread can load 4, 8 or 16 bytes in one instruction. <span class="der">compiled here</span> for sm_90a, the same copy written with <code>float</code>, <code>float2</code> and <code>float4</code> becomes:</p>
+<pre class="sass" id="rd-wsass"></pre>
+<p>Same bytes, a quarter of the load instructions, and each instruction keeps four times as many bytes in flight. NVIDIA's advice: vectorised loads "reduce the total number of instructions, reduces latency, and improves bandwidth utilization", but "These instructions require aligned data" and "using vectorized loads increases register pressure and reduces overall parallelism" (<a href="https://developer.nvidia.com/blog/cuda-pro-tip-increase-performance-with-vectorized-memory-access/" target="_blank" rel="noopener noreferrer">CUDA Pro Tip: vectorized memory access</a>, updated Aug 4, 2025). Note the <code>.CONSTANT</code>: the pointers were <code>const __restrict__</code>, section 2 explains it.</p>
+<div class="bars" id="rd-widthbars"></div>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: a 256 MB copy ran at about the same speed with 4-, 8- and 16-byte accesses (the bars above; spread across runs 145 to 169 GB/s). With 64 million threads in flight there is enough memory parallelism either way, so on a plain copy the M1 is limited by DRAM, not by instructions. Width pays off when a kernel has few threads per byte or many other instructions competing for issue slots: the case in matmul and attention kernels, which is why they load 16 bytes at a time (and why section 6's asynchronous copy is 16 bytes wide).</p>
+<div class="co"><div class="t">When it matters for training, and how to check</div>
+<ul><li><b>Layouts.</b> A fused QKV projection stored as [tokens, 3, heads, dim] and read one head at a time; channels-last against channels-first; a transposed weight read along the wrong axis. If the innermost index your threads walk is not the innermost dimension in memory, you pay the stride.</li>
+<li><b>Views.</b> Slicing makes a tensor non-contiguous or misaligned; PyTorch's elementwise kernels check alignment before using vector loads (<code>can_vectorize_up_to</code> in <a href="https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/MemoryAccess.cuh" target="_blank" rel="noopener noreferrer">ATen's MemoryAccess.cuh</a>) and fall back to narrow loads; <code>.contiguous()</code> costs one copy and can make every later kernel faster.</li>
+<li><b>Check:</b> in Nsight Compute's Memory Workload Analysis, sectors per request for global loads (ideal: 4 for a full warp of 32-bit loads, 16 for 128-bit loads, by the rule above) and the "uncoalesced global accesses" advice; details on <a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>.</li></ul></div>
+</section>
+<section id="rd-s2">
+<h2>2. The caches, and the few ways to steer them</h2>
+<p><b>The problem.</b> You do not allocate cache; the hardware decides what stays. But two caches sit between your loads and DRAM, they behave differently, and the compiler gives you a handful of hints. Knowing them explains suffixes you will see in every disassembly and one class of bug.</p>
+<div class="mech">
+<div><b>L1 (per SM)</b>shares its SRAM with shared memory (section 3); caches global and local loads for that SM only. Not kept coherent with other SMs: "multiple L1 caches are not coherent for global data" (<a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener noreferrer">PTX ISA 9.4, cache operators</a>).</div>
+<div><b>L2 (whole GPU)</b>every DRAM access goes through it, so it is where all SMs agree: "Global data is coherent at the L2 level" (same table). 40 MB on A100, 50 MB on H100 SXM, 96 MB on RTX 5090 <span class="vend">vendor spec</span>.</div>
+<div><b>Read-only path</b>a load the compiler may serve from the non-coherent texture/L1 path because nothing writes the data during the kernel. You ask for it with <code>const T* __restrict__</code> or <code>__ldg()</code>.</div>
+</div>
+<p><b>The read-only path.</b> "Accesses to __global__ function const pointers marked with __restrict__ are compiled as read-only cache loads, similar to the PTX ld.global.nc or __ldg()" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html" target="_blank" rel="noopener noreferrer">C++ language extensions</a>). <span class="der">compiled here</span>: a plain <code>const float*</code> load becomes <code>LDG.E</code>; the same load with <code>__restrict__</code>, or written <code>__ldg(p)</code>, becomes <code>LDG.E.CONSTANT</code>. The promise behind <code>__restrict__</code> is that no other pointer in the kernel touches that memory. If you lie (an in-place kernel whose input and output alias), the compiler may reorder or cache, and the result is silently wrong.</p>
+<p><b>Cache operators.</b> Every load and store can carry a hint. The intrinsics map to PTX operators, and the table shows what CUDA 13.4.2 turned each into on three generations <span class="der">compiled here</span>. The meanings are quoted from the PTX ISA; the reading of the SASS suffixes (EF for evict-first, STRONG.GPU for "performed at the L2, the GPU's point of coherence") is an inference from the names and the PTX definitions, since NVIDIA does not document SASS.</p>
+<div class="tw" id="rd-cops"></div>
+<p>In practice: <code>__ldcs</code>/<code>__stcs</code> (evict-first) suit data read or written exactly once, such as a large activation streamed through an elementwise kernel, so it does not push out data that will be reused; <code>__ldcg</code> skips L1, useful when another block may have just written the data; <code>.lu</code> exists mainly for restoring spills. They are hints: "Cache operators on load or store instructions are treated as performance hints only" (PTX ISA). Most ML kernels never use them; you will meet them in hand-tuned kernels (FlashAttention, vLLM, ggml-cuda) and in Triton's <code>eviction_policy</code> argument to <code>tl.load</code>.</p>
+<h3>Keeping a buffer in L2 on purpose</h3>
+<p>Since compute capability 8.0 you can reserve part of L2 for one address range: "A portion of the L2 cache can be set aside to be used for persisting data accesses to global memory" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/l2-cache-control.html" target="_blank" rel="noopener noreferrer">Programming Guide 4.14, L2 cache control</a>). Two calls, from that page:</p>
+<pre class="sass">size_t size = min(int(prop.l2CacheSize * 0.75), prop.persistingL2CacheMaxSize);
+cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, size);   <span class="c">// set aside up to 3/4 of L2</span>
+stream_attribute.accessPolicyWindow.base_ptr  = ptr;           <span class="c">// the hot buffer</span>
+stream_attribute.accessPolicyWindow.num_bytes = num_bytes;
+stream_attribute.accessPolicyWindow.hitRatio  = 0.6;           <span class="c">// fraction of accesses marked persisting</span>
+stream_attribute.accessPolicyWindow.hitProp   = cudaAccessPropertyPersisting;
+stream_attribute.accessPolicyWindow.missProp  = cudaAccessPropertyStreaming;
+cudaStreamSetAttribute(stream, cudaStreamAttributeAccessPolicyWindow, &amp;stream_attribute);</pre>
+<p>It is disabled under MIG, and fixed at server start under MPS (same page). It helps when a few tens of MB are read by many consecutive kernels in one stream while other data streams past; it cannot help data larger than the set-aside. not run here: no NVIDIA GPU.</p>
+<p><b>The free way to use L2: order the work.</b> Blocks that run at the same time share L2. A tiled matmul that launches its output tiles row by row reads each B column panel once per row of tiles; launching them in groups of rows ("grouped" or "swizzled" block order) lets concurrently running blocks reuse the same A and B panels from L2. <a href="https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html" target="_blank" rel="noopener noreferrer">Triton's matmul tutorial</a> shows the reordering as "L2 cache optimizations"; <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a> builds it.</p>
+<p class="small mute">How fast each cache rung is on this laptop's GPU (about 1,239 GB/s for working sets up to 128 KB, 579 at 1 MB, 318 at 32 MB, 127.5 at 1 GB) is measured on <a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a>, section 3.</p>
+</section>
+
+<section id="rd-s3">
+<h2>3. Shared memory in practice: declaring it, sizing it, wide accesses, swizzles</h2>
+<p><b>The problem it solves</b> (the parent's section 3 has the full motivation): data that many threads of a block read many times should be fetched from DRAM once and then read from on-chip SRAM. Shared memory is that SRAM, managed by your code.</p>
+<h3>Three ways to declare it, as the compiler sees them</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Kernel</th><th>Declaration</th><th>ptxas -v (sm_90a)</th></tr></thead>
+<tbody>
+<tr><td>padded transpose tile</td><td><code>__shared__ float t[32][33];</code></td><td id="rd-sm1"></td></tr>
+<tr><td>swizzled transpose tile</td><td><code>__shared__ float t[32][32];</code> indexed <code>t[y][x ^ y]</code></td><td id="rd-sm2"></td></tr>
+<tr><td>dynamic</td><td><code>extern __shared__ float4 s[];</code> sized by the third launch parameter <code>&lt;&lt;&lt;grid, block, bytes&gt;&gt;&gt;</code></td><td id="rd-sm3"></td></tr>
+</tbody></table></div>
+<p class="small"><span class="der">compiled here</span>: static arrays show up in the compiler's report (32 &times; 33 &times; 4 = 4,224 bytes; the swizzle saves the padding column); dynamic shared memory is invisible at compile time, so the occupancy calculator must be told the launch size.</p>
+<p><b>Sizes and the opt-in.</b> Per SM: 164 KB on A100 (compute capability 8.0), 228 KB on H100 and B200 (9.0, 10.0), 100 KB on RTX 3090, 4090 and 5090 (8.6, 8.9, 12.0); one block may use 1 KB less, which CUDA reserves per block (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">compute capabilities</a>). But "Kernels relying on shared memory allocations over 48 KB per block are architecture-specific. As such they must use dynamic shared memory rather than statically-sized arrays and require an explicit opt-in" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html" target="_blank" rel="noopener noreferrer">Programming Guide 3.2, L1/shared balance</a>):</p>
+<pre class="sass">cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, 200 * 1024);
+cudaFuncSetAttribute(kernel, cudaFuncAttributePreferredSharedMemoryCarveout, cudaSharedmemCarveoutMaxShared);
+kernel&lt;&lt;&lt;grid, block, 200 * 1024&gt;&gt;&gt;(...);</pre>
+<p>The carveout splits the SM's SRAM between L1 and shared memory, and only some splits exist: "for devices of compute capability 12.0, which have a maximum shared memory capacity of 100KB, setting the carveout to 50% will result in 64KB of shared memory, not 50KB, because devices of compute capability 12.0 support shared memory sizes of 0, 8, 16, 32, 64, and 100" (same page). Whatever shared memory takes, L1 loses. In Triton you never write these calls; a block size and <code>num_stages</code> that need too much raise <code>OutOfResources</code> for shared memory at compile time (<a href="https://github.com/triton-lang/triton/blob/main/python/triton/runtime/errors.py" target="_blank" rel="noopener noreferrer">triton/runtime/errors.py</a>).</p>
+<h3>Banks with wide accesses</h3>
+<p>The rule (32 banks, "successive 32-bit words map to successive banks", "Each bank has a bandwidth of 32 bits per clock cycle") and the classic 32 &times; 32 transpose are in the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">GPU simulator</a>. Real kernels load 8 or 16 bytes per lane, and the rule then gives a floor, not a conflict-free promise: a warp asking for 32 &times; 16 = 512 bytes needs at least 512 / 128 = 4 passes, since 32 banks deliver 128 bytes per pass. The cost is the number of passes the busiest bank needs. NVIDIA's own example: with 16-byte (int4) elements "each set of eight threads loads a row", and a column-wise store "must be serialized, resulting in eight store transactions, giving an eight-way bank conflict" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html" target="_blank" rel="noopener noreferrer">Programming Guide 4.12, asynchronous copies, TMA swizzle</a>). The current guide does not spell out how 8-byte accesses are split; the <a href="#" data-tab="t-acc">Access lab</a> counts passes from the 32-bit rule alone and says so.</p>
+<div class="pr" id="rd-pr2"><div class="q">Predict: each lane reads one float4 (16 bytes) from shared memory, lanes 128 bytes apart (lane l reads element 8l). How many passes against the ideal 4?</div>
+<div class="opts"><button data-a="0">4: no conflict, the lanes read different words</button><button data-a="1">8: a 2-way conflict</button><button data-a="2" data-right="1">32: every lane in the same 4 banks</button></div>
+<div class="ans" hidden>Lane l's 16 bytes are words 32l to 32l + 3, which are banks 0 to 3 for every lane. Banks 0 to 3 each serve 32 different words: 32 passes, 8 times the ideal. A stride of 9 elements (144 bytes) spreads them out again.</div></div>
+<div class="bars" id="rd-tgbars"></div>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: bytes per second read from threadgroup memory (Apple's shared memory) by 131,072 threads, 16 KB per threadgroup, median of 3 runs. With 16-byte elements: <b>1,893 GB/s</b> at a lane stride of 1 element, <b>1,049</b> at 4, <b>565</b> at 8, and <b>1,905</b> at 9, the signature of 4-byte banks that the rule predicts (Apple documents neither its bank count nor width; this is inference from the measurement). Wide reads also moved more bytes per second than 4-byte reads (<b>1,108 GB/s</b> at stride 1, noisy under load), so on chip as well as off chip, fewer and wider accesses win.</p>
+<h3>Swizzles: the libraries' answer</h3>
+<p>Padding (<code>[32][33]</code>) breaks the alignment that 16-byte and TMA copies need and wastes memory, so libraries permute instead: element (r, c) is stored at column c XOR f(r), which keeps every row and every column on distinct banks. Hopper's TMA engine writes tiles already swizzled: "the TMA engine can be instructed to 'swizzle' the data before storing it in shared memory", and with <code>CU_TENSOR_MAP_SWIZZLE_128B</code> "each matrix element is from a different bank for both the rows and columns" (same page). The <a href="#" data-tab="t-acc">Access lab</a> shows plain, padded and XOR layouts side by side; CUTLASS's layout algebra that generalises this is on <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a>.</p>
+<p><b>Beyond one block.</b> On Hopper and later, blocks of a cluster can read each other's shared memory (distributed shared memory, about 180 cycles in Luo et al.'s H800 measurements against 29 for local shared memory <span class="indep">independent</span>); the hardware side is on <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a>, section 8, the launch side on <a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a>.</p>
+</section>
+<section id="rd-s4">
+<h2>4. Registers, spills, and arrays that fall into local memory</h2>
+<p><b>The problem.</b> Registers are the only storage the arithmetic units read directly, and they are rationed: 65,536 32-bit registers per SM on every current NVIDIA GPU, shared by all resident threads, at most 255 per thread. A thread that keeps more values alive than it has registers must park some in memory. Fast kernels (register-tiled matmul, FlashAttention) deliberately keep large pieces of the output in registers, so they live right at this edge.</p>
+<h3>Reading the compiler's report</h3>
+<p>Compile with <code>-Xptxas -v</code> (or <code>--resource-usage</code>) and ptxas prints, per kernel, a line like this one <span class="der">compiled here</span>:</p>
+<pre class="sass" id="rd-ptxasline"></pre>
+<ul>
+<li><b>Used N registers</b>: per thread. Multiply by 32 for a warp, round up to 256: that is what each warp takes from the register file, and what decides how many warps fit (the parent's occupancy calculator in the <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">GPU simulator</a> ports NVIDIA's rules).</li>
+<li><b>spill stores / spill loads</b>: bytes per thread written to and read back from local memory because registers ran out.</li>
+<li><b>stack frame</b>: bytes per thread of local memory for any reason: spills, or an array the compiler could not keep in registers.</li>
+</ul>
+<h3>One kernel under eight register caps</h3>
+<p>The kernel keeps 128 running sums per thread (the shape of a register-tiled matmul's accumulator). Compiled with no cap, ptxas uses <span id="rd-rdef"></span> registers and spills nothing. Then the same file under <code>-maxrregcount</code> from 32 to 255:</p>
+<div class="seg" id="rd-rcseg"><button data-m="sm_80">sm_80 (A100)</button><button data-m="sm_90a" class="on">sm_90a (H100)</button><button data-m="sm_120">sm_120 (RTX 5090)</button></div>
+<div class="rd-chart" id="rd-rcchart"></div>
+<p class="small" id="rd-rcnote"></p>
+<p>Two lessons. Below what the kernel needs, every register removed becomes spill traffic: at a cap of 32 each thread writes and rereads over a kilobyte per pass through the loop body's live values. Above it, ptxas does not stop at what it needs: on sm_90a it used every register it was allowed (192, 224, 255), presumably to schedule loads earlier, and each extra register lowers how many warps fit. The documented version of this behaviour is for launch bounds: "If both minBlocksPerMultiprocessor and maxThreadsPerBlock are specified, the compiler may increase register usage up to L in order to reduce the number of instructions and better hide the latency" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html" target="_blank" rel="noopener noreferrer">C++ language extensions, launch bounds</a>); the same happening under <code>-maxrregcount</code> is observed here, not documented. Prefer <code>__launch_bounds__(maxThreadsPerBlock, minBlocksPerSM)</code> per kernel over a per-file <code>-maxrregcount</code> (both named in the <a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">Best Practices Guide, register pressure</a>), and measure: a few spilled bytes that hit L1 can cost less than the occupancy they buy back.</p>
+<h3>Local memory without any register pressure</h3>
+<p>The surprise for most people: an array can land in local memory while the kernel uses only a few registers. The guide lists what the compiler puts there: "Arrays for which it cannot determine that they are indexed with constant quantities, Large structures or arrays that would consume too much register space, Any variable if the kernel uses more registers than available" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.3.4, local memory</a>). Registers have no addresses, so <code>h[b]</code> with <code>b</code> known only at run time needs memory. Two versions of a per-thread 16-bin histogram, <span class="der">compiled here</span> for sm_90a:</p>
+<div class="rd-two">
+<div><b>Run-time index:</b> <code>h[bins[k * 4096 + t] &amp; 15] += 1.f;</code>
+<pre class="sass" id="rd-hdyn"></pre></div>
+<div><b>Constant indices only:</b> <code>for (j = 0; j &lt; 16; ++j) h[j] += (b == j) ? 1.f : 0.f;</code>
+<pre class="sass" id="rd-hsel"></pre></div>
+</div>
+<p>The first uses <span id="rd-hdynregs"></span>; the four <code>STL.128</code> zero the 64-byte array in local memory and every update is an <code>LDL</code> and an <code>STL</code>. The second does 16 compare-and-adds per update but keeps all 16 bins in registers (<span id="rd-hselregs"></span>). Local memory is laid out so that "consecutive 32-bit words are accessed by consecutive thread IDs. Accesses are therefore fully coalesced as long as all threads in a warp access the same relative address" (same section); here every lane picks its own bin, so the accesses scatter too.</p>
+<div class="bars" id="rd-localbars"></div>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: the same two kernels in Metal, 262,144 threads &times; 1,024 updates each: <b>7.08 ms</b> with the run-time index against <b>4.49 ms</b> with constant indices, 1.58 times slower despite doing a sixteenth of the arithmetic. Apple's compiler faces the same problem (registers are not addressable) and makes the same choice.</p>
+<div class="pr" id="rd-pr3"><div class="q">Predict: ptxas reports "64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads, Used 22 registers". What is in the 64 bytes?</div>
+<div class="opts"><button data-a="0">Spilled registers</button><button data-a="1" data-right="1">An array indexed at run time</button><button data-a="2">Shared memory</button></div>
+<div class="ans" hidden>Zero spill bytes, yet a stack frame: an array the compiler could not promote to registers, here 16 floats = 64 bytes. Fix it by making every index a compile-time constant (unrolled loops, selects), or move the array to shared memory if lanes need different entries.</div></div>
+<p><b>What you cannot control:</b> register bank conflicts inside the SM. "The compiler and hardware thread scheduler will schedule instructions as optimally as possible to avoid register memory bank conflicts. An application has no direct control over these bank conflicts. In particular, there is no register-related reason to pack data into vector data types such as float4" (<a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">Best Practices Guide 10.2.7</a>).</p>
+</section>
+
+<section id="rd-s5">
+<h2>5. Constant memory and kernel parameters</h2>
+<p><b>What it is.</b> "There is a total of 64 KB constant memory on a device. The constant memory space is cached ... Accesses to different addresses by threads within a warp are serialized, thus the cost scales linearly with the number of unique addresses read by all threads within a warp ... If all threads of a warp access the same location, then constant memory can be as fast as a register access" (<a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">Best Practices Guide 10.2.6</a>). So it suits values every lane reads at once: a scale, a bias, filter taps, a small lookup indexed by loop counter, not by lane. You use it more than you think, because <b>every kernel argument lives there</b>.</p>
+<p><span class="der">compiled here</span>, sm_90a, from a <code>__constant__ float c_tab[1024]</code> and a kernel taking a small struct by value:</p>
+<div class="tw" id="rd-consttbl"></div>
+<p>How to read it (bank numbers inferred from consistent use across these kernels, since SASS is undocumented): bank <code>c[0x0]</code> holds the launch's parameters and built-ins (<code>c[0x0][0x0]</code> is the block size, read for <code>blockDim.x</code>); bank <code>c[0x3]</code> holds the module's <code>__constant__</code> data. With an index known at compile time, the value goes into a uniform register (<code>ULDC</code>, one copy for the whole warp) and straight into the FFMA. With an index known only at run time, it takes an <code>LDC</code>, which is where the per-address serialisation applies if lanes disagree. On sm_80 the compiler even used a parameter directly as an FFMA operand (<code id="rd-c80"></code>).</p>
+<p><b>Texture memory</b> is the other read-only cached path: "optimized for 2D spatial locality" with hardware filtering and boundary handling (<a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">Best Practices Guide 10.2.5</a>). It matters for image resampling; ML kernels almost never use it, and <code>const __restrict__</code> loads already use the same cache.</p>
+<p class="small mute">A constant-address-space experiment on the M1 was tried and dropped: MLX passes buffers to custom kernels in Metal's device address space, and a program-scope constant table is a different mechanism, so the comparison did not isolate the NVIDIA behaviour described here.</p>
+</section>
+<section id="rd-s6">
+<h2>6. Asynchronous copies: loading the next tile while computing this one</h2>
+<p><b>The problem.</b> A tiled kernel loops: load a tile of A and B into shared memory, wait, compute on it, wait, load the next. Written plainly, every load goes global memory to a register, then register to shared memory, and the SM sits idle for a full memory latency (about 479 cycles on an H800, from the parent's table) at the start of every tile. Two costs: idle time, and registers held just to carry data in transit.</p>
+<p><b>How it works.</b> Since Ampere (compute capability 8.0) one instruction copies global to shared memory directly, without a register in between, and the thread does not wait for it: "This not only reduces register usage by copying the data directly to shared memory, but also ensures all loads from global memory are in-flight" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html" target="_blank" rel="noopener noreferrer">Programming Guide 4.12.1, LDGSTS</a>). With two or more shared-memory buffers (stages), the copy for tile t + 1 runs while the math on tile t proceeds. <span class="der">compiled here</span> for sm_90a, the same tile loop written both ways:</p>
+<div class="rd-two">
+<div><b>Synchronous:</b> <code>s[tid] = a[t * 256 + tid];</code>
+<pre class="sass" id="rd-async0"></pre></div>
+<div><b>Two stages:</b> <code>__pipeline_memcpy_async</code>, <code>__pipeline_commit</code>, <code>__pipeline_wait_prior(1)</code>
+<pre class="sass" id="rd-async1"></pre></div>
+</div>
+<p>On the left, the compiler already unrolled the loop and issued four 16-byte loads ahead, each parked in four registers until its <code>STS.128</code>: it hides latency by spending registers. On the right, <code>LDGSTS</code> writes shared memory directly; <code>LDGDEPBAR</code> closes a group of copies (the commit) and <code>DEPBAR.LE SB0, 0x1</code> waits until at most one group is still in flight (the <code>wait_prior(1)</code>). The <code>.BYPASS</code> matches the guide: "copying 16-bytes enables the L1 BYPASS mode, in which case the L1 is not polluted" (same section). The copies are per thread, so a <code>__syncthreads()</code> is still needed before other threads read the tile.</p>
+<div class="card" id="rd-pcard">
+<div class="seg" id="rd-pseg"><button data-m="1" class="on">Synchronous (1 buffer)</button><button data-m="2">2 stages</button><button data-m="3">3 stages</button><button data-m="4">4 stages</button></div>
+<div class="rd-chart" id="rd-psvg"></div>
+<div class="an-cnt" id="rd-pcnt"></div>
+<div class="an-cap" id="rd-pcap"></div>
+<div class="an-ctl" id="rd-pctl"></div>
+<p class="small mute">One block's loop over 8 tiles. Top row: copies in flight (each lasts one memory latency); bottom row: the SM computing. A copy can start only when its buffer is free (the tile that last used it has been computed); a tile can be computed only when its copy has landed. <span class="ann">illustrative</span>: 479 cycles per copy (H800 global latency, Luo et al.) and 200 cycles of math per tile, chosen to show the effect; it ignores bandwidth limits and the other blocks on the SM, which also hide latency. The schedule is checked against a Python reference (<code>src/code/reference.py</code>).</p>
+</div>
+<p><b>The cost.</b> Each stage is another tile of shared memory, so stages trade against block size and occupancy (section 3's limits): this is exactly Triton's <code>num_stages</code>, and Triton 3.8.0 compiles a plain matmul's tile loads to <code>LDGSTS</code> on sm_80 (the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Compiler explorer</a>). Hopper's <b>TMA</b> goes one step further: one thread issues a copy of a whole multi-dimensional tile (up to 5 dimensions), completion is signalled on a shared-memory barrier, and the tile can land swizzled (section 3). The TMA programming model and the warp-specialised producer/consumer kernels built on it are on <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a>; a full pipelined matmul on <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>; the copy engines inside the SM on <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a>, section 8.</p>
+</section>
+
+<section id="rd-s7">
+<h2>7. Host memory: pinned, mapped and managed</h2>
+<p><b>The problem.</b> Training data and checkpoints start in host RAM; a GPU's copy engines move them over PCIe or NVLink-C2C by DMA, and DMA needs physical pages that will not move. Ordinary <code>malloc</code> memory can be swapped or relocated by the OS, so it cannot be the DMA target. How CUDA bridges that decides whether your input pipeline overlaps with compute.</p>
+<div class="mech">
+<div><b>Pageable (default)</b>"When CUDA sends pageable data from CPU to GPU, it must first create a page-locked copy of that data before making the transfer" (<a href="https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html" target="_blank" rel="noopener noreferrer">PyTorch, non_blocking and pin_memory</a>, Apr 1, 2026): an extra CPU memcpy, and the call cannot run in the background.</div>
+<div><b>Pinned (page-locked)</b><code>cudaMallocHost</code> / <code>cudaHostAlloc</code>, or <code>cudaHostRegister</code> on existing memory. "Page-locked host memory is required for asynchronous copies between the CPU and GPU" and "also improves performance of synchronous copies" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/understanding-memory.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.6.3</a>).</div>
+<div><b>Mapped (zero copy)</b>pinned memory the GPU reads directly over the interconnect, uncached on the GPU. "On integrated GPUs ... mapped pinned memory is always a performance gain ... On discrete GPUs, mapped pinned memory is advantageous only in certain cases" (<a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">Best Practices Guide 10.1.3</a>).</div>
+<div><b>Managed (unified)</b><code>cudaMallocManaged</code>: one pointer for both sides; pages migrate on first touch. Prefetch with <code>cudaMemPrefetchAsync</code> and give hints with <code>cudaMemAdvise</code>, or it is slow; the driver's fault path is on <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>, section 11.</div>
+</div>
+<p><b>How fast.</b> The Best Practices Guide's own example is dated: "On PCIe x16 Gen3 cards, for example, pinned memory can attain roughly 12 GB/s transfer rates" <span class="vend">vendor figure</span>; today's links are faster (PCIe Gen5 x16 and NVLink-C2C on <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>), but the rule is the same. And pinning has a price: "Pinned memory should not be overused ... the pinning of system memory is a heavyweight operation" (same guide); pinned pages count against the locked-memory limit (<a href="https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b" target="_blank" rel="noopener noreferrer">Virtual memory</a>, section 9). not run here: this laptop has no discrete GPU.</p>
+<h3>In PyTorch</h3>
+<ul>
+<li><code>DataLoader(..., pin_memory=True)</code> pins each batch in a background thread; then <code>batch.to("cuda", non_blocking=True)</code> returns at once and the copy overlaps with the previous step's compute (stream ordering keeps it safe for kernels that use the batch; overlap itself is on <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a>).</li>
+<li>Pinning by hand on the critical path does not help: "Using tensor.pin_memory().to(device, non_blocking=True) can be up to twice as slow as a straightforward tensor.to(device)" (PyTorch tutorial above), because the pin is itself a copy.</li>
+<li>The other direction is a correctness trap: after <code>cuda_tensor.to("cpu", non_blocking=True)</code> "there is no guarantee that the data read on GPU is valid without explicit synchronization" (same tutorial; it means the CPU-side data); synchronise (or wait on an event) before reading it.</li>
+</ul>
+<p><b>Device allocation is not free either.</b> "Device memory allocation and de-allocation via cudaMalloc() and cudaFree() are expensive operations. It is recommended to use cudaMallocAsync() and cudaFreeAsync() which are stream ordered pool allocators" (<a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">Best Practices Guide 10.3</a>). PyTorch goes further with its own caching allocator, which is why <code>nvidia-smi</code> shows memory "used" after tensors are freed; it is simulated from its source on <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a>, section 9.</p>
+<p><b>The Apple contrast.</b> On this laptop there is no host-device copy to make: "Apple silicon has a unified memory architecture. The CPU and GPU have direct access to the same memory pool" (<a href="https://ml-explore.github.io/mlx/build/html/usage/unified_memory.html" target="_blank" rel="noopener noreferrer">MLX, unified memory</a>). That is the integrated case of the zero-copy rule above, and why every M1 number on this page measures the GPU's own memory system with no PCIe in the way. Grace Hopper and Grace Blackwell get part of the way on NVIDIA with a coherent CPU-GPU link (<a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a>, section 7).</p>
+</section>
+<section id="rd-s8">
+<h2>8. Your kernel on a roofline: from bytes and FLOPs to a verdict</h2>
+<p><b>The problem.</b> After all the rules above you still need one number: is this kernel close to what the GPU can do, and which limit is it against? The roofline answers it (the model itself, ridge points per chip and MFU are on <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a> and <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>); here is the programmer's recipe for one kernel.</p>
+<ol>
+<li><b>Count the bytes the kernel must move</b> if every input is read once and every output written once (not what it actually moves: that is what you are judging).</li>
+<li><b>Count the FLOPs</b> (an FMA is 2).</li>
+<li><b>Time it</b> honestly (warm-up, many repetitions, synchronise: <a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>).</li>
+<li><b>Divide</b>: achieved bandwidth = bytes / time, achieved FLOP/s = FLOPs / time, arithmetic intensity = FLOPs / bytes.</li>
+<li><b>Compare</b> with the roof at that intensity: min(peak FLOP/s, intensity &times; peak bandwidth). Near the slanted part: memory-bound, so move fewer bytes (fuse, use smaller types). Near the flat part: compute-bound, so use tensor cores or do less math. Far below both: neither; the access pattern or latency hiding is broken, and sections 1 to 6 are where to look.</li>
+</ol>
+<p>To see a real roof rather than a datasheet one, this page measured it: a kernel that reads one float4 per thread, does F steps of 8 independent FMAs, and writes one float, for F from 1 to 1,024, so its intensity runs from 1.35 to 820 FLOP per byte.</p>
+<div class="rd-chart" id="rd-roof"></div>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: dots are the sweep (median of 3 runs; whiskers span the runs), dashed lines are the roofs it implies: <b>156 GB/s</b> (median bandwidth of the sweep's points up to F = 16) and <b>4,992 GFLOP/s</b> (its best point), a ridge at <b>32 FLOP per byte</b> <span class="der">derived</span>: 4,992 / 156.3. Both agree with the independent measurements in <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a> (about 5.0 TFLOP/s FMA, 143 to 165 GB/s streaming) and sit at 94% of the 5,308 GFLOP/s that 16 cores &times; 128 ALUs &times; 2 &times; 1.296 GHz gives (<a href="https://github.com/philipturner/metal-benchmarks" target="_blank" rel="noopener noreferrer">metal-benchmarks</a>). The single coloured points are kernels from the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Kernel lab</a> placed by the recipe above, with their minimum bytes.</p>
+<div class="tw" id="rd-rooftbl"></div>
+<p>The two softmaxes do the same math on the same data; the eager one sits at a quarter of the bandwidth roof because, counted against the minimum bytes, it moves the tensor several times (five kernels, each a full pass). The naive matmul has an intensity of 341 FLOP per byte, ten times the ridge, yet runs at a fraction of the compute roof: by the recipe it is "far below both", and indeed its threads re-read A and B from memory for every output (no tiles, section 3 of the parent). Tiles and registers (the 4 &times; 4 per thread kernel) and then the matrix instructions in MLX's library close the gap.</p>
+<div class="card" id="rd-ccard">
+<h3 style="margin-top:0">Place a kernel</h3>
+<div class="ctl" id="rd-calc"></div>
+<div class="an-cnt" id="rd-calcout"></div>
+<p class="small mute" id="rd-calcnote"></p>
+</div>
+<p class="small mute">Peaks in the calculator: H100 SXM BF16 dense 989.5 TFLOP/s and FP32 67, 3.35 TB/s; A100 SXM BF16 312, FP32 19.5, 2,039 GB/s; RTX 5090 BF16 with FP32 accumulate 209.5, FP32 104.8, 1,792 GB/s <span class="vend">vendor spec</span> (shared facts of this topic, from <a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">NVIDIA H100</a>, <a href="https://www.nvidia.com/en-us/data-center/a100/" target="_blank" rel="noopener noreferrer">A100</a> and the <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a>); M1 Pro: this page's measured roofs. Datasheet peaks are rarely reached: SemiAnalysis measured about 720 of the H100's 989.5 BF16 TFLOP/s on large GEMMs (<a href="https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/" target="_blank" rel="noopener noreferrer">Dec 2024</a>) <span class="indep">independent</span>, so judge against an achievable roof when you have one.</p>
+</section>
+<section id="rd-s9">
+<h2>9. Common mistakes, how to check, interview questions</h2>
+<div class="tw"><table class="tbl-sm symp">
+<thead><tr><th>Belief</th><th>What is true</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td>"Local memory is fast, it is local."</td><td>It lives in device DRAM; "local" is the scope. It is cached, but a spill or a run-time-indexed array costs real memory traffic.</td><td>4</td></tr>
+<tr><td>"Reading one field of a struct reads 4 bytes."</td><td>The warp fetches whole 32-byte sectors: one field of a 32-byte struct costs as much as the whole struct (measured: same time).</td><td>1</td></tr>
+<tr><td>"More registers per thread is always faster."</td><td>Each register costs resident warps; ptxas will use whatever cap you allow. Measure both sides of the spill/occupancy trade.</td><td>4</td></tr>
+<tr><td>"Padding is the way to fix bank conflicts."</td><td>It works for 4-byte accesses, but breaks the alignment 16-byte and TMA copies need; libraries swizzle.</td><td>3</td></tr>
+<tr><td>"A bank conflict-free layout for floats stays conflict-free for float4."</td><td>Wide accesses need several passes anyway and a different stride condition; count passes for the width you load.</td><td>3</td></tr>
+<tr><td>"<code>__restrict__</code> is just documentation."</td><td>It changes the load to the read-only path (<code>LDG.E.CONSTANT</code>); if the pointers alias, results can be wrong.</td><td>2</td></tr>
+<tr><td>"<code>__constant__</code> is a fast table for any lookup."</td><td>Only when the lanes of a warp read the same address; different addresses are served one at a time.</td><td>5</td></tr>
+<tr><td>"<code>pin_memory()</code> before every <code>.to(device)</code> speeds things up."</td><td>Pinning is a copy; done on the critical path it can be up to twice as slow. Let the DataLoader pin in the background.</td><td>7</td></tr>
+<tr><td>"A kernel at 15% of peak FLOP/s is badly written."</td><td>Only if it is compute-bound. Place it on the roofline first: a softmax at the bandwidth roof is done.</td><td>8</td></tr>
+<tr><td>"cudaMalloc in the loop is fine."</td><td>Allocation is expensive and can synchronise; use pools (<code>cudaMallocAsync</code>) or a caching allocator.</td><td>7</td></tr>
+</tbody></table></div>
+<div class="co"><div class="t">How to check, without guessing</div>
+<ul>
+<li><code>nvcc -Xptxas -v</code> (or <code>cuobjdump --dump-resource-usage</code>): registers, stack frame, spill bytes, static shared memory per kernel. In Triton, <code>kernel.n_regs</code> and <code>kernel.n_spills</code> on the compiled kernel, or the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Compiler explorer</a>.</li>
+<li><code>cuobjdump -sass</code>: <code>LDL</code>/<code>STL</code> mean local memory; <code>LDG.E.128</code> means vectorised; <code>LDGSTS</code> means asynchronous copy; <code>.CONSTANT</code> means the read-only path. This page's <a href="#" data-tab="t-sass">Memory instructions</a> tab has every example.</li>
+<li>Nsight Compute: Memory Workload Analysis (sectors per request, shared-memory wavefronts against ideal, L1/L2 hit rates), Speed of Light (fraction of peak memory and compute: the roofline position). From NVIDIA's docs; not run here.</li>
+<li>Back-of-envelope first: bytes and FLOPs by hand, then section 8's recipe.</li>
+</ul></div>
+<h3>Interview questions, with short answers</h3>
+<details class="qa"><summary>What does "coalesced" mean, precisely?</summary><div>The 32 addresses of one warp's load fall in as few 32-byte sectors as possible, so the bytes fetched equal the bytes used. Consecutive lanes on consecutive 4-byte words: 4 sectors for 128 bytes. It is about sectors, not about order: any permutation within the same sectors is equally good.</div></details>
+<details class="qa"><summary>A kernel reads a [N, 3] float array of xyz points, one point per thread. What is wrong and how do you fix it?</summary><div>Each lane reads 12 bytes at a 12-byte stride: three narrow loads per lane, misaligned for vector loads, each field read strided. Store x, y, z as separate arrays (struct of arrays), or pad to float4 and load 16 bytes per lane.</div></details>
+<details class="qa"><summary>ptxas says "0 bytes spill stores" but "64 bytes stack frame". What is going on?</summary><div>A local array indexed with a value known only at run time; registers cannot be indexed, so it lives in local memory. Make the indices compile-time constants (unroll, select) or use shared memory.</div></details>
+<details class="qa"><summary>Why would capping registers make a kernel faster, and why might it make it slower?</summary><div>Faster: fewer registers per thread fits more warps per SM, which hides memory latency. Slower: values that no longer fit spill to local memory, adding loads and stores. Which wins depends on whether the kernel was latency-bound; measure.</div></details>
+<details class="qa"><summary>Shared memory tile float[32][32] read by columns: what happens, and give two fixes.</summary><div>All 32 lanes hit the same bank: a 32-way conflict, 32 passes. Pad to [32][33] (row r starts in bank r), or swizzle the column index with XOR of the row (no wasted memory, keeps alignment).</div></details>
+<details class="qa"><summary>What does cp.async (LDGSTS) buy over a normal load followed by a shared-memory store?</summary><div>The data goes global to shared without occupying registers, the thread continues immediately, and with several shared buffers the next tile's copy overlaps this tile's math. The price is shared memory per stage.</div></details>
+<details class="qa"><summary>When is __constant__ memory the right choice?</summary><div>Small read-only data that all lanes of a warp read at the same address at the same time (a scale, coefficients indexed by loop counter). Lanes reading different entries are serialised by the number of distinct addresses.</div></details>
+<details class="qa"><summary>Why does pinned memory matter for a training input pipeline?</summary><div>Copies from pageable memory are staged through a pinned buffer by the driver and cannot run asynchronously; with pinned batches (DataLoader pin_memory=True) and non_blocking=True, the host-to-device copy overlaps the previous step's compute.</div></details>
+<details class="qa"><summary>Your layernorm kernel runs at 85% of DRAM bandwidth. Should you optimise it further?</summary><div>Not its inner loop: it is memory-bound and near the roof. Only moving fewer bytes helps: fuse it with the neighbouring op (residual add, the next matmul's prologue) or use a smaller dtype.</div></details>
+</section>
+</div>
+<div class="tab" id="t-acc" role="tabpanel" hidden>
+<style>
+#t-acc .ctl{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:8px 0}
+#t-acc .ctl label{font-size:13px;display:flex;align-items:center;gap:5px}
+#t-acc .ctl input[type=number]{width:6.5em}
+#t-acc .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-acc .acc-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-acc .acc-chart svg{display:block}
+#t-acc .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-acc .meas{font-size:11.5px;color:var(--good);font-weight:600}
+</style>
+<h2 style="margin-top:14px">Access lab: count what one warp's access costs</h2>
+<p>Type any access pattern and see what NVIDIA's documented rules make of it. Global memory: 32-byte sectors per warp-wide load (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.4.1</a>). Shared memory: 32 banks of 4 bytes, one distinct word per bank per pass, same word broadcast (2.3.4.2). Both models are checked against a Python reference on 1,000 patterns (<code>src/check/check_js.mjs</code>). They count transactions, not time: caches, other warps and DRAM pages decide how much a wasted sector costs, as the <a href="#" data-tab="t-read">Reading</a> tab's M1 measurements show.</p>
+
+<div class="card">
+<h3 style="margin-top:0">Global memory: one warp-wide load</h3>
+<div class="ctl">
+<label>Preset <select id="acc-gpre"></select></label>
+<label>Bytes per lane <select id="acc-gw"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>16</option></select></label>
+<label>Lane stride (bytes) <input id="acc-gs" type="number" min="0" max="65536" step="1" value="4"></label>
+<label>Start offset (bytes) <input id="acc-go" type="number" min="0" max="4096" step="1" value="0"></label>
+</div>
+<div class="acc-chart" id="acc-gsvg"></div>
+<div class="an-cnt" id="acc-gout"></div>
+<p class="small mute" id="acc-gnote"></p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Shared memory: one warp's access, bank by bank</h3>
+<div class="ctl">
+<label>Pattern <select id="acc-smode"><option value="stride">lane l reads element l &times; s</option><option value="col">lane l reads column c of a 32 &times; 32 float tile</option></select></label>
+<span id="acc-sstride"><label>Element bytes <select id="acc-sw"><option>4</option><option>8</option><option selected>16</option></select></label>
+<label>Stride s (elements) <input id="acc-ss" type="number" min="0" max="64" step="1" value="8"></label></span>
+<span id="acc-scol" hidden><label>Layout <select id="acc-slay"><option value="plain">plain [32][32]</option><option value="pad">padded [32][33]</option><option value="xor">XOR swizzle c ^ r</option></select></label>
+<label>Column c <input id="acc-sc" type="number" min="0" max="31" step="1" value="0"></label></span>
+</div>
+<div class="acc-chart" id="acc-ssvg"></div>
+<div class="an-cnt" id="acc-sout"></div>
+<p class="small mute" id="acc-snote"></p>
+<p class="small mute">Each box is one distinct word a bank must deliver, stacked by pass: blue boxes fit within the ideal number of passes, orange ones are extra. For 8- and 16-byte elements the pass count is the floor that the 32-bit rule implies (each bank delivers 4 bytes per pass, so 32 lanes &times; 16 bytes need at least 4 passes). NVIDIA's guide documents 16-byte accesses as groups of eight lanes (its TMA swizzle example) but does not spell out the split for 8-byte accesses; this lab does not model the split, only the bank load. <span class="meas">measured on Apple M1 Pro GPU</span> for comparison, 16-byte elements at strides 1, 2, 4, 8, 9: <span id="acc-sm1"></span> GB/s.</p>
+</div>
+</div>
+<div class="tab" id="t-sass" role="tabpanel" hidden>
+<style>
+#t-sass .ctl{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:8px 0}
+#t-sass .ctl label{font-size:13px;display:flex;align-items:center;gap:5px;max-width:100%;min-width:0}#t-sass .ctl select{max-width:100%;min-width:0}
+#t-sass pre{font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:6px 0;white-space:pre}
+#t-sass pre b{color:var(--acc);font-weight:600}
+#t-sass .der{font-size:11.5px;color:var(--c5);font-weight:600}
+</style>
+<h2 style="margin-top:14px">Memory instructions: every kernel on this page, compiled</h2>
+<p>The seven CUDA files behind the Reading tab, compiled with <span id="sx-nvcc"></span> inside the topic's Docker image (no GPU needed to compile) for sm_80 (A100), sm_90a (H100) and sm_120 (RTX 5090), with <code>-O3 -Xptxas -v</code>. For each kernel: what ptxas reports, and the memory instructions in program order (loads, stores, shared-memory and constant-bank accesses, barriers). <span class="der">compiled here</span>; scripts in <code>src/code/compile_all.sh</code>, raw reports in <code>src/out/cc/</code>. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Compiler explorer</a> has full SASS with source lines for its own kernels.</p>
+<div class="ctl"><label>File <select id="sx-file"></select></label><label>Target <select id="sx-arch"><option value="sm_80">sm_80</option><option value="sm_90a" selected>sm_90a</option><option value="sm_120">sm_120</option></select></label></div>
+<div class="tw" id="sx-tbl"></div>
+<div id="sx-sass"></div>
+<h3>Source</h3>
+<pre id="sx-src"></pre>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<section id="s-more">
+<p class="lead" style="margin-top:14px">The tabs of this page, the knowledge base pages it leans on, and the best outside resources, each with an approximate time. Links checked on 2026-10-05.</p>
+<h3>This page</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="#" data-tab="t-acc">Access lab</a></div><p>Type any global or shared-memory access pattern and count sectors, passes and conflicts by NVIDIA's rules. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-sass">Memory instructions</a></div><p>The seven kernels behind the Reading tab, compiled for sm_80, sm_90a and sm_120: ptxas reports and memory instructions. <span class="rt">10 min</span></p></div>
+</div>
+<h3>The parent and siblings</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a></div><p>The root: one softmax and a multiply by V followed from PyTorch to the instructions. Section 3 is this page in one screen; its GPU simulator tab has the stride, bank-conflict, transpose, occupancy, latency and tiling simulators; its Compiler explorer has full SASS; its Kernel lab the M1 softmax and matmul ladders. <span class="rt">35 min Reading</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a></div><p>Threads, warps, blocks, launches and occupancy: the execution side of everything here. <span class="rt">sibling</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a></div><p>Reductions, softmax, the tiled matmul ladder, fusion and FlashAttention: these memory rules put to work. <span class="rt">sibling</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a></div><p>Block-level kernels where the compiler chooses layouts, swizzles and stages for you. <span class="rt">sibling</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a></div><p>CUTLASS and CuTe layouts, ldmatrix, TMA and the warp-specialised pipelines. <span class="rt">sibling</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a></div><p>Nsight Compute's memory tables and Speed of Light, and honest timing. <span class="rt">sibling</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a></div><p>PTX against SASS, and how to read a disassembly like the ones on this page. <span class="rt">sibling</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a></div><p>Overlapping pinned-memory copies with compute. <span class="rt">sibling</span></p></div>
+</div>
+<h3>Other knowledge base pages</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a></div><p>SRAM against DRAM, HBM and GDDR physically, and this laptop's GPU cache ladder and DRAM latency measured. <span class="rt">40 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a></div><p>The SM, the memory ladder inside the chip and the copy engines (async copy, TMA, clusters, TMEM). <span class="rt">45 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a></div><p>The roofline as a model, ridge points per chip, MFU. <span class="rt">35 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b" target="_blank" rel="noopener noreferrer">Virtual memory</a></div><p>Pages, the TLB, and locked and pinned memory (section 9). <span class="rt">60 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a></div><p>PyTorch's CUDA caching allocator, simulated from its source. <span class="rt">50 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a></div><p>GPU memory from the operating system's side: managed memory faults, pinned memory, GPUDirect. <span class="rt">55 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++: the machine underneath</a></div><p>The same ideas on a CPU: caches, SIMD and a measured roofline on the M1's CPU. <span class="rt">Part 2</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381" target="_blank" rel="noopener noreferrer">FlashAttention (paper page)</a></div><p>The IO-aware tiling argument: an algorithm designed from the memory hierarchy. <span class="rt">30 min</span></p></div>
+</div>
+<h3>Best outside resources</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide: writing kernels, memory spaces and access patterns</a></div><p>NVIDIA's rules for coalescing, banks, local and constant memory (v13.4.2). <span class="rt">45 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html" target="_blank" rel="noopener noreferrer">CUDA C++ Best Practices Guide, memory optimizations</a></div><p>Pinned memory, misaligned and strided access measured, L2 windows, constant and texture memory. <span class="rt">60 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html" target="_blank" rel="noopener noreferrer">Programming Guide 4.12: asynchronous data copies</a></div><p>LDGSTS, TMA and swizzle modes with complete examples. <span class="rt">60 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener noreferrer">PTX ISA: cache operators</a></div><p>Section 9.7.10: what .ca, .cg, .cs, .lu, .cv and .wt mean. <span class="rt">15 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://siboehm.com/articles/22/CUDA-MMM" target="_blank" rel="noopener noreferrer">Simon Boehm, How to Optimize a CUDA Matmul Kernel</a></div><p>Coalescing, shared-memory tiles, register tiles and vector loads, measured step by step on an A6000. <span class="rt">90 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://horace.io/brrr_intro.html" target="_blank" rel="noopener noreferrer">Horace He, Making Deep Learning Go Brrrr From First Principles</a></div><p>Compute-bound, memory-bound and overhead-bound, for ML people. <span class="rt">25 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/cuda-pro-tip-increase-performance-with-vectorized-memory-access/" target="_blank" rel="noopener noreferrer">CUDA Pro Tip: vectorized memory access</a></div><p>float2 and float4 loads, alignment, and when not to. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html" target="_blank" rel="noopener noreferrer">PyTorch: non_blocking and pin_memory</a></div><p>Pinned memory and asynchronous copies in PyTorch, measured, with the traps. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2402.13499" target="_blank" rel="noopener noreferrer">Luo et al., Benchmarking and Dissecting the Nvidia Hopper GPU Architecture</a></div><p>Independent latencies and bandwidths of every memory level on A100, H800 and RTX 4090. <span class="rt">60 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://modal.com/gpu-glossary" target="_blank" rel="noopener noreferrer">Modal GPU Glossary</a></div><p>Short, accurate definitions of every term on this page. <span class="rt">45 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://dl.acm.org/doi/10.1145/1498765.1498785" target="_blank" rel="noopener noreferrer">Williams, Waterman and Patterson, Roofline</a></div><p>The original roofline paper (CACM 2009). <span class="rt">45 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://shop.elsevier.com/books/programming-massively-parallel-processors/hwu/978-0-443-43900-1" target="_blank" rel="noopener noreferrer">Programming Massively Parallel Processors, 5th ed.</a></div><p>Chapters on memory architecture and tiling (Hwu, Kirk, El Hajj). <span class="rt">90 min for those chapters</span></p></div>
+</div>
+</section>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers, copied from Topic: hardware and the step-animation controller (play, pause, step, scrub, speed) ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_data.js */
+// Generated by code/summarize.py from out/run_*.json and out/cc/ (do not edit by hand)
+window.MHD={"lab":{"mm_mlx":{"bytes":50331648,"flops":17179869184,"ms":4.244,"name":"MLX library A @ B"},"mm_naive":{"bytes":50331648,"flops":17179869184,"ms":47.533,"name":"M2 naive, coalesced"},"mm_reg":{"bytes":50331648,"flops":17179869184,"ms":10.519,"name":"M5 4x4 outputs per thread (registers)"},"softmax_eager":{"bytes":536870912,"flops":335544320,"ms":13.08,"name":"eager: 5 separate kernels"},"softmax_fused":{"bytes":536870912,"flops":335544320,"ms":3.273,"name":"S6 row held in registers (1 pass)"}},"m1":{"aos":[{"footprint_bytes":536870912,"moved_bytes":603979776,"ms":3.659,"ms_hi":3.957,"ms_lo":3.633,"name":"AoS, read field x","rate":165.1,"rate_hi":166.2,"rate_lo":152.7,"unit":"gbps_moved","useful_bytes":67108864},{"footprint_bytes":67108864,"moved_bytes":134217728,"ms":1.028,"ms_hi":1.108,"ms_lo":0.959,"name":"SoA, read array x","rate":130.5,"rate_hi":140.0,"rate_lo":121.2,"unit":"gbps_moved","useful_bytes":67108864},{"footprint_bytes":536870912,"moved_bytes":603979776,"ms":3.663,"ms_hi":3.925,"ms_lo":3.579,"name":"AoS, read all 8 fields","rate":164.9,"rate_hi":168.8,"rate_lo":153.9,"unit":"gbps_moved","useful_bytes":536870912}],"local":[{"dynamic":1,"ms":7.082,"ms_hi":7.105,"ms_lo":7.056,"name":"run-time index h[b] += 1","rate":37.9,"rate_hi":38.0,"rate_lo":37.8,"unit":"gupdates_per_s"},{"dynamic":0,"ms":4.488,"ms_hi":4.503,"ms_lo":4.479,"name":"constant indices only (16 selects)","rate":59.8,"rate_hi":59.9,"rate_lo":59.6,"unit":"gupdates_per_s"}],"roof":[{"F":1,"ai":1.35,"bytes":335544320,"flops":452984832,"gbps":156.3,"ms":2.146,"ms_hi":2.148,"ms_lo":2.126,"name":"F = 1","rate":211.1,"rate_hi":213.1,"rate_lo":210.9,"unit":"gflops"},{"F":2,"ai":2.15,"bytes":335544320,"flops":721420288,"gbps":157.5,"ms":2.13,"ms_hi":2.405,"ms_lo":2.122,"name":"F = 2","rate":338.7,"rate_hi":340.0,"rate_lo":300.0,"unit":"gflops"},{"F":4,"ai":3.75,"bytes":335544320,"flops":1258291200,"gbps":154.0,"ms":2.179,"ms_hi":2.368,"ms_lo":2.064,"name":"F = 4","rate":577.4,"rate_hi":609.8,"rate_lo":531.4,"unit":"gflops"},{"F":8,"ai":6.95,"bytes":335544320,"flops":2332033024,"gbps":157.5,"ms":2.13,"ms_hi":2.2,"ms_lo":2.102,"name":"F = 8","rate":1094.7,"rate_hi":1109.3,"rate_lo":1059.9,"unit":"gflops"},{"F":16,"ai":13.35,"bytes":335544320,"flops":4479516672,"gbps":156.0,"ms":2.151,"ms_hi":2.235,"ms_lo":2.099,"name":"F = 16","rate":2082.8,"rate_hi":2134.4,"rate_lo":2004.4,"unit":"gflops"},{"F":32,"ai":26.15,"bytes":335544320,"flops":8774483968,"gbps":153.9,"ms":2.181,"ms_hi":2.658,"ms_lo":2.134,"name":"F = 32","rate":4023.9,"rate_hi":4111.0,"rate_lo":3301.8,"unit":"gflops"},{"F":64,"ai":51.75,"bytes":335544320,"flops":17364418560,"gbps":89.2,"ms":3.761,"ms_hi":3.826,"ms_lo":3.72,"name":"F = 64","rate":4616.7,"rate_hi":4668.2,"rate_lo":4538.6,"unit":"gflops"},{"F":128,"ai":102.95,"bytes":335544320,"flops":34544287744,"gbps":45.9,"ms":7.311,"ms_hi":7.32,"ms_lo":7.274,"name":"F = 128","rate":4724.9,"rate_hi":4748.8,"rate_lo":4718.9,"unit":"gflops"},{"F":256,"ai":205.35,"bytes":335544320,"flops":68904026112,"gbps":23.8,"ms":14.125,"ms_hi":14.297,"ms_lo":14.072,"name":"F = 256","rate":4878.1,"rate_hi":4896.5,"rate_lo":4819.4,"unit":"gflops"},{"F":512,"ai":410.15,"bytes":335544320,"flops":137623502848,"gbps":12.1,"ms":27.83,"ms_hi":27.841,"ms_lo":27.743,"name":"F = 512","rate":4945.2,"rate_hi":4960.7,"rate_lo":4943.2,"unit":"gflops"},{"F":1024,"ai":819.75,"bytes":335544320,"flops":275062456320,"gbps":6.1,"ms":55.103,"ms_hi":55.126,"ms_lo":54.952,"name":"F = 1024","rate":4991.8,"rate_hi":5005.5,"rate_lo":4989.7,"unit":"gflops"}],"tgwide":[{"bytes_per_access":4,"ms":0.484,"ms_hi":0.747,"ms_lo":0.427,"name":"4-byte elements, lane stride 1","rate":1108.3,"rate_hi":1258.2,"rate_lo":718.3,"stride":1,"unit":"gbytes_per_s"},{"bytes_per_access":4,"ms":0.583,"ms_hi":0.782,"ms_lo":0.434,"name":"4-byte elements, lane stride 2","rate":920.5,"rate_hi":1237.4,"rate_lo":686.8,"stride":2,"unit":"gbytes_per_s"},{"bytes_per_access":4,"ms":0.703,"ms_hi":0.881,"ms_lo":0.457,"name":"4-byte elements, lane stride 4","rate":763.2,"rate_hi":1174.7,"rate_lo":609.1,"stride":4,"unit":"gbytes_per_s"},{"bytes_per_access":4,"ms":1.143,"ms_hi":1.43,"ms_lo":0.818,"name":"4-byte elements, lane stride 8","rate":469.7,"rate_hi":656.4,"rate_lo":375.6,"stride":8,"unit":"gbytes_per_s"},{"bytes_per_access":4,"ms":1.5,"ms_hi":1.521,"ms_lo":1.302,"name":"4-byte elements, lane stride 32","rate":357.9,"rate_hi":412.2,"rate_lo":352.9,"stride":32,"unit":"gbytes_per_s"},{"bytes_per_access":4,"ms":0.466,"ms_hi":0.528,"ms_lo":0.452,"name":"4-byte elements, lane stride 33","rate":1152.8,"rate_hi":1187.2,"rate_lo":1017.5,"stride":33,"unit":"gbytes_per_s"},{"bytes_per_access":8,"ms":0.729,"ms_hi":1.105,"ms_lo":0.678,"name":"8-byte elements, lane stride 1","rate":1472.5,"rate_hi":1584.3,"rate_lo":972.0,"stride":1,"unit":"gbytes_per_s"},{"bytes_per_access":8,"ms":0.773,"ms_hi":1.466,"ms_lo":0.682,"name":"8-byte elements, lane stride 2","rate":1389.5,"rate_hi":1575.1,"rate_lo":732.4,"stride":2,"unit":"gbytes_per_s"},{"bytes_per_access":8,"ms":0.845,"ms_hi":1.206,"ms_lo":0.739,"name":"8-byte elements, lane stride 4","rate":1271.2,"rate_hi":1453.0,"rate_lo":890.0,"stride":4,"unit":"gbytes_per_s"},{"bytes_per_access":8,"ms":1.146,"ms_hi":1.642,"ms_lo":1.124,"name":"8-byte elements, lane stride 8","rate":937.1,"rate_hi":955.6,"rate_lo":653.9,"stride":8,"unit":"gbytes_per_s"},{"bytes_per_access":8,"ms":2.024,"ms_hi":2.038,"ms_lo":2.011,"name":"8-byte elements, lane stride 16","rate":530.5,"rate_hi":533.8,"rate_lo":526.8,"stride":16,"unit":"gbytes_per_s"},{"bytes_per_access":8,"ms":0.677,"ms_hi":0.712,"ms_lo":0.674,"name":"8-byte elements, lane stride 17","rate":1585.6,"rate_hi":1594.2,"rate_lo":1507.3,"stride":17,"unit":"gbytes_per_s"},{"bytes_per_access":16,"ms":1.135,"ms_hi":1.142,"ms_lo":1.124,"name":"16-byte elements, lane stride 1","rate":1892.7,"rate_hi":1909.7,"rate_lo":1879.8,"stride":1,"unit":"gbytes_per_s"},{"bytes_per_access":16,"ms":1.36,"ms_hi":1.381,"ms_lo":1.357,"name":"16-byte elements, lane stride 2","rate":1578.7,"rate_hi":1582.1,"rate_lo":1555.2,"stride":2,"unit":"gbytes_per_s"},{"bytes_per_access":16,"ms":2.047,"ms_hi":2.142,"ms_lo":2.031,"name":"16-byte elements, lane stride 4","rate":1049.3,"rate_hi":1057.4,"rate_lo":1002.6,"stride":4,"unit":"gbytes_per_s"},{"bytes_per_access":16,"ms":3.801,"ms_hi":3.852,"ms_lo":3.796,"name":"16-byte elements, lane stride 8","rate":565.0,"rate_hi":565.8,"rate_lo":557.5,"stride":8,"unit":"gbytes_per_s"},{"bytes_per_access":16,"ms":1.127,"ms_hi":1.131,"ms_lo":1.108,"name":"16-byte elements, lane stride 9","rate":1904.9,"rate_hi":1938.1,"rate_lo":1899.5,"stride":9,"unit":"gbytes_per_s"}],"widths":[{"bytes":536870912,"bytes_per_access":4,"ms":3.304,"ms_hi":3.395,"ms_lo":3.221,"name":"4-byte accesses","rate":162.5,"rate_hi":166.7,"rate_lo":158.2,"unit":"gbps"},{"bytes":536870912,"bytes_per_access":8,"ms":3.681,"ms_hi":3.699,"ms_lo":3.17,"name":"8-byte accesses","rate":145.9,"rate_hi":169.4,"rate_lo":145.1,"unit":"gbps"},{"bytes":536870912,"bytes_per_access":16,"ms":3.414,"ms_hi":3.491,"ms_lo":3.344,"name":"16-byte accesses","rate":157.3,"rate_hi":160.5,"rate_lo":153.8,"unit":"gbps"}]},"meta":{"dates":["2026-10-05 20:43","2026-10-05 20:43","2026-10-05 20:44"],"device":"Apple M1 Pro","load":[9.2,9.8],"mlx":"0.32.3"},"nvcc":["Cuda compilation tools, release 13.4, V13.4.92","Build cuda_13.4.r13.4/compiler.38855100_0"],"ptxas":{"m1_widths":{"sm_120":{"copy_f1":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"copy_f2":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"copy_f4":{"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"field_aos":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"field_soa":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_80":{"copy_f1":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"copy_f2":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"copy_f4":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"field_aos":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"field_soa":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_90a":{"copy_f1":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"copy_f2":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"copy_f4":{"regs":14,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"field_aos":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"field_soa":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}}},"m2_cacheops":{"sm_120":{"ld_ldcg":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldcs":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldcv":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldg":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldlu":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_plain":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_restrict":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"st_stcs":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"st_stwt":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_80":{"ld_ldcg":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldcs":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldcv":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldg":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldlu":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_plain":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_restrict":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"st_stcs":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"st_stwt":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_90a":{"ld_ldcg":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldcs":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldcv":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldg":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_ldlu":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_plain":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"ld_restrict":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"st_stcs":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"st_stwt":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}}},"m3_regcap":{"sm_120":{"acc128":{"regs":160,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_80":{"acc128":{"regs":158,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_90a":{"acc128":{"regs":160,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}}},"m4_dynidx":{"sm_120":{"hist_dynamic":{"regs":22,"smem":0,"spill_ld":0,"spill_st":0,"stack":64},"hist_select":{"regs":35,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_80":{"hist_dynamic":{"regs":22,"smem":0,"spill_ld":0,"spill_st":0,"stack":64},"hist_select":{"regs":30,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_90a":{"hist_dynamic":{"regs":22,"smem":0,"spill_ld":0,"spill_st":0,"stack":64},"hist_select":{"regs":30,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}}},"m5_const":{"sm_120":{"const_fixed":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"const_perlane":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"const_uniform":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"param_struct":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_80":{"const_fixed":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"const_perlane":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"const_uniform":{"regs":9,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"param_struct":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sm_90a":{"const_fixed":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"const_perlane":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"const_uniform":{"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"param_struct":{"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}}},"m6_shared":{"sm_120":{"smem_dynamic":{"regs":16,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"smem_static":{"regs":16,"smem":4224,"spill_ld":0,"spill_st":0,"stack":0},"smem_swizzle":{"regs":14,"smem":4096,"spill_ld":0,"spill_st":0,"stack":0}},"sm_80":{"smem_dynamic":{"regs":16,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"smem_static":{"regs":13,"smem":4224,"spill_ld":0,"spill_st":0,"stack":0},"smem_swizzle":{"regs":14,"smem":4096,"spill_ld":0,"spill_st":0,"stack":0}},"sm_90a":{"smem_dynamic":{"regs":18,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"smem_static":{"regs":14,"smem":4224,"spill_ld":0,"spill_st":0,"stack":0},"smem_swizzle":{"regs":13,"smem":4096,"spill_ld":0,"spill_st":0,"stack":0}}},"m7_async":{"sm_120":{"tile_async2":{"regs":32,"smem":8192,"spill_ld":0,"spill_st":0,"stack":0},"tile_sync":{"regs":40,"smem":4096,"spill_ld":0,"spill_st":0,"stack":0}},"sm_80":{"tile_async2":{"regs":31,"smem":8192,"spill_ld":0,"spill_st":0,"stack":0},"tile_sync":{"regs":28,"smem":4096,"spill_ld":0,"spill_st":0,"stack":0}},"sm_90a":{"tile_async2":{"regs":31,"smem":8192,"spill_ld":0,"spill_st":0,"stack":0},"tile_sync":{"regs":32,"smem":4096,"spill_ld":0,"spill_st":0,"stack":0}}}},"regcap":[{"cap":32,"sm_120":{"regs":32,"smem":0,"spill_ld":1848,"spill_st":1848,"stack":952},"sm_80":{"regs":32,"smem":0,"spill_ld":1516,"spill_st":1516,"stack":624},"sm_90a":{"regs":32,"smem":0,"spill_ld":1240,"spill_st":1240,"stack":576}},{"cap":64,"sm_120":{"regs":64,"smem":0,"spill_ld":976,"spill_st":976,"stack":584},"sm_80":{"regs":64,"smem":0,"spill_ld":1024,"spill_st":1024,"stack":472},"sm_90a":{"regs":64,"smem":0,"spill_ld":592,"spill_st":592,"stack":304}},{"cap":96,"sm_120":{"regs":96,"smem":0,"spill_ld":336,"spill_st":336,"stack":176},"sm_80":{"regs":96,"smem":0,"spill_ld":640,"spill_st":640,"stack":344},"sm_90a":{"regs":96,"smem":0,"spill_ld":336,"spill_st":336,"stack":176}},{"cap":128,"sm_120":{"regs":128,"smem":0,"spill_ld":72,"spill_st":72,"stack":40},"sm_80":{"regs":128,"smem":0,"spill_ld":108,"spill_st":108,"stack":72},"sm_90a":{"regs":128,"smem":0,"spill_ld":84,"spill_st":84,"stack":56}},{"cap":160,"sm_120":{"regs":156,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_80":{"regs":154,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_90a":{"regs":154,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},{"cap":192,"sm_120":{"regs":188,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_80":{"regs":184,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_90a":{"regs":192,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},{"cap":224,"sm_120":{"regs":218,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_80":{"regs":214,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_90a":{"regs":224,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},{"cap":255,"sm_120":{"regs":245,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_80":{"regs":242,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_90a":{"regs":255,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}}],"regcap_default":{"sm_120":{"regs":160,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_80":{"regs":158,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"sm_90a":{"regs":160,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"sass":{"const_fixed":{"sm_120":["LDCU UR6, c[0x3][0xc]","LDC R5, c[0x3][0x10]","FFMA R5, R0, UR6, R5"],"sm_80":["MOV R1, c[0x0][0x28]","ULDC.64 UR4, c[0x0][0x118]","IMAD R2, R2, c[0x0][0x0], R3","IMAD.WIDE R2, R2, R5, c[0x0][0x160]","MOV R5, c[0x3][0xc]","FFMA R5, R0, R5, c[0x3][0x10]"],"sm_90a":["LDC R1, c[0x0][0x28]","ULDC UR6, c[0x3][0xc]","LDC.64 R2, c[0x0][0x210]","ULDC.64 UR4, c[0x0][0x208]","LDC R5, c[0x3][0x10]","FFMA R5, R0, UR6, R5"]},"const_perlane":{"sm_120":["LDC R5, c[0x3][R4]","FMUL R5, R0, R5"],"sm_80":["MOV R1, c[0x0][0x28]","ULDC.64 UR4, c[0x0][0x118]","IMAD R2, R2, c[0x0][0x0], R5","IMAD.WIDE R2, R2, R3, c[0x0][0x160]","LDC R5, c[0x3][R4]","FMUL R5, R0, R5"],"sm_90a":["LDC R1, c[0x0][0x28]","LDC.64 R2, c[0x0][0x210]","ULDC.64 UR4, c[0x0][0x208]","LDC R5, c[0x3][R4]","FMUL R5, R0, R5"]},"const_uniform":{"sm_120":["LDC R5, c[0x3][R4]","LDC R7, c[0x3][R4+0x4]","FFMA R5, R0, R5, R7"],"sm_80":["MOV R1, c[0x0][0x28]","ULDC.64 UR4, c[0x0][0x118]","IMAD R2, R2, c[0x0][0x0], R3","IMAD.WIDE R2, R2, R5, c[0x0][0x160]","IMAD R4, R5, c[0x0][0x168], RZ","LDC R5, c[0x3][R4]","LDC R6, c[0x3][R4+0x4]","FFMA R5, R0, R5, R6"],"sm_90a":["LDC R1, c[0x0][0x28]","LDC.64 R2, c[0x0][0x210]","LDC R4, c[0x0][0x218]","ULDC.64 UR4, c[0x0][0x208]","LDC R5, c[0x3][R4]","LDC R7, c[0x3][R4+0x4]","FFMA R5, R0, R5, R7"]},"copy_f1":{"sm_120":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.CONSTANT R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"copy_f2":{"sm_120":["LDG.E.64.CONSTANT R4, desc[UR4][R4.64]","STG.E.64 desc[UR4][R2.64], R4"],"sm_80":["LDG.E.64.CONSTANT R4, [R4.64]","STG.E.64 [R2.64], R4"],"sm_90a":["LDG.E.64.CONSTANT R4, desc[UR4][R4.64]","STG.E.64 desc[UR4][R2.64], R4"]},"copy_f4":{"sm_120":["LDG.E.128.CONSTANT R4, desc[UR4][R4.64]","STG.E.128 desc[UR4][R2.64], R4"],"sm_80":["LDG.E.128.CONSTANT R4, [R4.64]","STG.E.128 [R2.64], R4"],"sm_90a":["LDG.E.128.CONSTANT R8, desc[UR4][R4.64]","STG.E.128 desc[UR4][R2.64], R8"]},"field_aos":{"sm_120":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.CONSTANT R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"field_soa":{"sm_120":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.CONSTANT R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"hist_dynamic":{"sm_120":["STL.128 [R1], RZ","STL.128 [R1+0x10], RZ","STL.128 [R1+0x20], RZ","STL.128 [R1+0x30], RZ","LDL R6, [R13+UR7]","STL [R13+UR7], R6","LDL R8, [R11+UR7]","STL [R11+UR7], R8","LDL R9, [R12+UR7]","STL [R12+UR7], R9","LDL R6, [R15+UR7]","STL [R15+UR7], R6"],"sm_80":["STL.128 [R1], RZ","STL.128 [R1+0x10], RZ","STL.128 [R1+0x20], RZ","STL.128 [R1+0x30], RZ","LDL R9, [R16]","STL [R16], R9","LDL R10, [R13]","STL [R13], R10","LDL R11, [R14]","STL [R14], R11","LDL R2, [R9]","STL [R9], R2"],"sm_90a":["STL.128 [R1], RZ","STL.128 [R1+0x10], RZ","STL.128 [R1+0x20], RZ","STL.128 [R1+0x30], RZ","LDL R11, [R18]","STL [R18], R11","LDL R12, [R15]","STL [R15], R12","LDL R13, [R16]","STL [R16], R13","LDL R2, [R11]","STL [R11], R2"]},"hist_select":{"sm_120":["LDG.E.CONSTANT R25, desc[UR6][R4.64+-0x4000]","LDG.E.CONSTANT R24, desc[UR6][R4.64]","FADD R16, R25, R16","FADD R22, R27, R22","FADD R13, R26, R13","FADD R12, R25, R12"],"sm_80":["LDG.E.CONSTANT R24, [R22.64]","LDG.E.CONSTANT R21, [R22.64+0x4000]","FADD R20, R25, R20","FADD R19, R26, R19","FADD R18, R25, R18","FADD R17, R22, R17"],"sm_90a":["LDG.E.CONSTANT R24, desc[UR4][R22.64]","LDG.E.CONSTANT R21, desc[UR4][R22.64+0x4000]","FADD R20, R25, R20","FADD R19, R26, R19","FADD R18, R25, R18","FADD R17, R22, R17"]},"ld_ldcg":{"sm_120":["LDG.E.STRONG.GPU R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.STRONG.GPU R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.STRONG.GPU R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"ld_ldcs":{"sm_120":["LDG.E.EF R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.EF R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.EF R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"ld_ldcv":{"sm_120":["LDG.E.STRONG.SYS R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.STRONG.SYS R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.STRONG.SYS R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"ld_ldg":{"sm_120":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.CONSTANT R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"ld_ldlu":{"sm_120":["LDG.E.LU R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.LU R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.LU R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"ld_plain":{"sm_120":["LDG.E R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"ld_restrict":{"sm_120":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"],"sm_80":["LDG.E.CONSTANT R3, [R2.64]","STG.E [R4.64], R3"],"sm_90a":["LDG.E.CONSTANT R3, desc[UR4][R2.64]","STG.E desc[UR4][R4.64], R3"]},"param_struct":{"sm_120":["FFMA R5, R0, R4, R5"],"sm_80":["MOV R1, c[0x0][0x28]","IMAD R2, R2, c[0x0][0x0], R3","ISETP.GE.AND P0, PT, R2, c[0x0][0x170], PT","ULDC.64 UR4, c[0x0][0x118]","IMAD.WIDE R2, R2, R3, c[0x0][0x160]","MOV R5, c[0x0][0x168]","FFMA R5, R0, R5, c[0x0][0x16c]"],"sm_90a":["LDC R1, c[0x0][0x28]","ULDC UR4, c[0x0][0x0]","ULDC UR4, c[0x0][0x220]","LDC.64 R2, c[0x0][0x210]","ULDC.64 UR4, c[0x0][0x208]","LDC.64 R4, c[0x0][0x218]","FFMA R5, R0, R4, R5"]},"smem_dynamic":{"sm_120":["LDG.E.128.CONSTANT R4, desc[UR6][R4.64]","STS.128 [R9], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R4, [R4]","STG.E.128 desc[UR6][R2.64], R4"],"sm_80":["LDG.E.128.CONSTANT R4, [R4.64]","STS.128 [R12.X16], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R8, [R8]","STG.E.128 [R2.64], R8"],"sm_90a":["LDG.E.128.CONSTANT R4, desc[UR6][R4.64]","STS.128 [R8], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R12, [R9]","STG.E.128 desc[UR6][R2.64], R12"]},"smem_static":{"sm_120":["LDG.E.CONSTANT R4, desc[UR4][R2.64]","STS [R5], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS R7, [R7]","STG.E desc[UR4][R2.64], R7"],"sm_80":["LDG.E.CONSTANT R2, [R2.64]","STS [R9.X4], R2","BAR.SYNC.DEFER_BLOCKING 0x0","LDS R7, [R7.X4]","STG.E [R4.64], R7"],"sm_90a":["LDG.E.CONSTANT R0, desc[UR4][R2.64]","STS [R5], R0","BAR.SYNC.DEFER_BLOCKING 0x0","LDS R7, [R4]","STG.E desc[UR4][R2.64], R7"]},"smem_swizzle":{"sm_120":["LDG.E.CONSTANT R4, desc[UR6][R2.64]","STS [R5], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS R7, [R7]","STG.E desc[UR6][R2.64], R7"],"sm_80":["LDG.E.CONSTANT R0, [R2.64]","STS [R5], R0","BAR.SYNC.DEFER_BLOCKING 0x0","LDS R7, [R4]","STG.E [R2.64], R7"],"sm_90a":["LDG.E.CONSTANT R0, desc[UR6][R2.64]","STS [R5], R0","BAR.SYNC.DEFER_BLOCKING 0x0","LDS R7, [R7]","STG.E desc[UR6][R2.64], R7"]},"st_stcs":{"sm_120":["LDG.E R5, desc[UR4][R4.64]","STG.E.EF desc[UR4][R2.64], R5"],"sm_80":["LDG.E R5, [R4.64]","STG.E.EF [R2.64], R5"],"sm_90a":["LDG.E R5, desc[UR4][R4.64]","STG.E.EF desc[UR4][R2.64], R5"]},"st_stwt":{"sm_120":["LDG.E R5, desc[UR4][R4.64]","STG.E.STRONG.SYS desc[UR4][R2.64], R5"],"sm_80":["LDG.E R5, [R4.64]","STG.E.STRONG.SYS [R2.64], R5"],"sm_90a":["LDG.E R5, desc[UR4][R4.64]","STG.E.STRONG.SYS desc[UR4][R2.64], R5"]},"tile_async2":{"sm_120":["LDGSTS.E.BYPASS.128 [R21], desc[UR8][R2.64]","LDGDEPBAR","@!P1 LDGSTS.E.BYPASS.128 [R21+0x1000], desc[UR8][R8.64]","LDGDEPBAR","DEPBAR.LE SB0, 0x1","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R4, [R24+UR4]","BAR.SYNC.DEFER_BLOCKING 0x0","@!P0 LDGSTS.E.BYPASS.128 [R21], desc[UR8][R12.64]","LDGDEPBAR","DEPBAR.LE SB0, 0x1","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R8, [R24+UR4+0x1000]","BAR.SYNC.DEFER_BLOCKING 0x0","@!P1 LDGSTS.E.BYPASS.128 [R21+0x1000], desc[UR8][R16.64]","LDGDEPBAR"],"sm_80":["LDGSTS.E.BYPASS.128 [R21], [R2.64]","LDGDEPBAR","@!P1 LDGSTS.E.BYPASS.128 [R21+0x1000], [R2.64]","LDGDEPBAR","DEPBAR.LE SB0, 0x1","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R4, [R22.X16]","BAR.SYNC.DEFER_BLOCKING 0x0","@!P1 LDGSTS.E.BYPASS.128 [R21], [R12.64]","LDGDEPBAR","DEPBAR.LE SB0, 0x1","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R8, [R22.X16+0x1000]","BAR.SYNC.DEFER_BLOCKING 0x0","@!P1 LDGSTS.E.BYPASS.128 [R21+0x1000], [R16.64]","LDGDEPBAR"],"sm_90a":["LDGSTS.E.BYPASS.128 [R2], desc[UR6][R4.64]","LDGDEPBAR","@!P2 LDGSTS.E.BYPASS.128 [R2+0x1000], desc[UR6][R8.64]","LDGDEPBAR","DEPBAR.LE SB0, 0x1","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R4, [R23]","BAR.SYNC.DEFER_BLOCKING 0x0","@!P1 LDGSTS.E.BYPASS.128 [R2], desc[UR6][R12.64]","LDGDEPBAR","DEPBAR.LE SB0, 0x1","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R8, [R23+0x1000]","BAR.SYNC.DEFER_BLOCKING 0x0","@!P2 LDGSTS.E.BYPASS.128 [R2+0x1000], desc[UR6][R16.64]","LDGDEPBAR"]},"tile_sync":{"sm_120":["LDG.E.128.CONSTANT R4, desc[UR8][R34.64+-0x4000]","LDG.E.128.CONSTANT R8, desc[UR8][R34.64+-0x3000]","LDG.E.128.CONSTANT R16, desc[UR8][R34.64+-0x2000]","LDG.E.128.CONSTANT R24, desc[UR8][R34.64+-0x1000]","LDG.E.128.CONSTANT R28, desc[UR8][R34.64]","STS.128 [R32], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R4, [R3+UR4]","BAR.SYNC.DEFER_BLOCKING 0x0","STS.128 [R32], R8","BAR.SYNC.DEFER_BLOCKING 0x0","LDG.E.128.CONSTANT R8, desc[UR8][R34.64+0x1000]","LDS.128 R12, [R3+UR4]","BAR.SYNC.DEFER_BLOCKING 0x0","STS.128 [R32], R16","BAR.SYNC.DEFER_BLOCKING 0x0"],"sm_80":["LDG.E.128.CONSTANT R12, [R24.64]","LDG.E.128.CONSTANT R16, [R16.64]","LDG.E.128.CONSTANT R4, [R4.64]","LDG.E.128.CONSTANT R8, [R8.64]","STS.128 [R0.X16], R12","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R12, [R23]","BAR.SYNC.DEFER_BLOCKING 0x0","STS.128 [R0.X16], R16","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R16, [R23]","BAR.SYNC.DEFER_BLOCKING 0x0","STS.128 [R0.X16], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R4, [R23]","BAR.SYNC.DEFER_BLOCKING 0x0"],"sm_90a":["LDG.E.128.CONSTANT R12, desc[UR6][R28.64]","LDG.E.128.CONSTANT R16, desc[UR6][R16.64]","LDG.E.128.CONSTANT R4, desc[UR6][R4.64]","LDG.E.128.CONSTANT R8, desc[UR6][R8.64]","STS.128 [R24], R12","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R12, [R23+UR4]","BAR.SYNC.DEFER_BLOCKING 0x0","STS.128 [R24], R16","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R16, [R23+UR4]","BAR.SYNC.DEFER_BLOCKING 0x0","STS.128 [R24], R4","BAR.SYNC.DEFER_BLOCKING 0x0","LDS.128 R4, [R23+UR4]","BAR.SYNC.DEFER_BLOCKING 0x0"]}},"src":{"m1_widths":"// Load width and layout: the same copy written with 4-, 8- and 16-byte accesses,\n// and one field read from an array of structs (AoS) against a struct of arrays (SoA).\nstruct P8 { float x, y, z, vx, vy, vz, m, q; };   // 32 bytes per particle\nextern \"C\" __global__ void copy_f1(const float* __restrict__ a, float* __restrict__ b, int n) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n) b[i] = a[i]; }\nextern \"C\" __global__ void copy_f2(const float2* __restrict__ a, float2* __restrict__ b, int n2) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n2) b[i] = a[i]; }\nextern \"C\" __global__ void copy_f4(const float4* __restrict__ a, float4* __restrict__ b, int n4) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n4) b[i] = a[i]; }\nextern \"C\" __global__ void field_aos(const P8* __restrict__ p, float* __restrict__ out, int n) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n) out[i] = p[i].x; }\nextern \"C\" __global__ void field_soa(const float* __restrict__ x, float* __restrict__ out, int n) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n) out[i] = x[i]; }\n","m2_cacheops":"// Cache operators: the same load with different hints. Each kernel is one load and one store.\nextern \"C\" __global__ void ld_plain(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; b[i] = a[i]; }\nextern \"C\" __global__ void ld_restrict(const float* __restrict__ a, float* __restrict__ b) { int i = threadIdx.x + blockIdx.x * blockDim.x; b[i] = a[i]; }\nextern \"C\" __global__ void ld_ldg(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; b[i] = __ldg(a + i); }\nextern \"C\" __global__ void ld_ldcg(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; b[i] = __ldcg(a + i); }\nextern \"C\" __global__ void ld_ldcs(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; b[i] = __ldcs(a + i); }\nextern \"C\" __global__ void ld_ldlu(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; b[i] = __ldlu(a + i); }\nextern \"C\" __global__ void ld_ldcv(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; b[i] = __ldcv(a + i); }\nextern \"C\" __global__ void st_stcs(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; __stcs(b + i, a[i]); }\nextern \"C\" __global__ void st_stwt(const float* a, float* b) { int i = threadIdx.x + blockIdx.x * blockDim.x; __stwt(b + i, a[i]); }\n","m3_regcap":"// One kernel, compiled under different register caps (-maxrregcount): each thread keeps\n// 128 running sums, as a register-tiled matmul keeps a 128-element piece of C.\n__constant__ float c_w[128];\nextern \"C\" __global__ void acc128(const float* __restrict__ x, float* __restrict__ y, int K) {\n  float acc[128];\n#pragma unroll\n  for (int j = 0; j < 128; ++j) acc[j] = 0.f;\n  int t = blockIdx.x * blockDim.x + threadIdx.x, T = gridDim.x * blockDim.x;\n  for (int k = 0; k < K; ++k) {\n    float xv = x[k * T + t];\n#pragma unroll\n    for (int j = 0; j < 128; ++j) acc[j] = fmaf(xv, c_w[j], acc[j] * 0.999f);\n  }\n#pragma unroll\n  for (int j = 0; j < 128; ++j) y[j * T + t] = acc[j];\n}\n","m4_dynidx":"// A small per-thread array: indexed with constants after unrolling it lives in registers;\n// indexed with a value known only at run time it must live in local memory (DRAM behind\n// the caches), even though the kernel uses few registers.\nextern \"C\" __global__ void hist_dynamic(const int* __restrict__ bins, float* __restrict__ out, int n) {\n  float h[16];\n#pragma unroll\n  for (int j = 0; j < 16; ++j) h[j] = 0.f;\n  int t = blockIdx.x * blockDim.x + threadIdx.x;\n  for (int k = 0; k < n; ++k) h[bins[k * 4096 + t] & 15] += 1.f;   // run-time index\n#pragma unroll\n  for (int j = 0; j < 16; ++j) out[j * 4096 + t] = h[j];\n}\nextern \"C\" __global__ void hist_select(const int* __restrict__ bins, float* __restrict__ out, int n) {\n  float h[16];\n#pragma unroll\n  for (int j = 0; j < 16; ++j) h[j] = 0.f;\n  int t = blockIdx.x * blockDim.x + threadIdx.x;\n  for (int k = 0; k < n; ++k) {\n    int b = bins[k * 4096 + t] & 15;\n#pragma unroll\n    for (int j = 0; j < 16; ++j) h[j] += (b == j) ? 1.f : 0.f;      // every index a constant\n  }\n#pragma unroll\n  for (int j = 0; j < 16; ++j) out[j * 4096 + t] = h[j];\n}\n","m5_const":"// Constant memory and kernel parameters. A uniform index (every lane the same address)\n// is served as an operand straight from the constant bank; a per-lane index is not.\n__constant__ float c_tab[1024];\nstruct Params { float scale; float bias; int n; };\nextern \"C\" __global__ void const_uniform(float* __restrict__ y, int k) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; y[i] = y[i] * c_tab[k] + c_tab[k + 1]; }\nextern \"C\" __global__ void const_perlane(float* __restrict__ y) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; y[i] = y[i] * c_tab[threadIdx.x]; }\nextern \"C\" __global__ void param_struct(float* __restrict__ y, Params p) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < p.n) y[i] = y[i] * p.scale + p.bias; }\nextern \"C\" __global__ void const_fixed(float* __restrict__ y) {\n  int i = blockIdx.x * blockDim.x + threadIdx.x; y[i] = y[i] * c_tab[3] + c_tab[4]; }   // index known at compile time\n","m6_shared":"// Shared memory declared three ways, and wide shared loads.\nextern \"C\" __global__ void smem_static(const float* __restrict__ a, float* __restrict__ b) {\n  __shared__ float t[32][33];                       // padded transpose tile\n  int x = threadIdx.x, y = threadIdx.y;\n  t[y][x] = a[(blockIdx.y * 32 + y) * 4096 + blockIdx.x * 32 + x];\n  __syncthreads();\n  b[(blockIdx.x * 32 + y) * 4096 + blockIdx.y * 32 + x] = t[x][y];\n}\nextern \"C\" __global__ void smem_swizzle(const float* __restrict__ a, float* __restrict__ b) {\n  __shared__ float t[32][32];                       // XOR swizzle instead of padding\n  int x = threadIdx.x, y = threadIdx.y;\n  t[y][x ^ y] = a[(blockIdx.y * 32 + y) * 4096 + blockIdx.x * 32 + x];\n  __syncthreads();\n  b[(blockIdx.x * 32 + y) * 4096 + blockIdx.y * 32 + x] = t[x][y ^ x];\n}\nextern \"C\" __global__ void smem_dynamic(const float4* __restrict__ a, float4* __restrict__ b, int n4) {\n  extern __shared__ float4 s[];                     // size given at launch: <<<grid, block, bytes>>>\n  int i = threadIdx.x;\n  s[i] = a[blockIdx.x * blockDim.x + i];            // 16-byte store to shared (STS.128)\n  __syncthreads();\n  b[blockIdx.x * blockDim.x + i] = s[(i + 1) % blockDim.x];   // 16-byte load (LDS.128)\n}\n","m7_async":"// Asynchronous copy global -> shared (Ampere and later): the data skips the registers,\n// and the thread can issue the next copy before the first has landed.\n#include <cuda_pipeline.h>\nextern \"C\" __global__ void tile_sync(const float4* __restrict__ a, float* __restrict__ out, int ntiles) {\n  __shared__ float4 s[256];\n  float acc = 0.f;\n  for (int t = 0; t < ntiles; ++t) {\n    s[threadIdx.x] = a[t * 256 + threadIdx.x];      // LDG into a register, then STS\n    __syncthreads();\n    float4 v = s[(threadIdx.x * 7) & 255]; acc += v.x * v.y + v.z * v.w;\n    __syncthreads();\n  }\n  out[blockIdx.x * 256 + threadIdx.x] = acc;\n}\nextern \"C\" __global__ void tile_async2(const float4* __restrict__ a, float* __restrict__ out, int ntiles) {\n  __shared__ float4 s[2][256];                      // two stages: load tile t+1 while computing on tile t\n  float acc = 0.f;\n  __pipeline_memcpy_async(&s[0][threadIdx.x], &a[threadIdx.x], 16);\n  __pipeline_commit();\n  for (int t = 0; t < ntiles; ++t) {\n    if (t + 1 < ntiles) __pipeline_memcpy_async(&s[(t + 1) & 1][threadIdx.x], &a[(t + 1) * 256 + threadIdx.x], 16);\n    __pipeline_commit();\n    __pipeline_wait_prior(1);                         // tile t has landed; tile t+1 may still be in flight\n    __syncthreads();\n    float4 v = s[t & 1][(threadIdx.x * 7) & 255]; acc += v.x * v.y + v.z * v.w;\n    __syncthreads();\n  }\n  out[blockIdx.x * 256 + threadIdx.x] = acc;\n}\n"}};
+</script>
+<script>/* 23_js_charts.js */
+// ---- Shared chart helpers (window.MC, copied from the Memory technology page) ----
+window.MC=(function(){
+  const D=window.MHD;
+  const fmtB=b=>b>=1<<30?(b/(1<<30)).toFixed(b%(1<<30)?1:0)+' GiB':b>=1<<20?(b/(1<<20)).toFixed(0)+' MiB':b>=1024?(b/1024).toFixed(0)+' KiB':b+' B';
+  const fmtN=(v,d)=>{if(!isFinite(v))return '-';const a=Math.abs(v);d=d==null?(a>=100?0:a>=10?1:2):d;return v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})};
+  const gb=b=>fmtN(b/1e9,b/1e9>=100?0:b/1e9>=10?1:2)+' GB';
+  // line chart: series [{name,color,pts:[{x,y,lo,hi}],dash}], opts {logx,logy,xl,yl,xfmt,yfmt,marks:[{x,label}],bands:[{x0,x1,label,color}],h}
+  function line(el,series,o){
+    const W=RD.width(el),L=W<500?46:56,R=12,B=o.xl?44:30;
+    // legend rows above the plot, wrapped to the width
+    const leg=[];let lx_=L+4,lr=0;series.forEach(se=>{if(!se.name)return;const w=se.name.length*5.8+26;if(lx_+w>W-R&&lx_>L+4){lr++;lx_=L+4}leg.push([lx_,lr,se]);lx_+=w});
+    const T=14+(leg.length?(lr+1)*13:0),H=(o.h||(W<500?250:290))+(T-14);
+    const xs=[],ys=[];series.forEach(s=>s.pts.forEach(p=>{xs.push(p.x);ys.push(p.y);if(p.lo!=null)ys.push(p.lo);if(p.hi!=null)ys.push(p.hi)}));
+    (o.extraY||[]).forEach(v=>ys.push(v));
+    const lx=o.logx?Math.log10:v=>v,ly=o.logy?Math.log10:v=>v;
+    let x0=lx(Math.min(...xs)),x1=lx(Math.max(...xs)),y0=o.y0!=null?ly(o.y0):ly(Math.min(...ys)),y1=o.y1!=null?ly(o.y1):ly(Math.max(...ys));
+    if(o.logy){y0=Math.floor(y0);y1=Math.ceil(y1)}else{y0=o.y0!=null?y0:0;y1=y1*1.08}
+    if(x1===x0)x1=x0+1;
+    const X=v=>L+(lx(v)-x0)/(x1-x0)*(W-L-R),Y=v=>T+(1-(ly(v)-y0)/(y1-y0))*(H-T-B);
+    let s='';
+    (o.bands||[]).forEach(b=>{const a=X(b.x0),c=X(b.x1);s+='<rect x="'+a+'" y="'+T+'" width="'+Math.max(0,c-a)+'" height="'+(H-T-B)+'" style="fill:'+b.color+';opacity:.10"/>';
+      if(b.label)s+=RD.t((a+c)/2,T+11,b.label,{a:'middle',fs:10,fill:'var(--mute)'})});
+    // grid
+    if(o.logy){for(let e=y0;e<=y1;e++){const yy=Y(Math.pow(10,e));s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" style="stroke:var(--line)"/>'+RD.t(L-4,yy+3,(o.yfmt||fmtN)(Math.pow(10,e)),{a:'end',fs:10,fill:'var(--mute)'})}}
+    else{const st=niceStep((y1-y0)/4);for(let v=0;v<=y1+1e-9;v+=st){const yy=Y(v);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" style="stroke:var(--line)"/>'+RD.t(L-4,yy+3,(o.yfmt||(u=>fmtN(u,st>=1?0:st>=0.1?1:2)))(v),{a:'end',fs:10,fill:'var(--mute)'})}}
+    const tk=o.xticks||series[0].pts.map(p=>p.x);const every=Math.max(1,Math.ceil(tk.length/(W<500?5:9)));
+    tk.forEach((v,i)=>{if(i%every)return;const xx=X(v);s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+(H-B)+'" y2="'+(H-B+4)+'" style="stroke:var(--mute)"/>'+RD.t(xx,H-B+15,(o.xfmt||fmtN)(v),{a:'middle',fs:10,fill:'var(--mute)'})});
+    if(o.xl)s+=RD.t(L+(W-L-R)/2,H-6,o.xl,{a:'middle',fs:11,fill:'var(--mute)'});
+    if(o.yl)s+='<text transform="translate(11,'+(T+(H-T-B)/2)+') rotate(-90)" text-anchor="middle" font-size="11" style="fill:var(--mute)">'+o.yl+'</text>';
+    (o.hlines||[]).forEach(h=>{const yy=Y(h.y);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" style="stroke:'+h.color+'" stroke-dasharray="5 4"/>'+RD.t(L+4,yy-4,h.label,{fs:10,fill:h.color})});
+    (o.marks||[]).forEach(m=>{const xx=X(m.x);s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+T+'" y2="'+(H-B)+'" style="stroke:var(--mute)" stroke-dasharray="2 3"/>'+RD.t(xx+3,H-B-4-(m.dy||0),m.label,{fs:10,fill:'var(--mute)'})});
+    series.forEach(se=>{let d='';se.pts.forEach((p,i)=>{d+=(i?'L':'M')+X(p.x).toFixed(1)+' '+Y(p.y).toFixed(1);
+        if(p.lo!=null&&p.hi!=null)s+='<line x1="'+X(p.x)+'" x2="'+X(p.x)+'" y1="'+Y(p.lo)+'" y2="'+Y(p.hi)+'" style="stroke:'+se.color+';opacity:.55"/>'});
+      s+='<path d="'+d+'" fill="none" style="stroke:'+se.color+'" stroke-width="2"'+(se.dash?' stroke-dasharray="'+se.dash+'"':'')+'/>';
+      se.pts.forEach(p=>{s+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" style="fill:'+se.color+'"><title>'+(se.name||'')+': '+(o.xfmt||fmtN)(p.x)+', '+fmtN(p.y)+'</title></circle>'})});
+    // legend
+    leg.forEach(([x,r,se])=>{const y=6+r*13;s+='<rect x="'+x+'" y="'+(y+2)+'" width="10" height="3" style="fill:'+se.color+'"/>'+RD.t(x+13,y+7,se.name,{fs:10})});
+    el.innerHTML=RD.svg(W,H,s,o.label||'chart');
+  }
+  function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r)));const m=r/p;return (m<1.5?1:m<3?2:m<7?5:10)*p}
+  // horizontal bars on a log or linear scale: rows [{name,v,label,color,hl}]
+  function bars(el,rows,o){o=o||{};const mx=Math.max(...rows.map(r=>r.v)),mn=Math.min(...rows.map(r=>r.v));
+    const lo=o.log?Math.floor(Math.log10(mn)):0,hi=o.log?Math.ceil(Math.log10(mx)):mx;
+    const f=v=>o.log?(Math.log10(v)-lo)/(hi-lo):v/hi;
+    el.innerHTML=rows.map(r=>'<div class="row'+(r.hl?' hl':'')+'"><div class="nm" title="'+RD.esc(r.name)+'">'+r.name+'</div><div class="track"><div class="fill" style="width:'+(Math.max(.01,f(r.v))*100).toFixed(1)+'%;background:'+(r.color||'var(--acc)')+'"></div></div><div class="val">'+r.label+'</div></div>').join('')}
+  return {D,fmtB,fmtN,gb,line,bars};
+})();
+</script>
+<script>/* 24_js_model.js */
+// ---- Models shared by the Reading tab and the Access lab (window.MHM). Checked against code/reference.py by check/check_js.mjs ----
+window.MHM=(function(){
+  // Global memory: one warp-wide load. Lane l reads w bytes at byte address off + l*stride (repeated for `instr` instructions,
+  // instruction k shifted by k*32*stride). Returns the sectors (32 B) touched, bytes fetched, bytes used.
+  function sectors(p){
+    const w=p.w,stride=p.stride,off=p.off||0,instr=p.instr||1,lanes=p.lanes||32;
+    const acc=[];// every access: {k,l,a}
+    for(let k=0;k<instr;k++)for(let l=0;l<lanes;l++)acc.push({k:k,l:l,a:off+(k*lanes+l)*stride});
+    const sec=new Set(),used=new Set();
+    acc.forEach(x=>{for(let b=x.a;b<x.a+w;b++){used.add(b);sec.add(Math.floor(b/32))}});
+    const list=[...sec].sort((a,b)=>a-b);
+    // sectors per instruction (each warp instruction is served separately)
+    const per=[];for(let k=0;k<instr;k++){const s=new Set();acc.filter(x=>x.k===k).forEach(x=>{for(let b=x.a;b<x.a+w;b++)s.add(Math.floor(b/32))});per.push(s.size)}
+    const fetched=per.reduce((a,b)=>a+b,0)*32;
+    return {acc:acc,list:list,perInstr:per,nSec:per.reduce((a,b)=>a+b,0),fetched:fetched,used:used.size,eff:used.size/fetched,instr:instr};
+  }
+  // Shared memory: the words each lane touches. mode 'stride': lane l reads element l*s of w-byte elements;
+  // mode 'col': lane l reads column c of a 32-wide float tile stored plain, padded (+1 word per row) or XOR-swizzled.
+  function smemWords(p){
+    const out=[];
+    for(let l=0;l<32;l++){
+      if(p.mode==='col'){const c=p.c||0;const wd=p.layout==='pad'?l*33+c:p.layout==='xor'?l*32+((c^l)&31):l*32+c;out.push([wd])}
+      else{const nw=p.w/4,start=l*p.s*nw;const ws=[];for(let j=0;j<nw;j++)ws.push(start+j);out.push(ws)}
+    }
+    return out;
+  }
+  // passes = the most distinct words any one bank must deliver (each bank: 4 bytes per pass); ideal = bytes requested / 128
+  function banks(p){
+    const lw=smemWords(p);const per=[];for(let b=0;b<32;b++)per.push(new Set());
+    lw.forEach(ws=>ws.forEach(wd=>per[wd%32].add(wd)));
+    const counts=per.map(s=>s.size);const passes=Math.max(...counts);
+    const bytes=32*(p.mode==='col'?4:p.w);const ideal=Math.max(1,Math.ceil(bytes/128));
+    return {laneWords:lw,counts:counts,bankWords:per.map(s=>[...s].sort((a,b)=>a-b)),passes:passes,ideal:ideal,degree:passes/ideal};
+  }
+  // A tile loop with S shared-memory buffers: copy i may start when copy i-1 has started and tile i-S has been computed
+  // (S = 1 is the synchronous loop); tile i is computed when its copy has landed and tile i-1 is done.
+  function pipeline(S,L,C,n){
+    const issue=[],land=[],cs=[],ce=[];
+    for(let i=0;i<n;i++){
+      const free=i-S>=0?ce[i-S]:0;issue[i]=Math.max(i?issue[i-1]:0,free);land[i]=issue[i]+L;
+      cs[i]=Math.max(land[i],i?ce[i-1]:0);ce[i]=cs[i]+C}
+    const total=ce[n-1];return {issue:issue,land:land,cs:cs,ce:ce,total:total,busy:n*C/total};
+  }
+  return {sectors,smemWords,banks,pipeline};
+})();
+</script>
+<script>/* 25_js_rd_warp.js */
+// ---- Reading section 1: one warp's load, before and after (AoS/SoA, misaligned/aligned, 4-byte/16-byte); predict boxes; measured bars ----
+(function(){
+  const D=window.MHD,M=window.MHM,f=MC.fmtN;
+  const MODES={
+    aos:{name:['Array of structs: p[i].x, 32-byte structs','Struct of arrays: x[i]'],p:[{w:4,stride:32},{w:4,stride:4}],
+      why:['Every lane wants 4 bytes, but each sits in its own 32-byte struct, so in its own sector.','The x values are now adjacent: 32 lanes, 128 contiguous bytes.']},
+    mis:{name:['Contiguous floats starting 4 bytes past a sector boundary','Contiguous floats starting on a sector boundary'],p:[{w:4,stride:4,off:4},{w:4,stride:4,off:0}],
+      why:['The 128 bytes straddle five sectors: the last lane spills into a fifth.','The same 128 bytes fill exactly four sectors.']},
+    vec:{name:['512 bytes as four loads of 4 bytes per lane','512 bytes as one load of 16 bytes per lane (float4)'],p:[{w:4,stride:4,instr:4},{w:16,stride:16,instr:1}],
+      why:['Four warp instructions, each fetching 4 sectors.','One warp instruction: each lane takes 16 bytes, the warp 16 sectors at once.']}};
+  let mode='aos',ba=0,res=null,rows=1;
+  const svgEl=document.getElementById('rd-wsvg'),cnt=document.getElementById('rd-wcnt'),cap=document.getElementById('rd-wcap');
+  function setup(){
+    const m=MODES[mode];res=M.sectors(m.p[ba]);
+    const spans=m.p.map(p=>{const r=M.sectors(p);return Math.max(...r.acc.map(x=>x.a))+p.w});
+    rows=Math.ceil(Math.max(...spans)/128);
+  }
+  function draw(i){
+    if(!res)setup();
+    const m=MODES[mode],n=res.acc.length,per=n/8,done=Math.round(i*per);
+    const seen=res.acc.slice(0,done),sec=new Set(),usedW=new Set(),cur=new Set();
+    seen.forEach((x,j)=>{for(let b=x.a;b<x.a+m.p[ba].w;b+=4){usedW.add(Math.floor(b/4));if(j>=done-per)cur.add(Math.floor(b/4))}for(let b=x.a;b<x.a+m.p[ba].w;b++)sec.add(Math.floor(b/32))});
+    const W=RD.width(svgEl),L=W<500?44:56,cw=(W-L-6)/32,ch=Math.max(9,Math.min(14,cw*0.9)),gap=5;
+    const H=rows*(ch+gap)+6;let s='';
+    for(let r=0;r<rows;r++){
+      const y=6+r*(ch+gap);s+=RD.t(L-6,y+ch-1,'+'+r*128+' B',{a:'end',fs:10,fill:'var(--mute)'});
+      for(let q=0;q<4;q++){const id=r*4+q,x=L+q*8*cw;s+='<rect x="'+x.toFixed(1)+'" y="'+(y-1.5)+'" width="'+(8*cw-1).toFixed(1)+'" height="'+(ch+3)+'" rx="2" style="fill:'+(sec.has(id)?'var(--acc2)':'none')+';stroke:'+(sec.has(id)?'var(--acc)':'var(--line)')+'"/>'}
+      for(let c=0;c<32;c++){const wd=r*32+c,x=L+c*cw+1;
+        const col=cur.has(wd)?'var(--c2)':usedW.has(wd)?'var(--acc)':sec.has(Math.floor(wd/8))?'var(--dim)':'var(--soft)';
+        s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,cw-3).toFixed(1)+'" height="'+ch+'" rx="1" style="fill:'+col+'"/>'}
+    }
+    svgEl.innerHTML=RD.svg(W,H,s,'Sectors fetched by one warp');
+    const nsec=sec.size,fetched=nsec*32,used=usedW.size*4;
+    cnt.innerHTML=RD.stat('Accesses issued',done+' of '+n,res.instr+' warp instruction'+(res.instr>1?'s':''))+RD.stat('Sectors fetched',nsec,f(fetched,0)+' bytes')+RD.stat('Bytes wanted',f(used,0),'')+RD.stat('Useful fraction',fetched?f(100*used/fetched,1)+'%':'-','of fetched bytes');
+    let t,p;
+    if(i===0){t=m.name[ba];p=m.why[ba]+' Press play or step.'}
+    else if(i<8){const a=seen[Math.max(0,done-per)],b=seen[done-1];t='Accesses '+(done-per)+' to '+(done-1);p='Byte addresses '+a.a+' to '+(b.a+m.p[ba].w-1)+'. Sectors so far: '+nsec+'.'}
+    else{t=(ba?'After: ':'Before: ')+res.nSec+' sectors, '+f(res.fetched,0)+' bytes for '+f(res.used,0)+' wanted ('+f(100*res.eff,1)+'%)';
+      p=m.why[ba]+(mode==='vec'?' Same sectors, '+(ba?'one quarter':'four times')+' the load instructions.':'')+' Toggle '+(ba?'Before':'After')+' to compare on the same scale.'}
+    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
+  }
+  const an=RD.anim({card:'rd-wcard',ctl:'rd-wctl',n:9,draw:draw,ms:900,label:'Step of the warp load'});
+  RD.seg(document.getElementById('rd-wseg'),v=>{mode=v;setup();an.reset(9);an.play()});
+  RD.seg(document.getElementById('rd-wba'),v=>{ba=+v;setup();an.reset(9);an.play()});
+  RD.onResize(()=>an.redraw());
+
+  // predict-then-reveal boxes
+  document.querySelectorAll('#t-read .pr').forEach(pr=>pr.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;
+    pr.querySelectorAll('button[data-a]').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.right)x.classList.add('right')});
+    if(!b.dataset.right)b.classList.add('wrong');pr.querySelector('.ans').hidden=false}));
+
+  // measured bars
+  const g=n=>D.m1[n];
+  const lab=(r,u,d)=>f(r.rate,d)+' '+u+' ('+f(r.rate_lo,d)+' to '+f(r.rate_hi,d)+')';
+  function drawBars(){
+    const a=g('aos');
+    MC.bars(document.getElementById('rd-aosbars'),a.map((r,i)=>({name:r.name,v:r.ms,label:f(r.ms,2)+' ms ('+f(r.ms_lo,2)+' to '+f(r.ms_hi,2)+')',color:i===1?'var(--c3)':'var(--c2)'})));
+    MC.bars(document.getElementById('rd-widthbars'),g('widths').map(r=>({name:r.name+' (copy, 512 MB moved)',v:r.rate,label:f(r.rate,0)+' GB/s',color:'var(--c1)'})));
+    const tg=g('tgwide').filter(r=>r.bytes_per_access===16||(r.bytes_per_access===4&&[1,32,33].includes(r.stride)));
+    MC.bars(document.getElementById('rd-tgbars'),tg.map(r=>({name:r.bytes_per_access+'-byte elements, lane stride '+r.stride,v:r.rate,label:f(r.rate,0)+' GB/s',color:r.bytes_per_access===16?'var(--c1)':'var(--c5)',hl:r.stride===8&&r.bytes_per_access===16})));
+    MC.bars(document.getElementById('rd-localbars'),g('local').map((r,i)=>({name:r.name,v:r.ms,label:f(r.ms,2)+' ms',color:i?'var(--c3)':'var(--c2)'})));
+  }
+  drawBars();
+})();
+</script>
+<script>/* 26_js_rd_sass.js */
+// ---- Reading sections 1 to 6: real compiler output filled in from window.MHD (CUDA 13.4.2), the register-cap chart ----
+(function(){
+  const D=window.MHD,f=MC.fmtN,esc=RD.esc,$=id=>document.getElementById(id);
+  const S=D.sass,P=D.ptxas;
+  const hl=s=>esc(s).replace(/^(@\S+ )?([A-Z][A-Z0-9_.]*)/,(m,a,b)=>(a||'')+'<b>'+b+'</b>');
+  const pre=(id,lines)=>{const e=$(id);if(e)e.innerHTML=lines.map(hl).join('\n')};
+  const op=s=>(s||'').replace(/^(@\S+ )/,'').split(' ')[0];
+  // section 1: widths
+  pre('rd-wsass',[].concat(['// float'],S.copy_f1.sm_90a,['// float2'],S.copy_f2.sm_90a,['// float4'],S.copy_f4.sm_90a).map(x=>x));
+  $('rd-wsass').innerHTML=$('rd-wsass').innerHTML.replace(/\/\/ (float\d?)/g,'<span class="c">// $1 copy</span>');
+  // section 2: cache operators
+  const ROWS=[['plain load','ld_plain','ld.global (default .ca)','"Cache at all levels, likely to be accessed again."'],
+    ['const __restrict__','ld_restrict','ld.global.nc','"compiled as read-only cache loads"'],
+    ['__ldg(p)','ld_ldg','ld.global.nc','"a read-only L1/Tex cache load"'],
+    ['__ldcg(p)','ld_ldcg','ld.global.cg','"Cache at global level (cache in L2 and below, not L1)."'],
+    ['__ldcs(p)','ld_ldcs','ld.global.cs','"Cache streaming, likely to be accessed once." Evict-first in L1 and L2.'],
+    ['__ldlu(p)','ld_ldlu','ld.global.lu','"Last use."'],
+    ['__ldcv(p)','ld_ldcv','ld.global.cv','"Don\'t cache and fetch again."'],
+    ['__stcs(p, v)','st_stcs','st.global.cs','"allocates cache lines with evict-first policy"'],
+    ['__stwt(p, v)','st_stwt','st.global.wt','"Cache write-through (to system memory)."']];
+  const ARCH=['sm_80','sm_90a','sm_120'];
+  $('rd-cops').innerHTML='<table class="tbl-sm"><thead><tr><th>You write</th><th>PTX</th><th>Meaning (PTX ISA 9.4 or C++ extensions)</th>'+ARCH.map(a=>'<th>SASS '+a+'</th>').join('')+'</tr></thead><tbody>'+
+    ROWS.map(r=>{const st=r[1].startsWith('st_');return '<tr><td><code>'+esc(r[0])+'</code></td><td><code>'+r[2]+'</code></td><td>'+esc(r[3])+'</td>'+
+      ARCH.map(a=>{const l=S[r[1]][a].find(x=>op(x).startsWith(st?'STG':'LDG'));return '<td><code>'+esc(op(l))+'</code></td>'}).join('')+'</tr>'}).join('')+'</tbody></table>';
+  // section 3: shared memory declarations
+  const pr=(k,fn,a)=>P[k][a||'sm_90a'][fn];
+  const smem=x=>x.regs+' registers, '+(x.smem?f(x.smem,0)+' bytes static shared memory':'no static shared memory');
+  $('rd-sm1').textContent=smem(pr('m6_shared','smem_static'));$('rd-sm2').textContent=smem(pr('m6_shared','smem_swizzle'));$('rd-sm3').textContent=smem(pr('m6_shared','smem_dynamic'));
+  // section 4: ptxas line, histogram kernels
+  const hd=pr('m4_dynidx','hist_dynamic'),hs=pr('m4_dynidx','hist_select');
+  $('rd-ptxasline').innerHTML=esc("ptxas info    : Compiling entry function 'hist_dynamic' for 'sm_90a'\nptxas info    : Function properties for hist_dynamic\n    "+hd.stack+" bytes stack frame, "+hd.spill_st+" bytes spill stores, "+hd.spill_ld+" bytes spill loads\nptxas info    : Used "+hd.regs+" registers, used 0 barriers, "+hd.stack+" bytes cumulative stack size");
+  pre('rd-hdyn',S.hist_dynamic.sm_90a);pre('rd-hsel',S.hist_select.sm_90a);
+  $('rd-hdynregs').textContent=hd.regs+' registers and a '+hd.stack+'-byte stack frame with 0 spill bytes';
+  $('rd-hselregs').textContent=hs.regs+' registers, '+hs.stack+' bytes of stack';
+  // register caps
+  const def=D.regcap_default;
+  $('rd-rdef').textContent=def.sm_90a.regs+' (sm_90a; '+def.sm_80.regs+' on sm_80, '+def.sm_120.regs+' on sm_120)';
+  const MAXW={sm_80:64,sm_90a:64,sm_120:48};
+  const warps=(regs,a)=>Math.min(MAXW[a],Math.floor(16384/(Math.ceil(regs*32/256)*256))*4);
+  let arch='sm_90a';
+  function rc(){
+    const el=$('rd-rcchart');el.innerHTML='<div class="small mute">Registers per thread used under -maxrregcount (bar), and warps per SM the register file then allows</div><div class="bars" id="rd-rc1"></div><div class="small mute" style="margin-top:8px">Spill stores per thread, bytes</div><div class="bars" id="rd-rc2"></div>';
+    const rows=D.regcap.map(r=>({cap:r.cap,x:r[arch]}));
+    MC.bars($('rd-rc1'),rows.map(r=>({name:'cap '+r.cap,v:r.x.regs,label:r.x.regs+' regs, '+warps(r.x.regs,arch)+' warps',color:r.x.spill_st?'var(--c2)':'var(--c1)'})));
+    MC.bars($('rd-rc2'),rows.map(r=>({name:'cap '+r.cap,v:Math.max(r.x.spill_st,0.001),label:f(r.x.spill_st,0)+' B',color:'var(--c2)'})));
+    const at128=rows.find(r=>r.cap===128).x,at32=rows.find(r=>r.cap===32).x;
+    $('rd-rcnote').innerHTML='<span class="der">compiled here</span>, '+arch+': uncapped, '+def[arch].regs+' registers ('+warps(def[arch].regs,arch)+' warps per SM of '+MAXW[arch]+'); capped at 128: '+at128.regs+' registers and '+at128.spill_st+' bytes of spill stores per thread; at 32: '+f(at32.spill_st,0)+' bytes. Warps per SM from the register limit alone, by NVIDIA\'s allocation rule (256 registers per warp granule, 4 sub-partitions of 16,384), as in the parent\'s occupancy calculator <span class="der">derived</span>.';
+  }
+  RD.seg($('rd-rcseg'),v=>{arch=v;rc()});rc();RD.onRender(rc);
+  // section 5: constant memory
+  const CK=[['const_fixed','c_tab[3], c_tab[4]: index known at compile time'],['const_uniform','c_tab[k]: index is a kernel argument'],['const_perlane','c_tab[threadIdx.x]: a different entry per lane'],['param_struct','p.scale, p.bias: a struct passed by value']];
+  $('rd-consttbl').innerHTML='<table class="tbl-sm"><thead><tr><th>Kernel reads</th><th>Constant-bank instructions and the math (sm_90a)</th></tr></thead><tbody>'+
+    CK.map(c=>'<tr><td><code>'+esc(c[1].split(':')[0])+'</code>:'+esc(c[1].split(':')[1]||'')+'</td><td><code>'+S[c[0]].sm_90a.filter(x=>!/c\[0x0\]\[0x28\]|c\[0x0\]\[0x208\]/.test(x)).map(esc).join('<br>')+'</code></td></tr>').join('')+'</tbody></table>';
+  $('rd-c80').textContent=(S.param_struct.sm_80.find(x=>/^FFMA/.test(x))||'');
+  // section 6: async copies
+  pre('rd-async0',S.tile_sync.sm_90a.slice(0,8));pre('rd-async1',S.tile_async2.sm_90a.slice(0,10));
+})();
+</script>
+<script>/* 27_js_rd_pipe.js */
+// ---- Reading section 6: the tile loop with 1 to 4 shared-memory stages, animated on one timeline drawn to scale ----
+(function(){
+  const M=window.MHM,f=MC.fmtN,L=479,C=200,N=8;
+  let S=1,r=M.pipeline(S,L,C,N);
+  const scale=M.pipeline(1,L,C,N).total;// every mode drawn on the synchronous loop's time axis
+  const el=document.getElementById('rd-psvg'),cnt=document.getElementById('rd-pcnt'),cap=document.getElementById('rd-pcap');
+  const COL=['var(--c1)','var(--c3)','var(--c4)','var(--c5)'];
+  function draw(i){
+    // step i shows the timeline up to the end of tile i-1's math (step 0: nothing yet)
+    const t=i===0?0:r.ce[i-1];
+    const W=RD.width(el),Lm=W<500?62:84,R=10,lanes=Math.max(1,S),rh=W<500?13:16,gap=4;
+    const top=16,copyH=lanes*(rh+gap),H=top+copyH+rh+gap+34;
+    const X=v=>Lm+v/scale*(W-Lm-R);let s='';
+    s+=RD.t(Lm-6,top+copyH/2+4,'copies',{a:'end',fs:11,fill:'var(--mute)'});
+    s+=RD.t(Lm-6,top+copyH+rh-3,'SM math',{a:'end',fs:11,fill:'var(--mute)'});
+    s+='<rect x="'+Lm+'" y="'+(top+copyH)+'" width="'+(W-Lm-R)+'" height="'+rh+'" style="fill:var(--soft)"/>';
+    for(let k=0;k<N;k++){
+      if(r.issue[k]>t)continue;
+      const y=top+(k%lanes)*(rh+gap),x0=X(r.issue[k]),x1=X(Math.min(t,r.land[k]));
+      s+='<rect x="'+x0.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,x1-x0).toFixed(1)+'" height="'+rh+'" rx="2" style="fill:'+COL[k%4]+';opacity:.35;stroke:'+COL[k%4]+'"/>';
+      if(x1-x0>18)s+=RD.t(x0+4,y+rh-4,'tile '+k,{fs:10});
+      if(r.cs[k]<t){const a=X(r.cs[k]),b=X(Math.min(t,r.ce[k]));s+='<rect x="'+a.toFixed(1)+'" y="'+(top+copyH)+'" width="'+Math.max(1,b-a).toFixed(1)+'" height="'+rh+'" style="fill:'+COL[k%4]+'"/>'}
+    }
+    const xt=X(t);s+='<line x1="'+xt+'" x2="'+xt+'" y1="'+(top-6)+'" y2="'+(top+copyH+rh+2)+'" style="stroke:var(--bad)"/>';
+    // axis
+    const ay=top+copyH+rh+gap+8;s+='<line x1="'+Lm+'" x2="'+(W-R)+'" y1="'+ay+'" y2="'+ay+'" style="stroke:var(--line)"/>';
+    for(let v=0;v<=scale;v+=1000){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+ay+'" y2="'+(ay+4)+'" style="stroke:var(--mute)"/>'+RD.t(x,ay+15,f(v,0),{a:'middle',fs:10,fill:'var(--mute)'})}
+    s+=RD.t(W-R,ay+27,'cycles',{a:'end',fs:10,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,s,'Copy and compute timeline');
+    const done=i,busy=done*C;
+    cnt.innerHTML=RD.stat('Cycles so far',f(t,0),i===N?'finished':'')+RD.stat('Tiles computed',done+' of '+N,'')+RD.stat('SM busy',t?f(100*busy/t,0)+'%':'-','math time / elapsed')+RD.stat('Shared memory',S+' tile buffer'+(S>1?'s':''),'the cost of the stages');
+    let tt,p;
+    if(i===0){tt=S===1?'Synchronous: load, wait, compute, repeat':S+' stages: up to '+S+' tile copies in flight';
+      p=S===1?'Each tile\'s copy starts only after the previous tile\'s math, so every tile pays the full '+L+'-cycle latency.':'Copies for the next tiles start before the current tile is computed, as long as a buffer is free.'}
+    else if(i<N){const k=i-1,wait=r.cs[k]-(k?r.ce[k-1]:0);tt='Tile '+k+' computed at cycle '+f(r.ce[k],0);
+      p=wait>0?'The SM waited '+f(wait,0)+' cycles for this tile\'s copy to land.':'Its copy had already landed: no waiting.'}
+    else{const sync=M.pipeline(1,L,C,N).total;tt=(S===1?'Synchronous: ':S+' stages: ')+f(r.total,0)+' cycles, SM busy '+f(100*r.busy,0)+'%';
+      p=S===1?'Try 2, 3 and 4 stages on the same axis.':f(sync/r.total,2)+' times faster than synchronous. The floor is one latency plus all the math: '+f(L+N*C,0)+' cycles.'}
+    cap.innerHTML='<div class="t">'+tt+'</div><p>'+p+'</p>';
+  }
+  const an=RD.anim({card:'rd-pcard',ctl:'rd-pctl',n:N+1,draw:draw,ms:900,label:'Tile'});
+  RD.seg(document.getElementById('rd-pseg'),v=>{S=+v;r=M.pipeline(S,L,C,N);an.reset(N+1);an.play()});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 28_js_rd_roof.js */
+// ---- Reading section 8: the measured M1 roofline, real kernels placed on it, and a calculator ----
+(function(){
+  const D=window.MHD,f=MC.fmtN,$=id=>document.getElementById(id);
+  const roof=D.m1.roof;
+  const bw=(()=>{const v=roof.filter(r=>r.F<=16).map(r=>r.gbps).sort((a,b)=>a-b);return v[Math.floor(v.length/2)]})();
+  const pk=Math.max(...roof.map(r=>r.rate));
+  window.MHROOF={bw:bw,peak:pk,ridge:pk/bw};
+  const LAB=[['softmax_fused','Softmax, one pass (fused)','var(--c3)'],['softmax_eager','Softmax, eager (5 kernels)','var(--c2)'],['mm_mlx','Matmul, MLX library','var(--c4)'],['mm_reg','Matmul, 4x4 per thread','var(--c5)'],['mm_naive','Matmul, naive coalesced','var(--bad)']];
+  const pt=k=>{const x=D.lab[k];return {ai:x.flops/x.bytes,gf:x.flops/x.ms/1e6,gb:x.bytes/x.ms/1e6}};
+  function chart(){
+    const xs=[0.3,1000],ridge=pk/bw;
+    const series=[{name:'roof (measured)',color:'var(--mute)',dash:'5 4',pts:[{x:xs[0],y:xs[0]*bw},{x:ridge,y:pk},{x:xs[1],y:pk}]},
+      {name:'sweep',color:'var(--c1)',pts:roof.map(r=>({x:r.ai,y:r.rate,lo:r.rate_lo,hi:r.rate_hi}))}];
+    LAB.forEach(l=>{const p=pt(l[0]);series.push({name:l[1],color:l[2],pts:[{x:p.ai,y:p.gf}]})});
+    MC.line($('rd-roof'),series,{logx:true,logy:true,xl:'arithmetic intensity, FLOP per byte (log)',yl:'GFLOP/s (log)',xticks:[0.3,1,3,10,30,100,300,1000],
+      xfmt:v=>f(v,v<1?1:0),yfmt:v=>f(v,v<1?1:0),label:'Measured roofline of the M1 Pro GPU',h:300});
+  }
+  chart();RD.onRender(chart);RD.onResize(chart);
+  $('rd-rooftbl').innerHTML='<table class="tbl-sm"><thead><tr><th>Kernel (parent\'s Kernel lab)</th><th class="num">ms</th><th class="num">FLOP/byte</th><th class="num">GB/s (min bytes)</th><th class="num">GFLOP/s</th><th>Under which roof, how far</th></tr></thead><tbody>'+
+    LAB.map(l=>{const x=D.lab[l[0]],p=pt(l[0]),lim=Math.min(pk,p.ai*bw);return '<tr><td>'+l[1]+'</td><td class="num">'+f(x.ms,2)+'</td><td class="num">'+f(p.ai,p.ai<1?3:0)+'</td><td class="num">'+f(p.gb,1)+'</td><td class="num">'+f(p.gf,0)+'</td><td>'+(p.ai<pk/bw?'bandwidth':'compute')+' roof, '+f(100*p.gf/lim,0)+'% of it</td></tr>'}).join('')+'</tbody></table>'+
+    '<p class="small mute">Minimum bytes: softmax reads and writes 16,384 &times; 4,096 floats once (536.9 MB) and does about 5 FLOPs per element; a 2,048 matmul reads A and B and writes C once (50.3 MB) for 2N&sup3; = 17.2 GFLOP. <span class="der">derived</span> from the parent\'s <span class="meas">measured</span> times. The fused softmax slightly exceeds this sweep\'s bandwidth roof because its roof is the sweep\'s median; the parent measured a plain copy at 164.7 GB/s.</p>';
+  // calculator
+  const GPUS={h100:{n:'H100 SXM',bw:3350,pk:{bf16:989500,fp32:67000}},a100:{n:'A100 SXM 80GB',bw:2039,pk:{bf16:312000,fp32:19500}},
+    r5090:{n:'RTX 5090',bw:1792,pk:{bf16:209500,fp32:104800}},m1:{n:'M1 Pro (measured here)',bw:Math.round(bw*10)/10,pk:{fp32:Math.round(pk)}}};
+  const PRE=[['','Your own numbers'],['softmax_fused','Softmax, fused, on M1'],['softmax_eager','Softmax, eager, on M1'],['mm_mlx','Matmul MLX, on M1'],['mm_naive','Matmul naive, on M1']];
+  const c=$('rd-calc');
+  c.innerHTML='<label>Preset <select id="rd-cpre">'+PRE.map(p=>'<option value="'+p[0]+'">'+p[1]+'</option>').join('')+'</select></label>'+
+    '<label>GPU <select id="rd-cgpu">'+Object.keys(GPUS).map(k=>'<option value="'+k+'">'+GPUS[k].n+'</option>').join('')+'</select></label>'+
+    '<label>Math <select id="rd-cprec"><option value="bf16">BF16 tensor cores</option><option value="fp32">FP32 CUDA cores</option></select></label>'+
+    '<label>Bytes moved (MB) <input id="rd-cmb" type="number" min="0.001" step="any" value="536.9"></label>'+
+    '<label>Work (GFLOP) <input id="rd-cgf" type="number" min="0" step="any" value="0.336"></label>'+
+    '<label>Time (ms) <input id="rd-cms" type="number" min="0.0001" step="any" value="0.2"></label>';
+  function calc(){
+    const g=GPUS[$('rd-cgpu').value];let prec=$('rd-cprec').value;if(!g.pk[prec])prec='fp32';
+    const mb=Math.max(1e-6,+$('rd-cmb').value||0),gfl=Math.max(0,+$('rd-cgf').value||0),ms=Math.max(1e-6,+$('rd-cms').value||0);
+    const gbs=mb/ms,gfs=gfl*1e3/ms,ai=gfl*1e3/mb,peak=g.pk[prec],lim=Math.min(peak,ai*g.bw),ridge=peak/g.bw;
+    const frac=gfl>0?gfs/lim:gbs/g.bw;
+    const verdict=frac>0.7?(ai<ridge?'memory-bound and near the roof: only fewer bytes help (fuse, smaller types)':'compute-bound and near the roof: use faster math (tensor cores, lower precision)'):
+      frac>0.3?'within reach of the roof; profile before rewriting':'far below the roof: an access pattern, occupancy or launch problem (sections 1 to 6)';
+    $('rd-calcout').innerHTML=RD.stat('Intensity',f(ai,ai<1?3:1)+' FLOP/B','ridge '+f(ridge,0)+' FLOP/B')+RD.stat('Achieved bandwidth',f(gbs,0)+' GB/s',f(100*gbs/g.bw,0)+'% of '+f(g.bw,0))+
+      RD.stat('Achieved compute',f(gfs,0)+' GFLOP/s',f(100*gfs/peak,1)+'% of '+f(peak,0))+RD.stat('Roof at this intensity',f(lim,0)+' GFLOP/s',gfl>0?f(100*frac,0)+'% reached':'no FLOPs: bandwidth only');
+    $('rd-calcnote').textContent=(prec!==$('rd-cprec').value?'This GPU has no separate tensor-core figure here; FP32 used. ':'')+'Verdict: '+verdict+'.';
+  }
+  $('rd-cpre').addEventListener('change',e=>{const k=e.target.value;if(k){const x=D.lab[k];$('rd-cmb').value=+(x.bytes/1e6).toFixed(1);$('rd-cgf').value=+(x.flops/1e9).toFixed(3);$('rd-cms').value=x.ms;$('rd-cgpu').value='m1';$('rd-cprec').value='fp32'}calc()});
+  ['rd-cgpu','rd-cprec','rd-cmb','rd-cgf','rd-cms'].forEach(id=>$(id).addEventListener('input',calc));
+  calc();
+})();
+</script>
+<script>/* 31_js_acc.js */
+// ---- Access lab tab (t-acc): global sectors and shared-memory banks for any pattern, from window.MHM ----
+(function(){
+  const M=window.MHM,D=window.MHD,f=MC.fmtN,$=id=>document.getElementById(id);
+  const PRE=[['Contiguous float (thread i reads x[i])',4,4,0],['Contiguous bf16',2,2,0],['Contiguous float4',16,16,0],['Contiguous float, misaligned by 4 bytes',4,4,4],
+    ['Float, stride 2',4,8,0],['Field of a 32-byte struct (AoS)',4,32,0],['Column of a row-major [N, 4096] float matrix',4,16384,0],['xyz points, float3 (12-byte stride, one field)',4,12,0]];
+  $('acc-gpre').innerHTML=PRE.map((p,i)=>'<option value="'+i+'">'+p[0]+'</option>').join('');
+  function g(){
+    const w=+$('acc-gw').value,s=Math.max(0,Math.round(+$('acc-gs').value||0)),o=Math.max(0,Math.round(+$('acc-go').value||0));
+    const r=M.sectors({w:w,stride:s,off:o});
+    const lines=[...new Set(r.list.map(x=>Math.floor(x/4)))].sort((a,b)=>a-b);
+    const used=new Set();r.acc.forEach(x=>{for(let b=x.a;b<x.a+w;b++)used.add(b)});
+    const show=lines.slice(0,16),el=$('acc-gsvg'),W=RD.width(el),L=W<500?60:76,cw=(W-L-6)/32,ch=Math.max(8,Math.min(13,cw*0.85)),gap=4;
+    const sec=new Set(r.list);let svg='';
+    show.forEach((ln,ri)=>{const y=4+ri*(ch+gap);svg+=RD.t(L-5,y+ch-1,'+'+f(ln*128,0)+' B',{a:'end',fs:10,fill:'var(--mute)'});
+      for(let q=0;q<4;q++){const id=ln*4+q;if(sec.has(id))svg+='<rect x="'+(L+q*8*cw).toFixed(1)+'" y="'+(y-1.5)+'" width="'+(8*cw-1).toFixed(1)+'" height="'+(ch+3)+'" rx="2" style="fill:var(--acc2);stroke:var(--acc)"/>'}
+      for(let c=0;c<32;c++){const b0=ln*128+c*4;let u=0;for(let b=b0;b<b0+4;b++)if(used.has(b))u++;
+        svg+='<rect x="'+(L+c*cw+1).toFixed(1)+'" y="'+y+'" width="'+Math.max(1,cw-3).toFixed(1)+'" height="'+ch+'" rx="1" style="fill:'+(u?'var(--acc)':sec.has(ln*4+Math.floor(c/8))?'var(--dim)':'var(--soft)')+';opacity:'+(u&&u<4?0.55:1)+'"/>'}});
+    el.innerHTML=RD.svg(W,show.length*(ch+gap)+8,svg,'Cache lines touched by one warp');
+    const ideal=Math.ceil(r.used/32);
+    $('acc-gout').innerHTML=RD.stat('Sectors fetched',r.nSec,f(r.fetched,0)+' bytes')+RD.stat('Bytes wanted',f(r.used,0),'32 lanes &times; '+w)+RD.stat('Useful fraction',f(100*r.eff,1)+'%','')+RD.stat('Against the ideal',f(r.nSec/ideal,2)+'&times;',ideal+' sectors if contiguous and aligned');
+    $('acc-gnote').innerHTML=(lines.length>16?'Showing 16 of the '+lines.length+' 128-byte lines touched. ':'')+'Each row is a 128-byte line; outlined groups are the 32-byte sectors fetched; blue words are wanted (pale when only partly), grey fetched but unused. <span class="der">derived</span> from the 32-byte rule.';
+  }
+  $('acc-gpre').addEventListener('change',e=>{const p=PRE[+e.target.value];$('acc-gw').value=p[1];$('acc-gs').value=p[2];$('acc-go').value=p[3];g()});
+  ['acc-gw','acc-gs','acc-go'].forEach(id=>$(id).addEventListener('input',g));
+  function s(){
+    const mode=$('acc-smode').value;$('acc-sstride').hidden=mode!=='stride';$('acc-scol').hidden=mode!=='col';
+    const p=mode==='col'?{mode:'col',layout:$('acc-slay').value,c:Math.max(0,Math.min(31,Math.round(+$('acc-sc').value||0)))}:{mode:'stride',w:+$('acc-sw').value,s:Math.max(0,Math.round(+$('acc-ss').value||0))};
+    const r=M.banks(p);const el=$('acc-ssvg'),W=RD.width(el),L=26,bw=(W-L-4)/32,mx=Math.max(4,r.passes),bh=Math.max(4,Math.min(14,170/mx)),H=mx*bh+28;
+    let svg=RD.t(2,H-16,'bank',{fs:10,fill:'var(--mute)'});
+    for(let b=0;b<32;b++){const x=L+b*bw;if(b%4===0)svg+=RD.t(x+bw/2,H-16,String(b),{a:'middle',fs:9,fill:'var(--mute)'});
+      r.bankWords[b].forEach((wd,k)=>{const y=H-24-(k+1)*bh;svg+='<rect x="'+(x+0.5).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,bw-1.5).toFixed(1)+'" height="'+(bh-1)+'" style="fill:'+(k<r.ideal?'var(--c1)':'var(--c2)')+'"><title>bank '+b+', word '+wd+', pass '+(k+1)+'</title></rect>'})}
+    el.innerHTML=RD.svg(W,H,svg,'Words per shared memory bank');
+    $('acc-sout').innerHTML=RD.stat('Passes',r.passes,'the busiest bank')+RD.stat('Ideal passes',r.ideal,'bytes requested / 128')+RD.stat('Conflict',r.degree===1?'none':f(r.degree,r.degree%1?2:0)+'-way','passes / ideal')+RD.stat('Banks used',r.counts.filter(c=>c).length+' of 32','');
+    $('acc-snote').textContent=mode==='col'?(p.layout==='plain'?'Row r starts at word 32r, so every element of a column is in the same bank.':p.layout==='pad'?'Row r starts at word 33r: column c of row r is in bank (r + c) mod 32, all different.':'Element (r, c) is stored at column c XOR r: a column visits every bank once, with no wasted memory.')
+      :'Lane l reads words '+(p.s*p.w/4)+'l to '+(p.s*p.w/4)+'l + '+(p.w/4-1)+'. For 4-byte elements the conflict degree is gcd(s, 32) (s = 0 is a broadcast).';
+  }
+  ['acc-smode','acc-sw','acc-ss','acc-slay','acc-sc'].forEach(id=>$(id).addEventListener('input',s));
+  $('acc-sm1').textContent=D.m1.tgwide.filter(r=>r.bytes_per_access===16).map(r=>f(r.rate,0)).join(', ');
+  function all(){g();s()}
+  (window.TAB_RENDER=window.TAB_RENDER||{})['t-acc']=[all];
+  addEventListener('resize',()=>{if(!$('t-acc').hidden)all()});
+})();
+</script>
+<script>/* 32_js_sass.js */
+// ---- Memory instructions tab (t-sass): ptxas reports and memory instructions per kernel, from window.MHD ----
+(function(){
+  const D=window.MHD,esc=RD.esc,$=id=>document.getElementById(id),f=MC.fmtN;
+  const NAMES={m1_widths:'Load widths and struct layouts',m2_cacheops:'Cache operators',m3_regcap:'Register pressure (128 accumulators)',m4_dynidx:'Run-time indexed array',m5_const:'Constant memory and parameters',m6_shared:'Shared memory declarations',m7_async:'Asynchronous copies'};
+  $('sx-nvcc').textContent=(D.nvcc[0]||'').replace('Cuda compilation tools, ','CUDA ');
+  $('sx-file').innerHTML=Object.keys(D.src).map(k=>'<option value="'+k+'">'+k+'.cu: '+(NAMES[k]||k)+'</option>').join('');
+  const hl=s=>esc(s).replace(/^(@\S+ )?([A-Z][A-Z0-9_.]*)/,(m,a,b)=>(a||'')+'<b>'+b+'</b>');
+  function draw(){
+    const k=$('sx-file').value,a=$('sx-arch').value,P=(D.ptxas[k]||{})[a]||{};
+    const ks=Object.keys(P).sort();
+    $('sx-tbl').innerHTML='<table class="tbl-sm"><thead><tr><th>Kernel</th><th class="num">Registers</th><th class="num">Stack frame (B)</th><th class="num">Spill stores (B)</th><th class="num">Spill loads (B)</th><th class="num">Static shared (B)</th></tr></thead><tbody>'+
+      ks.map(n=>{const x=P[n];return '<tr><td><code>'+esc(n)+'</code></td><td class="num">'+x.regs+'</td><td class="num">'+x.stack+'</td><td class="num">'+x.spill_st+'</td><td class="num">'+x.spill_ld+'</td><td class="num">'+f(x.smem,0)+'</td></tr>'}).join('')+'</tbody></table>'+
+      (k==='m3_regcap'?'<p class="small">The same kernel under <code>-maxrregcount</code>: '+D.regcap.map(r=>r.cap+': '+r[a].regs+' regs, '+r[a].spill_st+' B spilled').join('; ')+'.</p>':'');
+    $('sx-sass').innerHTML=ks.filter(n=>D.sass[n]).map(n=>'<h3><code>'+esc(n)+'</code>, memory instructions ('+a+')</h3><pre>'+D.sass[n][a].map(hl).join('\n')+'</pre>').join('')||'<p class="small mute">No instruction excerpt recorded for this file (its point is the ptxas report above).</p>';
+    $('sx-src').textContent=D.src[k];
+  }
+  $('sx-file').addEventListener('change',draw);$('sx-arch').addEventListener('change',draw);
+  draw();(window.TAB_RENDER=window.TAB_RENDER||{})['t-sass']=[draw];
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('cumem-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('cumem-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  show(start,false);
+})();
+</script>
+</body></html>
