@@ -31,7 +31,7 @@ Checked by fetching each page or PDF directly (web search unavailable). Reading 
 - CLIP: batch 32,768; temperature initialised to 0.07, clipped so logits are scaled by at most 100, CONFIRMED.
 - CPC: I >= log N - L_N, CONFIRMED.
 - The Pile: 0.29335 GPT-2 tokens per byte; BPB preferred for tokenization invariance, CONFIRMED.
-- Deletang et al.: 43.4% ImageNet, 16.4% LibriSpeech vs PNG 58.5%, FLAC 30.3% (raw rates, model size ignored), CONFIRMED.
+- Deletang et al.: CORRECTED (2026-10-05). Table 1 (raw compression rates, model size ignored) gives Chinchilla 70B 48.0% on ImageNet patches and 21.0% on LibriSpeech, in both arXiv versions; the 43.4% / 16.4% recorded here before are the abstract's figures, which differ from Table 1. PNG 58.5% and FLAC 30.3% unchanged. No Reading text on the root uses these numbers.
 - Muon: Newton-Schulz orthogonalisation, stable in bfloat16, CONFIRMED (post dated 8 Dec 2024).
 - Dauphin et al. 2014: saddles outnumber minima exponentially with dimension, CONFIRMED.
 - enwik8: first 10^8 bytes of the 3 Mar 2006 English Wikipedia dump, CONFIRMED.
