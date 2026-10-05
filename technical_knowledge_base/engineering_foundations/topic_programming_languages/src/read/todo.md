@@ -1,0 +1,7 @@
+# Reading tab: open items (2026-10-05)
+
+- **Benchmark numbers**: the Reading quotes Benchmark medians by variant id (`py314_loop`, `py314_re`, `node_js`, `bun_ts`, `cpp_O2`, `rust`, `pyrs_percall`, `pyrs_file`, `pynb_percall`, `pynb_file`). `build_data.py` reads them from `src/bench/results/summary.json` at build time, so rerun `python3 read/build_data.py` after the Benchmark agent's final run. If an id is renamed, the span shows "(pending)" and the puppeteer check will not flag it: grep the built page for "(pending)".
+- **Section 13 prose** says "Python closes half of the gap with a regex" and "crossing costs tens of nanoseconds per call": both match the Benchmark results as of 2026-10-05T09:56Z (regex 0.807 s vs loop 1.288 s; PyO3 empty call 25.7 ns). Recheck after the final run.
+- **Compilers differ between tabs**: the Reading compiled C++ with Apple clang 17 (Command Line Tools, macOS 26 SDK) and LLVM clang 23.1.2 for sanitizers; the Benchmark and Rosetta tabs used Apple clang 14 (/usr/bin). Section 0 says so. If the Benchmark switches compiler, update section 2's "Benchmark" sentence.
+- **Unconfirmed old claims** not on the page (coverage.md): Qualcomm-Modular, Astral-OpenAI, Bun-Anthropic, Temporal in Node 26, 3.13 free-threading overhead, MSVC C++23 status, "pattern matching did not make C++26". A child page that wants them must check them first.
+- **Reading time** is computed by the page from the prose (code panels excluded): about 30 minutes plus panels and animations; with the panels opened it is in the 35 to 45 minute target.
