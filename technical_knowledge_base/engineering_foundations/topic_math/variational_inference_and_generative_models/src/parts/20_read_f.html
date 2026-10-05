@@ -1,0 +1,31 @@
+<section id="vi-s7">
+<h2>7. The VAE: encoder, decoder, and the two terms of its loss</h2>
+<p class="raise"><b>The question.</b> Put sections 1 to 6 together with neural networks. What exactly does a variational autoencoder compute, and where does each line of its loss come from?</p>
+<p>A <dfn>variational autoencoder</dfn> ({{Kingma and Welling 2013|https://arxiv.org/abs/1312.6114}}; {{Rezende, Mohamed and Wierstra 2014|https://arxiv.org/abs/1401.4082}}, independently) has three parts:</p>
+<ul class="tight"><li><b>Prior</b> \(p(z) = \mathcal{N}(0, I)\), fixed.</li>
+<li><b>Decoder</b> \(p_\theta(x \mid z)\): a network maps \(z\) to the parameters of a distribution over \(x\). For black-and-white pixels, 784 Bernoulli probabilities (one per pixel of a 28 by 28 image); for real values, Gaussian means.</li>
+<li><b>Encoder</b> \(q_\phi(z \mid x)\): a network maps \(x\) to a mean \(\mu_\phi(x)\) and a log-variance \(\log\sigma^2_\phi(x)\), one per latent dimension, defining a diagonal Gaussian. It replaces solving for a separate \(q\) per image (section 9).</li></ul>
+<p>The training objective is the ELBO in its "reconstruction minus KL" form (Kingma and Welling eq. 3 and 7), averaged over the data:</p>
+\[ \mathcal{L}(\theta, \phi; x) = \mathbb{E}_{q_\phi(z\mid x)}\big[\log p_\theta(x \mid z)\big] - D_{\mathrm{KL}}\big(q_\phi(z \mid x) \,\Vert\, \mathcal{N}(0, I)\big). \]
+<ul class="tight"><li><b>Reconstruction</b>: encode \(x\), sample \(z = \mu + \sigma \odot \varepsilon\) (section 6), decode, score the original \(x\) under the decoder's distribution. For Bernoulli pixels \(\log p_\theta(x\mid z)\) is minus the binary cross-entropy summed over pixels; for a Gaussian decoder with fixed variance it is minus a scaled squared error plus a constant ({{Probability for ML, section 8|n:3c65c17b0d0d815f9a47d613409b5a0c}}). One sample per image is enough in practice (Kingma and Welling, section 2.3).</li>
+<li><b>KL to the prior</b>: keeps each image's code distribution from drifting away from \(\mathcal{N}(0,I)\) or shrinking to a point. Without it, the encoder would put every image at a distinct, infinitely precise point (a plain autoencoder), and sampling \(z \sim \mathcal{N}(0, I)\) would decode to nonsense.</li></ul>
+<h3>The Gaussian KL, derived (Kingma and Welling, Appendix B)</h3>
+<p>One dimension first: \(q = \mathcal{N}(\mu, \sigma^2)\), \(p = \mathcal{N}(0, 1)\).</p>
+<ol class="steps"><li>Definition: \(D_{\mathrm{KL}}(q\Vert p) = \mathbb{E}_q[\log q(z) - \log p(z)]\).</li>
+<li>Write both log-densities: \(\log q(z) = -\tfrac12\log(2\pi\sigma^2) - \frac{(z-\mu)^2}{2\sigma^2}\) and \(\log p(z) = -\tfrac12 \log 2\pi - \frac{z^2}{2}\).</li>
+<li>Subtract; the \(\log 2\pi\) cancels: \(\log q - \log p = -\tfrac12 \log \sigma^2 - \frac{(z-\mu)^2}{2\sigma^2} + \frac{z^2}{2}\).</li>
+<li>Average under \(q\), using \(\mathbb{E}_q[(z - \mu)^2] = \sigma^2\) (definition of variance) and \(\mathbb{E}_q[z^2] = \mu^2 + \sigma^2\) (variance plus squared mean): \(-\tfrac12\log\sigma^2 - \tfrac12 + \tfrac12(\mu^2 + \sigma^2)\).</li>
+<li>Collect, and sum over the \(J\) independent dimensions of a diagonal Gaussian (the KL of independent factors adds):</li></ol>
+\[ D_{\mathrm{KL}}\big(\mathcal{N}(\mu, \operatorname{diag}\sigma^2) \,\Vert\, \mathcal{N}(0, I)\big) = \frac12 \sum_{j=1}^{J} \big(\mu_j^2 + \sigma_j^2 - 1 - \log \sigma_j^2\big). \]
+<p class="plain">Each dimension pays for its mean being away from 0 (\(\mu^2\)) and for its spread being anything but 1 (\(\sigma^2 - 1 - \log\sigma^2\), zero at \(\sigma = 1\), growing as \(\sigma\) shrinks or grows). Kingma and Welling print it as \(\frac12\sum_j(1 + \log\sigma_j^2 - \mu_j^2 - \sigma_j^2)\), the negative KL, because they maximise.</p>
+<div class="nums"><div class="t">Worked and checked</div><p>\(\mu = (1, -0.5)\), \(\sigma = (0.5, 2)\): dimension 1 gives \(\tfrac12(1 + 0.25 - 1 - \log 0.25) = 0.818\) (the same number as the {{Information theory page|n:3c65c17b0d0d81c6baf3f778a62e14e5}}'s example), dimension 2 gives \(\tfrac12(0.25 + 4 - 1 - \log 4) = 0.932\); total 1.750 nats. A two-million-sample Monte Carlo average of \(\log q - \log p\) gives 1.749 (standard error 0.002).</p></div>
+<h3>The whole loss, in code</h3>
+<p>This is the loss the page's VAE was trained with (from <span class="codew">src/data/vae.py</span>, PyTorch 2; \(\log\sigma^2\) is predicted rather than \(\sigma\) so it can take any real value):</p>
+<pre class="codew" style="display:block;white-space:pre;overflow-x:auto;padding:8px 10px;line-height:1.45">mu, logvar = encoder(x)                      # [batch, J] each
+z = mu + torch.exp(0.5 * logvar) * torch.randn_like(mu)   # reparameterised sample
+logits = decoder(z)                          # [batch, 784]
+rec = F.binary_cross_entropy_with_logits(logits, x, reduction='none').sum(-1)  # -log p(x|z)
+kl = 0.5 * (mu**2 + logvar.exp() - 1 - logvar).sum(-1)                          # closed form
+loss = (rec + beta * kl).mean()              # beta = 1: minus the ELBO</pre>
+<div class="cx"><div class="t">Two common bugs in this snippet's neighbours</div>Averaging the reconstruction over pixels (<span class="codew">reduction='mean'</span>) while summing the KL over dimensions silently multiplies the KL weight by 784: the model then behaves like a heavily over-weighted beta-VAE (section 10) and its samples blur. And the BCE loss on grey-level pixels is not the likelihood of any normalised distribution over grey levels ({{Loaiza-Ganem and Cunningham 2019, the continuous Bernoulli|https://arxiv.org/abs/1907.06845}}), so a "log-likelihood" computed that way is not comparable across papers; binarise the data, as here, or use a proper continuous likelihood.</div>
+</section>

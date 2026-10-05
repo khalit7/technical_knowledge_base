@@ -1,0 +1,50 @@
+<section id="vi-s3">
+<h2>3. Variational inference: turn inference into optimisation</h2>
+<p class="raise"><b>The question.</b> If the posterior cannot be computed, what is the next best thing, and how do we find it?</p>
+<p><b>The idea.</b> Choose a family \(\mathcal{Q}\) of distributions simple enough to sample from and to evaluate (say, all Gaussians, each fixed by a mean and a variance), and pick the member closest to the true posterior. "Closest" is measured by the KL divergence ({{Information theory for ML, section 6|n:3c65c17b0d0d81c6baf3f778a62e14e5}}), in this direction:</p>
+\[ q^{*} = \arg\min_{q \in \mathcal{Q}} D_{\mathrm{KL}}\big(q(z) \,\Vert\, p(z \mid x)\big), \qquad D_{\mathrm{KL}}(q \Vert p) = \mathbb{E}_{z \sim q}\left[\log \frac{q(z)}{p(z \mid x)}\right]. \]
+<p>This is equation (10) of {{Blei, Kucukelbir and McAuliffe's review|https://arxiv.org/abs/1601.00670}}. The search over \(q\) is ordinary optimisation over the numbers that define \(q\), the <dfn>variational parameters</dfn> (written \(\phi\), or \(\mu, \sigma\) for a Gaussian). The word "variational" comes from the calculus of variations, optimising over functions; here the functions are indexed by \(\phi\), so it is just gradient ascent on \(\phi\).</p>
+<p><b>Why this direction of KL (reverse KL).</b> It is an average under \(q\), which we can sample. The other direction, \(D_{\mathrm{KL}}(p(z\mid x) \Vert q)\), is an average under the posterior we cannot sample. The price: reverse KL is <i>mode-seeking</i>. It punishes \(q\) for putting mass where the posterior has none, but not for missing some of the posterior's mass, so on a two-humped posterior a Gaussian \(q\) picks one hump. The {{Information theory page, section 7|n:3c65c17b0d0d81c6baf3f778a62e14e5}} animates exactly this (its reverse fit lands on one mode with a KL of 0.692, about \(\ln 2\)); model B in the next section shows the same number appearing as an ELBO gap.</p>
+<p><b>But the KL contains the posterior we cannot compute.</b> Expand it with \(p(z \mid x) = p(x, z)/p(x)\) (Blei et al. eq. 11 to 12):</p>
+\[ D_{\mathrm{KL}}\big(q \,\Vert\, p(z\mid x)\big) = \mathbb{E}_q[\log q(z)] - \mathbb{E}_q[\log p(x, z)] + \log p(x). \]
+<p>The unknown part, \(\log p(x)\), does not depend on \(q\) at all. So minimising the KL over \(q\) is the same as maximising what is left, the computable part with its sign flipped. That quantity is the ELBO.</p>
+<div class="use"><div class="t">What it is used for in ML</div>Every VAE encoder, Bayesian neural networks (Bayes by Backprop), topic models (LDA's original inference), Gaussian processes with inducing points, and the training objective of diffusion models (section 13).</div>
+</section>
+<section id="vi-s4">
+<h2>4. The ELBO, derived three ways</h2>
+<p class="raise"><b>The question.</b> What exactly is the evidence lower bound, why is it a lower bound, and how tight is it? Three derivations, because each one answers a different follow-up question.</p>
+<p>The definition (Kingma and Welling eq. 2; Blei et al. eq. 13):</p>
+\[ \text{ELBO}(q) = \mathbb{E}_{z \sim q}\big[\log p(x, z) - \log q(z)\big]. \]
+<dl class="sym"><dt>\(\log p(x,z)\)</dt><dd>the log-joint: prior plus decoder, \(\log p(z) + \log p(x\mid z)\); computable for any \(z\).</dd><dt>\(\log q(z)\)</dt><dd>the approximation's own log-density at the same \(z\).</dd><dt>\(\mathbb{E}_{z\sim q}\)</dt><dd>average over samples from \(q\): estimate it by drawing a few \(z\) and averaging.</dd></dl>
+<h3>Way 1: Jensen's inequality (why it is a lower bound)</h3>
+<ol class="steps"><li>Multiply and divide inside the integral by \(q(z)\) (allowed wherever \(q(z) > 0\)): \[\log p(x) = \log \int p(x, z)\, dz = \log \int q(z) \frac{p(x,z)}{q(z)}\, dz = \log \mathbb{E}_q\!\left[\frac{p(x,z)}{q(z)}\right]\].</li>
+<li><dfn>Jensen's inequality</dfn>: for a concave function such as \(\log\), the log of an average is at least the average of the log, \(\log \mathbb{E}[Y] \ge \mathbb{E}[\log Y]\) (a chord of a concave curve lies below the curve).</li>
+<li>Apply it with \(Y = p(x,z)/q(z)\): \(\log p(x) \ge \mathbb{E}_q\big[\log p(x, z) - \log q(z)\big] = \text{ELBO}(q)\).</li></ol>
+<p class="plain">It is a bound for every \(q\), however bad. Equality needs \(Y\) to be constant, \(p(x,z)/q(z) = \) the same number for every \(z\), which happens only when \(q(z) \propto p(x, z)\), that is \(q\) equals the posterior.</p>
+<h3>Way 2: the KL decomposition (how far below)</h3>
+<ol class="steps"><li>Start from the definition and write \(p(x, z) = p(z\mid x)\, p(x)\): \(\text{ELBO} = \mathbb{E}_q\big[\log p(z \mid x) + \log p(x) - \log q(z)\big]\).</li>
+<li>\(\log p(x)\) is a constant under \(\mathbb{E}_q\): \[\text{ELBO} = \log p(x) - \mathbb{E}_q\!\left[\log \frac{q(z)}{p(z\mid x)}\right] = \log p(x) - D_{\mathrm{KL}}(q \Vert p(z\mid x))\].</li>
+<li>Rearranged, this is Kingma and Welling's eq. (1) and Blei et al.'s eq. (14):</li></ol>
+\[ \log p(x) = \text{ELBO}(q) + D_{\mathrm{KL}}\big(q(z) \,\Vert\, p(z \mid x)\big). \]
+<p class="plain">The evidence splits into the bound plus the gap, and the gap is exactly the reverse KL of section 3. Because \(\log p(x)\) is fixed, every nat the ELBO gains is a nat the KL loses. When the model's parameters \(\theta\) also change, raising the ELBO either raises \(\log p_\theta(x)\) (better model) or shrinks the gap (better \(q\)); you cannot tell which from the ELBO alone.</p>
+<div class="nums"><div class="t">Model A, with \(q = \mathcal{N}(0.5,\ 0.5^2)\) (too far left and too wide; the posterior is \(\mathcal{N}(1.2,\ 0.2)\))</div>
+<p>Split the ELBO into three averages, each in closed form for Gaussians (using \(\mathbb{E}_q[(a - z)^2] = (a - m)^2 + v\) for \(q = \mathcal{N}(m, v)\)):</p>
+<ul class="tight"><li>\[\mathbb{E}_q[\log p(x\mid z)] = -\tfrac12\log(2\pi \cdot 0.25) - \frac{(1.5 - 0.5)^2 + 0.25}{2 \cdot 0.25} = -0.2258 - 2.5 = -2.7258\]</li>
+<li>\[\mathbb{E}_q[\log p(z)] = -\tfrac12 \log 2\pi - \frac{0.5^2 + 0.25}{2} = -0.9189 - 0.25 = -1.1689\]</li>
+<li>Entropy of \(q\): \(-\mathbb{E}_q[\log q] = \tfrac12 \log(2\pi e \cdot 0.25) = 0.7258\)</li></ul>
+<p>ELBO \(= -2.7258 - 1.1689 + 0.7258 = -3.1689\). The Gaussian KL from \(q\) to the posterior is \(1.2384\). Sum: \(-3.1689 + 1.2384 = -1.9305 = \log p(x)\), to every printed digit. A million-sample Monte Carlo estimate of the ELBO gives \(-3.1692\). Move \(q\) to the posterior, \(\mathcal{N}(1.2, 0.2)\), and the ELBO becomes \(-1.9305\): gap zero.</p></div>
+<p class="small">A version with a two-valued latent, to do by hand, is the drill "Jensen's inequality and the ELBO in one line" in the Practice drills tab of {{Topic: math|n:3c65c17b0d0d81cdb851c0835b25a538}}.</p>
+<h3>Way 3: importance sampling (a family of tighter bounds)</h3>
+<ol class="steps"><li>Way 1's first line says \(p(x) = \mathbb{E}_q[w]\) with the <dfn>importance weight</dfn> \(w = p(x, z)/q(z)\): draw \(z\) from \(q\), reweight by how much more likely the model finds it than \(q\) does. This is <dfn>importance sampling</dfn>, and it is unbiased for \(p(x)\).</li>
+<li>Average \(K\) weights: \(\hat p_K = \frac1K \sum_{k=1}^K w_k\), still unbiased for \(p(x)\), with variance falling like \(1/K\).</li>
+<li>Take the log and apply Jensen again: \(\mathbb{E}[\log \hat p_K] \le \log \mathbb{E}[\hat p_K] = \log p(x)\). So</li></ol>
+\[ \mathcal{L}_K = \mathbb{E}_{z_1, \dots, z_K \sim q}\left[\log \frac{1}{K} \sum_{k=1}^{K} \frac{p(x, z_k)}{q(z_k)}\right] \le \log p(x), \]
+<p>the importance-weighted bound of {{Burda, Grosse and Salakhutdinov (IWAE), Theorem 1|https://arxiv.org/abs/1509.00519}}: \(\mathcal{L}_1\) is the ELBO, \(\mathcal{L}_K\) never decreases as \(K\) grows, and it tends to \(\log p(x)\) when the weights are bounded.</p>
+<div class="nums"><div class="t">Model A, same \(q\): the bound tightens with \(K\)</div>
+<p>\(\mathcal{L}_1 = -3.09\) (a Monte Carlo average over 2,000 repeats; the exact ELBO is \(-3.1689\)), \(\mathcal{L}_{10} = -2.13\), \(\mathcal{L}_{100} = -1.954\), \(\mathcal{L}_{1000} = -1.931\), against \(\log p(x) = -1.9305\). The same \(q\), a better estimator. On the MNIST VAE of section 8 the same experiment goes from \(-150.1\) to \(-144.6\) nats as \(K\) runs from 1 to 1,000, still far from the truth there: a poor \(q\) makes importance sampling converge slowly.</p></div>
+<div class="cx"><div class="t">Model B: when the family cannot reach the posterior</div>
+<p>With the two-humped posterior of section 2 (\(x = 2\), \(\log p(x) = -2.1693\) by quadrature), the best Gaussian \(q\) sits on one hump (mean 1.33, standard deviation 0.19) and reaches an ELBO of \(-2.8811\): a gap of 0.712 nats that no optimiser can close, close to \(\ln 2 = 0.693\), the cost of covering only one of two equal humps. A richer family (a mixture, or a normalising flow, section 11) is the only fix. Try both models in the <a href="#" data-tab="t-elbo">ELBO lab</a>.</p></div>
+<p><b>Two more forms you will meet.</b> Split \(\log p(x,z) = \log p(x \mid z) + \log p(z)\) and group the prior with \(q\) (Kingma and Welling eq. 3):</p>
+\[ \text{ELBO} = \underbrace{\mathbb{E}_{q}\big[\log p(x\mid z)\big]}_{\text{reconstruction}} - \underbrace{D_{\mathrm{KL}}\big(q(z) \,\Vert\, p(z)\big)}_{\text{stay near the prior}} . \]
+<p>For model A's \(q\): \(-2.7258 - 0.4431 = -3.1689\), the same number. This is the form a VAE implements (section 7). Engineers often minimise the <i>negative</i> ELBO and call it the loss; papers on images report it in bits per dimension (divide by \(D \ln 2\), \(D\) the number of pixels).</p>
+</section>

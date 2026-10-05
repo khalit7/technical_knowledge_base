@@ -2477,3 +2477,23 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | R2 | Interactive condition-number calculator for arbitrary f | 5 | | rejected: the table of five worked functions says it; Linear algebra owns matrix conditioning |
 | R3 | Block-format (MXFP4/NVFP4) explorer | 4 | | rejected: owned by the quantization page's Bit explorer |
 | R4 | GPU split-K reduction simulator | 6 | | rejected: no GPU here to measure; the CPU thread-count and MPS atomics measurements are real |
+
+### Variational inference and generative-model maths: ELBO, VAEs, diffusion (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_math/variational_inference_and_generative_models/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score | Status |
+|---|---|---|---|---|
+| 1 | **Forward then back, three samplers** (DDPM / DDIM inversion / flow inversion) on the same 300 points, coloured by starting moon; counters: on data, on own moon, distance from start, network calls | Reading s14 | 14 | built (the before/after animation; extends the DDPM page's Swiss roll with the invertibility contrast) |
+| 2 | **ELBO lab**: model A (Gaussian posterior) and B (two humps), q sliders, identity bar log p = ELBO + gap, gradient ascent with pathwise or score-function estimator, ELBO trace | own tab | 13 | built |
+| 3 | **Diffusion lab**: sampler, schedule, steps, class, guidance w, seed; on-data and on-moon rates, spread; log-SNR strip of where steps land | own tab | 13 | built (the strip came from finding that step placement, not straightness, explains few-step quality) |
+| 4 | **CAVI animation** on Bishop's Normal-Gamma example: exact posterior shaded, mean-field ellipses round by round | Reading s5 | 11 | built |
+| 5 | **Estimator variance by dimension** (pathwise vs score function vs baseline, d = 1, 10, 100) | Reading s6 | 11 | built |
+| 6 | **MNIST VAE**: training curves (inline), latent map, decoded grid, reconstructions, measurements, gap split by exact quadrature | Reading s8 + own tab | 12 | built |
+| 7 | **Beta sweep table** with per-dimension KL bars (posterior collapse) | Reading s10 | 10 | built |
+| 8 | **Schedules**: linear vs cosine abar_t with a t slider and the noised cloud | Reading s12 | 9 | built |
+| 9 | **Straightness** of DDIM vs flow-matching trajectories from the same noise | Reading s18 | 9 | built; measured result (flow 0.55 < DDIM 0.73) corrected the draft's claim |
+| 10 | Live VAE decoder in the browser (drag z, see the digit) | rejected | | 200k decoder weights (about 270 KB even at 8 bits) for what the 10 x 10 grid shows |
+| 11 | Learned score field arrows | rejected | | the DDPM paper page has it |
+| 12 | Image-scale diffusion model | rejected | | weights too large for a sandboxed page; 2-D makes every sample checkable |
+| 13 | Normalising-flow toy (RealNVP on moons) | rejected | | one section of scope; two checked closed forms carry the idea |
