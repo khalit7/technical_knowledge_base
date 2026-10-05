@@ -2839,3 +2839,16 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/src/viz_ideas.md`.
 
+### Containers and isolation: namespaces, cgroups v2, seccomp, sandboxes (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_operating_systems/containers_and_isolation/src/viz_ideas.md`.
+
+| Idea | Score (teach, data, unique) | Where | Data |
+|---|---|---|---|
+| **Build a container stepper**: one real run of a 170-line C runtime, the process's whole view printed after each of 10 steps, diff against the previous step or step 0 (before/after) | 5, 5, 5 | tab | `raw/minictr.txt` |
+| **docker stop, seven ways** (before/after animation of one stop event: the trap and three fixes), process boxes with SIGTERM/SIGKILL, measured times, exit codes and the job's own log | 5, 5, 4 | Reading s2 | `raw/stop_matrix.txt` |
+| **One 300 MiB allocation under memory.max, memory.high, memory.high with swap**: bars of memory.current per 10 MiB step, swapped part stacked, slow steps labelled | 5, 5, 5 | Reading s5 | `raw/cgroup.txt` |
+| Namespace creation cost, log-scale bars | 3, 5, 4 | Reading s1 | `raw/cost.txt` |
+| Freezer: loop iterations per 0.5 s with the frozen gap | 2, 5, 3 | Reading s4 | `raw/cgroup.txt` |
+| Capability matrix (8 operations x 4 containers), seccomp probe (12 calls x 3 profiles, differences highlighted), io_uring per-UID table | 4, 5, 4 | Reading s6, s7 | `raw/caps.txt`, `raw/seccomp.txt`, `raw/uring.txt` |
+| **Pod to cgroup calculator** with presets, both shares-to-weight maps | 4, 4 (formulas from source), 5 | tab | Kubernetes v1.34.0, runc, opencontainers/cgroups; checked by `recompute.py` |

@@ -1,0 +1,53 @@
+<div class="tab" id="t-build" role="tabpanel" hidden>
+<style>
+#t-build .bl-steps{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+#t-build .bl-steps button{font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-build .bl-steps button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-build .bl-steps button.done{color:var(--mute)}
+#t-build .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}
+#t-build .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-build .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-build .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-build .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-build .an-play{min-width:6.4em}
+#t-build .bl-cap{border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;min-height:4.5em}
+#t-build .bl-cap .t{font-weight:600;font-size:14.5px}#t-build .bl-cap p{margin:3px 0;font-size:13.5px}
+#t-build pre.cd{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%}
+#t-build pre.cd.out{background:var(--bg);border-style:dashed;max-height:26em;overflow-y:auto}
+#t-build .bl-view td,#t-build .bl-view th{font-size:12.5px}
+#t-build .bl-view td:first-child{white-space:nowrap;color:var(--mute)}
+#t-build .bl-view td{overflow-wrap:anywhere}
+#t-build .bl-view tr.chg td{background:var(--hl)}#t-build .bl-view tr.chg td:last-child{font-weight:600}
+#t-build .bl-view .was{color:var(--mute);text-decoration:line-through;font-weight:400;margin-right:6px}
+#t-build .grp td{background:var(--soft);font-weight:600;color:var(--ink)!important;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+#t-build .try{font-size:13px;margin:2px 0}
+#t-build [hidden]{display:none!important}
+#t-build .panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:10px;margin:6px 0}#t-build .panes>div{min-width:0}
+#t-build .panes h5{margin:4px 0 2px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+#t-build .bl-view td{padding:2px 6px}
+#t-build .meas{font-size:11.5px;color:var(--good);font-weight:600}
+</style>
+<h2>Build a container, one system call at a time</h2>
+<p>This is a container runtime in about 170 lines of C (<code>src/exp/minictr.c</code>). It starts as an ordinary root process, applies one restriction per step, and after each step prints everything the process can observe about its world: its PID, hostname, namespace numbers, how many processes and mounts it can see, its network interfaces, its cgroup and the limits visible to it, its capabilities and its seccomp state. At the end it <code>execve</code>s a busybox shell that runs a small workload inside. Every value below was printed by that run <span class="meas">measured</span> (<code>src/raw/minictr.txt</code>).</p>
+<p class="small mute">It ran inside a Docker container started with <code>--cap-add SYS_ADMIN --security-opt seccomp=unconfined</code>, so that it could do what runc does on the host: create namespaces, mount, and call <code>pivot_root</code> (which Docker 20.10's default profile blocks). Before it ran, a shell script made a busybox root file system for the overlay's lower layer and a cgroup <code>/ctr</code> with <code>memory.max</code> 64 MiB, <code>memory.swap.max</code> 0 and <code>pids.max</code> 16 (<code>src/exp/minictr.sh</code>). Changed values are highlighted, with the old value struck through.</p>
+<div class="card" id="bl-card">
+<div class="bl-steps" id="bl-steps"></div>
+<div class="seg" id="bl-cmp" role="group" aria-label="Compare with"><button data-m="prev" class="on">compare with the previous step</button><button data-m="zero">compare with step 0 (before everything)</button></div>
+<div class="bl-cap" id="bl-cap"></div>
+<div class="an-ctl" id="bl-ctl"></div>
+<div class="panes">
+<div><h5 class="small mute">The call</h5><pre class="cd" id="bl-code"></pre><div id="bl-tries"></div></div>
+<div><h5 class="small mute">What the process sees now</h5><div class="tw"><table class="bl-view" id="bl-view"></table></div></div>
+</div>
+<pre class="cd out" id="bl-out" hidden></pre>
+</div>
+<div class="co key"><div class="t">What to notice</div><ul class="tight">
+<li><b>Step 2:</b> the PID becomes 1 only after the fork, yet <code>ps</code> would still see the outer processes: <code>/proc</code> is the old namespace's until step 4 mounts a new one.</li>
+<li><b>Step 3:</b> <code>/proc/self/cgroup</code> becomes <code>0::/</code>, but the visible <code>memory.max</code> is still the outer container's 1.5 GB: a cgroup namespace changes how paths are shown, and the mounted cgroup file system is the old view until step 4 remounts it.</li>
+<li><b>Step 4:</b> one visible process, seven root entries, eight mounts: the host's tree is gone from this mount namespace, not merely hidden.</li>
+<li><b>Step 5:</b> the network namespace has no <code>eth0</code>, only loopback and two tunnel devices this kernel creates in every namespace. A real runtime would now add one end of a virtual Ethernet pair.</li>
+<li><b>Step 7:</b> <code>CapEff</code> drops from <code>a82425fb</code> (Docker's 14 plus <code>CAP_SYS_ADMIN</code>) to <code>a80425fb</code>, Docker's 14: bit 21 gone. Root can still <code>chown</code>, but no longer change the hostname or mount.</li>
+<li><b>Step 9:</b> the cgroup limits bite: a fork past 16 tasks fails, and a 100 MB allocation is OOM-killed inside the 64 MiB group while the shell survives. The deleted <code>/etc/passwd</code> becomes a whiteout in the upper layer.</li>
+</ul></div>
+<p class="small">Each step's kernel side is explained on the Reading tab: namespaces (section 1), PID 1 (2), mounts and overlayfs (3), cgroups (4, 5), capabilities (6), seccomp (7).</p>
+</div>
