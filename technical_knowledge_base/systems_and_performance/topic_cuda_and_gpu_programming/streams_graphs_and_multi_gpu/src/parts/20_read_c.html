@@ -1,0 +1,34 @@
+<section id="sg-s2">
+<h2>2. Copies: pinned memory and copy/compute overlap</h2>
+<p><b>The problem.</b> Host memory is far away. A PCIe 5.0 x16 link moves about 63 GB/s each way (the figure {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}} uses), while an H100 SXM reads its own HBM at 3.35 TB/s <span class="rd-vend">vendor spec</span>, about 53 times faster <span class="rd-der">derived: 3,350 / 63</span>. A kernel that waits for its input to cross PCIe runs at PCIe speed. The fix is to move data while the GPU computes on something else.</p>
+<p><b>Pinned memory first.</b> The GPU's copy engines move data by DMA: they read physical pages directly, so those pages must not move or be swapped out while the copy runs. Ordinary (pageable) memory can be, so the driver first copies it into a pinned staging buffer, and the copy is not truly asynchronous. NVIDIA: "In order for memory copies involving CPU memory to be carried out asynchronously, the host buffers must be pinned and page-locked" (guide 2.5.2.3) <span class="rd-vend">vendor doc</span>. Allocate pinned memory with <code>cudaMallocHost</code> (PyTorch: <code>pin_memory=True</code> in the DataLoader, or <code>t.pin_memory()</code>); do not pin everything, because pinned pages are taken away from the OS.</p>
+<p><b>Copy engines.</b> Copies are done by separate hardware units, not by the SMs, so a copy and a kernel can run at the same time; with two copy engines a host-to-device and a device-to-host copy can also overlap each other. <code>cudaGetDeviceProperties</code> reports how many as <code>asyncEngineCount</code>. With one engine, the two directions take turns.</p>
+<h3>The chunked pipeline</h3>
+<p>Cut the data into chunks and give each chunk its own sequence (copy in, kernel, copy out) on one of a few streams. While chunk 2 is copied in, chunk 1's kernel runs and chunk 0 is copied out. The program, compiled here <span class="rd-pub">compiled here</span>:</p>
+<pre class="rd-code"><span class="c">// s1_pipeline.cu: 256 MiB in 8 chunks on 3 non-blocking streams (error checks shortened)</span>
+cudaMallocHost(&amp;h_in, N * sizeof(float));                 <span class="c">// pinned</span>
+for (int k = 0; k &lt; NS; ++k)
+  cudaStreamCreateWithPriority(&amp;s[k], cudaStreamNonBlocking, k == 0 ? hi : lo);
+for (int c = 0; c &lt; CHUNKS; ++c) {
+  cudaStream_t st = s[c % NS];  size_t off = (size_t)c * C;
+  cudaMemcpyAsync(d_in + off, h_in + off, C * 4, cudaMemcpyHostToDevice, st);
+  scale&lt;&lt;&lt;(C + 255) / 256, 256, 0, st&gt;&gt;&gt;(d_out + off, d_in + off, C, 2.0f);
+  cudaMemcpyAsync(h_out + off, d_out + off, C * 4, cudaMemcpyDeviceToHost, st);
+}
+<span class="c">// s[0] waits on an event from each other stream, records t1, then: cudaEventSynchronize(t1)</span></pre>
+<div class="card" id="sg-pipe-card">
+<div class="rd-ctlrow"><label>Chunks <input type="range" id="sg-pipe-k" min="1" max="16" value="8"> <b id="sg-pipe-kv">8</b></label>
+<label><input type="checkbox" id="sg-pipe-two" checked> two copy engines</label></div>
+<div class="sg-tl" id="sg-pipe-fig"></div><div class="rd-cnt" id="sg-pipe-cnt"></div>
+<p class="small mute">Model <span class="rd-der">derived</span>: 256 MiB at 63 GB/s each way = <span data-sgv="pipe.h2d_ms">4.26</span> ms per direction; the kernel reads and writes 256 MiB at 3.35 TB/s = <span data-sgv="pipe.k_ms">0.16</span> ms. Serial: <span data-sgv="pipe.serial_ms">8.68</span> ms. Eight chunks with two engines: <span data-sgv="pipe.pipe8_ms">4.81</span> ms; with one engine: <span data-sgv="pipe.pipe8_one_engine_ms">8.54</span> ms. Launch and per-copy latencies are ignored. Not run here: no GPU.</p></div>
+<p>Read the chart before the numbers. The kernel was never the problem; the copies were. Pipelining hides the kernel under the copies (a saving of 0.16 ms) and, with two engines, the copy out under the copy in, which is where the factor of nearly two comes from. <b>Overlap hides the smaller thing under the larger one.</b> If the copies dominate, the real fixes are to copy less (keep data on the GPU, compress it, use lower precision) or to use a faster link.</p>
+<h3>In PyTorch, and when it matters for training</h3>
+<pre class="rd-code">loader = DataLoader(ds, batch_size=16, pin_memory=True, num_workers=4)
+for x, y in loader:
+    x = x.to("cuda", non_blocking=True)   <span class="c"># returns at once; ordered before the forward on the stream</span>
+    y = y.to("cuda", non_blocking=True)
+    loss = model(x, y)</pre>
+<p>Host-to-device with <code>non_blocking=True</code> is safe because later kernels on the same stream wait for the copy. The other direction is not: "attempting <code>cuda_tensor.to("cpu", non_blocking=True).mean()</code> will result in erroneous outputs", since the CPU reads the buffer before the copy lands; synchronise first. Calling <code>.pin_memory()</code> on a tensor just to copy it once is usually slower than a plain copy: the tutorial measured 0.4364 ms against 0.3704 ms ({{Moens, "A guide on good usage of non_blocking and pin_memory()", PyTorch tutorials, updated Apr 1 2026|https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html}}) <span class="rd-pub">published</span>. Pinning pays when the buffer is reused, which is what the DataLoader's pinned buffers do.</p>
+<p><b>For LLM pretraining the input copy is tiny.</b> 16 sequences of 1,024 tokens as int64 ids, inputs plus targets, are <span data-sgv="step.cfg.batch_bytes">262,144</span> bytes, about <span data-sgv="step.serial.copy">0.004</span> ms over PCIe <span class="rd-der">derived</span>, against tens of milliseconds of compute. Copy/compute overlap matters when the bytes are large next to the work: activations or optimizer state offloaded to the CPU (<code>torch.autograd.graph.save_on_cpu(pin_memory=True)</code>, FSDP's CPU offload), inference that streams weights or KV cache from host memory, and image or video pipelines that decode on the CPU. In each case the same rule decides: if copying a layer's bytes takes longer than computing that layer, overlap cannot hide it.</p>
+<div class="deepnote"><b>Go deeper:</b> pinned, mapped (zero-copy) and managed memory and their costs are on {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}; PCIe generations and why the NIC and GPU share a switch are on {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}.</div>
+</section>
