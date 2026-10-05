@@ -1,0 +1,49 @@
+
+<section id="rd-s2">
+<h2>2. Meaning: methods, status codes, header fields</h2>
+<p><b>The problem.</b> A client must be able to talk to a server it has never seen, through intermediaries that know nothing about the application, and everyone must agree on what a request asks for and what an answer means. {{RFC 9110 (HTTP Semantics, June 2022)|https://www.rfc-editor.org/rfc/rfc9110}} defines that shared meaning once, for every version. It is the one HTTP document worth reading end to end.</p>
+<h3>Methods, and the two promises that decide retries</h3>
+<p>A <dfn id="g-method">method</dfn> names the kind of operation. Two properties matter more than the names. A method is <dfn id="g-safe">safe</dfn> if the client asks for no change on the server (reading). It is <dfn id="g-idem">idempotent</dfn> if sending it twice has the same intended effect as sending it once: "PUT, DELETE, and safe request methods are idempotent" ({{RFC 9110 section 9.2.2|https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2}}). Idempotent requests can be repeated after a network error without asking whether the first one ran; that is the whole reason the property exists.</p>
+<div class="tw"><table>
+<thead><tr><th>Method</th><th>Asks for</th><th>Safe</th><th>Idempotent</th><th>Where you meet it in ML work</th></tr></thead>
+<tbody>
+<tr><td><code>GET</code></td><td>A representation of the resource</td><td>yes</td><td>yes</td><td>List models, download weights or a tokenizer file, poll a batch job</td></tr>
+<tr><td><code>HEAD</code></td><td>Same as GET without the body</td><td>yes</td><td>yes</td><td>Check a file's size and ETag before downloading it</td></tr>
+<tr><td><code>OPTIONS</code></td><td>What the server allows</td><td>yes</td><td>yes</td><td>Browser CORS preflight before a cross-origin API call</td></tr>
+<tr><td><code>POST</code></td><td>Process this body (create, run, trigger)</td><td>no</td><td><b>no</b></td><td>Every generation (<code>/v1/messages</code>, <code>/v1/chat/completions</code>), every tool call, MCP and A2A requests</td></tr>
+<tr><td><code>PUT</code></td><td>Replace the resource with this body</td><td>no</td><td>yes</td><td>Upload an object to a known key (S3 PUT, a model artefact)</td></tr>
+<tr><td><code>PATCH</code></td><td>Apply these changes</td><td>no</td><td>no (in general)</td><td>Update fields of a job or a config</td></tr>
+<tr><td><code>DELETE</code></td><td>Remove the resource</td><td>no</td><td>yes</td><td>Cancel or delete a batch, a file, a fine-tune</td></tr>
+</tbody></table></div>
+<p class="small mute">From RFC 9110 section 9 (PATCH is RFC 5789). Idempotency is a promise the server makes about its behaviour, not something the protocol enforces: a buggy PUT handler can still double-count.</p>
+<div class="co warn"><div class="t">The consequence for LLM APIs</div>Generation is a POST, so it is neither safe nor idempotent. If the connection breaks after the request left, the client cannot know whether the model is already generating (and billing). <a href="#rd-s9">Section 9</a> shows what the official SDKs do about it (they retry anyway) and what the protocol offers to make it safe.</div>
+<h3>Status codes: the first thing a client reads</h3>
+<p>A <dfn id="g-status">status code</dfn> is three digits whose first digit is its class: 1xx informational (more is coming), 2xx success, 3xx go elsewhere, 4xx the request is wrong, 5xx the server or something in front of it failed. Clients must treat an unknown code as the <code>x00</code> of its class, which is why APIs can invent codes such as 529 and still be understood as "server error" ({{RFC 9110 section 15|https://www.rfc-editor.org/rfc/rfc9110#section-15}}). The ones that matter for an LLM service:</p>
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>Meaning</th><th>Who usually sends it, and what to do</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>OK</td><td>For a stream it is sent before the first token, so it cannot report a failure that happens later: the Claude API can send an error event inside a stream that began with 200 ({{errors docs|https://platform.claude.com/docs/en/api/errors}}). Always handle in-stream errors.</td></tr>
+<tr><td>202</td><td>Accepted, not yet done</td><td>The shape of long jobs: submit, get an ID, poll or receive a webhook (batch APIs)</td></tr>
+<tr><td>204, 304</td><td>No content; not modified</td><td>304 answers a conditional request: "your cached copy is still good" (<a href="#rd-s3">section 3</a>)</td></tr>
+<tr><td>301, 302 / 307, 308</td><td>Moved</td><td>307 and 308 keep the method and body; 301 and 302 were historically turned into GET by clients, which silently drops a POST body (RFC 9110 section 15.4)</td></tr>
+<tr><td>400, 422</td><td>Malformed / well-formed but invalid</td><td>Your bug. Retrying will not help.</td></tr>
+<tr><td>401 vs 403</td><td>Not authenticated / authenticated but not allowed</td><td>401: fix the key or token. 403: fix permissions or scopes ({{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}})</td></tr>
+<tr><td>408</td><td>Request Timeout</td><td>The server gave up waiting for your request bytes; safe to retry on a new connection</td></tr>
+<tr><td>409</td><td>Conflict</td><td>State conflict, or an idempotency key reused with a different body</td></tr>
+<tr><td>413</td><td>Content Too Large</td><td>Body over a limit. For the Claude API the Messages limit is 32 MB, and "Cloudflare returns this error before the request reaches the API servers" ({{errors docs|https://platform.claude.com/docs/en/api/errors}})</td></tr>
+<tr><td>421</td><td>Misdirected Request</td><td>A reused HTTP/2 or HTTP/3 connection was sent a request for a host this server does not serve; retry on a new connection</td></tr>
+<tr><td>425</td><td>Too Early</td><td>The server refuses to act on a request sent in TLS early data (0-RTT) because it could be replayed; retry after the handshake ({{RFC 8470 section 5.2|https://www.rfc-editor.org/rfc/rfc8470#section-5.2}})</td></tr>
+<tr><td>429</td><td>Too Many Requests</td><td>Rate limit ({{RFC 6585|https://www.rfc-editor.org/rfc/rfc6585#section-4}}); wait as long as <code>Retry-After</code> says</td></tr>
+<tr><td>500</td><td>Internal error</td><td>Retry with backoff only if the request is idempotent or carries an idempotency key</td></tr>
+<tr><td>502, 503, 504</td><td>Bad gateway / unavailable / gateway timeout</td><td>Usually written by a proxy about the hop behind it: bad answer, nobody there, too slow. Find which hop (<a href="#rd-s7">section 7</a>)</td></tr>
+<tr><td>524, 529</td><td>Not in any RFC</td><td>524: Cloudflare's "origin did not answer in time" (125 s by default, <a href="#rd-s8">section 8</a>). 529: the Claude API's <code>overloaded_error</code>. Both read as 5xx.</td></tr>
+</tbody></table></div>
+<div class="drill" data-ans="b"><div class="t">Predict, then reveal</div>
+<p>A streamed request returns <code>HTTP/2 200</code>, three tokens arrive, then the stream carries an <code>overloaded_error</code> event and ends. What status code did the request "have"?</p>
+<div class="opts"><button data-o="a">529, sent when the error happened</button><button data-o="b">200: the code was sent before the first token and cannot change</button><button data-o="c">500, added as a trailer</button></div>
+<div class="rev" hidden>200. The status line goes out with the response head, before any of the body, so a failure later in a stream can only be reported inside the body (an SSE error event) or by cutting the connection. Logs and dashboards that count status codes record this request as a success: count stream-level errors separately. (HTTP does allow trailer fields after a body, but status is not one of them, and SSE clients do not read trailers.)</div></div>
+<h3>Header fields: everything else</h3>
+<p>Header fields carry the rest, and they fall into a few families. <b>Representation</b>: <code>content-type</code> (what the body is: <code>application/json</code>, <code>text/event-stream</code>), <code>content-length</code>, <code>content-encoding</code> (gzip, br, zstd). <b>Negotiation</b>: <code>accept</code>, <code>accept-encoding</code> (what the client can take; the server picks and says so). <b>Credentials</b>: <code>authorization</code>, or an API's own such as <code>x-api-key</code>. <b>Caching and conditions</b>: <code>cache-control</code>, <code>etag</code>, <code>if-none-match</code>. <b>Limits and hints</b>: <code>retry-after</code>, rate-limit headers. <b>Connection management</b>: <code>connection</code>, <code>keep-alive</code>, <code>transfer-encoding</code>, <code>upgrade</code>, which apply to one hop only and which proxies must strip (<a href="#rd-s7">section 7</a>). Field names are case-insensitive; HTTP/2 and HTTP/3 require them in lower case on the wire, which is why the same request shows <code>Content-Type</code> on one hop and <code>content-type</code> on the next.</p>
+<p><b>Content negotiation in LLM APIs.</b> One endpoint can answer in two shapes: with <code>"stream": true</code> in the body, the Claude and OpenAI APIs answer <code>text/event-stream</code>; without it, one <code>application/json</code> body at the end. MCP's Streamable HTTP transport uses the <code>Accept</code> header for the same choice on one endpoint ({{MCP|n:3c65c17b0d0d813f9695dc4175c44cbb}}). Compression is negotiated the same way, and it has a streaming trap: a proxy that gzips an event stream may hold tokens until it has enough bytes to compress (the root page's Failure lab reproduces this as "A buffering proxy delays tokens").</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Designing resources, error bodies (RFC 9457), pagination and versioning: {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}. Each failure code reproduced with real client error text: the {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab of Topic: protocols (413, 429, 502, 504).</div>
+</section>

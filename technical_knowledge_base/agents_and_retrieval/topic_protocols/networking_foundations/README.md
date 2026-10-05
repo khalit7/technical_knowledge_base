@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564 (child of Topic: protocols)
 
-Not migrated yet: rebuilds the old written page "TCP, UDP, and IP: the transport foundations".
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Addresses and prefixes, ports and sockets, the TCP connection's life (handshake, states, TIME_WAIT), retransmission (RTO, fast retransmit, RACK-TLP), windows and window over RTT, congestion control (slow start, Reno, CUBIC, BBR, bufferbloat), Nagle and delayed ACKs, accept queues, NAT and idle timeouts, MTU and path MTU black holes, UDP, QUIC as a transport (connection migration recorded), moving big checkpoints, and why GPU clusters use RDMA and NCCL. Measured on a real internet path and on loopback (October 2026). Tabs: Reading, TCP timeline (the root's request segment by segment, before/after), Throughput lab (which ceiling binds, streams needed), Further reading. Replaces the old page "TCP, UDP, and IP: the transport foundations"; no child pages, databases or video.
