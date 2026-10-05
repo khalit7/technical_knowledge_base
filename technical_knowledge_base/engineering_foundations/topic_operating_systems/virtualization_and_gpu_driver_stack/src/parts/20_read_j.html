@@ -1,0 +1,29 @@
+<section id="rd-s10">
+<h2>10. Two versions: the driver and the runtime</h2>
+<p><b>The problem.</b> A CUDA program depends on two independently installed things: the <b>runtime</b> it was built with (inside your image or wheel: <code>torch.version.cuda</code>) and the <b>driver</b> on the machine it runs on (host: <code>nvidia-smi</code> prints its version and the newest CUDA version it supports). Clusters upgrade drivers rarely and carefully; images change every week. "CUDA driver version is insufficient for CUDA runtime version" is the result of the two drifting apart.</p>
+<p><b>Measured here.</b> The runtime reported <code>13040</code> (CUDA 13.4) in every case. The driver version was <code>0</code> with no <code>libcuda</code> (case 1 of section 9), and <code>13040</code> with the 615.71.09 user-mode driver from the image's <code>/usr/local/cuda/compat</code>. The image also declares what it needs, for the NVIDIA container toolkit to check before starting it: <code>NVIDIA_REQUIRE_CUDA=cuda&gt;=13.4</code> plus a list of accepted driver branches for data-centre GPUs (<code>brand=tesla,driver&gt;=535,driver&lt;536</code>, and likewise 570, 580, 590, 595, 610). "If the version of the NVIDIA driver is insufficient to run this version of CUDA, the container does not start" ({{container toolkit, NVIDIA_REQUIRE_CUDA|https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html}}).</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>The driver (libcuda) is</th><th>Compatibility</th><th>Requirements</th></tr></thead><tbody>
+<tr><td>newer than the runtime</td><td>backward compatibility</td><td>none</td></tr>
+<tr><td>older than the runtime, same major version</td><td>minor version compatibility</td><td>no PTX (needs SASS for the GPU), the target architecture given to nvcc; some new features return <code>cudaErrorCallRequiresNewerDriver</code></td></tr>
+<tr><td>older than the runtime's major version</td><td>forward compatibility</td><td>the <code>cuda-compat</code> package; data-centre GPUs (and some RTX and Jetson) only</td></tr>
+</tbody></table></div>
+<p class="small mute">From {{CUDA Compatibility: why|https://docs.nvidia.com/deploy/cuda-compatibility/why-cuda-compatibility.html}} and {{minor version compatibility|https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html}}: minimum drivers CUDA 13.x "&gt;= 580", 12.x "&gt;= 525", 11.x "&gt;= 450"; "Applications that compile device code to PTX will not work on older drivers". {{Forward compatibility|https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html}}: "the cuda-compat-13-4 package is built using the NVIDIA driver libraries version 615", installed into <code>/usr/local/cuda-13.4/compat/</code>, and "This package only provides the libraries, and does not configure the system to find such libraries" (you set <code>LD_LIBRARY_PATH</code>); errors 803 <code>CUDA_ERROR_SYSTEM_DRIVER_MISMATCH</code> and 804 <code>CUDA_ERROR_COMPAT_NOT_SUPPORTED_ON_DEVICE</code>. Since CUDA 13.4 the Linux driver is no longer bundled with the toolkit.</p>
+<p><b>Why forward compatibility can work at all.</b> Section 9's version handshake is between the user-mode driver and the kernel module. Forward compatibility swaps only the user-mode half: a newer <code>libcuda</code> (from the compat package) talks to an older <code>nvidia.ko</code>. NVIDIA: "forward compatibility is defined between the kernel driver and the CUDA driver", which is also why it can JIT PTX where minor version compatibility cannot (the compat package brings its own PTX compiler, <code>libnvidia-ptxjitcompiler</code>, visible in this image's compat directory).</p>
+<div class="card" id="vc-card">
+<div class="small mute">Will it run? Pick the host's driver branch and what your application was built with. The rules and the forward-compatibility matrix are NVIDIA's (Table 3 of the forward compatibility page, driver branches 535 to 615).</div>
+<div class="vc">
+<label>Host driver branch<select id="vc-drv"></select></label>
+<label>Application built with CUDA<select id="vc-rt"></select></label>
+<label>GPU<select id="vc-gpu"><option value="dc">data-centre GPU</option><option value="consumer">GeForce / most RTX</option></select></label>
+<label>GPU code in the binary<select id="vc-code"><option value="sass">SASS (cubin) for this GPU</option><option value="ptx">PTX only (needs JIT)</option></select></label>
+<label>cuda-compat package for the app's CUDA version<select id="vc-compat"><option value="no">not installed</option><option value="yes">installed and on LD_LIBRARY_PATH</option></select></label>
+</div>
+<div class="verdict" id="vc-out"></div>
+</div>
+<div class="ff"><div class="t">When it bites in ML</div><ul>
+<li><b>A new PyTorch wheel on an old cluster:</b> PyTorch's CUDA wheels ship the runtime; the cluster's driver is older. Within the same CUDA major and with SASS for your GPU it runs (minor version compatibility); across a major version it needs the compat package or an older wheel. PyTorch's own error for an old driver: "The NVIDIA driver on your system is too old (found version ...)" ({{CUDAFunctions.cpp|https://github.com/pytorch/pytorch/blob/v2.14.1/c10/cuda/CUDAFunctions.cpp#L45-L54}}).</li>
+<li><b>Custom kernels compiled to PTX only</b> (a JIT extension, some Triton or third-party builds) fail under minor version compatibility even when everything else works.</li>
+<li><b>A driver upgraded without a reboot:</b> user-mode libraries and module disagree: section 9's "API mismatch" in <code>dmesg</code>.</li>
+</ul></div>
+<p class="cmd">nvidia-smi | head -4; python -c "import torch; print(torch.version.cuda, torch.cuda.is_available())"; ls /usr/local/cuda/compat</p>
+</section>
