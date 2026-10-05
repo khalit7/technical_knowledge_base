@@ -1,0 +1,69 @@
+<section id="rd-s10">
+<h2>10. Debugging a training job, and choosing what to read next</h2>
+<h3>From symptom to subsystem</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>What you see</th><th>Likely subsystem</th><th>Check first</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td>Job vanishes, exit code 137, no traceback; pod <code>OOMKilled</code></td><td>Memory: cgroup OOM kill</td><td><code>cat /sys/fs/cgroup/memory.events</code> (oom_kill), <code>dmesg</code> on the host</td><td>4, 8</td></tr>
+<tr><td>"DataLoader worker (pid N) is killed by signal: Killed"</td><td>Memory: a worker OOM-killed</td><td>PSS per worker (<code>smaps_rollup</code>), memory.events</td><td>2, 4</td></tr>
+<tr><td>"bus error", "unable to write to file &lt;/torch_...&gt;"</td><td>Shared memory: <code>/dev/shm</code> too small</td><td><code>df -h /dev/shm</code>; <code>--shm-size</code> or <code>--ipc=host</code></td><td>2</td></tr>
+<tr><td>Worker memory grows all epoch</td><td>Copy-on-write through refcounts</td><td>Private_Dirty per worker over time</td><td>4</td></tr>
+<tr><td>GPU utilisation low, steps uneven</td><td>CPU: too few workers, throttling, oversubscription</td><td><code>cpu.stat</code> nr_throttled; <code>top -H</code>; <code>py-spy dump</code> of the main process</td><td>3</td></tr>
+<tr><td>Each step slower in a container than on a laptop</td><td>CPU quota against thread count</td><td><code>cpu.max</code> vs <code>torch.get_num_threads()</code></td><td>3</td></tr>
+<tr><td>Job hangs at start with workers, fine with <code>num_workers=0</code></td><td>Fork after threads or CUDA</td><td><code>py-spy dump --pid</code> of a worker (stuck in a lock); try spawn</td><td>2, 6</td></tr>
+<tr><td>"CUDA out of memory" with memory reserved</td><td>Allocator fragmentation</td><td><code>torch.cuda.memory_summary()</code>; expandable_segments</td><td>5</td></tr>
+<tr><td>Preempted job lost its progress</td><td>Signals: SIGTERM not handled or not delivered</td><td>Is your script PID 1? Is there a handler and a checkpoint path?</td><td>2</td></tr>
+<tr><td>Checkpoint empty or corrupt after a crash</td><td>Persistence: no fsync or no rename</td><td>strace the save: is there fsync, rename, directory fsync?</td><td>7</td></tr>
+<tr><td>First epoch slow, later ones fast</td><td>Page cache cold against warm</td><td><code>vmstat 1</code> (bi), <code>iostat -x 1</code>, major faults</td><td>4, 7</td></tr>
+<tr><td>High <code>sys</code> time in <code>top</code></td><td>Too many system calls (small reads, polling)</td><td><code>strace -c -f -p PID</code></td><td>1</td></tr>
+<tr><td>Process in state <code>D</code>, cannot be killed</td><td>Stuck in device or network file system I/O</td><td><code>cat /proc/PID/stack</code> (root), <code>cat /proc/PID/wchan</code></td><td>2, 7</td></tr>
+<tr><td>"Too many open files"</td><td>File descriptor limit</td><td><code>ulimit -n</code>, <code>ls /proc/PID/fd | wc -l</code></td><td>2</td></tr>
+<tr><td>"CUDA driver version is insufficient for CUDA runtime version"</td><td>Driver against runtime versions</td><td><code>nvidia-smi</code> against <code>torch.version.cuda</code></td><td>9</td></tr>
+</tbody></table></div>
+<p class="small mute">Each row with a failure that can happen without a GPU is reproduced, with real output, in the {{Debug lab|#t-debug}} tab, which also has a "what would you check first?" drill.</p>
+<h3>The toolbox, by subsystem</h3>
+<div class="mech">
+<div><b>Processes</b><code>ps -eo pid,ppid,stat,rss,cmd</code>, <code>pstree -p</code>, <code>/proc/PID/status</code>, <code>py-spy dump</code> (Python stacks of a live process)</div>
+<div><b>CPU</b><code>top -H</code> (threads), <code>vmstat 1</code> (r, cs, us, sy), <code>pidstat -t 1</code>, <code>perf top</code>, cgroup <code>cpu.stat</code></div>
+<div><b>Memory</b><code>free -m</code>, <code>/proc/meminfo</code>, <code>smaps_rollup</code> (PSS), <code>memory.current</code> and <code>memory.events</code></div>
+<div><b>Files and I/O</b><code>iostat -x 1</code>, <code>lsof -p PID</code>, <code>df -h</code>, <code>vmstat</code> bi/bo</div>
+<div><b>System calls</b><code>strace -f -tt -T</code>, <code>strace -c</code> (counts); the {{Syscall tracer|#t-trace}} tab</div>
+<div><b>Everything, cheaply</b>eBPF tools (<code>bpftrace</code>, the bcc tools like <code>execsnoop</code>, <code>opensnoop</code>, <code>biolatency</code>) and <code>perf</code>, where the kernel and permissions allow; Brendan Gregg's books and site (Further reading)</div>
+</div>
+<h3>Ten interview questions, with short answers</h3>
+<details class="qa"><summary>1. What happens, at the OS level, when you run <code>python train.py</code>?</summary><div>The shell forks; the child execs the Python binary; the kernel maps the executable and the dynamic loader, which maps libpython and libc; the interpreter starts, opens and reads your script, and imports modules (many openat, read and mmap calls). The parent shell waits. Sections 1 and 2.</div></details>
+<details class="qa"><summary>2. Process against thread?</summary><div>A process has its own address space and resources; threads share their process's address space and files and have only their own registers and stack. On Linux both are made by clone() with different sharing flags. Threads are cheaper and share data directly; processes isolate failures and, in CPython, get their own GIL.</div></details>
+<details class="qa"><summary>3. Why is fork fast even for a 20 GB process, and when is it not?</summary><div>It copies page tables, not pages, and marks pages copy-on-write. It is still proportional to resident memory (6.8 ms for 512 MiB here, against 80 &micro;s for a small process), and every page either side writes later is copied then. Python refcount updates make reading objects count as writing.</div></details>
+<details class="qa"><summary>4. What is a page fault, and minor against major?</summary><div>A trap on access to a page with no valid page-table entry. Minor: the kernel fixes the entry without I/O (zeroed page, page already cached). Major: it must read from the device. Measured here: 65 major faults to touch a cold 8 MiB file (readahead), 129 minor ones once warm (fault-around).</div></details>
+<details class="qa"><summary>5. Why does the sum of RSS of my DataLoader workers exceed the machine's memory?</summary><div>RSS counts shared pages once per process. PSS divides each shared page among its sharers and adds up correctly: 815 MiB of RSS against 345 MiB of PSS for the running job's three processes.</div></details>
+<details class="qa"><summary>6. What does fsync guarantee, and what does it not?</summary><div>That the file's data and metadata reached the device before it returns (if the device honours flushes). Not that the file's name is durable (fsync the directory), not atomicity of replacement (use rename), and after an error, not that a retry recovers lost pages.</div></details>
+<details class="qa"><summary>7. How does a mutex avoid a system call?</summary><div>A futex: the lock word lives in user memory and is taken with an atomic instruction; only a thread that must wait calls futex() to sleep, and the unlocker calls it only if someone is waiting. Here 20 million lock/unlock pairs under contention made 8,382 futex calls.</div></details>
+<details class="qa"><summary>8. What is a container, exactly?</summary><div>Processes on the host kernel with namespaces (what they see), cgroups (how much they use), dropped capabilities and a seccomp filter (what they may do), and an image mounted as root through overlayfs. No second kernel: that is a VM.</div></details>
+<details class="qa"><summary>9. Why might a training job get slower when moved into Kubernetes with a CPU limit of 4?</summary><div>The limit is a CFS quota (400 ms per 100 ms period). PyTorch and the DataLoader size their threads from the host's CPU count, burn the quota early in each period and are throttled for the rest. Size threads and workers from the limit; watch nr_throttled.</div></details>
+<details class="qa"><summary>10. Why is "CUDA out of memory" possible when nvidia-smi or the error says gigabytes are free?</summary><div>The caching allocator holds freed blocks; fragmented segments may have plenty reserved but no contiguous block of the requested size, or the free memory belongs to another process. memory_allocated against memory_reserved tells which; expandable_segments reduces fragmentation.</div></details>
+<h3>OSTEP reading map</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>This page</th><th>OSTEP chapters (v1.10)</th><th>When to read</th></tr></thead>
+<tbody>
+<tr><td>1 What an OS does</td><td>2 Introduction; 6 Direct Execution</td><td>First: the vocabulary for everything else</td></tr>
+<tr><td>2 Processes</td><td>4 Processes; 5 Process API</td><td>With section 2; do ch. 5's fork and exec homework</td></tr>
+<tr><td>3 Scheduling</td><td>7 CPU Scheduling; 8 Multi-level Feedback; 9 Lottery Scheduling; 10 Multi-CPU Scheduling</td><td>Ch. 7 and 8 now; 10 when you tune thread counts</td></tr>
+<tr><td>4 Virtual memory</td><td>13 Address Spaces; 15 Address Translation; 18 Introduction to Paging; 19 TLBs; 20 Advanced Page Tables; 21 and 22 Swapping; 23 Complete VM Systems</td><td>The core of the book for ML engineers; 18 to 20 especially</td></tr>
+<tr><td>5 Allocators</td><td>14 Memory API; 17 Free Space Management</td><td>Before reading about the CUDA caching allocator</td></tr>
+<tr><td>6 Concurrency</td><td>26 Concurrency and Threads; 27 Thread API; 28 Locks; 30 Condition Variables; 31 Semaphores; 32 Concurrency Bugs; 33 Event-based Concurrency</td><td>28, 32 and 33 first</td></tr>
+<tr><td>7 Persistence</td><td>36 I/O Devices; 39 Files and Directories; 40 File System Implementation; 42 FSCK and Journaling; 44 Flash-based SSDs; 49 NFS</td><td>39 and 42 before writing any checkpoint code</td></tr>
+<tr><td>8 Containers, 9 VMs</td><td>53 to 57 Security; appendix Virtual Machines</td><td>Last; OSTEP has no container chapter</td></tr>
+</tbody></table></div>
+<p class="small mute">Chapter numbers and titles from the table of contents at {{pages.cs.wisc.edu/~remzi/OSTEP|https://pages.cs.wisc.edu/~remzi/OSTEP/}}, version 1.10 (November 2023), checked 2026-10-05.</p>
+<h3>What the child pages will cover</h3>
+<div class="mech">
+<div><b>Processes and the system-call API</b>fork, exec, clone flags, signals and their delivery, /proc in full, PID 1 in containers, writing a tiny shell.</div>
+<div><b>Scheduling and CPU time</b>CFS and EEVDF in the source, cgroup CPU control in depth, affinity and isolation for data loaders, measuring scheduling latency.</div>
+<div><b>Virtual memory</b>Page tables and TLBs on ARM64 and x86-64, mmap and the page cache in depth, huge pages, NUMA, reclaim, swap and the OOM killer.</div>
+<div><b>Memory allocators</b>glibc, jemalloc and tcmalloc compared on a real workload; pymalloc; PyTorch's CPU and CUDA allocators and their snapshots.</div>
+<div><b>Concurrency</b>Locks to futexes, condition variables, lock-free structures, the memory model, epoll and io_uring event loops.</div>
+<div><b>Storage and file systems</b>Block layer and NVMe, ext4 and XFS internals, fsync semantics, network and parallel file systems, checkpoint I/O at scale.</div>
+<div><b>Containers and isolation</b>Namespaces and cgroups by hand, images and overlayfs, seccomp, rootless, gVisor and Firecracker.</div>
+<div><b>Virtualization and the GPU driver stack</b>Hypervisors, IOMMU and VFIO, SR-IOV and MIG, the CUDA driver and kernel module, version compatibility.</div>
+</div>
+</section>
