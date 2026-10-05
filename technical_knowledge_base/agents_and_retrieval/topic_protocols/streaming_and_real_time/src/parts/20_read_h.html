@@ -1,0 +1,35 @@
+<section id="rd-s11">
+<h2>11. Voice agents, WebTransport, and sync engines</h2>
+<h3>Realtime voice: why audio does not ride on SSE</h3>
+<p>A voice agent streams audio both ways at once: the user's microphone up, the model's speech down, and the user must be able to interrupt (<dfn>barge-in</dfn>). That rules out SSE (one direction) and makes the network's behaviour on loss matter far more than for text.</p>
+<ul class="tight">
+<li><b>OpenAI's Realtime API</b> connects over WebRTC "in the browser or WebSocket on the server", and documents telephony (SIP) integrations ({{Realtime guide|https://developers.openai.com/api/docs/guides/realtime}}, {{WebSocket guide|https://developers.openai.com/api/docs/guides/realtime-websocket}}, read 5 October 2026). Over WebSocket, audio goes up inside JSON events (<code>input_audio_buffer.append</code>) as base64 of raw PCM: 16-bit mono at 24 kHz (default) or 16 kHz, or G.711 at 8 kHz. The same guide points to a separate full-duplex model, <code>gpt-live-1</code>, with its own WebSocket endpoint (<code>wss://api.openai.com/v1/live/sessions</code>).</li>
+<li><b>Google's Gemini Live API</b> is a "stateful WebSocket connection (WSS)"; input audio is 16-bit PCM at 16 kHz, output 16-bit PCM at 24 kHz; WebRTC is available through partner integrations ({{Gemini Live API|https://ai.google.dev/gemini-api/docs/live}}).</li>
+</ul>
+<div class="fm"><div class="eq">bit rate = sample rate &times; bits per sample &times; channels</div>
+<dl><dt>PCM16, 24 kHz</dt><dd>24,000 &times; 16 = 384 kbit/s raw; base64 adds a third: 512 kbit/s inside JSON (derived)</dd>
+<dt>PCM16, 16 kHz</dt><dd>256 kbit/s raw, 341 kbit/s as base64 (derived)</dd>
+<dt>G.711, 8 kHz</dt><dd>8,000 &times; 8 = 64 kbit/s (derived)</dd>
+<dt>Opus</dt><dd>the codec WebRTC uses: "from low bitrate narrowband speech at 6 kbit/s to very high quality stereo music at 510 kbit/s" ({{RFC 6716|https://www.rfc-editor.org/rfc/rfc6716}})</dd></dl></div>
+<p><b>Why WebRTC for the last mile.</b> A WebSocket rides on TCP, which delivers bytes in order: one lost packet on a phone's radio holds back every later byte until it is resent (head-of-line blocking, measured on HTTP/1.1, 2 and 3 in the root's On the wire tab), so speech stalls, then bursts. WebRTC carries media over UDP with jitter buffers that skip a lost packet rather than wait for it, a compressed codec instead of raw PCM, and the browser's echo cancellation. Hence the pattern the OpenAI docs recommend: WebRTC from the user's device, WebSocket between your server and the model provider, where the network is clean and you already have raw audio.</p>
+<h3>WebTransport: streams and datagrams over HTTP/3</h3>
+<p><dfn>WebTransport</dfn> gives a web page what WebSockets cannot: several independent streams on one connection (a loss on one does not stall the others), unreliable <dfn>datagrams</dfn> for data that is useless if late (game state, live media), and QUIC's faster setup. It runs over HTTP/3 ({{draft-ietf-webtrans-http3|https://datatracker.ietf.org/doc/draft-ietf-webtrans-http3/}}, revision 16 of 6 July 2026, still a draft), using HTTP datagrams ({{RFC 9297|https://www.rfc-editor.org/rfc/rfc9297}}) and QUIC datagrams ({{RFC 9221|https://www.rfc-editor.org/rfc/rfc9221}}). The browser API is now in every major engine: MDN marks it "Baseline 2026, newly available" since March 2026, with support from Chrome 97, Firefox 114 and Safari 26.4 ({{MDN: WebTransport API|https://developer.mozilla.org/en-US/docs/Web/API/WebTransport_API}}; MDN's compatibility data, checked 5 October 2026). Two costs remain: networks that block UDP (some corporate ones) need a WebSocket fallback, and server and proxy support is thinner than for HTTP/1.1 and 2. For an LLM text stream it adds nothing over SSE.</p>
+<h3>Sync engines: subscribe to data, receive diffs</h3>
+<p>A different use of a WebSocket: instead of messages, the client subscribes to a query and the server keeps a local copy of the results up to date. Meteor's Distributed Data Protocol (DDP, about 2012) is the early, documented example ({{DDP specification|https://github.com/meteor/meteor/blob/devel/packages/ddp/DDP.md}}): over WebSockets or SockJS, the client sends <code>sub</code>, and the server sends <code>added</code>, <code>changed</code> and <code>removed</code> messages for documents, then <code>ready</code>; the same connection carries <code>method</code> calls with their <code>result</code> and <code>updated</code> messages. Two ideas outlived it: the server tracks what each client has and sends differences, not snapshots; and the client applies a method's effect immediately and reconciles when the server's answer arrives (latency compensation). Live-query features in Firebase, Supabase Realtime and Phoenix LiveView are the same shape. (In ML, "DDP" means PyTorch's DistributedDataParallel, which has nothing to do with this: see {{Distributed training|n:3c65c17b0d0d8103a916c4824abbd82e}}.)</p>
+</section>
+
+<section id="rd-s12">
+<h2>12. Choosing</h2>
+<div class="tw"><table>
+<thead><tr><th>You need</th><th>Use</th><th>Why not the others</th></tr></thead>
+<tbody>
+<tr><td>LLM tokens to a browser or another service</td><td><b>SSE</b> on a POST response (fetch plus a parser)</td><td>One direction is enough; WebSockets lose HTTP's status codes, retries and proxies; polling adds latency</td></tr>
+<tr><td>Progress of a short job, then its result (seconds to minutes)</td><td><b>SSE</b></td><td>Webhooks need a public endpoint; polling is fine if latency does not matter</td></tr>
+<tr><td>"Tell me when it finishes" (minutes to days)</td><td><b>Webhook</b>, or polling a status URL</td><td>A connection held for hours will be cut</td></tr>
+<tr><td>A live feed many clients watch, resumable</td><td><b>SSE with ids</b> over a durable log</td><td>WebSockets have no resume built in</td></tr>
+<tr><td>The user interrupts while the agent speaks; collaborative editing; games</td><td><b>WebSocket</b> (WebTransport where you control both ends)</td><td>SSE plus a side POST works but splits ordering across two channels</td></tr>
+<tr><td>Voice from a phone or browser</td><td><b>WebRTC</b> to the device, WebSocket server to provider</td><td>TCP stalls audio on loss</td></tr>
+<tr><td>A hostile network where nothing long-lived survives</td><td><b>Long polling</b></td><td>It is the only one that looks like ordinary requests</td></tr>
+<tr><td>Server to server request and response</td><td>Not this page: {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} (REST, gRPC with its streaming modes)</td><td></td></tr>
+</tbody></table></div>
+</section>

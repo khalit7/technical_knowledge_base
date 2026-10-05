@@ -2632,3 +2632,18 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | Serve-stale ladder (default vs serve-expired) | 4 | 5 | 5 | Reading 5 | same |
 | Tables from recordings: lost packet timings, dead server, error texts per libc, HTTP clients' query counts, ndots per name per libc, truncation, loop plugin | 4 | 5 | 5 | Reading 3, 6, 7 | `lab/out/pod.json` |
 | Predict-then-reveal drills (9), interview questions (6) | 4 | 4 | 5 | Reading 13 | page numbers |
+
+### Streaming and real-time: SSE, WebSockets, webhooks, long polling (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_protocols/streaming_and_real_time/src/viz_ideas.md`.
+
+| Idea | Score | Where | Data |
+|---|---|---|---|
+| One answer, four ways: polling, long polling, SSE, WebSocket on one clock, RTT toggle 50/100 ms, counters for text, requests and bytes | 9 | Reading s1 (before/after animation) | measured: four_ways_rtt50/100.json (relay.py adds delay, counts bytes; median run of 7) |
+| Cut mid-answer: Chrome EventSource reconnect replay, no ids against ids against ids + retry + 204, repeated tokens highlighted | 9 | Reading s6 (before/after animation) | measured: reconnect.json (Chrome 148) |
+| Webhook deliveries replayed: naive receiver against careful receiver, side by side, counters for work runs and stored status | 8 | Reading s10 (before/after animation) | measured: webhooks.json |
+| Parser test: 18 byte streams x 8 parsers, predict then reveal, full matrix | 8 | tab t-parse | measured: parsers.jsonl |
+| WebSocket bytes: recorded session frame by frame, bytes coloured by field, unmasking animated, header-size calculator | 8 | tab t-ws | measured: ws_bytes.json |
+| SSE event anatomy, click a line | 6 | Reading s3 | the running example's bytes |
+| Proxy failure matrix for WebSockets (three clients x five cases) | 7 | Reading s9 (table) | measured: ws_proxy*.json, nginx log, curl |
+| Cancellation table (naive vs careful, think vs tokens) | 7 | Reading s6 (table) | measured: cancel.json |

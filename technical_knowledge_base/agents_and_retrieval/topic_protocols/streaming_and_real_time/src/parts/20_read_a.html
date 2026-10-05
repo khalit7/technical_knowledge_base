@@ -1,0 +1,68 @@
+<section id="rd-one">
+<h2>Streaming and real-time in one screen</h2>
+<p class="small mute">About 40 minutes for the prose; recordings, tables and animations are there to skim. It starts from zero: every term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>, and each numbered section reads on its own. Everything marked <span class="meas">measured</span> was run for this page on 5 October 2026 on an Apple M1 Pro laptop (macOS, Python 3.13, aiohttp 3.14.3, websockets 17.2, nginx 1.31.6, Chrome 148, Node 22) against local servers, so every byte could be recorded; <span class="ill">illustrative</span> marks a picture of a shape, not data. The parent page, {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}, follows one LLM request through the whole stack; this page owns the ways a server pushes data to a client.</p>
+<p class="lead"><b>HTTP was built for "ask, then get an answer". Real-time is everything that does not fit that shape: the server has news before the client knows to ask.</b> There are only a handful of ways to do it, and they differ in who opens the connection, how long it stays open, which direction bytes can flow, and what happens when it breaks.</p>
+<p><b>The running example.</b> The root page's chat app asks "What colour is the sky?" with one 117-byte <code>POST /v1/messages</code>, and the answer is five tokens: <code>The</code>, <code>&nbsp;sky</code>, <code>&nbsp;is</code>, <code>&nbsp;blue</code>, <code>.</code>. The stand-in model (no real model runs) waits 120 ms before the first token, standing in for the model reading the prompt, then produces one every 50 ms, framed by a <code>message_start</code> and a <code>message_stop</code> event: seven events in all, in the shapes of Anthropic's Messages API. This page delivers that same answer by polling, long polling, Server-Sent Events and a WebSocket, cuts it, resumes it, cancels it, and sends a webhook when a job ends.</p>
+<div class="tw"><table>
+<thead><tr><th>Question</th><th>Short answer</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td>What are the options?</td><td><b>Polling</b> (ask again and again), <b>long polling</b> (ask, and the server holds the question until there is news), <b>SSE</b> (one HTTP response that keeps going), <b>WebSockets</b> (an HTTP request that turns into a two-way pipe), <b>webhooks</b> (the server calls <i>your</i> server later). Plus WebTransport and WebRTC for media and games.</td><td><a href="#rd-s1">1</a></td></tr>
+<tr><td>What does each cost on the running answer?</td><td><span class="meas">measured</span> On a 50 ms round trip, the last token reached the client at <b><span data-k="fw50_sse_last" data-f="ms">376</span> ms</b> by SSE, <span data-k="fw50_ws_last" data-f="ms">379</span> ms by WebSocket, <span data-k="fw50_lp_last" data-f="ms">401</span> ms by long polling (<span data-k="fw50_lp_req">6</span> requests) and <span data-k="fw50_sp_last" data-f="ms">528</span> ms by polling every 100 ms.</td><td><a href="#rd-s1">1</a>, <a href="#rd-s2">2</a></td></tr>
+<tr><td>Why do LLM APIs use SSE?</td><td>The answer flows one way, it is one HTTP response (so every proxy, load balancer, auth header and retry rule still applies), and the format is a few lines of text. The request is a normal POST; only the response streams.</td><td><a href="#rd-s3">3</a> to <a href="#rd-s5">5</a></td></tr>
+<tr><td>What happens when a stream breaks?</td><td>A browser's <code>EventSource</code> reconnects by itself (after <span data-k="es_reconnect_s" data-f="s1">3.0</span> s in Chrome, <span class="meas">measured</span>) and sends the last event id it saw; without ids it replays from the start and the user sees the answer twice. LLM APIs do not resume: a cut stream is a failed request.</td><td><a href="#rd-s6">6</a></td></tr>
+<tr><td>When is a WebSocket right?</td><td>When the client must also talk while the server talks: voice agents that can be interrupted, collaborative editing, games. It costs you HTTP's machinery: no status codes per message, no standard retry, a long-lived connection to balance and to keep alive.</td><td><a href="#rd-s7">7</a> to <a href="#rd-s9">9</a></td></tr>
+<tr><td>How do webhooks go wrong?</td><td>They arrive more than once, out of order, and from anyone who knows the URL. <span class="meas">measured</span> A receiver that did the work before answering ran it <span data-k="hooks_naive_work">7</span> times for two events; one that verified, deduplicated, answered at once and re-read the state ran it <span data-k="hooks_careful_work">2</span> times.</td><td><a href="#rd-s10">10</a></td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Five things to remember</div>
+<ol class="tight">
+<li>If only the server talks, use SSE: it is plain HTTP, so everything you know about HTTP still works. Reach for a WebSocket only when the client must talk on the same channel.</li>
+<li>Every long-lived connection dies eventually (idle timeouts, deploys, phones changing networks). Design the reconnect first: event ids, resume, backoff with jitter.</li>
+<li>A quiet stream is a dead stream to some proxy on the path: send a heartbeat (an SSE comment, a WebSocket ping) more often than the shortest idle timeout.</li>
+<li>When the user presses Stop, the server should stop computing. Detecting a closed connection is your job, and a server that only notices on its next write wastes the whole think time.</li>
+<li>Webhooks are at least once and unordered: verify the signature over the raw bytes, deduplicate on the event id, answer 2xx fast, and treat the payload as a hint to re-read the truth.</li>
+</ol></div>
+</section>
+
+<section id="rd-s1">
+<h2>1. Push: getting news to a client that did not ask</h2>
+<p><b>The problem.</b> In HTTP the client always speaks first: it sends a request, the server sends one response, done (the {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} page teaches requests and responses from zero). That is perfect for "give me this page". It does not fit "tell me each token as the model produces it", "tell me when someone else edits this document", or "tell me when my fine-tuning job finishes in four hours". In each, the <b>server</b> has news at a moment the client cannot predict. Getting it to the client is called <dfn>server push</dfn>, and every mechanism on this page is a way to do it.</p>
+<p>There are only four basic shapes, and the picture below runs the running answer through all four on the same clock:</p>
+<ul class="tight">
+<li><dfn>Polling</dfn> (short polling): the client asks "anything new?" on a timer, say every 100 ms, and the server answers at once, often with "no".</li>
+<li><dfn>Long polling</dfn>: the client asks, and the server <i>holds</i> the request open until it has news (or a timeout passes), answers, and the client immediately asks again.</li>
+<li><dfn>Server-Sent Events</dfn> (SSE): the client asks once, and the server's answer never quite ends: it keeps writing small text events into the same response.</li>
+<li><dfn>WebSocket</dfn>: the client asks once to switch protocols; after that the connection is a two-way pipe and either side can send a message at any time.</li>
+</ul>
+<p>The fifth, <dfn>webhooks</dfn>, turns the direction around: the provider becomes the client and calls a URL on <i>your</i> server when the news exists (<a href="#rd-s10">section 10</a>).</p>
+
+<div class="card" id="fw-card">
+<div class="t" style="font-weight:600">One answer, four ways: when each token reaches the client</div>
+<div class="seg" id="fw-rtt"><button data-m="50" class="on">50 ms round trip</button><button data-m="100">100 ms round trip</button></div>
+<div class="fw" id="fw-svg"></div>
+<div class="an-ctl" id="fw-ctl"></div>
+<div class="an-cap" id="fw-cap"></div>
+<div class="an-cnt" id="fw-cnt"></div>
+<p class="small mute"><span class="meas">measured</span> Each row is one real run (the median of <span id="fw-reps">7</span> by last arrival) through a relay that delays every byte by half the round trip in each direction (src/lab/relay.py, plain HTTP on 127.0.0.1 so bytes can be counted; it models delay only, not loss or bandwidth). Bars are HTTP requests, from sent to answered; dots are events reaching the client (grey: message_start and message_stop, blue: tokens). The top row marks when the server produced each event, shifted by the one-way delay: the earliest any push could deliver it. Bytes are everything on the TCP connection each way, headers included, counted by the relay. Polling asks every 100 ms after each answer.</p>
+</div>
+
+<p><b>What the run shows.</b> SSE and the WebSocket track the top row almost exactly: once the connection is open, each token costs one one-way trip and nothing else. Long polling keeps up while tokens come slower than a round trip, but every event needs the <i>next</i> request to be waiting at the server; at a 100 ms round trip tokens 50 ms apart start to bunch up, two per response, and the last token lands <span data-k="fw100_lp_last" data-f="ms">446</span> ms in against SSE's <span data-k="fw100_sse_last" data-f="ms">428</span> ms. Polling delivers in clumps, one clump per poll, and its latency is set by the timer, not by the model.</p>
+<div class="fm"><div class="eq">delay from "server has the event" to "client has it"</div>
+<dl><dt>SSE, WebSocket</dt><dd>RTT/2: the bytes only travel back</dd>
+<dt>long polling</dt><dd>RTT/2 if a request is already waiting at the server; otherwise up to one extra RTT, because the previous answer must reach the client and the next request must come back</dd>
+<dt>polling</dt><dd>RTT/2 plus the wait for the next poll to reach the server: up to the poll interval plus a round trip, about half of that on average</dd></dl></div>
+<p><b>What it costs in bytes.</b> <span class="meas">measured</span> For the seven events (539 bytes of JSON), on the 50 ms path:</p>
+<div class="tw"><table>
+<thead><tr><th>Mechanism</th><th class="num">Requests</th><th class="num">Bytes up</th><th class="num">Bytes down</th><th>Where the extra bytes go</th></tr></thead>
+<tbody>
+<tr><td>Polling (every 100 ms)</td><td class="num"><span data-k="fw50_sp_req">4</span></td><td class="num"><span data-k="fw50_sp_up">668</span></td><td class="num"><span data-k="fw50_sp_down" data-f="c">1,738</span></td><td>A request line and headers per poll, a response head per answer, empty answers when nothing is new</td></tr>
+<tr><td>Long polling</td><td class="num"><span data-k="fw50_lp_req">6</span></td><td class="num"><span data-k="fw50_lp_up" data-f="c">1,074</span></td><td class="num"><span data-k="fw50_lp_down" data-f="c">2,138</span></td><td>The same per request, one request per event or batch</td></tr>
+<tr><td>SSE</td><td class="num">1</td><td class="num"><span data-k="fw50_sse_up">325</span></td><td class="num"><span data-k="fw50_sse_down" data-f="c">1,019</span></td><td>One request with its 117-byte body; one response head; <code>event:</code> and <code>data:</code> labels and HTTP/1.1 chunk sizes per event</td></tr>
+<tr><td>WebSocket</td><td class="num">1</td><td class="num"><span data-k="fw50_ws_up">209</span></td><td class="num"><span data-k="fw50_ws_down">763</span></td><td>The upgrade request and the 101 answer once; then 2 bytes of frame header per message</td></tr>
+</tbody></table></div>
+<p>On one short answer the differences are small. They grow with the number of events and with idle time: waiting one hour for a job, polling every second is 3,600 requests (3,600 s &divide; 1 s), long polling held 25 s per request is 144 (3,600 &divide; 25), and an SSE stream is one request plus a comment line every 15 s if you follow the HTML standard's keep-alive advice, 240 lines of 8 bytes (<code>: ping</code> plus two newlines). Derived, not measured.</p>
+<div class="drill" data-ans="c"><div class="t">Predict, then reveal</div>
+<p>Tokens arrive at the server every 50 ms; the round trip is 100 ms. With long polling, how many tokens can one response carry?</p>
+<div class="opts"><button data-o="a">Always exactly one</button><button data-o="b">None: long polling drops events that arrive while no request is waiting</button><button data-o="c">Sometimes two or more: tokens that arrive while the answer and the next request are in flight wait for that next request</button></div>
+<div class="rev" hidden>Two or more. Between the server answering and the client's next request arriving, one full round trip passes (100 ms), during which two tokens are produced; both go in the next answer. The 100 ms run above shows exactly that: 4 requests for 7 events. Nothing is dropped as long as the client sends a cursor ("give me everything after event 3"), which is why every long polling API needs one.</div></div>
+<div class="deepnote"><b>Go deeper (optional).</b> Why many small writes over TCP can also bunch tokens (Nagle's algorithm and delayed acknowledgements, a different cause with the same symptom): {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}, section 7 and its TCP timeline tab. How the same request travels over HTTP/1.1, 2 and 3: the root's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab.</div>
+</section>
