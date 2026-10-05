@@ -1,0 +1,43 @@
+<section id="s13">
+<h2>13. Agents driving devices: the Model Hardware Standard</h2>
+<p><b>The problem.</b> Lab and factory instruments (liquid handlers, plate readers, robotic arms, microscopes, lasers) each come with their own driver and vendor software, and wiring several together for automation takes an engineer weeks. An agent can write the glue code, but it needs to know what each device can do and what it must never do.</p>
+<p><b>What was announced.</b> On 27 August 2026 Anthropic opened a research preview of the <dfn>Model Hardware Standard (MHS)</dfn>, "a shared specification for AI agents to safely operate physical devices" ({{Anthropic|https://www.anthropic.com/news/model-hardware-standard-research-preview}}). Verified from the announcement:</p>
+<ul class="tight">
+<li><b>A standard driver</b> with a small set of primitives, "read" (get temperature) and "write" (set temperature), and a standard format that makes each device discoverable. Users describe a device in natural-language tags (a robot arm's weight, say), and the driver generates a reference file with what the device can measure, what can be adjusted, and "what safety limits will be enforced".</li>
+<li><b>Three ways for an agent to control it:</b> MCP, a command line interface, and code (APIs). It works with any device that has a programmable interface, is model-agnostic, and "any agent harness can access it using standard protocols, such as the" Model Context Protocol. So MHS is a device layer above MCP, not a competing transport.</li>
+<li><b>Status:</b> shared with partners "ahead of making the standard open source"; access by waitlist; Anthropic plans to release safety findings with the open-source version.</li>
+</ul>
+<p><b>Reported results</b> (the partners' own measurements, as written in the post): Genentech had Claude tune liquid-handler flow rates (about 140 &micro;L/s for water, 10 &micro;L/s for a viscous protein solution); Carnegie Mellon ran dose-response experiments "roughly three times faster" with integration taking "eight hours, versus the several weeks" of vendor setups; HHMI Janelia unified seven vendor programs and cut adding a device from a "multi-day project" to "only a few minutes". At QuEra, an agent loop running overnight improved a laser-lock recovery script from 58% success at about 150 seconds per attempt to 96% at about six seconds; the finished script, then tested with <b>no agent involved</b>, recovered the lock in 695 of 700 trials (99.3%).</p>
+<div class="corr"><div class="t">Corrected from the old overview</div>The old page said QuEra's result went "from 58% to 99.3%" and that Janelia went "from weeks to a day". The 58% and 99.3% are two different measurements (the starting script, and the finished script's blind test; the overnight development run itself reached 96%), and Janelia's figure is per-device integration time, "multi-day project" to "a few minutes".</div>
+<p><b>The lessons that generalise</b>, all from the same post:</p>
+<ul class="tight">
+<li><b>Limits live in the device layer, not the prompt.</b> "MHS enforces device-level safety limits", so a Janelia researcher did not need to worry about the agent using too much laser power. A rule the model is asked to follow can be talked out of; a limit enforced below the model cannot.</li>
+<li><b>Ship the artefact, not the agent.</b> QuEra's end product "was a deterministic, fully inspectable script capable of running in production without an AI agent controlling it." The agent did the search; a reviewed program does the irreversible work.</li>
+<li><b>Physical failures look like software errors to a model.</b> Bubbles from mixing caused runtime errors and Claude's "default instinct was simply to retry", which made more bubbles; Genentech had to teach it that foaming was a physical failure. Retrying is safe for idempotent API calls ({{HTTP page, section 9|n:3c65c17b0d0d811bb035fa3f158b0889}}); it is not safe for a robot.</li>
+<li><b>Caution has a cost and is still preferred.</b> Claude "often stopped to wait for human confirmation before performing an action it deemed even slightly risky", so experiments sometimes paused overnight; the post's verdict: "an overly cautious agent is preferable to one that is not cautious enough."</li>
+</ul>
+<p class="small mute">One device item in the old overview could not be confirmed from a primary source and is left out; it is listed in <code>src/unconfirmed.md</code>.</p>
+</section>
+<section id="s14">
+<h2>14. The trust boundary for irreversible actions</h2>
+<p>Every protocol on this page meets the same moment: an action that cannot be taken back (spending money, deleting data, moving a robot arm, granting access). Text that arrives over a protocol, from a tool, a remote agent or a web page, can be written by an attacker, so it must never be enough to authorise such an action. What each protocol provides at that moment:</p>
+<div class="tw"><table>
+<thead><tr><th>Protocol</th><th>The "stop here" mechanism</th><th>Who decides</th><th>What carries the decision</th></tr></thead>
+<tbody>
+<tr><td>MCP</td><td>elicitation; tool annotations such as <code>destructiveHint</code> (hints, not enforcement)</td><td>the user, through the host</td><td>the host's UI</td></tr>
+<tr><td>A2A</td><td><code>auth-required</code> (and <code>input-required</code>)</td><td>whoever can grant: the client, or a person up a chain</td><td>a credential delivered out of band, directly to the agent</td></tr>
+<tr><td>UCP</td><td><code>requires_escalation</code> with <code>continue_url</code>; <code>requires_buyer_review</code></td><td>the buyer</td><td>the merchant's own checkout page</td></tr>
+<tr><td>AP2</td><td>mandates signed on a trusted surface</td><td>the user, in advance or per purchase</td><td>a signature verified in deterministic code</td></tr>
+<tr><td>MHS</td><td>device-level safety limits; the agent pausing for confirmation</td><td>the device configuration; the operator</td><td>the driver, below the model</td></tr>
+</tbody></table></div>
+<p><b>The pattern, as a checklist for anything you build:</b></p>
+<ol>
+<li><b>Name the irreversible actions</b> and give each a protocol state, not a sentence in a tool result. A state can be logged, timed out, audited and tested.</li>
+<li><b>Put the approval outside the model's channel.</b> A dialog, a merchant page, a signed mandate, an out-of-band grant: something text in the context window cannot fake.</li>
+<li><b>Show the person what they approve, rendered by deterministic code</b> (AP2's non-agentic trusted surface), never a model's summary of it.</li>
+<li><b>Enforce limits below the model</b> (MHS's device limits, AP2's budget constraints, a payment amount range, an API scope).</li>
+<li><b>Bind credentials to one audience and one agent</b> (token exchange, AP2's hash binding, A2A's out-of-band credentials).</li>
+<li><b>Prefer producing a reviewable artefact</b> (a script, a closed checkout, a plan) over acting directly, when the action can wait.</li>
+<li><b>Never retry an irreversible action blindly;</b> use idempotency keys where the protocol has them (UCP and ACP checkout completion, A2A <code>messageId</code>) and read the state before trying again.</li>
+</ol>
+</section>
