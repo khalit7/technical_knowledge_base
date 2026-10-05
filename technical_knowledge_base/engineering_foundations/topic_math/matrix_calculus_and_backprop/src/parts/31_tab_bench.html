@@ -1,0 +1,61 @@
+<div class="tab" id="t-bench" role="tabpanel" hidden>
+<style>
+#t-bench .wb-steps>div{display:none}#t-bench .wb-steps>div.on{display:block}
+#t-bench .wb-steps ol{margin:6px 0;padding-left:22px}#t-bench .wb-steps li{margin:6px 0}
+#t-bench .mx{font-variant-numeric:tabular-nums;font-size:12.5px;border-collapse:collapse;width:auto;margin:2px 0}
+#t-bench .mx td{border:1px solid var(--line);padding:2px 6px;text-align:right;white-space:nowrap}
+#t-bench .wbv{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px 14px;margin:8px 0}
+#t-bench .wbv>div{min-width:0;overflow-x:auto}
+#t-bench .wbv h4{margin:0 0 3px;font-size:13px}
+#t-bench .ok{color:var(--good);font-weight:600}#t-bench .bad{color:var(--bad);font-weight:600}
+#t-bench .shp{font-size:12px}
+#t-bench .seg{display:flex;flex-wrap:wrap;gap:4px;border:0}#t-bench .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-bench .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+</style>
+<h2 style="margin-top:14px">Derivative workbench</h2>
+<p>Pick a layer. The workbench runs its forward pass, its hand-derived backward rule (the vector-Jacobian product from the Reading's section 5), and a numerical check: every input entry is nudged by \(\pm h\) and the probe loss \(\tilde L = \bar y \cdot f(\text{inputs})\) is differenced, whose gradient is exactly the VJP. It also builds the full Jacobian with respect to the first input, one VJP per output entry, to show what the backward rule avoids building. Defaults are the Reading's worked numbers; "New random inputs" draws fresh ones.</p>
+<div class="seg" id="wb-layer" role="group" aria-label="Layer"><button data-m="linear" class="on">Linear</button><button data-m="act">Activation</button><button data-m="softmax">Softmax</button><button data-m="sce">Softmax cross-entropy</button><button data-m="layernorm">Layer norm</button><button data-m="attn">Attention</button></div>
+<div class="ctl"><label id="wb-actw">Activation <select id="wb-act"><option value="relu">ReLU</option><option value="tanh">tanh</option><option value="sigmoid">sigmoid</option><option value="gelu" selected>GELU (exact, erf)</option></select></label>
+<label>Finite-difference step \(h\) <select id="wb-h"><option value="1e-3">1e-3</option><option value="1e-5" selected>1e-5</option><option value="1e-7">1e-7</option><option value="1e-9">1e-9</option></select></label></div>
+<div class="chips"><button id="wb-rand">New random inputs</button><button id="wb-reset">Reset to the worked numbers</button></div>
+<div class="card">
+<h3 style="margin-top:0">Derivation</h3>
+<div class="wb-steps" id="wb-steps">
+<div data-l="linear"><p>\(y = Wx + b\), \(W\) is \(m \times n\).</p><ol>
+<li>One entry: \(y_k = \sum_j W_{kj} x_j + b_k\).</li>
+<li>\(\partial y_k / \partial W_{ij} = \delta_{ki} x_j\), so \(\bar W_{ij} = \bar y_i x_j\): \(\bar W = \bar y\,x^\top\).</li>
+<li>\(\partial y_k / \partial x_j = W_{kj}\), so \(\bar x = W^\top \bar y\); and \(\bar b = \bar y\).</li></ol>
+<p class="small">Jacobian with respect to \(x\): \(W\) itself. Reading section 5a.</p></div>
+<div data-l="act"><p>\(h = \phi(a)\), entry by entry.</p><ol>
+<li>Output \(i\) depends only on input \(i\): the Jacobian is \(\operatorname{diag}(\phi'(a))\).</li>
+<li>\(\bar a = \bar h \odot \phi'(a)\).</li>
+<li>\(\phi'\): ReLU \([a > 0]\); tanh \(1 - h^2\); sigmoid \(h(1 - h)\); GELU \(\Phi(a) + a\,\varphi(a)\).</li></ol>
+<p class="small">Reading section 5b.</p></div>
+<div data-l="softmax"><p>\(p = \operatorname{softmax}(z)\).</p><ol>
+<li>\(\partial p_i / \partial z_j = p_i(\delta_{ij} - p_j)\): \(J = \operatorname{diag}(p) - pp^\top\) (symmetric).</li>
+<li>\(\bar z = J^\top \bar p = p \odot \bar p - p\,(p \cdot \bar p)\).</li>
+<li>So \(\bar z = p \odot (\bar p - (p \cdot \bar p)\mathbf 1)\): \(O(K)\), no \(K \times K\) table.</li></ol>
+<p class="small">Reading sections 2 and 5c.</p></div>
+<div data-l="sce"><p>\(L = -\ln p_y = -z_y + \ln \sum_j e^{z_j}\).</p><ol>
+<li>\(\partial(-z_y)/\partial z_k = -[k = y]\).</li>
+<li>\(\partial \ln \sum_j e^{z_j} / \partial z_k = e^{z_k} / \sum_j e^{z_j} = p_k\).</li>
+<li>\(\bar z = \bar L\,(p - \mathbf 1_y)\), with \(\bar L = 1\) for a single loss.</li></ol>
+<p class="small">Reading section 5d; the target is the third class (sat).</p></div>
+<div data-l="layernorm"><p>\(\hat x = (x - \mu)\,r\), \(r = (\sigma^2 + \epsilon)^{-1/2}\), \(y = \gamma \odot \hat x + \beta\), \(N\) entries.</p><ol>
+<li>\(\bar\gamma = \bar y \odot \hat x\), \(\bar\beta = \bar y\), \(\hat g = \bar y \odot \gamma\).</li>
+<li>\(\partial \hat x_i / \partial x_j = r(\delta_{ij} - \tfrac 1N - \tfrac 1N \hat x_i \hat x_j)\).</li>
+<li>\(\bar x = r(\hat g - \operatorname{mean}(\hat g) - \hat x \odot \operatorname{mean}(\hat g \odot \hat x))\).</li>
+<li>PyTorch's kernel form: \(\bar x = a\,\bar y \odot \gamma + b\,x + c\) with \(a = r\), \(b = (d_b\,\mu - d_s)\,r^3/N\), \(c = -b\mu - d_b\,r/N\), \(d_s = \sum \bar y \odot x \odot \gamma\), \(d_b = \sum \bar y \odot \gamma\).</li></ol>
+<p class="small">Reading section 5e; \(\epsilon = 10^{-5}\).</p></div>
+<div data-l="attn"><p>\(S = QK^\top/\sqrt d\), \(A = \operatorname{softmax}_{\text{rows}}(S)\), \(O = AV\).</p><ol>
+<li>\(\bar V = A^\top \bar O\), \(\bar A = \bar O V^\top\).</li>
+<li>\(D_i = \sum_j A_{ij}\bar A_{ij} = \sum_c \bar O_{ic} O_{ic}\).</li>
+<li>\(\bar S = A \odot (\bar A - D\mathbf 1^\top)\).</li>
+<li>\(\bar Q = \bar S K/\sqrt d\), \(\bar K = \bar S^\top Q/\sqrt d\).</li></ol>
+<p class="small">Reading section 5f.</p></div>
+</div></div>
+<div class="card"><h3 style="margin-top:0">Shapes</h3><div id="wb-shapes"></div></div>
+<div class="card"><h3 style="margin-top:0">Forward and backward, with the numerical check</h3><div id="wb-sum" class="out"></div><div id="wb-vals" class="wbv"></div></div>
+<div class="card"><h3 style="margin-top:0">The Jacobian the backward rule never builds</h3><div id="wb-jac"></div></div>
+<p class="small mute">All arithmetic in this tab is float64 JavaScript (<code>parts/22b_js_core.js</code>); at the default inputs every number is checked against PyTorch autograd (and, for attention, <code>scaled_dot_product_attention</code>) by <code>src/recompute.py</code> and <code>src/check_js.mjs</code>.</p>
+</div>

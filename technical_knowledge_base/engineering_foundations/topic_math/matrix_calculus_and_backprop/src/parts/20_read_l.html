@@ -1,0 +1,49 @@
+
+<section id="mc-s11">
+<h2>11. Writing your own backward, and checking any gradient</h2>
+<p class="raise"><b>The question.</b> When should you write a backward rule by hand, and how do you know it is right?</p>
+<h3>Custom backward functions</h3>
+<p>Autograd's own rules are usually right and fast. Write your own when the composed rule is numerically poor (it divides by a tiny probability, as in 5d), when it saves more memory than needed (keep \(p\) instead of every intermediate), when you have a fused kernel the framework cannot see inside, or when you deliberately want a different "gradient" (a straight-through estimator for rounding in quantisation-aware training). PyTorch's recipe: "Subclass Function and implement the forward(), (optional) setup_context() and backward() methods"; "backward() (or vjp()) defines the gradient formula. It will be given as many Tensor arguments as there were outputs, with each of them representing gradient w.r.t. that output ... It should return as many tensors as there were inputs"; and "save_for_backward() should be used to save any tensors needed for the backward pass" ({{Extending PyTorch|https://docs.pytorch.org/docs/stable/notes/extending.html}}). Here is the fused softmax cross-entropy of 5d, run for real:</p>
+<pre>class SoftmaxCE(torch.autograd.Function):
+    @staticmethod
+    def forward(z, y):
+        logp = z - torch.logsumexp(z, dim=-1, keepdim=True)
+        return -logp.gather(-1, y[..., None]).squeeze(-1)
+
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        z, y = inputs
+        ctx.save_for_backward(torch.softmax(z, dim=-1), y)   <span class="c"># keep p, not the logits</span>
+
+    @staticmethod
+    def backward(ctx, gL):
+        p, y = ctx.saved_tensors
+        gz = p.clone()
+        gz.scatter_add_(-1, y[..., None], -torch.ones_like(y, dtype=p.dtype)[..., None])  <span class="c"># p - onehot</span>
+        return gL[..., None] * gz, None                      <span class="c"># times the incoming gradient; y gets none</span>
+
+<span class="c"># on the rows (2, 1, 0) with target 2 and (0.5, -1, 3) with target 0, float64:</span>
+loss  [2.4076, 2.5957]
+grad  [[0.6652, 0.2447, -0.9100], [-0.9254, 0.0166, 0.9088]]
+gradcheck(SoftmaxCE.apply, (z, y))         -> True
+<span class="c"># the same backward without "gL[..., None] *":</span>
+gradcheck(SoftmaxCEBuggy.apply, (z, y))    -> GradcheckError: Jacobian mismatch for output 0 with respect to input 0</pre>
+<p class="src">Script and output: <code>src/inputs/measure/custom_fn.py</code>, <code>custom_fn.out</code>. The first row is the tiny model: loss 2.408, gradient \(p - y\).</p>
+<p>The bug in the second version is the most common one in hand-written backward functions: forgetting that a VJP must multiply by the incoming gradient. It goes unnoticed when the function is the last thing before <code>.sum().backward()</code> (the incoming gradient is then 1) and breaks as soon as anything is downstream. JAX's equivalent is <code>jax.custom_vjp</code> (forward returns the output and the residuals to save; backward maps residuals and cotangent to input cotangents).</p>
+
+<h3>Gradient checking</h3>
+<p>Compare the analytic gradient with a finite difference. The two common differences have very different accuracy, which a Taylor expansion shows: \(f(x \pm h) = f(x) \pm h f'(x) + \tfrac{h^2}{2} f''(x) \pm \tfrac{h^3}{6} f'''(x) + \cdots\), so</p>
+\[ \frac{f(x + h) - f(x)}{h} = f'(x) + \frac{h}{2} f''(x) + \cdots, \qquad \frac{f(x + h) - f(x - h)}{2h} = f'(x) + \frac{h^2}{6} f'''(x) + \cdots \]
+<p class="plain">The one-sided difference has an error proportional to \(h\); the central difference cancels the \(h^2\) terms and its error is proportional to \(h^2\). Too small an \(h\) loses again to rounding, because \(f(x + h) - f(x - h)\) subtracts two nearly equal numbers.</p>
+<div class="nums"><div class="t">On the tiny model's \(\partial L/\partial z_{\text{sat}} = -0.90997\)</div>
+<div class="tw"><table class="mini"><tr><th>\(h\)</th><th class="num">one-sided error</th><th class="num">central error</th></tr>
+<tr><td>0.1</td><td class="num">4.2e-3</td><td class="num">1.1e-4</td></tr><tr><td>0.01</td><td class="num">4.1e-4</td><td class="num">1.1e-6</td></tr><tr><td>0.001</td><td class="num">4.1e-5</td><td class="num">1.1e-8</td></tr><tr><td>0.0001</td><td class="num">4.1e-6</td><td class="num">1.1e-10</td></tr></table></div>
+Each tenfold smaller \(h\) cuts the one-sided error tenfold and the central error a hundredfold, as the expansion predicts (float64; <code>src/recompute.py</code>). The root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}} plots the full V shape, where rounding takes over below about \(h = 10^{-6}\).</div>
+<p>Practical rules:</p>
+<ul>
+<li><b>Use float64.</b> In float32 the rounding floor is about \(10^{-7}\) relative, and a correct gradient can fail: the correct <code>SoftmaxCE</code> above fails <code>gradcheck</code> in float32 with the same "Jacobian mismatch" error. The documentation warns: "The default values are designed for input of double precision" ({{torch.autograd.gradcheck|https://docs.pytorch.org/docs/stable/generated/torch.autograd.gradcheck.gradcheck.html}}; defaults eps \(10^{-6}\), atol \(10^{-5}\), rtol \(10^{-3}\)).</li>
+<li><b>Compare relatively</b>: \(|a - n| / \max(1, |a|, |n|)\), so that large and small gradients are judged alike.</li>
+<li><b>Check a VJP with one random probe.</b> To check a layer's backward without building its Jacobian, pick a random \(\bar y\) and differentiate the scalar \(\bar y \cdot f(x)\) numerically: its gradient is exactly \(J^\top \bar y\), the VJP. The {{Derivative workbench|#t-bench}} checks every layer this way.</li>
+<li><b>Avoid kinks</b>: ReLU at exactly 0, max-pooling ties and absolute values make finite differences straddle a corner. Check at points away from them.</li>
+</ul>
+</section>

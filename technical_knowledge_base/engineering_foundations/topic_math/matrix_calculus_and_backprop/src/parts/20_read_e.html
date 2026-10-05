@@ -1,0 +1,28 @@
+
+<section id="mc-s4">
+<h2>4. The chain rule in matrix form</h2>
+<p class="raise"><b>The question.</b> A network is a chain of layers. Each layer's Jacobian is easy on its own. How do they combine, and in which order should you multiply them?</p>
+<h3>Derived from the linear prediction</h3>
+<p>Let \(y = g(x)\) and \(z = f(y)\). A small step \(\delta x\) moves \(y\) by about \(J_g\,\delta x\) (section 2), and that moves \(z\) by about \(J_f\) times it:</p>
+\[ \delta z \approx J_f\,\delta y \approx J_f\,J_g\,\delta x \qquad\Longrightarrow\qquad J_{f \circ g}(x) = J_f\big(g(x)\big)\; J_g(x) \]
+<dl class="sym">
+<dt>\(f \circ g\)</dt><dd>"\(f\) after \(g\)": apply \(g\), then \(f\).</dd>
+<dt>\(J_f(g(x))\)</dt><dd>the Jacobian of \(f\) evaluated at the value \(y\) that \(g\) actually produced, which is why the backward pass needs the forward pass's values.</dd>
+</dl>
+<p class="plain">In plain words: the Jacobian of a chain is the product of the Jacobians, in the order of the chain. Entry by entry, \(\frac{\partial z_i}{\partial x_k} = \sum_j \frac{\partial z_i}{\partial y_j}\frac{\partial y_j}{\partial x_k}\): add up the effect of \(x_k\) on \(z_i\) through every intermediate \(y_j\). The shapes line up by themselves: \((m \times p)\) times \((p \times n)\) gives \(m \times n\).</p>
+<h3>For a scalar loss: the vector-Jacobian product</h3>
+<p>When the last function is the loss, its Jacobian is a single row, \(\partial L/\partial y\). Written as gradients (columns shaped like the variables), the chain rule becomes</p>
+\[ \nabla_x L = J_g^\top\, \nabla_y L \qquad\text{(row form: } \tfrac{\partial L}{\partial x} = \tfrac{\partial L}{\partial y}\,J_g \text{)} \]
+<p>This is the <dfn>vector-Jacobian product</dfn> (VJP): the gradient arriving at a layer's output, \(\bar y = \nabla_y L\), multiplied by the layer's Jacobian, gives the gradient at the layer's input, \(\bar x = J^\top \bar y\). The bar notation, \(\bar v\) for "the gradient of the loss with respect to \(v\), shaped like \(v\)", is the one used in the autodiff literature and in the rest of this page.</p>
+<div class="nums"><div class="t">The tiny model: from the scores back to the input</div>\(\bar z = p - y = (0.665, 0.245, -0.910)\) and \(J = W\), so
+\(\bar x = W^\top \bar z\): its first entry is \(1 \times 0.665 + 0 \times 0.245 + 1 \times (-0.910) = -0.245\), its second \(0 \times 0.665 + 1 \times 0.245 + (-2) \times (-0.910) = 2.065\), so \(\bar x = (-0.245, 2.065)\).
+And one step further back, from the loss to the probabilities to the scores: \(\bar p = (0, 0, -1/p_{\text{sat}}) = (0, 0, -11.107)\), and \(\bar z = J_{\text{softmax}}^\top \bar p\) is \(-11.107\) times the sat column of the table in section 2: \(-11.107 \times (-0.0599, -0.0220, 0.0819)\) \(= (0.665, 0.245, -0.910)\). The famous "prediction minus target" is just two VJPs multiplied out.</div>
+<h3>Order matters: multiply from the loss end</h3>
+<p>For a chain of \(k\) layers, \(\frac{\partial L}{\partial x} = \frac{\partial L}{\partial h_k} J_k J_{k-1} \cdots J_1\). Matrix multiplication is associative, so any bracketing gives the same answer, but not the same cost. Starting at the loss, every product is a row times a matrix: for layers of width \(d\), \(d^2\) multiply-adds each, \(k d^2\) in all. Starting at the input, every product is a matrix times a matrix: \(d^3\) each. At \(d = 4096\) that is a factor of 4096. Section 7 turns this into the two modes of automatic differentiation.</p>
+<h3>Several paths: gradients add</h3>
+<p>When one value feeds two places, the sum over intermediates in the chain rule becomes a sum over paths. Two cases matter in every transformer:</p>
+<ul>
+<li><b>A residual connection</b> \(y = x + F(x)\) has Jacobian \(I + J_F\), so \(\bar x = \bar y + J_F^\top \bar y\): the gradient arrives once through the identity path, untouched, and once through the block. That untouched copy is why very deep residual networks still train.</li>
+<li><b>A weight used twice</b>, such as an embedding matrix tied to the output layer: its gradient is the sum of the gradients from both uses. In the {{Real autograd graph|#t-graph}}, the embedding's accumulator is the very last node the engine runs, because it waits for both contributions.</li>
+</ul>
+</section>

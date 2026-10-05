@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3f05c17b0d0d817e9892e01088179c93 (child of Topic: math)
 
-New page (2026-10-05). Being built as an interactive page.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Gradients and Jacobians and the shape of every derivative, numerator against denominator layout, the chain rule as vector-Jacobian products, the six layer gradients derived in full (linear, elementwise, softmax, softmax cross-entropy, layer norm, attention) with PyTorch's real backward code, differentials and the trace trick, forward against reverse mode, why backward costs twice forward, stored activations and checkpointing, PyTorch autograd and JAX internals, custom backward functions and gradient checks, Hessian-vector products, einsum costs; measured on a real 8-block stack (FLOPs, time, memory). Tabs: Reading (about 45 min), Derivative workbench, Real autograd graph, Further reading. New page (2026-10-05); takes the matrix-calculus part of the old "Linear algebra for ML" page and the backprop part of the old "Calculus and optimisation for ML" page. No child pages, databases or video.
