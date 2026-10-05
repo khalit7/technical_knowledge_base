@@ -1,0 +1,42 @@
+<section id="sec-debug">
+<h2>10. Debugging auth: symptom, first command, fix</h2>
+<p>Auth failures are noisy (every call fails) but usually quick to pin down, because the server tells you which check failed if you read the whole response. Habits: always print the status <i>and</i> the <code>WWW-Authenticate</code> header (<code>curl -sS -D - -o /dev/null ...</code>); decode tokens to read them but never trust what they say about themselves until a signature check has run; print key and token <i>hints</i> (first characters, last four, <code>jti</code>), never the values.</p>
+<div class="tw"><table>
+<thead><tr><th>Symptom</th><th>First command</th><th>Usual cause and fix</th></tr></thead>
+<tbody>
+<tr><td>401, <code>invalid_token</code>, "expired" after the agent ran for a while</td><td>decode the payload and compare <code>exp</code> with <code>date -u</code></td><td>no refresh logic; refresh before <code>exp</code> (minus a margin) or on the first 401, once.</td></tr>
+<tr><td>401 "not yet valid" on one server only</td><td><code>date -u</code> on issuer and verifier; NTP status</td><td>clock skew; fix time sync, allow 30 to 120 s leeway.</td></tr>
+<tr><td>401 "audience"</td><td>decode <code>aud</code>; compare with the server's canonical URI (scheme, host, port, path, trailing slash)</td><td>token requested without <code>resource</code>, or for another API; request it for this one. Never "fix" by disabling the check.</td></tr>
+<tr><td>403 <code>insufficient_scope</code></td><td>read the <code>scope</code> in <code>WWW-Authenticate</code> and in the token</td><td>step-up authorization requesting the union of old and new scopes.</td></tr>
+<tr><td>Signature invalid after the provider rotated keys</td><td>compare the token's <code>kid</code> with the cached JWKS</td><td>JWKS cached forever; refetch on unknown <code>kid</code>, rate-limited.</td></tr>
+<tr><td>Browser login stops at the AS with a <code>redirect_uri</code> error</td><td>copy the URL; diff its <code>redirect_uri</code> against the registered one character by character</td><td>port, trailing slash, http versus https, localhost versus 127.0.0.1; register the exact URI (loopback ports may vary).</td></tr>
+<tr><td><code>invalid_grant</code> at the token endpoint after the browser step</td><td>check that the verifier used is the one generated for <i>this</i> attempt; check the code was not already used</td><td>verifier lost across a process restart, or a retry reused the code; start a fresh authorization.</td></tr>
+<tr><td>Refresh suddenly fails with <code>invalid_grant</code> for a user who did nothing</td><td>AS logs for refresh-token reuse</td><td>two processes share one refresh token (both refresh, the second looks like theft and the grant is revoked); store tokens in one place and serialise refreshes.</td></tr>
+<tr><td>Device login never completes</td><td>log each poll's error code and the interval used</td><td>polling ignores <code>slow_down</code>, or the user approved a different code; honour the interval, show the full verification URL.</td></tr>
+<tr><td>MCP client says the server "does not support PKCE"</td><td><code>curl</code> the AS metadata; look for <code>code_challenge_methods_supported</code></td><td>the AS omits the field (section 5); fix its metadata, or pre-register and configure the client.</td></tr>
+<tr><td>AWS: signature or request-time errors on one machine</td><td><code>date -u</code>; any proxy rewriting signed headers</td><td>clock skew or header rewriting (section 7).</td></tr>
+<tr><td>CI cannot assume the cloud role after a repository move</td><td>print the OIDC token's <code>sub</code> in the job (it is not secret, but do not print the token)</td><td>the subject format changed (immutable IDs); update the trust condition.</td></tr>
+</tbody></table></div>
+
+<h3>Choosing, quickly</h3>
+<div class="tw"><table>
+<thead><tr><th>Situation</th><th>Use</th><th>Avoid</th></tr></thead>
+<tbody>
+<tr><td>Your backend calls an LLM provider</td><td>an API key per service and environment, from a secrets manager</td><td>one shared key; keys in notebooks or images</td></tr>
+<tr><td>Users sign in to your web app</td><td>OIDC code flow with PKCE via a managed identity provider; server-side session or a BFF</td><td>tokens in browser storage for sensitive apps</td></tr>
+<tr><td>A CLI or desktop agent acts for a user</td><td>code flow with PKCE and a loopback redirect; device grant for headless boxes</td><td>asking for the user's password; long-lived personal tokens</td></tr>
+<tr><td>Service to service inside one cloud</td><td>the platform's workload identity (IAM roles); mTLS inside a mesh</td><td>static keys copied between services</td></tr>
+<tr><td>Service to service across organisations</td><td>client credentials with <code>private_key_jwt</code> or mTLS client auth</td><td>shared client secrets emailed around</td></tr>
+<tr><td>CI deploying to a cloud</td><td>OIDC federation with an exact subject condition</td><td>cloud keys stored as CI secrets</td></tr>
+<tr><td>A remote MCP server</td><td>OAuth 2.1 per the MCP spec: CIMD, PKCE, resource, audience check; token exchange for upstreams</td><td>token passthrough; one omnibus scope</td></tr>
+<tr><td>A local MCP server (stdio)</td><td>credentials from its own environment, only what it needs</td><td>inheriting your whole shell environment</td></tr>
+</tbody></table></div>
+
+<h3>Common mistakes</h3>
+<details class="mist"><summary>Using an ID token to call an API</summary><div class="b">The ID token is addressed to your app. APIs need access tokens; check <code>typ</code> so they cannot be confused (section 5).</div></details>
+<details class="mist"><summary>Letting the token choose its algorithm or key</summary><div class="b">Pin algorithms per issuer; look keys up by <code>kid</code> in the issuer's JWKS only; ignore <code>jku</code> and <code>x5u</code> (section 6, {{JWT lab|#t-jwt}}).</div></details>
+<details class="mist"><summary>Skipping the audience check "because it is our own issuer"</summary><div class="b">The same issuer mints tokens for every API you own. Without <code>aud</code>, a token for the least important one opens all of them.</div></details>
+<details class="mist"><summary>Long-lived access tokens to avoid refresh logic</summary><div class="b">A leaked hour-long or day-long bearer token is an incident you cannot stop (JWTs cannot be revoked early). Keep minutes, add refresh.</div></details>
+<details class="mist"><summary>Logging Authorization headers</summary><div class="b">Access logs, proxy debug logs and tracing spans are where bearer tokens most often leak. Redact the header at the logger, and prefer bound tokens where logs are widely readable.</div></details>
+<details class="mist"><summary>Forwarding the token you received</summary><div class="b">Token passthrough (section 9). Exchange it instead (section 8).</div></details>
+</section>

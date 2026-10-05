@@ -1,0 +1,34 @@
+<section id="sec-jwt">
+<h2>6. JWTs: tokens a server can check alone</h2>
+<p><b>The problem.</b> If every API call required the API to ask the authorization server "is this token good?", the AS would carry the whole system's traffic and its latency. A <b>JSON Web Token</b> lets the AS put the answer inside the token and sign it, so any API holding the AS's public key can verify it offline in microseconds ({{RFC 7519|https://www.rfc-editor.org/rfc/rfc7519}}). The family of specs, all May 2015: JWS (signed, {{RFC 7515|https://www.rfc-editor.org/rfc/rfc7515}}), JWE (encrypted, RFC 7516), JWK (keys as JSON, {{RFC 7517|https://www.rfc-editor.org/rfc/rfc7517}}), JWA (algorithm names, {{RFC 7518|https://www.rfc-editor.org/rfc/rfc7518}}) and JWT itself (the claims). "JWT" in conversation almost always means a JWS-signed JWT.</p>
+<h3>Anatomy</h3>
+<p>Three base64url pieces separated by dots: a <span style="color:var(--c2)">header</span> (algorithm and key ID), a <span style="color:var(--c4)">payload</span> (the claims), a <span style="color:var(--c6)">signature</span> over the ASCII bytes <code>base64url(header) + "." + base64url(payload)</code>. A real token from this page's lab (an RS256 access token, decoded by this page's JavaScript):</p>
+<div class="jwtparts" id="rdJwtParts"></div>
+<div class="tw"><table id="rdJwtClaims"></table></div>
+<p>Anyone can decode the first two parts: base64url is an encoding, not encryption. Never put secrets or more personal data than needed in claims; use JWE or an opaque token if the contents must stay private.</p>
+<h3>The algorithms, measured</h3>
+<p>The same claims signed five ways with PyJWT 2.15.1 on this laptop (Apple M1 Pro, one core; median of 7 runs of 200; recorded):</p>
+<div class="tw"><table id="rdAlgs"></table></div>
+<ul>
+<li><b>HS256</b> is a MAC with a shared secret: the smallest and fastest, but every service that can verify can also <i>mint</i> tokens. Fine inside one service; wrong for an issuer with many verifiers.</li>
+<li><b>RS256</b> (RSA) is the most widely deployed (Google, Microsoft and GitHub Actions all list only RS256 in the discovery documents in section 5). Verification is cheap and signing is about ten times slower, which suits one issuer and many verifiers; the cost is a 256-byte signature, so RS256 tokens are roughly twice the size of the others.</li>
+<li><b>ES256</b> (P-256) and <b>EdDSA</b> (Ed25519) give 64-byte signatures. ECDSA needs care in implementations: Java 17.0.2 and 18 accepted a signature of all zeros as valid for any message and any key ({{CVE-2022-21449|https://www.cve.org/CVERecord?id=CVE-2022-21449}}; {{Neil Madden, "Psychic signatures in Java", 19 April 2022|https://neilmadden.blog/2022/04/19/psychic-signatures-in-java/}}): the verifier skipped the check that r and s are at least 1.</li>
+</ul>
+<h3>Validating a JWT, in order</h3>
+<ol class="steps">
+<li><b>Choose the algorithm yourself.</b> Accept only the algorithm(s) you expect for this issuer; never use the token's <code>alg</code> header to decide how to verify ({{RFC 8725 s3.1|https://www.rfc-editor.org/rfc/rfc8725#section-3.1}}). In PyJWT that is the <code>algorithms=["RS256"]</code> argument, required since 2.0.0 ({{changelog|https://github.com/jpadilla/pyjwt/blob/master/CHANGELOG.rst}}); applications that passed "every algorithm" there were still open to key confusion until 2.4.0 ({{CVE-2022-29217|https://www.cve.org/CVERecord?id=CVE-2022-29217}}).</li>
+<li><b>Choose the key yourself.</b> Look the <code>kid</code> up in the issuer's JWKS, fetched from the <code>jwks_uri</code> in its discovery document and cached. Never fetch keys from a URL inside the token (<code>jku</code>, <code>x5u</code>) and never treat <code>kid</code> as a file path or a database query.</li>
+<li><b>Verify the signature.</b></li>
+<li><b>Check the type</b> (<code>typ: at+jwt</code> for access tokens) so an ID token or another JWT from the same issuer is not accepted as an access token ({{RFC 8725 s3.11|https://www.rfc-editor.org/rfc/rfc8725#section-3.11}}).</li>
+<li><b>Check <code>iss</code></b> equals the issuer you trust and <b><code>aud</code></b> contains your own identifier ({{s3.8, s3.9|https://www.rfc-editor.org/rfc/rfc8725#section-3.9}}).</li>
+<li><b>Check time</b>: <code>exp</code> in the future, <code>nbf</code>/<code>iat</code> not in the future, with a small leeway (seconds to a couple of minutes) for clock skew.</li>
+<li>Only now <b>authorize</b>: scopes, roles, tenant, the specific object.</li>
+</ol>
+<p>The {{JWT lab|#t-jwt}} runs twelve real tokens (expired, wrong audience, skewed clock, ID token, edited payload, <code>alg: none</code>, HS256 signed with the RSA public key, <code>kid</code> path traversal, <code>jku</code> pointing at the attacker, weak HMAC secret and more) through two verifiers that both ran in Python: one that follows these rules and one that trusts the header. Switch each check off and watch which forgeries get through. The parent page's {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} shows five of them as the 401 and 403 responses a real gateway returns ("Expired JWT", "Wrong audience", "Clock skew: token not yet valid", "Algorithm confusion rejected", "Missing scope: authenticated but not allowed").</p>
+<h3>Weak HMAC secrets fall offline</h3>
+<p>One captured HS256 token lets an attacker test candidate secrets on their own machine, as fast as they can compute HMACs, with no rate limit. Measured here: plain Python on one core tried <b id="rdCrackN"></b> candidates in <b id="rdCrackS"></b> s (<b id="rdCrackR"></b> per second) and found <code>secret123</code>. At that rate, every 6-character secret of lowercase letters and digits takes 36<sup>6</sup> / rate = <b id="rdCrackSpace"></b>; dedicated GPU crackers are faster still (not measured here). {{RFC 8725 s3.5|https://www.rfc-editor.org/rfc/rfc8725#section-3.5}} asks for keys with real entropy: use 32 random bytes, never a word.</p>
+<h3>The price of offline checking: no revocation</h3>
+<p>A self-contained token stays valid until <code>exp</code>, whatever happens at the AS. Recorded in the lab: a client-credentials token was revoked at the AS ({{RFC 7009|https://www.rfc-editor.org/rfc/rfc7009}}); the AS's introspection endpoint ({{RFC 7662|https://www.rfc-editor.org/rfc/rfc7662}}) then reported it inactive, and the MCP server, which validates JWTs offline, still accepted it:</p>
+<div id="rdRevoke"></div>
+<p>The remedies, in order of cost: short lifetimes (minutes), so a revoked token dies soon anyway; a denylist of revoked <code>jti</code> values pushed to verifiers; introspection on every call for high-value operations, which brings the round trip back. This is also why JWTs make poor browser sessions (section 3): "log out" cannot reach a token already issued.</p>
+</section>
