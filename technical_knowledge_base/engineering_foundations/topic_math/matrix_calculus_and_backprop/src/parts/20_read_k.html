@@ -1,0 +1,43 @@
+
+<section id="mc-s10">
+<h2>10. How PyTorch autograd and JAX actually do it</h2>
+<p class="raise"><b>The question.</b> You call <code>loss.backward()</code> and every <code>.grad</code> fills in. What happened?</p>
+<h3>PyTorch: a graph recorded while the forward pass runs</h3>
+<p>The documentation describes it in three sentences: "Autograd is a reverse automatic differentiation system. Conceptually, autograd records a graph recording all of the operations that created the data as you execute operations, giving you a directed acyclic graph whose leaves are the input tensors and roots are the output tensors." Each operation adds a node (a <code>Function</code>), and "the <code>.grad_fn</code> attribute of each torch.Tensor is an entry point into this graph". And "the graph is recreated from scratch at every iteration, and this is exactly what allows for using arbitrary Python control flow statements" ({{Autograd mechanics|https://docs.pytorch.org/docs/stable/notes/autograd.html}}).</p>
+<p>Here is the tiny model, run for real (PyTorch 2.14.1; the script is <code>src/inputs/measure/tiny_autograd.py</code>):</p>
+<pre>x = torch.tensor([2., 1.], requires_grad=True)
+W = torch.tensor([[1., 0.], [0., 1.], [1., -2.]], requires_grad=True)
+L = F.cross_entropy((W @ x)[None], torch.tensor([2]))
+<span class="c"># walking L.grad_fn and each node's next_functions prints:</span>
+NllLossBackward0     -> LogSoftmaxBackward0   saved: self (1, 3), target (1,), total_weight ()
+LogSoftmaxBackward0  -> UnsqueezeBackward0    saved: result (1, 3)
+UnsqueezeBackward0   -> MvBackward0           saved: nothing
+MvBackward0          -> AccumulateGrad (W), AccumulateGrad (x)   saved: self (3, 2), vec (2,)
+<span class="c"># the saved tensors are the very objects W and x, not copies:</span>
+z.grad_fn._saved_self is W, z.grad_fn._saved_vec is x   ->  True True</pre>
+<ul>
+<li><b>Nodes and edges.</b> Each node is the backward rule of one operation: <code>MvBackward0</code> is the matrix-vector product's VJP from section 5a, <code>LogSoftmaxBackward0</code> and <code>NllLossBackward0</code> the two halves of 5d. Its <code>next_functions</code> point to the nodes that produced its inputs. A leaf tensor that requires a gradient ends in an <code>AccumulateGrad</code> node, which adds the arriving gradient into <code>.grad</code>.</li>
+<li><b>Saved tensors.</b> "Some operations need intermediary results to be saved during the forward pass in order to execute the backward pass", and you can see them "by looking for its attributes starting with the prefix <code>_saved</code>" (same page). They are references, so a saved weight costs nothing extra; a saved activation is the memory of section 9.</li>
+<li><b>The backward pass</b> starts at the root with gradient 1, calls each node's backward rule once all its incoming gradients have arrived, and frees the saved tensors as it goes. Calling <code>L.backward()</code> a second time therefore fails: "Trying to backward through the graph a second time (or directly access saved tensors after they have already been freed)" (the real error; pass <code>retain_graph=True</code> to keep them).</li>
+<li><b>Gradients accumulate.</b> <code>AccumulateGrad</code> adds, it does not overwrite. That is what lets a weight used twice receive both contributions (section 4), and why training loops call <code>optimizer.zero_grad()</code> (or set <code>.grad</code> to <code>None</code>) before each step; forgetting it is one of the root page's eight gradient bugs.</li>
+<li><b>In-place safety.</b> "Every tensor keeps a version counter, that is incremented every time it is marked dirty in any operation. When a Function saves any tensors for backward, a version counter of their containing Tensor is saved as well." If a saved tensor was modified in place, backward raises "one of the variables needed for gradient computation has been modified by an inplace operation" (real output for <code>b = a.exp(); b.add_(1)</code>, since <code>exp</code> saves its result).</li>
+<li><b>No graph at all</b> under <code>torch.no_grad()</code> or <code>torch.inference_mode()</code>: nothing is recorded or saved, which is why inference held 0 bytes of activations in section 9.</li>
+</ul>
+<p>The {{Real autograd graph|#t-graph}} tab does the same walk for one tiny transformer block and the loss: 71 nodes, 13 of them <code>AccumulateGrad</code>, every saved tensor with its shape, and the order the engine actually ran them.</p>
+<h3>torch.func: derivatives as function transforms</h3>
+<p><code>torch.func</code> (formerly functorch) offers the JAX-style interface on the same engine: <code>grad(f)</code> returns a function that computes the gradient; <code>vjp(f, x)</code> returns \(f(x)\) and a function \(v \mapsto J^\top v\); <code>jvp(f, (x,), (u,))</code> returns \(f(x)\) and \(Ju\); <code>jacrev</code>, <code>jacfwd</code> and <code>hessian</code> build whole Jacobians; and <code>vmap</code> vectorises any of them, which gives per-example gradients in one call. The measurements in sections 7 and 12 use these.</p>
+<h3>JAX: trace, then transform the trace</h3>
+<p>JAX traces a Python function into a small typed program, a <dfn>jaxpr</dfn>, and differentiates that program: <code>jax.jvp</code> applies forward mode, <code>jax.linearize</code> extracts the linear map, and reverse mode is obtained by transposing the linear map, which is <code>jax.vjp</code>; <code>jax.grad</code> is <code>vjp</code> with the cotangent 1. Run on the tiny model (JAX 0.11.2, float64), <code>jax.grad</code> gives the same \(\bar W\) and \(\bar x\) as PyTorch to the last digit, and its jaxpr for \(\bar x\) ends with the backward pass written out (excerpt; the full program is in <code>src/inputs/measure/jax.json</code>):</p>
+<pre>    ba:f64[3] = pad[padding_config=((2, np.int64(0), 0),)] z 0.0:f64[]   <span class="c"># -1 at the sat position: the gradient of -z[y]</span>
+    bb:f64[] = div 1.0:f64[] s                                         <span class="c"># 1 / sum(exp)</span>
+    ...
+    bh:f64[3] = mul bg q                                               <span class="c"># exp(z - max) / sum: the softmax p</span>
+    bi:f64[3] = add_any ba bh                                          <span class="c"># p - onehot</span>
+    bj:f64[2] = dot_general[
+      dimension_numbers=(([0], [0]), ([], []))                         <span class="c"># contract over the 3 words: W^T (p - y)</span>
+      preferred_element_type=float64
+    ] bi a
+  in (bj,) }</pre>
+<p class="small">Comments added; lines between <code>bb</code> and <code>bh</code> omitted. The forward program's <code>dot_general</code> contracted \(W\)'s columns with \(x\) (dimension numbers <code>([1], [0])</code>); the backward one contracts \(W\)'s rows with the cotangent (<code>([0], [0])</code>): the transpose of section 5a, produced mechanically.</p>
+<p>On cost, JAX's documentation gives the same picture as section 7: for a VJP "the FLOP cost ... is only about three times the cost of evaluating f", and "though the FLOPs are friendly, memory scales with the depth of the computation"; for a JVP "the memory cost is independent of the depth of the computation" ({{JAX, The Autodiff Cookbook|https://docs.jax.dev/en/latest/notebooks/autodiff_cookbook.html}}). Its rule for whole Jacobians: "jacfwd ... is more efficient for "tall" Jacobian matrices (more outputs than inputs), while jacrev ... is more efficient for "wide" Jacobian matrices".</p>
+</section>

@@ -1,0 +1,53 @@
+
+<h3 id="mc-sce">5d. Softmax cross-entropy: two VJPs that collapse</h3>
+<p>The root page derives \(\nabla_z L = p - y\) by writing \(L = -z_y + \ln \sum_j e^{z_j}\) ({{Topic: math, Reading section 4|n:3c65c17b0d0d81cdb851c0835b25a538}}). Here is the same result as a composition, which shows why frameworks fuse the two layers.</p>
+<ol class="steps">
+<li>The loss \(L = -\ln p_y\) has \(\bar p_k = -1/p_y\) for the right word and 0 for the others: \(\bar p = -\mathbf{1}_y / p_y\), where \(\mathbf{1}_y\) is the one-hot vector of the right word. It divides by \(p_y\), which can be tiny.</li>
+<li>Its dot product with \(p\) is \(p \cdot \bar p = -p_y/p_y = -1\).</li>
+<li>Softmax's VJP (5c): \(\bar z = p \odot (\bar p + \mathbf{1}) = p \odot \mathbf{1} - p \odot \mathbf{1}_y / p_y = p - \mathbf{1}_y\).</li>
+</ol>
+<p class="plain">The division by \(p_y\) cancels exactly. Computed separately, a probability that underflows to 0 would give \(\bar p = -\infty\) and a NaN; fused, the gradient is just the probabilities minus the target. That is why <code>F.cross_entropy</code> takes logits, and why PyTorch's graph shows <code>LogSoftmaxBackward0</code> feeding <code>NllLossBackward0</code> (see the {{Real autograd graph|#t-graph}}): log-softmax is computed stably once and saved. For a batch averaged over \(B\) examples (<code>reduction="mean"</code>), each row's gradient is \((p - \mathbf{1}_y)/B\); with label smoothing or distillation targets \(q\), it is \(p - q\).</p>
+
+<h3 id="mc-ln">5e. Layer norm, derived completely</h3>
+<p>Layer norm (Ba, Kiros and Hinton 2016) rescales each token's vector \(x\) (with \(N\) entries) to mean 0 and variance 1, then applies a learned scale \(\gamma\) and shift \(\beta\):</p>
+\[ \mu = \frac{1}{N}\sum_i x_i, \quad \sigma^2 = \frac{1}{N}\sum_i (x_i - \mu)^2, \quad r = \frac{1}{\sqrt{\sigma^2 + \epsilon}}, \quad \hat x_i = (x_i - \mu)\,r, \quad y_i = \gamma_i \hat x_i + \beta_i \]
+<dl class="sym"><dt>\(r\)</dt><dd>the reciprocal standard deviation (PyTorch calls it <code>rstd</code>); \(\epsilon\) (default \(10^{-5}\)) keeps it finite.</dd><dt>\(\hat x\)</dt><dd>the normalised vector.</dd></dl>
+<ol class="steps">
+<li>The easy ones: \(y_i = \gamma_i \hat x_i + \beta_i\) gives \(\bar\gamma = \bar y \odot \hat x\) and \(\bar\beta = \bar y\) (summed over the tokens of a batch), and passes \(\hat g := \bar{\hat x} = \bar y \odot \gamma\) to the normalisation.</li>
+<li>\(\hat x_i\) depends on \(x_j\) through three routes: directly, through \(\mu\) and through \(r\). The first two give \(r\,(\delta_{ij} - \tfrac{1}{N})\), because \(\partial \mu/\partial x_j = 1/N\).</li>
+<li>The variance: \(\partial \sigma^2/\partial x_j = \tfrac{2}{N}(x_j - \mu)\). (Its route through \(\mu\) contributes \(-\tfrac{2}{N^2}\sum_i (x_i - \mu) = 0\), because deviations from the mean add up to 0.)</li>
+<li>So \(\partial r/\partial x_j = -\tfrac{1}{2}(\sigma^2 + \epsilon)^{-3/2} \cdot \tfrac{2}{N}(x_j - \mu)\) \(= -\tfrac{r^3}{N}(x_j - \mu) = -\tfrac{r^2}{N}\hat x_j\).</li>
+<li>All three routes together:
+\[ \frac{\partial \hat x_i}{\partial x_j} = r\Big(\delta_{ij} - \frac{1}{N}\Big) + (x_i - \mu)\Big(-\frac{r^2}{N}\hat x_j\Big) = r\Big(\delta_{ij} - \frac{1}{N} - \frac{\hat x_i \hat x_j}{N}\Big) \]</li>
+<li>The VJP sums over \(i\): \(\bar x_j = \sum_i \hat g_i\,\frac{\partial \hat x_i}{\partial x_j}\), which gives
+\[ \bar x = r\Big(\hat g - \operatorname{mean}(\hat g) - \hat x \odot \operatorname{mean}(\hat g \odot \hat x)\Big), \qquad \hat g = \bar y \odot \gamma \]</li>
+</ol>
+<p class="plain">In plain words: take the incoming gradient, remove its average (the output cannot respond to adding a constant to every entry of \(x\)), remove its component along \(\hat x\) (nor to scaling \(x\) up), and scale by \(1/\sigma\). The result always adds up to 0 and is orthogonal to \(\hat x\).</p>
+<div class="nums"><div class="t">Numbers (workbench defaults)</div>\(x = (2, 1, 0, -1)\): \(\mu = 0.5\), \(\sigma^2 = 1.25\), \(r = 0.8944\), \(\hat x = (1.3416, 0.4472, -0.4472, -1.3416)\). With \(\gamma = (1, 0.5, -1, 2)\) and \(\bar y = (0.3, -0.6, 0.9, 0.1)\): \(\hat g = (0.3, -0.3, -0.9, 0.2)\), \(\operatorname{mean}(\hat g) = -0.175\), \(\operatorname{mean}(\hat g \odot \hat x) = 0.1006\), so \(\bar x = 0.8944 \times (0.340, -0.170, -0.680, 0.510)\) \(= (0.3041, -0.1521, -0.6082, 0.4562)\). It adds up to 0 and its dot product with \(\hat x\) is 0, as promised. PyTorch's <code>F.layer_norm</code> gives the same.</div>
+<p><b>The real kernel</b> writes the same thing in a form that needs only two sums per row. From PyTorch v2.14.1's CPU kernel (<code>scale</code> is \(1/N\), <code>a</code> is \(r\), <code>ds</code> \(= \sum_j \bar y_j x_j \gamma_j\), <code>db</code> \(= \sum_j \bar y_j \gamma_j\)):</p>
+<pre>const opmath_t a = rstd_data[i];
+const opmath_t b = (db * opmath_t(mean_data[i]) - ds) * a * a * a * scale;
+const opmath_t c = -b * opmath_t(mean_data[i]) - db * a * scale;
+// Scalar math:
+// for (const auto j : c10::irange(N)) {
+//   const T gamma_v = gamma_null ? T(1) : gamma_data[j];
+//   dX_ptr[j] = a * dY_ptr[j] * gamma_v + b * X_ptr[j] + c;
+// }</pre>
+<p class="src">{{aten/src/ATen/native/cpu/layer_norm_kernel.cpp at v2.14.1, lines 287-294|https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/native/cpu/layer_norm_kernel.cpp#L287-L294}}. On the defaults: \(a = 0.8944\), \(b = -0.0805\), \(c = 0.1968\), and \(a\,\bar y \odot \gamma + b\,x + c\) reproduces \(\bar x\) above (checked in <code>src/recompute.py</code>).</p>
+<p class="small">RMSNorm (used by Llama and most 2026 open models) drops the mean: \(y = \gamma \odot x / \text{rms}\), \(\text{rms} = \sqrt{\operatorname{mean}(x^2) + \epsilon}\), and the same steps give \(\bar x = (\hat g - \tilde x \odot \operatorname{mean}(\hat g \odot \tilde x))/\text{rms}\) with \(\tilde x = x/\text{rms}\): only the scaling direction is removed. On the same numbers, \(\bar x = (0.2177, -0.2586, -0.7348, 0.1769)\).</p>
+
+<h3 id="mc-attn">5f. Attention</h3>
+<p>One head, \(T\) queries, keys and values of width \(d\): \(Q\) (\(T_q \times d\)), \(K\) and \(V\) (\(T_k \times d\)).</p>
+\[ S = \frac{QK^\top}{\sqrt d}, \qquad A = \operatorname{softmax}_{\text{rows}}(S), \qquad O = AV \]
+<p>Backward, each line one of the rules above, given \(\bar O\):</p>
+<ol class="steps">
+<li>\(O = AV\) is a matrix product (5a): \(\bar V = A^\top \bar O\) and \(\bar A = \bar O V^\top\).</li>
+<li>Each row of \(A\) is a softmax of the same row of \(S\) (5c): \(\bar S_{ij} = A_{ij}\big(\bar A_{ij} - D_i\big)\) with \(D_i = \sum_j A_{ij}\bar A_{ij}\).</li>
+<li>\(S = QK^\top/\sqrt d\) is a matrix product again: \(\bar Q = \bar S K/\sqrt d\) and \(\bar K = \bar S^\top Q/\sqrt d\).</li>
+</ol>
+<p>One identity makes attention's backward pass cheap in memory. Substituting \(\bar A = \bar O V^\top\):</p>
+\[ D_i = \sum_j A_{ij} \sum_c \bar O_{ic} V_{jc} = \sum_c \bar O_{ic} \sum_j A_{ij} V_{jc} = \sum_c \bar O_{ic}\,O_{ic} \]
+<p class="plain">\(D\) can be computed from the output and its gradient alone, one number per query, without the \(T \times T\) matrix \(A\). FlashAttention's backward pass uses exactly this \(D_i\) and recomputes \(A\) block by block instead of storing it (Dao et al. 2022 define \(D_i = do_i^\top o_i\) in Eq. 4 of appendix B.2 and compute "\(D_i = \operatorname{rowsum}(dO_i \circ O_i)\)" in Algorithm 4, line 19; they describe recomputing the attention matrix as "a form of selective gradient checkpointing", section 3.1: {{arXiv 2205.14135|https://arxiv.org/abs/2205.14135}}; {{FlashAttention paper page|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}). The stakes are measured in section 9: in the 8-layer stack measured there, the stored attention probabilities are 128 of the 422 MiB the backward pass keeps.</p>
+<div class="nums"><div class="t">Numbers (workbench defaults)</div>\(Q\) has rows \((2, 1)\) and \((0, 1)\); \(K = V = W\) of the tiny model; \(d = 2\). The first query is the root page's: scores \((1.414, 0.707, 0)\), weights \((0.576, 0.284, 0.140)\), output \((0.716, 0.004)\). With \(\bar O\) rows \((1, 0)\) and \((0, -1)\): \(D = (0.716, -0.471)\), \(\bar Q\) rows \((0.1438, -0.2000)\) and \((0.2318, -0.4915)\), \(\bar V\) rows \((0.576, -0.306)\), \((0.284, -0.620)\), \((0.140, -0.074)\). PyTorch's fused <code>scaled_dot_product_attention</code> gives the same.</div>
+<div class="use"><div class="t">What these six are used for</div>Reading the backward pass of any architecture (every block is made of them); writing fused kernels and custom <code>autograd.Function</code>s (section 11); memory planning, because each rule shows what it needs saved; interview questions, where "derive the softmax cross-entropy gradient" and "derive the layer norm backward" are classics.</div>
+</section>

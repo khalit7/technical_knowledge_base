@@ -1,0 +1,35 @@
+
+<section id="mc-s7">
+<h2>7. Automatic differentiation: forward mode against reverse mode</h2>
+<p class="raise"><b>The question.</b> A model has billions of parameters and one loss. How does a computer get all the slopes, exactly, for the price of a few forward passes?</p>
+<h3>Three ways to get a derivative</h3>
+<ul>
+<li><b>Symbolic</b>: manipulate the formula, as in a computer algebra system. Exact, but the expression for a deep network's derivative grows explosively, and code with loops and branches has no single formula.</li>
+<li><b>Numerical</b>: finite differences, \((f(x + h) - f(x - h))/2h\). Easy, but approximate (section 11), and it needs two evaluations per input: \(2n\) forward passes for \(n\) parameters.</li>
+<li><b>Automatic differentiation</b> (AD, or autodiff): run the program, and apply the chain rule to each primitive operation as it runs, using that operation's known local derivative. Exact up to floating-point rounding, works through loops and branches, and costs a small multiple of one evaluation. The standard survey states the bound: computing the \(m \times n\) Jacobian costs "\(n\,c\,\text{ops}(f)\)" in forward mode and "\(m\,c\,\text{ops}(f)\)" in reverse mode, "where c is a constant guaranteed to be c &lt; 6 and typically c ∼ [2, 3]" ({{Baydin et al. 2018, section 3.2, p. 13|https://arxiv.org/abs/1502.05767}}, citing Griewank and Walther 2008). Griewank calls the reverse-mode case, a gradient at a small constant multiple of the function's cost whatever \(n\), the "Cheap Gradient Principle", and adds that "there is no corresponding Cheap Jacobian Principle" ({{Griewank 2012, p. 391|https://ftp.gwdg.de/pub/misc/EMIS/journals/DMJDMV/vol-ismp/52_griewank-andreas-b.pdf}}).</li>
+</ul>
+<p>AD sees a program as a <dfn>computational graph</dfn>: nodes are values, edges are primitive operations (a matrix product, an exponential, a sum), each with a known local derivative. The tiny model's graph is a chain: \(W, x \to z = Wx \to p = \operatorname{softmax}(z) \to L = -\ln p_{\text{sat}}\). The chain rule of section 4 says the derivative is a product of the local Jacobians; the two modes of AD are the two orders of multiplying it out.</p>
+<div class="tl">
+<div style="--sc:var(--c1)"><h4>Forward mode: Jacobian-vector products</h4>Pick one input direction \(u\) and carry a <dfn>tangent</dfn> \(\dot v\) (how fast each value changes along \(u\)) alongside every value, in the same order as the computation: \(\dot z = J_1 u\), \(\dot p = J_2 \dot z\), ... One pass gives \(Ju\): how <b>every output</b> changes along <b>one</b> input direction. A full gradient over \(n\) inputs needs \(n\) passes.</div>
+<div style="--sc:var(--c2)"><h4>Reverse mode: vector-Jacobian products</h4>Run forward once, keeping what each local derivative will need. Then carry an <dfn>adjoint</dfn> \(\bar v\) (the gradient of one output with respect to \(v\)) backwards from that output: \(\bar p\), then \(\bar z = J_2^\top \bar p\), then \(\bar W\) and \(\bar x\). One backward pass gives the slope of <b>one</b> output with respect to <b>every</b> input. Backpropagation is reverse mode applied to a loss.</div>
+</div>
+<p>Forward mode has a neat algebraic form: <dfn>dual numbers</dfn> \(a + b\varepsilon\) with the rule \(\varepsilon^2 = 0\). Then \(f(a + b\varepsilon) = f(a) + f'(a)\,b\,\varepsilon\) for any smooth \(f\) (the Taylor series stops after the linear term), so evaluating with dual numbers carries the derivative along for free. PyTorch exposes it as <code>torch.func.jvp</code> and dual tensors in <code>torch.autograd.forward_ad</code>; JAX as <code>jax.jvp</code>.</p>
+
+<h3>Watch both on the tiny model</h3>
+<p>The goal: all six slopes \(\partial L/\partial W_{ij}\). Forward mode must seed one weight at a time; reverse mode gets all six from one backward sweep. Step through both and compare the counters.</p>
+<div class="card" id="mc-fr-card">
+<div class="seg" id="mc-fr-mode" role="group" aria-label="Mode"><button data-m="fwd">Before: forward mode (one sweep per weight)</button><button data-m="rev" class="on">After: reverse mode (one backward sweep)</button></div>
+<div id="mc-fr-view"></div>
+<div class="an-ctl" id="mc-fr-ctl"></div>
+<div class="an-cap" id="mc-fr-cap" aria-live="polite"></div>
+<div class="an-cnt" id="mc-fr-cnt"></div>
+</div>
+<p class="small mute">Multiply-adds counted the same way in both modes: applying a matrix with \(r\) rows and \(c\) columns costs \(r \times c\); the forward pass that computes \(z\), \(p\) and \(L\) is shared and not counted. Values are the tiny model's, computed by <code>parts/22b_js_core.js</code> and checked against <code>src/recompute.py</code>.</p>
+
+<h3>Why reverse mode wins for training, and when it does not</h3>
+<p>For \(f: \mathbb{R}^n \to \mathbb{R}^m\), the whole Jacobian costs \(n\) forward-mode passes or \(m\) reverse-mode passes, so the cheaper mode is the one whose count is smaller. Training has \(m = 1\) (one loss) and \(n\) in the billions: reverse mode, by a factor of \(n\). Forward mode wins when inputs are few and outputs many, for example the sensitivity of every output of a simulation to one hyperparameter. Measured with <code>torch.func.jacfwd</code> and <code>jacrev</code> on \(f(x) = B\tanh(Ax)\) (hidden width 256, float64, two CPU threads):</p>
+<div class="card" id="mc-jac-card"><div class="rd-svg" id="mc-jac-svg"></div>
+<p class="small mute" id="mc-jac-cap"></p></div>
+<p><b>The price of reverse mode is memory.</b> The backward sweep runs in the opposite order to the computation, so every value a local derivative needs must still exist when the sweep reaches it: it has to be stored during the forward pass, or recomputed. Forward mode carries its tangent along and can forget each value at once. Sections 8 and 9 measure both costs.</p>
+<div class="co"><div class="t">A little history</div>"Forward mode AD as a general method for evaluating partial derivatives was essentially discovered by Wengert (1964)"; the work of "Linnainmaa (1970, 1976) is often cited as the first published description of the reverse mode"; in machine learning it "has been reinvented several times ... until it was eventually brought to fame by Rumelhart et al. (1986)" ({{Baydin et al. 2018, section 3.3|https://arxiv.org/abs/1502.05767}}). Griewank's history adds that Ostrowski used the reverse idea some five years before Linnainmaa, in chemical engineering ({{Griewank 2012, p. 389|https://ftp.gwdg.de/pub/misc/EMIS/journals/DMJDMV/vol-ismp/52_griewank-andreas-b.pdf}}). As Baydin et al. put it, "the backpropagation algorithm is only a special case of AD" (section 4.2).</div>
+</section>
