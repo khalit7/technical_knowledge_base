@@ -15,6 +15,7 @@
     db.exec('COMMIT');const bytes=db.export();db.close();return bytes};
   // Run a script like a terminal client: one statement at a time, keep going after an error.
   // Each result: {sql, cols, rows, n} for statements that return rows, {sql, changes} otherwise, {sql, error} on failure.
+  // A write statement that starts with -- comment lines still reports its changed rows (the comment lines are skipped before the test).
   R.run=(db,sql,cap)=>{cap=cap||200;const out=[];let rest=sql;let guard=0;
     while(rest&&rest.trim()&&guard++<200){
       let it;try{it=db.iterateStatements(rest)}catch(e){out.push({sql:rest.trim(),error:e.message});break}
@@ -28,7 +29,7 @@
         const r={sql:st.getSQL().trim().replace(/;$/,'')};
         try{const cols=st.getColumnNames();
           if(cols.length){const rows=[];let n=0;while(st.step()){if(n<cap)rows.push(st.get());n++}r.cols=cols;r.rows=rows;r.n=n}
-          else{st.step();r.changes=/^\s*(insert|update|delete|replace)/i.test(r.sql)?db.getRowsModified():0}}
+          else{st.step();r.changes=/^\s*(insert|update|delete|replace)/i.test(r.sql.replace(/^(\s*--[^\n]*\n)+/,''))?db.getRowsModified():0}}
         catch(e){r.error=e.message}
         try{st.free()}catch(e){}
         out.push(r)}
