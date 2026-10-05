@@ -1,0 +1,24 @@
+<section id="sec-keys">
+<h2>2. API keys: the simplest credential, done properly</h2>
+<p><b>The problem.</b> Your backend calls an LLM provider thousands of times a day. There is no user to ask, no browser to redirect; the provider just needs to know which account to bill and limit. The parent page's running request carries the answer in one header: <code>x-api-key: sk-wirelab-not-a-real-key</code> (a fake). An API key is a long random string the provider generated, showed you once, and remembers. Whoever presents it <i>is</i> the account.</p>
+<h3>Anatomy of a good key</h3>
+<p>GitHub's 2021 token redesign is the clearest public write-up of what a key should look like ({{GitHub blog, 5 April 2021|https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/}}): a short <b>prefix</b> that says what it is, a <b>random body</b>, and a <b>checksum</b>. The lab made one in the same shape (recorded):</p>
+<pre class="wire" id="rdKey"></pre>
+<ul>
+<li><b>Prefix</b> (<code>lab_</code>): secret scanners (GitHub's, your CI's, your log pipeline's) can match it with almost no false positives, and an underscore keeps double-click selection whole.</li>
+<li><b>Body</b>: 30 characters from 62 symbols carry 30 &times; log<sub>2</sub>(62) = <b id="rdKeyBits"></b> bits; GitHub quotes 178. Guessing is hopeless, so the server can store a plain SHA-256 of the key (shown above) rather than the slow, salted hash a human-chosen password needs: there is nothing to brute-force.</li>
+<li><b>Checksum</b>: the last six characters are a CRC32 of the body in base 62. A scanner or the server can reject a mistyped or made-up key without a database lookup. Try it: change one character.</li>
+</ul>
+<div class="card"><label class="small" for="keyIn">Paste or edit a lab-style key</label><input id="keyIn" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:13px" spellcheck="false"><div id="keyOut" class="small" style="margin-top:6px"></div></div>
+<h3>Living with keys</h3>
+<ul>
+<li><b>One key per service and environment.</b> When staging's key leaks you revoke staging, not production, and the provider's per-key usage tells you who spent what. Providers apply rate limits per key or per organisation, so one runaway job with a shared key throttles everyone (429 with <code>retry-after</code>; the {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} case "429 Too Many Requests with Retry-After" shows the headers).</li>
+<li><b>Store it in a secrets manager</b> and inject it at run time. Not in git, not in a notebook (outputs and cell history get shared), not in a Docker image layer, not in a browser or mobile app (anyone can read it out).</li>
+<li><b>Rotate with overlap.</b> Create key 2, deploy it everywhere, watch key 1's usage fall to zero, then revoke key 1. Rotating by revoking first is an outage.</li>
+<li><b>Show only a hint</b> (<code id="rdKeyHint"></code>) in dashboards and logs, so people can tell keys apart without exposing them.</li>
+</ul>
+<p><b>What a key cannot do.</b> It carries no user (every call is "the account"), no consent, no expiry unless you add one, and no narrower audience than the whole provider. That is fine for your backend calling your provider. It is wrong as soon as a third party (an app, an agent) acts for one of <i>your</i> users: then you want OAuth (section 4).</p>
+<div class="drill"><div class="t">Predict, then reveal</div>
+<p>A notebook that worked yesterday now gets 401 from the LLM provider on every call; your colleague's identical notebook works. The key in your environment variable has the right prefix. What do you check first?</p>
+<details><summary>Reveal</summary><div class="ans">Which key the process actually sees, and whether it is still active: print its hint (prefix and last four characters), not the key, and compare with the provider's dashboard. The usual causes are a key revoked in a rotation, a staging key against the production endpoint, or a stale value cached by the kernel or a <code>.env</code> file loaded before the change. A 401 says "this key is not accepted"; a 403 would say "this key is fine but may not use this model or workspace".</div></details></div>
+</section>
