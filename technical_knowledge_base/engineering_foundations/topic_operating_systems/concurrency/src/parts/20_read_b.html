@@ -1,0 +1,56 @@
+<section id="rd-s2">
+<h2>2. Races, atomic instructions and memory order</h2>
+<p><span class="ostep">ch. 26.3 to 26.5, ch. 28.6 to 28.11</span></p>
+<p><b>The problem.</b> When two threads update the same memory and nothing orders them, the result depends on timing: a <dfn>race condition</dfn>. The classic one, <code>count = count + 1</code> on two threads, is three instructions (load, add, store); if both threads load the same old value, one increment is lost. The root page measured it (two threads, 10 million increments each, about half lost) and its {{OS simulators|n:3f05c17b0d0d81c5a97ce991644af140}} tab steps the three instructions one at a time. A piece of code that touches shared data and must not run in two threads at once is a <dfn>critical section</dfn>; the guarantee that at most one thread is inside is <dfn>mutual exclusion</dfn>.</p>
+<p><b>Atomic instructions.</b> The hardware fix is an instruction that reads, modifies and writes one memory word as one indivisible step, which no other core can split. Three families matter:</p>
+<div class="mech">
+<div><b>Fetch-and-add</b><code>old = *p; *p = old + v</code> in one step. arm64 v8.1 has <code>ldadd</code>; x86-64 has <code>lock xadd</code>. Counters and reference counts.</div>
+<div><b>Exchange (test-and-set)</b><code>old = *p; *p = v</code>. The simplest lock: <code>while (xchg(&amp;l, 1) == 1) ;</code></div>
+<div><b>Compare-and-swap (CAS)</b>if <code>*p == expected</code> then <code>*p = new</code>, and say whether it did. Everything lock-free is built on it. arm64 v8.1 <code>cas</code>; x86-64 <code>lock cmpxchg</code>.</div>
+<div><b>Load-linked / store-conditional</b>the older arm64 form (<code>ldaxr</code> then <code>stlxr</code>): the store fails if anyone wrote the word in between, and the code loops. GCC's "outline atomics" pick LSE or LL/SC at run time (the root's assembly shows a call to <code>__aarch64_ldadd8_acq_rel</code>).</div>
+</div>
+<p>An atomic update is not free: on one thread it cost <b data-k="lk.S1.atomic.wall">8.3</b> ns here against well under a nanosecond for a plain add, and with four threads updating one counter the cache line holding it bounces between cores (the C++ page's false-sharing measurement shows the same effect for neighbouring variables).</p>
+<p><b>Memory order.</b> A second, subtler problem: cores do not make their writes visible to each other in program order. Each core puts stores in a private <dfn>store buffer</dfn> and lets later loads run ahead of them. On x86-64 only that one reordering (a later load passing an earlier store) is allowed; arm64 allows more. Part 2 of the {{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} measures the message-passing reordering on this same chip and explains acquire, release and sequentially consistent orders; here is what it does to a lock.</p>
+<p><b>Peterson's algorithm</b> (OSTEP 28.6) is a correct lock for two threads using only loads and stores, proved in 1981 on the assumption that memory is sequentially consistent:</p>
+<pre class="cd"><span class="k">void</span> lock(<span class="k">int</span> me) {  <span class="k">int</span> other = 1 - me;
+    flag[me] = 1;                         <span class="c">// I want in</span>
+    turn = other;                         <span class="c">// but you go first if you also want in</span>
+    <span class="k">while</span> (flag[other] &amp;&amp; turn == other) ;  <span class="c">// wait while you want in and it is your turn</span>
+}
+<span class="k">void</span> unlock(<span class="k">int</span> me) { flag[me] = 0; }</pre>
+<p>If the store <code>flag[me] = 1</code> is still in this core's store buffer when the load <code>flag[other]</code> runs, both threads can read the other's flag as 0 and both enter. Two threads, each entering 20 million times, with a non-atomic <code>count = count + 1</code> inside <span class="meas">measured here</span> (<code>src/runs/c/peterson.c</code>):</p>
+<pre class="cd res" id="rd-peterson"></pre>
+<p id="rd-peterson-note" class="small"></p>
+<p>The fix is to declare the order you need: with sequentially consistent atomics the compiler emits the ordering instructions (<code>stlr</code> and <code>ldar</code> on arm64, or a full barrier <code>dmb ish</code>), and the lock is correct. Real locks never rely on plain loads and stores; they use an atomic exchange or CAS, which carry the ordering with them (acquire on lock, release on unlock).</p>
+<div class="drill"><div class="q">Predict: a <code>volatile int</code> counter, incremented by two threads. Does <code>volatile</code> make <code>count++</code> safe?</div>
+<div class="opts"><button>Yes, volatile makes each access atomic</button><button data-right>No</button><button>Only on x86-64</button></div>
+<div class="ans" hidden>No. <code>volatile</code> only stops the compiler from removing or merging the accesses; the load, add and store are still three steps, and nothing orders them across cores. The root's race measurement used a volatile counter and lost about half the increments. Use an atomic (<code>std::atomic</code>, <code>__atomic_fetch_add</code>) or a lock.</div></div>
+</section>
+
+<section id="rd-s3">
+<h2>3. Locks: spin, yield, or sleep</h2>
+<p><span class="ostep">ch. 28 Locks, ch. 29 Lock-based concurrent data structures</span></p>
+<p>A <dfn>lock</dfn> (or <dfn>mutex</dfn>, for mutual exclusion) is a word in memory plus two operations: <code>lock()</code> returns only when the caller owns it, <code>unlock()</code> gives it up. OSTEP judges a lock on three things: correctness (mutual exclusion), <dfn>fairness</dfn> (does every waiter eventually get it, or can one starve?) and performance (with no contention, with contention on many CPUs, and with contention on one CPU). The design question is what a thread does when the lock is taken:</p>
+<div class="mech">
+<div><b>Spin</b>keep retrying the atomic exchange. Best when the holder is running on another core and will release within nanoseconds. Terrible when the holder is not running: the spinner burns its whole time slice.</div>
+<div><b>Yield</b>retry, and call <code>sched_yield()</code> after each failure to give the CPU away (OSTEP 28.13). A system call per failed attempt, and no promise about who runs next.</div>
+<div><b>Sleep</b>ask the kernel to put the thread on a wait queue and wake it when the lock is released. Costs two system calls and a wake-up when contended, nothing else.</div>
+<div><b>Spin, then sleep</b>(two-phase or adaptive locks) spin briefly in case the holder is about to release, then sleep. glibc's <code>PTHREAD_MUTEX_ADAPTIVE_NP</code> spins at most 100 rounds by default, with exponential backoff ({{nptl/pthread_mutex_lock.c L139-158|https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_mutex_lock.c#L139-L158}}; tunable <code>glibc.pthread.mutex_spin_count</code>).</div>
+</div>
+<p>Seven ways to protect one shared counter, measured in four situations <span class="meas">measured here</span> (<code>src/runs/c/locks.c</code>; "work" is a loop of about 0.3 ns per iteration; median of 3 runs; per-run values in the raw output):</p>
+<div class="segb" id="rd-lk-sc"><button data-m="S1" class="on">1 thread, no contention</button><button data-m="S2">4 threads on 4 CPUs, short critical section</button><button data-m="S3">4 threads hammering</button><button data-m="S4">4 threads on 1 CPU, long critical section</button></div>
+<div class="segb" id="rd-lk-me"><button data-m="wall" class="on">Wall time per acquisition</button><button data-m="cpu">CPU time per acquisition</button></div>
+<div class="chart" id="rd-lk-chart"></div>
+<p class="small mute" id="rd-lk-cap"></p>
+<p>What to take from it:</p>
+<ul>
+<li><b>Uncontended, a good lock costs about as much as one atomic instruction</b> (<b data-k="lk.S1.futex.wall">9.2</b> ns for the hand-built futex lock, <b data-k="lk.S1.mutex.wall">10.1</b> ns for <code>pthread_mutex_t</code>), because it never enters the kernel. A lock that makes a system call on every unlock costs <b data-k="lk.S1.sysc.wall">288.6</b> ns: about thirty times more, for nothing.</li>
+<li><b>Contended on enough CPUs, spinning burns CPU:</b> with a short critical section the spinlock used <b data-k="lk.S2.spin.cpu">910.3</b> ns of CPU per acquisition against <b data-k="lk.S2.mutex.cpu">437.2</b> ns for the mutex, and was slower in wall time too, because four cores fighting over one cache line slow each other down.</li>
+<li><b>With more threads than CPUs, a spinner can wait for a thread that is not running.</b> On one CPU with a long critical section, the holder is often preempted inside it; each spinner then burns a whole time slice before the holder runs again: <b data-k="lk.S4.spin.wall">1492.5</b> ns per acquisition against <b data-k="lk.S4.mutex.wall">815.9</b> ns for the mutex and <b data-k="lk.S4.spin1.wall">791.5</b> ns for one thread doing the same work alone.</li>
+<li><b>Hammering a lock rewards unfairness.</b> In the no-work scenario the yield lock looks fastest, because a thread that just released the lock usually takes it again while its cache line is still hot and the others are yielding; the work is done, but by one thread at a time in long runs. Fairness costs throughput; a <dfn>ticket lock</dfn> (OSTEP 28.11: fetch-and-add a ticket, wait for your number) is fair and slower.</li>
+<li><b>Never use a spinlock in user space unless every thread has its own CPU</b> (as with pinned threads in a low-latency system). This is why the Linux kernel spins (kernel code can disable preemption while holding a spinlock) and user space sleeps.</li>
+</ul>
+<div class="drill"><div class="q">Predict: a container with a one-CPU limit runs a job whose 8 threads take a spinlock around a 50 µs critical section. Roughly how long can one waiter spin before the holder runs again?</div>
+<div class="opts"><button>About 50 µs</button><button data-right>Milliseconds: a whole scheduler time slice, or a whole cgroup period</button><button>It cannot spin: the kernel detects it</button></div>
+<div class="ans" hidden>The holder can be descheduled inside the critical section; then every spinner that runs uses its full slice (a few milliseconds under CFS) doing nothing, and under a CPU quota the whole cgroup can be throttled until the next 100 ms period (the root's Debug lab, "CPU limit" cases). The measured one-CPU case above shows the effect at small scale.</div></div>
+</section>
