@@ -75,7 +75,7 @@ def run(path, detail=None, keep_threads=True):
         lane_of[p] = len(lanes) - 1
         th = [q for q in info if info[q]["thread"] and owner[q] == p]
         if th:
-            lanes.append({"label": label + " threads (%d)" % len(th), "pid": p, "role": "threads",
+            lanes.append({"label": label + " threads (%d thread IDs over the run)" % len(th), "pid": p, "role": "threads",
                           "threads": True, "n": len(th), "tids": th})
             for q in th:
                 lane_of[q] = len(lanes) - 1

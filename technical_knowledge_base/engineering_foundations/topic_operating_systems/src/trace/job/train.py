@@ -138,6 +138,8 @@ def main():
 
     phase("loader_start")
     ctx = args.start_method if args.workers > 0 else None
+    import multiprocessing as _mp
+    mp_default = _mp.get_start_method()  # what the workers use when no method is named (fork on Linux up to Python 3.13)
     if args.preload:
         import multiprocessing
         multiprocessing.set_forkserver_preload(args.preload.split(","))
@@ -155,7 +157,8 @@ def main():
         if step == 0:
             phase("first_batch")
             print(f"time to first batch: {time.perf_counter() - t_loader:.3f}s "
-                  f"(start method {ctx or 'none (no workers)'})", flush=True)
+                  f"(start method {ctx or (mp_default + ' (default)' if args.workers > 0 else 'none (no workers)')})",
+                  flush=True)
         phase(f"step_{step}")
         opt.zero_grad()
         loss = loss_fn(model(x), y)

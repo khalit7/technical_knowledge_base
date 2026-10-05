@@ -29,7 +29,7 @@
         '<div class="seg" id="sd-rep">'+r.map((q,i)=>'<button data-m="'+i+'"'+(i===rep?' class="on"':'')+'>run '+q.rep+': '+q.stop_s.toFixed(2)+' s, exit '+q.code+'</button>').join('')+'</div>'+
         '<p class="small">Checkpoint: '+yes(x.ckpt)+'. Worker killed by SIGTERM: '+yes(x.worker_killed)+'.</p>'+
         '<div class="small mute">Process tree just before the stop (ps inside the container; the first line is ps itself)</div><pre class="cd">'+RD.esc(x.tree)+'</pre>'+
-        '<div class="small mute">Container log: first the last three per-step lines, then every other line in order. (train.py prints "start method none" when no method is named; the Linux default, fork, was used.)</div><pre class="cd">'+RD.esc(x.log)+'</pre>';
+        '<div class="small mute">Container log: first the last three per-step lines, then every other line in order. (These runs used an earlier train.py, which printed "start method none (no workers)" whenever no method was named; the workers ran with the Linux default, fork. The root\'s train.py now prints "fork (default)" in that case.)</div><pre class="cd">'+RD.esc(x.log)+'</pre>';
       RD.seg(document.getElementById('sd-rep'),m=>{rep=+m;show()});
     };show();
   }

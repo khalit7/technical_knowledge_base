@@ -56,7 +56,7 @@ def floats(name):
 def first_batch():
     out = collections.defaultdict(list)
     for l in readlines("timing_first_batch.txt"):
-        m = re.search(r"time to first batch: ([\d.]+)s \(start method (\w+)\)", l)
+        m = re.search(r"time to first batch: ([\d.]+)s \(start method (\w+)(?: \(default\))?\)", l)
         if m:
             out[m.group(2)].append(float(m.group(1)))
     return {k: {"runs_s": v, "median_s": statistics.median(v), "min_s": min(v), "max_s": max(v)} for k, v in out.items()}
