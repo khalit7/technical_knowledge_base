@@ -1,0 +1,30 @@
+<section id="rs-s-one"><h2>In one screen</h2>
+<div class="tw"><table>
+<thead><tr><th>You want</th><th>In Python you reach for</th><th>In Rust you reach for</th><th>What changes for you</th></tr></thead>
+<tbody>
+<tr><td>Parse arguments, subcommands, help</td><td><code>argparse</code>, typer, click</td><td><b>clap</b> (derive a struct)</td><td>Bad arguments are rejected before your code runs; usage errors exit 2.</td></tr>
+<tr><td>Errors with context in an app</td><td>exceptions, tracebacks</td><td><b>anyhow</b> (apps), <b>thiserror</b> (libraries)</td><td>Errors are values; <code>?</code> passes them up, <code>.context()</code> adds the "while doing X".</td></tr>
+<tr><td>JSON in and out</td><td><code>json</code>, pydantic</td><td><b>serde</b> + serde_json</td><td>The struct <i>is</i> the schema; parsing checks types like pydantic does.</td></tr>
+<tr><td>Concurrency for I/O</td><td><code>asyncio</code></td><td><b>tokio</b></td><td>Futures do nothing until polled; a runtime with several threads; tasks must be <code>Send</code>.</td></tr>
+<tr><td>An HTTP API</td><td>FastAPI on uvicorn</td><td><b>axum</b> on tokio (hyper underneath)</td><td>Handlers are async functions; extractors play the role of FastAPI's typed parameters.</td></tr>
+<tr><td>Middleware</td><td>ASGI middleware</td><td><b>tower</b> / tower-http layers</td><td>Timeouts, body limits, tracing as reusable layers.</td></tr>
+<tr><td>Logs and spans</td><td><code>logging</code>, OpenTelemetry</td><td><b>tracing</b> + tracing-subscriber</td><td>Structured fields and spans per request.</td></tr>
+<tr><td>Ship it</td><td>a wheel, a venv, a 47 MB (compressed) python:3.14-slim base image</td><td>one binary (<code>cargo install</code>, or a static Linux build in an empty image)</td><td>No interpreter to install; the image can be the binary plus nothing.</td></tr>
+</tbody></table></div>
+<div class="out">
+<div class="stat"><div class="k">tokserve binary (release, stripped)</div><div class="v">[[g:pkg_sizes|release-strip tokcount \S+ MB tokserve (\S+ MB)]]</div><div class="d">the whole service, measured</div></div>
+<div class="stat"><div class="k">GET /health, 4 workers each</div><div class="v">[[b:axum-4|health|rps|,.0f]] vs [[b:fastapi-4|health|rps|,.0f]] req/s</div><div class="d">axum vs FastAPI, median of 3 runs</div></div>
+<div class="stat"><div class="k">POST /count_log (391 KB of JSONL)</div><div class="v">[[b:axum-4|count_log|rps|,.0f]] vs [[b:fastapi-4|count_log|rps|,.0f]] req/s</div><div class="d">CPU-bound work is where the gap is</div></div>
+<div class="stat"><div class="k">Memory under load, 4 workers</div><div class="v">[[b:axum-4|count|peak_rss_mb|.0f]] vs [[b:fastapi-4|count|peak_rss_mb|.0f]] MB</div><div class="d">resident, all processes</div></div>
+</div>
+<p class="small mute">Numbers: <span class="rs-meas">measured</span> on this laptop while it was in normal use (load average 7 to 13 on 10 cores); medians of three short runs with the full spread in the {{Service benchmark|#t-rs-bench}} tab, which also says what the comparison does not show.</p>
+<p><b>The three ideas to keep from this part.</b> (1) A Rust tool or service is <b>one compiled file</b>: that is most of why people write them. (2) <b>Async Rust is lazy and cooperative</b>: a future runs only when polled, and it gives the thread back only at an <code>.await</code>; CPU work between awaits blocks every other request on that thread (measured below: /health p50 went from [[b:B|spawn_blocking|p50_ms|.2f]] ms to [[b:B|inline|p50_ms|.1f]] ms). (3) <b>The type system follows you into concurrency</b>: <code>tokio::spawn</code> demands <code>Send + 'static</code>, so data races and dangling borrows across tasks are compile errors, not incidents.</p>
+</section>
+
+<section id="rs-s-crates"><h2>The crates, and one Cargo.toml</h2>
+<p>A <dfn>crate</dfn> is a Rust package (Part 1's {{Reading|#t-ra-read}} covers <code>cargo</code>, modules and crates). Rust's standard library deliberately has no HTTP, no async runtime and no argument parser; the ecosystem settled on a small set of de facto standards instead. This part's whole project uses ten dependencies:</p>
+[[code:tok/Cargo.toml:1-22]]
+<p><code>features = [...]</code> switches on optional parts of a crate at compile time (clap's derive macros, tokio's full runtime); fewer features means a faster build and a smaller binary. <code>Cargo.lock</code> (committed next to it) pins every transitive version, like <code>uv.lock</code>. The project is a <b>library plus two binaries</b>: <code>src/lib.rs</code> holds the counting logic (the root page's program), <code>src/bin/tokcount.rs</code> is the CLI and <code>src/bin/tokserve.rs</code> the service. Cargo builds every file in <code>src/bin/</code> as its own executable, and both link the same library, so there is one implementation and two front ends.</p>
+<div class="rs-py"><div class="t">Python bridge</div>This is the shape of a Python project with a package plus two <code>[project.scripts]</code> entry points. The difference is what you ship: here each entry point compiles to a self-contained executable with the library inside it.</div>
+<p class="small mute">Versions resolved on 2026-10-05: tokio 1.53.2, axum 0.8.9, clap 4.6.7, serde 1.0.229, tracing 0.1.44, tower-http 0.6.11 (0.7.1 exists; this project pins 0.6). The async-std runtime you may meet in old tutorials is discontinued; its README says "use smol instead" ({{async-std|https://github.com/async-rs/async-std}}).</p>
+</section>

@@ -1,0 +1,100 @@
+<div class="tab" id="t-ra-own" role="tabpanel" hidden>
+<style>
+#t-ra-own .ra-og{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:10px;margin:8px 0}
+@media (max-width:700px){#t-ra-own .ra-og{grid-template-columns:minmax(0,1fr)}}
+#t-ra-own .ra-lc{border:1px solid var(--line);border-radius:8px;background:var(--soft);min-width:0;overflow:auto;max-height:440px}@media (max-width:700px){#t-ra-own .ra-lc{max-height:230px}}
+#t-ra-own pre.ra-lcp{margin:0;padding:6px 0;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+#t-ra-own .ra-ln{display:block;padding-right:8px}#t-ra-own .ra-ln.on{background:var(--hl)}
+#t-ra-own .ra-no{display:inline-block;width:2.4em;text-align:right;padding-right:.7em;color:var(--mute);user-select:none}
+#t-ra-own .ra-mem{min-width:0}
+#t-ra-own svg text{font-family:ui-monospace,Menlo,Consolas,monospace}
+</style>
+<h2>Ownership, animated: one Vec, at its real addresses</h2>
+<p>One small program, stepped line by line. A Rust <code>Vec</code> is a 24-byte header on the stack (pointer, capacity, length) and a buffer on the heap. Every address and number below was printed by the program itself when it ran ({{Reading section 4|#t-ra-read}} explains the rules). Switch to <b>Python</b> to see the same steps with Python's model: names pointing at one object and a reference count.</p>
+<div class="card" id="ra-own-card">
+<div class="seg" id="ra-own-seg"><button data-m="rs" class="on">Rust</button><button data-m="py">The same steps in Python</button></div>
+<div class="ra-ctl" id="ra-own-ctl"></div>
+<div class="ra-cap" id="ra-own-cap"></div>
+<div class="ra-og"><div class="ra-lc" id="ra-own-code"></div><div class="ra-mem" id="ra-own-svg"></div></div>
+<div class="ra-cnt" id="ra-own-cnt"></div>
+</div>
+<h3>What the run shows</h3>
+<ul>
+<li><b>Borrowing never copies.</b> <code>r</code> and <code>m</code> are 8-byte pointers to <code>v</code>'s stack slot (the same address the program printed for <code>v</code>).</li>
+<li><b>Growth moves the buffer.</b> <code>push</code> on a full vector allocated a new block (capacity 3 to 6) and freed the old one. That is exactly why the borrow checker refuses a reference into the buffer across a <code>push</code> ({{Borrow-checker lab|#t-ra-bc}}, "Push while a reference is alive").</li>
+<li><b>A move copies 24 bytes, not the data.</b> <code>w</code> has a new stack address but the same heap address as <code>v</code> had; <code>v</code> is unusable afterwards.</li>
+<li><b>Clone allocates.</b> <code>c</code> got its own buffer; on this run the allocator handed it the block freed at step 3 (heap 0x102d3d4a0, the same as step 1). Reusing freed memory is normal, and is why a dangling pointer can read someone else's data in C++.</li>
+<li><b>Drop frees at a known line.</b> <code>drop(w)</code> released the second buffer immediately; <code>c</code> is freed at the closing brace of <code>main</code>.</li>
+<li><b>In Python</b> every step after the first only adds a name to one object (the count rises to 4); <code>copy()</code> is the only new allocation; <code>del w</code> removes a name, not the object.</li>
+</ul>
+<details class="ra-more"><summary>the source and the recorded runs</summary>
+<div class="ra-src"><div class="ra-fn">own_anim.rs</div><pre class="ra-code"><span class="ra-cm">// Prints the real addresses behind the ownership animation: a Vec is three</span>
+<span class="ra-cm">// machine words on the stack (pointer, capacity, length) and a buffer on the heap.</span>
+<span class="ra-kw">fn</span> show(step: &amp;str, name: &amp;str, v: &amp;Vec&lt;u32&gt;) &#123;
+    <span class="ra-mac">println!</span>(
+        <span class="ra-st">"&#123;step&#125; &#123;name&#125; stack=&#123;:p&#125; heap=&#123;:p&#125; len=&#123;&#125; cap=&#123;&#125; data=&#123;:?&#125;"</span>,
+        v <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Vec&lt;u32&gt;, v.as_ptr(), v.len(), v.capacity(), v
+    );
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"size_of::&lt;Vec&lt;u32&gt;&gt;() = &#123;&#125;"</span>, std::mem::size_of::&lt;Vec&lt;u32&gt;&gt;());
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> v: Vec&lt;u32&gt; = Vec::with_capacity(3);
+    v.extend([10, 20, 30]);
+    show(<span class="ra-st">"1"</span>, <span class="ra-st">"v"</span>, &amp;v);
+    <span class="ra-kw">let</span> r = &amp;v; <span class="ra-cm">// a shared borrow: a pointer to v's stack slot</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"2 r points to &#123;:p&#125; (v's stack slot), r.len()=&#123;&#125;"</span>, r <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Vec&lt;u32&gt;, r.len());
+    v.push(40); <span class="ra-cm">// r is no longer used, so v may be mutated: the buffer is full, so it grows</span>
+    show(<span class="ra-st">"3"</span>, <span class="ra-st">"v"</span>, &amp;v);
+    <span class="ra-kw">let</span> m = &amp;<span class="ra-kw">mut</span> v; <span class="ra-cm">// one exclusive borrow</span>
+    m[0] = 11;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"4 m points to &#123;:p&#125;, wrote m[0]=11"</span>, m <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Vec&lt;u32&gt;);
+    <span class="ra-kw">let</span> w = v; <span class="ra-cm">// move: the three words are copied to w's slot, the heap buffer is not touched</span>
+    show(<span class="ra-st">"5"</span>, <span class="ra-st">"w"</span>, &amp;w);
+    <span class="ra-kw">let</span> c = w.clone(); <span class="ra-cm">// clone: a new heap buffer with a copy of the elements</span>
+    show(<span class="ra-st">"6"</span>, <span class="ra-st">"c"</span>, &amp;c);
+    drop(w); <span class="ra-cm">// w's buffer is freed now</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"7 dropped w"</span>);
+    show(<span class="ra-st">"8"</span>, <span class="ra-st">"c"</span>, &amp;c);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_own_anim">
+<span class="ra-cmd">$ rustc --edition 2024 own_anim.rs &amp;&amp; ./own_anim</span>
+size_of::&lt;Vec&lt;u32&gt;&gt;() = 24
+1 v stack=0x16da0a2a8 heap=0x102d3d4a0 len=3 cap=3 data=[10, 20, 30]
+2 r points to 0x16da0a2a8 (v's stack slot), r.len()=3
+3 v stack=0x16da0a2a8 heap=0x102d3d510 len=4 cap=6 data=[10, 20, 30, 40]
+4 m points to 0x16da0a2a8, wrote m[0]=11
+5 w stack=0x16da0a350 heap=0x102d3d510 len=4 cap=6 data=[11, 20, 30, 40]
+6 c stack=0x16da0a368 heap=0x102d3d4a0 len=4 cap=4 data=[11, 20, 30, 40]
+7 dropped w
+8 c stack=0x16da0a368 heap=0x102d3d4a0 len=4 cap=4 data=[11, 20, 30, 40]</pre>
+<div class="ra-src"><div class="ra-fn">own_anim.py</div><pre class="ra-code"><span class="ra-cm"># The same steps in Python: names point at objects; nothing is moved.</span>
+<span class="ra-kw">import</span> sys
+v = [10, 20, 30]
+<span class="ra-kw">print</span>(<span class="ra-st">"1 v id=%#x refcount=%d len=%d"</span> % (id(v), sys.getrefcount(v) - 1, len(v)))
+r = v
+<span class="ra-kw">print</span>(<span class="ra-st">"2 r id=%#x (same object) refcount=%d"</span> % (id(r), sys.getrefcount(v) - 1))
+v.append(40)
+<span class="ra-kw">print</span>(<span class="ra-st">"3 v id=%#x r sees %s"</span> % (id(v), r))
+m = v
+m[0] = 11
+<span class="ra-kw">print</span>(<span class="ra-st">"4 m id=%#x refcount=%d v=%s"</span> % (id(m), sys.getrefcount(v) - 1, v))
+w = v
+<span class="ra-kw">print</span>(<span class="ra-st">"5 w id=%#x refcount=%d (v still usable: %s)"</span> % (id(w), sys.getrefcount(v) - 1, v))
+c = w.copy()
+<span class="ra-kw">print</span>(<span class="ra-st">"6 c id=%#x (new object) refcount=%d"</span> % (id(c), sys.getrefcount(c) - 1))
+del w
+<span class="ra-kw">print</span>(<span class="ra-st">"7 del w: object still alive, refcount=%d (v, r, m remain)"</span> % (sys.getrefcount(v) - 1))
+<span class="ra-kw">print</span>(<span class="ra-st">"8 c=%s v=%s"</span> % (c, v))</pre></div>
+<pre class="ra-out" data-ra-out="l_own_anim_py">
+<span class="ra-cmd">$ python3.14 own_anim.py</span>
+1 v id=0x105e26140 refcount=1 len=3
+2 r id=0x105e26140 (same object) refcount=2
+3 v id=0x105e26140 r sees [10, 20, 30, 40]
+4 m id=0x105e26140 refcount=3 v=[11, 20, 30, 40]
+5 w id=0x105e26140 refcount=4 (v still usable: [11, 20, 30, 40])
+6 c id=0x10a8842c0 (new object) refcount=1
+7 del w: object still alive, refcount=3 (v, r, m remain)
+8 c=[11, 20, 30, 40] v=[11, 20, 30, 40]</pre>
+</details>
+</div>

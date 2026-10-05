@@ -1,0 +1,133 @@
+<h3>3. The runtime is a library: tokio</h3>
+<p>Python ships one event loop in the standard library; Node has one built in. Rust's standard library defines the <code>Future</code> trait but no <dfn>runtime</dfn> (the executor that polls futures, plus timers and non-blocking sockets). You add one; <b>tokio</b> is the de facto standard, and axum, reqwest and tonic are built on it. Forgetting it is the first error everyone meets:</p>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> <code>async fn main()</code> with no runtime attribute: compiles?</summary><pre class="rs-out rs-bad" data-rs-out="errs_e1_async_main">
+error[E0752]: `main` function is not allowed to be `async`
+ --&gt; src/main.rs:2:1
+  |
+2 | async fn main() &#123;
+  | ^^^^^^^^^^^^^^^ `main` function is not allowed to be `async`
+
+For more information about this error, try `rustc --explain E0752`.
+error: could not compile `errs` (bin "errs") due to 1 previous error</pre></details>
+<p><code>#[tokio::main]</code> rewrites <code>main</code> into "build a runtime, then <code>block_on</code> the body". <code>tokserve.rs</code> spells that out so the number of threads is a flag:</p>
+<div class="rs-src"><div class="rs-fn">tok/src/bin/tokserve.rs (lines 34 to 39)</div><pre class="rs-code">    <span class="rs-cm">// What #[tokio::main] writes for you, spelled out so the worker count is configurable.</span>
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> rt = tokio::runtime::Builder::new_multi_thread();
+    <span class="rs-kw">if</span> <span class="rs-kw">let</span> Some(n) = args.workers &#123;
+        rt.worker_threads(n);
+    &#125;
+    rt.enable_all().build()?.block_on(serve(args))</pre></div>
+<div class="rs-cost"><div><b>current_thread</b>One thread polls every task: the asyncio and Node model. <code>#[tokio::main(flavor = "current_thread")]</code>. Used by the examples here so traces are easy to read.</div><div><b>multi_thread (default)</b>A pool of worker threads, by default "the number of cores available to the system" ({{Builder docs|https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html}}), each with its own queue; idle workers <dfn>steal</dfn> tasks from busy ones. One process uses every core.</div><div><b>blocking pool</b>Extra threads for code that must block (file I/O, CPU work) via <code>spawn_blocking</code>; up to 512 by default.</div></div>
+<h3>4. Concurrency: join, spawn, JoinSet, Semaphore</h3>
+<p><code>tokio::join!(a, b, c)</code> polls several futures inside the current task and finishes when all are done: concurrency without new tasks. <code>tokio::spawn(fut)</code> hands a future to the runtime as an independent <dfn>task</dfn> (Python's <code>create_task</code>) that may run on any worker thread, in parallel with others; it returns a <code>JoinHandle</code> to await the result. A <code>JoinSet</code> owns a group of tasks (like <code>asyncio.TaskGroup</code>) and aborts them all if it is dropped. The Python page's fan-out benchmark, rewritten: 20 calls to a local server that answers after 100 ms (this part's own service, standing in for a model API).</p>
+<div class="rs-src"><div class="rs-fn">tok/examples/a4_fanout.rs (lines 26 to 55)</div><pre class="rs-code">    <span class="rs-kw">let</span> t = Instant::now();
+    <span class="rs-kw">for</span> _ <span class="rs-kw">in</span> 0..20 &#123;
+        get(addr, <span class="rs-st">"/slow?ms=100"</span>.into()).<span class="rs-kw">await</span>; <span class="rs-cm">// one after another</span>
+    &#125;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"sequential, 20 calls      &#123;:6.3&#125; s"</span>, t.elapsed().as_secs_f64());
+
+    <span class="rs-kw">let</span> t = Instant::now();
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> set = JoinSet::new(); <span class="rs-cm">// like asyncio.TaskGroup: owns its tasks, aborts them when dropped</span>
+    <span class="rs-kw">for</span> _ <span class="rs-kw">in</span> 0..20 &#123;
+        set.spawn(get(addr, <span class="rs-st">"/slow?ms=100"</span>.into()));
+    &#125;
+    <span class="rs-kw">let</span> bodies = set.join_all().<span class="rs-kw">await</span>;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"JoinSet, 20 at once       &#123;:6.3&#125; s   &#123;:?&#125;"</span>, t.elapsed().as_secs_f64(), bodies[0]);
+
+    <span class="rs-kw">let</span> t = Instant::now();
+    <span class="rs-kw">let</span> limit = Arc::new(Semaphore::new(5)); <span class="rs-cm">// at most 5 in flight</span>
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> set = JoinSet::new();
+    <span class="rs-kw">for</span> _ <span class="rs-kw">in</span> 0..20 &#123;
+        <span class="rs-kw">let</span> limit = limit.clone();
+        set.spawn(<span class="rs-kw">async</span> <span class="rs-kw">move</span> &#123;
+            <span class="rs-kw">let</span> _permit = limit.acquire().<span class="rs-kw">await</span>.unwrap(); <span class="rs-cm">// released when dropped</span>
+            get(addr, <span class="rs-st">"/slow?ms=100"</span>.into()).<span class="rs-kw">await</span>
+        &#125;);
+    &#125;
+    set.join_all().<span class="rs-kw">await</span>;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"JoinSet, at most 5        &#123;:6.3&#125; s"</span>, t.elapsed().as_secs_f64());
+
+    <span class="rs-kw">let</span> t = Instant::now();
+    <span class="rs-kw">let</span> r = tokio::time::timeout(Duration::from_millis(250), get(addr, <span class="rs-st">"/slow?ms=2000"</span>.into())).<span class="rs-kw">await</span>;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"timeout after             &#123;:6.3&#125; s   &#123;&#125;"</span>, t.elapsed().as_secs_f64(), <span class="rs-kw">if</span> r.is_err() &#123; <span class="rs-st">"Elapsed"</span> &#125; <span class="rs-kw">else</span> &#123; <span class="rs-st">"ok"</span> &#125;);</pre></div>
+<div class="rs-two"><div><p class="small"><b>tokio</b> (this code):</p><pre class="rs-out" data-rs-out="a4_fanout">
+sequential, 20 calls       2.058 s
+JoinSet, 20 at once        0.107 s   "slept 100 ms"
+JoinSet, at most 5         0.415 s
+timeout after              0.253 s   Elapsed</pre></div><div><p class="small"><b>asyncio</b> (the Python page's <code>a3_fanout.py</code>, re-run here the same day):</p><pre class="rs-out" data-rs-out="cmp_fanout_py">
+sequential, 20 calls       2.059 s
+gather, 20 at once         0.107 s   'slept 100 ms'
+gather, at most 5 at once  0.422 s
+TaskGroup, 20 at once      0.112 s   20 results
+timeout after              0.250 s</pre></div></div>
+<p>Same shape, same numbers: for waiting, the language does not matter, the overlap does. 20 sequential calls cost 20 &times; 100 ms; concurrent ones cost one round trip; a <dfn>semaphore</dfn> with 5 permits gives 4 waves of 100 ms. That last pattern is the polite way to call a rate-limited model API. Rust differs where work is done <i>between</i> the waits: there, a multi-threaded runtime uses all cores, which one asyncio loop cannot.</p>
+<h3>5. Timeouts, select!, cancellation</h3>
+<p>Cancelling a future in Rust means <b>dropping</b> it: it is never polled again, so the code after its pending <code>.await</code> never runs, and its local variables are dropped (their <code>Drop</code> code runs). <code>timeout</code> and <code>select!</code> are both built on that.</p>
+<div class="rs-src"><div class="rs-fn">tok/examples/a3_cancel.rs (lines 6 to 46)</div><pre class="rs-code"><span class="rs-cm">/// Prints when it is dropped, to show exactly when a future is cancelled.</span>
+<span class="rs-kw">struct</span> Guard(&amp;<span class="rs-lt">'static</span> str);
+<span class="rs-kw">impl</span> Drop <span class="rs-kw">for</span> Guard &#123;
+    <span class="rs-kw">fn</span> drop(&amp;<span class="rs-kw">mut</span> <span class="rs-kw">self</span>) &#123;
+        <span class="rs-mac">println!</span>(<span class="rs-st">"   drop: &#123;&#125; cleaned up"</span>, <span class="rs-kw">self</span>.0);
+    &#125;
+&#125;
+
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> step(name: &amp;<span class="rs-lt">'static</span> str, ms: u64) -&gt; &amp;<span class="rs-lt">'static</span> str &#123;
+    <span class="rs-kw">let</span> _g = Guard(name);
+    <span class="rs-mac">println!</span>(<span class="rs-st">"   &#123;name&#125;: started, waiting &#123;ms&#125; ms"</span>);
+    sleep(Duration::from_millis(ms)).<span class="rs-kw">await</span>;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"   &#123;name&#125;: finished"</span>); <span class="rs-cm">// never printed if the future is dropped first</span>
+    name
+&#125;
+
+<span class="rs-at">#[tokio::main(flavor = "current_thread")]</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> main() &#123;
+    <span class="rs-kw">let</span> t = Instant::now();
+    <span class="rs-mac">println!</span>(<span class="rs-st">"1. timeout(250 ms) around a 2000 ms call"</span>);
+    <span class="rs-kw">let</span> r = timeout(Duration::from_millis(250), step(<span class="rs-st">"slow"</span>, 2000)).<span class="rs-kw">await</span>;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"   -&gt; &#123;r:?&#125; after &#123;&#125; ms"</span>, t.elapsed().as_millis());
+
+    <span class="rs-mac">println!</span>(<span class="rs-st">"2. select!: first to finish wins, the other is dropped"</span>);
+    <span class="rs-kw">let</span> t = Instant::now();
+    tokio::<span class="rs-mac">select!</span> &#123;
+        w = step(<span class="rs-st">"fast"</span>, 100) =&gt; <span class="rs-mac">println!</span>(<span class="rs-st">"   -&gt; winner &#123;w&#125; after &#123;&#125; ms"</span>, t.elapsed().as_millis()),
+        w = step(<span class="rs-st">"lazy"</span>, 300) =&gt; <span class="rs-mac">println!</span>(<span class="rs-st">"   -&gt; winner &#123;w&#125;"</span>),
+    &#125;
+
+    <span class="rs-mac">println!</span>(<span class="rs-st">"3. a spawned task keeps running on its own; abort() cancels it"</span>);
+    <span class="rs-kw">let</span> h = tokio::spawn(step(<span class="rs-st">"background"</span>, 1000));
+    sleep(Duration::from_millis(50)).<span class="rs-kw">await</span>;
+    h.abort();
+    <span class="rs-mac">println!</span>(<span class="rs-st">"   -&gt; join: &#123;:?&#125;"</span>, h.<span class="rs-kw">await</span>.map_err(|e| e.is_cancelled()));
+
+    <span class="rs-mac">println!</span>(<span class="rs-st">"4. dropping a JoinHandle does NOT cancel the task (it is detached)"</span>);
+    drop(tokio::spawn(step(<span class="rs-st">"detached"</span>, 100)));
+    sleep(Duration::from_millis(150)).<span class="rs-kw">await</span>;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"   -&gt; main done"</span>);
+&#125;</pre></div>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> Four cases. Which lines print "finished"? Which "cleaned up", and when?</summary><pre class="rs-out" data-rs-out="a3_cancel">
+1. timeout(250 ms) around a 2000 ms call
+   slow: started, waiting 2000 ms
+   drop: slow cleaned up
+   -&gt; Err(Elapsed(())) after 253 ms
+2. select!: first to finish wins, the other is dropped
+   fast: started, waiting 100 ms
+   lazy: started, waiting 300 ms
+   fast: finished
+   drop: fast cleaned up
+   drop: lazy cleaned up
+   -&gt; winner fast after 103 ms
+3. a spawned task keeps running on its own; abort() cancels it
+   background: started, waiting 1000 ms
+   drop: background cleaned up
+   -&gt; join: Err(true)
+4. dropping a JoinHandle does NOT cancel the task (it is detached)
+   detached: started, waiting 100 ms
+   detached: finished
+   drop: detached cleaned up
+   -&gt; main done</pre></details>
+<p>Read the second case carefully: "lazy" started before "fast" because <code>select!</code> "randomly picks a branch to check first" unless you write <code>biased;</code> ({{select! docs|https://docs.rs/tokio/latest/tokio/macro.select.html}}); run it again and the order may differ. And the fourth: dropping a <code>JoinHandle</code> <i>detaches</i> a spawned task, it does not cancel it; only <code>abort()</code> (or dropping the <code>JoinSet</code> that owns it) does.</p>
+<div class="rs-two"><div><p class="small"><b>Python</b>, the same timeout: cancellation is an exception raised inside the coroutine at its await, so it can run cleanup (or even catch it):</p><pre class="rs-out" data-rs-out="cmp_cancel_py">
+1. asyncio.timeout(0.25) around a 2000 ms call
+   slow: started, waiting 2000 ms
+   slow: CancelledError raised at the await
+   finally: slow cleaned up
+   -&gt; TimeoutError after 252 ms</pre></div><div><p class="small"><b>What this means in practice.</b> In Python, cleanup goes in <code>finally</code>; in Rust, cleanup goes in <code>Drop</code> (a guard), because there is no exception to catch. A future that has done half its work when dropped (read part of a message, taken an item off a queue) loses that half: <dfn>cancel safety</dfn>. tokio documents which of its methods are cancel safe; inside <code>select!</code> loops, use those, or keep state outside the future.</p></div></div>

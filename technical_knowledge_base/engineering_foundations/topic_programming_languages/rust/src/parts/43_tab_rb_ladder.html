@@ -1,0 +1,136 @@
+<div class="tab" id="t-rb-ladder" role="tabpanel" hidden>
+<p class="lead">The root's <code>count_tokens</code> program, moved into Rust one step at a time. Pick a step to see what changed in the code, what it bought end to end, and where the remaining time goes.</p>
+<p class="small mute">End-to-end times: hyperfine, 7 runs after a warm-up, the whole process including Python start-up (<code>outputs/ladder_hyperfine.txt</code>). Phases: the same scripts timed inside the process with <code>--phases</code>, medians of 5. Every step prints the exact expected output of the root's <code>PROGRAM.md</code>. CPython 3.14.8, Rust 1.99.0, PyO3 0.29.3, Apple M1 Pro in normal use. Background and the reasoning are in {{Reading, section 10|#t-rb-read}}.</p>
+<div class="seg" id="rb-ld-seg" role="group" aria-label="Step"><button data-m="python" class="on">0 Python</button><button data-m="percall">1 per call</button><button data-m="owned">2 copied</button><button data-m="borrowed">3 borrowed</button><button data-m="bytes">4 parse in Rust</button><button data-m="parallel">5 parallel</button></div>
+<div class="out" id="rb-ld-stats"></div>
+<div class="an-cap" id="rb-ld-cap"></div>
+<h3>End to end, all steps</h3>
+<div id="rb-ld-bars"></div>
+<label class="small"><input type="checkbox" id="rb-ld-log"> log scale</label>
+<h3>Where the time goes</h3>
+<p class="small mute">This step against the one before it, in milliseconds inside the process (start-up excluded). Compare with: <select id="rb-ld-cmp" aria-label="Compare with step"><option value="prev" selected>the previous step</option><option value="python">0 Python</option><option value="percall">1 per call</option><option value="owned">2 copied</option><option value="borrowed">3 borrowed</option><option value="bytes">4 parse in Rust</option><option value="parallel">5 parallel</option></select></p>
+<div id="rb-ld-ph"></div>
+<h3>The code that changed</h3>
+<div data-rb-step="python"><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code"><span class="rb-kw">def</span> py_tokens(text):
+    <span class="rb-st">""</span><span class="rb-st">"The Rosetta Python token loop."</span><span class="rb-st">""</span>
+    n, inside = 0, <span class="rb-kw">False</span>
+    <span class="rb-kw">for</span> ch <span class="rb-kw">in</span> text:
+        is_tok = ch.isascii() <span class="rb-kw">and</span> ch.isalnum()
+        <span class="rb-kw">if</span> is_tok <span class="rb-kw">and</span> <span class="rb-kw">not</span> inside:
+            n += 1
+        inside = is_tok
+    <span class="rb-kw">return</span> n</pre></div><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">if</span> step == <span class="rb-st">"python"</span>:
+            counts = [py_tokens(s) <span class="rb-kw">for</span> s <span class="rb-kw">in</span> texts]</pre></div></div>
+<div data-rb-step="percall" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">elif</span> step == <span class="rb-st">"percall"</span>:
+            counts = [tokrs.count_tokens(s) <span class="rb-kw">for</span> s <span class="rb-kw">in</span> texts]</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_tokens(text: &amp;str) -&gt; u64 &#123;
+    tokens(text.as_bytes())
+&#125;</pre></div></div>
+<div data-rb-step="owned" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">elif</span> step == <span class="rb-st">"owned"</span>:
+            counts = tokrs.count_many_owned(texts)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 2a: one call for a list. `Vec&lt;String&gt;` copies every string into a new Rust allocation.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many_owned(texts: Vec&lt;String&gt;) -&gt; Vec&lt;u64&gt; &#123;
+    texts.iter().map(|t| tokens(t.as_bytes())).collect()
+&#125;
+
+<span class="rb-cm">/// Step 2b: the same list, borrowed: each item is viewed in place, nothing is copied.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;Vec&lt;u64&gt;&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> out = Vec::with_capacity(texts.len());
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        <span class="rb-kw">let</span> s = item.cast::&lt;PyString&gt;()?; <span class="rb-cm">// TypeError if an item is not a str</span>
+        out.push(tokens(s.to_str()?.as_bytes()));
+    &#125;
+    Ok(out)
+&#125;
+
+<span class="rb-cm">/// Conversion alone (no token loop): total UTF-8 length, borrowed ...</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;usize&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> n = 0;
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        n += item.cast::&lt;PyString&gt;()?.to_str()?.len();
+    &#125;
+    Ok(n)
+&#125;
+
+<span class="rb-cm">/// ... and copied into Strings first.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len_owned(texts: Vec&lt;String&gt;) -&gt; usize &#123;
+    texts.iter().map(|t| t.len()).sum()
+&#125;</pre></div></div>
+<div data-rb-step="borrowed" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">else</span>:
+            counts = tokrs.count_many(texts)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 2a: one call for a list. `Vec&lt;String&gt;` copies every string into a new Rust allocation.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many_owned(texts: Vec&lt;String&gt;) -&gt; Vec&lt;u64&gt; &#123;
+    texts.iter().map(|t| tokens(t.as_bytes())).collect()
+&#125;
+
+<span class="rb-cm">/// Step 2b: the same list, borrowed: each item is viewed in place, nothing is copied.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;Vec&lt;u64&gt;&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> out = Vec::with_capacity(texts.len());
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        <span class="rb-kw">let</span> s = item.cast::&lt;PyString&gt;()?; <span class="rb-cm">// TypeError if an item is not a str</span>
+        out.push(tokens(s.to_str()?.as_bytes()));
+    &#125;
+    Ok(out)
+&#125;
+
+<span class="rb-cm">/// Conversion alone (no token loop): total UTF-8 length, borrowed ...</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;usize&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> n = 0;
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        n += item.cast::&lt;PyString&gt;()?.to_str()?.len();
+    &#125;
+    Ok(n)
+&#125;
+
+<span class="rb-cm">/// ... and copied into Strings first.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len_owned(texts: Vec&lt;String&gt;) -&gt; usize &#123;
+    texts.iter().map(|t| t.len()).sum()
+&#125;</pre></div></div>
+<div data-rb-step="bytes" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">    <span class="rb-kw">if</span> step <span class="rb-kw">in</span> (<span class="rb-st">"bytes"</span>, <span class="rb-st">"parallel"</span>):
+        <span class="rb-kw">with</span> open(path, <span class="rb-st">"rb"</span>) <span class="rb-kw">as</span> f:
+            data = f.read()
+        t.append(time.perf_counter())
+        <span class="rb-kw">if</span> step == <span class="rb-st">"bytes"</span>:
+            res = tokrs.tally_bytes(data)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// The typed parse of one JSONL line (same as the root's Rosetta Rust program):</span>
+<span class="rb-cm">/// serde checks that `user` and `text` exist and are strings while it parses.</span>
+<span class="rb-at">#[derive(Deserialize)]</span>
+<span class="rb-kw">struct</span> Message &#123;
+    user: String,
+    text: String,
+&#125;</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 3: the whole file in one call. Python reads the bytes; Rust parses and counts.</span>
+<span class="rb-cm">/// The GIL (or, on free-threaded Python, the thread's attachment) is held throughout.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> tally_bytes&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8]) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = tally(data, 1);
+    to_python(py, t)
+&#125;</pre></div></div>
+<div data-rb-step="parallel" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">else</span>:
+            res = tokrs.tally_bytes_parallel(data, 8)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 5: detached and parallel. rayon splits the chunks over its thread pool.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-at">#[pyo3(signature = (data, threads=8))]</span>
+<span class="rb-kw">fn</span> tally_bytes_parallel&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8], threads: usize) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = py.detach(|| &#123;
+        chunks(data, threads)
+            .into_par_iter()
+            .map(|(part, first)| tally(part, first))
+            .reduce(Tally::default, merge)
+    &#125;);
+    to_python(py, t)
+&#125;</pre></div></div>
+<p class="small mute">Full sources: <code>src/rb/code/ladder.py</code> and <code>src/rb/ext/src/lib.rs</code>. The output every step prints:</p>
+<div class="rb-snip"><div class="rb-olab">real output (identical for all six steps)</div><pre class="rb-out" data-rb-out="ladder_output.txt">lines 200000  ok 199992  malformed 8 (first at line 6685)
+users 200  tokens 4413871
+top 5 users by tokens:
+ 1. u0029  939855
+ 2. u0005  433400
+ 3. u0042  279373
+ 4. u0169  204481
+ 5. u0082  159042</pre></div>
+</div>

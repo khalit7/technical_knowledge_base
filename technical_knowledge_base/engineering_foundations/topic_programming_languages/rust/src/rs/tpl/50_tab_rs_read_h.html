@@ -1,0 +1,38 @@
+<section id="rs-s-axum"><h2>An HTTP service with axum</h2>
+<p><b>The problem it solves.</b> Turn the token counter into something other programs call over HTTP: <code>POST /count</code> with <code>{"text": "..."}</code> returns <code>{"tokens": n}</code>, <code>POST /count_log</code> with a JSONL body returns the root program's report as JSON. <b>axum</b> is the tokio project's web framework: a thin, typed layer over the hyper HTTP library. If you know FastAPI, most of it maps one to one. HTTP design itself (methods, status codes, idempotency, versioning) is the SWE topic's page: {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
+<h3>Routes and handlers</h3>
+[[code:tok/src/service.rs:70-98]]
+<p>A <dfn>handler</dfn> is an <code>async fn</code>. Its parameters are <dfn>extractors</dfn>: types that know how to pull something out of the request. <code>Json&lt;CountReq&gt;</code> parses the body as JSON into the struct (serde checks every field and type, like a pydantic model); <code>State&lt;...&gt;</code> hands over shared state; <code>Query&lt;T&gt;</code> parses the query string; <code>axum::body::Bytes</code> takes the raw body. Its return type must implement <code>IntoResponse</code>: a <code>String</code>, a <code>Json&lt;T&gt;</code>, a status code, a tuple of those, or a <code>Result</code> of two of them. If an extractor fails, axum answers for you and the handler never runs:</p>
+[[pr:svc_missing|Send <code>{"txt": "oops"}</code> (a typo in the field name). Which status, and what body?]]
+[[pr:svc_ctype|Send valid JSON without a <code>content-type: application/json</code> header. Which status?]]
+<div class="rs-py"><div class="t">Python bridge</div>FastAPI answers the same mistake with 422 and a structured JSON <code>detail</code> list (recorded from the FastAPI twin in <code>code/py/app.py</code>: <code>{"detail":[{"type":"missing","loc":["body","text"],"msg":"Field required",...}]}</code>). axum's default rejection is a plain-text sentence; to get JSON errors, write your own extractor wrapper or map rejections in a layer. FastAPI's dependency injection corresponds to extractors and <code>State</code>; Starlette middleware corresponds to tower layers.</div>
+<h3>Errors the handler returns</h3>
+<p>For errors the handler decides, define an enum with <b>thiserror</b> (a library-style error type, so each case can map to its own status) and implement <code>IntoResponse</code> once:</p>
+[[code:tok/src/service.rs:49-68]]
+[[out:svc_empty]]
+<p>The <code>#[from] tokio::task::JoinError</code> line lets <code>?</code> convert a crashed background job into a 500 automatically. A panic (a bug such as an out-of-bounds index) inside a handler does not take the server down: tokio catches it at the task boundary, that one connection is closed without a response, and other requests carry on. <code>examples/b3_panic.rs</code>, with curl as the client:</p>
+[[out:b3_panic]]
+<p>curl's exit 52 is "empty reply from server". To answer 500 instead, add tower-http's <code>CatchPanicLayer</code>; to find the bug, the panic message is on stderr with the file and line.</p>
+<h3>Shared state</h3>
+<p>Every request runs as its own task, maybe on another thread, so shared state goes behind an <code>Arc</code> (a thread-safe shared pointer; Part 1, {{Reading|#t-ra-read}}) and anything mutable inside it must be thread-safe: here, two atomic counters. <code>with_state(state)</code> gives each handler a cheap clone of the <code>Arc</code>. For a mutable map, use a <code>Mutex</code> (held briefly, never across an await) or a concurrent map; for a database pool, the pool type is already shareable. Python's equivalent, a module-level dict, is per worker process under <code>uvicorn --workers 4</code>, so <code>/stats</code> on the FastAPI twin reports only the worker that answered. tokserve's counters are process-wide because its workers are threads:</p>
+[[out:svc_stats]]
+<h3>CPU work inside a handler</h3>
+[[code:tok/src/service.rs:100-113]]
+<p>Counting a 391 KB log is about a millisecond of CPU; a 3.9 MB one about ten times that. Either is far above the 10 to 100 &micro;s budget between awaits, so the handler moves it to the blocking pool (the inline mode exists only for the measurement above). Note the double <code>??</code>: the first unwraps the <code>JoinError</code> (did the background job panic?), the second the counting's own <code>Result</code>.</p>
+<h3>Middleware: tower layers</h3>
+<p>A <dfn>layer</dfn> wraps the whole router in reusable behaviour; <b>tower-http</b> provides the common ones. The last <code>.layer</code> added is the outermost, so a request passes through tracing, then the timeout, then the body limit, then the route. Two of them in action:</p>
+[[pr:svc_timeout|<code>GET /slow?ms=1500</code> with the default 1,000 ms request timeout. What comes back?]]
+[[pr:svc_toolarge|POST a 3.9 MB log when the limit is 1 MiB. What comes back, and does the handler run?]]
+<p>Watch out for <b>two body limits</b>: axum's extractors refuse bodies over 2 MB by default ({{DefaultBodyLimit|https://docs.rs/axum/latest/axum/extract/struct.DefaultBodyLimit.html}}), independently of any tower layer. This project's first benchmark of the blocking experiment was silently measuring fast 413 rejections because of it; <code>DefaultBodyLimit::disable()</code> plus one configured <code>RequestBodyLimitLayer</code> leaves a single limit to reason about.</p>
+<h3>Logs and spans: tracing</h3>
+<p><b>tracing</b> records <dfn>events</dfn> (log lines with typed fields) inside <dfn>spans</dfn> (a named period of work, here one per request, opened by <code>TraceLayer</code>). The subscriber decides the format and filter; <code>RUST_LOG=info,tower_http=debug</code> asks for info everywhere and per-request lines from tower-http. The service's log for the requests above (timestamps removed):</p>
+[[out:svc_log]]
+<p>The same spans can be exported to OpenTelemetry for distributed traces; what to log and alert on is the SWE topic's {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}} page.</p>
+<h3>Configuration and graceful shutdown</h3>
+<p>The service reads its settings with clap, with <code>env = "TOK_ADDR"</code> on each flag, so the same binary takes flags on a laptop and environment variables in a container (twelve-factor style):</p>
+[[out:svc_help]]
+<p>When an orchestrator stops a container it sends <b>SIGTERM</b>, waits a grace period, then sends SIGKILL: 10 s by default for <code>docker stop</code> ({{docs|https://docs.docker.com/reference/cli/docker/container/stop/}}), 30 s by default on Kubernetes ({{pod lifecycle|https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/}}). A service that dies on SIGTERM drops every request in flight. <code>with_graceful_shutdown</code> takes a future; when it resolves, axum stops accepting connections and waits for in-flight requests to finish:</p>
+[[code:tok/src/bin/tokserve.rs:51-75]]
+[[out:svc_graceful]]
+<p>The slow request that was in flight when SIGTERM arrived completed with 200; the new connection was refused; the process exited 0 after draining. In production, also put a timeout on the drain (requests longer than the grace period are killed anyway).</p>
+</section>

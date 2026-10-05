@@ -1,0 +1,24 @@
+<section id="rs-s-test"><h2>Testing</h2>
+<p>Three levels, all run by one <code>cargo test</code> (Part 1 covers <code>#[test]</code>, assertions and test layout: {{Reading|#t-ra-read}}). Test strategy in general (what to test, CI) is the SWE topic's {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}} page.</p>
+<ul class="tight"><li><b>Unit tests</b> of the logic, next to it in <code>src/lib.rs</code>, with no async and no HTTP: the token rules from the root page's spec, and malformed lines being counted rather than fatal.</li>
+<li><b>Router tests without a network.</b> An axum <code>Router</code> is a tower <code>Service</code>: call it with a request object and await the response, with <code>tower::ServiceExt::oneshot</code>. Fast (no sockets), and it exercises extractors, layers and status codes. <code>#[tokio::test]</code> gives each test its own runtime.</li>
+<li><b>A real server on a real port.</b> Bind port 0 (the OS picks a free one, so tests can run in parallel), spawn the server, talk TCP to it. Slower, but it catches what in-process tests cannot (the listener, HTTP framing).</li></ul>
+[[code:tok/tests/service.rs:13-26]]
+[[code:tok/tests/service.rs:42-57]]
+[[out:test]]
+<p class="small mute">The timeout test runs the real 500 ms timeout; for longer timers, <code>tokio::time::pause()</code> lets a test advance a fake clock instantly.</p>
+</section>
+
+<section id="rs-s-deploy"><h2>Deployment: a container image</h2>
+<p>A <dfn>container image</dfn> is a file system plus a start command. A Python service image needs an interpreter and its packages; a Rust service image needs the binary and, at most, a C library. The standard recipe is a <dfn>multi-stage build</dfn>: compile in a full Rust image, then copy only the binary into a minimal one.</p>
+[[code:tok/Dockerfile]]
+<p>Two base images matter for the last stage. <b>Distroless</b> images ({{GoogleContainerTools/distroless|https://github.com/GoogleContainerTools/distroless}}) contain no shell and no package manager, so there is less to patch and less for an attacker to use; <code>cc-debian12</code> adds glibc and libgcc for a normally linked Rust binary, and the <code>:nonroot</code> tag runs as an unprivileged user. <b>scratch</b> is the empty image: it works only with a fully static binary, which the musl cross-build above produces:</p>
+[[code:tok/Dockerfile.scratch]]
+<div class="tw"><table><thead><tr><th>Image for this service</th><th class="num">Base (compressed, linux/arm64)</th><th class="num">+ the service</th><th>Source</th></tr></thead><tbody>
+<tr><td>FastAPI on <code>python:3.14-slim</code></td><td class="num">47.1 MB</td><td class="num">+ fastapi, pydantic, uvicorn and deps</td><td>{{Docker Hub tag API|https://hub.docker.com/v2/repositories/library/python/tags/3.14-slim}}</td></tr>
+<tr><td>tokserve on <code>distroless/cc-debian12</code></td><td class="num">9.0 MB</td><td class="num">+ [[g:pkg_sizes|release-strip tokcount \S+ MB tokserve (\S+) MB]] MB binary (glibc build)</td><td>gcr.io registry manifest</td></tr>
+<tr><td>tokserve on <code>distroless/static-debian12</code> or <code>scratch</code></td><td class="num">0.7 MB / 0</td><td class="num">+ [[g:cross|^size: (\d+) bytes]] bytes (static musl build, arm64, not stripped)</td><td>gcr.io registry manifest; measured binary</td></tr>
+</tbody></table></div>
+<div class="co warn"><div class="t">Not built here</div>The Docker daemon on this laptop was not running and was not started for this page, so the two Dockerfiles are shown as written and the image sizes are base-image sizes from the registries (compressed layer sums, checked 2026-10-05) plus the binaries measured on this machine. The binary in the table is the macOS build; the Linux glibc build will differ slightly. To verify: <code>docker build -t tokserve . &amp;&amp; docker images tokserve</code>.</div>
+<p><b>What else production needs</b>, briefly: a health endpoint for the orchestrator (<code>/health</code>), SIGTERM handling (above), logs on stdout, configuration from the environment, resource limits (and a worker count to match the CPUs the container is given: tokserve takes <code>--workers</code> or <code>TOK_WORKERS</code>), and TLS terminated in front (a load balancer or proxy) or in-process with rustls. Load balancing and capacity are the SWE topic's {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}} page.</p>
+</section>
