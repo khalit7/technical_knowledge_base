@@ -3022,3 +3022,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 10 | **Layout explorer** tab: any blocked layout drawn, linear-layout bases | tab | 3/3/3 | JS bases equal Triton 3.8.0's `to_linear_layout` on 8/8 layouts; reproduces Gluon tutorial 02's printed table |
 | 11 | Gluon tutorial 02 table recompiled (instruction widths per R next to the tutorial's GB200 throughput) | Reading s10 | 2/3/3 | `out/gluon.json`; `inputs/gluon_tutorial02_published.json` |
 | 12 | Real Inductor-generated Triton (pointwise, persistent-reduction softmax, wrapper calling extern mm) | Reading s9 | 3/3/2 | `out/inductor/` |
+
+### Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05 (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/libraries_and_tensor_cores/src/viz_ideas.md`.
+
+| Idea | Where | Score | Data | Why it earns its place |
+|---|---|---|---|---|
+| One 128 x 128 tile, one K slice, on Ampere / Hopper / Blackwell (before/after animation, 7 steps each, running counters) | Reading s5 | 10 | instruction shapes (PTX ISA 9.4); counts reproduce the root's compiled Triton tiles (64 HMMA per warp, 4 HGMMA) by construction | the whole page in one picture: MMA count 512 to 8 to 4, issuers 128 to 1, accumulator registers 128 to 64 to 0 |
+| mma.sync fragment map, click a lane | Reading s5 | 9 | CuTe's SM80 TV layouts, checked against CuTe output; lane 0 of C = (0,0),(0,1),(8,0),(8,1) as in the PTX ISA | "fragment" is unreadable as prose |
+| mma.sync table across 5 targets | Reading s5 | 8 | compile matrix | shows FP8 emulated on sm_90a/sm_100a |
+| Epilogue fusion bars (M1) | Reading s2 | 7 | MLX 0.32.3, 3 runs | the only timed evidence; shows fusion matters at small K |
+| cuBLASLt kernel inventory bars + name decoder + CUTLASS 3.x name | Reading s2 | 8 | cuobjdump -ltext, strings | turns "cuBLAS picks a kernel" into a fact with counts |
+| Mini layout grid (4 presets) | Reading s7 | 7 | JS CuTe port | layout = function, at a glance |
+| Layout lab tab | tab | 9 | JS port checked on 21 cases / 6,326 values against CuTe | composition, divide, products and swizzles need a playground |
+| Bank-group view of swizzles | Layout lab | 8 | Sw<B,3,3> on 8 x 64 halves | why the 128 B swizzle is conflict-free |
+| TV layouts of 4 instructions (incl. wgmma 64 x 64 C, 128 threads) | Layout lab | 7 | CuTe MMA_Traits | scale of Hopper fragments |
+| Instruction atlas (20 kernels x 8 targets, click for PTX/ptxas/SASS) + 3 newer targets + cuBLAS opcode scan | tab | 9 | 160 real compiles | the evidence base, browsable |
+| GEMM scheduler (DP, split-K, Stream-K, hybrid; Gantt with time scrub; schedule comparison) | tab | 8 | model mirrored in recompute.py, 11 cases equal | waves and Stream-K are spatial; reproduces NVIDIA's 108 vs 117 tiles example |
