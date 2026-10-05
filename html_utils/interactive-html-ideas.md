@@ -2702,3 +2702,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | Copy-on-write page-by-page animation | - | - | rejected: the root's OS simulators tab animates it; this page measures the Python GC variant instead |
 | memory.high throttling replay | 4 / 0 / - | - | not built: cannot set memory.high in an unprivileged Docker 20.10 container; taught from source |
 | NUMA placement animation | 3 / 0 / - | - | rejected: no NUMA here, so it would be illustrative only |
+
+### SSH: keys, certificates, jump hosts and tunnels for cluster work (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_protocols/ssh/src/viz_ideas.md`.
+
+| Rank | Idea | Score | Data | Placement | Status |
+|---|---|---|---|---|---|
+| 1 | Cluster lab: every recorded scenario (login, ProxyJump, agent forwarding, multiplexing, host-key churn, host and user certificates, tunnels, keepalives, old node, penalties) as steps on one topology, with the real log of each step highlighted | 5x5x5 | `raw/*.txt` from the container cluster | Tab | built |
+| 2 | Before/after animation: agent forwarding (-A) against a destination-constrained key against ProxyJump, same attacker (root on the bastion), real results | 5x5x5 | `raw/agent_*.txt` | Reading s6 | built |
+| 3 | Before/after animation: ten commands fresh against one ControlMaster, each bar a real run to scale, running elapsed counters | 5x5x4 | `raw/mux_timing.json` (40 ms added with netem) | Reading s7 | built |
+| 4 | Handshake packet bars to scale, toggled across four key exchanges (classic, ML-KEM hybrid, sntrup hybrid, P-256), decoded by a relay on the path | 5x5x5 | `raw/wire_*.jsonl` | Reading s1 | built |
+| 5 | Round-trip ladder of one login with 40 ms added, labels inferred after NEWKEYS | 4x5x4 | `raw/wire_delay40.jsonl` | Reading s1 | built |
+| 6 | Error decoder: recorded error message to meaning, command, fix and log | 5x5x4 | `raw/*.txt` | Tab | built |
+| 7 | Certificate refusals: client view against server log, four cases | 5x5x4 | `raw/cert_*.txt` | Reading s4 | built |
+| 8 | Who reaches the notebook (loopback, 0.0.0.0, Unix socket; same-node user, other node) | 5x5x5 | `raw/fwd_who_reaches.json` | Reading s8 | built |
+| 9 | Annotated ssh_config: click a line for its meaning and the recorded result behind it | 4x4x3 | the page's own sections | Reading s13 | built |
+| 10 | File transfer bars (scp -r, rsync, tar pipe, one large file; resume) | 4x5x3 | `raw/xfer.json` | Reading s10 | built (square-root scale, labelled) |
+| 11 | Static diagrams: the three layers; -L, -D, -R directions | 3x5x2 | none | Reading s1, s8 | built |
