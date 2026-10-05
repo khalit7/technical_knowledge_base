@@ -1,0 +1,55 @@
+<section id="rd-one">
+<h2>In one screen</h2>
+<p class="lead">Almost every GPU you will train on in a cloud is reached through two extra layers that a laptop does not have. A <dfn>hypervisor</dfn> runs your whole operating system as a <dfn>guest</dfn>, so your "machine" is a virtual machine sharing a physical one; and a GPU <dfn>driver stack</dfn> turns each CUDA call into commands the GPU fetches from memory. Both layers are mostly invisible, until a wake-up costs ten times what it should, a container says "no CUDA-capable device", or a new image dies with "driver version is insufficient". This page takes both layers apart, from zero.</p>
+<p>The root page, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 9, gave the intuition in one screen. This page goes down to the code: the Linux kernel at the version that ran here (v5.10) and a current one (v6.12), the hypervisor that ran here (QEMU with Apple's Hypervisor.framework), NVIDIA's open kernel modules at 615.71.09, and the CUDA 13.4 runtime and user-mode driver run for real in a container with no GPU. Each mechanism follows one pattern: <b>problem, how it works, what it costs (measured where it can be), when it bites in ML, the command that shows it, the fix.</b></p>
+<div class="card">
+<div class="two">
+<div><div class="small mute" style="margin-bottom:4px">The virtualization stack this page ran on. Click a layer.</div>
+<div class="lay">
+<div style="--sc:var(--c1)"><a href="#rd-s3"><b>Your process</b></a><span>a container on the guest kernel; thinks it has 5 CPUs and 10 GB</span></div>
+<div style="--sc:var(--c1)"><a href="#rd-s3"><b>Guest kernel</b></a><span>Linux 5.10, sees virtio devices, a GICv2 and a timer</span></div>
+<div style="--sc:var(--c2)"><a href="#rd-s2"><b>Hypervisor</b></a><span>QEMU 5.2 on Apple Hypervisor.framework (a cloud: KVM or Nitro)</span></div>
+<div style="--sc:var(--c3)"><a href="#rd-s1"><b>Hardware</b></a><span>M1 Pro: EL2 for the hypervisor, stage-2 page tables</span></div>
+</div></div>
+<div><div class="small mute" style="margin-bottom:4px">The GPU driver stack, one CUDA call down. Click a layer.</div>
+<div class="lay">
+<div style="--sc:var(--c1)"><a href="#rd-s9"><b>Python, PyTorch</b></a><span><code>y = x @ w</code>: the dispatcher picks a cuBLAS routine</span></div>
+<div style="--sc:var(--c4)"><a href="#rd-s9"><b>CUDA runtime</b></a><span><code>libcudart.so.13</code>, shipped with your wheel or image</span></div>
+<div style="--sc:var(--c4)"><a href="#rd-s10"><b>CUDA driver</b></a><span><code>libcuda.so.1</code>, the user-mode driver, installed with the host's driver</span></div>
+<div style="--sc:var(--c2)"><a href="#rd-s9"><b>Kernel driver</b></a><span><code>nvidia.ko</code>, <code>nvidia-uvm.ko</code>: ioctls on <code>/dev/nvidia*</code></span></div>
+<div style="--sc:var(--c3)"><a href="#rd-s11"><b>GPU</b></a><span>fetches commands by DMA, through the IOMMU in a VM</span></div>
+</div></div>
+</div></div>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Mechanism</th><th>What it costs here</th><th>When it bites in ML</th><th>Command that shows it</th></tr></thead>
+<tbody>
+<tr><td><a href="#rd-s2">VM exit</a>: the guest stops, the hypervisor runs, the guest resumes</td><td><span class="meas">measured</span> <b data-k="hvf.mmio_med">0.92</b> µs per exit on this laptop's hypervisor</td><td>anything that traps often: interrupts, device registers, idle</td><td>on a KVM host: <code>perf kvm stat</code></td></tr>
+<tr><td><a href="#rd-s5">Cross-CPU wake-up</a> in a VM</td><td><span class="meas">measured</span> <b data-k="ipi.idle_one_way_med">25.3</b> µs, against <b data-k="ipi.same_one_way_med">2.00</b> µs on one CPU</td><td>data-loader hand-offs, thread pools, NCCL proxy threads</td><td><code>grep IPI /proc/interrupts</code></td></tr>
+<tr><td><a href="#rd-s4">Nested page walk</a></td><td><span class="src">derived</span> up to <b data-k="der.walk44">24</b> memory reads per TLB miss, against 4</td><td>large, random memory access in a VM</td><td><code>perf stat -e dTLB-load-misses</code></td></tr>
+<tr><td><a href="#rd-s6">virtio</a> disk and network</td><td><span class="meas">measured</span> 1 interrupt per request at queue depth 1, <b data-k="virtio.qd32.irq_per_req">0.11</b> at 32</td><td>data loading inside a VM</td><td><code>grep virtio /proc/interrupts</code></td></tr>
+<tr><td><a href="#rd-s7">IOMMU and passthrough</a></td><td><span class="nrh">not run here</span>: no IOMMU in this VM</td><td>every cloud GPU VM; GPU peer-to-peer and RDMA</td><td><code>ls /sys/kernel/iommu_groups</code></td></tr>
+<tr><td><a href="#rd-s8">Sharing one GPU</a>: time slicing, MPS, MIG, vGPU</td><td><span class="src">source</span> isolation differs completely</td><td>inference and notebooks on shared GPUs</td><td><code>nvidia-smi mig -lgi</code></td></tr>
+<tr><td><a href="#rd-s9">First CUDA call</a> against the millionth</td><td><span class="meas">measured</span> the search for a driver, call by call; <span class="src">source</span> launches need no system call</td><td>slow start-up, "no CUDA-capable device"</td><td><code>strace -f -e trace=openat,ioctl</code></td></tr>
+<tr><td><a href="#rd-s10">Driver against runtime version</a></td><td><span class="meas">measured</span> errors 35, 34 and 100 reproduced</td><td>a new image on an old host</td><td><code>nvidia-smi</code>, <code>torch.version.cuda</code></td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Six things to remember</div>
+<ol class="tight">
+<li><b>A VM runs your code directly on the CPU</b> and only stops it (a <dfn>VM exit</dfn>) for the few things the hypervisor must see. Each exit cost about <b data-k="hvf.mmio_med">0.92</b> µs here; virtualization is cheap until something exits thousands of times a second (<a href="#rd-s2">section 2</a>).</li>
+<li><b>Interrupts are the expensive part.</b> Waking a thread on another CPU took <b data-k="der.idle_x_same">12.7</b> times as long as on the same CPU in this VM, because the inter-processor interrupt and the sleeping virtual CPU both go through the hypervisor (<a href="#rd-s5">section 5</a>; this answers the question the {{Scheduling|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}} and {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}} pages left open).</li>
+<li><b>A whole GPU in a VM is a real GPU handed to the guest</b> through the IOMMU (<dfn>passthrough</dfn>), so CUDA itself runs at full speed; what differs is topology, peer-to-peer traffic and pinned memory (<a href="#rd-s7">section 7</a>).</li>
+<li><b>Sharing a GPU is a choice of isolation:</b> time slicing and MPS share memory and faults; MIG splits the hardware into up to seven isolated instances ({{Sharing a GPU|#t-share}} tab).</li>
+<li><b>Steady-state CUDA launches make no system call:</b> the driver writes commands into memory and rings a doorbell register; the ioctls happen at start-up and for memory management (<a href="#rd-s9">section 9</a>, {{One CUDA call|#t-cuda}} tab).</li>
+<li><b>Two versions, two places:</b> the runtime comes with your image, the driver with the host. A runtime newer than the driver's major family needs the compatibility package or a new driver (<a href="#rd-s10">section 10</a>).</li>
+</ol></div>
+<p class="small mute">How this page was measured. Linux runs: Docker Desktop's Linux VM on an Apple M1 Pro (Linux 5.10.104-linuxkit, arm64, 5 virtual CPUs, about 10 GB), October 2026, images <code>kb-os-lab:1</code> (the root's lab image) and <code>kb-os-virt:1</code> (the CUDA topic's <code>kb-gpu-lab:1</code>: CUDA 13.4.2 toolkit for arm64, plus strace). Containers were not privileged; strace needed <code>--cap-add SYS_PTRACE</code>, and one CUDA case used <code>--device-cgroup-rule 'c 195:* rwm'</code>, both stated where used. macOS runs, labelled as contrasts: the hypervisor process that runs the VM, and a tiny VM of our own built on Apple's Hypervisor.framework. <b>There is no GPU here:</b> everything above the kernel driver was run for real; the kernel driver and the GPU are taught from NVIDIA's open source and documentation and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from source or documentation. Timings on a shared laptop VM vary from run to run, so each is a median of three runs and the raw files show the spread. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
+<details class="xc"><summary>OSTEP chapter map for this page</summary><div>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>OSTEP</th><th>Here</th><th>What this page adds</th></tr></thead><tbody>
+<tr><td>Appendix B, Virtual Machine Monitors</td><td><a href="#rd-s1">1</a> to <a href="#rd-s4">4</a></td><td>hardware virtualization (EL2, VMX), KVM's API, VM exits measured, nested paging, the information gap measured as a slow wake-up</td></tr>
+<tr><td>6 Limited Direct Execution</td><td><a href="#rd-s1">1</a>, <a href="#rd-s2">2</a></td><td>the same idea one level down: the guest kernel runs directly, the hypervisor keeps control through traps</td></tr>
+<tr><td>19 TLBs, 20 Advanced Page Tables</td><td><a href="#rd-s4">4</a></td><td>two-dimensional page walks, VMIDs, huge pages in both stages</td></tr>
+<tr><td>36 I/O Devices</td><td><a href="#rd-s6">6</a>, <a href="#rd-s7">7</a>, <a href="#rd-s9">9</a></td><td>virtqueues, DMA and the IOMMU, doorbells and command buffers on a GPU</td></tr>
+<tr><td>26 to 28 Concurrency, Locks</td><td><a href="#rd-s5">5</a></td><td>why a sleeping lock's wake-up is dearer in a VM</td></tr>
+</tbody></table></div>
+<p class="small">OSTEP is free at {{pages.cs.wisc.edu/~remzi/OSTEP|https://pages.cs.wisc.edu/~remzi/OSTEP/}}; Appendix B is {{vmm-intro.pdf|https://pages.cs.wisc.edu/~remzi/OSTEP/vmm-intro.pdf}}. Read it alongside sections 1 to 4 here.</p>
+</div></details>
+</section>

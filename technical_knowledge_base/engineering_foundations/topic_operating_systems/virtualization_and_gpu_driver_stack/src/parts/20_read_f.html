@@ -1,0 +1,39 @@
+<section id="rd-s6">
+<h2>6. Devices without the exits: virtio</h2>
+<span class="ostep">36</span>
+<p><b>The problem.</b> The simplest way to give a guest a disk is to emulate a real one: the guest's normal driver pokes the device's registers, and every poke exits to the hypervisor, which pretends to be the hardware. A real disk controller's driver touches several registers per request, so one 4 KiB read costs several exits, plus an emulated interrupt with its own exits (section 5).</p>
+<p><b>How virtio works.</b> <dfn>virtio</dfn> is a device interface designed for VMs, where both sides know the other is software ({{Russell, virtio, 2008|https://doi.org/10.1145/1400097.1400108}}; {{OASIS VIRTIO 1.2 specification|https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html}}). The guest and the hypervisor share a <dfn>virtqueue</dfn> in guest memory, made of three parts ({{include/uapi/linux/virtio_ring.h, Linux v5.10|https://github.com/torvalds/linux/blob/v5.10/include/uapi/linux/virtio_ring.h#L97-L135}}):</p>
+<div class="vq">
+<div><b>Descriptor table</b>entries of (guest address, length, flags, next): "here is a buffer" (<code>struct vring_desc</code>)</div>
+<div><b>Available ring</b>written by the guest: "these descriptor chains are ready for you" (<code>struct vring_avail</code>)</div>
+<div><b>Used ring</b>written by the device: "I finished these, this many bytes" (<code>struct vring_used</code>)</div>
+</div>
+<p>A request is three descriptors (a header saying "read sector N", the data buffer, a status byte). The guest adds them, bumps the available index, and only then <dfn>kicks</dfn> the device: one register write, one exit. The device side reads the request straight out of guest memory (for QEMU, its own memory), does the I/O, writes the used ring, and injects one interrupt. Both directions can be suppressed: with the <dfn>event index</dfn> feature (<code>VIRTIO_RING_F_EVENT_IDX</code>, bit 29), each side publishes "notify me only when your index passes N", so a busy queue needs neither a kick per request nor an interrupt per completion ({{vring_need_event|https://github.com/torvalds/linux/blob/v5.10/include/uapi/linux/virtio_ring.h#L216}}, used by {{virtqueue_kick_prepare_split|https://github.com/torvalds/linux/blob/v5.10/drivers/virtio/virtio_ring.c#L589-L608}}). Both of this VM's virtio devices offer it (section 3's feature bits).</p>
+<div class="card" id="vq-card">
+<div class="small mute">Four 4 KiB reads through one virtqueue: one at a time, then posted together. Watch the exit and interrupt counters.</div>
+<div class="seg" id="vq-mode"><button data-m="one" class="on">One request at a time (queue depth 1)</button><button data-m="batch">Four requests together</button></div>
+<div class="an-ctl" id="vq-ctl"></div>
+<div class="vq" id="vq-rings"></div>
+<div class="an-cnt" id="vq-cnt"></div>
+<div class="an-cap" id="vq-cap"></div>
+<p class="small mute">An illustration of the protocol with four requests; the measured ratios are in the table below.</p>
+</div>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>4 KiB random <code>O_DIRECT</code> reads, 20,000 each</th><th>Queue depth 1</th><th>Queue depth 32</th></tr></thead><tbody>
+<tr><td>Requests per second</td><td><b data-k="virtio.qd1.iops">15748</b></td><td><b data-k="virtio.qd32.iops">60975</b> (<b data-k="der.vq_x">3.9</b> times)</td></tr>
+<tr><td>Time per request</td><td><b data-k="der.vq1_us">63.5</b> µs (1 / rate)</td><td><b data-k="virtio.qd32.clat_us">508.6</b> µs mean completion latency (Little's law: 32 / rate = <b data-k="der.vq32_little">524.8</b> µs)</td></tr>
+<tr><td>virtio-blk interrupts per request</td><td><b data-k="virtio.qd1.irq_per_req">1.0</b></td><td><b data-k="virtio.qd32.irq_per_req">0.11</b>: <b data-k="der.vq32_per_irq">8.9</b> completions per interrupt</td></tr>
+</tbody></table></div>
+<p class="small mute"><span class="meas">measured</span> fio 3.33 with libaio on a 256 MiB file on the VM's virtio-blk disk, interrupts counted from the <code>virtio1-req.*</code> lines of <code>/proc/interrupts</code> and requests from <code>/sys/block/vda/stat</code> (<code>src/exp/virtio.sh</code>; raw: <code>src/raw/virtio.txt</code>). The disk image is a file on the Mac's SSD that macOS caches, so absolute times are not a real NVMe drive's; the {{Storage|n:3f05c17b0d0d8141be7acc1313570cbf}} page measured the disk side in depth.</p>
+<p><b>Reading it.</b> At queue depth 1, every request pays its own kick and its own interrupt, each with its exits; at depth 32, the event index lets one interrupt report about nine completions and the rate nearly quadruples. This is the I/O version of section 5's lesson: in a VM, notifications are the expensive part, and batching is how you buy them back.</p>
+<div class="mech">
+<div><b>Device in QEMU (here)</b>The kick exits to QEMU in user space, which does the I/O with ordinary system calls on the disk image.</div>
+<div><b>vhost</b>The device's data path moves into the host kernel (<code>vhost-net</code>; this kernel builds it as a module, <code>CONFIG_VHOST_NET=m</code>): the kick wakes a kernel thread, no trip to QEMU.</div>
+<div><b>vhost-user</b>The data path runs in another user-space process polling the rings (DPDK for networks, SPDK for storage): no notifications at all while busy.</div>
+<div><b>vDPA, passthrough</b>The NIC itself implements virtqueues (vDPA), or the guest gets a real device or a slice of one (sections 7, 8): the hypervisor leaves the data path.</div>
+</div>
+<div class="ff"><div class="t">When it bites in ML</div><ul>
+<li>Small random reads from a virtual disk at queue depth 1 (a dataset of millions of small files read one at a time) pay the notification costs on every file. Shards read sequentially with several outstanding requests do not.</li>
+<li>The network of a cloud VM is a virtio or vendor paravirtual NIC unless RDMA NICs are passed through: the data path for checkpoints to object storage, not for NCCL on GPU clusters (section 7).</li>
+</ul></div>
+<p class="cmd">grep virtio /proc/interrupts; cat /sys/block/vda/queue/scheduler</p>
+</section>
