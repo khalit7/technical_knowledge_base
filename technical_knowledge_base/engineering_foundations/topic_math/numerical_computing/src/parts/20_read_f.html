@@ -1,0 +1,47 @@
+<section id="rd-err">
+<h2>5. The error of one operation, and how errors travel</h2>
+<div class="raise"><b>The question.</b> If each operation is rounded, how wrong can a whole computation get, and how do you tell a hard problem from a bad algorithm?</div>
+<p>Because IEEE 754 rounds each basic operation once, correctly, every operation obeys the <dfn id="rd-g-std">standard model</dfn> ({{Higham 2002|https://doi.org/10.1137/1.9780898718027}}, chapter 2):</p>
+\[ \operatorname{fl}(x \circ y) = (x \circ y)(1 + \delta), \qquad |\delta| \le u, \qquad \circ \in \{+, -, \times, \div\} \]
+<p>In words: the computed result is the exact result of the exact inputs, nudged by a relative error of at most \(u\) (\(5.96 \times 10^{-8}\) in float32), as long as the result neither overflows nor underflows. One operation is therefore almost perfect. Problems come from what happens to errors already present in the inputs, and from many operations in a row. The <dfn>fused multiply-add</dfn> (FMA, required since IEEE 754-2008) computes \(a \times b + c\) with a single rounding instead of two; matrix-multiply units are built from it.</p>
+<p>Two ways to measure how wrong an answer is. The <dfn id="rd-g-fwd">forward error</dfn> is the distance from the true answer. The <dfn id="rd-g-bwd">backward error</dfn> asks a different question: is the computed answer the <i>exact</i> answer for a slightly different input, and how different? An algorithm whose answers are always exact answers to inputs perturbed by a few \(u\) is <dfn id="rd-g-stable">backward stable</dfn>. The two are linked by the condition number of the problem:</p>
+\[ \text{forward error} \lesssim \kappa \times \text{backward error} . \]
+<p>So there are two separate ways to get a bad answer: a <b>badly conditioned problem</b> (large \(\kappa\): any algorithm loses digits) or an <b>unstable algorithm</b> (large backward error on a well-conditioned problem: a better algorithm fixes it). The naive softmax of section 9 is the second kind.</p>
+</section>
+
+<section id="rd-canc">
+<h2>6. Cancellation and the condition number of a computation</h2>
+<div class="raise"><b>The question.</b> Why does \((1 + 10^{-8}) - 1\) come out as exactly 0 in float32, and why does a textbook variance formula return a negative variance?</div>
+<h3>Catastrophic cancellation</h3>
+<p>Subtracting two nearly equal numbers is exact (the Sterbenz lemma: if \(y/2 \le x \le 2y\), then \(x - y\) is a float), but it exposes the rounding errors the two numbers already carried, now measured against a tiny result. Measured, \(x = 10^{-8}\):</p>
+<ul class="tight">
+<li>float32: \(1 + 10^{-8}\) rounds to 1 (the gap above 1 is \(1.2 \times 10^{-7}\)), so \((1 + x) - 1 = 0\): <b>100% error</b>.</li>
+<li>float64: \((1 + x) - 1 = 9.99999993922529 \times 10^{-9}\), a relative error of \(6.1 \times 10^{-9}\), which is \(5 \times 10^{7}\) times the format's \(u = 1.1 \times 10^{-16}\). Eight of sixteen digits are gone, not because the subtraction was inexact but because \(1 + x\) was rounded first.</li>
+</ul>
+<p>The general rule: when \(a \approx b\), the relative error of \(a - b\) is the relative error of the inputs multiplied by \(|a| / |a - b|\). The fix is always the same: <b>rewrite the formula so the subtraction of nearly equal quantities never happens.</b></p>
+<h3>The condition number of a function</h3>
+<p>How much does a small relative change in the input \(x\) change the output \(f(x)\)? Divide the two relative changes and let the input change shrink to zero:</p>
+\[ \kappa_f(x) = \left|\frac{\Delta f / f}{\Delta x / x}\right| \to \left| \frac{x\, f'(x)}{f(x)} \right| . \]
+<p>Read it as an error amplifier: an input known to relative accuracy \(u\) gives an output known to about \(\kappa_f(x)\, u\), whatever algorithm you use. Worked values (derived):</p>
+<div class="tw"><table class="mini"><thead><tr><th>\(f\)</th><th>\(\kappa_f(x)\)</th><th>At</th><th class="num">\(\kappa\)</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>\(x - 1\)</td><td>\(|x / (x - 1)|\)</td><td>\(x = 1.0001\)</td><td class="num">10,001</td><td>4 of float32's 7 digits are lost</td></tr>
+<tr><td>\(\ln x\)</td><td>\(1 / |\ln x|\)</td><td>\(x = 1.0001\)</td><td class="num">10,000</td><td>\(\ln\) near 1 is ill-conditioned in \(x\): pass \(x - 1\) instead (log1p)</td></tr>
+<tr><td>\(e^{x}\)</td><td>\(|x|\)</td><td>\(x = 1000\)</td><td class="num">1,000</td><td>large logits amplify their own errors</td></tr>
+<tr><td>\(\sqrt{x}\)</td><td>\(1/2\)</td><td>any</td><td class="num">0.5</td><td>harmless</td></tr>
+<tr><td>\(\ln \sum_j e^{z_j}\)</td><td>\(\sum_j |z_j|\, p_j / |\ln \sum_j e^{z_j}|\)</td><td>\(z = (1000, 999, 0)\)</td><td class="num">0.9994</td><td>perfectly well-conditioned: overflow there is the algorithm's fault</td></tr>
+</tbody></table></div>
+<p class="small mute">The last row uses \(\partial \ln\sum_j e^{z_j} / \partial z_i = p_i\), the softmax (root page, "cross-entropy four ways"); for several inputs the condition number sums \(|z_i|\,|\partial f/\partial z_i|\) and divides by \(|f|\). Matrices have their own condition number, \(\sigma_{\max}/\sigma_{\min}\): see the {{Linear algebra|n:3c65c17b0d0d81d89c26e1dab2fcb701}} page, section 13, where the float32 normal equations lose 77% of the answer and QR keeps it.</p>
+<h3>log1p and expm1</h3>
+<p>For tiny \(x\), \(\ln(1 + x) \approx x\) and \(e^{x} - 1 \approx x\), but computing them as written rounds \(1 + x\) or produces \(e^{x} \approx 1\) and then cancels. The library functions <code>log1p(x)</code> and <code>expm1(x)</code> compute them directly from \(x\). Measured in float64 at \(x = 10^{-10}\): <code>log(1 + x)</code> gives \(1.000000082690371 \times 10^{-10}\) (relative error \(8.3 \times 10^{-8}\), about 8 correct digits), <code>log1p(x)</code> gives \(9.9999999995 \times 10^{-11}\) (all 16); <code>exp(x) - 1</code> is off by the same \(8.3 \times 10^{-8}\) and <code>expm1(x)</code> is exact. Section 10 uses both inside softplus and BCE.</p>
+<h3>Variance: one pass, two passes, Welford</h3>
+<p>The variance of \(x_1, \dots, x_n\) with mean \(\bar{x}\) is \(\frac1n \sum_i (x_i - \bar x)^2\). Expanding the square gives the "computational formula" \(\frac1n \sum_i x_i^2 - \bar{x}^2\), which needs only one pass over the data and subtracts two huge, nearly equal numbers. Measured in float32 on three numbers near 10,000 (stored as \(10000.0996\), \(10000.2002\), \(10000.2998\); exact variance of the stored values \(0.0066797\)):</p>
+<div class="tw"><table class="mini"><thead><tr><th>Method</th><th class="num">float32 result</th><th>What happened</th></tr></thead><tbody>
+<tr><td>one pass, \(\overline{x^2} - \bar x^2\)</td><td class="num bad">\(-8.0\)</td><td>\(\sum x_i^2 \approx 3.0 \times 10^{8}\), where float32's gap is 32; the true difference, 0.02, is far below one gap. A variance cannot be negative: \(\sqrt{\cdot}\) of it is NaN.</td></tr>
+<tr><td>two passes: mean first, then \(\sum (x_i - \bar x)^2\)</td><td class="num good">\(0.0066799\)</td><td>the subtraction happens before squaring, on numbers of size 0.1</td></tr>
+<tr><td>Welford, one pass</td><td class="num good">\(0.0066309\)</td><td>updates the mean and the sum of squared deviations together; 0.7% off here, never negative</td></tr>
+</tbody></table></div>
+<p><dfn id="rd-g-welford">Welford's algorithm</dfn> ({{Welford 1962|https://doi.org/10.1080/00401706.1962.10490022}}) keeps a running mean \(m_k\) and a running sum of squared deviations \(M_k\) after \(k\) values:</p>
+\[ m_k = m_{k-1} + \frac{x_k - m_{k-1}}{k}, \qquad M_k = M_{k-1} + (x_k - m_{k-1})(x_k - m_k), \qquad \operatorname{var} = M_n / n . \]
+<p>Every term is a deviation from a running mean, so nothing large is ever subtracted from something large. On the three numbers: \(m = 10000.0996, 10000.1504, 10000.2002\) and \(M = 0, 0.00501, 0.01989\), so \(\operatorname{var} = 0.01989 / 3 = 0.00663\) (measured, float32). It also merges partial results from two halves of the data exactly (Chan et al. 1979), which is what parallel hardware needs: PyTorch's reductions for variance and normalisation statistics use a <code>WelfordOps</code> accumulator ({{SharedReduceOps.h, v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/native/SharedReduceOps.h}}).</p>
+<div class="use"><div class="t">What it is used for in ML</div>LayerNorm, BatchNorm and RMSNorm statistics; running means of metrics over a long evaluation; any "subtract the mean" in a loss. If a hand-written normalisation uses <code>(x**2).mean() - x.mean()**2</code>, it can go negative on large activations and turn \(1/\sqrt{\operatorname{var} + \epsilon}\) into NaN.</div>
+</section>

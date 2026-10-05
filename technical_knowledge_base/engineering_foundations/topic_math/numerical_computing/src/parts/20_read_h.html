@@ -1,0 +1,49 @@
+<section id="rd-soft">
+<h2>9. The stable softmax, log-sum-exp and log-softmax</h2>
+<div class="raise"><b>The question.</b> The root's tiny model gives logits \((2, 1, 0)\) and a loss of 2.408. Push the logits to \((1000, 999, 0)\): the true probabilities barely change in shape, yet a naive softmax returns NaN. Why, and what one-line change fixes it?</div>
+<h3>The naive formula and where it breaks</h3>
+<p>The <dfn id="rd-g-softmax">softmax</dfn> turns logits \(z_1, \dots, z_n\) into probabilities:</p>
+\[ p_i = \frac{e^{z_i}}{\sum_{j=1}^{n} e^{z_j}}, \qquad \text{loss} = -\ln p_y \ \text{ for the target } y . \]
+<p>For \(z = (2, 1, 0)\): \(e^2 = 7.389\), \(e^1 = 2.718\), \(e^0 = 1\), sum \(11.107\), so \(p = (0.665, 0.245, 0.090)\) and the loss for the target sat is \(-\ln 0.090 = 2.408\) (the root page's numbers). Now take \(z = (1000, 999, 0)\). \(e^{1000}\) is about \(10^{434}\), past float32's largest value (\(e^{88.72}\)) and even float64's (\(e^{709.78}\)), so it rounds to \(\infty\). The sum is \(\infty\), \(p_{\text{cat}} = \infty/\infty = \) NaN, and one NaN makes the loss and every gradient NaN. The problem itself is easy (its condition number is 0.9994, section 6): the answer is \(p = (0.731, 0.269, e^{-1000.3})\). Only the algorithm fails.</p>
+<h3>The fix: subtract the largest logit</h3>
+<p>Multiply the top and bottom of the softmax by the same number \(e^{-m}\):</p>
+\[ \frac{e^{z_i}}{\sum_j e^{z_j}} = \frac{e^{-m}\, e^{z_i}}{e^{-m} \sum_j e^{z_j}} = \frac{e^{z_i - m}}{\sum_j e^{z_j - m}} . \]
+<p>The value is unchanged for any \(m\). Choose \(m = \max_j z_j\). Then every exponent \(z_j - m\) is at most 0, so every \(e^{z_j - m}\) lies in \((0, 1]\): nothing can overflow, and the denominator lies between 1 (the largest term is exactly \(e^0 = 1\)) and \(n\). Terms that underflow to 0 are smaller than the format's tiniest number, far below \(u\) relative to the 1 in the denominator, so dropping them changes nothing visible.</p>
+<p>The same move gives the <dfn id="rd-g-lse">log-sum-exp</dfn>, the log of the softmax denominator:</p>
+\[ \operatorname{LSE}(z) = \ln \sum_j e^{z_j} = m + \ln \sum_j e^{z_j - m}, \qquad m = \max_j z_j . \]
+<p>For \((1000, 999, 0)\): \(1000 + \ln(1 + e^{-1} + e^{-1000})\), that is \(1000 + \ln 1.3679 = 1000.3133\) (derived). The old Topic: math child page's example, logits \((1000, 1001)\), gives \(1001 + \ln(e^{-1} + 1) = 1001.313\) the same way (rechecked).</p>
+<h3>Log-softmax: never take the log of a softmax</h3>
+<p>The loss needs \(\ln p_y\). Computing \(p_y\) first and then its log fails for unlikely targets: here \(p_{\text{sat}} = e^{-1000.31}\), which underflows to 0 even in float64 (its smallest number is about \(e^{-744}\)), and \(-\ln 0 = \infty\). Taking logs of the shifted formula instead gives the <dfn id="rd-g-logsoftmax">log-softmax</dfn> with no exponential of anything large and no log of anything small:</p>
+\[ \ln p_i = z_i - \operatorname{LSE}(z) = (z_i - m) - \ln \sum_j e^{z_j - m} . \]
+<p>For the target sat: \(\ln p_{\text{sat}} = (0 - 1000) - 0.3133 = -1000.3133\), so the loss is \(1000.3133\): huge, honest and finite. Its gradient with respect to the logits is \(p - \text{onehot}(y) = (0.731, 0.269, -1)\), also finite. The same reason makes every likelihood a sum of logs: 1,000 tokens each predicted with probability 0.1 have likelihood \(10^{-1000}\), which underflows even float64, while its log, \(-1000 \ln 10 = -2302.6\), is an ordinary number (derived). This is why PyTorch's <code>CrossEntropyLoss</code> takes "unnormalized logits", not probabilities: it runs log-softmax and the negative log-likelihood fused.</p>
+<div class="card" id="rd-smCard">
+<div class="small"><b>Before and after: one softmax, computed naively and stably, every intermediate shown as its stored bits.</b> Logits cat 1000, dog 999, sat 0 (target sat). Every operation is rounded to the chosen format by this page's emulator; the numbers match NumPy and ml_dtypes (<code>recompute.py</code>).</div>
+<div class="seg" id="rd-smMode"><button data-m="naive" class="on">Naive: exp, sum, divide</button><button data-m="stable">Stable: subtract max, then exp</button></div>
+<div class="seg" id="rd-smFmt"><button data-m="fp32" class="on">float32</button><button data-m="fp16">float16</button><button data-m="bf16">bfloat16</button></div>
+<div class="an-stage" id="rd-smStage"></div>
+<div class="an-cap" id="rd-smCap"></div>
+<div class="an-cnt" id="rd-smCnt"></div>
+<div class="an-ctl" id="rd-smCtl"></div>
+</div>
+<p class="small">Try bfloat16 with the stable mode: \(999\) is not a bfloat16 number (between 512 and 1024 the gap is 4), so it is stored as 1000 and the stable softmax returns \((0.5, 0.5, 0)\): stable, but the logits had already lost the difference. Keep logits and softmax in float32: PyTorch's autocast lists <code>softmax</code>, <code>log_softmax</code>, <code>cross_entropy</code>, <code>exp</code>, <code>log</code> and <code>sum</code> among the "CUDA Ops that can autocast to <code>float32</code>" ({{amp docs, v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/docs/source/amp.md}}).</p>
+<h3>What PyTorch actually runs (v2.14.1)</h3>
+<p><code>torch.logsumexp</code> is exactly the formula above, with one extra guard: if the max is infinite (a row of all \(-\infty\), as in a fully masked attention row), it shifts by 0 instead, so the result is \(-\infty\) rather than NaN from \(-\infty - (-\infty)\):</p>
+<pre class="code"><span class="cm">// aten/src/ATen/native/ReduceOps.cpp, lines 1543-1558 (v2.14.1)</span>
+static Tensor&amp; logsumexp_out_impl(Tensor&amp; result, const Tensor&amp; self, IntArrayRef dims, bool keepdim) {
+  // can't take max of empty tensor
+  if (self.numel() != 0) {
+    ...
+<span class="hl">    auto maxes = at::amax(at::real(self), dims, true);</span>
+    auto maxes_squeezed = (keepdim ? maxes : at::squeeze(maxes, dims));
+<span class="hl">    maxes_squeezed.masked_fill_(maxes_squeezed.abs() == INFINITY, 0);</span>
+<span class="hl">    at::sum_out(result, (self - maxes).exp_(), dims, keepdim);</span>
+<span class="hl">    result.log_().add_(maxes_squeezed);</span>
+  } else { ... }</pre>
+<p>The CPU softmax kernel does the same three steps per row: reduce to the max, map \(x \mapsto e^{x - \max}\), sum and multiply by the reciprocal (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/native/cpu/SoftMaxKernel.cpp#L60-L91" target="_blank" rel="noopener noreferrer">SoftMaxKernel.cpp, lines 60 to 91</a>). Excerpts are saved in <code>src/inputs/pytorch_v2.14.1/excerpts.txt</code>.</p>
+<h3>One pass instead of two: the online softmax</h3>
+<p>The stable softmax reads the logits twice (once for the max, once for the sum). Milakov and Gimelshein showed the max and the sum can be updated together in one pass ({{2018|https://arxiv.org/abs/1805.02867}}): after seeing \(z_1, \dots, z_k\), keep the running max \(m_k\) and the running sum \(d_k = \sum_{j \le k} e^{z_j - m_k}\), and when a new logit arrives rescale the old sum to the new max:</p>
+\[ m_k = \max(m_{k-1}, z_k), \qquad d_k = d_{k-1}\, e^{m_{k-1} - m_k} + e^{z_k - m_k} . \]
+<p>On \((1000, 999, 0)\): \(m = 1000, d = 1\); then \(m = 1000, d = 1 + e^{-1} = 1.368\); then \(d = 1.368 + e^{-1000} = 1.368\), the same denominator as before. This rescaling is the heart of FlashAttention ({{Dao et al. 2022|https://arxiv.org/abs/2205.14135}}; the {{FlashAttention paper page|n:3c65c17b0d0d81e4a3e8e7a2c4771381}} runs the kernel in its Run the kernel tab), which computes attention's softmax tile by tile without ever holding a full row of scores. The error analysis of the shifted formulas is in {{Blanchard, Higham and Higham 2021|https://doi.org/10.1093/imanum/draa038}}.</p>
+<div class="use"><div class="t">What it is used for in ML</div>Every cross-entropy loss, every attention layer (with the mask's \(-\infty\) entries), log-likelihoods of sequences, mixture models and the ELBO (sums of probabilities done in log space), beam-search scores. Rule: work with logits and log-probabilities, call the fused function (<code>cross_entropy</code>, <code>log_softmax</code>, <code>logsumexp</code>), and never write <code>torch.log(torch.softmax(z, -1))</code>.</div>
+<div class="deepnote"><b>Go deeper.</b> The root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}}, panel 5, lets you slide the top logit from 0 to 1,200 and watch the float32 and float64 overflow points (88.72 and 709.78); the {{Information theory|n:3c65c17b0d0d81c6baf3f778a62e14e5}} page explains why the loss is a cross-entropy; the {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}} page derives \(p - \text{onehot}(y)\).</div>
+</section>
