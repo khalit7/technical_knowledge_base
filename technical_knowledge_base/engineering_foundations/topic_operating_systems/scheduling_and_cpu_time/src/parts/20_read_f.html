@@ -1,0 +1,41 @@
+<section id="rd-s4">
+<h2>4. CFS in depth (Linux 2.6.23 to 6.5; the kernel measured here)</h2>
+<p class="ostep">ch. 9.7 The Linux Completely Fair Scheduler; {{CFS design doc|https://docs.kernel.org/scheduler/sched-design-CFS.html}}</p>
+<p><b>The problem.</b> Give every runnable thread a share of the CPU proportional to its weight, keep interactive threads responsive, and do it in a few hundred nanoseconds per decision on queues of any length. <b>The idea</b> (from the design doc): CFS "basically models an ideal, precise multi-tasking CPU", one that would run all n threads at once, each at 1/n speed. Real CPUs run one at a time, so CFS tracks how far each thread is behind that ideal and runs the one furthest behind.</p>
+<h3>Weights: what nice means</h3>
+<p>A thread's <dfn id="g-nice">nice</dfn> value (-20 to 19, default 0) indexes a fixed table of <dfn id="g-weight">weights</dfn>, <code>sched_prio_to_weight</code> ({{kernel/sched/core.c line 8457, v5.10|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L8457}}): nice 0 is 1024, each step multiplies by about 1.25 (nice -1 is 1277, nice 1 is 820, nice 5 is 335, nice 19 is 15). The comment above it explains the choice: one nice level is "a gentle 10% change" in CPU share against a competitor. Two busy threads on one CPU get <i>w</i><sub>a</sub> / (<i>w</i><sub>a</sub> + <i>w</i><sub>b</sub>) each: nice 0 against nice 5 is 1024 / 1359 = <span id="sc-share05"></span>; the root measured 75.38%, and this page <span id="sc-setsid"></span> (below, with the two threads in different sessions).</p>
+<div class="drill"><p class="q">Three busy threads share one CPU: two at nice 0 and one at nice 5. What does each nice-0 thread get?</p>
+<div class="ch"><button>33%</button><button data-ok="1">43%</button><button>50%</button></div>
+<div class="ans" hidden>1024 / (1024 + 1024 + 335) = 42.97% each, and 14.06% for the nice-5 thread. Shares depend on who else is runnable: nice 5 means "a third of a nice-0 thread's weight", not "75%".</div></div>
+<h3>Virtual runtime: the one number CFS sorts by</h3>
+<p>Every time the running thread is charged (at each tick, and whenever it stops), <code>update_curr()</code> adds the CPU time it used, scaled by its weight, to its <dfn id="g-vruntime">virtual runtime</dfn> ({{fair.c line 842|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L842}}, using <code>calc_delta_fair()</code> at line 671):</p>
+<div class="fm"><div class="eq">vruntime += Δexec × 1024 / weight</div><dl><dt>Δexec</dt><dd>nanoseconds of CPU just used</dd><dt>weight</dt><dd>from the nice table; 1024 at nice 0, so a nice-0 thread's vruntime is its CPU time</dd></dl></div>
+<p>A nice-5 thread's vruntime grows 3.06 times faster than its CPU time. Runnable threads sit in a red-black tree ordered by vruntime ({{__enqueue_entity, line 575|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L575}}); the next thread is the leftmost, the one with the least virtual runtime (<code>pick_next_entity</code>, line 4435). Running pushes a thread to the right, so heavier threads, whose vruntime grows slowly, are picked more often: exactly stride scheduling. The queue also keeps <code>min_vruntime</code>, a floor that only moves forward (line 540), used to place threads that arrive or wake.</p>
+<h3>Watching it on a real kernel <span class="meas">measured</span></h3>
+<p>Three tasks pinned to one CPU: a busy loop at nice 0, a busy loop at nice 5, and a "sleeper" that runs about 1 ms then sleeps 5 ms. Every 50 ms for 2 s we read <code>se.vruntime</code> and <code>se.sum_exec_runtime</code> from <code>/proc/PID/sched</code> (available with CONFIG_SCHED_DEBUG, which this kernel has).</p>
+<div class="card"><div class="seg" id="sc-vr-mode"><button data-m="vr" class="on">virtual runtime</button><button data-m="ex">CPU time received</button></div><div class="rd-chart" id="sc-vr"></div><p class="small mute" id="sc-vr-note"></p></div>
+<p><b>What it shows.</b> The two busy loops' vruntimes advance together (never more than <span id="sc-vr-gap"></span> ms apart, under one slice), while their CPU time diverges by <span id="sc-vr-ratio"></span> times, the weight ratio 1024 / 335 = 3.057. That is the whole invariant of CFS: equal virtual time, unequal real time. The sleeper's vruntime trails the others by a median <span id="sc-vr-lag"></span> ms: each time it wakes it is placed at most half a latency period (9 ms here) behind <code>min_vruntime</code>, so it always looks "behind" and runs at once, but cannot bank more than 9 ms of credit however long it slept.</p>
+<h3>How long a thread runs: period, slice, granularity</h3>
+<p>CFS does not use a fixed time slice. It aims to run every runnable thread once per <dfn id="g-period">scheduling period</dfn> and gives each a slice proportional to its weight ({{__sched_period and sched_slice, lines 687 and 701|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L687}}):</p>
+<div class="fm"><div class="eq">period = latency if n ≤ 8, else n × min_granularity;   slice<sub>i</sub> = period × w<sub>i</sub> / Σw</div><dl><dt>latency</dt><dd>6 ms × factor (sysctl_sched_latency, line 38)</dd><dt>min_granularity</dt><dd>0.75 ms × factor (line 59); 8 = latency / min_granularity</dd><dt>factor</dt><dd>1 + log2(min(CPUs, 8)) (<code>get_update_sysctl_factor</code>, line 159): 3 on this VM's 5 CPUs, 4 on 8 or more</dd></dl></div>
+<p>So on this VM: <span id="sc-tun"></span>. Two nice-0 threads get 9 ms each; eight get 2.25 ms; beyond eight the period stretches instead of slices shrinking (sixteen threads: a 36 ms period), which is what keeps oversubscribed nodes from switching themselves to death and also what makes their latency grow.</p>
+<div class="tw" id="sc-slices"></div>
+<p><b>Preemption at the tick</b> (<code>check_preempt_tick</code>, line 4355): the running thread is switched out when it has run longer than its slice, or, once it has run at least <code>min_granularity</code>, when its vruntime is ahead of the leftmost thread's by more than a slice. <b>Preemption at wake-up</b> (<code>place_entity</code>, line 4108; <code>check_preempt_wakeup</code>, line 6916): the woken thread is placed at max(its own vruntime, min_vruntime - latency / 2), and it preempts the running thread at once if the running thread's vruntime is ahead of it by more than the <dfn id="g-wgran">wake-up granularity</dfn> (1 ms × factor = 3 ms here, scaled by the woken thread's weight). A new thread (after fork) starts one virtual slice <i>after</i> min_vruntime (the START_DEBIT feature), so forking cannot be used to jump the queue.</p>
+<pre class="src5">// kernel/sched/fair.c, v5.10, lines 6869-6880: should the woken thread se preempt curr?
+static int wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
+{
+	s64 gran, vdiff = curr->vruntime - se->vruntime;
+	if (vdiff <= 0)
+		return -1;
+	gran = wakeup_gran(se);
+	if (vdiff > gran)
+		return 1;
+	return 0;
+}</pre>
+<h3>Groups and autogroup</h3>
+<p>With cgroups, fairness is applied per level: a container is one entity in its parent's run queue with its own weight (<code>cpu.weight</code>, section 9), and threads compete inside it. Desktop kernels add <dfn id="g-autogroup">autogroup</dfn>: each session (a terminal, say) becomes its own group, so a <code>make -j64</code> in one terminal cannot starve another; the side effect is that nice only works within a session. This kernel has it on (<code>sched_autogroup_enabled</code> = 1) but it only applies to tasks in the root cgroup ({{kernel/sched/autogroup.c line 109|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/autogroup.c#L109}}), never inside a container: two busy loops in different sessions (<code>setsid</code>) still split 75 : 25 by nice:</p>
+<pre class="cd out" id="sc-setsid-raw"></pre>
+<p>Change any of this and watch it: the {{Fair-share stepper|#t-fair}} tab runs this exact rule set on tasks you define, tick by tick, beside EEVDF.</p>
+<p class="cmd">cat /proc/PID/sched   # se.vruntime, se.sum_exec_runtime, nr_switches, se.load.weight, policy, prio</p>
+<p class="cmd">renice -n 10 -p PID; nice -n 10 python preprocess.py   # lower priority: weight 110 instead of 1024</p>
+</section>
