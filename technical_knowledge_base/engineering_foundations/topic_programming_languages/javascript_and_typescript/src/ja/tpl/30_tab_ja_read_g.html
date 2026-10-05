@@ -1,0 +1,28 @@
+<section id="ja-s12"><h2>12. Node essentials</h2>
+<p>Node's standard library is imported with a <code>node:</code> prefix. Five modules cover most scripts and services: <code>node:fs/promises</code> (files), <code>node:path</code> and <code>node:os</code>, <code>node:process</code> (also a global), <code>node:http</code> plus the global <code>fetch</code>, and <code>node:worker_threads</code>. A <code>Buffer</code> (or <code>Uint8Array</code>) is Python's <code>bytes</code>.</p>
+<h3>Files</h3>
+[[run:k1_fs]]
+<h3>The process</h3>
+<p><code>process.argv</code> is <code>sys.argv</code> with two leading entries (the node binary and the script); <code>process.env</code> is <code>os.environ</code> (a missing variable is <code>undefined</code>); <code>node:util</code>'s <code>parseArgs</code> is a small <code>argparse</code>. Prefer setting <code>process.exitCode</code> to calling <code>process.exit()</code>, which kills pending output and timers.</p>
+[[run:k2_process]]
+<h3>The running program, streamed</h3>
+<p>The root page's running example counts tokens per user in a JSONL chat log ({{Topic: programming-languages, Rosetta tab|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}). Here it is in plain JavaScript: <code>createReadStream</code> plus <code>readline</code> yields one line at a time through <code>for await</code>, the Node equivalent of Python's <code>for line in open(path)</code>. Its output is byte-identical to the spec's expected output. The root's TypeScript version is this file plus types: Part 2 starts from it.</p>
+[[run:k3_count_tokens]]
+<p>Streaming is not a style choice. On the same program at 200,000 lines (38.8 MB), reading the whole file into one string first costs about five times the memory, for no gain in speed here:</p>
+[[out:m3_memory|real output of m3_memory.sh: /usr/bin/time -l, three runs each, Node 24.21.0 (load average printed: the laptop was busy)]]
+<h3>HTTP and fetch</h3>
+<p><code>fetch</code> is built in (stable since Node 21) and is the same API as in browsers: <code>await fetch(url, { method, headers, body, signal })</code>, then <code>await res.json()</code> or <code>res.text()</code> or <code>res.body</code> (a stream). An HTTP error status does <b>not</b> throw; only a network failure does. Check <code>res.ok</code> (Python's <code>requests</code> does not raise either, unless you call <code>raise_for_status()</code>).</p>
+[[run:k5_fetch]]
+<h3>Worker threads: CPU work off the event loop</h3>
+<p>One thread means CPU-heavy work (parsing a huge JSON, hashing, tokenising a corpus) stops everything else: timers, requests, streams. A <b>worker thread</b> is a second V8 instance on another OS thread with its own event loop; it shares nothing by default and talks by messages (<code>postMessage</code>, copied with the structured clone algorithm), or shares memory explicitly through a <code>SharedArrayBuffer</code> with <code>Atomics</code>. It is closer to Python's <code>multiprocessing</code> than to <code>threading</code>, but cheaper to start. Below, a 10 ms heartbeat timer measures how long the event loop was stuck.</p>
+[[run:k6_workers]]
+<p class="small">The root page's {{Reading, Concurrency section|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows workers losing updates on a shared counter without <code>Atomics</code> and getting it exact with them.</p>
+</section>
+
+<section id="ja-s13"><h2>13. Packages: npm, pnpm and <code>node_modules</code></h2>
+<p><code>package.json</code> is <code>pyproject.toml</code>: name, version, <code>"type"</code>, <code>"scripts"</code> (named commands run by <code>npm run name</code>), <code>"dependencies"</code> and <code>"devDependencies"</code> (tools only needed to develop, such as test runners). Versions are semver ranges: <code>^5.2.1</code> means "5.x.y, at least 5.2.1". The exact resolved tree is pinned in a lockfile (<code>package-lock.json</code>, like <code>uv.lock</code>); commit it, and install from it in CI with <code>npm ci</code>. Packages go into a local <code>node_modules/</code> folder per project: there is no global site-packages and no virtual environment to activate, because every project is already isolated.</p>
+[[run:l1_npm]]
+<p>Three direct dependencies: npm reported adding 1 + 68 + 35 = 104 packages, in 95 top-level folders taking 46 MB, and the lockfile pins 129 entries (27 of them optional platform-specific binaries, for example <code>@rolldown/binding-android-arm64</code>, installed only on matching machines). <code>npm ls</code> answers "who brought this in?". npm hoists everything into one flat folder, so your code can import packages you never declared (<code>debug</code> above), and breaks when they move. <b>pnpm</b> keeps one global content-addressed store on disk, hard-links files from it, and exposes only declared dependencies at the top of <code>node_modules</code>. <b>Bun</b> includes its own npm-compatible installer. <code>npx tool</code> (or <code>pnpm dlx</code>, <code>bunx</code>) runs a package's command without installing it, like <code>uvx</code>.</p>
+[[run:l2_pnpm]]
+<div class="co warn"><div class="t">Supply chain</div>A dependency can run code at install time (<code>"postinstall"</code> scripts), and a tree of a hundred packages has a hundred maintainers. Pin with a lockfile, review what a new dependency pulls in (<code>npm ls</code>, the package's dependency count), and prefer packages with few dependencies. pnpm (since version 10, {{release notes|https://github.com/pnpm/pnpm/releases/tag/v10.0.0}}) and Bun ({{lifecycle scripts|https://bun.com/docs/install/lifecycle}}) do not run dependencies' install scripts unless you allow them; npm runs them by default.</div>
+</section>

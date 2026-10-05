@@ -1,0 +1,251 @@
+
+<section id="tl-s9">
+<h2>9. Higher-level options: the Vercel AI SDK and the Claude Agent SDK</h2>
+<p>Two libraries sit above the provider SDKs, and they do very different jobs.</p>
+<p><b>The Vercel AI SDK</b> (package <code>ai</code>, version 7) is one TypeScript API over many providers: <code>generateText</code>, <code>streamText</code>, tools with zod schemas, and a loop controlled by <code>stopWhen</code>. You swap <code>anthropic("claude-sonnet-5-5")</code> for <code>openai("gpt-5.5")</code> and the rest stays. It also has React hooks and stream helpers for web UIs, which is why front-end teams use it. The same agent, against the same mock:</p>
+<div class="tl-snip tl-pred"><div class="tl-file">f1_aisdk.ts</div><pre class="tl-code"><span class="tl-cm">// The same agent with the Vercel AI SDK: one API over many providers; the loop is generateText + stopWhen.</span>
+<span class="tl-kw">import</span> &#123; generateText, streamText, tool, isStepCount &#125; <span class="tl-kw">from</span> <span class="tl-st">"ai"</span>;
+<span class="tl-kw">import</span> &#123; createAnthropic &#125; <span class="tl-kw">from</span> <span class="tl-st">"@ai-sdk/anthropic"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+<span class="tl-kw">import</span> &#123; CountArgs, ProfileArgs, countTokens, startProfileService, userProfile &#125; <span class="tl-kw">from</span> <span class="tl-st">"./tools.ts"</span>;
+
+process.chdir(<span class="tl-kw">new</span> URL(<span class="tl-st">"."</span>, <span class="tl-kw">import</span>.meta.url).pathname);
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> prof = <span class="tl-kw">await</span> startProfileService(20);
+<span class="tl-kw">const</span> anthropic = createAnthropic(&#123; baseURL: mock.url + <span class="tl-st">"/v1"</span>, apiKey: <span class="tl-st">"mock-key"</span>, headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"happy"</span> &#125; &#125;);
+<span class="tl-kw">const</span> tools = &#123;
+  count_tokens: tool(&#123; description: <span class="tl-st">"Count word tokens per user in a JSONL chat log."</span>, inputSchema: CountArgs,
+    execute: <span class="tl-kw">async</span> (args) =&gt; countTokens(args) &#125;),
+  user_profile: tool(&#123; description: <span class="tl-st">"Look up a user's team."</span>, inputSchema: ProfileArgs,
+    execute: <span class="tl-kw">async</span> (args, &#123; abortSignal &#125;) =&gt; JSON.parse(<span class="tl-kw">await</span> userProfile(prof.url, args, abortSignal)) &#125;),
+&#125;;
+<span class="tl-kw">const</span> prompt = <span class="tl-st">"Who are the 3 heaviest users in chat.jsonl, and what share of all tokens do they have? Add the team of the top two."</span>;
+
+<span class="tl-kw">const</span> one = <span class="tl-kw">await</span> generateText(&#123; model: anthropic(<span class="tl-st">"claude-sonnet-5-5"</span>), tools, prompt &#125;);          <span class="tl-cm">// default: one step</span>
+console.log(<span class="tl-st">`default stopWhen: $&#123;one.steps.length&#125; step, finishReason $&#123;one.finishReason&#125;, text $&#123;JSON.stringify(one.text)&#125;`</span>);
+
+<span class="tl-kw">const</span> r = <span class="tl-kw">await</span> generateText(&#123; model: anthropic(<span class="tl-st">"claude-sonnet-5-5"</span>), tools, prompt, stopWhen: isStepCount(5) &#125;);
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> [i, s] <span class="tl-kw">of</span> r.steps.entries())
+  console.log(<span class="tl-st">`step $&#123;i + 1&#125;: $&#123;s.toolCalls.map(c =&gt; `</span>$&#123;c.toolName&#125;($&#123;JSON.stringify(c.input)&#125;)<span class="tl-st">`).join(" + ") || "no tool calls"&#125; -&gt; finish $&#123;s.finishReason&#125;`</span>);
+console.log(<span class="tl-st">"text:"</span>, r.text);
+console.log(<span class="tl-st">"usage summed over steps:"</span>, JSON.stringify(r.totalUsage.inputTokens), <span class="tl-st">"in,"</span>, JSON.stringify(r.totalUsage.outputTokens), <span class="tl-st">"out (mock est.)"</span>);
+
+<span class="tl-kw">const</span> s = streamText(&#123; model: anthropic(<span class="tl-st">"claude-sonnet-5-5"</span>), prompt: <span class="tl-st">"In one sentence, what is TypeScript?"</span>,
+  headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"chat"</span> &#125; &#125;);
+<span class="tl-kw">const</span> parts: string[] = [];
+<span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> delta <span class="tl-kw">of</span> s.textStream) parts.push(delta);
+console.log(<span class="tl-st">`streamText: $&#123;parts.length&#125; text deltas, first three $&#123;JSON.stringify(parts.slice(0, 3))&#125;`</span>);
+<span class="tl-kw">await</span> prof.close(); <span class="tl-kw">await</span> mock.close();</pre><div class="tl-q"><b>Predict:</b> the first generateText call passes tools but no stopWhen. Does it run the tools and answer, or stop early?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="f1_aisdk.txt">default stopWhen: 1 step, finishReason tool-calls, text "I'll count the tokens per user first."
+step 1: count_tokens(&#123;"path":"chat.jsonl","top":3&#125;) -&gt; finish tool-calls
+step 2: user_profile(&#123;"user":"u0029"&#125;) + user_profile(&#123;"user":"u0005"&#125;) -&gt; finish tool-calls
+step 3: no tool calls -&gt; finish stop
+text: The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%. u0029 is on research; u0005 is on platform.
+usage summed over steps: 1013 in, 145 out (mock est.)
+streamText: 18 text deltas, first three ["TypeScript"," is"," JavaScript"]</pre></details></div>
+<div class="tl-corr"><div class="t">A default that bites</div>In AI SDK 7, <code>generateText</code> and <code>streamText</code> default to <code>stopWhen: isStepCount(1)</code> (the type definitions in <code>ai</code> 7.0.127 say <code>@default isStepCount(1)</code>): one model call. With tools, the first step is usually a tool call, so the result is the model's preamble and <code>finishReason: "tool-calls"</code>, not an answer. Pass <code>stopWhen: isStepCount(n)</code> (also exported as <code>stepCountIs</code>). Its <code>ToolLoopAgent</code> class defaults to 20 steps.</div>
+<p><b>The Claude Agent SDK</b> (<code>@anthropic-ai/claude-agent-sdk</code>) is not a thinner client; it is <b>Claude Code as a library</b>. <code>query({ prompt, options })</code> starts the Claude Code agent (it ships a native binary for each platform, here <code>@anthropic-ai/claude-agent-sdk-darwin-arm64</code>) with its own loop, built-in tools (read and edit files, run shell commands, search the web), permissions, sessions and subagents, and streams its messages back. Pointed at the mock through <code>ANTHROPIC_BASE_URL</code>, one tiny question shows what it brings along:</p>
+<div class="tl-snip"><div class="tl-file">f2_agent_sdk.ts</div><pre class="tl-code"><span class="tl-cm">// The Claude Agent SDK runs the Claude Code agent (its own loop, built-in tools, permissions) as a library.</span>
+<span class="tl-cm">// Here it talks to the mock through ANTHROPIC_BASE_URL, so we can see what one query() sends over the wire.</span>
+<span class="tl-kw">import</span> &#123; query &#125; <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/claude-agent-sdk"</span>;
+<span class="tl-kw">import</span> &#123; mkdirSync &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:fs"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> home = <span class="tl-kw">new</span> URL(<span class="tl-st">"./agent_sdk_home/"</span>, <span class="tl-kw">import</span>.meta.url).pathname; mkdirSync(home, &#123; recursive: <span class="tl-kw">true</span> &#125;);
+<span class="tl-kw">const</span> types: string[] = [];
+<span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> m <span class="tl-kw">of</span> query(&#123;
+  prompt: <span class="tl-st">"In one sentence, what is TypeScript?"</span>,
+  options: &#123;
+    cwd: home, maxTurns: 3, allowedTools: [],   <span class="tl-cm">// allowedTools = auto-approve list; the tool LIST is the `tools` option</span>
+    env: &#123; ...process.env, ANTHROPIC_BASE_URL: mock.url, ANTHROPIC_API_KEY: <span class="tl-st">"mock-key"</span>, CLAUDE_CONFIG_DIR: home,
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: <span class="tl-st">"1"</span>, DISABLE_TELEMETRY: <span class="tl-st">"1"</span>, DISABLE_AUTOUPDATER: <span class="tl-st">"1"</span> &#125;,
+  &#125;,
+&#125;)) &#123;
+  types.push(m.<span class="tl-kw">type</span> + (<span class="tl-st">"subtype"</span> <span class="tl-kw">in</span> m &amp;&amp; m.subtype ? <span class="tl-st">`/$&#123;m.subtype&#125;`</span> : <span class="tl-st">""</span>));
+  <span class="tl-kw">if</span> (m.<span class="tl-kw">type</span> === <span class="tl-st">"result"</span> &amp;&amp; m.subtype === <span class="tl-st">"success"</span>) console.log(<span class="tl-st">"result:"</span>, JSON.stringify(m.result), <span class="tl-st">"| turns"</span>, m.num_turns);
+&#125;
+console.log(<span class="tl-st">"messages from query():"</span>, types.join(<span class="tl-st">", "</span>));
+<span class="tl-kw">const</span> calls = mock.log.filter(e =&gt; e.path.startsWith(<span class="tl-st">"/v1/messages"</span>));
+console.log(<span class="tl-st">`HTTP requests to the model API: $&#123;mock.log.length&#125; ($&#123;[...new Set(mock.log.map(e =&gt; e.path.split("?")[0]))].join(", ")&#125;)`</span>);
+<span class="tl-kw">const</span> big = calls.reduce((a, e) =&gt; (JSON.stringify(e.request).length &gt; JSON.stringify(a.request).length ? e : a), calls[0]!);
+console.log(<span class="tl-st">`largest request: $&#123;JSON.stringify(big.request).length&#125; bytes, $&#123;big.request.tools?.length ?? 0&#125; tools: $&#123;(big.request.tools ?? []).map((t: any) =&gt; t.name).join(", ")&#125;`</span>);
+<span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="f2_agent_sdk.txt">result: "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs." | turns 1
+messages from query(): system/init, assistant, system/informational, result/success
+HTTP requests to the model API: 2 (/api/hello, /v1/messages)
+largest request: 59014 bytes, 20 tools: Agent, Bash, CronCreate, CronDelete, CronList, Edit, EnterWorktree, ExitWorktree, ListAgents, NotebookEdit, Read, ReportFindings, ScheduleWakeup, SendMessage, Skill, TaskStop, WebFetch, WebSearch, Workflow, Write</pre></div>
+<p>One question, one model request (about 59 KB in the recorded run) carrying 20 tool definitions and Claude Code's system prompt (the mock's scripted answer is the same sentence as before). That is the trade: you get a capable coding agent for free, and you pay for its context on every call. Note the comment in the code: <code>allowedTools</code> is the list of tools that run <b>without asking for permission</b>, not the list the model sees; the SDK's own documentation (in <code>sdk.d.ts</code>) says to restrict the available tools with the <code>tools</code> option.</p>
+<div class="tw"><table class="tl-t">
+<thead><tr><th>Option</th><th>What you write</th><th>Use it when</th><th>Avoid it when</th></tr></thead>
+<tbody>
+<tr><td>Hand-written loop</td><td>The loop, the tools, the guards</td><td>You want every step under your control and logged your way</td><td>A helper already does exactly what you need</td></tr>
+<tr><td>SDK tool runner</td><td>Tools (zod + <code>run</code>)</td><td>A custom-tool agent on one provider; most cases</td><td>You need hooks it does not expose</td></tr>
+<tr><td>Vercel AI SDK</td><td>Tools, <code>stopWhen</code>, UI hooks</td><td>Several providers, or a React front end streaming tokens</td><td>You need a provider feature it has not wrapped yet</td></tr>
+<tr><td>Claude Agent SDK</td><td>A prompt and options</td><td>You want a file-and-shell coding agent on your own machine or server</td><td>A narrow app: the built-in context and tools cost tokens on every call</td></tr>
+<tr><td>OpenAI Agents SDK (<code>@openai/agents</code>, 0.18.0)</td><td>Agents, handoffs, guardrails</td><td>Multi-agent designs on OpenAI models</td><td>(not run on this page)</td></tr>
+</tbody></table></div>
+<p class="small">Docs: <a href="https://ai-sdk.dev/docs" target="_blank" rel="noopener noreferrer">AI SDK</a>, <a href="https://platform.claude.com/docs/en/agent-sdk/overview" target="_blank" rel="noopener noreferrer">Claude Agent SDK</a>. How harnesses like Claude Code are designed (context management, subagents, permissions) is the subject of {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}; frameworks compared at length: {{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}.</p>
+</section>
+
+<section id="tl-s10">
+<h2>10. MCP: a server, a client, and an agent that uses them</h2>
+<p>So far the tools lived inside the agent's program. The <b>Model Context Protocol</b> (MCP) moves them into a separate process with a standard interface, so one tool server works with Claude Code, Claude Desktop, an IDE, or your own agent. It is <b>JSON-RPC 2.0</b>: every message is a JSON object with a <code>method</code> and an <code>id</code> (a request), the same <code>id</code> with a <code>result</code> or <code>error</code> (the response), or a <code>method</code> without an <code>id</code> (a notification). A server offers three kinds of thing: <b>tools</b> (functions the model calls), <b>resources</b> (data the client reads, addressed by URI), and <b>prompts</b> (templates the user picks). The protocol itself (capabilities, lifecycle, authorisation) is covered in {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}; here we build one with the official TypeScript SDK, which negotiated protocol version 2025-11-25 in our runs.</p>
+<div class="tl-snip"><div class="tl-file">g1_mcp_server.ts, lines 12-41</div><pre class="tl-code"><span class="tl-kw">export</span> <span class="tl-kw">function</span> buildServer() &#123;
+  <span class="tl-kw">const</span> server = <span class="tl-kw">new</span> McpServer(&#123; name: <span class="tl-st">"chat-stats"</span>, version: <span class="tl-st">"1.0.0"</span> &#125;);
+
+  server.registerTool(<span class="tl-st">"count_tokens"</span>, &#123;
+    title: <span class="tl-st">"Count tokens per user"</span>,
+    description: <span class="tl-st">"Count word tokens per user in a JSONL chat log; returns totals and the top users."</span>,
+    inputSchema: CountArgs.shape,                       <span class="tl-cm">// validated by the SDK before the handler runs</span>
+    annotations: &#123; readOnlyHint: <span class="tl-kw">true</span> &#125;,
+  &#125;, <span class="tl-kw">async</span> (args) =&gt; &#123;
+    <span class="tl-kw">try</span> &#123;
+      <span class="tl-kw">const</span> stats = <span class="tl-kw">await</span> countTokens(args);
+      <span class="tl-kw">return</span> &#123; content: [&#123; <span class="tl-kw">type</span>: <span class="tl-st">"text"</span>, text: JSON.stringify(stats) &#125;] &#125;;
+    &#125; <span class="tl-kw">catch</span> (e: any) &#123;                                  <span class="tl-cm">// a tool failure is a result the model can read, not a protocol error</span>
+      <span class="tl-kw">return</span> &#123; isError: <span class="tl-kw">true</span>, content: [&#123; <span class="tl-kw">type</span>: <span class="tl-st">"text"</span>, text: <span class="tl-st">`cannot open $&#123;args.path&#125;: $&#123;e.code&#125;`</span> &#125;] &#125;;
+    &#125;
+  &#125;);
+
+  server.registerResource(<span class="tl-st">"chat-log"</span>, <span class="tl-st">"file:///chat.jsonl"</span>, &#123; title: <span class="tl-st">"The chat log"</span>, mimeType: <span class="tl-st">"application/json"</span> &#125;,
+    <span class="tl-kw">async</span> (uri) =&gt; &#123;
+      <span class="tl-kw">const</span> s = <span class="tl-kw">await</span> stat(<span class="tl-st">"chat.jsonl"</span>);
+      <span class="tl-kw">return</span> &#123; contents: [&#123; uri: uri.href, text: JSON.stringify(&#123; bytes: s.size, format: <span class="tl-st">"JSONL, one message per line"</span> &#125;) &#125;] &#125;;
+    &#125;);
+
+  server.registerPrompt(<span class="tl-st">"heaviest-users"</span>, &#123;
+    description: <span class="tl-st">"Ask for the heaviest users of a chat log"</span>,
+    argsSchema: &#123; n: z.string().describe(<span class="tl-st">"how many users"</span>) &#125;,
+  &#125;, (&#123; n &#125;) =&gt; (&#123; messages: [&#123; role: <span class="tl-st">"user"</span>, content: &#123; <span class="tl-kw">type</span>: <span class="tl-st">"text"</span>, text: <span class="tl-st">`Who are the $&#123;n&#125; heaviest users in chat.jsonl? Use count_tokens.`</span> &#125; &#125;] &#125;));
+
+  <span class="tl-kw">return</span> server;
+&#125;</pre></div>
+<p><code>registerTool</code> takes the zod shape; the SDK turns it into the JSON Schema clients see, and validates arguments before your handler runs. A failure inside the tool is returned as a result with <code>isError: true</code>, which the model can read and react to; a protocol-level error is for broken requests. A client starts the server as a child process (the <b>stdio</b> transport: JSON-RPC lines over the child's stdin and stdout) and asks what it offers:</p>
+<div class="tl-snip tl-pred"><div class="tl-file">g2_mcp_client.ts</div><pre class="tl-code"><span class="tl-cm">// An MCP client: start the server as a child process (stdio), discover what it offers, call it. Every message is recorded.</span>
+<span class="tl-kw">import</span> &#123; Client &#125; <span class="tl-kw">from</span> <span class="tl-st">"@modelcontextprotocol/sdk/client/index.js"</span>;
+<span class="tl-kw">import</span> &#123; StdioClientTransport &#125; <span class="tl-kw">from</span> <span class="tl-st">"@modelcontextprotocol/sdk/client/stdio.js"</span>;
+<span class="tl-kw">import</span> &#123; writeFileSync &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:fs"</span>;
+<span class="tl-kw">import</span> &#123; tap &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mcp_tap.ts"</span>;
+
+<span class="tl-kw">const</span> log: any[] = [];
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Client(&#123; name: <span class="tl-st">"page-demo"</span>, version: <span class="tl-st">"1.0.0"</span> &#125;);
+<span class="tl-kw">const</span> transport = <span class="tl-kw">new</span> StdioClientTransport(&#123; command: process.execPath, args: [<span class="tl-st">"g1_mcp_server.ts"</span>], cwd: <span class="tl-kw">new</span> URL(<span class="tl-st">"."</span>, <span class="tl-kw">import</span>.meta.url).pathname &#125;);
+<span class="tl-kw">await</span> client.connect(tap(transport, log));                 <span class="tl-cm">// initialize request, response, initialized notification</span>
+
+<span class="tl-kw">const</span> &#123; tools &#125; = <span class="tl-kw">await</span> client.listTools();
+console.log(<span class="tl-st">"tools:"</span>, tools.map(t =&gt; <span class="tl-st">`$&#123;t.name&#125; $&#123;JSON.stringify(t.inputSchema.properties)&#125;`</span>).join(<span class="tl-st">"; "</span>));
+<span class="tl-kw">const</span> res = <span class="tl-kw">await</span> client.callTool(&#123; name: <span class="tl-st">"count_tokens"</span>, arguments: &#123; path: <span class="tl-st">"chat.jsonl"</span>, top: 3 &#125; &#125;);
+console.log(<span class="tl-st">"call:"</span>, (res.content <span class="tl-kw">as</span> any)[0].text);
+<span class="tl-kw">const</span> miss = <span class="tl-kw">await</span> client.callTool(&#123; name: <span class="tl-st">"count_tokens"</span>, arguments: &#123; path: <span class="tl-st">"chats.jsonl"</span>, top: 3 &#125; &#125;);
+console.log(<span class="tl-st">"missing file: isError"</span>, miss.isError, (miss.content <span class="tl-kw">as</span> any)[0].text);
+<span class="tl-kw">const</span> bad = <span class="tl-kw">await</span> client.callTool(&#123; name: <span class="tl-st">"count_tokens"</span>, arguments: &#123; path: <span class="tl-st">"chat.jsonl"</span>, top: 0 &#125; &#125;);
+console.log(<span class="tl-st">"bad input: isError"</span>, bad.isError, JSON.stringify((bad.content <span class="tl-kw">as</span> any)[0].text).slice(0, 140));
+<span class="tl-kw">const</span> r = <span class="tl-kw">await</span> client.readResource(&#123; uri: <span class="tl-st">"file:///chat.jsonl"</span> &#125;);
+console.log(<span class="tl-st">"resource:"</span>, (r.contents[0] <span class="tl-kw">as</span> any).text);
+<span class="tl-kw">const</span> p = <span class="tl-kw">await</span> client.getPrompt(&#123; name: <span class="tl-st">"heaviest-users"</span>, arguments: &#123; n: <span class="tl-st">"3"</span> &#125; &#125;);
+console.log(<span class="tl-st">"prompt:"</span>, JSON.stringify(p.messages[0]!.content));
+console.log(<span class="tl-st">"server says:"</span>, JSON.stringify(client.getServerVersion()), <span class="tl-st">"protocol"</span>, (log[1].msg <span class="tl-kw">as</span> any).result.protocolVersion);
+<span class="tl-kw">await</span> client.close();
+console.log(<span class="tl-st">`\n$&#123;log.length&#125; JSON-RPC messages; the first three:`</span>);
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> &#123; dir, msg &#125; <span class="tl-kw">of</span> log.slice(0, 3)) console.log(dir === <span class="tl-st">"-&gt;"</span> ? <span class="tl-st">"client -&gt; server"</span> : <span class="tl-st">"server -&gt; client"</span>, JSON.stringify(msg));
+<span class="tl-kw">if</span> (process.argv[2]) writeFileSync(process.argv[2], JSON.stringify(log));</pre><div class="tl-q"><b>Predict:</b> the third call passes top: 0, which the schema forbids (min 1). Does callTool throw, return an error result, or call the tool anyway?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="g2_mcp_client.txt">tools: count_tokens &#123;"path":&#123;"type":"string","description":"JSONL chat log, one message per line"&#125;,"top":&#123;"type":"integer","minimum":1,"maximum":50,"description":"how many users to return"&#125;&#125;
+call: &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"user":"u0005","tokens":4816&#125;,&#123;"user":"u0042","tokens":3499&#125;]&#125;
+missing file: isError true cannot open chats.jsonl: ENOENT
+bad input: isError true "MCP error -32602: Input validation error: Invalid arguments for tool count_tokens: Too small: expected number to be &gt;=1 at top"
+resource: &#123;"bytes":391227,"format":"JSONL, one message per line"&#125;
+prompt: &#123;"type":"text","text":"Who are the 3 heaviest users in chat.jsonl? Use count_tokens."&#125;
+server says: &#123;"name":"chat-stats","version":"1.0.0"&#125; protocol 2025-11-25
+
+15 JSON-RPC messages; the first three:
+client -&gt; server &#123;"method":"initialize","params":&#123;"protocolVersion":"2025-11-25","capabilities":&#123;&#125;,"clientInfo":&#123;"name":"page-demo","version":"1.0.0"&#125;&#125;,"jsonrpc":"2.0","id":0&#125;
+server -&gt; client &#123;"jsonrpc":"2.0","id":0,"result":&#123;"protocolVersion":"2025-11-25","capabilities":&#123;"tools":&#123;"listChanged":true&#125;,"resources":&#123;"listChanged":true&#125;,"prompts":&#123;"listChanged":true&#125;&#125;,"serverInfo":&#123;"name":"chat-stats","version":"1.0.0"&#125;&#125;&#125;
+client -&gt; server &#123;"method":"notifications/initialized","jsonrpc":"2.0"&#125;</pre></details></div>
+<p>Every one of those 15 messages, in order, is in the {{MCP message flow|#t-tl-mcp}} tab. Two rules of stdio servers: <b>stdout belongs to the protocol</b>, so a stray <code>console.log</code> in the server corrupts the stream (log to stderr); and the client owns the server's lifetime (it starts and kills the process).</p>
+<p>For a server many clients share over a network, the <b>Streamable HTTP</b> transport carries the same JSON-RPC messages as HTTP <code>POST</code>s to one endpoint. The server answers with JSON or an SSE stream, gives the session an id in the <code>mcp-session-id</code> header, and the client echoes it, with <code>mcp-protocol-version</code>, on every later request:</p>
+<div class="tl-snip"><div class="tl-file">g3_mcp_http.ts</div><pre class="tl-code"><span class="tl-cm">// The same server and client over Streamable HTTP: the JSON-RPC messages are identical; only the envelope changes.</span>
+<span class="tl-kw">import</span> &#123; Client &#125; <span class="tl-kw">from</span> <span class="tl-st">"@modelcontextprotocol/sdk/client/index.js"</span>;
+<span class="tl-kw">import</span> &#123; StreamableHTTPClientTransport &#125; <span class="tl-kw">from</span> <span class="tl-st">"@modelcontextprotocol/sdk/client/streamableHttp.js"</span>;
+<span class="tl-kw">import</span> &#123; writeFileSync &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:fs"</span>;
+<span class="tl-kw">import</span> &#123; startHttp &#125; <span class="tl-kw">from</span> <span class="tl-st">"./g1_mcp_server.ts"</span>;
+<span class="tl-kw">import</span> &#123; tap &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mcp_tap.ts"</span>;
+
+process.chdir(<span class="tl-kw">new</span> URL(<span class="tl-st">"."</span>, <span class="tl-kw">import</span>.meta.url).pathname);
+<span class="tl-kw">const</span> srv = <span class="tl-kw">await</span> startHttp();
+<span class="tl-kw">const</span> http: string[] = []; <span class="tl-kw">const</span> log: any[] = [];
+<span class="tl-kw">const</span> sid = (s: string | <span class="tl-kw">null</span>) =&gt; s ? <span class="tl-st">"&lt;session id&gt;"</span> : <span class="tl-st">"none"</span>;           <span class="tl-cm">// a random UUID per session</span>
+<span class="tl-kw">const</span> loggingFetch: <span class="tl-kw">typeof</span> fetch = <span class="tl-kw">async</span> (url, init) =&gt; &#123;
+  <span class="tl-kw">const</span> h = <span class="tl-kw">new</span> Headers(init?.headers);
+  <span class="tl-kw">const</span> res = <span class="tl-kw">await</span> fetch(url, init);
+  <span class="tl-kw">const</span> body = init?.body ? JSON.parse(String(init.body)) : <span class="tl-kw">null</span>;
+  http.push(<span class="tl-st">`$&#123;init?.method ?? "GET"&#125; /mcp  $&#123;body?.method ?? ""&#125;  [mcp-session-id: $&#123;sid(h.get("mcp-session-id"))&#125;, mcp-protocol-version: $&#123;h.get("mcp-protocol-version") ?? "none"&#125;]`</span> +
+    <span class="tl-st">`  -&gt;  $&#123;res.status&#125; $&#123;res.headers.get("content-type") ?? ""&#125;$&#123;res.headers.get("mcp-session-id") ? "  (sets mcp-session-id)" : ""&#125;`</span>);
+  <span class="tl-kw">return</span> res;
+&#125;;
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Client(&#123; name: <span class="tl-st">"page-demo"</span>, version: <span class="tl-st">"1.0.0"</span> &#125;);
+<span class="tl-kw">const</span> transport = <span class="tl-kw">new</span> StreamableHTTPClientTransport(<span class="tl-kw">new</span> URL(srv.url), &#123; fetch: loggingFetch &#125;);
+<span class="tl-kw">await</span> client.connect(tap(transport, log));
+<span class="tl-kw">await</span> client.listTools();
+<span class="tl-kw">const</span> res = <span class="tl-kw">await</span> client.callTool(&#123; name: <span class="tl-st">"count_tokens"</span>, arguments: &#123; path: <span class="tl-st">"chat.jsonl"</span>, top: 3 &#125; &#125;);
+console.log(<span class="tl-st">"call:"</span>, (res.content <span class="tl-kw">as</span> any)[0].text.slice(0, 60) + <span class="tl-st">"..."</span>);
+<span class="tl-kw">await</span> transport.terminateSession();                                      <span class="tl-cm">// DELETE /mcp ends the session</span>
+<span class="tl-kw">await</span> client.close(); <span class="tl-kw">await</span> srv.close();
+console.log(<span class="tl-st">"HTTP exchanges:"</span>); http.forEach(l =&gt; console.log(<span class="tl-st">" "</span>, l));
+<span class="tl-kw">if</span> (process.argv[2]) writeFileSync(process.argv[2], JSON.stringify(&#123; http, log &#125;));</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="g3_mcp_http.txt">call: &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":4...
+HTTP exchanges:
+  POST /mcp  initialize  [mcp-session-id: none, mcp-protocol-version: none]  -&gt;  200 text/event-stream  (sets mcp-session-id)
+  POST /mcp  notifications/initialized  [mcp-session-id: &lt;session id&gt;, mcp-protocol-version: 2025-11-25]  -&gt;  202 
+  GET /mcp    [mcp-session-id: &lt;session id&gt;, mcp-protocol-version: 2025-11-25]  -&gt;  200 text/event-stream  (sets mcp-session-id)
+  POST /mcp  tools/list  [mcp-session-id: &lt;session id&gt;, mcp-protocol-version: 2025-11-25]  -&gt;  200 text/event-stream  (sets mcp-session-id)
+  POST /mcp  tools/call  [mcp-session-id: &lt;session id&gt;, mcp-protocol-version: 2025-11-25]  -&gt;  200 text/event-stream  (sets mcp-session-id)
+  DELETE /mcp    [mcp-session-id: &lt;session id&gt;, mcp-protocol-version: 2025-11-25]  -&gt;  200 </pre></div>
+<p>The official <b>MCP Inspector</b> tests a server without writing a client: <code>npx @modelcontextprotocol/inspector</code> opens a web UI, and <code>--cli</code> calls it from a shell (version 2.9.0 here):</p>
+<div class="tl-snip"><div class="tl-file">g4_inspector.sh</div><pre class="tl-code"><span class="tl-cm"># Test the server from the command line with the official MCP Inspector (CLI mode; without --cli it opens a web UI).</span>
+mcp-inspector --cli node g1_mcp_server.ts --method tools/list | head -8
+mcp-inspector --cli node g1_mcp_server.ts --method tools/call --tool-name count_tokens --tool-arg path=chat.jsonl --tool-arg top=2</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="g4_inspector.txt">&#123;
+  "tools": [
+    &#123;
+      "name": "count_tokens",
+      "title": "Count tokens per user",
+      "description": "Count word tokens per user in a JSONL chat log; returns totals and the top users.",
+      "inputSchema": &#123;
+        "type": "object",
+&#123;
+  "content": [
+    &#123;
+      "type": "text",
+      "text": "&#123;\"lines\":2000,\"ok\":1992,\"malformed\":8,\"users\":176,\"tokens\":44698,\"top\":[&#123;\"user\":\"u0029\",\"tokens\":9491&#125;,&#123;\"user\":\"u0005\",\"tokens\":4816&#125;]&#125;"
+    &#125;
+  ]
+&#125;</pre></div>
+<p>Finally the glue: an agent whose tools come from MCP. <code>tools/list</code> gives names, descriptions and JSON Schemas, which map one to one onto the API's <code>tools</code>; each <code>tool_use</code> becomes a <code>tools/call</code>, and <code>isError</code> becomes <code>is_error</code>:</p>
+<div class="tl-snip"><div class="tl-file">g5_agent_mcp.ts</div><pre class="tl-code"><span class="tl-cm">// Glue: an agent whose tools come from an MCP server. tools/list becomes the API's tools; a tool_use becomes tools/call.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; Client &#125; <span class="tl-kw">from</span> <span class="tl-st">"@modelcontextprotocol/sdk/client/index.js"</span>;
+<span class="tl-kw">import</span> &#123; StdioClientTransport &#125; <span class="tl-kw">from</span> <span class="tl-st">"@modelcontextprotocol/sdk/client/stdio.js"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mcp = <span class="tl-kw">new</span> Client(&#123; name: <span class="tl-st">"agent"</span>, version: <span class="tl-st">"1.0.0"</span> &#125;);
+<span class="tl-kw">await</span> mcp.connect(<span class="tl-kw">new</span> StdioClientTransport(&#123; command: process.execPath, args: [<span class="tl-st">"g1_mcp_server.ts"</span>], cwd: <span class="tl-kw">new</span> URL(<span class="tl-st">"."</span>, <span class="tl-kw">import</span>.meta.url).pathname &#125;));
+<span class="tl-kw">const</span> tools: Anthropic.Tool[] = (<span class="tl-kw">await</span> mcp.listTools()).tools.map(t =&gt;
+  (&#123; name: t.name, description: t.description ?? <span class="tl-st">""</span>, input_schema: t.inputSchema <span class="tl-kw">as</span> Anthropic.Tool.InputSchema &#125;));
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span>, defaultHeaders: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"typo"</span> &#125; &#125;);
+<span class="tl-kw">const</span> messages: Anthropic.MessageParam[] = [&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"Who are the 3 heaviest users in chat.jsonl, and what share of all tokens do they have?"</span> &#125;];
+<span class="tl-kw">for</span> (<span class="tl-kw">let</span> step = 1; step &lt;= 5; step++) &#123;
+  <span class="tl-kw">const</span> msg = <span class="tl-kw">await</span> client.messages.create(&#123; model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 2048, tools, messages &#125;);
+  messages.push(&#123; role: <span class="tl-st">"assistant"</span>, content: msg.content &#125;);
+  <span class="tl-kw">if</span> (msg.stop_reason !== <span class="tl-st">"tool_use"</span>) &#123; console.log(<span class="tl-st">"answer:"</span>, msg.content.map(b =&gt; b.<span class="tl-kw">type</span> === <span class="tl-st">"text"</span> ? b.text : <span class="tl-st">""</span>).join(<span class="tl-st">""</span>)); <span class="tl-kw">break</span>; &#125;
+  <span class="tl-kw">const</span> results: Anthropic.ToolResultBlockParam[] = [];
+  <span class="tl-kw">for</span> (<span class="tl-kw">const</span> b <span class="tl-kw">of</span> msg.content) <span class="tl-kw">if</span> (b.<span class="tl-kw">type</span> === <span class="tl-st">"tool_use"</span>) &#123;
+    <span class="tl-kw">const</span> r = <span class="tl-kw">await</span> mcp.callTool(&#123; name: b.name, arguments: b.input <span class="tl-kw">as</span> Record&lt;string, unknown&gt; &#125;);
+    <span class="tl-kw">const</span> text = (r.content <span class="tl-kw">as</span> &#123; <span class="tl-kw">type</span>: string; text: string &#125;[]).map(c =&gt; c.text).join(<span class="tl-st">""</span>);
+    console.log(<span class="tl-st">`step $&#123;step&#125;: tools/call $&#123;b.name&#125;($&#123;JSON.stringify(b.input)&#125;) -&gt; $&#123;r.isError ? "isError " : ""&#125;$&#123;text.slice(0, 70)&#125;`</span>);
+    results.push(&#123; <span class="tl-kw">type</span>: <span class="tl-st">"tool_result"</span>, tool_use_id: b.id, content: text, is_error: !!r.isError &#125;);
+  &#125;
+  messages.push(&#123; role: <span class="tl-st">"user"</span>, content: results &#125;);
+&#125;
+<span class="tl-kw">await</span> mcp.close(); <span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="g5_agent_mcp.txt">step 1: tools/call count_tokens(&#123;"path":"chats.jsonl","top":3&#125;) -&gt; isError cannot open chats.jsonl: ENOENT
+step 2: tools/call count_tokens(&#123;"path":"chat.jsonl","top":3&#125;) -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top"
+answer: The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%.</pre></div>
+<div class="tl-find"><div class="t">Found while recording: a wrapper must forward everything</div>To record the messages, <code>mcp_tap.ts</code> wraps the client's transport. The first version forwarded <code>start</code>, <code>send</code> and <code>close</code> but not the optional <code>setProtocolVersion</code>; over HTTP the client then sent no <code>mcp-protocol-version</code> header after initialisation, with no error anywhere. Forwarding it fixed the run above. In TypeScript, an optional method on an interface (<code>setProtocolVersion?:</code>) type-checks whether or not you implement it, so a wrapper can silently change behaviour.</div>
+</section>

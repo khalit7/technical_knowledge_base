@@ -1,0 +1,31 @@
+<section id="ja-s9"><h2>9. Asynchronous JavaScript and the event loop</h2>
+<p>A Node process runs your JavaScript on <b>one thread</b>. It never waits: reading a file, a socket or a timer is <i>started</i>, the call returns at once, and the result is delivered later by the <b>event loop</b>, the loop inside Node that runs one piece of your code at a time, to completion, and then picks the next. Python's <code>asyncio</code> is the same design, opt-in; in JavaScript it is the only model, and every I/O API is built for it. Three generations of API sit on top.</p>
+<h3>Callbacks</h3>
+<p>The original style: pass a function to call when the result is ready. Node's convention puts the error first. Each dependent step nests one level deeper ("callback hell"), and errors must be checked by hand at every level.</p>
+[[run:i1_callbacks]]
+<h3>Promises, then <code>async</code>/<code>await</code></h3>
+<p>A <b>promise</b> is an object standing for a result that is not there yet: <i>pending</i>, then once and for all <i>fulfilled</i> with a value or <i>rejected</i> with an error. <code>.then(f)</code> registers what to do next and returns a new promise, so steps chain instead of nesting. <code>async function</code> and <code>await</code> are syntax over promises: an <code>async</code> function always returns a promise, and <code>await p</code> pauses the function until <code>p</code> settles, returning its value or throwing its error, so plain <code>try</code>/<code>catch</code> works. One difference from Python matters: a promise is <b>eager</b>. The work starts when the promise is created; a Python coroutine does nothing until awaited or wrapped in a task.</p>
+[[run:i2_promises]]
+<h3>The two queues</h3>
+<p>When does a callback run? The event loop keeps two kinds of queue. <b>Macrotasks</b> (or just "tasks"): timer callbacks, I/O completions, <code>setImmediate</code>. <b>Microtasks</b>: promise reactions (<code>.then</code> callbacks and the continuation after an <code>await</code>) and <code>queueMicrotask</code>. The rule: run the current piece of synchronous code to the end; then run <b>every</b> microtask, including ones queued meanwhile; only then take the next macrotask. So a resolved promise's callback always beats a <code>setTimeout(f, 0)</code>.</p>
+[[predict:i3_order]]
+<p>Why "async body, after await" comes after "queueMicrotask": the continuation of an async function is queued when it reaches <code>await</code>, which here is after the <code>.then</code> and <code>queueMicrotask</code> callbacks were queued. Microtasks run in the order they were queued. The {{Event-loop stepper|#t-ja-loop}} tab steps through six such programs with the call stack and every queue drawn, including Node's own extras (<code>process.nextTick</code>, <code>setImmediate</code>) and a difference between CommonJS and ES modules that the Node documentation describes and the recorded runs show.</p>
+
+<h3>Concurrency on one thread, to scale</h3>
+<p>The same three jobs as the {{Python page's asyncio replay|n:3cd5c17b0d0d81b28acdea39e7a4d998}}: A, B and C wait 100, 200 and 300 ms. Run four ways. Every bar below is a real event from <code>i4_trace.mjs</code> (code under the animation), stamped with milliseconds since the start and drawn on the same 0 to 620 ms axis.</p>
+<div class="ja-anim" id="ja-tl-card">
+<div class="seg" id="ja-tl-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="all">2. Promise.all</button><button data-m="all_blocking">3. all, B busy-waits</button><button data-m="all_worker">4. all, B in a worker</button></div>
+<div class="ja-ctl" id="ja-tl-ctl"></div>
+<div class="ja-svg" id="ja-tl-svg"></div>
+<div class="ja-cap" id="ja-tl-cap"></div>
+<div class="ja-counters" id="ja-tl-cnt"></div>
+<div class="ja-src">Thin bar: suspended at an <code>await</code> (the thread is free); dark bar: running on the thread; orange bar: holding the thread in a synchronous loop; ring: the moment a timer is due. Top lane: what the one JavaScript thread is doing.</div>
+</div>
+<div class="co key"><div class="t">What to notice</div><ul class="tight">
+<li><b>1 against 2</b>: <code>await</code> in sequence takes the sum (about 600 ms); <code>Promise.all</code> starts all three, so the waits overlap and the total is the longest (about 300 ms). Unlike Python, no "task" wrapper is needed: calling an async function already starts it.</li>
+<li><b>2 against 3</b>: a 200 ms synchronous loop in B holds the only thread. A's timer is due at 100 ms but runs at 200 ms; C cannot even start before 200 ms. Total about 500 ms, and nothing warns you.</li>
+<li><b>3 against 4</b>: the same busy loop in a worker thread (section 12) runs on another core; B just awaits a message, and the total is back to about 300 ms.</li>
+</ul></div>
+[[out:i4_trace|real output of i4_trace.mjs, Node 24.21.0 (the animation replays the events it saved)]]
+<details class="mist"><summary>The code: i4_trace.mjs</summary><div class="b">[[code:i4_trace]]</div></details>
+</section>

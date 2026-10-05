@@ -1,0 +1,83 @@
+<section id="ja-s16"><h2>16. Traps that catch experienced people</h2>
+<p>Each one was shown running above; open one for the fix.</p>
+<details class="mist"><summary><code>this</code> lost when a method is passed as a callback</summary><div class="b">Pass <code>() =&gt; obj.method()</code> or <code>obj.method.bind(obj)</code>. Section 4.</div></details>
+<details class="mist"><summary>Closures over a <code>var</code> loop variable all see the last value</summary><div class="b">Use <code>let</code> (a fresh binding per iteration); never write <code>var</code>. Section 4.</div></details>
+<details class="mist"><summary><code>await</code> inside <code>forEach</code> does not wait</summary><div class="b"><code>for...of</code> with <code>await</code>, or <code>await Promise.all(xs.map(...))</code>. Section 10.</div></details>
+<details class="mist"><summary><code>sort()</code> sorts numbers as strings</summary><div class="b">Always pass a comparator: <code>xs.sort((a, b) =&gt; a - b)</code>, or the non-mutating <code>toSorted</code>. Section 3.</div></details>
+<details class="mist"><summary>Money and ids in doubles</summary><div class="b">Floats cannot hold 0.1 exactly and lose integers above 2<sup>53</sup>, including 64-bit ids parsed from JSON. Use integer cents (or a decimal library), keep ids as strings, use <code>BigInt</code> for exact big integers. Section 2.</div></details>
+<details class="mist"><summary><code>parseInt</code> quirks</summary><div class="b"><code>parseInt("42px")</code> is 42 (it stops at the first bad character) and <code>["1","2","3"].map(parseInt)</code> is <code>[1, NaN, NaN]</code> (map passes the index as the radix). Use <code>Number(s)</code>, which rejects junk, or <code>parseInt(s, 10)</code>. Sections 2 and the drills.</div></details>
+<details class="mist"><summary>Mutating something another part of the program holds</summary><div class="b">Spread copies one level only; <code>structuredClone</code> for deep copies at boundaries; <code>toSorted</code>, <code>toReversed</code>, <code>with</code> instead of in-place methods on shared arrays. Section 3.</div></details>
+<details class="mist"><summary>Fire-and-forget promises</summary><div class="b">A rejection nobody handles crashes Node (since Node 15). <code>await</code> it, or add <code>.catch(log)</code> deliberately. Section 10.</div></details>
+<details class="mist"><summary><code>JSON.parse(JSON.stringify(x))</code> as a deep clone</summary><div class="b">It turns dates into strings and drops <code>undefined</code>, functions and <code>NaN</code> (to <code>null</code>), and throws on cycles and <code>BigInt</code>. Use <code>structuredClone</code>. Section 3.</div></details>
+<details class="mist"><summary>Blocking the event loop</summary><div class="b">Synchronous file reads (<code>readFileSync</code>), big <code>JSON.parse</code> calls, CPU loops or synchronous crypto in a server stall every request. Use the async APIs, stream, or move CPU work to a worker thread. Sections 9 and 12.</div></details>
+<details class="mist"><summary>Treating a parsed SSE chunk as a whole event</summary><div class="b">Buffer, decode with one streaming <code>TextDecoder</code>, and split on the blank line. Section 11.</div></details>
+<details class="mist"><summary>Merging untrusted JSON into objects (prototype pollution), <code>eval</code>, and regexes on user input</summary><div class="b">A naive recursive merge copies a <code>"__proto__"</code> key from JSON onto <code>Object.prototype</code>, and then every object in the process has the attacker's property. Skip <code>__proto__</code>, <code>constructor</code> and <code>prototype</code> keys, merge into <code>Object.create(null)</code> or a <code>Map</code>, or validate the shape first (Part 2's zod). Never pass input to <code>eval</code> or <code>new Function</code>. A regex with nested quantifiers such as <code>/(a+)+$/</code> can take exponential time on a crafted string and block the event loop (ReDoS); keep patterns simple or bound the input length.
+<div class="ja-snip"><div class="ja-file">x2_pollution.mjs</div><pre class="ja-code"><span class="cm">// Prototype pollution: a naive deep merge of untrusted JSON can write to Object.prototype, changing EVERY object.</span>
+<span class="kw">function</span> merge(dst, src) &#123;
+  <span class="kw">for</span> (<span class="kw">const</span> k <span class="kw">in</span> src) &#123;
+    <span class="kw">if</span> (<span class="kw">typeof</span> src[k] === <span class="st">"object"</span> &amp;&amp; src[k] !== <span class="kw">null</span>) &#123; dst[k] ??= &#123;&#125;; merge(dst[k], src[k]); &#125;
+    <span class="kw">else</span> dst[k] = src[k];
+  &#125;
+  <span class="kw">return</span> dst;
+&#125;
+<span class="kw">const</span> body = JSON.parse(<span class="st">'&#123;"theme": "dark", "__proto__": &#123;"isAdmin": true&#125;&#125;'</span>);   <span class="cm">// JSON.parse makes "__proto__" an ordinary key</span>
+merge(&#123;&#125;, body);
+<span class="kw">const</span> user = &#123;&#125;;
+console.log(<span class="st">"a brand-new object says isAdmin ="</span>, user.isAdmin);
+<span class="kw">delete</span> Object.prototype.isAdmin;
+<span class="kw">function</span> safeMerge(dst, src) &#123;                                      <span class="cm">// fix: skip the dangerous keys (or merge into Object.create(null) / a Map)</span>
+  <span class="kw">for</span> (<span class="kw">const</span> k <span class="kw">of</span> Object.keys(src)) &#123;
+    <span class="kw">if</span> (k === <span class="st">"__proto__"</span> || k === <span class="st">"constructor"</span> || k === <span class="st">"prototype"</span>) <span class="kw">continue</span>;
+    <span class="kw">if</span> (<span class="kw">typeof</span> src[k] === <span class="st">"object"</span> &amp;&amp; src[k] !== <span class="kw">null</span>) &#123; dst[k] ??= &#123;&#125;; safeMerge(dst[k], src[k]); &#125; <span class="kw">else</span> dst[k] = src[k];
+  &#125;
+  <span class="kw">return</span> dst;
+&#125;
+safeMerge(&#123;&#125;, body);
+console.log(<span class="st">"after safeMerge, isAdmin ="</span>, (&#123;&#125;).isAdmin);</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="x2_pollution.txt">a brand-new object says isAdmin = true
+after safeMerge, isAdmin = undefined</pre></div></div></details>
+<details class="mist"><summary><code>Date</code> arithmetic</summary><div class="b">Months count from 0, objects are mutable, and overflow rolls over silently. <code>Temporal</code> (on by default in Node 26) fixes all three; until then use a library such as date-fns or Luxon.
+<div class="ja-snip"><div class="ja-file">x1_temporal.mjs</div><pre class="ja-code"><span class="cm">// Date is the old, mutable, millisecond-based API (months count from 0). Temporal replaces it (ES2027; on by default in Node 26).</span>
+<span class="kw">const</span> d = <span class="kw">new</span> Date(2026, 0, 31);                        <span class="cm">// January 31: month 0 is January</span>
+d.setMonth(1);                                          <span class="cm">// "February 31" silently rolls over</span>
+console.log(process.version, <span class="st">"Date:"</span>, d.toDateString());
+<span class="kw">if</span> (<span class="kw">typeof</span> Temporal === <span class="st">"undefined"</span>) console.log(process.version, <span class="st">"Temporal: not available"</span>);
+<span class="kw">else</span> console.log(process.version, <span class="st">"Temporal:"</span>, Temporal.PlainDate.<span class="kw">from</span>(<span class="st">"2026-01-31"</span>).add(&#123; months: 1 &#125;).toString());</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="x1_temporal.txt">$ node x1_temporal.mjs   # Node 24.21.0
+v24.21.0 Date: Tue Mar 03 2026
+v24.21.0 Temporal: not available
+$ node x1_temporal.mjs   # Node 26.10.0
+v26.10.0 Date: Tue Mar 03 2026
+v26.10.0 Temporal: 2026-02-28</pre></div></div></details>
+
+<div class="co warn"><div class="t">Corrections to the old page "JavaScript: zero to expert" (checked 2026-10-05)</div><ul class="tight">
+<li><b>"a rejected promise inside a non-awaited call disappears"</b>: wrong for Node since version 15 (2020); the default <code>--unhandled-rejections=throw</code> crashes the process with exit code 1 (real run in section 10). Browsers log an "Uncaught (in promise)" error and carry on.</li>
+<li><b>"<code>parseInt</code> without a radix"</b>: the classic trap (a leading zero meaning octal) was removed in ES5 (2009): <code>parseInt("08")</code> is 8 (real run, section 2). Passing 10 is still clearer, and <code>"0x10"</code> still parses as hexadecimal.</li>
+<li><b>Bun "reported to be acquired by Anthropic in early 2026"</b>: Bun's own announcement is dated 2025-12-02 (section 14).</li>
+<li><b>"Use ES modules, not CommonJS <code>require</code>"</b>: still right; new since: <code>require()</code> of an ES module works without a flag since Node 22.12 and 20.19 (stable in 25.4), except with top-level <code>await</code> (section 6).</li>
+<li>Confirmed: Node 24 Active LTS and Node 26 becoming LTS in October 2026 (scheduled 2026-10-28); <code>Temporal</code> on by default in Node 26 (real run above); a promise is eager; <code>typeof null === "object"</code>; V8's tiers and hidden classes (section 15, with a real trace).</li>
+</ul></div>
+</section>
+
+<section id="ja-s17"><h2>17. Further reading</h2>
+<p><b>In this knowledge base</b></p>
+<ul class="tight">
+<li>{{Part 2: TypeScript|#t-tb-read}} and {{Part 3: LLM apps and agents|#t-tl-read}} of this page.</li>
+<li>{{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}: Design space (JavaScript false friends), Rosetta (the running program in four languages), Benchmark (Node and Bun on the token counter), Toolchain atlas (release dates). 20 min.</li>
+<li>{{Python: the language in depth and the 2026 toolchain|n:3cd5c17b0d0d81b28acdea39e7a4d998}}: Part 1's Event loop tab is the asyncio twin of section 9. 15 min for that tab.</li>
+<li>{{Rust|n:3c65c17b0d0d8156bed9ead8a22f33b0}}, Part 3: async Rust and tokio compared with the JavaScript event loop.</li>
+<li>{{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} and {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}: what to build with Node's HTTP and how to load-test it. {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}.</li>
+<li>{{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} and {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}} (MCP): the systems most of this page is for.</li>
+</ul>
+<p><b>Best resources</b></p>
+<ul class="tight">
+<li>{{MDN JavaScript|https://developer.mozilla.org/en-US/docs/Web/JavaScript}}: the reference; about 1 h for the guide, then lookup.</li>
+<li>{{javascript.info|https://javascript.info/}}: the best free structured course; about 25 h in full, 15 min per chapter.</li>
+<li>{{You Don't Know JS Yet|https://github.com/getify/You-Dont-Know-JS}} (Kyle Simpson), books 1 and 2 on scope, closures and objects: about 8 h.</li>
+<li>{{Eloquent JavaScript|https://eloquentjavascript.net/}} (Marijn Haverbeke), with exercises: about 10 h.</li>
+<li>{{Jake Archibald, In the Loop|https://www.youtube.com/watch?v=cCOL7MC4Pl0}}: the clearest talk on tasks and microtasks, 35 min. {{Philip Roberts, What the heck is the event loop anyway?|https://www.youtube.com/watch?v=8aGhZQkoFbQ}}: the gentler first pass, 27 min.</li>
+<li>{{Node.js: the event loop, timers and process.nextTick|https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick}}: Node's phases, 20 min. {{Node.js API docs|https://nodejs.org/api/}}: about 2 h for fs, process, stream, worker_threads.</li>
+<li>{{MDN: Using server-sent events|https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events}}: the SSE format, 15 min.</li>
+<li>{{V8 blog: Maglev|https://v8.dev/blog/maglev}}: the tiers and why they exist, 20 min.</li>
+<li>{{Deno security and permissions|https://docs.deno.com/runtime/fundamentals/security/}}, 10 min; {{Bun 1.4 release post|https://bun.com/blog/bun-v1.4}}, 10 min.</li>
+<li>{{ECMAScript specification|https://tc39.es/ecma262/}} (look things up, do not read through) and {{TC39 proposals|https://github.com/tc39/proposals}} (where the language is going), 30 min to browse.</li>
+</ul>
+</section>

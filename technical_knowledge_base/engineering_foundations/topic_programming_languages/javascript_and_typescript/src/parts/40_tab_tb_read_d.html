@@ -1,0 +1,77 @@
+
+<section id="tb-any">
+<h2>any, unknown, never, and assertions that lie</h2>
+<p>Three special types, which every TypeScript programmer must keep apart:</p>
+<ul>
+<li><code>any</code> switches checking off: every operation is allowed, and the result is <code>any</code> again. <code>JSON.parse</code> returns <code>any</code>, and so does untyped JavaScript.</li>
+<li><code>unknown</code> is the safe "could be anything": nothing is allowed until you narrow it. Use it for anything from outside your program.</li>
+<li><code>never</code> is the empty type: a function that always throws returns <code>never</code>, and a fully narrowed union is <code>never</code>.</li>
+</ul>
+<div data-tb-s="50_any_unknown"></div>
+<p>Only line 4 is an error. <code>a.foo.bar()</code> would crash, and <code>tsc</code> did not say a word. Worse, <code>any</code> spreads: anything computed from it is unchecked too.</p>
+<div data-tb-s="51_any_spreads" data-tb-q="config.retries is the string &quot;3&quot;. What does this print?" data-tb-opts="[ 3, 6, 9 ] 4 number|[ 3, 6, 9 ] 31 string|A type error from tsc" data-tb-ans="1"><p><code>i * "3"</code> is 3 (JavaScript converts the string for <code>*</code>), but <code>"3" + 1</code> is the string <code>"31"</code>, assigned to a variable declared <code>number</code>. No error, no crash, a wrong value. The cure is to type the boundary: <code>const config: unknown = JSON.parse(...)</code> and then check (or <a href="#tb-zod">parse with zod</a>).</p></div>
+<h3>Assertions: <code>as</code> and <code>!</code> are claims, not checks</h3>
+<p><code>x as T</code> (a <dfn>type assertion</dfn>, often called a cast) tells <code>tsc</code> "trust me, x is a T". It generates no code and checks nothing at run time. <code>x!</code> (the <dfn>non-null assertion</dfn>) says "this is not null or undefined".</p>
+<div data-tb-s="52_as_lies"></div>
+<div data-tb-s="53_bang"></div>
+<p>Notice the source line in Node's error for <code>bang.ts</code>: <code>users.get("u2") .name</code>. The <code>!</code> is gone, replaced by a space: that is Node's type stripping, and it shows that the assertion never existed at run time. <code>as</code> does refuse conversions that are obviously wrong, but the double cast through <code>unknown</code> always works, which is why reviewers look for it:</p>
+<div data-tb-s="54_as_rejected"></div>
+<p>When is <code>as</code> legitimate? When you know something the checker cannot (a DOM element you just created, a value you validated by other means), and in tests. <code>as const</code> is different: it is not a claim, it only makes inference narrower, and it is always safe.</p>
+<div class="tb-bridge"><div class="t">From Python</div><code>as</code> is <code>typing.cast</code>; <code>any</code> is <code>Any</code>; <code>unknown</code> is <code>object</code> used defensively; <code>never</code> is <code>Never</code>/<code>NoReturn</code>. The difference is that <code>JSON.parse</code> and <code>fetch().json()</code> return <code>any</code>, so the hole is in the most common path of an LLM app.</div>
+</section>
+
+<section id="tb-unsound">
+<h2>Unsound by design: programs that type-check and then crash</h2>
+<p>A type system is <dfn>sound</dfn> if a program that type-checks can never have a value of the wrong type at run time. TypeScript is not, on purpose: its design goals put "a balance between correctness and productivity" ahead of soundness (<a href="https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals" target="_blank" rel="noopener noreferrer">Design Goals</a>, non-goal 3). Knowing where the holes are is what makes you trust the checker everywhere else. Each example below passes <code>npx tsc</code> with the strict configuration and then crashes in Node.</p>
+<p><b>1. Arrays are covariant.</b> A <code>Dog[]</code> may be used as an <code>Animal[]</code>, and then an <code>Animal</code> can be pushed into the dogs. The root's Design space shows the same hole with <code>string[]</code> and numbers; here with classes:</p>
+<div data-tb-s="58_array_covariance"></div>
+<p><b>2. Method parameters are bivariant.</b> A handler that accepts only <code>string</code> is accepted where the interface promises <code>string | number</code>, if the interface uses method syntax:</p>
+<div data-tb-s="55_method_bivariance"></div>
+<p>The same interface written with a function-typed property is checked properly (<code>strictFunctionTypes</code>, part of <code>strict</code>, applies only to that syntax):</p>
+<div data-tb-s="56_fn_property"></div>
+<p><b>3. Narrowing survives function calls.</b> <code>tsc</code> does not assume a call can change your object, because then almost no narrowing would be useful:</p>
+<div data-tb-s="57_stale_narrowing"></div>
+<p><b>4. Index reads without <code>noUncheckedIndexedAccess</code></b> (shown in <a href="#tb-setup">tsconfig</a>), <b>5. lying type predicates</b> (<a href="#tb-narrow">narrowing</a>), and <b>6. <code>any</code>, <code>as</code> and <code>!</code></b> (above).</p>
+<div class="tb-tbl tb-wide"><table><thead><tr><th>Hole</th><th>Why it exists</th><th>Your protection</th></tr></thead><tbody>
+<tr><td>Array covariance</td><td>Arrays are passed around read-only most of the time; invariance would reject that common, safe code</td><td>Take <code>readonly T[]</code> in parameters you do not mutate</td></tr>
+<tr><td>Method bivariance</td><td>The DOM and many libraries rely on it</td><td>Declare callbacks as properties: <code>handle: (e: E) =&gt; void</code></td></tr>
+<tr><td>Narrowing across calls</td><td>Invalidating on every call would make narrowing useless</td><td>Copy to a <code>const</code> before checking: <code>const v = state.value</code></td></tr>
+<tr><td>Index reads</td><td>Compatibility</td><td><code>noUncheckedIndexedAccess</code> (default in new configs)</td></tr>
+<tr><td><code>any</code>, <code>as</code>, <code>!</code>, predicates</td><td>Escape hatches for what the checker cannot know</td><td><code>unknown</code> plus checks, or a schema; lint rules against <code>any</code> (<a href="#tb-lint">below</a>)</td></tr>
+<tr><td>Data from outside</td><td>Types are erased: nothing to check against at run time</td><td><a href="#tb-zod">zod</a> at every boundary</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="tb-classes">
+<h2>Classes in TypeScript</h2>
+<p>JavaScript classes (<a href="#ja-s5" data-tb-go="t-ja-read">Part 1, section 5</a>) get type annotations on fields and methods, <code>implements</code> (check that the class fits an interface), and access modifiers. Two kinds of "private" exist, and they behave differently:</p>
+<div data-tb-s="62b_classes2"></div>
+<p><code>private vocab</code> is checked by <code>tsc</code> only; at run time it is a normal property, and <code>(t as any).vocab</code> reads it. <code>#calls</code> is JavaScript's own private field: it does not exist from outside at all. Prefer <code>#</code> when privacy matters. The shorthand <code>constructor(readonly name: string)</code> (a parameter property) saves two lines but is not erasable syntax:</p>
+<div data-tb-s="62_classes" data-tb-no-out></div>
+<div data-tb-s="62_classes" data-tb-no-code data-tb-no-help></div>
+<p>Many TypeScript codebases use few classes: plain objects, interfaces and functions cover most needs, and structural typing means a class is never required to satisfy an interface.</p>
+</section>
+
+<section id="tb-async">
+<h2>Async code in types</h2>
+<p>Part 1 teaches promises, <code>async</code>/<code>await</code> and the event loop (<a href="#ja-s9" data-tb-go="t-ja-read">section 9</a>, <a href="#ja-s10" data-tb-go="t-ja-read">section 10</a>, async iterators in <a href="#ja-s11" data-tb-go="t-ja-read">section 11</a>) and its {{Event-loop stepper|#t-ja-loop}}. The types on top are small: an <code>async</code> function returns <code>Promise&lt;T&gt;</code>, <code>await</code> unwraps it, an <code>async function*</code> returns <code>AsyncGenerator&lt;T&gt;</code>, and <code>for await</code> consumes any <code>AsyncIterable&lt;T&gt;</code> (the shape of every LLM token stream in Part 3: {{Part 3 Reading|#t-tl-read}}).</p>
+<div data-tb-s="63_async"></div>
+<p>In a <code>catch</code>, the error is <code>unknown</code> (<code>useUnknownInCatchVariables</code>, part of <code>strict</code>), because JavaScript can throw anything, not only <code>Error</code>s: narrow it with <code>instanceof</code> before reading <code>.message</code>. The type checker also catches most forgotten <code>await</code>s, but not all:</p>
+<div data-tb-s="64_floating"></div>
+<p>Lines 4 and 5 use the promise as a value, so <code>tsc</code> notices. Line 6 starts a promise and drops it (a <dfn>floating promise</dfn>): if it rejects, nothing handles the error, and <code>tsc</code> is silent. Only a type-aware linter catches it (<a href="#tb-lint">below</a>).</p>
+</section>
+
+<section id="tb-dts">
+<h2>Declaration files and @types</h2>
+<p>A <dfn>declaration file</dfn> (<code>.d.ts</code>) holds only types: what a JavaScript module exports and with which types. It is how TypeScript knows the types of the millions of npm packages written in, or compiled to, plain JavaScript. Import a JavaScript file that has none:</p>
+<div data-tb-s="60_no_dts"></div>
+<p>The import becomes <code>any</code> (an error under <code>strict</code>), though the program runs fine. Add a <code>.d.ts</code> next to it and the module is typed:</p>
+<div data-tb-s="61_dts"></div>
+<p>Where types come from, in order of preference:</p>
+<ol>
+<li><b>The package ships them</b> (its <code>package.json</code> points to <code>.d.ts</code> files through <code>"types"</code> or <code>"exports"</code>). Most modern packages, including zod, vitest and the Anthropic and OpenAI SDKs, do.</li>
+<li><b>DefinitelyTyped</b>: a community repository that publishes <code>@types/&lt;package&gt;</code> for untyped packages (<a href="https://github.com/DefinitelyTyped/DefinitelyTyped" target="_blank" rel="noopener noreferrer">DefinitelyTyped</a>). <code>npm i -D @types/node</code> describes Node's own APIs. Global ones must also be listed in <code>"types"</code> (see <a href="#tb-setup">tsconfig</a>).</li>
+<li><b>Write your own</b> <code>.d.ts</code>, as above, or <code>declare module "untyped-lib" { ... }</code> for a whole package.</li>
+</ol>
+<p>When you publish a TypeScript library, <code>tsc</code> with <code>"declaration": true</code> (on in the generated config) writes the <code>.d.ts</code> files for you; the <a href="#tb-basics">inference demo</a> above is exactly that output.</p>
+</section>

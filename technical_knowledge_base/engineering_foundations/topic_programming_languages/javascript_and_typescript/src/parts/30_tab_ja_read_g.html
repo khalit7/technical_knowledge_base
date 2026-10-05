@@ -1,0 +1,239 @@
+<section id="ja-s12"><h2>12. Node essentials</h2>
+<p>Node's standard library is imported with a <code>node:</code> prefix. Five modules cover most scripts and services: <code>node:fs/promises</code> (files), <code>node:path</code> and <code>node:os</code>, <code>node:process</code> (also a global), <code>node:http</code> plus the global <code>fetch</code>, and <code>node:worker_threads</code>. A <code>Buffer</code> (or <code>Uint8Array</code>) is Python's <code>bytes</code>.</p>
+<h3>Files</h3>
+<div class="ja-snip"><div class="ja-file">k1_fs.mjs</div><pre class="ja-code"><span class="cm">// node:fs/promises: the async file API (open, read, write, stat, readdir, mkdir, rm), with node:path and node:os.</span>
+<span class="kw">import</span> &#123; mkdtemp, writeFile, readFile, readdir, stat, rm, appendFile &#125; <span class="kw">from</span> <span class="st">"node:fs/promises"</span>;
+<span class="kw">import</span> &#123; join &#125; <span class="kw">from</span> <span class="st">"node:path"</span>;
+<span class="kw">import</span> &#123; tmpdir &#125; <span class="kw">from</span> <span class="st">"node:os"</span>;
+<span class="kw">const</span> dir = <span class="kw">await</span> mkdtemp(join(tmpdir(), <span class="st">"ja-"</span>));
+<span class="kw">await</span> writeFile(join(dir, <span class="st">"a.jsonl"</span>), <span class="st">'&#123;"user":"u1","text":"hi"&#125;\n'</span>);
+<span class="kw">await</span> appendFile(join(dir, <span class="st">"a.jsonl"</span>), <span class="st">'&#123;"user":"u2","text":"hello there"&#125;\n'</span>);
+<span class="kw">const</span> text = <span class="kw">await</span> readFile(join(dir, <span class="st">"a.jsonl"</span>), <span class="st">"utf8"</span>);          <span class="cm">// without "utf8" you get a Buffer of bytes</span>
+console.log(text.trim().split(<span class="st">"\n"</span>).map(l =&gt; JSON.parse(l).user), (<span class="kw">await</span> stat(join(dir, <span class="st">"a.jsonl"</span>))).size, <span class="st">"bytes"</span>);
+console.log(<span class="kw">await</span> readdir(dir));
+<span class="kw">try</span> &#123; <span class="kw">await</span> readFile(join(dir, <span class="st">"missing.txt"</span>)); &#125;
+<span class="kw">catch</span> (e) &#123; console.log(e.code, e.syscall, e <span class="kw">instanceof</span> Error); &#125;   <span class="cm">// errors carry a code: test e.code, not the message</span>
+<span class="kw">await</span> rm(dir, &#123; recursive: <span class="kw">true</span> &#125;);</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="k1_fs.txt">[ 'u1', 'u2' ] 61 bytes
+[ 'a.jsonl' ]
+ENOENT open true</pre></div>
+<h3>The process</h3>
+<p><code>process.argv</code> is <code>sys.argv</code> with two leading entries (the node binary and the script); <code>process.env</code> is <code>os.environ</code> (a missing variable is <code>undefined</code>); <code>node:util</code>'s <code>parseArgs</code> is a small <code>argparse</code>. Prefer setting <code>process.exitCode</code> to calling <code>process.exit()</code>, which kills pending output and timers.</p>
+<div class="ja-snip"><div class="ja-file">k2_process.mjs</div><pre class="ja-code"><span class="cm">// process: the running program. argv, env, cwd, exit codes, stdout and stderr.</span>
+console.log(process.argv.slice(2));                    <span class="cm">// argv[0] is node, argv[1] the script: sys.argv[1:] is slice(2)</span>
+console.log(process.env.HOME ? <span class="st">"HOME is set"</span> : <span class="st">"no HOME"</span>, process.env.NO_SUCH_VAR);   <span class="cm">// missing env vars are undefined</span>
+<span class="kw">import</span> &#123; parseArgs &#125; <span class="kw">from</span> <span class="st">"node:util"</span>;                  <span class="cm">// a small built-in argparse</span>
+<span class="kw">const</span> &#123; values, positionals &#125; = parseArgs(&#123; args: process.argv.slice(2), allowPositionals: <span class="kw">true</span>,
+  options: &#123; top: &#123; type: <span class="st">"string"</span>, short: <span class="st">"k"</span>, <span class="kw">default</span>: <span class="st">"5"</span> &#125;, verbose: &#123; type: <span class="st">"boolean"</span> &#125; &#125; &#125;);
+console.log(values, positionals);
+process.stderr.write(<span class="st">"a warning goes to stderr\n"</span>);
+process.exitCode = 2;                                   <span class="cm">// set the exit code and let the program finish normally</span></pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="k2_process.txt">[ 'chat.jsonl', '-k', '3', '--verbose' ]
+HOME is set undefined
+[Object: null prototype] &#123; top: '3', verbose: true &#125; [ 'chat.jsonl' ]
+a warning goes to stderr
+[exit code 2]</pre></div>
+<h3>The running program, streamed</h3>
+<p>The root page's running example counts tokens per user in a JSONL chat log ({{Topic: programming-languages, Rosetta tab|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}). Here it is in plain JavaScript: <code>createReadStream</code> plus <code>readline</code> yields one line at a time through <code>for await</code>, the Node equivalent of Python's <code>for line in open(path)</code>. Its output is byte-identical to the spec's expected output. The root's TypeScript version is this file plus types: Part 2 starts from it.</p>
+<div class="ja-snip"><div class="ja-file">k3_count_tokens.mjs</div><pre class="ja-code"><span class="cm">// The root page's running program (count tokens per user in a JSONL chat log, print the top 5), in plain JavaScript.</span>
+<span class="cm">// It streams the file line by line, so memory stays flat whatever the file size. Part 2 adds the types.</span>
+<span class="kw">import</span> &#123; createReadStream &#125; <span class="kw">from</span> <span class="st">"node:fs"</span>;
+<span class="kw">import</span> &#123; createInterface &#125; <span class="kw">from</span> <span class="st">"node:readline"</span>;
+
+<span class="kw">const</span> isMessage = v =&gt; <span class="kw">typeof</span> v === <span class="st">"object"</span> &amp;&amp; v !== <span class="kw">null</span> &amp;&amp; !Array.isArray(v)
+  &amp;&amp; <span class="kw">typeof</span> v.user === <span class="st">"string"</span> &amp;&amp; <span class="kw">typeof</span> v.text === <span class="st">"string"</span>;
+<span class="kw">const</span> countTokens = text =&gt; (text.match(/[A-Za-z0-9]+/g) ?? []).length;
+
+<span class="kw">const</span> path = process.argv[2] ?? <span class="st">"chat.jsonl"</span>;
+<span class="kw">const</span> perUser = <span class="kw">new</span> Map();
+<span class="kw">let</span> lines = 0, ok = 0, bad = 0, firstBad = 0;
+<span class="kw">try</span> &#123;
+  <span class="kw">const</span> input = createReadStream(path, &#123; encoding: <span class="st">"utf8"</span> &#125;);
+  <span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> line <span class="kw">of</span> createInterface(&#123; input, crlfDelay: Infinity &#125;)) &#123;
+    lines++;
+    <span class="kw">let</span> rec;
+    <span class="kw">try</span> &#123; rec = JSON.parse(line); &#125; <span class="kw">catch</span> &#123; rec = <span class="kw">undefined</span>; &#125;
+    <span class="kw">if</span> (!isMessage(rec)) &#123; bad++; firstBad ||= lines; <span class="kw">continue</span>; &#125;
+    ok++;
+    perUser.set(rec.user, (perUser.get(rec.user) ?? 0) + countTokens(rec.text));
+  &#125;
+&#125; <span class="kw">catch</span> (e) &#123;
+  console.error(<span class="st">`error: cannot open $&#123;path&#125;: $&#123;e.code&#125;`</span>);
+  process.exit(1);
+&#125;
+<span class="kw">let</span> total = 0;
+<span class="kw">for</span> (<span class="kw">const</span> n <span class="kw">of</span> perUser.values()) total += n;
+<span class="kw">const</span> top = [...perUser].sort((a, b) =&gt; b[1] - a[1] || (a[0] &lt; b[0] ? -1 : a[0] &gt; b[0] ? 1 : 0));
+console.log(<span class="st">`lines $&#123;lines&#125;  ok $&#123;ok&#125;  malformed $&#123;bad&#125; (first at line $&#123;firstBad&#125;)`</span>);
+console.log(<span class="st">`users $&#123;perUser.size&#125;  tokens $&#123;total&#125;`</span>);
+console.log(<span class="st">"top 5 users by tokens:"</span>);
+top.slice(0, 5).forEach(([user, n], i) =&gt; console.log(<span class="st">`$&#123;String(i + 1).padStart(2)&#125;. $&#123;user&#125;  $&#123;n&#125;`</span>));</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="k3_count_tokens.txt">lines 2000  ok 1992  malformed 8 (first at line 53)
+users 176  tokens 44698
+top 5 users by tokens:
+ 1. u0029  9491
+ 2. u0005  4816
+ 3. u0042  3499
+ 4. u0169  2291
+ 5. u0121  1401
+error: cannot open nope.jsonl: ENOENT
+[exit code 1]</pre></div>
+<p>Streaming is not a style choice. On the same program at 200,000 lines (38.8 MB), reading the whole file into one string first costs about five times the memory, for no gain in speed here:</p>
+<div class="ja-snip"><div class="ja-olab">real output of m3_memory.sh: /usr/bin/time -l, three runs each, Node 24.21.0 (load average printed: the laptop was busy)</div><pre class="ja-out" data-ja-src="m3_memory.txt">input: 38792775 bytes; load average 5.16 5.27 8.72
+k3_count_tokens run 1: 0.39 s, peak RSS 71 MB
+k3_count_tokens run 2: 0.41 s, peak RSS 71 MB
+k3_count_tokens run 3: 0.39 s, peak RSS 71 MB
+k4_whole run 1: 0.43 s, peak RSS 347 MB
+k4_whole run 2: 0.39 s, peak RSS 347 MB
+k4_whole run 3: 0.40 s, peak RSS 347 MB
+k3 output on the big file:
+lines 200000  ok 199992  malformed 8 (first at line 6685)
+users 200  tokens 4413871
+top 5 users by tokens:
+ 1. u0029  939855
+ 2. u0005  433400
+ 3. u0042  279373
+ 4. u0169  204481
+ 5. u0082  159042</pre></div>
+<h3>HTTP and fetch</h3>
+<p><code>fetch</code> is built in (stable since Node 21) and is the same API as in browsers: <code>await fetch(url, { method, headers, body, signal })</code>, then <code>await res.json()</code> or <code>res.text()</code> or <code>res.body</code> (a stream). An HTTP error status does <b>not</b> throw; only a network failure does. Check <code>res.ok</code> (Python's <code>requests</code> does not raise either, unless you call <code>raise_for_status()</code>).</p>
+<div class="ja-snip"><div class="ja-file">k5_fetch.mjs</div><pre class="ja-code"><span class="cm">// fetch is built in (Node 18+): the same API as in browsers. A local server stands in for a JSON API.</span>
+<span class="kw">import</span> &#123; createServer &#125; <span class="kw">from</span> <span class="st">"node:http"</span>;
+<span class="kw">const</span> server = createServer((req, res) =&gt; &#123;
+  <span class="kw">let</span> body = <span class="st">""</span>;
+  req.on(<span class="st">"data"</span>, c =&gt; body += c).on(<span class="st">"end"</span>, () =&gt; &#123;
+    <span class="kw">if</span> (req.url === <span class="st">"/fail"</span>) &#123; res.writeHead(503).end(<span class="st">"overloaded"</span>); <span class="kw">return</span>; &#125;
+    res.writeHead(200, &#123; <span class="st">"content-type"</span>: <span class="st">"application/json"</span> &#125;).end(JSON.stringify(&#123; echo: JSON.parse(body || <span class="st">"&#123;&#125;"</span>), method: req.method &#125;));
+  &#125;);
+&#125;).listen(0);
+<span class="kw">const</span> base = <span class="st">`http://127.0.0.1:$&#123;server.address().port&#125;`</span>;
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="st">`$&#123;base&#125;/v1/chat`</span>, &#123;
+  method: <span class="st">"POST"</span>, headers: &#123; <span class="st">"content-type"</span>: <span class="st">"application/json"</span> &#125;,
+  body: JSON.stringify(&#123; model: <span class="st">"small"</span>, messages: [&#123; role: <span class="st">"user"</span>, content: <span class="st">"hi"</span> &#125;] &#125;),
+&#125;);
+console.log(res.status, res.ok, res.headers.get(<span class="st">"content-type"</span>));
+console.log(JSON.stringify(<span class="kw">await</span> res.json()));
+<span class="kw">const</span> bad = <span class="kw">await</span> fetch(<span class="st">`$&#123;base&#125;/fail`</span>);           <span class="cm">// an HTTP error status does NOT throw: check res.ok yourself</span>
+console.log(bad.status, bad.ok, <span class="kw">await</span> bad.text());
+server.close();
+<span class="kw">const</span> gone = createServer().listen(0), port = gone.address().port; gone.close();   <span class="cm">// a port nobody listens on</span>
+<span class="kw">try</span> &#123; <span class="kw">await</span> fetch(<span class="st">`http://127.0.0.1:$&#123;port&#125;/v1/chat`</span>); &#125;   <span class="cm">// only network failures throw</span>
+<span class="kw">catch</span> (e) &#123; console.log(e.name, e.message, <span class="st">"| cause:"</span>, e.cause?.code); &#125;</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="k5_fetch.txt">200 true application/json
+&#123;"echo":&#123;"model":"small","messages":[&#123;"role":"user","content":"hi"&#125;]&#125;,"method":"POST"&#125;
+503 false overloaded
+TypeError fetch failed | cause: ECONNREFUSED</pre></div>
+<h3>Worker threads: CPU work off the event loop</h3>
+<p>One thread means CPU-heavy work (parsing a huge JSON, hashing, tokenising a corpus) stops everything else: timers, requests, streams. A <b>worker thread</b> is a second V8 instance on another OS thread with its own event loop; it shares nothing by default and talks by messages (<code>postMessage</code>, copied with the structured clone algorithm), or shares memory explicitly through a <code>SharedArrayBuffer</code> with <code>Atomics</code>. It is closer to Python's <code>multiprocessing</code> than to <code>threading</code>, but cheaper to start. Below, a 10 ms heartbeat timer measures how long the event loop was stuck.</p>
+<div class="ja-snip"><div class="ja-file">k6_workers.mjs</div><pre class="ja-code"><span class="cm">// CPU work blocks the event loop; a worker thread runs it on another core. A 10 ms heartbeat timer shows the difference.</span>
+<span class="kw">import</span> &#123; Worker &#125; <span class="kw">from</span> <span class="st">"node:worker_threads"</span>;
+<span class="kw">function</span> primes(n) &#123; <span class="kw">let</span> c = 0; <span class="kw">for</span> (<span class="kw">let</span> i = 2; i &lt; n; i++) &#123; <span class="kw">let</span> p = <span class="kw">true</span>; <span class="kw">for</span> (<span class="kw">let</span> j = 2; j * j &lt;= i; j++) <span class="kw">if</span> (i % j === 0) &#123; p = <span class="kw">false</span>; <span class="kw">break</span>; &#125; <span class="kw">if</span> (p) c++; &#125; <span class="kw">return</span> c; &#125;
+<span class="kw">async</span> <span class="kw">function</span> heartbeat(label, work) &#123;
+  <span class="kw">let</span> last = performance.now(), worst = 0, beats = 0;
+  <span class="kw">const</span> t = setInterval(() =&gt; &#123; <span class="kw">const</span> now = performance.now(); worst = Math.max(worst, now - last); last = now; beats++; &#125;, 10);
+  <span class="kw">const</span> t0 = performance.now(); <span class="kw">const</span> result = <span class="kw">await</span> work();
+  <span class="kw">await</span> <span class="kw">new</span> Promise(r =&gt; setTimeout(r, 30)); clearInterval(t);
+  console.log(<span class="st">`$&#123;label.padEnd(24)&#125; result $&#123;result&#125;  took $&#123;Math.round(performance.now() - t0 - 30)&#125; ms  heartbeats $&#123;beats&#125;  worst gap $&#123;Math.round(worst)&#125; ms`</span>);
+&#125;
+<span class="kw">const</span> N = 3_000_000;
+<span class="kw">await</span> heartbeat(<span class="st">"on the main thread:"</span>, <span class="kw">async</span> () =&gt; primes(N));
+<span class="kw">await</span> heartbeat(<span class="st">"in a worker thread:"</span>, () =&gt; <span class="kw">new</span> Promise((ok, fail) =&gt; &#123;
+  <span class="kw">const</span> w = <span class="kw">new</span> Worker(<span class="st">`const &#123; parentPort, workerData &#125; = require("node:worker_threads");</span>
+<span class="st">    $&#123;primes.toString()&#125;</span>
+<span class="st">    parentPort.postMessage(primes(workerData));`</span>, &#123; eval: <span class="kw">true</span>, workerData: N &#125;);
+  w.once(<span class="st">"message"</span>, ok); w.once(<span class="st">"error"</span>, fail);
+&#125;));</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="k6_workers.txt">on the main thread:      result 216816  took 439 ms  heartbeats 3  worst gap 438 ms
+in a worker thread:      result 216816  took 504 ms  heartbeats 45  worst gap 14 ms</pre></div>
+<p class="small">The root page's {{Reading, Concurrency section|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows workers losing updates on a shared counter without <code>Atomics</code> and getting it exact with them.</p>
+</section>
+
+<section id="ja-s13"><h2>13. Packages: npm, pnpm and <code>node_modules</code></h2>
+<p><code>package.json</code> is <code>pyproject.toml</code>: name, version, <code>"type"</code>, <code>"scripts"</code> (named commands run by <code>npm run name</code>), <code>"dependencies"</code> and <code>"devDependencies"</code> (tools only needed to develop, such as test runners). Versions are semver ranges: <code>^5.2.1</code> means "5.x.y, at least 5.2.1". The exact resolved tree is pinned in a lockfile (<code>package-lock.json</code>, like <code>uv.lock</code>); commit it, and install from it in CI with <code>npm ci</code>. Packages go into a local <code>node_modules/</code> folder per project: there is no global site-packages and no virtual environment to activate, because every project is already isolated.</p>
+<div class="ja-snip"><div class="ja-file">l1_npm.sh</div><pre class="ja-code"><span class="cm"># A new project with npm: package.json, one dependency without dependencies (zod), one with many (express).</span>
+<span class="cm"># Runs in a scratch folder $WORK; npm's cache is warm, so times measure installing, not downloading.</span>
+set -e
+rm -rf <span class="st">"$WORK/npm-demo"</span> &amp;&amp; mkdir -p <span class="st">"$WORK/npm-demo"</span> &amp;&amp; cd <span class="st">"$WORK/npm-demo"</span>
+echo <span class="st">'$ npm init -y &amp;&amp; npm pkg set type=module'</span>; npm init -y &gt;/dev/null &amp;&amp; npm pkg set type=module
+echo <span class="st">'$ npm install zod@4.6.5'</span>; npm install zod@4.6.5 --no-audit --no-fund 2&gt;&amp;1 | grep -v <span class="st">'^$'</span>
+echo <span class="st">'$ npm install express@5.2.1'</span>; npm install express@5.2.1 --no-audit --no-fund 2&gt;&amp;1 | grep -v <span class="st">'^$'</span>
+echo <span class="st">'$ npm install -D vitest@5.0.3'</span>; npm install -D vitest@5.0.3 --no-audit --no-fund 2&gt;&amp;1 | grep -v <span class="st">'^$'</span>
+echo <span class="st">'$ cat package.json'</span>; cat package.json
+echo <span class="st">'$ ls node_modules | wc -l   # top-level folders: a flat tree with everyone'</span><span class="st">"'"</span><span class="st">'s dependencies hoisted'</span>; ls node_modules | wc -l | tr -d <span class="st">' '</span>
+echo <span class="st">'$ du -sh node_modules'</span>; du -sh node_modules | cut -f1
+echo <span class="st">'$ npm ls --depth=0'</span>; npm ls --depth=0
+echo <span class="st">'$ npm ls debug   # who pulled this in?'</span>; npm ls debug
+echo <span class="st">'$ grep -c "\"node_modules/" package-lock.json   # packages pinned in the lockfile'</span>; grep -c <span class="st">'"node_modules/'</span> package-lock.json</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="l1_npm.txt">$ npm init -y &amp;&amp; npm pkg set type=module
+$ npm install zod@4.6.5
+added 1 package in 905ms
+$ npm install express@5.2.1
+added 68 packages in 898ms
+$ npm install -D vitest@5.0.3
+added 35 packages in 4s
+$ cat package.json
+&#123;
+  "name": "npm-demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": &#123;
+    "test": "echo \"Error: no test specified\" &amp;&amp; exit 1"
+  &#125;,
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": &#123;
+    "express": "^5.2.1",
+    "zod": "^4.6.5"
+  &#125;,
+  "devDependencies": &#123;
+    "vitest": "^5.0.3"
+  &#125;
+&#125;
+$ ls node_modules | wc -l   # top-level folders: a flat tree with everyone's dependencies hoisted
+95
+$ du -sh node_modules
+ 46M
+$ npm ls --depth=0
+npm-demo@1.0.0 &lt;work&gt;/npm-demo
+├── express@5.2.1
+├── vitest@5.0.3
+└── zod@4.6.5
+
+$ npm ls debug   # who pulled this in?
+npm-demo@1.0.0 &lt;work&gt;/npm-demo
+└─┬ express@5.2.1
+  ├─┬ body-parser@2.3.0
+  │ └── debug@4.4.3 deduped
+  ├── debug@4.4.3
+  ├─┬ finalhandler@2.1.1
+  │ └── debug@4.4.3 deduped
+  ├─┬ router@2.2.0
+  │ └── debug@4.4.3 deduped
+  └─┬ send@1.2.1
+    └── debug@4.4.3 deduped
+
+$ grep -c "\"node_modules/" package-lock.json   # packages pinned in the lockfile
+129</pre></div>
+<p>Three direct dependencies: npm reported adding 1 + 68 + 35 = 104 packages, in 95 top-level folders taking 46 MB, and the lockfile pins 129 entries (27 of them optional platform-specific binaries, for example <code>@rolldown/binding-android-arm64</code>, installed only on matching machines). <code>npm ls</code> answers "who brought this in?". npm hoists everything into one flat folder, so your code can import packages you never declared (<code>debug</code> above), and breaks when they move. <b>pnpm</b> keeps one global content-addressed store on disk, hard-links files from it, and exposes only declared dependencies at the top of <code>node_modules</code>. <b>Bun</b> includes its own npm-compatible installer. <code>npx tool</code> (or <code>pnpm dlx</code>, <code>bunx</code>) runs a package's command without installing it, like <code>uvx</code>.</p>
+<div class="ja-snip"><div class="ja-file">l2_pnpm.sh</div><pre class="ja-code"><span class="cm"># The same three dependencies with npm, pnpm and bun, then a timed reinstall from each lockfile</span>
+<span class="cm"># into an empty node_modules (what CI does), caches warm: hyperfine, 5 runs each.</span>
+set -e
+for tool in npm pnpm bun; do
+  rm -rf <span class="st">"$WORK/$tool-demo"</span> &amp;&amp; mkdir -p <span class="st">"$WORK/$tool-demo"</span> &amp;&amp; cd <span class="st">"$WORK/$tool-demo"</span>
+  printf <span class="st">'&#123; "name": "%s-demo", "version": "1.0.0", "type": "module" &#125;\n'</span> $tool &gt; package.json
+  case $tool in
+    npm)  npm install zod@4.6.5 express@5.2.1 vitest@5.0.3 --no-audit --no-fund &gt;/dev/null 2&gt;&amp;1; CI=<span class="st">"npm ci --no-audit --no-fund"</span> ;;
+    pnpm) pnpm add zod@4.6.5 express@5.2.1 vitest@5.0.3 &gt;/dev/null 2&gt;&amp;1; CI=<span class="st">"pnpm install --frozen-lockfile"</span> ;;
+    bun)  bun add zod@4.6.5 express@5.2.1 vitest@5.0.3 &gt;/dev/null 2&gt;&amp;1; CI=<span class="st">"bun install --frozen-lockfile"</span> ;;
+  esac
+  hyperfine --runs 5 --warmup 1 --prepare <span class="st">'rm -rf node_modules'</span> <span class="st">"$CI"</span> --export-json <span class="st">"$WORK/$tool-ci.json"</span> &gt;/dev/null 2&gt;&amp;1
+  echo <span class="st">"$tool: lockfile $(ls *lock* | tr -d '\n'), top-level entries in node_modules $(ls -A node_modules | wc -l | tr -d ' '), '$CI' median $(python3 -c "</span>import json;print(round(json.load(open(<span class="st">'$WORK/$tool-ci.json'</span>))[<span class="st">'results'</span>][0][<span class="st">'median'</span>],2))<span class="st">") s"</span>
+done
+cd <span class="st">"$WORK/pnpm-demo"</span>
+echo <span class="st">'$ readlink node_modules/express   # pnpm: a link into .pnpm, which hard-links files from one global store'</span>; readlink node_modules/express
+echo <span class="st">'$ ls node_modules/debug   # not declared by you, so not importable (npm would hoist it)'</span>; ls node_modules/debug 2&gt;&amp;1 | sed <span class="st">'s|.*: |ls: |'</span></pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="l2_pnpm.txt">npm: lockfile package-lock.json, top-level entries in node_modules 98, 'npm ci --no-audit --no-fund' median 0.65 s
+pnpm: lockfile pnpm-lock.yaml, top-level entries in node_modules 7, 'pnpm install --frozen-lockfile' median 0.11 s
+bun: lockfile bun.lock, top-level entries in node_modules 97, 'bun install --frozen-lockfile' median 0.04 s
+$ readlink node_modules/express   # pnpm: a link into .pnpm, which hard-links files from one global store
+.pnpm/express@5.2.1/node_modules/express
+$ ls node_modules/debug   # not declared by you, so not importable (npm would hoist it)
+ls: No such file or directory</pre></div>
+<div class="co warn"><div class="t">Supply chain</div>A dependency can run code at install time (<code>"postinstall"</code> scripts), and a tree of a hundred packages has a hundred maintainers. Pin with a lockfile, review what a new dependency pulls in (<code>npm ls</code>, the package's dependency count), and prefer packages with few dependencies. pnpm (since version 10, {{release notes|https://github.com/pnpm/pnpm/releases/tag/v10.0.0}}) and Bun ({{lifecycle scripts|https://bun.com/docs/install/lifecycle}}) do not run dependencies' install scripts unless you allow them; npm runs them by default.</div>
+</section>
