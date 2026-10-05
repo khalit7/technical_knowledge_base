@@ -1,0 +1,48 @@
+<section id="rd-s3">
+<h2>3. Information: what the loss number means</h2>
+<p class="raise"><b>The question this step raises.</b> The loss is 2.408. 2.408 of what? Is that a lot? And how low could it ever go?</p>
+
+<h3>The picture: surprise</h3>
+<p>Before the answer was revealed, the model had a belief about each word. The rarer it thought a word, the more surprised it is to see it. The bars show how surprised the model would be by each word, in bits; the dashed line is the average surprise it expects, weighting each bar by how likely the model thinks that word is.</p>
+<div class="card">
+<div class="bars" id="rd-sur-bars">
+<div class="row"><span class="nm">cat (p = 0.665)</span><span class="track"><span class="fill" style="width:16.9%;background:var(--c1)"></span></span><span class="val">0.588 bits</span></div>
+<div class="row"><span class="nm">dog (p = 0.245)</span><span class="track"><span class="fill" style="width:58.5%;background:var(--c1)"></span></span><span class="val">2.031 bits</span></div>
+<div class="row hl"><span class="nm">sat (p = 0.090), the truth</span><span class="track"><span class="fill" style="width:100%;background:var(--c2)"></span></span><span class="val">3.473 bits</span></div>
+<div class="row"><span class="nm">expected surprise (entropy)</span><span class="track"><span class="fill" style="width:34.6%;background:var(--c4)"></span></span><span class="val">1.201 bits</span></div>
+</div>
+<p class="small mute">Surprise \(-\log_2 p\) of each word under the model's bet \(p = (0.665, 0.245, 0.090)\); bar lengths are to scale (3.473 bits is the full width). The truth was the word the model found most surprising.</p>
+</div>
+
+<h3>The words, then the formulas</h3>
+<p>The <dfn id="rd-g-surprise">surprise</dfn> (or information content) of an outcome you gave probability \(p\) is \(-\log p\). It is 0 for a certain event, grows as \(p\) shrinks, and adds up over independent events (because logs turn products into sums), which is the property that forces the logarithm. With \(\log_2\) the unit is the <dfn id="rd-g-bit">bit</dfn>; with the natural log \(\ln\) it is the <dfn id="rd-g-nat">nat</dfn>, and 1 nat is \(1/\ln 2 = 1.443\) bits. Training code uses \(\ln\), so <b>a loss printed during training is in nats</b>. Our loss of 2.408 nats is \(2.408 \times 1.443 = 3.473\) bits: the model was as surprised as you would be by three and a half fair coin flips all coming up heads.</p>
+<p>The <dfn id="rd-g-entropy">entropy</dfn> of a distribution is its average surprise (this answers a question you flagged, "what is entropy"):</p>
+\[ H(p) = -\sum_{i} p_i \log p_i \]
+<dl class="sym">
+<dt>\(p_i\)</dt><dd>the probability of outcome \(i\); an outcome with \(p_i = 0\) adds nothing (by convention \(0 \log 0 = 0\)).</dd>
+<dt>\(-\log p_i\)</dt><dd>the surprise of outcome \(i\); the sum weights each surprise by how often it happens.</dd>
+</dl>
+<p class="plain">In plain words: how uncertain you are before you look. A fair coin has 1 bit of entropy; a coin that lands heads 90% of the time has only 0.469 bits, because you are rarely surprised. Entropy is also the shortest possible average length of a message describing the outcome, in bits per outcome, for any lossless code (Shannon's source coding theorem): frequent outcomes get short codewords of about \(-\log_2 p\) bits.</p>
+<div class="nums"><div class="t">The numbers</div>The model's bet has entropy \(0.665 \times 0.588\) \(+\, 0.245 \times 2.031\) \(+\, 0.090 \times 3.473\) \(= 1.201\) bits (0.832 nats). A uniform bet over 3 words would have the maximum, \(\log_2 3 = 1.585\) bits.</div>
+
+<h3>Cross-entropy is the loss; KL is the part you can remove</h3>
+<p>Now let the data come from one distribution, \(q\) (the truth), while the model bets \(p\). The average surprise the model pays is the <dfn id="rd-g-ce">cross-entropy</dfn>, and the extra it pays compared with knowing the truth is the <dfn id="rd-g-kl">KL divergence</dfn> (Kullback-Leibler):</p>
+\[ H(q, p) = -\sum_i q_i \log p_i, \qquad D_{\mathrm{KL}}(q \,\Vert\, p) = \sum_i q_i \log \frac{q_i}{p_i} = H(q, p) - H(q) \]
+<dl class="sym">
+<dt>\(q_i\)</dt><dd>how often outcome \(i\) really happens (for one training example, 1 for the right word and 0 for the rest: a <dfn id="rd-g-onehot">one-hot</dfn> vector).</dd>
+<dt>\(p_i\)</dt><dd>the model's probability for outcome \(i\).</dd>
+<dt>\(\Vert\)</dt><dd>just a separator, read "from \(q\) to \(p\)". KL is not symmetric: \(D_{\mathrm{KL}}(q \Vert p)\) and \(D_{\mathrm{KL}}(p \Vert q)\) usually differ.</dd>
+</dl>
+<p class="plain">In plain words: cross-entropy is the cost of using the model's code on the real data; entropy is the cost of the perfect code; KL is the waste. KL is never negative and is 0 only when \(p = q\).</p>
+<div class="nums"><div class="t">The numbers</div>With the one-hot target (sat), only the sat term survives: \(H(q, p) = -\ln 0.090 = 2.408\) nats, exactly the loss of section 2. The cross-entropy loss and the negative log-likelihood are the same number. A one-hot target has entropy 0, so here all of it is KL: all of it could be removed.</div>
+<p>On real text the target is not one-hot. After "the cat" real writers continue with "sat", "is", "was" and many more, so the data has an entropy above zero, and <b>no model can push its average loss below the entropy of the text itself</b>. That is why a language model's loss levels off well above 0: the part that remains is the text's own unpredictability, not a failure to learn.</p>
+<details class="mist"><summary>Optional: which way round KL is taken (forward against reverse)</summary><div class="b">
+<p><b>Which way round KL is taken matters.</b> Training by cross-entropy minimises \(D_{\mathrm{KL}}(\text{data} \Vert \text{model})\), which punishes the model hard for giving almost no probability to anything that really happens, so it spreads its bets to cover everything (mode-covering). The KL penalty used in RLHF, \(D_{\mathrm{KL}}(\text{policy} \Vert \text{reference})\), is the other direction: it punishes the trained model for putting probability where the reference has little, and lets it drop some of what the reference does, which tends to narrow its outputs (mode-seeking).</p>
+</div></details>
+
+<h3>Perplexity and bits per byte: the loss as a reader sees it</h3>
+<p><dfn id="rd-g-ppl">Perplexity</dfn> is \(e^{\text{loss}}\) with the loss in nats per token (or \(2^{\text{loss}}\) in bits): the number of equally likely choices that would be as confusing. On our sentence it is \(e^{2.408} = 11.1\): worse than a uniform guess over the 3 words (perplexity 3). Perplexity depends on how text is cut into tokens, so it can only be compared between models that share a tokenizer. <dfn id="rd-g-bpb">Bits per byte</dfn> divides the total surprise in bits by the length of the text in bytes, which no tokenizer can change. If our token is " sat" with its leading space (4 bytes), its 3.473 bits are 0.868 bits per byte <span class="ill">illustrative</span>. The Pile paper prefers bits per byte "due to its invariance to different tokenization schemes", and measures 0.29335 GPT-2 tokens per byte, so 2.0 nats per token there is \(0.29335 \times 2.0 / \ln 2 = 0.846\) bits per byte ({{Gao et al. 2020|https://arxiv.org/abs/2101.00027}}).</p>
+
+<div class="use"><div class="t">What it is used for in ML</div>Reading training curves (nats per token) and language-model evaluations (perplexity within one tokenizer, bits per byte across tokenizers); the loss floor; KL penalties in RLHF and DPO; distillation (cross-entropy against a teacher's soft probabilities); entropy bonuses for exploration in RL; information gain in decision trees; mutual information and contrastive learning (see the four hats below).</div>
+<div class="deepnote"><b>Go deeper (optional):</b> convert between nats, bits, perplexity and bits per byte in {{Practice drills|#t-drill}}; codes, KL in both directions with pictures, mutual information and InfoNCE: an information theory child page is coming. KL penalties in practice: {{Alignment: SFT, RLHF, DPO Family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}} and {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}.</div>
+</section>

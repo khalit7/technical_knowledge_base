@@ -2343,3 +2343,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | Prompt-caching break-even calculator with cost curves | 4 | 5 | 5 | Reading 11 | `prices.json` (docs read 2026-10-05) | Carries the 1.28-use correction; Gemini storage included. |
 | Semantic curves (TPR and FPR by threshold) per model and dataset; hand-written pairs table | 4 | 5 | 5 | Reading 12 | `m_sem.py` | Hand pairs are illustrative inputs with measured similarities. |
 | Materialised view, Memoize and prewarm tables | 3 | 5 | 5 | Reading 8 | `m_pg.py` | Tables, not charts: few numbers each. |
+
+### Topic: math (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_math/src/viz_ideas.md`.
+

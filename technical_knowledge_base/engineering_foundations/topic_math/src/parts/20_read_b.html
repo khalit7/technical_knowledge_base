@@ -1,0 +1,43 @@
+<section id="rd-s1">
+<h2>1. Vectors and matrices: from an input to one score per word</h2>
+<p class="raise"><b>The question this step raises.</b> The model holds the input as two numbers and its knowledge as a table of six. How does it turn them into one score for each word, and why should a high score mean "likely"?</p>
+
+<h3>The picture</h3>
+<p>Draw the input \(x = (2, 1)\) as an arrow from the origin: two steps right, one step up. Draw each word's row of \(W\) as an arrow too. The score of a word is large when its arrow points the same way as the input arrow, zero when the two are at right angles, and negative when they point apart. Press play to watch the three scores being computed, one row at a time.</p>
+<div class="card" id="rd-mv-card">
+<div class="rd-svg" id="rd-mv-svg"></div>
+<div class="an-ctl" id="rd-mv-ctl"></div>
+<div class="an-cap" id="rd-mv-cap"></div>
+</div>
+
+<h3>The words, then the formula</h3>
+<p>A <dfn id="rd-g-vector">vector</dfn> is an ordered list of numbers, such as \(x = (2, 1)\); how many numbers it holds is its <dfn id="rd-g-dim">dimension</dfn> (here 2). A <dfn id="rd-g-matrix">matrix</dfn> is a table of numbers with rows and columns; its <dfn id="rd-g-shape">shape</dfn> is written rows by columns, so \(W\) is \(3 \times 2\). The <dfn id="rd-g-dot">dot product</dfn> of two vectors of the same dimension multiplies them entry by entry and adds the results. Multiplying a matrix by a vector, the <dfn id="rd-g-matvec">matrix-vector product</dfn>, is one dot product per row:</p>
+\[ z = W x, \qquad z_i = \sum_{j=1}^{d} W_{ij}\, x_j = w_i \cdot x \]
+<dl class="sym">
+<dt>\(x\)</dt><dd>the input vector, with \(d = 2\) entries \(x_1 = 2\), \(x_2 = 1\).</dd>
+<dt>\(W\)</dt><dd>the <dfn id="rd-g-weights">weight matrix</dfn>, \(V \times d = 3 \times 2\): one row per word of the vocabulary (\(V = 3\) words).</dd>
+<dt>\(W_{ij}\)</dt><dd>the number in row \(i\), column \(j\) of \(W\). The first subscript is always the row.</dd>
+<dt>\(w_i\)</dt><dd>row \(i\) of \(W\), itself a vector: \(w_{\text{cat}} = (1, 0)\), \(w_{\text{dog}} = (0, 1)\), \(w_{\text{sat}} = (1, -2)\).</dd>
+<dt>\(\sum_{j=1}^{d}\)</dt><dd>"add up, for \(j\) from 1 to \(d\)". The capital sigma is a loop written in one symbol.</dd>
+<dt>\(z\)</dt><dd>the output vector of scores, one per word. Raw scores like these, before they are turned into probabilities, are called <dfn id="rd-g-logit">logits</dfn>.</dd>
+</dl>
+<p class="plain">In plain words: to score a word, multiply the input's numbers by that word's numbers, pair by pair, and add. Do it once per word.</p>
+<div class="nums"><div class="t">The numbers</div>
+\(z_{\text{cat}} = 1 \times 2 + 0 \times 1 = 2\), \(z_{\text{dog}} = 0 \times 2 + 1 \times 1 = 1\), \(z_{\text{sat}} = 1 \times 2 + (-2) \times 1 = 0\). So \(z = (2, 1, 0)\): the model likes cat best.</div>
+
+<h3>Why a dot product measures "match"</h3>
+<p>The <dfn id="rd-g-norm">length</dfn> (or norm) of a vector is \(\lVert x \rVert = \sqrt{x_1^2 + x_2^2}\), Pythagoras' theorem; for the input, \(\sqrt{4 + 1} = 2.236\). The dot product can be rewritten with lengths and the angle \(\theta\) between the two arrows:</p>
+\[ w \cdot x = \lVert w \rVert \, \lVert x \rVert \cos\theta \]
+<p>where \(\cos\theta\) is 1 when the arrows point the same way, 0 at a right angle and \(-1\) when they point opposite ways. Dividing out the lengths leaves the <dfn id="rd-g-cosine">cosine similarity</dfn>, \(\cos\theta = \frac{w \cdot x}{\lVert w \rVert \lVert x \rVert}\). For the tiny model: cat 0.894 (nearly aligned), dog 0.447, sat 0 (exactly at right angles, so its score is 0 whatever the lengths). So a big score means "this word's arrow points where the input points, and both are long". Training will, in effect, turn the sat arrow towards the input.</p>
+
+<h3>Shapes: the check that catches most mistakes</h3>
+<p>A \(3 \times 2\) matrix times a 2-entry vector gives a 3-entry vector. In general an \(m \times n\) matrix needs an input with \(n\) entries and gives an output with \(m\): the inner sizes must match and the outer sizes survive. The <dfn id="rd-g-transpose">transpose</dfn> \(W^\top\) swaps rows and columns (\(2 \times 3\) here); it appears in section 4, where the gradient runs backwards through the layer. A real model scores many inputs at once by stacking them as the columns of a matrix \(X\) of shape \(d \times B\) (a <dfn id="rd-g-batch">batch</dfn> of \(B\) inputs); \(WX\) then has shape \(V \times B\), one column of scores per input. Writing the shape beside every symbol is the single best habit for reading papers and for debugging code.</p>
+
+<details class="mist"><summary>Optional: rank, and why LoRA works (a preview)</summary><div class="b">
+<h3>A preview: rank, and why LoRA works</h3>
+<p>In section 5 the model will change \(W\) by a matrix that is a column times a row: the gradient vector \((0.665, 0.245, -0.910)\) times the input \((2, 1)\), an <dfn id="rd-g-outer">outer product</dfn>. Every row of that change is a multiple of the same row \((2, 1)\). Its <dfn id="rd-g-rank">rank</dfn>, the number of independent directions a matrix really uses, is 1. The <dfn id="rd-g-svd">singular value decomposition</dfn> (SVD) says any matrix is a sum of such rank-1 layers, largest first, and keeping only the largest few is the best possible compression of that size (the Eckart-Young theorem). <dfn id="rd-g-lora">LoRA</dfn> fine-tunes a large model by learning only a low-rank change \(BA\), with \(B\) of shape \(d \times r\) and \(A\) of shape \(r \times d\): for \(d = 4096\) and \(r = 8\) that is \(2 \times 4096 \times 8 = 65{,}536\) trainable numbers instead of \(4096^2 = 16{,}777{,}216\), or 0.39%. It works because, as the authors hypothesised and then checked experimentally, the change fine-tuning makes has a low "intrinsic rank" ({{LoRA, Hu et al. 2021|https://arxiv.org/abs/2106.09685}}).</p>
+</div></details>
+
+<div class="use"><div class="t">What it is used for in ML</div>Every layer of every network is a matrix multiplication followed by something simple. Word embeddings are vectors; attention scores are dot products between a query vector and key vectors; retrieval and search rank documents by cosine similarity of embeddings; LoRA and other low-rank methods rest on rank.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> change \(x\) and \(W\) in the {{Gradient lab|#t-grad}} and watch the scores move; shapes, subscripts and transposes as papers write them are in the {{Notation decoder|#t-notation}}; norms, eigenvalues, the SVD worked by hand and matrix calculus: a linear algebra child page is coming. LoRA in full: {{LoRA (paper page)|n:3c65c17b0d0d81018f15edd19fa5c28a}} and {{Parameter-Efficient Fine-Tuning (PEFT)|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}.</div>
+</section>
