@@ -1,0 +1,52 @@
+<section id="rd-s15">
+<h2>15. ML recipes: the mechanisms put to work</h2>
+<div class="bets">
+<div class="bet"><h4>Datasets: map, do not load</h4><p class="small">Store samples in one or a few large files (a NumPy array, Arrow, a packed binary with an index) and <code>np.memmap</code> them, as the running job does. Workers then share one page-cache copy and pay only faults. For shuffled access to a dataset larger than RAM, prefer <code>MADV_RANDOM</code> or <code>pread</code> per sample (section 5); for sequential shards, the default read-around. Never replace a mapped file in place (SIGBUS); write and rename.</p></div>
+<div class="bet"><h4>Weights: safetensors or mmap=True</h4><p class="small">Loading returns in milliseconds and many processes share one copy; the first forward pass pays the faults. Read only your shard with <code>safe_open</code>. Converting dtype or moving to GPU creates private copies: drop the CPU tensors afterwards.</p></div>
+<div class="bet"><h4>DataLoader workers: keep the parent lean</h4><p class="small">Fork-started workers share the parent copy-on-write, and Python's reference counts and GC copy whatever they touch. Hold metadata in NumPy or Arrow, not lists of objects; call <code>gc.freeze()</code> before creating the iterator; watch USS per worker (section 13). Spawn or forkserver avoid the sharing altogether at the cost of start-up time (the root measured 0.021 s fork against 0.836 s spawn to the first batch).</p></div>
+<div class="bet"><h4>/dev/shm: size it and count it</h4><p class="small">Batches travel through shared memory: give the container <code>--shm-size</code> (or <code>--ipc=host</code>) of at least workers &times; prefetch factor &times; batch bytes, and remember it is charged to the memory limit and survives a killed process (section 12).</p></div>
+<div class="bet"><h4>Pinned memory: pin once, not too much</h4><p class="small"><code>pin_memory=True</code> plus <code>non_blocking=True</code> overlaps host-to-device copies with compute; raise <code>memlock</code> in containers; budget pinned bytes as unreclaimable (section 9).</p></div>
+<div class="bet"><h4>Limits: know which one kills you</h4><p class="small">Read <code>memory.max</code>, <code>memory.events</code> and <code>memory.stat</code> from inside the job and log them; an exit code 137 with <code>oom_kill</code> incremented is the cgroup, not your code. Leave headroom for page cache and /dev/shm. If swap is allowed, alert on <code>memory.swap.current</code>: a swapping training job is a stalled one.</p></div>
+</div>
+</section>
+
+<section id="rd-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>"RSS says each worker uses 250 MiB, so 8 workers need 2 GB."</summary><div class="b">RSS counts shared pages in every process. Measured here: three processes, 815 MiB of RSS, 345 MiB of PSS, 104 MiB of USS. Use PSS for totals and USS for "what does one more worker cost".</div></details>
+<details class="mist"><summary>"The allocation succeeded, so the memory is there."</summary><div class="b">With overcommit (modes 0 and 1) an allocation is a promise; memory is taken at first touch, and the OOM killer settles any shortfall later, at a random-looking moment.</div></details>
+<details class="mist"><summary>"free shows almost no free memory: we have a leak."</summary><div class="b">Look at "available", not "free". The page cache fills idle RAM on purpose and is given back on demand.</div></details>
+<details class="mist"><summary>"The container's memory is full of page cache, so it is about to be killed."</summary><div class="b">Clean page cache is reclaimed at the limit (measured: thousands of "max" events, no kill). What kills is anonymous memory and shared memory that cannot be reclaimed without swap.</div></details>
+<details class="mist"><summary>"Our workers only read the dataset, so copy-on-write cannot copy anything."</summary><div class="b">In Python, reading an object writes its reference count, and the garbage collector writes every tracked object's header. Measured: 15,732 pages copied by reading a list, 16,817 by one <code>gc.collect()</code>, 30 after <code>gc.freeze()</code>.</div></details>
+<details class="mist"><summary>"Huge pages always help."</summary><div class="b">They cut faults and TLB misses for dense memory, but bloat sparse memory (298x in the measurement here), can stall allocations on compaction, and do not reduce page-table memory in Linux.</div></details>
+<details class="mist"><summary>"Set oom_score_adj = -1000 on the trainer so it is never killed."</summary><div class="b">Inside a default container you cannot lower it (no <code>CAP_SYS_RESOURCE</code>), and if you could, the kernel would kill something else, perhaps the data loader or the node agent. Size the limit instead.</div></details>
+<details class="mist"><summary>"pin_memory() before every .to('cuda') makes copies faster."</summary><div class="b">Pinning is itself a copy; doing it per transfer is usually slower than letting CUDA stage the copy. Pin buffers you reuse (the DataLoader's pinning thread does this).</div></details>
+</section>
+
+<section id="rd-iq">
+<h2>Interview questions</h2>
+<details class="qa"><summary>Walk through what happens on the first write to a freshly malloc'd 1 GiB buffer.</summary><div>glibc serves it with an anonymous private <code>mmap</code>: a new VMA, no frames. The first store to each page misses the TLB; the hardware walk finds no valid entry; the CPU raises a fault; the kernel finds the VMA (writable, anonymous), allocates any missing table levels, takes a zeroed frame, writes the entry and resumes the store (<code>do_anonymous_page</code>). 262,144 such faults, about 1 us each here. With THP for the range, 512 faults of 2 MiB each. RSS grows as pages are touched, not at malloc.</div></details>
+<details class="qa"><summary>Why is fork fast even for a process using 50 GB, and when is it not?</summary><div>Fork copies page tables and marks private pages read-only; pages are copied lazily on write. The table copy is still proportional to resident memory: about 19 us per resident MiB measured here with 4 KiB pages (about 1 s for 50 GB), 30x less with huge pages. After fork, every page either side writes costs a fault and a 4 KiB copy, which is where DataLoader worker memory comes from.</div></details>
+<details class="qa"><summary>What is a TLB shootdown and why can munmap be expensive in a multi-threaded program?</summary><div>Removing or changing a mapping requires every CPU that may cache the old translation to drop it. x86 interrupts each such CPU and waits; arm64 broadcasts a TLBI instruction. Measured here on arm64, an mprotect that must flush cost about 1.9 us regardless of how many other threads ran, against 0.65 us when nothing was cached.</div></details>
+<details class="qa"><summary>Explain RSS, PSS and USS, and which one you would alert on for a fleet of identical workers.</summary><div>RSS counts all resident mapped pages, PSS divides shared pages among sharers, USS counts private pages only. Alert on USS growth per worker (copy-on-write and leaks show there) and on the cgroup's <code>memory.current</code> minus reclaimable cache for the pod as a whole.</div></details>
+<details class="qa"><summary>A training pod dies with exit code 137 and no traceback. How do you confirm the cause and fix it?</summary><div>137 = 128 + SIGKILL. Check <code>memory.events</code> (oom_kill), Kubernetes' <code>OOMKilled</code> reason, or the kernel log. Then find what grew: <code>memory.stat</code> anon vs file vs shmem (DataLoader shared memory counts), worker USS (copy-on-write), pinned memory. Fix the growth or raise the limit; do not rely on swap.</div></details>
+<details class="qa"><summary>Why does mmap'ing model weights let 8 server processes share memory, and what breaks the sharing?</summary><div>All map the same page-cache pages of the file (MAP_SHARED or read-only private), so RAM holds one copy. Any write to a private mapping, a dtype conversion, or a copy into a new tensor creates private anonymous pages per process.</div></details>
+</section>
+
+<section id="rd-gl">
+<h2>Glossary</h2>
+<div class="gl">
+<div><b><a href="#g-as">address space</a></b>: a process's private range of virtual addresses</div>
+<div><b><a href="#g-vma">VMA</a></b>: one mapping, a line of /proc/PID/maps</div>
+<div><b><a href="#g-page">page</a></b> / <b><a href="#g-frame">frame</a></b>: 4 KiB unit of virtual / physical memory</div>
+<div><b><a href="#g-pt">page table</a></b>: the per-process tree from virtual pages to frames</div>
+<div><b><a href="#g-tlb">TLB</a></b>: CPU cache of translations; <b><a href="#g-reach">reach</a></b> = entries x page size</div>
+<div><b><a href="#g-asid">ASID / PCID</a></b>: tag that lets TLB entries of many processes coexist</div>
+<div><b><a href="#g-shoot">TLB shootdown</a></b>: invalidating a translation on all CPUs</div>
+<div><b><a href="#g-fault">page fault</a></b>: trap on access to a page with no valid entry; <b><a href="#g-minor">minor</a></b> / <b><a href="#g-major">major</a></b></div>
+<div><b><a href="#g-pagecache">page cache</a></b>: file data cached in RAM</div>
+<div><b><a href="#g-wmark">watermarks</a></b>, <b><a href="#g-direct">direct reclaim</a></b>: when the kernel frees memory, and who pays</div>
+<div><b><a href="#g-thp">THP</a></b> / <b><a href="#g-hugetlb">hugetlbfs</a></b>: automatic / reserved huge pages</div>
+<div><b><a href="#g-dma">DMA</a></b>, <b><a href="#g-pin">pinning</a></b>: device copies, and pages that may not move</div>
+<div><b><a href="#g-swap">swap</a></b>: disk space for anonymous pages</div>
+</div>
+</section>

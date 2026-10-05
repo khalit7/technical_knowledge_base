@@ -1,0 +1,54 @@
+<section id="rd-s12">
+<h2>12. Memory cgroups and the OOM killer: what happens at the limit</h2>
+<p><b>The problem.</b> On a shared host each job (container, pod, Slurm step) needs a memory budget, and when the budget or the machine runs out, someone must lose. <b>How it works.</b> A cgroup v2 memory controller charges every page a process in the group allocates to the group, and reclaims within the group when it reaches its limit. What is charged: "userland memory - page cache and anonymous memory", kernel structures such as dentries and inodes, and TCP socket buffers ({{cgroup-v2 docs, Memory|https://docs.kernel.org/admin-guide/cgroup-v2.html#memory}}). The files, in each cgroup's directory (<code>/sys/fs/cgroup/</code> inside a container):</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>File</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>memory.current</code></td><td>bytes charged now, page cache included</td></tr>
+<tr><td><code>memory.max</code></td><td>hard limit: reclaim, then the OOM killer inside the group (<code>docker --memory</code>, a Kubernetes memory limit)</td></tr>
+<tr><td><code>memory.high</code></td><td>"Memory usage throttle limit... Going over the high limit never invokes the OOM killer": the group's tasks are made to reclaim and are put to sleep, up to 2 s per return to user space in 5.10 ({{MEMCG_MAX_HIGH_DELAY_JIFFIES, mm/memcontrol.c line 2466|https://github.com/torvalds/linux/blob/v5.10/mm/memcontrol.c#L2466}}) <span class="nrh">not run here</span> (Docker 20.10 has no flag for it and the container cannot write its own cgroup)</td></tr>
+<tr><td><code>memory.low</code>, <code>memory.min</code></td><td>protection: below these the group's memory is reclaimed only reluctantly, or never</td></tr>
+<tr><td><code>memory.swap.max</code></td><td>swap allowed (<code>docker --memory-swap</code> minus <code>--memory</code>)</td></tr>
+<tr><td><code>memory.events</code></td><td>counters: <code>high</code>, <code>max</code> (times the limit forced reclaim), <code>oom</code>, <code>oom_kill</code></td></tr>
+<tr><td><code>memory.stat</code></td><td>the breakdown: <code>anon</code>, <code>file</code> (page cache, includes <code>shmem</code>), <code>shmem</code>, <code>file_dirty</code>, <code>sock</code>, ...</td></tr>
+<tr><td><code>memory.oom.group</code></td><td>if 1, "all tasks belonging to the cgroup or to its descendants are killed together or not at all"</td></tr>
+</tbody></table></div>
+<p><b>Four runs at a 512 MiB limit</b> <span class="meas">measured</span>, replayed sample by sample in the {{Memory replay|#t-cg}} tab:</p>
+<div class="tw"><table class="tbl-sm" id="vm-cgsum"></table></div>
+<p>The fourth run is the one to remember for data loading: files in <code>/dev/shm</code> are shared memory charged to the cgroup, they survive the process that wrote them, and no process's RSS shows them. DataLoader workers hand batches to the main process through such files; the root's Debug lab case "DataLoader workers run out of /dev/shm" shows the other way it fails (Docker's default 64 MiB <code>/dev/shm</code>), and PyTorch's own README says to raise it "either with <code>--ipc=host</code> or <code>--shm-size</code>" ({{PyTorch README|https://github.com/pytorch/pytorch#docker-image}}).</p>
+<h3>Who the OOM killer picks, from the source</h3>
+<p>When reclaim fails, <code>oom_badness</code> scores every candidate process ({{mm/oom_kill.c lines 201 to 238|https://github.com/torvalds/linux/blob/v5.10/mm/oom_kill.c#L201}}) and the highest score is sent SIGKILL:</p>
+<div class="fm"><div class="eq">points = rss + swap + page_tables / 4 KiB + oom_score_adj &times; &lfloor;totalpages / 1000&rfloor;</div>
+<dl><dt>rss</dt><dd>resident pages: anonymous, file-mapped and shmem (in pages)</dd><dt>swap</dt><dd>pages of this process in swap</dd><dt>oom_score_adj</dt><dd>-1000 (never kill) to +1000, per process, in <code>/proc/PID/oom_score_adj</code></dd><dt>totalpages</dt><dd>machine OOM: RAM + swap. cgroup OOM: <code>memory.max</code> + allowed swap ({{mem_cgroup_get_max, line 1690|https://github.com/torvalds/linux/blob/v5.10/mm/memcontrol.c#L1690}})</dd></dl></div>
+<p><code>/proc/PID/oom_score</code> shows (1000 + points &times; 1000 / totalpages) &times; 2 / 3, always with the <i>machine's</i> RAM + swap ({{fs/proc/base.c lines 549 to 566|https://github.com/torvalds/linux/blob/v5.10/fs/proc/base.c#L549}}). Four processes in a 1 GiB container, the formula against the kernel's number <span class="meas">measured</span>:</p>
+<div class="tw"><table class="tbl-sm" id="vm-oom"></table></div>
+<p id="vm-oom-note" class="small"></p>
+<div class="drill" data-k="oom"><p class="q">In a 1 GiB container with no swap, process A holds 450 MiB (adj 0) and process B 250 MiB but set its own <code>oom_score_adj</code> to 500. The group hits its limit. Who dies?</p>
+<div class="ch"><button>A, the biggest</button><button data-ok="1">B</button><button>both</button></div>
+<div class="ans" hidden>totalpages = 262,144 (1 GiB of 4 KiB pages), so adj 500 adds 500 &times; 262 = 131,000 points, worth 512 MiB of RSS. A scores about 115,200 + 0; B about 64,000 + 131,000 = 195,000. B dies. The root's Debug lab case "Which process the OOM killer picks: oom_score and oom_score_adj" ran exactly this and B was killed. Raising your own adj is allowed; lowering it below its current value needs <code>CAP_SYS_RESOURCE</code>, which a default container lacks (measured: refused).</div></div>
+<p><b>Kubernetes sets the adj for you</b> by quality-of-service class: Guaranteed -997, BestEffort 1000, Burstable <code>min(max(2, 1000 - (1000 &times; memoryRequestBytes) / machineMemoryCapacityBytes), 999)</code> ({{node-pressure eviction docs|https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/}}). So when the <i>node</i> runs out, a pod with a small request relative to the node is killed first; when a <i>container</i> exceeds its own limit, its cgroup OOM kills inside it regardless.</p>
+<div class="co warn"><div class="t">What an OOM kill looks like</div>No Python exception, no traceback: SIGKILL cannot be caught. The shell says <code>Killed</code>; the exit code is 137 (128 + 9); Kubernetes reports <code>OOMKilled</code>; the kernel log has "Memory cgroup out of memory: Killed process" (<code>dmesg</code>, not readable in an unprivileged container); <code>memory.events</code> counts <code>oom_kill</code>. A Python <code>MemoryError</code> is a different event: an allocation the kernel refused (mode 2, an rlimit, a 32-bit limit), which the root's Debug lab sets side by side.</div>
+<p class="cmd">cat /sys/fs/cgroup/memory.{current,max,events}; grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/memory.stat; cat /proc/PID/oom_score{,_adj}</p>
+</section>
+
+<section id="rd-s13">
+<h2>13. RSS, PSS, USS: three answers to "how much memory does it use?"</h2>
+<p><b>The problem.</b> Shared pages (libraries, the page cache of a mapped file, copy-on-write pages after fork) are resident for several processes at once. Adding up per-process numbers counts them several times. Three measures, all from <code>/proc/PID/smaps_rollup</code>:</p>
+<div class="mech"><div><b>RSS</b>resident set: every resident page mapped by the process, shared or not. Sums overcount.</div><div><b>PSS</b>proportional set: each page divided by the number of processes mapping it. Sums are right.</div><div><b>USS</b>unique set: Private_Clean + Private_Dirty, what you would get back by killing this one process.</div></div>
+<p><b>The running job, measured</b> while training (main process and its two fork-started DataLoader workers):</p>
+<div class="card"><div class="rd-chart" id="vm-pss"></div><p class="small mute" id="vm-pss-note"></p></div>
+<p>The workers' RSS of about 250 MiB each is nearly all <i>Shared_Dirty</i>: the parent's heap and the imported torch, inherited by fork and not yet written. Their USS, what each really adds, is under 9 MiB. Over an epoch, copy-on-write (section 7) is what turns Shared_Dirty into Private_Dirty, so watch USS per worker, not RSS. Which number a tool reports: <code>ps</code> and <code>top</code> show RSS; <code>smem</code> shows PSS and USS; container tools and Kubernetes read the cgroup (<code>memory.current</code>, which also includes page cache), which is a fourth answer.</p>
+<p class="cmd">for p in $(pgrep -f train.py); do grep -E '^(Rss|Pss|Private)' /proc/$p/smaps_rollup; done; smem -P train.py</p>
+</section>
+
+<section id="rd-s14">
+<h2>14. NUMA: when some memory is farther away <span class="nrh">not run here</span></h2>
+<p>A server with two CPU sockets has memory attached to each; a CPU reaches its own node's memory faster than the other's (non-uniform memory access). This lab has one node (<code>numactl --hardware</code> reports none). The policies, from {{set_mempolicy(2)|https://man7.org/linux/man-pages/man2/set_mempolicy.2.html}} and {{mbind(2)|https://man7.org/linux/man-pages/man2/mbind.2.html}}:</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Policy</th><th>Where pages go</th><th>Use</th></tr></thead><tbody>
+<tr><td>MPOL_DEFAULT (local)</td><td>the node of the CPU that first touches the page ("first touch")</td><td>the default; why the thread that initialises a buffer decides where it lives</td></tr>
+<tr><td>MPOL_BIND</td><td>only the given nodes</td><td><code>numactl --membind</code>; strict, can OOM while another node is free</td></tr>
+<tr><td>MPOL_PREFERRED</td><td>the given node if possible</td><td>soft placement</td></tr>
+<tr><td>MPOL_INTERLEAVE</td><td>round-robin over nodes, page by page</td><td>big shared tables read from all sockets</td></tr>
+</tbody></table></div>
+<p><b>Automatic NUMA balancing</b> (<code>kernel.numa_balancing</code>) periodically makes pages inaccessible so the next access faults (<code>do_numa_page</code>, the <code>pte_protnone</code> branch in {{handle_pte_fault, line 4380|https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4380}}), notes which node touched it, and migrates pages or tasks to match; each migration is a TLB shootdown (section 3) ({{sysctl kernel docs, numa_balancing|https://docs.kernel.org/admin-guide/sysctl/kernel.html#numa-balancing}}). Cgroups restrict nodes with <code>cpuset.mems</code>.</p>
+<p><b>In ML.</b> Each GPU hangs off one socket's PCIe; <code>nvidia-smi topo -m</code> prints each GPU's CPU and NUMA affinity. A data loader and pinned buffers on the other socket send every batch across the inter-socket link. Launch per-GPU processes with matching <code>numactl --cpunodebind=N --membind=N</code> (or the launcher's affinity options). Hardware detail lives in {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}; CPU pinning in {{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}.</p>
+<p class="cmd">numactl --hardware; numastat -p PID; cat /proc/PID/numa_maps | head</p>
+</section>
