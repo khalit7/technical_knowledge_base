@@ -14,7 +14,9 @@ p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
 await p.setViewport({ width: +width, height: 900 });
 await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
 await p.goto('file://' + path.resolve(file));
-await p.click(`button[data-t=${tab}]`);
+// pages with a part bar hide the tab buttons of other parts: switch through SHOW_TAB then
+if (await p.$eval(`button[data-t=${tab}]`, b => b.offsetParent === null && !!window.SHOW_TAB)) await p.evaluate(t => window.SHOW_TAB(t), tab);
+else await p.click(`button[data-t=${tab}]`);
 await new Promise(r => setTimeout(r, 300));
 if (click) { await p.click(click); await new Promise(r => setTimeout(r, 200)) }
 const el = await p.$(process.env.SEL || ('#' + tab));
