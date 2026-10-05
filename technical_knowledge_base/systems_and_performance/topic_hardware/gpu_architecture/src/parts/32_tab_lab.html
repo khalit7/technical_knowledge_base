@@ -1,0 +1,30 @@
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>#t-lab .lb-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}#t-lab .lb-card h3{margin:0 0 4px}#t-lab .tr{font-size:13px;border-left:3px solid var(--good);padding:2px 0 2px 10px;margin:6px 0}#t-lab .ntr{border-left-color:var(--bad)}</style>
+<h2 style="margin-top:14px">M1 GPU lab: four NVIDIA microbenchmarks, run on an Apple GPU</h2>
+<p>No NVIDIA GPU was available for this page, so the microbenchmarks that papers such as {{Luo et al.|https://arxiv.org/html/2402.13499v1}} run to dissect NVIDIA GPUs were run on the Apple M1 Pro's 16-core GPU instead. It is a real SIMT GPU: SIMD-groups of 32 threads (Apple's warps), threadgroups (blocks), threadgroup memory (shared memory). What transfers to NVIDIA is the shape of each result and the mechanism behind it; the numbers do not, and each chart says which is which. <span class="pill m">measured here</span></p>
+<p class="small mute" id="lb-meta"></p>
+
+<div class="lb-card"><h3>1. The latency ladder: one thread chasing pointers</h3>
+<p class="small">One thread follows a random cyclic chain through a buffer, one hop per 128-byte line, so every load depends on the last and nothing can overlap. Time per hop against buffer size shows each level of the memory system as a step. Launch overhead is cancelled by timing two chain lengths and taking the difference.</p>
+<label class="chk"><input type="checkbox" id="lb-ref" checked> show H800 levels (Luo et al., cycles at 1,755 MHz)</label>
+<div id="lb-chase" class="plotbox"></div>
+<div class="tr">Transfers: the staircase (each level a plateau, a jump where the working set stops fitting), and the method; it is how Table IV of Luo et al. was measured.</div>
+<div class="tr ntr">Does not transfer: the sizes and the nanoseconds. Apple does not publish its GPU cache sizes (the steps here are inferred), and the last step includes address-translation misses of a 256 MB random walk.</div></div>
+
+<div class="lb-card"><h3>2. Latency hiding: throughput against threads in flight</h3>
+<p class="small">Left: a coalesced read of 256 MB (each thread loops over the buffer in 16-byte loads). Right: the pointer chase of chart 1 in a 256 MB chain, with every thread starting at a different place. Both grow with threads until the memory system saturates: Little's law, throughput = requests in flight / latency.</p>
+<div class="grid"><div id="lb-stream" class="plotbox"></div><div id="lb-little" class="plotbox"></div></div>
+<div class="tr">Transfers: a single warp reaches about 1% of the bandwidth; saturating memory needs thousands of threads or, per thread, several wide loads in flight. On an H100 the same rule asks for about 0.9 MB in flight (Reading, section 3).</div>
+<div class="tr ntr">Does not transfer: where the curve flattens (here about 512 threads per core) and the plateau (148 GB/s here, 3.35 TB/s nominal on an H100).</div></div>
+
+<div class="lb-card"><h3>3. Occupancy: reserving shared memory evicts warps</h3>
+<p class="small">The coalesced read again, with 65,536 threads in 64-thread groups, but each group reserves X KB of threadgroup memory it does not need. Fewer groups fit on a core, fewer loads are in flight, bandwidth falls in steps.</p>
+<div id="lb-smem" class="plotbox"></div>
+<div class="tr">Transfers: the mechanism. On an H100, a block's shared memory (plus 1 KB) divided into 228 KB sets how many blocks fit, exactly as the steps here show (Reading, section 4).</div>
+<div class="tr ntr">Does not transfer: the per-core budget. The steps fall where 64 KB per core would put them (3 groups at 20 KB, 2 from 24 KB), but Apple does not publish the figure.</div></div>
+
+<div class="lb-card"><h3>4. Divergence</h3>
+<p class="small">Shown with its bars in Reading, section 5 ({{go there|#t-read}}): K different loops chosen by lane (divergent) cost about K times; chosen by SIMD-group (uniform) cost nothing. Same kernel, same work per thread.</p></div>
+
+<p class="small mute">Method: <code>src/m1/gpu_micro.py</code>, custom Metal kernels through <code>mx.fast.metal_kernel</code>; three full runs 20 s apart (<code>src/run_all.sh</code>); each point is the median of the three runs' medians of 5 timings, whiskers the lowest and highest run median. Every chase result is checked against the chain computed in NumPy, every read against a float64 sum. The laptop was shared with other work: load average during the runs is given above. Raw outputs: <code>src/m1/out/</code>.</p>
+</div>
