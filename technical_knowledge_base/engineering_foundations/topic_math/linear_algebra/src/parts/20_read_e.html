@@ -1,0 +1,40 @@
+
+<section id="rd-mul">
+<h2>3. Matrix multiplication, four ways</h2>
+<div class="raise"><b>The question.</b> Multiplying two matrices is taught as a rule about rows and columns. Why that rule, and why do papers keep rewriting the same product as a sum of columns, or a sum of outer products?</div>
+<p>The product of an \(m \times n\) matrix \(P\) and an \(n \times p\) matrix \(Q\) is the \(m \times p\) matrix \(PQ\). The inner sizes must match (both \(n\)); the outer sizes survive. There are four ways to read the same product, and each one is the natural reading in some part of ML. Take</p>
+\[ P = \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}, \quad Q = \begin{pmatrix} 5 & 6 \\ 7 & 8 \end{pmatrix}, \quad PQ = \begin{pmatrix} 19 & 22 \\ 43 & 50 \end{pmatrix} \]
+<ol class="steps">
+<li><b>Row times column (dot products).</b> Entry \((i, j)\) of \(PQ\) is the dot product of row \(i\) of \(P\) with column \(j\) of \(Q\): \((PQ)_{ij} = \sum_k P_{ik} Q_{kj}\). So \((PQ)_{11} = 1 \cdot 5 + 2 \cdot 7 = 19\). This is how attention scores are read: every query (a row) against every key (a column).</li>
+<li><b>Column picture.</b> Column \(j\) of \(PQ\) is \(P\) times column \(j\) of \(Q\), which is a combination of the columns of \(P\) with weights from \(Q\): column 1 is \(5\,(1, 3) + 7\,(2, 4) = (19, 43)\). This is how you see that every output of a layer lies in the span of the weight matrix's columns (section 5).</li>
+<li><b>Sum of outer products.</b> An <dfn id="g-outer">outer product</dfn> \(u v^\top\) of a column and a row is a whole matrix with entries \(u_i v_j\), and it has rank 1 (every row is a multiple of \(v\)). \(PQ\) is the sum over \(k\) of (column \(k\) of \(P\)) times (row \(k\) of \(Q\)): \[(1, 3)(5, 6) + (2, 4)(7, 8) = \begin{pmatrix} 5 & 6 \\ 15 & 18 \end{pmatrix} + \begin{pmatrix} 14 & 16 \\ 28 & 32 \end{pmatrix}\]. This is the SVD's reading (section 12), LoRA's \(BA\) (a sum of \(r\) rank-1 layers) and the gradient of a layer (\(\nabla_W L = g\,x^\top\), the root's rank-1 gradient).</li>
+<li><b>Composition.</b> \((PQ)x = P(Qx)\): applying \(PQ\) is applying \(Q\) first, then \(P\). With \(x = e_1\): \(Qx = (5, 7)\), then \(P(5, 7) = (19, 43)\). Read right to left. This is why order matters: \(QP = \begin{pmatrix} 23 & 34 \\ 31 & 46 \end{pmatrix} \ne PQ\), because "rotate then stretch" is not "stretch then rotate".</li>
+</ol>
+<div class="card" id="rd-mm-card">
+<div class="seg" id="rd-mm-seg"><button data-m="rc" class="on">Row times column</button><button data-m="col">Column picture</button><button data-m="outer">Outer products</button><button data-m="comp">Composition</button></div>
+<div class="mmrow" id="rd-mm-mats"></div>
+<div class="mmwork" id="rd-mm-work"></div>
+<div class="an-cnt" id="rd-mm-cnt"></div>
+<div class="an-cap" id="rd-mm-cap"></div>
+<div class="an-ctl" id="rd-mm-ctl"></div>
+<p class="small mute">The same product computed in four orders. The counter shows that every order does the same 8 multiplications: the readings differ in grouping, not in work. Same input in every mode, drawn to the same layout.</p>
+</div>
+<h3>The transpose, and why \((PQ)^\top = Q^\top P^\top\)</h3>
+<p>The <dfn id="g-transpose">transpose</dfn> \(P^\top\) swaps rows and columns: \((P^\top)_{ij} = P_{ji}\). A column vector becomes a row, which is why \(a^\top b\) is a dot product (a \(1 \times n\) row times an \(n \times 1\) column gives a \(1 \times 1\) number) while \(a b^\top\) is an outer product (\(n \times 1\) times \(1 \times n\) gives \(n \times n\)). Transposing a product reverses the order: entry \((i, j)\) of \((PQ)^\top\) is entry \((j, i)\) of \(PQ\), \(\sum_k P_{jk} Q_{ki}\), which is row \(i\) of \(Q^\top\) dotted with column \(j\) of \(P^\top\). That reversal is what makes backpropagation multiply by \(W^\top\) on the way back.</p>
+<h3>Why stacked linear layers collapse</h3>
+<p>Composition gives a fact that shapes every network: two linear layers in a row, \(W_2 (W_1 x)\), are one linear layer \((W_2 W_1) x\). However many you stack, without a non-linear function between them the network can only ever compute one matrix. The activation function (ReLU, GELU) between layers is what stops the collapse.</p>
+<h3>What a product costs</h3>
+<p>An \(m \times n\) times \(n \times p\) product does \(m \cdot n \cdot p\) multiplications and about as many additions, usually counted as \(2mnp\) floating-point operations (FLOPs). For one GPT-2 small layer of 768 by 768 applied to 1,024 tokens that is \(2 \times 1024 \times 768 \times 768 \approx 1.2\) billion FLOPs. Counting FLOPs for whole networks and for the backward pass belongs to {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}.</p>
+</section>
+
+<section id="rd-shape">
+<h2>4. Shapes, batches and broadcasting</h2>
+<div class="raise"><b>The question.</b> Papers write \(Wx\) for one input. Code applies a layer to a batch of sequences of vectors at once, and a single misplaced axis silently gives wrong numbers. What are the rules?</div>
+<h3>Shapes: the check that catches most mistakes</h3>
+<p>Write the shape beside every symbol. \(W\) is \(3 \times 2\), \(x\) has 2 entries, so \(Wx\) has 3: inner sizes match and vanish, outer sizes survive. A real model handles many inputs at once as a tensor (a table with more than two axes) of shape \((B, T, d)\): \(B\) sequences in the batch, \(T\) tokens each, \(d\) numbers per token. A layer acts on the last axis only, the same matrix for every token.</p>
+<p><b>Two conventions for the same layer.</b> Papers usually treat one input as a column and write \(y = Wx + b\) with \(W\) of shape (outputs by inputs). Code stacks inputs as rows, so it computes \(Y = XW^\top + b\): PyTorch's <code>nn.Linear</code> stores <code>weight</code> with shape <code>(out_features, in_features)</code> and computes \(y = xA^\top + b\) ({{PyTorch nn.Linear docs|https://docs.pytorch.org/docs/stable/generated/torch.nn.Linear.html}}). GPT-2's original code uses a third layout: its <code>Conv1D</code> stores the weight as <code>(in, out)</code> and computes \(xW + b\); Hugging Face's own docstring says it "works like a linear layer but the weights are transposed" ({{transformers pytorch_utils.py|https://github.com/huggingface/transformers/blob/main/src/transformers/pytorch_utils.py}}). The Low-rank lab tab uses this layout. The transpose between conventions is the same map; mixing them inside one derivation is the bug.</p>
+<h3>Broadcasting</h3>
+<p>Adding a bias \(b\) of shape \((d,)\) to activations of shape \((B, T, d)\) works because libraries <dfn>broadcast</dfn>: they line up shapes from the right, and an axis of size 1 (or a missing axis) is stretched to match. NumPy's rule, word for word: "two dimensions are compatible when they are equal, or one of them is 1" ({{NumPy broadcasting|https://numpy.org/doc/stable/user/basics.broadcasting.html}}). So \((3, 1) + (1, 2)\) gives \((3, 2)\), and \((B, T, d) + (d,)\) gives \((B, T, d)\).</p>
+<div class="co warn"><div class="t">The broadcasting bug, with numbers</div>Predictions of shape <code>(3, 1)</code>, \((1, 2, 3)\) as a column, minus targets of shape <code>(3,)</code>, also \((1, 2, 3)\): instead of three differences of 0 you get a \(3 \times 3\) table of every prediction minus every target, \(\begin{pmatrix} 0 & -1 & -2 \\ 1 & 0 & -1 \\ 2 & 1 & 0 \end{pmatrix}\). Its mean square is \(12/9 = 1.333\), though the predictions are perfect and the true mean squared error is 0. No error is raised. Fix: make the shapes equal (<code>pred.squeeze(-1)</code>) and assert shapes before every loss.</div>
+<div class="use"><div class="t">What it is used for in ML</div>Reading a model's code against its paper is mostly translating shapes and layouts: which axis is the batch, which is heads, whether the weight is stored (out, in) or (in, out). Einsum notation (section 16) makes every axis explicit and is the cure when a shape bug survives ten minutes of staring.</div>
+</section>
