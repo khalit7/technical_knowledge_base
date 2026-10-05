@@ -1,0 +1,42 @@
+<div class="tab" id="t-crash" role="tabpanel" hidden>
+<style>
+#t-crash .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#t-crash .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-crash .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-crash .ops{display:flex;flex-direction:column;gap:2px;margin:8px 0;font:12px/1.35 ui-monospace,Menlo,monospace}
+#t-crash .ops div{border:1px solid var(--line);border-radius:5px;padding:3px 8px;background:var(--bg);overflow-wrap:anywhere;color:var(--mute)}
+#t-crash .ops div.done{color:var(--ink);background:var(--soft)}
+#t-crash .ops div.cut{border:0;border-top:2px dashed var(--bad);border-radius:0;padding:1px 8px;color:var(--bad);font-family:inherit;font-weight:600;background:none}
+#t-crash .ops div .k{display:inline-block;min-width:4.6em;font-weight:600;color:var(--c4)}
+#t-crash .oc{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+#t-crash .oc span{font-size:12.5px;border-radius:99px;padding:2px 10px;border:1px solid currentColor;font-weight:600}
+#t-crash .oc .good{color:var(--good)}#t-crash .oc .bad{color:var(--bad)}#t-crash .oc .amb{color:var(--c5)}
+#t-crash .panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+#t-crash .panes>div{min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+#t-crash .panes h4{margin:0 0 4px;font-size:13px}
+#t-crash .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}#t-crash .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-crash .an-cap{border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-crash .grid td,#t-crash .grid th{font-size:12px;vertical-align:top}
+#t-crash .grid tr.cur td{background:var(--hl)}
+#t-crash .grid .oc span{font-size:11px;padding:0 7px}
+</style>
+<h2>Crash lab: what a restarted job finds</h2>
+<p>Pick a way of writing a checkpoint and a moment for the machine to lose power. The lab lists every state the restarted job could find, under two models of what reached the disk. The call sequences are the real ones from the strace runs of the Reading tab, sections 7 and 11 (writes folded into one step); the last protocol is our fix, DCP's calls into a new directory plus the two directory fsyncs DCP does not make. This is a <b>model</b>, not a crash test: no power was cut (a VM cannot be, from inside). Its rules come from the man pages and the ext4 source cited below; ALICE ({{Pillai et al., OSDI 2014|https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai}}) checks real applications the same way.</p>
+<div class="seg" id="cr-proto"></div>
+<div class="card" id="cr-card">
+<div class="ops" id="cr-ops"></div>
+<div class="an-cap" id="cr-cap"></div>
+<div class="an-ctl" id="cr-ctl"></div>
+<div class="panes">
+<div><h4>POSIX only: what every file system promises</h4><div class="oc" id="cr-weak"></div><p class="small mute" id="cr-weak-why"></p></div>
+<div><h4>ext4, data=ordered, delalloc, auto_da_alloc (this VM)</h4><div class="oc" id="cr-ext4"></div><p class="small mute" id="cr-ext4-why"></p></div>
+</div>
+</div>
+<h3>Every crash point at once</h3>
+<div class="tw"><table class="tbl-sm grid" id="cr-grid"></table></div>
+<p class="small" id="cr-sum"></p>
+<details class="xc"><summary>The two models, exactly</summary><div class="small">
+<p><b>POSIX only.</b> Durable: a file's data and its own metadata after an <code>fsync</code> of that file returns ({{fsync(2)|https://man7.org/linux/man-pages/man2/fsync.2.html}}); a directory's entries (create, rename, unlink, mkdir) after an <code>fsync</code> of that directory. Everything else may or may not have reached the disk, independently (each name change is atomic in itself, {{rename(2)|https://man7.org/linux/man-pages/man2/rename.2.html}}). File data not yet synced may be absent, cut short, fully there, or (for a file rewritten in place without truncation persisting) a mix of old and new.</p>
+<p><b>ext4 as configured here.</b> Name and size changes go through one journal and reach the disk in order, so after a crash some <b>prefix</b> of them is there. An <code>fsync</code> of anything commits the whole running transaction, so every earlier name change is durable after it (fs/ext4/fsync.c, <code>ext4_fsync_journal</code>). File data is written by writeback or <code>fsync</code>; with delayed allocation, a file whose data was not yet written has size 0 or a shorter size after a crash, never garbage (data=ordered). <code>auto_da_alloc</code>: renaming over an existing file, or closing a file that was truncated, starts writing its data, and the commit that records a later name change waits for it (fs/ext4/namei.c lines 3782 to 3783, fs/ext4/file.c lines 140 to 143, {{ext4 docs|https://docs.kernel.org/admin-guide/ext4.html}}).</p>
+<p>Simplifications: the crash happens at some moment after the listed step and before the next; device caches honour flushes; one writer; a DCP checkpoint "loads" if its <code>.metadata</code> and shard come from the same save.</p>
+</div></details>
+</div>
