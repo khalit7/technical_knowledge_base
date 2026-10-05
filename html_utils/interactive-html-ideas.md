@@ -2935,3 +2935,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_hardware/interconnects_and_scaling/src/viz_ideas.md`.
 
+### GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy/src/viz_ideas.md`.
+

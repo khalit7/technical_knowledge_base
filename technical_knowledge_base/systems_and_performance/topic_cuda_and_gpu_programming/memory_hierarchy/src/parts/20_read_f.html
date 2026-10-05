@@ -1,0 +1,34 @@
+<section id="rd-s9">
+<h2>9. Common mistakes, how to check, interview questions</h2>
+<div class="tw"><table class="tbl-sm symp">
+<thead><tr><th>Belief</th><th>What is true</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td>"Local memory is fast, it is local."</td><td>It lives in device DRAM; "local" is the scope. It is cached, but a spill or a run-time-indexed array costs real memory traffic.</td><td>4</td></tr>
+<tr><td>"Reading one field of a struct reads 4 bytes."</td><td>The warp fetches whole 32-byte sectors: one field of a 32-byte struct costs as much as the whole struct (measured: same time).</td><td>1</td></tr>
+<tr><td>"More registers per thread is always faster."</td><td>Each register costs resident warps; ptxas will use whatever cap you allow. Measure both sides of the spill/occupancy trade.</td><td>4</td></tr>
+<tr><td>"Padding is the way to fix bank conflicts."</td><td>It works for 4-byte accesses, but breaks the alignment 16-byte and TMA copies need; libraries swizzle.</td><td>3</td></tr>
+<tr><td>"A bank conflict-free layout for floats stays conflict-free for float4."</td><td>Wide accesses need several passes anyway and a different stride condition; count passes for the width you load.</td><td>3</td></tr>
+<tr><td>"<code>__restrict__</code> is just documentation."</td><td>It changes the load to the read-only path (<code>LDG.E.CONSTANT</code>); if the pointers alias, results can be wrong.</td><td>2</td></tr>
+<tr><td>"<code>__constant__</code> is a fast table for any lookup."</td><td>Only when the lanes of a warp read the same address; different addresses are served one at a time.</td><td>5</td></tr>
+<tr><td>"<code>pin_memory()</code> before every <code>.to(device)</code> speeds things up."</td><td>Pinning is a copy; done on the critical path it can be up to twice as slow. Let the DataLoader pin in the background.</td><td>7</td></tr>
+<tr><td>"A kernel at 15% of peak FLOP/s is badly written."</td><td>Only if it is compute-bound. Place it on the roofline first: a softmax at the bandwidth roof is done.</td><td>8</td></tr>
+<tr><td>"cudaMalloc in the loop is fine."</td><td>Allocation is expensive and can synchronise; use pools (<code>cudaMallocAsync</code>) or a caching allocator.</td><td>7</td></tr>
+</tbody></table></div>
+<div class="co"><div class="t">How to check, without guessing</div>
+<ul>
+<li><code>nvcc -Xptxas -v</code> (or <code>cuobjdump --dump-resource-usage</code>): registers, stack frame, spill bytes, static shared memory per kernel. In Triton, <code>kernel.n_regs</code> and <code>kernel.n_spills</code> on the compiled kernel, or the parent's {{Compiler explorer|n:3c65c17b0d0d81c39f34d5e070d783c1}}.</li>
+<li><code>cuobjdump -sass</code>: <code>LDL</code>/<code>STL</code> mean local memory; <code>LDG.E.128</code> means vectorised; <code>LDGSTS</code> means asynchronous copy; <code>.CONSTANT</code> means the read-only path. This page's {{Memory instructions|#t-sass}} tab has every example.</li>
+<li>Nsight Compute: Memory Workload Analysis (sectors per request, shared-memory wavefronts against ideal, L1/L2 hit rates), Speed of Light (fraction of peak memory and compute: the roofline position). From NVIDIA's docs; not run here.</li>
+<li>Back-of-envelope first: bytes and FLOPs by hand, then section 8's recipe.</li>
+</ul></div>
+<h3>Interview questions, with short answers</h3>
+<details class="qa"><summary>What does "coalesced" mean, precisely?</summary><div>The 32 addresses of one warp's load fall in as few 32-byte sectors as possible, so the bytes fetched equal the bytes used. Consecutive lanes on consecutive 4-byte words: 4 sectors for 128 bytes. It is about sectors, not about order: any permutation within the same sectors is equally good.</div></details>
+<details class="qa"><summary>A kernel reads a [N, 3] float array of xyz points, one point per thread. What is wrong and how do you fix it?</summary><div>Each lane reads 12 bytes at a 12-byte stride: three narrow loads per lane, misaligned for vector loads, each field read strided. Store x, y, z as separate arrays (struct of arrays), or pad to float4 and load 16 bytes per lane.</div></details>
+<details class="qa"><summary>ptxas says "0 bytes spill stores" but "64 bytes stack frame". What is going on?</summary><div>A local array indexed with a value known only at run time; registers cannot be indexed, so it lives in local memory. Make the indices compile-time constants (unroll, select) or use shared memory.</div></details>
+<details class="qa"><summary>Why would capping registers make a kernel faster, and why might it make it slower?</summary><div>Faster: fewer registers per thread fits more warps per SM, which hides memory latency. Slower: values that no longer fit spill to local memory, adding loads and stores. Which wins depends on whether the kernel was latency-bound; measure.</div></details>
+<details class="qa"><summary>Shared memory tile float[32][32] read by columns: what happens, and give two fixes.</summary><div>All 32 lanes hit the same bank: a 32-way conflict, 32 passes. Pad to [32][33] (row r starts in bank r), or swizzle the column index with XOR of the row (no wasted memory, keeps alignment).</div></details>
+<details class="qa"><summary>What does cp.async (LDGSTS) buy over a normal load followed by a shared-memory store?</summary><div>The data goes global to shared without occupying registers, the thread continues immediately, and with several shared buffers the next tile's copy overlaps this tile's math. The price is shared memory per stage.</div></details>
+<details class="qa"><summary>When is __constant__ memory the right choice?</summary><div>Small read-only data that all lanes of a warp read at the same address at the same time (a scale, coefficients indexed by loop counter). Lanes reading different entries are serialised by the number of distinct addresses.</div></details>
+<details class="qa"><summary>Why does pinned memory matter for a training input pipeline?</summary><div>Copies from pageable memory are staged through a pinned buffer by the driver and cannot run asynchronously; with pinned batches (DataLoader pin_memory=True) and non_blocking=True, the host-to-device copy overlaps the previous step's compute.</div></details>
+<details class="qa"><summary>Your layernorm kernel runs at 85% of DRAM bandwidth. Should you optimise it further?</summary><div>Not its inner loop: it is memory-bound and near the roof. Only moving fewer bytes helps: fuse it with the neighbouring op (residual add, the next matmul's prologue) or use a smaller dtype.</div></details>
+</section>
