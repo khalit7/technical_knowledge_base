@@ -1,0 +1,36 @@
+### host: docker run --cpus 1 --memory 256m --cap-add SYS_NICE
+
+### the RT limits and what this container may do
+$ cat /proc/sys/kernel/sched_rt_period_us /proc/sys/kernel/sched_rt_runtime_us
+1000000
+950000
+$ chrt -f 10 true; echo exit $?
+chrt: failed to set pid 0's policy: Operation not permitted
+exit 1
+$ chrt -r 10 true; echo exit $?
+chrt: failed to set pid 0's policy: Operation not permitted
+exit 1
+$ chrt -m | head -5
+SCHED_OTHER min/max priority	: 0/0
+SCHED_FIFO min/max priority	: 1/99
+SCHED_RR min/max priority	: 1/99
+SCHED_BATCH min/max priority	: 0/0
+SCHED_IDLE min/max priority	: 0/0
+
+### SCHED_DEADLINE: allowed here, but only when the task may run on every CPU
+$ chrt -d --sched-runtime 2000000 --sched-deadline 10000000 --sched-period 10000000 0 true; echo exit $?
+exit 0
+$ taskset -c 3 chrt -d --sched-runtime 2000000 --sched-deadline 10000000 --sched-period 10000000 0 true; echo exit $?
+chrt: failed to set pid 0's policy: Operation not permitted
+exit 1
+$ chrt -d --sched-runtime 11000000 --sched-deadline 10000000 --sched-period 10000000 0 true; echo exit $?
+chrt: failed to set pid 0's policy: Invalid argument
+exit 1
+
+### a SCHED_DEADLINE busy loop with runtime 2 ms every 10 ms gets 20% of a CPU, even with CPUs idle
+policy SCHED_DEADLINE; CPU time in 3 s: 600 ms (20% of one CPU)
+nr_switches                                  :                  320
+nr_involuntary_switches                      :                  320
+policy                                       :                    6
+dl.runtime                                   :              -385582
+dl.deadline                                  :        8503182219146

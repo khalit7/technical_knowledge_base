@@ -1,0 +1,34 @@
+<section id="rd-one">
+<h2>In one screen</h2>
+<p class="lead">A CPU core runs one thread at a time. The <b>scheduler</b> is the kernel code that decides which runnable thread gets each core next and for how long; a <b>context switch</b> is the act of swapping one thread out and another in. On Linux, ordinary threads share CPUs <i>fairly by weight</i> (CFS until kernel 6.5, EEVDF from 6.6), a few classes jump the queue (real-time, deadline), and containers add a second layer on top: a <i>weight</i> that decides how contended CPUs are split between groups, and a <i>quota</i> that stops a group cold when it has used its share of each 100 ms.</p>
+<p>The root page, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 3, gave the intuition, its OS simulators tab runs OSTEP's policies, and its Debug lab measured the two classic training-job failures (a CPU limit and too many threads). This page goes one level down: what the kernel actually does, line by line where it helps (Linux v5.10, the kernel these runs used, and v6.12 for EEVDF), what each step costs on a real kernel, and how it shows up in ML work. Each mechanism follows the same pattern: <b>problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.</b></p>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Mechanism</th><th>What it does</th><th>Measured here <span class="meas">measured</span></th><th>When it bites in ML</th><th>Look with</th></tr></thead>
+<tbody>
+<tr><td><a href="#rd-s2">Context switch</a></td><td>saves one thread's registers, loads another's</td><td>1.30 to 1.56 us per switch; a cross-CPU wake-up 26 to 51 us in this VM</td><td>hundreds of threads on a few cores; tight producer and consumer hand-offs</td><td><code>grep ctxt /proc/PID/status</code></td></tr>
+<tr><td><a href="#rd-s4">CFS (5.10)</a></td><td>runs the thread with the least weighted CPU time (vruntime)</td><td>nice 0 against nice 5: 3.06 times the CPU, weights say 3.057</td><td>preprocessing next to training on the same cores</td><td><code>cat /proc/PID/sched</code></td></tr>
+<tr><td><a href="#rd-s5">EEVDF (6.6+)</a></td><td>same fair share, plus a virtual deadline per thread</td><td><span class="nrh">not run here</span>: simulated from source</td><td>wake-up latency of loader and serving threads</td><td><code>chrt</code>, <code>sched_setattr</code></td></tr>
+<tr><td><a href="#rd-s6">Other classes</a></td><td>real-time and deadline run before everything fair</td><td>SCHED_BATCH sleeper: 2.0 ms wake-up delay, against 44 us normal</td><td>never for training; batch or idle for background work</td><td><code>chrt -p PID</code></td></tr>
+<tr><td><a href="#rd-s7">Affinity</a></td><td>limits the CPUs a thread may use</td><td>PyTorch sizes its pool from affinity, not from the quota</td><td>thread counts, GPU feeding, noisy cores</td><td><code>taskset -cp PID</code></td></tr>
+<tr><td><a href="#rd-s9">cgroup cpu.max</a></td><td>quota per 100 ms period, then the whole group stops</td><td>5 threads on 1 CPU: stalls of 77 to 83 ms every period</td><td>step-time spikes in Kubernetes pods with CPU limits</td><td><code>cat cpu.stat</code></td></tr>
+<tr><td><a href="#rd-s9">cgroup cpu.weight</a></td><td>splits contended CPUs between groups</td><td>Docker's <code>--cpu-shares 1024</code> became weight 39, not 100</td><td>a neighbour container slows your step from 24.2 to 34.2 ms</td><td><code>cat cpu.weight</code></td></tr>
+<tr><td><a href="#rd-s10">Load average</a></td><td>decaying count of running plus uninterruptible tasks</td><td>3 tasks in D state, using no CPU, still count</td><td>"load 40" on a node whose CPUs are idle (stuck I/O)</td><td><code>cat /proc/loadavg</code>, <code>ps -eo stat</code></td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Five things to remember</div>
+<ol class="tight">
+<li><b>A CPU limit is a quota, not fewer CPUs.</b> Threads beyond the quota do not wait politely: the whole container runs flat out and then stops until the next period (<a href="#rd-s9">section 9</a>).</li>
+<li><b>Nothing inside a container tells PyTorch about the quota.</b> <code>os.cpu_count()</code> and <code>torch.get_num_threads()</code> ignore <code>cpu.max</code>; only CPU affinity (cpuset) is seen. Set thread counts yourself (<a href="#rd-s11">section 11</a>).</li>
+<li><b>Fair means proportional to weight.</b> Nice levels are weights spaced by 1.25 times; a cgroup's <code>cpu.weight</code> is the same idea one level up (<a href="#rd-s4">section 4</a>).</li>
+<li><b>A switch is cheap; waking across CPUs and losing caches are not.</b> A switch between two threads on one CPU took about 1.5 us here; in this VM, waking a thread on another, idle CPU took 29 times longer (<a href="#rd-s2">section 2</a>).</li>
+<li><b>Load average is not CPU use.</b> On Linux it also counts tasks blocked in uninterruptible waits, such as a stuck network file system (<a href="#rd-s10">section 10</a>).</li>
+</ol></div>
+<p class="small mute">How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 5 CPUs, CONFIG_HZ=1000, CONFIG_PREEMPT=y, one NUMA node, no GPU), image <code>kb-os-lab:1</code> (the root's lab image), October 2026. Containers were not privileged; <code>CAP_SYS_NICE</code> was added where a run needed it (said there). Other agents' experiments shared the VM: every timing was repeated, the spread is shown, and the VM's load average at the time is recorded with each run. Things that need a newer kernel, privileges, hardware counters, real NUMA or a GPU are taught from primary sources and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from kernel source or documentation; <span class="ill">model</span> computed by this page's simulator. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
+<div class="tw"><table class="tbl-sm"><caption class="small mute" style="text-align:left">OSTEP chapter map for this page ({{free online|https://pages.cs.wisc.edu/~remzi/OSTEP/}})</caption>
+<thead><tr><th>OSTEP chapter</th><th>Sections here</th></tr></thead><tbody>
+<tr><td>4 The Process; 6 Mechanism: Limited Direct Execution</td><td>1, 2 (the timer interrupt and the context switch)</td></tr>
+<tr><td>7 Scheduling: Introduction; 8 Multi-level Feedback Queue</td><td>3 (and the root's OS simulators tab)</td></tr>
+<tr><td>9 Scheduling: Proportional Share (lottery, stride, CFS)</td><td>3, 4, 5, 9</td></tr>
+<tr><td>10 Multiprocessor Scheduling</td><td>2, 7, 8</td></tr>
+<tr><td>26 Concurrency: An Introduction; 27 Thread API</td><td>1, 11 (threads are what gets scheduled; locks and futexes: the sibling {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}})</td></tr>
+</tbody></table></div>
+</section>

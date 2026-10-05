@@ -1,0 +1,44 @@
+<div class="tab" id="t-fair" role="tabpanel" hidden>
+<style>
+#t-fair .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-fair .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-fair .an-play{min-width:6.4em}
+#t-fair .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-fair .an-cap .t{font-weight:600;font-size:14px}#t-fair .an-cap p{margin:2px 0;font-size:13.5px}
+#t-fair .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-fair .an-cnt .stat .v{font-size:15px}
+#t-fair .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-fair .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-fair .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-fair .tl-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-fair .tl-leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-fair table.ed input,#t-fair table.ed select{width:100%;min-width:0;padding:2px 4px;font-size:12.5px}
+#t-fair table.ed td{padding:3px 4px}#t-fair table.ed{min-width:560px}
+#t-fair .tbl-sm td,#t-fair .tbl-sm th{font-size:12.5px}
+#t-fair .row2{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:8px 0;font-size:13px}
+#t-fair .ill{font-size:11.5px;color:var(--bad);font-weight:600}
+</style>
+<p class="lead">Define up to five threads on one CPU and run them through Linux 5.10's CFS and Linux 6.12's EEVDF, step by step. <span class="ill">model</span></p>
+<p class="small">The rules are the ones in Reading sections 4 and 5, each taken from the kernel source (listed below). The same code drives the animation in section 5, and it produces the same schedules as the Python reference in <code>src/simref.py</code> on every checked scenario. <b>Try:</b> the presets first; then give the loader nice -5 under CFS and watch its CPU share rise while its wait stays zero; give it a 0.1 ms slice under EEVDF; or add a ninth busy thread and watch CFS's period stretch.</p>
+<div class="card">
+<div class="seg" id="sc-f-preset"><button data-m="loader" class="on">Loader (section 5)</button><button data-m="nice5">nice 0 against nice 5</button><button data-m="three">three equal</button><button data-m="nine">nine busy threads</button><button data-m="burst">two sleepers, one hog</button></div>
+<div class="tw"><table class="tbl-sm ed" id="sc-f-tasks"></table></div>
+<div class="row2"><button id="sc-f-add">Add a thread</button>
+<label>CPUs in the machine <select id="sc-f-cpus"><option value="1">1 (factor 1)</option><option value="2">2 (factor 2)</option><option value="4">4 (factor 3)</option><option value="5" selected>5, this VM (factor 3)</option><option value="8">8 or more (factor 4)</option></select></label>
+<label>Simulate <select id="sc-f-hz"><option value="20000">20 ms</option><option value="40000" selected>40 ms</option><option value="100000">100 ms</option><option value="200000">200 ms</option></select></label></div>
+<p class="small mute" id="sc-f-tun"></p>
+</div>
+<div class="card" id="sc-f-card">
+<div class="seg" id="sc-f-pol"><button data-m="cfs" class="on">CFS (5.10)</button><button data-m="eevdf">EEVDF (6.12)</button></div>
+<div class="an-ctl" id="sc-f-ctl"></div>
+<div class="an-cap" id="sc-f-cap" aria-live="polite"></div>
+<div id="sc-f-svg" style="width:100%;overflow:hidden"></div>
+<div class="an-cnt" id="sc-f-cnt"></div>
+</div>
+<h3>Both schedulers on these threads</h3>
+<div class="tw" id="sc-f-sum"></div>
+<p class="small mute" id="sc-f-sumnote"></p>
+<details class="mist"><summary>The rules, with their place in the kernel source</summary><div class="b">
+<p><b>CFS, Linux v5.10 <code>kernel/sched/fair.c</code>:</b> vruntime += Δ × 1024 / weight (<code>update_curr</code> 842, <code>calc_delta_fair</code> 671); weights from <code>sched_prio_to_weight</code> (core.c 8457); pick the smallest vruntime, with the wake-up "next buddy" (<code>pick_next_entity</code> 4435); period and slice (687, 701) with latency 6 ms, min_granularity 0.75 ms and wake-up granularity 1 ms, each × factor (lines 38, 59, 82; factor 1 + log2(min(CPUs, 8)), line 159); tick preemption (<code>check_preempt_tick</code> 4355); wake-up placement at max(own vruntime, min_vruntime - latency / 2) (<code>place_entity</code> 4108) and wake-up preemption (<code>wakeup_preempt_entity</code> 6869, <code>check_preempt_wakeup</code> 6916).</p>
+<p><b>EEVDF, Linux v6.12 <code>kernel/sched/fair.c</code>:</b> V = weighted mean vruntime (<code>avg_vruntime</code> 653); eligible when v ≤ V (726); deadline = v + slice × 1024 / weight, renewed with a reschedule when reached (<code>update_deadline</code> 1007, <code>update_curr</code> 1216); pick the eligible thread with the earliest deadline, keeping the current one until its slice ends (<code>pick_eevdf</code> 907, RUN_TO_PARITY); lag kept across sleep and inflated on placement, half a slice for a new thread (<code>place_entity</code> 5266); a thread that sleeps while ineligible stays queued until picked, then leaves with its lag clipped to zero (DELAY_DEQUEUE, DELAY_ZERO; <code>dequeue_entity</code> 5476, <code>pick_next_entity</code> 5613, <code>requeue_delayed_entity</code> 6919); a woken thread with a shorter slice may cancel the current one's protection (PREEMPT_SHORT, 1166 and 1177); base slice 0.75 ms × factor (line 76); custom slices clamped to 0.1 to 100 ms (syscalls.c 306).</p>
+<p><b>Left out:</b> more than one CPU and load balancing (section 7), group scheduling, the "last buddy" (only with 8 or more runnable threads), the skip buddy of <code>sched_yield</code>, PELT load tracking, hrtick, fixed-point rounding (floats here; nanosecond differences), the cost of the switch itself, and anything outside the fair class. All threads start at t = 0 (busy loops runnable, periodic threads asleep until their first wake-up; under CFS a periodic thread starts as if it had slept for a long time).</p>
+</div></details>
+</div>
