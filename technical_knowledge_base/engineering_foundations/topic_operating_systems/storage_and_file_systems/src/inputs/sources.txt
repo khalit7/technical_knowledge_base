@@ -1,0 +1,328 @@
+# Source lines cited on the storage page. Linux at tag v5.10 (https://github.com/torvalds/linux/tree/v5.10), PyTorch at v2.14.1, torchtitan at d75ddfa.
+
+== mm/readahead.c lines 311-339
+  311  static unsigned long get_init_ra_size(unsigned long size, unsigned long max)
+  312  {
+  313  	unsigned long newsize = roundup_pow_of_two(size);
+  314  
+  315  	if (newsize <= max / 32)
+  316  		newsize = newsize * 4;
+  317  	else if (newsize <= max / 4)
+  318  		newsize = newsize * 2;
+  319  	else
+  320  		newsize = max;
+  321  
+  322  	return newsize;
+  323  }
+  324  
+  325  /*
+  326   *  Get the previous window size, ramp it up, and
+  327   *  return it as the new window size.
+  328   */
+  329  static unsigned long get_next_ra_size(struct file_ra_state *ra,
+  330  				      unsigned long max)
+  331  {
+  332  	unsigned long cur = ra->size;
+  333  
+  334  	if (cur < max / 16)
+  335  		return 4 * cur;
+  336  	if (cur <= max / 2)
+  337  		return 2 * cur;
+  338  	return max;
+  339  }
+
+== mm/readahead.c lines 528-528
+  528  	ra->async_size = ra->size > req_size ? ra->size - req_size : ra->size;
+
+== mm/fadvise.c lines 86-96
+   86  	case POSIX_FADV_RANDOM:
+   87  		spin_lock(&file->f_lock);
+   88  		file->f_mode |= FMODE_RANDOM;
+   89  		spin_unlock(&file->f_lock);
+   90  		break;
+   91  	case POSIX_FADV_SEQUENTIAL:
+   92  		file->f_ra.ra_pages = bdi->ra_pages * 2;
+   93  		spin_lock(&file->f_lock);
+   94  		file->f_mode &= ~FMODE_RANDOM;
+   95  		spin_unlock(&file->f_lock);
+   96  		break;
+
+== mm/filemap.c lines 2185-2185
+ 2185  ssize_t generic_file_buffered_read(struct kiocb *iocb,
+
+== mm/filemap.c lines 2235-2235
+ 2235  			page_cache_sync_readahead(mapping,
+
+== mm/filemap.c lines 2247-2247
+ 2247  			page_cache_async_readahead(mapping,
+
+== mm/filemap.c lines 3288-3288
+ 3288  ssize_t generic_perform_write(struct file *file,
+
+== mm/filemap.c lines 3365-3365
+ 3365  		balance_dirty_pages_ratelimited(mapping);
+
+== mm/page-writeback.c lines 74-74
+   74  int dirty_background_ratio = 10;
+
+== mm/page-writeback.c lines 91-91
+   91  int vm_dirty_ratio = 20;
+
+== mm/page-writeback.c lines 102-109
+  102  unsigned int dirty_writeback_interval = 5 * 100; /* centiseconds */
+  103  
+  104  EXPORT_SYMBOL_GPL(dirty_writeback_interval);
+  105  
+  106  /*
+  107   * The longest time for which data is allowed to remain dirty
+  108   */
+  109  unsigned int dirty_expire_interval = 30 * 100; /* centiseconds */
+
+== mm/page-writeback.c lines 362-362
+  362  static unsigned long global_dirtyable_memory(void)
+
+== mm/page-writeback.c lines 428-433
+  428  		thresh = (ratio * available_memory) / PAGE_SIZE;
+  429  
+  430  	if (bg_bytes)
+  431  		bg_thresh = DIV_ROUND_UP(bg_bytes, PAGE_SIZE);
+  432  	else
+  433  		bg_thresh = (bg_ratio * available_memory) / PAGE_SIZE;
+
+== mm/page-writeback.c lines 1555-1555
+ 1555  static void balance_dirty_pages(struct bdi_writeback *wb,
+
+== mm/page-writeback.c lines 1795-1795
+ 1795  		io_schedule_timeout(pause);
+
+== mm/page-writeback.c lines 1941-1977
+ 1941  bool wb_over_bg_thresh(struct bdi_writeback *wb)
+ 1942  {
+ 1943  	struct dirty_throttle_control gdtc_stor = { GDTC_INIT(wb) };
+ 1944  	struct dirty_throttle_control mdtc_stor = { MDTC_INIT(wb, &gdtc_stor) };
+ 1945  	struct dirty_throttle_control * const gdtc = &gdtc_stor;
+ 1946  	struct dirty_throttle_control * const mdtc = mdtc_valid(&mdtc_stor) ?
+ 1947  						     &mdtc_stor : NULL;
+ 1948  
+ 1949  	/*
+ 1950  	 * Similar to balance_dirty_pages() but ignores pages being written
+ 1951  	 * as we're trying to decide whether to put more under writeback.
+ 1952  	 */
+ 1953  	gdtc->avail = global_dirtyable_memory();
+ 1954  	gdtc->dirty = global_node_page_state(NR_FILE_DIRTY);
+ 1955  	domain_dirty_limits(gdtc);
+ 1956  
+ 1957  	if (gdtc->dirty > gdtc->bg_thresh)
+ 1958  		return true;
+ 1959  
+ 1960  	if (wb_stat(wb, WB_RECLAIMABLE) >
+ 1961  	    wb_calc_thresh(gdtc->wb, gdtc->bg_thresh))
+ 1962  		return true;
+ 1963  
+ 1964  	if (mdtc) {
+ 1965  		unsigned long filepages, headroom, writeback;
+ 1966  
+ 1967  		mem_cgroup_wb_stats(wb, &filepages, &headroom, &mdtc->dirty,
+ 1968  				    &writeback);
+ 1969  		mdtc_calc_avail(mdtc, filepages, headroom);
+ 1970  		domain_dirty_limits(mdtc);	/* ditto, ignore writeback */
+ 1971  
+ 1972  		if (mdtc->dirty > mdtc->bg_thresh)
+ 1973  			return true;
+ 1974  
+ 1975  		if (wb_stat(wb, WB_RECLAIMABLE) >
+ 1976  		    wb_calc_thresh(mdtc->wb, mdtc->bg_thresh))
+ 1977  			return true;
+
+== fs/fs-writeback.c lines 1952-1968
+ 1952  static long wb_check_background_flush(struct bdi_writeback *wb)
+ 1953  {
+ 1954  	if (wb_over_bg_thresh(wb)) {
+ 1955  
+ 1956  		struct wb_writeback_work work = {
+ 1957  			.nr_pages	= LONG_MAX,
+ 1958  			.sync_mode	= WB_SYNC_NONE,
+ 1959  			.for_background	= 1,
+ 1960  			.range_cyclic	= 1,
+ 1961  			.reason		= WB_REASON_BACKGROUND,
+ 1962  		};
+ 1963  
+ 1964  		return wb_writeback(wb, &work);
+ 1965  	}
+ 1966  
+ 1967  	return 0;
+ 1968  }
+
+== fs/ext4/inode.c lines 2934-2934
+ 2934  static int ext4_da_write_begin(struct file *file, struct address_space *mapping,
+
+== fs/ext4/fsync.c lines 104-115
+  104  static int ext4_fsync_journal(struct inode *inode, bool datasync,
+  105  			     bool *needs_barrier)
+  106  {
+  107  	struct ext4_inode_info *ei = EXT4_I(inode);
+  108  	journal_t *journal = EXT4_SB(inode->i_sb)->s_journal;
+  109  	tid_t commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;
+  110  
+  111  	if (journal->j_flags & JBD2_BARRIER &&
+  112  	    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
+  113  		*needs_barrier = true;
+  114  
+  115  	return ext4_fc_commit(journal, commit_tid);
+
+== fs/ext4/fsync.c lines 129-180
+  129  int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
+  130  {
+  131  	int ret = 0, err;
+  132  	bool needs_barrier = false;
+  133  	struct inode *inode = file->f_mapping->host;
+  134  	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
+  135  
+  136  	if (unlikely(ext4_forced_shutdown(sbi)))
+  137  		return -EIO;
+  138  
+  139  	J_ASSERT(ext4_journal_current_handle() == NULL);
+  140  
+  141  	trace_ext4_sync_file_enter(file, datasync);
+  142  
+  143  	if (sb_rdonly(inode->i_sb)) {
+  144  		/* Make sure that we read updated s_mount_flags value */
+  145  		smp_rmb();
+  146  		if (ext4_test_mount_flag(inode->i_sb, EXT4_MF_FS_ABORTED))
+  147  			ret = -EROFS;
+  148  		goto out;
+  149  	}
+  150  
+  151  	ret = file_write_and_wait_range(file, start, end);
+  152  	if (ret)
+  153  		goto out;
+  154  
+  155  	/*
+  156  	 * data=writeback,ordered:
+  157  	 *  The caller's filemap_fdatawrite()/wait will sync the data.
+  158  	 *  Metadata is in the journal, we wait for proper transaction to
+  159  	 *  commit here.
+  160  	 *
+  161  	 * data=journal:
+  162  	 *  filemap_fdatawrite won't do anything (the buffers are clean).
+  163  	 *  ext4_force_commit will write the file data into the journal and
+  164  	 *  will wait on that.
+  165  	 *  filemap_fdatawait() will encounter a ton of newly-dirtied pages
+  166  	 *  (they were dirtied by commit).  But that's OK - the blocks are
+  167  	 *  safe in-journal, which is all fsync() needs to ensure.
+  168  	 */
+  169  	if (!sbi->s_journal)
+  170  		ret = ext4_fsync_nojournal(inode, datasync, &needs_barrier);
+  171  	else if (ext4_should_journal_data(inode))
+  172  		ret = ext4_force_commit(inode->i_sb);
+  173  	else
+  174  		ret = ext4_fsync_journal(inode, datasync, &needs_barrier);
+  175  
+  176  	if (needs_barrier) {
+  177  		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL);
+  178  		if (!ret)
+  179  			ret = err;
+  180  	}
+
+== fs/sync.c lines 349-356
+  349   * SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE|SYNC_FILE_RANGE_WAIT_AFTER
+  350   * (a.k.a. SYNC_FILE_RANGE_WRITE_AND_WAIT):
+  351   * a traditional sync() operation.  This is a write-for-data-integrity operation
+  352   * which will ensure that all pages in the range which were dirty on entry to
+  353   * ksys_sync_file_range() are written to disk.  It should be noted that disk
+  354   * caches are not flushed by this call, so there are no guarantees here that the
+  355   * data will be available on disk after a crash.
+  356   *
+
+== fs/ext4/namei.c lines 3782-3783
+ 3782  	if (new.inode && !test_opt(new.dir->i_sb, NO_AUTO_DA_ALLOC))
+ 3783  		ext4_alloc_da_blocks(old.inode);
+
+== fs/ext4/file.c lines 135-143
+  135   * Called when an inode is released. Note that this is different
+  136   * from ext4_file_open: open gets called at every open, but release
+  137   * gets called only when /all/ the files are closed.
+  138   */
+  139  static int ext4_release_file(struct inode *inode, struct file *filp)
+  140  {
+  141  	if (ext4_test_inode_state(inode, EXT4_STATE_DA_ALLOC_CLOSE)) {
+  142  		ext4_alloc_da_blocks(inode);
+  143  		ext4_clear_inode_state(inode, EXT4_STATE_DA_ALLOC_CLOSE);
+
+== include/linux/jbd2.h lines 48-48
+   48  #define JBD2_DEFAULT_MAX_COMMIT_AGE 5
+
+== fs/jbd2/commit.c lines 155-157
+  155  	    !jbd2_has_feature_async_commit(journal))
+  156  		ret = submit_bh(REQ_OP_WRITE,
+  157  			REQ_SYNC | REQ_PREFLUSH | REQ_FUA, bh);
+
+== lib/errseq.c lines 7-19
+    7  /*
+    8   * An errseq_t is a way of recording errors in one place, and allowing any
+    9   * number of "subscribers" to tell whether it has changed since a previous
+   10   * point where it was sampled.
+   11   *
+   12   * It's implemented as an unsigned 32-bit value. The low order bits are
+   13   * designated to hold an error code (between 0 and -MAX_ERRNO). The upper bits
+   14   * are used as a counter. This is done with atomics instead of locking so that
+   15   * these functions can be called from any context.
+   16   *
+   17   * The general idea is for consumers to sample an errseq_t value. That value
+   18   * can later be used to tell whether any new errors have occurred since that
+   19   * sampling was done.
+
+== include/linux/fs.h lines 451-451
+  451  struct address_space {
+
+== include/linux/fs.h lines 610-610
+  610  struct inode {
+
+== include/linux/fs.h lines 916-916
+  916  struct file {
+
+== include/linux/fs.h lines 1416-1416
+ 1416  struct super_block {
+
+== include/linux/dcache.h lines 89-89
+   89  struct dentry {
+
+== fs/io_uring.c lines 7869-7869
+ 7869  	page_limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
+
+== fs/io_uring.c lines 9273-9273
+ 9273  	limit_mem = !capable(CAP_IPC_LOCK);
+
+== fs/io_uring.c lines 9335-9337
+ 9335  	io_account_mem(ctx, ring_pages(p->sq_entries, p->cq_entries),
+ 9336  		       ACCT_LOCKED);
+ 9337  	ctx->limit_mem = limit_mem;
+
+== torch/distributed/checkpoint/filesystem.py lines 470-474
+  470                  if use_fsync:
+  471                      # Flush Python-level buffers (OS for local files, network for cloud storage) before fsync.
+  472                      stream.flush()
+  473                      try:
+  474                          os.fsync(stream.fileno())
+
+== torch/distributed/checkpoint/filesystem.py lines 762-762
+  762      def finish(self, metadata: Metadata, results: list[list[WriteResult]]) -> None:
+
+== torch/distributed/checkpoint/filesystem.py lines 779-783
+  779              if self.sync_files:
+  780                  # Flush Python-level buffers (OS for local files, network for cloud storage) before fsync.
+  781                  metadata_file.flush()
+  782                  try:
+  783                      os.fsync(metadata_file.fileno())
+
+== torch/distributed/checkpoint/filesystem.py lines 794-798
+  794  
+  795          if self.fs.exists(metadata_path):
+  796              self.fs.rm_file(metadata_path)
+  797  
+  798          self.fs.rename(tmp_path, metadata_path)
+
+== torchtitan/components/checkpointer/base.py lines 377-379
+  377          """Standardized checkpoint path, e.g. ``checkpoints/step-100``."""
+  378          folder = folder or self.folder
+  379          return filesystem.join(folder, f"step-{step}")

@@ -1,0 +1,36 @@
+<section id="rd-s5">
+<h2>5. Writing: dirty pages, writeback and throttling</h2>
+<p class="ostep">ch. 39 Files and Directories (fsync), ch. 40 (write buffering)</p>
+<p><b>The problem.</b> If every <code>write()</code> waited for the device, a program writing a checkpoint in 4 KiB pieces would pay a device round trip for each. So writes go to the page cache and return; the device is updated later, in large batches. The cost of that speed is the gap this page is about.</p>
+<h3>How it works</h3>
+<p><span class="src">source</span> <code>write()</code> on ext4 runs <code>generic_perform_write</code> (mm/filemap.c line 3288, v5.10): for each page, <code>ext4_da_write_begin</code> (fs/ext4/inode.c line 2934) finds or creates the page in the cache and <b>reserves</b> space without choosing disk blocks (delayed allocation, <a href="#rd-s8">section 8</a>), the bytes are copied in, the page is marked <dfn id="g-dirty">dirty</dfn> (changed in memory, not yet on the device), and <code>balance_dirty_pages_ratelimited</code> (line 3365) checks whether this writer has dirtied too much. Then <code>write()</code> returns. Nothing has touched the device.</p>
+<p>Dirty pages are written back by per-device flusher threads (kernel workers named <code>kworker/u*:*-flush-*</code>) for three reasons ({{vm sysctl docs|https://docs.kernel.org/admin-guide/sysctl/vm.html}}; mm/page-writeback.c lines 74 to 109):</p>
+<ol class="tight">
+<li><b>Age:</b> every <code>dirty_writeback_centisecs</code> (500, so 5 s) the flusher wakes and writes data that has been dirty longer than <code>dirty_expire_centisecs</code> (3000, so 30 s).</li>
+<li><b>Background threshold:</b> when dirty data passes <code>dirty_background_ratio</code> (10%) of <dfn id="g-dirtyable">dirtyable memory</dfn> (free memory plus file pages that could be reclaimed, not total RAM: <code>global_dirtyable_memory</code>, line 362), the flusher starts writing everything, regardless of age.</li>
+<li><b>Hard threshold:</b> near <code>dirty_ratio</code> (20%) the writing process itself is paused in <code>balance_dirty_pages</code> (line 1555, the pause at line 1795) so it cannot dirty memory faster than the device drains it. This is <dfn id="g-throttle">dirty throttling</dfn>: <code>write()</code> becomes slow without any error.</li>
+</ol>
+<p>On this VM the kernel computed a background threshold of <span id="rd-wb-bg"></span> MiB and a hard threshold of <span id="rd-wb-hard"></span> MiB VM-wide (<code>/proc/vmstat</code>) <span class="meas">measured</span>. With cgroup v2 each memory cgroup is also its own <dfn id="g-wbdomain">writeback domain</dfn> with thresholds scaled to its memory, so a container with a 1.5 GB limit is throttled long before the machine is ({{cgroup v2 docs, Writeback|https://docs.kernel.org/admin-guide/cgroup-v2.html#writeback}}).</p>
+<h3>Watching it happen</h3>
+<p><span class="meas">measured</span> Each run wrote a file into a fresh container (limit 1,500 MB) and sampled its <code>memory.stat</code> (dirty and under-writeback page cache) and <code>io.stat</code> (bytes the device received) every 100 ms.</p>
+<div class="card" id="rd-wb-card">
+<div class="seg" id="rd-wb-mode"></div>
+<div class="rd-chart" id="rd-wb-svg"></div>
+<div class="leg" id="rd-wb-leg"></div>
+<p class="small" id="rd-wb-cap"></p>
+</div>
+<div class="drill"><div class="q">Six runs wrote 16 MiB (or 256 MiB) and then waited, with nothing calling fsync. The textbook rule is "written back once it is 30 s old". How long did the 16 MiB actually stay dirty?</div>
+<div class="ch"><button>always 30 to 35 s</button><button>always under 1 s</button><button data-ok="1">anywhere from about 2 to 32 s</button></div>
+<div class="ans" hidden><span id="rd-wb-drill"></span> In a fresh container the data left at the flusher's next 5-second wake-up, long before it was 30 s old. Our reading of the source: <code>wb_over_bg_thresh</code> (mm/page-writeback.c line 1960) also compares this writeback domain's dirty pages with <b>its share</b> of the background threshold, a share proportional to how much it recently wrote back. A brand-new container has almost no share, so even 16 MiB counts as "over its threshold" and is written in the background. After the container had just written and synced 1 GiB (the "primed" runs), it had a share, and the same 16 MiB waited between 2 and 32 s as that share decayed. We could not trace the flusher here (that needs privileges), so treat the explanation as the likely one, not a proven one. The lesson does not depend on it: <b>when dirty data reaches the device is not a promise you can use.</b> Only fsync is.</div></div>
+<div class="cost"><div class="t">What it costs, and when it bites in ML</div>
+<ul class="tight small">
+<li><b>A crash in the window loses data that every call said was written.</b> The 256 MiB checkpoint of <a href="#rd-s11">section 11</a> left <span id="rd-wb-ck"></span> MiB dirty when <code>torch.save</code> returned. (Killing the process does <b>not</b> lose it: the dirty pages belong to the kernel. Only a kernel crash, a power loss or a VM or node being killed does.)</li>
+<li><b>Dirty throttling stalls training.</b> In the "1.5 GiB, as fast as possible" run the writer was caught sleeping in <code>balance_dirty_pages</code> and the container's dirty data hovered at the domain's limits while the device drained it. A training loop that saves a large checkpoint synchronously stalls the same way; a background writer thread does not stop the stall from happening, but it moves it off the training thread.</li>
+<li><b>Dirty pages count toward your container's memory</b> and cannot be dropped until they are written, so a memory-limited container that writes faster than its device can be pushed toward the OOM killer by its own page cache ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} section 12).</li>
+</ul></div>
+<div class="ff"><div class="t">Commands and fixes</div><ul>
+<li>See it: <code>grep -E "^(Dirty|Writeback):" /proc/meminfo</code> (machine), <code>grep -E "file_(dirty|writeback)" /sys/fs/cgroup/memory.stat</code> (container), <code>cat /proc/PID/wchan</code> (a writer in <code>balance_dirty_pages</code> is being throttled), <code>grep -E "nr_dirty(_background)?_threshold" /proc/vmstat</code>.</li>
+<li>Tune (hosts you own): <code>vm.dirty_background_bytes</code> and <code>vm.dirty_bytes</code> set absolute limits instead of ratios, which is saner on machines with hundreds of GB of RAM where 20% is far more than a device can drain in seconds.</li>
+<li>In code: <code>fsync</code> what must survive (<a href="#rd-s6">section 6</a>); for a long streaming write, start writeback early with <code>sync_file_range(SYNC_FILE_RANGE_WRITE)</code> on each finished chunk and <code>fdatasync</code> once at the end, which keeps dirty data and the final fsync small.</li>
+</ul></div>
+</section>

@@ -1,0 +1,34 @@
+<section id="rd-s7">
+<h2>7. Atomic replace: making a crash see old or new, never half</h2>
+<p class="ostep">ch. 39 Files and Directories (rename), ch. 42 Crash Consistency</p>
+<p><b>The problem.</b> <code>fsync</code> makes data durable, but it does not make an update <b>atomic</b>: a crash in the middle of rewriting <code>ckpt.pt</code> leaves a file that is partly new, partly old or partly missing, and the previous good checkpoint is already destroyed. We need a way to switch from the old version to the new one in a single step.</p>
+<h3>The tools</h3>
+<div class="mech">
+<div><b>rename</b>"If newpath already exists, it will be atomically replaced, so that there is no point at which another process attempting to access newpath will find it missing" ({{rename(2)|https://man7.org/linux/man-pages/man2/rename.2.html}}). Atomic for readers now; durable only once the directory change is committed.</div>
+<div><b>fsync of the directory</b>"Calling fsync() does not necessarily ensure that the entry in the directory containing the file has also reached disk. For that an explicit fsync() on a file descriptor for the directory is also needed" ({{fsync(2)|https://man7.org/linux/man-pages/man2/fsync.2.html}}). Open the directory <code>O_RDONLY</code> and fsync that descriptor.</div>
+<div><b>renameat2 flags</b><code>RENAME_NOREPLACE</code> fails instead of overwriting (two writers cannot clobber each other); <code>RENAME_EXCHANGE</code> swaps two names atomically ({{rename(2)|https://man7.org/linux/man-pages/man2/rename.2.html}}).</div>
+<div><b>O_TMPFILE + linkat</b>Create a file with no name at all, write and fsync it, then give it a name with <code>linkat</code>: it can never be seen half-written, and a crash leaves no <code>.tmp</code> litter ({{open(2), O_TMPFILE|https://man7.org/linux/man-pages/man2/open.2.html}}). <code>linkat</code> will not replace an existing name, so it suits "write once" files such as shards.</div>
+</div>
+<h3>The protocol, as the kernel sees it</h3>
+<p><span class="meas">measured</span> The running job's checkpoint written two ways, under <code>strace -f -y</code>, keeping only calls on the checkpoint directory (shown as DIR) between the phase markers, with runs of writes folded into one line:</p>
+<div class="panes">
+<div><h5>torch.save(obj, "ckpt.pt")</h5><pre class="cd out" id="rd-tr-naive"></pre></div>
+<div><h5>tmp, fsync, rename, fsync the directory</h5><pre class="cd out" id="rd-tr-safe"></pre></div>
+</div>
+<p>The plain save opens the existing <code>ckpt.pt</code> with <code>O_TRUNC</code>: the old checkpoint's contents are thrown away at the first system call, and the new contents exist only in the page cache until writeback. The safe version never touches <code>ckpt.pt</code> until a complete, durable new file exists; <code>renameat</code> is the single switch; the directory <code>fsync</code> makes the switch itself durable. The {{Crash lab|#t-crash}} tab takes these exact call sequences (and two more) and shows, crash point by crash point, what a restarted job could find.</p>
+<h3>What ALICE found, and what ext4 does to help</h3>
+<p>Pillai and colleagues recorded the system calls of eleven widely used systems ("databases, key-value stores, version control systems, distributed systems, and virtualization software") and computed every state a crash could leave under the guarantees file systems actually give. They found "a total of 60 vulnerabilities, many of which lead to severe consequences" ({{All File Systems Are Not Created Equal, OSDI 2014|https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai}}). They also showed the answer depends on the file system and its mount options: code that is safe on one can corrupt on another.</p>
+<p><span class="src">source</span> ext4 carries a heuristic for the most common unsafe pattern, born from the 2009 zero-length-files story in the root's section 7: with the default <code>auto_da_alloc</code> mount option (this VM has it), renaming a file over an existing one makes ext4 allocate and start writing the source file's delayed data first (fs/ext4/namei.c lines 3782 to 3783, <code>ext4_alloc_da_blocks</code>), and closing a file that had been truncated to zero does the same (fs/ext4/file.c lines 140 to 143). With <code>data=ordered</code>, the commit that records the rename then waits for that data. So on ext4, write-then-rename without fsync usually ends with old or new rather than an empty file; but the rename is still not durable until the next commit, the heuristic exists only on ext4, and the ext4 documentation introduces it as help for "broken applications" that replace files without <code>fsync()</code>, providing "roughly the same level of guarantees as ext3" ({{ext4 docs, auto_da_alloc|https://docs.kernel.org/admin-guide/ext4.html}}). Write the fsyncs.</p>
+<div class="fix"><div class="t">The checkpoint rules</div>
+<ol class="tight small">
+<li>Write to a <b>new name</b> (<code>ckpt.pt.tmp</code>, or a new <code>step_000200/</code> directory). Never open the last good checkpoint for writing.</li>
+<li><code>flush()</code> Python's buffer, then <code>os.fsync(f.fileno())</code> every file you wrote.</li>
+<li><code>os.replace(tmp, final)</code> (a rename), or for a directory of shards, write a small "complete" marker last.</li>
+<li><code>os.fsync</code> a descriptor of the <b>directory</b> that holds the name you changed.</li>
+<li>Keep the previous checkpoint (two or three) until the new one is durable, and on restart <b>verify</b> before trusting: load the newest, fall back to the previous one if it fails.</li>
+<li>If any fsync, write or close fails, treat that checkpoint as lost and write it again.</li>
+</ol></div>
+<div class="drill"><div class="q">A job runs <code>torch.save(state, "ckpt.pt.tmp"); os.replace("ckpt.pt.tmp", "ckpt.pt")</code> with no fsync at all, on ext4 with default options. The machine loses power 2 seconds later. What can the restarted job find at <code>ckpt.pt</code>?</div>
+<div class="ch"><button>only the new checkpoint</button><button data-ok="1">the old checkpoint or the new one; an empty file is unlikely because of auto_da_alloc, but nothing is guaranteed</button><button>an empty file, always</button></div>
+<div class="ans" hidden>The rename is in a journal transaction that commits every 5 s (<code>commit=5</code>), so after 2 s it may not be on disk yet: the old checkpoint is still there. If it did commit, <code>auto_da_alloc</code> made ext4 push the new data out first, so the new file is complete. On XFS, btrfs or a network file system, or with <code>noauto_da_alloc</code>, the empty-file outcome is back. The {{Crash lab|#t-crash}} shows both models.</div></div>
+</section>
