@@ -1,0 +1,75 @@
+
+<!-- ============================ 3 BANK CONFLICTS ============================ -->
+<section id="sim-s3">
+<h2>3. Shared memory has 32 banks: bank conflicts</h2>
+<p><b>The problem.</b> Shared memory is fast because it is split into 32 independent <b>banks</b> that work in parallel: "successive 32-bit words map to successive banks", and "each bank has a bandwidth of 32 bits per clock cycle" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#shared-memory-access-patterns" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.4.2</a>). Word <i>w</i> lives in bank <i>w</i> mod 32. If the 32 lanes of a warp hit 32 different banks, the access takes one pass. If several lanes want <i>different</i> words in the <i>same</i> bank, that bank serves them one after another: an <i>n</i>-way <b>bank conflict</b> takes <i>n</i> passes (Nsight Compute calls each pass a <b>wavefront</b>). Lanes that want the <i>same</i> word share one read, a <b>broadcast</b>, at no cost.</p>
+<p><b>The classic case</b> is the transposed read in section 2: a <code>float tile[32][32]</code> read down a column. Row <i>r</i> starts at word 32<i>r</i>, so element (<i>r</i>, 0) is in bank 32<i>r</i> mod 32 = 0 for every <i>r</i>: all 32 lanes queue on bank 0. The guide's fix is one spare column, <code>float tile[32][33]</code>: row <i>r</i> now starts at word 33<i>r</i>, bank <i>r</i>, and the column spreads over all 32 banks (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#shared-memory-bank-conflicts" target="_blank" rel="noopener noreferrer">2.3.4.2.2</a>). Libraries prefer a <b>swizzle</b>: store element (<i>r</i>, <i>c</i>) at column <i>c</i> XOR <i>r</i>, which spreads a column over the banks without wasting memory or breaking the alignment that vector and TMA loads need; Hopper's TMA can write tiles into shared memory already swizzled ("Swizzling can be used to avoid shared memory bank conflicts", <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html" target="_blank" rel="noopener noreferrer">Programming Guide, asynchronous copies</a>).</p>
+<p><b>How to read the picture.</b> Left: the tile as it sits in memory, each word coloured by its bank; the column the warp reads is outlined. Right: the 32 banks; each box is one distinct word some lane asked for, labelled with the lane. Each step is one wavefront: every bank serves the box at the bottom of its stack.</p>
+<div class="card" id="sim-bank-card">
+<div class="sim-bar"><div class="seg" id="sim-bank-mode" role="group" aria-label="Layout"><button data-m="col32" class="on">Before: tile[32][32]</button><button data-m="col33">After: padded tile[32][33]</button><button data-m="swizzle">After: XOR swizzle</button><button data-m="free">Choose a pattern</button></div></div>
+<div class="sim-bar" id="sim-bank-free" hidden>
+<label>Lane <i>l</i> reads word <select id="sim-bank-pat" aria-label="Access pattern"><option value="row">l (a row: tile[0][l])</option><option value="stride" selected>l x s (stride s)</option><option value="broadcast">5 (every lane the same word)</option></select></label>
+<label id="sim-bank-slab">s = <input type="range" id="sim-bank-s" min="1" max="64" value="2" aria-label="Stride in words"> <b id="sim-bank-sv">2</b></label>
+</div>
+<div class="sim-fig" id="sim-bank-fig"></div>
+<div class="sim-ctl" id="sim-bank-ctl"></div>
+<div class="sim-cap" id="sim-bank-cap"></div>
+<div class="sim-out" id="sim-bank-out"></div>
+</div>
+<div class="sim-pred"><b>Predict first.</b> A warp reads <code>float</code> words with a stride of 2 (lane <i>l</i> reads word 2<i>l</i>). Conflict or not? And with a stride of 3? <button data-sim-reveal="sim-bank-ans">Reveal</button>
+<div class="ans" id="sim-bank-ans" hidden>Stride 2: lanes <i>l</i> and <i>l</i> + 16 land in the same bank (2<i>l</i> and 2<i>l</i> + 32), a 2-way conflict, two wavefronts. Stride 3: 3 shares no factor with 32, so the 32 lanes hit 32 different banks, no conflict. Both are the guide's Figure 15. In general a stride <i>s</i> gives a conflict of degree gcd(<i>s</i>, 32): any odd stride is free, a stride of 32 is the worst.</div></div>
+
+<div class="sim-meas" id="sim-bank-meas"><h4><span class="sim-tag meas">MEASURED</span>Strided reads of threadgroup memory on the Apple M1 Pro GPU</h4><div id="sim-bank-meas-body"></div></div>
+
+<div class="sim-xfer"><h4>What transfers, what does not</h4>
+<ul class="tight"><li><b>Transfers:</b> the M1's threadgroup memory slows down for exactly the strides that are bad on NVIDIA (16, 32 and 64 words) and is fast for 33, which is what a banked memory with 32 four-byte banks would do. Apple does not document its bank count, so this is an inference from the measurement, not a specification.</li>
+<li><b>Transfers too:</b> a bank conflict only costs time when shared memory is the bottleneck. In the transpose of section 2 the M1 was limited by DRAM, and padding changed nothing measurable.</li>
+<li><b>NVIDIA detail the simulator leaves out:</b> 64-bit and 128-bit accesses are split into several passes by design, so their rules differ from the 32-bit picture here; the simulator models 32-bit words only.</li></ul></div>
+
+<div class="sim-chk"><h4>When it matters for training, and how to check</h4>
+<p style="margin:0 0 6px">Every fast matmul and attention kernel stages tiles in shared memory and reads them in a different order than it wrote them (rows in, columns out, or the fragment layouts tensor cores want). That is why CUTLASS, Triton and FlashAttention all choose swizzled shared-memory layouts; Triton picks one for you, which is part of why a Triton matmul is fast without you thinking about banks.</p>
+<p style="margin:0">Check in Nsight Compute: <code>l1tex__data_bank_conflicts_pipe_lsu</code> counts conflicts, and the Memory Workload Analysis table shows shared-memory wavefronts against the ideal (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>).</p></div>
+</section>
+
+<!-- ============================ 4 OCCUPANCY ============================ -->
+<section id="sim-s4">
+<h2>4. How many warps fit on an SM: occupancy</h2>
+<p><b>The problem.</b> An SM runs many warps at once so that while some wait for memory, others compute (section 5 shows why that matters). How many fit is decided when the block is placed: every warp gets its registers and every block its shared memory for its whole life, out of fixed per-SM budgets. <b>Occupancy</b> is the number of resident warps divided by the maximum the SM can hold. Four limits apply, and the smallest wins:</p>
+<ul class="tight"><li><b>Registers:</b> 65,536 32-bit registers per SM on every current GPU; a warp needs registers per thread x 32, rounded up to a multiple of 256, taken from one of the SM's 4 sub-partitions.</li>
+<li><b>Shared memory:</b> per block, plus 1 KB the system reserves per block, rounded up to 128 bytes, out of 100 to 228 KB per SM depending on the GPU.</li>
+<li><b>Warp slots:</b> 48 or 64 warps per SM.</li>
+<li><b>Block slots:</b> 16, 24 or 32 blocks per SM (and on some GPUs, barriers per block slot).</li></ul>
+<p class="small mute">Per-SM limits: <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, Compute Capabilities, Tables 30 and 31</a> (last updated 2026-09-10). Allocation rules: NVIDIA's occupancy calculator header <code>cuda_occupancy.h</code>, CUDA 13.4.2, which this calculator ports line by line.</p>
+<div class="card" id="sim-occ-card">
+<div class="sim-bar">
+<label>GPU <select id="sim-occ-arch" aria-label="Target architecture"></select></label>
+<label>Kernel <select id="sim-occ-pre" aria-label="Preset kernel"></select></label>
+</div>
+<div class="ctl">
+<label>Threads per block: <b id="sim-occ-bv"></b><input type="range" id="sim-occ-b" min="32" max="1024" step="32" value="256" aria-label="Threads per block"></label>
+<label>Registers per thread: <b id="sim-occ-rv"></b><input type="range" id="sim-occ-r" min="8" max="255" step="1" value="32" aria-label="Registers per thread"></label>
+<label>Shared memory per block: <b id="sim-occ-sv"></b><input type="range" id="sim-occ-s" min="0" max="232448" step="512" value="0" aria-label="Shared memory per block in bytes"></label>
+</div>
+<div class="sim-note" id="sim-occ-src"></div>
+<div class="sim-out" id="sim-occ-out"></div>
+<div class="sim-hb" id="sim-occ-lims"></div>
+<div class="sim-bar"><span class="small mute">Sweep</span><div class="seg" id="sim-occ-x" role="group" aria-label="Sweep axis"><button data-m="r" class="on">registers per thread</button><button data-m="s">shared memory per block</button><button data-m="b">threads per block</button></div></div>
+<div class="sim-fig" id="sim-occ-fig"></div>
+<p class="sim-note" id="sim-occ-valid"></p>
+</div>
+
+<h3>Before and after on one kernel: capping registers</h3>
+<p>The {{Compiler explorer|#t-compile}}'s register ladder compiles a kernel in which each thread keeps 128 running sums, the way a register-tiled matmul keeps its piece of the output; <code>ptxas</code> gives it <span class="sim-acc-r">168</span> registers per thread. The animation fills one SM's register file warp by warp, blocks of 128 threads, until the next block no longer fits, then does the same with the kernel capped at 128 registers (what <code>__launch_bounds__(128, 4)</code> or <code>-maxrregcount=128</code> asks for). The register file is drawn to scale: 4 sub-partitions of 16,384 registers, one cell per 256.</p>
+<div class="card" id="sim-rf-card">
+<div class="sim-bar"><div class="seg" id="sim-rf-mode" role="group" aria-label="Uncapped or capped"><button data-m="0" class="on">Before: as compiled</button><button data-m="1">After: capped at 128</button></div><label>GPU <select id="sim-rf-arch" aria-label="Target architecture"></select></label></div>
+<div class="sim-fig" id="sim-rf-fig"></div>
+<div class="sim-ctl" id="sim-rf-ctl"></div>
+<div class="sim-cap" id="sim-rf-cap"></div>
+<div class="sim-out" id="sim-rf-out"></div>
+</div>
+<div class="co warn"><div class="t">Higher occupancy is not the goal</div>The capped kernel fits more warps, but 128 live sums cannot fit in 128 registers alongside addresses and loop counters, so <code>ptxas</code> would have to spill some to "local memory", which lives in DRAM behind the caches; the register ladder in the {{Compiler explorer|#t-compile}} shows the spill bytes appear past 255. Fewer warps that each keep more data in registers often win: Volkov's "Better performance at lower occupancy" showed matmul and FFT kernels running fastest at low occupancy by giving each thread more independent work (<a href="https://www.nvidia.com/content/gtc-2010/pdfs/2238_gtc2010.pdf" target="_blank" rel="noopener noreferrer">GTC 2010</a>), and today's FlashAttention and CUTLASS kernels often run only one or two large blocks per SM on purpose. Occupancy matters when a kernel is waiting on memory and has nothing else to do, which is the next section.</div>
+
+<div class="sim-chk"><h4>When it matters for training, and how to check</h4>
+<p style="margin:0 0 6px">You meet occupancy when a custom kernel (Triton or CUDA) is slower than expected: Triton's <code>num_warps</code> and <code>num_stages</code> and a block size that uses too much shared memory change it directly. A Triton autotune sweep is in effect a search over this calculator's inputs.</p>
+<p style="margin:0">Check: compile with <code>-Xptxas -v</code> (or read the {{Compiler explorer|#t-compile}}) for registers and shared memory; Nsight Compute's Occupancy section reports Theoretical Occupancy (<code>sm__maximum_warps_per_active_cycle_pct</code>, what this calculator computes) against achieved occupancy; "large discrepancies between the theoretical and the achieved occupancy during execution typically indicates highly imbalanced workloads" (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>). At run time, <code>cudaOccupancyMaxActiveBlocksPerMultiprocessor</code> gives the same answer.</p></div>
+</section>

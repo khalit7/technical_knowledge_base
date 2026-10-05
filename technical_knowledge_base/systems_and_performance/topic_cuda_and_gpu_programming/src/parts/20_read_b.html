@@ -1,0 +1,52 @@
+<section id="rd-s2">
+<h2>2. The programming model: grid, blocks, warps, threads</h2>
+<p><b>The problem.</b> A GPU has tens of thousands of arithmetic lanes and wants hundreds of thousands of independent pieces of work in flight. You cannot write a hundred thousand programs, so you write <b>one function, the kernel, and launch it on many threads</b>; each thread works out from its own index which piece of data is its job. That is the whole idea, and CUDA's four nested words describe how the threads are grouped.</p>
+<div class="rd-ladder">
+<div><b>Thread</b><span>One execution of the kernel, with its own private <dfn>registers</dfn> (the fastest storage there is). You launch millions.</span></div>
+<div><b>Warp</b><span><b>32 consecutive threads</b> that the hardware runs together, one instruction at a time for all 32. Not part of the language, but the unit everything performs in.</span></div>
+<div><b>Block</b><span>Up to 1,024 threads that run on <b>one SM</b> and stay there. They share a small fast scratchpad, <dfn>shared memory</dfn>, and can wait for each other with <code>__syncthreads()</code>. Blocks must not depend on each other: the GPU runs them in any order on any SM, which is why the same program runs on a GPU with 20 SMs or 170.</span></div>
+<div><b>Grid</b><span>All the blocks of one launch. There is no cheap way for blocks to wait for each other inside a kernel; the end of the kernel is the global barrier. Since Hopper (compute capability 9.0) an optional <dfn>cluster</dfn> sits between block and grid: a few blocks on neighbouring SMs that can read each other's shared memory.</span></div>
+</div>
+<p class="small mute">Limits from the {{CUDA C++ Programming Guide, compute capabilities|https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html}} (v13.4.2) <span class="rd-vend">vendor spec</span>: warp size 32; at most 1,024 threads per block; per SM at most 64 resident warps on sm_80, sm_90 and sm_100 and 48 on consumer sm_86, sm_89 and sm_120; 65,536 32-bit registers per SM, at most 255 per thread.</p>
+<h3>A first kernel</h3>
+<p>Vector addition: thread <i>i</i> adds element <i>i</i>. This is the exact source the {{Compiler explorer|#t-compile}} compiles for four GPU generations; <code>ptxas</code> reports it uses <span data-rdv="vadd_regs">12</span> registers per thread on sm_90a <span class="rd-pub">compiled here</span>.</p>
+<pre class="rd-code"><span class="k">extern</span> "C" <span class="k">__global__</span> void vadd(const float* a, const float* b, float* c, int n) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;  <span class="c">// this thread's global index</span>
+  if (i &lt; n)                                       <span class="c">// the last block may run past n</span>
+    c[i] = a[i] + b[i];                            <span class="c">// two loads, one add, one store</span>
+}
+<span class="c">// host side: enough blocks of 256 threads to cover n (ceiling division)</span>
+int block = 256, grid = (n + block - 1) / block;
+vadd&lt;&lt;&lt;grid, block&gt;&gt;&gt;(d_a, d_b, d_c, n);   <span class="c">// asynchronous: returns at once</span></pre>
+<p><code>__global__</code> marks a kernel (runs on the GPU, launched from the CPU); <code>blockIdx</code>, <code>blockDim</code> and <code>threadIdx</code> are built-in variables each thread reads to learn who it is. Move the sliders to see how a launch carves up the work.</p>
+<div class="card" id="rd-gr-card">
+<div class="rd-ctlrow"><label>n <input type="range" id="rd-gr-n" min="1" max="2000" value="1000" aria-label="Number of elements"><b id="rd-gr-nv">1000</b></label>
+<label>Block size <select id="rd-gr-b"><option>32</option><option>64</option><option selected>128</option><option>256</option><option>512</option><option>1024</option></select></label>
+<label>Thread i <input type="range" id="rd-gr-i" min="0" max="999" value="777" aria-label="Global thread index"><b id="rd-gr-iv">777</b></label></div>
+<div class="rd-fig" id="rd-gr-fig"></div>
+<div class="rd-cnt" id="rd-gr-out"></div>
+</div>
+<h3>SIMT: one instruction, 32 threads, and what a branch costs</h3>
+<p>NVIDIA calls the model <dfn>SIMT</dfn>, single instruction, multiple threads. You write scalar code for one thread; the hardware issues each instruction once for a whole warp and the 32 lanes execute it on their own data. It is SIMD (the CPU's vector instructions, Part 2 of the {{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}) without having to write the vectors. The catch is the branch. If the 32 threads of a warp disagree on an <code>if</code>, the warp runs <b>both</b> paths one after the other, with the lanes that did not take the current path switched off (<dfn>masked</dfn>). This is <dfn>warp divergence</dfn>. Since Volta (sm_70) each thread has its own program counter ("independent thread scheduling", {{Programming Guide|https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html#independent-thread-scheduling}}), which makes divergent code correct in more cases, but the two paths still take turns.</p>
+<div class="card" id="rd-dv-card">
+<div class="rd-seg" id="rd-dv-mode"><button class="on" data-m="uni">Uniform warp: all 32 inputs positive</button><button data-m="div">Divergent warp: signs alternate</button></div>
+<pre class="rd-code" id="rd-dv-code" style="margin:4px 0">float v = x[i];
+if (v &gt; 0.f) { v = expf(v); v = v * w; v = v + b; v = sqrtf(v); }   <span class="c">// path A: 4 steps</span>
+else         { v = 0.01f * v; v = v * w; v = v - b; v = fabsf(v); } <span class="c">// path B: 4 steps</span>
+y[i] = v;</pre>
+<div class="rd-fig" id="rd-dv-fig"></div>
+<div class="rd-cap" id="rd-dv-cap"></div>
+<div class="rd-cnt" id="rd-dv-cnt"></div>
+<div class="an-ctl" id="rd-dv-ctl"></div>
+<p class="small mute" style="margin:2px 0">Each row is one instruction issued for the warp; each square is a lane, coloured when the lane does useful work and grey when masked. <span class="rd-ill">illustrative instruction count: one row per source line</span></p>
+</div>
+<div class="rd-pr" id="rd-pr-dv"><div class="q">Predict: on the M1 Pro GPU, a kernel with two equally heavy branches is run once with every 32-thread group agreeing, once with alternate lanes taking alternate branches. How much slower is the divergent run?</div>
+<div class="opts"><button data-v="a">About the same</button><button data-v="b" data-ok="1">About 2 times</button><button data-v="c">About 32 times</button></div>
+<div class="ans" hidden><span class="rd-meas">measured on Apple M1 Pro GPU</span> <b><span data-rdv="div_ratio">1.86</span> times</b> (<span data-rdv="div_alt">2.82</span> ms against <span data-rdv="div_uni">1.52</span> ms, median of 3 runs, in the {{GPU simulator|#t-sim}}). Both paths are executed, so the cost is the sum of the two paths instead of one; with two equal paths, close to 2. It is not 32: the lanes are masked, not serialised one by one. Apple's SIMD-groups are 32 wide like NVIDIA's warps, so this transfers directly; the cost on NVIDIA is the same in kind.</div></div>
+<p><b>When it matters for training:</b> rarely in matmuls and normalisations, whose threads all do the same thing; often in code with data-dependent branches (masking, sparse or ragged inputs, MoE routing, sampling). A branch that is the same for a whole warp (<code>if (blockIdx.x == 0)</code>, or a bounds check that only fails in the last warp) costs nothing. <b>How to check:</b> Nsight Compute reports average active threads per instruction (32 means no divergence; section 9).</p>
+<h3>Latency hiding: why a GPU wants so many threads</h3>
+<p>A read from GPU memory takes hundreds of clock cycles. A CPU core hides that with large caches and by guessing ahead; a GPU hides it by <b>switching warps</b>. Every resident warp keeps its registers on the SM permanently, so when one warp waits for memory the scheduler issues an instruction from another, at no cost. The more warps are ready, the more of the waiting is covered. <span class="rd-meas">measured on Apple M1 Pro GPU</span> in the {{GPU simulator|#t-sim}}: streaming the same array with 256 threads in flight reached <span data-rdv="lat256g">11</span> GB/s; with 8,192 or more, <span data-rdv="latlo">138</span> to <span data-rdv="lathi">151</span> GB/s, the memory's limit. "Not enough parallelism" is a first-order failure: a kernel launched with fewer blocks than the GPU has SMs leaves most of the chip idle.</p>
+<p><dfn>Occupancy</dfn> is the number of warps resident on an SM divided by the maximum (64 on an H100). It is limited by whichever resource runs out first: registers per thread, shared memory per block, threads per block, or the cap on blocks per SM. It is a means, not a goal: memory-bound kernels want it high, while fast matmul and attention kernels deliberately run at low occupancy because more registers per thread buy more data reuse than more warps buy latency hiding. The {{Compiler explorer|#t-compile}} turns real <code>ptxas</code> register reports into occupancy with a calculator that agrees with NVIDIA's own <code>cuda_occupancy.h</code> on all 1,988 tested cases.</p>
+<p><b>Streams</b>, briefly: work in one stream runs in order; work in different streams may overlap (a copy with a kernel, or NCCL's communication with backward compute, which is how data-parallel training hides its all-reduce). <b>Events</b> order streams against each other and time the GPU from the GPU's side.</p>
+<div class="deepnote"><b>Go deeper:</b> the {{GPU simulator|#t-sim}} runs divergence, coalescing, bank conflicts, occupancy and latency hiding as step-by-step simulations with the M1 Pro measurements beside each; what an SM physically contains (schedulers, register file, tensor cores) is on {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}, section 2.</div>
+</section>

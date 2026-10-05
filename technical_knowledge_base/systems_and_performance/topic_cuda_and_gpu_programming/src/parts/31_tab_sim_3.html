@@ -1,0 +1,87 @@
+
+<!-- ============================ 5 LATENCY HIDING ============================ -->
+<section id="sim-s5">
+<h2>5. Warps in flight hide memory latency</h2>
+<p><b>The problem.</b> A load from DRAM takes hundreds of cycles to come back. Microbenchmarks measured average global-memory latencies of 466 cycles on an A100, 479 on an H800 (a Hopper H100 variant) and 542 on an RTX 4090, against about 29 to 30 cycles for shared memory and 262 to 273 for the L2 cache (<a href="https://arxiv.org/html/2402.13499v1" target="_blank" rel="noopener noreferrer">Luo et al., 2024, Table IV</a>; independent measurements, not NVIDIA figures). A GPU does not hide this with big caches or out-of-order execution like a CPU. It hides it with other warps: each SM sub-partition has a warp scheduler that, every cycle, picks one warp whose next instruction is ready and issues it. Nsight Compute's words: active warps that are not stalled are <b>eligible</b>; the scheduler issues from one of them; "on cycles with no eligible warp, the issue slot is skipped" (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide, Scheduler Statistics</a>).</p>
+<p><b>The model.</b> One scheduler, <i>W</i> warps, each running the same loop: issue <i>k</i> independent loads, wait <i>L</i> cycles for them, then <i>k</i> x <i>c</i> instructions that use the data. The scheduler issues one instruction per cycle and keeps issuing from the same warp until it stalls, then switches to the warp that has been ready longest ("greedy then oldest"). Little's law gives the answer the simulation lands on: the scheduler is kept busy when <i>W</i> x <i>k</i>(<i>c</i> + 1) &ge; <i>k</i>(<i>c</i> + 1) + <i>L</i>, so utilisation = min(1, <i>W</i>&middot;<i>k</i>(<i>c</i>+1) / (<i>k</i>(<i>c</i>+1) + <i>L</i>)).</p>
+<div class="card" id="sim-lat-card">
+<div class="sim-bar"><div class="seg" id="sim-lat-mode" role="group" aria-label="Before or after"><button data-m="2" class="on">Before: 2 warps</button><button data-m="6">After: 6 warps</button><button data-m="free">Choose</button></div></div>
+<div class="ctl" id="sim-lat-free" hidden>
+<label>Warps on this scheduler: <b id="sim-lat-wv"></b><input type="range" id="sim-lat-w" min="1" max="16" value="4" aria-label="Warps"></label>
+<label>Instructions per load (c): <b id="sim-lat-cv"></b><input type="range" id="sim-lat-c" min="1" max="40" value="4" aria-label="Instructions per load"></label>
+<label>Latency L (cycles): <b id="sim-lat-lv"></b><input type="range" id="sim-lat-l" min="4" max="600" value="40" aria-label="Latency in cycles"></label>
+<label>Independent loads per wait (k): <b id="sim-lat-kv"></b><input type="range" id="sim-lat-k" min="1" max="8" value="1" aria-label="Loads in flight per warp"></label>
+</div>
+<div class="sim-bar" id="sim-lat-pre" hidden><span class="small mute">Latency</span><div class="seg" id="sim-lat-lp" role="group" aria-label="Latency preset"><button data-m="29">shared memory, 29</button><button data-m="263">L2, 263</button><button data-m="479">DRAM on H800, 479</button></div></div>
+<div class="sim-code" id="sim-lat-code"></div>
+<div class="sim-fig" id="sim-lat-fig"></div>
+<div class="sim-leg"><span><i style="background:var(--c6)"></i>issues a load</span><span><i style="background:var(--c1)"></i>issues compute</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>waiting for memory</span><span><i style="background:var(--c5)"></i>ready, but another warp issued</span><span><i style="background:var(--bad)"></i>scheduler idle: no eligible warp</span></div>
+<div class="sim-ctl" id="sim-lat-ctl"></div>
+<div class="sim-cap" id="sim-lat-cap"></div>
+<div class="sim-out" id="sim-lat-out"></div>
+<div class="sim-fig" id="sim-lat-sweep"></div>
+</div>
+<div class="sim-pred"><b>Predict first.</b> A kernel issues one DRAM load (L = 479 cycles on an H800) for every 8 other instructions. How many warps must one scheduler hold to never idle? An H100 SM holds at most 64 warps over 4 schedulers. <button data-sim-reveal="sim-lat-ans">Reveal</button>
+<div class="ans" id="sim-lat-ans" hidden>(9 + 479) / 9, about 55 warps per scheduler, but a scheduler can hold at most 64 / 4 = 16. Even at full occupancy it idles about 70% of the time (16 x 9 / 488 = 30% busy). Occupancy alone cannot hide DRAM latency for code like this; each warp must keep several loads in flight at once (set k to 4: 16 warps are then enough), which is what unrolled loops, vector loads and asynchronous copies (<code>cp.async</code>, TMA) with double buffering do.</div></div>
+
+<div class="sim-meas" id="sim-lat-meas"><h4><span class="sim-tag meas">MEASURED</span>Bandwidth against threads in flight on the Apple M1 Pro GPU</h4><div id="sim-lat-meas-body"></div></div>
+
+<div class="sim-xfer"><h4>What transfers, what does not</h4>
+<ul class="tight"><li><b>Transfers:</b> Little's law holds for any memory system: bandwidth = bytes in flight / latency. To stream at full speed a GPU needs enough loads outstanding, from many warps or from several loads per warp.</li>
+<li><b>Does not transfer:</b> the numbers. An H100 needs far more bytes in flight than the M1: assuming a clock near 1.8 GHz, 479 cycles is about 270 ns, and 3.35 TB/s x 270 ns is about 0.9 MB across the chip (derived), against <span id="sim-lat-m1kb">about 50 KB</span> for the M1 (derived from the measurement above). That is one reason Hopper added TMA: one thread can launch a large asynchronous copy.</li>
+<li><b>Left out of the model:</b> arithmetic latency (a dependent instruction also waits a few cycles), dual issue, memory bandwidth limits and bank or sector effects. It isolates the one idea.</li></ul></div>
+
+<div class="sim-chk"><h4>When it matters for training, and how to check</h4>
+<p style="margin:0 0 6px">It explains why small kernels are slow: a softmax over a few rows, a decode step at batch 1, or a launch with fewer blocks than the GPU has SMs leaves schedulers idle. It is the reason behind "fuse small kernels", CUDA graphs, and split-K or persistent kernels that keep every SM busy. The {{Kernel lab|#t-lab}} shows it on real softmax and attention kernels.</p>
+<p style="margin:0">Check in Nsight Compute: Scheduler Statistics (eligible warps per cycle, and the share of cycles with no eligible warp) and Warp State Statistics, where a large "stall long scoreboard" means warps are waiting on L1TEX (global or local memory) operations (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>).</p></div>
+</section>
+
+<!-- ============================ 6 TILING ============================ -->
+<section id="sim-s6">
+<h2>6. Tiles turn a memory-bound matmul into a compute-bound one</h2>
+<p><b>The problem.</b> A naive matmul has each thread compute one output <code>C[i][j]</code> by reading a whole row of A and column of B from global memory: 2 loads per multiply-add, 8 bytes for 2 floating-point operations in fp32, an <b>arithmetic intensity</b> of 0.25 FLOP per byte if nothing were cached. Every modern GPU can do far more arithmetic per byte than that, so the naive kernel waits on memory. The fix is reuse: a block computes a BM x BN tile of C; at each step it loads a BM x BK slice of A and a BK x BN slice of B into shared memory once, and every thread reuses those values from there. Each element of A is now loaded once per BN columns of output instead of once per column.</p>
+<div class="fm"><div class="eq">bytes from DRAM = <i>n</i>&sup3; (1/BN + 1/BM) &times; bytes per element</div><div class="eq">intensity = 2<i>n</i>&sup3; / bytes = 2 &middot; BM &middot; BN / ((BM + BN) &times; bytes per element)</div><dl><dt>n</dt><dd>matrix size (C = A B, all n x n)</dd><dt>BM, BN</dt><dd>the block's tile of C; for square tiles of side T the intensity is T / (bytes per element)</dd></dl></div>
+<div class="card" id="sim-tile-card">
+<div class="sim-bar"><div class="seg" id="sim-tile-mode" role="group" aria-label="Naive or staged"><button data-m="naive" class="on">Before: every thread loads its own</button><button data-m="staged">After: tiles staged in shared memory</button></div></div>
+<p class="small mute" style="margin:2px 0">An 8 x 8 matmul split into four 4 x 4 blocks of 16 threads. Each step is one block working through one k-slice of 4.</p>
+<div class="sim-fig" id="sim-tile-fig"></div>
+<div class="sim-ctl" id="sim-tile-ctl"></div>
+<div class="sim-cap" id="sim-tile-cap"></div>
+<div class="sim-out" id="sim-tile-out"></div>
+</div>
+
+<h3>Across tile sizes: where each GPU stops waiting on memory</h3>
+<div class="card" id="sim-tc-card">
+<div class="ctl">
+<label>Tile BM: <b id="sim-tc-mv"></b><input type="range" id="sim-tc-m" min="0" max="8" value="7" aria-label="BM as a power of two"></label>
+<label>Tile BN: <b id="sim-tc-nv"></b><input type="range" id="sim-tc-n" min="0" max="8" value="7" aria-label="BN as a power of two"></label>
+<label>Slice BK: <b id="sim-tc-kv"></b><input type="range" id="sim-tc-k" min="3" max="7" value="5" aria-label="BK as a power of two"></label>
+</div>
+<div class="sim-bar"><div class="seg" id="sim-tc-dt" role="group" aria-label="Data type"><button data-m="4">fp32</button><button data-m="2" class="on">bf16</button></div><label class="small"><input type="checkbox" id="sim-tc-db" checked> double-buffered (2 stages)</label><label>n = <select id="sim-tc-size" aria-label="Matrix size"><option>1024</option><option>4096</option><option selected>8192</option></select></label></div>
+<div class="sim-out" id="sim-tc-out"></div>
+<div class="sim-fig" id="sim-tc-fig"></div>
+<p class="sim-note" id="sim-tc-note"></p>
+</div>
+
+<div class="sim-meas" id="sim-tile-meas"><h4><span class="sim-tag meas">MEASURED</span>Naive and tiled fp32 matmul on the Apple M1 Pro GPU</h4><div id="sim-tile-meas-body"></div></div>
+
+<div class="sim-xfer"><h4>What transfers, what does not</h4>
+<ul class="tight"><li><b>Transfers:</b> the arithmetic of reuse. The bytes a tile saves are the same on any GPU; which tile is enough depends on that GPU's FLOPs per byte, the ridge lines in the chart.</li>
+<li><b>Does not transfer:</b> the best tile on the M1. Real NVIDIA kernels go further than this toy: each thread computes many outputs from registers (register tiling), tensor cores do the multiply-adds, and TMA or <code>cp.async</code> overlaps the next tile's load with this tile's math. cuBLAS picks among tile shapes per problem size; NVIDIA notes that "larger tiles have more data reuse" but leave fewer tiles to run in parallel, and that when a dimension is not a multiple of the tile, the last row of tiles wastes work ("tile quantization") (<a href="https://docs.nvidia.com/deeplearning/performance/dl-performance-matrix-multiplication/index.html" target="_blank" rel="noopener noreferrer">NVIDIA Matrix Multiplication Background guide</a>).</li></ul></div>
+
+<div class="sim-chk"><h4>When it matters for training, and how to check</h4>
+<p style="margin:0 0 6px">It is why large matmuls run near peak and small or skinny ones do not: with few rows (a small batch, a decode step) the tile cannot be large in that direction and the intensity collapses. It is also why the same guide recommends matrix dimensions that are multiples of 16 bytes, "multiples of 8 elements" in fp16 (64 on A100), and why vocabulary and hidden sizes are padded to multiples of 64 or 128. The {{Kernel lab|#t-lab}} climbs the full ladder; the roofline itself is on {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}'s Roofline lab.</p>
+<p style="margin:0">Check: Nsight Compute's Speed Of Light section shows compute and memory throughput as a share of peak; a kernel high on memory and low on compute is below its ridge point and needs more reuse.</p></div>
+</section>
+
+<!-- ============================ INTERVIEW ============================ -->
+<section id="sim-s7">
+<h2>Interview questions</h2>
+<details class="sim-qa"><summary>A warp hits <code>if (threadIdx.x &lt; 16)</code> with two branches of equal length. What does it cost?</summary><div>Both branches run one after the other with half the lanes masked each time, so the branch section takes twice the issue slots at 50% lane utilisation. Branching on <code>threadIdx.x / 32</code> instead costs nothing extra, because divergence only happens inside a warp.</div></details>
+<details class="sim-qa"><summary>What does "coalesced" mean, and what is the worst case?</summary><div>The 32 addresses of a warp's load are served by as few 32-byte sectors as possible; 32 consecutive floats need 4 sectors (100% used). The worst case is lanes 32 bytes or more apart: 32 sectors, 1,024 bytes moved for 128 used, 12.5%. Nsight Compute reports it as Sectors/Req.</div></details>
+<details class="sim-qa"><summary>Why does <code>float tile[32][33]</code> make a transpose faster than <code>tile[32][32]</code>?</summary><div>Shared memory has 32 banks of 4-byte words. In a 32-wide tile every element of a column is in the same bank, a 32-way conflict on the column read. One padding word shifts each row by one bank, so a column spans all 32 banks. Libraries use an XOR swizzle for the same effect without wasting memory.</div></details>
+<details class="sim-qa"><summary>A kernel uses 168 registers per thread on an H100. What is its occupancy with 128-thread blocks?</summary><div>168 x 32 = 5,376 registers per warp (already a multiple of 256); each of the 4 sub-partitions has 16,384, so 3 warps fit per sub-partition, 12 per SM, 3 blocks: 12 / 64 = 18.75%. Capping at 128 registers gives 16 warps, 25%, at the price of spills.</div></details>
+<details class="sim-qa"><summary>Is higher occupancy always better?</summary><div>No. Occupancy only matters as a way to hide latency. A kernel can hide latency with independent work inside each thread (several loads in flight, register tiles) at low occupancy, and many of the fastest GEMM and attention kernels do. Raising occupancy by capping registers can cause spills that cost more than they save.</div></details>
+<details class="sim-qa"><summary>How many bytes must be in flight to saturate an H100's HBM?</summary><div>Little's law: bandwidth x latency. With about 480 cycles of DRAM latency and a clock near 1.8 GHz (an assumption), about 270 ns: 3.35 TB/s x 270 ns is about 0.9 MB in flight across 132 SMs, about 7 KB per SM. That is why streaming kernels use vector loads, unrolling and asynchronous copies.</div></details>
+<details class="sim-qa"><summary>What arithmetic intensity does a T x T tiled fp32 matmul reach, and what tile does an H100 need?</summary><div>T / 4 FLOP per byte (T / 2 in bf16). The H100 SXM's ridge is 67 / 3.35 = 20 FLOP per byte on its fp32 cores and 989.5 / 3.35 = 295 for dense bf16 tensor cores, so bf16 needs tiles of a few hundred, which is why real kernels use 128 x 256 style block tiles plus register tiling, and still rely on L2 to share tiles between blocks.</div></details>
+</section>

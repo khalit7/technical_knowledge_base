@@ -1,0 +1,37 @@
+<section id="rd-s8">
+<h2>8. The compiler: CUDA C++ to PTX to SASS</h2>
+<p><b>Two instruction sets.</b> <dfn>PTX</dfn> is NVIDIA's virtual instruction set: a readable, stable text format that does not belong to any one chip. <dfn>SASS</dfn> is the real machine code of one architecture, and it changes every generation. <code>nvcc</code> compiles the GPU part of a <code>.cu</code> file to PTX, then the assembler <code>ptxas</code> turns PTX into SASS for each target you name (<code>-arch=sm_90a</code>), and both are packed into a <dfn>fat binary</dfn> inside your executable or library. If a binary carries PTX but no SASS for the GPU it lands on, the driver compiles the PTX just in time, which is how old binaries run on new GPUs. <dfn>NVRTC</dfn> does the C++-to-PTX step at run time from a string, for code generated on the fly.</p>
+<p>Here is the vector-add kernel of section 2 at both levels, sm_90a <span class="rd-pub">compiled here, CUDA 13.4.2</span>:</p>
+<div class="rd-two">
+<div><div class="small mute">PTX (the body)</div>
+<pre class="rd-code">mov.u32      %r3, %ctaid.x;    <span class="c">// blockIdx.x</span>
+mov.u32      %r4, %ntid.x;     <span class="c">// blockDim.x</span>
+mov.u32      %r5, %tid.x;      <span class="c">// threadIdx.x</span>
+mad.lo.s32   %r1, %r3, %r4, %r5;
+setp.ge.s32  %p1, %r1, %r2;    <span class="c">// i &gt;= n ?</span>
+@%p1 bra     $L__BB0_2;
+...
+ld.global.f32  %f1, [%rd8];
+ld.global.f32  %f2, [%rd6];
+add.f32        %f3, %f2, %f1;
+st.global.f32  [%rd10], %f3;</pre></div>
+<div><div class="small mute">SASS (what the H100 executes)</div>
+<pre class="rd-code">S2R    R0, SR_TID.X ;
+S2UR   UR4, SR_CTAID.X ;
+LDC    R9, c[0x0][RZ] ;
+IMAD   R9, R9, UR4, R0 ;
+ISETP.GE.AND P0, PT, R9, UR4, PT ;
+@P0 EXIT ;                     <span class="c">// bounds check</span>
+...
+LDG.E  R3, desc[UR4][R2.64] ;  <span class="c">// global load</span>
+LDG.E  R4, desc[UR4][R4.64] ;
+FADD   R9, R4, R3 ;
+STG.E  desc[UR4][R6.64], R9 ;  <span class="c">// global store</span>
+EXIT ;</pre></div>
+</div>
+<p>Reading SASS is a practical skill, not a party trick: it is where you confirm that a load is vectorised (<code>LDG.E.128</code>), that shared memory is used (<code>LDS</code>, <code>STS</code>), that tensor cores are used (<code>HMMA</code>, <code>HGMMA</code>, <code>UTCHMMA</code>), and that nothing spills (<code>STL</code>, <code>LDL</code>). The compiler's resource report, <code>nvcc -Xptxas -v</code>, gives registers, shared memory and spill bytes per kernel; those numbers set occupancy (section 2).</p>
+<p><b>Targets.</b> Each GPU generation has a compute capability: 8.0 for A100, 9.0 for H100, 10.0 for B200, 12.0 for the RTX 5090. Build for the one you run on (<code>-arch=sm_120</code>, or <code>-arch=native</code>); sm_100 and sm_120 need CUDA 12.8 or newer ({{CUDA 12.8 release notes|https://docs.nvidia.com/cuda/archive/12.8.0/cuda-toolkit-release-notes/index.html}}: "adds compiler support for ... SM_100, SM_101, SM_120"). The current toolkit is <b>CUDA 13.4.2</b> <span class="rd-vend">checked 2026-10-05</span>; the old page's "13.3 latest, 13.4 in preview" is out of date.</p>
+<h3>torch.compile, all the way down</h3>
+<p><code>torch.compile(model)</code> runs a different chain: <b>TorchDynamo</b> captures the Python as a graph; <b>AOTAutograd</b> derives the backward graph; <b>TorchInductor</b> fuses and schedules, and writes Triton source for each fused group (matmuls go to cuBLAS or to Triton templates, chosen by autotuning); <b>Triton</b> lowers its source through its own intermediate forms to LLVM and PTX; <code>ptxas</code> produces SASS. Everything is cached, so only the first call per shape pays. The PyTorch 2 paper reports 2.27 times inference and 1.41 times training speedup (geometric mean) on an A100 over 180+ models ({{Ansel et al., ASPLOS 2024|https://docs.pytorch.org/assets/pytorch2-2.pdf}}) <span class="rd-pub">published</span>. To see what it generated: <code>TORCH_LOGS=output_code</code>.</p>
+<div class="deepnote"><b>Go deeper:</b> the {{Compiler explorer|#t-compile}} is this section's laboratory: eleven CUDA kernels and three Triton kernels with source, PTX and SASS side by side for sm_80, sm_90a, sm_100a and sm_120, the <code>ptxas -v</code> reports, a register-pressure ladder that ends in spills, and the commands to reproduce it all on a laptop without a GPU.</div>
+</section>
