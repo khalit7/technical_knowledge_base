@@ -1,0 +1,42 @@
+<section id="it-s13">
+<h2>13. KL at work: RLHF, DPO and VAEs</h2>
+<p class="raise"><b>The question.</b> Alignment papers and generative-model papers both put a KL term in their objective. What does it do, which direction is it, and what can be derived from it?</p>
+
+<h3>The KL-regularised objective of RLHF</h3>
+<p>Fine-tuning a language model with a reward model \(r(x, y)\) (prompt \(x\), response \(y\)) usually maximises</p>
+\[ \max_{\pi}\; \mathbb{E}_{x \sim \mathcal{D},\, y \sim \pi(\cdot \mid x)}\big[r(x, y)\big] \;-\; \beta\, D_{\mathrm{KL}}\big(\pi(\cdot \mid x) \,\Vert\, \pi_{\text{ref}}(\cdot \mid x)\big) \]
+<dl class="sym">
+<dt>\(\pi\)</dt><dd>the policy being trained; \(\pi_{\text{ref}}\) the frozen starting model (usually the supervised fine-tuned one).</dd>
+<dt>\(\beta > 0\)</dt><dd>how strongly to keep \(\pi\) near \(\pi_{\text{ref}}\).</dd>
+<dt>the KL</dt><dd>reverse direction (section 7): averaged over the policy's own samples.</dd>
+</dl>
+<p>This is equation 3 of {{the DPO paper|https://arxiv.org/abs/2305.18290}}. InstructGPT puts the same term into the reward, per token, as \(r_\theta(x, y) - \beta \log \frac{\pi^{\text{RL}}(y \mid x)}{\pi^{\text{SFT}}(y \mid x)}\) ({{Ouyang et al. 2022, eq. 2|https://arxiv.org/abs/2203.02155}}), whose average over \(y \sim \pi\) is exactly \(\beta D_{\mathrm{KL}}\).</p>
+<div class="der"><b>The best policy has a closed form</b> (DPO, Appendix A.1, written for one prompt):<ol>
+<li>Write the objective as one average over \(y \sim \pi\): \(\mathbb{E}_{\pi}\big[r(y) - \beta \log \frac{\pi(y)}{\pi_{\text{ref}}(y)}\big]\).</li>
+<li>Divide by \(-\beta\) to turn the maximisation into a minimisation: \(\min_\pi \mathbb{E}_{\pi}\big[\log \frac{\pi(y)}{\pi_{\text{ref}}(y)} - \frac{r(y)}{\beta}\big] = \min_\pi \mathbb{E}_\pi\big[\log \frac{\pi(y)}{\pi_{\text{ref}}(y)\, e^{r(y)/\beta}}\big]\).</li>
+<li>Normalise the denominator into a distribution: let \(Z = \sum_y \pi_{\text{ref}}(y) e^{r(y)/\beta}\) and \(\pi^*(y) = \pi_{\text{ref}}(y)\, e^{r(y)/\beta} / Z\). The objective becomes \(\mathbb{E}_\pi\big[\log \frac{\pi(y)}{\pi^*(y)}\big] - \log Z = D_{\mathrm{KL}}(\pi \Vert \pi^*) - \log Z\).</li>
+<li>\(Z\) does not depend on \(\pi\), and KL is 0 only when \(\pi = \pi^*\) (Gibbs, section 6). So the optimum is
+\[ \pi^*(y) = \frac{1}{Z}\, \pi_{\text{ref}}(y)\, e^{r(y)/\beta} \]
+and the best achievable objective is \(\beta \log Z\).</li>
+</ol></div>
+<p class="plain">In plain words: the ideal fine-tuned model is the reference model, reweighted by \(e^{\text{reward}/\beta}\). Small \(\beta\): rewards dominate and the policy concentrates on the best response. Large \(\beta\): it barely moves. Nothing is ever given probability the reference does not give: reverse KL forbids it.</p>
+<div class="nums"><div class="t">The tiny model as a policy</div>Reference = the tiny model's bet (cat 0.665, dog 0.245, sat 0.090); reward 1 for sat, 0 otherwise <span class="ill">illustrative</span>.
+<div class="tw"><table class="mini" id="it-rl-tab"></table></div>
+At \(\beta = 1\): \(Z = 0.665 + 0.245 + 0.090\,e = 1.155\), so \(\pi^* = (0.576, 0.212, 0.212)\); expected reward rises from 0.090 to 0.212, at a KL of 0.068 nats; the objective, \(0.212 - 0.068 = 0.144\), equals \(\beta \ln Z = \ln 1.155\). cat and dog keep their 0.665 : 0.245 ratio at every \(\beta\): the reward does not distinguish them, so neither does the optimum.</div>
+<p><b>DPO</b> runs this backwards: solve the closed form for the reward, \(r(x, y) = \beta \log \frac{\pi^*(y \mid x)}{\pi_{\text{ref}}(y \mid x)} + \beta \log Z(x)\) (DPO eq. 5), substitute into a preference model where only reward differences matter, and \(Z(x)\) cancels, leaving a loss on the policy alone. The {{DPO page|n:3c65c17b0d0d818bb1d8cafd30e20f9e}} derives the rest and runs it; the {{Alignment: SFT, RLHF, DPO Family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}} page compares the family.</p>
+
+<h3>Estimating the KL from samples</h3>
+<p>In practice the KL over all possible responses cannot be summed; it is estimated from sampled tokens. With samples \(y \sim \pi\) and \(r = \pi_{\text{ref}}(y)/\pi(y)\), John Schulman's note ({{"Approximating KL Divergence", 7 March 2020|http://joschu.net/blog/kl-approx.html}}) compares three estimators of \(D_{\mathrm{KL}}(\pi \Vert \pi_{\text{ref}})\): \(k_1 = -\log r\) (unbiased, but negative for some samples, high variance), \(k_2 = \tfrac12 (\log r)^2\) (always positive, low variance, biased), and \(k_3 = (r - 1) - \log r\) (unbiased and always positive, because \(\log r \le r - 1\)).</p>
+<div class="nums"><div class="t">The three estimators on the tiny policy (\(\beta = 1\))</div>True \(D_{\mathrm{KL}}(\pi^* \Vert \pi_{\text{ref}}) = 0.0681\) nats. A sample of cat or dog has \(r = 1.155\): \(k_1 = -0.144\) (negative), \(k_2 = 0.010\), \(k_3 = 0.011\). A sample of sat has \(r = 0.425\): \(k_1 = 0.856\), \(k_2 = 0.367\), \(k_3 = 0.281\). Averaged over \(\pi^*\): \(\mathbb{E}[k_1] = \mathbb{E}[k_3] = 0.0681\) exactly, \(\mathbb{E}[k_2] = 0.0858\) (biased upwards here). GRPO uses \(k_3\) (DeepSeekMath, eq. 4); the {{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} explains why differentiating \(k_3\) inside the loss does not give the gradient of the KL it estimates.</div>
+
+<h3>The KL term of a VAE</h3>
+<p>A variational autoencoder fits a latent-variable model \(p_\theta(x, z) = p(z)\, p_\theta(x \mid z)\) with an encoder \(q_\phi(z \mid x)\). The identity behind it, derived in full:</p>
+<div class="der"><ol>
+<li>For any \(z\): \(\log p(x) = \log p(x, z) - \log p(z \mid x)\) (definition of the conditional, logged).</li>
+<li>Add and subtract \(\log q(z)\): \(\log p(x) = \big[\log p(x, z) - \log q(z)\big]\) \(+ \big[\log q(z) - \log p(z \mid x)\big]\).</li>
+<li>Average over \(z \sim q\); the left side does not depend on \(z\): \[ \log p(x) = \underbrace{\mathbb{E}_q[\log p(x, z) - \log q(z)]}_{\text{ELBO}} + D_{\mathrm{KL}}\big(q(z) \Vert p(z \mid x)\big) \]</li>
+<li>The KL is \(\ge 0\), so the first term is a lower bound on \(\log p(x)\): the <dfn>evidence lower bound</dfn>. Raising it by changing \(q\) lowers the reverse KL to the true posterior by exactly the same amount.</li>
+<li>Splitting \(\log p(x, z) = \log p(z) + \log p(x \mid z)\) gives the form in {{Kingma and Welling 2013, eq. 3|https://arxiv.org/abs/1312.6114}}: \(\mathrm{ELBO} = -D_{\mathrm{KL}}\big(q(z \mid x) \Vert p(z)\big) + \mathbb{E}_{q}\big[\log p(x \mid z)\big]\): a reconstruction term minus a KL that keeps the codes close to the prior.</li>
+</ol></div>
+<div class="nums"><div class="t">The Gaussian KL in closed form</div>With \(q = \mathcal{N}(\mu, \sigma^2)\) and \(p(z) = \mathcal{N}(0, 1)\), per latent dimension: \(D_{\mathrm{KL}} = \tfrac12\big(\sigma^2 + \mu^2 - 1 - \ln \sigma^2\big)\) (Kingma and Welling, Appendix B, which writes its negative). For \(\mu = 1, \sigma = 0.5\): \(\tfrac12(0.25 + 1 - 1 + 1.386) = 0.818\) nats; for \(\mu = 0, \sigma = 1\) it is 0. The {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}} page builds VAEs and diffusion models on this.</div>
+</section>
