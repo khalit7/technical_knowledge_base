@@ -1,0 +1,75 @@
+<div class="tab" id="t-pa-loop" role="tabpanel" hidden>
+<h2 style="margin-top:14px">The event loop, one step at a time</h2>
+<p>Three coroutines, A, B and C, each wait for something: 100, 200 and 300 ms. The same three, run four ways. Every step below is a real event from <code>code/a2_trace.py</code> (code at the bottom), stamped with the loop's clock in milliseconds and drawn to scale on a 0 to 620 ms axis, so the four modes can be compared by eye. Reading section 10 explains the terms.</p>
+<div class="pa-anim" id="pa-loop-card">
+<div class="seg" id="pa-loop-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="gathered">2. gather</button><button data-m="gathered_blocking">3. gather, B blocks</button><button data-m="gathered_thread">4. gather, B in a thread</button></div>
+<div class="pa-ctl" id="pa-loop-ctl"></div>
+<div class="pa-svg" id="pa-loop-svg"></div>
+<div class="pa-cap" id="pa-loop-cap"></div>
+<div class="pa-counters" id="pa-loop-cnt"></div>
+<div class="pa-src">Legend: thin bar, suspended at an <code>await</code> (the thread is free); thick dark bar, holding the thread; thick orange bar, a blocking call; dot, the moment a timer is due. The top lane shows what the one thread is doing.</div>
+</div>
+<div class="co key"><div class="t">What to notice</div>
+<ul class="tight">
+<li><b>1 against 2</b>: the same coroutines; <code>await</code> in a loop runs them back to back (0.6 s), <code>gather</code> wraps each in a task so their waits overlap (0.3 s, the longest single wait).</li>
+<li><b>2 against 3</b>: one <code>time.sleep</code> in B holds the thread for 200 ms. A's timer is due at 100 ms but A cannot resume until 200 ms; C cannot even start until 200 ms. Total 0.5 s. Nothing crashed and nothing warned: a blocked loop is silent unless debug mode is on (Reading section 10).</li>
+<li><b>3 against 4</b>: <code>await asyncio.to_thread(time.sleep, 0.2)</code> runs the same blocking call in a worker thread; B suspends like any other await, and the total is back to 0.3 s.</li>
+</ul></div>
+<h3>The code</h3>
+<div class="pa-snip"><div class="pa-file">a2_trace.py</div><pre class="pa-code">"""Three coroutines, four ways of running them. Every event is stamped with the event
+loop's clock (ms since the run started); the Event loop tab replays these traces."""
+<span class="kw">import</span> asyncio, json, sys, time
+
+EV = []
+<span class="kw">def</span> ev(who, what, note=<span class="st">""</span>):
+    EV.append([who, what, round((time.perf_counter() - T0) * 1000, 1), note])
+
+<span class="kw">async</span> <span class="kw">def</span> fetch(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"await"</span>, <span class="st">f"asyncio.sleep(&#123;secs&#125;)"</span>)
+    <span class="kw">await</span> asyncio.sleep(secs)                  <span class="cm"># suspends: control goes back to the loop</span>
+    ev(name, <span class="st">"resume"</span>)
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+<span class="kw">async</span> <span class="kw">def</span> fetch_blocking(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"block"</span>, <span class="st">f"time.sleep(&#123;secs&#125;)"</span>)
+    time.sleep(secs)                           <span class="cm"># blocks the whole thread: no other coroutine can run</span>
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+<span class="kw">async</span> <span class="kw">def</span> fetch_thread(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"await"</span>, <span class="st">f"asyncio.to_thread(time.sleep, &#123;secs&#125;)"</span>)
+    <span class="kw">await</span> asyncio.to_thread(time.sleep, secs)  <span class="cm"># the blocking call runs in a worker thread</span>
+    ev(name, <span class="st">"resume"</span>)
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+JOBS = [(<span class="st">"A"</span>, 0.10), (<span class="st">"B"</span>, 0.20), (<span class="st">"C"</span>, 0.30)]
+
+<span class="kw">async</span> <span class="kw">def</span> sequential():
+    <span class="kw">return</span> [<span class="kw">await</span> fetch(n, s) <span class="kw">for</span> n, s <span class="kw">in</span> JOBS]
+
+<span class="kw">async</span> <span class="kw">def</span> gathered():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(*(fetch(n, s) <span class="kw">for</span> n, s <span class="kw">in</span> JOBS))
+
+<span class="kw">async</span> <span class="kw">def</span> gathered_blocking():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(fetch(<span class="st">"A"</span>, 0.10), fetch_blocking(<span class="st">"B"</span>, 0.20), fetch(<span class="st">"C"</span>, 0.30))
+
+<span class="kw">async</span> <span class="kw">def</span> gathered_thread():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(fetch(<span class="st">"A"</span>, 0.10), fetch_thread(<span class="st">"B"</span>, 0.20), fetch(<span class="st">"C"</span>, 0.30))
+
+out = &#123;&#125;
+<span class="kw">for</span> mode <span class="kw">in</span> (sequential, gathered, gathered_blocking, gathered_thread):
+    EV.clear()
+    T0 = time.perf_counter()
+    res = asyncio.run(mode())
+    total = round((time.perf_counter() - T0) * 1000, 1)
+    out[mode.__name__] = &#123;<span class="st">"events"</span>: list(EV), <span class="st">"total_ms"</span>: total, <span class="st">"result"</span>: res&#125;
+    print(<span class="st">f"&#123;mode.__name__:18&#125; &#123;total:6.1f&#125; ms  order of events: "</span> +
+          <span class="st">" "</span>.join(<span class="st">f"&#123;w&#125;:&#123;e&#125;"</span> <span class="kw">for</span> w, e, _, _ <span class="kw">in</span> EV))
+<span class="kw">with</span> open(sys.argv[1] <span class="kw">if</span> len(sys.argv) &gt; 1 <span class="kw">else</span> <span class="st">"/dev/null"</span>, <span class="st">"w"</span>) <span class="kw">as</span> f:
+    json.dump(out, f)</pre></div>
+</div>

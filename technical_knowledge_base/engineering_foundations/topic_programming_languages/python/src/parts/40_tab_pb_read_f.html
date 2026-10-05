@@ -1,0 +1,50 @@
+
+<section id="pb-s7">
+<h2>7. What changed from 3.12 to 3.15, and what it means for your code</h2>
+<p>A new CPython ships every October (PEP 602) and gets two years of bug fixes, then security fixes until five years. On 2026-10-05: 3.14 is the bugfix line (3.14.8), 3.12 and 3.13 get security fixes only, and 3.15 is at its third release candidate with the final expected on 2026-10-09 ({{PEP 790|https://peps.python.org/pep-0790/}}; {{devguide|https://devguide.python.org/versions/}}). The {{Version explorer|#t-pb-ver}} tab runs 21 small programs, one per change, on 3.11 to 3.15 and shows the real output of each; this table is the summary.</p>
+<div class="pb-tbl pb-wide"><table>
+<thead><tr><th>Release</th><th>Language and library</th><th>Runtime</th><th>What it changes for you</th></tr></thead>
+<tbody>
+<tr><td><b>3.12</b><br><span class="small mute">2023-10-02, security fixes to 2028-10</span></td><td><code>def f[T]</code> and <code>type X = ...</code> (PEP 695); f-strings in the grammar (PEP 701); <code>typing.override</code> (PEP 698); <code>itertools.batched</code>; <code>Path.walk</code>; the buffer protocol from Python (PEP 688); better "did you forget to import" errors</td><td>A per-interpreter GIL in the C API (PEP 684), the groundwork for 3.14's subinterpreters; comprehensions inlined (PEP 709)</td><td>The oldest version worth targeting for new code: it is where modern generic syntax starts</td></tr>
+<tr><td><b>3.13</b><br><span class="small mute">2024-10-07, security fixes to 2029-10</span></td><td>Type parameter defaults (PEP 696), <code>TypeIs</code> (PEP 742), <code>ReadOnly</code> TypedDict items (PEP 705), <code>warnings.deprecated</code> (PEP 702), <code>copy.replace</code>; 19 "dead batteries" and lib2to3 removed (PEP 594); defined <code>locals()</code> semantics (PEP 667)</td><td>New interactive REPL (colour, multi-line editing; based on PyPy's); experimental free-threaded build (PEP 703); experimental JIT, off by default (PEP 744)</td><td>Old scripts that import <code>cgi</code> or <code>telnetlib</code> break</td></tr>
+<tr><td><b>3.14</b><br><span class="small mute">2025-10-07, bug fixes; 3.14.8 on 2026-09-30</span></td><td>t-strings (PEP 750); deferred annotations (PEP 649/749); <code>except A, B</code> without parentheses (PEP 758); <code>compression.zstd</code> (PEP 784); <code>concurrent.interpreters</code> (PEP 734); a <code>SyntaxWarning</code> for <code>return</code> in <code>finally</code> (PEP 765)</td><td>Free-threaded build officially supported (PEP 779); JIT in the official macOS and Windows installers, still off by default; <code>python -m asyncio ps PID</code> and <code>pstree</code> show a running program's tasks; safe external debugger attach (PEP 768)</td><td>Forward references need no quotes; try free-threading for CPU-bound threads</td></tr>
+<tr><td><b>3.15</b><br><span class="small mute">rc3 2026-10-02, final due 2026-10-09</span></td><td><code>lazy import</code> (PEP 810); <code>frozendict</code> (PEP 814) and <code>sentinel</code> (PEP 661) built-ins; <code>[*xs for xs in ...]</code> (PEP 798); UTF-8 by default (PEP 686); <code>profiling</code> package with the Tachyon sampler (PEP 799); <code>TypedDict</code> extra items (PEP 728), <code>TypeForm</code> (PEP 747)</td><td>The JIT "significantly upgraded" (What's New: 11-12% faster than the tail-calling interpreter on AArch64 macOS, pyperformance geometric mean) but still off by default; frame pointers on by default (PEP 831); a stable ABI for free-threaded builds, <code>abi3t</code> (PEP 803)</td><td>Pass <code>encoding=</code> explicitly; use <code>lazy import</code> in CLIs; ship <code>abi3t</code> wheels if you build extensions</td></tr>
+</tbody></table></div>
+<div class="deepnote"><b>Go deeper:</b> the {{Version explorer|#t-pb-ver}} lets you pick your minimum version and see which of these features you can use, with the real error each one gives on older versions.</div>
+<div class="pb-fix"><div class="t">Corrections to the old page "Python: staying current"</div><ul class="tight">
+<li>"Python 3.15 is due 2026-10-01": a third release candidate was added (2026-10-02); final now expected 2026-10-09 (PEP 790).</li>
+<li>"Python 3.15 ... lazy imports and abi3t are its headline items": true but incomplete; What's New also lists <code>frozendict</code>, <code>sentinel</code>, UTF-8 as the default encoding, unpacking in comprehensions, the Tachyon profiler and the JIT upgrade as highlights.</li>
+<li>"abi3t lets NumPy-class extensions ship one wheel per platform": imprecise. One <code>cp315-abi3.abi3t</code> wheel covers 3.15 and later on both builds, but free-threaded 3.14 still needs its own wheel, and of 25 popular compiled packages only one (cryptography) ships an abi3t wheel today (section 6).</li>
+<li>"from __future__ import annotations is finally obsolete": imprecise. It still works and is deprecated; What's New 3.14 says removal will not happen before 3.13's end of life in 2029.</li>
+<li>"t-strings ... showing up in LLM prompt-templating libraries": no source given; not confirmed here, so left out.</li>
+</ul></div>
+</section>
+
+<section id="pb-s8">
+<h2>8. Lazy imports (3.15), measured</h2>
+<p>A Python program's start-up time is mostly imports: each <code>import</code> finds a file, loads or compiles its bytecode and runs all its top-level code, including its own imports. A command-line tool that imports httpx, pydantic and rich at the top pays for all three even when the user only asked for <code>--help</code>. Until now the fix was to move imports inside functions. 3.15 adds <code>lazy import</code>: the name is bound to a lightweight proxy and the module loads the first time the name is used.</p>
+<div class="pb-code">import argparse
+
+lazy import httpx                     # was: import httpx
+lazy import pydantic                  # was: import pydantic
+lazy from rich.console import Console # was: from rich.console import Console</div>
+<p>That is the only change between the two files measured below (<code>src/pb/lazy/</code>). Both run the fast path, <code>count "hello world"</code>, which needs none of the three libraries. Step through what Python imports, to scale:</p>
+<div class="card" id="pb-lz-card">
+<div class="seg" id="pb-lz-seg"><button data-m="cli_eager" class="on">Eager imports</button><button data-m="cli_lazy">lazy import</button><button data-m="cli_all">Eager file, -X lazy_imports=all</button></div>
+<div class="pb-plot" id="pb-lz-plot"></div>
+<div class="pb-cnt" id="pb-lz-cnt"></div>
+<div class="pb-cap" id="pb-lz-cap"></div>
+<div class="pb-ctl" id="pb-lz-ctl"></div>
+<div class="pb-src" id="pb-lz-src"></div>
+</div>
+<div class="bars" id="pb-lz-bars"></div>
+<p class="small mute" id="pb-lz-note"></p>
+<p>What to take from it: the lazy file loads <span id="pb-lz-take"></span>, and the global switch <code>-X lazy_imports=all</code> (or <code>PYTHON_LAZY_IMPORTS=all</code>) gets the same result without editing the file. The work has not disappeared: a run that uses httpx pays for it at the first use instead.</p>
+<div class="pb-cost"><div class="t">What it costs, and when not to use it</div><ul class="tight">
+<li>Errors move: a misspelled module raises at first use, not at start-up; the traceback shows both places.</li>
+<li>Import side effects (a plugin registering itself, logging configured at import) happen later or never. Do not make such imports lazy; the global <code>all</code> mode can be filtered with <code>sys.set_lazy_imports_filter</code>.</li>
+<li>Only at module level: <code>lazy</code> inside a function, a class body or a <code>try</code> block is a <code>SyntaxError</code>, and so is <code>lazy from x import *</code>.</li>
+<li>Code that must also run on 3.14 or older cannot use the keyword (it is a <code>SyntaxError</code> there; see the {{Version explorer|#t-pb-ver}}); list the modules in <code>__lazy_modules__</code> instead, which older versions ignore.</li>
+</ul></div>
+<div class="pb-fix"><div class="t">The PEP and the release disagree on one detail</div>PEP 810 (status Final) describes three global modes, <code>normal</code>, <code>all</code> and <code>none</code> (none would force every import eager, for debugging). 3.15.0rc3 accepts only two, as What's New says:<div class="pb-term" id="pb-lz-none"></div>Use <code>normal</code> to undo <code>all</code>; there is no switch that forces explicit <code>lazy</code> imports eager.</div>
+</section>

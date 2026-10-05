@@ -1,0 +1,62 @@
+
+<section id="pb-s2">
+<h2>2. uv end to end</h2>
+<p>uv replaces pyenv, venv, pip, pip-tools, pipx and Poetry with one binary. The root page's {{Toolchain atlas|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} replays the first five commands (<code>uv init</code>, <code>uv add</code>, <code>uv run</code>, ruff, pytest); this section covers what you need after that: interpreters, the kinds of project, what <code>uv sync</code> really does, extras and groups, scripts, tools, workspaces and the pip interface.</p>
+
+<h3>Interpreters</h3>
+<p>uv downloads standalone CPython builds (from the python-build-standalone project) instead of using whatever the system has. <code>uv python install 3.14 3.14t 3.15</code> installed every interpreter used on this page; <code>t</code> is the free-threaded build.</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv python list|uv python find|uv run --no-project --python 3.15"></div>
+<p>In Python you would have run <code>pyenv install</code> and then pointed a venv at it; with uv, <code>--python 3.15</code> on any command is enough, and a project's <code>.python-version</code> file pins it.</p>
+
+<h3>Three kinds of project</h3>
+<p>Since uv 0.12, plain <code>uv init</code> and <code>uv init --app</code> both make a <b>packaged</b> application: code under <code>src/</code>, a console script, and the uv_build backend (so <code>uv run app-demo</code> works). <code>--no-package</code> gives the old flat layout with a <code>main.py</code>, and <code>--lib</code> makes a library with a <code>py.typed</code> marker (it tells type checkers the package ships annotations).</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv init flat-demo|uv init --app app-demo|uv init --lib lib-demo"></div>
+<div class="pb-fix"><div class="t">Correction to the old page</div>The old "zero to expert" page said <code>uv init myproj</code>, <code>uv add requests</code>, <code>uv run main.py</code>. With uv 0.12.23 plain <code>uv init</code> creates no <code>main.py</code> (output above); run the console script with <code>uv run &lt;project-name&gt;</code>, or create the flat layout with <code>uv init --app --no-package</code>. The root page records the same correction.</div>
+
+<h3>The three files that must agree</h3>
+<p>A uv project is three things: <code>pyproject.toml</code> (what you asked for: ranges), <code>uv.lock</code> (what one resolution picked: exact versions and hashes for every platform at once, which is what "universal lock" means) and <code>.venv</code> (what is installed). <code>uv add</code>, <code>uv lock</code> and <code>uv sync</code> move them back into agreement, and <code>uv run</code> syncs before it runs. Step through a real session:</p>
+<div class="card" id="pb-sync-card">
+<div class="pb-box three" id="pb-sync-box"></div>
+<div class="pb-cap" id="pb-sync-cap"></div>
+<div class="pb-term" id="pb-sync-term"></div>
+<div class="pb-ctl" id="pb-sync-ctl"></div>
+<div class="pb-src">Every command and output is the real one from <code>src/pb/uvwalk/walk_uv.sh</code>, run with uv 0.12.23 on 2026-10-05.</div>
+</div>
+<p>What the session shows:</p>
+<ul class="tight">
+<li><b><code>uv sync</code> is exact</b>: it removes anything the lock does not ask for in this sync, which is why <code>orjson</code> (an extra) disappeared until <code>--extra fast</code> was given. Use <code>--inexact</code> to keep extra packages. <code>uv run</code> is the opposite: it installs what is missing but removes nothing unless you pass <code>--exact</code> (<a href="https://docs.astral.sh/uv/concepts/projects/sync/" target="_blank" rel="noopener noreferrer">uv docs: locking and syncing</a>).</li>
+<li><b><code>--locked</code> refuses a stale lock</b>: the build fails instead of silently resolving new versions. Use it in CI. <code>--frozen</code> goes further and installs from the lock without checking <code>pyproject.toml</code> at all.</li>
+<li><b>Dependency groups</b> (<code>[dependency-groups]</code>, PEP 735, here <code>dev</code>) are for you, never published; <b>extras</b> (<code>[project.optional-dependencies]</code>) are for your users (<code>pip install tokcount[fast]</code>). The dev group is installed by default; <code>--no-dev</code> leaves it out.</li>
+<li>The system <code>python3</code> cannot import <code>httpx</code>: the project's packages live in <code>.venv</code>. That is what <code>uv run</code> does that bare <code>python</code> does not: sync, then run inside the project environment, no activation needed.</li>
+</ul>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv tree --depth 1|grep -c|uv export --format requirements.txt|uv export --format pylock.toml"></div>
+<p><code>uv tree</code> shows why each package is there; <code>uv export</code> writes a <code>requirements.txt</code> for tools that need one, or the standard <code>pylock.toml</code> (PEP 751, accepted in 2025), the first lock format every installer can share.</p>
+
+<h3>Scripts with their dependencies inside (PEP 723)</h3>
+<p>A one-file script can declare its own dependencies in a comment block; <code>uv run script.py</code> then builds a cached throwaway environment for it. This replaced "make a venv for this one script".</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv run --no-project fetch_title.py|uv add --script|uv run fetch_title.py"></div>
+
+<h3>Tools: uvx is pipx</h3>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uvx ruff|uvx --from"></div>
+<p><code>uvx tool@version</code> runs a command-line tool in its own cached environment without installing it into your project; <code>uv tool install</code> puts it on your PATH. Every type checker on this page was run this way, pinned to an exact version.</p>
+
+<h3>Workspaces: several packages, one lock</h3>
+<p>A workspace is a repository with several packages (a library and the CLI that uses it, say) that share one <code>uv.lock</code> and one <code>.venv</code>, like a Cargo workspace in Rust. <code>{ workspace = true }</code> makes the CLI depend on the library's source, not on a PyPI release.</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv init ws|cd ws &&"></div>
+
+<h3>The pip interface</h3>
+<p>For old repositories and Dockerfiles, <code>uv venv</code> and <code>uv pip install</code> behave like <code>python -m venv</code> and pip, only faster; nothing is locked unless you ask (<code>uv pip compile</code>).</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv venv old-style"></div>
+<h3>How much faster, measured</h3>
+<p>The same three packages (httpx, pydantic, rich and their dependencies) into a fresh Python 3.14 environment, three runs each with hyperfine (network included, so treat these as rough):</p>
+<div class="bars" id="pb-inst-bars"></div>
+<p class="small mute" id="pb-inst-note"></p>
+<div class="pb-cost"><div class="t">What uv costs, and when not to use it</div>uv is one company's tool (Astral, which announced on 2026-03-19 that it is joining OpenAI, per the <a href="https://astral.sh/blog" target="_blank" rel="noopener noreferrer">Astral blog</a>); the code is open source under MIT and Apache-2.0. Its lock format is its own, though it can export the standard <code>pylock.toml</code>. Where a project needs non-Python binaries (a specific CUDA toolkit, MKL, GDAL), conda or pixi still solve a problem uv does not. And in a repository that already uses Poetry, switching tools is a team decision, not a drive-by change.</div>
+<details class="mist"><summary>Common mistakes with uv</summary><div class="b"><ul class="tight">
+<li>Running <code>python script.py</code> instead of <code>uv run script.py</code> and wondering why imports fail: the project environment is not active.</li>
+<li>Editing <code>pyproject.toml</code> by hand and forgetting <code>uv lock</code>: CI with <code>--locked</code> catches it (the error above).</li>
+<li>Not committing <code>uv.lock</code> for an application: every machine then resolves on its own day.</li>
+<li>Putting test tools in <code>[project.optional-dependencies]</code>: they are then published as an extra; use a dependency group.</li>
+<li>Expecting <code>uv sync</code> to leave packages you installed by hand with <code>uv pip install</code>: it removes them.</li>
+</ul></div></details>
+</section>

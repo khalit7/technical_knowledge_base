@@ -1,0 +1,161 @@
+<div class="tab" id="t-pa-dm" role="tabpanel" hidden>
+<h2 style="margin-top:14px">Data model explorer: which method does Python call?</h2>
+<p>Pick an expression. The steps show, in order, every special method Python called for it, as logged by the methods themselves in a real run of <code>code/d2_dispatch.py</code> (green rows), with the steps that happen inside C code and cannot be logged from Python marked grey. Several scenarios come in pairs that differ in one detail (a subclass, a return value, a missing method): compare them. Reading section 2 has the rules; section 5 has the attribute lookup.</p>
+<div class="pa-anim" id="pa-dm-card">
+<div id="pa-dm-pick"></div>
+<div class="pa-dm-expr" id="pa-dm-expr"></div>
+<div class="pa-ctl" id="pa-dm-ctl"></div>
+<ol class="pa-dm-steps" id="pa-dm-steps"></ol>
+<div class="pa-cap" id="pa-dm-rule"></div>
+</div>
+<details class="mist"><summary>The full script that produced every trace (d2_dispatch.py)</summary><div class="b">
+<div class="pa-snip"><div class="pa-file">d2_dispatch.py</div><pre class="pa-code">"""Run each data-model scenario and record which special methods Python called, in order.
+The Data model tab replays these traces; everything in them is printed by real calls."""
+<span class="kw">import</span> json, sys
+
+LOG = []
+<span class="kw">def</span> log(msg):
+    LOG.append(msg)
+
+<span class="kw">def</span> scenario(fn):
+    LOG.clear()
+    <span class="kw">try</span>:
+        r = fn()
+        LOG.append(<span class="st">f"result: &#123;r!r&#125;"</span>)
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        LOG.append(<span class="st">f"raises &#123;type(e).__name__&#125;: &#123;e&#125;"</span>)
+    <span class="kw">return</span> list(LOG)
+
+out = &#123;&#125;
+
+<span class="cm"># 1. a + b, both A, A.__add__ handles it</span>
+<span class="kw">class</span> A:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, n): <span class="kw">self</span>.n = n
+    <span class="kw">def</span> __repr__(<span class="kw">self</span>): <span class="kw">return</span> <span class="st">f"&#123;type(self).__name__&#125;(&#123;self.n&#125;)"</span>
+    <span class="kw">def</span> __add__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call &#123;type(self).__name__&#125;.__add__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">if</span> <span class="kw">not</span> isinstance(o, A): log(<span class="st">"  -&gt; NotImplemented"</span>); <span class="kw">return</span> NotImplemented
+        <span class="kw">return</span> A(<span class="kw">self</span>.n + o.n)
+    <span class="kw">def</span> __radd__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call &#123;type(self).__name__&#125;.__radd__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">if</span> isinstance(o, int): <span class="kw">return</span> type(<span class="kw">self</span>)(<span class="kw">self</span>.n + o)
+        log(<span class="st">"  -&gt; NotImplemented"</span>); <span class="kw">return</span> NotImplemented
+out[<span class="st">"add_same"</span>] = scenario(<span class="kw">lambda</span>: A(1) + A(2))
+<span class="cm"># 2. left side gives up: int + A</span>
+out[<span class="st">"add_reflected"</span>] = scenario(<span class="kw">lambda</span>: 5 + A(2))
+<span class="cm"># 3. subclass on the right that overrides __radd__ goes FIRST</span>
+<span class="kw">class</span> B(A):
+    <span class="kw">def</span> __radd__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call B.__radd__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">return</span> B(<span class="kw">self</span>.n + o.n + 100)
+out[<span class="st">"add_subclass"</span>] = scenario(<span class="kw">lambda</span>: A(1) + B(2))
+<span class="cm"># 4. nobody handles it</span>
+<span class="kw">class</span> C:
+    <span class="kw">def</span> __repr__(<span class="kw">self</span>): <span class="kw">return</span> <span class="st">"C()"</span>
+out[<span class="st">"add_fail"</span>] = scenario(<span class="kw">lambda</span>: A(1) + C())
+
+<span class="cm"># 5. == with NotImplemented on both sides falls back to identity</span>
+<span class="kw">class</span> E:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, n): <span class="kw">self</span>.n = n
+    <span class="kw">def</span> __repr__(<span class="kw">self</span>): <span class="kw">return</span> <span class="st">f"E(&#123;self.n&#125;)"</span>
+    <span class="kw">def</span> __eq__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call E.__eq__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">if</span> <span class="kw">not</span> isinstance(o, E): log(<span class="st">"  -&gt; NotImplemented"</span>); <span class="kw">return</span> NotImplemented
+        <span class="kw">return</span> <span class="kw">self</span>.n == o.n
+out[<span class="st">"eq_fallback"</span>] = scenario(<span class="kw">lambda</span>: E(1) == <span class="st">"1"</span>)
+out[<span class="st">"eq_same"</span>] = scenario(<span class="kw">lambda</span>: E(1) == E(1))
+
+<span class="cm"># 6. defining __eq__ without __hash__ makes instances unhashable</span>
+out[<span class="st">"hash_none"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">f"# E.__dict__['__hash__'] is &#123;E.__dict__['__hash__']!r&#125;"</span>), hash(E(1)))[1])
+
+<span class="cm"># 7. len() looks __len__ up on the TYPE, never on the instance</span>
+<span class="kw">class</span> L:
+    <span class="kw">def</span> __len__(<span class="kw">self</span>):
+        log(<span class="st">"call L.__len__"</span>); <span class="kw">return</span> 3
+x = L()
+x.__len__ = <span class="kw">lambda</span>: 99
+out[<span class="st">"len_type"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# x.__len__ = lambda: 99 was set on the instance"</span>), len(x))[1])
+<span class="kw">class</span> Neg:
+    <span class="kw">def</span> __len__(<span class="kw">self</span>):
+        log(<span class="st">"call Neg.__len__ -&gt; -1"</span>); <span class="kw">return</span> -1
+out[<span class="st">"len_negative"</span>] = scenario(<span class="kw">lambda</span>: len(Neg()))
+
+<span class="cm"># 8. bool() falls back to __len__, then to True</span>
+<span class="kw">class</span> OnlyLen:
+    <span class="kw">def</span> __len__(<span class="kw">self</span>):
+        log(<span class="st">"call OnlyLen.__len__ -&gt; 0"</span>); <span class="kw">return</span> 0
+<span class="kw">class</span> Nothing: <span class="kw">pass</span>
+out[<span class="st">"bool_len"</span>] = scenario(<span class="kw">lambda</span>: bool(OnlyLen()))
+out[<span class="st">"bool_default"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# class Nothing has no __bool__ and no __len__"</span>), bool(Nothing()))[1])
+
+<span class="cm"># 9. iteration falls back to the old __getitem__ protocol</span>
+<span class="kw">class</span> Old:
+    <span class="kw">def</span> __getitem__(<span class="kw">self</span>, i):
+        log(<span class="st">f"call Old.__getitem__(&#123;i&#125;)"</span>)
+        <span class="kw">if</span> i &gt;= 3: log(<span class="st">"  -&gt; raises IndexError: iteration stops"</span>); <span class="kw">raise</span> IndexError(i)
+        <span class="kw">return</span> i * 10
+out[<span class="st">"iter_getitem"</span>] = scenario(<span class="kw">lambda</span>: list(Old()))
+
+<span class="cm"># 10. `in` without __contains__ scans __iter__</span>
+<span class="kw">class</span> It:
+    <span class="kw">def</span> __iter__(<span class="kw">self</span>):
+        log(<span class="st">"call It.__iter__"</span>)
+        <span class="kw">for</span> v <span class="kw">in</span> (1, 2, 3):
+            log(<span class="st">f"  yields &#123;v&#125;"</span>); <span class="kw">yield</span> v
+out[<span class="st">"contains_iter"</span>] = scenario(<span class="kw">lambda</span>: 2 <span class="kw">in</span> It())
+
+<span class="cm"># 11. with: __enter__, body, __exit__ (a true return value swallows the exception)</span>
+<span class="kw">class</span> Ctx:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, swallow): <span class="kw">self</span>.swallow = swallow
+    <span class="kw">def</span> __enter__(<span class="kw">self</span>):
+        log(<span class="st">"call Ctx.__enter__"</span>); <span class="kw">return</span> <span class="st">"resource"</span>
+    <span class="kw">def</span> __exit__(<span class="kw">self</span>, et, ev, tb):
+        log(<span class="st">f"call Ctx.__exit__(&#123;et.__name__ if et else None&#125;, &#123;ev!r&#125;, tb) -&gt; &#123;self.swallow&#125;"</span>)
+        <span class="kw">return</span> <span class="kw">self</span>.swallow
+<span class="kw">def</span> body(swallow):
+    <span class="kw">with</span> Ctx(swallow) <span class="kw">as</span> r:
+        log(<span class="st">f"body: r = &#123;r!r&#125;; raise ValueError('boom')"</span>)
+        <span class="kw">raise</span> ValueError(<span class="st">"boom"</span>)
+    <span class="kw">return</span> <span class="st">"after the with"</span>
+out[<span class="st">"with_propagate"</span>] = scenario(<span class="kw">lambda</span>: body(<span class="kw">False</span>))
+out[<span class="st">"with_swallow"</span>] = scenario(<span class="kw">lambda</span>: body(<span class="kw">True</span>))
+
+<span class="cm"># 12. attribute lookup order: data descriptor &gt; instance __dict__ &gt; non-data descriptor/class attr &gt; __getattr__</span>
+<span class="kw">class</span> Data:
+    <span class="kw">def</span> __get__(<span class="kw">self</span>, obj, owner): log(<span class="st">f"call Data.__get__(o, &#123;owner.__name__&#125;)"</span>); <span class="kw">return</span> <span class="st">"from data descriptor"</span>
+    <span class="kw">def</span> __set__(<span class="kw">self</span>, obj, v): log(<span class="st">"Data.__set__"</span>)
+<span class="kw">class</span> NonData:
+    <span class="kw">def</span> __get__(<span class="kw">self</span>, obj, owner): log(<span class="st">f"call NonData.__get__(o, &#123;owner.__name__&#125;)"</span>); <span class="kw">return</span> <span class="st">"from non-data descriptor"</span>
+<span class="kw">class</span> K:
+    d = Data()
+    nd = NonData()
+    plain = <span class="st">"class attribute"</span>
+    <span class="kw">def</span> __getattr__(<span class="kw">self</span>, name):
+        log(<span class="st">f"normal lookup failed: call K.__getattr__(&#123;name!r&#125;)"</span>); <span class="kw">return</span> <span class="st">f"made up for &#123;name&#125;"</span>
+o = K()
+o.__dict__.update(d=<span class="st">"instance dict d"</span>, nd=<span class="st">"instance dict nd"</span>)
+out[<span class="st">"attr_data"</span>] = scenario(<span class="kw">lambda</span>: o.d)
+out[<span class="st">"attr_instance"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# o.__dict__ has 'nd'; NonData has no __set__"</span>), o.nd)[1])
+out[<span class="st">"attr_class"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# 'plain' is a str on the class, not in o.__dict__"</span>), o.plain)[1])
+out[<span class="st">"attr_getattr"</span>] = scenario(<span class="kw">lambda</span>: o.missing)
+
+json.dump(out, sys.stdout, indent=1)
+print()</pre></div>
+</div></details>
+<style>
+#t-pa-dm .pa-dm-grp{font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;margin:8px 0 2px}
+#t-pa-dm .chips{margin:2px 0 4px}
+#t-pa-dm .chips button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-pa-dm .pa-dm-expr{font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:10px 0 4px;overflow-x:auto;white-space:pre}
+#t-pa-dm .pa-dm-expr .d{display:block;font:12.5px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--mute);white-space:normal}
+#t-pa-dm ol.pa-dm-steps{list-style:none;padding:0;margin:8px 0}
+#t-pa-dm ol.pa-dm-steps li{border:1px solid var(--line);border-left:4px solid var(--good);border-radius:6px;padding:6px 10px;margin:5px 0;font-size:13.5px;transition:opacity .25s}
+#t-pa-dm ol.pa-dm-steps li.impl{border-left-color:var(--dim)}
+#t-pa-dm ol.pa-dm-steps li.res{border-left-color:var(--acc)}
+#t-pa-dm ol.pa-dm-steps li.err{border-left-color:var(--bad)}
+#t-pa-dm ol.pa-dm-steps li.fut{opacity:.18}
+#t-pa-dm ol.pa-dm-steps li.cur{outline:2px solid var(--acc);outline-offset:1px}
+#t-pa-dm ol.pa-dm-steps code.l{display:block;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:2px}
+#t-pa-dm ol.pa-dm-steps .tg{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+</style>
+</div>

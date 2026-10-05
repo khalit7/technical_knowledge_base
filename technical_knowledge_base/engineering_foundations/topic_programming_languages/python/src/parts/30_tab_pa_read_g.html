@@ -1,0 +1,215 @@
+
+<section id="pa-s7"><h2>7. Exceptions done well</h2>
+<p>An exception is an object; <code>raise</code> unwinds the stack until an <code>except</code> clause whose class matches (by <code>isinstance</code>, in the order written). Since 3.11 a <code>try</code> that raises nothing costs nothing ("zero-cost" exceptions, {{What's new in 3.11|https://docs.python.org/3/whatsnew/3.11.html}}), so "ask forgiveness, not permission" (try it and catch the failure) is not a performance sin.</p>
+<h3>The hierarchy, and what <code>except Exception</code> does not catch</h3>
+<p>Everything derives from <code>BaseException</code>. Ordinary errors derive from its subclass <code>Exception</code>; four do not, on purpose, so that a broad <code>except Exception:</code> lets them through: <code>KeyboardInterrupt</code> (Ctrl-C), <code>SystemExit</code> (<code>sys.exit()</code>), <code>GeneratorExit</code> (section 3) and, since 3.8, <code>asyncio.CancelledError</code> (section 10). Give your own library one root exception so callers can catch "anything from this client" with one clause, and specific subclasses carrying data (here <code>retry_after</code>) for the cases callers handle differently.</p>
+<div class="pa-snip"><div class="pa-file">e3_hierarchy.py</div><pre class="pa-code"><span class="kw">class</span> LLMError(Exception):
+    <span class="st">"""Root of everything this client raises: callers can catch one type."""</span>
+
+<span class="kw">class</span> RateLimited(LLMError):
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, retry_after: float):
+        super().__init__(<span class="st">f"rate limited, retry after &#123;retry_after&#125;s"</span>)
+        <span class="kw">self</span>.retry_after = retry_after
+
+<span class="kw">class</span> ContextTooLong(LLMError):
+    <span class="kw">pass</span>
+
+<span class="kw">def</span> complete(prompt_tokens):
+    <span class="kw">if</span> prompt_tokens &gt; 8192:
+        <span class="kw">raise</span> ContextTooLong(<span class="st">f"&#123;prompt_tokens&#125; tokens &gt; 8192"</span>)
+    <span class="kw">raise</span> RateLimited(retry_after=1.5)
+
+<span class="kw">for</span> n <span class="kw">in</span> (100, 10_000):
+    <span class="kw">try</span>:
+        complete(n)
+    <span class="kw">except</span> RateLimited <span class="kw">as</span> e:              <span class="cm"># most specific first</span>
+        print(<span class="st">"wait"</span>, e.retry_after)
+    <span class="kw">except</span> LLMError <span class="kw">as</span> e:                 <span class="cm"># then the family</span>
+        print(type(e).__name__, e)
+
+print([c.__name__ <span class="kw">for</span> c <span class="kw">in</span> RateLimited.__mro__])
+print(issubclass(KeyboardInterrupt, Exception), issubclass(KeyboardInterrupt, BaseException))
+print(issubclass(TimeoutError, OSError))
+<span class="kw">import</span> asyncio
+print(issubclass(asyncio.CancelledError, Exception))</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="e3_hierarchy.txt">wait 1.5
+ContextTooLong 10000 tokens &gt; 8192
+['RateLimited', 'LLMError', 'Exception', 'BaseException', 'object']
+False True
+True
+False</pre></div>
+<div class="co warn"><div class="t">Correction to the old page</div>The old page listed as a trap "Catching <code>Exception</code> around a block that includes a <code>KeyboardInterrupt</code>-sensitive call". <code>except Exception</code> does not catch <code>KeyboardInterrupt</code> (output above: <code>False True</code>); the real trap is a bare <code>except:</code> or <code>except BaseException:</code>, which does, and so makes a program impossible to stop with Ctrl-C or to cancel in asyncio.</div>
+<h3>Chaining: <code>raise ... from</code></h3>
+<p>Raising inside an <code>except</code> block records the original exception as <code>__context__</code>, and the traceback says "During handling of the above exception, another exception occurred", which reads like a second bug. <code>raise NewError(...) from e</code> sets <code>__cause__</code> and says "The above exception was the direct cause", which is what you meant: translate a low-level error into your own while keeping the evidence. <code>from None</code> hides the original.</p>
+<div class="pa-snip"><div class="pa-file">e1_chain.py</div><pre class="pa-code"><span class="kw">import</span> json, sys, traceback
+
+<span class="kw">class</span> ConfigError(Exception):
+    <span class="kw">pass</span>
+
+<span class="kw">def</span> load(text):
+    <span class="kw">try</span>:
+        <span class="kw">return</span> json.loads(text)
+    <span class="kw">except</span> json.JSONDecodeError <span class="kw">as</span> e:
+        <span class="kw">raise</span> ConfigError(<span class="st">"config is not valid JSON"</span>) <span class="kw">from</span> e    <span class="cm"># explicit cause</span>
+
+<span class="kw">def</span> load_sloppy(text):
+    <span class="kw">try</span>:
+        <span class="kw">return</span> json.loads(text)
+    <span class="kw">except</span> json.JSONDecodeError:
+        <span class="kw">raise</span> ConfigError(<span class="st">"config is not valid JSON"</span>)           <span class="cm"># implicit context</span>
+
+<span class="kw">for</span> fn <span class="kw">in</span> (load, load_sloppy):
+    <span class="kw">try</span>:
+        fn(<span class="st">"&#123;bad"</span>)
+    <span class="kw">except</span> ConfigError <span class="kw">as</span> e:
+        print(<span class="st">f"--- &#123;fn.__name__&#125;: __cause__=&#123;type(e.__cause__).__name__&#125;, "</span>
+              <span class="st">f"__context__=&#123;type(e.__context__).__name__&#125;, __suppress_context__=&#123;e.__suppress_context__&#125;"</span>)
+        traceback.print_exc(limit=0, file=sys.stdout)   <span class="cm"># limit=0: messages only</span></pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="e1_chain.txt">--- load: __cause__=JSONDecodeError, __context__=JSONDecodeError, __suppress_context__=True
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+The above exception was the direct cause of the following exception:
+
+ConfigError: config is not valid JSON
+--- load_sloppy: __cause__=NoneType, __context__=JSONDecodeError, __suppress_context__=False
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+During handling of the above exception, another exception occurred:
+
+ConfigError: config is not valid JSON</pre></div>
+<h3>Exception groups, <code>except*</code> and notes</h3>
+<p>Concurrent code can fail in several places at once. Since 3.11 an <code>ExceptionGroup</code> carries several exceptions, <code>except*</code> handles each matching subset ({{PEP 654|https://peps.python.org/pep-0654/}}), and <code>asyncio.TaskGroup</code> raises one when tasks fail. <code>e.add_note(...)</code> ({{PEP 678|https://peps.python.org/pep-0678/}}) attaches context without changing the exception's type.</p>
+<div class="pa-snip"><div class="pa-file">e2_group.py</div><pre class="pa-code"><span class="kw">import</span> asyncio
+
+<span class="kw">async</span> <span class="kw">def</span> call(name, fail):
+    <span class="kw">await</span> asyncio.sleep(0.01)
+    <span class="kw">if</span> fail:
+        <span class="kw">raise</span> fail(<span class="st">f"&#123;name&#125; failed"</span>)
+    <span class="kw">return</span> name
+
+<span class="kw">async</span> <span class="kw">def</span> main():
+    <span class="kw">try</span>:
+        <span class="kw">async</span> <span class="kw">with</span> asyncio.TaskGroup() <span class="kw">as</span> tg:            <span class="cm"># 3.11+: structured concurrency</span>
+            tg.create_task(call(<span class="st">"search"</span>, <span class="kw">None</span>))
+            tg.create_task(call(<span class="st">"rerank"</span>, TimeoutError))
+            tg.create_task(call(<span class="st">"embed"</span>, ValueError))
+    <span class="kw">except</span>* TimeoutError <span class="kw">as</span> eg:                          <span class="cm"># handles the TimeoutError part</span>
+        print(<span class="st">"timeouts:"</span>, [str(e) <span class="kw">for</span> e <span class="kw">in</span> eg.exceptions])
+    <span class="kw">except</span>* ValueError <span class="kw">as</span> eg:                            <span class="cm"># and, separately, the ValueError part</span>
+        print(<span class="st">"bad values:"</span>, [str(e) <span class="kw">for</span> e <span class="kw">in</span> eg.exceptions])
+
+asyncio.run(main())
+
+eg = ExceptionGroup(<span class="st">"batch failed"</span>, [KeyError(<span class="st">"a"</span>), ValueError(<span class="st">"b"</span>), KeyError(<span class="st">"c"</span>)])
+match, rest = eg.split(KeyError)
+print(repr(match), repr(rest), sep=<span class="st">"\n"</span>)
+
+<span class="kw">try</span>:
+    <span class="kw">try</span>:
+        &#123;&#125;[<span class="st">"model"</span>]
+    <span class="kw">except</span> KeyError <span class="kw">as</span> e:
+        e.add_note(<span class="st">"while reading config.yaml, section 'llm'"</span>)   <span class="cm"># 3.11+</span>
+        <span class="kw">raise</span>
+<span class="kw">except</span> KeyError <span class="kw">as</span> e:
+    print(repr(e), e.__notes__)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="e2_group.txt">timeouts: ['rerank failed']
+bad values: ['embed failed']
+ExceptionGroup('batch failed', [KeyError('a'), KeyError('c')])
+ExceptionGroup('batch failed', [ValueError('b')])
+KeyError('model') ["while reading config.yaml, section 'llm'"]</pre></div>
+<h3><code>else</code> and <code>finally</code></h3>
+<div class="pa-snip pa-pred"><div class="pa-file">e4_finally.py</div><pre class="pa-code"><span class="kw">def</span> order(fail):
+    <span class="kw">try</span>:
+        print(<span class="st">"try"</span>)
+        <span class="kw">if</span> fail:
+            <span class="kw">raise</span> ValueError(<span class="st">"x"</span>)
+    <span class="kw">except</span> ValueError:
+        print(<span class="st">"except"</span>)
+    <span class="kw">else</span>:
+        print(<span class="st">"else (only when try raised nothing)"</span>)
+    <span class="kw">finally</span>:
+        print(<span class="st">"finally (always)"</span>)
+
+order(<span class="kw">False</span>)
+order(<span class="kw">True</span>)
+
+<span class="kw">def</span> swallow():
+    <span class="kw">try</span>:
+        <span class="kw">raise</span> RuntimeError(<span class="st">"lost"</span>)
+    <span class="kw">finally</span>:
+        <span class="kw">return</span> <span class="st">"finally's return wins"</span>   <span class="cm"># silently discards the exception</span>
+print(swallow())</pre><details><summary>Predict the output, then reveal</summary><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="e4_finally.txt">e4_finally.py:20: SyntaxWarning: 'return' in a 'finally' block
+  return "finally's return wins"   # silently discards the exception
+try
+else (only when try raised nothing)
+finally (always)
+try
+except
+finally (always)
+finally's return wins</pre></details></div>
+<p>A <code>return</code> inside <code>finally</code> throws away the exception in flight. Since 3.14 the compiler warns about it: "The compiler now emits a SyntaxWarning when a return, break, or continue statement have the effect of leaving a finally block" ({{PEP 765|https://peps.python.org/pep-0765/}}). The same file under 3.13 prints no warning:</p>
+<div class="pa-snip"><div class="pa-olab">the same file, real output, Python 3.13.16</div><pre class="pa-out" data-src="e4_finally_313.txt">try
+else (only when try raised nothing)
+finally (always)
+try
+except
+finally (always)
+finally's return wins</pre></div>
+<div class="pa-cost"><div><div class="t">Habits</div>Catch the narrowest exception you can handle; let the rest propagate; translate at boundaries with <code>raise ... from</code>; log with the traceback (<code>logger.exception</code>) once, at the top.</div><div><div class="t">Mistakes</div>Bare <code>except:</code>; <code>except Exception: pass</code>; catching around more code than the call that can fail; raising <code>Exception("...")</code> instead of a specific class.</div></div>
+</section>
+
+<section id="pa-s8"><h2>8. Context managers: <code>with</code></h2>
+<p><code>with m as r:</code> calls <code>m.__enter__()</code>, binds its return value to <code>r</code>, runs the body, and then always calls <code>m.__exit__(exc_type, exc, tb)</code>, with the exception if one was raised and <code>None</code>s if not. If <code>__exit__</code> returns a true value the exception is swallowed. It is <code>try/finally</code> packaged as an object, for anything that must be released: files, locks, connections, GPU memory pools, timers, temporary settings such as <code>torch.no_grad()</code>.</p>
+<p><code>contextlib.contextmanager</code> writes the class for you from a generator: the code before <code>yield</code> is <code>__enter__</code>, the code after it (in a <code>finally</code>) is <code>__exit__</code>. Several managers in one <code>with</code> are entered left to right and exited right to left. <code>ExitStack</code> handles a number of resources known only at run time ({{contextlib|https://docs.python.org/3/library/contextlib.html}}).</p>
+<div class="pa-snip"><div class="pa-file">x1_with.py</div><pre class="pa-code"><span class="kw">import</span> contextlib, time
+
+<span class="kw">class</span> Timer:
+    <span class="kw">def</span> __enter__(<span class="kw">self</span>):
+        <span class="kw">self</span>.t0 = time.perf_counter()
+        <span class="kw">return</span> <span class="kw">self</span>                                   <span class="cm"># bound to the name after `as`</span>
+    <span class="kw">def</span> __exit__(<span class="kw">self</span>, exc_type, exc, tb):
+        <span class="kw">self</span>.ms = (time.perf_counter() - <span class="kw">self</span>.t0) * 1000
+        print(<span class="st">f"Timer exit: exc_type=&#123;exc_type.__name__ if exc_type else None&#125;"</span>)
+        <span class="kw">return</span> <span class="kw">False</span>                                  <span class="cm"># do not swallow exceptions</span>
+
+<span class="kw">with</span> Timer() <span class="kw">as</span> t:
+    sum(range(100_000))
+print(<span class="st">f"&#123;t.ms:.1f&#125; ms"</span>)
+
+@contextlib.contextmanager                            <span class="cm"># the same protocol, written as a generator</span>
+<span class="kw">def</span> opened(name):
+    print(<span class="st">f"open &#123;name&#125;"</span>)
+    <span class="kw">try</span>:
+        <span class="kw">yield</span> name.upper()                            <span class="cm"># the value bound by `as`</span>
+    <span class="kw">finally</span>:
+        print(<span class="st">f"close &#123;name&#125;"</span>)                        <span class="cm"># runs even if the body raises</span>
+
+<span class="kw">try</span>:
+    <span class="kw">with</span> opened(<span class="st">"a"</span>) <span class="kw">as</span> a, opened(<span class="st">"b"</span>) <span class="kw">as</span> b:          <span class="cm"># entered left to right...</span>
+        print(<span class="st">"body"</span>, a, b)
+        <span class="kw">raise</span> KeyError(<span class="st">"oops"</span>)
+<span class="kw">except</span> KeyError:
+    print(<span class="st">"KeyError reached the caller"</span>)              <span class="cm"># ...exited right to left</span>
+
+<span class="kw">with</span> contextlib.ExitStack() <span class="kw">as</span> stack:                 <span class="cm"># a number of resources known only at run time</span>
+    names = [stack.enter_context(opened(n)) <span class="kw">for</span> n <span class="kw">in</span> (<span class="st">"x"</span>, <span class="st">"y"</span>, <span class="st">"z"</span>)]
+    print(<span class="st">"using"</span>, names)
+
+<span class="kw">with</span> contextlib.suppress(FileNotFoundError):
+    open(<span class="st">"/no/such/file"</span>)
+print(<span class="st">"suppressed"</span>)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="x1_with.txt">Timer exit: exc_type=None
+1.0 ms
+open a
+open b
+body A B
+close b
+close a
+KeyError reached the caller
+open x
+open y
+open z
+using ['X', 'Y', 'Z']
+close z
+close y
+close x
+suppressed</pre></div>
+<p>The async form, <code>async with</code>, calls <code>__aenter__</code> and <code>__aexit__</code>, which may await (opening a connection, releasing a semaphore); section 10 uses it for <code>asyncio.timeout</code>, <code>TaskGroup</code> and <code>Semaphore</code>.</p>
+<div class="co warn"><div class="t">The mistake</div>Writing <code>@contextmanager</code> without <code>try/finally</code> around the <code>yield</code>. If the body raises, the exception is thrown in at the <code>yield</code>, and any cleanup written after it without <code>finally</code> never runs.</div>
+</section>
