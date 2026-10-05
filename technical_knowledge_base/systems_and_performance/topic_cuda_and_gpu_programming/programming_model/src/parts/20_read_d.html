@@ -1,0 +1,42 @@
+<section id="pm-s2">
+<h2>2. How each thread finds its data: indexing</h2>
+<p><b>The problem.</b> All threads run the same code, so the only thing that makes thread 77,000 different from thread 3 is a handful of read-only built-in variables. Turning them into "my element" is the first thing every kernel does.</p>
+<div class="tw"><table>
+<thead><tr><th>Built-in</th><th>Meaning</th><th>Limit <span class="rd-vend">vendor doc</span></th></tr></thead>
+<tbody>
+<tr><td><code>threadIdx.{x,y,z}</code></td><td>this thread's position inside its block</td><td>block x, y &le; 1,024; z &le; 64; x&middot;y&middot;z &le; 1,024</td></tr>
+<tr><td><code>blockDim.{x,y,z}</code></td><td>the block's shape, as launched</td><td>same</td></tr>
+<tr><td><code>blockIdx.{x,y,z}</code></td><td>this block's position in the grid</td><td>grid x &le; 2<sup>31</sup>&minus;1; y, z &le; 65,535</td></tr>
+<tr><td><code>gridDim.{x,y,z}</code></td><td>the grid's shape</td><td>same</td></tr>
+<tr><td><code>warpSize</code></td><td>threads per warp</td><td>32 on every GPU so far</td></tr>
+</tbody></table></div>
+<p class="small mute">Limits from the {{CUDA Programming Guide, Table 30|https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html}} (v13.4.2, updated Sep 10, 2026), identical for every compute capability it lists. Shapes are <code>dim3</code> values: <code>dim3 block(32, 8)</code> is 32 &times; 8 = 256 threads.</p>
+<h3>Three patterns cover almost every kernel</h3>
+<pre class="rd-code"><span class="c">// 1 one thread per element (the host launches ceil(n / block) blocks)</span>
+int i = blockIdx.x * blockDim.x + threadIdx.x;
+if (i &lt; n) y[i] = a * x[i];
+
+<span class="c">// 2 grid-stride loop: any grid size covers any n</span>
+for (int i = blockIdx.x * blockDim.x + threadIdx.x; i &lt; n; i += gridDim.x * blockDim.x)
+  y[i] = a * x[i];
+
+<span class="c">// 3 a 2D grid over a matrix: x walks columns, so neighbouring threads touch neighbouring addresses</span>
+int c = blockIdx.x * blockDim.x + threadIdx.x, r = blockIdx.y * blockDim.y + threadIdx.y;
+if (r &lt; rows &amp;&amp; c &lt; cols) y[r * cols + c] = a * x[r * cols + c];
+<span class="c">// host: dim3 block(32, 8); dim3 grid((cols + 31) / 32, (rows + 7) / 8);</span></pre>
+<p>All three are in <code>src/cuda/kernels/p1_index.cu</code> and compile for all four targets. On sm_90a, ptxas gives the one-per-element and 2D kernels <span data-pmv="ptxas.p1_index.sm_90a.kernels.scale_1d.regs">10</span> registers per thread and the grid-stride kernel <span data-pmv="ptxas.p1_index.sm_90a.kernels.scale_stride.regs">14</span> (it carries the loop) <span class="rd-pub">compiled here</span>. For the running example, the 4,096 &times; 4,096 scores take pattern 3 with a 128 by 512 grid of 32 &times; 8 blocks, or pattern 1 on the flattened 16,777,216 elements: for an elementwise step the shape does not matter as long as consecutive threads touch consecutive addresses.</p>
+<p><b>Why the grid-stride loop is worth knowing.</b> The grid size no longer depends on <code>n</code>: you can launch exactly as many blocks as fit on the GPU at once and let each thread do several elements (a <dfn>persistent</dfn> grid), run with one block of one thread to debug serially, and let per-thread setup (loading a constant, computing a base pointer) happen once per thread instead of once per element. Mark Harris's {{"CUDA Pro Tip: Write Flexible Kernels with Grid-Stride Loops"|https://developer.nvidia.com/blog/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/}} (NVIDIA, 2013) is the classic reference <span class="rd-pub">published</span>. It does not remove the tail effect of section 5: the last iteration is still uneven.</p>
+<p><b>Integer overflow.</b> <code>int</code> stops at 2<sup>31</sup>&minus;1 = 2,147,483,647. A tensor of 16 &times; 32 &times; 4,096 &times; 4,096 attention scores has 8,589,934,592 elements, so <code>blockIdx.x * blockDim.x + threadIdx.x</code> computed in <code>int</code> wraps around silently <span class="rd-der">derived</span>. Use 64-bit arithmetic (<code>(long long)blockIdx.x * blockDim.x</code>, or <code>size_t</code>) whenever an index can pass two billion.</p>
+<h3>Which threads form a warp</h3>
+<p>The hardware groups a block's threads into warps of 32 by a single <dfn>linear thread id</dfn>: "the first index <code>x</code> moves the fastest, followed by <code>y</code> and then <code>z</code>", and "each warp contains threads of consecutive, increasing thread IDs with the first warp containing thread 0" ({{Programming Guide 2.3.2|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html}}; {{3.2, Hardware Implementation|https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html}}). So the linear id is <code>x + y&middot;Dx + z&middot;Dx&middot;Dy</code>, and warp <i>w</i> holds linear ids 32<i>w</i> to 32<i>w</i>+31. The block's <b>shape</b> therefore decides which matrix elements one warp touches together. Pick a 256-thread shape over a row-major float32 matrix:</p>
+<div class="card" id="pm-ix-card">
+<div class="rd-seg" id="pm-ix-mode"><button class="on" data-m="32x8">32 &times; 8</button><button data-m="16x16">16 &times; 16</button><button data-m="8x32">8 &times; 32</button><button data-m="4x64">4 &times; 64</button><button data-m="1x256">1 &times; 256</button></div>
+<div class="rd-fig" id="pm-ix-fig"></div>
+<div class="rd-cnt" id="pm-ix-cnt"></div>
+<p class="small mute" style="margin:2px 0">Each cell is one thread of the block placed on the matrix element it handles (columns across, rows down), coloured by warp. Click a cell to see that thread's numbers. Sectors: the 32-byte pieces of memory one warp's load touches, if the rows start 32-byte aligned and are more than a block wide <span class="rd-der">derived: rows touched &times; ceil(columns per row &times; 4 B / 32 B)</span>.</p>
+</div>
+<p>32 &times; 8, 16 &times; 16 and 8 &times; 32 all touch 4 sectors per warp load, every byte used; narrower than 8 columns, sectors are half empty and the same load costs 8, then 32 sectors. Why sectors are the unit, and what it costs, is the subject of {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}} (coalescing). The rule to keep: <b>make <code>threadIdx.x</code> walk the contiguous dimension.</b></p>
+<div class="rd-pr"><div class="q">Predict: a 16 &times; 16 block. Which threads are in warp 1?</div>
+<div class="opts"><button data-v="a">Column 1, all 16 rows</button><button data-v="b" data-ok="1">Rows 2 and 3, all 16 columns</button><button data-v="c">Threads 16 to 31 of row 0</button></div>
+<div class="ans" hidden>Linear ids 32 to 63 are <code>x + 16y</code> for y = 2 and 3, so rows 2 and 3 of the block, all 16 columns each. Warp 0 is rows 0 and 1. Try the 16 &times; 16 button above and click any cell of rows 2 to 3.</div></div>
+</section>

@@ -1,0 +1,87 @@
+// Whole-page check: every tab, every control, at 390 px dark and 920 px light: page errors, NaN, undefined,
+// sideways scroll; animation end states against window.PM (from recompute.py); the planner's JavaScript
+// occupancy port against the values NVIDIA's cuda_occupancy.h produced; screenshots.
+// usage (from the repo root): node <page>/src/check/check_page.mjs [shots dir]
+import { createRequire } from 'module';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repo = path.resolve(here, '../../../../../..');
+const require = createRequire(path.join(repo, 'html_utils', 'package.json'));
+const puppeteer = require('puppeteer');
+const pageFile = path.resolve(here, '../../index.html');
+const shots = process.argv[2] || path.resolve(here, '../../.shots/own');
+fs.mkdirSync(shots, { recursive: true });
+const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox'] });
+let bad = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
+  const p = await browser.newPage();
+  const errs = [];
+  p.on('pageerror', e => errs.push(String(e)));
+  p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+  await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
+  await p.setViewport({ width: w, height: 900 });
+  await p.goto('file://' + pageFile);
+  await p.evaluate(() => { try { localStorage.clear() } catch (e) {} });
+  for (const tab of ['t-read', 't-plan', 't-more']) {
+    await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
+    await sleep(250);
+    const n = await p.evaluate(async (t) => {
+      const root = document.getElementById(t); let c = 0;
+      for (const s of root.querySelectorAll('section,.card')) { s.scrollIntoView(); await new Promise(r => setTimeout(r, 40)); }
+      for (const b of [...root.querySelectorAll('button')]) { if (b.offsetParent === null) continue; b.scrollIntoView({ block: 'center' }); b.click(); c++; await new Promise(r => setTimeout(r, 20)); }
+      for (const r of root.querySelectorAll('input[type=range]')) { for (const v of [r.min, r.max, Math.round((+r.min + +r.max) / 2)]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })); c++; } }
+      for (const s of root.querySelectorAll('select')) { for (const o of s.options) { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); c++; await new Promise(r => setTimeout(r, 20)); } }
+      for (const x of root.querySelectorAll('input[type=number]')) { for (const v of ['1', '1000000', '2000000000']) { x.value = v; x.dispatchEvent(new Event('input', { bubbles: true })); c++; } }
+      for (const r of root.querySelectorAll('svg rect[data-x]')) { r.dispatchEvent(new MouseEvent('click', { bubbles: true })); c++; break; }
+      for (const d of root.querySelectorAll('details')) { d.open = true; }
+      return c;
+    }, tab);
+    const txt = await p.evaluate(t => document.getElementById(t).innerText, tab);
+    const html = await p.evaluate(t => document.getElementById(t).innerHTML, tab);
+    const nan = /\bNaN\b|\bundefined\b|Infinity|∞/.test(txt) || /NaN|undefined/.test(html.replace(/[^>]*</g, '<'));
+    const sw = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (nan || sw > 1) { bad++; console.log(scheme, w, tab, 'NaN/undefined:', nan, 'sideways:', sw); }
+    console.log(scheme, w, tab, 'controls', n, 'ok');
+    await p.evaluate(() => window.scrollTo(0, 0));
+    await p.screenshot({ path: path.join(shots, `${scheme}_${w}_${tab}.png`), fullPage: tab !== 't-read' });
+  }
+  await p.evaluate(() => document.querySelector('#tabs button[data-t="t-read"]').click());
+  const checks = await p.evaluate(() => {
+    const out = [], P = window.PM;
+    const last = a => a[a.length - 1];
+    out.push(['race with barrier', last(window.PM_RC.bar).res, P.toy_race.bar]);
+    out.push(['race without barrier', last(window.PM_RC.nobar).res, P.toy_race.nobar]);
+    out.push(['race stale reads', last(window.PM_RC.nobar).stale, P.toy_race.stale]);
+    out.push(['shuffle lane 0', last(window.PM_SH.shfl).v[0], 528]);
+    out.push(['shared lane 0', last(window.PM_SH.smem).v[0], 528]);
+    for (const m of ['before', 'after']) { const S = window.PM_WQ[m], c = P.wq[m];
+      out.push(['waves ' + m, S.filter(s => s.w).length, c.waves]);
+      out.push(['last wave ' + m, last(S.filter(s => s.w)).run, c.last_wave_tiles]); }
+    for (const [dx, sec] of [[32, 4], [16, 4], [8, 4], [4, 8], [1, 32]]) out.push(['sectors ' + dx, window.PM_IX(dx).sectors, sec]);
+    // planner port against NVIDIA's header values (P.occ is checked against cuda_occupancy.h by recompute.py)
+    let mism = 0, tot = 0;
+    for (const a of Object.keys(P.occ)) for (const k of Object.keys(P.occ[a])) { const r = P.occ[a][k];
+      r.blocks.forEach((v, i) => { tot++; if (window.PMOCC.blocks(a, r.regs, r.smem, 32 * (i + 1), r.bars, r.maxT).n !== v) mism++; });
+      const g = P.gpus.find(g => g.arch === a), s = window.PMOCC.suggest(a, r.regs, r.smem, r.bars, r.maxT, g.sms); tot++;
+      if (s.block !== r.suggest.block || s.minGrid !== r.suggest.minGrid) mism++; }
+    out.push(['planner port mismatches of ' + tot, mism, 0]);
+    return out;
+  });
+  for (const c of checks) { const ok = c[1] === c[2]; if (!ok) bad++; console.log(scheme, 'check', c[0], 'page', c[1], 'reference', c[2], ok ? 'ok' : 'MISMATCH'); }
+  const secs = await p.evaluate(() => [...document.querySelectorAll('#t-read section')].map(s => s.id));
+  for (const id of secs) {
+    const el = await p.$('#' + id);
+    await el.scrollIntoView(); await sleep(150);
+    await el.screenshot({ path: path.join(shots, `${scheme}_${w}_${id}.png`) });
+  }
+  if (errs.length) { bad++; console.log(scheme, 'errors:', errs.slice(0, 5)); }
+  const jsErr = await p.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : ''; });
+  if (jsErr) { bad++; console.log('jsErr:', jsErr); }
+  await p.close();
+}
+await browser.close();
+console.log(bad ? `FAIL ${bad}` : 'ALL OK');
+process.exit(bad ? 1 : 0);

@@ -1,0 +1,1041 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The CUDA programming model: threads, warps, blocks, launches, occupancy</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+#ovBars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 6.6em;margin:5px 0}#ovBars .row .nm{white-space:normal;line-height:1.2}#ovBars .ml{display:block;font-size:11.5px;color:var(--mute)}
+#ovBars .track{height:12px}
+#pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+@media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<h1>The CUDA programming model: threads, warps, blocks, launches, occupancy</h1>
+<div class="sub">How you tell a GPU what to run, taught from zero: a complete CUDA program, how thousands of threads find their data, warps and the warp-level instructions, every level of synchronisation from a warp to the whole GPU, choosing a launch configuration, occupancy and waves, error handling, the memory API, what a launch costs, and the same kernels from Python and in Metal. Child of Topic: cuda-and-gpu-programming. Data as of October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-plan" aria-selected="false">Launch planner</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .rd-cap{min-height:5.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-read .rd-cap .t{font-weight:600;font-size:14px}#t-read .rd-cap p{margin:2px 0;font-size:13.5px}
+#t-read .rd-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
+#t-read .rd-cnt .stat .v{font-size:15px}
+#t-read .rd-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#t-read .rd-seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-read .rd-seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-read .rd-meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-read .rd-vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-read .rd-pub{font-size:11.5px;color:var(--c6);font-weight:600}
+#t-read .rd-der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-read .rd-ill{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-read .rd-unc{font-size:11.5px;color:var(--bad);font-weight:600;font-style:italic}
+#t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
+#t-read .rd-fig{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rd-fig svg text{font-size:11px}
+#t-read .rd-step{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:10px 0}
+#t-read .rd-step>a{display:block;text-decoration:none;color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:8px;padding:7px 10px;background:var(--soft);font-size:13px;min-width:0}
+#t-read .rd-step>a b{display:block;font-size:13.5px}#t-read .rd-step>a span{color:var(--mute);font-size:12.5px}
+#t-read pre.rd-code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;margin:8px 0;white-space:pre}
+#t-read pre.rd-code .c{color:var(--mute)}#t-read pre.rd-code .k{color:var(--c4)}#t-read pre.rd-code .h{background:var(--hl)}
+#t-read .rd-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:8px 0}
+#t-read .rd-two>div{min-width:0}
+#t-read .rd-pr{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+#t-read .rd-pr .q{font-weight:600;font-size:14px;color:var(--ink)}
+#t-read .rd-pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#t-read .rd-pr .opts button{font-size:13px}
+#t-read .rd-pr .opts button.right{background:var(--open2);border-color:var(--good)}
+#t-read .rd-pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-read .rd-pr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-read details.rd-qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}
+#t-read details.rd-qa summary{cursor:pointer;padding:6px 12px;font-size:14px}
+#t-read details.rd-qa>div{padding:0 12px 8px;font-size:13.5px}
+#t-read .rd-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .rd-leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-read .rd-kids{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px;margin:8px 0}
+#t-read .rd-kids>div{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;font-size:13.5px;min-width:0}
+#t-read .rd-kids b{display:block}
+#t-read .rd-ladder{display:grid;gap:4px;margin:8px 0}
+#t-read .rd-ladder>div{display:grid;grid-template-columns:minmax(0,10em) minmax(0,1fr);gap:8px;align-items:start;border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:13px;background:var(--bg)}
+#t-read .rd-ladder>div b{font-size:13px}
+#t-read table td,#t-read table th{font-size:12.5px}
+#t-read .rd-ctlrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-read .rd-ctlrow label{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 200px}
+#t-read .rd-ctlrow input[type=range]{flex:1 1 90px;min-width:0}
+@media (max-width:520px){#t-read .rd-ladder>div{grid-template-columns:1fr}#t-read pre.rd-code{font-size:11px}}
+#t-read pre.rd-code.sass{font-size:11.5px;max-height:300px;overflow:auto}
+#t-read .pm-map{display:grid;gap:1px;margin:6px 0;max-width:100%}
+#t-read .pm-map div{aspect-ratio:1;border-radius:2px;min-width:0}
+#t-read .pm-cells{display:grid;gap:2px;margin:6px 0}
+#t-read .pm-cells div{aspect-ratio:1;border-radius:2px;background:var(--soft);border:1px solid var(--line);min-width:0}
+#t-read .pm-sm{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+#t-read .pm-mem{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px;margin:4px 0}
+#t-read .pm-mem div{border:1px solid var(--line);border-radius:3px;text-align:center;font:11px/1.9 ui-monospace,Menlo,monospace;background:var(--bg);min-width:0;overflow:hidden}
+#t-read .pm-mem div.w0{background:var(--acc2)}#t-read .pm-mem div.w1{background:var(--open2)}#t-read .pm-mem div.stale{outline:2px solid var(--bad);outline-offset:-2px}
+#t-read .pm-mem div.emp{color:var(--mute)}
+#t-read .pm-lanes{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px;margin:2px 0;font-size:10.5px;text-align:center;color:var(--mute)}
+#t-read .pm-row{display:grid;grid-template-columns:minmax(0,6.5em) minmax(0,1fr);gap:6px;align-items:center;font-size:12.5px;margin:2px 0}
+</style>
+<nav class="nav" id="rd-nav">
+<a href="#pm-s0">In one screen</a><a href="#pm-s1">1 A program</a><a href="#pm-s2">2 Indexing</a><a href="#pm-s3">3 Warps</a><a href="#pm-s4">4 Synchronisation</a><a href="#pm-s5">5 Launch config</a><a href="#pm-s6">6 Errors</a><a href="#pm-s7">7 Memory API</a><a href="#pm-s8">8 Launch cost</a><a href="#pm-s9">9 From Python</a><a href="#pm-s10">10 Metal</a><a href="#pm-s11">Mistakes, interview</a>
+</nav>
+<section id="pm-s0">
+<p class="lead">A GPU runs one function, the <dfn>kernel</dfn>, on tens of thousands of threads at once. The <b>programming model</b> is the contract between you and the hardware: how you launch those threads, how each one finds its piece of data, which threads may talk to each other and how they wait for each other, and what the launch costs. This page teaches that contract from zero with real CUDA code compiled by NVIDIA's own compiler, and real runs on a real GPU (an Apple M1 Pro, the only GPU available here; every number says where it comes from).</p>
+<p><b>The running example.</b> Attention scores <code>s</code>, a 4,096 by 4,096 float32 matrix, need two things on the way to a softmax: an <b>elementwise</b> step (scale every score, <code>e = a * s</code>: every element independent) and a <b>reduction</b> (the sum of each row: many elements combine into one). The elementwise step teaches launches and indexing; the reduction forces threads to cooperate, which teaches warps, shared memory, barriers and atomics. The parent page, <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>, follows the full softmax and attention from PyTorch down to the instructions; this page owns the model underneath.</p>
+<div class="tw"><table>
+<thead><tr><th>Idea</th><th>In one line</th><th>How to check it</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td><b>Kernel, launch</b></td><td>A <code>__global__</code> function; <code>k&lt;&lt;&lt;grid, block&gt;&gt;&gt;(args)</code> starts grid &times; block threads and returns at once.</td><td><code>cudaGetLastError()</code> after the launch</td><td>1</td></tr>
+<tr><td><b>Thread, block, grid</b></td><td>Each thread reads <code>blockIdx</code>, <code>blockDim</code>, <code>threadIdx</code> to compute which element is its job.</td><td>a bounds check on every index</td><td>2</td></tr>
+<tr><td><b>Warp</b></td><td>32 threads with consecutive ids, issued together; they can swap registers (shuffles) and vote.</td><td>SASS: <code>SHFL</code>, <code>VOTE</code></td><td>3</td></tr>
+<tr><td><b>Synchronisation</b></td><td>Warp: <code>__syncwarp</code>. Block: <code>__syncthreads</code> + shared memory. Cluster: <code>cluster.sync()</code>. Whole grid: end the kernel (or a cooperative launch). Any thread: atomics.</td><td><code>compute-sanitizer --tool racecheck</code></td><td>4</td></tr>
+<tr><td><b>Launch configuration</b></td><td>Block size (a multiple of 32, usually 128 to 256), grid size, shared memory; together with registers they set <b>occupancy</b>, and grid / (SMs &times; blocks per SM) sets the number of <b>waves</b>.</td><td><code>ptxas -v</code>, the occupancy API, the <a href="#" data-tab="t-plan">Launch planner</a></td><td>5</td></tr>
+<tr><td><b>Errors</b></td><td>Return codes, not exceptions; kernel errors appear at a later call; some poison the whole process.</td><td>a <code>CUDA_CHECK</code> macro, <code>CUDA_LAUNCH_BLOCKING=1</code></td><td>6</td></tr>
+<tr><td><b>Memory API</b></td><td><code>cudaMalloc</code>, <code>cudaMemcpy</code>, pinned and managed memory, the stream-ordered allocator.</td><td><code>torch.cuda.memory_allocated()</code> vs <code>memory_reserved()</code></td><td>7</td></tr>
+<tr><td><b>Launch cost</b></td><td>Microseconds of CPU work per launch; tiny kernels leave the GPU idle between them.</td><td>a profiler timeline (gaps between kernels)</td><td>8</td></tr>
+</tbody></table></div>
+<div class="co"><div class="t">How evidence is labelled (no NVIDIA GPU was used to build this page)</div>
+<span class="rd-pub">compiled here</span>: real output of NVIDIA's CUDA toolkit (<span data-pmv="nvcc">release 13.4, V13.4.92</span>) in a Linux container with no GPU: <code>nvcc</code>, <code>ptxas -v</code> (registers, shared memory, spills) and SASS, the GPU's real machine code, for four generations: sm_80 (A100), sm_90a (H100), sm_100a (B200) and sm_120 (RTX 5090). Host programs were also <b>run</b> there, so their error output is real. <span class="rd-meas">measured on Apple M1 Pro GPU</span>: the same ideas as Metal kernels (Apple's SIMD-groups are 32 threads wide, like warps) timed through MLX 0.32.3, three runs on a shared laptop, load average <span data-pmv="m1.loadmin">5.0</span> to <span data-pmv="m1.loadmax">6.3</span>; what transfers to NVIDIA is said each time. <span class="rd-vend">vendor doc</span>: NVIDIA documentation fetched 2026-10-05. <span class="rd-pub">published</span>: papers and blogs. <span class="rd-der">derived</span>: computed by the formula shown. <span class="rd-ill">illustrative</span>: an input chosen for drawing.</div>
+<p class="small mute">Who owns what: what an SM physically contains, latency hiding, the per-generation occupancy limits and divergence costs are on <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a> (sections 3 to 5); coalescing, shared-memory banks and spills are on <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>; streams, events and CUDA graphs are on <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a>; how nvcc turns this code into PTX and SASS is on <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>. This page links them rather than repeating them.</p>
+</section>
+<section id="pm-s1">
+<h2>1. A complete CUDA program, line by line</h2>
+<p><b>The problem.</b> The CPU (the <dfn>host</dfn>) and the GPU (the <dfn>device</dfn>) have separate memories and run separate code. A CUDA program is ordinary C++ for the host plus functions marked to run on the device, and it must move data across, start the work, wait for it and move results back. Here is the whole of it for the elementwise step, <code>y = a * x</code> on a million floats. It is a real file, compiled here with nvcc for sm_90a (H100) <span class="rd-pub">compiled here</span>.</p>
+<pre class="rd-code"><span class="k">__global__</span> void scale(const float* x, float* y, float a, int n) {   <span class="c">// runs on the GPU</span>
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i &lt; n) y[i] = a * x[i];
+}
+int main() {
+  const int n = 1 &lt;&lt; 20;                                 <span class="c">// 1,048,576 elements</span>
+  std::vector&lt;float&gt; hx(n), hy(n);                       <span class="c">// host arrays</span>
+  float *dx, *dy;                                        <span class="c">// device pointers: not usable on the CPU</span>
+  CUDA_CHECK(cudaMalloc(&amp;dx, n * sizeof(float)));        <span class="c">// 1 allocate GPU memory</span>
+  CUDA_CHECK(cudaMalloc(&amp;dy, n * sizeof(float)));
+  CUDA_CHECK(cudaMemcpy(dx, hx.data(), n * sizeof(float), cudaMemcpyHostToDevice));  <span class="c">// 2 copy in</span>
+  int block = 256, grid = (n + block - 1) / block;       <span class="c">// 3 choose the launch: 4,096 blocks of 256</span>
+  scale&lt;&lt;&lt;grid, block&gt;&gt;&gt;(dx, dy, 2.0f, n);               <span class="c">// 4 launch (returns at once)</span>
+  CUDA_CHECK(cudaGetLastError());                        <span class="c">//   was the launch itself valid?</span>
+  CUDA_CHECK(cudaMemcpy(hy.data(), dy, n * sizeof(float), cudaMemcpyDeviceToHost));  <span class="c">// 5 copy out (waits)</span>
+  <span class="c">// 6 compare hy with 2 * hx on the CPU;  7 cudaFree(dx); cudaFree(dy);</span>
+}</pre>
+<p class="small mute">Full source with the <code>CUDA_CHECK</code> macro and the CPU check: <code>src/cuda/host/first_program.cu</code>. Compiled with exit code <span data-pmv="first_program.compile_exit">0</span>; run in the container, which has no GPU or driver, it stopped at its first CUDA call (line 19, the first <code>cudaMalloc</code>) with <code>CUDA driver version is insufficient for CUDA runtime version</code>, exactly as the error check is meant to. Compiling needs no GPU; running does.</p>
+<p><b>The three function markers.</b> <code>__global__</code> marks a <b>kernel</b>: it runs on the device and is launched from the host (it returns <code>void</code>; results go through pointers). <code>__device__</code> marks a helper that runs on the device and is called only from device code. <code>__host__ __device__</code> compiles a function for both sides, the usual way to share small maths (the <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, section 2.1</a> <span class="rd-vend">vendor doc</span>). nvcc splits the file: host code goes to the normal C++ compiler, device code to NVIDIA's compiler, and the device machine code is embedded in the executable (<a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a> has the details).</p>
+<p><b>The launch.</b> <code>scale&lt;&lt;&lt;grid, block&gt;&gt;&gt;(...)</code> is the <dfn>execution configuration</dfn>: <code>grid</code> blocks of <code>block</code> threads each, here 4,096 &times; 256 = 1,048,576 threads, one per element. Two more optional arguments follow: bytes of <b>dynamic shared memory</b> per block and the <b>stream</b> to queue on, <code>&lt;&lt;&lt;grid, block, smemBytes, stream&gt;&gt;&gt;</code>. "Kernel launches are asynchronous with respect to the host thread" (Programming Guide, 2.1.4): the call queues the work and returns. That is why step 5 is where the program waits: "The <code>cudaMemcpy</code> API is synchronous. That is, it does not return until the copy has completed" (2.1.3.2), and a copy queued after the kernel on the same stream starts only after the kernel ends.</p>
+<p><b>What the GPU actually runs.</b> Below is the real SASS (the GPU's machine code) ptxas produced for <code>scale</code> on sm_90a, the whole kernel. Read it once: it shows that the "thread index" is just two special registers and one multiply-add.</p>
+<pre class="rd-code sass" id="pm-sass-scale"></pre>
+<p class="small mute"><code>S2R R0, SR_TID.X</code> and <code>S2UR UR4, SR_CTAID.X</code> read <code>threadIdx.x</code> and <code>blockIdx.x</code> from special registers; <code>LDC R7, c[0x0][RZ]</code> loads <code>blockDim.x</code> from the constant bank where the launch put it; <code>IMAD</code> is the index; <code>ISETP</code> and <code>@P0 EXIT</code> are the bounds check (threads past <code>n</code> simply exit); <code>c[0x0][0x210]</code> and up are the kernel's arguments, also delivered in the constant bank; <code>LDG</code>, <code>FMUL</code>, <code>STG</code> are the load, multiply and store. Each instruction is issued once per warp of 32 threads. <span class="rd-pub">compiled here</span></p>
+<div class="rd-pr"><div class="q">Predict: n = 1,000,000 and block = 256. How many threads does the launch start, and how many do no work?</div>
+<div class="opts"><button data-v="a">1,000,000 and 0</button><button data-v="b" data-ok="1">1,000,192 and 192</button><button data-v="c">1,000,448 and 448</button></div>
+<div class="ans" hidden>grid = ceil(1,000,000 / 256) = 3,907 blocks, so 3,907 &times; 256 = 1,000,192 threads <span class="rd-der">derived</span>. The last 192 fail <code>i &lt; n</code> and exit at once. Without that check they would read and write past the end of the arrays: the classic first-kernel bug (section 6).</div></div>
+<div class="deepnote"><b>Go deeper:</b> the same <code>vadd</code> kernel compiled for four generations, with PTX and SASS side by side, is in the root's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Compiler explorer</a> tab; how a launch reaches the device through the driver is on <a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a>.</div>
+</section>
+<section id="pm-s2">
+<h2>2. How each thread finds its data: indexing</h2>
+<p><b>The problem.</b> All threads run the same code, so the only thing that makes thread 77,000 different from thread 3 is a handful of read-only built-in variables. Turning them into "my element" is the first thing every kernel does.</p>
+<div class="tw"><table>
+<thead><tr><th>Built-in</th><th>Meaning</th><th>Limit <span class="rd-vend">vendor doc</span></th></tr></thead>
+<tbody>
+<tr><td><code>threadIdx.{x,y,z}</code></td><td>this thread's position inside its block</td><td>block x, y &le; 1,024; z &le; 64; x&middot;y&middot;z &le; 1,024</td></tr>
+<tr><td><code>blockDim.{x,y,z}</code></td><td>the block's shape, as launched</td><td>same</td></tr>
+<tr><td><code>blockIdx.{x,y,z}</code></td><td>this block's position in the grid</td><td>grid x &le; 2<sup>31</sup>&minus;1; y, z &le; 65,535</td></tr>
+<tr><td><code>gridDim.{x,y,z}</code></td><td>the grid's shape</td><td>same</td></tr>
+<tr><td><code>warpSize</code></td><td>threads per warp</td><td>32 on every GPU so far</td></tr>
+</tbody></table></div>
+<p class="small mute">Limits from the <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, Table 30</a> (v13.4.2, updated Sep 10, 2026), identical for every compute capability it lists. Shapes are <code>dim3</code> values: <code>dim3 block(32, 8)</code> is 32 &times; 8 = 256 threads.</p>
+<h3>Three patterns cover almost every kernel</h3>
+<pre class="rd-code"><span class="c">// 1 one thread per element (the host launches ceil(n / block) blocks)</span>
+int i = blockIdx.x * blockDim.x + threadIdx.x;
+if (i &lt; n) y[i] = a * x[i];
+
+<span class="c">// 2 grid-stride loop: any grid size covers any n</span>
+for (int i = blockIdx.x * blockDim.x + threadIdx.x; i &lt; n; i += gridDim.x * blockDim.x)
+  y[i] = a * x[i];
+
+<span class="c">// 3 a 2D grid over a matrix: x walks columns, so neighbouring threads touch neighbouring addresses</span>
+int c = blockIdx.x * blockDim.x + threadIdx.x, r = blockIdx.y * blockDim.y + threadIdx.y;
+if (r &lt; rows &amp;&amp; c &lt; cols) y[r * cols + c] = a * x[r * cols + c];
+<span class="c">// host: dim3 block(32, 8); dim3 grid((cols + 31) / 32, (rows + 7) / 8);</span></pre>
+<p>All three are in <code>src/cuda/kernels/p1_index.cu</code> and compile for all four targets. On sm_90a, ptxas gives the one-per-element and 2D kernels <span data-pmv="ptxas.p1_index.sm_90a.kernels.scale_1d.regs">10</span> registers per thread and the grid-stride kernel <span data-pmv="ptxas.p1_index.sm_90a.kernels.scale_stride.regs">14</span> (it carries the loop) <span class="rd-pub">compiled here</span>. For the running example, the 4,096 &times; 4,096 scores take pattern 3 with a 128 by 512 grid of 32 &times; 8 blocks, or pattern 1 on the flattened 16,777,216 elements: for an elementwise step the shape does not matter as long as consecutive threads touch consecutive addresses.</p>
+<p><b>Why the grid-stride loop is worth knowing.</b> The grid size no longer depends on <code>n</code>: you can launch exactly as many blocks as fit on the GPU at once and let each thread do several elements (a <dfn>persistent</dfn> grid), run with one block of one thread to debug serially, and let per-thread setup (loading a constant, computing a base pointer) happen once per thread instead of once per element. Mark Harris's <a href="https://developer.nvidia.com/blog/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/" target="_blank" rel="noopener noreferrer">"CUDA Pro Tip: Write Flexible Kernels with Grid-Stride Loops"</a> (NVIDIA, 2013) is the classic reference <span class="rd-pub">published</span>. It does not remove the tail effect of section 5: the last iteration is still uneven.</p>
+<p><b>Integer overflow.</b> <code>int</code> stops at 2<sup>31</sup>&minus;1 = 2,147,483,647. A tensor of 16 &times; 32 &times; 4,096 &times; 4,096 attention scores has 8,589,934,592 elements, so <code>blockIdx.x * blockDim.x + threadIdx.x</code> computed in <code>int</code> wraps around silently <span class="rd-der">derived</span>. Use 64-bit arithmetic (<code>(long long)blockIdx.x * blockDim.x</code>, or <code>size_t</code>) whenever an index can pass two billion.</p>
+<h3>Which threads form a warp</h3>
+<p>The hardware groups a block's threads into warps of 32 by a single <dfn>linear thread id</dfn>: "the first index <code>x</code> moves the fastest, followed by <code>y</code> and then <code>z</code>", and "each warp contains threads of consecutive, increasing thread IDs with the first warp containing thread 0" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.2</a>; <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html" target="_blank" rel="noopener noreferrer">3.2, Hardware Implementation</a>). So the linear id is <code>x + y&middot;Dx + z&middot;Dx&middot;Dy</code>, and warp <i>w</i> holds linear ids 32<i>w</i> to 32<i>w</i>+31. The block's <b>shape</b> therefore decides which matrix elements one warp touches together. Pick a 256-thread shape over a row-major float32 matrix:</p>
+<div class="card" id="pm-ix-card">
+<div class="rd-seg" id="pm-ix-mode"><button class="on" data-m="32x8">32 &times; 8</button><button data-m="16x16">16 &times; 16</button><button data-m="8x32">8 &times; 32</button><button data-m="4x64">4 &times; 64</button><button data-m="1x256">1 &times; 256</button></div>
+<div class="rd-fig" id="pm-ix-fig"></div>
+<div class="rd-cnt" id="pm-ix-cnt"></div>
+<p class="small mute" style="margin:2px 0">Each cell is one thread of the block placed on the matrix element it handles (columns across, rows down), coloured by warp. Click a cell to see that thread's numbers. Sectors: the 32-byte pieces of memory one warp's load touches, if the rows start 32-byte aligned and are more than a block wide <span class="rd-der">derived: rows touched &times; ceil(columns per row &times; 4 B / 32 B)</span>.</p>
+</div>
+<p>32 &times; 8, 16 &times; 16 and 8 &times; 32 all touch 4 sectors per warp load, every byte used; narrower than 8 columns, sectors are half empty and the same load costs 8, then 32 sectors. Why sectors are the unit, and what it costs, is the subject of <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> (coalescing). The rule to keep: <b>make <code>threadIdx.x</code> walk the contiguous dimension.</b></p>
+<div class="rd-pr"><div class="q">Predict: a 16 &times; 16 block. Which threads are in warp 1?</div>
+<div class="opts"><button data-v="a">Column 1, all 16 rows</button><button data-v="b" data-ok="1">Rows 2 and 3, all 16 columns</button><button data-v="c">Threads 16 to 31 of row 0</button></div>
+<div class="ans" hidden>Linear ids 32 to 63 are <code>x + 16y</code> for y = 2 and 3, so rows 2 and 3 of the block, all 16 columns each. Warp 0 is rows 0 and 1. Try the 16 &times; 16 button above and click any cell of rows 2 to 3.</div></div>
+</section>
+<section id="pm-s3">
+<h2>3. Warps from the programmer's side</h2>
+<p><b>Recap.</b> The hardware issues one instruction for 32 threads at a time, the <dfn>warp</dfn>; if the threads of a warp disagree on a branch, both paths run in turn with the inactive lanes masked off (<dfn>divergence</dfn>). The parent page's section 2 animates this, and <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a> (section 5) measures its cost. This section is about what the warp lets you <b>do</b>: the 32 lanes of a warp can read each other's registers and vote, with no shared memory and no barrier.</p>
+<p>In a one-dimensional block, a thread's <dfn>lane</dfn> (its position in the warp) is <code>threadIdx.x % 32</code>, written <code>threadIdx.x &amp; 31</code>, and its warp is <code>threadIdx.x / 32</code> (<code>&gt;&gt; 5</code>).</p>
+<div class="tw"><table>
+<thead><tr><th>Warp-level function</th><th>What it does</th><th>SASS seen here</th></tr></thead>
+<tbody>
+<tr><td><code>__shfl_sync(m, v, src)</code>, <code>_up</code>, <code>_down</code>, <code>_xor</code></td><td>Each lane receives <code>v</code> from another lane: a fixed one, <i>lane &minus; d</i>, <i>lane + d</i> ("shifting value down the warp by delta lanes") or <i>lane xor d</i>.</td><td><code>SHFL.DOWN</code>, <code>SHFL.BFLY</code></td></tr>
+<tr><td><code>__all_sync</code>, <code>__any_sync</code>, <code>__ballot_sync(m, p)</code></td><td>Votes: is <code>p</code> true in every lane, in any lane; or a 32-bit word whose bit <i>N</i> is lane <i>N</i>'s <code>p</code>.</td><td><code>VOTE</code></td></tr>
+<tr><td><code>__reduce_add_sync(m, v)</code> (and min, max, and, or, xor)</td><td>Sum of an integer over the warp in one instruction; compute capability 8.x or higher.</td><td><code>REDUX.SUM.S32</code></td></tr>
+<tr><td><code>__syncwarp(m)</code></td><td>The lanes in <code>m</code> wait for each other and their memory accesses are ordered.</td><td><code>WARPSYNC</code> (in the grid-sync kernel of section 4; a full-mask <code>__syncwarp</code> right after <code>__reduce_add_sync</code> compiled to nothing)</td></tr>
+<tr><td><code>__activemask()</code>, <code>__match_any_sync</code></td><td>Which lanes are executing here; which lanes hold the same value.</td><td></td></tr>
+</tbody></table></div>
+<p class="small mute">Descriptions from the <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html" target="_blank" rel="noopener noreferrer">CUDA C++ language extensions</a> appendix <span class="rd-vend">vendor doc</span>. The first argument <code>m</code> is the <b>mask</b> of lanes taking part, usually <code>0xffffffff</code> (all 32); every lane named in it must reach the same call.</p>
+<p>The row sum of the running example needs 4,096 numbers added into one. Inside a warp, five shuffles do it: add the value 16 lanes away, then 8, 4, 2, 1, and lane 0 holds the sum of all 32. Compare it with the same step done through shared memory, the way a block-wide sum must:</p>
+<div class="card" id="pm-sh-card">
+<div class="rd-seg" id="pm-sh-mode"><button class="on" data-m="shfl">Shuffles: registers only</button><button data-m="smem">Shared memory and barriers</button></div>
+<div class="rd-fig" id="pm-sh-fig"></div>
+<div class="rd-cap" id="pm-sh-cap"></div>
+<div class="rd-cnt" id="pm-sh-cnt"></div>
+<div class="an-ctl" id="pm-sh-ctl"></div>
+<p class="small mute" style="margin:2px 0">One warp, lane <i>i</i> starting with the value <i>i</i> + 1 (sum 528) <span class="rd-ill">illustrative input</span>. Instruction counts per step come from the real SASS of <code>warp_sum</code> (5 <code>SHFL</code>) and <code>block_sum</code> (per level: 2 <code>LDS</code>, 1 <code>STS</code>, 1 <code>BAR</code>) on sm_90a <span class="rd-pub">compiled here</span>.</p>
+</div>
+<pre class="rd-code"><span class="k">extern</span> "C" <span class="k">__global__</span> void warp_sum(const float* x, float* out) {
+  float v = x[blockIdx.x * blockDim.x + threadIdx.x];
+  for (int off = 16; off &gt; 0; off &gt;&gt;= 1) v += __shfl_down_sync(0xffffffffu, v, off);
+  if ((threadIdx.x &amp; 31) == 0) atomicAdd(out, v);   <span class="c">// one atomic per warp, not per thread</span>
+}</pre>
+<p>ptxas unrolls the loop into <span data-pmv="sass_count.warp_sum.SHFL">5</span> <code>SHFL</code> instructions and one <code>REDG</code> (a reduction in global memory, the atomic add whose result nobody reads), using <span data-pmv="ptxas.p2_sync.sm_90a.kernels.warp_sum.regs">12</span> registers and no shared memory <span class="rd-pub">compiled here</span>. The cooperative-groups version, <code>cg::reduce(tile, v, cg::plus&lt;float&gt;())</code>, compiles to the same five shuffles in the butterfly (<code>xor</code>) pattern, after which every lane, not just lane 0, holds the sum.</p>
+<h3>Independent thread scheduling: why the mask and __syncwarp exist</h3>
+<p>Before Volta (2017), a warp had one program counter, so code could assume the 32 lanes ran in lockstep and skip synchronisation inside a warp ("warp-synchronous" code, common in old reduction kernels with <code>volatile</code> shared memory). Since Volta each thread has its own program counter and "threads can now diverge and reconverge at sub-warp granularity"; NVIDIA's instruction is that "developers should explicitly synchronize such code using <code>__syncwarp()</code> to ensure correct behavior across all GPU generations" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html" target="_blank" rel="noopener noreferrer">Programming Guide 3.2</a>) <span class="rd-vend">vendor doc</span>. This is why every warp function since CUDA 9 takes a mask and has <code>_sync</code> in its name: "the legacy warp-level primitives are deprecated starting in CUDA 9.0" and "implicit warp-synchronous programming is unsafe" (Lin and Grover, <a href="https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/" target="_blank" rel="noopener noreferrer">"Using CUDA Warp-Level Primitives"</a>, NVIDIA, Jan 15, 2018) <span class="rd-pub">published</span>. When you read old kernels (pre-2017 tutorials, some ggml or Caffe-era code) and see warp-level tricks without <code>_sync</code>, that is the pattern that is no longer guaranteed.</p>
+<h3>The compiler already aggregates your atomics</h3>
+<p>The naive way to count the positive scores is one atomic per thread: <code>if (x[i] &gt; 0.f) atomicAdd(out, 1);</code>. Thousands of threads hitting one address should serialise. The real SASS ptxas emits for it on sm_90a shows what happens instead <span class="rd-pub">compiled here</span>:</p>
+<pre class="rd-code sass" id="pm-sass-agg"></pre>
+<p><code>VOTEU.ANY</code> collects which lanes are active, <code>UFLO</code> picks the first of them, <code>POPC</code> counts them, and only that one lane issues <code>REDG.E.ADD</code> with the count: one atomic per warp instead of up to 32. This is <dfn>warp-aggregated atomics</dfn>, done for you, and it is the same thing the explicit <code>__ballot_sync</code> + <code>__popc</code> kernel does by hand (its SASS: one <code>VOTE.ANY</code> for the ballot, one <code>POPC</code>, one <code>REDG</code>); <code>__reduce_add_sync</code> gives a third spelling, a single <code>REDUX.SUM.S32</code>. On the M1 Pro the three versions of a 16 Mi-element count (one atomic per positive thread, one per SIMD-group after <code>simd_sum</code>, one per threadgroup) took <span data-pmv="m1.atomics.per_thread.ms">1.18</span>, <span data-pmv="m1.atomics.per_simdgroup.ms">1.08</span> and <span data-pmv="m1.atomics.per_threadgroup.ms">1.10</span> ms (medians of 3 runs; runs of the first varied from <span data-pmv="m1.atomics.per_thread.ms_runs.1">1.095</span> to <span data-pmv="m1.atomics.per_thread.ms_runs.0">1.49</span>) <span class="rd-meas">measured on Apple M1 Pro GPU</span>: no reliable difference, all close to the time to read 64 MiB. Whether Apple's compiler aggregates the same way is not documented; the result is consistent with it. The lesson that transfers: write the simple atomic first, read the SASS, and measure before hand-optimising.</p>
+<div class="deepnote"><b>Go deeper:</b> full reductions (tree, shuffles, CUB's <code>BlockReduce</code>), scans and the softmax built from them are on <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>; the divergence simulation with measurements is in the root's GPU simulator tab.</div>
+</section>
+<section id="pm-s4">
+<h2>4. Synchronisation, from a warp to the whole GPU</h2>
+<p><b>The problem.</b> A row sum needs threads to combine their partial results, and a thread may only read another thread's result after it has been written. GPUs give a different tool at each scope, and each scope has a price: the wider it is, the more expensive (or the more restricted) waiting becomes. Choosing the narrowest scope that works is most of the design of a reduction, a softmax or an attention kernel.</p>
+<div class="tw"><table>
+<thead><tr><th>Scope</th><th>Tool</th><th>What it costs or requires</th><th>Real SASS (sm_90a) <span class="rd-pub">compiled here</span></th></tr></thead>
+<tbody>
+<tr><td><b>Warp</b> (32 threads)</td><td>shuffles, votes, <code>__syncwarp</code> (section 3)</td><td>registers only; no memory</td><td><code>SHFL</code>, <code>VOTE</code>, <code>REDUX</code></td></tr>
+<tr><td><b>Block</b> (up to 1,024)</td><td><code>__syncthreads()</code> + <code>__shared__</code> memory</td><td>a hardware barrier per SM; every thread of the block must reach the same barrier</td><td><code>BAR.SYNC</code>, <code>STS</code>/<code>LDS</code></td></tr>
+<tr><td><b>Cluster</b> (up to 8 blocks portably; sm_90 and later)</td><td><code>cluster.sync()</code>, another block's shared memory via <code>cluster.map_shared_rank</code></td><td>the blocks of a cluster are scheduled together on neighbouring SMs</td><td><code>UCGABAR_ARV</code>, <code>UCGABAR_WAIT</code>; remote read is a generic <code>LD</code></td></tr>
+<tr><td><b>Grid</b> (all blocks)</td><td>end the kernel; or a cooperative launch with <code>grid.sync()</code></td><td>kernel boundary: a launch; <code>grid.sync()</code>: every block must be resident at once</td><td>barrier, <code>MEMBAR.ALL.GPU</code>, <code>ATOM.E.ADD</code> on a counter, a spin loop</td></tr>
+<tr><td><b>Any threads</b>, no waiting</td><td>atomics (<code>atomicAdd</code>, <code>atomicCAS</code>, ...), fences <code>__threadfence_block/()/_system</code></td><td>contention on one address serialises; fences order memory, they do not wait for anyone</td><td><code>REDG</code>, <code>ATOM</code>, <code>ATOMS</code>, <code>MEMBAR</code></td></tr>
+</tbody></table></div>
+<p class="small mute">Portable cluster size 8 and "hardware-supported synchronization across the cluster": <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.1.10</a>; fence scopes (block, device, system): <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html" target="_blank" rel="noopener noreferrer">language extensions</a> <span class="rd-vend">vendor doc</span>. Host-side ordering (streams, events) is on <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a>.</p>
+<h3>The block barrier, and what happens without it</h3>
+<p>The block-wide row sum puts each thread's value in shared memory, then halves the active threads level by level: at level <i>k</i>, thread <i>t</i> &lt; <i>k</i> adds <code>s[t + k]</code> into <code>s[t]</code>. Between levels every thread must wait until all the writes of the previous level have landed; that is <code>__syncthreads()</code>, which makes threads "wait until all non-exited threads in the thread block simultaneously reach the same <code>__syncthreads()</code>" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html" target="_blank" rel="noopener noreferrer">language extensions</a>). Leave it out and the code still compiles, still runs, and is wrong whenever one warp falls behind another:</p>
+<div class="card" id="pm-rc-card">
+<div class="rd-seg" id="pm-rc-mode"><button class="on" data-m="bar">With __syncthreads()</button><button data-m="nobar">Without the barrier</button></div>
+<div id="pm-rc-fig"></div>
+<div class="rd-cap" id="pm-rc-cap"></div>
+<div class="rd-cnt" id="pm-rc-cnt"></div>
+<div class="an-ctl" id="pm-rc-ctl"></div>
+<p class="small mute" style="margin:2px 0">A toy block of 16 threads drawn as two warps of 8 so it fits (real warps have 32); warp 1's load from global memory arrives one step late, as a slow memory access would. Shared memory starts empty (drawn as &middot; and read as 0; real uninitialised shared memory holds whatever was there before) <span class="rd-ill">illustrative input: 3 1 4 1 5 9 2 6 5 3 5 8 9 7 9 3, sum 80</span>.</p>
+</div>
+<p><b>On real hardware.</b> The same 256-thread tree sum over 65,536 blocks of small integers, as a Metal kernel with and without <code>threadgroup_barrier</code> (Metal's <code>__syncthreads</code>): with the barrier, <span data-pmv="m1.race.wrong_with_barrier">0</span> wrong blocks in <span data-pmv="m1.race.reps">15</span> repetitions; without it, <span data-pmv="m1.race.pct_min">10.4</span>% to <span data-pmv="m1.race.pct_max">80.4</span>% of the blocks were wrong in each repetition (median <span data-pmv="m1.race.pct_median">47.4</span>%), a different set every time <span class="rd-meas">measured on Apple M1 Pro GPU</span>. A race is not "usually fine": it is wrong at a rate that depends on timing, which is why it survives small tests.</p>
+<p><b>The compiler makes it worse.</b> Without a barrier, nothing tells the compiler that another thread may have changed <code>s[t]</code>, so it may keep its own copy in a register. The real SASS shows it did: the correct <code>block_sum</code> reads shared memory <span data-pmv="race_sass.block_sum.LDS">17</span> times (two loads per level, eight levels, plus the result) with <span data-pmv="race_sass.block_sum.BAR">9</span> <code>BAR.SYNC</code>; the barrier-free version reads it only <span data-pmv="race_sass.block_sum_racy.LDS">9</span> times, because <code>s[t]</code> never gets re-read <span class="rd-pub">compiled here</span>. The barrier is also a compiler fence: it is what makes the write of another thread visible at all.</p>
+<div class="co warn"><div class="t">The rules of __syncthreads()</div>
+It is "permitted in conditional code, but only if the condition evaluates uniformly across the entire thread block. Otherwise, execution may hang or produce unintended side effects" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html" target="_blank" rel="noopener noreferrer">language extensions</a>). So <code>if (t &lt; k) { ...; __syncthreads(); }</code> is a bug: put the barrier outside the <code>if</code>, as in the code above. Threads that exit early are fine ("non-exited threads"). To find races and bad barriers, run the program under <a href="https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html" target="_blank" rel="noopener noreferrer">compute-sanitizer</a> with <code>--tool racecheck</code> ("shared memory data access hazards") and <code>--tool synccheck</code> ("invalid usages of synchronization primitives") <span class="rd-vend">vendor doc, v2026.3.0</span>.</div>
+<h3>Atomics: combining without waiting</h3>
+<p>An <dfn>atomic</dfn> is a read-modify-write that no other thread can interleave with: <code>atomicAdd(&amp;h[bin], 1)</code> is correct even when thousands of threads hit the same bin. Atomics do not wait for other threads, so they are how blocks combine results without a grid barrier: each block reduces its part with shuffles and shared memory, then issues one <code>atomicAdd</code> to the global total. The cost is contention: atomics to one address are processed one after another. Two standard fixes, both in <code>p2_sync.cu</code>: aggregate first (one atomic per warp, done automatically in the case shown in section 3), and privatise (a histogram in shared memory per block, <code>ATOMS</code> in SASS, merged into global memory once per block). Floating-point atomics add in whatever order the threads arrive, so a float sum by atomics can differ in the last bits from run to run; if you need bit-identical results, reduce in a fixed order (<a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a> covers tolerances).</p>
+<h3>Wider than a block: cooperative groups, grid sync, clusters</h3>
+<p><dfn>Cooperative groups</dfn> (<code>#include &lt;cooperative_groups.h&gt;</code>) turn each scope into an object with <code>sync()</code>, <code>size()</code> and <code>thread_rank()</code>: <code>this_thread_block()</code>, <code>tiled_partition&lt;32&gt;(block)</code> for a warp, <code>this_cluster()</code>, <code>this_grid()</code>. The kernel below normalises an array by its own total: phase 1 sums, a grid-wide barrier, phase 2 divides.</p>
+<pre class="rd-code">cg::grid_group grid = cg::this_grid();
+float v = 0.f;
+for (int i = grid.thread_rank(); i &lt; n; i += grid.size()) v += x[i];
+v = cg::reduce(cg::tiled_partition&lt;32&gt;(cg::this_thread_block()), v, cg::plus&lt;float&gt;());
+if ((threadIdx.x &amp; 31) == 0) atomicAdd(&amp;partial[0], v);
+grid.sync();                         <span class="c">// every block has added before anyone reads</span>
+float total = partial[0];
+for (int i = grid.thread_rank(); i &lt; n; i += grid.size()) x[i] /= total;</pre>
+<p>Here is how <code>grid.sync()</code> is implemented, from the real SASS (the relevant instructions in order) <span class="rd-pub">compiled here</span>:</p>
+<pre class="rd-code sass" id="pm-sass-grid"></pre>
+<p>Every block meets at its block barrier; one thread per block issues a GPU-wide memory fence and an atomic add on a counter in global memory, then spins (<code>LD.E.STRONG.GPU</code> in a loop with <code>YIELD</code>) until the counter shows every block has arrived; then the block barrier releases the rest. A spinning block occupies its SM. If some blocks of the grid were still waiting to be scheduled, they could never start, and the resident ones would spin forever. That is why a grid barrier needs a <b>cooperative launch</b> (<code>cudaLaunchCooperativeKernel</code>) that refuses grids larger than what fits at once, failing with <code>cudaErrorCooperativeLaunchTooLarge</code>, which the runtime's own header defines as more blocks than "<code>cudaOccupancyMaxActiveBlocksPerMultiprocessor</code> ... times the number of multiprocessors" (<code>driver_types.h</code>, CUDA 13.4.2). For this kernel on an H100 with 256-thread blocks: <span data-pmv="occ.sm_90a.two_phase.blocks.7">8</span> blocks per SM &times; 132 SMs = <span data-pmv="coop_h100">1,056</span> blocks at most <span class="rd-der">derived with NVIDIA's occupancy rules</span>. In practice most code takes the cheaper route: end the kernel and launch a second one.</p>
+<p><b>Clusters</b> (compute capability 9.0 and later) sit between block and grid. <code>__cluster_dims__(2, 1, 1)</code> pairs blocks; <code>cluster.map_shared_rank(s, other)</code> returns a pointer into the partner block's shared memory (<dfn>distributed shared memory</dfn>), and <code>cluster.sync()</code> compiles to the hardware cluster barrier <code>UCGABAR_ARV</code> / <code>UCGABAR_WAIT</code>, the same on sm_90a, sm_100a and sm_120. For sm_80 the compiler refuses: <code>__cluster_dims__ is not supported for this GPU architecture</code> <span class="rd-pub">compiled here</span>. The second <code>cluster.sync()</code> in <code>p4_cluster.cu</code> matters: a block must not exit while its partner may still read its shared memory. Clusters are how Hopper and Blackwell kernels share tiles between SMs (TMA multicast, FlashAttention-3); that use is on <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a>, and the hardware (how DSMEM is wired) on <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a>.</p>
+</section>
+<section id="pm-s5">
+<h2>5. Choosing a launch: block size, occupancy, waves</h2>
+<p><b>The problem.</b> The same kernel can be launched in thousands of ways, and the launch decides how much of the GPU works. You choose the <b>block size</b>, the <b>grid size</b> and the <b>dynamic shared memory</b>; the compiler chooses <b>registers per thread</b>, which you can steer. Two consequences follow, both explained below: how many blocks fit on one SM at once (<dfn>occupancy</dfn>), and how many rounds the grid needs to get through the SMs (<dfn>waves</dfn>).</p>
+<h3>Occupancy, from your side of the launch</h3>
+<p>Occupancy is resident warps per SM divided by the maximum the SM can hold (64 on A100, H100 and B200; 48 on the RTX 5090). A block is placed on an SM only if all of its resources fit: its warps, its registers (registers per thread &times; threads), its shared memory, and a free block slot. The per-generation limits, and why occupancy hides latency, are on <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a> (sections 3 and 4). What matters here is which of your choices moves it. One kernel with many live values per thread (96 accumulators), compiled three ways:</p>
+<pre class="rd-code"><span class="k">__global__</span> void heavy_plain(...)                              <span class="c">// the compiler picks registers freely</span>
+<span class="k">__global__</span> void <span class="k">__launch_bounds__</span>(1024) heavy_lb1024(...)     <span class="c">// "I will launch up to 1,024 threads per block"</span>
+<span class="k">__global__</span> void <span class="k">__launch_bounds__</span>(256, 8) heavy_lb256x8(...)  <span class="c">// "256 threads, and I want 8 blocks per SM"</span></pre>
+<div class="tw" id="pm-lb-tab"></div>
+<p class="small mute">Registers and spills: <code>ptxas -v</code>, CUDA 13.4.2 <span class="rd-pub">compiled here</span>. Occupancy at 256 threads per block: NVIDIA's rules from <code>cuda_occupancy.h</code> <span class="rd-der">derived</span>. "Spill" bytes are values that did not fit in registers and went to <dfn>local memory</dfn>, which lives in the GPU's main memory behind the caches (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>).</p>
+<p>Read the table as a trade. <code>__launch_bounds__(maxThreadsPerBlock, minBlocksPerMultiprocessor)</code> tells ptxas the launch you promise, so it caps registers to make that launch fit: 1,024 threads in 65,536 registers leaves 64 per thread, and 8 blocks of 256 leaves 32. Occupancy goes up; so do spills. Which one wins is a measurement, not a rule; for matmul and attention kernels, which reuse values held in registers, the answer is usually fewer warps and no spills. Two real details: on sm_120 ptxas printed <code>Value of threads per SM for entry heavy_lb256x8 is out of range. .minnctapersm will be ignored</code> (8 &times; 256 = 2,048 threads, but an sm_120 SM holds 1,536) and kept 128 registers; and <code>heavy_plain</code> launched with 1,024 threads would need 128 &times; 1,024 = 131,072 registers, twice an SM's 65,536, so the launch fails with <code>cudaErrorLaunchOutOfResources</code>, "too many resources requested for launch", which the runtime header explains as "the kernel launch specifies too many threads for the kernel's register count". The command-line alternative, <code>-maxrregcount=N</code>, caps every kernel in the file at once.</p>
+<p><b>Letting CUDA suggest a block size.</b> <code>cudaOccupancyMaxPotentialBlockSize(&amp;minGrid, &amp;block, kernel)</code> returns the block size with the highest occupancy and the smallest grid that fills the GPU. NVIDIA ships the same logic as a host-only header, <code>cuda_occupancy.h</code>, so it runs without a GPU: compiled and run here for this page's kernels on four GPUs, and checked against this page's JavaScript port, the two agree on <span data-pmv="occ_check.cases">1,155</span> of <span data-pmv="occ_check.cases">1,155</span> values (<span data-pmv="occ_check.mismatches">0</span> mismatches) <span class="rd-pub">compiled and run here</span>. Its answer for the simple <code>scale</code> kernel is 1,024 threads on H100 and 768 on the RTX 5090: it searches from the largest block size down and keeps the first that reaches the highest occupancy. That maximises occupancy, not speed; treat it as a starting point.</p>
+<p><b>Block size in practice.</b> Always a multiple of 32 (a partial warp wastes lanes). Too small hits the block-slot cap: 32-thread blocks on an H100 give at most 32 blocks of one warp, <span data-pmv="occ32_h100_pct">50</span>% occupancy <span class="rd-der">derived</span>. Too large makes each block a big unit to schedule and synchronise. 128 to 256 is the usual default. On the M1 Pro, a memory-bound <code>y = 2x</code> over 64 Mi floats ran at <span data-pmv="m1.block_gbps.32">156.9</span> to <span data-pmv="m1.block_gbps.512">161.5</span> GB/s for every threadgroup size from 32 to 1,024 <span class="rd-meas">measured on Apple M1 Pro GPU</span>: once enough threads are in flight overall, a simple kernel does not care. Kernels that use shared memory per block or synchronise inside the block do care, and are tuned by measurement (the autotuning in <a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a> is exactly this search).</p>
+<h3>Waves and the tail</h3>
+<p>Blocks are handed to SMs as slots free up. If a grid has <i>B</i> blocks and the GPU holds <i>S</i> SMs &times; <i>k</i> blocks per SM at once, the grid runs in ceil(<i>B</i> / (<i>S</i>&middot;<i>k</i>)) <b>waves</b>, and the last wave may be nearly empty while it costs nearly a full wave of time. NVIDIA's own example is a matrix multiply on an A100 (108 SMs) with 256 &times; 128 output tiles, one tile per block, one block per SM, M = 2,304, K = 4,096 (<a href="https://docs.nvidia.com/deeplearning/performance/dl-performance-matrix-multiplication/index.html" target="_blank" rel="noopener noreferrer">NVIDIA Matrix Multiplication Background guide, "Wave quantization"</a>) <span class="rd-vend">vendor doc</span>. Growing N from 1,536 to 1,544 adds 0.5% more work:</p>
+<div class="card" id="pm-wq-card">
+<div class="rd-seg" id="pm-wq-mode"><button class="on" data-m="before">N = 1,536: 108 tiles</button><button data-m="after">N = 1,544: 117 tiles</button></div>
+<div class="rd-fig" id="pm-wq-fig"></div>
+<div class="rd-cap" id="pm-wq-cap"></div>
+<div class="rd-cnt" id="pm-wq-cnt"></div>
+<div class="an-ctl" id="pm-wq-ctl"></div>
+<p class="small mute" style="margin:2px 0">Each square is one of the 108 SMs, drawn to scale in count; time is in units of one tile's run time, assumed equal for every tile <span class="rd-der">derived: tiles = ceil(M/256) &times; ceil(N/128); waves = ceil(tiles / 108)</span>. NVIDIA reports that "GFLOPS roughly halve and duration roughly doubles from N=1536 to N=1544".</p>
+</div>
+<p><b>Measured on a real GPU.</b> A compute-only Metal kernel with 1,024-thread threadgroups, each doing the same work, launched with 1 to 72 threadgroups on the M1 Pro's 16 GPU cores <span class="rd-meas">measured on Apple M1 Pro GPU</span>:</p>
+<div class="card" id="pm-st-card"><div class="rd-fig" id="pm-st-fig"></div>
+<p class="small mute" style="margin:2px 0">Median of 3 runs (dots: each run); time rises in steps at <span data-pmv="m1.wave_steps_at.0">17</span>, <span data-pmv="m1.wave_steps_at.1">33</span>, <span data-pmv="m1.wave_steps_at.2">49</span> and <span data-pmv="m1.wave_steps_at.3">65</span> threadgroups, about <span data-pmv="m1.per_wave_ms">1.31</span> ms per extra wave: 16 threadgroups of this size run at once, one per core. 17 threadgroups take as long as 32. The scattered points at the left are the first launches of runs 1 and 3, slowed by warm-up and by other jobs on the laptop.</p></div>
+<p><b>When it matters for training.</b> Waves matter when each block is long, which is the case for matmul tiles and attention: a GEMM whose tile count is just over a multiple of the SM count wastes most of its last wave, and cuBLAS heuristics choose tile shapes (and techniques such as split-K and Stream-K) partly to avoid it (<a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a>). For the running example, a row sum with one 256-thread block per row has 4,096 blocks; an H100 holds <span data-pmv="rowsum.per_wave">1,056</span> such blocks at once, so <span data-pmv="rowsum.waves">4</span> waves, the last <span data-pmv="rowsum.last_fill_pct">87.9</span>% full <span class="rd-der">derived</span>: fine. With hundreds of thousands of small blocks, the tail is a rounding error. The <a href="#" data-tab="t-plan">Launch planner</a> tab computes occupancy, the limiting resource and waves for this page's real kernels on four GPUs.</p>
+</section>
+<section id="pm-s6">
+<h2>6. When things go wrong: CUDA's error model</h2>
+<p><b>The problem.</b> CUDA functions return an error code (<code>cudaError_t</code>) instead of throwing, a kernel launch returns nothing at all, and a kernel that crashes is noticed only by some later call. Without a habit of checking, a bad launch looks like garbage output three functions later.</p>
+<p><b>Three kinds of error, three places to catch them.</b></p>
+<ol>
+<li><b>API errors</b>, returned by the call itself: a bad argument to <code>cudaMemcpy</code>, out of memory in <code>cudaMalloc</code>. Wrap every call in a check macro (below).</li>
+<li><b>Launch errors</b>: an impossible configuration (more than 1,024 threads per block, too much shared memory: <code>cudaErrorInvalidConfiguration</code>; too many registers for the block: <code>cudaErrorLaunchOutOfResources</code>). The launch statement cannot return them, so ask right after it: <code>cudaGetLastError()</code>, which "returns current error state and then resets it to <code>cudaSuccess</code>" (<code>cudaPeekAtLastError()</code> returns it "without resetting it").</li>
+<li><b>Execution errors</b>, raised while the kernel runs: an out-of-bounds or misaligned access, a device-side <code>assert</code>, a timeout. They surface at the next call that waits for the GPU (<code>cudaDeviceSynchronize</code>, a <code>cudaMemcpy</code>, or any later call), "returned by every CUDA runtime API until the error state has been cleared" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.1.7</a>) <span class="rd-vend">vendor doc</span>.</li>
+</ol>
+<pre class="rd-code">#define CUDA_CHECK(call) do { cudaError_t e_ = (call); if (e_ != cudaSuccess) \
+  printf("%s:%d %s failed: %s (%s, code %d)\n", __FILE__, __LINE__, #call, \
+         cudaGetErrorName(e_), cudaGetErrorString(e_), (int)e_); } while (0)
+CUDA_CHECK(cudaGetDeviceCount(&amp;n));
+CUDA_CHECK(cudaMalloc(&amp;d, 1024));
+k&lt;&lt;&lt;1, 256&gt;&gt;&gt;(d);
+CUDA_CHECK(cudaGetLastError());       <span class="c">// launch-time errors</span>
+CUDA_CHECK(cudaDeviceSynchronize());  <span class="c">// errors raised while the kernel ran</span></pre>
+<p>This program (<code>src/cuda/host/errors.cu</code>) was compiled and <b>run</b> in the container, which has the CUDA runtime but no GPU and no driver; its real output <span class="rd-pub">run here</span>:</p>
+<pre class="rd-code sass" id="pm-err-out"></pre>
+<p>Without a driver, every call fails with code 35, not with "no CUDA-capable device" (code 100): the runtime cannot even ask. The same program printed the runtime's own name and message for the errors a kernel author meets most, shown with the comment that explains each in <code>driver_types.h</code> (CUDA 13.4.2) where it is quoted here:</p>
+<div class="tw" id="pm-err-tab"></div>
+<div class="co warn"><div class="t">Sticky errors: some errors end the process's use of the GPU</div>
+For an illegal address (700) and an unspecified launch failure (719) the header says: "This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched." In a training job this is the familiar <code>CUDA error: an illegal memory access was encountered</code> that no <code>try</code>/<code>except</code> can recover from: the worker must restart, which is why elastic training restarts processes rather than retrying the step (<a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>).</div>
+<p><b>Finding the line that failed.</b> Because errors surface late, the reported location is often wrong. Three tools fix that:</p>
+<ul>
+<li><code>CUDA_LAUNCH_BLOCKING=1</code> makes every launch synchronous, so the error appears at the guilty launch. PyTorch's <a href="https://docs.pytorch.org/docs/2.14/notes/cuda.html" target="_blank" rel="noopener noreferrer">CUDA semantics notes</a>: set it "to debug GPU errors or force synchronous behavior", for "more accurate" stack traces. Slow; for debugging only.</li>
+<li><code>compute-sanitizer</code> (default tool memcheck: "out of bounds and misaligned memory access errors"; also racecheck, initcheck for reads of uninitialised global memory, synccheck) names the kernel, thread, block and address of the first bad access (<a href="https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html" target="_blank" rel="noopener noreferrer">Compute Sanitizer docs v2026.3.0</a>). It runs the program much more slowly; use it on a small input.</li>
+<li>A device-side <code>assert(i &lt; n)</code> in the kernel stops it with error 710, whose runtime message is exactly <code>device-side assert triggered</code> (printed by the program above), and whose header comment reads "The device cannot be used again. All existing allocations are invalid": another sticky error. PyTorch's kernels assert on their inputs (its loss kernels check <code>CUDA_KERNEL_ASSERT(INDEX &gt;= 0 &amp;&amp; INDEX &lt; N_CLASSES)</code> in <a href="https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/Loss.cu" target="_blank" rel="noopener noreferrer">Loss.cu</a>, read 2026-10-05), which is where this message comes from in training: usually a label outside the number of classes.</li>
+</ul>
+<p><b>When it matters for training:</b> a crash with an illegal-address error mid-run is almost always an out-of-range index (embedding ids, labels, gather indices) or a custom kernel's bounds check. Re-run the failing step with <code>CUDA_LAUNCH_BLOCKING=1</code>, then under compute-sanitizer if it is your kernel.</p>
+</section>
+<section id="pm-s7">
+<h2>7. The host-side memory API, the basics</h2>
+<p><b>The problem.</b> A device pointer is an address in GPU memory: the CPU cannot dereference it, and a kernel cannot dereference an ordinary CPU pointer. Every byte a kernel touches must be allocated on the device and brought there. Five calls cover nearly everything; PyTorch makes the same calls for you.</p>
+<div class="tw"><table>
+<thead><tr><th>Call</th><th>What it does</th><th>Watch out for</th><th>PyTorch's version</th></tr></thead>
+<tbody>
+<tr><td><code>cudaMalloc</code> / <code>cudaFree</code></td><td>allocate and free device memory</td><td>slow calls; "<code>cudaFree</code> operations synchronize the entire device"</td><td>the caching allocator: freed tensors keep their memory for reuse</td></tr>
+<tr><td><code>cudaMemcpy</code></td><td>copy host to device, device to host, or device to device</td><td>"synchronous": it returns when the copy is done, after earlier work on the stream</td><td><code>t.to("cuda")</code>, <code>t.cpu()</code>, <code>.item()</code></td></tr>
+<tr><td><code>cudaMallocHost</code> (pinned)</td><td>page-locked host memory the GPU can read directly</td><td>a copy from ordinary (pageable) memory is staged through a pinned buffer by the driver; too much pinned memory starves the OS</td><td><code>pin_memory=True</code> in a DataLoader; <code>t.to("cuda", non_blocking=True)</code></td></tr>
+<tr><td><code>cudaMemcpyAsync</code></td><td>a copy queued on a stream, returning at once</td><td>overlaps with other work only from pinned memory</td><td><code>non_blocking=True</code></td></tr>
+<tr><td><code>cudaMallocManaged</code></td><td>one pointer valid on host and device; pages move on demand</td><td>convenient, but page faults on first touch can be slow</td><td>rarely used in training</td></tr>
+<tr><td><code>cudaMallocAsync</code> / <code>cudaFreeAsync</code></td><td>stream-ordered allocation (CUDA 11.2): no device-wide synchronisation</td><td>memory is reused in stream order</td><td><code>PYTORCH_ALLOC_CONF=backend:cudaMallocAsync</code> (CUDA 11.4 or newer)</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.1.3</a> (<code>cudaMemcpy</code> "is synchronous") and the stream-ordered allocator post (<a href="https://developer.nvidia.com/blog/using-cuda-stream-ordered-memory-allocator-part-1/" target="_blank" rel="noopener noreferrer">NVIDIA blog, Jul 27, 2021</a>: introduced in CUDA 11.2; "<code>cudaFree</code> ... synchronize[s] the entire device") <span class="rd-vend">vendor doc</span>; pageable copies "must first allocate a temporary page-locked, or pinned, host array" and "you should not over-allocate pinned memory" (Mark Harris, <a href="https://developer.nvidia.com/blog/how-optimize-data-transfers-cuda-cc/" target="_blank" rel="noopener noreferrer">"How to Optimize Data Transfers in CUDA C/C++"</a>, 2012) <span class="rd-pub">published</span>; PyTorch behaviour from its <a href="https://docs.pytorch.org/docs/2.14/notes/cuda.html" target="_blank" rel="noopener noreferrer">CUDA semantics notes</a> (2.14).</p>
+<p><b>Why nvidia-smi shows your memory as used.</b> PyTorch never calls <code>cudaFree</code> when a tensor dies: its caching allocator keeps the block for the next tensor, because <code>cudaMalloc</code> and <code>cudaFree</code> are slow and synchronising. The PyTorch notes: unused cached memory "still appears occupied in <code>nvidia-smi</code>"; <code>torch.cuda.memory_allocated()</code> counts live tensors and <code>memory_reserved()</code> counts everything the allocator holds; <code>empty_cache()</code> returns the unused part. When a run reports out-of-memory with plenty "reserved but unallocated", the cause is fragmentation, not a leak.</p>
+<p><b>Shared memory is not allocated with this API.</b> It is declared in the kernel: <code>__shared__ float s[256];</code> (static, size known at compile time; <code>ptxas</code> reports "1024 bytes smem" for <code>block_sum</code>) or <code>extern __shared__ float s[];</code> with the size given as the third launch argument (dynamic). Static shared memory "remain[s] limited to 48 KB", and "an explicit opt-in is also required to enable dynamic allocations above this limit" (<code>cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, bytes)</code>); "the H100 GPU enables a single thread block to address up to 227 KB of shared memory" (<a href="https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html" target="_blank" rel="noopener noreferrer">Hopper tuning guide</a>) <span class="rd-vend">vendor doc</span>. Everything about using it well (banks, tiling) is on <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>.</p>
+</section>
+<section id="pm-s8">
+<h2>8. What a launch costs</h2>
+<p><b>The problem.</b> Every kernel launch is CPU work: the runtime and driver check the configuration, copy the arguments, and write a command for the GPU into a queue. If kernels are short, the GPU finishes each one before the CPU has queued the next, and sits idle. Eager PyTorch launches at least one kernel per operation, so a model made of many small operations can be limited by launches rather than by the GPU, the regime Horace He calls <b>overhead-bound</b> (<a href="https://horace.io/brrr_intro.html" target="_blank" rel="noopener noreferrer">"Making Deep Learning Go Brrrr"</a>).</p>
+<p><b>What travels with a launch.</b> The grid and block shapes, the shared memory size, the stream, and the arguments by value. Arguments were limited to 4,096 bytes; CUDA 12.1 raised the limit to 32,764 bytes on Volta and later (<a href="https://developer.nvidia.com/blog/cuda-12-1-supports-large-kernel-parameters/" target="_blank" rel="noopener noreferrer">NVIDIA blog, Jun 5, 2023</a>) <span class="rd-vend">vendor doc</span>. Checked here with a pointer plus a struct argument: 8 + 32,756 = 32,764 bytes compiles; 8 + 32,760 fails with <code id="pm-param-msg"></code> <span class="rd-pub">compiled here</span>. In SASS the arguments are read from a constant bank (the <code>c[0x0][0x210]</code> loads of section 1).</p>
+<p><b>How long.</b> NVIDIA's CUDA Graphs post measured a 2.9 &micro;s kernel taking 9.6 &micro;s per kernel when the CPU waited after each launch, 3.4 &micro;s with CUDA Graphs (<a href="https://developer.nvidia.com/blog/cuda-graphs/" target="_blank" rel="noopener noreferrer">NVIDIA blog, 2019, V100</a>) <span class="rd-pub">published</span>. The asynchronous launch is what lets the CPU run ahead: queue many kernels, wait once. On the M1 Pro, through MLX, the same tiny Metal kernel (1,024 threads) <span class="rd-meas">measured on Apple M1 Pro GPU</span>:</p>
+<div class="card" id="pm-lc-card"><div class="rd-fig" id="pm-lc-fig"></div>
+<p class="small mute" style="margin:2px 0">Median of 3 runs (each the median of 7 trials). Launch and wait each time: <span data-pmv="m1.launch.us_wait_each">179.5</span> &micro;s per kernel (runs <span data-pmv="m1.launch.us_wait_each_runs.0">192.7</span>, <span data-pmv="m1.launch.us_wait_each_runs.1">179.5</span>, <span data-pmv="m1.launch.us_wait_each_runs.2">146.5</span>). <span data-pmv="m1.launch.chain">200</span> launches queued, each reading the previous one's output, then one wait: <span data-pmv="m1.launch.us_per_queued">5.8</span> &micro;s per kernel, about <span data-pmv="m1.launch.ratio">31</span> times less. Both include MLX's Python and graph bookkeeping, so they are not CUDA numbers; the ratio is the lesson.</p></div>
+<p>Three consequences for training code. Never synchronise in the hot loop without need (<code>.item()</code>, <code>print(loss)</code>, a <code>.cpu()</code> every step: each one drains the queue). Fewer, larger kernels win when kernels are small: fusion, by hand or by <code>torch.compile</code> (<a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>, <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>). And when the sequence of kernels repeats exactly, as in LLM decoding, record it once and replay it as a <b>CUDA graph</b> (<a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a>). <b>How to check:</b> a profiler timeline shows gaps between kernels on the GPU row; if the gaps are as long as the kernels, you are overhead-bound (<a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>).</p>
+</section>
+<section id="pm-s9">
+<h2>9. The same kernels from Python</h2>
+<p>You will rarely write a <code>main()</code>. The programming model is the same from Python; only the spelling changes. Four routes, each tried here for real in the container with the CUDA toolkit and no GPU, so each says how far it got.</p>
+<h3>Numba CUDA: Python syntax, CUDA semantics</h3>
+<pre class="rd-code">from numba import cuda, float32
+@cuda.jit
+def scale(x, y, a):
+    i = cuda.grid(1)                  <span class="c"># = blockIdx.x * blockDim.x + threadIdx.x</span>
+    if i &lt; x.size:
+        y[i] = a * x[i]
+@cuda.jit
+def block_sum(x, out):
+    s = cuda.shared.array(256, dtype=float32)     <span class="c"># __shared__ float s[256]</span>
+    t = cuda.threadIdx.x
+    s[t] = x[cuda.blockIdx.x * 256 + t]
+    cuda.syncthreads()                            <span class="c"># __syncthreads()</span>
+    k = 128
+    while k &gt; 0:
+        if t &lt; k:
+            s[t] += s[t + k]
+        cuda.syncthreads()
+        k //= 2
+    if t == 0:
+        out[cuda.blockIdx.x] = s[0]
+scale[grid, block](x, y, 2.0)                     <span class="c"># the launch: [grid, block] instead of &lt;&lt;&lt;&gt;&gt;&gt;</span></pre>
+<p id="pm-numba-res"></p>
+<p>Numba-CUDA is now a separate package maintained by NVIDIA (<a href="https://nvidia.github.io/numba-cuda/" target="_blank" rel="noopener noreferrer">numba-cuda docs</a>). Its simulator executes kernels "one block at a time. One thread is spawned for each thread in the block, and scheduling of the execution of these threads is left up to the operating system", and it "does not implement warp-level operations" (<a href="https://nvidia.github.io/numba-cuda/user/simulator.html" target="_blank" rel="noopener noreferrer">simulator docs</a>): good for checking indexing and barriers, useless for timing.</p>
+<h3>CuPy RawKernel: CUDA C++ in a string</h3>
+<pre class="rd-code">import cupy as cp
+k = cp.RawKernel(r'''
+extern "C" __global__ void scale(const float* x, float* y, float a, int n) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i &lt; n) y[i] = a * x[i];
+}''', "scale")
+k((grid,), (block,), (x, y, cp.float32(2.0), cp.int32(n)))   <span class="c"># grid, block, arguments</span></pre>
+<p id="pm-cupy-res"></p>
+<h3>torch.utils.cpp_extension: a CUDA kernel as a PyTorch function</h3>
+<pre class="rd-code">from torch.utils.cpp_extension import load_inline
+cuda_src = r'''
+#include &lt;torch/extension.h&gt;
+__global__ void scale_kernel(const float* x, float* y, float a, int n) { ... }
+torch::Tensor scale(torch::Tensor x, double a) {
+  auto y = torch::empty_like(x);
+  int n = x.numel(), block = 256, grid = (n + block - 1) / block;
+  scale_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(x.data_ptr&lt;float&gt;(), y.data_ptr&lt;float&gt;(), (float)a, n);
+  return y;
+}'''
+m = load_inline("pm_scale", cpp_sources="torch::Tensor scale(torch::Tensor x, double a);",
+                cuda_sources=cuda_src, functions=["scale"])   <span class="c"># nvcc + ninja, then import</span></pre>
+<p id="pm-torch-res"></p>
+<p>On a CUDA build of PyTorch with a GPU, <code>load_inline</code> writes the sources to a build directory, compiles them with nvcc and ninja, and imports the result as a Python module (<a href="https://docs.pytorch.org/docs/2.14/cpp_extension.html" target="_blank" rel="noopener noreferrer">PyTorch C++ extension docs</a>). A production version also launches on PyTorch's current stream, checks devices and dtypes, and registers the function with <code>torch.library</code> so <code>torch.compile</code> can see it; that is <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">pytorch-ecosystem</a> territory.</p>
+<h3>Triton: blocks, not threads</h3>
+<p>Triton changes the model itself: you write the program of one <b>block</b> on whole tiles (<code>tl.load</code> of 1,024 elements at once), and the compiler decides threads, warps, shared memory and synchronisation. Everything on this page still happens; Triton does it for you. That is <a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a>, the rung the parent page's ladder puts right after calling a library.</p>
+</section>
+<section id="pm-s10">
+<h2>10. The same model in Metal, on the M1</h2>
+<p>Every measurement on this page ran as a Metal kernel through <code>mx.fast.metal_kernel</code> in MLX. Apple's GPU is a SIMT GPU with the same structure under different names, which is why the ideas transfer and the numbers do not.</p>
+<div class="tw"><table>
+<thead><tr><th>CUDA</th><th>Metal (MSL)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>warp (32 threads)</td><td>SIMD-group</td><td>32 threads on the M1 Pro (<code>threads_per_simdgroup</code>, measured by the root's simulator agent)</td></tr>
+<tr><td>block, <code>__shared__</code></td><td>threadgroup, <code>threadgroup</code> memory</td><td>up to 1,024 threads and 32 KB per threadgroup on Apple7 (M1), Apple's <a href="https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf" target="_blank" rel="noopener noreferrer">Metal feature set tables</a></td></tr>
+<tr><td><code>threadIdx</code>, <code>blockIdx</code>, global index</td><td><code>thread_position_in_threadgroup</code>, <code>threadgroup_position_in_grid</code>, <code>thread_position_in_grid</code></td><td>the global index is built in</td></tr>
+<tr><td>lane, warp id</td><td><code>thread_index_in_simdgroup</code>, <code>simdgroup_index_in_threadgroup</code></td><td>used in the atomics kernels here</td></tr>
+<tr><td><code>__syncthreads()</code></td><td><code>threadgroup_barrier(mem_flags::mem_threadgroup)</code></td><td>the race measurement of section 4</td></tr>
+<tr><td>warp shuffle reduction</td><td><code>simd_sum</code> (also <code>simd_shuffle_down</code>, <code>simd_ballot</code>)</td><td><code>simd_sum</code> used here</td></tr>
+<tr><td><code>atomicAdd</code></td><td><code>atomic_fetch_add_explicit(..., memory_order_relaxed)</code></td><td>used here</td></tr>
+<tr><td><code>k&lt;&lt;&lt;grid, block&gt;&gt;&gt;</code> (grid counts <b>blocks</b>)</td><td>dispatch with <code>grid=</code>, <code>threadgroup=</code> (MLX's <code>grid</code> counts <b>threads</b>)</td><td>an easy off-by-a-factor mistake when porting</td></tr>
+<tr><td>stream</td><td>command queue and command buffers</td><td>MLX batches launches into command buffers</td></tr>
+</tbody></table></div>
+<p class="small mute">Names from the <a href="https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf" target="_blank" rel="noopener noreferrer">Metal Shading Language Specification</a>; those marked "used here" compiled and ran in <code>src/m1/measure.py</code> (MLX <span data-pmv="m1.meta.0.mlx">0.32.3</span>) <span class="rd-meas">measured on Apple M1 Pro GPU</span>. MLX's grid convention is from its <a href="https://ml-explore.github.io/mlx/build/html/dev/custom_metal_kernels.html" target="_blank" rel="noopener noreferrer">custom Metal kernels guide</a>.</p>
+<p><b>What transfers and what does not.</b> Warp-sized SIMD groups, barriers, races, the cost of launch-and-wait, and waves on a fixed number of cores all behaved as the CUDA model predicts. Absolute numbers do not transfer: the M1 Pro has 16 cores where an H100 has 132 SMs, about 160 GB/s where an H100 has 3.35 TB/s, and its compiler and driver are Apple's, so occupancy limits, atomic throughput and launch overheads differ.</p>
+</section>
+<section id="pm-s11">
+<h2>11. Common mistakes, a first-kernel checklist, interview questions</h2>
+<h3>Common mistakes</h3>
+<details class="mist"><summary>No bounds check, or the wrong one</summary><div class="b">The grid is rounded up to whole blocks, so the last block runs past <code>n</code> (192 extra threads for n = 1,000,000 with 256-thread blocks). Without <code>if (i &lt; n)</code> they read and write past the arrays; sometimes nothing visible happens, which is worse. compute-sanitizer's memcheck finds it.</div></details>
+<details class="mist"><summary>Timing or error-checking the launch line</summary><div class="b">The launch returns before the kernel runs. A CPU timer around it measures the launch; an error check right after it sees only configuration errors. Synchronise (or use events) to time, and check after the next synchronising call for execution errors.</div></details>
+<details class="mist"><summary>__syncthreads() inside a branch that not every thread takes</summary><div class="b">The barrier waits for all non-exited threads of the block; if some never arrive, the block hangs or misbehaves. Hoist it out of the branch (section 4).</div></details>
+<details class="mist"><summary>Assuming warps run in lockstep</summary><div class="b">Since Volta, lanes of a warp can be at different instructions. Old warp-synchronous code that drops <code>__syncwarp</code> or uses the deprecated non-<code>_sync</code> intrinsics can break on new GPUs or new compilers.</div></details>
+<details class="mist"><summary>Expecting blocks to run in some order, or to wait for each other</summary><div class="b">"No ordering guarantees are made by the scheduler" (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.7</a>). A block that spins waiting for a later block can deadlock if that block is never scheduled; only a cooperative launch guarantees co-residency.</div></details>
+<details class="mist"><summary>Chasing 100% occupancy</summary><div class="b">Forcing registers down with <code>__launch_bounds__</code> raised occupancy from 25% to 100% in section 5 and created 3 KB of spills per thread. Occupancy is a means to hide latency; measure time.</div></details>
+<details class="mist"><summary>int indices on huge tensors</summary><div class="b">Past 2,147,483,647 elements a 32-bit index wraps. Attention scores for 16 &times; 32 &times; 4,096 &times; 4,096 are 8.6 billion elements.</div></details>
+<details class="mist"><summary>Block size not a multiple of 32, or a 2D block with threadIdx.x on the wrong dimension</summary><div class="b">A 100-thread block wastes 28 lanes of its fourth warp. Making <code>threadIdx.y</code> walk the contiguous dimension spreads each warp's load over 32 rows (32 sectors instead of 4: the 1 &times; 256 case in section 2).</div></details>
+<details class="mist"><summary>Treating a sticky error as recoverable</summary><div class="b">After an illegal address or a device-side assert, every later CUDA call fails; restart the process.</div></details>
+<h3>Checklist for a first kernel</h3>
+<ol>
+<li>Index with <code>blockIdx.x * blockDim.x + threadIdx.x</code> and the ceiling-division grid; always bounds-check; 64-bit indices for very large tensors.</li>
+<li>Block size a multiple of 32, start at 128 or 256; tune by measurement.</li>
+<li>Wrap every runtime call in <code>CUDA_CHECK</code>; <code>cudaGetLastError()</code> after each launch while developing.</li>
+<li>Compile for your GPU: <code>-arch=sm_90a</code> for H100 features, <code>-arch=sm_120</code> for an RTX 5090 (CUDA 12.8 or later), or <code>-arch=native</code>; current toolkit 13.4.2. Look at <code>-Xptxas -v</code> for registers and spills.</li>
+<li>Check results against a CPU or PyTorch reference before timing anything; run once under <code>compute-sanitizer</code>.</li>
+</ol>
+<div class="co warn"><div class="t">Corrections to the old version of this page</div>
+"Current toolkit: 13.3": the current release is 13.4.2 (Docker Hub tag 2026-09-29; Programming Guide v13.4.2). "Compile for your GPU: RTX 5090": no NVIDIA GPU is used for this knowledge base; the checklist now names targets. "Matmul and attention deliberately run at 25 to 50% occupancy": the principle is kept (section 5 shows a real 25%-occupancy kernel), the range is <span class="rd-unc">unconfirmed</span> and dropped. "64 warps per SM on recent architectures": true for A100, H100 and B200, but consumer GPUs (sm_86, sm_89, sm_120, including the RTX 5090) hold 48 (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">Programming Guide, Table 31</a>). "A laptop GPU with 20 SMs": <span class="rd-unc">unconfirmed</span>, dropped. "Launch overhead is a few microseconds": kept with NVIDIA's measured numbers. The old <code>saxpy</code> example is replaced by kernels compiled here. Everything else on the old page is carried and now sourced; see <code>src/coverage.json</code>.</div>
+<h3>Interview questions, short answers</h3>
+<details class="rd-qa"><summary>Why must blocks be independent?</summary><div>So the hardware can run them in any order on any number of SMs: the same binary scales from a laptop GPU to a 170-SM card. Cross-block cooperation goes through atomics, a second kernel, a cooperative launch or (sm_90+) clusters.</div></details>
+<details class="rd-qa"><summary>What is a warp and why is it 32?</summary><div>The 32 threads issued together by one instruction; it is the hardware's SIMD width and has been 32 on every NVIDIA GPU. Divergence, coalescing and shuffles are all defined per warp.</div></details>
+<details class="rd-qa"><summary>How do you sum 4,096 numbers in one block?</summary><div>Each thread sums its share (grid-stride), each warp reduces with 5 shuffles, warp leaders write to shared memory, <code>__syncthreads()</code>, one warp reduces the partials. One barrier instead of eight.</div></details>
+<details class="rd-qa"><summary>How do you synchronise all blocks?</summary><div>End the kernel and launch another (the usual way), or a cooperative launch with <code>grid.sync()</code>, whose grid must fit on the GPU at once because it is a spin barrier on a global counter.</div></details>
+<details class="rd-qa"><summary>What limits occupancy, and is higher always better?</summary><div>Registers per thread, shared memory per block, threads per block and the block-slot cap, whichever runs out first. No: matmul-like kernels trade warps for registers and reuse; spills to reach high occupancy usually lose.</div></details>
+<details class="rd-qa"><summary>What does __launch_bounds__ do?</summary><div>Promises a maximum block size (and optionally a minimum number of resident blocks per SM) so ptxas caps registers to make that launch fit, possibly spilling. A launch above the promised size fails.</div></details>
+<details class="rd-qa"><summary>Your kernel takes 5 &micro;s and the step is slow. Why?</summary><div>Launch overhead: the CPU cannot queue kernels fast enough and the GPU idles. Fuse kernels, avoid synchronisations, use CUDA graphs.</div></details>
+<details class="rd-qa"><summary>What is wave quantization?</summary><div>A grid of B blocks runs in ceil(B / (SMs &times; blocks per SM)) waves; a last wave with few blocks costs nearly a full wave. NVIDIA's A100 example: 108 tiles run in one wave, 117 in two, about twice the time for 0.5% more work.</div></details>
+<details class="rd-qa"><summary>An illegal memory access error appears at a cudaMemcpy. Is the copy wrong?</summary><div>Probably not: execution errors surface at the next synchronising call. Re-run with <code>CUDA_LAUNCH_BLOCKING=1</code> or under compute-sanitizer to find the kernel; the process must restart.</div></details>
+</section>
+</div>
+<div class="tab" id="t-plan" role="tabpanel" hidden>
+<style>
+#t-plan .pl-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+#t-plan .pl-ctl label{font-size:13px;display:block;min-width:0}
+#t-plan .pl-ctl select,#t-plan .pl-ctl input[type=number]{width:100%;margin-top:2px}
+#t-plan .pl-ctl input[type=range]{display:block;margin-top:4px}
+#t-plan .pl-fig{width:100%;overflow:hidden;margin:6px 0}
+#t-plan .pl-lim{font-size:12px;display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--mute)}
+#t-plan .pl-lim span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-plan .pl-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:6px;margin:8px 0}
+</style>
+<h2 style="margin-top:14px">Launch planner</h2>
+<p>Pick a GPU and a kernel, then a block size and a problem size: the planner shows how many blocks fit on one SM and which resource stops more from fitting, the occupancy for every block size, the block size CUDA's occupancy API would suggest, and how many waves the grid needs. The presets are this page's kernels with their real <code>ptxas -v</code> reports (CUDA 13.4.2) <span class="rd-pub" style="font-size:11.5px;color:var(--c6);font-weight:600">compiled here</span>; "Custom" lets you type your own.</p>
+<div class="card">
+<div class="pl-ctl">
+<label>GPU <select id="pl-gpu"></select></label>
+<label>Kernel <select id="pl-k"></select></label>
+<label>Registers per thread: <b id="pl-regv"></b><input type="range" id="pl-reg" min="8" max="255" step="1" aria-label="Registers per thread"></label>
+<label>Shared memory per block (bytes): <b id="pl-smv"></b><input type="range" id="pl-sm" min="0" max="232448" step="1024" aria-label="Shared memory per block"></label>
+<label>Barriers used <select id="pl-bar"><option value="0">0</option><option value="1">1</option></select></label>
+<label>Max threads (launch bounds) <select id="pl-maxt"><option>1024</option><option>512</option><option>256</option><option>128</option></select></label>
+<label>Block size: <b id="pl-bv"></b><input type="range" id="pl-b" min="32" max="1024" step="32" value="256" aria-label="Block size"></label>
+<label>Work: <select id="pl-mode"><option value="elem">one thread per element</option><option value="rows">one block per row</option><option value="stride">grid-stride, grid = what fits at once</option></select></label>
+<label>Elements or rows <input type="number" id="pl-n" min="1" max="2000000000" value="16777216" aria-label="Elements or rows"></label>
+</div>
+<div class="pl-out" id="pl-out"></div>
+<div class="pl-fig" id="pl-fig"></div>
+<div class="pl-lim" id="pl-leg"></div>
+<p class="small mute" id="pl-note"></p>
+</div>
+<div class="co"><div class="t">How the numbers are computed, and checked</div>
+Blocks per SM follow NVIDIA's <code>cuda_occupancy.h</code> (CUDA 13.4.2), ported line by line: registers are allocated per warp in units of 256 and split over 4 SM sub-partitions; each block uses its shared memory plus 1 KB reserved by the system, rounded up to 128 bytes, against the SM's maximum carveout; plus the warp limit, the block-slot limit and the barrier limit; per-SM limits from the <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, Tables 30 and 31</a>. The suggested block size follows <code>cudaOccMaxPotentialOccupancyBlockSize</code>: from 1,024 down, the first block size reaching the highest number of resident threads. For the presets, the header itself was compiled and run without a GPU: it agrees with this page on <span id="pl-chk"></span>. Waves = ceil(grid / (SMs &times; blocks per SM)) <span class="rd-der" style="font-size:11.5px;color:var(--c5);font-weight:600">derived</span>; they assume every block takes the same time. SM counts: A100 108, H100 SXM 132 (NVIDIA architecture blogs), B200 148 (independent measurement paper, arXiv 2512.02189), RTX 5090 170 (NVIDIA whitepaper). Occupancy is not speed: see section 5 of the Reading tab.</div>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<style>#t-more h3{font-size:14px;margin:16px 0 4px}#t-more .sp{margin:6px 0}#t-more .rd-mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:8px}</style>
+<h2 style="margin-top:14px">Further reading</h2>
+<p class="small mute">Every link opens in a new tab; times are reading or watching estimates. Links checked 2026-10-05.</p>
+<h3>On this page</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="#" data-tab="t-plan">Launch planner</a> <span class="rt">10 min</span></div><p>Occupancy, the limiting resource, the suggested block size and waves for this page's real kernels on A100, H100, B200 and RTX 5090, checked against NVIDIA's occupancy header.</p></div>
+</div>
+<h3>The parent topic and its tabs</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a> <span class="rt">about 45 min</span></div><p>One operation (softmax, then a multiply by V) from PyTorch to the instructions. Its tabs: <b>GPU simulator</b> (divergence, coalescing, bank conflicts, occupancy, latency hiding, tiling), <b>Compiler explorer</b> (real PTX and SASS for four generations), <b>Kernel lab</b> (softmax, matmul and attention ladders measured on the M1 Pro).</p></div>
+</div>
+<h3>Sibling pages (children of the same topic)</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a></div><p>Coalescing and sectors, shared memory and bank conflicts, registers and spills, async copies, pinned and unified memory.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a></div><p>Reductions, scans, softmax, the matmul ladder, fusion, FlashAttention.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a></div><p>Block-level kernels, autotuning, what the Triton compiler does.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a></div><p>cuBLAS, cuDNN, CUTLASS and CuTe; mma, wgmma, TMA, tcgen05; clusters in use.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a></div><p>Nsight Systems and Compute, honest timing, numerical checks.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a></div><p>nvcc phases, PTX, SASS, NVRTC, torch.compile and Inductor.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU programming</a></div><p>Streams and events, overlap, CUDA graphs, NCCL as an API.</p></div>
+</div>
+<p class="small mute">The siblings are being rebuilt alongside this page; their reading times are set when they are published.</p>
+<h3>Elsewhere in the knowledge base</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a> <span class="rt">35 to 40 min</span></div><p>The SM from zero, latency hiding and Little's law, occupancy limits per generation, divergence measured, tensor cores, Ampere to Rubin.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a></div><p>Chips, memory technology, interconnects, roofline and MFU, costing hardware.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a></div><p>What a launch does below the runtime: the driver, the kernel module, the device queues.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++ page</a></div><p>Part 2: CPU caches and SIMD, the CPU side of SIMT; Part 3: llama.cpp and ggml-cuda.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>Where sticky errors and restarts meet elastic training; NCCL streams overlapping backward.</p></div>
+<div class="sp"><div class="n">Not yet migrated</div><p><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">pytorch-ecosystem</a> (custom ops, <code>torch.library</code>, the caching allocator in depth).</p></div>
+</div>
+<h3>Best resources</h3>
+<div class="rd-mgrid">
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/index.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide v13.4.2</a> <span class="rt">1 h for parts 2.1 to 2.3</span></div><p>NVIDIA's reference, reorganised in CUDA 13: introduction, writing kernels, thread hierarchy; appendices for limits and language extensions.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/" target="_blank" rel="noopener noreferrer">CUDA C++ Best Practices Guide</a> <span class="rt">2 h</span></div><p>The optimisation checklist NVIDIA maintains.</p></div>
+<div class="sp"><div class="n"><a href="https://shop.elsevier.com/books/programming-massively-parallel-processors/hwu/978-0-443-43900-1" target="_blank" rel="noopener noreferrer">Programming Massively Parallel Processors, 5th ed.</a> <span class="rt">2 h 15 min for ch. 2 to 4</span></div><p>Hwu, Kirk and El Hajj. Threads, blocks and scheduling; the best teaching treatment.</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener noreferrer">GPU MODE lectures</a> <span class="rt">1 h 30 min for lecture 2</span></div><p>Lecture 2 covers PMPP chapters 1 to 3; <a href="https://christianjmills.com/posts/cuda-mode-notes/lecture-002/" target="_blank" rel="noopener noreferrer">Christian Mills's notes</a> (30 min).</p></div>
+<div class="sp"><div class="n"><a href="https://modal.com/gpu-glossary" target="_blank" rel="noopener noreferrer">Modal GPU Glossary</a> <span class="rt">45 min</span></div><p>Short, precise definitions of SIMT, warp, occupancy and the rest.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/using-cuda-warp-level-primitives/" target="_blank" rel="noopener noreferrer">Using CUDA Warp-Level Primitives</a> <span class="rt">20 min</span></div><p>Lin and Grover, 2018: the <code>_sync</code> functions, masks, independent thread scheduling.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/cooperative-groups/" target="_blank" rel="noopener noreferrer">Cooperative Groups</a> <span class="rt">20 min</span></div><p>NVIDIA's introduction to groups as objects, tiles and grid synchronisation.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/" target="_blank" rel="noopener noreferrer">Grid-stride loops</a> <span class="rt">8 min</span></div><p>Mark Harris, 2013.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/deeplearning/performance/dl-performance-matrix-multiplication/index.html" target="_blank" rel="noopener noreferrer">Matrix multiplication background: wave quantization</a> <span class="rt">30 min</span></div><p>Tiles, waves and why GEMM shapes matter, with NVIDIA's measured curves.</p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html" target="_blank" rel="noopener noreferrer">Compute Sanitizer</a> <span class="rt">30 min</span></div><p>memcheck, racecheck, initcheck, synccheck.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/cuda-graphs/" target="_blank" rel="noopener noreferrer">CUDA Graphs</a> <span class="rt">15 min</span></div><p>Launch overhead measured, and the fix.</p></div>
+<div class="sp"><div class="n"><a href="https://horace.io/brrr_intro.html" target="_blank" rel="noopener noreferrer">Making Deep Learning Go Brrrr</a> <span class="rt">25 min</span></div><p>Horace He: compute-, memory- and overhead-bound.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/cuda-12-1-supports-large-kernel-parameters/" target="_blank" rel="noopener noreferrer">Large kernel parameters (CUDA 12.1)</a> <span class="rt">8 min</span></div><p>Why the 4 KB argument limit went, and what it saved.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/using-cuda-stream-ordered-memory-allocator-part-1/" target="_blank" rel="noopener noreferrer">Stream-ordered memory allocator</a> <span class="rt">15 min</span></div><p><code>cudaMallocAsync</code> and why <code>cudaFree</code> synchronises.</p></div>
+<div class="sp"><div class="n"><a href="https://nvidia.github.io/numba-cuda/" target="_blank" rel="noopener noreferrer">numba-cuda</a> &middot; <a href="https://docs.cupy.dev/en/stable/user_guide/kernel.html" target="_blank" rel="noopener noreferrer">CuPy kernels</a> &middot; <a href="https://docs.pytorch.org/docs/2.14/cpp_extension.html" target="_blank" rel="noopener noreferrer">PyTorch C++ extensions</a> <span class="rt">20 min each</span></div><p>The three Python routes of section 9.</p></div>
+<div class="sp"><div class="n"><a href="https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf" target="_blank" rel="noopener noreferrer">Metal Shading Language Specification</a> &middot; <a href="https://ml-explore.github.io/mlx/build/html/dev/custom_metal_kernels.html" target="_blank" rel="noopener noreferrer">MLX custom Metal kernels</a> <span class="rt">reference</span></div><p>For running the same experiments on a Mac.</p></div>
+</div>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers, copied from the CUDA root (Topic: cuda-and-gpu-programming), with the step-animation controller (play, pause, step, scrub, speed) ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_pm_data.js */
+window.PM={"coop_h100":1056,"driver_comments":{"cudaErrorAssert":"An assert triggered in device code during kernel execution. The device cannot be used again. All existing allocations are invalid. To continue using CUDA, the process must be terminated and relaunched.","cudaErrorCooperativeLaunchTooLarge":"This error indicates that the number of blocks launched per grid for a kernel that was launched via either cudaLaunchCooperativeKernel exceeds the maximum number of blocks as allowed by cudaOccupancyMaxActiveBlocksPerMultiprocessor or cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags times the number of multiprocessors as specified by the device attribute cudaDevAttrMultiProcessorCount.","cudaErrorIllegalAddress":"The device encountered a load or store instruction on an invalid memory address. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.","cudaErrorInvalidConfiguration":"This indicates that a kernel launch is requesting resources that can never be satisfied by the current device. Requesting more shared memory per block than the device supports will trigger this error, as will requesting too many threads or blocks. See cudaDeviceProp for more device limitations.","cudaErrorLaunchFailure":"An exception occurred on the device while executing a kernel. Common causes include dereferencing an invalid device pointer and accessing out of bounds shared memory. Less common cases can be system specific - more information about these cases can be found in the system specific user guide. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.","cudaErrorLaunchOutOfResources":"This indicates that a launch did not occur because it did not have appropriate resources. Although this error is similar to cudaErrorInvalidConfiguration, this error usually indicates that the user has attempted to pass too many arguments to the device kernel, or the kernel launch specifies too many threads for the kernel's register count."},"driver_types":"    /**\n     * An assert triggered in device code during kernel execution. The device\n     * cannot be used again. All existing allocations are invalid. To continue\n     * using CUDA, the process must be terminated and relaunched.\n     */\n    cudaErrorAssert                        =    710,\n    /**\n     * This indicates that a kernel launch is requesting resources that can\n     * never be satisfied by the current device. Requesting more shared memory\n     * per block than the device supports will trigger this error, as will\n     * requesting too many threads or blocks. See ::cudaDeviceProp for more\n     * device limitations.\n     */\n    cudaErrorInvalidConfiguration         =      9,\n    /**\n     * This indicates that a launch did not occur because it did not have\n     * appropriate resources. Although this error is similar to\n     * ::cudaErrorInvalidConfiguration, this error usually indicates that the\n     * user has attempted to pass too many arguments to the device kernel, or the\n     * kernel launch specifies too many threads for the kernel's register count.\n     */\n    cudaErrorLaunchOutOfResources         =      701,\n    /**\n     * The device encountered a load or store instruction on an invalid memory address.\n     * This leaves the process in an inconsistent state and any further CUDA work\n     * will return the same error. To continue using CUDA, the process must be terminated\n     * and relaunched.\n     */\n    cudaErrorIllegalAddress               =     700,\n    /**\n     * An exception occurred on the device while executing a kernel. Common\n     * causes include dereferencing an invalid device pointer and accessing\n     * out of bounds shared memory. Less common cases can be system specific - more\n     * information about these cases can be found in the system specific user guide.\n     * This leaves the process in an inconsistent state and any further CUDA work\n     * will return the same error. To continue using CUDA, the process must be terminated\n     * and relaunched.\n     */\n    cudaErrorLaunchFailure                =      719,\n    /**\n     * This error indicates that the number of blocks launched per grid for a kernel that was\n     * launched via either ::cudaLaunchCooperativeKernel\n     * exceeds the maximum number of blocks as allowed by ::cudaOccupancyMaxActiveBlocksPerMultiprocessor\n     * or ::cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags times the number of multiprocessors\n     * as specified by the device attribute ::cudaDevAttrMultiProcessorCount.\n     */\n    cudaErrorCooperativeLaunchTooLarge    =     720,\n","errors":{"calls":["host/errors.cu:11 cudaGetDeviceCount(&n) failed: cudaErrorInsufficientDriver (CUDA driver version is insufficient for CUDA runtime version, code 35)","host/errors.cu:14 cudaMalloc(&d, 1024) failed: cudaErrorInsufficientDriver (CUDA driver version is insufficient for CUDA runtime version, code 35)","host/errors.cu:16 cudaGetLastError() failed: cudaErrorInsufficientDriver (CUDA driver version is insufficient for CUDA runtime version, code 35)","host/errors.cu:17 cudaDeviceSynchronize() failed: cudaErrorInsufficientDriver (CUDA driver version is insufficient for CUDA runtime version, code 35)"],"codes":[["9","cudaErrorInvalidConfiguration","invalid configuration argument"],["701","cudaErrorLaunchOutOfResources","too many resources requested for launch"],["1","cudaErrorInvalidValue","invalid argument"],["2","cudaErrorMemoryAllocation","out of memory"],["700","cudaErrorIllegalAddress","an illegal memory access was encountered"],["716","cudaErrorMisalignedAddress","misaligned address"],["719","cudaErrorLaunchFailure","unspecified launch failure"],["702","cudaErrorLaunchTimeout","the launch timed out and was terminated"],["720","cudaErrorCooperativeLaunchTooLarge","too many blocks in cooperative launch"],["209","cudaErrorNoKernelImageForDevice","no kernel image is available for execution on the device"],["222","cudaErrorUnsupportedPtxVersion","the provided PTX was compiled with an unsupported toolchain."],["100","cudaErrorNoDevice","no CUDA-capable device is detected"],["35","cudaErrorInsufficientDriver","CUDA driver version is insufficient for CUDA runtime version"],["600","cudaErrorNotReady","device not ready"],["710","cudaErrorAssert","device-side assert triggered"]],"runtime":"13040"},"first_program":{"compile_exit":0,"msg":["host/first_program.cu:19: CUDA driver version is insufficient for CUDA runtime version"],"run_exit":1},"gpus":[{"arch":"sm_80","name":"A100 SXM","sms":108,"src":"NVIDIA Ampere architecture blog: A100 has 108 SMs"},{"arch":"sm_90a","name":"H100 SXM","sms":132,"src":"NVIDIA Hopper architecture blog: H100 SXM5 has 132 SMs"},{"arch":"sm_100a","name":"B200","sms":148,"src":"Jarmusch and Chandrasekaran, arXiv 2512.02189 (independent): 148 SMs"},{"arch":"sm_120","name":"RTX 5090","sms":170,"src":"NVIDIA RTX Blackwell whitepaper, Appendix A: 170 SMs"}],"grid_sync_ops":["BAR.SYNC.DEFER_BLOCKING 0x0","@P0 MEMBAR.ALL.GPU","@P0 ERRBAR","@P0 CGAERRBAR","@P0 ATOM.E.ADD.STRONG.GPU PT, R3, desc[UR10][R4.64+0x4], R3","LD.E.STRONG.GPU R3, desc[UR10][R4.64+0x4]","CCTL.IVALL","YIELD","BAR.SYNC.DEFER_BLOCKING 0x0"],"m1":{"atomics":{"per_simdgroup":{"atomics":524288,"correct":true,"ms":1.078,"ms_runs":[1.33,1.078,1.046]},"per_thread":{"atomics":8388752,"correct":true,"ms":1.181,"ms_runs":[1.487,1.095,1.181]},"per_threadgroup":{"atomics":65536,"correct":true,"ms":1.099,"ms_runs":[1.164,1.099,0.879]}},"atomics_n":16777216,"block_gbps":{"1024":157.3,"128":160.8,"256":160.4,"32":156.9,"512":161.5,"64":159.5},"launch":{"chain":200,"ratio":31.0,"us_per_queued":5.8,"us_per_queued_runs":[5.8,7.4,4.8],"us_wait_each":179.5,"us_wait_each_runs":[192.7,179.5,146.5]},"loadmax":6.3,"loadmin":5.0,"loads":[5.0,6.1,6.0,5.5,6.2,6.3],"meta":[{"arch":"applegpu_g13s","date":"2026-10-05 20:41","device":"Apple M1 Pro","load":5.00244140625,"load_end":5.462890625,"mlx":"0.32.3","numpy":"2.5.3","python":"3.12.11"},{"arch":"applegpu_g13s","date":"2026-10-05 20:42","device":"Apple M1 Pro","load":6.14013671875,"load_end":6.1982421875,"mlx":"0.32.3","numpy":"2.5.3","python":"3.12.11"},{"arch":"applegpu_g13s","date":"2026-10-05 20:42","device":"Apple M1 Pro","load":6.03125,"load_end":6.259765625,"mlx":"0.32.3","numpy":"2.5.3","python":"3.12.11"}],"per_wave_ms":1.307,"plateaus":[{"from":1,"ms":1.601,"to":16},{"from":17,"ms":2.858,"to":32},{"from":33,"ms":4.167,"to":48},{"from":49,"ms":5.474,"to":64},{"from":65,"ms":6.781,"to":72}],"race":{"example":{"got":1138,"want":1158},"groups":65536,"pct_max":80.4,"pct_median":47.4,"pct_min":10.4,"reps":15,"wrong_with_barrier":0,"wrong_without":[42311,39808,40764,39529,52667,47015,27721,30004,31032,45773,27102,6793,16484,18450,14619]},"wave_steps_at":[17,33,49,65],"waves_ms":[2.57,2.09,1.911,2.19,2.643,2.74,1.619,1.549,1.537,1.558,1.615,1.552,1.565,1.562,1.587,1.559,2.898,2.871,2.878,2.889,2.85,2.831,2.848,2.827,2.865,2.847,2.893,2.907,2.837,2.862,2.841,2.853,4.223,4.249,4.228,4.242,4.169,4.208,4.16,4.181,4.151,4.183,4.16,4.148,4.159,4.143,4.166,4.16,5.493,5.45,5.451,5.472,5.488,5.459,5.486,5.49,5.474,5.503,5.459,5.458,5.465,5.475,5.522,5.484,6.791,6.78,6.776,6.793,6.771,6.781,6.795,6.775],"waves_runs":[[2.57,2.09,1.911,2.19,2.643,2.74,2.786,2.409,1.755,1.622,1.615,1.607,1.591,1.581,1.587,1.675,2.97,2.927,2.902,2.91,2.951,2.934,2.889,2.894,2.922,2.927,2.929,2.907,2.905,2.895,2.935,2.956,4.326,4.213,4.228,4.245,4.228,4.221,5.593,4.2,4.151,4.229,4.16,4.185,4.159,4.143,4.166,4.16,5.508,5.491,5.496,5.472,5.488,5.505,5.486,5.499,5.474,5.503,5.459,5.458,5.465,5.475,5.522,5.508,6.8,6.781,6.802,6.82,6.771,6.767,6.795,6.775],[1.588,1.55,1.543,1.584,1.544,1.549,1.554,1.549,1.537,1.558,1.757,1.552,1.565,1.562,1.589,1.559,2.872,2.871,2.878,2.889,2.85,2.831,2.848,2.817,2.865,2.846,2.828,2.866,2.817,2.862,2.831,2.853,4.223,4.249,4.279,4.242,4.169,4.208,4.16,4.137,4.185,4.183,4.224,4.148,4.167,4.156,4.172,4.168,5.493,5.45,5.451,5.689,5.532,5.459,5.465,5.458,5.485,5.529,5.471,5.473,5.485,5.515,5.594,5.484,6.791,6.78,6.776,6.793,6.771,6.781,6.774,6.753],[7.994,8.003,8.754,8.002,8.0,7.999,1.619,1.542,1.536,1.523,1.535,1.547,1.561,1.534,1.553,1.537,2.898,2.82,2.827,2.828,2.816,2.821,2.812,2.827,2.847,2.847,2.893,2.932,2.837,2.846,2.841,2.846,4.127,4.529,4.176,4.16,4.109,4.148,4.118,4.181,4.105,4.17,4.149,4.117,4.112,4.107,4.155,4.105,5.415,5.425,5.412,5.413,5.414,5.427,5.527,5.49,5.446,5.472,5.428,5.439,5.431,5.425,5.466,5.437,6.695,6.712,6.753,6.694,6.842,7.79,6.817,6.797]]},"nvcc":"Cuda compilation tools, release 13.4, V13.4.92","occ":{"sm_100a":{"block_sum":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":296}},"cluster_exchange":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":14,"smem":512,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":296}},"heavy_lb1024":{"bars":0,"blocks":[32,16,10,8,6,5,4,4,3,3,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"maxT":1024,"regs":64,"smem":0,"spill_ld":2372,"spill_st":2328,"stack":1104,"suggest":{"block":1024,"minGrid":148}},"heavy_lb256x8":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":256,"regs":32,"smem":0,"spill_ld":3044,"spill_st":3008,"stack":1168,"suggest":{"block":256,"minGrid":1184}},"heavy_plain":{"bars":0,"blocks":[16,8,5,4,3,2,2,2,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":512,"minGrid":148}},"hist_shared":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":10,"smem":256,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":296}},"scale_1d":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":296}},"scale_stride":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":16,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":296}},"two_phase":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":20,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":296}}},"sm_120":{"block_sum":{"bars":1,"blocks":[24,24,16,12,9,8,6,6,5,4,4,4,3,3,3,3,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1],"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":768,"minGrid":340}},"cluster_exchange":{"bars":0,"blocks":[24,24,16,12,9,8,6,6,5,4,4,4,3,3,3,3,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1],"maxT":1024,"regs":14,"smem":512,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":768,"minGrid":340}},"heavy_lb1024":{"bars":0,"blocks":[24,16,10,8,6,5,4,4,3,3,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"maxT":1024,"regs":64,"smem":0,"spill_ld":2396,"spill_st":2352,"stack":1104,"suggest":{"block":1024,"minGrid":170}},"heavy_lb256x8":{"bars":0,"blocks":[16,8,5,4,3,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":256,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":256,"minGrid":340}},"heavy_plain":{"bars":0,"blocks":[16,8,5,4,3,2,2,2,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":512,"minGrid":170}},"hist_shared":{"bars":1,"blocks":[24,24,16,12,9,8,6,6,5,4,4,4,3,3,3,3,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1],"maxT":1024,"regs":10,"smem":256,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":768,"minGrid":340}},"scale_1d":{"bars":0,"blocks":[24,24,16,12,9,8,6,6,5,4,4,4,3,3,3,3,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1],"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":768,"minGrid":340}},"scale_stride":{"bars":0,"blocks":[24,24,16,12,9,8,6,6,5,4,4,4,3,3,3,3,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1],"maxT":1024,"regs":16,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":768,"minGrid":340}},"two_phase":{"bars":1,"blocks":[24,24,16,12,9,8,6,6,5,4,4,4,3,3,3,3,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1],"maxT":1024,"regs":20,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":768,"minGrid":340}}},"sm_80":{"block_sum":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":216}},"heavy_lb1024":{"bars":0,"blocks":[32,16,10,8,6,5,4,4,3,3,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"maxT":1024,"regs":64,"smem":0,"spill_ld":2908,"spill_st":2908,"stack":1416,"suggest":{"block":1024,"minGrid":108}},"heavy_lb256x8":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":256,"regs":32,"smem":0,"spill_ld":4260,"spill_st":4260,"stack":1648,"suggest":{"block":256,"minGrid":864}},"heavy_plain":{"bars":0,"blocks":[16,8,5,4,3,2,2,2,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":512,"minGrid":108}},"hist_shared":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":8,"smem":256,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":216}},"scale_1d":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":216}},"scale_stride":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":216}},"two_phase":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":18,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":216}}},"sm_90a":{"block_sum":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":264}},"cluster_exchange":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":14,"smem":512,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":264}},"heavy_lb1024":{"bars":0,"blocks":[32,16,10,8,6,5,4,4,3,3,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"maxT":1024,"regs":64,"smem":0,"spill_ld":2372,"spill_st":2328,"stack":1104,"suggest":{"block":1024,"minGrid":132}},"heavy_lb256x8":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":256,"regs":32,"smem":0,"spill_ld":3040,"spill_st":3004,"stack":1168,"suggest":{"block":256,"minGrid":1056}},"heavy_plain":{"bars":0,"blocks":[16,8,5,4,3,2,2,2,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":512,"minGrid":132}},"hist_shared":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":10,"smem":256,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":264}},"scale_1d":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":264}},"scale_stride":{"bars":0,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":14,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":264}},"two_phase":{"bars":1,"blocks":[32,32,21,16,12,10,9,8,7,6,5,5,4,4,4,4,3,3,3,3,3,2,2,2,2,2,2,2,2,2,2,2],"maxT":1024,"regs":20,"smem":0,"spill_ld":0,"spill_st":0,"stack":0,"suggest":{"block":1024,"minGrid":264}}}},"occ32_h100_pct":50.0,"occ_check":{"cases":1155,"kernels":35,"mismatches":0},"occ_heavy":{"sm_100a":{"heavy_lb1024":50.0,"heavy_lb256x8":100.0,"heavy_plain":25.0},"sm_120":{"heavy_lb1024":66.7,"heavy_lb256x8":33.3,"heavy_plain":33.3},"sm_80":{"heavy_lb1024":50.0,"heavy_lb256x8":100.0,"heavy_plain":25.0},"sm_90a":{"heavy_lb1024":50.0,"heavy_lb256x8":100.0,"heavy_plain":25.0}},"params":{"32756":{"exit":0,"msg":""},"32760":{"exit":1,"msg":"Formal parameter space overflowed (32768 bytes required, max 32764 bytes allowed) in function take_blob"},"4096":{"exit":0,"msg":""}},"ptxas":{"p1_index":{"sm_100a":{"errors":[],"exit":0,"kernels":{"scale_1d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_2d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_stride":{"bars":0,"maxT":1024,"regs":16,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_120":{"errors":[],"exit":0,"kernels":{"scale_1d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_2d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_stride":{"bars":0,"maxT":1024,"regs":16,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_80":{"errors":[],"exit":0,"kernels":{"scale_1d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_2d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_stride":{"bars":0,"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_90a":{"errors":[],"exit":0,"kernels":{"scale_1d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_2d":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"scale_stride":{"bars":0,"maxT":1024,"regs":14,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]}},"p2_sync":{"sm_100a":{"errors":[],"exit":0,"kernels":{"block_sum":{"bars":1,"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"block_sum_racy":{"bars":0,"maxT":1024,"regs":17,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"count_positive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_positive_naive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_redux":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_global":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_shared":{"bars":1,"maxT":1024,"regs":10,"smem":256,"spill_ld":0,"spill_st":0,"stack":0},"warp_sum":{"bars":0,"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_120":{"errors":[],"exit":0,"kernels":{"block_sum":{"bars":1,"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"block_sum_racy":{"bars":0,"maxT":1024,"regs":17,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"count_positive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_positive_naive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_redux":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_global":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_shared":{"bars":1,"maxT":1024,"regs":10,"smem":256,"spill_ld":0,"spill_st":0,"stack":0},"warp_sum":{"bars":0,"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_80":{"errors":[],"exit":0,"kernels":{"block_sum":{"bars":1,"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"block_sum_racy":{"bars":0,"maxT":1024,"regs":22,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"count_positive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_positive_naive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_redux":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_global":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_shared":{"bars":1,"maxT":1024,"regs":8,"smem":256,"spill_ld":0,"spill_st":0,"stack":0},"warp_sum":{"bars":0,"maxT":1024,"regs":14,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_90a":{"errors":[],"exit":0,"kernels":{"block_sum":{"bars":1,"maxT":1024,"regs":12,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"block_sum_racy":{"bars":0,"maxT":1024,"regs":19,"smem":1024,"spill_ld":0,"spill_st":0,"stack":0},"count_positive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_positive_naive":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"count_redux":{"bars":0,"maxT":1024,"regs":8,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_global":{"bars":0,"maxT":1024,"regs":10,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"hist_shared":{"bars":1,"maxT":1024,"regs":10,"smem":256,"spill_ld":0,"spill_st":0,"stack":0},"warp_sum":{"bars":0,"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]}},"p3_coop":{"sm_100a":{"errors":[],"exit":0,"kernels":{"cg_tile_sum":{"bars":0,"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"two_phase":{"bars":1,"maxT":1024,"regs":20,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_120":{"errors":[],"exit":0,"kernels":{"cg_tile_sum":{"bars":0,"maxT":1024,"regs":14,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"two_phase":{"bars":1,"maxT":1024,"regs":20,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_80":{"errors":[],"exit":0,"kernels":{"cg_tile_sum":{"bars":0,"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"two_phase":{"bars":1,"maxT":1024,"regs":18,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_90a":{"errors":[],"exit":0,"kernels":{"cg_tile_sum":{"bars":0,"maxT":1024,"regs":12,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"two_phase":{"bars":1,"maxT":1024,"regs":20,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]}},"p4_cluster":{"sm_100a":{"errors":[],"exit":0,"kernels":{"cluster_exchange":{"bars":0,"maxT":1024,"regs":14,"smem":512,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_120":{"errors":[],"exit":0,"kernels":{"cluster_exchange":{"bars":0,"maxT":1024,"regs":14,"smem":512,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_80":{"errors":["__cluster_dims__ is not supported for this GPU architecture","namespace \"cooperative_groups\" has no member \"cluster_group\"","namespace \"cooperative_groups\" has no member \"this_cluster\""],"exit":1,"warnings":[]},"sm_90a":{"errors":[],"exit":0,"kernels":{"cluster_exchange":{"bars":0,"maxT":1024,"regs":14,"smem":512,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]}},"p5_bounds":{"sm_100a":{"errors":[],"exit":0,"kernels":{"heavy_lb1024":{"bars":0,"maxT":1024,"regs":64,"smem":0,"spill_ld":2372,"spill_st":2328,"stack":1104},"heavy_lb256x8":{"bars":0,"maxT":256,"regs":32,"smem":0,"spill_ld":3044,"spill_st":3008,"stack":1168},"heavy_plain":{"bars":0,"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_120":{"errors":[],"exit":0,"kernels":{"heavy_lb1024":{"bars":0,"maxT":1024,"regs":64,"smem":0,"spill_ld":2396,"spill_st":2352,"stack":1104},"heavy_lb256x8":{"bars":0,"maxT":256,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0},"heavy_plain":{"bars":0,"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":["Value of threads per SM for entry heavy_lb256x8 is out of range. .minnctapersm will be ignored"]},"sm_80":{"errors":[],"exit":0,"kernels":{"heavy_lb1024":{"bars":0,"maxT":1024,"regs":64,"smem":0,"spill_ld":2908,"spill_st":2908,"stack":1416},"heavy_lb256x8":{"bars":0,"maxT":256,"regs":32,"smem":0,"spill_ld":4260,"spill_st":4260,"stack":1648},"heavy_plain":{"bars":0,"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]},"sm_90a":{"errors":[],"exit":0,"kernels":{"heavy_lb1024":{"bars":0,"maxT":1024,"regs":64,"smem":0,"spill_ld":2372,"spill_st":2328,"stack":1104},"heavy_lb256x8":{"bars":0,"maxT":256,"regs":32,"smem":0,"spill_ld":3040,"spill_st":3004,"stack":1168},"heavy_plain":{"bars":0,"maxT":1024,"regs":128,"smem":0,"spill_ld":0,"spill_st":0,"stack":0}},"warnings":[]}}},"py":{"cupy_raw":{"compile_error":"CUDARuntimeError: cudaErrorInsufficientDriver: CUDA driver version is insufficient for CUDA runtime version","created":true,"cupy":"14.2.0","run_error":"CUDARuntimeError: cudaErrorInsufficientDriver: CUDA driver version is insufficient for CUDA runtime version"},"numba_ptx":{"body":["ld.param.u64  %rd8, [scale_param_2];","ld.param.u64  %rd2, [scale_param_4];","ld.param.u64  %rd3, [scale_param_5];","ld.param.u64  %rd4, [scale_param_6];","ld.param.u64  %rd5, [scale_param_11];","ld.param.u64  %rd6, [scale_param_12];","ld.param.u64  %rd7, [scale_param_13];","ld.param.f32  %f1, [scale_param_14];","mov.u32  %r1, %tid.x;","cvt.s64.s32  %rd9, %r1;","mov.u32  %r2, %ntid.x;","mov.u32  %r3, %ctaid.x;","mul.wide.s32  %rd10, %r2, %r3;","add.s64  %rd1, %rd10, %rd9;","setp.ge.s64  %p1, %rd1, %rd8;","@%p1 bra  $L__BB0_2;","add.s64  %rd13, %rd12, %rd1;","mul.lo.s64  %rd14, %rd13, %rd4;","add.s64  %rd15, %rd14, %rd2;","ld.f32  %f2, [%rd15];","mul.f32  %f3, %f2, %f1;","add.s64  %rd17, %rd16, %rd1;","mul.lo.s64  %rd18, %rd17, %rd7;","add.s64  %rd19, %rd18, %rd5;","st.f32  [%rd19], %f3;","ret;"],"ctaid_reads":1,"lines":73,"n_params":15,"target":[".target sm_90"],"tid_reads":1,"version":[".version 9.4"]},"numba_sim":{"block_sum":{"got":[1208.0,1200.0,1148.0,1190.0],"ok":true,"want":[1208.0,1200.0,1148.0,1190.0]},"scale":{"block":128,"grid":8,"n":1000,"ok":true},"simulator":true},"torch_cuda_home":"364:CUDA_HOME = _find_cuda_home() if (torch.cuda._is_compiled() and torch.version.cuda) else None","torch_ext":{"CUDA_HOME":false,"build_error":"OSError: CUDA_HOME environment variable is not set. Please set it to your CUDA install root.","cuda_build":null,"torch":"2.14.1+cpu"},"versions":{"numba":"0.68.0","numba_cuda":"0.30.4"}},"race_sass":{"block_sum":{"BAR":9,"LDS":17,"STS":9},"block_sum_racy":{"BAR":0,"LDS":9,"STS":9},"n_br":52,"n_bs":69},"rowsum":{"last_fill_pct":87.9,"per_wave":1056,"rows":4096,"waves":4},"sass":{"cg_tile_sum":["LDC R1, c[0x0][0x28]","S2R R0, SR_TID.Z","LDC.64 R2, c[0x0][0x210]","ULDC UR5, c[0x0][0x4]","ULDC UR6, c[0x0][0x0]","S2R R7, SR_TID.Y","UIMAD UR4, UR5, UR6, URZ","S2R R9, SR_TID.X","S2R R5, SR_CTAID.X","IMAD R0, R0, UR5, R7","ULDC UR5, c[0x0][0x8]","UIMAD UR4, UR4, UR5, URZ","IMAD R0, R0, UR6, R9","IMAD R5, R5, UR4, R0","ULDC.64 UR4, c[0x0][0x208]","IMAD.WIDE.U32 R2, R5, 0x4, R2","LDG.E R2, desc[UR4][R2.64]","LOP3.LUT P0, RZ, R0, 0x1f, RZ, 0xc0, !PT","SHFL.BFLY PT, R5, R2, 0x10, 0x1f","FADD R5, R2, R5","SHFL.BFLY PT, R4, R5, 0x8, 0x1f","FADD R4, R5, R4","SHFL.BFLY PT, R7, R4, 0x4, 0x1f","FADD R7, R4, R7","SHFL.BFLY PT, R6, R7, 0x2, 0x1f","FADD R6, R7, R6","SHFL.BFLY PT, R9, R6, 0x1, 0x1f","@P0 EXIT","LDC.64 R2, c[0x0][0x218]","FADD R9, R6, R9","REDG.E.ADD.F32.FTZ.RN.STRONG.GPU desc[UR4][R2.64], R9","EXIT"],"cluster_90":["LDC R1, c[0x0][0x28]","S2R R7, SR_CTAID.X","LDC.64 R2, c[0x0][0x210]","ULDC.64 UR8, c[0x0][0x208]","S2R R6, SR_TID.X","LEA R7, R7, R6, 0x7","IMAD.WIDE.U32 R2, R7, 0x4, R2","LDG.E R0, desc[UR8][R2.64]","S2UR UR6, SR_CgaCtaId","UMOV UR5, 0x400","IADD3 R4, -R6, 0x7f, RZ","S2R R11, SR_SWINHI","LDC.64 R2, c[0x0][0x218]","ULOP3.LUT UR4, UR6, 0x1, URZ, 0x3c, !UPT","ULEA UR5, UR6, UR5, 0x18","UPRMT UR4, UR4, 0x654, UR5","LEA R9, R6, UR5, 0x2","LEA R4, R4, UR4, 0x2","MOV R5, R11","STS [R9], R0","MEMBAR.ALL.GPU","ERRBAR","CGAERRBAR","UCGABAR_ARV","UCGABAR_WAIT","CCTL.IVALL","LD.E R5, [R4]","IMAD.WIDE.U32 R2, R7, 0x4, R2","LDS R6, [R9]","FADD R7, R6, R5","STG.E desc[UR8][R2.64], R7","MEMBAR.ALL.GPU","ERRBAR","CGAERRBAR","UCGABAR_ARV","UCGABAR_WAIT","CCTL.IVALL","EXIT"],"count_ballot":["LDC R1, c[0x0][0x28]","S2R R5, SR_CTAID.X","ULDC UR4, c[0x0][0x0]","ULDC.64 UR6, c[0x0][0x208]","BSSY B0, 0x110","S2R R0, SR_TID.X","PLOP3.LUT P0, PT, PT, PT, PT, 0x8, 0x0","IMAD R5, R5, UR4, R0","ULDC UR4, c[0x0][0x220]","LOP3.LUT P1, RZ, R0, 0x1f, RZ, 0xc0, !PT","ISETP.GE.AND P2, PT, R5, UR4, PT","@P2 BRA 0x100","LDC.64 R2, c[0x0][0x210]","IMAD.WIDE R2, R5, 0x4, R2","LDG.E R2, desc[UR6][R2.64]","FSETP.GT.AND P0, PT, R2, RZ, PT","BSYNC B0","VOTE.ANY R0, PT, P0","@P1 EXIT","S2R R4, SR_LANEID","LDC.64 R2, c[0x0][0x218]","VOTEU.ANY UR4, UPT, PT","POPC R0, R0","UFLO.U32 UR5, UR4","UPOPC UR4, UR4","IMAD R5, R0, UR4, RZ","ISETP.EQ.U32.AND P0, PT, R4, UR5, PT","@P0 REDG.E.ADD.STRONG.GPU desc[UR6][R2.64], R5","EXIT"],"count_naive":["LDC R1, c[0x0][0x28]","S2R R5, SR_CTAID.X","ULDC UR4, c[0x0][0x0]","S2R R0, SR_TID.X","IMAD R5, R5, UR4, R0","ULDC UR4, c[0x0][0x220]","ISETP.GE.AND P0, PT, R5, UR4, PT","@P0 EXIT","LDC.64 R2, c[0x0][0x210]","ULDC.64 UR4, c[0x0][0x208]","IMAD.WIDE R2, R5, 0x4, R2","LDG.E R2, desc[UR4][R2.64]","FSETP.GT.AND P0, PT, R2, RZ, PT","@!P0 EXIT","S2R R0, SR_LANEID","LDC.64 R2, c[0x0][0x218]","VOTEU.ANY UR6, UPT, PT","UFLO.U32 UR7, UR6","POPC R5, UR6","ISETP.EQ.U32.AND P0, PT, R0, UR7, PT","@P0 REDG.E.ADD.STRONG.GPU desc[UR4][R2.64], R5","EXIT"],"count_redux":["LDC R1, c[0x0][0x28]","S2R R5, SR_CTAID.X","LDC.64 R2, c[0x0][0x210]","ULDC UR4, c[0x0][0x0]","ULDC.64 UR6, c[0x0][0x208]","S2R R4, SR_TID.X","IMAD R5, R5, UR4, R4","IMAD.WIDE.U32 R2, R5, 0x4, R2","LDG.E R2, desc[UR6][R2.64]","NOP","FSETP.GT.AND P0, PT, R2, RZ, PT","SEL R0, RZ, 0x1, !P0","LOP3.LUT P0, RZ, R4, 0x1f, RZ, 0xc0, !PT","REDUX.SUM.S32 UR4, R0","MOV R4, UR4","@P0 EXIT","S2R R0, SR_LANEID","LDC.64 R2, c[0x0][0x218]","VOTEU.ANY UR4, UPT, PT","UFLO.U32 UR5, UR4","UPOPC UR4, UR4","IMAD R5, R4, UR4, RZ","ISETP.EQ.U32.AND P0, PT, R0, UR5, PT","@P0 REDG.E.ADD.STRONG.GPU desc[UR6][R2.64], R5","EXIT"],"scale_1d":["LDC R1, c[0x0][0x28]","S2R R0, SR_TID.X","S2UR UR4, SR_CTAID.X","LDC R7, c[0x0][RZ]","IMAD R7, R7, UR4, R0","ULDC UR4, c[0x0][0x224]","ISETP.GE.AND P0, PT, R7, UR4, PT","@P0 EXIT","LDC.64 R2, c[0x0][0x210]","ULDC.64 UR4, c[0x0][0x208]","ULDC UR6, c[0x0][0x220]","LDC.64 R4, c[0x0][0x218]","IMAD.WIDE R2, R7, 0x4, R2","LDG.E R2, desc[UR4][R2.64]","IMAD.WIDE R4, R7, 0x4, R4","FMUL R7, R2, UR6","STG.E desc[UR4][R4.64], R7","EXIT"],"two_phase":["LDC R1, c[0x0][0x28]","S2R R8, SR_TID.Z","S2UR UR13, SR_CTAID.Z","ULDC UR5, c[0x0][0x14]","ULDC UR6, c[0x0][0x10]","S2R R11, SR_TID.Y","ULDC UR7, c[0x0][0xc]","ULDC UR9, c[0x0][0x4]","ULDC UR10, c[0x0][0x0]","S2R R10, SR_TID.X","S2UR UR14, SR_CTAID.Y","UIMAD UR8, UR9, UR10, URZ","BSSY B0, 0x290","ULDC.64 UR16, c[0x0][0x210]","S2UR UR15, SR_CTAID.X","LDC R7, c[0x0][0x8]","UIMAD UR4, UR13, UR6, UR14","IMAD R0, R8, UR9, R11","IMAD R0, R0, UR10, R10","UIMAD UR4, UR4, UR7, UR15","ULDC.64 UR10, c[0x0][0x208]","IMAD R7, R7, UR8, RZ","ULDC UR8, c[0x0][0x220]","IMAD R2, R7, UR4, R0","IMAD.MOV.U32 R0, RZ, RZ, RZ","ISETP.GE.AND P1, PT, R2, UR8, PT","@P1 BRA 0x280","UIMAD UR4, UR5, UR6, URZ","IMAD.MOV.U32 R0, RZ, RZ, RZ","IMAD.MOV.U32 R3, RZ, RZ, R2","UIMAD UR4, UR4, UR7, URZ","IMAD R6, R7, UR4, RZ","SHF.R.S64 R4, RZ, 0x1e, R3","IADD3 R4, P0, R4, UR16, RZ","LEA.HI.X.SX32 R5, R3, UR17, 0x2, P0","LDG.E R5, desc[UR10][R4.64]","IMAD.IADD R3, R3, 0x1, R6","ISETP.GE.AND P0, PT, R3, UR8, PT","FADD R0, R5, R0","@!P0 BRA 0x200","BSYNC B0","SHFL.BFLY PT, R3, R0, 0x10, 0x1f","LOP3.LUT P2, RZ, R10, 0x1f, RZ, 0xc0, !PT","ULDC UR9, c[0x0][0x48]","ULDC UR12, c[0x0][0x44]","ISETP.NE.U32.AND P0, PT, RZ, UR9, PT","BSSY B0, 0x3d0","ISETP.NE.AND.EX P0, PT, RZ, UR12, PT, P0","FADD R3, R3, R0","SHFL.BFLY PT, R4, R3, 0x8, 0x1f","FADD R4, R3, R4","SHFL.BFLY PT, R5, R4, 0x4, 0x1f","FADD R5, R4, R5","SHFL.BFLY PT, R6, R5, 0x2, 0x1f","FADD R6, R5, R6","SHFL.BFLY PT, R9, R6, 0x1, 0x1f","FADD R9, R6, R9","@P2 BRA 0x3c0","LDC.64 R4, c[0x0][0x218]","REDG.E.ADD.F32.FTZ.RN.STRONG.GPU desc[UR10][R4.64], R9","BSYNC B0","@P0 BRA 0x3f0","BPT.TRAP 0x1","IMAD.IADD R0, R11, 0x1, R10","BAR.SYNC.DEFER_BLOCKING 0x0","IMAD.MOV R3, RZ, RZ, -R8","ISETP.NE.AND P0, PT, R0, R3, PT","@P0 BRA 0x620","S2R R3, SR_LANEID","VOTEU.ANY UR16, UPT, PT","UIADD3 UR4, URZ, -UR6, URZ","FLO.U32 R6, UR16","UIADD3 UR8, UR14, UR15, URZ","IMAD.U32 R4, RZ, RZ, UR9","UIADD3 UR17, -UR13, URZ, URZ","IMAD.U32 R5, RZ, RZ, UR12","UIMAD UR4, UR4, UR7, URZ","UISETP.NE.AND UP0, UPT, UR8, UR17, UPT","POPC R0, UR16","UIMAD UR4, UR5, UR4, -0x7fffffff","USEL UR4, UR4, 0x1, !UP0","ISETP.EQ.U32.AND P0, PT, R6, R3, PT","IMAD R3, R0, UR4, RZ","@P0 MEMBAR.ALL.GPU","@P0 ERRBAR","@P0 CGAERRBAR","@P0 ATOM.E.ADD.STRONG.GPU PT, R3, desc[UR10][R4.64+0x4], R3","S2R R8, SR_LTMASK","LOP3.LUT R8, R8, UR16, RZ, 0xc0, !PT","POPC R9, R8","SHFL.IDX PT, R0, R3, R6, 0x1f","IMAD R0, R9, UR4, R0","LD.E.STRONG.GPU R3, desc[UR10][R4.64+0x4]","CCTL.IVALL","YIELD","LOP3.LUT R3, R3, R0, RZ, 0x3c, !PT","ISETP.GT.AND P0, PT, R3, -0x1, PT","@P0 BRA 0x5c0","WARPSYNC.ALL","BAR.SYNC.DEFER_BLOCKING 0x0","@P1 EXIT","LDC.64 R4, c[0x0][0x218]","LDG.E R3, desc[UR10][R4.64]","UIMAD UR5, UR5, UR6, URZ","ULDC UR6, c[0x0][0x220]","UIMAD UR5, UR5, UR7, URZ","IMAD R7, R7, UR5, RZ","ULDC.64 UR4, c[0x0][0x210]","SHF.R.S64 R4, RZ, 0x1e, R2","IADD3 R4, P0, R4, UR4, RZ","LEA.HI.X.SX32 R5, R2, UR5, 0x2, P0","LDG.E R0, desc[UR10][R4.64]","MUFU.RCP R6, R3","BSSY B0, 0x7d0","FFMA R9, -R3, R6, 1","FFMA R9, R6, R9, R6","FCHK P0, R0, R3","FFMA R6, R0, R9, RZ","FFMA R8, -R3, R6, R0","FFMA R9, R9, R8, R6","@!P0 BRA 0x7c0","MOV R6, 0x7b0","CALL.REL.NOINC 0x820","IMAD.MOV.U32 R9, RZ, RZ, R0","BSYNC B0","STG.E desc[UR10][R4.64], R9","IMAD.IADD R2, R2, 0x1, R7","ISETP.GE.AND P0, PT, R2, UR6, PT","@!P0 BRA 0x6c0","EXIT","SHF.R.U32.HI R9, RZ, 0x17, R3.reuse","BSSY B1, 0xe80","SHF.R.U32.HI R8, RZ, 0x17, R0.reuse","IMAD.MOV.U32 R10, RZ, RZ, R0","LOP3.LUT R9, R9, 0xff, RZ, 0xc0, !PT","IMAD.MOV.U32 R11, RZ, RZ, R3","LOP3.LUT R14, R8, 0xff, RZ, 0xc0, !PT","VIADD R12, R9, 0xffffffff","VIADD R13, R14, 0xffffffff","ISETP.GT.U32.AND P0, PT, R12, 0xfd, PT","ISETP.GT.U32.OR P0, PT, R13, 0xfd, P0","@!P0 IMAD.MOV.U32 R8, RZ, RZ, RZ","@!P0 BRA 0xa60","FSETP.GTU.FTZ.AND P1, PT, |R3|, +INF , PT","FSETP.GTU.FTZ.AND P0, PT, |R0|, +INF , PT","PLOP3.LUT P0, PT, P0, P1, PT, 0xa8, 0x0","@P0 BRA 0xe60","LOP3.LUT P0, RZ, R11, 0x7fffffff, R10, 0xc8, !PT","@!P0 BRA 0xe40","FSETP.NEU.FTZ.AND P2, PT, |R0|.reuse, +INF , PT","FSETP.NEU.FTZ.AND P1, PT, |R3|, +INF , PT","FSETP.NEU.FTZ.AND P0, PT, |R0|, +INF , PT","@!P1 BRA !P2, 0xe40","LOP3.LUT P2, RZ, R10, 0x7fffffff, RZ, 0xc0, !PT","PLOP3.LUT P1, PT, P1, P2, PT, 0x2a, 0x0","@P1 BRA 0xe20","LOP3.LUT P1, RZ, R11, 0x7fffffff, RZ, 0xc0, !PT","PLOP3.LUT P0, PT, P0, P1, PT, 0x2a, 0x0","@P0 BRA 0xdf0","ISETP.GE.AND P0, PT, R13, RZ, PT","ISETP.GE.AND P1, PT, R12, RZ, PT","@P0 IMAD.MOV.U32 R8, RZ, RZ, RZ","@!P0 FFMA R10, R0, 1.84467440737095516160e+19, RZ","@!P0 IMAD.MOV.U32 R8, RZ, RZ, -0x40","@!P1 FFMA R11, R3, 1.84467440737095516160e+19, RZ","@!P1 VIADD R8, R8, 0x40","LEA R0, R9, 0xc0800000, 0x17","BSSY B2, 0xde0","IMAD.IADD R12, R11, 0x1, -R0","VIADD R11, R14, 0xffffff81","MUFU.RCP R13, R12","FADD.FTZ R15, -R12, -RZ","IMAD R0, R11.reuse, -0x800000, R10","IADD3 R11, R11, 0x7f, -R9","IMAD.IADD R11, R11, 0x1, R8","FFMA R14, R13, R15, 1","FFMA R17, R13, R14, R13","FFMA R10, R0, R17, RZ","FFMA R13, R15, R10, R0","FFMA R14, R17, R13, R10","FFMA R15, R15, R14, R0","FFMA R0, R17, R15, R14","SHF.R.U32.HI R9, RZ, 0x17, R0","LOP3.LUT R9, R9, 0xff, RZ, 0xc0, !PT","IMAD.IADD R12, R9, 0x1, R11","VIADD R8, R12, 0xffffffff","ISETP.GE.U32.AND P0, PT, R8, 0xfe, PT","@!P0 BRA 0xdc0","ISETP.GT.AND P0, PT, R12, 0xfe, PT","@P0 BRA 0xd90","ISETP.GE.AND P0, PT, R12, 0x1, PT","@P0 BRA 0xdd0","ISETP.GE.AND P0, PT, R12, -0x18, PT","LOP3.LUT R0, R0, 0x80000000, RZ, 0xc0, !PT","@!P0 BRA 0xdd0","FFMA.RZ R8, R17.reuse, R15.reuse, R14.reuse","VIADD R11, R12.reuse, 0x20","FFMA.RM R9, R17.reuse, R15.reuse, R14.reuse","ISETP.NE.AND P2, PT, R12, RZ, PT","LOP3.LUT R10, R8, 0x7fffff, RZ, 0xc0, !PT","FFMA.RP R8, R17, R15, R14","ISETP.NE.AND P1, PT, R12, RZ, PT","IMAD.MOV R12, RZ, RZ, -R12","LOP3.LUT R10, R10, 0x800000, RZ, 0xfc, !PT","FSETP.NEU.FTZ.AND P0, PT, R8, R9, PT","SHF.L.U32 R11, R10, R11, RZ","SEL R9, R12, RZ, P2","ISETP.NE.AND P1, PT, R11, RZ, P1","SHF.R.U32.HI R9, RZ, R9, R10","PLOP3.LUT P0, PT, P0, P1, PT, 0xa8, 0x0","SHF.R.U32.HI R11, RZ, 0x1, R9","SEL R8, RZ, 0x1, !P0","LOP3.LUT R8, R8, 0x1, R11, 0xf8, !PT","LOP3.LUT R8, R8, R9, RZ, 0xc0, !PT","IMAD.IADD R11, R11, 0x1, R8","LOP3.LUT R0, R11, R0, RZ, 0xfc, !PT","BRA 0xdd0","LOP3.LUT R0, R0, 0x80000000, RZ, 0xc0, !PT","LOP3.LUT R0, R0, 0x7f800000, RZ, 0xfc, !PT","BRA 0xdd0","IMAD R0, R11, 0x800000, R0","BSYNC B2","BRA 0xe70","LOP3.LUT R0, R11, 0x80000000, R10, 0x48, !PT","LOP3.LUT R0, R0, 0x7f800000, RZ, 0xfc, !PT","BRA 0xe70","LOP3.LUT R0, R11, 0x80000000, R10, 0x48, !PT","BRA 0xe70","MUFU.RSQ R0, -QNAN","BRA 0xe70","FADD.FTZ R0, R0, R3","BSYNC B1","IMAD.MOV.U32 R8, RZ, RZ, R6","IMAD.MOV.U32 R9, RZ, RZ, 0x0","RET.REL.NODEC R8 0x0"],"warp_sum":["LDC R1, c[0x0][0x28]","S2R R5, SR_CTAID.X","LDC.64 R2, c[0x0][0x210]","ULDC UR4, c[0x0][0x0]","S2R R6, SR_TID.X","IMAD R5, R5, UR4, R6","ULDC.64 UR4, c[0x0][0x208]","IMAD.WIDE.U32 R2, R5, 0x4, R2","LDG.E R2, desc[UR4][R2.64]","LOP3.LUT P0, RZ, R6, 0x1f, RZ, 0xc0, !PT","SHFL.DOWN PT, R5, R2, 0x10, 0x1f","FADD R5, R2, R5","SHFL.DOWN PT, R0, R5, 0x8, 0x1f","FADD R0, R5, R0","SHFL.DOWN PT, R7, R0, 0x4, 0x1f","FADD R7, R0, R7","SHFL.DOWN PT, R4, R7, 0x2, 0x1f","FADD R4, R7, R4","SHFL.DOWN PT, R9, R4, 0x1, 0x1f","@P0 EXIT","LDC.64 R2, c[0x0][0x218]","FADD R9, R4, R9","REDG.E.ADD.F32.FTZ.RN.STRONG.GPU desc[UR4][R2.64], R9","EXIT"]},"sass_count":{"cg_tile_sum":{"EXIT":2,"FADD":5,"IMAD":4,"LDC":3,"LDG":1,"LOP3":1,"REDG":1,"S2R":4,"SHFL":5,"UIMAD":2,"ULDC":4},"cluster_90":{"CCTL":2,"CGAERRBAR":2,"ERRBAR":2,"EXIT":1,"FADD":1,"IADD3":1,"IMAD":2,"LD":1,"LDC":3,"LDG":1,"LDS":1,"LEA":3,"MEMBAR":2,"MOV":1,"S2R":3,"S2UR":1,"STG":1,"STS":1,"UCGABAR_ARV":2,"UCGABAR_WAIT":2,"ULDC":1,"ULEA":1,"ULOP3":1,"UMOV":1,"UPRMT":1},"count_ballot":{"BRA":1,"BSSY":1,"BSYNC":1,"EXIT":2,"FSETP":1,"IMAD":3,"ISETP":2,"LDC":3,"LDG":1,"LOP3":1,"PLOP3":1,"POPC":1,"REDG":1,"S2R":3,"UFLO":1,"ULDC":3,"UPOPC":1,"VOTE":1,"VOTEU":1},"count_naive":{"EXIT":3,"FSETP":1,"IMAD":2,"ISETP":2,"LDC":3,"LDG":1,"POPC":1,"REDG":1,"S2R":3,"UFLO":1,"ULDC":3,"VOTEU":1},"count_redux":{"EXIT":2,"FSETP":1,"IMAD":3,"ISETP":1,"LDC":3,"LDG":1,"LOP3":1,"MOV":1,"NOP":1,"REDG":1,"REDUX":1,"S2R":3,"SEL":1,"UFLO":1,"ULDC":2,"UPOPC":1,"VOTEU":1},"scale_1d":{"EXIT":2,"FMUL":1,"IMAD":3,"ISETP":1,"LDC":4,"LDG":1,"S2R":1,"S2UR":1,"STG":1,"ULDC":3},"two_phase":{"ATOM":1,"BAR":2,"BPT":1,"BRA":24,"BSSY":5,"BSYNC":5,"CALL":1,"CCTL":1,"CGAERRBAR":1,"ERRBAR":1,"EXIT":2,"FADD":8,"FCHK":1,"FFMA":17,"FLO":1,"FSETP":6,"IADD3":3,"IMAD":32,"ISETP":19,"LD":1,"LDC":4,"LDG":3,"LEA":3,"LOP3":20,"MEMBAR":1,"MOV":1,"MUFU":3,"PLOP3":4,"POPC":2,"REDG":1,"RET":1,"S2R":5,"S2UR":3,"SEL":2,"SHF":8,"SHFL":6,"STG":1,"UIADD3":3,"UIMAD":9,"UISETP":1,"ULDC":12,"USEL":1,"VIADD":6,"VOTEU":1,"WARPSYNC":1,"YIELD":1},"warp_sum":{"EXIT":2,"FADD":5,"IMAD":2,"LDC":3,"LDG":1,"LOP3":1,"REDG":1,"S2R":2,"SHFL":5,"ULDC":2}},"toy_race":{"bar":80,"nobar":31,"stale":8},"wq":{"after":{"M":2304,"N":1544,"last_wave_tiles":9,"tiles":117,"util":0.5417,"waves":2},"before":{"M":2304,"N":1536,"last_wave_tiles":108,"tiles":108,"util":1.0,"waves":1},"src":"https://docs.nvidia.com/deeplearning/performance/dl-performance-matrix-multiplication/index.html","work_ratio":1.0052}};
+</script>
+<script>/* 23_js_pm_static.js */
+// ---- Reading tab: text filled from window.PM (real compiler output, runs, measurements) ----
+(function(){
+  const P=window.PM,E=RD.esc,$=id=>document.getElementById(id);
+  const fmt=(x,d)=>Number(x).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+  // SASS listings
+  const sassBlock=(id,lines)=>{const el=$(id);if(el)el.textContent=lines.join('\n')};
+  sassBlock('pm-sass-scale',P.sass.scale_1d);
+  sassBlock('pm-sass-agg',P.sass.count_naive);
+  sassBlock('pm-sass-grid',P.grid_sync_ops);
+  // error program output
+  const eo=$('pm-err-out');if(eo)eo.textContent=P.errors.calls.join('\n');
+  const et=$('pm-err-tab');
+  if(et){const want={'700':1,'701':1,'710':1};
+    let h='<table><thead><tr><th class="num">Code</th><th>Name and runtime message (printed by the program)</th><th>Header comment (<code>driver_types.h</code>), where quoted</th></tr></thead><tbody>';
+    P.errors.codes.forEach(c=>{const cm=P.driver_comments[c[1]];h+='<tr><td class="num">'+E(c[0])+'</td><td><code>'+E(c[1])+'</code><br>'+E(c[2])+'</td><td class="small">'+(cm?E(cm):'')+'</td></tr>'});
+    et.innerHTML=h+'</tbody></table>'}
+  const pm=$('pm-param-msg');if(pm)pm.textContent=P.params['32760'].msg;
+  // launch bounds table
+  const lt=$('pm-lb-tab');
+  if(lt){const ks=[['heavy_plain','no bounds'],['heavy_lb1024','__launch_bounds__(1024)'],['heavy_lb256x8','__launch_bounds__(256, 8)']];
+    const G=P.gpus;
+    let h='<table><thead><tr><th>Kernel</th>'+G.map(g=>'<th class="num">'+E(g.name)+' <small class="mute">'+g.arch+'</small></th>').join('')+'</tr></thead><tbody>';
+    ks.forEach(([k,lab])=>{h+='<tr><td><code>'+E(lab)+'</code></td>'+G.map(g=>{const r=P.occ[g.arch][k];
+      const sp=r.spill_st?'<br><span style="color:var(--bad)">'+fmt(r.spill_st)+' B spilled</span>':'<br><span class="mute">no spills</span>';
+      return '<td class="num">'+r.regs+' regs'+sp+'<br><b>'+P.occ_heavy[g.arch][k]+'%</b> occupancy</td>'}).join('')+'</tr>'});
+    lt.innerHTML=h+'</tbody></table>'}
+  // Python routes
+  const py=P.py;
+  const ns=py.numba_sim,np_=py.numba_ptx;
+  if($('pm-numba-res'))$('pm-numba-res').innerHTML='<span class="rd-pub">run here</span> With <code>NUMBA_ENABLE_CUDASIM=1</code> (numba '+E(py.versions.numba)+', numba-cuda '+E(py.versions.numba_cuda)+') both kernels really ran on the CPU: <code>scale</code> on '+fmt(ns.scale.n)+' elements as '+ns.scale.grid+' blocks of '+ns.scale.block+' threads, correct: <b>'+ns.scale.ok+'</b>; <code>block_sum</code> on 4 blocks of 256 gave '+ns.block_sum.got.join(', ')+', equal to NumPy: <b>'+ns.block_sum.ok+'</b>. Without the simulator, <code>cuda.compile_ptx</code> compiled <code>scale</code> to PTX for sm_90 with NVIDIA\'s NVVM, no GPU needed: '+np_.lines+' lines, <code>'+E(np_.target[0])+'</code>, '+np_.n_params+' kernel parameters for three Python arguments (each array arrives as a data pointer plus its size, shape and strides), and 64-bit index arithmetic (<code>mul.wide.s32</code>, <code>add.s64</code>), where the C++ kernel used 32-bit <code>int</code>. The body: <code>'+E(np_.body.filter(l=>/tid|ntid|ctaid|mul.wide|ld.f32|st.f32|setp/.test(l)).join('  |  '))+'</code>.';
+  const cr=py.cupy_raw;
+  if($('pm-cupy-res'))$('pm-cupy-res').innerHTML='<span class="rd-pub">run here</span> CuPy '+E(cr.cupy)+' created the <code>RawKernel</code> object, but compiling stopped at <code>'+E(cr.compile_error)+'</code>: the error comes from a CUDA runtime call made before compiling (CuPy compiles for the GPU it finds), so unlike nvcc it needs a driver even to compile. Its docs: code is compiled with NVRTC "at the point of first invocation" and cached (<a href="https://docs.cupy.dev/en/stable/user_guide/kernel.html" target="_blank" rel="noopener noreferrer">CuPy user guide</a>). The launch takes the grid, the block and a tuple of arguments; pass scalars as NumPy or CuPy scalars of the C type in the kernel (<code>cp.float32</code>, <code>cp.int32</code>), as the examples in the docs do.'.replace(/\{\{([^|{}]+)\|([^{}]+)\}\}/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  const te=py.torch_ext;
+  if($('pm-torch-res'))$('pm-torch-res').innerHTML='<span class="rd-pub">run here</span> With PyTorch '+E(te.torch)+' (a CPU-only build) the call failed with <code>'+E(te.build_error)+'</code>, even with <code>CUDA_HOME</code> set and nvcc installed: PyTorch disables CUDA extensions on a build without CUDA, by this line of <code>cpp_extension.py</code>: <code>'+E(py.torch_cuda_home.replace(/^\d+:/,''))+'</code>. So the PyTorch you build against must itself be a CUDA build.';
+  // predict-then-reveal
+  document.querySelectorAll('#t-read .rd-pr').forEach(card=>{const ans=card.querySelector('.ans');
+    card.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
+      card.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.ok)x.classList.add('right')});
+      if(!b.dataset.ok)b.classList.add('wrong');ans.hidden=false}))});
+  RD.tabLinks(document.getElementById('t-read'));
+})();
+</script>
+<script>/* 24_js_pm_index.js */
+// ---- Reading s2: which threads of a 2D block form each warp ----
+(function(){
+  const fig=document.getElementById('pm-ix-fig');if(!fig)return;
+  const cnt=document.getElementById('pm-ix-cnt');
+  const COL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--acc)','var(--closed)'];
+  const S={dx:32,dy:8,sel:null};
+  const BX=2,BY=1,COLS=4096; // the block shown is blockIdx (2, 1) of a 4,096-column matrix
+  // derived: a warp covers 32 consecutive linear ids; rows touched and 32-byte sectors per warp load
+  function warpGeom(dx){const per=Math.min(32,dx),rows=Math.ceil(32/per);return {rows,cols:per,sectors:rows*Math.ceil(per*4/32)}}
+  window.PM_IX=warpGeom; // used by the page check
+  function draw(){
+    const W=RD.width(fig),dx=S.dx,dy=S.dy,rowsShown=Math.min(dy,64);
+    const cell=Math.max(4,Math.min(18,Math.floor((W-48)/dx),Math.floor(300/rowsShown)));
+    const w=Math.max(Math.min(W,48+dx*cell+4),Math.min(W,380)),h=18+rowsShown*cell+(dy>rowsShown?18:4);
+    let b='';
+    b+=RD.t(46,12,'x = 0 .. '+(dx-1)+' (columns)',{fs:10.5,fill:'var(--mute)'});
+    for(let y=0;y<rowsShown;y++){
+      if(y%Math.max(1,Math.ceil(8/cell*2))===0||y===rowsShown-1)b+=RD.t(42,18+y*cell+cell*0.8,'y '+y,{a:'end',fs:Math.min(10,cell+3),fill:'var(--mute)'});
+      for(let x=0;x<dx;x++){const lin=x+y*dx,wp=lin>>5;
+        const on=S.sel&&S.sel.x===x&&S.sel.y===y;
+        b+='<rect data-x="'+x+'" data-y="'+y+'" x="'+(46+x*cell)+'" y="'+(18+y*cell)+'" width="'+Math.max(1,cell-1)+'" height="'+Math.max(1,cell-1)+'" style="fill:'+COL[wp%8]+';opacity:'+(wp%2?0.55:0.9)+';cursor:pointer"'+(on?' stroke="var(--ink)" stroke-width="2"':'')+'></rect>'}}
+    if(dy>rowsShown)b+=RD.t(46,18+rowsShown*cell+13,'rows '+rowsShown+' to '+(dy-1)+' continue the same way (warps '+(rowsShown*dx/32)+' to 7)',{fs:10.5,fill:'var(--mute)'});
+    fig.innerHTML=RD.svg(w,h,b,'Block of '+dx+' by '+dy+' threads coloured by warp');
+    const g=warpGeom(dx);
+    let st=RD.stat('Warp 0 covers',g.rows+' row'+(g.rows>1?'s':'')+' &times; '+g.cols+' cols','threads 0 to 31 by linear id')+
+      RD.stat('Sectors per warp load',g.sectors,'32-byte sectors, '+(g.sectors===4?'every byte used':'only '+Math.round(400/g.sectors)+'% of each used'));
+    if(S.sel){const x=S.sel.x,y=S.sel.y,lin=x+y*dx,r=BY*dy+y,c=BX*dx+x;
+      st+=RD.stat('threadIdx','('+x+', '+y+')','linear id '+lin+' = x + y&middot;'+dx)+RD.stat('Warp, lane','warp '+(lin>>5)+', lane '+(lin&31),'lane = linear id mod 32')+
+        RD.stat('In block (2, 1): element','row '+r+', col '+c,'offset '+(r*COLS+c).toLocaleString('en-US')+' = row &middot; 4,096 + col')}
+    else st+=RD.stat('Click a cell','','to see one thread\'s numbers');
+    cnt.innerHTML=st}
+  fig.addEventListener('click',e=>{const r=e.target.closest('rect[data-x]');if(!r)return;S.sel={x:+r.dataset.x,y:+r.dataset.y};draw()});
+  RD.seg(document.getElementById('pm-ix-mode'),m=>{const [a,b]=m.split('x').map(Number);S.dx=a;S.dy=b;S.sel=null;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
+<script>/* 25_js_pm_shfl.js */
+// ---- Reading s3: one warp's sum by shuffles against shared memory + barriers (same input) ----
+(function(){
+  const fig=document.getElementById('pm-sh-fig');if(!fig)return;
+  const cap=document.getElementById('pm-sh-cap'),cnt=document.getElementById('pm-sh-cnt');
+  const OFF=[16,8,4,2,1];
+  // precompute every step's values for both modes
+  function shflSteps(){const st=[{v:Array.from({length:32},(_,i)=>i+1),act:[],note:0}];
+    OFF.forEach((o,s)=>{const p=st[st.length-1].v,v=p.map((x,l)=>x+(l+o<32?p[l+o]:p[l]));st.push({v,off:o,s:s+1})});return st}
+  function smemSteps(){const st=[{v:Array.from({length:32},(_,i)=>i+1),s:0}];
+    OFF.forEach((k,s)=>{const p=st[st.length-1].v,v=p.slice();for(let t=0;t<k;t++)v[t]=p[t]+p[t+k];st.push({v,off:k,s:s+1})});return st}
+  const D={shfl:shflSteps(),smem:smemSteps()};
+  window.PM_SH=D; // checked by the page test: lane 0 ends at 528 in both modes
+  let mode='shfl';
+  function counters(i){if(mode==='shfl')return {SHFL:i,LDS:0,STS:0,BAR:0};
+    return {SHFL:0,LDS:i?2*i:0,STS:1+i,BAR:1+i}}
+  function draw(i){
+    const S=D[mode][i],W=RD.width(fig),cw=Math.max(18,Math.min(48,Math.floor((W-8)/16))),w=16*cw+8,h=2*(cw+16)+26;
+    let b='';
+    for(let l=0;l<32;l++){const r=l>>4,c=l&15,x=4+c*cw,y=14+r*(cw+18);
+      const used=mode==='shfl'?(i===0||l<32-S.off||false):(i===0||l<(S.off||32));
+      const live=i===0?true:(mode==='shfl'?l<(32>>i):l<(32>>i));
+      const fill=l===0&&i===5?'var(--good)':(live?'var(--acc2)':'var(--soft)');
+      b+='<rect x="'+x+'" y="'+y+'" width="'+(cw-3)+'" height="'+cw+'" rx="3" style="fill:'+fill+';stroke:var(--line)"></rect>';
+      b+=RD.t(x+(cw-3)/2,y+cw/2+4,S.v[l],{a:'middle',fs:Math.min(12,cw/2.4),fill:live?'var(--ink)':'var(--mute)'});
+      if(c%4===0)b+=RD.t(x,y-3,(mode==='shfl'?'lane ':'s[')+l+(mode==='shfl'?'':']'),{fs:9.5,fill:'var(--mute)'})}
+    b+=RD.t(4,h-4,mode==='shfl'?'values live in registers, one per lane':'values live in shared memory s[0..31]',{fs:10.5,fill:'var(--mute)'});
+    fig.innerHTML=RD.svg(w,h,b,'Thirty-two lanes and their values');
+    const c=counters(i);
+    let t,p;
+    if(i===0){t='Start: lane i holds i + 1';p=mode==='shfl'?'Each lane has one value in a register. Sum = 528.':'Each thread stores its value into shared memory (1 STS), then the block waits at __syncthreads() (1 BAR) so every store is visible.'}
+    else if(mode==='shfl'){t='Shuffle '+i+' of 5: add the value '+S.off+' lanes away';p='v += __shfl_down_sync(0xffffffff, v, '+S.off+'). Lanes '+(32-S.off)+' to 31 have no lane '+S.off+' above them and get their own value back; their results are never used. Lanes 0 to '+((32>>i)-1)+' carry the partial sums.'+(i===5?' Lane 0 now holds 528: five instructions, no memory, no barrier.':'')}
+    else{t='Level '+i+' of 5: threads 0 to '+(S.off-1)+' add s[t + '+S.off+']';p='Two shared-memory loads and one store per thread, then __syncthreads() so the next level reads finished values.'+(i===5?' s[0] = 528 after 10 loads, 6 stores and 6 barriers (reading the result is one more load).':'')}
+    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
+    cnt.innerHTML=RD.stat('SHFL',c.SHFL)+RD.stat('LDS (shared loads)',c.LDS)+RD.stat('STS (shared stores)',c.STS)+RD.stat('BAR (barriers)',c.BAR)}
+  const A=RD.anim({card:'pm-sh-card',ctl:'pm-sh-ctl',n:6,draw,ms:1500,label:'Reduction step'});
+  RD.seg(document.getElementById('pm-sh-mode'),m=>{mode=m;A.reset(6);A.play()});
+  RD.onResize(()=>A.redraw());
+})();
+</script>
+<script>/* 26_js_pm_race.js */
+// ---- Reading s4: a block tree sum with and without __syncthreads(), toy block of 16 threads in two warps of 8 ----
+(function(){
+  const fig=document.getElementById('pm-rc-fig');if(!fig)return;
+  const cap=document.getElementById('pm-rc-cap'),cnt=document.getElementById('pm-rc-cnt');
+  const X=[3,1,4,1,5,9,2,6,5,3,5,8,9,7,9,3];
+  function sim(bar){
+    const st=[];let s=new Array(16).fill(null),stale=0,owner=new Array(16).fill(-1);
+    const push=(o)=>st.push(Object.assign({s:s.slice(),owner:owner.slice(),stale},o));
+    const store=(w)=>{for(let t=8*w;t<8*w+8;t++){s[t]=X[t];owner[t]=w}};
+    const level=(k)=>{const rd=[];const p=s.slice();for(let t=0;t<k;t++){const a=p[t]===null?0:p[t],b=p[t+k];if(b===null){stale++;rd.push(t+k)}s[t]=a+(b===null?0:b);owner[t]=0}return rd};
+    push({t:'Start',p:'Both warps issue their load of x from global memory. Shared memory s[0..15] is empty.',w0:'loading x[0..7]',w1:'loading x[8..15]',arr:0});
+    store(0);
+    if(bar){
+      push({t:'Warp 0 stores and waits',p:'Warp 0\'s load arrived: s[0..7] written. It reaches __syncthreads() and waits: 8 of 16 threads have arrived.',w0:'waiting at the barrier',w1:'still loading (slow memory)',arr:8});
+      store(1);
+      push({t:'Warp 1 stores; the barrier opens',p:'Warp 1\'s load arrives late, s[8..15] written, it reaches the barrier: 16 of 16 arrived, everyone continues.',w0:'released',w1:'released',arr:16});
+      [8,4,2,1].forEach((k,i)=>{level(k);push({t:'Level k = '+k,p:'Threads 0 to '+(k-1)+' add s[t + '+k+'] into s[t], then all 16 meet at __syncthreads() again.',w0:'adding, then barrier',w1:k===8?'idle (t ≥ 8), at the barrier':'idle, at the barrier',arr:16,hi:k})});
+      push({t:'Result: 80',p:'Thread 0 writes s[0] = 80, the correct sum.',w0:'done',w1:'done',arr:16,res:s[0]});
+    }else{
+      push({t:'Warp 0 stores and runs on',p:'Warp 0\'s load arrived: s[0..7] written. There is no barrier, so it goes straight to the first level.',w0:'running',w1:'still loading (slow memory)',arr:0});
+      const rd=level(8);
+      push({t:'Level k = 8 reads empty slots',p:'Threads 0 to 7 read s[8..15] before warp 1 has written them: 8 stale reads, each taking an empty value (0 here; real shared memory holds leftovers).',w0:'level 8',w1:'still loading',arr:0,stale_at:rd,hi:8});
+      store(1);level(4);
+      push({t:'Warp 1 stores, too late',p:'Warp 1\'s values land in s[8..15] now, after they were needed. Warp 0 runs level 4.',w0:'level 4',w1:'stored, done',arr:0,hi:4});
+      level(2);push({t:'Level k = 2',p:'Warp 0 continues on its own partial sums.',w0:'level 2',w1:'done',arr:0,hi:2});
+      level(1);push({t:'Level k = 1',p:'s[0] now holds the sum of the first 8 values only.',w0:'level 1',w1:'done',arr:0,hi:1});
+      push({t:'Result: '+s[0]+' (should be 80)',p:'Thread 0 writes '+s[0]+'. Nothing crashed; the answer is simply wrong, and with different timing it would be wrong differently.',w0:'done',w1:'done',arr:0,res:s[0]});
+    }
+    return st}
+  const D={bar:sim(true),nobar:sim(false)};
+  window.PM_RC=D; // the page check reads the end states: 80 with the barrier, 31 and 8 stale reads without
+  let mode='bar';
+  function draw(i){
+    const S=D[mode][i];
+    let h='<div class="pm-lanes">'+X.map((_,t)=>'<div>'+t+'</div>').join('')+'</div>';
+    h+='<div class="pm-row"><span class="small mute">x (global)</span><div class="pm-mem">'+X.map((v,t)=>'<div class="'+(t<8?'w0':'w1')+'">'+v+'</div>').join('')+'</div></div>';
+    h+='<div class="pm-row"><span class="small mute">s (shared)</span><div class="pm-mem">'+S.s.map((v,t)=>{
+      const cls=[];if(v===null)cls.push('emp');else cls.push(S.owner[t]===1?'w1':'w0');if(S.stale_at&&S.stale_at.indexOf(t)>=0)cls.push('stale');
+      return '<div class="'+cls.join(' ')+'">'+(v===null?'·':v)+'</div>'}).join('')+'</div></div>';
+    h+='<div class="pm-row"><span class="small mute">warp 0 (t 0-7)</span><span class="small">'+S.w0+'</span></div>';
+    h+='<div class="pm-row"><span class="small mute">warp 1 (t 8-15)</span><span class="small">'+S.w1+'</span></div>';
+    fig.innerHTML=h;
+    cap.innerHTML='<div class="t">'+S.t+'</div><p>'+S.p+'</p>';
+    cnt.innerHTML=RD.stat('Step',(i+1)+' / '+D[mode].length)+RD.stat('At the barrier',mode==='bar'?S.arr+' / 16':'no barrier')+
+      RD.stat('Stale reads',S.stale)+RD.stat('Result',S.res===undefined?'...':S.res,S.res===undefined?'':(S.res===80?'correct':'wrong: want 80'))}
+  const A=RD.anim({card:'pm-rc-card',ctl:'pm-rc-ctl',n:D.bar.length,draw,ms:1700,label:'Race step'});
+  RD.seg(document.getElementById('pm-rc-mode'),m=>{mode=m;A.reset(D[m].length);A.play()});
+})();
+</script>
+<script>/* 27_js_pm_waves.js */
+// ---- Reading s5: wave quantization, NVIDIA's A100 example, N = 1536 against N = 1544 ----
+(function(){
+  const fig=document.getElementById('pm-wq-fig');if(!fig)return;
+  const cap=document.getElementById('pm-wq-cap'),cnt=document.getElementById('pm-wq-cnt'),P=window.PM.wq,SMS=108;
+  function steps(c){const out=[{t:0,run:0,done:0}];let done=0,t=0;
+    for(let w=0;w<c.waves;w++){const run=Math.min(SMS,c.tiles-done);out.push({t,run,done,w:w+1});done+=run;t+=1;
+      if(w===c.waves-1)out.push({t,run:0,done,end:1})}return out}
+  const D={before:steps(P.before),after:steps(P.after)};
+  let mode='before';
+  function draw(i){
+    const c=P[mode],S=D[mode][i],W=RD.width(fig);
+    const cols=12,rows=9,cell=Math.max(14,Math.min(34,Math.floor((Math.min(W,560)-8)/cols)));
+    const gw=cols*cell+8,tw=Math.max(gw,Math.min(W,560));
+    let b='';
+    for(let k=0;k<SMS;k++){const x=4+(k%cols)*cell,y=4+Math.floor(k/cols)*cell,busy=k<S.run;
+      b+='<rect x="'+x+'" y="'+y+'" width="'+(cell-3)+'" height="'+(cell-3)+'" rx="2" style="fill:'+(busy?(S.w===2?'var(--c2)':'var(--c1)'):'var(--soft)')+';stroke:var(--line)"></rect>'}
+    // time axis to scale: 2 tile-times wide
+    const ty=4+rows*cell+14,ax=4,aw=tw-8,u=aw/2;
+    b+=RD.t(ax,ty-3,'time (one unit = one tile)',{fs:10.5,fill:'var(--mute)'});
+    for(let w=0;w<c.waves;w++){const shown=(S.end||S.w>w+1)?1:(S.w===w+1?0.5:0);
+      if(shown)b+='<rect x="'+(ax+w*u)+'" y="'+ty+'" width="'+(u*(shown===1?1:0.5)-2)+'" height="12" rx="2" style="fill:'+(w===1?'var(--c2)':'var(--c1)')+';opacity:'+(shown===1?0.9:0.5)+'"></rect>'}
+    b+='<line x1="'+ax+'" x2="'+(ax+aw)+'" y1="'+(ty+16)+'" y2="'+(ty+16)+'" stroke="var(--line)"></line>';
+    [0,1,2].forEach(k=>{b+=RD.t(ax+k*u,ty+28,k,{a:k===0?'start':(k===2?'end':'middle'),fs:10,fill:'var(--mute)'})});
+    fig.innerHTML=RD.svg(tw,ty+32,b,'108 SMs and the tiles running on them');
+    const el=S.end?c.waves:(S.w?S.t+0.5:0);
+    const busy=S.end?c.tiles:(S.w?S.done+S.run*0.5:0);
+    const util=el?busy/(SMS*el):0;
+    let t,p;
+    if(i===0){t=c.tiles+' tiles to compute';p='M = 2,304 gives ceil(2304 / 256) = 9 tile rows; N = '+c.N.toLocaleString('en-US')+' gives ceil('+c.N+' / 128) = '+Math.ceil(c.N/128)+' tile columns: '+c.tiles+' tiles, one block each, one block per SM.'}
+    else if(S.end){t='Done after '+c.waves+' wave'+(c.waves>1?'s':'');p=c.waves===1?'Every SM ran exactly one tile: the GPU was full the whole time.':'The second wave ran '+c.last_wave_tiles+' tiles on '+c.last_wave_tiles+' SMs while '+(SMS-c.last_wave_tiles)+' sat idle, and it took as long as the first. 0.5% more work, twice the time: SM utilisation '+Math.round(c.util*1000)/10+'%.'}
+    else{t='Wave '+S.w+': '+S.run+' tiles running';p=S.w===1?'The first '+S.run+' tiles fill all 108 SMs.':'Only '+S.run+' tiles are left, so only '+S.run+' SMs work.'}
+    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
+    const rel=S.end?(c.tiles/c.waves)/(P.before.tiles/P.before.waves):null;
+    cnt.innerHTML=RD.stat('Tiles done',(S.end?c.tiles:S.done)+' / '+c.tiles)+RD.stat('Elapsed',el?el+' tile time'+(el===1?'':'s'):'0')+
+      RD.stat('SM utilisation',el?Math.round(util*1000)/10+'%':'...')+RD.stat('Throughput vs N = 1,536',rel===null?'...':Math.round(rel*100)+'%','work done per unit time')}
+  const A=RD.anim({card:'pm-wq-card',ctl:'pm-wq-ctl',n:D.before.length,draw,ms:1500,label:'Wave step'});
+  RD.seg(document.getElementById('pm-wq-mode'),m=>{mode=m;A.reset(D[m].length);A.play()});
+  RD.onResize(()=>A.redraw());
+  window.PM_WQ=D;
+})();
+</script>
+<script>/* 28_js_pm_charts.js */
+// ---- Reading s5 and s8: measured charts (Apple M1 Pro GPU) ----
+(function(){
+  const P=window.PM.m1;
+  function stair(){const fig=document.getElementById('pm-st-fig');if(!fig)return;
+    const W=Math.min(RD.width(fig),760),h=230,l=44,r=10,t=10,bt=36,pw=W-l-r,ph=h-t-bt;
+    const n=P.waves_ms.length,ymax=Math.ceil(Math.max(...P.waves_ms,...P.waves_runs.flat().filter(v=>v<10))+0.5);
+    const X=g=>l+(g-0.5)/n*pw,Y=v=>t+ph-(Math.min(v,ymax)/ymax)*ph;
+    let b='';
+    for(let y=0;y<=ymax;y+=2){b+='<line x1="'+l+'" x2="'+(l+pw)+'" y1="'+Y(y)+'" y2="'+Y(y)+'" stroke="var(--line)"></line>'+RD.t(l-5,Y(y)+4,y,{a:'end',fs:10,fill:'var(--mute)'})}
+    [16,32,48,64].forEach(g=>{b+='<line x1="'+(l+g/n*pw)+'" x2="'+(l+g/n*pw)+'" y1="'+t+'" y2="'+(t+ph)+'" stroke="var(--line)" stroke-dasharray="3 3"></line>'});
+    [1,16,32,48,64,72].forEach(g=>{b+=RD.t(X(g),t+ph+14,g,{a:'middle',fs:10,fill:'var(--mute)'})});
+    b+=RD.t(l+pw/2,h-4,'threadgroups of 1,024 threads launched',{a:'middle',fs:10.5,fill:'var(--mute)'});
+    b+=RD.t(4,t+8,'ms',{fs:10,fill:'var(--mute)'});
+    P.waves_runs.forEach(run=>run.forEach((v,g)=>{if(v<ymax)b+='<circle cx="'+X(g+1)+'" cy="'+Y(v)+'" r="1.8" style="fill:var(--mute);opacity:.5"></circle>'}));
+    let d='';P.waves_ms.forEach((v,g)=>{d+=(g?'L':'M')+X(g+1).toFixed(1)+' '+Y(v).toFixed(1)});
+    b+='<path d="'+d+'" fill="none" stroke="var(--acc)" stroke-width="2"></path>';
+    fig.innerHTML=RD.svg(W,h,b,'Kernel time against number of threadgroups, M1 Pro')}
+  function launch(){const fig=document.getElementById('pm-lc-fig');if(!fig)return;
+    const L=P.launch,W=Math.min(RD.width(fig),760),lw=Math.min(170,W*0.42),h=74,mx=L.us_wait_each;
+    const rows=[['Launch, then wait',L.us_wait_each,'var(--c2)'],['Queued, wait once',L.us_per_queued,'var(--c1)']];
+    let b='';rows.forEach((r,i)=>{const y=6+i*32,bw=Math.max(2,(W-lw-60)*r[1]/mx);
+      b+=RD.t(lw-6,y+15,r[0],{a:'end',fs:11.5});b+='<rect x="'+lw+'" y="'+y+'" width="'+bw+'" height="20" rx="3" style="fill:'+r[2]+'"></rect>';
+      b+=RD.t(lw+bw+5,y+15,r[1]+' µs',{fs:11.5,w:600})});
+    fig.innerHTML=RD.svg(W,h,b,'Microseconds per kernel launch, M1 Pro through MLX')}
+  const all=()=>{stair();launch()};
+  RD.onRender(all);RD.onResize(all);all();
+})();
+</script>
+<script>/* 31_js_plan.js */
+// ---- Launch planner tab: occupancy (port of cuda_occupancy.h), suggestion, waves ----
+window.PMOCC=(function(){
+  const ARCH={sm_80:{cc:80,maxW:64,maxB:32,smemSM:164*1024,smemBlock:163*1024},
+    sm_90a:{cc:90,maxW:64,maxB:32,smemSM:228*1024,smemBlock:227*1024},
+    sm_100a:{cc:100,maxW:64,maxB:32,smemSM:228*1024,smemBlock:227*1024},
+    sm_120:{cc:120,maxW:48,maxB:24,smemSM:100*1024,smemBlock:99*1024}};
+  const ru=(x,y)=>Math.ceil(x/y)*y,BIG=1e9;
+  function blocks(arch,regs,smem,block,bars,maxT){
+    if(block>maxT)return {n:0,lim:'launch bounds'};
+    const a=ARCH[arch],wc=Math.ceil(block/32);
+    const limW=Math.floor(a.maxW/wc);
+    const rpw=ru(regs*32,256);let limR;
+    if(rpw*ru(wc,4)>65536||rpw*wc>65536||regs>256)limR=0;else if(rpw>0)limR=Math.floor(Math.floor(16384/rpw)*4/wc);else limR=BIG;
+    const per=ru(smem+1024,128);let limS=Math.floor(a.smemSM/per);if(smem>a.smemBlock)limS=0;
+    let lims={registers:limR,'shared memory':limS,'warps':limW,'block slots':a.maxB};
+    if(bars){const k=(a.cc===80||a.cc===90||a.cc===100)?2:1;lims.barriers=Math.floor(a.maxB*k/bars)}
+    let n=BIG,lim='';Object.keys(lims).forEach(k=>{if(lims[k]<n){n=lims[k];lim=k}});
+    return {n,lim,lims,wc}}
+  function suggest(arch,regs,smem,bars,maxT,sms){const limit=ARCH[arch].maxW*32,top=Math.min(1024,maxT);let best=[0,0,0];
+    for(let b=ru(top,32);b>0;b-=32){const bt=Math.min(top,b),r=blocks(arch,regs,smem,bt,bars,maxT).n;
+      if(bt*r>best[0])best=[bt*r,bt,r];if(best[0]===limit)break}
+    return {block:best[1],minGrid:best[2]*sms}}
+  return {ARCH,blocks,suggest};
+})();
+(function(){
+  const P=window.PM,O=window.PMOCC,$=id=>document.getElementById(id);
+  if(!$('pl-gpu'))return;
+  const KN={scale_1d:'scale (one per element)',scale_stride:'scale (grid-stride)',block_sum:'block_sum (shared memory)',hist_shared:'hist_shared (shared atomics)',
+    two_phase:'two_phase (grid sync)',cluster_exchange:'cluster_exchange (sm_90+)',heavy_plain:'heavy_plain (128 regs)',heavy_lb1024:'heavy_lb1024',heavy_lb256x8:'heavy_lb256x8'};
+  const LC={registers:'var(--c2)','shared memory':'var(--c4)',warps:'var(--c1)','block slots':'var(--c3)',barriers:'var(--c5)','launch bounds':'var(--dim)'};
+  $('pl-gpu').innerHTML=P.gpus.map((g,i)=>'<option value="'+i+'"'+(g.arch==='sm_90a'?' selected':'')+'>'+g.name+' ('+g.arch+', '+g.sms+' SMs)</option>').join('');
+  $('pl-k').innerHTML=Object.keys(KN).map(k=>'<option value="'+k+'">'+KN[k]+'</option>').join('')+'<option value="custom">Custom</option>';
+  $('pl-chk').textContent=P.occ_check.cases.toLocaleString('en-US')+' of '+P.occ_check.cases.toLocaleString('en-US')+' values ('+P.occ_check.mismatches+' mismatches; '+P.occ_check.kernels+' kernel and GPU pairs, every block size from 32 to 1,024 plus the suggestion)';
+  $('pl-leg').innerHTML=Object.keys(LC).map(k=>'<span style="--sw:'+LC[k]+'">limited by '+k+'</span>').join('');
+  const S={g:1,k:'scale_1d',regs:10,smem:0,bars:0,maxT:1024};
+  function loadPreset(){const g=P.gpus[S.g],r=P.occ[g.arch][S.k];
+    if(S.k==='custom'){S.missing=false;return}
+    if(!r){S.missing=true;return}S.missing=false;S.regs=r.regs;S.smem=r.smem;S.bars=r.bars;S.maxT=r.maxT;
+    $('pl-reg').value=S.regs;$('pl-sm').value=S.smem;$('pl-bar').value=String(Math.min(1,S.bars));$('pl-maxt').value=String(S.maxT)}
+  function render(){
+    const g=P.gpus[S.g],a=O.ARCH[g.arch],B=+$('pl-b').value,n=Math.max(1,+$('pl-n').value||1),mode=$('pl-mode').value;
+    $('pl-regv').textContent=S.regs;$('pl-smv').textContent=S.smem.toLocaleString('en-US');$('pl-bv').textContent=B;
+    const ctlOff=S.k!=='custom';['pl-reg','pl-sm','pl-bar','pl-maxt'].forEach(id=>{$(id).disabled=ctlOff});
+    if(S.missing){$('pl-out').innerHTML=RD.stat('Not compiled for '+g.arch,'n/a','clusters need compute capability 9.0 or later: nvcc refused sm_80');$('pl-fig').innerHTML='';$('pl-note').textContent='';return}
+    const r=O.blocks(g.arch,S.regs,S.smem,B,S.bars,S.maxT),occ=r.n*Math.ceil(B/32)/a.maxW;
+    const sg=O.suggest(g.arch,S.regs,S.smem,S.bars,S.maxT,g.sms);
+    const perWave=r.n*g.sms;
+    let grid=mode==='elem'?Math.ceil(n/B):(mode==='rows'?n:perWave);
+    const waves=perWave?Math.ceil(grid/perWave):Infinity,last=perWave?grid-(waves-1)*perWave:0;
+    let o=RD.stat('Blocks per SM',r.n,r.n?'limited by '+r.lim:'does not fit: '+r.lim)+RD.stat('Occupancy',Math.round(occ*1000)/10+'%',(r.n*Math.ceil(B/32))+' of '+a.maxW+' warps')+
+      RD.stat('Suggested block size',sg.block||'none','CUDA occupancy API; min grid '+sg.minGrid.toLocaleString('en-US'))+
+      RD.stat('Grid',grid.toLocaleString('en-US')+' blocks',mode==='stride'?'= '+g.sms+' SMs &times; '+r.n:(mode==='elem'?'ceil(n / block)':'one per row'))+
+      RD.stat('Waves',isFinite(waves)?waves.toLocaleString('en-US'):'none',perWave?perWave.toLocaleString('en-US')+' blocks per wave':'')+
+      RD.stat('Last wave',perWave?Math.round(1000*last/perWave)/10+'% full':'n/a',perWave&&waves>1?'tail cost: '+Math.round(1000*(1-last/perWave)/waves)/10+'% of the run idle':'')+
+      RD.stat('Cooperative launch max',perWave.toLocaleString('en-US')+' blocks','grid.sync() needs grid &le; this');
+    if(mode==='stride')o+=RD.stat('Elements per thread',grid?Math.ceil(n/(grid*B)).toLocaleString('en-US'):'n/a',grid?'grid-stride iterations, at most':'nothing fits');
+    $('pl-out').innerHTML=o;
+    // occupancy for every block size
+    const W=Math.min(RD.width($('pl-fig')),860),h=170,l=34,bt=30,pw=W-l-6,ph=h-bt-8,bw=pw/32;
+    let b='';[0,50,100].forEach(p=>{const y=8+ph-ph*p/100;b+='<line x1="'+l+'" x2="'+(l+pw)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"></line>'+RD.t(l-4,y+4,p+'%',{a:'end',fs:10,fill:'var(--mute)'})});
+    for(let k=0;k<32;k++){const bs=32*(k+1),q=O.blocks(g.arch,S.regs,S.smem,bs,S.bars,S.maxT),oc=q.n*(k+1)/a.maxW,y=8+ph-ph*oc;
+      b+='<rect x="'+(l+k*bw+1)+'" y="'+y+'" width="'+Math.max(1,bw-2)+'" height="'+Math.max(0,ph*oc)+'" style="fill:'+LC[q.lim]+';opacity:'+(bs===B?1:0.55)+'"'+(bs===B?' stroke="var(--ink)" stroke-width="1.5"':'')+'></rect>';
+      if(bs===sg.block)b+=RD.t(l+k*bw+bw/2,y-3,'▼',{a:'middle',fs:10,fill:'var(--ink)'});
+      if(k%4===3||k===0)b+=RD.t(l+k*bw+bw/2,8+ph+13,bs,{a:'middle',fs:9.5,fill:'var(--mute)'})}
+    b+=RD.t(l+pw/2,h-3,'block size (threads); ▼ = suggested; outlined = chosen',{a:'middle',fs:10,fill:'var(--mute)'});
+    $('pl-fig').innerHTML=RD.svg(W,h,b,'Occupancy for every block size');
+    const rr=P.occ[g.arch][S.k];
+    $('pl-note').innerHTML=S.k==='custom'?'Custom values: same rules, not run through the header.':
+      'Preset from ptxas: '+rr.regs+' registers, '+rr.smem+' B static shared memory, '+rr.bars+' barrier'+(rr.bars===1?'':'s')+(rr.spill_st?', '+rr.spill_st.toLocaleString('en-US')+' B of spill stores':'')+(rr.maxT<1024?', launch bounds '+rr.maxT+' threads':'')+'. NVIDIA\'s header gives '+rr.blocks[B/32-1]+' blocks per SM at this block size.'}
+  $('pl-gpu').addEventListener('change',e=>{S.g=+e.target.value;loadPreset();render()});
+  $('pl-k').addEventListener('change',e=>{S.k=e.target.value;loadPreset();render()});
+  $('pl-reg').addEventListener('input',e=>{S.regs=+e.target.value;render()});
+  $('pl-sm').addEventListener('input',e=>{S.smem=+e.target.value;render()});
+  $('pl-bar').addEventListener('change',e=>{S.bars=+e.target.value;render()});
+  $('pl-maxt').addEventListener('change',e=>{S.maxT=+e.target.value;render()});
+  ['pl-b','pl-n'].forEach(id=>$(id).addEventListener('input',render));$('pl-mode').addEventListener('change',render);
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-plan']=window.TAB_RENDER['t-plan']||[]).push(render);
+  addEventListener('resize',()=>{if(!$('t-plan').hidden)render()});
+  loadPreset();render();
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('cuda-pm-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('cuda-pm-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  show(start,false);
+})();
+</script>
+</div></body></html>

@@ -1,0 +1,31 @@
+<section id="pm-s1">
+<h2>1. A complete CUDA program, line by line</h2>
+<p><b>The problem.</b> The CPU (the <dfn>host</dfn>) and the GPU (the <dfn>device</dfn>) have separate memories and run separate code. A CUDA program is ordinary C++ for the host plus functions marked to run on the device, and it must move data across, start the work, wait for it and move results back. Here is the whole of it for the elementwise step, <code>y = a * x</code> on a million floats. It is a real file, compiled here with nvcc for sm_90a (H100) <span class="rd-pub">compiled here</span>.</p>
+<pre class="rd-code"><span class="k">__global__</span> void scale(const float* x, float* y, float a, int n) {   <span class="c">// runs on the GPU</span>
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i &lt; n) y[i] = a * x[i];
+}
+int main() {
+  const int n = 1 &lt;&lt; 20;                                 <span class="c">// 1,048,576 elements</span>
+  std::vector&lt;float&gt; hx(n), hy(n);                       <span class="c">// host arrays</span>
+  float *dx, *dy;                                        <span class="c">// device pointers: not usable on the CPU</span>
+  CUDA_CHECK(cudaMalloc(&amp;dx, n * sizeof(float)));        <span class="c">// 1 allocate GPU memory</span>
+  CUDA_CHECK(cudaMalloc(&amp;dy, n * sizeof(float)));
+  CUDA_CHECK(cudaMemcpy(dx, hx.data(), n * sizeof(float), cudaMemcpyHostToDevice));  <span class="c">// 2 copy in</span>
+  int block = 256, grid = (n + block - 1) / block;       <span class="c">// 3 choose the launch: 4,096 blocks of 256</span>
+  scale&lt;&lt;&lt;grid, block&gt;&gt;&gt;(dx, dy, 2.0f, n);               <span class="c">// 4 launch (returns at once)</span>
+  CUDA_CHECK(cudaGetLastError());                        <span class="c">//   was the launch itself valid?</span>
+  CUDA_CHECK(cudaMemcpy(hy.data(), dy, n * sizeof(float), cudaMemcpyDeviceToHost));  <span class="c">// 5 copy out (waits)</span>
+  <span class="c">// 6 compare hy with 2 * hx on the CPU;  7 cudaFree(dx); cudaFree(dy);</span>
+}</pre>
+<p class="small mute">Full source with the <code>CUDA_CHECK</code> macro and the CPU check: <code>src/cuda/host/first_program.cu</code>. Compiled with exit code <span data-pmv="first_program.compile_exit">0</span>; run in the container, which has no GPU or driver, it stopped at its first CUDA call (line 19, the first <code>cudaMalloc</code>) with <code>CUDA driver version is insufficient for CUDA runtime version</code>, exactly as the error check is meant to. Compiling needs no GPU; running does.</p>
+<p><b>The three function markers.</b> <code>__global__</code> marks a <b>kernel</b>: it runs on the device and is launched from the host (it returns <code>void</code>; results go through pointers). <code>__device__</code> marks a helper that runs on the device and is called only from device code. <code>__host__ __device__</code> compiles a function for both sides, the usual way to share small maths (the {{CUDA Programming Guide, section 2.1|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html}} <span class="rd-vend">vendor doc</span>). nvcc splits the file: host code goes to the normal C++ compiler, device code to NVIDIA's compiler, and the device machine code is embedded in the executable ({{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}} has the details).</p>
+<p><b>The launch.</b> <code>scale&lt;&lt;&lt;grid, block&gt;&gt;&gt;(...)</code> is the <dfn>execution configuration</dfn>: <code>grid</code> blocks of <code>block</code> threads each, here 4,096 &times; 256 = 1,048,576 threads, one per element. Two more optional arguments follow: bytes of <b>dynamic shared memory</b> per block and the <b>stream</b> to queue on, <code>&lt;&lt;&lt;grid, block, smemBytes, stream&gt;&gt;&gt;</code>. "Kernel launches are asynchronous with respect to the host thread" (Programming Guide, 2.1.4): the call queues the work and returns. That is why step 5 is where the program waits: "The <code>cudaMemcpy</code> API is synchronous. That is, it does not return until the copy has completed" (2.1.3.2), and a copy queued after the kernel on the same stream starts only after the kernel ends.</p>
+<p><b>What the GPU actually runs.</b> Below is the real SASS (the GPU's machine code) ptxas produced for <code>scale</code> on sm_90a, the whole kernel. Read it once: it shows that the "thread index" is just two special registers and one multiply-add.</p>
+<pre class="rd-code sass" id="pm-sass-scale"></pre>
+<p class="small mute"><code>S2R R0, SR_TID.X</code> and <code>S2UR UR4, SR_CTAID.X</code> read <code>threadIdx.x</code> and <code>blockIdx.x</code> from special registers; <code>LDC R7, c[0x0][RZ]</code> loads <code>blockDim.x</code> from the constant bank where the launch put it; <code>IMAD</code> is the index; <code>ISETP</code> and <code>@P0 EXIT</code> are the bounds check (threads past <code>n</code> simply exit); <code>c[0x0][0x210]</code> and up are the kernel's arguments, also delivered in the constant bank; <code>LDG</code>, <code>FMUL</code>, <code>STG</code> are the load, multiply and store. Each instruction is issued once per warp of 32 threads. <span class="rd-pub">compiled here</span></p>
+<div class="rd-pr"><div class="q">Predict: n = 1,000,000 and block = 256. How many threads does the launch start, and how many do no work?</div>
+<div class="opts"><button data-v="a">1,000,000 and 0</button><button data-v="b" data-ok="1">1,000,192 and 192</button><button data-v="c">1,000,448 and 448</button></div>
+<div class="ans" hidden>grid = ceil(1,000,000 / 256) = 3,907 blocks, so 3,907 &times; 256 = 1,000,192 threads <span class="rd-der">derived</span>. The last 192 fail <code>i &lt; n</code> and exit at once. Without that check they would read and write past the end of the arrays: the classic first-kernel bug (section 6).</div></div>
+<div class="deepnote"><b>Go deeper:</b> the same <code>vadd</code> kernel compiled for four generations, with PTX and SASS side by side, is in the root's {{Compiler explorer|n:3c65c17b0d0d81c39f34d5e070d783c1}} tab; how a launch reaches the device through the driver is on {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}.</div>
+</section>
