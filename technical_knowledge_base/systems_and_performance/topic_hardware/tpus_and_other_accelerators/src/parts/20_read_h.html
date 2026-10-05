@@ -1,0 +1,42 @@
+<section id="rd-s9">
+<h2>9. What each machine changes in your training code</h2>
+<p>For a PyTorch user on NVIDIA GPUs, the question is how far each machine is from the code you already have. One row per decision you would actually face:</p>
+<div class="tw"><table class="tbl-sm six">
+<tr><th></th><th>NVIDIA GPU (baseline)</th><th>AMD Instinct</th><th>Google TPU</th><th>AWS Trainium</th><th>Groq</th><th>Cerebras</th></tr>
+<tr><td>Framework path</td><td>PyTorch eager, torch.compile</td><td>The same PyTorch API on a ROCm build</td><td>JAX (native) or PyTorch/XLA; whole graphs compiled by XLA</td><td>TorchNeuron (native device, beta) or the older XLA path; JAX in beta</td><td>Not for training; an inference API</td><td>cerebras.pytorch, its own compile and optimizers</td></tr>
+<tr><td>Shapes</td><td>Dynamic is fine (recompiles under torch.compile)</td><td>Dynamic is fine</td><td>Static: a new shape is a new compilation; pad to 128 (256 on v6e)</td><td>Static on the XLA path; tiles bounded by 128 partitions</td><td>Fixed by the compiler's schedule</td><td>Compiled per model and batch</td></tr>
+<tr><td>Custom kernels</td><td>CUDA C++, Triton</td><td>HIP (HIPIFY from CUDA), Triton; wavefront of 64</td><td>Pallas (Mosaic)</td><td>NKI</td><td>No public kernel language</td><td>CSL, per core</td></tr>
+<tr><td>Collectives</td><td>NCCL</td><td>RCCL</td><td>Inserted by XLA from your shardings, over ICI</td><td>Neuron collectives over NeuronLink</td><td>Scheduled by the compiler</td><td>SwarmX broadcast and reduce</td></tr>
+<tr><td>Parallelism you choose</td><td>DP, FSDP, TP inside NVLink, PP, EP, CP</td><td>Same, TP inside the 8-GPU board</td><td>A mesh of named axes mapped onto the torus; FSDP and TP across hundreds of chips before PP</td><td>FSDP, DDP, TP (TorchNeuron); 16 to 144 chips per scale-up domain</td><td>n/a</td><td>Data parallel only; model size set by MemoryX</td></tr>
+<tr><td>Where it is better</td><td>Everything works first</td><td>Memory per GPU, price</td><td>Pod scale on one fabric, cost per FLOP when it is rented</td><td>Price on AWS</td><td>Decode latency</td><td>Tokens per second per user; no model parallelism to tune</td></tr>
+<tr><td>Main cost</td><td>Price, supply</td><td>Kernels and libraries behind CUDA</td><td>Porting to JAX/XLA; one vendor; static shapes</td><td>Porting to Neuron; AWS only</td><td>Hundreds of chips per model</td><td>Its own stack and whole systems</td></tr>
+</table></div>
+<p class="small mute">Every entry is sourced in sections 2 to 8. "Dynamic is fine" means eager PyTorch accepts any shape; compiled paths specialise on shapes everywhere.</p>
+<div class="co key"><div class="t">The checklist before you port a training job</div>
+<ol>
+<li><b>Does your model's arithmetic land on the matrix units?</b> Matmul dimensions multiples of 128 (or 256), batch per chip well above the array's side; elementwise-heavy or custom ops run on the slow vector units.</li>
+<li><b>Are your shapes static?</b> Variable sequence lengths mean padding or bucketing on TPU and Trainium, or recompiling every step.</li>
+<li><b>Which custom ops do you rely on?</b> FlashAttention variants, fused optimizers, MoE routing kernels: each must exist for the target (Pallas, NKI, HIP or Triton on AMD) or be written.</li>
+<li><b>How big is the scale-up domain, and what shape?</b> 8 GPUs on an AMD board, 72 on an NVL72 rack, 16 to 144 Trainium chips, thousands of TPUs on one torus: this decides how far tensor and expert parallelism can stretch (the root's "Joining chips" section).</li>
+<li><b>Measure, then cost.</b> Spec sheets do not rank chips: compare achieved throughput on your model at the same precision, then price per hour (the root's Performance calculator and Chip atlas).</li>
+</ol></div>
+</section>
+
+<section id="rd-s10">
+<h2>10. Common mistakes and interview questions</h2>
+<details class="mist"><summary>"A TPU is just a GPU from Google."</summary><div class="b">It has no threads, no warps and no caches: a few big cores with systolic arrays, a vector unit and a scratchpad, all scheduled ahead of time by a compiler. It is closer to a very wide VLIW processor than to a GPU (section 2).</div></details>
+<details class="mist"><summary>"The systolic array is faster because it does more arithmetic."</summary><div class="b">Per cycle it does one multiply-add per cell, like any other multiply-add unit. It wins by fetching each operand once per tile instead of once per use, which saves energy and register ports; on tiny problems it is slower (section 1's animation: 15 cycles against 8).</div></details>
+<details class="mist"><summary>Comparing an fp8 pod against an fp64 supercomputer.</summary><div class="b">Google's "24x El Capitan" divides fp8 exaflops by fp64 Linpack exaflops. Always compare at the same precision, dense on both sides (section 3).</div></details>
+<details class="mist"><summary>Assuming every slice gets the torus.</summary><div class="b">Slices smaller than a 4 &times; 4 &times; 4 cube have no optical wraparound, which "typically doubles the time of most communication"; v5e only wraps an axis of 16 (section 4).</div></details>
+<details class="mist"><summary>Porting a CUDA kernel to AMD with a warp size of 32.</summary><div class="b">CDNA 3 and 4 run 64-thread wavefronts. Lane masks, shuffles and reductions written for 32 break silently (section 5).</div></details>
+<details class="mist"><summary>"Groq and Cerebras are faster chips."</summary><div class="b">They are faster at one thing, generating tokens for one user, because the weights sit in SRAM. Per chip they hold far less: 70B in bf16 needs hundreds of Groq chips or four wafers (section 7).</div></details>
+<h3>Interview questions, short answers</h3>
+<details class="qa"><summary>Why does a systolic array save energy?</summary><div>Each weight is loaded into a cell once and reused for every row of input; each input is read once at the edge and passed cell to cell; partial sums move to the neighbour. Operand fetches from storage per multiply-add fall from about 2 to about 1/side, and a storage access costs several times the multiply-add itself (Horowitz: ~6 pJ register file against ~2 pJ for a bf16 multiply with fp32 add, at 45 nm).</div></details>
+<details class="qa"><summary>How long does one tile take on a weight-stationary array?</summary><div>M + K + N &minus; 2 cycles after the weights are loaded: the skew and the diagonal wave add K + N &minus; 2 to the M rows. With double-buffered weights a big matmul costs about tiles &times; max(M, side).</div></details>
+<details class="qa"><summary>Why must TPU matrix dimensions be multiples of 128?</summary><div>The MXU is a 128 &times; 128 array (256 on v6e); a dimension of 130 needs two tiles, the second almost empty, so utilisation can fall to about a quarter.</div></details>
+<details class="qa"><summary>What does an optical circuit switch do in a TPU pod?</summary><div>MEMS mirrors connect the faces of 64-chip cubes, like a plugboard: they build each job's slice as a torus of the requested shape, route around failed cubes and allow twisted tori, for under 5% of system cost and 3% of power (TPU v4).</div></details>
+<details class="qa"><summary>All-reduce on a TPU axis: how does time scale with the number of chips?</summary><div>With a wraparound (a ring both ways), it is about 2V / W<sub>bidi</sub>, independent of the axis length; without the wraparound it roughly doubles; spreading over 3 axes divides it by 3.</div></details>
+<details class="qa"><summary>MI300X vs H100 in one sentence each.</summary><div>MI300X: 8 compute chiplets, 304 CUs, 192 GB at 5.3 TB/s, 1,307 dense bf16 TFLOPS, 8 GPUs fully connected without a switch, ROCm. H100: one die, 132 SMs, 80 GB at 3.35 TB/s, 989.5 dense bf16, NVSwitch, CUDA. Achieved throughput, not the peak, decides.</div></details>
+<details class="qa"><summary>How does Cerebras train a model that does not fit on the wafer?</summary><div>Weight streaming: weights and optimizer state live in MemoryX; each layer's weights are broadcast to all wafers, which run data-parallel shards of the batch; gradients are summed on the way back and MemoryX updates the weights. Activations stay on the wafer.</div></details>
+<details class="qa"><summary>When would you not use a TPU?</summary><div>When the model needs dynamic shapes or control flow, custom kernels that exist only in CUDA, or ops that do not map to big matmuls, or when the team cannot move off PyTorch's GPU ecosystem.</div></details>
+</section>
