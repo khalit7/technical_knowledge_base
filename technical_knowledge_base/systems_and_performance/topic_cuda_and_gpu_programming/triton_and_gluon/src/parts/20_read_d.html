@@ -1,0 +1,52 @@
+<section id="rd-s7">
+<h2>7. What the compiler does, stage by stage</h2>
+<p>When performance surprises you, the answer is in one of five files the compiler writes for every kernel. Each is a lower <dfn>intermediate representation</dfn> (IR) of the same program; the first two are <dfn>MLIR</dfn> dialects (MLIR is LLVM's framework for building compilers out of custom IRs and passes over them).</p>
+<div class="stepbox" id="rd-stages"></div>
+<p class="small mute">Line counts are for the tutorial-style FP16 matmul compiled for sm_90a <span class="ev cmp">compiled here</span>. Gluon (section 10) skips the first box: a Gluon kernel is written directly at the TTGIR level, and its compile produces no TTIR at all.</p>
+<p><b>The passes.</b> Between TTIR and LLVM IR the compiler runs a fixed sequence of passes. Dumping the IR before each one (<code>MLIR_ENABLE_DUMP=1</code>) for the matmul on sm_90a gives <span id="rd-npass"></span>. Click a cell to see what that pass did to this kernel:</p>
+<div class="card" id="rd-pass-card">
+<div class="seg" id="rd-pass-k"><button data-m="matmul.sm_90a" class="on">matmul, sm_90a</button><button data-m="matmul.sm_80">matmul, sm_80</button><button data-m="vadd.sm_90a">vector add, sm_90a</button></div>
+<div class="tgviz" id="rd-pass-strip"></div>
+<div class="an-cap" id="rd-pass-cap"></div>
+<p class="small mute">One cell per pass, in order. Filled: the IR changed. Colour: TTIR clean-up (grey), layouts (blue), matmul and operands (orange), loops and pipelining (green), memory allocation and barriers (purple), lowering to LLVM (yellow). Descriptions are our reading of each pass's effect on these kernels' IR.</p>
+</div>
+<h3>Before and after the two passes that matter most for a matmul</h3>
+<div class="card" id="rd-ba-card">
+<div class="seg" id="rd-ba-mode"><button data-m="acc" class="on">accelerate-matmul</button><button data-m="pipe">pipeline</button></div>
+<div class="seg" id="rd-ba-side"><button data-m="before" class="on">Before</button><button data-m="after">After</button></div>
+<pre class="tg-pre" id="rd-ba-ir" style="max-height:340px;overflow:auto"></pre>
+<div class="an-cap" id="rd-ba-cap"></div>
+<p class="small mute">The matmul's TTGIR on sm_90a, debug locations removed, long lines cut; for the larger IR only layout definitions and the lines with the operations discussed are kept. Full stages for every kernel and target are in the {{Compiler stages|#t-ir}} tab.</p>
+</div>
+<h3>Looking yourself</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>You want</th><th>Do this</th></tr></thead>
+<tbody>
+<tr><td>Check the maths on a laptop, no GPU</td><td><code>TRITON_INTERPRET=1</code>: runs the kernel body in NumPy, one program at a time; <code>print</code> and breakpoints work. It cannot find races, speed or compiler bugs.</td></tr>
+<tr><td>Every stage of a compiled kernel</td><td><code>k = kernel[grid](...)</code> returns the compiled kernel; <code>k.asm</code> has <code>"ttir"</code>, <code>"ttgir"</code>, <code>"llir"</code>, <code>"ptx"</code>, <code>"cubin"</code> (AMD: <code>"amdgcn"</code>, <code>"hsaco"</code>; Gluon tutorial 02 also reads <code>"sass"</code> on a machine with a GPU); <code>k.metadata.shared</code>, <code>k.n_regs</code>, <code>k.n_spills</code> after loading.</td></tr>
+<tr><td>Compile for a GPU you do not have</td><td><code>triton.compile(ASTSource(fn, signature, constexprs, attrs), target=GPUTarget("cuda", 90, 32))</code>: how every compiled number on this page was made (<code>src/code/compile_tg.py</code>).</td></tr>
+<tr><td>The IR before every pass</td><td><code>MLIR_ENABLE_DUMP=1</code> (to stderr); <code>TRITON_KERNEL_DUMP=1</code> writes each stage to <code>TRITON_DUMP_DIR</code>.</td></tr>
+<tr><td>Profile it on a GPU</td><td>Nsight Compute and Nsight Systems see Triton kernels like any other ({{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}); Triton also bundles its own profiler, Proton (<code>triton.profiler</code>, importable in 3.8.0 here) <span class="ev not">not run here</span>.</td></tr>
+<tr><td>Force recompiling, or edit the IR and run that</td><td><code>TRITON_ALWAYS_COMPILE=1</code>; <code>TRITON_KERNEL_OVERRIDE=1</code> loads stages you edited from the override directory.</td></tr>
+</tbody></table></div>
+<p class="small">Environment variables as defined in {{knobs.py|https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/knobs.py}} (3.8.0); the SASS is from NVIDIA's <code>cuobjdump</code>, the same way the {{Compiler explorer|n:3c65c17b0d0d81c39f34d5e070d783c1}} on the parent page reads CUDA C++. PTX, SASS, NVRTC and LLVM's NVPTX back end as such are the subject of {{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}}.</p>
+</section>
+
+<section id="rd-s8">
+<h2>8. Layouts: the idea Triton hides and Gluon exposes</h2>
+<p>Every block in TTGIR carries a <dfn>layout</dfn>: the rule that says which register of which thread of which warp holds each element. The vector add of section 1 had the simplest, <code>#ttg.blocked&lt;{sizePerThread = [4], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}&gt;</code>. For 2D blocks the four fields read like this (from Gluon's {{layouts tutorial|https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/gluon/02-layouts.py}}): each thread owns a <code>sizePerThread</code> sub-tile; threads tile it <code>threadsPerWarp</code> times; warps tile that <code>warpsPerCTA</code> times; <code>order</code> says which dimension is filled first (<code>[1, 0]</code>: along rows, as row-major). If the tensor is larger than the resulting block, each thread gets more registers; if it is smaller, elements are duplicated across threads (<dfn>broadcast</dfn>).</p>
+<div class="rd-two">
+<div><p class="small"><b>One rule for every layout.</b> Triton converts every layout to a <dfn>linear layout</dfn>: a list of <em>bases</em>, one per bit of the register, lane and warp index. The element a (warp, lane, register) holds is the XOR of the bases whose bits are set. For <code>sizePerThread=[2,4]</code>, <code>threadsPerWarp=[16,2]</code>, <code>warpsPerCTA=[2,2]</code>, <code>order=[1,0]</code> on a 64 x 16 tensor, Triton itself prints <span class="ev cmp">compiled here</span>, via Gluon's <code>to_linear_layout</code>:</p><pre class="tg-pre" id="rd-ll-print"></pre></div>
+<div><p class="small">Register bits 0 and 1 step along the row ([0,1], [0,2]), register bit 2 one row down ([1,0]); lane bit 0 jumps 4 columns, lane bits 1 to 4 go down the rows; the warps tile the rest. The {{Layout explorer|#t-lay}} draws any blocked layout from its four fields with this rule; its JavaScript matches Triton's printed bases on all 8 layouts tried, including broadcast ones, and reproduces the tutorial's printed table (first row <code id="rd-ll-row"></code>).</p>
+<p class="small"><b>Broadcast, concretely.</b> The same layout on a 32 x 8 tensor (smaller than its 64 x 16 block) prints warp bases <code>[[0,0],[0,0]]</code>: all four warps hold the same data, so element (0, 0) lives in threads 0, 32, 64 and 96. Four times the registers for the same tensor, which is why a block shape that is too small for <code>num_warps</code> wastes the GPU.</p></div>
+</div>
+<p><b>The other layouts you will meet in TTGIR</b> (all visible in the {{Compiler stages|#t-ir}} tab):</p>
+<div class="mech">
+<div><b>slice</b><code>#ttg.slice&lt;{dim = 1, parent = #blocked}&gt;</code>: a 1D block derived from a 2D layout by dropping a dimension, e.g. the row offsets <code>offs_am</code> before <code>[:, None]</code>.</div>
+<div><b>nvidia_mma, amd_mfma</b>The accumulator layout the tensor-core instruction dictates: <code>versionMajor = 2</code>, <code>instrShape = [16, 8]</code> for mma.sync; <code>versionMajor = 3</code>, <code>[16, 128, 16]</code> for wgmma; <code>amd_mfma</code> with <code>instrShape = [32, 32, 8]</code> on gfx942.</div>
+<div><b>dot_op</b>The layout an operand of <code>tl.dot</code> must be in when it comes from registers (mma.sync, MFMA): which thread feeds which part of the instruction.</div>
+<div><b>shared</b><code>swizzled_shared&lt;{vec = 8, perPhase = 2, maxPhase = 4}&gt;</code> for tiles read with ldmatrix; <code>nvmma_shared&lt;{swizzlingByteWidth = 128}&gt;</code> for tiles read by wgmma, tcgen05 or written by TMA. Both XOR-swizzle addresses so 32 lanes hit 32 different banks ({{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}).</div>
+<div><b>tensor_memory_encoding</b>Blackwell only: <code>#ttng.tensor_memory_encoding&lt;blockM = 128, blockN = 128&gt;</code>, the accumulator living in TMEM.</div>
+<div><b>convert_layout</b>Not a layout but the cost of two: moving a block from one layout to another means threads exchanging data, through shared memory or shuffles. The remove-layout-conversions pass exists to delete as many as possible; one left in a hot loop is a classic hidden cost.</div>
+</div>
+</section>
