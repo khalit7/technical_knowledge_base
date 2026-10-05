@@ -2455,3 +2455,25 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | C5 | Optimisation lab: 8 methods (incl. saddle-free Newton, BFGS) x 4 functions (quadratic with kappa and rotation, Rosenbrock, saddle with two minima, real 2D logistic loss), step inspector with Hessian, eigenvalues, classification, local 2/lambda_max, Newton step, Taylor-model contours and eigenvector arrows | Lab tab | Goes deeper than the root's bowl and the Optimiser race: the second-order view at every iterate | lab checks: Newton one step on quadratics; Newton to the saddle, SFN to a minimum; logistic w* vs recompute |
 | C6 | Minibatch-gradient noise against batch size (measured vs sigma^2/B with finite-population factor) and SGD floors (constant 2, 0.5, 0.1, decaying) | Reading s16 | Turns Bottou-Curtis-Nocedal Theorems 4.6/4.7 into measurements | lr_real.py |
 | C7 | Secant to tangent; directional derivative dial; Taylor orders on e^x; Hessian gallery; chord/Jensen; Lagrange circle; XGBoost leaf calculator | Reading s1, s3, s4, s6, s13, s14, s12 | Each is the picture for one definition at the moment it is introduced; defaults reproduce the old page's worked numbers | recompute.py |
+
+### Numerical computing for ML: floating point, precision formats, stable softmax (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_math/numerical_computing/src/viz_ideas.md`.
+
+| # | Idea | Score | Placement | Status |
+|---|---|---|---|---|
+| 1 | **Softmax before/after animation** on logits (1000, 999, 0), naive against stable, every intermediate as its stored bits, float32, float16 or bfloat16 (counters: finite, inf, NaN) | 14 | Reading s9 | built (the brief's suggested animation); the bf16 mode shows 999 stored as 1000 and p = (0.5, 0.5, 0) |
+| 2 | **Float explorer**: any number in 7 formats, flippable bits, neighbours, error, ulp, E4M3 saturating or NaN, add-y absorption | 13 | Own tab | built; differs from the quantization page's Bit explorer by bit flipping, neighbours, TF32/fp64 and arithmetic |
+| 3 | **Loss-scale slider over SmolLM2-135M's real gradient histogram** with measured pure-fp16 runs at 7 scales | 14 | Reading s11 | built; reproduces the 2017 paper's "about 5% below 2^-24" independently on a different model (5.0% below 2^-25, 7.2% below 2^-24) |
+| 4 | **Naive against Kahan summation animation** in float16 (2048 then ten 0.4s) | 10 | Reading s7 | built |
+| 5 | **Summation lab**: 4 algorithms, 3 formats, 5 data kinds, error against N, 20 shuffled orders | 12 | Own tab | built; JS checked against NumPy on the uniform cases |
+| 6 | Measured summation table (NumPy/PyTorch, N to 10^6) | 10 | Reading s7 | built; shows Kahan failing in bf16 at 10^6 (n u^2 = 15) |
+| 7 | Spacing staircase: ulp against |x| for 6 formats | 9 | Reading s4 | built |
+| 8 | Every E4M3 value on a number line (linear and log) | 7 | Reading s3 | built |
+| 9 | Decode card (8 values x 4 formats) | 7 | Reading s2 | built |
+| 10 | Determinism table: thread counts, 20 orders, MPS index_add_ (20 of 20 distinct) | 9 | Reading s8 | built (measured table) |
+| 11 | Lost-updates table on SmolLM2's real weights (fp32 / fp16 / bf16 at three step sizes) | 10 | Reading s11 | built (measured table) |
+| R1 | Training-curve comparison fp16 with and without scaling over many steps | 6 | | rejected: one step already shows the mechanism exactly; many steps on a laptop would be slow and noisy |
+| R2 | Interactive condition-number calculator for arbitrary f | 5 | | rejected: the table of five worked functions says it; Linear algebra owns matrix conditioning |
+| R3 | Block-format (MXFP4/NVFP4) explorer | 4 | | rejected: owned by the quantization page's Bit explorer |
+| R4 | GPU split-K reduction simulator | 6 | | rejected: no GPU here to measure; the CPU thread-count and MPS atomics measurements are real |
