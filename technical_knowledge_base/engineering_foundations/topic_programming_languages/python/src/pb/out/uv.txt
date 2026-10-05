@@ -1,0 +1,306 @@
+$ uv --version
+uv 0.12.23 (46b84fd0b 2026-10-03 aarch64-apple-darwin)
+[exit 0]
+
+## S1 interpreters
+$ uv python list --only-installed --managed-python
+cpython-3.15.0rc3-macos-aarch64-none                 ~/pl/py/cpython-3.15-macos-aarch64-none/bin/python3.15
+cpython-3.15.0rc3+freethreaded-macos-aarch64-none    ~/pl/py/cpython-3.15+freethreaded-macos-aarch64-none/bin/python3.15t
+cpython-3.14.8-macos-aarch64-none                    ~/pl/py/cpython-3.14-macos-aarch64-none/bin/python3.14
+cpython-3.14.8+freethreaded-macos-aarch64-none       ~/pl/py/cpython-3.14+freethreaded-macos-aarch64-none/bin/python3.14t
+cpython-3.13.16-macos-aarch64-none                   ~/pl/py/cpython-3.13-macos-aarch64-none/bin/python3.13
+cpython-3.12.15-macos-aarch64-none                   ~/pl/py/cpython-3.12-macos-aarch64-none/bin/python3.12
+cpython-3.11.17-macos-aarch64-none                   ~/pl/py/cpython-3.11-macos-aarch64-none/bin/python3.11
+[exit 0]
+
+$ uv python find 3.14t
+~/pl/py/cpython-3.14+freethreaded-macos-aarch64-none/bin/python3.14t
+[exit 0]
+
+$ uv run --no-project --python 3.15 python -c 'import sys; print(sys.version)'
+3.15.0rc3 (main, Oct  3 2026, 00:55:15) [Clang 22.1.3 ]
+[exit 0]
+
+## S2 three init flavours
+$ uv init flat-demo --app --no-package --python 3.14 -q && find flat-demo -type f -not -path '*/.git/*' | sort && cat flat-demo/main.py
+flat-demo/.gitignore
+flat-demo/.python-version
+flat-demo/main.py
+flat-demo/pyproject.toml
+flat-demo/README.md
+def main():
+    print("Hello from flat-demo!")
+
+
+if __name__ == "__main__":
+    main()
+[exit 0]
+
+$ uv init --app app-demo --python 3.14 --no-pin-python -q && find app-demo -type f -not -path '*/.git/*' | sort && cat app-demo/pyproject.toml
+app-demo/.gitignore
+app-demo/pyproject.toml
+app-demo/README.md
+app-demo/src/app_demo/__init__.py
+[project]
+name = "app-demo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "you", email = "you@example.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+app-demo = "app_demo:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+[exit 0]
+
+$ uv init --lib lib-demo --python 3.14 -q && find lib-demo -type f -not -path '*/.git/*' | sort && sed -n '/build-system/,$p' lib-demo/pyproject.toml
+lib-demo/.gitignore
+lib-demo/.python-version
+lib-demo/pyproject.toml
+lib-demo/README.md
+lib-demo/src/lib_demo/__init__.py
+lib-demo/src/lib_demo/py.typed
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+[exit 0]
+
+## S3 project: add, groups, extras, lock, sync
+$ uv init tokcount --python 3.14 -q && cd tokcount && uv add 'httpx>=0.28' -q && uv add --dev pytest -q && uv add --optional fast orjson -q && sed -n '/^dependencies/,$p' pyproject.toml
+dependencies = [
+    "httpx>=0.28",
+]
+
+[project.scripts]
+tokcount = "tokcount:main"
+
+[project.optional-dependencies]
+fast = [
+    "orjson>=3.12.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+[exit 0]
+
+$ uv tree --depth 1
+Resolved 15 packages in 4ms
+tokcount v0.1.0
+├── httpx v0.28.1
+├── orjson v3.12.0 (extra: fast)
+└── pytest v9.1.1 (group: dev)
+[exit 0]
+
+$ grep -c '^\[\[package\]\]' uv.lock; grep -A3 'name = "httpx"' uv.lock | head -4
+15
+name = "httpx"
+version = "0.28.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+[exit 0]
+
+$ uv run python -c 'import httpx, sys; print(httpx.__version__, sys.prefix.endswith(".venv"))'
+0.28.1 True
+[exit 0]
+
+$ python3 -c 'import httpx' 2>&1 | tail -1
+ModuleNotFoundError: No module named 'httpx'
+[exit 0]
+
+$ uv sync --locked && echo in sync
+Resolved 15 packages in 6ms
+Uninstalled 1 package in 1ms
+ - orjson==3.12.0
+in sync
+[exit 0]
+
+## edit pyproject.toml by hand: add rich to dependencies without uv add
+$ uv sync --locked
+Resolved 18 packages in 125ms
+error: The lockfile at `uv.lock` needs to be updated, but `--locked` was provided.
+
+hint: To update the lockfile, run `uv lock`.
+[exit 1]
+
+$ uv lock && uv sync --locked && echo in sync again
+Resolved 18 packages in 8ms
+Added markdown-it-py v4.2.0
+Added mdurl v0.1.2
+Added rich v15.0.0
+Resolved 18 packages in 7ms
+   Building tokcount @ file://~/demo/tokcount
+      Built tokcount @ file://~/demo/tokcount
+Prepared 1 package in 4ms
+Uninstalled 1 package in 0.74ms
+Installed 4 packages in 4ms
+ + markdown-it-py==4.2.0
+ + mdurl==0.1.2
+ + rich==15.0.0
+ ~ tokcount==0.1.0 (from file://~/demo/tokcount)
+in sync again
+[exit 0]
+
+$ uv sync --extra fast && uv run python -c 'import orjson; print(orjson.__version__)'
+Resolved 18 packages in 4ms
+Installed 1 package in 1ms
+ + orjson==3.12.0
+3.12.0
+[exit 0]
+
+$ uv sync && uv run python -c 'import orjson' 2>&1 | tail -1
+Resolved 18 packages in 5ms
+Uninstalled 1 package in 1ms
+ - orjson==3.12.0
+ModuleNotFoundError: No module named 'orjson'
+[exit 0]
+
+$ uv export --format requirements.txt --no-hashes --no-dev | grep -v '^#' | head -5
+Resolved 18 packages in 4ms
+-e .
+anyio==4.15.1
+    # via httpx
+certifi==2026.7.22
+    # via
+[exit 0]
+
+$ uv export --format pylock.toml -o pylock.toml > /dev/null 2>&1 && sed -n 3,5p pylock.toml && grep -c 'packages]]' pylock.toml
+lock-version = "1.0"
+created-by = "uv"
+requires-python = ">=3.14"
+17
+[exit 0]
+
+## S4 scripts with inline metadata (PEP 723)
+$ uv run --no-project fetch_title.py 2>&1 | tail -1
+ModuleNotFoundError: No module named 'httpx'
+[exit 0]
+
+$ uv add --script fetch_title.py 'httpx>=0.28' -q && head -8 fetch_title.py
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "httpx>=0.28",
+# ]
+# ///
+import re
+import sys
+[exit 0]
+
+$ uv run fetch_title.py 2>&1 | tail -1
+uv scripts | httpx 0.28.1 | 3.14.8
+[exit 0]
+
+## S5 tools
+$ uvx ruff@0.16.10 --version
+ruff 0.16.10
+[exit 0]
+
+$ uvx --from 'cowsay==6.1' cowsay -t moo | head -3
+  ___
+| moo |
+  ===
+[exit 0]
+
+## S6 workspace
+$ uv init ws -q --bare && cd ws && uv init packages/core --lib -q && uv init apps/cli --package -q && cat pyproject.toml && cd apps/cli && uv add core -q && sed -n '/dependencies/,$p' pyproject.toml
+[project]
+name = "ws"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "packages/core",
+    "apps/cli",
+]
+dependencies = [
+    "core",
+]
+
+[project.scripts]
+cli = "cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+core = { workspace = true }
+[exit 0]
+
+$ cd ws && find . -name uv.lock -o -name pyproject.toml | sort && uv run --package cli cli
+./apps/cli/pyproject.toml
+./packages/core/pyproject.toml
+./pyproject.toml
+./uv.lock
+Hello from cli!
+[exit 0]
+
+## S7 the pip interface
+$ uv venv old-style -q --python 3.13 && VIRTUAL_ENV=old-style uv pip install -q 'httpx==0.28.1' && VIRTUAL_ENV=old-style uv pip list | head -5
+Using Python 3.13.16 environment at: old-style
+Package           Version
+----------------- ---------
+anyio             4.15.1
+certifi           2026.7.22
+h11               0.16.0
+[exit 0]
+
+## S8 build
+$ uv build 2>&1 | grep -E 'Successfully|Building'
+Building source distribution...
+Building wheel from source distribution...
+Successfully built dist/lib_demo-0.1.0.tar.gz
+Successfully built dist/lib_demo-0.1.0-py3-none-any.whl
+[exit 0]
+
+$ unzip -l dist/lib_demo-0.1.0-py3-none-any.whl | awk 'NR>3{print $4}' | grep -v '^$'
+lib_demo/
+lib_demo/__init__.py
+lib_demo/py.typed
+lib_demo-0.1.0.dist-info/
+lib_demo-0.1.0.dist-info/WHEEL
+lib_demo-0.1.0.dist-info/METADATA
+lib_demo-0.1.0.dist-info/RECORD
+[exit 0]
+
+$ unzip -p dist/lib_demo-0.1.0-py3-none-any.whl lib_demo-0.1.0.dist-info/WHEEL
+Wheel-Version: 1.0
+Generator: uv 0.12.23
+Root-Is-Purelib: true
+Tag: py3-none-any
+[exit 0]
+
+$ tar tzf dist/lib_demo-0.1.0.tar.gz
+lib_demo-0.1.0/PKG-INFO
+lib_demo-0.1.0/pyproject.toml
+lib_demo-0.1.0/pyproject.toml.orig
+lib_demo-0.1.0/
+lib_demo-0.1.0/README.md
+lib_demo-0.1.0/src
+lib_demo-0.1.0/src/lib_demo
+lib_demo-0.1.0/src/lib_demo/__init__.py
+lib_demo-0.1.0/src/lib_demo/py.typed
+[exit 0]
+
+$ uv publish --dry-run 2>&1 | head -4
+Checking 2 files against https://upload.pypi.org/legacy/
+Note: Neither credentials nor keyring are configured, and there was an error fetching the trusted publishing token. If you don't want to use trusted publishing, you can ignore this error, but you need to provide credentials.
+error: Trusted publishing failed
+  cause: No OIDC token discovered: are you in a supported trusted publishing environment?
+[exit 0]
+

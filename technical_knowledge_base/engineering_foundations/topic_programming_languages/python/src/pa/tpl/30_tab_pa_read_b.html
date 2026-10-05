@@ -1,0 +1,32 @@
+
+<section id="pa-s2"><h2>2. The data model: how syntax becomes method calls</h2>
+<p>The <dfn>data model</dfn> is the chapter of the language reference that says which method Python calls for each piece of syntax ({{Data model|https://docs.python.org/3/reference/datamodel.html}}; the old page called it "the single highest-value document in Python", and it is). The methods have double underscores on both sides, so people call them <dfn>dunder methods</dfn> or <dfn>special methods</dfn>. You almost never call them yourself; the syntax does.</p>
+<div class="tw"><table class="pa-t">
+<thead><tr><th>You write</th><th>Python calls</th><th>Fallback if it is missing</th></tr></thead>
+<tbody>
+<tr><td><code>len(x)</code></td><td><code>type(x).__len__(x)</code></td><td>TypeError; the result must be an int &ge; 0</td></tr>
+<tr><td><code>bool(x)</code>, <code>if x:</code></td><td><code>__bool__</code></td><td><code>__len__() != 0</code>, else always true</td></tr>
+<tr><td><code>for v in x</code>, <code>list(x)</code></td><td><code>__iter__</code>, then <code>__next__</code> until StopIteration</td><td><code>__getitem__(0)</code>, <code>(1)</code>, ... until IndexError</td></tr>
+<tr><td><code>v in x</code></td><td><code>__contains__</code></td><td>iterate and compare with <code>==</code></td></tr>
+<tr><td><code>x[k]</code>, <code>x[k] = v</code></td><td><code>__getitem__</code>, <code>__setitem__</code></td><td>TypeError</td></tr>
+<tr><td><code>a + b</code></td><td><code>a.__add__(b)</code></td><td>if it returns <code>NotImplemented</code>: <code>b.__radd__(a)</code>, then TypeError</td></tr>
+<tr><td><code>a += b</code></td><td><code>a.__iadd__(b)</code></td><td><code>a = a + b</code></td></tr>
+<tr><td><code>a == b</code></td><td><code>a.__eq__(b)</code></td><td><code>b.__eq__(a)</code>, then identity (<code>a is b</code>)</td></tr>
+<tr><td><code>hash(x)</code>, dict key, set member</td><td><code>__hash__</code></td><td>identity-based hash; set to <code>None</code> (unhashable) if you define <code>__eq__</code> alone</td></tr>
+<tr><td><code>with x as r:</code></td><td><code>__enter__</code>, then <code>__exit__(type, value, tb)</code></td><td>TypeError</td></tr>
+<tr><td><code>x.attr</code></td><td><code>type(x).__getattribute__</code> (descriptors, then <code>x.__dict__</code>, then the class)</td><td><code>__getattr__</code>, then AttributeError</td></tr>
+<tr><td><code>repr(x)</code>, <code>str(x)</code>, <code>f"{x}"</code></td><td><code>__repr__</code> (for developers), <code>__str__</code> (for users), <code>__format__</code></td><td><code>__str__</code> falls back to <code>__repr__</code></td></tr>
+</tbody></table></div>
+<p>Here is a small vector class that implements a handful of these, and the built-ins that start working as a result. Nothing inherits from anything: Python's polymorphism is by protocol (the methods you have), not by declared parent class.</p>
+[[run:d1_vec]]
+<p>Read the last three lines carefully. <code>sum()</code> starts from the integer 0, so it first computes <code>0 + Vec(1, 2)</code>; <code>int.__add__</code> does not know Vec and returns <code>NotImplemented</code>, so Python tries the right operand's <code>__radd__</code>. <code>v == (1, 2)</code> is False rather than an error because both sides returned <code>NotImplemented</code> and Python fell back to identity. And <code>v + 1</code> raises TypeError only after both sides declined.</p>
+<div class="co key"><div class="t"><code>NotImplemented</code> is not <code>NotImplementedError</code></div>Returning the singleton <code>NotImplemented</code> means "I do not handle this type; ask the other operand". Raising <code>NotImplementedError</code> means "this abstract method was not written" and stops the dispatch dead. Mixing them up is a common bug in operator methods.</div>
+<h3>Three rules people learn the hard way</h3>
+<ul>
+<li><b>Special methods are looked up on the type, not the instance.</b> "Implicit invocations of special methods are only guaranteed to work correctly if defined on an object's type, not in the object's instance dictionary" ({{Special method lookup|https://docs.python.org/3/reference/datamodel.html#special-method-lookup}}). Setting <code>x.__len__ = ...</code> on one object does nothing for <code>len(x)</code>. This lets CPython skip the instance dict on every operator.</li>
+<li><b>A subclass on the right goes first.</b> "If the operands are of different types, and the right operand's type is a direct or indirect subclass of the left operand's type, the reflected method of the right operand has priority" (same page). So a subclass can override how it combines with its parent from either side.</li>
+<li><b><code>__eq__</code> and <code>__hash__</code> travel together.</b> "A class that overrides <code>__eq__()</code> and does not define <code>__hash__()</code> will have its <code>__hash__()</code> implicitly set to None" (same page). Objects that compare equal must have equal hashes, and a hash must not change while the object is in a dict or set; that is why mutable built-ins are unhashable and why a dict key should be immutable.</li>
+</ul>
+<p>The {{Data model|#t-pa-dm}} tab replays 19 of these dispatches step by step, each from a real run that logged which method Python called, in order: the reflected and subclass-first cases of <code>+</code>, <code>==</code> falling back to identity, <code>bool</code> falling back to <code>__len__</code>, the old <code>__getitem__</code> iteration protocol, <code>with</code> swallowing an exception, and the four outcomes of an attribute lookup.</p>
+<div class="pa-cost"><div><div class="t">What it solves</div>Your types plug into every built-in, library and syntax form: <code>sorted</code>, <code>sum</code>, <code>dict</code>, f-strings, <code>with</code>, PyTorch's <code>__torch_function__</code>, NumPy's <code>__array__</code>.</div><div><div class="t">What it costs</div>Every operator is a method lookup and call; that is a large part of why pure-Python arithmetic is slow (section 11).</div><div><div class="t">When not to</div>Do not overload operators with surprising meanings; <code>+</code> should combine, <code>==</code> should compare. Prefer a dataclass (section 5) when you only need <code>__init__</code>, <code>__repr__</code> and <code>__eq__</code>.</div></div>
+</section>

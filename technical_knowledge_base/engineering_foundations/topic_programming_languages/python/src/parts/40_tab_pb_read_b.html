@@ -1,0 +1,34 @@
+
+<section id="pb-s1">
+<h2>1. Why Python packaging confuses everyone: four layers</h2>
+<p>You have used <code>pip install</code> for years; the reason it still surprises you is that "packaging" is four separate jobs, and each tool bundles a different subset of them. Name the layers once and every tool becomes easy to place.</p>
+<div class="pb-tbl pb-wide"><table>
+<thead><tr><th>Layer</th><th>The job</th><th>Tools (bold: what to use now)</th></tr></thead>
+<tbody>
+<tr><td>1. Interpreters</td><td>Install and pin Python itself (3.13, 3.14, 3.14t)</td><td>pyenv, conda, system packages, <b>uv python</b></td></tr>
+<tr><td>2. Isolation</td><td>Give each project its own <dfn title="The folder a Python environment installs packages into; import looks there.">site-packages</dfn> so projects do not share versions</td><td><b>venv</b> (standard library), virtualenv, conda environments; uv creates a venv for you</td></tr>
+<tr><td>3. Resolve and install</td><td>Choose versions that satisfy every constraint, download, install, and record the result</td><td>pip, Poetry, PDM, conda, <b>uv</b></td></tr>
+<tr><td>4. Build</td><td>Turn your source into files others can install</td><td>setuptools, hatchling, flit, <b>uv_build</b>, <b>maturin</b> (Rust), <b>scikit-build-core</b> (C and C++), meson-python</td></tr>
+</tbody></table></div>
+<p>The words you need, each once:</p>
+<ul class="tight">
+<li><b>Distribution package</b> (what <code>pip install</code> names, such as <code>pydantic-core</code>) versus <b>import package</b> (what <code>import</code> names, <code>pydantic_core</code>). They often differ; PyPI only knows the first.</li>
+<li><b>PyPI</b>: the public registry every tool downloads from by default.</li>
+<li><b>Wheel</b> (<code>.whl</code>): a zip of ready-to-copy files; installing one is unpacking. <b>sdist</b> (<code>.tar.gz</code>): the source, which must be built first, which needs a compiler when there is C or Rust inside. Installing a compiled package is quick when a wheel exists for your exact Python and platform, and slow or broken when it does not (section 6 shows the free-threaded case).</li>
+<li><b>Version specifier</b> (<code>httpx&gt;=0.28</code>): the range your code supports. <b>Lock file</b>: the exact versions (and file hashes) one resolution picked, so every machine installs the same thing. Applications commit a lock file; libraries publish ranges and test against their lower bounds.</li>
+<li><b>Resolver</b>: the part that finds one version of every package satisfying all ranges at once. When it fails, two of your dependencies disagree about a third.</li>
+<li><b>Build backend</b> (uv_build, hatchling, maturin): the library that makes the wheel. <b>Build frontend</b> (<code>uv build</code>, <code>python -m build</code>, pip): the tool that calls it, in a clean environment, as <code>pyproject.toml</code>'s <code>[build-system]</code> table says.</li>
+<li><b>Editable install</b> (<code>uv pip install -e .</code>, and what <code>uv sync</code> does for your own project): the environment points at your source folder, so edits take effect without reinstalling. <b>Extras</b> (<code>package[fast]</code>): optional named sets of dependencies.</li>
+</ul>
+<h3>The tools you will still meet, and why each exists</h3>
+<ul class="tight">
+<li><b>pip</b> ships with Python and installs into whatever environment is active, which is why forgetting to activate a venv is the classic accident. It resolves but does not lock: <code>pip freeze &gt; requirements.txt</code> snapshots what happens to be installed, which is not a lock of a project definition.</li>
+<li><b>venv</b> (<code>python -m venv .venv</code>, then <code>source .venv/bin/activate</code>) is the standard-library isolation layer. uv still creates exactly this folder; understand it even when a tool hides it.</li>
+<li><b>pipx</b> installs a command-line application (black, httpie) into its own environment; <code>uv tool install</code> and <code>uvx</code> now do the same.</li>
+<li><b>Poetry</b> (2018) made one <code>pyproject.toml</code> plus a lock file normal. Its own <code>[tool.poetry]</code> tables predate the standard <code>[project]</code> table (PEP 621), which Poetry 2 adopted. You will meet it in existing repositories: learn to read its <code>pyproject.toml</code> and <code>poetry.lock</code>, and do not start new projects with it.</li>
+<li><b>PDM</b> and <b>Hatch</b> are standards-first alternatives; Hatch's build backend, <b>hatchling</b>, is common even where Hatch itself is not used.</li>
+<li><b>conda</b> (and mamba, micromamba, pixi) is a different ecosystem: it ships non-Python binaries such as CUDA toolkits, MKL and compilers from channels like conda-forge, which is why some scientific and GPU stacks still use it. If you must mix, install conda packages first and pip packages last, or the two will overwrite each other's files.</li>
+<li><b>uv</b> (Astral, written in Rust) collapses layers 1 to 3 and the frontend part of 4 into one fast tool. The next section uses it end to end.</li>
+</ul>
+<div class="pb-cost"><div class="t">What to actually do</div>Use uv for everything new. Keep pip and venv in your head because every CI example and Dockerfile you will read uses them, and recognise Poetry and conda well enough to work in a repository that already uses them.</div>
+</section>

@@ -1,0 +1,28 @@
+
+<section id="pa-s12"><h2>12. Performance: measure, then move the loop out of Python</h2>
+<p>The order that works: measure where the time goes, fix the algorithm or data structure, push loops into code that runs in C (built-ins, <code>re</code>, NumPy), and only then write native code. Guessing skips the first step and usually optimises the wrong thing.</p>
+<h3>Profiling: cProfile, and the sampling profilers</h3>
+<p>The subject is a deliberately slow version of the root page's token counter: it calls a Python function for every character and keeps per-user totals in two parallel lists. <code>cProfile</code> (standard library) records every function call:</p>
+[[code:p1_slow@14-33]]
+[[run:p1_profile]]
+<p>Read <code>tottime</code> (time inside the function itself) first: 2.7 million calls of <code>is_token_char</code>, one per character, dominate. The list scans that look bad on paper (<code>users.index</code>) cost 23 ms, because there are only 200 users. The fix follows the profile: count with a compiled regular expression (the loop over characters then runs inside the C regex engine) and keep totals in a dict (a <code>Counter</code>):</p>
+[[code:p1_fast@1-15]]
+<p>Same answer (the script asserts it), 206 ms down to 74 ms. Note also what the profiler did to the program: 206 ms became 1.46 s under <code>cProfile</code>, because it adds work to each of 8 million calls. A <dfn>deterministic</dfn> profiler like cProfile distorts call-heavy code; a <dfn>sampling</dfn> profiler, which looks at the stack a few hundred times a second, barely slows the program. Two of them:</p>
+<ul class="tight">
+<li><b>py-spy</b>: "a sampling profiler for Python programs ... without restarting the program or modifying the code in any way" ({{py-spy|https://github.com/benfred/py-spy}}); attach to a running server with <code>py-spy top --pid</code> or <code>py-spy dump</code>. On macOS "OSX always requires running as root", which is what happened here:</li>
+</ul>
+[[out:p1_pyspy|py-spy record -- python p1_slow.py (real output, py-spy 0.4.2, macOS 27, no sudo)]]
+<ul class="tight">
+<li><b>Scalene</b> samples per line and splits time into Python and native code (and memory, if asked). Its summary for the whole slow script, which also includes building the 20,000-line test log:</li>
+</ul>
+[[out:p1_scalene|scalene run --cpu-only p1_slow.py, then scalene view --cli -r (real output, Scalene 2.3.0)]]
+<p class="small mute">Scalene attributes about half the run (49%) to <code>make_log</code>, the fake-data generator that cProfile was not asked to measure: a reminder to profile the whole program, not just the function you suspect. Its Python/native split is sampled and approximate; treat it as a pointer, not a measurement.</p>
+<h3>Vectorising with NumPy</h3>
+<p>NumPy stores numbers in one contiguous typed buffer and runs each operation as a C loop over it, with no per-element object, method lookup or reference count. The same reduction (the denominator of a softmax, <code>sum(exp(x - max(x)))</code>) as a Python loop, as <code>map</code> with <code>math.fsum</code>, and as NumPy, from 10 to a million elements:</p>
+[[run:p2_numpy]]
+<div class="pa-svg" id="pa-np-bars"></div>
+<p>Three lessons, all from the table. At 10 elements NumPy is <i>slower</i> than the loop (a fixed cost of about a microsecond per NumPy call), which confirms the old page's claim. From a thousand elements up it is 10 to 16 times faster. And converting a Python list to an array costs about 40% of the whole Python loop: keep data in arrays from the start (load with NumPy, pandas, polars or PyTorch), or the conversion eats the gain. Clever pure-Python (<code>map</code>, <code>fsum</code>) did not help: the per-element work is still Python objects.</p>
+<h3>When to drop to native code</h3>
+<p>When the profile shows a hot loop that is not array arithmetic (a tokenizer, a parser, a graph walk, a custom sampler), no library already does it, and it is called often enough to matter. Then write that one function in a compiled language and call it from Python. The {{Rust page, Part 2 (Speeding up Python)|n:3c65c17b0d0d8156bed9ead8a22f33b0}} does exactly this with PyO3 and maturin, from one function to a published wheel, and compares the alternatives (Cython, Numba, mypyc, nanobind or pybind11 for C++, cffi); the {{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} (Part 2) shows what the machine does underneath. The root's {{Benchmark|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab measures the running program in all four languages and the cost of each crossing between Python and native code: batch work so you cross once per array, not once per element.</p>
+<div class="pa-cost"><div><div class="t">Cheap wins first</div>A dict or set instead of list membership; <code>str.join</code> instead of <code>+=</code> in a loop; built-ins (<code>sum</code>, <code>sorted</code>, <code>re</code>, <code>collections.Counter</code>) over hand loops; local variables in hot loops; caching (section 4).</div><div><div class="t">Then</div>NumPy or PyTorch for numbers; processes or the free-threaded build for parallel CPU work (section 9); asyncio for waiting (section 10); a Rust or C++ extension for the hot loop that is left.</div><div><div class="t">Mistakes</div>Optimising without a profile; timing once (use <code>timeit</code> or hyperfine, take the median); trusting cProfile's absolute times; micro-benchmarking with a warm cache and deploying with a cold one.</div></div>
+</section>
