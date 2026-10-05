@@ -1,0 +1,42 @@
+<section id="it-s4">
+<h2>4. Joint and conditional entropy: what context buys you</h2>
+<p class="raise"><b>The question.</b> A language model predicts the next token <i>given the previous ones</i>. How much uncertainty is left once you know the context, and how does that add up over a whole text?</p>
+
+<h3>The words, then the formulas</h3>
+<p>For two random variables \(X\) and \(Y\) with joint distribution \(p(x, y)\), the <dfn>joint entropy</dfn> is the entropy of the pair, and the <dfn>conditional entropy</dfn> is the uncertainty left in \(X\) once \(Y\) is known, averaged over the values of \(Y\):</p>
+\[ H(X, Y) = -\sum_{x, y} p(x, y) \log p(x, y), \qquad H(X \mid Y) = \sum_y p(y)\, H(X \mid Y = y) = -\sum_{x, y} p(x, y) \log p(x \mid y) \]
+<dl class="sym">
+<dt>\(p(x, y)\)</dt><dd>the probability that \(X = x\) and \(Y = y\) together.</dd>
+<dt>\(p(y)\)</dt><dd>the <dfn>marginal</dfn>: \(\sum_x p(x, y)\).</dd>
+<dt>\(p(x \mid y)\)</dt><dd>the conditional, \(p(x, y) / p(y)\): the distribution of \(X\) among the cases where \(Y = y\).</dd>
+<dt>\(H(X \mid Y = y)\)</dt><dd>the entropy of that conditional distribution, for one value \(y\).</dd>
+</dl>
+
+<h3>The chain rule, derived without skipping a step</h3>
+<div class="der"><ol>
+<li>Definition of the conditional: \(p(x, y) = p(y)\, p(x \mid y)\).</li>
+<li>Take \(-\log\) of both sides; the log of a product is a sum: \(-\log p(x, y) = -\log p(y) - \log p(x \mid y)\).</li>
+<li>Average both sides over \((x, y) \sim p(x, y)\). The left is \(H(X, Y)\). The first term on the right only depends on \(y\), so its average is \(-\sum_y p(y) \log p(y) = H(Y)\). The second is \(H(X \mid Y)\) by definition.</li>
+<li>Result: \(H(X, Y) = H(Y) + H(X \mid Y)\), and by the same steps with the roles swapped, \(= H(X) + H(Y \mid X)\).</li>
+</ol></div>
+<p class="plain">In plain words: the uncertainty of the pair is the uncertainty of one, plus what is left of the other once the first is known.</p>
+<div class="nums"><div class="t">Worked example: two signals that agree 80% of the time</div>
+\(p(0,0) = p(1,1) = 0.4\) and \(p(0,1) = p(1,0) = 0.1\). Each marginal is \((0.5, 0.5)\), so \(H(X) = H(Y) = 1\) bit.
+<ul class="tight">
+<li>Joint: \(H(X, Y) = 2 \times 0.4 \times 1.322 + 2 \times 0.1 \times 3.322\) \(= 1.058 + 0.664 = 1.722\) bits.</li>
+<li>Chain rule: \(H(X \mid Y) = H(X, Y) - H(Y) = 1.722 - 1 = 0.722\) bits.</li>
+<li>Directly: given \(Y = 0\), \(X\) is 0 with probability \(0.4 / 0.5 = 0.8\), so \(H(X \mid Y = 0) = H(0.8, 0.2) = 0.722\); the same for \(Y = 1\); the average is 0.722 bits. Both routes agree.</li>
+</ul>
+Knowing \(Y\) cuts the uncertainty about \(X\) from 1 bit to 0.722 bits. The 0.278 bits saved is the mutual information of section 8.</div>
+<p><b>Conditioning never increases entropy on average</b>: \(H(X \mid Y) \le H(X)\), with equality exactly when \(X\) and \(Y\) are independent (proof in section 8: the difference is the mutual information, which is a KL divergence and so non-negative). A single value can still raise it: learning that a usually reliable test came back strange can make you less sure. Only the average is guaranteed to fall.</p>
+
+<h3>For a sequence: the language-model factorisation</h3>
+<p>Apply the chain rule repeatedly to a sequence \(X_1, \dots, X_n\):</p>
+\[ H(X_1, \dots, X_n) = \sum_{t=1}^{n} H(X_t \mid X_1, \dots, X_{t-1}) \]
+<p class="plain">In plain words: the uncertainty of a whole text is the sum, over positions, of the uncertainty of each token given everything before it. This is exactly the shape of a language model's loss: it predicts \(q(x_t \mid x_{\lt t})\) and pays \(-\log q(x_t \mid x_{\lt t})\) at each position. Averaged per token over a long text it estimates the <dfn>entropy rate</dfn> of the source, the uncertainty per symbol once all the past is known.</p>
+<p>Shannon measured this ladder for English in 1951 ({{"Prediction and Entropy of Printed English"|https://www.princeton.edu/~wbialek/rome/refs/shannon_51.pdf}}). Writing \(F_N\) for the entropy of the next letter given the previous \(N - 1\): with a 26-letter alphabet and no context, \(F_0 = \log_2 26 = 4.70\) bits; using letter frequencies, \(F_1 = 4.14\); using pairs, \(F_2 = 3.56\). From experiments where people guessed the next letter with 100 letters of context (27 symbols, counting the space), he bounded the entropy between about 0.6 and 1.3 bits per letter, "of the order of one bit per letter". Context is worth a lot.</p>
+<div class="card" id="it-fn-card"><div id="it-fn" class="an-svg"></div>
+<div class="leg"><span style="--sw:var(--c1)">whole book, 953,697 bytes</span><span style="--sw:var(--c2)">the passage, 10,376 bytes</span><span style="--sw:var(--c3)">GPT-2 on the passage, 1.003</span><span style="--sw:var(--c4)">Qwen2.5-0.5B on the passage, 0.850</span></div>
+<p class="small mute">Plug-in estimate of \(F_N\), the entropy of the next byte given the previous \(N-1\) bytes, counted on all 953,697 bytes of <i>Origin of Species</i> and on the 10,376-byte passage alone, against what two real models achieve on the passage (GPT-2, 1.003 bits per byte; Qwen2.5-0.5B, 0.850). The counts look like they beat the models after a few bytes of context; they do not. With few examples of each context the counts memorise the text, and the estimate collapses towards 0: section 14 explains this bias. Bytes, not Shannon's 27 letters, so the levels are not comparable with his.</p></div>
+<div class="use"><div class="t">What it is used for in ML</div><b>The loss floor of a classifier</b> is the conditional entropy of the label given the input, \(H(Y \mid X)\): zero only when every input has exactly one correct label, above zero when labels are ambiguous or noisy (each one-hot target has entropy 0, but the population of targets for one input need not). <b>The loss floor of a language model</b> is the entropy rate of text under its tokenizer (section 11). <b>Longer context</b> lowers loss because it lowers the conditional entropy the model can reach.</div>
+</section>

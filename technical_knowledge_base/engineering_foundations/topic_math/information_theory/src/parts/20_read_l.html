@@ -1,0 +1,40 @@
+<section id="it-s10">
+<h2>10. Perplexity, bits per byte, bits per character</h2>
+<p class="raise"><b>The question.</b> One model reports perplexity 18, another 30. Is the first better? Only if they cut the text into the same tokens. Why, and what should you compare instead?</p>
+
+<h3>Perplexity: the loss as a number of choices</h3>
+\[ \mathrm{PPL} = \exp\big(\text{CE in nats per token}\big) = 2^{\,\text{CE in bits per token}} \]
+<p class="plain">In plain words: perplexity is the number of equally likely options that would be as confusing as the model is. A model with perplexity 30 is, on average, as unsure as if it were choosing uniformly among 30 tokens. Perplexity 1 is perfect prediction; a uniform guess over \(K\) tokens has perplexity \(K\). The tiny model on sat: \(e^{2.408} = 11.1\), worse than a uniform guess over its 3 words (perplexity 3).</p>
+
+<h3>Why perplexity depends on the tokenizer</h3>
+<p>The total surprise of a text, \(\sum_t -\ln q(x_t \mid x_{\lt t})\), is the model's compressed length of that text (section 3). Perplexity divides it by the number of tokens before exponentiating. A tokenizer that cuts the same text into fewer, longer tokens divides by a smaller number, so the per-token loss goes up even though nothing about the model's knowledge changed.</p>
+<div class="nums"><div class="t">One model, one text, four perplexities (real)</div>GPT-2 (124M) read the 10,376-byte Darwin passage and paid a total of 7,212.5 nats (10,405 bits). Divide that same total by different units:
+<div class="tw"><table class="mini"><tr><th>unit</th><th>count</th><th>nats per unit</th><th>"perplexity"</th></tr>
+<tr><td>GPT-2 tokens</td><td class="num">2,117</td><td class="num">3.407</td><td class="num">30.2</td></tr>
+<tr><td>whitespace words</td><td class="num">1,777</td><td class="num">4.059</td><td class="num">57.9</td></tr>
+<tr><td>pairs of tokens (a coarser tokenizer, built exactly by the chain rule)</td><td class="num">1,059</td><td class="num">6.811</td><td class="num">907.5</td></tr>
+<tr><td>bytes</td><td class="num">10,376</td><td class="num">0.695</td><td class="num">2.00</td></tr></table></div>
+Same model, same predictions, same compressed length: "perplexity" anywhere from 2 to 907 depending only on what you count. The pair row is exact, not hypothetical: a tokenizer whose tokens are pairs of GPT-2 tokens would give each pair the product of the two conditional probabilities, so the total is unchanged and the count halves.</div>
+
+<h3>Bits per byte: divide by something no tokenizer can change</h3>
+\[ \mathrm{BPB} = \frac{n_{\text{tokens}} \cdot \mathrm{CE}_{\text{nats/token}}}{n_{\text{bytes}} \cdot \ln 2} = \frac{\mathrm{CE}_{\text{nats/token}}}{\ln 2 \cdot (\text{bytes per token})} \]
+<dl class="sym">
+<dt>\(n_{\text{tokens}} \cdot \mathrm{CE}\)</dt><dd>the total surprise of the text in nats, whatever the tokenizer.</dd>
+<dt>\(n_{\text{bytes}}\)</dt><dd>the length of the same text in UTF-8 bytes.</dd>
+<dt>\(\ln 2\)</dt><dd>converts nats to bits.</dd>
+</dl>
+<div class="der"><b>The conversion, worked through with a real tokenizer's ratio.</b><ol>
+<li>GPT-2 cuts the passage into 2,117 tokens: \(10{,}376 / 2{,}117 = 4.901\) bytes per token.</li>
+<li>Its average loss is 3.407 nats per token, which is \(3.407 / \ln 2 = 4.915\) bits per token.</li>
+<li>Each token covers 4.901 bytes, so per byte: \(4.915 / 4.901 = 1.003\) bits per byte.</li>
+<li>In one line: \(3.407 / (0.6931 \times 4.901) = 1.003\). The model would compress this passage to about one bit per byte, an eighth of its raw size.</li>
+</ol></div>
+<p><dfn>Bits per character</dfn> (BPC) divides by characters instead of bytes; it is the traditional unit on character-level benchmarks such as enwik8, the first \(10^8\) bytes of the 3 March 2006 English Wikipedia dump ({{Large Text Compression Benchmark|https://mattmahoney.net/dc/textdata.html}}). For plain English the two nearly coincide: the Darwin passage has 10,371 characters and 10,376 bytes (an "æ" takes 2 bytes in UTF-8 and a curly apostrophe 3), so GPT-2's 1.0028 bits per byte is 1.0033 bits per character. In accented French they part: the Hugo passage is 5,773 characters but 5,953 bytes, and Qwen2.5's 1.048 bits per byte is \(1.048 \times 5{,}953 / 5{,}773 = 1.081\) bits per character. Multiply by bytes per character to convert; and say which one you report.</p>
+<div class="nums"><div class="t">Two more conversions, checked</div><b>Illustrative</b> (from the old page): one 4,000-byte text; tokenizer A gives 1,000 tokens at 2.0 nats each, tokenizer B 1,250 tokens at 1.6 nats. Both total 2,000 nats. Perplexity: A \(e^{2.0} = 7.39\), B \(e^{1.6} = 4.95\), so B looks much better. Bits per byte: both \(2{,}000 / (4{,}000 \ln 2) = 0.721\). <b>Real ratio</b>: the Pile paper prefers bits per byte "due to its invariance to different tokenization schemes" and measures 0.29335 GPT-2 tokens per byte over the Pile, so 2.0 nats per token there is \(0.29335 \times 2.0 / \ln 2 = 0.846\) bits per byte ({{Gao et al. 2020|https://arxiv.org/abs/2101.00027}}).</div>
+
+<h3>Different tokenizers on the same texts (real)</h3>
+<div class="tw"><table class="mini" id="it-ppl-tab"></table></div>
+<p class="small mute">Four small open models on three public-domain texts, float32 on CPU, scored with a sliding window (src/data/score.py). GPT-2 and OPT-125m share one tokenizer (OPT's paper, §2.3: "the GPT-2 byte level BPE tokenizer"), so their perplexities are comparable with each other; the others are not. Full tables, token by token, in {{Real text, measured|#t-real}}.</p>
+<p>Three things the table shows. <b>Across texts, one model's perplexity misleads</b>: GPT-2's perplexity on C code (8.2) is far lower than on Darwin (30.2), yet it compresses the code worse (1.51 against 1.00 bits per byte); 979 of its 3,331 tokens on the code are pure whitespace (spaces, newlines), at 1.14 nats each against 2.51 for the rest; Qwen2.5's tokenizer needs only 284 such tokens. Many cheap tokens dilute the per-token loss without making the compressed file any shorter. <b>Across tokenizers, perplexity understates or overstates</b>: on the French passage Qwen2.5 uses 1,670 tokens where SmolLM2 uses 2,131, so its perplexity advantage (13.3 against 16.6, a ratio of 1.24) is smaller than its compression advantage (1.048 against 1.450 bits per byte, a ratio of 1.38). <b>Within one tokenizer, perplexity is fine</b>: GPT-2 against OPT-125m ranks the same way under both measures on all three texts. The remaining differences between models are model differences (Qwen2.5 is 0.5B parameters, the others 124M to 135M), which bits per byte measures cleanly.</p>
+<div class="use"><div class="t">What it is used for in ML</div>Pretraining reports and scaling laws use bits per byte (or nats per token within one tokenizer); evaluation harnesses report both (the {{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}} page shows per-token perplexity under three tokenizers, token by token). Rule: perplexity only within one tokenizer and one evaluation set; bits per byte or per character across tokenizers.</div>
+</section>
