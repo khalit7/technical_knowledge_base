@@ -1,0 +1,95 @@
+
+Parameters
+(26GB, 65%)
+
+KV
+Cache
+(>30%)
+
+Others
+NVIDIA A100 40GB
+
+Memory usage (GB)
+
+Existing systems
+
+High throughput serving of large language models (LLMs)
+requires batching sufficiently many requests at a time. However, existing systems struggle because the key-value cache
+(KV cache) memory for each request is huge and grows
+and shrinks dynamically. When managed inefficiently, this
+memory can be significantly wasted by fragmentation and
+redundant duplication, limiting the batch size. To address
+this problem, we propose PagedAttention, an attention algorithm inspired by the classical virtual memory and paging techniques in operating systems. On top of it, we build
+vLLM, an LLM serving system that achieves (1) near-zero
+waste in KV cache memory and (2) flexible sharing of KV
+cache within and across requests to further reduce memory usage. Our evaluations show that vLLM improves the
+throughput of popular LLMs by 2-4× with the same level
+of latency compared to the state-of-the-art systems, such
+as FasterTransformer and Orca. The improvement is more
+pronounced with longer sequences, larger models, and more
+complex decoding algorithms. vLLM’s source code is publicly
+available at https://github.com/vllm-project/vllm.
+
+vLLM
+
+Figure 2. Average percentage of memory wastes in different
+LLM serving systems during the experiment in §6.2.
+percentage of memory is used for other data, including activations – the ephemeral tensors created when evaluating
+the LLM. Since the model weights are constant and the activations only occupy a small fraction of the GPU memory,
+the way the KV cache is managed is critical in determining
+the maximum batch size. When managed inefficiently, the
+KV cache memory can significantly limit the batch size and
+consequently the throughput of the LLM, as illustrated in
+Fig. 1 (right).
+In this paper, we observe that existing LLM serving systems [31, 60] fall short of managing the KV cache memory
+efficiently. This is mainly because they store the KV cache of
+a request in contiguous memory space, as most deep learning
+frameworks [33, 39] require tensors to be stored in contiguous memory. However, unlike the tensors in the traditional
+deep learning workloads, the KV cache has unique characteristics: it dynamically grows and shrinks over time as the
+model generates new tokens, and its lifetime and length are
+not known a priori. These characteristics make the existing
+systems’ approach significantly inefficient in two ways:
+First, the existing systems [31, 60] suffer from internal and
+external memory fragmentation. To store the KV cache of
+a request in contiguous space, they pre-allocate a contiguous chunk of memory with the request’s maximum length
+(e.g., 2048 tokens). This can result in severe internal fragmentation, since the request’s actual length can be much
+shorter than its maximum length (e.g., Fig. 11). Moreover,
+even if the actual length is known a priori, the pre-allocation
+is still inefficient: As the entire chunk is reserved during the
+request’s lifetime, other shorter requests cannot utilize any
+part of the chunk that is currently unused. Besides, external
+memory fragmentation can also be significant, since the preallocated size can be different for each request. Indeed, our
+profiling results in Fig. 2 show that only 20.4% - 38.2% of the
+KV cache memory is used to store the actual token states in
+the existing systems.
+Second, the existing systems cannot exploit the opportunities for memory sharing. LLM services often use advanced
+
+2
+
+KV cache across more positions in parallel, thus increasing
+the hardware utilization and reducing latency. However, a
+larger block size also increases memory fragmentation. We
+study the effect of block size in §7.2.
+Again, vLLM dynamically assigns new physical blocks to
+logical blocks as more tokens and their KV cache are generated. As all the blocks are filled from left to right and a new
+physical block is only allocated when all previous blocks
+are full, vLLM limits all the memory wastes for a request
+within one block, so it can effectively utilize all the memory,
+as shown in Fig. 2. This allows more requests to fit into memory for batching—hence improving the throughput. Once a
+request finishes its generation, its KV blocks can be freed to
+Impact of Block Size
+
+The choice of block size can have a substantial impact on the
+performance of vLLM. If the block size is too small, vLLM
+may not fully utilize the GPU’s parallelism for reading and
+processing KV cache. If the block size is too large, internal fragmentation increases and the probability of sharing
+decreases.
+In Fig. 18b, we evaluate the performance of vLLM with different block sizes, using the ShareGPT and Alpaca traces with
+basic sampling under fixed request rates. In the ShareGPT
+trace, block sizes from 16 to 128 lead to the best performance.
+In the Alpaca trace, while the block size 16 and 32 work
+well, larger block sizes significantly degrade the performance
+since the sequences become shorter than the block sizes. In
+practice, we find that the block size 16 is large enough to
+efficiently utilize the GPU and small enough to avoid significant internal fragmentation in most workloads. Accordingly,
+vLLM sets its default block size as 16.
