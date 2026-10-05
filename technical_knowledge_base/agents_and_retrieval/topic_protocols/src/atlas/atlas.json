@@ -516,7 +516,8 @@
    "meet": [
     "A service mesh that wraps calls between your gateway and the inference pods.",
     "A2A and MCP deployments inside a company: A2A Agent Cards can declare a `MutualTlsSecurityScheme`.",
-    "OAuth tokens bound to a client certificate (RFC 8705), so a stolen token is useless elsewhere."
+    "OAuth tokens bound to a client certificate (RFC 8705), so a stolen token is useless elsewhere.",
+    "Client certificates from public CAs are ending: the Chrome Root Program policy (v1.8) requires subordinate CAs disclosed from 15 June 2026 to be serverAuth-only and leaf certificates issued from 15 March 2027 to carry only serverAuth, so mTLS needs a private CA (the TLS child, section 7)."
    ],
    "fail": {
     "symptom": "`tls: certificate required` or `bad certificate` between two services that worked yesterday.",
@@ -545,6 +546,10 @@
     {
      "t": "A2A v1.0.1 specification §4.5.6 MutualTlsSecurityScheme",
      "u": "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md"
+    },
+    {
+     "t": "Chrome Root Program policy v1.8 (5 February 2026), section 1.3.2",
+     "u": "https://googlechrome.github.io/chromerootprogram/crp/policy/"
     }
    ]
   },
@@ -1591,7 +1596,7 @@
    "status": "Open specification, semver releases",
    "plain": "A way for one agent to hand a task to another agent it cannot see inside (another team's, another company's), follow the task's progress and get the results back.",
    "problem": "Delegation between opaque agents: neither side exposes its tools, prompts or memory, only what it can do.",
-   "how": "An agent publishes an **Agent Card** (JSON at `/.well-known/agent-card.json`) with its skills, endpoints, supported bindings and security schemes. A client sends a message; the work becomes a **task** with states (submitted, working, input-required, auth-required, completed, failed, canceled, rejected). Updates arrive by streaming (SSE), polling or push notifications (webhooks). v1.0 separates the protocol from three bindings: JSON-RPC 2.0, gRPC, and HTTP+JSON/REST; clients send an `A2A-Version` header.",
+   "how": "An agent publishes an **Agent Card** (JSON at `/.well-known/agent-card.json`) with its skills, endpoints, supported bindings and security schemes. A client sends a message; the work becomes a **task** with states (submitted, working, input-required, auth-required, completed, failed, canceled, rejected). Updates arrive by streaming (SSE), polling or push notifications (webhooks). v1.0 separates the protocol from three bindings: JSON-RPC 2.0, gRPC, and HTTP+JSON/REST; clients send an `A2A-Version` header, and a missing or empty one is read as 0.3 (the agent-to-agent child recorded an empty header refused by a 1.0 server as version '0.3'). Push notifications let a client register a webhook URL; the spec says agents SHOULD reject private, loopback and link-local addresses, but the Python SDK (a2a-sdk 1.2.2) does no push-URL screening by default (`validate_push_notification_url` must be turned on).",
    "runs_on": [
     "jsonrpc",
     "grpc",
@@ -1657,7 +1662,7 @@
    "status": "Open specification, dated versions",
    "plain": "A standard for an agent to shop at any merchant: discover what the merchant supports, negotiate, check out, and hand the buyer to the merchant's own page when the agent cannot finish.",
    "problem": "Agents buying things need one way to talk to millions of merchants, each with different payment, fulfilment and policy rules.",
-   "how": "Merchants and agents publish capability profiles (merchants at `/.well-known/ucp`); negotiation is the intersection of the two. Capabilities (Catalog, Checkout, Orders) and extensions version independently; extensions use reverse-domain names (`com.loyaltyprovider.points`) so nobody needs central approval. A checkout moves through `incomplete`, `requires_escalation` and `ready_for_complete`; when a human must finish, the Embedded Checkout Protocol opens a JSON-RPC 2.0 channel to the merchant's page. Transports: REST, JSON-RPC, MCP and A2A, with payments through AP2.",
+   "how": "Merchants and agents publish capability profiles (merchants at `/.well-known/ucp`); negotiation is the intersection of the two. Since 2026-08-25 the UCP-authored `dev.ucp.*` capabilities (Catalog, Checkout, Orders) and extensions are versioned in lockstep with the release, and only third-party extensions and payment handlers version on their own; extensions use reverse-domain names (`com.loyaltyprovider.points`) so nobody needs central approval. A checkout moves through `incomplete`, `requires_escalation` and `ready_for_complete`; when a human must finish, the Embedded Protocol (EP; the January post called it the Embedded Checkout Protocol) renders the merchant's page in an iframe or webview and exchanges JSON-RPC 2.0 messages with it over `postMessage`, with checkout methods under `ec.*` (`ec.start`, `ec.complete`). Transports: REST, JSON-RPC, MCP and A2A, with payments through AP2.",
    "runs_on": [
     "rest",
     "jsonrpc",
@@ -2818,9 +2823,9 @@
    "n": 13,
    "page": "Topic: protocols (root)",
    "old": "UCP \"Discovery is a well-known path ... `/.well-known/ucp` ... checkout moves through `incomplete`, `requires_escalation` and `ready_for_complete` ... Embedded Checkout Protocol opens a JSON-RPC 2.0 channel\"",
-   "verdict": "confirmed",
-   "now": "As described in Shopify's engineering post; a real store's `/.well-known/ucp` was fetched (recorded in the atlas).",
-   "src": "[Shopify Engineering](https://shopify.engineering/UCP)",
+   "verdict": "outdated",
+   "now": "Discovery and the three states are as described in Shopify's engineering post, and a real store's `/.well-known/ucp` was fetched (recorded in the atlas). The Embedded Checkout Protocol is now the general Embedded Protocol (EP), with checkout methods under `ec.*`; since 2026-08-25 the `dev.ucp.*` capabilities and extensions are versioned in lockstep with the release (checked by the agent-to-agent child).",
+   "src": "[Shopify Engineering](https://shopify.engineering/UCP), [UCP core concepts, Versioning](https://github.com/Universal-Commerce-Protocol/ucp/blob/v2026-08-25/docs/documentation/core-concepts.md)",
    "id": "ucp"
   },
   {
@@ -2909,8 +2914,8 @@
    "page": "Topic: protocols (root)",
    "old": "\"Post-quantum hybrid key exchange ... is past 60 percent of client traffic but only about 10 percent of origins\"",
    "verdict": "incomplete",
-   "now": "The adoption figures are not confirmed here (see unconfirmed.md). What changed: the hybrid groups are now RFC 10024 (August 2026), and `api.anthropic.com` negotiated `X25519MLKEM768` in the atlas recording on 2026-10-05.",
-   "src": "[RFC 10024](https://www.rfc-editor.org/rfc/rfc10024.html)",
+   "now": "The adoption figures are confirmed by Cloudflare (over 60% of client requests with post-quantum key agreement in February 2026, about 10% of origins; post of 2026-02-27, cited by the TLS child). What changed: the hybrid groups are now RFC 10024 (August 2026), and `api.anthropic.com` negotiated `X25519MLKEM768` in the atlas recording on 2026-10-05.",
+   "src": "[RFC 10024](https://www.rfc-editor.org/rfc/rfc10024.html), [Cloudflare, 27 February 2026](https://blog.cloudflare.com/radar-origin-pq-key-transparency-aspa/)",
    "id": "tls"
   }
  ],
