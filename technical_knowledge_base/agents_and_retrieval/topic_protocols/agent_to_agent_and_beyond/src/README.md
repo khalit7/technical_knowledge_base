@@ -1,0 +1,13 @@
+# src: Agent-to-agent and beyond
+
+- `build.sh` writes `../index.html` from `parts/` (the protocols assembler; `{{text|url}}` links, `n:` for Notion ids, `#t-...` for tabs).
+- `parts/`: `01_head.html` (shared CSS from the MCP page plus this page's), `10_header.html`, `20_read_a..i.html` (Reading, sections one-screen to 16), `21_js_rd_common.js` (RD helpers; `anim` takes a `tab`), `22_js_data.js` (generated), `25_js_read_a.js`, `26_js_read_b.js` (Reading visuals), `31_*` (One job, recorded), `32_*` (Commerce lab), `39_tab_more.html`, `99_js_tabs.js`.
+- `lab/`: every recording. `sh lab/run_all.sh <scratch dir>` re-runs them in under a minute (a venv with a2a-sdk 1.2.2 and mcp 2.3.0 in the scratch dir; ports 30801-30842 on 127.0.0.1) and redacts `lab/out/` (`redact.py`).
+  - `eval_agent.py`: Team B's scripted eval agent, official SDK server, JSON-RPC and HTTP+JSON bindings, bearer-token middleware, push sender, an out-of-band grant route.
+  - `run_a2a.py`: Team A's orchestrator (SDK client) and raw requests through `tcp_tap.py`: discovery and 304, no token, the running example, twelve error cases, both bindings, dropped stream and resubscribe, push (and a screening agent), in-task auth, reject, cancel, Agent Card signing (the ES256 private key stays in the scratch dir).
+  - `mcp_eval_server.py` + `mcp_same_job.py`: the same job as MCP tools driven step by step.
+- `gen_data.py` turns `lab/out/*.json` and `inputs/ucp_allbirds_profile.json` (one read-only fetch of a real store's `/.well-known/ucp`, 5 Oct 2026) into `parts/22_js_data.js`, splitting the unmerged TCP reads into requests, response heads and SSE events with their times.
+- `check_embed.py` confirms the page embeds the current data, checks 29 numbers and strings quoted in prose against the recordings, and greps page and src for private patterns, secrets and the home path. `check_ui.mjs` clicks every control at 390 px dark and 920 px light (226 clicks).
+- `old_root_excerpt.md`: the old Topic: protocols paragraphs on agent protocols, verbatim (this page's floor); `coverage.json` maps their 45 facts. `unconfirmed.md`: what was left out and why. `viz_ideas.md`: visuals built and rejected.
+
+Shape: Part B of `html_utils/methods/topic_pages.md`. Departures: no `live.md` (a new page; the old overview's paragraphs stand in), and like the MCP page the Reading uses recorded tables and message viewers more than charts, because the subject is message exchanges; the before/after animation (MCP against A2A on the same job) lives in its own tab because it needs the width. Nothing calls a model: both agents and the user's answers are scripted and labelled.
