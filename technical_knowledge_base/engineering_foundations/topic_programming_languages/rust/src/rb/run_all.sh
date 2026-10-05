@@ -3,7 +3,7 @@
 # Toolchains live in the session scratchpad (see versions.txt); point PL at your own copy.
 # About 10 minutes on an M1 Pro. Writes outputs/*.txt and outputs/*.json; long paths are shortened.
 set -u
-PL=${PL:-/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl}
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 . "$PL/tools_research/env.sh"; export UV_PYTHON_INSTALL_BIN=0
 HERE=$(cd "$(dirname "$0")" && pwd); EXT=$HERE/ext; CODE=$HERE/code; OUT=$HERE/outputs; mkdir -p "$OUT"
 ROOT=$(cd "$HERE/../../.." && pwd)                       # topic_programming_languages/

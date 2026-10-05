@@ -3,10 +3,14 @@
 // or an element in the tab wider than the viewport. Run: node at_check.mjs [screenshot dir]
 import { createRequire } from 'module';
 import fs from 'fs';
-const require = createRequire('/Users/khalid/technical_knowledge_base/html_utils/package.json');
+import os from 'os';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
+const require = createRequire(path.join(REPO, 'html_utils/package.json'));
 const puppeteer = require('puppeteer');
-const PAGE = 'file:///Users/khalid/technical_knowledge_base/technical_knowledge_base/agents_and_retrieval/topic_protocols/index.html';
-const OUT = process.argv[2] || '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/proto/atlas/shots';
+const PAGE = pathToFileURL(path.join(REPO, 'technical_knowledge_base/agents_and_retrieval/topic_protocols/index.html')).href;
+const OUT = process.argv[2] || path.join(process.env.SCRATCH || os.tmpdir(), 'proto/atlas/shots');
 fs.mkdirSync(OUT, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox'] });

@@ -2,6 +2,7 @@
 // Each element matching <selector> inside the tab is captured on its own (long ones are cut at 2000 px).
 import { createRequire } from 'module';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../../../../../..');
@@ -9,7 +10,7 @@ const require = createRequire(path.join(repo, 'html_utils/package.json'));
 const puppeteer = require('puppeteer');
 const [tab, w, scheme, sel] = process.argv.slice(2, 6);
 const pre = process.argv[7] || '';
-const out = process.argv[6] && process.argv[6] !== '-' ? process.argv[6] : '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/cl/shots/el';
+const out = process.argv[6] && process.argv[6] !== '-' ? process.argv[6] : path.join(process.env.PL || path.join(os.tmpdir(), 'pl'), 'cl/shots/el');
 require('fs').mkdirSync(out, { recursive: true });
 const browser = await puppeteer.launch({ headless: 'shell' });
 const p = await browser.newPage();

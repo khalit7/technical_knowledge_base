@@ -3,7 +3,9 @@
 // The page shows the program without markers, the probed types, and tsc's real errors on the clean program.
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-const PL = "/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+const PL = process.env.PL || join(tmpdir(), "pl");
 const TSC = PL + "/tb/node_modules/.bin/tsc";
 const here = new URL(".", import.meta.url).pathname;
 const base = JSON.parse(readFileSync(here + "tsconfig.base.json", "utf8"));

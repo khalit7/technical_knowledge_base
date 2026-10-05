@@ -17,7 +17,7 @@ def rd(p):
 
 def clean(t, folder):
     t = t.replace(str(CODE / folder) + "/", "")
-    t = re.sub(r"/Users/[^\s\"']*/src/read/code/[a-z_]+/", "", t)
+    t = re.sub(r"(?:/Users/|~/)[^\s\"']*/src/read/code/[a-z_]+/", "", t)
     t = re.sub(r"\n?exit (\d+)\s*$", r"\n[exit status \1]", t.rstrip())
     return t.rstrip() + "\n"
 

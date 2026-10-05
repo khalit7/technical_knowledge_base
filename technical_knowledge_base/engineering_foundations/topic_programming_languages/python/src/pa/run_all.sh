@@ -2,7 +2,7 @@
 # Reproduce every output shown in Part 1 (In depth). Toolchains live in the session scratchpad (see versions.txt);
 # point PL at your own copy. Writes outputs/*.txt and outputs/*.json; paths to this folder are shortened to the file name.
 set -u
-PL=${PL:-/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl}
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 V=$PL/pa/venv/bin                       # CPython 3.14.8 venv with numpy, mypy, ty, py-spy, scalene
 PY=$V/python
 PY313=$PL/py/cpython-3.13.16-macos-aarch64-none/bin/python3.13

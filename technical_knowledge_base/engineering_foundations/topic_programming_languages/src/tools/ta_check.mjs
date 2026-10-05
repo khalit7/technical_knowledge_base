@@ -1,9 +1,13 @@
 // Exercise every control of the Toolchain atlas tab at 390 dark and 920 light.
 import { createRequire } from 'module';
-const require = createRequire('/Users/khalid/technical_knowledge_base/html_utils/package.json');
+import os from 'os';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
+const require = createRequire(path.join(REPO, 'html_utils/package.json'));
 const puppeteer = require('puppeteer');
-const PAGE = 'file:///Users/khalid/technical_knowledge_base/technical_knowledge_base/engineering_foundations/topic_programming_languages/index.html';
-const OUT = process.argv[2] || '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/tools_walk/shots';
+const PAGE = pathToFileURL(path.join(REPO, 'technical_knowledge_base/engineering_foundations/topic_programming_languages/index.html')).href;
+const OUT = process.argv[2] || path.join(process.env.PL || path.join(os.tmpdir(), 'pl'), 'tools_walk/shots');
 import fs from 'fs'; fs.mkdirSync(OUT, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox'] });

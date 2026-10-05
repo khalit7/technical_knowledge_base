@@ -4,12 +4,13 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'os';
 import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.resolve(HERE, '../../index.html');
 const require = createRequire(path.resolve(HERE, '../../../../../../html_utils/package.json'));
 const puppeteer = require('puppeteer');
-const SHOTS = process.env.SHOTS || '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/ja/shots';
+const SHOTS = process.env.SHOTS || path.join(process.env.PL || path.join(os.tmpdir(), 'pl'), 'ja/shots');
 fs.mkdirSync(SHOTS, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });

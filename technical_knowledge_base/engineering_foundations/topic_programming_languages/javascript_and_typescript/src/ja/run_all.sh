@@ -2,9 +2,9 @@
 # Reproduce every output shown in Part 1 (JavaScript and its runtime). Toolchains live in the session scratchpad
 # (see versions.txt); point PL at your own copy. Writes outputs/*.txt and *.json. Recorded runtime: Node 24.21.0 (LTS).
 set -u
-PL=${PL:-/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl}
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 NODE24=$PL/ja/node-v24.21.0-darwin-arm64/bin/node; NODE26=$PL/ja/node-v26.10.0-darwin-arm64/bin/node
-NODE22=${NODE22:-/Users/khalid/.nvm/versions/node/v22.22.2/bin/node}
+NODE22=${NODE22:-$HOME/.nvm/versions/node/v22.22.2/bin/node}
 export PATH=$PL/ja/node-v24.21.0-darwin-arm64/bin:$PL/ja/pnpm/bin:$PL/ja/deno:$PL/bin:$PATH
 export npm_config_cache=$PL/ja/npmcache npm_config_userconfig=$PL/ja/empty.npmrc XDG_DATA_HOME=$PL/ja/xdg XDG_CACHE_HOME=$PL/ja/xdgcache
 export BUN_INSTALL_CACHE_DIR=$PL/ja/buncache DENO_DIR=$PL/ja/denodir NO_COLOR=1

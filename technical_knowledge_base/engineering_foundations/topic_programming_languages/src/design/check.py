@@ -1,6 +1,6 @@
 """Confirm the built page embeds exactly the captured outputs and code, and the llama.cpp excerpts match the pinned clone.
 Run from anywhere: python3 check.py  (exit status 1 on any mismatch)."""
-import json, os, re, subprocess, sys
+import json, os, re, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 html = open(os.path.join(HERE, "..", "..", "index.html"), encoding="utf-8").read()
 m = re.search(r"window\.DS_DATA = (\{.*?\});\n", html, re.S)
@@ -18,7 +18,7 @@ for p, s in D["snips"].items():
 files = {os.path.relpath(os.path.join(d, f), os.path.join(HERE, "code")) for d, _, fs in os.walk(os.path.join(HERE, "code")) for f in fs if "__" not in f and not f.startswith(".")}
 unused = files - set(D["snips"])
 if unused: print("snippets not shown on the page:", sorted(unused))
-L = D["llama"]; clone = "/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/llama.cpp"
+L = D["llama"]; clone = os.path.join(os.environ.get("PL") or os.path.join(tempfile.gettempdir(), "pl"), "llama.cpp")
 if os.path.isdir(clone):
     head = subprocess.check_output(["git", "-C", clone, "rev-parse", "HEAD"], text=True).strip()
     if head != L["commit"]: print("llama.cpp clone is at", head, "not", L["commit"]); bad += 1
