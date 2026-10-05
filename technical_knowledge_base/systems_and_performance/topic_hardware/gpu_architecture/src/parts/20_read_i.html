@@ -1,0 +1,44 @@
+
+<section id="ga-s12">
+<h2>12. Generation by generation: what changed and why</h2>
+<p>Each generation answers the bottleneck the previous one exposed. Read down the column "why".</p>
+<div class="tw"><table class="gen">
+<thead><tr><th>Part, year</th><th>What changed</th><th>Why (the bottleneck it answers)</th></tr></thead>
+<tbody>
+<tr><td>A100, 2020</td><td class="wrap">TF32 and BF16 tensor cores, 2:4 sparsity, asynchronous copy, 40 MB L2, 1,024 FP16 FMAs per SM per clock (2 times Volta)</td><td class="wrap">FP32 training could not use tensor cores at all; BF16 keeps FP32's range so no loss scaling; copies through registers wasted issue slots and registers</td></tr>
+<tr><td>H100, 2022</td><td class="wrap">FP8, 2 times the per-SM tensor rate, wgmma, TMA, clusters with DSMEM, 50 MB L2, HBM3 3.35 TB/s, NVLink 900 GB/s</td><td class="wrap">Feeding a faster tensor core from threads did not scale (mma reaches 62.9% of Hopper's peak); data had to move without threads, and between SMs without L2</td></tr>
+<tr><td>H200, 2023</td><td class="wrap">Same compute, 141 GB HBM3e at 4.8 TB/s</td><td class="wrap">Memory capacity and bandwidth, not FLOPS, limited large-model inference and long contexts</td></tr>
+<tr><td>B200, 2024</td><td class="wrap">Two dies as one GPU (208 billion transistors, 10 TB/s NV-HBI), FP6, FP4 and block-scaled formats, tcgen05 and 256 KB TMEM per SM, 8 TB/s, up to 1,200 W</td><td class="wrap">One die had reached the reticle limit; accumulators were crowding the register file; inference wanted 4-bit</td></tr>
+<tr><td>B300, 2025</td><td class="wrap">FP4 1.5 times B200 (15 against 10 PF), 288 GB, attention SFU throughput doubled, FP64 and INT8 cut, up to 1,400 W</td><td class="wrap">Inference: FP4 math, KV-cache capacity, and the softmax exponentials that were starting to bound attention once matmuls got this fast</td></tr>
+<tr><td>Rubin, 2026</td><td class="wrap">336 billion transistors, 224 SMs, HBM4 up to 22 TB/s, NVLink 6 at 3.6 TB/s, tensor throughput per clock doubled along K, FP8 at 4.4 times BF16, exponential throughput 2 times (FP32) and 4 times (BF16) Blackwell</td><td class="wrap">Bandwidth again (2.8 times Blackwell), low-precision training, attention</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources as in sections 7 to 11 plus {{H200 page|https://www.nvidia.com/en-us/data-center/h200/}}. The "why" column is the reading of NVIDIA's own stated motivations (the blogs above) and of the measurements on this page; where NVIDIA states no motivation (H200, FP64 cut), it is labelled as the page's reading. Rubin: "ramping into full production" and "production shipments ... set to begin starting this fall" ({{NVIDIA newsroom, May 31 2026|https://nvidianews.nvidia.com/news/vera-rubin-full-production-agentic-ai-factory}}); no independent measurement exists yet.</p>
+<div class="co"><div class="t">The pattern to remember</div>Math got cheaper faster than data movement in every generation. So each generation added hardware to move data (async copy, TMA, DSMEM, TMEM, bigger L2, faster HBM) and the code that runs fastest is the code that overlaps moving with computing. A kernel written for the previous generation usually runs, but does not use what is new.</div>
+</section>
+
+<section id="ga-s13">
+<h2>13. Checking your GPU, common mistakes, interview questions</h2>
+<h3>Checking what you are running on <span class="pill">not run here: no NVIDIA GPU</span></h3>
+<ul class="tight">
+<li><code>torch.cuda.get_device_capability()</code> gives the compute capability (8, 0) A100, (9, 0) H100, (10, 0) B200, (12, 0) RTX 5090: it decides which instructions a kernel can use. <code>torch.cuda.get_device_properties(0)</code> gives the SM count and memory.</li>
+<li><code>nvidia-smi -q</code> lists clocks, power limit and memory; a power or clock cap lowers every peak on this page proportionally.</li>
+<li>A kernel's registers, shared memory and spills: compile with <code>-Xptxas -v</code>, or read them per kernel in Nsight Compute, which also reports achieved occupancy and tensor-pipe utilisation (see the CUDA topic).</li>
+</ul>
+<h3>Common mistakes</h3>
+<details class="mist"><summary>Quoting sparse FLOPS as the chip's speed</summary><div class="b">Vendor tables print the 2:4 structured-sparsity figure first (H100 BF16 "1,979"); dense training gets half (989.5). Compare dense with dense.</div></details>
+<details class="mist"><summary>"Divergence halves throughput"</summary><div class="b">The paths taken within a warp run one after the other, so the cost is the sum of the paths: 2 equal paths cost 1.95 times, 32 paths 38.6 times on the M1 measurement in section 5. Divergence between warps is free.</div></details>
+<details class="mist"><summary>Chasing 100% occupancy</summary><div class="b">The fastest tensor-core kernels run at low occupancy with many registers per thread and hide latency with asynchronous copies (section 4).</div></details>
+<details class="mist"><summary>"An H100 is just a faster A100"</summary><div class="b">Ampere-style mma code reaches about 63% of Hopper's tensor peak; wgmma reaches 96% (Luo et al.). Blackwell kernels need tcgen05 and TMEM. Use libraries and compilers built for the target (sm_90a, sm_100a).</div></details>
+<details class="mist"><summary>"B200" is one number</summary><div class="b">HGX B200 is 2,250 BF16 TFLOPS dense; the B200 inside a GB200 rack is 2,500; Blackwell Ultra 2,250 BF16 but 15 PF FP4. Name the SKU.</div></details>
+<details class="mist"><summary>Comparing a consumer card's FP16-accumulate rate with a datacenter BF16 rate</summary><div class="b">The RTX 5090's 419 TFLOPS is FP16 with FP16 accumulation; training uses FP32 accumulation, 209.5.</div></details>
+<h3>Interview questions, short answers</h3>
+<details class="mist"><summary>What is an SM, and what is inside it?</summary><div class="b">The GPU's repeated processor: four quadrants, each with a warp scheduler, 64 KB of registers, 32 FP32 lanes (Hopper) and a tensor core; shared L1/shared memory (256 KB on H100); on Blackwell also 256 KB of tensor memory. H100 SXM has 132.</div></details>
+<details class="mist"><summary>How does a GPU hide memory latency?</summary><div class="b">By keeping many warps resident with their registers in place and issuing from whichever is ready; plus memory-level parallelism per thread and asynchronous copies. Little's law: bytes in flight = bandwidth &times; latency, about 0.9 MB for an H100.</div></details>
+<details class="mist"><summary>What limits occupancy?</summary><div class="b">Warp slots, block slots, registers (64K per SM) and shared memory per SM; the smallest wins. Low occupancy is fine if latency is hidden another way.</div></details>
+<details class="mist"><summary>What did Hopper add for matmuls, and why?</summary><div class="b">FP8, wgmma (warpgroup MMA from shared memory, asynchronous), TMA (descriptor-driven tile copies) and clusters with distributed shared memory: the tensor cores had outgrown what threads could feed.</div></details>
+<details class="mist"><summary>What is TMEM and why does it exist?</summary><div class="b">256 KB per SM on Blackwell datacenter GPUs, 128 lanes by 512 columns, holding tensor-core accumulators. It frees the register file (a 128 &times; 128 FP32 accumulator is a quarter of it) for the epilogue and other work.</div></details>
+<details class="mist"><summary>Why is the B200 two dies?</summary><div class="b">One die is limited by the reticle; two reticle-sized dies joined at 10 TB/s give 208 billion transistors presented as one GPU.</div></details>
+<details class="mist"><summary>RTX 5090 or H100 for training a 7B model?</summary><div class="b">H100: 80 GB against 32 GB (full fine-tuning needs about 16 bytes per parameter), 4.7 times the BF16 rate with FP32 accumulation, NVLink, wgmma. The 5090 is for inference and kernel development.</div></details>
+<details class="mist"><summary>Why did the BF16 ridge point fall on Rubin?</summary><div class="b">HBM4 bandwidth (22 TB/s) grew faster than BF16 math (4 PF): 182 FLOPs per byte against the H100's 295. At FP8 it rose to 795.</div></details>
+</section>
+</div>

@@ -1,0 +1,11 @@
+# GPU architecture page: sources and scripts
+
+- `build.sh`: assembles `../index.html` from `parts/` (Reading `20_read_a..i.html`, tabs `31_*` Chip floorplans, `32_*` M1 GPU lab, `39_tab_more.html`; every JS part in its own script, `99_js_tabs.js` last; error box from `html_utils/templates`).
+- `run_all.sh`: reproduces everything: three runs of `m1/gpu_micro.py` on the M1 Pro GPU (needs an MLX Python outside the repo, `MLXPY=...`), then `recompute.py`, `build.sh`, `check_embed.py`. `SKIP_MEASURE=1` skips the measurements.
+- `m1/gpu_micro.py`: four microbenchmarks with custom Metal kernels (pointer-chase latency against size, pointer-chase and coalesced-read throughput against threads, the occupancy cliff from reserved threadgroup memory, divergence by lane against by SIMD-group). Results checked against NumPy. Raw outputs and logs in `m1/out/` (MLX 0.32.3, 2026-10-05, load average 6.8 to 13: the machine was shared).
+- `recompute.py` (stdlib): medians across runs, every derived number (Little's law, occupancy of the example kernel with the cuda_occupancy.h rules, tile instruction counts from PTX shapes, the latency-hiding simulation `hide_sim`, ratios and ridges), vendor figures typed with URLs; writes `out/expected.json` and `parts/22_js_ga_data.js` (window.GA).
+- `check_embed.py`: the page embeds exactly `out/expected.json`, 30 hand-written prose numbers agree with the data, no private patterns.
+- `check/check_page.mjs`: puppeteer, every tab and control at 390 px dark and 920 px light; no errors, NaN, undefined or sideways scroll; the animations' end states equal the Python reference; screenshots to `../.shots/own/`.
+- `live.md`: the old Notion page verbatim; `coverage.json`: 46 facts with verdict and where carried. `viz_ideas.md`: visuals built and rejected.
+
+Shape: Part B of `html_utils/methods/topic_pages.md` (Reading by the subject's logic, one tab per standalone visual). Departures: the Reading tab is long (about 35 to 40 minutes, 6,700 words plus tables and animations) because the reader is taught from zero and this child owns the SM in depth; the parent's section 2, Chip atlas and Roofline lab are linked, not repeated. Programming the GPU (instructions, kernels, profiling) is left to Topic: cuda-and-gpu-programming, whose compile results are cited.
