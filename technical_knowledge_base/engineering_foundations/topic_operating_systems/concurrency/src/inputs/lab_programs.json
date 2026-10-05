@@ -1,0 +1,81 @@
+{
+ "_about": "Programs for the Interleaving lab. Each instruction is one indivisible step. Shared by the page (embedded by make_data.py) and checked by recompute.py, which explores every interleaving independently of the page's JavaScript.",
+ "scenarios": [
+  {"id": "futex", "title": "glibc's futex mutex (0 free, 1 locked, 2 locked with waiters)",
+   "mem": {"word": 0},
+   "threads": ["T1", "T2", "T3"],
+   "prog": [
+    {"l": "L0", "op": "cas",   "v": "word", "exp": 0, "new": 1, "ok": "CS", "txt": "if (CAS(&word, 0, 1) succeeds) goto CS   // fast path, no system call"},
+    {"l": "L1", "op": "ldbr",  "v": "word", "eq": 2, "to": "L3",   "txt": "if (word == 2) goto wait"},
+    {"l": "L2", "op": "xchgbr","v": "word", "val": 2, "eq": 0, "to": "CS", "txt": "if (xchg(&word, 2) == 0) goto CS   // took it, marked 'waiters'"},
+    {"l": "L3", "op": "fwait", "v": "word", "val": 2, "then": "L2", "txt": "futex_wait(&word, 2): kernel sleeps only if word is still 2; then retry"},
+    {"l": "CS", "op": "enter", "txt": "critical section: enter"},
+    {"l": "C1", "op": "leave", "txt": "critical section: leave"},
+    {"l": "U0", "op": "xchgbr","v": "word", "val": 0, "le": 1, "to": "DN", "txt": "if (xchg(&word, 0) <= 1) goto done   // nobody waiting: no system call"},
+    {"l": "U1", "op": "fwake", "v": "word", "n": 1, "txt": "futex_wake(&word, 1): wake one sleeper"},
+    {"l": "DN", "op": "done", "txt": "done"}
+   ]},
+  {"id": "lost", "title": "Sleep and wake-up: check, then sleep (broken)",
+   "mem": {"flag": 0}, "queues": ["q"],
+   "threads": ["T1", "T2"],
+   "prog": [
+    {"l": "L0", "op": "xchgbr","v": "flag", "val": 1, "eq": 0, "to": "CS", "txt": "if (test_and_set(&flag) == 0) goto CS"},
+    {"l": "L1", "op": "enq",   "q": "q", "txt": "add myself to the wait queue"},
+    {"l": "L2", "op": "park",  "q": "q", "then": "L0", "txt": "park(): sleep until someone unparks me; then retry"},
+    {"l": "CS", "op": "enter", "txt": "critical section: enter"},
+    {"l": "C1", "op": "leave", "txt": "critical section: leave"},
+    {"l": "U0", "op": "set",   "v": "flag", "val": 0, "txt": "flag = 0"},
+    {"l": "U1", "op": "unpark","q": "q", "txt": "if (queue not empty) unpark(first waiter)   // lost if it is not asleep yet"},
+    {"l": "DN", "op": "done", "txt": "done"}
+   ]},
+  {"id": "lostfix", "title": "Sleep and wake-up: the futex way (fixed)",
+   "mem": {"flag": 0},
+   "threads": ["T1", "T2"],
+   "prog": [
+    {"l": "L0", "op": "xchgbr","v": "flag", "val": 1, "eq": 0, "to": "CS", "txt": "if (test_and_set(&flag) == 0) goto CS"},
+    {"l": "L1", "op": "fwait", "v": "flag", "val": 1, "then": "L0", "txt": "futex_wait(&flag, 1): sleep only if flag is STILL 1 (checked in the kernel); then retry"},
+    {"l": "CS", "op": "enter", "txt": "critical section: enter"},
+    {"l": "C1", "op": "leave", "txt": "critical section: leave"},
+    {"l": "U0", "op": "set",   "v": "flag", "val": 0, "txt": "flag = 0"},
+    {"l": "U1", "op": "fwake", "v": "flag", "n": 1, "txt": "futex_wake(&flag, 1)"},
+    {"l": "DN", "op": "done", "txt": "done"}
+   ]},
+  {"id": "cvif", "title": "Producer and two consumers, condition checked with if (broken)",
+   "mem": {"count": 0, "m": 0, "made": 0}, "queues": ["fill", "empty", "m"],
+   "threads": ["P", "C1", "C2"],
+   "progs": {
+    "P": [
+     {"l": "P0", "op": "mlock", "m": "m", "txt": "lock(m)"},
+     {"l": "P1", "op": "brv",   "v": "count", "eq": 0, "to": "P3", "txt": "while (count == 1)"},
+     {"l": "P2", "op": "cwait", "c": "empty", "m": "m", "then": "P1", "txt": "    wait(&empty, &m)"},
+     {"l": "P3", "op": "set",   "v": "count", "val": 1, "txt": "put(): count = 1"},
+     {"l": "P4", "op": "csignal","c": "fill", "txt": "signal(&fill)"},
+     {"l": "P5", "op": "munlock","m": "m", "txt": "unlock(m)"},
+     {"l": "P6", "op": "incbr", "v": "made", "lt": 2, "to": "P0", "txt": "made++; if (made < 2) loop   // two items"},
+     {"l": "PD", "op": "done", "txt": "done"}
+    ],
+    "C": [
+     {"l": "Q0", "op": "mlock", "m": "m", "txt": "lock(m)"},
+     {"l": "Q1", "op": "brv",   "v": "count", "eq": 1, "to": "Q3", "txt": "if (count == 0)"},
+     {"l": "Q2", "op": "cwait", "c": "fill", "m": "m", "then": "Q3", "txt": "    wait(&fill, &m)   // on return, goes straight on"},
+     {"l": "Q3", "op": "take",  "v": "count", "txt": "get(): count = 0   // must not be empty!"},
+     {"l": "Q4", "op": "csignal","c": "empty", "txt": "signal(&empty)"},
+     {"l": "Q5", "op": "munlock","m": "m", "txt": "unlock(m)"},
+     {"l": "QD", "op": "done", "txt": "done"}
+    ]}},
+  {"id": "cvwhile", "title": "Producer and two consumers, condition re-checked with while (fixed)",
+   "mem": {"count": 0, "m": 0, "made": 0}, "queues": ["fill", "empty", "m"],
+   "threads": ["P", "C1", "C2"],
+   "progs": {
+    "P": "same as cvif",
+    "C": [
+     {"l": "Q0", "op": "mlock", "m": "m", "txt": "lock(m)"},
+     {"l": "Q1", "op": "brv",   "v": "count", "eq": 1, "to": "Q3", "txt": "while (count == 0)"},
+     {"l": "Q2", "op": "cwait", "c": "fill", "m": "m", "then": "Q1", "txt": "    wait(&fill, &m)   // on return, check again"},
+     {"l": "Q3", "op": "take",  "v": "count", "txt": "get(): count = 0   // must not be empty!"},
+     {"l": "Q4", "op": "csignal","c": "empty", "txt": "signal(&empty)"},
+     {"l": "Q5", "op": "munlock","m": "m", "txt": "unlock(m)"},
+     {"l": "QD", "op": "done", "txt": "done"}
+    ]}}
+ ]
+}
