@@ -1,5 +1,5 @@
 # Shared paths for Part 3 (cl). Everything big lives in the session scratchpad, never in the repo.
-S=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl
+S=${PL:-${TMPDIR:-/tmp}/pl}
 CL=$S/cl
 LL=$S/llama.cpp                       # pinned clone, commit 8e1642198dcd4e408f8776222d6ae31b74d01187
 B=$CL/build                           # default build (CPU + BLAS + Metal)

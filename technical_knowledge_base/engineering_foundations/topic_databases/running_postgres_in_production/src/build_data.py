@@ -8,7 +8,7 @@ RUNS = ['pitr', 'replication', 'vacuum', 'wraparound', 'connections', 'upgrade',
 def clean(s):
     if not isinstance(s, str):
         return s
-    s = re.sub(r'/(?:private/)?(?:tmp|var|Users)/\S*?/rp_data/', '', s)
+    s = re.sub(r'(?:/(?:private/)?(?:tmp|var|Users)/|<scratch>/)\S*?/rp_data/', '', s)
     s = re.sub(r'/Users/\S+/(pgserver|cenv)/\S*', r'\1', s)
     s = s.replace('—', ', ')
     return s

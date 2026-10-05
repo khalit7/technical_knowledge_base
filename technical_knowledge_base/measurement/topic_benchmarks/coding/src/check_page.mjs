@@ -4,7 +4,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs';
-const require = createRequire('/Users/khalid/technical_knowledge_base/html_utils/package.json');
+const require = createRequire(path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../../../html_utils/package.json'));
 const puppeteer = require('puppeteer');
 const here = path.dirname(new URL(import.meta.url).pathname);
 const file = path.resolve(here, '../index.html');

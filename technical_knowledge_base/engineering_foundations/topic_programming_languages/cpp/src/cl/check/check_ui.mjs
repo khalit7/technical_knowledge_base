@@ -3,13 +3,14 @@
 // Usage: node check_ui.mjs [outdir]
 import { createRequire } from 'module';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../../../../../..');
 const require = createRequire(path.join(repo, 'html_utils/package.json'));
 const puppeteer = require('puppeteer');
 const page_file = 'file://' + path.resolve(here, '../../../index.html');
-const out = process.argv[2] || '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/cl/shots';
+const out = process.argv[2] || path.join(process.env.PL || path.join(os.tmpdir(), 'pl'), 'cl/shots');
 const fs = require('fs'); fs.mkdirSync(out, { recursive: true });
 const TABS = ['t-cl-read', 't-cl-tour', 't-cl-quant', 't-cl-run'];
 const browser = await puppeteer.launch({ headless: 'shell' });

@@ -1,7 +1,7 @@
 """Copy short, exact excerpts from a pinned llama.cpp clone into excerpts.json.
 Run: python3 extract.py [path to clone]. check.py re-reads them from the clone if present."""
-import json, subprocess, sys, os
-CLONE = sys.argv[1] if len(sys.argv) > 1 else "/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/llama.cpp"
+import json, subprocess, sys, os, tempfile
+CLONE = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.environ.get("PL") or os.path.join(tempfile.gettempdir(), "pl"), "llama.cpp")
 EX = [  # id, file, first line, last line, what it shows
  ("extern_c", "ggml/include/ggml.h", 344, 346, "ggml's public header is C; C++ code includes it inside extern \"C\" so names are not mangled"),
  ("block_q4_0", "ggml/src/ggml-common.h", 194, 199, "a quantised block: a plain struct with a fixed byte layout, checked at compile time"),

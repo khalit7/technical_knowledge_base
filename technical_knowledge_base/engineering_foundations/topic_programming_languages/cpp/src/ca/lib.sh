@@ -1,7 +1,7 @@
 # Helpers for run_all.sh. rec NAME DIR 'COMMAND' runs COMMAND in $W/DIR and records
 # "$ COMMAND" plus its combined stdout/stderr (and a non-zero exit code) in out/NAME.txt.
 # Work happens in a copy of code/ under the scratch folder, so builds never touch the repo.
-PL=${PL:-/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl}
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 HERE=$(cd "$(dirname "$0")" && pwd)
 W=$PL/ca/work
 OUT=$HERE/out

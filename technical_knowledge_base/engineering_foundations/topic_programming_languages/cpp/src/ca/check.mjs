@@ -3,6 +3,7 @@
 // usage: node src/ca/check.mjs [shots dir]   (puppeteer from html_utils/node_modules)
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import os from 'os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -10,7 +11,7 @@ const repo = path.resolve(here, '../../../../../..');
 const require = createRequire(path.join(repo, 'html_utils/package.json'));
 const puppeteer = require('puppeteer');
 const page = path.resolve(here, '../../index.html');
-const shots = process.argv[2] || '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/ca/shots';
+const shots = process.argv[2] || path.join(process.env.PL || path.join(os.tmpdir(), 'pl'), 'ca/shots');
 fs.mkdirSync(shots, { recursive: true });
 const TABS = ['t-ca-read', 't-ca-build', 't-ca-life', 't-ca-ub', 't-ca-drill'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));

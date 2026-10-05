@@ -1,6 +1,6 @@
 # Brief: build one paper page (given to one subagent per paper) (a row of the Papers database) as an HTML-only page
 
-Repo: /Users/khalid/technical_knowledge_base. You are given the paper's title, Notion id and folder.
+Repo: <repo> (the root of this repository). You are given the paper's title, Notion id and folder.
 
 Read, in this order: CLAUDE.md; html_utils/methods/README.md and html_utils/methods/papers.md (the approved paper-page method; it is a SUGGESTION, not a template: follow it where it fits this paper, depart from it where it does not, and say why in src/README.md; a paper with nothing to run, no table worth rebuilding or no "then and now" simply does not get that tab); html_utils/BRIEF_page_agent.md (the full model, Step 0, steps and reply format) and everything it says to read; the reference implementation technical_knowledge_base/reference/papers/attention_is_all_you_need_transformer/ (index.html and src/: copy its reusable pieces as papers.md lists them; never edit that folder).
 

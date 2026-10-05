@@ -3,7 +3,7 @@
 # 1. tsc 7.0.2 vs tsc 6.0.3 type-checking zod 4.6.5's own TypeScript sources (tests and benchmarks removed).
 # 2. Start-up of `node file.ts` (type stripping), tsx and bun on a one-line program.
 set -u
-PL=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 HERE="$(cd "$(dirname "$0")" && pwd)"
 B=$PL/tb/bench; rm -rf $B; mkdir -p $B; cp -R $PL/tb/node_modules/zod/src $B/src; cd $B
 find src -name "*.test.ts" -delete; rm -rf src/v3/benchmarks src/v3/tests src/v4/classic/tests src/v4/mini/tests src/v4/core/tests

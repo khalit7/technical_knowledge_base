@@ -2,7 +2,7 @@
 # Outputs that are not a single snippet run: the npm peer-dependency conflict, runtime start-up timings.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PL=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 export NPM_CONFIG_USERCONFIG=$PL/ja/empty.npmrc
 W=$PL/tb/work/eresolve; rm -rf $W; mkdir -p $W; cd $W; echo '{"name":"demo","private":true}' > package.json
 { echo '$ npm install --save-dev typescript@7.0.2 typescript-eslint@8.71.0'

@@ -3,7 +3,7 @@
 # every model answer comes from code/mock_model.ts (synthetic). Toolchains live in the session scratchpad; point PL at your copy.
 # Writes outputs/*.txt and outputs/*.json, and versions.txt.
 set -u
-PL=${PL:-/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl}
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 NODE=$PL/ja/node-v24.21.0-darwin-arm64/bin/node
 export PATH=$PL/ja/node-v24.21.0-darwin-arm64/bin:$PL/tl/inspector/node_modules/.bin:$PATH NO_COLOR=1
 export NPM_CONFIG_USERCONFIG=$PL/ja/empty.npmrc         # the user npmrc holds a token; never let npm read or print it

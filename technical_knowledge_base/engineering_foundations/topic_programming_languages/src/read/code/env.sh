@@ -1,5 +1,5 @@
 # Toolchains used by the Reading's code (all inside the session scratchpad; see ../README or versions.txt)
-PL=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 export RUSTUP_HOME=$PL/rust/rustup CARGO_HOME=$PL/rust/cargo
 export PATH=$PL/rust/cargo/bin:$PL/ts/node_modules/.bin:$PL/bin:$PATH
 PY=$PL/py/cpython-3.14.8-macos-aarch64-none/bin/python3.14

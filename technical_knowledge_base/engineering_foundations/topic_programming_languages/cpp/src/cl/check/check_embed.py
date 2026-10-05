@@ -3,7 +3,7 @@
 # 2. the raw outputs on the page equal the files in out/;
 # 3. every excerpt equals the lines of the pinned clone (if the clone is present);
 # 4. every data-clv / data-out / data-ex reference in Part 3's parts resolves to a value.
-import json, pathlib, re, subprocess, sys
+import json, os, pathlib, re, subprocess, sys, tempfile
 H = pathlib.Path(__file__).resolve().parent.parent
 P = H.parent / "parts"
 page = (H.parent.parent / "index.html").read_text()
@@ -38,7 +38,7 @@ for name, rows in (("cpu", "bench_cpu.json"), ("metal", "bench_metal.json"), ("q
         if [round(x, 1) for x in r["samples_ts"]] != b["s"]: fail(f"bench {name} samples differ")
 ex = json.loads(rd("excerpts.json"))
 if ex["excerpts"] != CL["src"]: fail("excerpts differ from out/excerpts.json")
-LL = pathlib.Path("/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/llama.cpp")
+LL = pathlib.Path(os.environ.get("PL") or os.path.join(tempfile.gettempdir(), "pl")) / "llama.cpp"
 if LL.exists():
     head = subprocess.run(["git", "-C", str(LL), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     if head != CL["commit"]: fail("clone is not at the pinned commit")
