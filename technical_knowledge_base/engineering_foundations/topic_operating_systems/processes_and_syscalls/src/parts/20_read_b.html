@@ -1,0 +1,43 @@
+<section id="rd-s1">
+<h2>1. The process, as the kernel sees it</h2>
+<span class="ostep">ch. 4 The Abstraction: The Process</span>
+<p><b>The problem.</b> A program is a file: instructions and initial data. Running it needs much more: memory to hold it, a CPU pointed at its first instruction, a record of every file it opens, and a way to stop it, resume it, and clean up after it, while dozens of other programs do the same. OSTEP calls the bundle a process's <dfn id="g-mstate">machine state</dfn>: its memory (the <dfn id="g-as">address space</dfn>), its registers (including the program counter and stack pointer), and its I/O state (open files). The kernel keeps one record per process holding or pointing to all of it.</p>
+<h3>task_struct: one record per thread</h3>
+<p>In Linux that record is <code>struct task_struct</code> ({{include/linux/sched.h line 778|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L778}}), a structure of several kilobytes. The surprise for most people: there is one per <dfn id="g-thread">thread</dfn>, not one per process. Linux calls each a <dfn id="g-task">task</dfn>. A "process" is a group of tasks that point at the same memory, the same file table and the same signal handlers. The fields that this page keeps coming back to:</p>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Field (v6.12 line)</th><th>What it holds</th><th>Shared by threads?</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td>{{__state|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L786}} (786)</td><td>Running, sleeping, stopped...; the letter <code>ps</code> shows</td><td>no, per task</td><td>below</td></tr>
+<tr><td>{{mm|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L921}} (921)</td><td>The address space: page tables and mappings</td><td>yes</td><td>3, and the {{virtual memory page|n:3f05c17b0d0d81a48892cea154ce950b}}</td></tr>
+<tr><td>{{exit_state, exit_code|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L925}} (925 to 926)</td><td>Zombie or dead; the status the parent will collect</td><td>no</td><td>5</td></tr>
+<tr><td>{{pid, tgid|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1018}} (1018 to 1019)</td><td>This task's id; the id of its thread group</td><td>tgid yes</td><td>below</td></tr>
+<tr><td>{{real_parent|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1032}}, {{children|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1040}} (1032, 1040)</td><td>The process tree</td><td>per task</td><td>5</td></tr>
+<tr><td>{{cred|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1114}} (1114)</td><td>User and group ids, capabilities</td><td>usually</td><td>8</td></tr>
+<tr><td>{{comm|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1128}} (1128)</td><td>The 15-character name <code>ps</code> shows (<code>pt_data_worker</code>)</td><td>no</td><td>9</td></tr>
+<tr><td>{{fs, files|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1141}} (1141, 1144)</td><td>Current directory and root; the file descriptor table</td><td>yes</td><td>7</td></tr>
+<tr><td>{{nsproxy|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1151}} (1151)</td><td>Namespaces: which PIDs, mounts, network it sees</td><td>yes</td><td>{{containers page|n:3f05c17b0d0d8156a841e4bf28f11293}}</td></tr>
+<tr><td>{{signal, sighand, blocked, pending|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1154}} (1154 to 1160)</td><td>Process-wide signal state, the handler table, this thread's mask and private pending set</td><td>signal and sighand yes; blocked and pending no</td><td>6</td></tr>
+<tr><td>{{thread|https://github.com/torvalds/linux/blob/v6.12/include/linux/sched.h#L1602}} (1602)</td><td>The CPU registers saved while the task is not running</td><td>no</td><td>{{scheduling page|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}</td></tr>
+</tbody></table></div>
+<p><b>PID and TGID.</b> Because every thread is a task, every thread has its own id, stored in <code>pid</code>. What user space calls the process id is the <dfn id="g-tgid">thread group id</dfn> <code>tgid</code>, the id of the first thread. <code>getpid()</code> returns the tgid; <code>gettid()</code> (Python's <code>threading.get_native_id()</code>) returns the task's own id. <code>top -H</code> and <code>/proc/&lt;pid&gt;/task/</code> show the threads one by one.</p>
+<h3>The running job, read from /proc</h3>
+<p>Here is the job with two fork DataLoader workers, captured from inside its container while it trained (<code>src/runs/in_container_proc.sh</code>). <code>/proc</code> is not on any disk: the kernel writes this text when you read it ({{proc(5)|https://man7.org/linux/man-pages/man5/proc.5.html}}).</p>
+<pre class="cd out" id="rd-proc-ps"></pre>
+<div class="panes"><div><h5>Main process: /proc/&lt;main&gt;/status (selected lines)</h5><pre class="cd out" id="rd-proc-main"></pre></div><div><h5>A DataLoader worker</h5><pre class="cd out" id="rd-proc-worker"></pre></div></div>
+<p>Read it line by line. <code>Tgid</code> equals <code>Pid</code> for both: these are the leaders of their thread groups. The main process has 8 threads (the root's {{Syscall tracer|n:3f05c17b0d0d81c5a97ce991644af140}} tab shows the <code>clone</code> calls that create them); each worker has 4 even though DataLoader sets <code>torch.set_num_threads(1)</code> inside it, because a forked child inherits only the thread that called fork and starts new ones as it imports and computes. The worker's <code>PPid</code> is the main process; the main process's <code>PPid</code> is 1, the container's shell. <code>SigIgn</code> and <code>SigCgt</code> are bit masks of ignored and caught signals: section 6 decodes them, and they show that torch caught different signals in the worker than in the main process. <code>Seccomp: 2</code> means a seccomp filter is active (Docker's default profile); the ctxt_switches counters are how often this task gave up the CPU voluntarily (blocking) or was preempted.</p>
+<h3>Process states</h3>
+<p>The one-letter state comes from a table in {{fs/proc/array.c line 126|https://github.com/torvalds/linux/blob/v6.12/fs/proc/array.c#L126}}:</p>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Letter</th><th>Kernel name</th><th>Meaning</th><th>Where you meet it in training</th></tr></thead>
+<tbody>
+<tr><td>R</td><td>running</td><td>On a CPU or ready to run (OSTEP separates running from ready; Linux shows both as R)</td><td>The training loop computing; a busy worker</td></tr>
+<tr><td>S</td><td>sleeping</td><td>Waiting for an event; a signal can wake it (interruptible)</td><td>Workers waiting on their index queue; main waiting for a batch</td></tr>
+<tr><td>D</td><td>disk sleep</td><td>Waiting inside the kernel, uninterruptible: not even SIGKILL acts until the wait ends</td><td>Page faults on a slow network file system; a hung NFS or Lustre mount (the root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} case "Slow storage: workers sleep in D state on page faults")</td></tr>
+<tr><td>T, t</td><td>stopped, tracing stop</td><td>Stopped by SIGSTOP or Ctrl-Z; stopped by a debugger or strace</td><td>A job paused by <code>kill -STOP</code>; every system call under strace</td></tr>
+<tr><td>Z</td><td>zombie</td><td>Exited; its parent has not collected the status yet</td><td>Section 5</td></tr>
+<tr><td>X</td><td>dead</td><td>Being removed; you will almost never see it</td><td></td></tr>
+<tr><td>I</td><td>idle</td><td>A kernel thread with nothing to do (not counted in the load average)</td><td>Hundreds of them in <code>ps</code> on any host</td></tr>
+</tbody></table></div>
+<p>A lowercase <code>s</code>, <code>l</code> or <code>+</code> after the letter in <code>ps</code> means session leader, multi-threaded, and in the foreground process group (section 8). So <code>Sl</code> is "sleeping, has threads": exactly the workers above.</p>
+<div class="deepnote"><b>Go deeper:</b> the root's {{Syscall tracer|n:3f05c17b0d0d81c5a97ce991644af140}} tab shows the <code>clone</code> flags that made these threads and workers; how a task is chosen to run on a CPU, and what is saved when it stops, is the {{scheduling child page|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}.</div>
+</section>

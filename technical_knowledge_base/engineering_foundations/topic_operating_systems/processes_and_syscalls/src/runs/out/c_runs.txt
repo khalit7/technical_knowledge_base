@@ -1,0 +1,134 @@
+== env
+Linux 5.10.104-linuxkit aarch64
+5
+MemTotal:       10189980 kB
+ldd (Debian GLIBC 2.36-9+deb12u14) 2.36
+== E3 pipes
+F_GETPIPE_SZ 65536
+PIPE_BUF 4096
+bytes written before EAGAIN 65536 (errno Resource temporarily unavailable)
+pipe-max-size 1048576
+F_SETPIPE_SZ 1 MiB -> 1048576
+== E2 sigqueue
+RLIMIT_SIGPENDING soft 39345
+A handler: sent 1000 SIGUSR1, handler ran 1 times; sent 1000 SIGRTMIN, handler ran 1000 times
+B signalfd: read 1 SIGUSR1 records and 1000 SIGRTMIN records (sender pid field = own pid: yes)
+== E4 fdshare
+--- case 1: one open(), then fork: shared offset (39 bytes)
+PARENT
+child
+PARENT
+child
+PARENT
+child
+--- case 2: each process calls open(): two offsets, overwrites (21 bytes)
+child
+child
+child
+NT
+--- stdout redirected to a file:
+buffered line from pid 55 (child)
+buffered line from pid 55 (parent)
+== E5 cloexec
+parent (pipe, no CLOEXEC): wrote 6 bytes, closed its write end at 0.000 s
+reader: got 6 bytes then EOF after 2.011 s
+parent (pipe2 O_CLOEXEC): wrote 6 bytes, closed its write end at 0.014 s
+reader: got 6 bytes then EOF after 0.015 s
+== E6 lifecycle
+me: pid 67, ppid 1, subreaper no
+  child exited, not yet waited:      pid 68 state Z ppid 67
+  waitpid: WIFEXITED 1, WEXITSTATUS 7
+  after waitpid:                     /proc/68: gone
+  orphan: grandchild 70, its parent 69 exited; getppid() in the grandchild now = 1
+me: pid 71, ppid 1, subreaper yes
+  child exited, not yet waited:      pid 72 state Z ppid 71
+  waitpid: WIFEXITED 1, WEXITSTATUS 7
+  after waitpid:                     /proc/72: gone
+  orphan: grandchild 74, its parent 73 exited; getppid() in the grandchild now = 71
+  as subreaper we reaped pid 74
+== E14 exec_keep
+before exec: pid 75; fd 5 (no CLOEXEC), fd 6 (CLOEXEC); SIGUSR1 handled, SIGUSR2 ignored, SIGHUP blocked
+after exec: pid 75
+SigBlk:	0000000000000000
+SigIgn:	0000000000000800
+SigCgt:	0000000000010002
+fds:
+0 1 2 5 
+== E9 sysc
+getppid_ns_per_call 269.2 (n=200000, median of 5)
+under strace:
+getppid_ns_per_call 124348.4 (n=20000, median of 5)
+== E9 python os.getppid
+python_os_getppid_ns_per_call 249.5
+== E9 gdb: glibc's read() wrapper on arm64
+Dump of assembler code for function read:
+   0x00000000000ddb60 <+0>:	stp	x29, x30, [sp, #-48]!
+   0x00000000000ddb64 <+4>:	adrp	x3, 0x1a7000
+   0x00000000000ddb68 <+8>:	mov	x29, sp
+   0x00000000000ddb6c <+12>:	ldrb	w3, [x3, #2472]
+   0x00000000000ddb70 <+16>:	stp	x19, x20, [sp, #16]
+   0x00000000000ddb74 <+20>:	sxtw	x19, w0
+   0x00000000000ddb78 <+24>:	cbz	w3, 0xddba4 <read+68>
+   0x00000000000ddb7c <+28>:	mov	x0, x19
+   0x00000000000ddb80 <+32>:	mov	x8, #0x3f                  	// #63
+   0x00000000000ddb84 <+36>:	svc	#0x0
+   0x00000000000ddb88 <+40>:	mov	x19, x0
+   0x00000000000ddb8c <+44>:	cmn	x0, #0x1, lsl #12
+   0x00000000000ddb90 <+48>:	b.hi	0xddbf4 <read+148>  // b.pmore
+   0x00000000000ddb94 <+52>:	mov	x0, x19
+   0x00000000000ddb98 <+56>:	ldp	x19, x20, [sp, #16]
+   0x00000000000ddb9c <+60>:	ldp	x29, x30, [sp], #48
+   0x00000000000ddba0 <+64>:	ret
+   0x00000000000ddba4 <+68>:	mov	x20, x2
+   0x00000000000ddba8 <+72>:	str	x21, [sp, #32]
+   0x00000000000ddbac <+76>:	mov	x21, x1
+   0x00000000000ddbb0 <+80>:	bl	0x7e380
+   0x00000000000ddbb4 <+84>:	mov	x1, x21
+   0x00000000000ddbb8 <+88>:	mov	w3, w0
+   0x00000000000ddbbc <+92>:	mov	x2, x20
+   0x00000000000ddbc0 <+96>:	mov	x0, x19
+   0x00000000000ddbc4 <+100>:	mov	x8, #0x3f                  	// #63
+   0x00000000000ddbc8 <+104>:	svc	#0x0
+   0x00000000000ddbcc <+108>:	mov	x19, x0
+   0x00000000000ddbd0 <+112>:	cmn	x0, #0x1, lsl #12
+   0x00000000000ddbd4 <+116>:	b.hi	0xddc10 <read+176>  // b.pmore
+   0x00000000000ddbd8 <+120>:	mov	w0, w3
+   0x00000000000ddbdc <+124>:	bl	0x7e424
+   0x00000000000ddbe0 <+128>:	ldr	x21, [sp, #32]
+   0x00000000000ddbe4 <+132>:	mov	x0, x19
+   0x00000000000ddbe8 <+136>:	ldp	x19, x20, [sp, #16]
+   0x00000000000ddbec <+140>:	ldp	x29, x30, [sp], #48
+   0x00000000000ddbf0 <+144>:	ret
+   0x00000000000ddbf4 <+148>:	adrp	x0, 0x19f000 <sys_sigabbrev+448>
+   0x00000000000ddbf8 <+152>:	ldr	x0, [x0, #3520]
+   0x00000000000ddbfc <+156>:	mrs	x1, tpidr_el0
+   0x00000000000ddc00 <+160>:	neg	w2, w19
+   0x00000000000ddc04 <+164>:	mov	x19, #0xffffffffffffffff    	// #-1
+   0x00000000000ddc08 <+168>:	str	w2, [x1, x0]
+   0x00000000000ddc0c <+172>:	b	0xddb94 <read+52>
+   0x00000000000ddc10 <+176>:	adrp	x0, 0x19f000 <sys_sigabbrev+448>
+   0x00000000000ddc14 <+180>:	ldr	x0, [x0, #3520]
+   0x00000000000ddc18 <+184>:	mrs	x1, tpidr_el0
+   0x00000000000ddc1c <+188>:	neg	w2, w19
+   0x00000000000ddc20 <+192>:	mov	x19, #0xffffffffffffffff    	// #-1
+   0x00000000000ddc24 <+196>:	str	w2, [x1, x0]
+   0x00000000000ddc28 <+200>:	b	0xddbd8 <read+120>
+End of assembler dump.
+== E1 spawn_cost
+rss_mib vmpte_kib method median_us p10_us p90_us n
+0 48 fork_exit 247.7 185.8 355.4 41
+0 48 vfork_exit 120.4 86.9 296.8 41
+0 48 fork_exec 429.8 321.0 542.8 41
+0 48 spawn_exec 385.6 306.7 560.0 41
+64 176 fork_exit 1932.3 1117.0 2793.9 41
+64 176 vfork_exit 193.0 103.7 336.3 41
+64 176 fork_exec 2134.5 1342.2 3232.1 41
+64 176 spawn_exec 386.0 311.5 498.3 41
+256 564 fork_exit 4939.9 3730.7 6422.0 41
+256 564 vfork_exit 91.8 63.3 224.4 41
+256 564 fork_exec 6143.4 3992.9 7528.6 41
+256 564 spawn_exec 393.3 321.2 560.8 41
+1024 2100 fork_exit 17082.2 14881.9 19951.0 41
+1024 2100 vfork_exit 94.3 69.8 158.6 41
+1024 2100 fork_exec 16808.4 14817.8 20666.0 41
+1024 2100 spawn_exec 381.8 298.2 532.2 41

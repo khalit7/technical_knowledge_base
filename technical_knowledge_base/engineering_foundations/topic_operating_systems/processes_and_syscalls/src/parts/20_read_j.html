@@ -1,0 +1,50 @@
+<section id="rd-s9">
+<h2>9. In a training job: start methods, the DataLoader, torchrun, preemption</h2>
+<p>Everything above, assembled into the processes a training node actually runs.</p>
+<h3>Start methods, by Python version</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Python</th><th>Linux default</th><th>macOS default</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>3.7 and earlier</td><td>fork</td><td>fork</td><td></td></tr>
+<tr><td>3.8 to 3.11</td><td>fork</td><td>spawn</td><td>macOS changed because "macOS system libraries may start threads" ({{3.11 docs|https://docs.python.org/3.11/library/multiprocessing.html#contexts-and-start-methods}})</td></tr>
+<tr><td>3.12, 3.13</td><td>fork</td><td>spawn</td><td><code>os.fork()</code> warns (DeprecationWarning) when it detects other threads</td></tr>
+<tr><td>3.14</td><td>forkserver</td><td>spawn</td><td>"the default start method was changed from fork to forkserver" on POSIX ({{3.14 docs|https://docs.python.org/3.14/library/multiprocessing.html#contexts-and-start-methods}})</td></tr>
+</tbody></table></div>
+<p>The DataLoader uses the multiprocessing default unless you pass <code>multiprocessing_context</code>. Costs on this machine (section 3 and the root): a fork worker is ready in milliseconds; a spawn or forkserver worker needs a fresh interpreter that imports torch, about 0.65 to 0.94 s, paid again at every epoch unless <code>persistent_workers=True</code>. With forkserver, <code>multiprocessing.set_forkserver_preload(["torch"])</code> pays the import once in the server (the root measured 0.035 s per new iterator after a 0.703 s first one). Name the start method in code; do not let a Python upgrade choose it.</p>
+<h3>The DataLoader's worker processes, from the source</h3>
+<p>Read from torch 2.14's <code>torch/utils/data/dataloader.py</code> and <code>_utils/worker.py</code> inside the lab image:</p>
+<ol class="small">
+<li><b>Start.</b> <code>iter(loader)</code> creates one index queue per worker and one shared result queue, then starts each worker as a <code>multiprocessing.Process</code> with <code>daemon = True</code> (line 1168), so it is killed if the main process exits normally without shutting it down. The main process installs its SIGCHLD handler (<code>_set_SIGCHLD_handler</code>).</li>
+<li><b>Worker set-up.</b> In <code>_worker_loop</code> each worker installs C-level handlers for SIGBUS, SIGSEGV, SIGFPE and SIGTERM that print an error and die (exactly the worker <code>SigCgt</code> decoded in section 6), names its thread <code>pt_data_worker</code> (the <code>comm</code> in section 1), sets <code>torch.set_num_threads(1)</code>, seeds its random generators with <code>base_seed + worker_id</code>, and calls your <code>worker_init_fn</code>.</li>
+<li><b>Loop.</b> While the <code>ManagerWatchdog</code> sees the original parent (section 5), it waits up to <code>MP_STATUS_CHECK_INTERVAL</code> = 5.0 s for an index, builds the batch, and puts it on the result queue; tensors travel as shared-memory descriptors (section 7).</li>
+<li><b>Failure.</b> If a worker dies, the main process gets SIGCHLD; its handler calls <code>_error_if_any_worker_fails()</code>, which uses <code>waitid</code> to find a worker that died and raises <code>RuntimeError: DataLoader worker (pid N) is killed by signal: ...</code> in the main thread, wherever it is (the NOTE at the top of <code>signal_handling.py</code>).</li>
+<li><b>Shutdown.</b> When the iterator is deleted or exhausted, <code>_shutdown_workers</code> sets a done event, sends each worker a stop message, joins each with a timeout of 5.0 s, and terminates any that remain. Workers are re-created for the next epoch unless <code>persistent_workers=True</code>.</li>
+</ol>
+<h3>torchrun, and the trap in its shutdown</h3>
+<p><code>torchrun</code> runs an <dfn id="g-agent">elastic agent</dfn> that starts one trainer process per GPU (environment variables <code>RANK</code>, <code>LOCAL_RANK</code>, <code>WORLD_SIZE</code>, <code>MASTER_ADDR</code>, <code>MASTER_PORT</code> tell each who it is), each in its own session (section 8), then polls them. If one fails it stops the others and, up to <code>--max-restarts</code>, starts the group again. For a stop request it registers handlers for SIGTERM, SIGINT, SIGHUP and SIGQUIT (overridable with <code>TORCHELASTIC_SIGNALS_TO_HANDLE</code>); the handler raises <code>SignalException</code>, the agent sends SIGTERM to each trainer's process group, waits up to 30 s, then sends SIGKILL, and finally re-raises, so torchrun itself exits 1 (torch 2.14 <code>torch/distributed/elastic/multiprocessing/api.py</code> lines 76 to 86 and 1023 to 1068; {{elastic agent docs|https://docs.pytorch.org/docs/stable/elastic/agent.html}}).</p>
+<div class="drill" id="dr-torchrun"><div class="q">Predict: the running job, whose SIGTERM handler sets a flag and checkpoints after the step, is launched with <code>torchrun --nproc-per-node 1</code> and two DataLoader workers. <code>docker stop</code> sends SIGTERM to torchrun. Does the trainer write its checkpoint?</div>
+<div class="opts"><button>yes: torchrun forwards SIGTERM and the handler checkpoints</button><button data-right>no: it crashes with a RuntimeError first</button><button>no: torchrun SIGKILLs it at once</button></div>
+<div class="ans" hidden>No, in all three runs. torchrun's <code>killpg</code> delivers SIGTERM to the trainer <i>and</i> to its two DataLoader workers, which are in the trainer's process group. The trainer's handler sets its flag, but the workers' C handlers kill them immediately; the trainer gets SIGCHLD, and the DataLoader's handler raises <code>RuntimeError: DataLoader worker (pid ...) is killed by signal: Terminated.</code> in the middle of the forward pass, before the loop can reach its checkpoint. The fix that worked in all three runs: make the workers ignore SIGTERM in <code>worker_init_fn</code> (which runs after torch installs its handler), so only the trainer reacts and then shuts its workers down itself. See the {{Shutdown lab|#t-stop}}, variants "torchrun" and "torchrun, workers ignore SIGTERM".</div></div>
+<pre class="cd"><span class="k">def</span> ignore_term(worker_id):                 <span class="c"># runs in each worker, after torch's own handlers</span>
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+loader = DataLoader(ds, num_workers=2, worker_init_fn=ignore_term,
+                    multiprocessing_context=<span class="s">"forkserver"</span>, persistent_workers=True)</pre>
+<p class="small mute">The runs used a wrapper (<code>src/runs/py/ignore_term_in_workers.py</code>) that adds this <code>worker_init_fn</code> to the root's unchanged <code>train.py</code>. The same group-signal effect appears without torchrun when anything signals the whole group (<code>pkill -f train.py</code>, <code>kill -- -PGID</code>): the root's Debug lab case "pkill -TERM also hits the workers".</p>
+<h3>Graceful preemption, end to end</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th></th><th>Kubernetes</th><th>Slurm</th></tr></thead>
+<tbody>
+<tr><td>Who gets SIGTERM</td><td>PID 1 of each container ("send a TERM signal to process 1 inside each container", {{Pod Lifecycle|https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination}})</td><td><code>scancel</code> sends "first a SIGCONT to all steps to eventually wake them up followed by a SIGTERM, then wait the KillWait duration" before SIGKILL ({{scancel(1)|https://slurm.schedmd.com/scancel.html}})</td></tr>
+<tr><td>Grace period</td><td><code>terminationGracePeriodSeconds</code>, default 30 s; a <code>preStop</code> hook runs first, inside the same period</td><td><code>KillWait</code> in slurm.conf</td></tr>
+<tr><td>Warning before a time limit</td><td>none built in</td><td><code>--signal=B:USR1@120</code>: "Use the "B:" option to signal only the batch shell", so the batch script must forward it; without B:, "all job steps will be signaled, but not the batch shell itself" ({{sbatch(1)|https://slurm.schedmd.com/sbatch.html}})</td></tr>
+<tr><td>Classic failure</td><td>PID 1 is a shell (<code>sh -c</code>) that neither forwards nor exits: 30 s, then SIGKILL</td><td>The batch shell catches the signal with <code>trap</code> while blocked in a foreground command; bash runs the trap only after that command finishes ({{Bash manual, Signals|https://www.gnu.org/software/bash/manual/bash.html#Signals}}), so start the job in the background and <code>wait</code></td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">The checklist</div><ol class="small" style="margin:4px 0">
+<li>Make the trainer PID 1 or have PID 1 forward signals: the exec form in the Dockerfile, <code>exec python ...</code> in scripts, or a real init (<code>--init</code>, tini) whose child is Python itself, not a shell (Shutdown lab).</li>
+<li>Install a SIGTERM handler that only sets a flag; checkpoint in the loop, after the step, with the write-fsync-rename pattern of the {{storage page|n:3f05c17b0d0d8141be7acc1313570cbf}}.</li>
+<li>Make DataLoader workers ignore SIGTERM when anything may signal the whole group (torchrun does).</li>
+<li>Keep the slowest step, plus the checkpoint, shorter than the grace period; set collective timeouts so a dead peer cannot hold the main thread past it (section 6).</li>
+<li>Exit 0 after a requested stop, so the scheduler does not count it as a failure and restart it in a loop; check how your launcher reports it (torchrun exits 1).</li>
+</ol></div>
+<div class="deepnote"><b>Go deeper:</b> Kubernetes resources and their cgroups are the {{containers child page|n:3f05c17b0d0d8156a841e4bf28f11293}} and {{Topic: ml-infra-and-orchestration|n:3c65c17b0d0d81b5925bfd1d8665dd4b}}; collectives, timeouts and elastic training are {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} and {{Training Infrastructure|n:3c65c17b0d0d81c9b2cac997583bf572}}; DataLoader APIs are {{Topic: pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}.</div>
+</section>

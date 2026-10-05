@@ -1,0 +1,28 @@
+<div class="tab" id="t-stop" role="tabpanel" hidden>
+<style>
+#t-stop h2{font-size:18px;margin:18px 0 6px}
+#t-stop .sd-row{cursor:pointer}#t-stop .sd-row:hover td{background:var(--soft)}#t-stop .sd-row.sel td{background:var(--acc2)}
+#t-stop .y{color:var(--good);font-weight:600}#t-stop .n{color:var(--bad);font-weight:600}
+#t-stop pre.cd{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;font:11.5px/1.45 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%;max-height:22em;overflow-y:auto}
+#t-stop .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-stop .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-stop .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-stop .rd-chart{width:100%;overflow:hidden}
+#t-stop .det{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0}
+#t-stop .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}#t-stop .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-stop .det h3{margin:0 0 4px;font-size:15px}
+</style>
+<p class="lead">Ten ways to start the same training job in a container, and what <code>docker stop</code> did to each. <code>docker stop -t 10</code> sends SIGTERM to the container's PID 1, waits 10 s, then sends SIGKILL: the same sequence as a Kubernetes pod deletion or a Slurm cancellation, with a shorter grace period.</p>
+<p class="small">The job is the root's running example (<code>src/trace/job/train.py</code>: SIGTERM handler that sets a flag, checkpoint after the step, exit 0) with 2 fork DataLoader workers, 2 CPUs, in <code>kb-os-lab:1</code> (Debian 12: <code>dash</code> 0.5.12 as <code>sh</code>, <code>bash</code> 5.2.15; Docker 20.10.17, whose <code>--init</code> is tini). Each variant ran 3 times, 2026-10-05: started, waited for training step 5, recorded the process tree with <code>ps</code>, then timed <code>docker stop</code> and read the exit code and the log. Script: <code>src/runs/run_shutdown.sh</code>; raw records: <code>src/runs/out/shutdown/</code>.</p>
+<div class="tw" id="sd-table"></div>
+<div class="rd-chart" id="sd-chart"></div>
+<div class="det" id="sd-det"></div>
+<h2>What the ten runs teach</h2>
+<ul>
+<li><b>Whether your process is PID 1 decides everything.</b> Same image, same script: the exec form, <code>sh -c "exec ..."</code>, and <code>bash -c</code> (bash replaces itself with a single simple command) made Python PID 1 and stopped cleanly in under a second; plain <code>sh -c</code> left <code>dash</code> as PID 1, which neither forwards SIGTERM nor dies from it (section 5 of the Reading tab), so every run waited out the 10 s and was killed.</li>
+<li><b>An init process is not a fix by itself.</b> <code>--init</code> forwards the signal to its one child. When that child is a shell, the shell dies at once (it is not PID 1, so the default action applies), tini exits with the shell's status 143, and the kernel kills everything left in the namespace: no checkpoint, in a third of a second. Signalling the whole group (<code>TINI_KILL_PROCESS_GROUP=1</code>) does not help, because the shell still dies first. With Python as tini's direct child, everything works, and orphans are reaped too.</li>
+<li><b>torchrun signals process groups.</b> Its SIGTERM reaches the DataLoader workers, whose torch-installed handlers kill them; the trainer's SIGCHLD handler then raises before the checkpoint. Ignoring SIGTERM in the workers fixed it in all three runs; torchrun still exits 1 after a death signal by design.</li>
+</ul>
+<div class="drill" id="dr-init"><div class="q">Predict: <code>docker run --init image sh -c "python train.py; echo done"</code>, then <code>docker stop</code>. The Python script has a correct SIGTERM handler. Checkpoint written?</div>
+<div class="opts"><button>yes, in under a second</button><button>no, after 10 s (SIGKILL)</button><button data-right>no, in under a second</button></div>
+<div class="ans" hidden>Measured 0.28 to 0.41 s, exit 143, no checkpoint in 3 of 3 runs (variant "--init, sh -c with two commands"). tini forwarded SIGTERM to the shell; the shell died; tini exited; the kernel SIGKILLed Python with the namespace.</div></div>
+</div>
