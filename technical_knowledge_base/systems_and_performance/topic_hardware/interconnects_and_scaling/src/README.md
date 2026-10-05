@@ -1,0 +1,12 @@
+# Interconnects and scaling page: sources and scripts
+
+- `build.sh`: assembles `../index.html` from `parts/` (Reading `20_read_a..e.html`; tabs `31_*` Collective simulator, `32_*` Fabric explorer, `39_tab_more.html`; every JS part in its own script, `99_js_tabs.js` last; error box from `html_utils/templates`).
+- `run_all.sh`: reproduces everything: three runs of `meas/coll_bench.py` (needs a Python with torch outside the repo: `TORCHPY=...`; `SKIP_MEASURE=1` skips), then `recompute.py`, `build.sh`, `check_embed.py`.
+- `meas/coll_bench.py`: ring and recursive-doubling all-reduce written with send/recv, plus Gloo's own all-reduce and a ping-pong, at 2, 4 and 8 CPU ranks over loopback, 4 B to 16 MiB; every result checked against the exact sum. Raw: `meas/out/` (PyTorch 2.14.1, Apple M1 Pro, 2026-10-05, load average 5.5 to 7.2: the machine was shared).
+- `collsim.py`: the reference collective simulator (steps, chunk states, alpha-beta time); self-test: step simulation equals the closed forms. `fabric.py`: the reference fabric load model.
+- `recompute.py` (stdlib, imports the parent's `../../src/calc/model.py` so the TP and model numbers are the Performance calculator's): fits, link presets, published points against the model, parallelism thresholds, the 84 simulator and 216 fabric test cases; writes `out/expected.json` and `parts/22_js_ic_data.js` (window.IC, without the test cases).
+- `check_embed.py`: the page embeds exactly `out/expected.json`, 28 hand-written prose numbers agree with the data, no private patterns.
+- `check/check_page.mjs`: puppeteer, every tab and control at 390 px dark and 920 px light; no errors, NaN, undefined or sideways scroll; the page's JS simulator and fabric model equal the Python cases; screenshots to `../.shots/own/`.
+- `live.md`: the old Notion page verbatim (from the parent's `src/read/old/03_interconnects.md`); `coverage.json`: 46 old facts with verdict and where carried. `viz_ideas.md`: visuals built and rejected.
+
+Shape: Part B of `html_utils/methods/topic_pages.md`. The Reading tab is about 35 to 40 minutes (7,400 words with tables) because the reader is taught from zero; the parent's section 6 and calculator are linked and extended (latency, algorithms, topology), not repeated; definitions of the parallelism schemes are left to Distributed Training, TCP and RDMA transports to Networking foundations, TPU ICI to the TPUs sibling.
