@@ -65,7 +65,7 @@
 <label>ZeRO / FSDP stage <select id="calc-tz"><option value="0">0: every GPU keeps a full copy (DDP)</option><option value="1">1: shard optimizer state</option><option value="2">2: + gradients</option><option value="3">3: + weights (FSDP)</option></select></label>
 <label>Sequence length <select id="calc-tseq"></select></label>
 <label>Micro-batch (sequences per GPU) <select id="calc-tmb"></select></label>
-<label>Activations <select id="calc-tck"><option value="none">store all, naive attention</option><option value="flash">store all, FlashAttention</option><option value="full">full checkpointing (recompute)</option></select></label>
+<label>Activations <select id="calc-tck"><option value="none">store all, naive attention</option><option value="flash">store all, FlashAttention (GPT-3 count, 34sbh)</option><option value="full">full checkpointing (recompute)</option></select></label>
 <label>Training tokens <select id="calc-ttok"></select></label>
 <label>MFU you expect <b id="calc-tmfuv"></b><input type="range" id="calc-tmfu" min="0.05" max="0.7" step="0.01"></label>
 <label class="calc-chk"><input type="checkbox" id="calc-tatt"> count attention FLOPs (12 L H Q T per token)</label>
@@ -76,7 +76,7 @@
 <div class="calc-fx" id="calc-tfx"></div>
 </div>
 <div class="co"><div class="t">When 6ND is wrong</div><ul class="tight">
-<li><b>Long sequences:</b> attention's score and value matmuls add 12 L H Q T FLOPs per token (PaLM's Appendix B: L layers, H heads, Q head size, T sequence length). Tick the box: it adds 1.1% for PaLM at 2,048 tokens, 15% for Llama 3.1 70B at 8,192 and 61% at 32,768 (the formula counts the full score square; causal kernels skip about half of it, a convention to state).</li>
+<li><b>Long sequences:</b> attention's score and value matmuls add 12 L H Q T FLOPs per token (PaLM's Appendix B: L layers, H heads, Q head size, T sequence length). Tick the box: it adds 1.1% for PaLM at 2,048 tokens, 15% for Llama 3.1 70B at 8,192 and 61% at 32,768 (the formula counts the full score square; causal kernels skip about half of it, a convention to state: the Reading tab's section 5 counts the causal half against the matmul-only 6N, 14% for the 8B at 8,192, and {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} labels both).</li>
 <li><b>Mixture of experts:</b> use the active parameters for FLOPs and the total for memory (DeepSeek-V3: 37.6B and 671B).</li>
 <li><b>Recompute:</b> full activation checkpointing runs the forward pass twice, so the hardware does 8ND while the model still only "needs" 6ND. MFU counts 6ND; hardware FLOPs utilisation (HFU) counts 8ND and looks better (PaLM: 46.2% MFU, 57.8% HFU).</li>
 <li><b>LoRA and QLoRA:</b> the frozen base gets no weight gradients, so about 4ND (forward 2, backward through activations 2).</li>
@@ -96,7 +96,7 @@
 <div class="calc-anctl"><button id="calc-splay">Play</button><button id="calc-sprev" aria-label="Previous step">&#9664;</button><button id="calc-snext" aria-label="Next step">&#9654;</button><input type="range" id="calc-sscrub" min="0" max="1000" value="0" aria-label="Scrub"><select id="calc-sspd" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
 <div class="calc-cap" id="calc-scap"></div>
 <div class="out" id="calc-sout"></div>
-<p class="small mute">Model of the step <span class="calc-tag i">illustrative inputs</span>: 40% MFU while computing (an assumed, typical figure), bf16 weights and gradients gathered and reduce-scattered once per micro-batch (PyTorch FSDP's default re-gathers each micro-batch), a flat ring limited by its slowest link (NCCL's bus-bandwidth model), activations by Korthikanti et al.'s count with FlashAttention, the optimizer step reading and writing 28 bytes per parameter at full HBM bandwidth. Real runs add latency, imperfect overlap and stragglers; the shape of the comparison, not the third digit, is the lesson.</p>
+<p class="small mute">Model of the step <span class="calc-tag i">illustrative inputs</span>: 40% MFU while computing (an assumed, typical figure), bf16 weights and gradients gathered and reduce-scattered once per micro-batch (PyTorch FSDP's default re-gathers each micro-batch), a flat ring limited by its slowest link (NCCL's bus-bandwidth model), activations by Korthikanti et al.'s count with FlashAttention (the GPT-3 approximation, 34sbh; Llama's reference code keeps about 1.6 times as much, counted on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}), the optimizer step reading and writing 28 bytes per parameter at full HBM bandwidth. Real runs add latency, imperfect overlap and stragglers; the shape of the comparison, not the third digit, is the lesson.</p>
 </div>
 </section>
 
@@ -150,6 +150,7 @@
 </div>
 <div class="calc-bars bars" id="calc-cbars"></div>
 <p class="small mute" id="calc-cnote"></p>
+<p class="small mute">Link figures (hover a bar for its source): Rubin's NVLink 6 appears twice because NVIDIA prints two numbers, 3.6 TB/s per GPU (Rubin platform blog and HGX page; 260 TB/s per NVL72 rack) and 3.0 TB/s over 36 links (NVLink and Vera Rubin NVL72 pages; 216 TB/s per rack), without saying what the difference counts. MI355X: 7 Infinity Fabric links of 153 GB/s each, both directions (AMD product page). The B300-class NIC row is NVIDIA's HGX reference, 1.6 TB/s per 8 GPUs; AWS P6-B300 provides half (6.4 Tb/s of EFA per instance, so the 400 Gb/s row).</p>
 </div>
 <h3>Why tensor parallelism stays inside the NVLink domain</h3>
 <p>Data parallelism exchanges gradients once per step. Tensor parallelism (Megatron-style: each layer's matrices split across GPUs) must all-reduce the layer's activations four times per layer per micro-batch (twice forward, twice backward), on the critical path. Its traffic per token is about 16 h bytes per layer against about 6 &#215; 12h&#178;/TP FLOPs of compute, so the ratio does not depend on batch: only a fast link keeps it small.</p>

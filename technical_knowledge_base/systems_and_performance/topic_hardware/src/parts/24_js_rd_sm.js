@@ -21,7 +21,7 @@
     const ly=top+rows/2*cell+4;b+=R(x0,ly,gridW,l2h,'var(--c5)',{op:.75})+RD.t(x0+gridW/2,ly+13,'L2 cache, 50 MB, shared by all SMs',{a:'middle',fs:11,fill:'var(--bg)',w:600});
     if(narrow)b+=RD.t(w/2,H-26,'Each blue square is one SM; grey ones are disabled.',{a:'middle',fs:11,fill:'var(--mute)'})+RD.t(w/2,H-10,'Orange: the five HBM3 stacks beside the die.',{a:'middle',fs:11,fill:'var(--mute)'});
     return {svg:RD.svg(w,H,b,'H100: 144 SM sites with 132 enabled, an L2 cache across the middle, HBM stacks at the sides'),
-      cnt:[['SMs enabled','132 of 144','12 spare absorb defects'],['FP32 lanes','16,896','132 &times; 128'],['Tensor cores','528','132 &times; 4'],['Registers','33.8 MB','132 &times; 256 KB'],['L2 cache','50 MB',''],['HBM3','80 GB','5 stacks, 3.35 TB/s']],
+      cnt:[['SMs enabled','132 of 144','12 spare absorb defects'],['FP32 lanes','16,896','132 &times; 128'],['Tensor cores','528','132 &times; 4'],['Registers','33.0 MiB (34.6 MB)','132 &times; 256 KiB'],['L2 cache','50 MB',''],['HBM3','80 GB','5 stacks, 3.35 TB/s']],
       note:'Drawn to the counts, not to the floor plan: the real die groups SMs into 8 clusters (GPCs) and which 12 SMs are disabled differs from chip to chip. The sixth HBM site is unused on H100 SXM.'};
   }
   function sm(w){

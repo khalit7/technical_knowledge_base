@@ -27,7 +27,7 @@ The Performance calculator agent's verdicts on child 04 are in `../calc/old_perf
 | Cerebras WSE-3: ~46,000 mm2, ~900,000 cores, 44 GB SRAM, 125 PFLOPS | verified (press release Mar 13 2024; 46,225 mm2); 125 PF is sparse (CS-3 datasheet, via Chip atlas) | s7 |
 | Cerebras deployed by AWS, used by OpenAI | unconfirmed; dropped | n/a |
 | CS-4 (Aug 19 2026): 3 WSE-3 Turbo, 250 PF, 43.2 PB/s, 30x GPU, Q3 shipments | partly verified (Cerebras site lists WSE-3 Turbo 250 PF and CS-4 "30x"); left to the Chip atlas; dropped from Reading | Chip atlas |
-| AWS Trainium/Inferentia: vertical integration, Neuron trails CUDA, Project Rainier | bet verified as framing; Trainium2/3 numbers verified (Neuron docs); Project Rainier unconfirmed, dropped | s7 |
+| AWS Trainium/Inferentia: vertical integration, Neuron trails CUDA, Project Rainier | bet verified as framing; Trainium2/3 numbers verified (Neuron docs); Project Rainier verified by the TPU child page (Amazon, Oct 29 2025, "nearly half a million Trainium2 chips"), left to that page | s7 |
 | Qualcomm + Amazon co-designed inference silicon (Sep 8 2026) | unconfirmed; dropped | n/a |
 | "Roughly a quarter of 2026 AI server shipments are ASIC-based" | unconfirmed (no source); dropped | n/a |
 | Positron Asimov, $875M at $5B (Sep 10 2026), commodity-memory bet | unconfirmed (secondary source only); dropped. The idea it taught (capacity vs bandwidth for inference) is carried by the memory section | s3 |
@@ -84,8 +84,8 @@ The Performance calculator agent's verdicts on child 04 are in `../calc/old_perf
 | MXU 128x128 (v4/v5), 256x256 (v6e/v7) | corrected: scaling book says v6e is 256x256 and "all previous generations" 128x128; Ironwood's size unconfirmed | s1 |
 | VPU, VMEM/CMEM, compiler-scheduled memory | verified (scaling book) | s1 |
 | SparseCore (v4 onward) | verified (TPU v4 paper: 5x-7x on embeddings, 5% of die area and power) | Chip atlas, child page |
-| Generations table v1 to Ironwood | v5e, v5p, v6e, TPU7x verified (Cloud docs via facts file); v1 92 TOPS, v2/v3, v4 275 TF unconfirmed here (left to the TPU child page) | Chip atlas |
-| Ironwood pod 42.5 EF FP8, 1.77 PB HBM; Anthropic deal for up to 1M TPUs | 42.5 EF verified; 1.77 PB = 9,216 x 192 GB derived; Anthropic deal unconfirmed, dropped | s6 |
+| Generations table v1 to Ironwood | v5e, v5p, v6e, TPU7x verified (Cloud docs via facts file); verified 2026-10-05 by the TPU child page: v1 92 TOPS int8 with one 256x256 array (Jouppi et al., CACM 2020, Table 1; now in s1), v4 275 TF (arXiv 2304.01433, Table 4); v2 is 46 TF, not 45 | Chip atlas |
+| Ironwood pod 42.5 EF FP8, 1.77 PB HBM; Anthropic deal for up to 1M TPUs | 42.5 EF verified; 1.77 PB = 9,216 x 192 GB derived; Anthropic deal verified 2026-10-05 (Google Cloud, Nov 6 2025: "Anthropic plans to access up to 1 million TPUs"), carried | s6, s7 |
 | "roughly a B200-class part (4.6 vs 4.5 PF FP8, 192 GB on both, 7.4 vs 8 TB/s)" | verified per chip (B200 FP8 4.5 PF dense HGX, 180 GB HGX) with the capacity caveat | s7 |
 | 2D torus v5e/v6e, 3D v4/v5p/Ironwood; ICI ~1.2 TB/s per Ironwood chip | verified (scaling book; Ironwood blog 1.2 TBps bidirectional) | s6 |
 | OCS at cube boundaries, twisted tori | verified (TPU v4 paper) | s6 |
@@ -104,11 +104,11 @@ The Performance calculator agent's verdicts on child 04 are in `../calc/old_perf
 | Collective costs: ring all-reduce 2S(N-1)/N; RS/AG S(N-1)/N; all-to-all for MoE; P2P for PP | verified (standard; NCCL docs) | s6 |
 | TP inside NVLink; PP/DP across nodes; HSDP | verified with Llama 3 Table 4 and DeepSeek-V3 | s6 |
 | "Running TP across InfiniBand wastes 90%+ of your FLOPs" | corrected: the calculator gives 141% of layer compute in communication for 70B TP8 over 400 Gb/s (so about 59% of time waiting if nothing overlaps), not 90%+ | s6 |
-| Dual 5090s PCIe TP=2 advice | kept as a drill (251 ms all-reduce of 16 GB over PCIe) without the personal hardware framing | s6 |
+| Dual 5090s PCIe TP=2 advice | kept as a drill (255 ms all-reduce of 16 GB over PCIe 5.0 at 63 GB/s, as the interconnects page computes) without the personal hardware framing | s6 |
 | Sanity: 16 GB all-reduce over 400G IB ~0.64 s; over NVLink 4 ~70 ms | corrected: 2(N-1)/N x S / B gives 0.56 s and 62.5 ms for N = 8 (the old 2S/B is the large-N limit) | s6 |
 
 ## Child 04: Performance math
 Verdicts in `../calc/old_perfmath_checks.md`. Used in the Reading tab: 6ND (s1, s5), 16 bytes per parameter (s1, s3), KV per token 128 KiB (s3), ridge points (s5, with the "rising" correction), decode ceiling = bandwidth / bytes (s3), MFU definition and calibration (s5), the checklist (s9). Its two corrections (the 64K FP8-KV example's "/8" should be "/2", and the activation formula's s and b swapped) are carried by the calculator, not the Reading tab. Best resources (Transformer Math 101, kipply, scaling-book rooflines, Horace He, PaLM Appendix B): all in Further reading.
 
 ## Counts
-87 rows: verified 42, unconfirmed 16, corrected 15, other 8, dropped 6.
+87 rows: verified 44, unconfirmed 14, corrected 15, other 8, dropped 6.

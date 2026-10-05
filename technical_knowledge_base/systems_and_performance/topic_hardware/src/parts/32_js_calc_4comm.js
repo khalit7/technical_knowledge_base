@@ -3,11 +3,14 @@
   const X=window.CALCX,$=id=>document.getElementById(id);
   // bandwidth per GPU per direction (GB/s); maxN = largest group that link can join directly
   const LINKS=[
+    {nm:'NVLink 6 (Rubin, Rubin blog and HGX page: 3.6 TB/s)',bw:1800,maxN:72,src:'3.6 TB/s per GPU, both directions, and 260 TB/s per Vera Rubin NVL72 rack (= 72 x 3.6) in the Rubin platform blog (Jan 2026) and on the HGX page; announced'},
+    {nm:'NVLink 6 (Rubin, NVLink and NVL72 pages: 3.0 TB/s)',bw:1500,maxN:72,src:'3,000 GB/s per GPU over 36 links, both directions, and 216 TB/s per NVL72 rack (= 72 x 3.0) on the NVLink and Vera Rubin NVL72 pages; NVIDIA prints both figures and does not say what the extra 0.6 TB/s counts; announced'},
     {nm:'NVLink 5 (B200, GB200 NVL72)',bw:900,maxN:72,src:'1.8 TB/s per GPU, both directions (NVIDIA HGX and GB200 NVL72 pages); 72 GPUs in one NVL72 rack, 8 on an HGX board'},
     {nm:'TPU7x ICI (all links summed)',bw:600,maxN:null,src:'1,200 GB/s bidirectional per chip (Google Cloud TPU7x docs), spread over several torus links: one ring gets part of it'},
     {nm:'NVLink 4 (H100, H200)',bw:450,maxN:8,src:'900 GB/s per GPU, both directions (NVIDIA H100 page); 8 GPUs per server'},
     {nm:'MI300X Infinity Fabric (all 7 links)',bw:448,maxN:8,src:'7 links of 128 GB/s bidirectional (AMD datasheet): 7 x 64 each way, only if the algorithm uses every link'},
-    {nm:'800 Gb/s NIC per GPU (B300 class)',bw:100,maxN:null,src:'HGX B300: 1.6 TB/s networking per 8 GPUs, both directions (NVIDIA HGX page)'},
+    {nm:'MI355X Infinity Fabric (all 7 links)',bw:535.5,maxN:8,src:'7 links of 153 GB/s bidirectional (AMD MI355X product page; the brochure prints 153.6): 7 x 76.5 each way, only if the algorithm uses every link'},
+    {nm:'800 Gb/s NIC per GPU (B300 class)',bw:100,maxN:null,src:'HGX B300: 1.6 TB/s networking per 8 GPUs, both directions (NVIDIA HGX page, reference design). AWS P6-B300 provides half: 6.4 Tb/s of EFA per 8 GPUs, 400 Gb/s (50 GB/s) per GPU'},
     {nm:'PCIe 5.0 x16 (RTX 5090, no NVLink)',bw:63,maxN:8,src:'32 GT/s per lane, 128b/130b encoding, 16 lanes: 63 GB/s each way (derived)'},
     {nm:'400 Gb/s NIC per GPU (InfiniBand NDR or RoCE)',bw:50,maxN:null,src:'400 Gb/s = 50 GB/s each way; Llama 3 trained over 400 Gbps RoCE, AWS p5 has 3,200 Gbps per 8 H100s'},
     {nm:'100 Gb/s Ethernet',bw:12.5,maxN:null,src:'100 Gb/s = 12.5 GB/s each way'}];
