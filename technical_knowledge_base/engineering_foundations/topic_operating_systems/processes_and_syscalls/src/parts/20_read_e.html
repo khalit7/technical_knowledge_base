@@ -1,0 +1,32 @@
+<section id="rd-s4">
+<h2>4. exec: replacing the program, keeping the process</h2>
+<span class="ostep">ch. 5 Interlude: Process API</span>
+<p><b>The problem.</b> fork gives you a second copy of the same program. To run a different one, the process must throw away its code and memory and load a new program, while staying the same process: same PID, same parent, same place in the tree. That is <code>execve(path, argv, envp)</code>, the one system call behind <code>execl</code>, <code>execvp</code>, <code>os.execv</code> and every shell command. On success it never returns, because the code that called it no longer exists.</p>
+<h3>What the kernel does</h3>
+<ol class="small">
+<li>{{do_execveat_common|https://github.com/torvalds/linux/blob/v6.12/fs/exec.c#L1876}} opens the file and builds a <code>linux_binprm</code>, the description of the program to load; {{bprm_execve|https://github.com/torvalds/linux/blob/v6.12/fs/exec.c#L1821}} checks permissions and asks each binary format handler whether it recognises the first bytes.</li>
+<li>An ELF executable (the format of compiled programs on Linux) is mapped by <code>binfmt_elf</code>; a file starting with <code>#!</code> is a script, handled by <code>binfmt_script</code>, which restarts exec with the interpreter named on that line and the script as an argument. That is how <code>./train.py</code> with <code>#!/usr/bin/env python3</code> runs.</li>
+<li>{{begin_new_exec|https://github.com/torvalds/linux/blob/v6.12/fs/exec.c#L1222}} is the point of no return. It drops the old address space and installs a new one, kills other threads of the process, closes every descriptor marked close-on-exec ({{do_close_on_exec, line 1318|https://github.com/torvalds/linux/blob/v6.12/fs/exec.c#L1318}}), and resets every caught signal to its default action ({{flush_signal_handlers, line 1355|https://github.com/torvalds/linux/blob/v6.12/fs/exec.c#L1355}}): the handler functions lived in the memory that was just discarded.</li>
+<li>For a dynamically linked program, the kernel maps the program and its <dfn id="g-ldso">dynamic loader</dfn> (<code>ld-linux-aarch64.so.1</code> here) and jumps to the loader, which maps libc and every shared library and then calls the program's entry point. The root's {{Syscall tracer|n:3f05c17b0d0d81c5a97ce991644af140}} tab shows this storm of <code>openat</code> and <code>mmap</code> calls for <code>import torch</code>.</li>
+</ol>
+<h3>What survives exec: measured</h3>
+<p>Before exec, the test program opened fd 5 without <code>O_CLOEXEC</code> and fd 6 with it, installed a handler for SIGUSR1, ignored SIGUSR2, and blocked SIGHUP. Then it exec'd a small program that only prints its own state (<code>src/runs/c/exec_keep.c</code>, <code>showself.c</code>):</p>
+<pre class="cd out" id="rd-exec-out"></pre>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>State</th><th>After execve</th><th>Seen above as</th></tr></thead>
+<tbody>
+<tr><td>PID, parent, process group, session</td><td>kept</td><td>same pid before and after</td></tr>
+<tr><td>Descriptors without close-on-exec</td><td>kept, same offsets</td><td>fd 5 still open</td></tr>
+<tr><td>Descriptors with <code>O_CLOEXEC</code></td><td>closed</td><td>fd 6 gone</td></tr>
+<tr><td>Caught signals (handlers)</td><td>reset to default</td><td><code>SigCgt</code> all zero</td></tr>
+<tr><td>Ignored signals</td><td>stay ignored</td><td><code>SigIgn</code> 0x800 = signal 12, SIGUSR2</td></tr>
+<tr><td>Blocked signals (the mask)</td><td>kept</td><td><code>SigBlk</code> 0x1 = signal 1, SIGHUP</td></tr>
+<tr><td>Memory, threads, <code>atexit</code> handlers, stdio buffers</td><td>gone</td><td></td></tr>
+<tr><td>Environment, argv</td><td>whatever you pass to execve</td><td></td></tr>
+<tr><td>Current directory, umask, rlimits, user ids (unless set-user-ID)</td><td>kept</td><td></td></tr>
+</tbody></table></div>
+<p>Two rows cause real bugs. <b>Ignored stays ignored:</b> a launcher that ignores SIGTERM or SIGINT (or a non-interactive shell that starts a job in the background, which by POSIX sets SIGINT and SIGQUIT to ignored, visible in the job's <code>SigIgn</code> decoded in section 6) passes that on to everything it execs, and a program that never installs its own handler cannot be stopped with that signal. <b>Blocked stays blocked:</b> a signal blocked by a parent is still blocked in the new program, and a pending one waits. Python's <code>subprocess</code> undoes only its own part: with the default <code>restore_signals=True</code> it resets the signals CPython itself ignores ("Currently this includes the SIGPIPE, SIGXFZ and SIGXFSZ signals", {{subprocess docs|https://docs.python.org/3/library/subprocess.html#subprocess.Popen}}); anything else a launcher ignored or blocked reaches the child unchanged.</p>
+<p>The first version of this experiment exec'd <code>/bin/sh</code> to print its state and saw an empty mask and two caught signals: Debian's <code>dash</code> clears the mask and installs its own handlers when it starts. Measuring what a mechanism does through a program that changes the thing you measure is a classic trap; the version above uses a program that changes nothing.</p>
+<div class="co"><div class="t">Why fork and exec are separate</div>Splitting "make a process" from "run a program" means the child can set itself up with ordinary calls in between: <code>dup2</code> a log file onto fd 1, <code>chdir</code>, <code>setsid</code>, drop privileges, set rlimits, close descriptors. No special API needed. OSTEP's chapter 5 makes this argument, and it is why a shell can implement <code>python train.py &gt; log 2&gt;&amp;1 &amp;</code> in a few lines. The cost is the fork itself (section 3), which is why <code>posix_spawn</code> takes those set-up steps as a list of "file actions" instead.</div>
+<div class="deepnote"><b>Go deeper:</b> the {{Process lab|#t-lab}} runs fork, dup2, close and exec on simulated descriptor tables (including <code>2&gt;&amp;1</code> in both orders); how a program's file is mapped into memory is the {{virtual memory child page|n:3f05c17b0d0d81a48892cea154ce950b}}.</div>
+</section>

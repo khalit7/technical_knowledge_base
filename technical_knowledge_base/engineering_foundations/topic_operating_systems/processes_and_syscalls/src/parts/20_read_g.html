@@ -1,0 +1,53 @@
+<section id="rd-s6">
+<h2>6. Signals: interrupting a process from outside</h2>
+<span class="ostep">ch. 5 (signals in brief); beyond OSTEP: {{signal(7)|https://man7.org/linux/man-pages/man7/signal.7.html}}</span>
+<p><b>The problem.</b> A process is busy running its own code. Sometimes the outside world must interrupt it: the user pressed Ctrl-C, a child died, it touched memory it does not own, the cluster wants the node back. A <dfn id="g-signal">signal</dfn> is that interruption: a small number delivered asynchronously, which the process can ignore, let the default action happen, or catch with a function of its own, the <dfn id="g-handler">handler</dfn>.</p>
+<h3>The signals a training job meets</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>No.</th><th>Name</th><th>Default</th><th>Sent by</th><th>In training</th></tr></thead>
+<tbody>
+<tr><td>2</td><td>SIGINT</td><td>terminate</td><td>the terminal on Ctrl-C, to the whole foreground process group</td><td>Python turns it into <code>KeyboardInterrupt</code></td></tr>
+<tr><td>9</td><td>SIGKILL</td><td>terminate</td><td>anyone; the OOM killer; the end of every grace period</td><td>cannot be caught, blocked or ignored: no checkpoint</td></tr>
+<tr><td>15</td><td>SIGTERM</td><td>terminate</td><td><code>kill</code>, <code>docker stop</code>, the kubelet, Slurm, torchrun</td><td>"please stop": the one to handle</td></tr>
+<tr><td>17</td><td>SIGCHLD</td><td>ignore</td><td>the kernel, when a child exits or stops</td><td>the DataLoader uses it to notice dead workers</td></tr>
+<tr><td>7, 11</td><td>SIGBUS, SIGSEGV</td><td>core dump</td><td>the kernel, on a bad memory access</td><td>a full <code>/dev/shm</code>; a native crash</td></tr>
+<tr><td>13</td><td>SIGPIPE</td><td>terminate</td><td>the kernel, on a write to a pipe with no reader</td><td>CPython ignores it, so you get <code>BrokenPipeError</code> instead</td></tr>
+<tr><td>10, 12</td><td>SIGUSR1, SIGUSR2</td><td>terminate</td><td>you, or Slurm's <code>--signal</code></td><td>"checkpoint now" or "dump stacks" conventions</td></tr>
+<tr><td>19, 18</td><td>SIGSTOP, SIGCONT</td><td>stop, continue</td><td>job control, debuggers, Slurm before SIGTERM</td><td>SIGSTOP, like SIGKILL, cannot be caught</td></tr>
+</tbody></table></div>
+<p class="small mute">Numbers are Linux's on arm64 and x86-64; default actions from the table in {{include/linux/signal.h|https://github.com/torvalds/linux/blob/v6.12/include/linux/signal.h#L331}}. Signals 34 to 64 are <dfn id="g-rtsig">real-time signals</dfn> (glibc keeps 32 and 33 for its threads library).</p>
+<h3>Generated, pending, delivered</h3>
+<p>A signal has a life in three stages, and most bugs live between them.</p>
+<ol>
+<li><b>Generated.</b> <code>kill(pid, SIGTERM)</code> enters {{__send_signal_locked|https://github.com/torvalds/linux/blob/v6.12/kernel/signal.c#L1073}}. {{prepare_signal|https://github.com/torvalds/linux/blob/v6.12/kernel/signal.c#L902}} drops it at once if the target ignores it (and for PID 1, if no handler is installed: section 5).</li>
+<li><b>Pending.</b> It is recorded in a pending set: the thread's own (for a signal aimed at one thread, such as a SIGSEGV caused by that thread) or the process's shared one (for <code>kill</code> to a PID). A standard signal that is already pending is not recorded again: {{legacy_queue|https://github.com/torvalds/linux/blob/v6.12/kernel/signal.c#L1068}} returns true for "<code>sig &lt; SIGRTMIN</code> and already a member", and the second one is lost. Real-time signals are queued one by one, each with its sender's information, up to the <code>RLIMIT_SIGPENDING</code> limit (39,345 here). {{complete_signal|https://github.com/torvalds/linux/blob/v6.12/kernel/signal.c#L994}} then picks a thread that is not blocking it and wakes it.</li>
+<li><b>Delivered.</b> Only when that thread is about to return to user mode (after a system call, an interrupt, or being scheduled) does {{get_signal|https://github.com/torvalds/linux/blob/v6.12/kernel/signal.c#L2683}} take it off the pending set and act. For a handler, the kernel writes a frame on the user stack with the interrupted registers, points the program counter at the handler, and when the handler returns, a trampoline calls <code>rt_sigreturn</code> to restore everything. A thread that has the signal <dfn id="g-blocked">blocked</dfn> (in its mask, set with <code>sigprocmask</code> or <code>pthread_sigmask</code>) leaves it pending until it unblocks.</li>
+</ol>
+<div class="drill" id="dr-coalesce"><div class="q">Predict: a process blocks SIGUSR1 and SIGRTMIN, sends itself 1,000 of each, then unblocks them. Its handler counts arrivals. What does it count?</div>
+<div class="opts"><button>1,000 and 1,000</button><button data-right>1 and 1,000</button><button>1 and 1</button></div>
+<div class="ans" hidden><pre class="cd out" id="rd-sigq-out"></pre>A standard signal is one bit in a set: "at least one arrived". Real-time signals are a queue. So never count events with standard signals; a SIGCHLD handler, for example, must loop on <code>waitpid(-1, ..., WNOHANG)</code> until no child is left, because three children dying together may produce one SIGCHLD. Reading them through a <code>signalfd</code> (part B) gives the same counts: it changes how you receive signals, not how they are queued.</div></div>
+<h3>What a handler may do: async-signal safety</h3>
+<p>A handler runs in the middle of whatever the thread was doing, possibly halfway through <code>malloc</code> with the allocator's lock held, or halfway through <code>printf</code> with stdout's lock held. If the handler then calls <code>malloc</code> or <code>printf</code>, it waits for a lock its own thread holds: a deadlock that happens once in a thousand runs. POSIX lists the functions that are safe to call from a handler, the <dfn id="g-assafe">async-signal-safe</dfn> ones (<code>write</code>, <code>_exit</code>, <code>kill</code>, <code>sigaction</code> and a few dozen more; not <code>malloc</code>, <code>printf</code>, or anything that takes a lock; {{signal-safety(7)|https://man7.org/linux/man-pages/man7/signal-safety.7.html}}). The safe patterns are: set a <code>volatile sig_atomic_t</code> flag and return; write one byte to a pipe that the main loop watches (the "self-pipe trick"); or block the signal and receive it as data, with <code>sigwaitinfo</code> or a <dfn id="g-signalfd">signalfd</dfn>, a descriptor you can <code>read</code> and put in <code>epoll</code> like any other ({{signalfd(2)|https://man7.org/linux/man-pages/man2/signalfd.2.html}}).</p>
+<h3>Python's handlers run later, and only in the main thread</h3>
+<p>CPython installs one C handler for every signal you register. It does the async-signal-safe minimum: it records the signal number and sets a flag (and writes to the wakeup descriptor if one was set). Your Python function runs later: "the low-level signal handler sets a flag which tells the virtual machine to execute the corresponding Python signal handler at a later point (for example, at the next bytecode instruction)", and "Python signal handlers are always executed in the main Python thread of the main interpreter, even if the signal was received in another thread" ({{signal docs|https://docs.python.org/3/library/signal.html#execution-of-python-signal-handlers}}). So the question that matters for preemption is: how long until the main thread next executes bytecode? Measured: a timer thread sent SIGTERM 0.2 s into each kind of work (<code>src/runs/py/handler_latency.py</code>):</p>
+<div class="tw" id="rd-lat"></div>
+<p>When the main thread is running Python or is blocked in an interruptible wait (<code>sleep</code>, a lock with a timeout), the handler runs within a fraction of a millisecond: the C handler interrupts the wait (which PEP 475 then resumes). When the main thread is inside one long call into C or C++, the handler waits for the call to return: about 1.2 s for one <code>torch.linalg.solve</code> on 4,000 × 4,000 matrices, the whole remaining duration. The <code>np.sort</code> row shows the same in two of three runs; in one run the handler ran after 70 ms, which these runs do not explain. On a GPU node the long calls are a <code>torch.cuda.synchronize()</code>, a blocking <code>.item()</code>, or a collective waiting for a peer that will never answer: the handler cannot run until it returns, which is why preemption-safe training sets collective timeouts and keeps the grace period longer than the slowest step. (GPU not run here.)</p>
+<h3>Reading a process's signal state</h3>
+<p><code>/proc/&lt;pid&gt;/status</code> shows five masks in hex: <code>SigPnd</code> and <code>ShdPnd</code> (pending for this thread, and for the whole process), <code>SigBlk</code> (blocked), <code>SigIgn</code> (ignored), <code>SigCgt</code> (caught by a handler). Bit <i>n</i> - 1 stands for signal <i>n</i>. Decode the real masks of the running job and its worker, or paste your own:</p>
+<div class="card" id="rd-mask-card">
+<div class="seg" id="rd-mask-pick"><button data-m="main.ign" class="on">main: SigIgn</button><button data-m="main.cgt">main: SigCgt</button><button data-m="worker.cgt">worker: SigCgt</button><button data-m="worker.ign">worker: SigIgn</button></div>
+<label class="small">Mask (hex) <input id="rd-mask-in" size="20" spellcheck="false" aria-label="Signal mask in hexadecimal"></label>
+<div class="mask" id="rd-mask-out"></div>
+<div class="small" id="rd-mask-why"></div>
+</div>
+<h3>One SIGTERM, three endings</h3>
+<p>The scheduler's "please stop" reaches the job. The same SIGTERM, three situations: a handler and a main thread running Python (the running job, started directly as PID 1); a handler, but the main thread inside a long C++ call; and no handler reachable, because PID 1 is a shell that does not forward it. Times are the Shutdown lab's measurements and the latency table above.</p>
+<div class="card" id="rd-term-card">
+<div class="seg" id="rd-term-mode"><button data-m="ok" class="on">Handler, main thread in Python</button><button data-m="busy">Handler, main thread in a 1.2 s C++ call</button><button data-m="pid1">PID 1 is sh -c (no handler)</button></div>
+<div class="rd-svg" id="rd-term-svg"></div>
+<div class="an-cnt" id="rd-term-cnt"></div>
+<div class="an-cap" id="rd-term-cap"></div>
+<div class="an-ctl" id="rd-term-ctl"></div>
+</div>
+<div class="deepnote"><b>Go deeper:</b> the {{Shutdown lab|#t-stop}} has all ten start-up variants, their process trees and logs; signals inside event loops (<code>set_wakeup_fd</code>, <code>loop.add_signal_handler</code>) are on the {{concurrency child page|n:3f05c17b0d0d8112ad1af99308fa913f}}.</div>
+</section>
