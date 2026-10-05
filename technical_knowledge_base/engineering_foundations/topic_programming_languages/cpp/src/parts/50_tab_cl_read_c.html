@@ -1,0 +1,50 @@
+
+<section id="cl-s6">
+<h2>6. ggml tensors: sizes, strides, a pointer</h2>
+<p>Everything in ggml is a <code>struct ggml_tensor</code>, a plain C struct (no methods, no constructor):</p>
+<div class="cl-ex" data-ex="tensor"></div>
+<p>Read it field by field. <code>type</code> is the element type (F32, F16, Q8_0, ...). <code>ne</code> holds up to four sizes, <b>innermost first</b>. <code>nb</code> holds the matching <b>strides in bytes</b>: how far to move in memory to step one along each dimension. <code>data</code> points at the first byte. <code>op</code> and <code>src</code> say how this tensor is computed from others (section 7); <code>view_src</code> and <code>view_offs</code> mark a tensor that borrows another's memory. The element at index (i0, i1, i2, i3) lives at <code>data + i0*nb[0] + i1*nb[1] + i2*nb[2] + i3*nb[3]</code>.</p>
+<p>That formula is why views are free. A <b>transpose</b> swaps two sizes and their strides and touches no data:</p>
+<div class="cl-ex" data-ex="transpose_view"></div>
+<p>Try it on a real tensor from our run: layer 0's K cache, <code>cache_k_l0</code>, F16 (2 bytes per element), 192 numbers per position for 256 positions. Attention reads it as 3 heads of 64 numbers each, through a 3-dimensional view of the same bytes (section 11 reads the code that makes that view).</p>
+<div class="card" id="cl-strd">
+<div class="seg" id="cl-strd-m"><button data-m="base" class="on">As stored {192, 256}</button><button data-m="heads">Per head {64, 3, 256}</button><button data-m="tr">Transposed {256, 192}</button></div>
+<div id="cl-strd-svg" class="cl-chart" role="img" aria-label="Memory order of a tensor under different views"></div>
+<div class="an-cap" id="cl-strd-cap"></div>
+</div>
+<div class="cl-py"><div class="t">From Python</div>NumPy and PyTorch work the same way: <code>a.strides</code> (NumPy, bytes) or <code>a.stride()</code> (PyTorch, elements), and <code>a.T</code> returns a view with swapped strides. The differences: ggml lists sizes innermost first (PyTorch's <code>(49152, 576)</code> is ggml's <code>{576, 49152}</code>), and a quantised type has no per-element stride: <code>nb[0]</code> is the size of a 32-weight block, so you can only address whole blocks.</div>
+<p><b>Nothing is computed when you call an operation.</b> <code>ggml_mul_mat</code> does not multiply: it creates a result tensor, records <code>op = GGML_OP_MUL_MAT</code> and its two sources, and returns.</p>
+<div class="cl-ex" data-ex="mul_mat_lazy"></div>
+<p>The result's sizes are <code>{a-&gt;ne[1], b-&gt;ne[1], ...}</code>: ggml's matrix product multiplies each row of <code>a</code> (the weight, one output feature per row) by each row of <code>b</code> (one token per row), so both operands are read along their contiguous dimension. Calling operations builds a graph; running it is a separate step (section 8).</p>
+<div class="cl-py"><div class="t">From Python</div>This is tracing, as in <code>torch.compile</code>, <code>torch.fx</code> or <code>jax.jit</code>: calls record a graph of operations; a later step plans memory and runs it. PyTorch's default eager mode is the opposite: each call computes immediately.</div>
+</section>
+
+<section id="cl-s7">
+<h2>7. The model as a graph</h2>
+<p>Each architecture has a file in <code>src/models/</code> (157 <code>.cpp</code> files at this commit). Our model is a Llama, so its forward pass is written in <code>src/models/llama.cpp</code>. The class is a template:</p>
+<div class="cl-ex" data-ex="graph_template"></div>
+<div class="cl-feat"><div class="t">C++ features, and why they are here</div>
+<ul>
+<li><b><code>template &lt;bool embed&gt;</code></b>: one source, two compiled classes. <code>graph&lt;false&gt;</code> generates text, <code>graph&lt;true&gt;</code> computes embeddings. The last two lines of the file force both to be compiled (<i>explicit instantiation</i>) so the template's code can stay in this <code>.cpp</code> file instead of a header. Templates: <a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-tmpl">Part 1 section 8</a>.</li>
+<li><b><code>std::conditional_t&lt;embed, A, B&gt;</code></b> picks a type at compile time, and <b><code>if constexpr (embed)</code></b> picks a branch at compile time: the branch not taken is not compiled into that version at all. Part 1 does not cover these two; the program below shows both.</li>
+<li><b><code>std::unique_ptr</code> / <code>std::make_unique</code></b> (line 95): the graph object is owned and freed automatically (<a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-own">section 5</a>). <b>Inheritance:</b> <code>graph&lt;embed&gt;</code> derives from <code>llm_graph_context</code>, which holds the shared building blocks (<code>build_norm</code>, <code>build_attn</code>, <code>build_ffn</code>) (<a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-class">section 7</a>).</li>
+</ul></div>
+<p>The attention block of each layer: project to Q, K and V, rotate Q and K by position (RoPE), attend. <code>auto [Qcur, Kcur, Vcur] = build_qkv(...)</code> is a <b>structured binding</b>: the function returns three tensors at once and the line names them (Python's <code>q, k, v = build_qkv(...)</code>).</p>
+<div class="cl-ex" data-ex="graph_attn"></div>
+<p>Then the residual add, the feed-forward block, and after the last layer the output projection, compiled only into <code>graph&lt;false&gt;</code>:</p>
+<div class="cl-ex" data-ex="graph_head"></div>
+<p>Four features in one place, as llama.cpp uses them, in a program you can compile (<code>src/cl/code/features.cpp</code>): a block size checked by <code>static_assert</code>, an interface written two ways (a C struct of function pointers, as in the sampler and the backends, and a C++ class with virtual functions, as in the KV cache), <code>if constexpr</code> with <code>std::conditional_t</code>, and a structured binding.</p>
+<pre data-out="out.features_cpp"></pre>
+<pre class="cl-o" data-out="out.features"></pre>
+<p>The second compile shows what <code>static_assert</code> buys: someone adds a field to a block, the compiler computes <code>40 == 34</code> (the <code>float</code> also brings 2 bytes of padding, Part 2's alignment) and refuses to build. A file written with the old layout would otherwise be read as garbage, silently.</p>
+<h3>The real graph of one token</h3>
+<p><code>llama-eval-callback</code> (in <code>examples/</code>) prints every node as it is computed. Our token was "Paris" (id <span data-clv="v.paris_id"></span>), decoded on the CPU: <span class="cl-num" data-clv="v.nodes"></span> nodes, <span data-clv="v.nodes_per_layer" data-d="0"></span> per layer. Pick a part of the graph:</p>
+<div class="card" id="cl-trace">
+<div class="seg" id="cl-trace-m"><button data-m="head">Input</button><button data-m="layer0" class="on">Layer 0</button><button data-m="tail">Layer 29 and output</button><button data-m="hist">Count by operation</button></div>
+<div class="tw" id="cl-trace-t"></div>
+<div class="cl-tip" id="cl-trace-cap"></div>
+</div>
+<p>Read layer 0 against the source above: <code>RMS_NORM</code> then <code>MUL</code> is <code>build_norm</code>; three <code>MUL_MAT</code> are Q, K and V; two <code>ROPE</code>; <code>SET_ROWS</code> writes this token's K and V into the cache; <code>VIEW</code> and <code>PERMUTE</code> nodes cost nothing (section 6); <code>FLASH_ATTN_EXT</code> is the whole attention in one fused operation; then the output projection, the residual <code>ADD</code>, and the feed-forward block (<code>MUL_MAT</code> gate and up, <code>SWIGLU</code>, <code>MUL_MAT</code> down). Of the <span data-clv="v.nodes"></span> nodes, <span data-clv="v.n_mulmat"></span> are matrix products: 7 per layer &times; 30 layers + 1 output projection. They hold nearly all the arithmetic, which is why sections 9 and 10 are about them.</p>
+<div class="cl-pr"><p class="q"><b>Predict.</b> Count the <code>MUL_MAT</code> nodes in the layer 0 view and the output. For a single token, how many rows of weights does one forward pass read? (Rows: q 576, k 192, v 192, o 576, gate 1536, up 1536, down 576 per layer; output 49,152.)</p>
+<button class="cl-rv" data-for="cl-a7">Reveal the real answer</button><div class="cl-ans" id="cl-a7" hidden>30 &times; (576 + 192 + 192 + 576 + 1536 + 1536 + 576) + 49,152 = 30 &times; 5,184 + 49,152 = 204,672 rows, each of 576 or 1,536 weights: every weight of the model, once, for every token. At 34 bytes per 32 weights that is about 143 MB read per token, which is why decoding is bound by memory bandwidth ({{Roofline|#t-cb-roof}} tab, Part 2).</div></div>
+</section>

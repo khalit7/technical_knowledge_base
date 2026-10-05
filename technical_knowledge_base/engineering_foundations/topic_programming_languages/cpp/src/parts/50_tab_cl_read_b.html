@@ -1,0 +1,62 @@
+
+<section id="cl-s3">
+<h2>3. The API and the smallest program</h2>
+<p>Start where a user starts: <code>examples/simple/simple.cpp</code>, 238 lines that load a model, generate text and print timings. First the setup: load the weights, turn the prompt into token ids, create a <b>context</b> (the object that holds the KV cache and the compute buffers for one conversation) and a <b>sampler</b> (the rule that picks the next token from the scores).</p>
+<div class="cl-ex" data-ex="simple_setup"></div>
+<p>Then the loop: run the model on the current batch, sample one token, print it, and feed it back as the next batch of one.</p>
+<div class="cl-ex" data-ex="simple_loop"></div>
+<p>What it printed on this laptop, with the model on the CPU (<code>-ngl 0</code>; see the predict box below):</p>
+<pre class="cl-o" data-out="out.simple_cpu"></pre>
+<div class="cl-feat"><div class="t">C and C++ in this file</div>
+<ul>
+<li><b>A C API with opaque pointers.</b> <code>llama_model *</code>, <code>llama_context *</code> and <code>llama_sampler *</code> are pointers to types whose fields you never see: <code>llama.h</code> only declares them. You create them with a function and must free them with another (<code>llama_model_free</code>, <code>llama_free</code>, lines 232 to 235). A C interface is what lets Python, Go or Swift call the library (why: a C function has one agreed binary calling convention, while C++ names and class layouts differ between compilers; {{Part 2|#t-cb-read}} covers this in its ABI section, and Part 1 in <a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-libs">section 13, Libraries</a>).</li>
+<li><b>RAII for C++ callers.</b> <code>include/llama-cpp.h</code> wraps each handle in a <code>std::unique_ptr</code> with a custom deleter, so the free call cannot be forgotten. Part 1 teaches this in <a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-own">section 5, Smart pointers</a>:</li>
+</ul>
+<div class="cl-ex" data-ex="deleters"></div><div class="cl-ex" data-ex="unique_ptr"></div>
+<ul>
+<li><b>Ordinary modern C++ around it:</b> <code>std::string</code> and <code>std::vector&lt;llama_token&gt;</code> (<a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-std">section 9</a>), a range-for loop over the tokens, <code>auto</code>, and <code>try</code>/<code>catch (...)</code> around <code>std::stoi</code> (<a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-err">section 11</a>). The size query on line 109 is a C idiom: call <code>llama_tokenize</code> once with no buffer, and it returns minus the number of tokens it needs.</li>
+</ul></div>
+<div class="cl-py"><div class="t">From Python</div>With <code>transformers</code> this is <code>model = AutoModelForCausalLM.from_pretrained(...)</code>, <code>tok(prompt)</code>, then <code>model.generate(...)</code>, and the garbage collector frees everything. Here every object you create, you destroy, and the generation loop that <code>generate</code> hides is 35 lines you can read.</div>
+<div class="cl-pr"><p class="q"><b>Predict.</b> <code>simple.cpp</code> sets <code>int ngl = 99;</code> (line 33) and passes it as <code>model_params.n_gpu_layers</code>. On this Mac, where do the layers run if you do not pass <code>-ngl</code>?</p>
+<button class="cl-rv" data-for="cl-a3">Reveal the real answer</button><div class="cl-ans" id="cl-a3" hidden>On the GPU. 99 means "up to 99 layers", so all 30 layers go to Metal. The run with <code>-ngl 99</code> logged <code>offloaded 31/31 layers to GPU</code> (30 blocks plus the output layer) and printed a <em>different</em> continuation: <code class="cl-mono" data-clv="out.simple_metal"></code>. The GPU adds the same numbers in a different order, rounding differs in the last bits, and greedy sampling (always the top score) flips where two scores were nearly tied: floating-point addition is not associative ({{Part 2|#t-cb-read}}, SIMD section). This page passes <code>-ngl 0</code> to stay on the CPU, the code we read.</div></div>
+</section>
+
+<section id="cl-s4">
+<h2>4. GGUF: the model file</h2>
+<p>A model file must carry the weights and everything needed to use them: architecture, sizes, tokenizer, chat template. GGUF is llama.cpp's format for that: one file, read without Python and without parsing JSON. The format is written down at the top of <code>gguf.h</code>:</p>
+<div class="cl-ex" data-ex="gguf_format"></div>
+<p>Every integer has a fixed width and is little-endian; a string is a 64-bit length then the bytes. That is what makes it easy to read from any language. Here is a complete reader in 41 lines of Python, standard library only, run on our model file:</p>
+<pre data-out="out.gguf_read_py" data-lang="py"></pre>
+<pre class="cl-o" data-out="out.gguf_read"></pre>
+<div id="cl-gguf" class="cl-chart" role="img" aria-label="The model file drawn to scale: header, padding and tensor data"></div>
+<div class="cl-tip" id="cl-gguftip">The file to scale. The header is <span data-clv="v.hdr_end"></span> bytes, mostly the tokenizer's 49,152 token strings and 48,900 merge rules; then padding to a multiple of 32; then <span data-clv="v.n_tensors"></span> tensors back to back. Tap a block.</div>
+<p>Three details to notice. <b>Shapes are stored innermost first:</b> <code>token_embd.weight</code> has <code>ne=[576, 49152]</code>, where PyTorch would say <code>(49152, 576)</code>; <code>ne[0]</code> is the dimension whose elements are adjacent in memory. <b>Offsets are relative</b> to the start of the data section, which begins at byte <span class="cl-num" data-clv="v.data_start"></span>, the end of the header rounded up to the alignment of 32 (so every tensor can be loaded with aligned SIMD reads, Part 2). <b>Sizes follow from the type:</b> Q8_0 stores 32 weights in 34 bytes, so the embedding table is 576 &times; 49,152 / 32 &times; 34 = <span class="cl-num" data-clv="v.embd_bytes"></span> bytes. The C++ reader computes the byte strides from the same numbers:</p>
+<div class="cl-ex" data-ex="gguf_strides"></div>
+<div class="cl-ex" data-ex="gguf_align"></div>
+<p>The project's own Python package, <code>gguf-py</code> (used by the converters that turn Hugging Face checkpoints into GGUF), reads the same thing and adds names for the types:</p>
+<pre class="cl-o" data-out="out.gguf_dump"></pre>
+<div class="cl-feat"><div class="t">C++ in gguf.cpp</div>The reader is C++ behind a C API: a <code>gguf_reader</code> struct with overloaded <code>read()</code> functions for each type (templates, <a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-tmpl">Part 1 section 8</a>), <code>std::vector</code> and <code>std::string</code> for the values, and <code>try</code>/<code>catch (std::bad_alloc &amp;)</code> around reads whose length comes from the file, because a corrupt or malicious file can claim a string of 2<sup>63</sup> bytes. Every count is checked against <code>SIZE_MAX</code> before allocating: reading untrusted binary input is where C and C++ code gets exploited (Part 1, {{UB gallery|#t-ca-ub}}).</div>
+<div class="cl-pr"><p class="q"><b>Predict.</b> The model has 134.5 million parameters stored mostly as Q8_0. Before looking: is the file bigger or smaller than 134.5 million bytes, and by roughly how much?</p>
+<button class="cl-rv" data-for="cl-a4">Reveal the real answer</button><div class="cl-ans" id="cl-a4" hidden>Bigger: <span data-clv="v.model_bytes"></span> bytes. Q8_0 spends 34 bytes on 32 weights (8.5 bits each, the scale costs the extra half bit), 61 small norm vectors stay in 32-bit float, and the header adds 1.8 MB. The loader reports <code>8.51 BPW</code> (bits per weight).</div></div>
+</section>
+
+<section id="cl-s5">
+<h2>5. Loading: mmap, then a surprise copy</h2>
+<p><code>llama_model_load_from_file</code> reads the header (section 4), creates one ggml tensor per weight, and then has to put 143 MB of weights somewhere. It does not read them: it <b>maps</b> the file. <code>mmap</code> asks the operating system to make the file appear in the address space; nothing is read until a page is touched, and the pages belong to the OS's file cache, so a second process mapping the same model shares them. {{Part 2|#t-cb-read}} measured this (section 4, Pages and mmap) and shows <code>llama_mmap</code>'s call to <code>mmap</code>. The loader then points each tensor straight into the mapping:</p>
+<div class="cl-ex" data-ex="loader_mmap"></div>
+<p><code>(uint8_t *) mapping-&gt;addr() + weight-&gt;offs</code> is pointer arithmetic: the base address of the mapped file plus the tensor's offset, cast to bytes so that adding <code>offs</code> moves <code>offs</code> bytes (<a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-val">Part 1 section 2</a>). No copy, no allocation. The <code>std::async</code> lambda is an optional parallel check of the bytes (<a href="#" class="cl-x" data-xt="t-ca-read" data-xs="ca-lam">lambdas, section 10</a>).</p>
+<p>Now the log of our run. Grep each line and the code explains it:</p>
+<pre class="cl-o" data-out="out.simple_cpu_log"></pre>
+<ul>
+<li><b><code>CPU_REPACK model buffer size = 136.27 MiB</code>.</b> A second copy of almost all the weights. At load time the CPU backend copies every Q8_0 matrix into an interleaved layout, four rows woven together, because its fastest kernel reads four rows in one stream (section 10 shows that kernel). The choice is made at run time from the processor's features: <code>dotprod</code> (the SDOT instruction) is present on the M1 and <code>i8mm</code> (an 8-bit matrix-multiply instruction) is not (<code>sysctl hw.optional.arm</code> here: <code>FEAT_DotProd: 1</code>, <code>FEAT_I8MM: 0</code>), so it picks the 4x4 layout:</li>
+</ul>
+<div class="cl-ex" data-ex="repack_pick"></div>
+<ul>
+<li><b><code>token_embd.weight (q8_0) (and 61 others) cannot be used with ... CPU_REPACK</code>.</b> The 61 others are the 32-bit norm vectors. The embedding table stays in the mapping because it is read by row lookups (<code>GET_ROWS</code>: fetch row number <i>token id</i>), which need the plain layout. The model ties its output projection to the embedding table, so the loader creates that tensor a second time (<code>TENSOR_DUPLICATED</code>), and that copy, used for a matrix product, is repacked.</li>
+<li><b><code>model type = 256M</code></b> for a 135M model. The label is a guess from the number of layers:</li>
+</ul>
+<div class="cl-ex" data-ex="arch_types"></div>
+<p>30 layers is SmolDocling's size, so every 30-layer Llama-style model is labelled 256M. A cosmetic bug, but a good habit: when a log line surprises you, find the code that printed it.</p>
+<div class="cl-pr"><p class="q"><b>Predict.</b> With repacking, how much memory do the weights take in total, and what happens to the mapped copy of the repacked tensors?</p>
+<button class="cl-rv" data-for="cl-a5">Reveal the real answer</button><div class="cl-ans" id="cl-a5" hidden><span data-clv="v.mapped_mib" data-d="2"></span> MiB mapped plus <span data-clv="v.repack_mib" data-d="2"></span> MiB repacked: about twice the file. The repacked copy is ordinary allocated memory. The mapped pages of those tensors were read once, during the copy, and then only sit in the OS file cache, which the OS may evict under pressure; the embedding table (<span data-clv="v.metal_cpu_mib" data-d="2"></span> MiB) stays in use from the mapping. On a phone or a full laptop, <code>--repack 0</code> (in <code>llama-bench</code>; <code>use_extra_bufts = false</code> in the API) trades that copy for a slower kernel.</div></div>
+</section>

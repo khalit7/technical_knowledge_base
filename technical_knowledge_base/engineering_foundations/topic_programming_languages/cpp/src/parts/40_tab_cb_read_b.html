@@ -1,0 +1,39 @@
+<section id="cb-s1">
+<h2>1. The memory hierarchy: a ladder of caches</h2>
+<p>A processor core can do an addition in a fraction of a nanosecond, but fetching a number from main memory (DRAM, the RAM chips) takes about a hundred nanoseconds. To hide that gap the chip keeps copies of recently used memory in <b>caches</b>: small, fast memories close to the core. Each level is bigger and slower than the one before. A <b>register</b> is a slot inside the core itself, where the instructions actually compute; everything else is a cache or memory.</p>
+<div class="cb-mach">
+<div class="cb-lv"><b>Registers</b>31 general (64-bit) and 32 SIMD (128-bit) per core<div class="s">read in the same cycle</div></div>
+<div class="cb-lv"><b>L1 data cache</b>128 KB per performance core (64 KB on the efficiency cores)<div class="s">about 1 ns, measured</div></div>
+<div class="cb-lv"><b>L2 cache</b>12 MB shared by the 8 performance cores (4 MB for the 2 efficiency cores)<div class="s">about 5 to 15 ns, measured</div></div>
+<div class="cb-lv"><b>System level cache (SLC)</b>shared by CPU and GPU; Apple does not publish its size<div class="s">blurred into the L2-to-DRAM ramp below</div></div>
+<div class="cb-lv"><b>DRAM</b>16 GB of LPDDR5 on this laptop, "up to 200GB/s" for the chip ({{Apple|https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/}})<div class="s">about 125 ns per random load, measured</div></div>
+</div>
+<p class="cb-src">Sizes from <code>sysctl</code> on this machine (<code>hw.perflevel0.l1dcachesize</code>, <code>hw.perflevel0.l2cachesize</code>, ...):</p>
+<pre class="cb-o" data-out="sysctl"></pre>
+<h3>Measuring the ladder: pointer chasing</h3>
+<p>To time one load you must stop the processor from doing many at once. The trick is a <b>pointer chase</b>: a linked list scattered over a buffer, where each node holds the address of the next. The processor cannot start load <i>k</i>+1 before load <i>k</i> returns, because it does not know the address yet. Divide the time by the number of loads and you have the latency of whatever level holds the buffer. Grow the buffer from 4 KB to 1 GB and you see each level overflow.</p>
+<pre data-src="ladder.cpp" data-lines="1-34"></pre>
+<p>The result (random order, run 1; the {{Latency ladder|#t-cb-ladder}} tab draws every point of all three runs and the sequential version):</p>
+<div class="tw"><table class="cb-t" id="cb-ladtab"></table></div>
+<p>Read it like this. Up to 128 KB, the size of L1, a load costs about 1 ns: three clock cycles. Past that, the buffer lives in L2 and loads cost 5 to 15 ns. From about 8 MB the numbers climb towards DRAM's roughly 125 ns: a hundred times L1. The steps are not clean because other programs share L2 and DRAM, and because past a few MB the processor also misses in its <b>TLB</b>, the small cache of address translations explained in <a href="#cb-s4">section 4</a>.</p>
+<div class="cb-pr"><p class="q"><b>Predict.</b> The same 512 MB buffer, but the list visits the nodes in address order (node 0, 1, 2, ...). Each load still depends on the previous one. Is it still about 125 ns per load?</p>
+<button class="cb-rv" data-for="cb-a1" aria-expanded="false">Reveal the real output</button>
+<div class="cb-ans" id="cb-a1" hidden><p>No: <span class="cb-num" data-cbv="ladder.seq.0.pts.34.1"></span> ns per load in address order, against <span class="cb-num" data-cbv="ladder.random.0.pts.34.1" data-d="0"></span> ns in random order, over the same 512 MB. The chase still waits for each load, but the hardware <b>prefetcher</b> notices that addresses go up by 128 bytes each time and fetches the next lines before they are asked for. Predictable access is the cheapest optimisation there is: you get it for free by storing data in the order you read it.</p></div></div>
+<div class="cb-py"><div class="t">In Python</div>A Python list of floats is an array of pointers to float objects scattered on the heap, so iterating it is closer to a pointer chase than to a scan; the root page measured {{about 17 ns per element in order and 77 ns shuffled|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} (Reading, section 5). A NumPy array stores the numbers themselves, contiguously.</div>
+</section>
+
+<section id="cb-s2">
+<h2>2. Cache lines, and spatial and temporal locality</h2>
+<p>Caches do not hold single bytes. They hold <b>cache lines</b>: aligned blocks of 128 bytes on this M1 Pro (<code>hw.cachelinesize</code>; 64 on most Intel and AMD processors). Reading one byte brings its whole line into L1. Two habits follow:</p>
+<ul>
+<li><b>Spatial locality:</b> use the neighbours of what you just read, since they arrived with it. A line of 128 bytes holds 32 floats; reading them in order costs one trip to memory per 32 numbers.</li>
+<li><b>Temporal locality:</b> reuse data soon, before other data evicts it from the cache. Blocked ("tiled") matrix multiplication in <a href="#cb-s9">section 9</a> is this idea.</li>
+</ul>
+<p>The classic demonstration: a 4096 x 4096 matrix of 32-bit integers (64 MB) stored row after row, as C++ (and NumPy by default) lay it out. Sum it row by row, then column by column. Same additions, same answer.</p>
+<pre data-src="rowcol.cpp" data-lines="8-22"></pre>
+<div class="cb-pr"><p class="q"><b>Predict.</b> How much slower is the column order? 2x? 10x?</p>
+<button class="cb-rv" data-for="cb-a2" aria-expanded="false">Reveal the real output</button>
+<div class="cb-ans" id="cb-a2" hidden><pre class="cb-o" data-out="rowcol.raw"></pre><p>Three runs: <span data-cbsp="rowcol.v.ratio" data-d="1"></span>x. Going down a column, consecutive elements are 4096 x 4 = 16 KB apart, so every addition needs a new cache line and uses 4 of its 128 bytes; by the time the loop comes back for the neighbouring column, the line has long been evicted. Row order uses every byte of every line, the prefetcher sees a simple stream, and the compiler can even process 4 integers per instruction (section 6). Two effects multiply here: cache lines and SIMD.</p></div></div>
+<p>The {{Cache simulator|#t-cb-cache}} tab animates both orders (and the layouts of the next section) one access at a time, counting the lines fetched and the bytes actually used.</p>
+<div class="cb-py"><div class="t">In NumPy</div><code>a.sum(axis=1)</code> and <code>a.sum(axis=0)</code> on a C-ordered array face exactly this choice; NumPy's reductions are written to walk memory well either way, but your own loops over <code>a[:, j]</code>, or a Fortran-ordered array passed to code expecting C order, are not. PyTorch's <code>.contiguous()</code> exists for this reason.</div>
+</section>

@@ -1,0 +1,69 @@
+
+<section id="ca-val">
+<h2>2. Values, references and pointers</h2>
+<p>In Python every variable is a name bound to an object somewhere on the heap, and <code>b = a</code> binds a second name to the same object. In C++ a variable <i>is</i> the object: its bytes live where the variable lives. So assignment and initialisation <b>copy</b>, and if you want a second name you must say so. There are two ways:</p>
+<ul>
+<li>A <b>reference</b>, <code>T&amp; r = a;</code>, is another name for an existing object. It must be bound when created and can never be re-bound or be null. Using it is exactly like using <code>a</code>.</li>
+<li>A <b>pointer</b>, <code>T* p = &amp;a;</code>, is a variable holding an address. <code>&amp;a</code> means "the address of a"; <code>*p</code> means "the object at p"; <code>p-&gt;f()</code> is short for <code>(*p).f()</code>. A pointer can be re-pointed, and can be <code>nullptr</code> (points at nothing).</li>
+</ul>
+[[code:lang/copy.cpp]]
+<div class="ca-two"><div>[[pr:l_copy|what sizes does each line print?]]</div><div>[[code:lang/copy.py]][[out:l_copy_py]]</div></div>
+<p>The same three lines in Python give "a has 4, b has 4": one list, two names. C++ printed "a has 3, b has 4": two vectors. Neither reference nor pointer keeps <code>a</code> alive; they only refer to memory that <code>a</code> owns. That is the root of every dangling-reference bug (section 12).</p>
+<h3>const</h3>
+<p><code>const</code> marks something read-only, checked by the compiler. The most common use is the parameter type <code>const T&amp;</code>: "let me read your object without copying it, and I promise not to change it". With pointers, <code>const</code> can apply to the pointed-at object or to the pointer itself; read the declaration right to left (<code>int* const q</code>: q is a const pointer to int).</p>
+[[code:lang/const.cpp]]
+[[out:l_const]]
+<p>Three errors, all at compile time. The second one shows a feature of C++ error messages you will meet constantly: the compiler lists every overload of <code>+=</code> it tried and why each failed ("method is not marked const"). Read the first line and the line pointing at your own file; skim the candidates.</p>
+<div class="ca-cost"><div><b>Pass by</b><code>T</code> for small values (int, double, a pointer, a <code>string_view</code>); <code>const T&amp;</code> to read a big object; <code>T&amp;</code> to modify the caller's object; <code>T*</code> when "no object" is a valid answer.</div><div><b>What it costs</b>Copies are real: passing a <code>std::vector</code> by value copies every element.</div><div><b>Common mistakes</b>Passing big objects by value by accident; a reference or pointer that outlives its object.</div></div>
+</section>
+
+<section id="ca-mem">
+<h2>3. The stack and the heap</h2>
+<p>A C++ object lives in one of three kinds of storage, and the kind decides when it dies:</p>
+<ul>
+<li><b>Automatic storage, "the stack".</b> Local variables. Each function call pushes a frame of memory for its locals; the frame is popped when the function returns. Allocation is free (the stack pointer moves) and destruction happens at the closing brace <code>}</code>, in reverse order of creation.</li>
+<li><b>Dynamic storage, "the heap".</b> Objects created with <code>new</code> (or, properly, <code>std::make_unique</code>, section 5). They live until someone destroys them. Allocation calls the memory allocator (<code>malloc</code>), which costs tens of nanoseconds and can fragment memory.</li>
+<li><b>Static storage.</b> Globals and <code>static</code> variables: they live for the whole program.</li>
+</ul>
+<p>Python puts every object on the heap and frees it when its reference count reaches zero. C++ lets you put most things on the stack. Printing the addresses shows the three regions (the exact numbers change on every run, because macOS randomises where each region starts):</p>
+[[code:lang/stack_heap.cpp]]
+[[out:l_stack_heap]]
+<p>The stack addresses (<code>0x16...</code>) go <i>down</i> as variables are added: on this ARM Mac the stack grows towards lower addresses. The vector is a hybrid that you will meet everywhere: the <code>std::vector</code> object itself is 24 bytes on the stack (a pointer to the elements, the size, the capacity), and its elements live in a heap buffer it owns. When the vector dies, its destructor frees the buffer. That pattern, a small owner on the stack and a big buffer on the heap, is how C++ gets automatic cleanup of heap memory. It has a name: RAII.</p>
+<div class="deepnote"><b>Go deeper:</b> why stack memory is fast (it is almost always in the CPU cache) and what the heap allocator does are {{Part 2|#t-cb-read}}'s subject; the root's Reading section 5 draws the same records laid out in Python, C++ and Rust.</div>
+</section>
+
+<section id="ca-raii">
+<h2>4. RAII and destructors</h2>
+<p>A class can define a <b>constructor</b> (runs when an object is created) and a <b>destructor</b>, written <code>~ClassName()</code>, which runs automatically when the object dies: at the closing brace for a local, when its owner dies for a member, when <code>delete</code> is called for a heap object. <b>RAII</b> ("resource acquisition is initialisation", an awkward name for a simple idea) means: tie every resource (memory, a file, a lock, a GPU buffer, a socket) to an object whose destructor releases it. Then you can never forget to release it, even when an exception jumps out of the function.</p>
+<p>To see it happen, this page uses a small class, <code>Tracer</code>, that prints a line from each special member function, numbering objects <code>#1</code>, <code>#2</code>... and saying whether each lives on the stack or the heap (its source is in the {{Object lifetimes|#t-ca-life}} tab). First, scopes:</p>
+[[code:lang/lifetime.cpp:14-22]]
+[[pr:lt_scope|in what order are a, b and c destroyed?]]
+<p>b dies at its inner brace, before c is even created; at the end, c dies before a: reverse order of construction, always. (Lines starting with <code>@</code> are the program's own <code>STEP</code> markers, with their line numbers.) Now an exception:</p>
+[[code:lang/lifetime.cpp:94-104]]
+[[pr:lt_unwind|which destructors run, and when, relative to "caught boom"?]]
+<p>When <code>throw</code> leaves the <code>try</code> block, C++ <b>unwinds the stack</b>: it destroys every local in the scopes being left (b) before the <code>catch</code> runs. This is why RAII and exceptions work together, and why C++ code almost never needs <code>finally</code>.</p>
+<div class="ca-py"><div class="t">Python bridge</div><code>with open(p) as f:</code> is RAII you opt into for one block. In C++ every object behaves like a <code>with</code> block, and the "exit" is the destructor. Python's <code>__del__</code> is <i>not</i> the equivalent: it runs whenever the reference count or the garbage collector gets to it.</div>
+<div class="ca-cost"><div><b>Problem it solves</b>Leaks and forgotten cleanup, including on error paths.</div><div><b>What it costs</b>Nothing at run time beyond the destructor's own work.</div><div><b>Common mistakes</b>Holding a resource in a raw pointer instead of an owning object; a destructor that throws (it must not: a second exception during unwinding terminates the program).</div></div>
+</section>
+
+<section id="ca-own">
+<h2>5. Owning heap objects: unique_ptr and shared_ptr</h2>
+<p>When you need an object on the heap (it must outlive the function, it is too big for the stack, or its exact type is decided at run time), do not write <code>new</code> and <code>delete</code>. Use a <b>smart pointer</b>: a small stack object that owns the heap object and deletes it in its destructor.</p>
+<ul>
+<li><b><code>std::unique_ptr&lt;T&gt;</code></b>: exactly one owner. It cannot be copied (two owners would delete twice), only <i>moved</i> (section 6): ownership is handed over and the source becomes null. It is the same size as a raw pointer and costs nothing extra. Create one with <code>std::make_unique&lt;T&gt;(args...)</code>. This is the default.</li>
+<li><b><code>std::shared_ptr&lt;T&gt;</code></b>: shared ownership with a reference count, like a Python object. The object dies when the last <code>shared_ptr</code> to it dies. It costs a separate <b>control block</b> holding the counts, twice the size, and an atomic (thread-safe) increment or decrement on every copy.</li>
+<li><b><code>std::weak_ptr&lt;T&gt;</code></b>: observes an object owned by <code>shared_ptr</code>s without keeping it alive; it breaks reference cycles, which reference counting alone never frees (Python has a cycle collector; C++ does not).</li>
+</ul>
+[[code:lang/lifetime.cpp:72-78]]
+[[out:lt_unique]]
+<p>The Tracer was created once (#1, on the heap) and never copied or moved: moving the <code>unique_ptr</code> moved only the 8-byte pointer. <code>reset()</code> destroyed it at that line, before the end of the function.</p>
+[[code:lang/lifetime.cpp:82-90]]
+[[out:lt_shared]]
+<p>Copying a smart pointer is a compile error for <code>unique_ptr</code>, and the error says why:</p>
+[[code:lang/unique_copy.cpp]]
+[[out:l_unique_copy]]
+<p>Sizes, measured (<code>sizeof</code> gives an object's size in bytes):</p>
+[[out:l_sizes]]
+<div class="ca-cost"><div><b>Rule</b><code>unique_ptr</code> by default; <code>shared_ptr</code> only when ownership is genuinely shared (a cache entry used by several requests); raw pointers and references only to <i>observe</i> an object someone else owns.</div><div><b>What it costs</b><code>unique_ptr</code>: nothing. <code>shared_ptr</code>: 16 bytes, a control block allocation, atomic count updates.</div><div><b>Common mistakes</b><code>shared_ptr</code> everywhere "to be safe" (slow and hides who owns what); two <code>shared_ptr</code>s made separately from one raw pointer (two counts, double delete); cycles of <code>shared_ptr</code>.</div></div>
+<div class="ca-py"><div class="t">Rust bridge</div>If you go on to the {{Rust page|n:3c65c17b0d0d8156bed9ead8a22f33b0}}: <code>Box&lt;T&gt;</code> is <code>unique_ptr</code>, <code>Rc&lt;T&gt;</code>/<code>Arc&lt;T&gt;</code> are <code>shared_ptr</code> without and with atomic counts, and Rust's compiler enforces the "do not use after move" rule that C++ only recommends.</div>
+</section>

@@ -1,0 +1,269 @@
+
+<section id="ca-std">
+<h2>9. The standard library you will actually use</h2>
+<p>The standard library ("the STL") is the C++ equivalent of Python's built-ins plus <code>collections</code> and <code>itertools</code>. On macOS it is LLVM's <b>libc++</b>; on Linux usually GCC's <b>libstdc++</b>; on Windows Microsoft's STL. The interfaces are standard; sizes, growth factors and string buffers below are libc++'s, measured.</p>
+<h3>std::vector: the default container</h3>
+<p>A growable array, like a Python list, except that it holds the elements themselves, contiguously, not pointers to objects. Use it unless you have measured a reason not to. Growth is geometric, so <code>push_back</code> is cheap on average:</p>
+<div class="ca-src"><div class="ca-fn">vector_growth.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; v;
+    std::size_t last = v.capacity();
+    std::printf(<span class="ca-st">"size 0 capacity %zu\n"</span>, last);
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> i = 0; i &lt; 1000; ++i) &#123;
+        v.push_back(i);
+        <span class="ca-kw">if</span> (v.capacity() != last) &#123;     <span class="ca-cm">// a new, bigger buffer: everything was moved</span>
+            last = v.capacity();
+            std::printf(<span class="ca-st">"size %zu capacity %zu\n"</span>, v.size(), last);
+        &#125;
+    &#125;
+&#125;</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> at which sizes does the capacity change?</summary><pre class="ca-out" data-ca-out="l_vector_growth"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra vector_growth.cpp -o vector_growth &amp;&amp; ./vector_growth</span>
+size 0 capacity 0
+size 1 capacity 1
+size 2 capacity 2
+size 3 capacity 4
+size 5 capacity 8
+size 9 capacity 16
+size 17 capacity 32
+size 33 capacity 64
+size 65 capacity 128
+size 129 capacity 256
+size 257 capacity 512
+size 513 capacity 1024</pre></details>
+<p>libc++ doubles (the factor is implementation-defined; do not rely on it). Each change of capacity is a new buffer: every element moves, and <b>every pointer, reference and iterator into the old buffer now dangles</b>. If you know the final size, call <code>reserve(n)</code> first: one allocation, no moves (the {{Object lifetimes|#t-ca-life}} tab's "reserve" scenario).</p>
+<h3>std::string and std::string_view</h3>
+<p><code>std::string</code> owns a growable byte buffer. Short strings are stored inside the 24-byte object itself (the <b>small-string optimisation</b>), so they need no heap allocation; <code>std::string_view</code> is a pointer and a length into characters owned by someone else, so passing one never copies. C++ strings are bytes: <code>size()</code> counts UTF-8 bytes, not characters.</p>
+<div class="ca-src"><div class="ca-fn">strings.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;string_view&gt;</span>
+
+<span class="ca-cm">// string_view: a pointer and a length into someone else's characters (no copy)</span>
+std::string_view first_word(std::string_view s) &#123;
+    <span class="ca-kw">auto</span> end = s.find(<span class="ca-st">' '</span>);
+    <span class="ca-kw">return</span> s.substr(0, end);            <span class="ca-cm">// still points into the caller's string</span>
+&#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    std::string small = <span class="ca-st">"u0029"</span>;
+    std::string big = <span class="ca-st">"a user id far too long for the small-string buffer"</span>;
+    std::printf(<span class="ca-st">"capacity of an empty std::string: %zu\n"</span>, std::string&#123;&#125;.capacity());
+    std::printf(<span class="ca-st">"small: size %zu, chars stored inside the object: %d\n"</span>, small.size(),
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)small.data() &gt;= (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)&amp;small &amp;&amp;
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)small.data() &lt; (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)(&amp;small + 1));
+    std::printf(<span class="ca-st">"big:   size %zu, chars stored inside the object: %d\n"</span>, big.size(),
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)big.data() &gt;= (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)&amp;big &amp;&amp;
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)big.data() &lt; (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)(&amp;big + 1));
+
+    std::string line = <span class="ca-st">"attention training trained"</span>;
+    std::string_view w = first_word(line);
+    std::printf(<span class="ca-st">"first word: %.*s (%zu bytes, no copy)\n"</span>, (<span class="ca-kw">int</span>)w.size(), w.data(), w.size());
+    std::string cafe = <span class="ca-st">"caf\xc3\xa9"</span>;   <span class="ca-cm">// UTF-8 bytes; size() counts bytes, not characters</span>
+    std::printf(<span class="ca-st">"\"%s\" size() = %zu\n"</span>, cafe.c_str(), cafe.size());
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_strings"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra strings.cpp -o strings &amp;&amp; ./strings</span>
+capacity of an empty std::string: 22
+small: size 5, chars stored inside the object: 1
+big:   size 50, chars stored inside the object: 0
+first word: attention (9 bytes, no copy)
+"café" size() = 5</pre>
+<p>A <code>string_view</code> (and a <code>std::span</code>, the same idea for any contiguous elements) is the right parameter type for "read some text" or "read some numbers", and the wrong type to store: it does not keep its characters alive. Initialise one from a temporary string and it dangles at the semicolon; clang warns, and the {{UB gallery|#t-ca-ub}} shows the result.</p>
+<h3>Maps, spans and algorithms</h3>
+<div class="ca-src"><div class="ca-fn">containers.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;algorithm&gt;</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;span&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;unordered_map&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-cm">// span: a view of contiguous elements, whoever owns them</span>
+<span class="ca-kw">long</span> sum(std::span&lt;<span class="ca-kw">const</span> <span class="ca-kw">long</span>&gt; xs) &#123;
+    <span class="ca-kw">long</span> s = 0;
+    <span class="ca-kw">for</span> (<span class="ca-kw">long</span> x : xs) s += x;
+    <span class="ca-kw">return</span> s;
+&#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    std::unordered_map&lt;std::string, <span class="ca-kw">long</span>&gt; per_user;   <span class="ca-cm">// Python's dict</span>
+    <span class="ca-kw">const</span> <span class="ca-kw">char</span>* users[] = &#123;<span class="ca-st">"u0029"</span>, <span class="ca-st">"u0005"</span>, <span class="ca-st">"u0029"</span>, <span class="ca-st">"u0042"</span>, <span class="ca-st">"u0005"</span>, <span class="ca-st">"u0029"</span>&#125;;
+    <span class="ca-kw">const</span> <span class="ca-kw">long</span> tokens[] = &#123;10, 7, 5, 9, 1, 3&#125;;
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> i = 0; i &lt; 6; ++i) per_user[users[i]] += tokens[i];  <span class="ca-cm">// [] inserts 0 if missing</span>
+
+    std::printf(<span class="ca-st">"contains u0099? %d (contains() does not insert)\n"</span>, per_user.contains(<span class="ca-st">"u0099"</span>));
+    <span class="ca-kw">long</span>&amp; ref = per_user[<span class="ca-st">"u0099"</span>];                    <span class="ca-cm">// operator[] DOES insert</span>
+    std::printf(<span class="ca-st">"after per_user[\"u0099\"]: size %zu, value %ld\n"</span>, per_user.size(), ref);
+
+    std::vector&lt;std::pair&lt;std::string, <span class="ca-kw">long</span>&gt;&gt; rows(per_user.begin(), per_user.end());
+    std::ranges::sort(rows, [](<span class="ca-kw">const</span> <span class="ca-kw">auto</span>&amp; a, <span class="ca-kw">const</span> <span class="ca-kw">auto</span>&amp; b) &#123;
+        <span class="ca-kw">return</span> a.second != b.second ? a.second &gt; b.second : a.first &lt; b.first;  <span class="ca-cm">// count desc, id asc</span>
+    &#125;);
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> <span class="ca-kw">auto</span>&amp; [user, n] : rows) std::printf(<span class="ca-st">"%s %ld\n"</span>, user.c_str(), n);  <span class="ca-cm">// structured binding</span>
+
+    std::vector&lt;<span class="ca-kw">long</span>&gt; v&#123;3, 1, 4, 1, 5&#125;;
+    <span class="ca-kw">long</span> arr[] = &#123;9, 2, 6&#125;;
+    std::printf(<span class="ca-st">"sum(v)=%ld sum(arr)=%ld sum(first 2 of v)=%ld\n"</span>,
+                sum(v), sum(arr), sum(std::span(v).first(2)));
+&#125;</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> what does per_user["u0099"] do to the map, and in what order are the rows printed?</summary><pre class="ca-out" data-ca-out="l_containers"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra containers.cpp -o containers &amp;&amp; ./containers</span>
+contains u0099? 0 (contains() does not insert)
+after per_user["u0099"]: size 4, value 0
+u0029 18
+u0042 9
+u0005 8
+u0099 0
+sum(v)=14 sum(arr)=17 sum(first 2 of v)=4</pre></details>
+<ul>
+<li><code>std::unordered_map</code> is a hash table like <code>dict</code>, but unordered (there is no insertion order) and its <code>[]</code> <b>inserts</b> a default value when the key is missing, so it cannot be used on a <code>const</code> map. Use <code>contains</code> or <code>find</code> to look without inserting. <code>std::map</code> is a sorted tree.</li>
+<li><code>std::ranges::sort(rows, cmp)</code> sorts with your comparison; the lambda (section 10) gives the root page's tie-break: count descending, then user id ascending.</li>
+<li><code>auto&amp; [user, n]</code> is a <b>structured binding</b>: tuple unpacking.</li>
+<li>One <code>sum(std::span&lt;const long&gt;)</code> accepted a vector, a plain array and a slice of the vector, with no copies.</li>
+</ul>
+<h3>Ranges: lazy pipelines</h3>
+<p>C++20 <b>ranges</b> compose lazily, like Python generators: <code>views::filter</code>, <code>views::transform</code>, <code>views::take</code> build a pipeline that computes nothing until a loop pulls from it. The prints inside the lambdas show the order of evaluation:</p>
+<div class="ca-src"><div class="ca-fn">ranges.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;ranges&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; counts&#123;12, 0, 7, 31, 0, 5, 18&#125;;
+    <span class="ca-cm">// A lazy pipeline: nothing runs until the loop pulls values (like a Python generator)</span>
+    <span class="ca-kw">auto</span> pipeline = counts
+        | std::views::filter([](<span class="ca-kw">int</span> n) &#123; std::printf(<span class="ca-st">"  filter %d\n"</span>, n); <span class="ca-kw">return</span> n &gt; 0; &#125;)
+        | std::views::transform([](<span class="ca-kw">int</span> n) &#123; std::printf(<span class="ca-st">"  square %d\n"</span>, n); <span class="ca-kw">return</span> n * n; &#125;)
+        | std::views::take(2);
+    std::printf(<span class="ca-st">"pipeline built, nothing computed yet\n"</span>);
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> x : pipeline) std::printf(<span class="ca-st">"got %d\n"</span>, x);
+
+    <span class="ca-cm">// C++23: collect into a container, like list(...) in Python</span>
+    <span class="ca-kw">auto</span> evens = std::views::iota(1, 11)
+               | std::views::filter([](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n % 2 == 0; &#125;)
+               | std::ranges::to&lt;std::vector&gt;();
+    std::printf(<span class="ca-st">"evens: %zu values, last %d\n"</span>, evens.size(), evens.back());
+&#125;</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> which numbers get filtered and squared before the loop stops?</summary><pre class="ca-out" data-ca-out="l_ranges"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra ranges.cpp -o ranges &amp;&amp; ./ranges</span>
+pipeline built, nothing computed yet
+  filter 12
+  square 12
+got 144
+  filter 0
+  filter 7
+  square 7
+got 49
+  filter 31
+evens: 5 values, last 10</pre></details>
+<p>Only what the loop needed was computed (31 was filtered but never squared: taking the second element advanced the filter to find a third before <code>take</code> said stop; 5 and 18 were never touched). C++23's <code>std::ranges::to&lt;std::vector&gt;()</code> collects a pipeline into a container, like <code>list(gen)</code>. A view does not own its data, so a view of a temporary container dangles, just as a <code>string_view</code> does.</p>
+<div class="ca-cost"><div><b>Defaults</b><code>vector</code>, <code>string</code>, <code>unordered_map</code>; <code>string_view</code> and <code>span</code> as parameters; algorithms over hand-written loops.</div><div><b>What it costs</b>Every container owns heap memory; views and spans own nothing and can dangle.</div><div><b>Common mistakes</b>Keeping a reference or iterator across a <code>push_back</code>; <code>map[key]</code> to test membership; <code>std::list</code> (a linked list, almost always slower than <code>vector</code>).</div></div>
+</section>
+
+<section id="ca-lam">
+<h2>10. Lambdas</h2>
+<p>A lambda is an inline function, like Python's <code>lambda</code> but with statements allowed. The part in square brackets says which outside variables it <b>captures</b> and how: <code>[x]</code> copies x when the lambda is created; <code>[&amp;x]</code> refers to the variable itself; <code>[=]</code> and <code>[&amp;]</code> capture everything used, by copy or by reference.</p>
+<div class="ca-src"><div class="ca-fn">lambdas.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;functional&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    <span class="ca-kw">int</span> threshold = 10;
+    <span class="ca-kw">auto</span> by_value = [threshold](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n &gt; threshold; &#125;;   <span class="ca-cm">// copies threshold now</span>
+    <span class="ca-kw">auto</span> by_ref   = [&amp;threshold](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n &gt; threshold; &#125;;  <span class="ca-cm">// refers to the variable</span>
+    threshold = 100;
+    std::printf(<span class="ca-st">"by_value(50)=%d by_ref(50)=%d\n"</span>, by_value(50), by_ref(50));
+
+    <span class="ca-kw">int</span> calls = 0;
+    <span class="ca-kw">auto</span> counter = [calls]() <span class="ca-kw">mutable</span> &#123; <span class="ca-kw">return</span> ++calls; &#125;;   <span class="ca-cm">// mutable: may change its own copy</span>
+    counter(); counter();
+    std::printf(<span class="ca-st">"counter() -&gt; %d, outer calls still %d\n"</span>, counter(), calls);
+
+    <span class="ca-kw">auto</span> twice = [](<span class="ca-kw">auto</span> x) &#123; <span class="ca-kw">return</span> x + x; &#125;;              <span class="ca-cm">// generic lambda (a template)</span>
+    std::printf(<span class="ca-st">"twice(21)=%d twice(1.5)=%.1f\n"</span>, twice(21), twice(1.5));
+
+    <span class="ca-cm">// A lambda is an object of a compiler-written class; its size is its captures</span>
+    std::printf(<span class="ca-st">"sizeof: no capture %zu, one int %zu, one reference %zu\n"</span>,
+                <span class="ca-kw">sizeof</span>([] &#123;&#125;), <span class="ca-kw">sizeof</span>(by_value), <span class="ca-kw">sizeof</span>(by_ref));
+    std::function&lt;<span class="ca-kw">bool</span>(<span class="ca-kw">int</span>)&gt; f = by_value;   <span class="ca-cm">// type-erased holder: can store any callable</span>
+    std::printf(<span class="ca-st">"sizeof(std::function) %zu\n"</span>, <span class="ca-kw">sizeof</span>(f));
+&#125;</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> by_value(50) and by_ref(50) after threshold becomes 100?</summary><pre class="ca-out" data-ca-out="l_lambdas"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lambdas.cpp -o lambdas &amp;&amp; ./lambdas</span>
+by_value(50)=1 by_ref(50)=0
+counter() -&gt; 3, outer calls still 0
+twice(21)=42 twice(1.5)=3.0
+sizeof: no capture 1, one int 4, one reference 8
+sizeof(std::function) 32</pre></details>
+<p>Under the hood a lambda is an object of a class the compiler writes, with the captures as members and <code>operator()</code> as the body; its size is the size of its captures. Python closures always capture variables by reference and keep them alive; a C++ reference capture does not keep anything alive, so a lambda that outlives the function it was made in (returned, stored, or given to a thread) must capture by value. <code>std::function</code> can hold any callable with a given signature, at the price of a type-erased call and possibly a heap allocation; templates and <code>auto</code> parameters avoid both.</p>
+<div class="ca-cost"><div><b>Problem it solves</b>Comparators, callbacks and small helpers written where they are used.</div><div><b>What it costs</b>Nothing for a lambda passed to a template; a <code>std::function</code> costs an indirect call.</div><div><b>Common mistakes</b><code>[&amp;]</code> in a lambda that escapes its scope (the gallery's "dangling capture" case); capturing <code>this</code> and outliving the object.</div></div>
+</section>
+
+<section id="ca-err">
+<h2>11. Error handling: exceptions, optional, expected</h2>
+<p>C++ has three ways to say "this did not work", and real code uses all three:</p>
+<div class="ca-src"><div class="ca-fn">errors.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;charconv&gt;</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;expected&gt;</span>
+<span class="ca-pp">#include &lt;optional&gt;</span>
+<span class="ca-pp">#include &lt;stdexcept&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;string_view&gt;</span>
+
+<span class="ca-cm">// 1. Exceptions: like Python's raise/except</span>
+<span class="ca-kw">long</span> parse_or_throw(std::string_view s) &#123;
+    <span class="ca-kw">long</span> v = 0;
+    <span class="ca-kw">auto</span> [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    <span class="ca-kw">if</span> (ec != std::errc&#123;&#125; || p != s.data() + s.size())
+        <span class="ca-kw">throw</span> std::invalid_argument(<span class="ca-st">"not a number: "</span> + std::string(s));
+    <span class="ca-kw">return</span> v;
+&#125;
+
+<span class="ca-cm">// 2. optional: "a value or nothing", no reason given (like returning None)</span>
+std::optional&lt;<span class="ca-kw">long</span>&gt; parse_opt(std::string_view s) &#123;
+    <span class="ca-kw">long</span> v = 0;
+    <span class="ca-kw">auto</span> [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    <span class="ca-kw">if</span> (ec != std::errc&#123;&#125; || p != s.data() + s.size()) <span class="ca-kw">return</span> std::nullopt;
+    <span class="ca-kw">return</span> v;
+&#125;
+
+<span class="ca-cm">// 3. expected (C++23): "a value or an error", like Rust's Result</span>
+<span class="ca-kw">enum</span> <span class="ca-kw">class</span> ParseError &#123; empty, not_a_number &#125;;
+std::expected&lt;<span class="ca-kw">long</span>, ParseError&gt; parse_exp(std::string_view s) &#123;
+    <span class="ca-kw">if</span> (s.empty()) <span class="ca-kw">return</span> std::unexpected(ParseError::empty);
+    <span class="ca-kw">long</span> v = 0;
+    <span class="ca-kw">auto</span> [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    <span class="ca-kw">if</span> (ec != std::errc&#123;&#125; || p != s.data() + s.size()) <span class="ca-kw">return</span> std::unexpected(ParseError::not_a_number);
+    <span class="ca-kw">return</span> v;
+&#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    <span class="ca-kw">try</span> &#123;
+        parse_or_throw(<span class="ca-st">"12x"</span>);
+    &#125; <span class="ca-kw">catch</span> (<span class="ca-kw">const</span> std::invalid_argument&amp; e) &#123;
+        std::printf(<span class="ca-st">"caught: %s\n"</span>, e.what());
+    &#125;
+    <span class="ca-kw">auto</span> o = parse_opt(<span class="ca-st">"12x"</span>);
+    std::printf(<span class="ca-st">"optional: has_value=%d, value_or(-1)=%ld\n"</span>, o.has_value(), o.value_or(-1));
+
+    <span class="ca-kw">for</span> (std::string_view s : &#123;<span class="ca-st">"4816"</span>, <span class="ca-st">""</span>, <span class="ca-st">"12x"</span>&#125;) &#123;
+        <span class="ca-kw">auto</span> r = parse_exp(s)
+                   .transform([](<span class="ca-kw">long</span> v) &#123; <span class="ca-kw">return</span> v * 2; &#125;);   <span class="ca-cm">// runs only on success</span>
+        <span class="ca-kw">if</span> (r) std::printf(<span class="ca-st">"expected \"%.*s\": value %ld\n"</span>, (<span class="ca-kw">int</span>)s.size(), s.data(), *r);
+        <span class="ca-kw">else</span>   std::printf(<span class="ca-st">"expected \"%.*s\": error %d\n"</span>, (<span class="ca-kw">int</span>)s.size(), s.data(), (<span class="ca-kw">int</span>)r.error());
+    &#125;
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_errors"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra errors.cpp -o errors &amp;&amp; ./errors</span>
+caught: not a number: 12x
+optional: has_value=0, value_or(-1)=-1
+expected "4816": value 9632
+expected "": error 0
+expected "12x": error 1</pre>
+<ul>
+<li><b>Exceptions</b> work like Python's: <code>throw</code>, <code>try</code>/<code>catch</code>, unwinding with destructors (section 4). Use them for errors the immediate caller cannot handle (a missing config file, out of memory).</li>
+<li><b><code>std::optional&lt;T&gt;</code></b> (C++17) is "a T or nothing", like returning <code>None</code>, with no reason attached.</li>
+<li><b><code>std::expected&lt;T, E&gt;</code></b> (C++23) is "a T or an error E", like Rust's <code>Result</code>. The caller must look; <code>transform</code> and <code>and_then</code> chain steps that run only on success. Use it for failures that are part of normal operation (parsing user input, a malformed JSONL line).</li>
+</ul>
+<p>What each costs, measured with the same tiny function written both ways (10 million successful calls; 100,000 failing calls):</p>
+<pre class="ca-out" data-ca-out="t_throw"><span class="ca-cmd">$ sysctl -n vm.loadavg; clang++ -std=c++23 -O2 throw_cost.cpp -o throw_cost &amp;&amp; ./throw_cost</span>
+&#123; 13.33 8.47 7.38 &#125;
+success path:  exception-style 1.51 ns/call, expected-style 0.98 ns/call
+failure path:  throw+catch 4766 ns/call, expected 0.96 ns/call</pre>
+<p>On the success path both are about a nanosecond: compilers implement exceptions with tables consulted only when something is thrown ("zero-cost" exceptions, which still cost binary size). Throwing and catching took about 4766 ns, thousands of times more than returning an <code>expected</code>. So: exceptions for rare failures, <code>expected</code> or <code>optional</code> where failure is common. Some codebases (game engines, parts of Google's, many embedded ones) compile with exceptions turned off; ggml, the C core under llama.cpp, reports errors with return values and assertions, since C has no exceptions.</p>
+<div class="ca-cost"><div><b>Rule of thumb</b>Exceptional and far away: throw. Expected and handled by the caller: <code>std::expected</code>. "Not found": <code>std::optional</code>.</div><div><b>noexcept</b>Mark functions that never throw, above all move constructors and destructors (section 6).</div><div><b>Common mistakes</b>Exceptions as control flow in a hot loop; throwing from a destructor; ignoring an <code>expected</code> (add <code>[[nodiscard]]</code> to the function).</div></div>
+</section>
