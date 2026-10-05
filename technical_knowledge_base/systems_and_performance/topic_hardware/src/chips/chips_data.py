@@ -212,7 +212,7 @@ CHIPS = [
    node=('8-GPU platform (UBB 2.0)', 8), dom=('8 GPUs, Infinity Fabric', 8),
    rel='2025-06-12', reltxt='launched Jun 12 2025',
    src=dict(peaks='amd_mi355x', mem='amd_mi355x', arch='amd_mi355x', rel='amd_mi350_news', link='amd_mi355x', tdp='amd_mi355x'),
-   d=dict(link='7 x 153.6 GB/s = 1,075 GB/s'),
+   d=dict(link='7 x 153.6 GB/s = 1,075 GB/s (brochure; the AMD product page prints 153 GB/s per link)'),
    note='FP6 runs at the FP4 rate on CDNA 4 (10.1 PF), which NVIDIA’s Blackwell does not do (FP6 at the FP8 rate).'),
  C(id='mi455x', name='AMD Instinct MI455X (Helios)', short='MI455X', vendor='AMD', kind='dc', status='announced',
    arch='CDNA 5', proc='not stated in the fetched sources', dies='chiplets', units='"256 Work Group Processors" (AMD page)', tc='not stated',
