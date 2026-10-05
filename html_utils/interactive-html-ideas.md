@@ -2835,3 +2835,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_hardware/src/viz_ideas.md`.
 
+### Topic: cuda-and-gpu-programming (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/src/viz_ideas.md`.
+
