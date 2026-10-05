@@ -2410,3 +2410,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | R2 | Sampler temperature/entropy explorer | | Sampling and Decoding's Sampler lab | linked | rejected |
 | R3 | Toy CLIP batch with temperature | | CLIP paper page | linked | rejected |
 | R4 | Real arithmetic coder driven by GPT-2 in the browser | | needs model weights in the page; the arithmetic is shown exactly on the tiny model | none | rejected |
+
+### Matrix calculus and backprop: Jacobians, layouts, vector-Jacobian products, autodiff (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_math/matrix_calculus_and_backprop/src/viz_ideas.md`.
+
+| # | Idea | Where | Score | Notes |
+|---|---|---|---|---|
+| 1 | One chain, four schedules (inference / store everything / checkpoint every k / store nothing), animated, n and k sliders, counters for held, peak, layer evaluations | Reading s9 | 13 | Khalid's before/after pattern; reproduces Chen et al.'s n/k + k shape; real values and gradients in the boxes; schedules recomputed in recompute.py |
+| 2 | Measured memory timeline of one training step on MPS, store-all against checkpoint every block and every other block, plus inference | Reading s9 | 12 | Real allocator counts after every op; held memory equals the graph walk to 444 bytes |
+| 3 | Forward mode (6 tangent sweeps) against reverse mode (1 sweep) on the tiny model, gradient grid filling, counters | Reading s7 | 11 | Before/after on the root's model |
+| 4 | jacfwd against jacrev timings, one output vs one input | Reading s7 | 10 | Real; shows the crossover the survey states |
+| 5 | Forward vs backward FLOPs (exact 2.00) and time (1.44 overall, 2.14 for matmuls; softmax the exception) | Reading s8 | 11 | Corrects "twice in time" |
+| 6 | HVP vs explicit Hessian time against n | Reading s12 | 10 | Also found double backward faster than forward-over-reverse in PyTorch |
+| 7 | Einsum cost and backward-spec calculator | Reading s13 | 7 | Small; reproduces the old page's 16,777,216 |
+| 8 | Derivative workbench: six layers, derivation, shapes, live FD check with selectable h, Jacobian built from unit VJPs, LN kernel form | Own tab | 12 | Asked for; checked against autograd |
+| 9 | Real autograd graph: 71 nodes, saved tensors, engine order replay | Own tab | 11 | Real PyTorch 2.14.1 output |

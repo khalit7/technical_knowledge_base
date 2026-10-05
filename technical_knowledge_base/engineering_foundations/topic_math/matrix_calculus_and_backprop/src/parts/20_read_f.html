@@ -1,0 +1,46 @@
+
+<section id="mc-s5">
+<h2>5. The layer gradients worth knowing cold, each derived</h2>
+<p class="raise"><b>The question.</b> Autograd computes these for you. Why derive them? Because reading a paper, writing a fused kernel, debugging a NaN or answering an interview question all start from them, and because each one teaches the same three moves: write one output entry with indices, differentiate, and recognise the result as a matrix product.</p>
+<p>Every derivation below gives the backward rule of one layer: given \(\bar y\) (the gradient arriving at the output, same shape as \(y\)), return the gradient for each input. The {{Derivative workbench|#t-bench}} runs each one on numbers you can change and checks it against finite differences.</p>
+
+<h3 id="mc-lin">5a. Linear layer: \(y = Wx + b\)</h3>
+<p>Shapes: \(x\) has \(n\) entries, \(W\) is \(m \times n\), \(b\) and \(y\) have \(m\).</p>
+<ol class="steps">
+<li>One output entry: \(y_k = \sum_j W_{kj}\,x_j + b_k\).</li>
+<li>The weight \(W_{ij}\) appears only in output \(k = i\), multiplied by \(x_j\), so \(\partial y_k/\partial W_{ij} = \delta_{ki}\,x_j\). The chain rule sums over outputs: \(\bar W_{ij} = \sum_k \bar y_k\,\delta_{ki}\,x_j = \bar y_i\,x_j\).</li>
+<li>The input \(x_j\) appears in every output, multiplied by \(W_{kj}\): \(\bar x_j = \sum_k \bar y_k\,W_{kj}\).</li>
+<li>The bias \(b_k\) appears once with slope 1: \(\bar b_k = \bar y_k\).</li>
+<li>Recognise the matrix forms:
+\[ \bar W = \bar y\,x^\top \;(m \times n), \qquad \bar x = W^\top \bar y \;(n), \qquad \bar b = \bar y \;(m) \]</li>
+</ol>
+<p><b>A batch.</b> PyTorch's <code>nn.Linear</code> stores \(W\) as (out, in) and computes \(Y = XW^\top + b\) for a batch \(X\) of shape \(B \times n\), one example per row. The same three moves give</p>
+\[ \bar W = \bar Y^\top X \;(m \times n), \qquad \bar X = \bar Y\,W \;(B \times n), \qquad \bar b = \textstyle\sum_{\text{rows}} \bar Y \;(m) \]
+<p class="plain">In plain words: a weight's gradient is (gradient coming in) times (input that went in), summed over the batch; an input's gradient is the gradient coming in sent back through the transposed weights; a bias that was added to every row collects the sum of every row's gradient. \(\bar Y^\top X\) is the sum over examples of one outer product each, so one example's weight gradient has rank 1 and a batch's has rank at most \(B\).</p>
+<div class="nums"><div class="t">The tiny model (\(b = 0\), \(\bar y = p - y\))</div>\(\bar W = (0.665, 0.245, -0.910)^\top (2, 1)\) has rows \((1.330, 0.665)\), \((0.489, 0.245)\), \((-1.820, -0.910)\); \(\bar x = (-0.245, 2.065)\); \(\bar b = (0.665, 0.245, -0.910)\). PyTorch autograd and <code>jax.grad</code> give the same to 15 digits (<code>src/recompute.py</code>).</div>
+<div class="nums"><div class="t">Carried from the old Calculus and optimisation page (checked): one logistic unit</div>\(x = (1, 2)\), \(w = (0.5, -0.25)\), \(b = 0.1\), label 1. Forward: \(z = w \cdot x + b = 0.1\), \(p = \sigma(0.1) = 0.525\), loss \(-\ln 0.525 = 0.644\). Backward: \(\bar z = p - 1 = -0.475\); the linear rule gives \(\bar w = \bar z\,x = (-0.475, -0.950)\), \(\bar b = -0.475\) and \(\bar x = \bar z\,w = (-0.2375, 0.1188)\). One step with learning rate 0.1: \(w = (0.5475, -0.155)\), \(b = 0.1475\), new \(z = 0.385\), \(p = 0.595\): the right answer became more likely.</div>
+<p><b>The real code.</b> PyTorch writes the backward rules of its built-in operators in one file, <code>tools/autograd/derivatives.yaml</code>. At v2.14.1, lines 1235 to 1238 hold the matrix product:</p>
+<pre>- name: mm(Tensor self, Tensor mat2) -> Tensor
+  self: mm_mat1_backward(grad, mat2, self.sym_sizes(), self.sym_strides(), self.layout(), 1)
+  mat2: mm_mat2_backward(grad, self, mat2.sym_sizes(), mat2.sym_strides(), mat2.layout(), 1)
+  result: at::mm(self_t, mat2_p) + at::mm(self_p, mat2_t)</pre>
+<p class="src">{{derivatives.yaml at v2.14.1, lines 1235-1238|https://github.com/pytorch/pytorch/blob/v2.14.1/tools/autograd/derivatives.yaml#L1235-L1238}}; the two helpers in {{torch/csrc/autograd/FunctionsManual.cpp, lines 1722-1758|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/FunctionsManual.cpp#L1722-L1758}}.</p>
+<p>For \(C = AB\) the helpers' general case is <code>grad.mm(mat2.t())</code> for \(A\) and <code>mat1.t().mm(grad)</code> for \(B\): \(\bar A = \bar C B^\top\) and \(\bar B = A^\top \bar C\), the rules above. The <code>result:</code> line is the forward-mode rule (section 7): the tangent of \(AB\) is \(\dot A B + A \dot B\), the product rule.</p>
+
+<h3 id="mc-act">5b. Elementwise nonlinearities: \(h = \phi(a)\)</h3>
+<p>Output \(i\) depends only on input \(i\), so the Jacobian is diagonal (section 2) and the VJP is an entry-by-entry product, written \(\odot\):</p>
+\[ \bar a = \bar h \odot \phi'(a) \]
+<div class="tw"><table class="mini"><tr><th>\(\phi\)</th><th>\(\phi'(a)\)</th><th>what PyTorch saves for it (derivatives.yaml, v2.14.1, lines 2132, 1788, 1550, 2160)</th></tr>
+<tr><td>ReLU, \(\max(0, a)\)</td><td>1 where \(a > 0\), else 0</td><td>its output: <code>threshold_backward(grad, result, 0)</code></td></tr>
+<tr><td>tanh</td><td>\(1 - \tanh^2 a = 1 - h^2\)</td><td>its output: <code>tanh_backward(grad, result)</code></td></tr>
+<tr><td>sigmoid \(\sigma(a) = 1/(1 + e^{-a})\)</td><td>\(\sigma(a)(1 - \sigma(a)) = h(1 - h)\)</td><td>its output: <code>sigmoid_backward(grad, result)</code></td></tr>
+<tr><td>GELU, \(a\,\Phi(a)\)</td><td>\(\Phi(a) + a\,\varphi(a)\)</td><td>its input: <code>gelu_backward(grad, self, approximate)</code></td></tr></table></div>
+<p class="small">\(\Phi\) is the standard normal cumulative distribution and \(\varphi\) its density. Functions whose derivative can be written from the output save the output; GELU's cannot, so it saves the input. Either way, one tensor the size of the layer stays in memory until the backward pass: section 9 measures how much that adds up to.</p>
+<div class="nums"><div class="t">Numbers (the workbench defaults)</div>At \(a = (-1.5, -0.2, 0.4, 2.0)\) with \(\bar h = (0.5, -1, 0.25, 1)\): ReLU passes \((0, 0, 0.25, 1)\), the negative inputs blocked; GELU's slopes are \((-0.1275, 0.3425, 0.8027, 1.0852)\), so \(\bar a = (-0.0637, -0.3425, 0.2007, 1.0852)\). GELU's slope is negative below about \(-0.75\) and above 1 near \(a = 2\): it is not a monotone function.</div>
+
+<h3 id="mc-sm">5c. Softmax: the VJP without the Jacobian</h3>
+<p>Multiply the Jacobian of section 2 by an incoming gradient \(\bar p\) and simplify; it is symmetric, so \(J^\top = J\):</p>
+\[ \bar z = \big(\operatorname{diag}(p) - p\,p^\top\big)\,\bar p = p \odot \bar p - p\,(p \cdot \bar p) = p \odot \big(\bar p - (p \cdot \bar p)\,\mathbf{1}\big) \]
+<p class="plain">In plain words: subtract from each incoming gradient the probability-weighted average of all of them, then scale by the probability. Cost: one dot product and one pass over the \(K\) entries, \(O(K)\), against \(O(K^2)\) to build the Jacobian. For a 128,000-word vocabulary that is the difference between a vector and a table of 16 billion numbers per token. PyTorch's softmax node saves only its output \(p\) (<code>_softmax_backward_data(grad, result, dim, ...)</code>, derivatives.yaml line 2237).</p>
+<div class="nums"><div class="t">Numbers</div>\(z = (2, 1, 0)\), \(p = (0.665, 0.245, 0.090)\), \(\bar p = (0.5, -1, 0.25)\): \(p \cdot \bar p = 0.1104\), so \(\bar z = (0.665 \times 0.3896,\) \(0.245 \times (-1.1104),\) \(0.090 \times 0.1396)\) \(= (0.2592, -0.2717, 0.0126)\). The entries add up to 0, as they must (section 2).</div>
+

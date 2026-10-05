@@ -1,0 +1,38 @@
+
+<section id="mc-s2">
+<h2>2. Functions that return a vector: the Jacobian, and the shape of every derivative</h2>
+<p class="raise"><b>The question.</b> A layer does not return one number; it returns a vector. Each output can respond to each input. How do you hold all those slopes?</p>
+<p>A function \(f\) that takes \(n\) numbers and returns \(m\) numbers (written \(f: \mathbb{R}^n \to \mathbb{R}^m\), where \(\mathbb{R}^n\) means "lists of \(n\) real numbers") has one slope for every (output, input) pair. Arranged as a table with one row per output and one column per input, they form the <dfn>Jacobian</dfn> (after Carl Jacobi):</p>
+\[ J = \frac{\partial f}{\partial x} = \begin{pmatrix} \frac{\partial f_1}{\partial x_1} & \cdots & \frac{\partial f_1}{\partial x_n} \\ \vdots & \ddots & \vdots \\ \frac{\partial f_m}{\partial x_1} & \cdots & \frac{\partial f_m}{\partial x_n} \end{pmatrix}, \qquad J_{ij} = \frac{\partial f_i}{\partial x_j}, \quad J \text{ is } m \times n \]
+<p class="plain">Row \(i\) is the gradient of output \(i\), laid flat. Column \(j\) says how every output responds when only input \(j\) moves. The linear prediction now reads \(f(x + \delta) \approx f(x) + J\delta\): a matrix times the step.</p>
+
+<h3>Three Jacobians to know</h3>
+<p><b>A linear map.</b> For \(z = Wx\), each output is \(z_i = \sum_j W_{ij} x_j\), so nudging \(x_j\) moves \(z_i\) by \(W_{ij}\) per unit: \(\partial z_i / \partial x_j = W_{ij}\). The Jacobian of a matrix-vector product with respect to the vector is the matrix itself, \(J = W\), here \(3 \times 2\).</p>
+<p><b>An elementwise function.</b> For \(h = \phi(a)\) applied entry by entry (a ReLU, a tanh), output \(i\) depends only on input \(i\), so the Jacobian is diagonal: \(J = \operatorname{diag}(\phi'(a))\), the matrix with the slopes \(\phi'(a_i)\) on the diagonal and zeros elsewhere.</p>
+<p><b>Softmax</b>, derived without skipping a step. Write \(p_i = e^{z_i} / S\) with \(S = \sum_k e^{z_k}\). Two cases.</p>
+<ol class="steps">
+<li>The same index, \(j = i\). The quotient rule (slope of top over bottom = (top' times bottom minus top times bottom') over bottom squared), with \(\partial e^{z_i}/\partial z_i = e^{z_i}\) and \(\partial S/\partial z_i = e^{z_i}\):
+\[ \frac{\partial p_i}{\partial z_i} = \frac{e^{z_i} S - e^{z_i} e^{z_i}}{S^2} = p_i - p_i^2 = p_i(1 - p_i) \]</li>
+<li>A different index, \(j \ne i\). The top does not move, the bottom does:
+\[ \frac{\partial p_i}{\partial z_j} = \frac{0 \cdot S - e^{z_i} e^{z_j}}{S^2} = -p_i p_j \]</li>
+<li>Both cases at once, with the <dfn>Kronecker delta</dfn> \(\delta_{ij}\) (1 if \(i = j\), else 0):
+\[ \frac{\partial p_i}{\partial z_j} = p_i(\delta_{ij} - p_j), \qquad J_{\text{softmax}} = \operatorname{diag}(p) - p\,p^\top \]
+where \(p\,p^\top\) is the <dfn>outer product</dfn>: column times row, a square table whose entry \((i, j)\) is \(p_i p_j\).</li>
+</ol>
+<div class="nums"><div class="t">The numbers (tiny model, \(p = (0.665, 0.245, 0.090)\))</div>
+<div class="tw"><table class="mini"><tr><th></th><th>\(\partial / \partial z_{\text{cat}}\)</th><th>\(\partial / \partial z_{\text{dog}}\)</th><th>\(\partial / \partial z_{\text{sat}}\)</th></tr>
+<tr><th>\(p_{\text{cat}}\)</th><td class="num">0.2227</td><td class="num">−0.1628</td><td class="num">−0.0599</td></tr>
+<tr><th>\(p_{\text{dog}}\)</th><td class="num">−0.1628</td><td class="num">0.1848</td><td class="num">−0.0220</td></tr>
+<tr><th>\(p_{\text{sat}}\)</th><td class="num">−0.0599</td><td class="num">−0.0220</td><td class="num">0.0819</td></tr></table></div>
+Each row adds up to 0: the probabilities always add up to 1, so no change of scores can change their total. The table is symmetric, and the sat diagonal entry, 0.0819, is the \(p(1 - p)\) the root page used in its chain-rule example.</div>
+
+<h3>The shape of every derivative</h3>
+<p>The derivative of an output with \(a\) entries with respect to an input with \(b\) entries holds \(a \times b\) numbers. That gives a small table, where \(W\) is a \(p \times q\) matrix:</p>
+<div class="tw"><table class="mini"><tr><th>derivative of ... with respect to ...</th><th>scalar \(t\)</th><th>vector \(x\) (\(n\))</th><th>matrix \(W\) (\(p \times q\))</th></tr>
+<tr><th>scalar \(L\)</th><td>scalar</td><td>vector, \(n\) (the gradient)</td><td>matrix, \(p \times q\)</td></tr>
+<tr><th>vector \(z\) (\(m\))</th><td>vector, \(m\)</td><td>matrix, \(m \times n\) (the Jacobian)</td><td>3-index array, \(m \times p \times q\)</td></tr>
+<tr><th>matrix \(Y\) (\(r \times s\))</th><td>matrix, \(r \times s\)</td><td>3-index array</td><td>4-index array, \(r \times s \times p \times q\)</td></tr></table></div>
+<p>The bottom-right corner is where matrix calculus gets its reputation. The good news for ML: <b>you never need it</b>. The loss is a scalar, so the only derivatives that must be stored are in the top row, and each has the shape of its parameter. The big arrays appear only in the middle of the chain rule, and section 5 shows that they can always be skipped.</p>
+<div class="nums"><div class="t">Why the big arrays are wasteful</div>The derivative of \(z = Wx\) (3 numbers) with respect to \(W\) (6 numbers) is a \(3 \times 3 \times 2\) array of 18 numbers: \(\partial z_i / \partial W_{kl} = \delta_{ik}\, x_l\) (score \(i\) depends only on row \(i\) of \(W\)). Twelve of the 18 are zero. For one real layer with a \(4096 \times 4096\) weight, the same array would have \(4096^3 \approx 6.9 \times 10^{10}\) entries, almost all zero.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Derivative workbench|#t-bench}} shows the full Jacobian beside the cheap product for each layer; the symbols \(\partial\), \(\nabla\), \(\top\) and \(\odot\) are decoded on the Notation decoder tab of {{Topic: math|n:3c65c17b0d0d81cdb851c0835b25a538}}.</div>
+</section>
