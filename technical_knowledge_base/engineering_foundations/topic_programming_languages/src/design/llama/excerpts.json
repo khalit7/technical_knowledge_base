@@ -1,0 +1,98 @@
+{
+ "repo": "https://github.com/ggml-org/llama.cpp",
+ "commit": "8e1642198dcd4e408f8776222d6ae31b74d01187",
+ "date": "2026-10-05",
+ "excerpts": {
+  "extern_c": {
+   "file": "ggml/include/ggml.h",
+   "start": 344,
+   "end": 346,
+   "why": "ggml's public header is C; C++ code includes it inside extern \"C\" so names are not mangled",
+   "text": "#ifdef  __cplusplus\nextern \"C\" {\n#endif"
+  },
+  "block_q4_0": {
+   "file": "ggml/src/ggml-common.h",
+   "start": 194,
+   "end": 199,
+   "why": "a quantised block: a plain struct with a fixed byte layout, checked at compile time",
+   "text": "#define QK4_0 32\ntypedef struct {\n    ggml_half d;           // delta\n    uint8_t qs[QK4_0 / 2]; // nibbles / quants\n} block_q4_0;\nstatic_assert(sizeof(block_q4_0) == sizeof(ggml_half) + QK4_0 / 2, \"wrong q4_0 block size/padding\");"
+  },
+  "tensor": {
+   "file": "ggml/include/ggml.h",
+   "start": 685,
+   "end": 693,
+   "why": "a tensor is a struct of sizes, byte strides and a raw data pointer",
+   "text": "    struct ggml_tensor {\n        enum ggml_type type;\n\n        struct ggml_backend_buffer * buffer;\n\n        int64_t ne[GGML_MAX_DIMS]; // number of elements\n        size_t  nb[GGML_MAX_DIMS]; // stride in bytes:\n                                   // nb[0] = ggml_type_size(type)\n                                   // nb[1] = nb[0]   * (ne[0] / ggml_blck_size(type)) + padding"
+  },
+  "tensor_data": {
+   "file": "ggml/include/ggml.h",
+   "start": 710,
+   "end": 710,
+   "why": "the raw pointer to the tensor's bytes",
+   "text": "        void * data;"
+  },
+  "mmap": {
+   "file": "src/llama-mmap.cpp",
+   "start": 495,
+   "end": 498,
+   "why": "model weights are mapped from the GGUF file into memory, not read",
+   "text": "        addr = mmap(NULL, file->size(), PROT_READ, flags, fd, 0);\n        if (addr == MAP_FAILED) {\n            throw std::runtime_error(format(\"mmap failed: %s\", strerror(errno)));\n        }"
+  },
+  "deleters": {
+   "file": "include/llama-cpp.h",
+   "start": 11,
+   "end": 13,
+   "why": "RAII around the C API: a deleter struct ...",
+   "text": "struct llama_model_deleter {\n    void operator()(llama_model * model) { llama_model_free(model); }\n};"
+  },
+  "unique_ptr": {
+   "file": "include/llama-cpp.h",
+   "start": 31,
+   "end": 31,
+   "why": "... and a unique_ptr that calls it when the owner goes out of scope",
+   "text": "typedef std::unique_ptr<llama_model, llama_model_deleter> llama_model_ptr;"
+  },
+  "template_dup": {
+   "file": "ggml/src/ggml-cpu/ops.cpp",
+   "start": 46,
+   "end": 49,
+   "why": "a C++ template: one copy of the function per (source, destination) type pair",
+   "text": "template<typename src_t, typename dst_t>\nstatic void ggml_compute_forward_dup_flt(\n        const ggml_compute_params * params,\n        ggml_tensor * dst) {"
+  },
+  "threads": {
+   "file": "ggml/src/ggml-cpu/ggml-cpu.c",
+   "start": 445,
+   "end": 446,
+   "why": "the CPU backend's threads are plain POSIX threads behind C macros",
+   "text": "#define ggml_thread_create pthread_create\n#define ggml_thread_join   pthread_join"
+  },
+  "ith_nth": {
+   "file": "ggml/src/ggml-cpu/ops.cpp",
+   "start": 58,
+   "end": 59,
+   "why": "each op splits its rows by thread index and thread count",
+   "text": "    const int ith = params->ith; // thread index\n    const int nth = params->nth; // number of threads"
+  },
+  "simd": {
+   "file": "ggml/src/ggml-cpu/arch/arm/quants.c",
+   "start": 336,
+   "end": 343,
+   "why": "the same dot product with ARM NEON intrinsics, 16 bytes at a time",
+   "text": "            // 4-bit -> 8-bit\n            const int8x16_t v0_0l = vreinterpretq_s8_u8(vandq_u8  (v0_0, m4b));\n            const int8x16_t v0_0h = vreinterpretq_s8_u8(vshrq_n_u8(v0_0, 4));\n            const int8x16_t v0_1l = vreinterpretq_s8_u8(vandq_u8  (v0_1, m4b));\n            const int8x16_t v0_1h = vreinterpretq_s8_u8(vshrq_n_u8(v0_1, 4));\n\n            // sub 8\n            const int8x16_t x0_l = vsubq_s8(v0_0l, s8b);"
+  },
+  "cmake": {
+   "file": "ggml/CMakeLists.txt",
+   "start": 199,
+   "end": 199,
+   "why": "backends are chosen at build time with CMake options",
+   "text": "option(GGML_CUDA                            \"ggml: use CUDA\"                                  OFF)"
+  },
+  "dot_generic": {
+   "file": "ggml/src/ggml-cpu/quants.c",
+   "start": 242,
+   "end": 256,
+   "why": "the portable reference loop: unpack two 4-bit weights per byte, multiply, accumulate",
+   "text": "    for (; ib < nb; ++ib) {\n        int sumi0 = 0;\n        int sumi1 = 0;\n\n        for (int j = 0; j < qk/2; ++j) {\n            const int v0 = (x[ib].qs[j] & 0x0F) - 8;\n            const int v1 = (x[ib].qs[j] >>   4) - 8;\n\n            sumi0 += (v0 * y[ib].qs[j]);\n            sumi1 += (v1 * y[ib].qs[j + qk/2]);\n        }\n\n        int sumi = sumi0 + sumi1;\n        sumf += sumi*GGML_CPU_FP16_TO_FP32(x[ib].d)*GGML_CPU_FP16_TO_FP32(y[ib].d);\n    }"
+  }
+ }
+}

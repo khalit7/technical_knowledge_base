@@ -1,0 +1,62 @@
+
+<section id="rd-s10">
+<h2>10. Safety and undefined behaviour</h2>
+<p>A language is <dfn data-g="A language is memory-safe if no program in it can read or write memory it does not own (out of bounds, freed, uninitialised).">memory-safe</dfn> if no program written in it can read or write memory it does not own. Python, JavaScript and safe Rust are; C++ is not. C++'s alternative is <dfn data-g="C++ (and unsafe Rust): an operation the standard gives no meaning to, such as reading freed memory or overflowing a signed integer; the compiler may assume it never happens.">undefined behaviour</dfn>: a list of operations (reading past the end of an array, reading freed memory, overflowing a signed integer, a data race) that the standard declares meaningless. The compiler is allowed to assume they never happen and optimise accordingly, so a program that does one of them may do anything, including appearing to work. The zero-overhead principle is the reason: checking every index costs time, so C++ does not check unless you ask.</p>
+<div class="card quad" data-q="oob" data-hl="py:2;cpp:5,6;rs:4,5;ts:2,3">
+<p data-l="py"><span class="pill ok">clear error</span><code>IndexError</code>, at the exact line. Every access is checked.</p>
+<p data-l="cpp"><span class="pill bad">undefined behaviour</span><code>top[5]</code> is unchecked: it printed 0, whatever happened to be in memory after the vector. <code>top.at(5)</code> is the checked version and throws. AddressSanitizer turns the unchecked read into a "heap-buffer-overflow" report, 8 bytes after the 12-byte buffer. Compilers and standard libraries now offer "hardened" modes that check <code>[]</code> too; they are opt-in.</p>
+<p data-l="rs"><span class="pill ok">checked: panic</span><code>get(5)</code> returns <code>None</code>; <code>top[5]</code> panics with the length and the index. Indexing is always bounds-checked in safe Rust; the optimiser removes checks it can prove unnecessary (iterators, as in section 2, have none).</p>
+<p data-l="ts"><span class="pill mid">silent <code>undefined</code></span>JavaScript returns <code>undefined</code> and the arithmetic becomes <code>NaN</code>, no error. tsc lets <code>const x: number = top[5]</code> through unless <code>noUncheckedIndexedAccess</code> is on (the Rosetta program turns it on), in which case it is refused.</p>
+</div>
+<p>Rust is not free of the problem; it fences it. Code marked <code>unsafe</code> may dereference raw pointers and call C, and inside it undefined behaviour is possible again. The point is that it is rare and searchable: the standard library is built on small <code>unsafe</code> cores wrapped in safe interfaces, and tools such as {{Miri|https://github.com/rust-lang/miri}} check unsafe code for undefined behaviour. The Rustonomicon is the manual for that part of the language (Further reading).</p>
+<div class="ff"><div class="t">False friends for a Python programmer</div><ul>
+<li>"If it ran and printed the right thing, it is correct." In C++ a program with undefined behaviour can print the right thing today and the wrong thing after a compiler upgrade. Run tests under AddressSanitizer and UndefinedBehaviorSanitizer.</li>
+<li>"Rust programs cannot crash." They can panic (out of bounds, <code>unwrap()</code> on <code>None</code>, overflow in debug builds); what they cannot do in safe code is corrupt memory.</li>
+</ul></div>
+</section>
+
+<section id="rd-s11">
+<h2>11. Evolution and governance</h2>
+<p>Who can change the language, and how they avoid breaking your code, explains its pace. Dates checked on 2026-10-05.</p>
+<div class="tw"><table class="four">
+<thead><tr><th></th><th class="lang-py">Python</th><th class="lang-cpp">C++</th><th class="lang-rs">Rust</th><th class="lang-ts">TypeScript, JavaScript</th></tr></thead>
+<tbody>
+<tr><th>Who decides</th><td>The Steering Council, through PEPs (Python Enhancement Proposals)</td><td>The ISO committee WG21, through numbered papers</td><td>Rust teams, through RFCs (requests for comments)</td><td>JavaScript: the TC39 committee, proposals through stages 0 to 4. TypeScript: Microsoft's team</td></tr>
+<tr><th>Cadence</th><td>One release a year in October ({{PEP 602|https://peps.python.org/pep-0602/}})</td><td>A standard every three years; compilers adopt features over the following years</td><td>A release every six weeks; an edition every three years</td><td>An ECMAScript edition each year ({{TC39 process|https://tc39.es/process-document/}}); TypeScript several releases a year</td></tr>
+<tr><th>Now</th><td>3.14.8 (30 Sep 2026); 3.15.0 rc3 on 2 Oct, final planned for 9 Oct 2026 ({{PEP 790|https://peps.python.org/pep-0790/}})</td><td>C++26 technical work finished on 28 March 2026 ({{Sutter's trip report|https://herbsutter.com/2026/03/29/c26-is-done-trip-report-march-2026-iso-c-standards-meeting-london-croydon-uk/}}); ISO publication not yet confirmed</td><td>1.99.0 (1 Oct 2026); 2024 edition, stable since 1.85.0 (20 Feb 2025) ({{release notes|https://github.com/rust-lang/rust/blob/master/RELEASES.md}})</td><td>TypeScript 7.0, a native port of the compiler to Go, released 8 Jul 2026 ({{announcement|https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/}}); 7.0.2 used here</td></tr>
+<tr><th>Breaking changes</th><td>Deprecations over several releases; rare</td><td>Almost never (C compatibility, decades-old code)</td><td>Never within an edition; editions opt in per crate and interoperate</td><td>JavaScript: never ("don't break the web"); TypeScript: new errors in minor releases are accepted</td></tr>
+</tbody></table></div>
+<p>Two consequences matter for you. C++ never removes anything, so modern C++ is a subset you choose to write (the {{C++ Core Guidelines|https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines}} describe it), and old code with old habits stays legal. Rust's editions let it fix mistakes without breaking old crates, because each crate declares its edition in <code>Cargo.toml</code>. TypeScript 7.0 shipped without a programmatic API (expected in 7.1), so tools that embed the compiler, such as typescript-eslint, still run on TypeScript 6 alongside it, as the announcement says.</p>
+</section>
+
+<section id="rd-s12">
+<h2>12. Tooling</h2>
+<p>Rust and modern Python have one tool that does almost everything; C++ has many that you assemble; JavaScript has several competing ones.</p>
+<ul>
+<li><b>Python:</b> <code>uv</code> (Astral, written in Rust) installs Python itself, creates environments, resolves and locks dependencies and runs scripts; <code>ruff</code> lints and formats; <code>mypy</code>, <code>pyright</code> or Astral's <code>ty</code> (in beta) check types; <code>pytest</code> tests.</li>
+<li><b>C++:</b> a compiler (clang, GCC, MSVC), a build system (CMake is the common one), a package manager if any (vcpkg, Conan, or none), sanitizers, clang-format and clang-tidy. There is no standard package manager, because compiled C++ libraries must match the compiler and flags they are linked with. Even the default language version differs: Apple clang 14 on this laptop defaults to C++98, recent Clang to C++17, GCC 16 to C++20, MSVC to C++14, so always pass <code>-std=</code>.</li>
+<li><b>Rust:</b> <code>cargo</code> builds, tests, benchmarks, documents, fetches and publishes; <code>clippy</code> lints, <code>rustfmt</code> formats; every published crate's documentation is built on docs.rs. One <code>Cargo.lock</code> pins every version.</li>
+<li><b>TypeScript:</b> a runtime (Node, Bun or Deno), a package manager (npm, pnpm, or Bun's), <code>tsc</code> for checking, and a test runner (vitest, or Node's built-in). Node runs <code>.ts</code> files directly by stripping types since 22.18; that does not type-check, so keep <code>tsc --noEmit</code> in CI.</li>
+</ul>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Toolchain atlas|#t-tools}} tab lists every tool of the four ecosystems with versions, what each replaces and the commands for the running program; the {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}} page covers testing practice.</div>
+</section>
+
+<section id="rd-s13">
+<h2>13. Speed and talking to each other</h2>
+<p>The {{Benchmark|#t-bench}} tab times the running program on a 200,000-line log (<span class="meas">measured</span>, medians, <span class="bdate2"></span>): Python 3.14 <span class="bn" data-b="py314_loop"></span>, Python with a regular expression <span class="bn" data-b="py314_re"></span>, TypeScript on Node <span class="bn" data-b="node_js"></span> and on Bun <span class="bn" data-b="bun_ts"></span>, C++ <span class="bn" data-b="cpp_O2"></span>, Rust <span class="bn" data-b="rust"></span>. Three lessons carry beyond this program:</p>
+<ul>
+<li><b>Most of the gap is the interpreter and the layout</b> (sections 2 and 5), not the language's cleverness. Python closes half of it by pushing the inner loop into C (the regex version) without leaving Python.</li>
+<li><b>C++ against Rust is not one number.</b> Here the C++ version carries its own small JSON parser (the standard library has none) and the compilers vectorised the token loop differently (section 2); either language can match the other with effort. Choose between them for safety and ecosystem, not speed.</li>
+<li><b>Start-up and memory matter as much as throughput</b> for command-line tools: Python and Node pay roughly 20 to 30 milliseconds and tens of megabytes before your first line runs (Bun about 6 ms); compiled binaries pay almost nothing. The Benchmark tab measures both.</li>
+</ul>
+<h3>How the languages call each other</h3>
+<p>You rarely rewrite a Python program; you move its hot loop into a compiled extension and keep the rest. A Python <dfn data-g="A compiled library (a .so or .pyd file) that CPython imports like a module; written in C, C++ or Rust against CPython's C API.">extension module</dfn> is a compiled library that CPython imports like any module.</p>
+<ul>
+<li><b>Rust from Python:</b> {{PyO3|https://pyo3.rs/}} maps Rust functions and types to Python ones, and {{maturin|https://www.maturin.rs/}} builds them into wheels. This is how pydantic-core, tokenizers and polars ship. In the Benchmark tab, the token loop moved into Rust with one call per message took the program from <span class="bn" data-b="py314_loop"></span> to <span class="bn" data-b="pyrs_percall"></span>, and the whole file read in Rust to <span class="bn" data-b="pyrs_file"></span>: crossing the boundary costs tens of nanoseconds per call, so batch the work.</li>
+<li><b>C++ from Python:</b> {{pybind11|https://pybind11.readthedocs.io/}} and its lighter successor {{nanobind|https://nanobind.readthedocs.io/}}; PyTorch's own C++ extensions use pybind11 through <code>torch/extension.h</code>. Same pattern, same lesson (<span class="bn" data-b="pynb_percall"></span> per call with nanobind, <span class="bn" data-b="pynb_file"></span> for the whole file).</li>
+<li><b>Rust or C++ from JavaScript:</b> compile to WebAssembly (runs in browsers and Node, sandboxed) or build a native Node addon (napi-rs for Rust, node-addon-api for C++).</li>
+<li><b>Anything to anything:</b> the C calling convention. A function declared <code>extern "C"</code> in C++ or Rust can be called from almost every language, which is why ggml's core is C (section 1).</li>
+</ul>
+<div class="co"><div class="t">When a rewrite is worth it</div>Profile first. If the time is in a loop over Python objects, try a vectorised library (NumPy, polars) or a regex; if it is still too slow and the loop is small and stable, move that loop into a Rust (PyO3) or C++ (nanobind) extension with a batch interface. Rewrite a whole program only when start-up, memory, deployment as a single binary, or concurrency is the problem, not raw loop speed.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Benchmark|#t-bench}} tab has every variant, the per-call crossing cost, start-up, memory and compile times; the methodology of measuring performance is on the {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}} page.</div>
+</section>
