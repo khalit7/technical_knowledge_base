@@ -1,0 +1,63 @@
+<section id="rd-s6">
+<h2>6. Triton: blocks, not threads</h2>
+<p><b>The idea.</b> In CUDA you write what one thread does and arrange the cooperation yourself: which thread loads what, when to synchronise, how to lay out shared memory. In <dfn>Triton</dfn> (OpenAI's Python language for kernels, {{Tillet, Kung and Cox, MAPL 2019|https://www.eecs.harvard.edu/~htk/publication/2019-mapl-tillet-kung-cox.pdf}}) you write what one <b>program instance</b> does to whole blocks of values, roughly what one CUDA thread block does, and the compiler decides how threads, warps, shared memory, vector loads and synchronisation implement it. Here is the same row softmax both ways, as compiled in the {{Compiler explorer|#t-compile}}:</p>
+<div class="rd-two">
+<div><div class="small mute">CUDA C++: 29 lines without comments; three passes, warp shuffles and a shared-memory step written by hand (core loop shown)</div>
+<pre class="rd-code">for (int j = threadIdx.x; j &lt; ncols; j += 256)
+  m = fmaxf(m, xr[j]);                      <span class="c">// pass 1: max</span>
+m = warp_max(m); if (lane == 0) red[warp] = m;
+__syncthreads();
+m = (lane &lt; 8) ? red[lane] : -INFINITY;
+m = warp_max(m); __syncthreads();
+for (int j = threadIdx.x; j &lt; ncols; j += 256)
+  s += __expf(xr[j] - m);                   <span class="c">// pass 2: sum</span>
+<span class="c">// ... same two-level reduction for s ...</span>
+for (int j = threadIdx.x; j &lt; ncols; j += 256)
+  yr[j] = __expf(xr[j] - m) * inv;          <span class="c">// pass 3</span></pre></div>
+<div><div class="small mute">Triton: 9 lines; the whole row is one block of values</div>
+<pre class="rd-code">@triton.jit
+def softmax(x_ptr, y_ptr, ncols, stride, BLOCK: tl.constexpr):
+    row = tl.program_id(0)          <span class="c"># one program per row</span>
+    offs = tl.arange(0, BLOCK)
+    mask = offs &lt; ncols
+    x = tl.load(x_ptr + row * stride + offs,
+                mask=mask, other=-float("inf"))
+    x = x - tl.max(x, axis=0)       <span class="c"># reduction: compiler's job</span>
+    e = tl.exp(x)
+    tl.store(y_ptr + row * stride + offs,
+             e / tl.sum(e, axis=0), mask=mask)</pre></div>
+</div>
+<p>The translations to remember: <code>tl.program_id</code> replaces <code>blockIdx</code>; <code>tl.arange</code> plus pointer arithmetic plus <code>mask=</code> replace per-thread indexing and bounds checks; <code>tl.load</code> and <code>tl.store</code> move whole blocks (contiguous offsets make them coalesced for free); <code>tl.max</code> and <code>tl.sum</code> emit the shuffles you wrote by hand; <code>tl.dot</code> is a block matrix multiply that the compiler maps to tensor cores; <code>@triton.autotune</code> searches block sizes, <code>num_warps</code> and <code>num_stages</code> (how many tiles to prefetch) per shape. <span class="rd-pub">compiled here</span>: one Triton matmul source compiled without a GPU picks a different tensor-core instruction for each target, <code>HMMA</code> on sm_80 and sm_120, <code>HGMMA</code> (wgmma) on sm_90a and <code>UTCHMMA</code> (tcgen05) on sm_100a; a float32 <code>tl.dot</code> defaults to TF32 tensor cores; a tutorial-style matmul copies tiles with <code>cp.async</code>, not TMA.</p>
+<p><b>What you give up:</b> warp-level control, explicit shared-memory layouts, hand-scheduled asynchronous copies and power-of-two block shapes only. <b>When to use which:</b> <code>torch.compile</code> first (it already writes Triton for you); hand-written Triton for an algorithm the compiler cannot express or schedule well (attention variants, quantised or mixed-format matmuls, fused MoE routing); CUDA C++ or CUTLASS for the last stretch of performance or features Triton does not expose. The often-quoted "within 0 to 20% of expert CUDA in a tenth of the code" is a rule of thumb from the old page <span class="rd-unc">unconfirmed as a general figure</span>; the line counts above are one data point.</p>
+<p><b>Gluon</b>, in the Triton repository since 2025, is the escape hatch: "a GPU programming language based on the same compiler stack as Triton. But unlike Triton, Gluon is a lower-level language that gives the user more control and responsibility" ({{Gluon tutorial 01|https://github.com/triton-lang/triton/blob/main/python/tutorials/gluon/01-intro.py}}). Its tutorials cover exactly what Triton hides: layouts, async copies, TMA, <code>wgmma</code>, <code>tcgen05</code> and tensor memory, warp specialisation and multi-CTA clusters.</p>
+<p><b>Version:</b> Triton <b>3.8.0</b> (GitHub release, August 28, 2026; installs from PyPI) <span class="rd-vend">checked 2026-10-05</span>. The old page's "3.7 is current" is out of date.</p>
+<div class="deepnote"><b>Go deeper:</b> the {{Kernel lab|#t-lab}} runs Triton kernels for real on the CPU with <code>TRITON_INTERPRET=1</code> and checks them against PyTorch; the {{Compiler explorer|#t-compile}}, section 8, shows the PTX and SASS Triton generates per target.</div>
+</section>
+
+<section id="rd-s7">
+<h2>7. Libraries and tensor cores</h2>
+<p><b>Use a library first.</b> Most of the time you should not write the kernel at all; the question is which library already did.</p>
+<div class="tw"><table style="min-width:580px">
+<thead><tr><th>Library</th><th>What it is</th><th>When it is the answer</th></tr></thead><tbody>
+<tr><td><b>cuBLAS</b></td><td>NVIDIA's closed-source dense linear algebra</td><td>Any standard GEMM; what <code>torch.matmul</code> calls</td></tr>
+<tr><td><b>cuBLASLt</b></td><td>The descriptor-based layer of cuBLAS: heuristic kernel search, <b>epilogue fusion</b> (bias, GELU, scaling), FP8 and block-scaled formats</td><td>A GEMM plus a fusible epilogue; FP8 matmuls (<code>torch._scaled_mm</code>)</td></tr>
+<tr><td><b>cuDNN</b></td><td>Deep-learning primitives behind a graph API: convolutions, normalisations, fused attention</td><td>Convolutions; one of SDPA's attention backends</td></tr>
+<tr><td><b>CUTLASS / CuTe</b></td><td>NVIDIA's open-source C++ templates for GEMM, convolution and attention; CuTe is its layout algebra (shape and stride, composable) that describes tiles, thread mappings and tensor-core operands in one notation</td><td>A GEMM-shaped kernel the libraries do not cover (grouped MoE GEMM, new data types, custom fusions); reading how peak kernels are built</td></tr>
+<tr><td><b>CuTe DSL</b></td><td>CUTLASS 4.x's Python interface: write CuTe kernels in Python, compiled just in time</td><td>Prototyping peak kernels without C++ template compile times; FlashAttention-4 is written in it</td></tr>
+<tr><td><b>CCCL</b> (Thrust, CUB, libcudacxx)</td><td>Parallel algorithms and block- and device-wide primitives (reduce, scan, sort)</td><td>Never hand-write a production reduction or scan</td></tr>
+<tr><td><b>NCCL</b></td><td>Collectives across GPUs (all-reduce, all-gather, reduce-scatter) as an API you call on a stream</td><td>Every multi-GPU training job; what <code>torch.distributed</code> uses on NVIDIA</td></tr>
+</tbody></table></div>
+<p class="small mute">CUTLASS's latest release is 4.8.0 (September 22, 2026, "initial Rubin support"; {{GitHub releases|https://github.com/NVIDIA/cutlass/releases}}, read 2026-10-05).</p>
+<h3>Tensor cores, from the programmer's side</h3>
+<p>A <dfn>tensor core</dfn> is a unit that multiplies small matrix tiles in one instruction (what it is physically is on {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}). You reach it, from most to least abstract, through cuBLAS or cuDNN, Triton's <code>tl.dot</code>, CUTLASS/CuTe, or PTX instructions directly. The instruction changed shape every generation, and that is what makes kernel code generation-specific:</p>
+<div class="tw"><table style="min-width:620px">
+<thead><tr><th>Generation</th><th>Matrix instruction (PTX, then SASS)</th><th>Who issues it, where operands live</th><th>Data movement that feeds it</th></tr></thead><tbody>
+<tr><td><b>Ampere</b> sm_80; also consumer sm_86, sm_89, sm_120</td><td><code>mma.sync</code> &rarr; <code>HMMA</code> (FP8 <code>QMMA</code> natively on sm_120)</td><td>One warp; operands and accumulators in registers</td><td><code>cp.async</code>: global to shared without passing through registers</td></tr>
+<tr><td><b>Hopper</b> sm_90a</td><td><code>wgmma</code> &rarr; <code>HGMMA</code></td><td>A <dfn>warpgroup</dfn> of 4 warps, asynchronously; operands read from shared memory, tiles up to 64 &times; 256 &times; 16</td><td><b>TMA</b> (Tensor Memory Accelerator): one thread starts a bulk tile copy described by a descriptor, with swizzling; clusters share shared memory</td></tr>
+<tr><td><b>Datacenter Blackwell</b> sm_100a</td><td><code>tcgen05.mma</code> &rarr; <code>UTCHMMA</code></td><td>One thread issues for the CTA; accumulators live in <b>TMEM</b>, 256 KB of tensor memory per SM (512 columns &times; 128 rows of 32-bit cells); tiles up to 128 &times; 256 &times; 16</td><td>TMA; block-scaled FP8, FP6 and FP4 formats</td></tr>
+</tbody></table></div>
+<p class="small mute">Shapes and TMEM size: {{PTX ISA 9.4|https://docs.nvidia.com/cuda/parallel-thread-execution/index.html}} <span class="rd-vend">vendor spec</span>. Which instruction assembles where: <span class="rd-pub">compiled here</span> with CUDA 13.4.2.</p>
+<p><b>Real compiles, no GPU</b> <span class="rd-pub">compiled here</span>: <code>wgmma</code> assembles only for sm_90a (<code>ptxas</code>: "Instruction 'wgmma.fence' not supported on .target 'sm_100a'"); <code>tcgen05</code> only for sm_100a; TMA and clusters compile for sm_90a, sm_100a and sm_120. So the old page's claim stands: an <b>RTX 5090 (sm_120) has TMA and clusters but no wgmma, tcgen05 or TMEM</b>, and Hopper tutorials do not run on it as written. A surprise: an FP8 <code>mma.sync</code> is a native <code>QMMA</code> on sm_120 but is <b>emulated</b> on sm_90a and sm_100a (converted to FP16 and run as two <code>HMMA</code>), because those chips expect FP8 through <code>wgmma</code> and <code>tcgen05</code>. The <code>a</code> suffix (sm_90a, sm_100a) marks architecture-specific features that do not carry forward to the next generation.</p>
+<p><b>Why it matters for reading kernels:</b> a modern Hopper or Blackwell kernel is <dfn>warp-specialised</dfn>: some warps only issue TMA copies (producers), others only issue matrix instructions (consumers), linked by barriers in shared memory, with several tiles in flight. FlashAttention-3 and modern CUTLASS mainloops look like this. Once you can name TMA, <code>wgmma</code>/<code>tcgen05</code>, the barrier and the pipeline depth, such a kernel becomes readable.</p>
+<div class="deepnote"><b>Go deeper:</b> the {{Compiler explorer|#t-compile}} sections 4 and 6 show one multiply-add per thread against one tensor-core instruction, and what compiled on which of four generations; tensor cores and systolic arrays physically, and the numeric formats, are on {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}, sections 2 and 4.</div>
+</section>
