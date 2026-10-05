@@ -1,0 +1,43 @@
+<section id="rd-s6">
+<h2>6. Status codes, errors and retries</h2>
+<p><b>The problem.</b> When a call fails, the caller must decide in microseconds: give up, retry here, retry elsewhere, or tell the user something specific. HTTP's status codes were designed for documents; gRPC defines 17 codes designed for that decision ({{gRPC status codes|https://grpc.io/docs/guides/status-codes/}}). The number travels in the <code>grpc-status</code> trailer; the HTTP status stays 200.</p>
+<div class="tw"><table class="small">
+<thead><tr><th>Code</th><th>Meaning</th><th>Library may generate it?</th><th>HTTP at a gateway</th></tr></thead>
+<tbody>
+<tr><td>0 OK</td><td>Success</td><td></td><td>200</td></tr>
+<tr><td>1 CANCELLED</td><td>The caller cancelled</td><td>yes</td><td>499</td></tr>
+<tr><td>2 UNKNOWN</td><td>The handler threw, or an error from an unknown space</td><td>yes</td><td>500</td></tr>
+<tr><td>3 INVALID_ARGUMENT</td><td>Bad input, whatever the system state</td><td>never</td><td>400</td></tr>
+<tr><td>4 DEADLINE_EXCEEDED</td><td>Out of time; the work may still have happened</td><td>yes</td><td>504</td></tr>
+<tr><td>5 NOT_FOUND</td><td>No such entity</td><td>never</td><td>404</td></tr>
+<tr><td>6 ALREADY_EXISTS</td><td>Create of something that exists</td><td>never</td><td>409</td></tr>
+<tr><td>7 PERMISSION_DENIED</td><td>Known caller, not allowed</td><td>rarely (HTTP/2 INADEQUATE_SECURITY maps to it)</td><td>403</td></tr>
+<tr><td>8 RESOURCE_EXHAUSTED</td><td>Quota, rate limit, message too large, out of memory</td><td>yes</td><td>429</td></tr>
+<tr><td>9 FAILED_PRECONDITION</td><td>Wrong system state; do not retry until fixed</td><td>never</td><td>400</td></tr>
+<tr><td>10 ABORTED</td><td>Concurrency conflict; retry the whole read-modify-write</td><td>never</td><td>409</td></tr>
+<tr><td>11 OUT_OF_RANGE</td><td>Past the end (useful to stop iterating)</td><td>never</td><td>400</td></tr>
+<tr><td>12 UNIMPLEMENTED</td><td>No such method, or unsupported compression</td><td>yes</td><td>501</td></tr>
+<tr><td>13 INTERNAL</td><td>An invariant broke (bad framing, parse failure)</td><td>yes</td><td>500</td></tr>
+<tr><td>14 UNAVAILABLE</td><td>Transient: cannot connect, shutting down, connection lost</td><td>yes</td><td>503</td></tr>
+<tr><td>15 DATA_LOSS</td><td>Unrecoverable corruption</td><td>never</td><td>500</td></tr>
+<tr><td>16 UNAUTHENTICATED</td><td>No valid credentials</td><td>yes</td><td>401</td></tr>
+</tbody></table></div>
+<p class="small mute">Meanings and the "library may generate" column from gRPC's {{statuscodes.md|https://github.com/grpc/grpc/blob/master/doc/statuscodes.md}}, which lists the codes the libraries never produce, so seeing one means an application chose it; HTTP column from the comments in {{google/rpc/code.proto|https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto}}. The spec's guide to three easily confused codes: UNAVAILABLE if the client can retry just this call, ABORTED if it should retry a larger transaction, FAILED_PRECONDITION if it should not retry until someone fixes the state.</p>
+<h3>Measured: each failure as the client sees it</h3>
+<p>The lab caused each failure on purpose against the same inference service and recorded the code and details string a Python client receives (<span class="meas">measured</span>, grpcio <span data-sa="meta.grpcio"></span>):</p>
+<div id="rd-fails"></div>
+<p>Three of these deserve a second look. The 5 MB prompt failed with <code>RESOURCE_EXHAUSTED</code> because gRPC's default receive limit is 4 MiB (the details give both numbers): long contexts and embeddings batches hit it, and the fix is <code>grpc.max_receive_message_length</code> on the receiving side (vLLM's gRPC server sets it to unlimited, section 12). The dead backend behind the L7 balancer reached the client as <code>UNAVAILABLE</code> with "Received http2 header with status: 502": the spec tells clients to <i>synthesise</i> a gRPC status when a proxy answers with plain HTTP. And <code>UNAVAILABLE</code> to a closed port came back in about 1 ms: by default a call fails fast when the channel cannot connect, unless you ask for <code>wait_for_ready=True</code> ({{wait-for-ready guide|https://grpc.io/docs/guides/wait-for-ready/}}).</p>
+<h3>Retries: off by default, on by configuration</h3>
+<p>gRPC retries in two ways ({{gRPC retry design A6|https://github.com/grpc/proposal/blob/master/A6-client-retries.md}}):</p>
+<ul class="tight">
+<li><b>Transparent retries</b>, always on: when the call never left the client, or reached the server but never reached your handler, the library retries by itself, because nothing can have happened twice.</li>
+<li><b>A retry policy</b>, only if the <dfn id="g-svcconfig">service config</dfn> (a JSON document given to the channel, or published by the name resolver) has one: which status codes to retry, up to how many attempts (values above 5 are treated as 5), with exponential backoff and plus or minus 20% jitter. The deadline covers all attempts. Each retry carries <code>grpc-previous-rpc-attempts</code> so the server can see it.</li>
+</ul>
+<pre class="cd">{"methodConfig": [{"name": [{"service": "llm.v1.Inference", "method": "Who"}],
+  "retryPolicy": {"maxAttempts": 4, "initialBackoff": "0.1s", "maxBackoff": "1s",
+                  "backoffMultiplier": 2, "retryableStatusCodes": ["UNAVAILABLE"]}}]}</pre>
+<p>Measured against a replica that answers <code>UNAVAILABLE</code> twice while "warming up": without the policy the call failed at once; with it, the server log shows three attempts <span id="rd-retrylog"></span>, and the caller saw only success. Two safety valves stop retries from becoming a storm: <b>retry throttling</b> (a per-server token bucket; with <code>"maxTokens": 10, "tokenRatio": 0.1</code> each failure costs a token, each success returns 0.1, and retries stop while the count is at or below half) and <b>server pushback</b> (the server's <code>grpc-retry-pushback-ms</code> trailer says when to retry, or a negative value says never). <b>Hedging</b> is the aggressive cousin: send a second copy after a delay without waiting for the first to fail, for idempotent calls with long tails; Go and C-core did not implement hedging when the design was last updated (2024-08-23).</p>
+<div class="corr"><div class="t">Correction to the old page</div>The old page said "only UNAVAILABLE-class errors are safely retryable by default". By default no application-level retry happens at all; only the transparent retries above. Which codes are safe depends on whether the method is idempotent, and gRPC's own docs say there is "no fixed list of status codes on which it is appropriate to retry in all applications". UNAVAILABLE is the usual choice because it normally means the request was not processed; DEADLINE_EXCEEDED is the dangerous one, since it "may be returned even if the operation has completed successfully".</div>
+<p><b>Richer errors.</b> A code and a string are often not enough ("which field?", "retry after how long?"). The spec reserves the trailer <code>grpc-status-details-bin</code> for a serialised <code>google.rpc.Status</code> carrying typed details such as <code>BadRequest</code> or <code>RetryInfo</code> ({{Google's error model, AIP-193|https://google.aip.dev/193}}).</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Retry budgets, circuit breakers and backoff policy across a system: {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}. Idempotency keys for non-idempotent calls: {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} section 9.</div>
+</section>

@@ -1,0 +1,23 @@
+<section id="rd-s9">
+<h2>9. Browsers, gateways and the gRPC family</h2>
+<p><b>The problem.</b> A browser's <code>fetch</code> cannot read HTTP trailers and cannot control HTTP/2 framing, so it cannot speak gRPC as section 4 recorded it. Neither can many HTTP/1.1-only proxies, serverless platforms or third-party developers with only curl. Four answers exist; you will meet all of them.</p>
+<div class="grid">
+<div class="sp"><div class="n">gRPC-Web</div><p>The same messages with the trailers moved into the body: a final length-prefixed frame whose flag byte has its top bit set (<code>0x80</code>) carries <code>grpc-status</code> as text. Works over HTTP/1.1; unary and server streaming only; a proxy (Envoy's grpc_web filter) translates to real gRPC ({{PROTOCOL-WEB.md|https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-WEB.md}}).</p></div>
+<div class="sp"><div class="n">Connect</div><p>A protocol and libraries (a CNCF sandbox project, per {{connectrpc.com|https://connectrpc.com/}}): same <code>.proto</code> files, but a unary call is a plain <code>POST /package.Service/Method</code> with <code>application/json</code> or <code>application/proto</code>, a <code>Connect-Protocol-Version: 1</code> header and <code>Connect-Timeout-Ms</code> for the deadline; errors use ordinary HTTP status codes with a JSON body. Unary and server streaming work over HTTP/1.1; bidirectional streaming needs HTTP/2 ({{Connect protocol|https://connectrpc.com/docs/protocol/}}). curl-able, which is the point.</p></div>
+<div class="sp"><div class="n">HTTP/JSON transcoding</div><p>Annotate each RPC with the REST shape it should also have, and a gateway (Envoy's JSON transcoder, grpc-gateway) serves both: <code>option (google.api.http) = { post: "/v1/{parent=publishers/*}/books" body: "book" }</code>. Google's rule is that APIs "must" provide this for every RPC except bidirectional streaming ({{AIP-127|https://google.aip.dev/127}}). The open-source {{grpc-gateway|https://github.com/grpc-ecosystem/grpc-gateway}} does the same from the annotations.</p></div>
+<div class="sp"><div class="n">tRPC (not related)</div><p>Despite the name, tRPC shares nothing with gRPC: no protobuf, no HTTP/2 requirement, no code generation. It is a TypeScript library where the client imports the server router's <i>type</i>, giving "fully typesafe APIs without schemas or code generation"; on the wire it is ordinary HTTP with JSON, with request batching and subscriptions ({{tRPC README|https://github.com/trpc/trpc}}, v11.19.0 on 16 September 2026).</p></div>
+</div>
+<p><b>tRPC against gRPC</b>, since the old page compared them:</p>
+<div class="tw"><table>
+<thead><tr><th></th><th>tRPC</th><th>gRPC</th></tr></thead>
+<tbody>
+<tr><td>Contract</td><td>TypeScript types, compile time only</td><td><code>.proto</code> schema, enforced on the wire</td></tr>
+<tr><td>Code generation</td><td>None</td><td>Required, one generator per supported language</td></tr>
+<tr><td>Who can call it</td><td>Your own TypeScript front end in the same codebase</td><td>Any service in any supported language</td></tr>
+<tr><td>Wire</td><td>JSON over HTTP/1.1 or later</td><td>Protobuf over HTTP/2</td></tr>
+<tr><td>Streaming</td><td>Subscriptions (SSE or WebSockets)</td><td>Four native shapes</td></tr>
+<tr><td>Evolving it</td><td>Refactor the monorepo; client and server deploy together</td><td>Field-number rules, <code>reserved</code></td></tr>
+</tbody></table></div>
+<p>Use tRPC for a TypeScript product whose only client is its own front end (the dashboards of ML products are often this); put REST or gRPC at any boundary another team or language must cross. ML serving itself never uses it.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> The TypeScript language page, which builds an SSE client and an MCP server: {{JavaScript and TypeScript|n:3cd5c17b0d0d81dbac7be3b8686be023}}.</div>
+</section>

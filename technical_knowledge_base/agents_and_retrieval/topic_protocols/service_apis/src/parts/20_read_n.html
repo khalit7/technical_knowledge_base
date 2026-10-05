@@ -1,0 +1,29 @@
+<section id="rd-s13">
+<h2>13. Choosing, and debugging what you chose</h2>
+<div class="tw"><table>
+<thead><tr><th>Situation</th><th>Choose</th><th>Because</th></tr></thead>
+<tbody>
+<tr><td>Public API, unknown clients, LLM tokens to stream</td><td>REST (level 2) + SSE</td><td>Every client and proxy speaks it; SSE streams one way</td></tr>
+<tr><td>Internal calls, both ends yours, many languages or high call rates</td><td>gRPC</td><td>Generated clients, compact messages, deadlines, four call shapes</td></tr>
+<tr><td>Internal, but browsers or curl must also call it</td><td>gRPC with Connect, gRPC-Web or transcoding</td><td>One <code>.proto</code>, several wire faces</td></tr>
+<tr><td>Many UI clients reading overlapping data from many backends</td><td>GraphQL, with batching and cost limits from day one</td><td>Each client asks for its shape; pay in resolver load and caching</td></tr>
+<tr><td>A model or agent is the caller; stdio or a single endpoint</td><td>JSON-RPC via MCP or A2A</td><td>The ecosystem already speaks it (sections 11 and the MCP page)</td></tr>
+<tr><td>A TypeScript app whose only client is its own front end</td><td>tRPC</td><td>Types end to end, nothing to generate</td></tr>
+</tbody></table></div>
+<h3>Symptom, first command, fix</h3>
+<div class="tw"><table class="symp">
+<thead><tr><th>Symptom</th><th>First check</th><th>Likely cause and fix</th></tr></thead>
+<tbody>
+<tr><td>One replica at 100%, the others idle; adding replicas does nothing</td><td>Per-replica call counts; is the balancer L4? what is the client's LB policy?</td><td>Connection pinning (section 8): L7 proxy, <code>round_robin</code> with a headless Service, or <code>MAX_CONNECTION_AGE</code></td></tr>
+<tr><td>Calls hang forever when a dependency stalls</td><td>Is a deadline set? (<code>grpc-timeout</code> in the request headers, or <code>timeout=</code> in code)</td><td>No deadline by default: set one per call and propagate it (section 5)</td></tr>
+<tr><td>GPU busy with requests whose users left</td><td>Server logs: do cancelled requests stop? Count tokens generated after cancel</td><td>Cancellation not propagated; hook the incoming call's cancel to the outgoing one</td></tr>
+<tr><td><code>UNAVAILABLE: Too many pings</code>, GOAWAY ENHANCE_YOUR_CALM</td><td>Client <code>keepalive_time_ms</code> against server <code>min_recv_ping_interval_without_data_ms</code></td><td>Slow the client's pings or let the server accept them (section 7)</td></tr>
+<tr><td><code>RESOURCE_EXHAUSTED: ... larger than max (N vs. 4194304)</code></td><td>Message size</td><td>Raise <code>max_receive_message_length</code> on the receiver, or stream in chunks</td></tr>
+<tr><td><code>UNAVAILABLE: Received http2 header with status: 502</code></td><td>A proxy between you and the server; its logs</td><td>The proxy could not reach a backend, or speaks HTTP/1.1 upstream (gRPC needs HTTP/2 end to end)</td></tr>
+<tr><td>Latency grows in steps under concurrency, some DEADLINE_EXCEEDED</td><td>Server's max concurrent streams; calls per channel</td><td>Calls queue on one connection: more connections or replicas (root Failure lab)</td></tr>
+<tr><td>A field "became" a different value after a deploy</td><td><code>git log</code> on the <code>.proto</code>: was a field number reused?</td><td>Never reuse numbers; <code>reserved</code> them (section 3)</td></tr>
+<tr><td>GraphQL page slow, database at 100%</td><td>Resolver tracing: queries per request</td><td>N+1: DataLoader batching; cost limits (section 10)</td></tr>
+<tr><td>Dashboards green while users see errors (GraphQL)</td><td>The <code>errors</code> array in 200 responses</td><td>Alert on GraphQL errors, or use <code>application/graphql-response+json</code></td></tr>
+</tbody></table></div>
+<p><b>Tools.</b> <code>grpcurl -plaintext host:port list</code> and <code>grpcurl -d '{...}' host:port pkg.Service/Method</code> (needs reflection or the <code>.proto</code>); <code>curl --http2-prior-knowledge -H 'content-type: application/grpc' -H 'te: trailers' --data-binary @msg.bin</code> for raw calls (the root's atlas does a health check this way); <code>GRPC_TRACE=http</code> for the C-core libraries' HTTP/2 debug logs (its companion <code>GRPC_VERBOSITY</code> is now deprecated and changes logging for the whole process, per gRPC's {{environment variables doc|https://github.com/grpc/grpc/blob/v1.84.0/doc/environment_variables.md}}); and a logging proxy like this page's <code>frame_proxy.py</code> (100 lines of Python) when you need every frame without packet capture.</p>
+</section>

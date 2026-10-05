@@ -2647,3 +2647,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | SSE event anatomy, click a line | 6 | Reading s3 | the running example's bytes |
 | Proxy failure matrix for WebSockets (three clients x five cases) | 7 | Reading s9 (table) | measured: ws_proxy*.json, nginx log, curl |
 | Cancellation table (naive vs careful, think vs tokens) | 7 | Reading s6 (table) | measured: cancel.json |
+
+### Service APIs: REST, gRPC, GraphQL and load balancing (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_protocols/service_apis/src/viz_ideas.md`.
+
+| # | Idea | Placement | Data | Score |
+|---|---|---|---|---|
+| S1 | **Balancer lab, before/after**: the same 7 s of calls (one per 50 ms) through L4, L4 + MAX_CONNECTION_AGE, L7 and client round_robin while backend-3 joins at 1.5 s; one tick per real call, counters, play/step/scrub/speed | Own tab | `raw/lb.json` (nginx 1.31.6 stream and grpc_pass, grpcio 1.84.0) | 16 |
+| S2 | **Deadlines, four endings of one abandoned request**: client, gateway and inference lanes on one time axis; A propagated, D worker thread (40 tokens for nobody), B plain loop (rescued by CPython freeing the call), C cancel only; counters for wasted tokens and the grpc-timeout the last hop saw | Reading s5 (animation) | `raw/deadline.json` (counts, end times, headers, RST_STREAM measured; tick positions from the configured schedule, labelled) | 15 |
+| S3 | **One gRPC call, frame by frame**: every HTTP/2 frame of three calls (server streaming, trailers-only, health), stepper plus clickable list, protobuf decoded inside each DATA frame | Own tab | `raw/frames.json` (logging proxy, hyperframe + hpack) | 13 |
+| S4 | **The 49-byte request, clickable**, with a varint encoder checked on load against the library's bytes | Reading s3 | `raw/pb.json` | 11 |
+| S5 | **Schema evolution, measured**: add (round-trips byte-identical), reuse with another wire type (silently dropped, max_tokens 0), reuse with the same type (silently 9) | Reading s3 | `raw/pb.json` | 11 (corrects "unknown fields are ignored" into "and misread when numbers are reused") |
+| S6 | **Tensor encodings table**: 1M float32 as JSON list, base64-in-JSON, packed floats, bytes field | Reading s3 | `raw/pb.json` | 9 (corrects the old page's "wide margin" over base64) |
+| S7 | **Failures as the client sees them**: 11 cases with code, details string and time; keepalive PINGs until GOAWAY too_many_pings; retry attempts with grpc-previous-rpc-attempts | Reading s6, s7 | `raw/status.json` | 12 |
+| S8 | **GraphQL N+1 bars and fan-out table**, partial-failure response | Reading s10 | `raw/graphql.json` (toy data, labelled) | 9 |
+| S9 | Request path strip, REST+SSE vs gRPC byte table, 17-code table, seven predict-then-reveal drills, six interview questions, generated glossary | Reading | raw/ and specs | small |
