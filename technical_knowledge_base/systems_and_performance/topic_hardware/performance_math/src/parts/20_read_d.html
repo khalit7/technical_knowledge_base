@@ -1,0 +1,47 @@
+<section id="rd-s4">
+<h2>4. Recomputation, and why the hardware does more FLOPs than the model needs</h2>
+<p><b>The problem.</b> Section 3 showed recomputation turning 73 GB into 23 GB. The price is arithmetic: the forward pass runs again during backward. How much again, and how should utilisation count it?</p>
+<p><b>The textbook answer is 8N.</b> Recompute every layer's forward (2N) on top of 6N: 8/6 = 1.33 times the work. The counted answer for Llama 3.1 8B at 8,192 tokens is smaller: <b>1.24 times</b> <span class="meas">counted</span>. Three reasons:</p>
+<ul>
+<li>The output head is not recomputed (only the transformer layers are checkpointed).</li>
+<li>PyTorch's non-reentrant checkpoint <b>stops recomputing as soon as every saved tensor exists again</b>. The last matmul of each layer (the MLP's down projection) produces nothing that the backward pass needs, so it is not rerun ("Non-reentrant checkpoint stops recomputation as soon as all needed intermediate activations have been recomputed", {{PyTorch 2.14 docs|https://docs.pytorch.org/docs/2.14/checkpoint.html}}): the recompute is 118.7 TFLOP, not the layers' full 149.5 TFLOP forward (30.8 TFLOP of down projections skipped).</li>
+<li>Attention's backward already costs more than twice its forward with FlashAttention, so the recompute is a smaller share of the total.</li>
+</ul>
+<div class="fm"><div class="eq">MFU counts model FLOPs &nbsp;&nbsp;&nbsp; HFU counts hardware FLOPs</div>
+<dl><dt>model FLOPs</dt><dd>what the model needs for one forward and one backward pass, however it is implemented (6N plus attention)</dd><dt>hardware FLOPs</dt><dd>what the chips actually executed, including recomputation</dd></dl></div>
+<p>Korthikanti et al. define them this way: "model FLOPs are hardware and implementation independent and only depend on the underlying model", while "if an implementation requires activation recomputation ... the hardware FLOPs are going to be larger" ({{section 6.3|https://arxiv.org/abs/2205.05198}}). HFU flatters: a run that recomputes everything can show high HFU while training no faster. <b>Compare runs by MFU.</b></p>
+<h3>Rebuilding PaLM's 57.8% HFU</h3>
+<p>PaLM 540B recomputed during backward and reported both numbers. Its Appendix B gives everything needed to rebuild them ({{PaLM, Appendix B and Table 22|https://arxiv.org/abs/2204.02311}}):</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Step</th><th>Arithmetic</th><th class="num">Result</th></tr>
+<tr><td>Model FLOPs per token</td><td>6 &times; 540e9 + 12 &times; 118 layers &times; 48 heads &times; 256 head size &times; 2,048 tokens</td><td class="num">3.276 TFLOP (paper: 3.28)</td></tr>
+<tr><td>MFU</td><td>238.3K tokens/s &times; 3.276e12 / (6,144 TPU v4 &times; 275 TFLOP/s)</td><td class="num">46.2% (paper: 46.2%)</td></tr>
+<tr><td>Recompute</td><td>"75% of non-attention forward pass FLOPs are recomputed while all attention forward pass FLOPs are recomputed": 0.75 &times; 2N + (12LHQT)/3</td><td class="num">0.822 TFLOP</td></tr>
+<tr><td>HFU</td><td>238.3K &times; (3.276 + 0.822) TFLOP / (6,144 &times; 275 TFLOP/s)</td><td class="num">57.8% (paper: 57.8%)</td></tr>
+</table></div>
+<p class="small mute">Reproduced independently from the paper's own description <span class="der">derived</span>: our hardware FLOPs per token, 4.098 TFLOP, against Table 22's 4.10.</p>
+<p>Megatron's <b>selective</b> recomputation recomputes only the attention-score part. Korthikanti et al. give the hardware-to-model ratio as about 1 + s/6h: for their 530B model (s = 2,048, h = 20,480) that is 1.017, and their Table 5 lists 56.0% MFU against 57.0% HFU (56.0 &times; 1.017 = 56.9) <span class="der">derived</span>. Cheap recomputation is the point of the method: with sequence parallelism, a 29 to 32% throughput gain over full recomputation in their runs (Table 5).</p>
+</section>
+
+<section id="rd-s5">
+<h2>5. MFU on real runs, step by step</h2>
+<div class="fm"><div class="eq">MFU = tokens per second &times; model FLOPs per token / (chips &times; peak FLOP/s per chip)</div>
+<dl><dt>peak</dt><dd>the dense datasheet peak in the format the matmuls run in (BF16 for most runs; never the sparse figure)</dd><dt>FLOPs per token</dt><dd>6N, plus 12LHQT if you count attention (PaLM's definition); say which</dd></dl></div>
+<p>Rearranged, the same formula answers every planning question: time = total FLOPs / (chips &times; peak &times; MFU). The parent's calculator checks it against 27 published figures (its "Checks against published figures" table); here are four runs worked through, each with a different lesson.</p>
+<div class="stepbox">
+<div style="--sc:var(--c1)"><div class="k">Megatron-Turing NLG 530B</div><div class="v">29.8%</div><p>65.43K tokens/s (1,920 &times; 2,048 tokens per 60.1 s step) &times; 6 &times; 530e9 / (2,240 A100 &times; 312 TFLOP/s). PaLM printed 29.7%: truncation. Pipeline parallel across servers.</p></div>
+<div style="--sc:var(--c3)"><div class="k">PaLM 540B</div><div class="v">46.2%</div><p>No pipeline parallelism, 6,144 TPU v4 in two pods; 45.7% without the attention term. Above: 57.8% HFU.</p></div>
+<div style="--sc:var(--c4)"><div class="k">Llama 3 405B</div><div class="v">43.5%</div><p>Table 4 reports 430 TFLOP/s per GPU on 8,192 H100s: 430 / 989.5. Meta prints 43%; 41% on 16,384 GPUs, 38% at 131,072-token sequences.</p></div>
+<div style="--sc:var(--c2)"><div class="k">DeepSeek-V3 671B MoE</div><div class="v">35.1%</div><p>180K H800 GPU-hours per trillion tokens; 6 &times; 37.55e9 active &times; 1e12 / (180e3 &times; 3,600 s &times; 989.5e12). Against the FP8 peak it trained in: 17.6%.</p></div>
+</div>
+<p class="small mute">Sources: {{PaLM Appendix B|https://arxiv.org/abs/2204.02311}} (MT-NLG step time from Smith et al. 2022, as PaLM quotes it), {{Llama 3, Table 4|https://arxiv.org/html/2407.21783v3}}, {{DeepSeek-V3, section 1|https://arxiv.org/html/2412.19437v2}}. DeepSeek does not state the H800's peak; assumed equal to the H100 SXM's (the H800 differs in interconnect) <span class="der">derived</span>.</p>
+<h3>Turning Llama 3's MFU back into a step time</h3>
+<p>Table 4's first row: 8,192 GPUs, data parallel 64, batch 32 sequences of 8,192 tokens per data-parallel group, so 64 &times; 32 &times; 8,192 = 16,777,216 tokens per step. At 430 TFLOP/s per GPU and 6N FLOPs per token, one step takes 16.78e6 &times; 6 &times; 405.85e9 / (8,192 &times; 430e12) = <b>11.6 s</b>; counting attention in full (8.3% more FLOPs), 12.6 s. Meta does not say which FLOP count its 430 uses, so the step time is known only to within that 8%. Per GPU that is 177 tokens per second. <span class="der">derived</span></p>
+<h3>Where the other 55 to 60% goes</h3>
+<ul>
+<li><b>Matmuls below peak.</b> Even a large BF16 GEMM reaches about 720 of the H100's 989.5 TFLOP/s in SemiAnalysis's independent measurement (73%) ({{SemiAnalysis, Dec 2024|https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/}}). That ceiling is reached before anything else goes wrong.</li>
+<li><b>Memory-bound operators</b> (norms, activations, residual adds, the loss): no matmul, so no MFU, and on an H100 each byte costs as much time as 295 FLOPs (section 6 counts them).</li>
+<li><b>Communication that does not overlap</b> (section 8), <b>pipeline bubbles</b> (idle stages at the start and end of each step), stragglers, data loading.</li>
+<li><b>Failures and restarts</b>, which MFU measured in steady state leaves out: compare Llama 3.1 8B's card, 1.46M H100-hours for about 15T tokens, an implied 13.9% if every hour were training.</li>
+</ul>
+</section>
