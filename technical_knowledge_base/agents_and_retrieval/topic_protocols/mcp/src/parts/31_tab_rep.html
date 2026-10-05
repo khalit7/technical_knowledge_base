@@ -1,0 +1,35 @@
+<div class="tab" id="t-rep" role="tabpanel" hidden>
+<style>
+#t-rep .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#t-rep .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-rep .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-rep .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-rep .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-rep .an-play{min-width:6.4em}
+#t-rep .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-rep .an-cap .t{font-weight:600;font-size:14px}#t-rep .an-cap p{margin:2px 0;font-size:13.5px}
+#t-rep .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
+#t-rep .an-cnt .stat .v{font-size:15px}
+#t-rep .msg{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+#t-rep .msg .h{font-size:12px;padding:3px 8px;background:var(--soft);color:var(--mute)}
+#t-rep .msg pre{margin:0;padding:6px 8px;font:11.5px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:14em;overflow-y:auto}
+#t-rep .rsvg{width:100%;overflow:hidden}
+#t-rep .sum{font-size:13.5px}
+</style>
+<p class="lead">One confirm-then-delete tool call, recorded through a round-robin balancer in front of two ckpt-tools replicas, four ways. Watch which replica each HTTP request reaches, what each replica remembers, and where the call breaks.</p>
+<p class="try"><b>Try:</b> play the 2025-11-25 session with round robin, then the same call with session affinity; then the 2026-07-28 call with per-process keys and with a shared key. The first two differ only in the balancer; the last two only in one key.</p>
+<div class="card" id="rp-card">
+<div class="seg" id="rp-seg"></div>
+<div class="an-ctl" id="rp-ctl"></div>
+<div class="rsvg" id="rp-svg"></div>
+<div class="an-cnt" id="rp-cnt"></div>
+<div class="an-cap" id="rp-cap"></div>
+<div id="rp-msg"></div>
+<p class="small mute"><span class="meas" style="color:var(--good);font-weight:600;font-size:11.5px">measured</span> 5 October 2026, <code>src/lab/replicas.py</code>: two <code>ckpt_server.py</code> processes (SDK 2.3.0) on ports 30711 (A) and 30712 (B), <code>lb_proxy.py</code> on 30710 sending each HTTP request to the next replica in turn (or, with affinity, to the replica that minted the session), and an SDK client whose "user" answers yes by script. The animation replays the first of 20 runs of each setup; the counts under it are all 20.</p>
+</div>
+<h3>What to take from it</h3>
+<ul class="tight">
+<li><b>Old protocol, round robin:</b> <code>initialize</code> creates a session in one replica; the very next request goes to the other, which answers 404 "Session not found". Nothing about the tool matters; the session itself cannot cross replicas.</li>
+<li><b>Old protocol, affinity:</b> works, at the price of a balancer that understands MCP sessions, uneven load, and lost sessions whenever a replica restarts. The confirmation travels as a server request on the open stream and the answer as a separate POST.</li>
+<li><b>New protocol, per-process keys:</b> no session, but the first answer carries sealed <code>requestState</code>; the retry reaches the other replica, which cannot open it. Fails 20 of 20.</li>
+<li><b>New protocol, shared key:</b> two independent POSTs, either replica can answer either one. 20 of 20, with no affinity and nothing held in memory between them.</li>
+</ul>
+</div>

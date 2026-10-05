@@ -1,0 +1,34 @@
+<section id="rd-s2">
+<h2>2. The messages: JSON-RPC 2.0 with an MCP envelope</h2>
+<p><dfn id="g-jsonrpc">JSON-RPC 2.0</dfn> is a ten-year-old convention for remote procedure calls in JSON ({{specification|https://www.jsonrpc.org/specification}}). MCP uses three of its message kinds ({{MCP basic protocol|https://modelcontextprotocol.io/specification/2026-07-28/basic}}):</p>
+<ul class="tight">
+<li>A <b>request</b> has an <code>id</code>, a <code>method</code> and <code>params</code>. MCP forbids a <code>null</code> id and reusing an id that is still waiting for its answer.</li>
+<li>A <b>response</b> carries the same <code>id</code> and either a <code>result</code> or an <code>error</code> (<code>code</code>, <code>message</code>, optional <code>data</code>). The id is how a client matches answers to questions when several are in flight on one pipe.</li>
+<li>A <b>notification</b> has a method and no id, and gets no answer: progress updates, change notices, cancellation on stdio.</li>
+</ul>
+<p>Since 2026-07-28 only the client sends requests. When a server needs something from the client (a confirmation, a model completion), it says so inside its result and the client asks again (section 5). Here is the ckpt-tools call on the wire, as the stdio transport carried it, one JSON object per line:</p>
+<div class="fname">client to server (stdio, one line; <span class="meas">measured</span>)</div>
+<pre class="cd" id="rd-msg-req"></pre>
+<div class="fname">server to client</div>
+<pre class="cd out" id="rd-msg-res"></pre>
+<p>Four MCP additions to plain JSON-RPC are visible:</p>
+<ul class="tight">
+<li><b><code>_meta</code> on every request.</b> <code>io.modelcontextprotocol/protocolVersion</code> and <code>io.modelcontextprotocol/clientCapabilities</code> are required; <code>clientInfo</code> is recommended. A request missing a required field is rejected with <code>-32602</code> (on HTTP, status 400). Names under the <code>io.modelcontextprotocol/</code> prefix (and any prefix whose second label is <code>modelcontextprotocol</code> or <code>mcp</code>) are reserved for the protocol.</li>
+<li><b><code>resultType</code> on every result</b>: <code>"complete"</code>, or <code>"input_required"</code> when the server needs more input. A client must treat a missing <code>resultType</code> (an older server) as complete.</li>
+<li><b><code>serverInfo</code> in the result's <code>_meta</code></b>, so a client can tell who answered without remembering a handshake. Both <code>clientInfo</code> and <code>serverInfo</code> are self-reported: the specification says not to base security decisions on them.</li>
+<li><b>Trace context</b>: <code>traceparent</code>, <code>tracestate</code> and <code>baggage</code> may ride in <code>_meta</code> (W3C formats), so one trace can follow a request from the model call through the host into the server.</li>
+</ul>
+<div class="cost"><div class="t">What the envelope costs</div>The same <code>tools/call</code> line is 304 bytes under 2026-07-28 and 121 bytes under 2025-11-25 (<span class="meas">measured</span>, stdio, newline included): 183 bytes of <code>_meta</code> that every request now repeats instead of saying once at the start of a session. The result grows by 111 bytes (819 against 708) for <code>resultType</code> and <code>serverInfo</code>. On a local pipe this is noise; across millions of calls through a gateway it is the price of letting any replica answer any request.</div>
+<h3>Three kinds of failure, and who should see each</h3>
+<div class="tw"><table>
+<thead><tr><th>Kind</th><th>Shape</th><th>Example (<span class="meas">measured</span>)</th><th>Who acts on it</th></tr></thead>
+<tbody>
+<tr><td>JSON-RPC protocol error</td><td><code>error</code> with a standard code: <code>-32700</code> parse error, <code>-32600</code> invalid request, <code>-32601</code> method not found, <code>-32602</code> invalid params, <code>-32603</code> internal</td><td><code>tools/teleport</code> gave 404 and <code>-32601</code></td><td>The developer. A model can rarely fix these.</td></tr>
+<tr><td>MCP protocol error</td><td><code>error</code> with a code from <code>-32020</code> to <code>-32099</code>, the sub-range MCP reserves: <code>-32020</code> HeaderMismatch, <code>-32021</code> MissingRequiredClientCapability, <code>-32022</code> UnsupportedProtocolVersion</td><td>Asking for version <code>1900-01-01</code> gave 400 and <code>-32022</code> with <code>"supported":["2026-07-28"]</code></td><td>The client library: retry with a supported version, fix the headers</td></tr>
+<tr><td>Tool execution error</td><td>A normal <code>result</code> with <code>isError: true</code> and text explaining what went wrong</td><td>A number where the schema wants a string gave 200 and <code>isError: true</code> with the validation message</td><td>The model. The specification says clients SHOULD pass these to the model "to enable self-correction"</td></tr>
+</tbody></table></div>
+<div class="pr" data-a="b"><div class="q">Predict: the model calls a tool name that does not exist (<code>rm_rf</code>). The specification lists "Unknown tool" under protocol errors, with code <code>-32602</code>. What does the Python SDK 2.3.0 server send?</div>
+<div class="opts"><button data-k="a">A JSON-RPC error <code>-32602</code>, as the specification shows</button><button data-k="b">A result with <code>isError: true</code></button><button data-k="c">HTTP 404</button></div>
+<div class="ans" hidden><b>A result with <code>isError: true</code></b> and the text "Unknown tool: rm_rf", status 200 (<span class="meas">measured</span>, <code>wire_checks.json</code>). The {{tools page|https://modelcontextprotocol.io/specification/2026-07-28/server/tools#error-handling}} shows unknown tools as a protocol error. The SDK's choice is arguably more useful (the model sees the message and can pick a real tool), but a client that only looks for <code>error</code> will miss it. Lesson: test the server you deploy, not the specification you read.</div></div>
+<p><b>Error codes changed in 2026-07-28.</b> The old "resource not found" code <code>-32002</code> became <code>-32602</code>, and <code>-32042</code> (URL elicitation required, 2025-11-25 only) is retired; clients should still accept <code>-32002</code> from older servers. Codes <code>-32000</code> to <code>-32019</code> are legacy, implementation-defined ({{error codes|https://modelcontextprotocol.io/specification/2026-07-28/basic#error-codes}}).</p>
+</section>

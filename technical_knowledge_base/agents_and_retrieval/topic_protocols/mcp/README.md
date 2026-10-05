@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3c65c17b0d0d813f9695dc4175c44cbb (child of Topic: protocols)
 
-Not migrated yet: rebuilds the old written page "Model Context Protocol (MCP)".
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). The Model Context Protocol from zero: roles and where MCP sits in an agent loop, JSON-RPC messages and the three kinds of error, tools/resources/prompts and client features, stdio and Streamable HTTP (measured side by side, plus hostile requests), the stateless 2026-07-28 revision and multi round-trip requests (a two-replica experiment), version history and a 3 x 3 compatibility matrix run for real, MCP's OAuth profile (a full recorded flow and its failures), security by attacker position with real CVEs, building and testing servers and hosts in Python (SDK 2.3.0), deploying across an organisation, debugging table, interview questions. Tabs: Reading, Two replicas (before/after animation of one recorded call), Wire lab (OAuth flow stepper, transport openings, hostile requests), Further reading. Rebuilds the old written page "Model Context Protocol (MCP)"; no child pages, databases or video.
