@@ -1,0 +1,39 @@
+<section id="rd-s3">
+<h2>3. What a server offers, and what the client offers back</h2>
+<p>The three server <dfn id="g-prim">primitives</dfn> differ by <b>who decides to use them</b>, which is the single most useful way to remember them ({{server features|https://modelcontextprotocol.io/specification/2026-07-28/server}}):</p>
+<div class="tw"><table>
+<thead><tr><th>Primitive</th><th>Controlled by</th><th>Methods</th><th>ckpt-tools example</th></tr></thead>
+<tbody>
+<tr><td><b>Tools</b></td><td>The model: it decides to call them</td><td><code>tools/list</code>, <code>tools/call</code></td><td><code>list_checkpoints</code>, <code>evaluate_checkpoint</code>, <code>delete_checkpoint</code></td></tr>
+<tr><td><b>Resources</b></td><td>The application: it decides what to read into context (a file picker, an attachment)</td><td><code>resources/list</code>, <code>resources/templates/list</code>, <code>resources/read</code></td><td><code>ckpt://{run}/config</code>, the run's YAML config</td></tr>
+<tr><td><b>Prompts</b></td><td>The user: picked explicitly, often as a slash command</td><td><code>prompts/list</code>, <code>prompts/get</code></td><td><code>pick_best(run)</code></td></tr>
+</tbody></table></div>
+<h3>Tools in depth</h3>
+<p>A tool definition has a <code>name</code>, an optional display <code>title</code>, a <code>description</code> written for the model, an <code>inputSchema</code> (JSON Schema, 2020-12 by default) and optionally an <code>outputSchema</code> and <code>annotations</code>. In the Python SDK you write none of the schemas by hand: the type hints are the schema. <code>def list_checkpoints(run: str) -&gt; list[Checkpoint]</code> produced this input schema and a matching output schema with the four <code>Checkpoint</code> fields:</p>
+<pre class="cd">{"type":"object","properties":{"run":{"title":"Run","type":"string"}},"required":["run"],"title":"list_checkpointsArguments"}</pre>
+<p><b>Two copies of every structured result.</b> With an output schema, the result carries <code>structuredContent</code> (JSON a program can use) and, for backward compatibility, the same data as text in <code>content</code>, which is what most hosts show the model. For three checkpoints the SDK sent three pretty-printed text blocks plus the structured copy: 818 bytes of result body for about 200 bytes of facts (<span class="meas">measured</span>). Every byte of <code>content</code> becomes model input tokens, so return short, task-shaped results and paginate.</p>
+<p><b>Annotations are claims, not guarantees.</b> <code>readOnlyHint</code>, <code>destructiveHint</code>, <code>idempotentHint</code> and <code>openWorldHint</code> (talks to the outside world) tell a host how careful to be: ckpt-tools marks <code>delete_checkpoint</code> destructive and idempotent. The specification is blunt: "clients MUST consider tool annotations to be untrusted unless they come from trusted servers" ({{tools|https://modelcontextprotocol.io/specification/2026-07-28/server/tools}}). A malicious server can mark a destructive tool read-only.</p>
+<p><b>Names collide across servers.</b> Tool names are only unique within one server (SHOULD be 1 to 128 characters of letters, digits, <code>_ - .</code>). Two servers that both offer <code>search</code> must be told apart by the host, for example by prefixing a server identifier; <code>serverInfo.name</code> is not unique and should not be used for this.</p>
+<p><b>State without sessions.</b> A shopping cart, an open browser or a database transaction spans several calls. With no session, the server returns an explicit <b>handle</b> (<code>basket_id: "bsk_a1b2c3"</code>) and takes it back as an ordinary argument; the model carries it forward. The specification's advice: a handle is a name, not a password, so check on every call that it belongs to the caller; make it random; state its lifetime in the tool description; return a clear tool error when it has expired so the model can start again ({{stateful tools|https://modelcontextprotocol.io/specification/2026-07-28/server/tools#stateful-tools}}).</p>
+<p><b>Order matters for cost.</b> Servers SHOULD return <code>tools/list</code> in a deterministic order, because hosts paste the list into the model request, and a reordered list breaks the model provider's prompt cache.</p>
+<h3>What the client offers the server</h3>
+<div class="tw"><table>
+<thead><tr><th>Feature</th><th>What it does</th><th>Status in 2026-07-28</th></tr></thead>
+<tbody>
+<tr><td><b>Elicitation</b> (added 2025-06-18)</td><td>The server asks the user for structured input mid-operation: a confirmation, a form; URL mode (added 2025-11-25) sends the user to a web page, for example to sign in to a third party</td><td>Active, now delivered through multi round-trip requests (section 5)</td></tr>
+<tr><td><b>Sampling</b></td><td>The server asks the host's model for a completion, so a server can be "agentic" without its own model key</td><td>Deprecated; migrate by calling a model API directly</td></tr>
+<tr><td><b>Roots</b></td><td>The client tells the server which directories or URIs it may work in</td><td>Deprecated; pass paths as tool arguments, resource URIs or configuration</td></tr>
+</tbody></table></div>
+<p>Deprecated features keep working for at least twelve months: the earliest removal is "first revision released on or after 2027-07-28" ({{deprecated features registry|https://modelcontextprotocol.io/specification/2026-07-28/deprecated}}).</p>
+<h3>Utilities</h3>
+<ul class="tight">
+<li><b>Progress</b>: a request that carries a <code>progressToken</code> in <code>_meta</code> may receive <code>notifications/progress</code> before its result. ckpt-tools' <code>evaluate_checkpoint</code> sent three, which turned its HTTP reply into an event stream (section 4).</li>
+<li><b>Cancellation</b>: on stdio the client sends <code>notifications/cancelled</code> with the request id; on Streamable HTTP it simply closes that request's response stream. Either way the server must stop sending anything for that request.</li>
+<li><b>Pagination</b>: list results may carry <code>nextCursor</code>; the client sends it back as <code>cursor</code>.</li>
+<li><b>Completion</b>: argument autocompletion for prompts and resource templates.</li>
+<li><b>Caching</b> (new): list and read results carry <code>ttlMs</code> (how long the answer stays fresh) and <code>cacheScope</code> (<code>"public"</code>: shareable by intermediaries; <code>"private"</code>: only within the caller's authorization). ckpt-tools sends <code>ttlMs: 300000, cacheScope: "public"</code> on <code>tools/list</code>.</li>
+<li><b>Logging</b>: <code>notifications/message</code>, deprecated; log to stderr (stdio) or use OpenTelemetry.</li>
+<li><b>Subscriptions</b> (new): one long-lived <code>subscriptions/listen</code> request whose response stream delivers only the change notices the client opted into (<code>toolsListChanged</code>, <code>resourceSubscriptions</code>, ...). It replaced the old HTTP GET stream and <code>resources/subscribe</code>.</li>
+</ul>
+<div class="co warn"><div class="t">Corrected from the old page</div>The old page described resource "subscriptions for change notifications" as if unchanged: in 2026-07-28 they arrive on a <code>subscriptions/listen</code> stream, and <code>resources/subscribe</code> is gone. It said Dynamic Client Registration was "replaced" by Client ID Metadata Documents; it is deprecated and still available (section 7). And it dated Client ID Metadata Documents to 2026-07-28; they were added, as the recommended option, in 2025-11-25 ({{2025-11-25 changelog|https://modelcontextprotocol.io/specification/2025-11-25/changelog}}).</div>
+</section>

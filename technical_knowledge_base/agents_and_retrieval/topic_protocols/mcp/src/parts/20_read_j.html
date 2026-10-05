@@ -1,0 +1,38 @@
+<section id="rd-s10">
+<h2>10. Building a client and a host</h2>
+<p>Most engineers write servers; anyone building an agent writes a host. The client side of the SDK in a few lines:</p>
+<pre class="cd"><span class="k">from</span> mcp <span class="k">import</span> Client, StdioServerParameters
+
+<span class="k">async with</span> Client(StdioServerParameters(command=<span class="s">"python"</span>, args=[<span class="s">"ckpt_server.py"</span>, <span class="s">"stdio"</span>]),
+                  elicitation_callback=ask_user) <span class="k">as</span> c:      <span class="c"># or Client("https://.../mcp")</span>
+    tools = (<span class="k">await</span> c.list_tools()).tools                   <span class="c"># cached for ttlMs</span>
+    r = <span class="k">await</span> c.call_tool(<span class="s">"delete_checkpoint"</span>, {<span class="s">"name"</span>: <span class="s">"llama-7b-step-1000"</span>})
+    <span class="c"># an input_required result is handled inside call_tool: ask_user runs, the call is retried</span></pre>
+<p><code>mode="auto"</code> (the default) probes <code>server/discover</code> and falls back to the handshake for legacy servers; <code>mode="2026-07-28"</code> skips the probe; <code>mode="legacy"</code> forces the handshake. The host's job around this:</p>
+<ol class="tight">
+<li><b>Start and supervise</b> servers: launch stdio processes, restart crashed ones, set call timeouts.</li>
+<li><b>Build the model's tool list</b> from every server's <code>tools/list</code>, prefixing names by server so <code>search</code> from two servers stays distinct; keep the order stable for the prompt cache; drop tools the current task does not need.</li>
+<li><b>Run the loop</b>: send the model request; for each tool call apply policy (allowed? needs confirmation? show the arguments), route to the right client, return <code>content</code> as the tool result (including <code>isError</code> results, so the model can correct itself), repeat.</li>
+<li><b>Handle input requests</b>: render elicitation forms to the user, and say who is asking; on decline, return the decline rather than inventing an answer.</li>
+<li><b>Watch for change</b>: re-list when <code>ttlMs</code> expires or a <code>list_changed</code> notice arrives on <code>subscriptions/listen</code>; diff definitions against what the user approved.</li>
+<li><b>Authorize</b> remote servers with OAuth (section 7), storing tokens per authorization server, never in logs.</li>
+</ol>
+<p>The {{JavaScript and TypeScript page|n:3cd5c17b0d0d81dbac7be3b8686be023}} (Part 3) runs this loop end to end in TypeScript, including a scripted mock model that recovers from a wrong file name after an <code>isError</code> result.</p>
+</section>
+<section id="rd-s11">
+<h2>11. Debugging: symptom, first check, fix</h2>
+<div class="tw"><table class="symp">
+<thead><tr><th>Symptom</th><th>First check</th><th>Cause and fix</th></tr></thead>
+<tbody>
+<tr><td>A stdio tool hangs until timeout; client logs "Invalid JSON"</td><td>Run the server by hand, pipe one request in, look at raw stdout</td><td>Something printed to stdout. Log to stderr (root {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}}: "MCP over stdio: stdout pollution")</td></tr>
+<tr><td>Works on one replica, fails behind the load balancer with <code>Session not found</code> (404)</td><td>Is the client on 2025-11-25? Does the balancer pin sessions?</td><td>Legacy sessions live in one process. Sticky routing, or move both sides to 2026-07-28 (measured: 0 of 20 against 20 of 20)</td></tr>
+<tr><td>Confirmations fail behind the balancer with <code>-32602 Invalid or expired requestState</code></td><td>Do replicas share the sealing key?</td><td>Each process generated its own. Pass the same <code>RequestStateSecurity(keys=[...])</code> to every replica; rotate with a key ring</td></tr>
+<tr><td>A modern client gets <code>-32602 Invalid request parameters</code> from a server that used to work</td><td>Which revision does the server speak? Probe <code>server/discover</code></td><td>Legacy server. Use a dual-era client (<code>mode="auto"</code>) or upgrade the server</td></tr>
+<tr><td>400 with <code>-32020</code></td><td>Compare <code>Mcp-Method</code>/<code>Mcp-Name</code> with the body</td><td>A proxy or hand-written client changed one copy. Send both from the same values</td></tr>
+<tr><td>403 "Invalid Origin header" or 421 "Invalid Host header" locally</td><td>Which Origin and Host did the request carry?</td><td>The server's rebinding protection. Call from a non-browser client, or configure the allowed hosts and origins deliberately</td></tr>
+<tr><td>401 with a token you just obtained</td><td>Decode the token: <code>aud</code>, <code>iss</code>, <code>exp</code></td><td>Audience is another resource (missing or wrong <code>resource</code> parameter), wrong issuer, or clock skew</td></tr>
+<tr><td>403 <code>insufficient_scope</code></td><td>The <code>scope</code> in <code>WWW-Authenticate</code></td><td>Re-authorize with the union of old and new scopes (step-up); stop after a few tries</td></tr>
+<tr><td>Progress or streamed results arrive all at once</td><td>Is a proxy buffering? Look for <code>X-Accel-Buffering: no</code></td><td>Disable buffering for the MCP path (see {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} and {{Streaming|n:3c65c17b0d0d812daa9fdb38719fc82b}})</td></tr>
+<tr><td>An agent did something nobody asked for after reading content</td><td>The tool results in the transcript, and which tools were exposed</td><td>Injected instructions in data. Scope tools per task, confirm outbound and destructive actions (section 8)</td></tr>
+</tbody></table></div>
+</section>

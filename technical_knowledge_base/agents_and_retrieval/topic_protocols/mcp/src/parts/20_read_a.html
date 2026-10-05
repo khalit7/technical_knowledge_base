@@ -1,0 +1,39 @@
+<section id="rd-one">
+<h2>MCP in one screen</h2>
+<p class="lead">MCP is a small, standard way for an AI application to reach tools and data. A <b>host</b> (Claude Code, an IDE, your own agent) runs one <b>client</b> per <b>server</b>; the server offers <b>tools</b> the model may call, <b>resources</b> the application may read and <b>prompts</b> the user may pick. The messages are JSON-RPC 2.0, carried either over a child process's standard input and output (<b>stdio</b>) or as one HTTP POST per message (<b>Streamable HTTP</b>). Remote servers are OAuth resource servers. The current revision, <b>2026-07-28</b>, made every request self-contained: no handshake, no session.</p>
+<div class="tw"><table>
+<thead><tr><th>Question</th><th>Short answer</th><th>Where on this page</th></tr></thead>
+<tbody>
+<tr><td>What does the model actually see?</td><td>Never MCP. The host turns MCP tool definitions into the model API's tool list, and tool results into tool-result blocks. MCP is between host and server only.</td><td>Section 1</td></tr>
+<tr><td>What travels?</td><td>JSON-RPC requests, results, errors and notifications; since 2026-07-28 every request carries its protocol version and the client's capabilities in <code>_meta</code>.</td><td>Section 2</td></tr>
+<tr><td>Local or remote?</td><td>stdio for a server on your machine (no network, credentials from the environment); Streamable HTTP for a shared remote server (OAuth, load balancers, gateways).</td><td>Section 4</td></tr>
+<tr><td>Why the 2026 redesign?</td><td>Sessions pinned a client to one replica. Measured here: a round-robin balancer in front of two replicas broke 20 of 20 old-style calls and 0 of 20 new-style calls, once the replicas shared the key that seals request state.</td><td>Section 5, {{Two replicas|#t-rep}} tab</td></tr>
+<tr><td>Will old and new interoperate?</td><td>A dual-era client talks to anything; a modern-only client cannot talk to a legacy server and a legacy client cannot talk to a modern-only one. All 9 pairings were run.</td><td>Section 6</td></tr>
+<tr><td>How is a remote server protected?</td><td>A 401 points the client to the server's metadata, then to its authorization server; authorization code with PKCE; a token bound to that one server (RFC 8707); never passed through.</td><td>Section 7, {{Wire lab|#t-lab}}</td></tr>
+<tr><td>What is the real risk?</td><td>Text from tools is untrusted input in the model's context; servers are code you run; descriptions and annotations are claims, not guarantees.</td><td>Section 8</td></tr>
+<tr><td>How do I build one?</td><td>Python SDK 2.3.0: decorate typed functions; test in process; serve stdio first; add Streamable HTTP, auth and a shared state key to deploy.</td><td>Sections 9 and 10</td></tr>
+</tbody></table></div>
+<div class="co"><div class="t">How this page relates to the others</div>The {{root page|n:3c65c17b0d0d81ec9355f4eecd6eed02}} (section 9) gives the overview and records one tool call that carries an injected instruction; this page does not repeat it. The {{JavaScript and TypeScript page|n:3cd5c17b0d0d81dbac7be3b8686be023}} (Part 3) builds an MCP server and client in TypeScript under the 2025-11-25 revision; this page builds in Python under 2026-07-28. OAuth itself (flows, PKCE, JWTs) is taught on {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}; this page covers how MCP uses it. Agent-to-agent delegation is on {{Agent-to-agent and beyond|n:3f05c17b0d0d81199373d4d0b18706d8}}; the hosts are on {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}.</div>
+<p class="small mute"><span class="meas">measured</span> means recorded on this page's laptop (Apple M1 Pro, macOS 27, Python 3.13, official Python SDK <code>mcp</code> 2.3.0, and 1.30.0 for the legacy side) on 5 October 2026, scripts in <code>src/lab/</code>. All servers run on 127.0.0.1; nothing is fetched from the internet; no model is called, so wherever a model or a user would decide something, the decision is scripted and labelled. The running example is <b>ckpt-tools</b>, a server an ML team might run so an agent can list, evaluate and delete training checkpoints (its checkpoint table is illustrative; nothing is deleted).</p>
+</section>
+
+<section id="rd-s1">
+<h2>1. What MCP is, and what it is not</h2>
+<p><b>The problem.</b> A language model only produces text. To list your checkpoints, read a file or open a pull request, the application around it must call real code. Before MCP every application wired every integration itself: N applications and M tools meant N &times; M adapters. MCP makes it N + M: write a server once, and every MCP host can use it. Anthropic released it on {{25 November 2024|https://www.anthropic.com/news/model-context-protocol}} and donated it on 9 December 2025 to the Agentic AI Foundation, a fund under the Linux Foundation co-founded with Block and OpenAI ({{Anthropic|https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation}}).</p>
+<h3>Three roles</h3>
+<div class="roles">
+<div><h5>Host</h5>The application the user runs. It owns the conversation with the model, decides which servers to start, which tools the model may see, and asks the user for consent. The specification puts security policy here: "Enforces security policies and consent requirements" ({{architecture|https://modelcontextprotocol.io/specification/2026-07-28/architecture}}).</div>
+<div><h5>Client</h5>A component inside the host that speaks MCP to exactly one server. A host with five servers runs five clients.</div>
+<div><h5>Server</h5>A program that offers capabilities: <code>ckpt-tools</code>, a GitHub server, a database server. It sees only the requests sent to it, never the whole conversation and never other servers.</div>
+</div>
+<h3>Where MCP sits in an agent loop</h3>
+<p>The most common confusion: <b>the model does not speak MCP</b>. Model APIs have their own tool-calling format (a list of tool definitions in the request; <code>tool_use</code> blocks in the answer). The host is a translator between the two:</p>
+<ol class="tight">
+<li>The client asks each server for its tools (<code>tools/list</code>). The host copies each tool's <code>name</code>, <code>description</code> and <code>inputSchema</code> into the model request's tool list.</li>
+<li>The model answers with a tool call, for example <code>list_checkpoints({"run": "llama-7b-sft"})</code>.</li>
+<li>The host checks its policy (is this tool allowed? does the user need to confirm?), then its client sends <code>tools/call</code> to the right server.</li>
+<li>The server runs the function and returns a result. The host puts the result's text into the next model request as a tool result. The model reads it and continues.</li>
+</ol>
+<p>So everything a server returns ends up in the model's context, and everything in a tool's description shapes what the model does. Both facts drive section 8. The root page records this loop byte for byte ({{Topic: protocols, section 9|n:3c65c17b0d0d81ec9355f4eecd6eed02}}).</p>
+<div class="cost"><div class="t">What MCP costs, and when not to use it</div>It adds a process or a network hop, a JSON layer and a dependency on host support. If one application calls one internal API, ordinary function calling with the model API's own tool format is simpler and has fewer moving parts. MCP pays off when several hosts (an IDE, a CLI agent, a chat app) must reach the same tools, when a team wants to publish tools once, or when tools must run with credentials or isolation the host should not hold. For one agent delegating a whole task to another agent, use A2A ({{Agent-to-agent and beyond|n:3f05c17b0d0d81199373d4d0b18706d8}}).</div>
+</section>
