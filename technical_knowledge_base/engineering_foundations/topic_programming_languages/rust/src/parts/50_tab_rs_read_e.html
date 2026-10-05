@@ -1,0 +1,93 @@
+<section id="rs-s-async"><h2>Async Rust from zero</h2>
+<p><b>The problem it solves.</b> A service spends most of its time waiting: for the network, a database, a model API. One OS thread per waiting request works up to a few thousand requests, then the memory for stacks and the cost of switching threads dominate. <dfn>Async</dfn> lets one thread juggle many waiting operations: each operation runs until it would wait, hands the thread back, and is resumed when its data arrives. Python's asyncio and JavaScript's event loop are the same idea; the Python page's Part 1 teaches asyncio from the event loop up ({{Python page|n:3cd5c17b0d0d81b28acdea39e7a4d998}}, tab "Event loop"). Rust's version differs in three ways, each shown below with real runs: futures are <b>lazy</b>, the runtime is a <b>library you choose</b> (and usually runs on <b>several threads</b>), and cancellation is <b>dropping</b>.</p>
+<h3>1. A future is a value, and it is lazy</h3>
+<p>An <code>async fn</code> does not run when you call it. It returns a <dfn>future</dfn>: a value that describes the work, which runs only when something <dfn>polls</dfn> it, normally <code>.await</code>.</p>
+<div class="rs-src"><div class="rs-fn">tok/examples/a1_lazy.rs</div><pre class="rs-code"><span class="rs-cm">// A future is a value: calling an async fn runs nothing until something awaits (polls) it.</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> hello(tag: &amp;str) -&gt; u32 &#123;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"   &#123;tag&#125;: body runs"</span>);
+    42
+&#125;
+
+<span class="rs-at">#[tokio::main(flavor = "current_thread")]</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> main() &#123;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"1. calling hello(\"a\")"</span>);
+    <span class="rs-kw">let</span> fut = hello(<span class="rs-st">"a"</span>); <span class="rs-cm">// nothing printed: we only built a state machine</span>
+    <span class="rs-mac">println!</span>(<span class="rs-st">"2. holding a future of &#123;&#125; bytes; its body has not run"</span>, std::mem::size_of_val(&amp;fut));
+    <span class="rs-kw">let</span> v = fut.<span class="rs-kw">await</span>; <span class="rs-cm">// now the runtime polls it to completion</span>
+    <span class="rs-mac">println!</span>(<span class="rs-st">"3. awaited it: &#123;v&#125;"</span>);
+    hello(<span class="rs-st">"b"</span>); <span class="rs-cm">// never awaited: the compiler warns and the body never runs</span>
+    <span class="rs-mac">println!</span>(<span class="rs-st">"4. end of main"</span>);
+&#125;</pre></div>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> What prints between line 1 and line 3? Does "b: body runs" ever print?</summary><pre class="rs-out" data-rs-out="a1_lazy">
+1. calling hello("a")
+2. holding a future of 24 bytes; its body has not run
+   a: body runs
+3. awaited it: 42
+4. end of main</pre></details>
+<p>The future for <code>hello("a")</code> is a 24-byte struct (the compiler turns the function body into a state machine holding its local variables), and nothing ran until <code>.await</code>. <code>hello("b")</code> was built and thrown away, so its body never ran; the compiler warned about exactly that:</p>
+<pre class="rs-out" data-rs-out="a1_lazy_warning">
+warning: unused implementer of `Future` that must be used
+  --&gt; examples/a1_lazy.rs:14:5
+   |
+14 |     hello("b"); // never awaited: the compiler warns and the body never runs
+   |     ^^^^^^^^^^
+   |
+   = note: futures do nothing unless you `.await` or poll them
+   = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default</pre>
+<div class="rs-two"><div><p class="small"><b>Python</b> behaves the same way (a coroutine object, plus a run-time warning):</p><pre class="rs-out" data-rs-out="cmp_lazy_py">
+code/cmp/lazy.py:13: RuntimeWarning: coroutine 'hello' was never awaited
+  hello("b")          # never awaited
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+1. calling hello("a")
+2. holding a coroutine; its body has not run
+   a: body runs
+3. awaited it: 42
+4. end of main</pre></div><div><p class="small"><b>JavaScript</b> does not: calling an async function runs its body immediately, up to the first <code>await</code>:</p><pre class="rs-out" data-rs-out="cmp_lazy_js">
+1. calling hello("a")
+   a: body runs
+2. holding a Promise; its body HAS already run
+3. awaited it: 42
+   b: body runs
+4. end of module</pre></div></div>
+<h3>2. What .await does: poll, Pending, wake</h3>
+<p>Every future implements one method, <code>poll</code>. The runtime calls it; it returns <code>Poll::Ready(value)</code> if done, or <code>Poll::Pending</code> if it has to wait, after arranging for a <dfn>waker</dfn> to be called when it can make progress (a socket becomes readable, a timer fires). The runtime then polls something else, and polls this future again only after its waker fires. That is the whole protocol. A hand-written future, to see it:</p>
+<div class="rs-src"><div class="rs-fn">tok/examples/a1_poll.rs</div><pre class="rs-code"><span class="rs-cm">// What .await does underneath: the runtime calls poll() until it returns Ready.</span>
+<span class="rs-cm">// A hand-written future that is not ready the first two times it is polled.</span>
+<span class="rs-kw">use</span> std::future::Future;
+<span class="rs-kw">use</span> std::pin::Pin;
+<span class="rs-kw">use</span> std::task::&#123;Context, Poll&#125;;
+
+<span class="rs-kw">struct</span> Countdown &#123;
+    left: u32,
+&#125;
+
+<span class="rs-kw">impl</span> Future <span class="rs-kw">for</span> Countdown &#123;
+    <span class="rs-kw">type</span> Output = &amp;<span class="rs-lt">'static</span> str;
+    <span class="rs-kw">fn</span> poll(<span class="rs-kw">mut</span> <span class="rs-kw">self</span>: Pin&lt;&amp;<span class="rs-kw">mut</span> <span class="rs-kw">Self</span>&gt;, cx: &amp;<span class="rs-kw">mut</span> Context&lt;<span class="rs-lt">'_</span>&gt;) -&gt; Poll&lt;<span class="rs-kw">Self</span>::Output&gt; &#123;
+        <span class="rs-kw">if</span> <span class="rs-kw">self</span>.left == 0 &#123;
+            <span class="rs-mac">println!</span>(<span class="rs-st">"   poll: Ready"</span>);
+            <span class="rs-kw">return</span> Poll::Ready(<span class="rs-st">"done"</span>);
+        &#125;
+        <span class="rs-mac">println!</span>(<span class="rs-st">"   poll: Pending (&#123;&#125; left), asking to be woken"</span>, <span class="rs-kw">self</span>.left);
+        <span class="rs-kw">self</span>.left -= 1;
+        <span class="rs-cm">// A real future (a socket, a timer) hands the waker to the OS event source.</span>
+        <span class="rs-cm">// Here we wake ourselves at once, so the runtime polls again.</span>
+        cx.waker().wake_by_ref();
+        Poll::Pending
+    &#125;
+&#125;
+
+<span class="rs-at">#[tokio::main(flavor = "current_thread")]</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> main() &#123;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"awaiting Countdown &#123;&#123; left: 2 &#125;&#125;"</span>);
+    <span class="rs-kw">let</span> r = Countdown &#123; left: 2 &#125;.<span class="rs-kw">await</span>;
+    <span class="rs-mac">println!</span>(<span class="rs-st">"result: &#123;r&#125;"</span>);
+&#125;</pre></div>
+<pre class="rs-out" data-rs-out="a1_poll">
+awaiting Countdown &#123; left: 2 &#125;
+   poll: Pending (2 left), asking to be woken
+   poll: Pending (1 left), asking to be woken
+   poll: Ready
+result: done</pre>
+<p>You will almost never write <code>poll</code> yourself; <code>async fn</code> generates it, with one state per <code>.await</code> point. Two consequences matter every day: <b>code between two awaits runs without interruption</b> (no other task can run on that thread meanwhile), and <b>a future that is never polled again simply stops</b> at its last await.</p>
+<p><b>Pin, in one paragraph.</b> The generated state machine can hold a reference to one of its own local variables across an await (a buffer and a slice of it). If the future were moved in memory, that reference would dangle. <code>poll</code> therefore takes <code>Pin&lt;&amp;mut Self&gt;</code>: a pointer that promises the future will not move again once polled. <code>.await</code>, <code>tokio::spawn</code> and <code>Box::pin</code> handle it for you; you meet <code>Pin</code> when storing futures in structs or writing poll by hand ({{std::pin docs|https://doc.rust-lang.org/std/pin/index.html}}).</p>

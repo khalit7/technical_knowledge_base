@@ -1,0 +1,428 @@
+
+<section id="ra-coll">
+<h2>12. Collections</h2>
+<div class="tw"><table><thead><tr><th>Python</th><th>Rust (<code>std::collections</code>)</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>list</code></td><td><code>Vec&lt;T&gt;</code></td><td>contiguous elements of one type, not pointers to objects; <code>v[i]</code> panics out of range, <code>v.get(i)</code> returns an <code>Option</code></td></tr>
+<tr><td><code>dict</code></td><td><code>HashMap&lt;K, V&gt;</code></td><td><b>arbitrary iteration order</b>, randomly seeded per process</td></tr>
+<tr><td>sorted dict (no built-in)</td><td><code>BTreeMap&lt;K, V&gt;</code></td><td>kept sorted by key; range queries</td></tr>
+<tr><td><code>set</code></td><td><code>HashSet&lt;T&gt;</code>, <code>BTreeSet&lt;T&gt;</code></td><td>union, intersection, difference</td></tr>
+<tr><td><code>collections.deque</code></td><td><code>VecDeque&lt;T&gt;</code></td><td>ring buffer, cheap at both ends</td></tr>
+<tr><td><code>heapq</code></td><td><code>BinaryHeap&lt;T&gt;</code></td><td>a max-heap (wrap items in <code>Reverse</code> for a min-heap)</td></tr>
+</tbody></table></div>
+<div class="ra-src"><div class="ra-fn">colls.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::&#123;BTreeMap, HashMap, HashSet, VecDeque&#125;;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-cm">// Vec: a growable array. Capacity grows by doubling, so push is cheap on average.</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> v = Vec::new();
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> caps = <span class="ra-mac">vec!</span>[];
+    <span class="ra-kw">for</span> i <span class="ra-kw">in</span> 0..20 &#123; v.push(i); <span class="ra-kw">if</span> caps.last() != Some(&amp;v.capacity()) &#123; caps.push(v.capacity()); &#125; &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"Vec capacities seen while pushing 20 items: &#123;caps:?&#125;"</span>);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"v.get(99) = &#123;:?&#125;  (v[99] would panic)"</span>, v.get(99));
+
+    <span class="ra-cm">// HashMap: the entry API does "get or insert" with one lookup</span>
+    <span class="ra-kw">let</span> text = <span class="ra-st">"the cat and the hat and the bat"</span>;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> counts: HashMap&lt;&amp;str, u32&gt; = HashMap::new();
+    <span class="ra-kw">for</span> w <span class="ra-kw">in</span> text.split(<span class="ra-st">' '</span>) &#123; *counts.entry(w).or_insert(0) += 1; &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"HashMap iteration order: &#123;:?&#125;"</span>, counts.iter().collect::&lt;Vec&lt;_&gt;&gt;());
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> sorted: Vec&lt;(&amp;str, u32)&gt; = counts.into_iter().collect();
+    sorted.sort_by(|a, b| b.1.cmp(&amp;a.1).then(a.0.cmp(b.0))); <span class="ra-cm">// count desc, then word asc</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"sorted: &#123;sorted:?&#125;"</span>);
+
+    <span class="ra-cm">// BTreeMap: kept sorted by key, so iteration order is deterministic</span>
+    <span class="ra-kw">let</span> bt: BTreeMap&lt;&amp;str, u32&gt; = text.split(<span class="ra-st">' '</span>).map(|w| (w, w.len() <span class="ra-kw">as</span> u32)).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"BTreeMap: &#123;bt:?&#125;"</span>);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"range \"b\"..\"d\": &#123;:?&#125;"</span>, bt.range(<span class="ra-st">"b"</span>..<span class="ra-st">"d"</span>).collect::&lt;Vec&lt;_&gt;&gt;());
+
+    <span class="ra-cm">// HashSet: membership and set algebra</span>
+    <span class="ra-kw">let</span> a: HashSet&lt;u32&gt; = [1, 2, 3, 4].into();
+    <span class="ra-kw">let</span> b: HashSet&lt;u32&gt; = [3, 4, 5].into();
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> inter: Vec&lt;_&gt; = a.intersection(&amp;b).copied().collect();
+    inter.sort();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"intersection &#123;inter:?&#125;, contains 5? &#123;&#125;"</span>, a.contains(&amp;5));
+
+    <span class="ra-cm">// VecDeque: a ring buffer, O(1) at both ends (Python's collections.deque)</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> q: VecDeque&lt;u32&gt; = VecDeque::new();
+    q.push_back(1); q.push_back(2); q.push_front(0);
+    <span class="ra-kw">let</span> front = q.pop_front();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"deque after pop_front: &#123;q:?&#125;, popped &#123;front:?&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_colls">
+<span class="ra-cmd">$ rustc --edition 2024 colls.rs &amp;&amp; ./colls</span>
+Vec capacities seen while pushing 20 items: [4, 8, 16, 32]
+v.get(99) = None  (v[99] would panic)
+HashMap iteration order: [("bat", 1), ("the", 3), ("cat", 1), ("and", 2), ("hat", 1)]
+sorted: [("the", 3), ("and", 2), ("bat", 1), ("cat", 1), ("hat", 1)]
+BTreeMap: &#123;"and": 3, "bat": 3, "cat": 3, "hat": 3, "the": 3&#125;
+range "b".."d": [("bat", 3), ("cat", 3)]
+intersection [3, 4], contains 5? false
+deque after pop_front: [1, 2], popped Some(0)</pre>
+<p>The same binary, run three more times. Same input, different order each run:</p>
+<pre class="ra-out" data-ra-out="l_colls2">
+<span class="ra-cmd">$ for i in 1 2 3; do ./colls | sed -n 3p; done</span>
+HashMap iteration order: [("bat", 1), ("cat", 1), ("the", 3), ("and", 2), ("hat", 1)]
+HashMap iteration order: [("hat", 1), ("and", 2), ("the", 3), ("bat", 1), ("cat", 1)]
+HashMap iteration order: [("cat", 1), ("the", 3), ("bat", 1), ("and", 2), ("hat", 1)]</pre>
+<p>Python dicts keep insertion order (guaranteed since 3.7); Rust's <code>HashMap</code> does not, and its default hasher (SipHash 1-3) is randomly seeded so that an attacker who controls the keys cannot force collisions ("HashDoS"), as the {{HashMap documentation|https://doc.rust-lang.org/std/collections/struct.HashMap.html}} explains. Sort before printing (as the root's token counter does) or use a <code>BTreeMap</code>. For integer keys in a hot loop a faster non-DoS-resistant hasher (the <code>rustc-hash</code> or <code>ahash</code> crates) is a common swap. The <b>entry API</b> (<code>*counts.entry(w).or_insert(0) += 1</code>) is the idiom for "update or insert" with one lookup; the drill tab shows the two tempting alternatives failing.</p>
+</section>
+
+<section id="ra-mod">
+<h2>13. Modules, crates and visibility</h2>
+<ul>
+<li>A <dfn>package</dfn> is what <code>cargo new</code> makes (one <code>Cargo.toml</code>); it contains a <b>library crate</b> (<code>src/lib.rs</code>), and/or one or more <b>binary crates</b> (<code>src/main.rs</code>, <code>src/bin/*.rs</code>). A crate is the unit the compiler builds at once.</li>
+<li>A <dfn>module</dfn> is a namespace inside a crate: <code>mod tokenize;</code> in <code>lib.rs</code> loads <code>src/tokenize.rs</code>. Paths use <code>::</code> (<code>crate::tokenize::count_tokens</code>); <code>use</code> imports a name, like Python's <code>from x import y</code>.</li>
+<li><b>Everything is private by default</b>, visible only inside its module and its children. <code>pub</code> exports it; <code>pub(crate)</code> exports it within the crate only. Python's leading underscore is a convention; this is enforced:</li>
+</ul>
+<div class="ra-src"><div class="ra-fn">modvis_err.rs</div><pre class="ra-code"><span class="ra-kw">mod</span> tokenizer &#123;
+    <span class="ra-kw">pub</span> <span class="ra-kw">fn</span> count(text: &amp;str) -&gt; usize &#123;
+        split(text).len()
+    &#125;
+    <span class="ra-kw">fn</span> split(text: &amp;str) -&gt; Vec&lt;&amp;str&gt; &#123;
+        text.split_whitespace().collect()
+    &#125;
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, tokenizer::count(<span class="ra-st">"a b c"</span>));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;:?&#125;"</span>, tokenizer::split(<span class="ra-st">"a b c"</span>));
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_modvis_err">
+<span class="ra-cmd">$ rustc --edition 2024 modvis_err.rs</span>
+error[E0603]: function `split` is private
+  --&gt; modvis_err.rs:12:33
+   |
+12 |     println!("&#123;:?&#125;", tokenizer::split("a b c"));
+   |                                 ^^^^^ private function
+   |
+note: the function `split` is defined here
+  --&gt; modvis_err.rs:5:5
+   |
+ 5 |     fn split(text: &amp;str) -&gt; Vec&lt;&amp;str&gt; &#123;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0603`.
+[exit code 1]</pre>
+<p>Here is the root page's running program (count tokens per user in a JSONL chat log, {{the Rosetta tab of Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}) reorganised as a library with two modules and a thin binary on top, the shape most Rust projects take, so the logic can be tested and reused (Part 2 turns the same functions into a Python extension):</p>
+<div class="ra-two"><div><div class="ra-src"><div class="ra-fn">lib.rs</div><pre class="ra-code"><span class="ra-cm">//! Count tokens per user in a JSONL chat log (the root page's running program),</span>
+<span class="ra-cm">//! split into modules so that each part can be tested on its own.</span>
+
+<span class="ra-kw">pub</span> <span class="ra-kw">mod</span> tally;
+<span class="ra-kw">pub</span> <span class="ra-kw">mod</span> tokenize;
+
+<span class="ra-cm">// Re-export: users of the crate write tokstat::count_tokens.</span>
+<span class="ra-kw">pub</span> <span class="ra-kw">use</span> tokenize::count_tokens;</pre></div><div class="ra-src"><div class="ra-fn">main.rs (lines 1 to 20)</div><pre class="ra-code"><span class="ra-kw">use</span> std::io::&#123;BufRead, BufReader&#125;;
+<span class="ra-kw">use</span> std::process::ExitCode;
+<span class="ra-kw">use</span> tokstat::tally::Tally;
+
+<span class="ra-kw">fn</span> main() -&gt; ExitCode &#123;
+    <span class="ra-kw">let</span> path = std::env::args().nth(1).unwrap_or_else(|| <span class="ra-st">"chat.jsonl"</span>.to_string());
+    <span class="ra-kw">let</span> file = <span class="ra-kw">match</span> std::fs::File::open(&amp;path) &#123;
+        Ok(f) =&gt; f,
+        Err(e) =&gt; &#123;
+            <span class="ra-mac">eprintln!</span>(<span class="ra-st">"error: cannot open &#123;path&#125;: &#123;e&#125;"</span>);
+            <span class="ra-kw">return</span> ExitCode::<span class="ra-kw">from</span>(1);
+        &#125;
+    &#125;;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> t = Tally::default();
+    <span class="ra-kw">for</span> line <span class="ra-kw">in</span> BufReader::new(file).lines() &#123;
+        <span class="ra-kw">match</span> line &#123;
+            Ok(l) =&gt; t.add_line(&amp;l),
+            Err(_) =&gt; t.add_line(<span class="ra-st">""</span>), <span class="ra-cm">// unreadable bytes count as malformed</span>
+        &#125;
+    &#125;</pre></div></div><div><div class="ra-src"><div class="ra-fn">tally.rs (lines 1 to 25)</div><pre class="ra-code"><span class="ra-cm">//! Per-user totals.</span>
+<span class="ra-kw">use</span> <span class="ra-kw">crate</span>::tokenize::count_tokens;
+<span class="ra-kw">use</span> serde::Deserialize;
+<span class="ra-kw">use</span> std::collections::HashMap;
+
+<span class="ra-at">#[derive(Deserialize)]</span>
+<span class="ra-kw">struct</span> Message &#123;
+    user: String,
+    text: String,
+&#125;
+
+<span class="ra-cm">/// The result of reading a log.</span>
+<span class="ra-at">#[derive(Debug, Default)]</span>
+<span class="ra-kw">pub</span> <span class="ra-kw">struct</span> Tally &#123;
+    <span class="ra-kw">pub</span> lines: u64,
+    <span class="ra-kw">pub</span> ok: u64,
+    <span class="ra-kw">pub</span> malformed: u64,
+    <span class="ra-kw">pub</span> first_bad: Option&lt;u64&gt;,
+    per_user: HashMap&lt;String, u64&gt;, <span class="ra-cm">// private field: only this module can touch it</span>
+&#125;
+
+<span class="ra-kw">impl</span> Tally &#123;
+    <span class="ra-cm">/// Feed one line of the log.</span>
+    <span class="ra-kw">pub</span> <span class="ra-kw">fn</span> add_line(&amp;<span class="ra-kw">mut</span> <span class="ra-kw">self</span>, line: &amp;str) &#123;
+        <span class="ra-kw">self</span>.lines += 1;</pre></div></div></div>
+<pre class="ra-out" data-ra-out="l_tokstat_run">
+<span class="ra-cmd">$ cargo run -q --release -- ../chat.jsonl</span>
+lines 2000  ok 1992  malformed 8 (first at line 53)
+users 176  tokens 44698
+top 5 users by tokens:
+ 1. u0029  9491
+ 2. u0005  4816
+ 3. u0042  3499
+ 4. u0169  2291
+ 5. u0121  1401</pre>
+<p>The output matches the root's specification exactly (2000 lines, 8 malformed, u0029 first with 9491). <code>per_user</code> has no <code>pub</code>, so code outside <code>tally</code> can only read the totals through the methods: the invariant "totals are only changed by <code>add_line</code>" is enforced by the compiler.</p>
+</section>
+
+<section id="ra-test">
+<h2>14. Testing: unit, integration, documentation</h2>
+<p>Testing is built into the language and cargo, with no framework to install. Three kinds:</p>
+<ul>
+<li><b>Unit tests</b> live next to the code in a <code>#[cfg(test)] mod tests</code> (compiled only for <code>cargo test</code>) and may test private functions.</li>
+<li><b>Integration tests</b> are files in <code>tests/</code>, compiled as a separate crate, so they see only the public API; they can also run the built binary.</li>
+<li><b>Documentation tests</b>: code blocks inside <code>///</code> doc comments are compiled and run, so the examples in the docs cannot rot.</li>
+</ul>
+<div class="ra-two"><div><div class="ra-src"><div class="ra-fn">tokenize.rs (lines 1 to 24)</div><pre class="ra-code"><span class="ra-cm">//! What counts as a token.</span>
+
+<span class="ra-cm">/// Number of maximal runs of ASCII letters and digits.</span>
+<span class="ra-cm">///</span>
+<span class="ra-cm">/// ```</span>
+<span class="ra-cm">/// use tokstat::count_tokens;</span>
+<span class="ra-cm">/// assert_eq!(count_tokens("x86_64 is 2 tokens"), 5);</span>
+<span class="ra-cm">/// assert_eq!(count_tokens("café"), 1); // 'é' is not ASCII, so it separates</span>
+<span class="ra-cm">/// ```</span>
+<span class="ra-kw">pub</span> <span class="ra-kw">fn</span> count_tokens(text: &amp;str) -&gt; u64 &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> n = 0;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> inside = <span class="ra-kw">false</span>;
+    <span class="ra-kw">for</span> b <span class="ra-kw">in</span> text.bytes() &#123;
+        <span class="ra-kw">let</span> tok = is_token_byte(b);
+        <span class="ra-kw">if</span> tok &amp;&amp; !inside &#123;
+            n += 1;
+        &#125;
+        inside = tok;
+    &#125;
+    n
+&#125;
+
+<span class="ra-cm">// Private: not visible outside this module.</span>
+<span class="ra-kw">fn</span> is_token_byte(b: u8) -&gt; bool &#123;</pre></div></div><div><div class="ra-src"><div class="ra-fn">cli.rs</div><pre class="ra-code"><span class="ra-cm">// Integration tests: compiled as a separate crate, so they see only the public API.</span>
+<span class="ra-kw">use</span> tokstat::tally::Tally;
+
+<span class="ra-at">#[test]</span>
+<span class="ra-kw">fn</span> malformed_lines_are_counted_not_fatal() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> t = Tally::default();
+    <span class="ra-kw">for</span> l <span class="ra-kw">in</span> [r#"&#123;"user":"a","text":"one two"&#125;"#, "not json", r#"&#123;"user":"b","text":"x"&#125;"#, r#"&#123;"user":17,"text":"x"&#125;"#] &#123;
+        t.add_line(l);
+    &#125;
+    <span class="ra-mac">assert_eq!</span>((t.lines, t.ok, t.malformed, t.first_bad), (4, 2, 2, Some(2)));
+    <span class="ra-mac">assert_eq!</span>(t.top(5), <span class="ra-mac">vec!</span>[(<span class="ra-st">"a"</span>, 2), (<span class="ra-st">"b"</span>, 1)]);
+&#125;
+
+<span class="ra-at">#[test]</span>
+<span class="ra-kw">fn</span> binary_matches_the_root_spec() &#123;
+    <span class="ra-kw">let</span> out = std::process::Command::new(<span class="ra-mac">env!</span>(<span class="ra-st">"CARGO_BIN_EXE_tokstat"</span>))
+        .arg(<span class="ra-st">"../chat.jsonl"</span>)
+        .output()
+        .unwrap();
+    <span class="ra-kw">let</span> s = String::from_utf8(out.stdout).unwrap();
+    <span class="ra-mac">assert!</span>(s.starts_with(<span class="ra-st">"lines 2000  ok 1992  malformed 8 (first at line 53)"</span>), <span class="ra-st">"&#123;s&#125;"</span>);
+&#125;</pre></div></div></div>
+<pre class="ra-out" data-ra-out="l_tokstat_test_full">
+<span class="ra-cmd">$ cargo test 2&gt;&amp;1 | grep -E "Running|Doc-tests|^test |test result"</span>
+     Running unittests src/lib.rs (target/debug/deps/tokstat-c8b30a7fcc644835)
+test tokenize::tests::edge_cases ... ok
+test tokenize::tests::private_helper ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+     Running unittests src/main.rs (target/debug/deps/tokstat-59f844e4a80c39dc)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+     Running tests/cli.rs (target/debug/deps/cli-19823db216c0559e)
+test malformed_lines_are_counted_not_fatal ... ok
+test binary_matches_the_root_spec ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+   Doc-tests tokstat
+test src/tokenize.rs - tokenize::count_tokens (line 5) ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;</pre>
+<p>A failing test, to see what <code>assert_eq!</code> reports (it prints both sides and your message; <code>#[should_panic]</code> tests that a panic happens):</p>
+<div class="ra-src"><div class="ra-fn">failing_test.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> count_tokens(text: &amp;str) -&gt; usize &#123;
+    text.split(<span class="ra-st">' '</span>).count() <span class="ra-cm">// bug: two spaces in a row make an empty "token"</span>
+&#125;
+
+<span class="ra-at">#[cfg(test)]</span>
+<span class="ra-kw">mod</span> tests &#123;
+    <span class="ra-kw">use</span> <span class="ra-kw">super</span>::*;
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-kw">fn</span> single_spaces() &#123;
+        <span class="ra-mac">assert_eq!</span>(count_tokens(<span class="ra-st">"a b c"</span>), 3);
+    &#125;
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-kw">fn</span> double_space() &#123;
+        <span class="ra-mac">assert_eq!</span>(count_tokens(<span class="ra-st">"a  b"</span>), 2, <span class="ra-st">"two words separated by two spaces"</span>);
+    &#125;
+
+    <span class="ra-at">#[test]</span>
+    <span class="ra-at">#[should_panic(expected = "index out of bounds")]</span>
+    <span class="ra-kw">fn</span> out_of_bounds_panics() &#123;
+        <span class="ra-kw">let</span> v: Vec&lt;u32&gt; = <span class="ra-mac">vec!</span>[];
+        <span class="ra-kw">let</span> _ = v[0];
+    &#125;
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_failing_test">
+<span class="ra-cmd">$ rustc --edition 2024 --test failing_test.rs -o failing_test &amp;&amp; ./failing_test</span>
+
+running 3 tests
+test tests::single_spaces ... ok
+test tests::double_space ... FAILED
+test tests::out_of_bounds_panics - should panic ... ok
+
+failures:
+
+---- tests::double_space stdout ----
+
+thread 'tests::double_space' (16491396) panicked at failing_test.rs:16:9:
+assertion `left == right` failed: two words separated by two spaces
+  left: 3
+ right: 2
+
+
+failures:
+    tests::double_space
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in &lt;time&gt;
+
+[exit code 101]</pre>
+<p>The equivalents of pytest's extras: <code>cargo test name_filter</code> runs matching tests; <code>-- --nocapture</code> shows <code>println!</code> output; {{proptest|https://docs.rs/proptest}} does property-based testing like Hypothesis; {{insta|https://insta.rs}} does snapshot tests. Benchmarks use {{criterion|https://docs.rs/criterion}}. The SWE topic's {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}} page covers what to test.</p>
+</section>
+
+<section id="ra-smart">
+<h2>15. Smart pointers and interior mutability</h2>
+<p>Single ownership and compile-time borrowing cover most code. For the rest, the standard library has types that own their contents in other ways, each with a cost:</p>
+<div class="tw"><table><thead><tr><th>Type</th><th>What it gives you</th><th>Cost</th><th>Python analogue</th></tr></thead><tbody>
+<tr><td><code>Box&lt;T&gt;</code></td><td>one owner, value on the heap; needed for recursive types and trait objects</td><td>one allocation</td><td>every object</td></tr>
+<tr><td><code>Rc&lt;T&gt;</code></td><td>shared ownership in one thread; freed when the last <code>Rc</code> goes</td><td>a counter update per clone and drop</td><td>reference counting</td></tr>
+<tr><td><code>Arc&lt;T&gt;</code></td><td>the same across threads</td><td>atomic counter updates (slower)</td><td>reference counting in free-threaded CPython</td></tr>
+<tr><td><code>Cell&lt;T&gt;</code>, <code>RefCell&lt;T&gt;</code></td><td><dfn>interior mutability</dfn>: change through a shared reference; <code>RefCell</code> checks the borrow rules at run time</td><td>a flag check per borrow; <b>a panic</b> if the rules are broken</td><td>(all objects are mutable)</td></tr>
+<tr><td><code>Mutex&lt;T&gt;</code>, <code>RwLock&lt;T&gt;</code></td><td>the same across threads, by locking</td><td>a lock per access; contention</td><td><code>threading.Lock</code></td></tr>
+<tr><td><code>Weak&lt;T&gt;</code></td><td>a non-owning pointer to an <code>Rc</code>/<code>Arc</code> value; breaks cycles</td><td><code>upgrade()</code> may find it gone</td><td><code>weakref</code></td></tr>
+</tbody></table></div>
+<p>A recursive type needs <code>Box</code>, because a value that contains itself directly would have infinite size:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_recursive_err">
+<span class="ra-cmd">$ rustc --edition 2024 recursive_err.rs</span>
+error[E0072]: recursive type `Expr` has infinite size
+ --&gt; recursive_err.rs:1:1
+  |
+1 | enum Expr &#123;
+  | ^^^^^^^^^
+2 |     Num(f64),
+3 |     Add(Expr, Expr),
+  |         ---- recursive without indirection
+  |
+help: insert some indirection (e.g., a `Box`, `Rc`, or `&amp;`) to break the cycle
+  |
+3 |     Add(Box&lt;Expr&gt;, Expr),
+  |         ++++    +
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0072`.
+[exit code 1]</pre>
+<div class="ra-src"><div class="ra-fn">smart.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::cell::&#123;Cell, RefCell&#125;;
+<span class="ra-kw">use</span> std::rc::&#123;Rc, Weak&#125;;
+
+<span class="ra-cm">// Box: put a value on the heap. Needed for recursive types, whose size would otherwise be infinite.</span>
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">enum</span> Expr &#123;
+    Num(f64),
+    Add(Box&lt;Expr&gt;, Box&lt;Expr&gt;),
+    Mul(Box&lt;Expr&gt;, Box&lt;Expr&gt;),
+&#125;
+
+<span class="ra-kw">fn</span> eval(e: &amp;Expr) -&gt; f64 &#123;
+    <span class="ra-kw">match</span> e &#123;
+        Expr::Num(x) =&gt; *x,
+        Expr::Add(a, b) =&gt; eval(a) + eval(b),
+        Expr::Mul(a, b) =&gt; eval(a) * eval(b),
+    &#125;
+&#125;
+
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">struct</span> Doc &#123;
+    name: String,
+    cache_hits: Cell&lt;u32&gt;, <span class="ra-cm">// interior mutability for a Copy value</span>
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> e = Expr::Add(Box::new(Expr::Num(2.0)), Box::new(Expr::Mul(Box::new(Expr::Num(3.0)), Box::new(Expr::Num(4.0)))));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"2 + 3 * 4 = &#123;&#125;"</span>, eval(&amp;e));
+
+    <span class="ra-cm">// Rc: shared ownership in one thread; the last owner to go frees the value</span>
+    <span class="ra-kw">let</span> shared = Rc::new(Doc &#123; name: <span class="ra-st">"system prompt"</span>.into(), cache_hits: Cell::new(0) &#125;);
+    <span class="ra-kw">let</span> a = Rc::clone(&amp;shared); <span class="ra-cm">// copies a pointer, bumps a counter</span>
+    &#123;
+        <span class="ra-kw">let</span> b = Rc::clone(&amp;shared);
+        b.cache_hits.set(b.cache_hits.get() + 1); <span class="ra-cm">// mutate through a shared reference</span>
+        <span class="ra-mac">println!</span>(<span class="ra-st">"strong_count inside = &#123;&#125;"</span>, Rc::strong_count(&amp;shared));
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"strong_count after = &#123;&#125;, hits = &#123;&#125;, name = &#123;&#125;"</span>, Rc::strong_count(&amp;a), a.cache_hits.get(), a.name);
+
+    <span class="ra-cm">// RefCell: borrow rules checked at run time instead of compile time</span>
+    <span class="ra-kw">let</span> log = Rc::new(RefCell::new(Vec::&lt;String&gt;::new()));
+    <span class="ra-kw">let</span> writer = Rc::clone(&amp;log);
+    writer.borrow_mut().push(<span class="ra-st">"first"</span>.into());
+    writer.borrow_mut().push(<span class="ra-st">"second"</span>.into());
+    <span class="ra-mac">println!</span>(<span class="ra-st">"log = &#123;:?&#125;"</span>, log.borrow());
+
+    <span class="ra-cm">// Weak: a non-owning pointer (it does not keep the value alive); used to break cycles</span>
+    <span class="ra-kw">let</span> parent = Rc::new(String::<span class="ra-kw">from</span>(<span class="ra-st">"parent"</span>));
+    <span class="ra-kw">let</span> w: Weak&lt;String&gt; = Rc::downgrade(&amp;parent);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"weak upgrade while alive: &#123;&#125;"</span>, w.upgrade().is_some());
+    drop(parent);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"weak upgrade after drop: &#123;&#125;"</span>, w.upgrade().is_some());
+    <span class="ra-mac">println!</span>(<span class="ra-st">"size_of Box&lt;Expr&gt; = &#123;&#125;, Rc&lt;Doc&gt; = &#123;&#125;, Expr = &#123;&#125;"</span>,
+        std::mem::size_of::&lt;Box&lt;Expr&gt;&gt;(), std::mem::size_of::&lt;Rc&lt;Doc&gt;&gt;(), std::mem::size_of::&lt;Expr&gt;());
+
+    <span class="ra-cm">// The run-time check, failing: two mutable borrows at once</span>
+    <span class="ra-kw">let</span> first = log.borrow_mut();
+    <span class="ra-kw">let</span> second = log.borrow_mut(); <span class="ra-cm">// panics: already mutably borrowed</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; &#123;&#125;"</span>, first.len(), second.len());
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_smart">
+<span class="ra-cmd">$ rustc --edition 2024 smart.rs &amp;&amp; ./smart</span>
+2 + 3 * 4 = 14
+strong_count inside = 3
+strong_count after = 2, hits = 1, name = system prompt
+log = ["first", "second"]
+weak upgrade while alive: true
+weak upgrade after drop: false
+size_of Box&lt;Expr&gt; = 8, Rc&lt;Doc&gt; = 8, Expr = 24
+
+thread 'main' (16492202) panicked at smart.rs:58:22:
+RefCell already borrowed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit code 101]</pre>
+<p>The last line is the price of <code>RefCell</code>: the same rule as section 5, but discovered while the program runs. <code>Rc&lt;RefCell&lt;T&gt;&gt;</code> compiles in situations where plain references would not, and it is the most common way learners make a borrow error go away and turn it into a crash. The old page's gate for this stage: explain why <code>Rc&lt;RefCell&lt;T&gt;&gt;</code> compiles but can still panic. Answer: the exclusivity check moved from compile time to run time.</p>
+<h3>Reference cycles leak</h3>
+<p>Reference counting cannot free a cycle, in Rust as in Python (where the cycle collector cleans up afterwards; Rust has none). Leaking memory is <i>safe</i> in Rust's sense, so the compiler allows it:</p>
+<div class="ra-src"><div class="ra-fn">leak.rs (lines 20 to 37)</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    &#123;
+        <span class="ra-kw">let</span> x = node(<span class="ra-st">"x (cycle of Rc)"</span>);
+        <span class="ra-kw">let</span> y = node(<span class="ra-st">"y (cycle of Rc)"</span>);
+        *x.next.borrow_mut() = Some(Rc::clone(&amp;y)); <span class="ra-cm">// x -&gt; y</span>
+        *y.next.borrow_mut() = Some(Rc::clone(&amp;x)); <span class="ra-cm">// y -&gt; x: a cycle</span>
+        <span class="ra-mac">println!</span>(<span class="ra-st">"cycle: x strong_count = &#123;&#125;"</span>, Rc::strong_count(&amp;x));
+    &#125; <span class="ra-cm">// our two handles go, but each node still owns the other: neither count reaches 0</span>
+    &#123;
+        <span class="ra-kw">let</span> x = node(<span class="ra-st">"x (Weak back edge)"</span>);
+        <span class="ra-kw">let</span> y = node(<span class="ra-st">"y (Weak back edge)"</span>);
+        *x.next.borrow_mut() = Some(Rc::clone(&amp;y)); <span class="ra-cm">// x owns y</span>
+        *y.back.borrow_mut() = Rc::downgrade(&amp;x); <span class="ra-cm">// y only points back at x</span>
+        <span class="ra-mac">println!</span>(<span class="ra-st">"weak: x strong_count = &#123;&#125;, weak_count = &#123;&#125;"</span>, Rc::strong_count(&amp;x), Rc::weak_count(&amp;x));
+        <span class="ra-mac">println!</span>(<span class="ra-st">"y.back.upgrade() is &#123;&#125;"</span>, y.back.borrow().upgrade().map(|n| n.name).unwrap_or(<span class="ra-st">"gone"</span>));
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"end of main: the Rc cycle was never dropped (a leak, which safe Rust allows)"</span>);
+&#125;</pre></div>
+<details class="ra-pr"><summary><b>Predict, then reveal:</b> Which of the four nodes print "drop"?</summary><pre class="ra-out" data-ra-out="l_leak">
+<span class="ra-cmd">$ rustc --edition 2024 leak.rs &amp;&amp; ./leak</span>
+cycle: x strong_count = 2
+weak: x strong_count = 1, weak_count = 1
+y.back.upgrade() is x (Weak back edge)
+drop x (Weak back edge)
+drop y (Weak back edge)
+end of main: the Rc cycle was never dropped (a leak, which safe Rust allows)</pre></details>
+<p>Rule of thumb: ownership should form a tree. Back pointers (child to parent, node to previous) are <code>Weak</code>, or better, indexes into a <code>Vec</code> that owns all the nodes (an "arena"), which is how most Rust graph code is written.</p>
+</section>

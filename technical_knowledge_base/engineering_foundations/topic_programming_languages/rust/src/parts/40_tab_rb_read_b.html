@@ -1,0 +1,151 @@
+
+<section id="rb-s2">
+<h2>2. Your first extension: PyO3 and maturin</h2>
+<p>Two tools do all the work. <b>PyO3</b> is a Rust library (a <b>crate</b>) that wraps CPython's C API: Rust types for Python objects, conversions between the two, and <b>macros</b> (code generators run by the compiler, written <code>#[...]</code>) that turn an ordinary Rust function into a Python-callable one. <b>maturin</b> is a build tool: it runs <code>cargo build</code> to compile your crate into a shared library, then packs it into a <b>wheel</b> (the <code>.whl</code> zip file pip installs) with the right name and metadata. It is also a PEP 517 <b>build backend</b>, so <code>pip install .</code> or <code>uv build</code> on the project just works.</p>
+<p>The root page's {{Toolchain atlas|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab has the full first run, recorded: <code>maturin new --bindings pyo3 tokrs</code> creates <code>Cargo.toml</code>, <code>pyproject.toml</code>, <code>src/lib.rs</code> and a GitHub Actions workflow; <code>maturin develop</code> builds and installs into the active virtual environment. This part's project grew from that skeleton. Its two configuration files:</p>
+<div class="rb-snip"><div class="rb-file">Cargo.toml</div><pre class="rb-code">[package]
+name = <span class="rb-st">"tokrs"</span>
+version = <span class="rb-st">"0.1.0"</span>
+edition = <span class="rb-st">"2024"</span>
+
+[lib]
+name = <span class="rb-st">"tokrs"</span>
+crate-type = [<span class="rb-st">"cdylib"</span>]
+
+[dependencies]
+pyo3 = <span class="rb-st">"0.29.3"</span>
+numpy = <span class="rb-st">"0.29.0"</span>
+rayon = <span class="rb-st">"1.12.0"</span>
+serde = &#123; version = <span class="rb-st">"1"</span>, features = [<span class="rb-st">"derive"</span>] &#125;
+serde_json = <span class="rb-st">"1"</span>
+
+[profile.release]
+opt-level = 3</pre></div>
+<div class="rb-snip"><div class="rb-file">pyproject.toml</div><pre class="rb-code">[build-system]
+requires = [<span class="rb-st">"maturin&gt;=1.15,&lt;2.0"</span>]
+build-backend = <span class="rb-st">"maturin"</span>
+
+[project]
+name = <span class="rb-st">"tokrs"</span>
+version = <span class="rb-st">"0.1.0"</span>
+description = <span class="rb-st">"count_tokens from the Rust page, Part 2: a PyO3 extension built step by step"</span>
+requires-python = <span class="rb-st">"&gt;=3.10"</span>
+dependencies = [<span class="rb-st">"numpy&gt;=2"</span>]
+
+[tool.maturin]
+module-name = <span class="rb-st">"tokrs"</span></pre></div>
+<p><code>crate-type = ["cdylib"]</code> asks for a C-compatible dynamic library, the only kind Python can load. <code>[profile.release]</code> settings apply to <code>--release</code> builds; without <code>--release</code> you get a debug build that is often 10 to 50 times slower, and timing it is the most common beginner mistake. The other four dependencies are <code>numpy</code> (rust-numpy, section 5), <code>rayon</code> (parallel loops, section 8), and <code>serde</code> with <code>serde_json</code> (typed JSON parsing, section 10).</p>
+<div class="co warn"><div class="t">Correction to older guides (and to the root's benchmark crate)</div>Older tutorials add <code>features = ["pyo3/extension-module"]</code> under <code>[tool.maturin]</code>. PyO3 now marks that feature deprecated: maturin 1.9.4 and later set the environment variable <code>PYO3_BUILD_EXTENSION_MODULE</code> that does the same job (stop linking to <code>libpython</code>) (<a href="https://pyo3.rs/v0.29.3/features.html#extension-module" target="_blank" rel="noopener noreferrer">PyO3 features guide</a>). This project leaves it out; the root's <code>src/bench/ext_rust/</code> still has it, which is harmless.</div>
+<p>Build and install into the virtual environment, in release mode (a clean build, with the time it took):</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin develop --release   (clean, under /usr/bin/time -p)</div><pre class="rb-out" data-rb-out="b1_develop.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings
+Using Python 3.14.8 environment at: &lt;pl&gt;/rb/venv314
+Checked 1 package in 12ms
+    Finished `release` profile [optimized] target(s) in 9.25s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for CPython 3.14 to &lt;tmp&gt;/tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl
+✏️ Setting installed package as editable
+🛠 Installed tokrs-0.1.0
+real 10.32
+user 34.79
+sys 4.22</pre></div>
+<p>The 16 s is mostly compiling PyO3, NumPy bindings, rayon and serde once; after that, an edit to <code>lib.rs</code> rebuilds in a few seconds. <code>maturin develop</code> builds a wheel and installs it as <b>editable</b>, so you rerun it after each Rust change (Python cannot reload a changed <code>.so</code> in a running process: restart the interpreter or the notebook kernel).</p>
+<div class="rb-cost"><div><div class="t">develop</div>Build and install into the current venv. Your edit-compile-test loop.</div><div><div class="t">build --release</div>Write a wheel into <code>target/wheels/</code> (or <code>-o dir</code>). What you ship (section 12).</div><div><div class="t">pip / uv</div><code>uv pip install .</code> calls maturin as the build backend, so users with a Rust toolchain can build from source.</div></div>
+</section>
+
+<section id="rb-s3">
+<h2>3. Functions and modules: <code>#[pyfunction]</code>, <code>#[pymodule]</code></h2>
+<p>Step 1 of the token counter: the Rosetta token loop as plain Rust, and a thin function Python can call.</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Tokens = maximal runs of ASCII letters or digits (rule 3 of PROGRAM.md).</span>
+<span class="rb-cm">/// Non-ASCII characters are UTF-8 bytes &gt;= 0x80, so a byte loop gives the char answer.</span>
+<span class="rb-kw">fn</span> tokens(s: &amp;[u8]) -&gt; u64 &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> n = 0;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> inside = <span class="rb-kw">false</span>;
+    <span class="rb-kw">for</span> &amp;b <span class="rb-kw">in</span> s &#123;
+        <span class="rb-kw">let</span> t = b.is_ascii_alphanumeric();
+        <span class="rb-kw">if</span> t &amp;&amp; !inside &#123;
+            n += 1;
+        &#125;
+        inside = t;
+    &#125;
+    n
+&#125;</pre></div>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_tokens(text: &amp;str) -&gt; u64 &#123;
+    tokens(text.as_bytes())
+&#125;</pre></div>
+<p><code>#[pyfunction]</code> generates the glue: a C-level function that takes Python's argument objects, converts each one to the Rust parameter type (<code>&amp;str</code> here), calls your function, and converts the return value (<code>u64</code>) back into a Python <code>int</code>. The <code>///</code> doc comment becomes the Python docstring. The module lists what it exports:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-at">#[pymodule]</span>
+<span class="rb-kw">mod</span> tokrs &#123;
+    <span class="rb-at">#[pymodule_export]</span>
+    <span class="rb-kw">use</span> <span class="rb-kw">super</span>::&#123;
+        count_bytes, count_bytes_owned, count_many, count_many_owned, count_tokens, counts_array,
+        counts_list, dict_total, dict_total_owned, first_token_len, noop, parse_line, sum_sq_array, sum_sq_list, tally_bytes,
+        tally_bytes_detached, tally_bytes_parallel, tally_file, total_len, total_len_owned, SharedCounter, Counter, MalformedLine,
+    &#125;;
+&#125;</pre></div>
+<p>The <code>mod tokrs</code> name must match the module name in <code>pyproject.toml</code>, because CPython looks for <code>PyInit_tokrs</code> when you <code>import tokrs</code>.</p>
+<div class="rb-snip"><div class="rb-file">c1_first.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+<span class="rb-kw">print</span>(tokrs.count_tokens(<span class="rb-st">"Hello from hello-tokens, x86_64 café!"</span>))
+<span class="rb-kw">print</span>(tokrs.count_tokens(<span class="rb-st">"日本語 v2.1 C++"</span>))
+<span class="rb-kw">print</span>(type(tokrs.count_tokens))
+<span class="rb-kw">print</span>(tokrs.count_tokens.__doc__)
+<span class="rb-kw">print</span>(tokrs.count_tokens.__text_signature__)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr1" aria-expanded="false">Reveal the real output</button><div id="rb-pr1" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c1_first.txt">7
+3
+&lt;class 'builtin_function_or_method'&gt;
+Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.
+(text)</pre></div></div>
+<p>Rule 3 of the program, checked: <code>x86_64</code> is 2 tokens and <code>café</code> is 1 (<code>caf</code>), and <code>日本語 v2.1 C++</code> has 3 (<code>v2</code>, <code>1</code>, <code>C</code>: the Japanese characters, the dot and the plus signs all separate). The function is a <code>builtin_function_or_method</code>, exactly like <code>len</code>, and PyO3 wrote its signature <code>(text)</code> from the Rust parameter name, so keyword calls work.</p>
+
+<h3>What Python sees when the types are wrong</h3>
+<p>Python has no compiler to stop <code>count_tokens(5)</code>, so the generated glue checks every argument at run time and raises <code>TypeError</code>. Predict each line: which calls work, and what do the others raise?</p>
+<div class="rb-snip"><div class="rb-file">c2_types.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+calls = [
+    'tokrs.count_tokens(5)',
+    'tokrs.count_tokens(b<span class="rb-st">"raw bytes"</span>)',
+    'tokrs.count_tokens(text=<span class="rb-st">"keyword works"</span>)',
+    'tokrs.count_many([<span class="rb-st">"fine"</span>, 3])',
+    'tokrs.count_many((<span class="rb-st">"a"</span>, <span class="rb-st">"tuple"</span>))',
+    'tokrs.count_many_owned((<span class="rb-st">"a"</span>, <span class="rb-st">"tuple"</span>))',
+    'tokrs.count_many_owned(<span class="rb-st">"abc"</span>)',
+    'tokrs.count_bytes(<span class="rb-st">"a str"</span>)',
+    'tokrs.count_tokens(<span class="rb-st">"\\ud800 lone surrogate"</span>)',
+]
+<span class="rb-kw">for</span> c <span class="rb-kw">in</span> calls:
+    <span class="rb-kw">try</span>:
+        r = eval(c)
+        <span class="rb-kw">print</span>(f<span class="rb-st">"&#123;c&#125;\n  -&gt; &#123;r!r&#125;"</span>)
+    <span class="rb-kw">except</span> Exception <span class="rb-kw">as</span> e:
+        notes = <span class="rb-st">""</span>.join(f<span class="rb-st">" (&#123;n&#125;)"</span> <span class="rb-kw">for</span> n <span class="rb-kw">in</span> getattr(e, <span class="rb-st">"__notes__"</span>, []))
+        <span class="rb-kw">print</span>(f<span class="rb-st">"&#123;c&#125;\n  -&gt; &#123;type(e).__name__&#125;: &#123;e&#125;&#123;notes&#125;"</span>)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr2" aria-expanded="false">Reveal the real output</button><div id="rb-pr2" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c2_types.txt">tokrs.count_tokens(5)
+  -&gt; TypeError: 'int' object is not an instance of 'str' (while processing 'text')
+tokrs.count_tokens(b"raw bytes")
+  -&gt; TypeError: 'bytes' object is not an instance of 'str' (while processing 'text')
+tokrs.count_tokens(text="keyword works")
+  -&gt; 2
+tokrs.count_many(["fine", 3])
+  -&gt; TypeError: 'int' object is not an instance of 'str'
+tokrs.count_many(("a", "tuple"))
+  -&gt; TypeError: 'tuple' object is not an instance of 'list' (while processing 'texts')
+tokrs.count_many_owned(("a", "tuple"))
+  -&gt; [1, 1]
+tokrs.count_many_owned("abc")
+  -&gt; TypeError: Can't extract `str` to `Vec` (while processing 'texts')
+tokrs.count_bytes("a str")
+  -&gt; TypeError: 'str' object is not an instance of 'bytes' (while processing 'data')
+tokrs.count_tokens("\ud800 lone surrogate")
+  -&gt; UnicodeEncodeError: 'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed (while processing 'text')</pre></div></div>
+<p>Four lessons from the real output. (1) PyO3 adds a note naming the parameter (<code>while processing 'text'</code>, shown by Python 3.11+ as an exception note). (2) <code>&amp;Bound&lt;PyList&gt;</code> accepts exactly a <code>list</code>, so a tuple is refused, while <code>Vec&lt;String&gt;</code> accepts any sequence (a tuple worked) but deliberately refuses a <code>str</code>, which is also a sequence and a classic bug. (3) Inside <code>count_many</code> the item check runs after argument parsing, so its error has no note: say which item failed in your own messages. (4) A <code>str</code> holding a lone surrogate (legal in Python, not in UTF-8) cannot become <code>&amp;str</code> and raises <code>UnicodeEncodeError</code>.</p>
+
+<h3>The types in those signatures</h3>
+<div class="tw"><table class="rb-t"><thead><tr><th>Rust type</th><th>What it is</th><th>Python analogy</th></tr></thead><tbody>
+<tr><td><code>Python&lt;'py&gt;</code></td><td>A zero-size token proving this thread is attached to the interpreter (holds the GIL on a normal build). You get it as a parameter or from a <code>Bound</code>.</td><td>Being inside the interpreter at all; Python code always is</td></tr>
+<tr><td><code>Bound&lt;'py, T&gt;</code></td><td>A strong reference to a Python object of type <code>T</code> (<code>PyList</code>, <code>PyDict</code>, <code>PyAny</code>), usable only while attached. Dropping it decrements the refcount.</td><td>Any ordinary variable holding an object</td></tr>
+<tr><td><code>Py&lt;T&gt;</code></td><td>The same reference without the <code>'py</code> lifetime: can be stored in a struct or sent to another thread; call <code>.bind(py)</code> to use it.</td><td>An object kept in a global or a queue</td></tr>
+<tr><td><code>PyResult&lt;T&gt;</code></td><td><code>Result&lt;T, PyErr&gt;</code>: <code>Err</code> becomes a raised exception (section 6).</td><td>return or raise</td></tr>
+</tbody></table></div>
+<p>The <code>'py</code> is a <b>lifetime</b> ({{Part 1|#t-ra-read}}, section 6, explains them): the compiler uses it to stop a <code>Bound</code> escaping the region where the interpreter is attached. You rarely write it out except in return types like <code>Bound&lt;'py, PyDict&gt;</code>.</p>
+</section>

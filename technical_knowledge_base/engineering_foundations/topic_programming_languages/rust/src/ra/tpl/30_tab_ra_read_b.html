@@ -1,0 +1,96 @@
+
+<section id="ra-own">
+<h2>4. Ownership and moves</h2>
+<p>First, where values live. Each function call gets a <dfn>stack frame</dfn>, a block of memory for its local variables, released automatically when the function returns. Data whose size is only known at run time (a growing vector, a string read from a file) goes on the <dfn>heap</dfn>, which someone must release explicitly. A Rust <code>String</code> or <code>Vec</code> is a small fixed-size <b>header on the stack</b> (three machine words: a pointer to the heap buffer, the capacity, the length; 24 bytes) plus <b>a buffer on the heap</b>. Python hides all of this: every object is on the heap and names are references to it.</p>
+<p>The ownership rules ({{Rust Book 4.1|https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html}}): each value has one <dfn>owner</dfn> (a variable, a field, a vector slot); when the owner goes out of scope the value is <dfn>dropped</dfn> (its heap memory freed); assigning or passing a value <b>moves</b> ownership.</p>
+[[code:lang/move.rs]]
+[[out:l_move]]
+<p>After <code>let b = a;</code> the 24-byte header was copied into <code>b</code> and <code>a</code> became unusable. The heap buffer was not copied and not freed: it now has exactly one owner again. Using <code>a</code> afterwards is refused:</p>
+[[out:l_move_err]]
+<div class="ra-py"><div class="t">The Python bridge</div>In Python, <code>b = a</code> makes two names for one object, kept alive by a reference count. Rust refuses the second name, so it never needs a count: the single owner frees the buffer at a point the compiler knows. Think of a move as handing over the only key.</div>
+<ul>
+<li><b><code>Copy</code> types</b> (integers, floats, <code>bool</code>, <code>char</code>, and tuples or arrays of them) have no heap part, so assignment copies the bits and both stay usable (<code>n</code> and <code>m</code> above).</li>
+<li><b><code>clone()</code></b> is the explicit deep copy: a second heap buffer. It is visible in the code on purpose, so you can see every place that copies data.</li>
+<li><b>Passing to a function moves</b> too (<code>shout(b)</code>); returning moves ownership back out.</li>
+</ul>
+<h3>Drop: cleanup at a known moment</h3>
+<p>A type can run code when it is dropped by implementing the <code>Drop</code> trait, which is how files close, locks release and buffers free themselves. There is no garbage collector, so the order is fixed:</p>
+[[code:lang/drop.rs]]
+[[pr:l_drop|In what order are the four <code>drop</code> lines printed?]]
+<p>Locals drop at the end of their scope in reverse order of declaration; a value moved into a function drops at the end of that function. This is C++'s RAII (resource acquisition is initialisation) made the default; Python's equivalent is <code>with</code>, which you have to remember to write.</p>
+<div class="deepnote"><b>See it drawn:</b> {{Ownership, animated|#t-ra-own}} steps through one <code>Vec</code> being borrowed, grown, moved, cloned and dropped, at the real stack and heap addresses recorded from a run, with the same program in Python as the "before".</div>
+<div class="ra-cost"><div><b>Solves</b>Use after free and double free, with no garbage collector and no reference counts.</div><div><b>Costs</b>You must decide who owns each value; sharing needs borrowing (section 5) or explicit shared ownership (section 15).</div><div><b>Common mistake</b>Sprinkling <code>.clone()</code> until it compiles. Fine for small values; in a hot loop it allocates on every iteration. Borrow first.</div></div>
+</section>
+
+<section id="ra-borrow">
+<h2>5. Borrowing: many readers or one writer</h2>
+<p>Moving everything everywhere would be unbearable, so you lend a value instead: a <dfn>reference</dfn> <code>&amp;v</code> borrows it without taking ownership. Two kinds:</p>
+<ul>
+<li><code>&amp;T</code>, a <dfn>shared</dfn> reference: read only; any number at once.</li>
+<li><code>&amp;mut T</code>, an <dfn>exclusive</dfn> (mutable) reference: may change the value; while it is in use, no other reference to that value may be.</li>
+</ul>
+[[code:lang/borrow.rs]]
+[[out:l_borrow]]
+<p>The part of the compiler that enforces this is the <dfn>borrow checker</dfn>. A borrow lasts from where it is created <b>to its last use</b>, not to the end of the block (the Book: "a reference's scope starts from where it is introduced and continues through the last time that reference is used"). That is why <code>add_one(&amp;mut v)</code> is accepted above: <code>a</code> and <code>b</code> are never used again.</p>
+<h3>The canonical error, and why it is a real bug</h3>
+<p>The old page's "gate" question: why does this fail to compile?</p>
+[[code:lang/gate_err.rs]]
+[[out:l_gate_err]]
+<p><code>first</code> points <i>into</i> the vector's heap buffer. <code>push</code> may find the buffer full, allocate a bigger one, copy the elements and free the old one; <code>first</code> would then point at freed memory. In C++ the same code compiles and reads freed memory (the root page runs it: Reading section 5). The animation below draws each borrow as a bar from creation to last use; a red overlap is what the checker refuses.</p>
+<div class="card" id="ra-nll-card">
+<div class="seg" id="ra-nll-seg"><button data-m="err" class="on">As written (refused)</button><button data-m="reorder">Last use moved up</button><button data-m="fix">Copy the value</button></div>
+<div class="ra-ctl" id="ra-nll-ctl"></div>
+<div class="ra-tl" id="ra-nll-code"></div>
+<div class="ra-leg"><span><i style="background:var(--c1)"></i>shared borrow <code>&amp;v</code> alive</span><span><i style="background:var(--c2)"></i>exclusive borrow <code>&amp;mut v</code> (push)</span><span><i style="background:var(--ra-red)"></i>conflict</span></div>
+<div class="ra-cap" id="ra-nll-cap"></div>
+<pre class="ra-out" id="ra-nll-out"></pre>
+</div>
+<p>Two fixes, both recorded: use the reference before mutating (its last use moves up, so the bars no longer overlap), or copy the <code>i32</code> out (no borrow at all). Both are what you would do in Python if you knew the list might move.</p>
+<h3>How to read a borrow error</h3>
+<ol>
+<li><b>The code and headline</b> (<code>E0502</code>, "cannot borrow <code>v</code> as mutable because it is also borrowed as immutable") say which rule broke.</li>
+<li><b>The labels are a story in source order:</b> where the first borrow starts, where the conflicting use happens, and where the first borrow is <i>later used</i>. That third label is the key: it is the reason the first borrow is still alive.</li>
+<li><b>The fix is nearly always one of four:</b> end the first borrow earlier (move its last use up), copy or clone the small value out, restructure into "read first, then write", or give the data a different owner. <code>help:</code> lines often propose one; they are usually right for the code as written, and not always right for your design.</li>
+<li><code>rustc --explain E0502</code> prints a full explanation with examples (also online in the {{error code index|https://doc.rust-lang.org/error_codes/error-index.html}}).</li>
+</ol>
+<div class="deepnote"><b>Practise:</b> {{the Borrow-checker lab|#t-ra-bc}} has fifteen scenarios (moves in loops, two <code>&amp;mut</code>, mutating while iterating, threads, a case where today's checker is wrong) with the real error, how to read it, and the fix.</div>
+<div class="ra-cost"><div><b>Solves</b>Dangling references, iterator invalidation, and (section 16) data races, all before the program runs.</div><div><b>Costs</b>Some correct programs are refused, and graph-shaped data (doubly linked lists, object graphs with back pointers) needs indexes or the tools of section 15.</div><div><b>When it fights you</b>Fighting usually means two parts of the code both want to own or change the same data. Make one the owner and have the other ask it, or store indexes instead of references.</div></div>
+</section>
+
+<section id="ra-life">
+<h2>6. Lifetimes in plain words</h2>
+<p>A <dfn>lifetime</dfn> is the stretch of the program during which a reference is valid. The checker computes them itself almost everywhere. You write one, as <code>'a</code>, only when a function returns a reference (or a struct holds one) and the compiler cannot tell which input it came from:</p>
+[[out:l_life_err]]
+<p>Read <code>'a</code> as a name for "some region of the program". The fixed signature says: the result is valid as long as <b>both</b> inputs are. Lifetimes generate no code; they are a contract the checker verifies at every call.</p>
+[[code:lang/life.rs]]
+[[out:l_life]]
+<p>Breaking the contract at a call site: <code>b</code> dies at the inner closing brace, but <code>w</code>, which may point into <code>b</code>, is used after it.</p>
+[[code:lang/life_err2.rs:5-13]]
+[[out:l_life_err2]]
+<p>When do you write them? The {{elision rules|https://doc.rust-lang.org/reference/lifetime-elision.html}} fill in the common cases: each input reference gets its own lifetime; if there is exactly one input lifetime, outputs get it (<code>first_word</code>); in a method taking <code>&amp;self</code>, outputs get <code>self</code>'s. So you write lifetimes when a function has two or more reference inputs and returns a reference, or a struct stores a reference. <code>'static</code> means "valid for the whole program": string literals are <code>&amp;'static str</code> because they live in the program's binary.</p>
+<p>What no lifetime can do is make a reference to a value that is about to die, because annotations describe lifetimes and never extend them:</p>
+[[code:lang/dangle_err.rs]]
+[[out:l_dangle_err]]
+<p>The fix is to return the owned <code>String</code>. That is the general rule of thumb: <b>if "just add a lifetime" spreads <code>'a</code> through many types, store an owned value instead</b>; borrowing in structs is an optimisation for later.</p>
+</section>
+
+<section id="ra-str">
+<h2>7. Strings and slices: String vs &amp;str, and UTF-8</h2>
+<p>A <dfn>slice</dfn> is a borrowed view into a run of elements owned by someone else: a pointer and a length. <code>&amp;[u64]</code> is a slice of numbers (borrowed from a <code>Vec</code>, an array or part of either); <code>&amp;str</code> is a slice of text. Rust has two main string types:</p>
+<div class="tw"><table><thead><tr><th></th><th><code>String</code></th><th><code>&amp;str</code></th></tr></thead><tbody>
+<tr><td>What</td><td>owned, growable text on the heap</td><td>a borrowed view of text (in a <code>String</code>, a literal, a file buffer)</td></tr>
+<tr><td>Size on the stack</td><td>24 bytes (pointer, capacity, length)</td><td>16 bytes (pointer, length)</td></tr>
+<tr><td>Use for</td><td>struct fields, return values, building text</td><td>function parameters that only read</td></tr>
+<tr><td>Make one</td><td><code>String::from("x")</code>, <code>"x".to_string()</code>, <code>format!(...)</code></td><td><code>&amp;s</code>, <code>&amp;s[a..b]</code>, <code>"literal"</code></td></tr>
+</tbody></table></div>
+<p>Both are always valid <b>UTF-8</b>, and lengths and indexes are in <b>bytes</b>. Python's <code>str</code> counts code points. On the same text:</p>
+[[code:lang/strings.rs]]
+<div class="ra-two"><div>[[out:l_strings]]</div><div>[[out:l_strings_py]]</div></div>
+<ul>
+<li><code>len()</code> is 20 bytes for 10 characters: <code>é</code> takes 2 bytes, each of <code>日本語</code> 3, the crab 4. Python's <code>len</code> is 10.</li>
+<li>Slicing takes byte offsets and panics if one lands inside a character, as the last line shows. Iterate with <code>chars()</code> (code points) or <code>char_indices()</code> (code points with their byte offsets).</li>
+<li><code>s[0]</code> does not compile at all, because a byte index would not give a character:</li>
+</ul>
+[[out:l_index_err]]
+<p>Take <code>&amp;str</code> in parameters (<code>count_words(text: &amp;str)</code> accepts <code>&amp;owned</code> and a literal alike; that is the <code>ptr_arg</code> lint of section 1) and return <code>String</code> when you build new text. Note also that a "character" a user sees may be several code points (an emoji with a skin tone); neither language's <code>len</code> counts those.</p>
+</section>

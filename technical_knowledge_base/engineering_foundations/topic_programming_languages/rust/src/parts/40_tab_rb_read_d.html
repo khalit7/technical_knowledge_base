@@ -1,0 +1,133 @@
+
+<section id="rb-s6">
+<h2>6. Errors become exceptions; panics become <code>PanicException</code></h2>
+<p>Rust has no exceptions: a function that can fail returns <code>Result&lt;T, E&gt;</code>, and <code>?</code> returns early with the error ({{Part 1|#t-ra-read}}, section 9, covers both). PyO3 maps this onto Python: return <code>PyResult&lt;T&gt;</code>, and an <code>Err(PyErr)</code> is raised as an exception when the call returns. Many Rust errors convert by themselves: <code>std::io::Error</code> becomes the matching <code>OSError</code> subclass (<code>FileNotFoundError</code>, <code>PermissionError</code>), a failed UTF-8 decode becomes <code>UnicodeDecodeError</code>. For your own error kinds, declare a Python exception class from Rust:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code">create_exception!(tokrs, MalformedLine, PyException, <span class="rb-st">"A JSONL line that is not a chat message."</span>);
+
+<span class="rb-cm">/// Parse one line or raise. `?` turns each Rust error into a Python exception.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> parse_line(line: &amp;str) -&gt; PyResult&lt;(String, u64)&gt; &#123;
+    <span class="rb-kw">if</span> line.trim().is_empty() &#123;
+        <span class="rb-kw">return</span> Err(PyValueError::new_err(<span class="rb-st">"empty line"</span>));
+    &#125;
+    <span class="rb-kw">let</span> m: Message = serde_json::from_str(line)
+        .map_err(|e| MalformedLine::new_err(format!(<span class="rb-st">"&#123;e&#125;"</span>)))?;
+    Ok((m.user, tokens(m.text.as_bytes())))
+&#125;
+
+<span class="rb-cm">/// A bug, not an error: a Rust panic reaches Python as pyo3_runtime.PanicException.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> first_token_len(text: &amp;str) -&gt; usize &#123;
+    <span class="rb-kw">let</span> words: Vec&lt;&amp;str&gt; = text.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    words[0].len() <span class="rb-cm">// panics on a text with no tokens: index out of bounds</span>
+&#125;</pre></div>
+<p><code>map_err</code> turns serde's error into a <code>MalformedLine</code> carrying serde's message; <code>?</code> then raises it. A <b>panic</b> is different: it is Rust's reaction to a bug (an index out of bounds, an <code>unwrap()</code> on <code>None</code>), not an expected failure. PyO3 catches it at the boundary so it cannot unwind into C code, and raises <code>pyo3_runtime.PanicException</code>.</p>
+<div class="rb-snip"><div class="rb-file">c5_errors.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+good = '&#123;<span class="rb-st">"user"</span>: <span class="rb-st">"u0029"</span>, <span class="rb-st">"text"</span>: <span class="rb-st">"attention is all you need"</span>&#125;'
+<span class="rb-kw">print</span>(tokrs.parse_line(good))
+<span class="rb-kw">for</span> line <span class="rb-kw">in</span> ['&#123;<span class="rb-st">"user"</span>: 17, <span class="rb-st">"text"</span>: <span class="rb-st">"hi"</span>&#125;', '&#123;<span class="rb-st">"user"</span>: <span class="rb-st">"u1"</span>, <span class="rb-st">"text"</span>: <span class="rb-st">"unterminated', "</span>   "]:
+    <span class="rb-kw">try</span>:
+        tokrs.parse_line(line)
+    <span class="rb-kw">except</span> tokrs.MalformedLine <span class="rb-kw">as</span> e:
+        <span class="rb-kw">print</span>(<span class="rb-st">"MalformedLine:"</span>, e)
+    <span class="rb-kw">except</span> ValueError <span class="rb-kw">as</span> e:
+        <span class="rb-kw">print</span>(<span class="rb-st">"ValueError:"</span>, e)
+<span class="rb-kw">print</span>(tokrs.MalformedLine.__mro__)
+
+<span class="rb-kw">try</span>:
+    tokrs.tally_file(<span class="rb-st">"no_such_file.jsonl"</span>)
+<span class="rb-kw">except</span> OSError <span class="rb-kw">as</span> e:
+    <span class="rb-kw">print</span>(f<span class="rb-st">"&#123;type(e).__name__&#125;: &#123;e&#125;"</span>)
+
+<span class="rb-kw">print</span>(tokrs.first_token_len(<span class="rb-st">"hello world"</span>))
+<span class="rb-kw">try</span>:
+    tokrs.first_token_len(<span class="rb-st">"!!!"</span>)
+<span class="rb-kw">except</span> Exception <span class="rb-kw">as</span> e:
+    <span class="rb-kw">print</span>(<span class="rb-st">"caught by except Exception:"</span>, type(e).__name__)
+<span class="rb-kw">except</span> BaseException <span class="rb-kw">as</span> e:
+    <span class="rb-kw">print</span>(<span class="rb-st">"only caught by except BaseException:"</span>, type(e).__name__, <span class="rb-st">"|"</span>, e)
+    <span class="rb-kw">print</span>(type(e).__mro__)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr4" aria-expanded="false">Reveal the real output</button><div id="rb-pr4" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c5_errors.txt">('u0029', 5)
+MalformedLine: invalid type: integer `17`, expected a string at line 1 column 11
+MalformedLine: EOF while parsing a string at line 1 column 36
+ValueError: empty line
+(&lt;class 'tokrs.MalformedLine'&gt;, &lt;class 'Exception'&gt;, &lt;class 'BaseException'&gt;, &lt;class 'object'&gt;)
+FileNotFoundError: No such file or directory (os error 2)
+5
+
+thread '&lt;unnamed&gt;' (16677647) panicked at src/lib.rs:285:10:
+index out of bounds: the len is 0 but the index is 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+only caught by except BaseException: PanicException | index out of bounds: the len is 0 but the index is 0
+(&lt;class 'pyo3_runtime.PanicException'&gt;, &lt;class 'BaseException'&gt;, &lt;class 'object'&gt;)</pre></div></div>
+<p>Look at the last two lines: <code>PanicException</code> derives from <code>BaseException</code>, not <code>Exception</code>, so <code>except Exception:</code> does not catch it (PyO3's source says why: "Like SystemExit, this exception is derived from BaseException so that it will typically propagate all the way through the stack and cause the Python interpreter to exit", <a href="https://github.com/PyO3/pyo3/blob/v0.29.3/src/panic.rs" target="_blank" rel="noopener noreferrer">src/panic.rs</a>). Rust's panic handler also printed its own three lines to stderr (<code>thread '&lt;unnamed&gt;' ... panicked at src/lib.rs</code>) before Python saw the exception. Treat a <code>PanicException</code> in production as a bug report: fix the Rust (return a <code>PyResult</code> instead), do not catch it. And the <code>FileNotFoundError</code> message is Rust's (<code>No such file or directory (os error 2)</code>), not Python's usual wording.</p>
+</section>
+
+<section id="rb-s7">
+<h2>7. Classes: <code>#[pyclass]</code> keeps Rust state between calls</h2>
+<p>Section 4's third rule said: when data goes back and forth, keep it on one side. A <code>#[pyclass]</code> is how: a Rust struct that Python sees as a class. The Python object owns the struct; methods run on it in place, so the per-user table never crosses the boundary until you ask for a result.</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// A running per-user counter that lives across calls.</span>
+#[pyclass(module = <span class="rb-st">"tokrs"</span>)]
+<span class="rb-kw">struct</span> Counter &#123;
+    per_user: HashMap&lt;String, u64&gt;,
+    lines: u64,
+&#125;
+
+<span class="rb-at">#[pymethods]</span>
+<span class="rb-kw">impl</span> Counter &#123;
+    <span class="rb-at">#[new]</span>
+    <span class="rb-kw">fn</span> new() -&gt; <span class="rb-kw">Self</span> &#123;
+        Counter &#123; per_user: HashMap::new(), lines: 0 &#125;
+    &#125;
+
+    <span class="rb-cm">/// Add one message. `&amp;mut self`: PyO3 checks at run time that nobody else holds it.</span>
+    <span class="rb-kw">fn</span> add(&amp;<span class="rb-kw">mut</span> <span class="rb-kw">self</span>, user: &amp;str, text: &amp;str) &#123;
+        <span class="rb-kw">self</span>.lines += 1;
+        *<span class="rb-kw">self</span>.per_user.entry(user.to_owned()).or_insert(0) += tokens(text.as_bytes());
+    &#125;
+
+    <span class="rb-cm">/// The n heaviest users, ties by id (rule 5).</span>
+    <span class="rb-at">#[pyo3(signature = (n=5))]</span>
+    <span class="rb-kw">fn</span> top(&amp;<span class="rb-kw">self</span>, n: usize) -&gt; Vec&lt;(String, u64)&gt; &#123;
+        <span class="rb-kw">let</span> <span class="rb-kw">mut</span> v: Vec&lt;(String, u64)&gt; = <span class="rb-kw">self</span>.per_user.iter().map(|(u, c)| (u.clone(), *c)).collect();
+        v.sort_by(|a, b| b.1.cmp(&amp;a.1).then_with(|| a.0.cmp(&amp;b.0)));
+        v.truncate(n);
+        v
+    &#125;
+
+    <span class="rb-at">#[getter]</span>
+    <span class="rb-kw">fn</span> total(&amp;<span class="rb-kw">self</span>) -&gt; u64 &#123;
+        <span class="rb-kw">self</span>.per_user.values().sum()
+    &#125;
+
+    <span class="rb-kw">fn</span> __len__(&amp;<span class="rb-kw">self</span>) -&gt; usize &#123;
+        <span class="rb-kw">self</span>.per_user.len()
+    &#125;
+
+    <span class="rb-kw">fn</span> __repr__(&amp;<span class="rb-kw">self</span>) -&gt; String &#123;
+        format!(<span class="rb-st">"Counter(users=&#123;&#125;, lines=&#123;&#125;, tokens=&#123;&#125;)"</span>, <span class="rb-kw">self</span>.per_user.len(), <span class="rb-kw">self</span>.lines, <span class="rb-kw">self</span>.total())
+    &#125;
+&#125;</pre></div>
+<p><code>#[new]</code> is <code>__init__</code> (strictly <code>__new__</code>), <code>#[getter]</code> makes a read-only property, and methods named like Python's special methods (<code>__len__</code>, <code>__repr__</code>) become them. <code>&amp;self</code> methods read; <code>&amp;mut self</code> methods write. Python has no borrow checker, so PyO3 enforces Rust's rule (many readers or one writer) at run time with a flag in each object.</p>
+<div class="rb-snip"><div class="rb-file">c6_class.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+c = tokrs.Counter()
+c.add(<span class="rb-st">"u0029"</span>, <span class="rb-st">"attention is all you need"</span>)
+c.add(<span class="rb-st">"u0005"</span>, <span class="rb-st">"x86_64 café"</span>)
+c.add(<span class="rb-st">"u0029"</span>, <span class="rb-st">"v2.1 of the model"</span>)
+<span class="rb-kw">print</span>(c, len(c), c.total)
+<span class="rb-kw">print</span>(c.top(), c.top(n=1))
+<span class="rb-kw">for</span> stmt <span class="rb-kw">in</span> [<span class="rb-st">"c.total = 0"</span>, <span class="rb-st">"c.extra = 1"</span>, <span class="rb-st">"class Mine(tokrs.Counter): pass"</span>, <span class="rb-st">"c.add('u1')"</span>]:
+    <span class="rb-kw">try</span>:
+        exec(stmt)
+        <span class="rb-kw">print</span>(stmt, <span class="rb-st">"-&gt; ok"</span>)
+    <span class="rb-kw">except</span> Exception <span class="rb-kw">as</span> e:
+        <span class="rb-kw">print</span>(stmt, <span class="rb-st">"-&gt;"</span>, f<span class="rb-st">"&#123;type(e).__name__&#125;: &#123;e&#125;"</span>)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr5" aria-expanded="false">Reveal the real output</button><div id="rb-pr5" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c6_class.txt">Counter(users=2, lines=3, tokens=13) 2 13
+[('u0029', 10), ('u0005', 3)] [('u0029', 10)]
+c.total = 0 -&gt; AttributeError: attribute 'total' of 'tokrs.Counter' objects is not writable
+c.extra = 1 -&gt; AttributeError: 'tokrs.Counter' object has no attribute 'extra' and no __dict__ for setting new attributes
+class Mine(tokrs.Counter): pass -&gt; TypeError: type 'tokrs.Counter' is not an acceptable base type
+c.add('u1') -&gt; TypeError: Counter.add() missing 1 required positional argument: 'text'</pre></div></div>
+<p>Unlike a Python class, a <code>#[pyclass]</code> has no <code>__dict__</code> (no new attributes), its getters are read-only, and it cannot be subclassed unless you write <code>#[pyclass(subclass)]</code>. Its fields cannot be <code>Bound</code> (no lifetimes in a pyclass): store <code>Py&lt;T&gt;</code> if it must hold Python objects. On a normal build the GIL serialises calls, so the borrow flag never trips; section 9 shows what happens on free-threaded Python.</p>
+<div class="rb-cost"><div><div class="t">Solves</div>State that lives across calls without re-converting it: a tokenizer's vocabulary, a parser's buffers, an index.</div><div><div class="t">Costs</div>Each method call is still a crossing (about 30 to 70 ns); keep methods coarse (<code>add_many</code> over <code>add</code>).</div><div><div class="t">Mistake</div>Returning a large Rust collection from a getter on every access: it is converted (copied) each time.</div></div>
+</section>

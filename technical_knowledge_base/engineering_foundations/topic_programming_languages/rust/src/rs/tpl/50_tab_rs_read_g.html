@@ -1,0 +1,35 @@
+<h3>6. Blocking the runtime: the mistake async makes easy</h3>
+<p>A worker thread can poll only one task at a time, and it gets the thread back only at an <code>.await</code>. A task that calls a blocking function (<code>std::thread::sleep</code>, a synchronous file read, a CPU-heavy loop) holds its worker the whole time, and every other task queued on that worker waits. Alice Ryhl (a tokio maintainer) gives the rule of thumb: "no more than 10 to 100 microseconds between each .await" ({{Async: What is blocking?|https://ryhl.io/blog/async-what-is-blocking/}}). The same three jobs as the Python page (A, B and C wait 100, 200 and 300 ms), five ways:</p>
+[[code:tok/examples/a2_trace.rs:16-41]]
+[[out:a2_trace]]
+<p>Line by line: <code>join</code> overlaps the waits (300 ms, the longest); <code>join_blocking</code> (B calls <code>std::thread::sleep</code>) takes 500 ms, and A, whose timer fired at 100 ms, could only resume after B released the thread; <code>join_offload</code> moves B's blocking call to the blocking pool with <code>spawn_blocking</code> and is back to 300 ms. The last line is the trap: the same blocking B, spawned on a 4-worker runtime, <i>also</i> finishes in 300 ms, because B blocked only one worker. The bug is still there; it shows up under load, when every worker has a B. The {{Async replay|#t-rs-async}} tab animates all five on a time axis, next to Python's and Node's recordings of the same jobs.</p>
+<div id="rs-life" class="card">
+<div class="rs-ctl" id="rs-life-ctl"></div>
+<div class="seg" id="rs-life-mode" role="group" aria-label="Where the counting runs"><button data-m="inline" class="on">Counting inline on the worker</button><button data-m="offload">Counting with spawn_blocking</button></div>
+<div id="rs-life-svg" class="rs-svg"></div>
+<div class="rs-leg"><span><i style="background:var(--bad)"></i>counting a 3.9 MB log (CPU, no .await)</span><span><i style="background:var(--good)"></i>answering /health</span><span><i style="background:var(--c4)"></i>handing the count to the blocking pool</span></div>
+<div class="rs-cap" id="rs-life-cap"></div>
+<div class="rs-cnt" id="rs-life-cnt"></div>
+</div>
+<p class="try"><b>A request's life, before and after.</b> The service with 2 async workers. Three heavy <code>/count_log</code> requests and three tiny <code>/health</code> requests arrive together. With the counting inline, a worker that picks up a heavy request is gone until it finishes, and <code>/health</code> waits behind it; with <code>spawn_blocking</code>, the workers hand the counting to the blocking pool at once and stay free. The drawing is a schedule built from the measured cost of one 3.9 MB count (<span class="ill">illustrative timing, measured ingredients</span>); the counters under it are <span class="rs-meas">measured</span>: Experiment B in the {{Service benchmark|#t-rs-bench}} tab.</p>
+<p><b>The fixes, in order of preference:</b> use the async version of the call (<code>tokio::time::sleep</code>, <code>tokio::fs</code>, an async database driver); for blocking calls you cannot avoid, <code>tokio::task::spawn_blocking</code>; for CPU-heavy parallel work, a CPU thread pool such as rayon (the {{spawn_blocking docs|https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html}}: "Specialized CPU-bound executors, such as rayon, may also be a good fit"); Part 2 uses rayon from Python ({{Reading|#t-rb-read}}).</p>
+<h3>7. Send + 'static: why tokio::spawn rejects your code</h3>
+<p>A spawned task can outlive the function that spawned it (<code>'static</code>: it may not borrow its locals) and can move to another worker thread at any <code>.await</code> (<code>Send</code>: everything it holds across an await must be safe to move between threads). Part 1 explains <code>Send</code> and <code>Sync</code> ({{Reading|#t-ra-read}}); here are the three errors they produce in async code, each with the compiler's real message and the fix.</p>
+[[pr:errs_e2_borrow_in_spawn|A task that reads a local <code>Vec</code> without <code>move</code>: compiles?]]
+<p>The fix is the one the compiler suggests: <code>async move</code> gives the task ownership (clone first if the caller still needs the data; for large shared data, clone an <code>Arc</code>).</p>
+[[pr:errs_e3_rc_across_await|An <code>Rc</code> (single-threaded reference counting) kept across an <code>.await</code> inside a spawned task: compiles?]]
+<p>Read the note lines: the error names the value (<code>cache</code>, an <code>Rc</code>), the await where it is still alive, and the bound it violates (<code>F: Future + Send + 'static</code> on <code>tokio::spawn</code>). Fix: <code>Arc</code> (atomic counting), or drop the value before the await.</p>
+[[pr:errs_e4_mutex_across_await|A <code>std::sync::Mutex</code> guard held across an <code>.await</code>: compiles?]]
+<p>This one would be a real bug even on one thread: the lock stays held while the task sleeps, so every other task that wants it blocks its worker. Fix: lock, update, unlock before awaiting (the fixed file prints <code>[[g:errs_e4_mutex_across_await_fix|^(\d+)]]</code>), or use <code>tokio::sync::Mutex</code>, whose guard can be held across awaits, when you truly must.</p>
+<h3>8. asyncio, tokio and the JS event loop side by side</h3>
+<div class="tw"><table><thead><tr><th></th><th>Python asyncio</th><th>Rust tokio</th><th>JavaScript (Node)</th></tr></thead><tbody>
+<tr><td>Calling an async function</td><td>builds a coroutine; nothing runs</td><td>builds a future; nothing runs</td><td>runs the body up to the first <code>await</code></td></tr>
+<tr><td>Runtime</td><td>in the standard library</td><td>a crate you add</td><td>built in</td></tr>
+<tr><td>Threads polling tasks</td><td>one per event loop</td><td>one per core by default</td><td>one (libuv's pool of 4 does file I/O and DNS: {{libuv docs|https://docs.libuv.org/en/v1.x/threadpool.html}})</td></tr>
+<tr><td>Fan-out</td><td><code>gather</code>, <code>TaskGroup</code></td><td><code>join!</code>, <code>JoinSet</code></td><td><code>Promise.all</code></td></tr>
+<tr><td>Cancellation</td><td><code>CancelledError</code> raised at the await</td><td>the future is dropped; <code>Drop</code> runs</td><td>none built in; <code>AbortController</code> by convention</td></tr>
+<tr><td>Blocking call inside</td><td>stalls the loop</td><td>stalls one worker</td><td>stalls the process</td></tr>
+<tr><td>Shared state across tasks</td><td>no data races on one loop (the GIL also serialises threads)</td><td>must be <code>Send</code>; checked at compile time</td><td>no shared memory except worker threads</td></tr>
+</tbody></table></div>
+<p class="small mute">Newer stable features you will see in code: <code>async fn</code> in traits (Rust 1.75, 2023-12-28) and async closures (Rust 1.85, 2025-02-20), both from the {{Rust release notes|https://github.com/rust-lang/rust/blob/master/RELEASES.md}}. The JavaScript page's Part 1 has an event-loop stepper ({{JavaScript and TypeScript page|n:3cd5c17b0d0d81dbac7be3b8686be023}}).</p>
+</section>

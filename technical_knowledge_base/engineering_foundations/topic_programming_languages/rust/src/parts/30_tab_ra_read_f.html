@@ -1,0 +1,62 @@
+
+<section id="ra-cpp">
+<h2>18. If you know some C++</h2>
+<p>Optional. Rust's ownership is C++'s RAII plus move semantics, with the compiler enforcing what the C++ Core Guidelines only recommend ({{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}, Part 1, teaches the C++ side).</p>
+<div class="tw"><table><thead><tr><th>C++</th><th>Rust</th><th>The difference</th></tr></thead><tbody>
+<tr><td><code>auto b = std::move(a);</code></td><td><code>let b = a;</code></td><td>Moves are the default and the moved-from variable is unusable (a compile error), not "valid but unspecified".</td></tr>
+<tr><td>destructor</td><td><code>impl Drop</code></td><td>Same deterministic order (reverse of declaration).</td></tr>
+<tr><td><code>const T&amp;</code>, <code>T&amp;</code></td><td><code>&amp;T</code>, <code>&amp;mut T</code></td><td>Aliasing XOR mutation is checked, so iterator invalidation and dangling references do not compile.</td></tr>
+<tr><td><code>std::string_view</code> into a temporary</td><td><code>&amp;str</code> with a lifetime</td><td>Undefined behaviour in C++; E0515 or E0597 in Rust.</td></tr>
+<tr><td>templates, concepts</td><td>generics with trait bounds</td><td>Both monomorphise; Rust checks the generic body against the bounds once, at definition, so errors are short.</td></tr>
+<tr><td><code>virtual</code></td><td><code>dyn Trait</code></td><td>Opt-in at the use site, no inheritance; the vtable pointer lives in the fat pointer, not in the object.</td></tr>
+<tr><td><code>unique_ptr</code>, <code>shared_ptr</code></td><td><code>Box</code>, <code>Rc</code>/<code>Arc</code></td><td><code>Rc</code> is a non-atomic <code>shared_ptr</code>, allowed only on one thread (not <code>Send</code>).</td></tr>
+<tr><td>exceptions, <code>std::expected</code></td><td><code>Result</code> and <code>?</code></td><td>Panics exist but are for bugs.</td></tr>
+<tr><td>everything</td><td><code>unsafe { }</code></td><td>C++'s rules apply only inside the block, and the block is searchable.</td></tr>
+</tbody></table></div>
+<p>No function overloading and no implicit conversions; prefer indexes and arenas to pointer graphs, because self-referential structs are the design Rust refuses.</p>
+</section>
+
+<section id="ra-mist">
+<h2>19. Common mistakes, and the habit that replaces each</h2>
+<details class="mist"><summary><b>Cloning until it compiles.</b></summary><div class="b">Each <code>clone()</code> of a <code>String</code> or <code>Vec</code> allocates and copies. Ask first whether the callee could borrow (<code>&amp;str</code>, <code>&amp;[T]</code>), whether the value could move, or whether its last use could come earlier. Clone small things freely; never in a hot loop without a reason.</div></details>
+<details class="mist"><summary><b><code>Rc&lt;RefCell&lt;T&gt;&gt;</code> everywhere to recreate Python's object graph.</b></summary><div class="b">It compiles and then panics at run time (section 15). Give the data one owner (often a struct holding <code>Vec</code>s) and refer to items by index.</div></details>
+<details class="mist"><summary><b><code>&amp;String</code> or <code>&amp;Vec&lt;T&gt;</code> parameters.</b></summary><div class="b">Take <code>&amp;str</code> and <code>&amp;[T]</code>: they accept more callers and are what clippy suggests (section 1).</div></details>
+<details class="mist"><summary><b>Byte indexes on text.</b></summary><div class="b"><code>s.len()</code> is bytes and <code>&amp;s[0..n]</code> panics inside a character (section 7). Use <code>chars()</code>, <code>char_indices()</code>, or a byte-level algorithm on purpose (the token counter works on bytes because tokens are ASCII).</div></details>
+<details class="mist"><summary><b><code>unwrap()</code> in library code.</b></summary><div class="b">Return <code>Result</code> and use <code>?</code>; reserve <code>expect("reason")</code> for states you can prove impossible.</div></details>
+<details class="mist"><summary><b>Expecting dict order from <code>HashMap</code>.</b></summary><div class="b">Its order changes between runs (section 12). Sort, or use <code>BTreeMap</code>, or a <code>Vec</code> of pairs.</div></details>
+<details class="mist"><summary><b>Timing a debug build.</b></summary><div class="b"><code>cargo run</code> is unoptimised; measure with <code>--release</code>. And a release build silently wraps on overflow: use <code>checked_*</code> where it matters (section 3).</div></details>
+<details class="mist"><summary><b>Lifetimes in every struct.</b></summary><div class="b">Store owned data first; borrow in structs only when a profile says the copies matter (section 6).</div></details>
+<details class="mist"><summary><b>Blocking inside async code.</b></summary><div class="b">A long computation or a blocking file read inside an <code>async fn</code> stalls every task on that thread; Part 3 shows <code>spawn_blocking</code>.</div></details>
+</section>
+
+<section id="ra-path">
+<h2>20. A path from here, and further reading</h2>
+<p>The old page's staged path, kept with its "gates" (a question you should be able to answer before moving on), now pointing at the sections and labs that teach each:</p>
+<div class="tw"><table><thead><tr><th>Stage</th><th>Learn</th><th>Gate</th></tr></thead><tbody>
+<tr><td>0. Set up</td><td>rustup, cargo, rust-analyzer in your editor (section 1)</td><td>Create a project, <code>cargo add</code> a dependency, run its tests.</td></tr>
+<tr><td>1. Foundations</td><td>sections 2 to 9, 12, 13; the {{Borrow-checker lab|#t-ra-bc}} and the {{drill|#t-ra-drill}}</td><td>Explain why <code>let first = &amp;v[0]; v.push(2); println!("{first}");</code> fails (section 5).</td></tr>
+<tr><td>2. Working proficiency</td><td>sections 10, 11, 14, 15; clippy with <code>-W clippy::pedantic</code>; a small crate with docs and tests</td><td>Design a type so an invalid state cannot be represented (section 8).</td></tr>
+<tr><td>3. Advanced</td><td>section 16, async and services ({{Part 3|#t-rs-read}}), PyO3 ({{Part 2|#t-rb-read}}), macros, profiling</td><td>Explain why <code>Rc&lt;RefCell&lt;T&gt;&gt;</code> compiles but can panic (section 15).</td></tr>
+<tr><td>4. Expert</td><td><code>unsafe</code> with Miri, FFI, the Rustonomicon, variance and trait-object rules</td><td>Write a small <code>unsafe</code> data structure, state its invariant, and show the safe API cannot break it (section 17).</td></tr>
+</tbody></table></div>
+<h3>Resources (times are reading estimates)</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://doc.rust-lang.org/book/" target="_blank" rel="noopener noreferrer">The Rust Programming Language (the Book)</a> <span class="rt">about 10 h</span></div><p>The canonical introduction, free. Chapter 4 (ownership) is the one not to skim.</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/rust-lang/rustlings" target="_blank" rel="noopener noreferrer">Rustlings</a> <span class="rt">about 8 h</span></div><p>Small exercises the compiler guides you through; pairs with the Book.</p></div>
+<div class="sp"><div class="n"><a href="https://doc.rust-lang.org/rust-by-example/" target="_blank" rel="noopener noreferrer">Rust by Example</a> <span class="rt">about 4 h</span></div><p>Runnable examples per topic, for when you want code rather than prose.</p></div>
+<div class="sp"><div class="n"><a href="https://cheats.rs/" target="_blank" rel="noopener noreferrer">cheats.rs</a> <span class="rt">about 45 min</span></div><p>The whole language on one dense page; read it once at stage 2.</p></div>
+<div class="sp"><div class="n"><a href="https://rust-unofficial.github.io/too-many-lists/" target="_blank" rel="noopener noreferrer">Learn Rust With Entirely Too Many Linked Lists</a> <span class="rt">about 4 h</span></div><p>The best cure for fighting the borrow checker: ownership, <code>Box</code>, <code>Rc</code>, <code>RefCell</code> and <code>unsafe</code> on one data structure.</p></div>
+<div class="sp"><div class="n"><a href="https://rust-for-rustaceans.com/" target="_blank" rel="noopener noreferrer">Rust for Rustaceans</a> (Jon Gjengset) <span class="rt">about 6 h</span></div><p>The intermediate-to-advanced book; his <a href="https://www.youtube.com/@jonhoo" target="_blank" rel="noopener noreferrer">streams</a> build real crates live.</p></div>
+<div class="sp"><div class="n"><a href="https://doc.rust-lang.org/nomicon/" target="_blank" rel="noopener noreferrer">The Rustonomicon</a> <span class="rt">about 3 h</span></div><p>For <code>unsafe</code>: what you must uphold and why.</p></div>
+<div class="sp"><div class="n"><a href="https://rust-lang.github.io/api-guidelines/" target="_blank" rel="noopener noreferrer">Rust API Guidelines</a> <span class="rt">about 1 h</span></div><p>How to design a library others will enjoy using.</p></div>
+<div class="sp"><div class="n"><a href="https://doc.rust-lang.org/error_codes/error-index.html" target="_blank" rel="noopener noreferrer">Compiler error index</a> <span class="rt">reference</span></div><p>Every error code with examples; the same text as <code>rustc --explain</code>.</p></div>
+<div class="sp"><div class="n"><a href="https://blog.rust-lang.org/" target="_blank" rel="noopener noreferrer">Rust blog</a> <span class="rt">about 20 min per release</span></div><p>One post per six-week release.</p></div>
+</div>
+<h3>On this knowledge base</h3>
+<ul>
+<li>{{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}: the four-language comparison (Design space, Rosetta, Benchmark, Toolchain atlas tabs).</li>
+<li>{{Part 2, Speeding up Python|#t-rb-read}} and {{Part 3, Services and CLIs|#t-rs-read}} of this page.</li>
+<li>{{C++|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} and {{Python|n:3cd5c17b0d0d81b28acdea39e7a4d998}} pages; {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}} and {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} in the SWE topic.</li>
+<li>Rust on the GPU (cutile-rs, cuda-oxide, CubeCL) belongs to {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}.</li>
+</ul>
+</section>

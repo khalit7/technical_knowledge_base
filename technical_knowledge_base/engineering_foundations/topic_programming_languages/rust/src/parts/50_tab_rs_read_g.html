@@ -1,0 +1,138 @@
+<h3>6. Blocking the runtime: the mistake async makes easy</h3>
+<p>A worker thread can poll only one task at a time, and it gets the thread back only at an <code>.await</code>. A task that calls a blocking function (<code>std::thread::sleep</code>, a synchronous file read, a CPU-heavy loop) holds its worker the whole time, and every other task queued on that worker waits. Alice Ryhl (a tokio maintainer) gives the rule of thumb: "no more than 10 to 100 microseconds between each .await" ({{Async: What is blocking?|https://ryhl.io/blog/async-what-is-blocking/}}). The same three jobs as the Python page (A, B and C wait 100, 200 and 300 ms), five ways:</p>
+<div class="rs-src"><div class="rs-fn">tok/examples/a2_trace.rs (lines 16 to 41)</div><pre class="rs-code"><span class="rs-kw">async</span> <span class="rs-kw">fn</span> job(name: &amp;str, ms: u64) -&gt; String &#123;
+    ev(name, <span class="rs-st">"start"</span>, <span class="rs-st">""</span>);
+    ev(name, <span class="rs-st">"await"</span>, &amp;<span class="rs-mac">format!</span>(<span class="rs-st">"sleep(&#123;ms&#125; ms).await"</span>));
+    tokio::time::sleep(Duration::from_millis(ms)).<span class="rs-kw">await</span>; <span class="rs-cm">// yields to the runtime</span>
+    ev(name, <span class="rs-st">"resume"</span>, <span class="rs-st">""</span>);
+    ev(name, <span class="rs-st">"done"</span>, <span class="rs-st">""</span>);
+    name.into()
+&#125;
+
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> job_blocking(name: &amp;str, ms: u64) -&gt; String &#123;
+    ev(name, <span class="rs-st">"start"</span>, <span class="rs-st">""</span>);
+    ev(name, <span class="rs-st">"block"</span>, &amp;<span class="rs-mac">format!</span>(<span class="rs-st">"std::thread::sleep(&#123;ms&#125; ms)"</span>));
+    std::thread::sleep(Duration::from_millis(ms)); <span class="rs-cm">// blocks the worker thread: nothing else runs on it</span>
+    ev(name, <span class="rs-st">"done"</span>, <span class="rs-st">""</span>);
+    name.into()
+&#125;
+
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> job_offload(name: &amp;str, ms: u64) -&gt; String &#123;
+    ev(name, <span class="rs-st">"start"</span>, <span class="rs-st">""</span>);
+    ev(name, <span class="rs-st">"await"</span>, &amp;<span class="rs-mac">format!</span>(<span class="rs-st">"spawn_blocking(sleep &#123;ms&#125; ms).await"</span>));
+    tokio::task::spawn_blocking(<span class="rs-kw">move</span> || std::thread::sleep(Duration::from_millis(ms))).<span class="rs-kw">await</span>.unwrap();
+    ev(name, <span class="rs-st">"resume"</span>, <span class="rs-st">""</span>);
+    ev(name, <span class="rs-st">"done"</span>, <span class="rs-st">""</span>);
+    name.into()
+&#125;
+</pre></div>
+<pre class="rs-out" data-rs-out="a2_trace">
+sequential             609.4 ms  order of events: A:start A:await A:resume A:done B:start B:await B:resume B:done C:start C:await C:resume C:done
+join                   303.7 ms  order of events: A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done
+join_blocking          511.2 ms  order of events: A:start A:await B:start B:block B:done C:start C:await A:resume A:done C:resume C:done
+join_offload           305.5 ms  order of events: A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done
+spawn_blocking_multi   303.8 ms  order of events: A:start A:await B:start B:block C:start C:await A:resume A:done B:done C:resume C:done</pre>
+<p>Line by line: <code>join</code> overlaps the waits (300 ms, the longest); <code>join_blocking</code> (B calls <code>std::thread::sleep</code>) takes 500 ms, and A, whose timer fired at 100 ms, could only resume after B released the thread; <code>join_offload</code> moves B's blocking call to the blocking pool with <code>spawn_blocking</code> and is back to 300 ms. The last line is the trap: the same blocking B, spawned on a 4-worker runtime, <i>also</i> finishes in 300 ms, because B blocked only one worker. The bug is still there; it shows up under load, when every worker has a B. The {{Async replay|#t-rs-async}} tab animates all five on a time axis, next to Python's and Node's recordings of the same jobs.</p>
+<div id="rs-life" class="card">
+<div class="rs-ctl" id="rs-life-ctl"></div>
+<div class="seg" id="rs-life-mode" role="group" aria-label="Where the counting runs"><button data-m="inline" class="on">Counting inline on the worker</button><button data-m="offload">Counting with spawn_blocking</button></div>
+<div id="rs-life-svg" class="rs-svg"></div>
+<div class="rs-leg"><span><i style="background:var(--bad)"></i>counting a 3.9 MB log (CPU, no .await)</span><span><i style="background:var(--good)"></i>answering /health</span><span><i style="background:var(--c4)"></i>handing the count to the blocking pool</span></div>
+<div class="rs-cap" id="rs-life-cap"></div>
+<div class="rs-cnt" id="rs-life-cnt"></div>
+</div>
+<p class="try"><b>A request's life, before and after.</b> The service with 2 async workers. Three heavy <code>/count_log</code> requests and three tiny <code>/health</code> requests arrive together. With the counting inline, a worker that picks up a heavy request is gone until it finishes, and <code>/health</code> waits behind it; with <code>spawn_blocking</code>, the workers hand the counting to the blocking pool at once and stay free. The drawing is a schedule built from the measured cost of one 3.9 MB count (<span class="ill">illustrative timing, measured ingredients</span>); the counters under it are <span class="rs-meas">measured</span>: Experiment B in the {{Service benchmark|#t-rs-bench}} tab.</p>
+<p><b>The fixes, in order of preference:</b> use the async version of the call (<code>tokio::time::sleep</code>, <code>tokio::fs</code>, an async database driver); for blocking calls you cannot avoid, <code>tokio::task::spawn_blocking</code>; for CPU-heavy parallel work, a CPU thread pool such as rayon (the {{spawn_blocking docs|https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html}}: "Specialized CPU-bound executors, such as rayon, may also be a good fit"); Part 2 uses rayon from Python ({{Reading|#t-rb-read}}).</p>
+<h3>7. Send + 'static: why tokio::spawn rejects your code</h3>
+<p>A spawned task can outlive the function that spawned it (<code>'static</code>: it may not borrow its locals) and can move to another worker thread at any <code>.await</code> (<code>Send</code>: everything it holds across an await must be safe to move between threads). Part 1 explains <code>Send</code> and <code>Sync</code> ({{Reading|#t-ra-read}}); here are the three errors they produce in async code, each with the compiler's real message and the fix.</p>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> A task that reads a local <code>Vec</code> without <code>move</code>: compiles?</summary><pre class="rs-out rs-bad" data-rs-out="errs_e2_borrow_in_spawn">
+error[E0373]: async block may outlive the current function, but it borrows `prompts`, which is owned by the current function
+ --&gt; src/main.rs:5:26
+  |
+5 |     let h = tokio::spawn(async &#123;
+  |                          ^^^^^ may outlive borrowed value `prompts`
+6 |         println!("&#123;&#125; prompts", prompts.len());
+  |                                ------- `prompts` is borrowed here
+  |
+  = note: async blocks are not executed immediately and must either take a reference or ownership of outside variables they use
+help: to force the async block to take ownership of `prompts` (and any other referenced variables), use the `move` keyword
+  |
+5 |     let h = tokio::spawn(async move &#123;
+  |                                ++++
+
+For more information about this error, try `rustc --explain E0373`.
+error: could not compile `errs` (bin "errs") due to 1 previous error</pre></details>
+<p>The fix is the one the compiler suggests: <code>async move</code> gives the task ownership (clone first if the caller still needs the data; for large shared data, clone an <code>Arc</code>).</p>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> An <code>Rc</code> (single-threaded reference counting) kept across an <code>.await</code> inside a spawned task: compiles?</summary><pre class="rs-out rs-bad" data-rs-out="errs_e3_rc_across_await">
+error: future cannot be sent between threads safely
+   --&gt; src/main.rs:8:13
+    |
+  8 |       let h = tokio::spawn(async &#123;
+    |  _____________^
+  9 | |         let cache = Rc::new(vec![1, 2, 3]);
+ 10 | |         tokio::time::sleep(Duration::from_millis(10)).await;
+ 11 | |         println!("&#123;&#125;", cache.len());
+ 12 | |     &#125;);
+    | |______^ future created by async block is not `Send`
+    |
+    = help: within `&#123;async block@src/main.rs:8:26: 8:31&#125;`, the trait `Send` is not implemented for `Rc&lt;Vec&lt;i32&gt;&gt;`
+note: future is not `Send` as this value is used across an await
+   --&gt; src/main.rs:10:55
+    |
+  9 |         let cache = Rc::new(vec![1, 2, 3]);
+    |             ----- has type `Rc&lt;Vec&lt;i32&gt;&gt;` which is not `Send`
+ 10 |         tokio::time::sleep(Duration::from_millis(10)).await;
+    |                                                       ^^^^^ await occurs here, with `cache` maybe used later
+note: required by a bound in `tokio::spawn`</pre><details class="rs-more"><summary>show the remaining 9 lines</summary><pre class="rs-out rs-bad" data-rs-rest="errs_e3_rc_across_await">
+   --&gt; ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/task/spawn.rs:176:21
+    |
+174 |     pub fn spawn&lt;F&gt;(future: F) -&gt; JoinHandle&lt;F::Output&gt;
+    |            ----- required by a bound in this function
+175 |     where
+176 |         F: Future + Send + 'static,
+    |                     ^^^^ required by this bound in `spawn`
+
+error: could not compile `errs` (bin "errs") due to 1 previous error</pre></details></details>
+<p>Read the note lines: the error names the value (<code>cache</code>, an <code>Rc</code>), the await where it is still alive, and the bound it violates (<code>F: Future + Send + 'static</code> on <code>tokio::spawn</code>). Fix: <code>Arc</code> (atomic counting), or drop the value before the await.</p>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> A <code>std::sync::Mutex</code> guard held across an <code>.await</code>: compiles?</summary><pre class="rs-out rs-bad" data-rs-out="errs_e4_mutex_across_await">
+error: future cannot be sent between threads safely
+   --&gt; src/main.rs:11:9
+    |
+ 11 | /         tokio::spawn(async move &#123;
+ 12 | |             let mut n = hits.lock().unwrap();
+ 13 | |             tokio::time::sleep(Duration::from_millis(10)).await; // still holding the lock
+ 14 | |             *n += 1;
+ 15 | |         &#125;)
+    | |__________^ future created by async block is not `Send`
+    |
+    = help: within `&#123;async block@src/main.rs:11:22: 11:32&#125;`, the trait `Send` is not implemented for `std::sync::MutexGuard&lt;'_, u64&gt;`
+note: future is not `Send` as this value is used across an await
+   --&gt; src/main.rs:13:59
+    |
+ 12 |             let mut n = hits.lock().unwrap();
+    |                 ----- has type `std::sync::MutexGuard&lt;'_, u64&gt;` which is not `Send`
+ 13 |             tokio::time::sleep(Duration::from_millis(10)).await; // still holding the lock
+    |                                                           ^^^^^ await occurs here, with `mut n` maybe used later
+note: required by a bound in `tokio::spawn`
+   --&gt; ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.53.2/src/task/spawn.rs:176:21</pre><details class="rs-more"><summary>show the remaining 8 lines</summary><pre class="rs-out rs-bad" data-rs-rest="errs_e4_mutex_across_await">
+    |
+174 |     pub fn spawn&lt;F&gt;(future: F) -&gt; JoinHandle&lt;F::Output&gt;
+    |            ----- required by a bound in this function
+175 |     where
+176 |         F: Future + Send + 'static,
+    |                     ^^^^ required by this bound in `spawn`
+
+error: could not compile `errs` (bin "errs") due to 1 previous error</pre></details></details>
+<p>This one would be a real bug even on one thread: the lock stays held while the task sleeps, so every other task that wants it blocks its worker. Fix: lock, update, unlock before awaiting (the fixed file prints <code>1</code>), or use <code>tokio::sync::Mutex</code>, whose guard can be held across awaits, when you truly must.</p>
+<h3>8. asyncio, tokio and the JS event loop side by side</h3>
+<div class="tw"><table><thead><tr><th></th><th>Python asyncio</th><th>Rust tokio</th><th>JavaScript (Node)</th></tr></thead><tbody>
+<tr><td>Calling an async function</td><td>builds a coroutine; nothing runs</td><td>builds a future; nothing runs</td><td>runs the body up to the first <code>await</code></td></tr>
+<tr><td>Runtime</td><td>in the standard library</td><td>a crate you add</td><td>built in</td></tr>
+<tr><td>Threads polling tasks</td><td>one per event loop</td><td>one per core by default</td><td>one (libuv's pool of 4 does file I/O and DNS: {{libuv docs|https://docs.libuv.org/en/v1.x/threadpool.html}})</td></tr>
+<tr><td>Fan-out</td><td><code>gather</code>, <code>TaskGroup</code></td><td><code>join!</code>, <code>JoinSet</code></td><td><code>Promise.all</code></td></tr>
+<tr><td>Cancellation</td><td><code>CancelledError</code> raised at the await</td><td>the future is dropped; <code>Drop</code> runs</td><td>none built in; <code>AbortController</code> by convention</td></tr>
+<tr><td>Blocking call inside</td><td>stalls the loop</td><td>stalls one worker</td><td>stalls the process</td></tr>
+<tr><td>Shared state across tasks</td><td>no data races on one loop (the GIL also serialises threads)</td><td>must be <code>Send</code>; checked at compile time</td><td>no shared memory except worker threads</td></tr>
+</tbody></table></div>
+<p class="small mute">Newer stable features you will see in code: <code>async fn</code> in traits (Rust 1.75, 2023-12-28) and async closures (Rust 1.85, 2025-02-20), both from the {{Rust release notes|https://github.com/rust-lang/rust/blob/master/RELEASES.md}}. The JavaScript page's Part 1 has an event-loop stepper ({{JavaScript and TypeScript page|n:3cd5c17b0d0d81dbac7be3b8686be023}}).</p>
+</section>
