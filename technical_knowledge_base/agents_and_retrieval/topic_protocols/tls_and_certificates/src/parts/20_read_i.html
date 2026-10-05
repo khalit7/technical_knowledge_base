@@ -1,0 +1,29 @@
+<section id="s-trust">
+<h2>9. Trust stores, TLS inspection and the classic failures</h2>
+<p><b>Every client has its own trust store</b>, and they are not the same file. macOS and Windows keep one in the operating system (Keychain, the Windows certificate store); browsers use the OS store or their own (Firefox); Linux distributions ship <code>/etc/ssl/certs</code>; Python's <code>requests</code> uses the <code>certifi</code> package (Mozilla's list frozen when the package was built); Node ships its own copy of Mozilla's list. So "I installed our corporate root" may have fixed one client and not the others.</p>
+<p><b>Measured: which variable does each client read?</b> A local server presented a certificate from the lab's private root; each client ran with no variable, then with exactly one variable pointing at that root (<code>src/lab/trust_matrix.py</code>; Python 3.13, requests 2.34, httpx 0.28, certifi <span id="tm-certifi"></span>, Node <span id="tm-node"></span>, macOS curl 8.7.1):</p>
+<div class="tw" id="tm-tab"></div>
+<p>Readings: <code>SSL_CERT_FILE</code> is read by OpenSSL-based tools and by Python's default context and httpx, but <b>not by requests</b>, which uses certifi unless <code>REQUESTS_CA_BUNDLE</code> or <code>CURL_CA_BUNDLE</code> is set. <code>NODE_EXTRA_CA_CERTS</code> is read only by Node, and it <i>adds</i> to the built-in list. <code>truststore</code> read none of them: it asks the operating system (Keychain on this Mac), where the lab root was not installed. And setting <code>SSL_CERT_FILE</code> <b>replaces</b> the default list rather than adding to it: <span id="tm-repl"></span> The safe pattern is a bundle file containing the public roots plus yours.</p>
+
+<h3>TLS-inspecting proxies</h3>
+<p>Many companies route traffic through a proxy that terminates TLS, inspects it and re-encrypts it with certificates signed on the fly by a company root pushed to managed laptops' OS stores. Browsers trust it (they use the OS store); Python with certifi, Node, and anything in a Docker container do not, so <code>pip install</code>, <code>huggingface_hub</code> downloads and <code>docker pull</code> fail with <code>unable to get local issuer certificate</code> while the browser works. Look at the issuer in <code>openssl s_client</code> output: if it names your company or a security vendor instead of a public CA, that is the cause. The laptop this page was built on shows a variant: a DNS filter answers some names with a block page whose certificate fails verification, so the symptom is a certificate error and the cause is DNS (the parent's Failure lab case "A TLS error caused by DNS: the name was answered by a filter").</p>
+<p><b>Fixes, best first.</b> Use the OS store from Python: pip has done so by default since version 24.2 through <code>truststore</code> ({{pip docs|https://pip.pypa.io/en/stable/topics/https-certificates/}}), and your own code can call <code>truststore.inject_into_ssl()</code>. Otherwise build one bundle (certifi's file plus the company root) and point <code>SSL_CERT_FILE</code> and <code>REQUESTS_CA_BUNDLE</code> at it; in containers, add the root to the image's system store (<code>update-ca-certificates</code>). Pin a recent <code>certifi</code>: an old one in a Docker image lacks newer roots and keeps distrusted ones.</p>
+
+<h3>Turning verification off is never the fix</h3>
+<p><code>verify=False</code>, <code>curl -k</code>, Go's <code>InsecureSkipVerify: true</code>, Node's <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code>, <code>ssl._create_unverified_context()</code>: each keeps encryption and drops authentication, which means encrypting to whoever answers, attacker included. Two subtler variants: <code>ssl.CERT_NONE</code> also turns off hostname checking, and turning off <code>check_hostname</code> while keeping <code>CERT_REQUIRED</code> accepts any valid certificate for any name, which looks secure and is not. A CI rule that greps for these strings is cheap.</p>
+
+<h3>Debugging toolkit</h3>
+<pre class="fm" style="font-size:12.5px;white-space:pre-wrap"># what does the server send, and does it verify against THIS store?
+openssl s_client -connect host:443 -servername host -showcerts -CAfile bundle.pem &lt;/dev/null
+# version, cipher and key-exchange group only (OpenSSL 3.5+ prints the group)
+openssl s_client -connect host:443 -servername host -brief &lt;/dev/null
+# what does curl negotiate and which issuer does it see?
+curl -v https://host/ -o /dev/null 2&gt;&amp;1 | grep -E 'SSL connection|issuer|subject|ALPN'
+# expiry of a local file, and of a remote host
+openssl x509 -in cert.pem -noout -enddate
+echo | openssl s_client -connect host:443 -servername host 2&gt;/dev/null | openssl x509 -noout -enddate
+# decrypt your own traffic in Wireshark: Python, curl (OpenSSL builds), Firefox and Chrome honour this
+SSLKEYLOGFILE=/tmp/keys.log python client.py      # then Wireshark: TLS, (Pre)-Master-Secret log filename</pre>
+<p class="small">The key-log mechanism is how this page decrypted its own recordings. The file holds session secrets that decrypt the recorded traffic: treat it like a password and never enable it in production.</p>
+<p><b>Monitoring.</b> Alert on days remaining on the certificate actually served (probe it, as above), not on "the renewal job succeeded": the job can succeed while the server keeps serving the old file because nothing reloaded it. With 47-day certificates, alert when less than a third of the lifetime remains.</p>
+</section>
