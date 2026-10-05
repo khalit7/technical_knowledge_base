@@ -1,0 +1,56 @@
+<section id="rd-s4">
+<h2>4. Derivatives: which way to change each number</h2>
+<p class="raise"><b>The question this step raises.</b> The model has six numbers it may change. Which of them should go up, which down, and by how much does each one matter? Trying every change would be hopeless for a real model with billions of numbers.</p>
+
+<h3>The picture: a slope</h3>
+<p>Hold everything fixed except the sat score \(z_{\text{sat}}\), and draw the loss as that one score varies. The curve falls as the score rises (a higher score for the right word is better). The <b>slope</b> of the curve at the current point says how fast the loss falls per unit of score. Drag the score and watch the slope.</p>
+<div class="card" id="rd-sl-card">
+<div class="ctl"><label>Score of sat, \(z_{\text{sat}}\): <b id="rd-sl-v">0</b><input type="range" id="rd-sl-r" min="-3" max="5" step="0.1" value="0" aria-label="Score of sat"></label></div>
+<div class="rd-svg" id="rd-sl-svg"></div>
+<div class="out" id="rd-sl-out"></div>
+</div>
+
+<h3>The words, then the formulas</h3>
+<p>The <dfn id="rd-g-deriv">derivative</dfn> of a function at a point is its slope there: the change in output divided by a tiny change in input,</p>
+\[ \frac{df}{da} \approx \frac{f(a + h) - f(a)}{h} \quad \text{for a small } h \]
+<p>When a function has several inputs, the <dfn id="rd-g-partial">partial derivative</dfn> \(\frac{\partial L}{\partial z_i}\) (the curly \(\partial\) reads "partial") is the slope along one input with the others held fixed. Collecting all of them gives the <dfn id="rd-g-grad">gradient</dfn> \(\nabla_z L\) (read "grad of \(L\) with respect to \(z\)"), a vector with one slope per input, with the same shape as \(z\). It points in the direction that increases the loss fastest, so training moves the other way.</p>
+<div class="nums"><div class="t">The numbers</div>Raise \(z_{\text{sat}}\) from 0 to 0.1 and the loss goes from 2.408 to 2.317, a change of \(-0.091\); divided by 0.1, the slope is about \(-0.91\).</div>
+
+<h3>The chain rule: multiply local slopes</h3>
+<p>The loss does not see \(z_{\text{sat}}\) directly. It sees \(p_{\text{sat}}\), which depends on \(z_{\text{sat}}\). The <dfn id="rd-g-chain">chain rule</dfn> says that the slope through a chain of steps is the product of the slopes of each step:</p>
+\[ \frac{\partial L}{\partial z_{\text{sat}}} = \frac{\partial L}{\partial p_{\text{sat}}} \cdot \frac{\partial p_{\text{sat}}}{\partial z_{\text{sat}}} \]
+<p class="plain">In plain words: if the loss falls 11 units per unit of probability, and the probability rises 0.08 per unit of score, then the loss falls about \(11 \times 0.08\) per unit of score.</p>
+<div class="nums"><div class="t">The numbers</div>\(L = -\ln p_{\text{sat}}\) has slope \(-1/p_{\text{sat}} = -11.107\). The softmax output \(p_{\text{sat}}\) has slope \(p_{\text{sat}}(1 - p_{\text{sat}})\) \(= 0.090 \times 0.910 = 0.0819\) with respect to its own score. The product is \(-11.107 \times 0.0819 = -0.910\), matching the slope measured above.</div>
+
+<h3>The famous result, derived without skipping a step: prediction minus target</h3>
+<p>Do this once by hand and you will never need to memorise it.</p>
+<ol class="steps">
+<li>Write the probability out: \(p_y = \frac{e^{z_y}}{\sum_j e^{z_j}}\).</li>
+<li>Take minus the log. The log of a fraction is the log of the top minus the log of the bottom, and \(\ln e^{z_y} = z_y\):
+\[ L = -\ln p_y = -z_y + \ln \sum_j e^{z_j} \]</li>
+<li>Differentiate the first term with respect to some score \(z_k\): \(-z_y\) has slope \(-1\) if \(k\) is the right word (\(k = y\)) and 0 otherwise.</li>
+<li>Differentiate the second term. The slope of \(\ln u\) is \(1/u\) times the slope of \(u\) (chain rule), and the only part of \(\sum_j e^{z_j}\) that moves with \(z_k\) is \(e^{z_k}\), whose slope is itself:
+\[ \frac{\partial}{\partial z_k} \ln \sum_j e^{z_j} = \frac{e^{z_k}}{\sum_j e^{z_j}} = p_k \]</li>
+<li>Add the two pieces. With \(y_k\) meaning 1 for the right word and 0 otherwise (the one-hot target):
+\[ \frac{\partial L}{\partial z_k} = p_k - y_k, \qquad \nabla_z L = p - y \]</li>
+</ol>
+<p class="plain">In plain words: push each score down by the probability the model gave it, and push the right word's score up by 1. The gradient is the prediction minus the target.</p>
+<div class="nums"><div class="t">The numbers</div>\(\nabla_z L = (0.665, 0.245, 0.090) - (0, 0, 1)\) \(= (0.665, 0.245, -0.910)\). The entries add up to 0 (adding the same amount to every score changes nothing, section 2). A finite-difference check, nudging each score by \(\pm 0.001\), gives \((0.6652, 0.2447, -0.9100)\).</div>
+<details class="mist"><summary>The same collapse for every standard loss (a question you flagged: differentiating each cost function)</summary><div class="b">
+<p>Binary cross-entropy on a sigmoid output \(p = \sigma(z) = 1/(1 + e^{-z})\): \(\partial L/\partial p = \frac{p - y}{p(1 - p)}\) and \(\sigma'(z) = p(1 - p)\), so their product is \(\partial L/\partial z = p - y\). Squared error \((\hat{y} - y)^2\) on an identity output: \(2(\hat{y} - y)\) (times \(1/n\) for a mean over \(n\) examples). All three are prediction minus target, because each pairs a distribution with its natural output function (sigmoid for Bernoulli, softmax for categorical, identity for Gaussian). Pair them wrongly, for example squared error on a sigmoid, and an extra factor \(p(1 - p)\) remains, which goes to 0 when the model is confidently wrong: at \(z = -6\) with \(y = 1\), cross-entropy's slope is \(-0.9975\) but squared error's is \(-0.0049\), about 200 times smaller, so learning stalls exactly when it is most needed.</p></div></details>
+
+<h3>From the scores back to the weights: backpropagation</h3>
+<p>Each score is \(z_i = \sum_j W_{ij} x_j\), so nudging the weight \(W_{ij}\) moves \(z_i\) by \(x_j\) per unit. By the chain rule, \(\partial L/\partial W_{ij} = g_i\, x_j\), where \(g = \nabla_z L\). For the whole matrix, and for the input:</p>
+\[ \nabla_W L = g\, x^\top, \qquad \nabla_x L = W^\top g \]
+<dl class="sym">
+<dt>\(g\, x^\top\)</dt><dd>a column (3 entries) times a row (2 entries): a \(3 \times 2\) matrix, the same shape as \(W\). Every gradient has the shape of the thing it is the gradient of.</dd>
+<dt>\(W^\top g\)</dt><dd>the transpose sends the 3 slopes back to the 2 inputs: what an earlier layer would receive.</dd>
+</dl>
+<div class="nums"><div class="t">The numbers</div>\(\nabla_W L\) has rows cat \((1.330, 0.665)\), dog \((0.489, 0.245)\), sat \((-1.820, -0.910)\): each row is \(g_i\) times \((2, 1)\), so it has rank 1, as promised in section 1. \(\nabla_x L = (-0.245, 2.065)\).</div>
+<details class="mist"><summary>Optional: what backpropagation costs, and why memory runs out first</summary><div class="b">
+<p><dfn id="rd-g-backprop">Backpropagation</dfn> is the chain rule run from the loss backwards, one layer at a time. Each layer receives the gradient with respect to its output, a vector \(v\), and passes back the gradient with respect to its input, \(v^\top J\), where \(J\) is the layer's <dfn id="rd-g-jacobian">Jacobian</dfn> (the table of every output's slope with respect to every input). This <dfn id="rd-g-vjp">vector-Jacobian product</dfn> is computed directly (here \(W^\top g\)), never by building \(J\), which for a real layer would be enormous. Notice the cost: the forward pass did one matrix product (\(Wx\)); the backward pass does two (\(g x^\top\) for the weights and \(W^\top g\) for the input). That is why a backward pass costs about twice a forward pass, and why training costs about 6 floating-point operations per parameter (embeddings aside) per token, 2 forward and 4 backward ({{Kaplan et al. 2020, section 2.1|https://arxiv.org/abs/2001.08361}}). It also needs the forward pass's inputs (\(x\) here) to be kept in memory until the backward pass uses them, which is why memory, not arithmetic, usually runs out first; activation checkpointing stores only some of them and recomputes the rest, training an \(n\)-layer network in memory proportional to \(\sqrt{n}\) for the cost of one extra forward pass ({{Chen et al. 2016|https://arxiv.org/abs/1604.06174}}).
+</div></details></p>
+
+<div class="use"><div class="t">What it is used for in ML</div>Every training run (autograd frameworks run exactly this); checking a hand-written gradient with finite differences; diagnosing vanishing or exploding gradients; numerical stability (frameworks fuse softmax and cross-entropy so the gradient never divides by a tiny probability); memory planning for large models.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Gradient lab|#t-grad}} shows every gradient of this model live and checks it by finite differences; the symbols \(\partial\), \(\nabla\) and \(\top\) and the two layout conventions for derivatives are in the {{Notation decoder|#t-notation}}; derive the sigmoid and MSE gradients in {{Practice drills|#t-drill}}; Jacobians, Hessian-vector products and forward against reverse mode: a calculus and optimisation child page is coming. Memory at scale: {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</div>
+</section>

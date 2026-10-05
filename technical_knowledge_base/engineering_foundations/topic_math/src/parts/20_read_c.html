@@ -1,0 +1,57 @@
+<section id="rd-s2">
+<h2>2. Probability: from scores to a bet, and the price of a wrong bet</h2>
+<p class="raise"><b>The question this step raises.</b> The scores \((2, 1, 0)\) are not probabilities: scores can be negative and need not add up to 1. How does the model turn them into a bet over the three words, and once the right word is revealed, how do we put a number on how bad the bet was?</p>
+
+<h3>The picture: softmax</h3>
+<p>Softmax does two things. It makes every score positive by raising the number \(e\) to it, and then it divides by the total so the results add up to 1. Press play to watch the three bars go through both moves; then pick a temperature to see the same scores turned into a sharper or flatter bet.</p>
+<div class="card" id="rd-sm-card">
+<div class="seg" id="rd-sm-seg" role="group" aria-label="Temperature"><button data-m="0.5">T = 0.5 (sharper)</button><button data-m="1" class="on">T = 1 (plain softmax)</button><button data-m="2">T = 2 (flatter)</button><button data-m="5">T = 5</button></div>
+<div class="rd-svg" id="rd-sm-svg"></div>
+<div class="an-ctl" id="rd-sm-ctl"></div>
+<div class="an-cap" id="rd-sm-cap"></div>
+</div>
+
+<h3>The words, then the formula</h3>
+<p>A <dfn id="rd-g-dist">probability distribution</dfn> over the vocabulary is one number per word, each between 0 and 1, adding up to 1. Picking one word with these probabilities is a draw from a <dfn id="rd-g-categorical">categorical distribution</dfn> (the many-sided version of a coin flip). <dfn id="rd-g-softmax">Softmax</dfn> builds one from any scores:</p>
+\[ p_i = \frac{e^{z_i}}{\sum_{j=1}^{V} e^{z_j}} \]
+<dl class="sym">
+<dt>\(e\)</dt><dd>Euler's number, about 2.718. \(e^{z}\) (the <dfn id="rd-g-exp">exponential</dfn>, also written \(\exp(z)\)) is always positive and multiplies by 2.718 each time \(z\) grows by 1.</dd>
+<dt>\(z_i\)</dt><dd>the score (logit) of word \(i\), from section 1.</dd>
+<dt>\(p_i\)</dt><dd>the probability the model gives word \(i\).</dd>
+<dt>\(V\)</dt><dd>the vocabulary size, 3 here; the sum in the denominator runs over every word.</dd>
+</dl>
+<p class="plain">In plain words: exponentiate every score, then share 100% out in proportion.</p>
+<div class="nums"><div class="t">The numbers</div>
+\(e^{z} = (e^2, e^1, e^0) = (7.389, 2.718, 1)\), which add to 11.107. Dividing, \(p = (0.665, 0.245, 0.090)\): cat 66.5%, dog 24.5%, sat 9.0%. Adding 10 to every score gives exactly the same \(p\), because every \(e^{z_i}\) is multiplied by the same \(e^{10}\), which cancels: only differences between scores matter.</div>
+<p>A <dfn id="rd-g-temp">temperature</dfn> \(T\) divides the scores first, \(p_i \propto e^{z_i / T}\) (the symbol \(\propto\) means "proportional to": divide by the total afterwards). At \(T = 0.5\) the bet sharpens to \((0.867, 0.117, 0.016)\); at \(T = 2\) it flattens to \((0.506, 0.307, 0.186)\). Language models sample text this way, and contrastive models such as CLIP learn their temperature.</p>
+
+<h3>Scoring the bet: likelihood and the loss</h3>
+<p>The right word was sat. The <dfn id="rd-g-likelihood">likelihood</dfn> of the model is the probability it gave to what actually happened: 0.090. Over many sentences that are <dfn id="rd-g-iid">independent</dfn> (no sentence tells you anything about another), the probability of all of them is the product of each one's probability. Products of thousands of small numbers underflow to zero on a computer, so we take the logarithm, which turns products into sums: \(\ln(ab) = \ln a + \ln b\). The log of a probability is negative, so we flip the sign to get a positive number that is small when the bet was good. That is the <dfn id="rd-g-nll">negative log-likelihood</dfn> (NLL), and it is the loss:</p>
+\[ L = -\ln p_y \]
+<dl class="sym">
+<dt>\(y\)</dt><dd>the index of the right word (sat). Training data supplies it.</dd>
+<dt>\(p_y\)</dt><dd>the probability the model gave to the right word.</dd>
+<dt>\(\ln\)</dt><dd>the natural logarithm, the inverse of \(e^{z}\): \(\ln e^{z} = z\), \(\ln 1 = 0\), and \(\ln p\) is negative for any \(p\) below 1.</dd>
+</dl>
+<p class="plain">In plain words: the loss is how much probability you failed to put on the truth, on a log scale. A perfect bet (\(p_y = 1\)) costs 0; a bet that gave the truth almost nothing costs a lot, without limit.</p>
+<div class="nums"><div class="t">The numbers</div>
+\(L = -\ln 0.090 = 2.408\). Had the right word been cat, the loss would have been \(-\ln 0.665 = 0.408\). A uniform guess, \(\frac13\) each, would have cost \(\ln 3 = 1.099\) whatever the answer: the model did worse on this sentence than not knowing anything.</div>
+<p>Making the NLL as small as possible over a whole dataset is called <dfn id="rd-g-mle">maximum-likelihood estimation</dfn> (MLE): choose the numbers that make the observed data most probable. Adding a penalty on large weights (weight decay) turns it into <dfn id="rd-g-map">MAP estimation</dfn>, the same thing with a prior belief that weights are small. Because this loss is a <dfn id="rd-g-proper">proper scoring rule</dfn> (its expected value is lowest when the predicted probabilities equal the true ones), a well-trained model's probabilities can be read as probabilities, which is what calibration checks.</p>
+
+<h3>Choose a distribution, and the loss follows</h3>
+<p>The same move gives every standard loss: say what kind of thing the target is, pick the distribution that describes it, and take minus the log of its probability.</p>
+<div class="tw"><table class="mini">
+<tr><th>Target</th><th>Distribution</th><th>Its NLL is called</th><th>Loss for one example</th><th>Tiny example</th></tr>
+<tr><td>yes or no</td><td><dfn id="rd-g-bernoulli">Bernoulli</dfn>: 1 with probability \(p\)</td><td>binary cross-entropy (BCE)</td><td>\(-[y \ln p + (1 - y)\ln(1 - p)]\)</td><td>spam filter says 0.8; spam: 0.223, not spam: 1.609</td></tr>
+<tr><td>one of \(V\) classes</td><td>categorical</td><td>cross-entropy</td><td>\(-\ln p_y\)</td><td>the tiny model: 2.408</td></tr>
+<tr><td>a real number</td><td><dfn id="rd-g-gaussian">Gaussian</dfn> with fixed width \(\sigma\)</td><td>squared error (MSE)</td><td>\(\frac{(y - \mu)^2}{2\sigma^2} + \text{const}\)</td><td>\(\sigma = 1\), predict 2.5, truth 3: 0.125 + 0.919</td></tr>
+</table></div>
+<p class="small mute">Here \(y\) is the observed target (0 or 1 for the Bernoulli), \(p\) the predicted probability of a 1, \(\mu\) the predicted mean and \(\sigma\) the assumed spread; "const" does not depend on the model, so it does not change the training. A sigmoid classifier is a Bernoulli model, which is the whole relation between the Bernoulli distribution and binary classification. Getting the target type wrong (squared error on a yes-or-no label) is choosing the wrong distribution, not just the wrong loss.</p>
+
+<details class="mist"><summary>Two meanings of "independent" (a question you flagged)</summary><div class="b">
+<p><b>In an experiment</b>, the independent variable is what you set (the input \(x\)) and the dependent variable is what you measure (the target \(y\)): "\(y\) depends on \(x\)".</p>
+<p><b>In probability</b>, two random quantities are independent when knowing one tells you nothing about the other: \(P(X, Y) = P(X)\,P(Y)\), equivalently \(P(Y \mid X) = P(Y)\), where \(P(Y \mid X)\) reads "the probability of \(Y\) given \(X\)". Learning is only possible because input and target are <i>dependent</i> in this sense: the next word after "the cat" is not distributed like a random word. If they were independent, the best any model could do is predict how common each word is. And the "independent" in i.i.d. (independent and identically distributed) is the probability meaning: it is what lets the likelihood of a dataset be a product.</p></div></details>
+
+<div class="use"><div class="t">What it is used for in ML</div>The softmax output layer of every classifier and language model; temperature in sampling; choosing the loss for a new target (counts, ratings, ranges); calibration and uncertainty; reading "loss plus regulariser" as likelihood plus prior.</div>
+<div class="deepnote"><b>Go deeper (optional):</b> move the scores and the temperature in the {{Gradient lab|#t-grad}}; derive the BCE and MSE losses yourself in {{Practice drills|#t-drill}}; distributions, MLE against MAP against Bayesian, and Poisson and Laplace losses: a probability and statistics child page is coming. The catalogue of losses and when to use each: {{Loss functions|n:3c65c17b0d0d8161a72bc8c572f37d55}}.</div>
+</section>

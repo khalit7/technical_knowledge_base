@@ -1,0 +1,2339 @@
+{
+ "generated_by": "build_equations.py",
+ "equations": [
+  {
+   "id": "attn",
+   "group": "Architecture",
+   "chip": "Scaled dot-product attention",
+   "title": "Scaled dot-product attention",
+   "paper": {
+    "cite": "Vaswani et al. 2017, Attention Is All You Need",
+    "arxiv": "1706.03762",
+    "ver": "v7",
+    "eq": "Eq. (1)",
+    "page": 4,
+    "section": "§3.2.1",
+    "abs": "https://arxiv.org/abs/1706.03762v7",
+    "pdf": "https://arxiv.org/pdf/1706.03762v7#page=4"
+   },
+   "latex": "\\mathrm{Attention}(Q,K,V)=\\mathrm{softmax}\\left(\\frac{QK^{T}}{\\sqrt{d_{k}}}\\right)V",
+   "transcription": "As printed, with the paper's capital T for the transpose. The paper prints the softmax argument in plain round brackets.",
+   "symbols": [
+    {
+     "id": "Q",
+     "tex": "Q",
+     "match": [
+      "Q"
+     ],
+     "name": "queries",
+     "meaning": "One row per position that is asking a question: what am I looking for?",
+     "shape": "\\(n \\times d_k\\): here \\(3 \\times 4\\) (3 tokens, \\(d_k = 4\\)); in the paper's base model \\(d_k = 64\\).",
+     "where": "§3.2.1, p. 4: queries \"packed together into a matrix Q\"."
+    },
+    {
+     "id": "K",
+     "tex": "K",
+     "match": [
+      "K"
+     ],
+     "name": "keys",
+     "meaning": "One row per position that can be looked at: what do I contain, as a label to match against?",
+     "shape": "\\(m \\times d_k\\): here \\(3 \\times 4\\). Self-attention has \\(m = n\\); cross-attention can differ.",
+     "where": "§3.2.1, p. 4."
+    },
+    {
+     "id": "T",
+     "tex": "{}^{T}",
+     "match": [
+      "T"
+     ],
+     "name": "transpose",
+     "meaning": "Swap rows and columns, so \\(QK^T\\) is every query dotted with every key. Other papers write \\(K^\\top\\) or \\(K'\\): same thing.",
+     "shape": "\\(K^T\\) is \\(d_k \\times m\\): here \\(4 \\times 3\\).",
+     "where": "Not defined in the paper: standard notation."
+    },
+    {
+     "id": "V",
+     "tex": "V",
+     "match": [
+      "V"
+     ],
+     "name": "values",
+     "meaning": "One row per position: what that position hands over if you attend to it.",
+     "shape": "\\(m \\times d_v\\): here \\(3 \\times 2\\); paper base \\(d_v = 64\\).",
+     "where": "§3.2.1, p. 4."
+    },
+    {
+     "id": "dk",
+     "tex": "d_k",
+     "match": [
+      "dk"
+     ],
+     "name": "key dimension",
+     "meaning": "Length of each query and key vector. Dividing by \\(\\sqrt{d_k}\\) keeps the dot products from growing with \\(d_k\\) (footnote 4: if the components are independent with mean 0 and variance 1, \\(q \\cdot k\\) has variance \\(d_k\\)).",
+     "shape": "A number: here 4, so \\(\\sqrt{d_k} = 2\\); paper base 64, so 8.",
+     "where": "§3.2.1 and footnote 4, p. 4; values in §3.2.2, p. 5."
+    },
+    {
+     "id": "sm",
+     "tex": "\\mathrm{softmax}",
+     "match": [
+      "softmax"
+     ],
+     "name": "softmax, row by row",
+     "meaning": "Turns each row of scores into weights that are positive and sum to 1: \\(\\mathrm{softmax}(z)_j = e^{z_j} / \\sum_l e^{z_l}\\). Applied to each row separately (one query at a time); the paper says so in words (\"apply a softmax function to obtain the weights on the values\").",
+     "shape": "\\(n \\times m\\) in, \\(n \\times m\\) out: here \\(3 \\times 3\\).",
+     "where": "§3.2.1, p. 4 (in words; the formula itself is not printed)."
+    },
+    {
+     "id": "att",
+     "tex": "\\mathrm{Attention}",
+     "match": [
+      "Attention"
+     ],
+     "name": "the output",
+     "meaning": "For each query, a weighted average of the value rows.",
+     "shape": "\\(n \\times d_v\\): here \\(3 \\times 2\\).",
+     "where": "Eq. (1), p. 4."
+    }
+   ],
+   "aloud": "Attention of Q, K, V equals: take every query dotted with every key, divide by the square root of the key length, turn each row into weights with a softmax, and use those weights to average the rows of V.",
+   "steps_note": "Real tiny matrices: 3 tokens, dₖ = 4, dᵥ = 2. Step through them in the animation below; the numbers are recomputed in recompute.py.",
+   "steps": [
+    {
+     "tex": "Q=\\begin{bmatrix}1 & 0 & 1 & 0 \\\\ 0 & 2 & 0 & 1 \\\\ 1 & 1 & 1 & 1\\end{bmatrix},\\quad K=\\begin{bmatrix}1 & 0 & 1 & 0 \\\\ 0 & 1 & 0 & 1 \\\\ 1 & 1 & 0 & 0\\end{bmatrix},\\quad V=\\begin{bmatrix}1 & 0 \\\\ 0 & 1 \\\\ 1 & 1\\end{bmatrix}",
+     "say": "The inputs: three queries, three keys, three values."
+    },
+    {
+     "tex": "QK^{T}=\\begin{bmatrix}1 & 0 & 1 & 0 \\\\ 0 & 2 & 0 & 1 \\\\ 1 & 1 & 1 & 1\\end{bmatrix}\\begin{bmatrix}1 & 0 & 1 \\\\ 0 & 1 & 1 \\\\ 1 & 0 & 0 \\\\ 0 & 1 & 0\\end{bmatrix}\\quad =\\begin{bmatrix}2 & 0 & 1 \\\\ 0 & 3 & 2 \\\\ 2 & 2 & 2\\end{bmatrix}",
+     "say": "Each cell is one query dotted with one key: row 1, column 1 is 1·1 + 0·0 + 1·1 + 0·0 = 2."
+    },
+    {
+     "tex": "\\frac{QK^{T}}{\\sqrt{4}}=\\begin{bmatrix}1 & 0 & 0.500 \\\\ 0 & 1.500 & 1 \\\\ 1 & 1 & 1\\end{bmatrix}",
+     "say": "Divide every score by √d_k = 2."
+    },
+    {
+     "tex": "\\mathrm{softmax}(\\cdot)=\\begin{bmatrix}0.506 & 0.186 & 0.307 \\\\ 0.122 & 0.547 & 0.331 \\\\ 0.333 & 0.333 & 0.333\\end{bmatrix}",
+     "say": "Softmax each row: every row now sums to 1. Row 3 had equal scores, so its weights are equal."
+    },
+    {
+     "tex": "\\begin{bmatrix}0.506 & 0.186 & 0.307 \\\\ 0.122 & 0.547 & 0.331 \\\\ 0.333 & 0.333 & 0.333\\end{bmatrix}\\begin{bmatrix}1 & 0 \\\\ 0 & 1 \\\\ 1 & 1\\end{bmatrix}\\quad =\\begin{bmatrix}0.814 & 0.494 \\\\ 0.453 & 0.878 \\\\ 0.667 & 0.667\\end{bmatrix}",
+     "say": "Each output row is a weighted average of V's rows; shapes (3×3)(3×2) give 3×2."
+    }
+   ],
+   "checks": {
+    "QKT": [
+     [
+      2.0,
+      0.0,
+      1.0
+     ],
+     [
+      0.0,
+      3.0,
+      2.0
+     ],
+     [
+      2.0,
+      2.0,
+      2.0
+     ]
+    ],
+    "scaled": [
+     [
+      1.0,
+      0.0,
+      0.5
+     ],
+     [
+      0.0,
+      1.5,
+      1.0
+     ],
+     [
+      1.0,
+      1.0,
+      1.0
+     ]
+    ],
+    "weights": [
+     [
+      0.506480391055654,
+      0.1863237232258476,
+      0.3071958857184984
+     ],
+     [
+      0.12195165230972885,
+      0.5465493872661796,
+      0.3314989604240915
+     ],
+     [
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333
+     ]
+    ],
+    "out": [
+     [
+      0.8136762767741523,
+      0.493519608944346
+     ],
+     [
+      0.45345061273382037,
+      0.8780483476902712
+     ],
+     [
+      0.6666666666666666,
+      0.6666666666666666
+     ]
+    ],
+    "weights_unscaled": [
+     [
+      0.6652409557748218,
+      0.09003057317038046,
+      0.24472847105479764
+     ],
+     [
+      0.03511902695933973,
+      0.7053845126982412,
+      0.25949646034241913
+     ],
+     [
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333
+     ]
+    ],
+    "out_unscaled": [
+     [
+      0.9099694268296195,
+      0.3347590442251781
+     ],
+     [
+      0.29461548730175885,
+      0.9648809730406603
+     ],
+     [
+      0.6666666666666666,
+      0.6666666666666666
+     ]
+    ]
+   },
+   "traps": [
+    "The softmax runs along each row (over keys), never over the whole matrix and never down a column. In code: <code>softmax(scores, dim=-1)</code>.",
+    "Rows are tokens. ML papers usually stack examples or positions as rows (\\(n \\times d\\)), so a layer is \\(XW\\), not \\(Wx\\). Check which way round a paper writes it before multiplying.",
+    "\\(\\sqrt{d_k}\\) is the square root of the key length, not of the sequence length. Without it, scores grow with \\(d_k\\) and the softmax saturates (Vaswani et al. footnote 4).",
+    "The decoder's mask is not in Eq. (1): §3.2.3 says it is applied by setting illegal positions to \\(-\\infty\\) before the softmax."
+   ],
+   "links": [
+    [
+     "Attention Is All You Need (paper page, with a live toy Transformer)",
+     "n:3c65c17b0d0d81999af7f16f8ed8ee9e"
+    ],
+    [
+     "LLM Architecture Gallery: what changed in attention since 2017",
+     "n:3c65c17b0d0d81be8a07f2562fa2030a"
+    ]
+   ],
+   "anim": true,
+   "note_html": "A smaller case is worked in the {{Reading tab, section \"How to read an equation in a paper\"|#t-read}}: one query against the tiny model's three keys, d<sub>k</sub> = 2, scores (2, 1, 0), weights (0.576, 0.284, 0.140). This one adds a second and third query so the whole matrix form, and every shape, shows."
+  },
+  {
+   "id": "mha",
+   "group": "Architecture",
+   "chip": "Multi-head attention",
+   "title": "Multi-head attention",
+   "paper": {
+    "cite": "Vaswani et al. 2017, Attention Is All You Need",
+    "arxiv": "1706.03762",
+    "ver": "v7",
+    "eq": "unnumbered display",
+    "page": 5,
+    "section": "§3.2.2",
+    "abs": "https://arxiv.org/abs/1706.03762v7",
+    "pdf": "https://arxiv.org/pdf/1706.03762v7#page=5"
+   },
+   "latex": "\\begin{aligned}\\mathrm{MultiHead}(Q,K,V)&=\\mathrm{Concat}(\\mathrm{head}_{1},\\ldots,\\mathrm{head}_{h})W^{O}\\\\ \\text{where}\\ \\mathrm{head}_{i}&=\\mathrm{Attention}(QW_{i}^{Q},KW_{i}^{K},VW_{i}^{V})\\end{aligned}",
+   "transcription": "As printed in §3.2.2 (the paper sets it as two centred lines; aligned here).",
+   "symbols": [
+    {
+     "id": "WQ",
+     "tex": "W_i^Q",
+     "match": [
+      "WiQ"
+     ],
+     "name": "query projection of head i",
+     "meaning": "A learned matrix that maps each token's \\(d_{\\text{model}}\\)-vector to that head's query. The superscript \\(Q\\) is a label, not a power.",
+     "shape": "\\(d_{\\text{model}} \\times d_k\\): here \\(4 \\times 2\\); paper \\(512 \\times 64\\).",
+     "where": "§3.2.2, p. 5: \"the projections are parameter matrices\"."
+    },
+    {
+     "id": "WK",
+     "tex": "W_i^K",
+     "match": [
+      "WiK"
+     ],
+     "name": "key projection of head i",
+     "meaning": "Same idea for keys.",
+     "shape": "\\(d_{\\text{model}} \\times d_k\\): here \\(4 \\times 2\\).",
+     "where": "§3.2.2, p. 5."
+    },
+    {
+     "id": "WV",
+     "tex": "W_i^V",
+     "match": [
+      "WiV"
+     ],
+     "name": "value projection of head i",
+     "meaning": "Same idea for values.",
+     "shape": "\\(d_{\\text{model}} \\times d_v\\): here \\(4 \\times 2\\).",
+     "where": "§3.2.2, p. 5."
+    },
+    {
+     "id": "WO",
+     "tex": "W^O",
+     "match": [
+      "WO"
+     ],
+     "name": "output projection",
+     "meaning": "Mixes the concatenated heads back into one vector per token.",
+     "shape": "\\(h d_v \\times d_{\\text{model}}\\): here \\(4 \\times 4\\); paper \\(512 \\times 512\\).",
+     "where": "§3.2.2, p. 5."
+    },
+    {
+     "id": "head",
+     "tex": "\\mathrm{head}_i",
+     "match": [
+      "headi",
+      "head1"
+     ],
+     "name": "head i",
+     "meaning": "One run of scaled dot-product attention (Eq. 1) on projected inputs.",
+     "shape": "\\(n \\times d_v\\): here \\(2 \\times 2\\).",
+     "where": "§3.2.2, p. 5."
+    },
+    {
+     "id": "h",
+     "tex": "h",
+     "match": [
+      "h"
+     ],
+     "name": "number of heads",
+     "meaning": "How many heads run side by side. The paper uses \\(h = 8\\) and \\(d_k = d_v = d_{\\text{model}}/h = 64\\).",
+     "shape": "A number: here 2.",
+     "where": "§3.2.2, p. 5."
+    },
+    {
+     "id": "cat",
+     "tex": "\\mathrm{Concat}",
+     "match": [
+      "Concat"
+     ],
+     "name": "concatenate",
+     "meaning": "Place the heads' outputs side by side, column-wise, for each token.",
+     "shape": "\\(h\\) blocks of \\(n \\times d_v\\) become \\(n \\times h d_v\\): here \\(2 \\times 4\\).",
+     "where": "§3.2.2, p. 5."
+    },
+    {
+     "id": "Q",
+     "tex": "Q,K,V",
+     "match": [
+      "Q",
+      "K",
+      "V"
+     ],
+     "name": "the inputs",
+     "meaning": "In self-attention all three are the same matrix \\(X\\) of token vectors (§3.2.3).",
+     "shape": "\\(n \\times d_{\\text{model}}\\): here \\(2 \\times 4\\).",
+     "where": "§3.2.3, p. 5."
+    }
+   ],
+   "aloud": "Multi-head attention runs h small attentions in parallel, each on its own learned projections of Q, K and V, glues their outputs side by side and mixes them with one more matrix W O.",
+   "steps_note": "Two tokens, d_model = 4, h = 2 heads, d_k = d_v = 2. The projections are chosen so head 1 reads dimensions 1 and 2 and head 2 reads dimensions 3 and 4 (illustrative weights, real arithmetic).",
+   "steps": [
+    {
+     "tex": "X=\\begin{bmatrix}1 & 0 & 2 & 0 \\\\ 0 & 1 & 0 & 2\\end{bmatrix},\\quad W_1^{Q}=W_1^{K}=W_1^{V}=\\begin{bmatrix}1 & 0 \\\\ 0 & 1 \\\\ 0 & 0 \\\\ 0 & 0\\end{bmatrix}",
+     "say": "Self-attention: Q = K = V = X. Head 1's projections keep the first two coordinates."
+    },
+    {
+     "tex": "XW_1=\\begin{bmatrix}1 & 0 \\\\ 0 & 1\\end{bmatrix},\\qquad XW_2=\\begin{bmatrix}2 & 0 \\\\ 0 & 2\\end{bmatrix}",
+     "say": "Each head sees a 2 × 2 slice: shape (2×4)(4×2) = 2×2."
+    },
+    {
+     "tex": "\\mathrm{head}_1=\\begin{bmatrix}0.670 & 0.330 \\\\ 0.330 & 0.670\\end{bmatrix},\\qquad \\mathrm{head}_2=\\begin{bmatrix}1.888 & 0.112 \\\\ 0.112 & 1.888\\end{bmatrix}",
+     "say": "Eq. (1) inside each head, with √d_k = √2."
+    },
+    {
+     "tex": "\\mathrm{Concat}=\\begin{bmatrix}0.670 & 0.330 & 1.888 & 0.112 \\\\ 0.330 & 0.670 & 0.112 & 1.888\\end{bmatrix}",
+     "say": "Side by side: 2 × (2+2) = 2 × 4."
+    },
+    {
+     "tex": "W^{O}=\\begin{bmatrix}0.500 & 0 & 0.500 & 0 \\\\ 0 & 0.500 & 0 & 0.500 \\\\ 0.500 & 0 & 0.500 & 0 \\\\ 0 & 0.500 & 0 & 0.500\\end{bmatrix}\\quad \\mathrm{Concat}\\,W^{O}=\\begin{bmatrix}1.279 & 0.221 & 1.279 & 0.221 \\\\ 0.221 & 1.279 & 0.221 & 1.279\\end{bmatrix}",
+     "say": "W O mixes heads: each output column takes half of one head's column and half of the other's."
+    }
+   ],
+   "checks": {
+    "head1": [
+     [
+      0.6697615493266569,
+      0.3302384506733431
+     ],
+     [
+      0.3302384506733431,
+      0.6697615493266569
+     ]
+    ],
+    "head2": [
+     [
+      1.8883855615856606,
+      0.11161443841433949
+     ],
+     [
+      0.11161443841433949,
+      1.8883855615856606
+     ]
+    ],
+    "concat": [
+     [
+      0.6697615493266569,
+      0.3302384506733431,
+      1.8883855615856606,
+      0.11161443841433949
+     ],
+     [
+      0.3302384506733431,
+      0.6697615493266569,
+      0.11161443841433949,
+      1.8883855615856606
+     ]
+    ],
+    "out": [
+     [
+      1.2790735554561588,
+      0.2209264445438413,
+      1.2790735554561588,
+      0.2209264445438413
+     ],
+     [
+      0.2209264445438413,
+      1.2790735554561588,
+      0.2209264445438413,
+      1.2790735554561588
+     ]
+    ]
+   },
+   "traps": [
+    "Superscripts \\(Q, K, V, O\\) on \\(W\\) are names, not powers; the subscript \\(i\\) is the head index. \\(W_i^Q\\) reads \"W, head i, for queries\".",
+    "\\(h\\) here is the number of heads; in the LayerNorm and many RNN papers \\(h\\) is a hidden state. Same letter, different object: always check the paper's own definition.",
+    "Splitting into heads costs no extra compute: with \\(d_k = d_{\\text{model}}/h\\) the paper notes the total cost is similar to one full-width head (§3.2.2)."
+   ],
+   "links": [
+    [
+     "Attention Is All You Need (paper page)",
+     "n:3c65c17b0d0d81999af7f16f8ed8ee9e"
+    ],
+    [
+     "LLM Architecture Gallery: grouped-query and latent attention",
+     "n:3c65c17b0d0d81be8a07f2562fa2030a"
+    ]
+   ]
+  },
+  {
+   "id": "ln",
+   "group": "Architecture",
+   "chip": "Layer normalisation",
+   "title": "Layer normalisation",
+   "paper": {
+    "cite": "Ba, Kiros and Hinton 2016, Layer Normalization",
+    "arxiv": "1607.06450",
+    "ver": "v1",
+    "eq": "Eq. (4)",
+    "page": 3,
+    "section": "§4 (μ and σ as in Eq. (3), p. 2)",
+    "abs": "https://arxiv.org/abs/1607.06450v1",
+    "pdf": "https://arxiv.org/pdf/1607.06450v1#page=3"
+   },
+   "latex": "\\begin{gathered}\\mathbf{h}^{t}=f\\left[\\frac{\\mathbf{g}}{\\sigma^{t}}\\odot\\left(\\mathbf{a}^{t}-\\mu^{t}\\right)+\\mathbf{b}\\right]\\\\ \\mu^{t}=\\frac{1}{H}\\sum_{i=1}^{H}a_{i}^{t}\\qquad\\sigma^{t}=\\sqrt{\\frac{1}{H}\\sum_{i=1}^{H}\\left(a_{i}^{t}-\\mu^{t}\\right)^{2}}\\end{gathered}",
+   "transcription": "As printed (the recurrent form, superscript t is the time step), with the paper's three side-by-side parts stacked here for width. Bold marks vectors.",
+   "symbols": [
+    {
+     "id": "a",
+     "tex": "\\mathbf{a}^t",
+     "match": [
+      "𝐚t"
+     ],
+     "name": "summed inputs",
+     "meaning": "The vector being normalised: one layer's pre-activations for one example at time step \\(t\\). Bold means a vector; \\(a_i^t\\) (not bold, subscript \\(i\\)) is its \\(i\\)-th entry.",
+     "shape": "\\(H\\) numbers: here \\(H = 4\\).",
+     "where": "§4, p. 3: \"a^t = W_hh h^(t-1) + W_xh x^t\"."
+    },
+    {
+     "id": "ai",
+     "tex": "a_i^t",
+     "match": [
+      "ait"
+     ],
+     "name": "one entry of a",
+     "meaning": "The i-th hidden unit's summed input.",
+     "shape": "A number.",
+     "where": "Eq. (3)-(4)."
+    },
+    {
+     "id": "mu",
+     "tex": "\\mu^t",
+     "match": [
+      "μt"
+     ],
+     "name": "mean over the layer",
+     "meaning": "Average of the H entries of this one example. Not a batch mean: that is batch normalisation, Eq. (2).",
+     "shape": "A number per example (per time step).",
+     "where": "Eq. (3), p. 2; Eq. (4), p. 3."
+    },
+    {
+     "id": "sig",
+     "tex": "\\sigma^t",
+     "match": [
+      "σt"
+     ],
+     "name": "standard deviation over the layer",
+     "meaning": "Square root of the average squared distance from \\(\\mu^t\\). Divides by \\(H\\), not \\(H-1\\): the population (biased) version.",
+     "shape": "A number per example.",
+     "where": "Eq. (3), p. 2."
+    },
+    {
+     "id": "g",
+     "tex": "\\mathbf{g}",
+     "match": [
+      "𝐠"
+     ],
+     "name": "gain",
+     "meaning": "Learned per-unit scale (modern code calls it \\(\\gamma\\) or weight).",
+     "shape": "\\(H\\) numbers: same dimension as \\(\\mathbf{h}^t\\).",
+     "where": "§4, p. 3: \"b and g are defined as the bias and gain parameters\"."
+    },
+    {
+     "id": "b",
+     "tex": "\\mathbf{b}",
+     "match": [
+      "𝐛"
+     ],
+     "name": "bias",
+     "meaning": "Learned per-unit shift (modern code: \\(\\beta\\) or bias).",
+     "shape": "\\(H\\) numbers.",
+     "where": "§4, p. 3."
+    },
+    {
+     "id": "odot",
+     "tex": "\\odot",
+     "match": [
+      "⊙"
+     ],
+     "name": "element-wise product",
+     "meaning": "Multiply entry by entry (the Hadamard product), not a matrix product.",
+     "shape": "Two vectors of length H give one of length H.",
+     "where": "§4, p. 3: \"element-wise multiplication between two vectors\"."
+    },
+    {
+     "id": "f",
+     "tex": "f",
+     "match": [
+      "f"
+     ],
+     "name": "nonlinearity",
+     "meaning": "The activation function applied after normalising (the paper's RNN setting). In a Transformer's LayerNorm there is no f: take it as the identity.",
+     "shape": "A function, applied entry by entry.",
+     "where": "Eq. (1), p. 2."
+    },
+    {
+     "id": "H",
+     "tex": "H",
+     "match": [
+      "H"
+     ],
+     "name": "number of hidden units",
+     "meaning": "How many entries are averaged.",
+     "shape": "A number: here 4.",
+     "where": "Eq. (3), p. 2: \"H denotes the number of hidden units in a layer\"."
+    },
+    {
+     "id": "h",
+     "tex": "\\mathbf{h}^t",
+     "match": [
+      "𝐡t"
+     ],
+     "name": "output",
+     "meaning": "The normalised, rescaled, shifted vector.",
+     "shape": "\\(H\\) numbers.",
+     "where": "Eq. (4), p. 3."
+    }
+   ],
+   "aloud": "h at time t equals f of: g over sigma, times element by element the vector a minus its mean, plus b; where mu is the average of a's H entries and sigma the square root of their average squared deviation.",
+   "steps_note": "One example, H = 4, f = identity (as in a Transformer). Gain and bias are illustrative.",
+   "steps": [
+    {
+     "tex": "\\mathbf{a}=\\begin{bmatrix}2 & 4 & 6 & 8\\end{bmatrix},\\quad \\mu=\\tfrac14(2+4+6+8)=5",
+     "say": "The mean of this one example's four entries."
+    },
+    {
+     "tex": "\\sigma=\\sqrt{\\tfrac14\\left((-3)^2+(-1)^2+1^2+3^2\\right)}\\quad =\\sqrt{5}=2.236",
+     "say": "Divide by H = 4, not 3."
+    },
+    {
+     "tex": "\\frac{\\mathbf{a}-\\mu}{\\sigma}=\\begin{bmatrix}-1.34 & -0.45 & 0.45 & 1.34\\end{bmatrix}",
+     "say": "Now mean 0 and (population) standard deviation 1."
+    },
+    {
+     "tex": "\\mathbf{g}=\\begin{bmatrix}1 & 0.500 & 1 & 2\\end{bmatrix}\\quad \\mathbf{b}=\\begin{bmatrix}0 & 0 & 1 & 0\\end{bmatrix}\\quad \\mathbf{g}\\odot\\frac{\\mathbf{a}-\\mu}{\\sigma}+\\mathbf{b}\\quad =\\begin{bmatrix}-1.342 & -0.224 & 1.447 & 2.683\\end{bmatrix}",
+     "say": "Scale entry by entry, then shift."
+    },
+    {
+     "tex": "\\text{with } H-1:\\ \\sigma=\\sqrt{20/3}=2.582\\quad \\text{first entry } -1.162 \\text{ instead of } -1.342",
+     "say": "The trap: dividing by H − 1 gives different outputs. PyTorch's LayerNorm uses the paper's 1/H (biased) version."
+    }
+   ],
+   "checks": {
+    "mu": 5.0,
+    "sigma": 2.23606797749979,
+    "z": [
+     -1.3416407864998738,
+     -0.4472135954999579,
+     0.4472135954999579,
+     1.3416407864998738
+    ],
+    "h": [
+     -1.3416407864998738,
+     -0.22360679774997896,
+     1.4472135954999579,
+     2.6832815729997477
+    ],
+    "sigma_bessel": 2.581988897471611
+   },
+   "traps": [
+    "Bold \\(\\mathbf{a}\\) is the vector; plain \\(a_i\\) is one entry; the superscript \\(t\\) is a time step, not a power. \\(\\sigma^t\\) is \"sigma at time t\", not sigma to the t.",
+    "The paper's \\(\\sigma\\) has no \\(\\epsilon\\). Code adds one inside the square root: PyTorch's <code>LayerNorm</code> computes \\((x - \\mathrm{E}[x])/\\sqrt{\\mathrm{Var}[x] + \\epsilon}\\) with \\(\\epsilon = 10^{-5}\\) by default and the biased variance (<a href=\"https://docs.pytorch.org/docs/2.14/generated/torch.nn.LayerNorm.html\" target=\"_blank\" rel=\"noopener noreferrer\">docs</a>).",
+    "The averages run over the features of one example (the layer), not over the batch. Eq. (2), batch normalisation, averages over examples with \\(\\mathbb{E}_{\\mathbf{x}\\sim P(\\mathbf{x})}\\)."
+   ],
+   "links": [
+    [
+     "Normalisation and initialisation",
+     "n:3c65c17b0d0d81369e1cc38ed4e11d48"
+    ]
+   ]
+  },
+  {
+   "id": "lm",
+   "group": "Training",
+   "chip": "Language-model objective",
+   "title": "The language-modelling objective (next-token log-likelihood)",
+   "paper": {
+    "cite": "Radford et al. 2018, Improving Language Understanding by Generative Pre-Training (GPT-1)",
+    "arxiv": null,
+    "ver": null,
+    "eq": "Eq. (1)",
+    "page": 3,
+    "section": "§3.1",
+    "abs": "https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf",
+    "pdf": "https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf#page=3",
+    "note": "Not on arXiv; OpenAI's PDF."
+   },
+   "latex": "L_{1}(\\mathcal{U})=\\sum_{i}\\log P(u_{i}\\mid u_{i-k},\\ldots,u_{i-1};\\Theta)",
+   "transcription": "As printed in §3.1.",
+   "symbols": [
+    {
+     "id": "L1",
+     "tex": "L_1",
+     "match": [
+      "L1"
+     ],
+     "name": "the objective (to maximise)",
+     "meaning": "Total log-likelihood of the corpus. It is a sum of logs of probabilities, so it is negative and the paper maximises it. The loss you see in code is its negative, divided by the number of tokens.",
+     "shape": "A number.",
+     "where": "Eq. (1), p. 3: \"maximize the following likelihood\"."
+    },
+    {
+     "id": "U",
+     "tex": "\\mathcal{U}",
+     "match": [
+      "𝒰"
+     ],
+     "name": "the corpus",
+     "meaning": "An unlabelled sequence of tokens \\(\\{u_1, \\ldots, u_n\\}\\).",
+     "shape": "\\(n\\) token ids.",
+     "where": "§3.1, p. 3."
+    },
+    {
+     "id": "ui",
+     "tex": "u_i",
+     "match": [
+      "ui"
+     ],
+     "name": "the token to predict",
+     "meaning": "Token number \\(i\\); the sum index \\(i\\) runs over positions in the corpus.",
+     "shape": "One token id (an integer in the vocabulary).",
+     "where": "§3.1, p. 3."
+    },
+    {
+     "id": "ctx",
+     "tex": "u_{i-k},\\ldots,u_{i-1}",
+     "match": [
+      "ui-k",
+      "ui-1"
+     ],
+     "name": "the context",
+     "meaning": "The \\(k\\) tokens before position \\(i\\); \\(k\\) is the context window (512 in GPT-1, §4.1).",
+     "shape": "\\(k\\) token ids.",
+     "where": "§3.1, p. 3: \"k is the size of the context window\"."
+    },
+    {
+     "id": "P",
+     "tex": "P",
+     "match": [
+      "P"
+     ],
+     "name": "the model's probability",
+     "meaning": "Probability the network assigns to the actual next token. Eq. (2) says how: \\(P(u) = \\mathrm{softmax}(h_n W_e^T)\\), a softmax over the vocabulary.",
+     "shape": "A number in (0, 1], read off a vector of length \\(|V|\\) (vocabulary size).",
+     "where": "Eq. (2), p. 3."
+    },
+    {
+     "id": "bar",
+     "tex": "\\mid",
+     "match": [
+      "|"
+     ],
+     "name": "given",
+     "meaning": "Conditional probability: probability of the left side given the right side.",
+     "shape": "Notation.",
+     "where": "Standard."
+    },
+    {
+     "id": "Theta",
+     "tex": ";\\Theta",
+     "match": [
+      "Θ"
+     ],
+     "name": "parameters (after a semicolon)",
+     "meaning": "The semicolon separates what we condition on (data) from the parameters that define the model. It is not conditioning in the probabilistic sense.",
+     "shape": "All the network's weights (a 12-layer decoder, §4.1).",
+     "where": "§3.1, p. 3: \"neural network with parameters Θ\"."
+    },
+    {
+     "id": "log",
+     "tex": "\\log",
+     "match": [
+      "log"
+     ],
+     "name": "natural log",
+     "meaning": "Base e, as almost everywhere in ML papers; values are in nats. Divide by ln 2 for bits.",
+     "shape": "Function.",
+     "where": "Not stated in the paper (convention)."
+    }
+   ],
+   "aloud": "L one of U equals the sum, over every position i, of the log of the probability the model with parameters Theta gives to token u i, given the k tokens before it.",
+   "steps_note": "Vocabulary (the, cat, sat); corpus \"the cat sat\"; the model's logits at each position are illustrative, the arithmetic is real. Same logits z = (2, 1, 0) as the Reading tab's running example.",
+   "steps": [
+    {
+     "tex": "P(\\cdot\\mid\\text{the})=\\mathrm{softmax}(2,1,0)\\quad =\\begin{bmatrix}0.665 & 0.245 & 0.090\\end{bmatrix}\\Rightarrow P(\\text{cat}\\mid\\text{the})=0.245",
+     "say": "Position 2: the right answer, cat, gets 0.245."
+    },
+    {
+     "tex": "P(\\cdot\\mid\\text{the cat})=\\mathrm{softmax}(0,1,3)\\quad =\\begin{bmatrix}0.042 & 0.114 & 0.844\\end{bmatrix}\\Rightarrow P(\\text{sat}\\mid\\ldots)=0.844",
+     "say": "Position 3: sat gets 0.844."
+    },
+    {
+     "tex": "L_1=\\log 0.245+\\log 0.844\\quad =-1.408+(-0.170)=-1.577",
+     "say": "Sum the logs (natural log). Position 1 has no context, so it contributes nothing here."
+    },
+    {
+     "tex": "\\text{loss}=-\\frac{L_1}{2}=0.789\\ \\text{nats/token}\\quad =1.138\\ \\text{bits/token},\\quad \\text{perplexity}=e^{0.789}=2.20",
+     "say": "What a training log prints: the negative, averaged per token."
+    }
+   ],
+   "checks": {
+    "p_cat": 0.24472847105479764,
+    "p_sat": 0.8437947344813395,
+    "L1": -1.577451984000666,
+    "nll": 0.788725992000333,
+    "bits": 1.1378910772791087,
+    "ppl": 2.2005910689856982
+   },
+   "traps": [
+    "\\(L_1\\) is maximised; a \"loss\" is minimised. Papers switch between the two: check the sign and whether the text says maximise or minimise.",
+    "The sum is over tokens, so \\(L_1\\) grows with corpus length; training logs report the per-token mean. Comparing a summed and a mean number is a factor of the token count.",
+    "\\(\\log\\) is natural (nats). Bits per token divide by \\(\\ln 2\\); bits per byte also divide by bytes per token, and only that is comparable across tokenizers.",
+    "\\(;\\Theta\\) marks parameters, \\(\\mid\\) marks conditioning. Some papers write \\(P_\\Theta(u_i \\mid \\ldots)\\) or \\(p_\\theta\\): the same thing."
+   ],
+   "links": [
+    [
+     "Loss functions (cross-entropy and its relatives)",
+     "n:3c65c17b0d0d8161a72bc8c572f37d55"
+    ],
+    [
+     "Pretraining (where this objective is run at scale)",
+     "n:3c65c17b0d0d814f82cffd0d5c0dd5ba"
+    ],
+    [
+     "Reading tab: why the loss is the negative log-likelihood",
+     "#t-read"
+    ]
+   ]
+  },
+  {
+   "id": "adam",
+   "group": "Training",
+   "chip": "Adam update",
+   "title": "The Adam update",
+   "paper": {
+    "cite": "Kingma and Ba 2014, Adam: A Method for Stochastic Optimization",
+    "arxiv": "1412.6980",
+    "ver": "v9",
+    "eq": "Algorithm 1 (the loop body)",
+    "page": 2,
+    "section": "§2",
+    "abs": "https://arxiv.org/abs/1412.6980v9",
+    "pdf": "https://arxiv.org/pdf/1412.6980v9#page=2"
+   },
+   "latex": "\\begin{aligned}g_{t}&\\leftarrow\\nabla_{\\theta}f_{t}(\\theta_{t-1})\\\\ m_{t}&\\leftarrow\\beta_{1}\\cdot m_{t-1}+(1-\\beta_{1})\\cdot g_{t}\\\\ v_{t}&\\leftarrow\\beta_{2}\\cdot v_{t-1}+(1-\\beta_{2})\\cdot g_{t}^{2}\\\\ \\widehat{m}_{t}&\\leftarrow m_{t}/(1-\\beta_{1}^{t})\\\\ \\widehat{v}_{t}&\\leftarrow v_{t}/(1-\\beta_{2}^{t})\\\\ \\theta_{t}&\\leftarrow\\theta_{t-1}-\\alpha\\cdot\\widehat{m}_{t}/(\\sqrt{\\widehat{v}_{t}}+\\epsilon)\\end{aligned}",
+   "transcription": "The six update lines of Algorithm 1, as printed, without the comments in brackets.",
+   "symbols": [
+    {
+     "id": "gt",
+     "tex": "g_t",
+     "match": [
+      "gt"
+     ],
+     "name": "gradient at step t",
+     "meaning": "Gradient of this step's (mini-batch) loss \\(f_t\\) with respect to the parameters, evaluated at the previous parameters.",
+     "shape": "Same shape as the parameters (here one number; in a model, every weight).",
+     "where": "Algorithm 1, p. 2."
+    },
+    {
+     "id": "nabla",
+     "tex": "\\nabla_\\theta",
+     "match": [
+      "∇θ"
+     ],
+     "name": "gradient with respect to θ",
+     "meaning": "The vector of partial derivatives, one per parameter.",
+     "shape": "Same shape as θ.",
+     "where": "Standard."
+    },
+    {
+     "id": "gt2",
+     "tex": "g_t^2",
+     "match": [
+      "gt2"
+     ],
+     "name": "element-wise square",
+     "meaning": "Each entry squared on its own, \\(g_t \\odot g_t\\), not a dot product and not a matrix square.",
+     "shape": "Same shape as θ.",
+     "where": "Algorithm 1 caption, p. 2: \"g_t^2 indicates the elementwise square\"."
+    },
+    {
+     "id": "mt",
+     "tex": "m_t",
+     "match": [
+      "mt"
+     ],
+     "name": "first moment (running mean of gradients)",
+     "meaning": "An exponential moving average of gradients: momentum.",
+     "shape": "Same shape as θ; starts at 0.",
+     "where": "Algorithm 1, p. 2."
+    },
+    {
+     "id": "vt",
+     "tex": "v_t",
+     "match": [
+      "vt"
+     ],
+     "name": "second raw moment (running mean of squared gradients)",
+     "meaning": "An exponential moving average of squared gradients: a per-parameter scale.",
+     "shape": "Same shape as θ; starts at 0.",
+     "where": "Algorithm 1, p. 2."
+    },
+    {
+     "id": "hat",
+     "tex": "\\widehat{m}_t,\\ \\widehat{v}_t",
+     "match": [
+      "mˆt",
+      "vˆt"
+     ],
+     "name": "bias-corrected estimates (the hat)",
+     "meaning": "The hat marks a corrected estimate: because m and v start at 0, early averages are too small; dividing by 1 − β^t undoes that.",
+     "shape": "Same shape as θ.",
+     "where": "Algorithm 1 and §3, p. 2-3."
+    },
+    {
+     "id": "b1t",
+     "tex": "\\beta_1^t",
+     "match": [
+      "β1t",
+      "β2t"
+     ],
+     "name": "β to the power t",
+     "meaning": "Here the superscript is a real power: \\(0.9^t\\). The caption says so (\"we denote β1 and β2 to the power t\").",
+     "shape": "A number.",
+     "where": "Algorithm 1 caption, p. 2."
+    },
+    {
+     "id": "beta",
+     "tex": "\\beta_1,\\ \\beta_2",
+     "match": [
+      "β1",
+      "β2"
+     ],
+     "name": "decay rates",
+     "meaning": "How much of the old average to keep each step. Defaults 0.9 and 0.999.",
+     "shape": "Numbers.",
+     "where": "Algorithm 1 caption, p. 2."
+    },
+    {
+     "id": "alpha",
+     "tex": "\\alpha",
+     "match": [
+      "α"
+     ],
+     "name": "step size (learning rate)",
+     "meaning": "Default 0.001. Roughly the largest step any parameter takes.",
+     "shape": "A number.",
+     "where": "Algorithm 1 caption and §2.1."
+    },
+    {
+     "id": "eps",
+     "tex": "\\epsilon",
+     "match": [
+      "ϵ",
+      "ε"
+     ],
+     "name": "a small constant",
+     "meaning": "Keeps the division safe when \\(\\widehat{v}_t\\) is tiny. Default \\(10^{-8}\\). Here \\(\\epsilon\\) is a constant, unlike the noise \\(\\epsilon\\) in diffusion.",
+     "shape": "A number.",
+     "where": "Algorithm 1 caption, p. 2."
+    },
+    {
+     "id": "theta",
+     "tex": "\\theta_t",
+     "match": [
+      "θt",
+      "θt-1"
+     ],
+     "name": "parameters after step t",
+     "meaning": "The weights being trained; subscript t is the step number.",
+     "shape": "Any shape (a vector of all weights).",
+     "where": "Algorithm 1, p. 2."
+    },
+    {
+     "id": "arrow",
+     "tex": "\\leftarrow",
+     "match": [
+      "←"
+     ],
+     "name": "assignment",
+     "meaning": "Overwrite the left side with the right side (an algorithm step), not an equation to solve.",
+     "shape": "Notation.",
+     "where": "Standard pseudocode."
+    }
+   ],
+   "aloud": "Get the gradient; update the running average of gradients and of squared gradients; correct both for starting at zero; then move each parameter by alpha times its corrected average gradient divided by the square root of its corrected average squared gradient plus epsilon.",
+   "steps_note": "One parameter θ, loss f(θ) = θ², so g = 2θ. Start θ0 = 1, α = 0.1 (larger than the 0.001 default so the steps are visible), β1 = 0.9, β2 = 0.999, ε = 10⁻⁸.",
+   "steps": [
+    {
+     "tex": "t=1:\\ g_1=2\\theta_0=2\\quad m_1=0.1\\cdot2=0.200\\quad v_1=0.001\\cdot2^2=0.004",
+     "say": "Both averages start at 0, so after one step they are far too small."
+    },
+    {
+     "tex": "\\widehat{m}_1=\\frac{0.200}{1-0.9}=2,\\quad \\widehat{v}_1=\\frac{0.004}{1-0.999}=4",
+     "say": "Bias correction restores the gradient's real size."
+    },
+    {
+     "tex": "\\theta_1=1-0.1\\cdot\\frac{2}{\\sqrt{4}+10^{-8}}=0.900",
+     "say": "The first step is exactly α in size, whatever the gradient's scale."
+    },
+    {
+     "tex": "t=2:\\ g_2=1.800\\quad m_2=0.360\\quad v_2=0.007236\\quad \\widehat{m}_2=1.8947\\quad \\widehat{v}_2=3.6198",
+     "say": "Now 1 − β1² = 0.19 and 1 − β2² = 0.001999."
+    },
+    {
+     "tex": "\\theta_2=0.900-0.1\\cdot\\frac{1.8947}{1.9026}=0.8004",
+     "say": "Again a step close to α."
+    },
+    {
+     "tex": "\\text{without the hats at } t=1:\\quad 0.1\\cdot\\frac{0.200}{\\sqrt{0.004}}=0.316",
+     "say": "The trap: skipping bias correction makes the first step about 3 times α here."
+    }
+   ],
+   "checks": {
+    "steps": [
+     {
+      "t": 1,
+      "g": 2.0,
+      "m": 0.19999999999999996,
+      "v": 0.0040000000000000036,
+      "mh": 2.0,
+      "vh": 4.0,
+      "th": 0.9000000005
+     },
+     {
+      "t": 2,
+      "g": 1.800000001,
+      "m": 0.3600000000999999,
+      "v": 0.007236000003600007,
+      "mh": 1.894736842631579,
+      "vh": 3.619809906753429,
+      "th": 0.8004122286917928
+     }
+    ],
+    "no_bias_correction_step": 0.3162277160168457
+   },
+   "traps": [
+    "Two kinds of superscript in one algorithm: \\(g_t^2\\) is an element-wise square, \\(\\beta_1^t\\) is a power, and \\(t\\) as a subscript is a step counter.",
+    "The hat means \"bias-corrected estimate\" here. In PPO \\(\\hat{A}_t\\) and \\(\\hat{\\mathbb{E}}_t\\) the hat means \"estimated from samples\". Same mark, related but different job.",
+    "\\(\\epsilon\\) sits outside the square root in Algorithm 1. Some libraries put it inside; the difference matters only when \\(\\widehat{v}\\) is tiny.",
+    "\\(\\beta_1, \\beta_2\\) are Adam's decay rates; the same letter \\(\\beta\\) is a KL strength in DPO and RLHF and a noise schedule in DDPM."
+   ],
+   "links": [
+    [
+     "Optimisers and learning-rate schedulers",
+     "n:3c65c17b0d0d817080bbc90954681d09"
+    ],
+    [
+     "Gradient lab (step a toy model yourself)",
+     "#t-grad"
+    ]
+   ]
+  },
+  {
+   "id": "lora",
+   "group": "Training",
+   "chip": "LoRA update",
+   "title": "The LoRA forward pass",
+   "paper": {
+    "cite": "Hu et al. 2021, LoRA: Low-Rank Adaptation of Large Language Models",
+    "arxiv": "2106.09685",
+    "ver": "v2",
+    "eq": "Eq. (3)",
+    "page": 4,
+    "section": "§4.1",
+    "abs": "https://arxiv.org/abs/2106.09685v2",
+    "pdf": "https://arxiv.org/pdf/2106.09685v2#page=4"
+   },
+   "latex": "h=W_{0}x+\\Delta Wx=W_{0}x+BAx",
+   "transcription": "As printed in §4.1.",
+   "symbols": [
+    {
+     "id": "W0",
+     "tex": "W_0",
+     "match": [
+      "W0"
+     ],
+     "name": "the frozen pretrained weight",
+     "meaning": "The original matrix; it receives no gradient updates.",
+     "shape": "\\(d \\times k\\): here \\(3 \\times 3\\); a 4096-wide projection is \\(4096 \\times 4096\\).",
+     "where": "§4.1, p. 4: \"W0 ∈ R^(d×k)\"."
+    },
+    {
+     "id": "x",
+     "tex": "x",
+     "match": [
+      "x"
+     ],
+     "name": "the input",
+     "meaning": "One input vector, written as a column: the weight multiplies it from the left.",
+     "shape": "\\(k \\times 1\\): here 3 numbers.",
+     "where": "§4.1, p. 4."
+    },
+    {
+     "id": "dW",
+     "tex": "\\Delta W",
+     "match": [
+      "Δ"
+     ],
+     "name": "the update",
+     "meaning": "The change fine-tuning makes to \\(W_0\\). \\(\\Delta\\) means \"change in\", not a separate variable.",
+     "shape": "\\(d \\times k\\), but never stored: it is \\(BA\\).",
+     "where": "§4.1, p. 4."
+    },
+    {
+     "id": "B",
+     "tex": "B",
+     "match": [
+      "B"
+     ],
+     "name": "up-projection",
+     "meaning": "Trainable; initialised to zero, so the update starts at zero.",
+     "shape": "\\(d \\times r\\): here \\(3 \\times 1\\).",
+     "where": "§4.1, p. 4: \"B ∈ R^(d×r)\"; zero init in the next paragraph."
+    },
+    {
+     "id": "A",
+     "tex": "A",
+     "match": [
+      "A"
+     ],
+     "name": "down-projection",
+     "meaning": "Trainable; random Gaussian initialisation.",
+     "shape": "\\(r \\times k\\): here \\(1 \\times 3\\).",
+     "where": "§4.1, p. 4."
+    },
+    {
+     "id": "h",
+     "tex": "h",
+     "match": [
+      "h"
+     ],
+     "name": "the output",
+     "meaning": "What the layer produces for input x.",
+     "shape": "\\(d \\times 1\\).",
+     "where": "§4.1, p. 4."
+    }
+   ],
+   "aloud": "h equals W zero times x plus the update times x, and the update is B times A, so the extra output is B times A times x.",
+   "steps_note": "d = k = 3, rank r = 1. Illustrative weights, real arithmetic.",
+   "steps": [
+    {
+     "tex": "W_0x=\\begin{bmatrix}1 & 0 & 0 \\\\ 0 & 2 & 0 \\\\ 0 & 0 & 1\\end{bmatrix}\\begin{bmatrix}1 \\\\ 2 \\\\ 3\\end{bmatrix}=\\begin{bmatrix}1 \\\\ 4 \\\\ 3\\end{bmatrix}",
+     "say": "The frozen path."
+    },
+    {
+     "tex": "Ax=\\begin{bmatrix}0.500 & 0 & -0.500\\end{bmatrix}\\begin{bmatrix}1 \\\\ 2 \\\\ 3\\end{bmatrix}=-1",
+     "say": "Squeeze x down to r = 1 number."
+    },
+    {
+     "tex": "B(Ax)=\\begin{bmatrix}1 \\\\ 0 \\\\ 2\\end{bmatrix}(-1)=\\begin{bmatrix}-1 \\\\ 0 \\\\ -2\\end{bmatrix}",
+     "say": "Expand back to d = 3 numbers."
+    },
+    {
+     "tex": "h=\\begin{bmatrix}1 \\\\ 4 \\\\ 3\\end{bmatrix}+\\begin{bmatrix}-1 \\\\ 0 \\\\ -2\\end{bmatrix}=\\begin{bmatrix}0 \\\\ 4 \\\\ 1\\end{bmatrix}",
+     "say": "Add the two paths."
+    },
+    {
+     "tex": "BA=\\begin{bmatrix}0.500 & 0 & -0.500 \\\\ 0 & 0 & 0 \\\\ 1 & 0 & -1\\end{bmatrix}\\ \\text{(rank 1)};\\quad d=k=4096,\\ r=8:\\quad 16,777,216\\ \\text{vs}\\ 65,536\\ \\text{trainable}\\quad (0.39\\%)",
+     "say": "Why it is cheap: r(d + k) numbers instead of d × k."
+    }
+   ],
+   "checks": {
+    "W0x": [
+     1.0,
+     4.0,
+     3.0
+    ],
+    "Ax": -1.0,
+    "BAx": [
+     -1.0,
+     0.0,
+     -2.0
+    ],
+    "h": [
+     0.0,
+     4.0,
+     1.0
+    ],
+    "pct": 0.390625
+   },
+   "traps": [
+    "Column-vector convention: LoRA writes \\(W_0 x\\) with \\(W_0\\) of shape \\(d \\times k\\) (out by in). PyTorch's <code>nn.Linear</code> stores its weight as (out, in) too but computes \\(xW^T\\) on row vectors. Same numbers, transposed bookkeeping.",
+    "Eq. (3) leaves out the scaling: the paper scales \\(\\Delta W x\\) by \\(\\alpha/r\\) (§4.1), and implementations do too. A rank change without a matching \\(\\alpha\\) change changes the effective learning rate.",
+    "Read \\(BAx\\) right to left: \\(B(Ax)\\) costs \\(r(d+k)\\) multiplications per input; forming \\(BA\\) first costs \\(dk\\) memory."
+   ],
+   "links": [
+    [
+     "LoRA (paper page, with a live low-rank toy)",
+     "n:3c65c17b0d0d81018f15edd19fa5c28a"
+    ],
+    [
+     "Parameter-Efficient Fine-Tuning (PEFT)",
+     "n:3c65c17b0d0d81eba08eef56b3e3b4eb"
+    ]
+   ]
+  },
+  {
+   "id": "chin",
+   "group": "Training",
+   "chip": "Chinchilla scaling law",
+   "title": "The Chinchilla parametric loss",
+   "paper": {
+    "cite": "Hoffmann et al. 2022, Training Compute-Optimal Large Language Models",
+    "arxiv": "2203.15556",
+    "ver": "v1",
+    "eq": "Eq. (2); fitted values in Eq. (10)",
+    "page": 6,
+    "section": "§3.3; Appendix D.2 (p. 25)",
+    "abs": "https://arxiv.org/abs/2203.15556v1",
+    "pdf": "https://arxiv.org/pdf/2203.15556v1#page=6"
+   },
+   "latex": "\\hat{L}(N,D)\\triangleq E+\\frac{A}{N^{\\alpha}}+\\frac{B}{D^{\\beta}}",
+   "transcription": "As printed (≜ means \"defined as\"). Appendix D.2, Eq. (10), gives the fit: E = 1.69, A = 406.4, B = 410.7, α = 0.34, β = 0.28.",
+   "symbols": [
+    {
+     "id": "Lhat",
+     "tex": "\\hat{L}",
+     "match": [
+      "Lˆ"
+     ],
+     "name": "predicted loss (the hat)",
+     "meaning": "The hat marks a model's prediction of the loss, not a measured one. The loss is the final pretraining loss in nats per token on the paper's data.",
+     "shape": "A number.",
+     "where": "Eq. (2), p. 6."
+    },
+    {
+     "id": "N",
+     "tex": "N",
+     "match": [
+      "N"
+     ],
+     "name": "parameters",
+     "meaning": "Model size: number of parameters.",
+     "shape": "A number, e.g. \\(7 \\times 10^{10}\\) for Chinchilla.",
+     "where": "§3, p. 6."
+    },
+    {
+     "id": "D",
+     "tex": "D",
+     "match": [
+      "D"
+     ],
+     "name": "training tokens",
+     "meaning": "How many tokens the model is trained on.",
+     "shape": "A number, e.g. \\(1.4 \\times 10^{12}\\).",
+     "where": "§3, p. 6."
+    },
+    {
+     "id": "E",
+     "tex": "E",
+     "match": [
+      "E"
+     ],
+     "name": "irreducible loss",
+     "meaning": "The paper: \"the loss for an ideal generative process on the data distribution\", which \"should correspond to the entropy of natural text\". Not an expectation here: a constant.",
+     "shape": "A number: 1.69.",
+     "where": "§3.3, p. 6."
+    },
+    {
+     "id": "A",
+     "tex": "A,\\ B",
+     "match": [
+      "A",
+      "B"
+     ],
+     "name": "fitted coefficients",
+     "meaning": "Constants fitted to the training runs.",
+     "shape": "Numbers: 406.4 and 410.7.",
+     "where": "Eq. (10), Appendix D.2, p. 25."
+    },
+    {
+     "id": "al",
+     "tex": "\\alpha,\\ \\beta",
+     "match": [
+      "Nα",
+      "Dβ"
+     ],
+     "name": "exponents",
+     "meaning": "How fast each term shrinks: \\(N^{\\alpha}\\) is a power. Fitted \\(\\alpha = 0.34\\), \\(\\beta = 0.28\\).",
+     "shape": "Numbers.",
+     "where": "Eq. (10), p. 25."
+    },
+    {
+     "id": "def",
+     "tex": "\\triangleq",
+     "match": [
+      "≜"
+     ],
+     "name": "defined as",
+     "meaning": "This is a definition of the form, not a result to be checked. Same job as := elsewhere.",
+     "shape": "Notation.",
+     "where": "Eq. (2)."
+    }
+   ],
+   "aloud": "L hat of N and D is defined as E, plus A over N to the alpha, plus B over D to the beta: an irreducible floor plus a penalty for a small model plus a penalty for too little data.",
+   "steps_note": "The paper's fitted constants, plugged in at two real models: Chinchilla (70B parameters, 1.4T tokens) and Gopher (280B, 300B tokens).",
+   "steps": [
+    {
+     "tex": "\\text{Chinchilla: } \\frac{406.4}{(7\\times10^{10})^{0.34}}=0.0835,\\quad \\frac{410.7}{(1.4\\times10^{12})^{0.28}}=0.1632",
+     "say": "The data term is the bigger penalty here."
+    },
+    {
+     "tex": "\\hat{L}=1.69+0.0835+0.1632=1.937",
+     "say": "Predicted loss, nats per token."
+    },
+    {
+     "tex": "\\text{Gopher: } \\hat{L}=1.69+0.0521+0.2511=1.993",
+     "say": "Four times the parameters, under a quarter of the tokens: a higher predicted loss."
+    },
+    {
+     "tex": "C\\approx 6ND:\\ 5.88\\times10^{23}\\ \\text{vs}\\ 5.04\\times10^{23}\\ \\text{FLOPs}",
+     "say": "At similar compute, the smaller model trained longer is predicted to win: the paper's point."
+    }
+   ],
+   "checks": {
+    "chinchilla": [
+     1.9366454705587173,
+     0.08348729030772284,
+     0.1631581802509945
+    ],
+    "gopher": [
+     1.9932584616598494,
+     0.05210986746807394,
+     0.2511485941917754
+    ]
+   },
+   "traps": [
+    "\\(E\\) is a constant (the loss floor), not an expectation \\(\\mathbb{E}\\). Font and context tell them apart: \\(\\mathbb{E}\\) is blackboard bold and is followed by brackets.",
+    "The printed constants are rounded; re-deriving the paper's other numbers from them lands slightly off (the Chinchilla paper page shows by how much, and the Besiroglu et al. 2024 replication).",
+    "\\(\\alpha\\) and \\(\\beta\\) here are exponents of a fit; in Adam they are a step size and decay rates. Letters are reused freely across papers."
+   ],
+   "links": [
+    [
+     "Chinchilla (paper page: refit Approach 3 yourself)",
+     "n:3c65c17b0d0d8116b7ddffba5c599f3f"
+    ],
+    [
+     "Scaling Laws for Neural Language Models (Kaplan et al.)",
+     "n:3c65c17b0d0d81b08a1debb0c15cd252"
+    ],
+    [
+     "Pretraining",
+     "n:3c65c17b0d0d814f82cffd0d5c0dd5ba"
+    ]
+   ]
+  },
+  {
+   "id": "nce",
+   "group": "Representations and generation",
+   "chip": "InfoNCE",
+   "title": "The InfoNCE loss",
+   "paper": {
+    "cite": "van den Oord, Li and Vinyals 2018, Representation Learning with Contrastive Predictive Coding",
+    "arxiv": "1807.03748",
+    "ver": "v2",
+    "eq": "Eq. (4)",
+    "page": 3,
+    "section": "§2.3",
+    "abs": "https://arxiv.org/abs/1807.03748v2",
+    "pdf": "https://arxiv.org/pdf/1807.03748v2#page=3"
+   },
+   "latex": "\\mathcal{L}_{\\text{N}}=-\\mathop{\\mathbb{E}}_{X}\\left[\\log\\frac{f_{k}(x_{t+k},c_{t})}{\\sum_{x_{j}\\in X}f_{k}(x_{j},c_{t})}\\right]",
+   "transcription": "As printed in §2.3 (Eq. (3) defines f_k on the same page).",
+   "symbols": [
+    {
+     "id": "LN",
+     "tex": "\\mathcal{L}_\\text{N}",
+     "match": [
+      "ℒN"
+     ],
+     "name": "the loss, for sets of N",
+     "meaning": "The subscript N is the number of samples in each set: one positive plus N − 1 negatives.",
+     "shape": "A number.",
+     "where": "Eq. (4), p. 3."
+    },
+    {
+     "id": "EX",
+     "tex": "\\mathbb{E}_X",
+     "match": [
+      "𝔼X"
+     ],
+     "name": "average over sets X",
+     "meaning": "The subscript under E says what is random: here the set X of samples. In practice, the mean over the sets in a batch.",
+     "shape": "Notation.",
+     "where": "§2.3, p. 3."
+    },
+    {
+     "id": "X",
+     "tex": "X",
+     "match": [
+      "X"
+     ],
+     "name": "one set of candidates",
+     "meaning": "\\(X = \\{x_1, \\ldots, x_N\\}\\): one sample from \\(p(x_{t+k} \\mid c_t)\\) (the positive) and \\(N-1\\) from \\(p(x_{t+k})\\) (negatives).",
+     "shape": "\\(N\\) items: here 3.",
+     "where": "§2.3, p. 3."
+    },
+    {
+     "id": "fk",
+     "tex": "f_k",
+     "match": [
+      "fk"
+     ],
+     "name": "score function",
+     "meaning": "A positive score, \\(f_k = \\exp(z_{t+k}^T W_k c_t)\\) (Eq. 3); the paper shows it is proportional to a density ratio, not a probability.",
+     "shape": "A positive number per candidate.",
+     "where": "Eq. (3), p. 3; Eq. (2), p. 3."
+    },
+    {
+     "id": "xtk",
+     "tex": "x_{t+k}",
+     "match": [
+      "xt+k"
+     ],
+     "name": "the true future sample",
+     "meaning": "What actually came k steps after time t: the positive.",
+     "shape": "One input (e.g. a window of audio); scored through its encoding z.",
+     "where": "§2.1-2.3."
+    },
+    {
+     "id": "ct",
+     "tex": "c_t",
+     "match": [
+      "ct"
+     ],
+     "name": "context",
+     "meaning": "The model's summary of everything up to time t.",
+     "shape": "A vector (256 dimensions in the audio experiments, §3.1).",
+     "where": "§2.2, p. 3: c_t = g_ar(z_≤t), a summary of all encodings up to t."
+    },
+    {
+     "id": "xj",
+     "tex": "x_j\\in X",
+     "match": [
+      "xj"
+     ],
+     "name": "every candidate in the set",
+     "meaning": "The sum index: j runs over all N candidates, the positive included.",
+     "shape": "Notation.",
+     "where": "Eq. (4)."
+    }
+   ],
+   "aloud": "L N equals minus the average, over sets X, of the log of the positive's score divided by the sum of the scores of every candidate in the set.",
+   "steps_note": "One set with N = 3: the positive's score z·Wc = 2.0, two negatives 0.5 and −1.0 (illustrative scores, real arithmetic).",
+   "steps": [
+    {
+     "tex": "f=\\left(e^{2},\\ e^{0.5},\\ e^{-1}\\right)=(7.389,\\ 1.649,\\ 0.368)",
+     "say": "Exponentiate the scores."
+    },
+    {
+     "tex": "\\frac{7.389}{9.406}=0.786",
+     "say": "The positive's share: a softmax over the set."
+    },
+    {
+     "tex": "\\mathcal{L}_3=-\\log 0.786=0.241",
+     "say": "Cross-entropy with the positive as the label. Averaged over many sets in practice."
+    },
+    {
+     "tex": "I(x_{t+k},c_t)\\geq\\log N-\\mathcal{L}_N\\quad =1.099-0.241=0.857\\ \\text{nats}",
+     "say": "The paper's bound (unnumbered display, p. 4): the estimate can never exceed log N, so more negatives raise the ceiling."
+    }
+   ],
+   "checks": {
+    "f": [
+     7.38905609893065,
+     1.6487212707001282,
+     0.36787944117144233
+    ],
+    "p_pos": 0.7855970345892759,
+    "loss": 0.24131129665715703,
+    "bound": 0.8573009920109528
+   },
+   "traps": [
+    "It is ordinary softmax cross-entropy where the classes are the candidates in the set; CLIP's loss is the same thing applied in both directions over a batch.",
+    "The subscript under \\(\\mathbb{E}\\) names the random thing. \\(\\mathbb{E}_X\\) here; \\(\\mathbb{E}_{x\\sim p}\\) elsewhere reads \"average over x drawn from p\".",
+    "\\(N\\) is the set size, not the dataset size; \\(t\\) and \\(k\\) are a time step and how far ahead, not a temperature or a key."
+   ],
+   "links": [
+    [
+     "Contrastive and self-supervised learning",
+     "n:3c65c17b0d0d811db6a7d02d0ee7215c"
+    ],
+    [
+     "CLIP (paper page)",
+     "n:3c65c17b0d0d8194a85dfc5f3bf3f799"
+    ]
+   ]
+  },
+  {
+   "id": "ddpm",
+   "group": "Representations and generation",
+   "chip": "Diffusion training loss",
+   "title": "The simplified diffusion training loss",
+   "paper": {
+    "cite": "Ho, Jain and Abbeel 2020, Denoising Diffusion Probabilistic Models",
+    "arxiv": "2006.11239",
+    "ver": "v2",
+    "eq": "Eq. (14)",
+    "page": 5,
+    "section": "§3.4",
+    "abs": "https://arxiv.org/abs/2006.11239v2",
+    "pdf": "https://arxiv.org/pdf/2006.11239v2#page=5"
+   },
+   "latex": "L_{\\mathrm{simple}}(\\theta)\\coloneqq\\mathbb{E}_{t,\\mathbf{x}_{0},\\boldsymbol{\\epsilon}}\\left[\\left\\|\\boldsymbol{\\epsilon}-\\boldsymbol{\\epsilon}_{\\theta}\\left(\\sqrt{\\bar{\\alpha}_{t}}\\mathbf{x}_{0}+\\sqrt{1-\\bar{\\alpha}_{t}}\\boldsymbol{\\epsilon},t\\right)\\right\\|^{2}\\right]",
+   "transcription": "As printed in §3.4.",
+   "symbols": [
+    {
+     "id": "E",
+     "tex": "\\mathbb{E}_{t,\\mathbf{x}_0,\\boldsymbol{\\epsilon}}",
+     "match": [
+      "𝔼t,𝐱0,𝝐"
+     ],
+     "name": "average over three random things",
+     "meaning": "t uniform from 1 to T, an image x0 from the data, noise ε from a standard Gaussian. Each training step draws one of each per example.",
+     "shape": "Notation.",
+     "where": "§3.4, p. 5: \"t is uniform between 1 and T\"."
+    },
+    {
+     "id": "x0",
+     "tex": "\\mathbf{x}_0",
+     "match": [
+      "x0",
+      "𝐱0"
+     ],
+     "name": "a clean data sample",
+     "meaning": "A real image, scaled to [−1, 1].",
+     "shape": "Same shape as the image: \\(32 \\times 32 \\times 3\\) for CIFAR-10; here 2 numbers.",
+     "where": "§2 and §3.3."
+    },
+    {
+     "id": "eps",
+     "tex": "\\boldsymbol{\\epsilon}",
+     "match": [
+      "𝝐"
+     ],
+     "name": "the noise",
+     "meaning": "Gaussian noise, \\(\\boldsymbol{\\epsilon}\\sim\\mathcal{N}(\\mathbf{0},\\mathbf{I})\\). Not a small constant: in Adam the same letter is.",
+     "shape": "Same shape as \\(\\mathbf{x}_0\\).",
+     "where": "§3.2, p. 3: \"for ε ∼ N(0, I)\"."
+    },
+    {
+     "id": "epth",
+     "tex": "\\boldsymbol{\\epsilon}_\\theta",
+     "match": [
+      "𝝐θ"
+     ],
+     "name": "the network's guess of the noise",
+     "meaning": "A neural network (a U-Net, §4) that sees the noisy input and t and predicts which noise was added.",
+     "shape": "Same shape as \\(\\mathbf{x}_0\\).",
+     "where": "§3.2, Eq. (11), p. 4."
+    },
+    {
+     "id": "abar",
+     "tex": "\\bar{\\alpha}_t",
+     "match": [
+      "α‾t"
+     ],
+     "name": "cumulative signal kept (the bar)",
+     "meaning": "Here the bar is a product, not an average: \\(\\bar\\alpha_t = \\prod_{s=1}^t \\alpha_s\\) with \\(\\alpha_t = 1 - \\beta_t\\). It shrinks from about 1 to about 0 as t grows.",
+     "shape": "A number per t.",
+     "where": "§2, p. 2, just before Eq. (4)."
+    },
+    {
+     "id": "t",
+     "tex": "t",
+     "match": [
+      "t"
+     ],
+     "name": "noise level (time step)",
+     "meaning": "Which step of the forward noising process; T = 1000 in the paper.",
+     "shape": "An integer from 1 to T.",
+     "where": "§4, p. 5."
+    },
+    {
+     "id": "norm",
+     "tex": "\\|\\cdot\\|^2",
+     "match": [
+      "‖"
+     ],
+     "name": "squared Euclidean norm",
+     "meaning": "Sum of squared differences over every pixel: a mean-squared-error, up to a constant factor.",
+     "shape": "A number.",
+     "where": "Standard."
+    },
+    {
+     "id": "def",
+     "tex": "\\coloneqq",
+     "match": [
+      "≔",
+      ":="
+     ],
+     "name": "defined as",
+     "meaning": "Introduces a new name for the expression on the right.",
+     "shape": "Notation.",
+     "where": "Standard."
+    }
+   ],
+   "aloud": "L simple of theta is defined as the average, over a random step t, a data sample x zero and Gaussian noise epsilon, of the squared distance between the noise and the network's guess of the noise from the noised sample.",
+   "steps_note": "A 2-pixel \"image\"; t = 200 with the paper's linear schedule (β from 10⁻⁴ to 0.02 over T = 1000, §4). The network's guess is illustrative.",
+   "steps": [
+    {
+     "tex": "\\bar{\\alpha}_{200}=\\prod_{s=1}^{200}(1-\\beta_s)=0.6590,\\quad \\sqrt{\\bar{\\alpha}}=0.8118,\\ \\sqrt{1-\\bar{\\alpha}}=0.5839",
+     "say": "From the paper's schedule, computed in recompute.py."
+    },
+    {
+     "tex": "\\mathbf{x}_0=\\begin{bmatrix}0.500 & -0.200\\end{bmatrix},\\ \\boldsymbol{\\epsilon}=\\begin{bmatrix}1 & -0.500\\end{bmatrix}:\\quad \\mathbf{x}_{200}=0.8118\\,\\mathbf{x}_0+0.5839\\,\\boldsymbol{\\epsilon}\\quad =\\begin{bmatrix}0.990 & -0.454\\end{bmatrix}",
+     "say": "The noised input the network sees."
+    },
+    {
+     "tex": "\\boldsymbol{\\epsilon}_\\theta(\\mathbf{x}_{200},200)=\\begin{bmatrix}0.900 & -0.300\\end{bmatrix}",
+     "say": "Suppose this is the network's guess."
+    },
+    {
+     "tex": "\\|\\boldsymbol{\\epsilon}-\\boldsymbol{\\epsilon}_\\theta\\|^2=(0.1)^2+(-0.2)^2=0.050",
+     "say": "Sum over pixels. A mean over pixels (common in code) gives 0.025: the same loss up to a constant."
+    }
+   ],
+   "checks": {
+    "abar200": 0.6590385082317941,
+    "sqrt_abar": 0.8118118675110596,
+    "sqrt_1m": 0.5839190798117543,
+    "xt": [
+     0.9898250135672841,
+     -0.4543219134080891
+    ],
+    "loss": 0.05
+   },
+   "traps": [
+    "The bar on \\(\\bar\\alpha_t\\) is a cumulative product. Elsewhere a bar often means a mean (\\(\\bar{x}\\)) or a complex conjugate. Look for the definition.",
+    "\\(\\boldsymbol{\\epsilon}\\) is the noise, bold because it is a vector; the predicted noise carries the parameters as a subscript, \\(\\boldsymbol{\\epsilon}_\\theta\\).",
+    "Three variables sit under the \\(\\mathbb{E}\\): all three are sampled every step. Dropping one (say, a fixed t) changes what is learned."
+   ],
+   "links": [
+    [
+     "DDPM (paper page, with a live toy diffusion model)",
+     "n:3c65c17b0d0d811481e4e36333454f7a"
+    ],
+    [
+     "Latent Diffusion / Stable Diffusion (paper page)",
+     "n:3c65c17b0d0d81bb98adc0daf8462cb6"
+    ]
+   ]
+  },
+  {
+   "id": "rlhf",
+   "group": "Post-training",
+   "chip": "RLHF objective (KL-regularised)",
+   "title": "The KL-regularised RLHF objective",
+   "paper": {
+    "cite": "Ouyang et al. 2022, Training language models to follow instructions with human feedback (InstructGPT)",
+    "arxiv": "2203.02155",
+    "ver": "v1",
+    "eq": "Eq. (2)",
+    "page": 9,
+    "section": "§3.5",
+    "abs": "https://arxiv.org/abs/2203.02155v1",
+    "pdf": "https://arxiv.org/pdf/2203.02155v1#page=9"
+   },
+   "latex": "\\begin{aligned}\\text{objective}(\\phi)=\\;&\\mathbb{E}_{(x,y)\\sim D_{\\pi_{\\phi}^{\\mathrm{RL}}}}\\left[r_{\\theta}(x,y)-\\beta\\log\\left(\\pi_{\\phi}^{\\mathrm{RL}}(y\\mid x)/\\pi^{\\mathrm{SFT}}(y\\mid x)\\right)\\right]+\\\\ &\\gamma\\,\\mathbb{E}_{x\\sim D_{\\mathrm{pretrain}}}\\left[\\log(\\pi_{\\phi}^{\\mathrm{RL}}(x))\\right]\\end{aligned}",
+   "transcription": "As printed (the paper breaks the line after the first expectation).",
+   "symbols": [
+    {
+     "id": "phi",
+     "tex": "\\phi",
+     "match": [
+      "ϕ",
+      "φ"
+     ],
+     "name": "the policy's parameters",
+     "meaning": "What is being trained: the language model's weights. The objective is a function of φ.",
+     "shape": "All the policy's weights.",
+     "where": "§3.5, p. 9."
+    },
+    {
+     "id": "pirl",
+     "tex": "\\pi_\\phi^{\\mathrm{RL}}",
+     "match": [
+      "πϕRL",
+      "πφRL"
+     ],
+     "name": "the policy being trained",
+     "meaning": "The language model as a policy: \\(\\pi(y \\mid x)\\) is the probability of response y to prompt x (a product of token probabilities).",
+     "shape": "A probability per (prompt, response) pair.",
+     "where": "p. 9: \"the learned RL policy\"."
+    },
+    {
+     "id": "pisft",
+     "tex": "\\pi^{\\mathrm{SFT}}",
+     "match": [
+      "πSFT"
+     ],
+     "name": "the frozen reference",
+     "meaning": "The supervised fine-tuned model the policy started from; it stays fixed.",
+     "shape": "Same as the policy.",
+     "where": "p. 9: \"the supervised trained model\"."
+    },
+    {
+     "id": "Ed",
+     "tex": "\\mathbb{E}_{(x,y)\\sim D_{\\pi_\\phi^{\\mathrm{RL}}}}",
+     "match": [
+      "(x,y)∼DπϕRL",
+      "(x,y)∼DπφRL"
+     ],
+     "name": "sampled from the policy itself",
+     "meaning": "Prompts x come from the dataset and responses y are generated by the current policy. The distribution depends on φ, which is why this needs RL (PPO) rather than plain backprop through the expectation.",
+     "shape": "Notation.",
+     "where": "Eq. (2), p. 9."
+    },
+    {
+     "id": "r",
+     "tex": "r_\\theta",
+     "match": [
+      "rθ"
+     ],
+     "name": "the reward model",
+     "meaning": "A separate network that scores a response. Here θ is the reward model's parameters, not the policy's.",
+     "shape": "A number per (x, y).",
+     "where": "§3.5, p. 8-9; trained with Eq. (1)."
+    },
+    {
+     "id": "beta",
+     "tex": "\\beta",
+     "match": [
+      "β"
+     ],
+     "name": "KL reward coefficient",
+     "meaning": "How strongly drifting from the SFT model is penalised. 0.02 in the paper.",
+     "shape": "A number.",
+     "where": "p. 9; value in Appendix C.4, p. 42."
+    },
+    {
+     "id": "gamma",
+     "tex": "\\gamma",
+     "match": [
+      "γ"
+     ],
+     "name": "pretraining-mix coefficient",
+     "meaning": "Weight on keeping pretraining likelihood high (\"PPO-ptx\"). 0 for plain PPO; 27.8 worked across sizes.",
+     "shape": "A number.",
+     "where": "p. 9; value in Appendix E.6, p. 53."
+    },
+    {
+     "id": "Dpre",
+     "tex": "D_{\\mathrm{pretrain}}",
+     "match": [
+      "Dpretrain"
+     ],
+     "name": "pretraining distribution",
+     "meaning": "Ordinary text; \\(\\pi(x)\\) here is the probability of that text itself.",
+     "shape": "Notation.",
+     "where": "p. 9."
+    }
+   ],
+   "aloud": "The objective, as a function of the policy's weights phi, is the average over prompts and the policy's own responses of the reward minus beta times the log of how much more likely the policy makes the response than the SFT model did; plus gamma times the average log-likelihood of pretraining text.",
+   "steps_note": "One prompt and one sampled response. Reward, probabilities and the pretraining log-likelihood are illustrative; β = 0.02 and γ = 27.8 are the paper's.",
+   "steps": [
+    {
+     "tex": "\\log\\frac{\\pi^{\\mathrm{RL}}(y\\mid x)}{\\pi^{\\mathrm{SFT}}(y\\mid x)}=\\log\\frac{0.02}{0.01}=0.693",
+     "say": "The policy now makes this response twice as likely as the SFT model."
+    },
+    {
+     "tex": "r_\\theta-\\beta\\cdot0.693=1.5-0.02\\cdot0.693\\quad =1.5-0.0139=1.4861",
+     "say": "The penalised reward this sample contributes."
+    },
+    {
+     "tex": "\\gamma\\log\\pi^{\\mathrm{RL}}(x_{\\text{pretrain}})=27.8\\cdot(-2.0)=-55.6",
+     "say": "Pretraining term for one text, taking −2.0 as its log-likelihood (illustrative, per token). Large in size, but what matters is its gradient."
+    }
+   ],
+   "checks": {
+    "log_ratio": 0.6931471805599453,
+    "penalised": 1.486137056388801,
+    "gamma_term": -55.6
+   },
+   "traps": [
+    "For one sample, \\(\\log(\\pi^{\\mathrm{RL}}/\\pi^{\\mathrm{SFT}})\\) can be negative; only its average over \\(y\\sim\\pi^{\\mathrm{RL}}\\), the KL divergence, is guaranteed to be at least 0.",
+    "Two parameter letters: \\(\\phi\\) for the policy, \\(\\theta\\) for the reward model. In DPO and GRPO the policy is \\(\\pi_\\theta\\). Never assume θ means the model being trained.",
+    "This is an objective to maximise, written without a minus sign. Code minimises its negative.",
+    "\\(\\pi(y\\mid x)\\) of a whole response is a product over tokens, so its log is a sum of token log-probabilities."
+   ],
+   "links": [
+    [
+     "InstructGPT (paper page)",
+     "n:3c65c17b0d0d8180b958d8299996a063"
+    ],
+    [
+     "Alignment: SFT, RLHF, DPO family, RLVR",
+     "n:3c65c17b0d0d81d5bed7e608d4061c7a"
+    ],
+    [
+     "RL for LLMs: RLHF, GRPO, RLVR",
+     "n:3c65c17b0d0d818c9bcff7177325fe56"
+    ]
+   ]
+  },
+  {
+   "id": "ppo",
+   "group": "Post-training",
+   "chip": "PPO clipped objective",
+   "title": "The PPO clipped surrogate objective",
+   "paper": {
+    "cite": "Schulman et al. 2017, Proximal Policy Optimization Algorithms",
+    "arxiv": "1707.06347",
+    "ver": "v2",
+    "eq": "Eq. (7)",
+    "page": 3,
+    "section": "§3",
+    "abs": "https://arxiv.org/abs/1707.06347v2",
+    "pdf": "https://arxiv.org/pdf/1707.06347v2#page=3"
+   },
+   "latex": "L^{CLIP}(\\theta)=\\hat{\\mathbb{E}}_{t}\\left[\\min(r_{t}(\\theta)\\hat{A}_{t},\\mathrm{clip}(r_{t}(\\theta),1-\\epsilon,1+\\epsilon)\\hat{A}_{t})\\right]",
+   "transcription": "As printed in §3.",
+   "symbols": [
+    {
+     "id": "Ehat",
+     "tex": "\\hat{\\mathbb{E}}_t",
+     "match": [
+      "𝔼ˆt"
+     ],
+     "name": "empirical average over time steps",
+     "meaning": "The hat means it is computed from samples: \"the empirical average over a finite batch of samples\". Not a true expectation.",
+     "shape": "Notation.",
+     "where": "§2.1, p. 2."
+    },
+    {
+     "id": "rt",
+     "tex": "r_t(\\theta)",
+     "match": [
+      "rt"
+     ],
+     "name": "probability ratio",
+     "meaning": "\\(r_t(\\theta) = \\pi_\\theta(a_t \\mid s_t) / \\pi_{\\theta_{\\text{old}}}(a_t \\mid s_t)\\): how much more likely the new policy makes the action that was taken. Equals 1 before any update.",
+     "shape": "A positive number per time step.",
+     "where": "§3, p. 3."
+    },
+    {
+     "id": "Ahat",
+     "tex": "\\hat{A}_t",
+     "match": [
+      "Aˆt"
+     ],
+     "name": "advantage estimate",
+     "meaning": "How much better the action was than expected; the hat says it is an estimate (computed with GAE in the paper, Eq. 11).",
+     "shape": "A number per time step.",
+     "where": "§2.1, p. 2; Eq. (11), p. 5."
+    },
+    {
+     "id": "eps",
+     "tex": "\\epsilon",
+     "match": [
+      "ϵ",
+      "ε"
+     ],
+     "name": "clip range",
+     "meaning": "How far the ratio may move before the objective stops rewarding the move. The paper: \"say, ε = 0.2\".",
+     "shape": "A number.",
+     "where": "§3, p. 3."
+    },
+    {
+     "id": "clip",
+     "tex": "\\mathrm{clip}",
+     "match": [
+      "clip"
+     ],
+     "name": "clip",
+     "meaning": "\\(\\mathrm{clip}(r, 1-\\epsilon, 1+\\epsilon)\\) pins r into the interval [0.8, 1.2].",
+     "shape": "A function.",
+     "where": "§3, p. 3."
+    },
+    {
+     "id": "min",
+     "tex": "\\min",
+     "match": [
+      "min"
+     ],
+     "name": "the smaller of the two",
+     "meaning": "Takes the more pessimistic value, so the clip only ever removes gains, never hides losses (\"a lower bound ... on the unclipped objective\").",
+     "shape": "A function.",
+     "where": "§3, p. 3."
+    },
+    {
+     "id": "theta",
+     "tex": "\\theta",
+     "match": [
+      "θ"
+     ],
+     "name": "policy parameters",
+     "meaning": "Being trained; θ_old are the parameters that generated the samples.",
+     "shape": "All weights.",
+     "where": "§2.1."
+    }
+   ],
+   "aloud": "L clip of theta is the batch average, over time steps, of the smaller of: the ratio times the advantage, and the ratio clipped to between one minus epsilon and one plus epsilon, times the advantage.",
+   "steps_note": "ε = 0.2 (the paper's example value); three time steps with illustrative ratios and advantages.",
+   "steps": [
+    {
+     "tex": "r=1.500,\\ \\hat A=2:\\quad \\min(3,\\ 1.2\\cdot 2=2.400)=2.400",
+     "say": "Good action already made much likelier: the gain is capped."
+    },
+    {
+     "tex": "r=0.500,\\ \\hat A=-1:\\quad \\min(-0.500,\\ 0.8\\cdot(-1)=-0.800)=-0.800",
+     "say": "Bad action already made much rarer: credit for pushing it further is capped too."
+    },
+    {
+     "tex": "r=1.500,\\ \\hat A=-1:\\quad \\min(-1.500,\\ 1.2\\cdot(-1)=-1.200)=-1.500",
+     "say": "Bad action made likelier: the full penalty stays. This is why it is a pessimistic bound."
+    },
+    {
+     "tex": "L^{CLIP}=\\tfrac13(2.400+(-0.800)+(-1.500))\\quad =0.033",
+     "say": "The empirical average over the three steps (to be maximised)."
+    }
+   ],
+   "checks": {
+    "cases": [
+     {
+      "r": 1.5,
+      "A": 2.0,
+      "unclipped": 3.0,
+      "clipped": 2.4,
+      "min": 2.4
+     },
+     {
+      "r": 0.5,
+      "A": -1.0,
+      "unclipped": -0.5,
+      "clipped": -0.8,
+      "min": -0.8
+     },
+     {
+      "r": 1.5,
+      "A": -1.0,
+      "unclipped": -1.5,
+      "clipped": -1.2,
+      "min": -1.5
+     }
+    ],
+    "mean": 0.03333333333333329
+   },
+   "traps": [
+    "\\(r_t\\) here is a probability ratio, not a reward (rewards are \\(r_t\\) in most RL papers, including later in this one). Read the definition line.",
+    "The superscript CLIP is a label. \\(L\\) here is maximised, despite the letter usually meaning a loss.",
+    "\\(\\hat{\\mathbb{E}}_t\\) is a sample average. A hat on an expectation, an advantage or a gradient (\\(\\hat{g}\\)) means estimated from data.",
+    "The DeepSeekMath version (GRPO's paper, Eq. 1) also divides by the response length \\(|o|\\), averaging over tokens: a per-token form for language models."
+   ],
+   "links": [
+    [
+     "Policy gradients and actor-critic: from REINFORCE to PPO",
+     "n:3ee5c17b0d0d8101a262d3620e75747c"
+    ],
+    [
+     "RL for LLMs: RLHF, GRPO, RLVR",
+     "n:3c65c17b0d0d818c9bcff7177325fe56"
+    ]
+   ]
+  },
+  {
+   "id": "dpo",
+   "group": "Post-training",
+   "chip": "DPO loss",
+   "title": "The DPO loss",
+   "paper": {
+    "cite": "Rafailov et al. 2023, Direct Preference Optimization: Your Language Model is Secretly a Reward Model",
+    "arxiv": "2305.18290",
+    "ver": "v3",
+    "eq": "Eq. (7)",
+    "page": 4,
+    "section": "§4",
+    "abs": "https://arxiv.org/abs/2305.18290v3",
+    "pdf": "https://arxiv.org/pdf/2305.18290v3#page=4"
+   },
+   "latex": "\\mathcal{L}_{\\text{DPO}}(\\pi_{\\theta};\\pi_{\\text{ref}})=-\\mathbb{E}_{(x,y_{w},y_{l})\\sim\\mathcal{D}}\\left[\\log\\sigma\\left(\\beta\\log\\frac{\\pi_{\\theta}(y_{w}\\mid x)}{\\pi_{\\text{ref}}(y_{w}\\mid x)}-\\beta\\log\\frac{\\pi_{\\theta}(y_{l}\\mid x)}{\\pi_{\\text{ref}}(y_{l}\\mid x)}\\right)\\right]",
+   "transcription": "As printed in §4.",
+   "symbols": [
+    {
+     "id": "pith",
+     "tex": "\\pi_\\theta",
+     "match": [
+      "πθ"
+     ],
+     "name": "the policy being trained",
+     "meaning": "The language model; π(y | x) is the probability of a whole response.",
+     "shape": "A probability per (x, y).",
+     "where": "§3-4."
+    },
+    {
+     "id": "piref",
+     "tex": "\\pi_{\\text{ref}}",
+     "match": [
+      "πref"
+     ],
+     "name": "frozen reference model",
+     "meaning": "Usually the SFT model; it is not updated.",
+     "shape": "Same as the policy.",
+     "where": "§3, Eq. (3), p. 3."
+    },
+    {
+     "id": "yw",
+     "tex": "y_w,\\ y_l",
+     "match": [
+      "yw",
+      "yl"
+     ],
+     "name": "preferred and dispreferred responses",
+     "meaning": "w for win, l for lose: a human (or model) preferred y_w over y_l for prompt x.",
+     "shape": "Two token sequences.",
+     "where": "§3, p. 2-3."
+    },
+    {
+     "id": "D",
+     "tex": "\\mathcal{D}",
+     "match": [
+      "𝒟"
+     ],
+     "name": "the preference dataset",
+     "meaning": "A fixed set of (prompt, preferred, dispreferred) triples. Offline: nothing is sampled from the policy during training.",
+     "shape": "Notation.",
+     "where": "§3, p. 3."
+    },
+    {
+     "id": "sig",
+     "tex": "\\sigma",
+     "match": [
+      "σ"
+     ],
+     "name": "logistic sigmoid",
+     "meaning": "\\(\\sigma(z) = 1/(1+e^{-z})\\), the Bradley-Terry probability that y_w beats y_l. Not a standard deviation.",
+     "shape": "A number in (0, 1).",
+     "where": "§3, Eq. (2), p. 3."
+    },
+    {
+     "id": "beta",
+     "tex": "\\beta",
+     "match": [
+      "β"
+     ],
+     "name": "KL strength",
+     "meaning": "Same role as β in the RLHF objective: how far the policy may move from the reference. The paper uses 0.1 by default and 0.5 for TL;DR summarisation.",
+     "shape": "A number.",
+     "where": "Eq. (3), p. 3; values in Appendix B, p. 20."
+    },
+    {
+     "id": "semi",
+     "tex": ";\\pi_\\text{ref}",
+     "match": [
+      ";"
+     ],
+     "name": "semicolon",
+     "meaning": "The loss is a function of π_θ, with π_ref held fixed as a setting.",
+     "shape": "Notation.",
+     "where": "Eq. (7)."
+    }
+   ],
+   "aloud": "The DPO loss is minus the average, over preference triples, of the log-sigmoid of: beta times how much more the policy likes the winner than the reference did, minus beta times the same for the loser.",
+   "steps_note": "One pair; summed token log-probabilities (illustrative), β = 0.1.",
+   "steps": [
+    {
+     "tex": "\\log\\pi_\\theta(y_w\\mid x)=-10\\quad \\log\\pi_{\\text{ref}}(y_w\\mid x)=-11\\quad \\log\\pi_\\theta(y_l\\mid x)=-12\\quad \\log\\pi_{\\text{ref}}(y_l\\mid x)=-11.5",
+     "say": "Whole-response log-probabilities: sums over tokens."
+    },
+    {
+     "tex": "\\log\\frac{\\pi_\\theta(y_w)}{\\pi_{\\text{ref}}(y_w)}=1,\\quad \\log\\frac{\\pi_\\theta(y_l)}{\\pi_{\\text{ref}}(y_l)}=-0.500",
+     "say": "The policy raised the winner and lowered the loser, relative to the reference."
+    },
+    {
+     "tex": "\\beta(1-(-0.500))=0.150,\\quad \\sigma(0.150)=0.5374",
+     "say": "The implicit reward margin and its Bradley-Terry probability."
+    },
+    {
+     "tex": "\\mathcal{L}=-\\log 0.5374=0.6210\\quad \\text{at the start } (\\pi_\\theta=\\pi_{\\text{ref}}):\\quad -\\log\\sigma(0)=\\log 2=0.6931)",
+     "say": "Below log 2 means the policy already prefers the winner more than the reference does."
+    }
+   ],
+   "checks": {
+    "margin": 0.15000000000000002,
+    "sigmoid": 0.5374298453437496,
+    "loss": 0.620957047789532,
+    "loss_at_start": 0.6931471805599453
+   },
+   "traps": [
+    "\\(\\sigma\\) is the sigmoid here; in LayerNorm and statistics it is a standard deviation. Context: a function applied to something in brackets.",
+    "\\(\\pi(y\\mid x)\\) is a probability of a whole response; implementations sum token log-probabilities (not average them), which is why longer responses get larger log-ratios.",
+    "\\(\\mathcal{D}\\) is fixed data, unlike RLHF's \\(D_{\\pi^{\\mathrm{RL}}}\\), which samples from the policy. That one subscript is the online versus offline difference."
+   ],
+   "links": [
+    [
+     "DPO (paper page, with a live preference toy)",
+     "n:3c65c17b0d0d818bb1d8cafd30e20f9e"
+    ],
+    [
+     "Alignment: SFT, RLHF, DPO family, RLVR",
+     "n:3c65c17b0d0d81d5bed7e608d4061c7a"
+    ]
+   ]
+  },
+  {
+   "id": "grpo",
+   "group": "Post-training",
+   "chip": "GRPO advantage",
+   "title": "GRPO's group-relative advantage",
+   "paper": {
+    "cite": "Shao et al. 2024, DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models",
+    "arxiv": "2402.03300",
+    "ver": "v3",
+    "eq": "inline, §4.1.2 (plugged into Eq. (3))",
+    "page": 14,
+    "section": "§4.1.2",
+    "abs": "https://arxiv.org/abs/2402.03300v3",
+    "pdf": "https://arxiv.org/pdf/2402.03300v3#page=14"
+   },
+   "latex": "\\hat{A}_{i,t}=\\widetilde{r}_{i}=\\frac{r_{i}-{\\rm mean}(\\mathbf{r})}{ {\\rm std}(\\mathbf{r})}",
+   "transcription": "As printed inline in §4.1.2 (outcome supervision).",
+   "symbols": [
+    {
+     "id": "A",
+     "tex": "\\hat{A}_{i,t}",
+     "match": [
+      "Aˆi,t"
+     ],
+     "name": "advantage of token t in output i",
+     "meaning": "Every token of output i gets the same value (outcome supervision): one score for the whole answer.",
+     "shape": "A number per token; here \\(G = 4\\) outputs.",
+     "where": "§4.1.2, p. 14."
+    },
+    {
+     "id": "rt",
+     "tex": "\\widetilde{r}_i",
+     "match": [
+      "r~i",
+      "r̃i"
+     ],
+     "name": "normalised reward (the tilde)",
+     "meaning": "The tilde marks a transformed version of r_i: here centred and scaled within the group.",
+     "shape": "A number per output.",
+     "where": "§4.1.2, p. 14."
+    },
+    {
+     "id": "ri",
+     "tex": "r_i",
+     "match": [
+      "ri"
+     ],
+     "name": "reward of output i",
+     "meaning": "The reward model's (or a checker's) score for the i-th sampled answer.",
+     "shape": "A number.",
+     "where": "§4.1.2, p. 14."
+    },
+    {
+     "id": "r",
+     "tex": "\\mathbf{r}",
+     "match": [
+      "r",
+      "𝐫"
+     ],
+     "name": "all G rewards for this question",
+     "meaning": "Bold: the vector \\(\\{r_1, \\ldots, r_G\\}\\) for one question's group of outputs.",
+     "shape": "\\(G\\) numbers.",
+     "where": "§4.1.2, p. 14."
+    },
+    {
+     "id": "mean",
+     "tex": "\\mathrm{mean}",
+     "match": [
+      "mean"
+     ],
+     "name": "group average",
+     "meaning": "Average over this question's G outputs: the baseline that replaces PPO's value network.",
+     "shape": "A number.",
+     "where": "§4.1.2."
+    },
+    {
+     "id": "std",
+     "tex": "\\mathrm{std}",
+     "match": [
+      "std"
+     ],
+     "name": "group standard deviation",
+     "meaning": "The paper does not say whether it divides by G or G − 1. TRL's implementation divides by G − 1 and adds 10⁻⁴ to the denominator.",
+     "shape": "A number.",
+     "where": "§4.1.2 (not specified further)."
+    }
+   ],
+   "aloud": "The advantage of every token in output i equals output i's normalised reward: its reward minus the group's mean reward, divided by the group's standard deviation.",
+   "steps_note": "G = 4 answers to one maths question, checked right (1) or wrong (0).",
+   "steps": [
+    {
+     "tex": "\\mathbf{r}=(1,0,0,1),\\quad \\mathrm{mean}(\\mathbf{r})=0.500",
+     "say": "Half the group is right."
+    },
+    {
+     "tex": "\\mathrm{std}\\ \\text{dividing by } G:\\ 0.500\\ \\Rightarrow\\ \\hat{A}=\\begin{bmatrix}1 & -1 & -1 & 1\\end{bmatrix}",
+     "say": "Right answers get +1 for every token, wrong ones −1."
+    },
+    {
+     "tex": "\\mathrm{std}\\ \\text{dividing by } G-1:\\ 0.5774\\ \\Rightarrow\\ \\hat{A}=\\begin{bmatrix}0.866 & -0.866 & -0.866 & 0.866\\end{bmatrix}",
+     "say": "The same group under the other convention: every advantage is about 13% smaller."
+    },
+    {
+     "tex": "\\mathbf{r}=(1,1,1,1):\\ \\mathrm{std}=0\\ \\Rightarrow\\ \\tfrac{0}{0}",
+     "say": "All right (or all wrong): the formula has no value; with TRL's 10⁻⁴ every advantage is 0, so the question teaches nothing."
+    }
+   ],
+   "checks": {
+    "mean": 0.5,
+    "std_pop": 0.5,
+    "std_sample": 0.5773502691896257,
+    "A_pop": [
+     1.0,
+     -1.0,
+     -1.0,
+     1.0
+    ],
+    "A_sample": [
+     0.8660254037844387,
+     -0.8660254037844387,
+     -0.8660254037844387,
+     0.8660254037844387
+    ]
+   },
+   "traps": [
+    "\\(\\mathrm{std}\\) is ambiguous: divide by \\(G\\) or \\(G-1\\)? The paper does not say. With small groups the difference is visible (here 0.5 against 0.577). TRL divides by \\(G-1\\) (<a href=\"https://github.com/huggingface/trl/blob/14c8d7019319d187e3ac3cbee5906ec46d95b89b/trl/trainer/utils.py#L986\" target=\"_blank\" rel=\"noopener noreferrer\">nanstd</a>) and adds \\(10^{-4}\\) (<a href=\"https://github.com/huggingface/trl/blob/14c8d7019319d187e3ac3cbee5906ec46d95b89b/trl/trainer/grpo_trainer.py#L2702\" target=\"_blank\" rel=\"noopener noreferrer\">grpo_trainer.py</a>).",
+    "The subscript pair \\(i,t\\) means output i, token t; the value does not depend on t under outcome supervision.",
+    "Tilde, hat, bold: \\(\\widetilde{r}_i\\) transformed, \\(\\hat{A}\\) estimated, \\(\\mathbf{r}\\) a vector. Three marks on one line, three meanings."
+   ],
+   "links": [
+    [
+     "DeepSeekMath (paper page, with a live GRPO toy)",
+     "n:3c65c17b0d0d817f9fc5cb9a9fbcbee5"
+    ],
+    [
+     "RL for LLMs: RLHF, GRPO, RLVR",
+     "n:3c65c17b0d0d818c9bcff7177325fe56"
+    ]
+   ]
+  },
+  {
+   "id": "kl3",
+   "group": "Post-training",
+   "chip": "GRPO's KL estimator",
+   "title": "GRPO's per-token KL estimator",
+   "paper": {
+    "cite": "Shao et al. 2024, DeepSeekMath",
+    "arxiv": "2402.03300",
+    "ver": "v3",
+    "eq": "Eq. (4)",
+    "page": 14,
+    "section": "§4.1.1",
+    "abs": "https://arxiv.org/abs/2402.03300v3",
+    "pdf": "https://arxiv.org/pdf/2402.03300v3#page=14"
+   },
+   "latex": "\\mathbb{D}_{KL}\\left[\\pi_{\\theta}||\\pi_{ref}\\right]=\\frac{\\pi_{ref}(o_{i,t}|q,o_{i,<t})}{\\pi_{\\theta}(o_{i,t}|q,o_{i,<t})}-\\log\\frac{\\pi_{ref}(o_{i,t}|q,o_{i,<t})}{\\pi_{\\theta}(o_{i,t}|q,o_{i,<t})}-1",
+   "transcription": "As printed (the paper writes || between the two distributions).",
+   "symbols": [
+    {
+     "id": "DKL",
+     "tex": "\\mathbb{D}_{KL}[\\cdot\\|\\cdot]",
+     "match": [
+      "𝔻KL"
+     ],
+     "name": "KL divergence (here: its estimate)",
+     "meaning": "Written like the true KL, but the right side is a single-token estimate (Schulman 2020): averaged over tokens sampled from \\(\\pi_\\theta\\), it equals the KL.",
+     "shape": "A number per token.",
+     "where": "Eq. (4), p. 14."
+    },
+    {
+     "id": "bars",
+     "tex": "\\|",
+     "match": [
+      "|"
+     ],
+     "name": "\"from\": the order matters",
+     "meaning": "\\(\\mathbb{D}_{KL}[P \\| Q]\\) averages over P. KL is not symmetric: \\([\\pi_\\theta \\| \\pi_{ref}]\\) and \\([\\pi_{ref} \\| \\pi_\\theta]\\) are different numbers.",
+     "shape": "Notation.",
+     "where": "Standard."
+    },
+    {
+     "id": "o",
+     "tex": "o_{i,t}",
+     "match": [
+      "oi,t"
+     ],
+     "name": "token t of output i",
+     "meaning": "The token actually sampled.",
+     "shape": "A token id.",
+     "where": "§4.1.1."
+    },
+    {
+     "id": "ctx",
+     "tex": "q,o_{i,<t}",
+     "match": [
+      "oi,<t"
+     ],
+     "name": "the question and the tokens before t",
+     "meaning": "Subscript \\(<t\\) means all positions before t.",
+     "shape": "A token sequence.",
+     "where": "§4.1.1."
+    },
+    {
+     "id": "q",
+     "tex": "q",
+     "match": [
+      "q"
+     ],
+     "name": "the question (prompt)",
+     "meaning": "The input the group of outputs answers.",
+     "shape": "A token sequence.",
+     "where": "§4.1.1, p. 13."
+    },
+    {
+     "id": "pref",
+     "tex": "\\pi_{ref}",
+     "match": [
+      "πref"
+     ],
+     "name": "reference model",
+     "meaning": "Frozen copy of the policy, reset at each outer iteration (Algorithm 1, line 3).",
+     "shape": "A probability per token.",
+     "where": "Algorithm 1, p. 14."
+    },
+    {
+     "id": "pth",
+     "tex": "\\pi_\\theta",
+     "match": [
+      "πθ"
+     ],
+     "name": "the policy being trained",
+     "meaning": "Probability the current policy gives the sampled token.",
+     "shape": "A probability per token.",
+     "where": "§4.1.1."
+    }
+   ],
+   "aloud": "The KL from the policy to the reference, for one sampled token, is estimated as the ratio of the reference's probability to the policy's, minus the log of that ratio, minus one.",
+   "steps_note": "A 3-token vocabulary; policy π_θ = (0.5, 0.3, 0.2), reference π_ref = (0.4, 0.4, 0.2) at one position (illustrative).",
+   "steps": [
+    {
+     "tex": "\\rho=\\frac{\\pi_{ref}}{\\pi_\\theta}=\\begin{bmatrix}0.800 & 1.333 & 1\\end{bmatrix}",
+     "say": "The ratio for each possible token."
+    },
+    {
+     "tex": "\\rho-\\log\\rho-1=\\begin{bmatrix}0.0231 & 0.0457 & 0\\end{bmatrix}",
+     "say": "The estimate if that token is the one sampled. Never negative: x − log x − 1 ≥ 0, equal to 0 only at x = 1."
+    },
+    {
+     "tex": "\\sum_{o}\\pi_\\theta(o)\\,(\\rho-\\log\\rho-1)=0.0253\\quad =\\mathbb{D}_{KL}[\\pi_\\theta\\|\\pi_{ref}]=0.0253",
+     "say": "Averaged over tokens drawn from π_θ it equals the true KL exactly: unbiased."
+    },
+    {
+     "tex": "\\text{the plain estimate}\\quad -\\log\\rho=\\begin{bmatrix}0.2231 & -0.2877 & 0\\end{bmatrix}",
+     "say": "Also unbiased, but it is negative for the second token: a single sample can say KL < 0."
+    }
+   ],
+   "checks": {
+    "rho": [
+     0.8,
+     1.3333333333333335,
+     1.0
+    ],
+    "k3": [
+     0.023143551314209754,
+     0.04565126088155247,
+     0.0
+    ],
+    "E_k3": 0.02526715392157062,
+    "KL": 0.02526715392157057,
+    "E_k1": 0.025267153921570557
+   },
+   "traps": [
+    "The left side looks like the full KL; the right side is a per-token sample. Names in papers are sometimes the target, not what is computed.",
+    "\"Guaranteed to be positive\" (the paper) is strictly \"non-negative\": it is 0 when the two models agree on the token.",
+    "The \\(||\\) order: this is KL from \\(\\pi_\\theta\\) to \\(\\pi_{ref}\\) with samples from \\(\\pi_\\theta\\), the mode-seeking direction RLHF uses."
+   ],
+   "links": [
+    [
+     "DeepSeekMath (paper page)",
+     "n:3c65c17b0d0d817f9fc5cb9a9fbcbee5"
+    ],
+    [
+     "Approximating KL divergence (Schulman 2020, the source of the estimator)",
+     "http://joschu.net/blog/kl-approx.html"
+    ],
+    [
+     "RL for LLMs: RLHF, GRPO, RLVR",
+     "n:3c65c17b0d0d818c9bcff7177325fe56"
+    ]
+   ]
+  }
+ ]
+}
