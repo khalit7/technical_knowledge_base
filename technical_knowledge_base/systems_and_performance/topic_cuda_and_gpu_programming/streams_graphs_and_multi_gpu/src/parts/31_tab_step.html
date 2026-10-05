@@ -1,0 +1,45 @@
+<div class="tab" id="t-step" role="tabpanel" hidden>
+<style>
+#t-step .st-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px 16px;margin:8px 0}
+#t-step .st-ctl label{font-size:13px;display:block;min-width:0}
+#t-step .st-ctl select{width:100%;margin-top:2px}
+#t-step .st-ctl input[type=range]{display:block;margin-top:4px}
+#t-step .st-fig{width:100%;overflow:hidden;margin:6px 0}
+#t-step .st-fig svg text{font-size:11px}
+#t-step h3{font-size:15px;margin:16px 0 4px}
+#t-step .st-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:6px;margin:8px 0}
+#t-step .st-pill{font-size:11.5px;font-weight:600}
+</style>
+<h2 style="margin-top:14px">Step timeline</h2>
+<p>The data-parallel step from the Reading tab's section 6, with every input exposed. Both timelines are drawn to the same scale: on top nothing overlaps, below the gradient buckets are all-reduced during backward and the batch is prefetched. Change the model, the number of GPUs and the network and watch where the exposed communication comes from. Everything here is a model <span class="st-pill" style="color:var(--c5)">derived</span> from the formulas listed under the chart; the defaults are exactly the Reading tab's case, and the same model in Python (<code>recompute.py</code>) gives the same numbers.</p>
+<div class="card">
+<div class="st-ctl">
+<label>Model shape (GPT-2 family) <select id="st-model"><option value="768,12">small: d = 768, 12 layers</option><option value="1024,24">medium: d = 1,024, 24 layers</option><option value="1280,36">large: d = 1,280, 36 layers</option><option value="1600,48">XL: d = 1,600, 48 layers</option></select></label>
+<label>Network <select id="st-net"><option value="46">400 Gb/s InfiniBand per GPU, busbw 46 GB/s</option><option value="365.6">8 GPUs on NVLink, busbw 365.6 GB/s</option><option value="11.5">100 Gb/s Ethernet per GPU, busbw 11.5 GB/s</option></select></label>
+<label>GPUs <b id="st-gv">64</b><input type="range" id="st-g" min="1" max="10" value="6" aria-label="GPUs, powers of two"></label>
+<label>Tokens per GPU per step <b id="st-tv">16,384</b><input type="range" id="st-t" min="11" max="17" value="14" aria-label="Tokens, powers of two"></label>
+<label>MFU (assumed) <b id="st-mv">40%</b><input type="range" id="st-m" min="10" max="70" value="40" step="5"></label>
+<label>Bucket size <b id="st-bv">25 MiB</b><input type="range" id="st-b" min="0" max="8" value="4" aria-label="Bucket size"></label>
+<label>Latency per all-reduce <b id="st-av">0 &micro;s</b><input type="range" id="st-a" min="0" max="200" value="0" step="10"></label>
+<label>Compute slowdown while overlapped <b id="st-sv">0%</b><input type="range" id="st-s" min="0" max="30" value="0" step="1"></label>
+<label><input type="checkbox" id="st-tied" checked> tie the embedding and output layer</label>
+</div>
+<p class="small mute" style="margin:6px 0 0">A: nothing overlapped. B: batch prefetched, buckets all-reduced during backward. Dashed lines: the end of each step.</p>
+<div class="st-fig" id="st-fig"></div>
+<div class="st-out" id="st-out"></div>
+<p class="small mute" id="st-note"></p>
+</div>
+<h3>Step time against bucket size</h3>
+<p>The overlapped step for the same settings, one point per bucket size. Without a latency term smaller buckets always win (the first one leaves sooner); with the latency each all-reduce really pays (tens of microseconds across nodes), very small buckets lose again. DDP's 25 MiB default sits on the flat part for most settings.</p>
+<div class="card"><div class="st-fig" id="st-sweep"></div></div>
+<h3>The formulas</h3>
+<ul class="small">
+<li>Parameters: GPT-2 layout, vocabulary 50,257, context 1,024; per block 12<i>d</i>&sup2; + 13<i>d</i> (layer norms, attention, MLP with 4<i>d</i>); an untied output layer adds 50,257<i>d</i>.</li>
+<li>Forward = 2<i>N</i> &times; tokens / (989.5 TFLOP/s &times; MFU), H100 SXM dense BF16 (vendor spec); backward = 2 &times; forward, split across layers in proportion to their matmul parameters; attention-score FLOPs ignored.</li>
+<li>Gradient readiness: output layer first, then blocks from last to first; with tied weights the embedding's gradient is complete only at the end of backward.</li>
+<li>Buckets: DDP's rule, reverse parameter order, close a bucket once it reaches the cap; BF16 gradients (2 bytes); first bucket 1 MiB (or the cap if smaller).</li>
+<li>All-reduce of <i>B</i> bytes on <i>n</i> GPUs = <i>B</i> &times; 2(<i>n</i> &minus; 1)/<i>n</i> / busbw + latency, one bucket at a time on the NCCL stream. Busbw presets: 92% of 50 GB/s (InfiniBand, the acceptance target quoted on Interconnects and scaling), 365.6 GB/s (8&times; H200 ring, nccl-tests at 8 GiB, measured by Bekman), 92% of 12.5 GB/s = 11.5 (100 Gb/s Ethernet, same efficiency assumed). The NVLink preset assumes all the GPUs share one NVLink domain (8 on an HGX board).</li>
+<li>Optimizer = 32 bytes per parameter at 3.35 TB/s. Batch = tokens &times; 8 bytes &times; 2 (ids and targets) at 63 GB/s.</li>
+<li>Slowdown: backward stretched by this percentage when overlapped, standing in for NCCL's use of SMs and memory bandwidth; the CPU measurement on the Reading tab found 15% with Gloo threads.</li>
+</ul>
+</div>
