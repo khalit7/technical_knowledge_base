@@ -1,0 +1,56 @@
+<section id="rd-s9">
+<h2>9. Building a server in Python</h2>
+<p>The official Python SDK (<code>mcp</code> on PyPI, 2.3.0 here; {{documentation|https://py.sdk.modelcontextprotocol.io/}}) turns typed functions into tools. The whole ckpt-tools server is about 90 lines (<code>src/lab/ckpt_server.py</code>); its skeleton:</p>
+<pre class="cd"><span class="k">from</span> mcp.server <span class="k">import</span> MCPServer
+<span class="k">from</span> mcp.server.caching <span class="k">import</span> CacheHint
+<span class="k">from</span> mcp_types <span class="k">import</span> ToolAnnotations
+
+mcp = MCPServer(<span class="s">"ckpt-tools"</span>, version=<span class="s">"1.0.0"</span>,
+                instructions=<span class="s">"Inspect and prune training checkpoints. Deleting asks the user first."</span>,
+                cache_hints={<span class="s">"tools/list"</span>: CacheHint(ttl_ms=300_000, scope=<span class="s">"public"</span>)})
+
+<span class="k">class</span> Checkpoint(BaseModel):
+    name: str; step: int; val_loss: float; size_gb: float
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=<span class="k">True</span>, openWorldHint=<span class="k">False</span>))
+<span class="k">def</span> list_checkpoints(run: str) -&gt; list[Checkpoint]:
+    <span class="s">"""List the saved checkpoints of a training run, oldest first, with validation loss."""</span>
+    <span class="k">return</span> RUNS.get(run, [])
+
+@mcp.resource(<span class="s">"ckpt://{run}/config"</span>)
+<span class="k">def</span> run_config(run: str) -&gt; str: ...
+
+@mcp.prompt()
+<span class="k">def</span> pick_best(run: str) -&gt; str: ...
+
+<span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
+    mcp.run(<span class="s">"stdio"</span>)          <span class="c"># or mcp.run("streamable-http", host="127.0.0.1", port=8000)</span></pre>
+<p>The docstring becomes the description, the type hints become both schemas, a Pydantic model becomes a structured result, a parameter typed <code>Context</code> gives access to progress, input responses and the protocol version. The same server object answers 2025-11-25 and 2026-07-28 clients.</p>
+<h3>Design tools for a model, not as an API mirror</h3>
+<ul class="tight">
+<li><b>Few, task-shaped tools.</b> A model choosing among 40 thin REST wrappers picks worse and pays for 40 definitions in every request (ckpt-tools' list of three tools was 1,818 bytes of JSON). Prefer "list checkpoints of a run with their eval loss" over "GET /runs/{id}/artifacts?type=ckpt".</li>
+<li><b>Write descriptions as documentation for a capable newcomer</b>: what it does, when to use it, units, limits, what an error means. This text is the model's only manual.</li>
+<li><b>Return little.</b> Summaries, identifiers and a cursor beat full dumps; every byte of <code>content</code> is input tokens (section 3).</li>
+<li><b>Errors the model can act on</b>: "checkpoint llama-7b-step-9000 not found; existing: ..." as <code>isError: true</code>, not a stack trace.</li>
+<li><b>Mark side effects honestly</b> (annotations), make destructive tools idempotent where possible (deleting twice is a no-op), and ask for confirmation through elicitation for irreversible ones, as <code>delete_checkpoint</code> does.</li>
+<li><b>No state in the process</b> for an HTTP server: handles in arguments, a shared <code>requestState</code> key, external stores; then any replica can serve any request (section 5).</li>
+<li><b>stdout is sacred on stdio</b>: log to stderr; check that libraries you import do not print.</li>
+</ul>
+<h3>Testing</h3>
+<ul class="tight">
+<li><b>In process, no transport.</b> The SDK's <code>Client</code> accepts the server object itself: <code>async with Client(mcp) as c: r = await c.call_tool("list_checkpoints", {"run": "llama-7b-sft"})</code>. Fast unit tests of every tool, both eras (<code>mode="legacy"</code> forces the handshake).</li>
+<li><b>Over the real transport</b>: the same calls through stdio and through HTTP, to catch stdout pollution, serialisation and header problems.</li>
+<li><b>Contract tests on the wire</b>: send the hostile requests of section 4 (wrong headers, bad versions, foreign Origin) and assert the status codes; keep them in CI so an SDK upgrade cannot silently change them.</li>
+<li><b>Interactive</b>: MCP Inspector (<code>uv run mcp dev server.py</code>) lists and calls tools by hand. Use 0.14.1 or later (CVE-2025-49596, section 8), and do not leave it running.</li>
+<li><b>With a model</b>: record real agent transcripts and score whether the model picks the right tool with the right arguments, before and after you change a description. A description change is a behaviour change.</li>
+</ul>
+<h3>Deploying across an organisation</h3>
+<ul class="tight">
+<li><b>Local servers</b> are distributed like packages (PyPI, npm, container images) and configured per host. Pin versions; review the launch command.</li>
+<li><b>Remote servers</b> are ordinary web services: behind TLS and a load balancer, several stateless replicas sharing the <code>requestState</code> key, OAuth with your identity provider, rate limits per client, logs with the caller's identity. Header mirroring lets a gateway enforce per-tool policy and route by <code>Mcp-Name</code> without reading bodies.</li>
+<li><b>Central configuration.</b> Hosts let administrators decide which servers people may use. In Claude Code, for example, a <code>managed-mcp.json</code> file or the <code>managedMcpServers</code> managed setting provides servers to every user, and <code>allowedMcpServers</code> and <code>deniedMcpServers</code> restrict the rest ({{Claude Code MCP docs|https://code.claude.com/docs/en/mcp}}; the setting needs Claude Code 2.1.259 or later). On the authorization side, the Enterprise-Managed Authorization extension lets the identity provider grant access centrally.</li>
+<li><b>Finding servers.</b> The official registry (registry.modelcontextprotocol.io) launched in preview on {{8 September 2025|https://blog.modelcontextprotocol.io/posts/2025-09-08-mcp-registry-preview/}}: an open catalogue and API with namespaced server names. A listing is metadata, not a security review.</li>
+<li><b>Observability.</b> Put <code>traceparent</code> in <code>_meta</code> so traces join across host and server; the Python SDK wraps handling in OpenTelemetry spans.</li>
+</ul>
+<div class="co"><div class="t">Verified and not verified from the old page</div>Verified today: Claude Code's <code>managedMcpServers</code> setting exists (the old page dated it September 2026; the documentation gives the version requirement, not a date). Not confirmed and not repeated: <code>--permission-prompts none</code>, the Claude Developer Platform's "auto permission policies" wording, and the Emergence World stress test's "46 hours".</div>
+</section>
