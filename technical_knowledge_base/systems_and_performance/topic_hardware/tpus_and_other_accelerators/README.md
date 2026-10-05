@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187 (child of Topic: hardware)
 
-Not migrated yet: rebuilds the old written page "TPUs: systolic arrays and pod-scale machines".
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; everything with `sh src/run_all.sh`; see `src/README.md`). Systolic arrays from zero (a cycle-level simulator, validated against Python, animated against scalar lanes), inside a TPU chip (MXU, VPU, VMEM, SparseCore; peaks reproduced from the arrays), eight TPU generations, pods (ICI torus, optical circuit switches, collectives), AMD Instinct (chiplets, fully connected 8-GPU boards, wave64, ROCm), AWS Trainium (NeuronCore engines, NKI), Groq (SRAM, deterministic compiler, NVIDIA Groq 3 LPX), Cerebras (wafer scale, weight streaming), and what each changes in your training code. Tabs: Reading, Systolic array lab, Pod builder, Further reading. Rebuilds the old written page "TPUs: systolic arrays and pod-scale machines"; no child pages, databases or video.

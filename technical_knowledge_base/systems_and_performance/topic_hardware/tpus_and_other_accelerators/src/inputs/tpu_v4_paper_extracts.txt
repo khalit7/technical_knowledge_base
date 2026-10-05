@@ -1,0 +1,118 @@
+# TPU v4 paper (arXiv 2304.01433, ISCA 2023), pdftotext -layout, lines 60-140 and 466-500, fetched 2026-10-05
+ACM ISBN 979-8-4007-0095-8/23/06.                                                           previous TPUs for training [26, 39] and for inference [25, 27], this
+https://doi.org/10.1145/3579371.3589350                                                     paper focuses on the three novel features of TPU v4 listed above
+
+ISCA ‘23, June 17–21, 2023, Orlando, FL, USA                                                                                      Jouppi, et al.
+
+that have not yet been described. The major contributions of the        suggesting 4×4×4 (64 chips) or 8×8×8 (512). With 4 TPU v4s per
+paper are:                                                              CPU host, 64 TPU v4 chips and their 16 CPU hosts comfortably fit
+     ● It describes and evaluates the first production                  into one rack. As 512 chips need multiple racks, a 43 building
+deployment of OCSes in a supercomputer and the first to allow           block was chosen.
+topology reconfiguration to improve performance.
+     ● It describes and evaluates the first accelerator support for     2.2 Construction of the TPU v4 Supercomputer
+embeddings in a commercial ML system.                                   Figure 1 shows the links from the 6 “faces” of a 43 block. There are
+     ● It documents the rapid change in production model types          16 links per face, totaling 96 optical links per block that connect to
+since 2016 for the fast changing ML field (Table 1).                    OCSes. To provide the wraparound links of a 3D torus, the links on
+     ● It shows how Google uses ML to co-optimize DNN                   the opposing sides must connect to the same OCS. Thus, each 43
+models, OCS topology, and the SparseCore.                               block connects to 6 × 16 ÷ 2 = 48 OCSes. The Palomar OCS is
+    The next section introduces OCSes and explains their many           136×136 (128 ports plus 8 spares for link testing and repairs), so
+benefits. Section 3 motivates the SparseCore and shows its              48 OCSes connect the 48 pairs of cables from 64 43 blocks (each
+performance gains. Section 4 uses ML to search how to                   64 chips), yielding the desired total of 4096 TPU v4 chips.
+co-optimize the hardware and DNN models. The next two sections
+compare performance on production workloads versus TPU v3 and
+then versus the Nvidia A100 and the Graphcore MK2 IPU using
+MLPerf. The paper ends with a discussion, a related work section,
+and a summary.
+
+Table 1: Workloads by DNN model type (% TPUs used). Over
+90% of training at Google is on TPUs. The parenthesized entries
+split Transformer models into the subtypes of BERT and LLM.
+Columns 2 to 4 show workloads for inference [25], training and
+inference [26], and inference [27]. The last workload is for training
+on TPU v4s over 30 days in October 2022.
+                          TPU v3
+              TPU v1                TPU v4 Lite TPU v4
+                           4/2019
+ DNN Model 7/2016                     2/2020     10/2022
+                        (Training &
+            (Inference)             (Inference) (Training)
+                         Inference)
+MLP/DLRM       61%          27%        25%         24%
+RNN            29%          21%        29%          2%
+CNN             5%          24%        18%         12%
+Transformer      --         21%        28%         57%
+   (BERT)        --          --         (28%)      (26%)
+    (LLM)        --          --          --        (31%)
+
+2 RECONFIGURABLE OPTICAL SWITCH
+We wanted to scale up the number of chips by 4x versus TPU v3
+just as TPU v3 was 4x TPU v2. Given the distance between TPU
+v3 racks, some wrap-around links of its 2D torus topology were so       Figure 1: Connectivity of a 4×4×4 cube (top) to 3 OCSes
+long that they had to be optical due to the reach limitation of         (bottom). The “+” and “–” connections with the same
+electrical interconnects. Optical links are >10x more expensive         dimension and index are connected to the same OCS; 48 of
+than electrical links. At 4x the scale, there would be even more        these in-out pairs each connect to a distinct OCS.
+optical links. Moreover, there were concerns about the bisection
+bandwidth of a 2D torus of that size and the availability of a single
+                                                                             Figure 2 below shows a TPU v4 package and four of them
+system of that scale. Using a 3D torus increases bisection
+                                                                        mounted on the printed circuit board. Like TPU v3, each TPU v4
+bandwidth and the OCS acts like a plugboard to skip failed units.
+                                                                        contains two TensorCores (TC). Each TC contains four 128x128
+                                                                        Matrix Multiply Units (MXUs) and a Vector Processing Unit (VPU)
+2.1 Optical Circuit Switching                                           with 128 lanes (16 ALUs per lane) and a 16 MiB Vector Memory
+To improve data center networking, Google advanced the                  (VMEM). The two TCs share a 128 MiB Common Memory
+state-of-the-art in reliability and cost of optical transceivers and    (CMEM). The PCB embeds 4 Inter-Core Interconnect (ICI) links,
+OCSes [43,54]. The resulting Google Palomar OCS is based on 3D          connected as a 2×2 mesh; 16 external ICI links go to other trays for
+Micro-Electro-Mechanical Systems (MEMS) mirrors that switch in          constructing the 3D torus. Figure 3 below shows one row of eight
+milliseconds. They employ circulators to send light both ways in a      racks, where each rack contains 16 tray-host server pairs. Passive
+fiber, halving the number of required ports and cables.                 electrical cables create a 4×4×4 3D mesh in a rack. Electrical-to
+      What size of the electrically-cabled building block to use?       -optical conversions happen at the fiber connector to the TPU
+Given the 3D torus, 3D cubes have the best bisection bandwidth,         trays. There are no other conversions until the light reaches an
+
+
+2
+
+TPU v4: An Optically Reconfigurable Supercomputer for ML with Hardware Support for Embeddings
+Industrial Product                                                                                               ISCA ‘23, June 17–21, 2023, Orlando, FL, USA
+
+
+optical-to-electrical converter at the fiber connector of the                       reasonable slice goodput. OCSes also have fair goodput for 99.0%
+destination tray. The 48 OCSes join eight rows together to form the                 and 99.5% for most slice sizes. Figure 4 assumes all slice size
+complete 64-rack system.                                                            requests are equal, but workloads have many sizes (Table 2).
+
+...
+Figure 10: Performance improvements by PA-NAS for
+DLRM0. Since DLRMs use both SCs and TCs, the maximum of                             Figure 11: Scalability of TPU v4 production workloads on a
+SparseComputingTime and DenseComputingTime is the end-to-                           log-log scale. Infrastructural limitations currently hinder getting
+end training step time of a DLRM. All computing times in the                        the last few data points: BERT0 scales to 2K, DLRM0/1 to 1K.
+figure (SparseComputingTime and DenseComputingTime for both
+original and optimized DLRM0) are normalized against the
+DenseComputingTime of the original DLRM0, since the original                        Table 4: TPU v4 and TPU v3 [26] features. Measured power is
+DLRM0 is bottlenecked on Dense Computing. Embedding sizes                           for the ASIC and HBM running production applications.
+and FLOPs are normalized against those of the original DLRM0.                                                    Google TPUv4                TPUv3
+
+Table 3: Improvements in performance as we vary the topology                        Production deployment             2020                   2018
+of a 512 TPU v4 slice for training an LLM and the GPT-3                             Peak TFLOPS                 275 (bf16 or int8)         123 (bf16)
+pre-training stage. The original LLM used model parallelism of                      Clock Rate                     1050 MHz                940 MHz
+dimensions 16×32 and no pipeline or data parallelism for a 4×8×16                   Tech. node, Die size        7 nm, <600 mm2         16 nm, < 700 mm2
+topology. The revision changed model parallelism to 64×8 and the                    Transistor count                22 billion             10 billion
+topology to 8×8×8. The “1D/2D activation/weight partitioning”                       Chips per CPU host                  4                      8
+option is a typical way of partitioning tensors in a large model                    TDP                               N.A.                   N.A.
+graph (see Figure 7 in [63]). For GPT-3, the original row used a                    Idle, min/mean/max
+8×8×8 topology, pipeline parallelism of depth 8, no data                                                       90, 121/170/192 W 123, 175/220/262 W
+                                                                                    power
+parallelism, and model parallelism of dimensions 8×8. The                           Inter Chip Interconnect    6 links @ 50 GB/s       4 links @ 70 GB/s
+revision changed the topology to 4×8×16, pipeline depth to 16,                      Largest scale
+data parallelism to 4, model parallelism parameters to 1×8.                                                        4096 chips              1024 chips
+                                                                                    configuration
+                                         Hyper-Parameters (topology,                                           Single Instruction Single Instruction
+                                                                                    Processor Style
+                                         partition spec [pipeline, data,                                           2D Data             2D Data
+                              Through- model1, model2], 1D/2D                       Processors / Chip                  2                  2
+                              put        activation/weight                          Threads / Core                     1                  1
+Case       Versions           (seqs/sec) partitioning)                              SparseCores / Chip                 4                  2
+           Novice’s                                                                                             128 (CMEM) +
+                         17.9 (1.0x)4×8×16, [1, 1, 16, 32], 2D/2D                                                                 32 MiB (VMEM) +
+LLM        pick                                                                     On Chip Memory            32 MiB (VMEM) +
+                                                                                                                                   5 MiB (spMEM)
+           Best perf.    41.3 (2.3x)8×8×8, [1, 1, 64, 8], 1D/2D                                                10 MiB (spMEM)
