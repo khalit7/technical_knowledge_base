@@ -1,0 +1,31 @@
+<section id="rd-s7">
+<h2>7. The exponential family: one form behind the standard losses</h2>
+<p class="raise"><b>The question.</b> Why does the gradient of every standard loss with respect to the network's last output come out as "prediction minus target": \(\hat p - y\) for BCE, \(p - \text{one-hot}\) for cross-entropy, \(\lambda - y\) for Poisson, \(\hat y - y\) for squared error? It is not four coincidences.</p>
+<h3>The form</h3>
+<p>A distribution is in the <dfn id="g-expfam">exponential family</dfn> if its PMF or PDF can be written</p>
+\[ p(y \mid \eta) = h(y)\, \exp\!\big(\eta^\top T(y) - A(\eta)\big). \]
+<dl class="sym">
+<dt>\(\eta\)</dt><dd>(eta) the <b>natural parameter</b>. For the networks below, it is exactly what the last layer outputs: the logit, the vector of logits, the log-rate, the mean.</dd>
+<dt>\(T(y)\)</dt><dd>the <b>sufficient statistic</b>: the only feature of the data the likelihood uses (\(y\) itself, or the one-hot vector).</dd>
+<dt>\(A(\eta)\)</dt><dd>the <b>log-partition function</b>, \(A(\eta) = \ln \sum_y h(y) e^{\eta^\top T(y)}\) (an integral for densities): the log of the normaliser that makes the total 1.</dd>
+<dt>\(h(y)\)</dt><dd>a base measure that does not depend on \(\eta\) (it drops out of every gradient).</dd>
+</dl>
+<div class="tw"><table class="mini one">
+<tr><th>Distribution</th><th>\(\eta\) (what the network outputs)</th><th>\(T(y)\)</th><th>\(A(\eta)\)</th><th>\(A'(\eta)\) = mean</th><th>\(A''(\eta)\) = variance</th></tr>
+<tr><td>Bernoulli</td><td>logit \(z = \ln\frac{p}{1 - p}\)</td><td>\(y\)</td><td>\(\ln(1 + e^{z})\)</td><td>\(\sigma(z) = p\)</td><td>\(p(1 - p)\)</td></tr>
+<tr><td>Categorical</td><td>logits \(z\) (one per class)</td><td>one-hot \(e_y\)</td><td>\(\ln \sum_k e^{z_k}\)</td><td>\(\operatorname{softmax}(z) = p\)</td><td>\(\operatorname{diag}(p) - pp^\top\)</td></tr>
+<tr><td>Poisson</td><td>log-rate \(z = \ln\lambda\)</td><td>\(y\)</td><td>\(e^{z}\)</td><td>\(\lambda\)</td><td>\(\lambda\)</td></tr>
+<tr><td>Gaussian, \(\sigma = 1\)</td><td>mean \(\mu\)</td><td>\(y\)</td><td>\(\mu^2/2\)</td><td>\(\mu\)</td><td>1</td></tr>
+</table></div>
+<p class="small mute">Check one row by hand: the Bernoulli \(p^y(1 - p)^{1 - y} = \exp\big(y \ln\frac{p}{1 - p} + \ln(1 - p)\big)\), and with \(z = \ln\frac{p}{1 - p}\), \(\ln(1 - p) = -\ln(1 + e^z)\). So \(\eta = z\), \(T = y\), \(A = \ln(1 + e^z)\), \(h = 1\). The Laplace distribution is not in the family (\(|y - \mu|\) cannot be written as \(\eta\, T(y)\)), which is why its gradient is a sign, not a difference. Reference: Bishop, PRML, section 2.4; Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, section 3.4.</p>
+<h3>The two facts, derived</h3>
+<p><b>Fact 1: the derivative of \(A\) is the mean.</b> Differentiate \(A(\eta) = \ln \sum_y h(y) e^{\eta T(y)}\) (one-dimensional \(\eta\) for clarity). The derivative of \(\ln u\) is \(u'/u\):</p>
+\[ A'(\eta) = \frac{\sum_y h(y)\, T(y)\, e^{\eta T(y)}}{\sum_y h(y)\, e^{\eta T(y)}} = \sum_y T(y)\, \underbrace{h(y)\, e^{\eta T(y) - A(\eta)}}_{p(y \mid \eta)} = \mathbb{E}[T(Y)]. \]
+<p>Differentiating once more gives \(A''(\eta) = \mathbb{E}[T^2] - \mathbb{E}[T]^2 = \operatorname{Var}(T)\). A variance is never negative, so \(A\) is convex.</p>
+<p><b>Fact 2: the loss gradient is prediction minus target.</b> The loss for one example is the negative log-likelihood:</p>
+\[ \ell(\eta) = -\ln p(y \mid \eta) = A(\eta) - \eta\, T(y) - \ln h(y), \qquad \frac{d\ell}{d\eta} = A'(\eta) - T(y) = \mathbb{E}[T(Y)] - T(y). \]
+<p class="plain">In plain words: the gradient with respect to what the network outputs is what the model expected minus what was observed. And the curvature \(d^2\ell/d\eta^2 = A''(\eta)\) is the model's own variance, which never depends on the label and is never negative: the loss is convex in \(\eta\).</p>
+<div class="nums"><div class="t">The numbers (the tiny model)</div>Categorical with \(\eta = z = (2, 1, 0)\) and target sat: gradient \(p - e_{\text{sat}} = (0.665, 0.245, 0.090 - 1)\) \(= (0.665, 0.245, -0.910)\), the root page's famous result. Bernoulli curvature \(p(1 - p)\) is 0.25 at \(z = 0\) and 0.09 at \(z = \ln 9 = 2.197\) (where \(p = 0.9\)): a confident output is a flatter part of the loss. The same quantity is the Hessian of the loss in the logit, the variance of the Bernoulli, and its Fisher information (the variance of the score \(y - p\)); the three readings are on the root's "Curvature is read three ways".</div>
+<p>One more consequence: an exponential family with the network's output as \(\eta\) is a <dfn id="g-glm">generalised linear model</dfn> (GLM) when that output is linear in the features. The inverse of \(A'\) is the <b>canonical link</b>: logit for Bernoulli (logistic regression), log for Poisson (Poisson regression), identity for Gaussian (linear regression). For exponential families the maximum-likelihood fit has a famous property: at the optimum, the average predicted \(T\) equals the average observed \(T\) (set the summed gradient to zero), so a fitted logistic regression with an intercept predicts the training base rate exactly on average.</p>
+<div class="use"><div class="t">What it is used for in ML</div>Why outputs are left as logits and the loss is computed on them (fused, stable, convex in the logit); knowing which output activation goes with which target; the Fisher information and natural gradient (the Fisher equals \(A''\) with respect to \(\eta\); with respect to the weights it equals only the generalised Gauss-Newton part of the Hessian, {{Martens, 2020|https://arxiv.org/abs/1412.1193}}); maximum-entropy derivations (the exponential family is the maximum-entropy distribution matching given expectations, on {{Information theory for ML|n:3c65c17b0d0d81c6baf3f778a62e14e5}}); energy-based models (\(A\) is the log of the partition function they cannot compute).</div>
+</section>

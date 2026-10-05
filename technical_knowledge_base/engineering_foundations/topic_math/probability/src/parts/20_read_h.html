@@ -1,0 +1,44 @@
+<section id="rd-s10">
+<h2>10. Likelihood and maximum-likelihood estimation (MLE)</h2>
+<p class="raise"><b>The question.</b> "Training" means choosing the weights. What principle picks them, and why does it give the sums of losses we minimise?</p>
+<h3>Likelihood is not a probability of the parameters</h3>
+<p>Fix the data \(D\) and vary the parameters \(\theta\) (theta: all the model's numbers). The <dfn id="g-likf">likelihood</dfn> is \(L(\theta) = p(D \mid \theta)\): how probable the observed data is under each setting. It is the same formula as a probability, read the other way round: as a function of \(y\) with \(\theta\) fixed it sums to 1; as a function of \(\theta\) with \(y\) fixed it need not.</p>
+<div class="nums"><div class="t">The numbers</div>A coin with heads-probability \(p\) lands heads 3 times out of 3. The likelihood is \(L(p) = p^3\). Its area over \(p \in [0, 1]\) is \(\int_0^1 p^3\,dp = 1/4\), not 1: the likelihood is not a distribution over \(p\). Turning it into one needs a prior and Bayes' rule (section 12).</div>
+<p>For a dataset of i.i.d. examples (section 2), the probability of all of them is the product, so the log-likelihood is a sum:</p>
+\[ \ln p(D \mid \theta) = \sum_{i=1}^{n} \ln p(y_i \mid x_i, \theta). \]
+<p class="plain">In plain words: the log turns the product into a sum of per-example terms, which is what makes training by minibatches possible, and it stops thousands of small probabilities underflowing to zero.</p>
+<h3>MLE</h3>
+\[ \hat\theta_{\text{MLE}} = \arg\max_\theta \ln p(D \mid \theta) = \arg\min_\theta \sum_{i=1}^{n} \big(-\ln p(y_i \mid x_i, \theta)\big). \]
+<p>Maximising the likelihood and minimising the summed negative log-likelihood (NLL) are the same problem. With section 8, this says: <b>training a network with BCE, cross-entropy, MSE, L1 or the Poisson loss is maximum-likelihood estimation</b> under the matching distribution.</p>
+<h3>Two MLEs derived without skipping a step</h3>
+<p><b>The coin.</b> \(h\) heads and \(t\) tails: \(\ell(p) = h\ln p + t\ln(1 - p)\). Then \(\ell'(p) = h/p - t/(1 - p)\); setting it to 0 gives \(h(1 - p) = tp\), so \(h = p(h + t)\) and</p>
+\[ \hat p_{\text{MLE}} = \frac{h}{h + t}, \]
+<p>the observed frequency. After 3 heads in 3 flips, \(\hat p = 1\): a confident claim that tails is impossible. That is MLE's weakness on small data, and the reason for sections 11 and 12.</p>
+<p><b>The Gaussian.</b> Data \(x_1, \dots, x_n\), model \(\mathcal{N}(\mu, \sigma^2)\): \(\ell = -\frac{n}{2}\ln(2\pi\sigma^2) - \frac{1}{2\sigma^2}\sum_i (x_i - \mu)^2\). The derivative in \(\mu\) is \(\frac{1}{\sigma^2}\sum_i (x_i - \mu)\); zero gives \(\hat\mu = \frac1n \sum_i x_i\), the sample mean. The derivative in \(\sigma^2\) is \(-\frac{n}{2\sigma^2} + \frac{1}{2\sigma^4}\sum_i (x_i - \mu)^2\); zero gives \(\hat\sigma^2 = \frac1n \sum_i (x_i - \hat\mu)^2\).</p>
+<div class="nums"><div class="t">The numbers</div>Data \((2, 4, 4, 4, 5, 5, 7, 9)\): \(\hat\mu = 40/8 = 5\); squared deviations sum to 32, so \(\hat\sigma^2_{\text{MLE}} = 32/8 = 4\). The familiar "divide by \(n - 1\)" estimate is \(32/7 = 4.571\): the MLE of the variance is biased low, because \(\hat\mu\) was fitted to the same data. Why, and when it matters, is on {{Statistics for ML|n:3f05c17b0d0d810f896cf688ce9aed1b}}.</div>
+<h3>What MLE guarantees, and what it is in information terms</h3>
+<ul class="tight">
+<li><b>Consistent:</b> under regularity conditions, as \(n\) grows \(\hat\theta\) converges to the true parameter (if the model family contains it). <b>Asymptotically efficient:</b> in the large-data limit no consistent estimator has lower variance (it reaches the Cramér-Rao bound, the inverse Fisher information). <b>Invariant:</b> the MLE of \(g(\theta)\) is \(g(\hat\theta)\). (Wasserman, <i>All of Statistics</i>, chapter 9; the estimator properties themselves are on {{Statistics for ML|n:3f05c17b0d0d810f896cf688ce9aed1b}}.)</li>
+<li><b>MLE is minimising a KL divergence.</b> Dividing the NLL by \(n\) gives the average \(-\frac1n\sum_i \ln p_\theta(y_i)\), the cross-entropy from the data's empirical distribution to the model; it equals \(\text{KL}(p_{\text{data}} \,\|\, p_\theta)\) plus the data's entropy, which does not depend on \(\theta\). So MLE picks the model closest to the data in forward KL, which is why it is "mass-covering" (it pays heavily for giving any observed outcome tiny probability). On {{Information theory for ML|n:3c65c17b0d0d81c6baf3f778a62e14e5}}.</li>
+</ul>
+<div class="use"><div class="t">What it is used for in ML</div>Pretraining (next-token MLE), supervised fine-tuning, every classifier and regressor; fitting the parameters of any distribution (a Gaussian for anomaly detection, a Poisson for counts); and as the baseline that MAP and Bayesian methods correct when data is scarce.</div>
+</section>
+
+<section id="rd-s11">
+<h2>11. MAP: maximum a posteriori, or "loss plus regulariser"</h2>
+<p class="raise"><b>The question.</b> Weight decay, L1 penalties, add-one smoothing: are these hacks bolted onto MLE, or something principled?</p>
+<p>Put a <b>prior</b> \(p(\theta)\) on the parameters, what you believed before the data. By Bayes' rule the posterior is \(p(\theta \mid D) \propto p(D \mid \theta)\,p(\theta)\), and its peak is the MAP estimate:</p>
+\[ \hat\theta_{\text{MAP}} = \arg\max_\theta \big[\ln p(D \mid \theta) + \ln p(\theta)\big] = \arg\min_\theta \big[\text{NLL}(\theta) - \ln p(\theta)\big]. \]
+<p class="plain">In plain words: MAP is MLE plus one extra term, minus the log-prior, which is a regulariser. Everything you train as "loss plus regulariser" is MAP under some prior, whether or not you say so.</p>
+<h3>Gaussian prior = L2, Laplace prior = L1</h3>
+<p>Give every weight an independent Gaussian prior \(w_j \sim \mathcal{N}(0, \tau^2)\). Then</p>
+\[ -\ln p(w) = \sum_j \frac{w_j^2}{2\tau^2} + \text{const} \quad\Longrightarrow\quad \hat w_{\text{MAP}} = \arg\min_w \Big[\text{NLL}(w) + \lambda \|w\|_2^2\Big], \quad \lambda = \frac{1}{2\tau^2}. \]
+<dl class="sym"><dt>\(\tau^2\)</dt><dd>the prior variance: how large you believe weights can plausibly be. A tight prior (small \(\tau\)) is strong regularisation.</dd><dt>\(\|w\|_2^2\)</dt><dd>\(\sum_j w_j^2\), the squared length of the weight vector.</dd></dl>
+<p>A Laplace prior \(\frac{1}{2b}e^{-|w_j|/b}\) gives \(\frac1b\sum_j |w_j|\), the L1 penalty, whose sharp point at zero drives many weights exactly to zero (sparsity).</p>
+<div class="nums"><div class="t">The numbers (one-weight ridge regression)</div>Fit \(y = wx\) to \(x = (1, 2, 3)\), \(y = (2, 3, 7)\) with Gaussian noise of variance \(\sigma^2\). The MLE minimises \(\sum_i (y_i - wx_i)^2\): \(\hat w = \sum x_i y_i / \sum x_i^2 = 29/14 = 2.071\). With the prior, the objective becomes \(\sum_i (y_i - wx_i)^2 + \frac{\sigma^2}{\tau^2} w^2\) (multiply the NLL by \(2\sigma^2\)); with \(\sigma^2/\tau^2 = 1\), \(\hat w = 29/(14 + 1) = 1.933\): pulled towards the prior mean 0.</div>
+<p>Two cautions. In adaptive optimisers such as Adam, an L2 term in the loss is not the same as decoupled weight decay (AdamW, {{Loshchilov and Hutter, 2019|https://arxiv.org/abs/1711.05101}}); the two coincide only for plain SGD. Both are on {{Regularisation|n:3c65c17b0d0d81e988b5c3cb5e197f98}}. And <b>MAP is not invariant to reparameterisation</b>: the peak of a density moves when you change variables, because densities pick up a Jacobian factor. For the coin below, the posterior Beta(5, 2) peaks at \(p = 0.8\); written as a density over the logit \(\eta = \ln\frac{p}{1 - p}\), it gains the factor \(dp/d\eta = p(1 - p)\), becomes \(\propto p^5 (1 - p)^2\), and peaks at \(p = 5/7 = 0.714\). The MLE has no such problem (invariance above); the full posterior has none either. It is one reason to prefer the posterior to its peak.</p>
+<h3>Priors as imaginary data: smoothing</h3>
+<p>A Beta(\(a, b\)) prior on a coin acts like \(a - 1\) heads and \(b - 1\) tails seen in advance; a Dirichlet(\(\alpha\)) prior on a categorical acts like \(\alpha_k - 1\) extra counts per class. With Dirichlet(2, ..., 2), MAP is <b>add-one (Laplace) smoothing</b>, the classic fix for n-gram language models that give unseen words probability 0.</p>
+<div class="nums"><div class="t">The numbers</div>Counts of the word after "the" in a tiny corpus: cat 3, dog 1, sat 0. MLE: \((0.75, 0.25, 0)\), so "the sat" gets probability 0 and infinite loss if it ever occurs. Add one to each count: \((4, 2, 1)/7 = (0.571, 0.286, 0.143)\).</div>
+<div class="use"><div class="t">What it is used for in ML</div>Weight decay and L1 (Gaussian and Laplace priors); smoothing counts (Dirichlet priors); label smoothing (read as a prior towards the uniform distribution); interpreting the regularisation strength as a belief about weight size; seeing why the "same" regulariser behaves differently under a reparameterisation.</div>
+</section>
