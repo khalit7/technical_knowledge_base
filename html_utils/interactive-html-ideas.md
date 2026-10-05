@@ -2426,3 +2426,18 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | 7 | Einsum cost and backward-spec calculator | Reading s13 | 7 | Small; reproduces the old page's 16,777,216 |
 | 8 | Derivative workbench: six layers, derivation, shapes, live FD check with selectable h, Jacobian built from unit VJPs, LN kernel form | Own tab | 12 | Asked for; checked against autograd |
 | 9 | Real autograd graph: 71 nodes, saved tensors, engine order replay | Own tab | 11 | Real PyTorch 2.14.1 output |
+
+### Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_math/statistics/src/viz_ideas.md`.
+
+| Rank | Idea | Placement | Score | Reproduces / data |
+|---|---|---|---|---|
+| 1 | 100 repeated experiments with their 95% intervals; before/after: bell n = 30 against skewed lognormal n = 5 (plus the tiny model's loss), t against 1.96 | Reading s5 (animation) | 13 | seeded draws in `inputs/sims_anim.json`; counts recomputed by `recompute.py` (95, 99, 82 covered); long-run rates from the grid |
+| 2 | CI and test lab: six populations x seven n x four methods; coverage curve, one-sided misses, width, power curve via CI-test duality | Tab `t-lab` | 13 | `sims_grid.json`, 5,000 experiments x 999 resamples per cell; check: t on normal 94.8 to 95.4% (exact 95%) |
+| 3 | Double descent decomposed: bias^2 and variance against p, with Belkin, Hsu and Xu's Theorem 1 as exact circles; ridge toggle; singular values | Reading s11 (inline) and tab `t-dd` | 14 | `sims_dd.json`, 1,000 training sets; reproduces Theorem 1 independently to 3.2% away from the threshold |
+| 4 | CLT animation: sampling distribution of the mean stepped n = 1 to 1000, four populations including infinite variance | Reading s4 | 11 | `sims_clt.json`, 20,000 samples per cell |
+| 5 | Bootstrap world against real world: two histograms, a sample where it works (tiny model) and one where it fails (lognormal n = 10 missing its tail) | Reading s6 | 11 | `sims_boot.json` |
+| 6 | Tail bounds against the exact binomial tail, n slider | Reading s10 | 9 | exact binomial in `sims_conc.json`; bounds closed form; reproduces the handoff's 0.16 and 738 |
+| 7 | Exact table of three entropy estimators (MC, plug-in, Miller-Madow) | Reading s2 (table) | 8 | exact multinomial enumeration |
+| 8 | Peeking table: false-positive rate against number of looks | Mistakes | 7 | 200,000 simulated runs |
