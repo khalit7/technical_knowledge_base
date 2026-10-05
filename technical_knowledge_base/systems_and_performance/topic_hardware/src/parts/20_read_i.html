@@ -1,0 +1,36 @@
+<section id="rd-s10">
+<h2>10. Interview questions, a symptom table, and what the child pages will cover</h2>
+<h3>Interview questions, short answers</h3>
+<details class="qa"><summary>Why is LLM decode memory-bound and training compute-bound?</summary><div>Arithmetic intensity is about the number of tokens that share each weight read. Decode at batch 1 uses each 2-byte weight for one FMA, about 1 FLOP per byte, far below an H100's ridge of 295; a training step has thousands of tokens per weight read, far above it (section 5).</div></details>
+<details class="qa"><summary>Estimate the batch-1 decode speed of an 8B bf16 model on one H100.</summary><div>16 GB of weights per token at 3.35 TB/s: 4.8 ms, so at most about 209 tokens per second, before the KV cache and overheads (section 3).</div></details>
+<details class="qa"><summary>How much memory does full fine-tuning of a 7 to 8B model need?</summary><div>About 16 bytes per parameter for mixed-precision Adam (bf16 weights and gradients, fp32 master weights and two moments), so about 128 GB for 8B, plus activations: more than one 80 GB GPU, so shard (ZeRO, FSDP) or use LoRA.</div></details>
+<details class="qa"><summary>What is MFU and what is a good value?</summary><div>Useful model FLOPs per second (6N &times; tokens per second) over the chips' dense peak. About 40% is very good for a large dense run at scale (Llama 3 405B: 38 to 43%); under 20% points to a bottleneck. HFU also counts recomputation and is higher.</div></details>
+<details class="qa"><summary>Why does tensor parallelism stay inside a node?</summary><div>It all-reduces activations twice per layer forward and twice backward, on the critical path. For a 70B model with 8-way tensor parallelism that costs 16% of the compute time over NVLink and 141% over a 400 Gb/s NIC (section 6, from the Performance calculator).</div></details>
+<details class="qa"><summary>What does a ring all-reduce cost?</summary><div>Each GPU sends 2(N&minus;1)/N times the data (a reduce-scatter then an all-gather), so time &asymp; 2S / link bandwidth for large N, independent of N apart from latency.</div></details>
+<details class="qa"><summary>What did Hopper and Blackwell add to the tensor core, physically?</summary><div>Hopper: FP8, a per-SM copy engine for tiles (TMA), warpgroup-wide asynchronous matrix multiplies, clusters of SMs sharing shared memory. Blackwell: FP6, FP4 and block-scaled formats, 256 KB of tensor memory per SM for accumulators, two dies acting as one GPU.</div></details>
+<details class="qa"><summary>GPU or TPU: what is the real difference?</summary><div>Thousands of threads hiding latency with parallelism and caches, programmable at the kernel level, against large systolic arrays scheduled by a compiler with software-managed on-chip memory and switchless torus pods. Per-chip peaks are now comparable; the differences are flexibility, ecosystem, pod scale and price.</div></details>
+<details class="qa"><summary>Why do vendors quote sparse FLOPS, and what should you use?</summary><div>2:4 structured sparsity doubles the tensor-core rate if half of every four weights are zero. Dense training and most inference do not use it, so compare dense figures on both sides.</div></details>
+<details class="qa"><summary>An H100 run is slow on B200s. What do you check first?</summary><div>Whether the software uses the new hardware: kernels built for the new architecture, the matmul formats (FP8, FP4 paths), larger batches to stay above a ridge that did not move at BF16, and whether communication, not compute, became the limit.</div></details>
+<h3>"My training is slow": symptoms at the hardware level</h3>
+<div class="tw"><table class="tbl-sm symp">
+<tr><th>Symptom</th><th>Likely cause</th><th>How to check</th><th>Section</th></tr>
+<tr><td>GPU "utilization" high but MFU low</td><td>Kernels running but memory-bound (elementwise ops, small matmuls) or not using tensor cores (fp32 matmuls)</td><td>Profiler: time by kernel, achieved bandwidth and tensor-pipe use; matmul dtypes</td><td>2, 4, 5</td></tr>
+<tr><td>GPU idle between kernels</td><td>CPU-bound: Python, launches, the data loader</td><td>Timeline (torch.profiler, Nsight Systems): gaps between kernels; data loader wait time</td><td>1</td></tr>
+<tr><td>Out of memory, or forced to a tiny batch</td><td>State plus activations exceed HBM</td><td>max_memory_allocated; the 16 bytes per parameter count</td><td>3</td></tr>
+<tr><td>Throughput falls as GPUs are added</td><td>Communication that does not overlap, or traffic crossing a slow tier</td><td>NCCL time in the timeline; which parallelism crosses which link</td><td>6</td></tr>
+<tr><td>Fine on 8 GPUs, slow on 16</td><td>Tensor or expert parallelism now spans servers</td><td>Map each parallel group to NVLink domains</td><td>6</td></tr>
+<tr><td>Same code, slower on one node</td><td>A degraded GPU, link or NIC, or thermal throttling</td><td>nvidia-smi clocks and power; per-rank step times; NCCL bandwidth tests</td><td>8</td></tr>
+<tr><td>Runs restart often</td><td>Hardware failures at scale (GPUs, HBM)</td><td>Failure logs; checkpoint time against time between failures</td><td>8</td></tr>
+<tr><td>New GPU barely faster than the old one</td><td>Software not using the new formats or features; bound by bandwidth or network</td><td>Roofline position of the hot kernels on both chips</td><td>4, 5</td></tr>
+</table></div>
+<h3>What the child pages will cover</h3>
+<p>This root gives the intuition; the depth belongs on child pages. Proposed (not built yet; the four old child pages, GPU architecture, TPUs, interconnects and performance math, map onto the first four):</p>
+<div class="kids">
+<div><b>GPU architecture, A100 to Rubin</b>SMs, warp scheduling, tensor core generations, caches and TMEM in detail; NVIDIA datacenter and consumer parts compared.</div>
+<div><b>TPUs and other accelerators</b>Systolic arrays, MXUs, SparseCores, pods and optical switches; Trainium, Groq, Cerebras in depth.</div>
+<div><b>Interconnects and cluster networks</b>NVLink and NVSwitch, InfiniBand and RoCE, rail-optimised fat trees, collectives in hardware.</div>
+<div><b>Performance math</b>FLOPs, memory, KV cache, roofline and MFU worked end to end for training and serving.</div>
+<div><b>Memory technology</b>HBM generations, packaging, GDDR, CXL and memory tiers.</div>
+<div><b>Power and the data centre</b>Cooling, power delivery, reliability and the economics per megawatt.</div>
+</div>
+</section>
