@@ -1,0 +1,20 @@
+
+<section id="rd-rec">
+<h2>4. The records you will meet</h2>
+<p>A <dfn id="g-rr">resource record</dfn> is one line of a zone: owner name, TTL, class, type, data. All records with the same name and type form an <dfn id="g-rrset">RRset</dfn>, which is cached, signed and expires as one unit. The examples are the lab resolver's real answers (<span class="meas">measured</span>) and, where marked, public ones.</p>
+<div class="tw"><table>
+<thead><tr><th>Type</th><th>What it holds</th><th>Recorded answer</th><th>What to know</th></tr></thead>
+<tbody id="rr-rows"></tbody></table></div>
+<h3>The apex problem: why you cannot CNAME <code>example.com</code></h3>
+<p>A CNAME says "this name is an alias; ask about that other name instead", and a name that has a CNAME may have no other data ({{RFC 1034 s3.6.2|https://www.rfc-editor.org/rfc/rfc1034#section-3.6.2}}, {{RFC 2181 s10.1|https://www.rfc-editor.org/rfc/rfc2181#section-10.1}}). The <dfn id="g-apex">zone apex</dfn> (the bare domain, <code>llm.test.</code> itself) must hold SOA and NS records, so it can never be a CNAME. That bites when a cloud load balancer or CDN gives you a hostname rather than fixed addresses. Three ways out:</p>
+<ol class="tight">
+<li><b>Provider-side flattening</b> (called ALIAS, ANAME or CNAME flattening): the authoritative server resolves the target itself and answers with plain A and AAAA records. Every implementation is proprietary; the IETF draft to standardise it ({{draft-ietf-dnsop-aname|https://datatracker.ietf.org/doc/draft-ietf-dnsop-aname/}}) expired.</li>
+<li><b>Route 53 alias records</b>: allowed at the apex, they point at an AWS resource and Route 53 answers with its current addresses; queries to alias records that point at AWS resources are not charged ({{Route 53 docs|https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html}}).</li>
+<li><b>The HTTPS record in AliasMode</b> ({{RFC 9460|https://www.rfc-editor.org/rfc/rfc9460}}, November 2023), the standard answer: <code>example.com. HTTPS 0 lb.provider.net.</code> is legal at the apex. Its ServiceMode form (priority 1 or more) also tells a browser, before it connects, which HTTP versions the server speaks (<code>alpn</code>), its addresses, and the key for Encrypted Client Hello (<code>ech</code>). On 5 October 2026 <code>cloudflare.com</code> advertised <code>alpn="h3,h2"</code> and <code>api.anthropic.com</code> advertised <code>alpn="h2"</code> with IPv4 and IPv6 hints (<span class="meas">measured</span>), which is how a browser can start with HTTP/3 without a first HTTP/2 visit (see {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}).</li>
+</ol>
+<div class="ff"><div class="t">Mistakes these records invite</div><ul>
+<li><b>A long TXT value in one string.</b> One TXT string is at most 255 bytes ({{RFC 1035 s3.3|https://www.rfc-editor.org/rfc/rfc1035#section-3.3}}); a 2048-bit DKIM key is about 410 characters, so it must be split into several quoted strings that the receiver joins. The lab's record above is a real 2048-bit key split exactly that way. Pasting it as one string either fails to load or is silently cut by some control panels.</li>
+<li><b>MX or NS pointing at a CNAME.</b> Not allowed ({{RFC 2181 s10.3|https://www.rfc-editor.org/rfc/rfc2181#section-10.3}}); some mail servers refuse delivery. A domain that sends no mail can say so with a null MX, <code>MX 0 .</code> ({{RFC 7505|https://www.rfc-editor.org/rfc/rfc7505}}).</li>
+<li><b>Forgetting CAA.</b> Since September 2017 every public certificate authority must check CAA before issuing ({{CA/Browser Forum ballot 187|https://cabforum.org/2017/03/08/ballot-187-make-caa-checking-mandatory/}}); a CAA record that names only one CA makes another CA's issuance fail. Details on the {{TLS and certificates|n:3c65c17b0d0d8105a37ff2d2f602a421}} page.</li>
+</ul></div>
+</section>
