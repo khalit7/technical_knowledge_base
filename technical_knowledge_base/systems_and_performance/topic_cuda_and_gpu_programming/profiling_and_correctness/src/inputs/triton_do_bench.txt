@@ -1,0 +1,91 @@
+# triton 3.8.0 python/triton/testing.py
+def do_bench(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, return_mode="mean"):
+    """
+    Benchmark the runtime of the provided function. By default, returns the mean runtime of :code:`fn` as a single float.
+
+    :param fn: Function to benchmark
+    :type fn: Callable
+    :param warmup: Warmup time (in ms). Controls how long the function is run before timing begins.
+    :type warmup: int
+    :param rep: Repetition time (in ms). Controls the total duration of the timed runs.
+    :type rep: int
+    :param grad_to_none: Reset the gradient of the provided tensors to None before each run,
+        to avoid gradient accumulation affecting timing.
+    :type grad_to_none: list[torch.Tensor], optional
+    :param quantiles: If provided, return these quantiles of the runtime distribution instead
+        of a summary statistic. For example, ``[0.2, 0.5, 0.8]`` returns the 20th, 50th, and
+        80th percentile runtimes in ms. When set, ``return_mode`` is ignored.
+    :type quantiles: list[float], optional
+    :param return_mode: The summary statistic to return when ``quantiles`` is not set.
+        ``"mean"`` and ``"median"`` return a single float. ``"min"`` and ``"max"`` return
+        the fastest and slowest run respectively. ``"all"`` returns the raw list of
+        per-run timings in ms. Default is ``"mean"``.
+    :type return_mode: str
+    :return: A single float by default, a list of floats if ``quantiles`` is provided,
+        or a list of all per-run timings if ``return_mode="all"``.
+    :rtype: float | list[float]
+    """
+    assert return_mode in ["min", "max", "mean", "median", "all"]
+
+    di = runtime.driver.active.get_device_interface()
+
+    fn()
+    di.synchronize()
+
+    cache = runtime.driver.active.get_empty_cache_for_benchmark()
+
+    # Estimate the runtime of the function
+    start_event = di.Event(enable_timing=True)
+    end_event = di.Event(enable_timing=True)
+    start_event.record()
+    for _ in range(5):
+        runtime.driver.active.clear_cache(cache)
+        fn()
+    end_event.record()
+    di.synchronize()
+    estimate_ms = start_event.elapsed_time(end_event) / 5
+
+    # compute number of warmup and repeat
+    n_warmup = max(1, int(warmup / estimate_ms))
+    n_repeat = max(1, int(rep / estimate_ms))
+    start_event = [di.Event(enable_timing=True) for i in range(n_repeat)]
+    end_event = [di.Event(enable_timing=True) for i in range(n_repeat)]
+    # Warm-up
+    for _ in range(n_warmup):
+        fn()
+    # Benchmark
+    for i in range(n_repeat):
+        # we don't want `fn` to accumulate gradient values
+        # if it contains a backward pass. So we clear the
+        # provided gradients
+        if grad_to_none is not None:
+            for x in grad_to_none:
+                x.grad = None
+        # we clear the L2 cache before each run
+        runtime.driver.active.clear_cache(cache)
+        # record time of `fn`
+        start_event[i].record()
+        fn()
+        end_event[i].record()
+    # Record clocks
+    di.synchronize()
+    times = [s.elapsed_time(e) for s, e in zip(start_event, end_event)]
+    return _summarize_statistics(times, quantiles, return_mode)
+
+def _summarize_statistics(times, quantiles, return_mode):
+    if quantiles is not None:
+        ret = _quantile(times, quantiles)
+        if len(ret) == 1:
+            ret = ret[0]
+        return ret
+    if return_mode == "all":
+        return times
+    elif return_mode == "min":
+        return min(times)
+    elif return_mode == "max":
+        return max(times)
+    elif return_mode == "mean":
+        return statistics.mean(times)
+    elif return_mode == "median":
+        return statistics.median(times)
+

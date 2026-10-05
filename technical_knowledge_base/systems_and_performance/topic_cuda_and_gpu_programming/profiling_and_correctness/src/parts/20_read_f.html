@@ -1,0 +1,60 @@
+<section id="rd-s5">
+<h2>5. Is the answer right? References, tolerances, order and atomics</h2>
+<p><b>The problem.</b> A new kernel rarely crashes when it is wrong; it returns numbers that look plausible. And a correct kernel rarely returns exactly the same bits as PyTorch, because floating-point arithmetic rounds after every operation and <b>addition is not associative</b>: <code>(a + b) + c</code> and <code>a + (b + c)</code> can differ in the last bits. A GPU kernel adds in whatever order its threads, tiles and atomics dictate. So "is it right?" means "does it differ from a trustworthy reference by no more than the rounding of this number format and this summation explains?".</p>
+<h3>The number formats and their default tolerances</h3>
+<div class="tw" id="rd-fmt-tab"></div>
+<p class="small"><span class="meas">read from PyTorch 2.14.1</span>: <code>torch.finfo</code> for each type; the default <code>rtol</code> and <code>atol</code> of <code>torch.testing.assert_close</code> from its source (<code>_DTYPE_PRECISIONS</code>). TF32 keeps float32's 8-bit exponent with a 10-bit mantissa ({{NVIDIA Ampere post|https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/}}). <i>eps</i> is the gap between 1 and the next number: a single rounding changes a value by at most eps/2 relative. <code>assert_close</code> passes when |actual &minus; expected| &le; atol + rtol &times; |expected| for every element. Floating point itself, from zero, is on {{Numerical computing for ML|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}.</p>
+<h3>How to compare against a reference</h3>
+<ol>
+<li><b>Same inputs, more precision.</b> Round the inputs to the kernel's input type first, then compute the reference in float64 (or float32 for a float16 kernel) from those rounded inputs. Otherwise you measure the input rounding, not the kernel.</li>
+<li><b>Tolerance from the output type and the problem size.</b> A float16 output can be off by one rounding (eps/2 relative) plus the accumulated error of the sum, which grows with the reduction length <i>K</i>. Near zero, after cancellation, a relative tolerance is meaningless; compare the error to the scale of the terms instead (for a dot product, &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;).</li>
+<li><b>Look at the worst element and where it is,</b> not only a pass or fail: an error concentrated in the last tile or the last row is a bug, an error spread evenly at the rounding level is arithmetic.</li>
+</ol>
+<div class="pr" id="rd-pr3"><div class="q">Predict: a correct float16 matmul (float32 accumulation) on this laptop's GPU, 256 &times; 256 output, <i>K</i> = 4,096, compared with <code>assert_close</code>'s float16 defaults against a float64 reference rounded to float16. How many of the 65,536 elements fail?</div>
+<div class="opts"><button data-a="0">None: the kernel is correct</button><button data-a="1" data-right="1">A few dozen</button><button data-a="2">Most of them</button></div>
+<div class="ans" hidden><span class="meas">measured on Apple M1 Pro GPU</span>: <b><span data-v="mm_f4096">23</span></b> fail at <i>K</i> = 4,096 and <b><span data-v="mm_f16384">51</span></b> at 16,384 (none at 64 and 512). The worst error is <span data-v="mm_scale">0.16</span>% of the scale of the terms, about what rounding the result to float16 alone explains; the failing elements are those whose result is small after cancellation, where rtol = 0.001 of a small number is tighter than the rounding. bfloat16's default rtol of 0.016 passes every element at every <i>K</i>. Defaults are a starting point; set the tolerance from the format and <i>K</i>, and say what you chose.</div></div>
+<h3>Accumulate in float32, even when inputs are 16-bit</h3>
+<div class="rd-chart" id="rd-acc"></div>
+<p class="small"><span class="meas">computed here</span> (NumPy, 256 random dot products per point, inputs N(0,1) rounded to float16; products are exact in float32): median error relative to &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. A running sum kept in float16 or bfloat16 loses accuracy roughly in proportion to <i>K</i> (at <i>K</i> = 65,536 the bfloat16 running sum is off by <span data-v="acc_bf">14.6</span>% of the scale), because each small product is rounded against a large running total. Float32 accumulation keeps the error near 10<sup>&minus;6</sup>, and a pairwise tree (how a parallel reduction adds) keeps it lower and nearly flat. This is why tensor-core matmuls on 16-bit inputs accumulate in float32, and why a reduction kernel should keep its partial sums in float32. Try other formats and lengths in the {{Numerics lab|#t-num}}.</p>
+<h3>Order changes the bits: split-K, tiles and atomics</h3>
+<p>The same 1,048,576 float32 numbers summed in different orders <span class="meas">computed here</span>, error in units in the last place (<dfn>ulps</dfn>, the spacing of float32 numbers at the size of the answer, here <span data-v="ulp">0.0039</span>):</p>
+<div class="bars" id="rd-order"></div>
+<p class="small">Exact answer from <code>math.fsum</code>. "Split-K S" cuts the sum into S chunks, sums each, then adds the S partials, which is what a matmul does when it splits the <i>K</i> dimension across thread blocks to use more SMs. Every choice of S gives a different, equally legitimate answer. Sorting by value (all negatives first) is the worst order: the running total grows large before the positives cancel it.</p>
+<p><b>Atomics make the order change from run to run.</b> When many threads add into one location with <code>atomicAdd</code>, the hardware decides the order, so the same kernel on the same input returns different bits each run. Measured on this laptop's GPU with three MLX kernels summing the same 1,048,576 float32 numbers 30 times each <span class="meas">measured on Apple M1 Pro GPU</span>:</p>
+<div class="tw" id="rd-atom-tab"></div>
+<div class="card" id="rd-sum-card">
+<div class="seg" id="rd-sum-seg"><button data-m="seq" class="on">Left to right</button><button data-m="pair">Pairwise tree</button><button data-m="atom">Atomics (random order)</button></div>
+<div class="rd-chart" id="rd-sum-svg"></div>
+<div class="an-ctl" id="rd-sum-ctl"></div>
+<div class="an-cap" id="rd-sum-cap"></div>
+<div class="an-cnt" id="rd-sum-cnt"></div>
+<p class="small mute">Sixteen float16 numbers, one large (2,048) and fifteen near 1; every addition is rounded to float16 by the page's float16 model, which matches PyTorch's casts bit for bit on 2,055 test values (<code>check/check_js.mjs</code>). At 2,048 the gap between float16 numbers is 2, so adding something near 1 to a large total can round it away. "Another run" draws a new atomic order.</p>
+</div>
+<h3>When you need the same bits every run</h3>
+<ul>
+<li><code>torch.use_deterministic_algorithms(True)</code> makes PyTorch use deterministic implementations where they exist and raise an error where they do not (for example <code>index_add_</code> and <code>scatter_add_</code> on CUDA, which use atomics); it also stops Inductor from autotuning in ways that change numerics. "Deterministic operations tend to have worse performance" ({{PyTorch reproducibility notes|https://docs.pytorch.org/docs/2.14/notes/randomness.html}}; docstring of PyTorch 2.14.1).</li>
+<li><code>torch.backends.cudnn.benchmark = False</code> makes cuDNN choose its algorithm deterministically; <code>torch.backends.cudnn.deterministic = True</code> also requires that algorithm to be deterministic.</li>
+<li>cuBLAS gives "the same bit-wise results at every run when executed on GPUs with the same architecture and the same number of SMs", but not with several concurrent streams sharing a handle unless you set <code>CUBLAS_WORKSPACE_CONFIG=:4096:8</code> (about 24 MiB more memory) or <code>:16:8</code> ({{cuBLAS 13.4, results reproducibility|https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility}}) <span class="vend">docs</span>. A different GPU model, SM count or library version may still change the bits: compare across machines with a tolerance, not with equality.</li>
+</ul>
+<h3>FP8 needs a scale, and one outlier can spoil a per-tensor scale</h3>
+<p>float8 e4m3 has only 3 mantissa bits and a range of &plusmn;448 (its smallest normal is 2<sup>&minus;6</sup>), so values are multiplied by a scale before the cast and divided after. A million activations whose rows differ in scale, plus one outlier of 900, cast to e4m3 <span class="meas">computed here, PyTorch 2.14.1</span>:</p>
+<div class="tw" id="rd-fp8-tab"></div>
+<p class="small">The outlier fixes the per-tensor scale at 448/900, which pushes the small rows below e4m3's range: more values flush to zero than with no scale at all. One scale per row avoids it; this is why FP8 training recipes use fine-grained scales (per tile or per block, as in the MX formats), owned by the {{hardware formats|n:3c65c17b0d0d8118beeefaed56da6f8e}} and {{tensor-core|n:3c65c17b0d0d81a7adcaebee2f44a087}} pages. Note also what PyTorch's cast did with values above 448: it saturated them to 448 (even infinity), rather than producing NaN; a kernel that casts differently will not match it bit for bit.</p>
+<h3>compute-sanitizer: memory errors, races, uninitialised reads</h3>
+<p>The {{programming model|n:3c65c17b0d0d8162865eec15d9dae87e}} page shows how CUDA reports errors and why a bad kernel often fails silently. <code>compute-sanitizer</code> runs your program with instrumented kernels and reports the first bad access with the thread, block and source line (compile with <code>-lineinfo</code>). Its four tools, from <code>compute-sanitizer --help</code> (2026.3.0) <span class="der">real tool, help text</span>:</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Tool</th><th>Catches</th><th>Example</th></tr></thead><tbody>
+<tr><td><code>memcheck</code> (default)</td><td>out-of-bounds and misaligned global and shared accesses, leaks with <code>--leak-check full</code>; <code>--padding N</code> adds a guard zone after each allocation</td><td><code>compute-sanitizer --leak-check full python test_kernel.py</code></td></tr>
+<tr><td><code>racecheck</code></td><td>"Shared memory hazard checking": two threads touching the same shared word without a barrier between them</td><td><code>compute-sanitizer --tool racecheck ./a.out</code></td></tr>
+<tr><td><code>synccheck</code></td><td>illegal use of barriers, such as <code>__syncthreads()</code> inside a branch not all threads take</td><td><code>--tool synccheck</code></td></tr>
+<tr><td><code>initcheck</code></td><td>reads of global memory nobody wrote (an uninitialised buffer from <code>torch.empty</code>)</td><td><code>--tool initcheck</code></td></tr>
+</tbody></table></div>
+<p class="small">Run here without a GPU, a deliberately out-of-bounds kernel could not be checked: <code>compute-sanitizer</code> printed "Target application terminated before first instrumented API call" and <code>ncu</code> "failed to connect to the CUDA driver" (<code>src/out/ncu/nogpu_*.txt</code>). <code>cuda-gdb</code> (also in the toolkit) steps through a kernel thread by thread when the sanitizer has found the line. Expect large slowdowns under the sanitizer; run it on small inputs that still cover the edges.</p>
+<h3>A testing checklist for a new kernel</h3>
+<ul class="tight">
+<li>Sizes that are not multiples of the tile or block (1, 7, 127, 4,097), the first and last block, and one size far bigger than any test you thought of: the parent's {{Kernel lab|n:3c65c17b0d0d81c39f34d5e070d783c1}} records a missing barrier that passed every small test and corrupted 1 to 5 random rows per run only at 4,096 rows.</li>
+<li>Non-contiguous and transposed inputs, every data type you claim to support, and inputs with large, tiny, zero, infinite and NaN values.</li>
+<li>Several random seeds; the same input twice (does the output change? then something is racing or using atomics).</li>
+<li>Gradients: <code>torch.autograd.gradcheck</code> in float64 for a custom backward.</li>
+<li><code>compute-sanitizer</code> (all four tools) on a small case before any benchmark.</li>
+</ul>
+</section>
