@@ -1,0 +1,20 @@
+// Screenshot one element of a Part 3 tab: node shots.mjs <tab> <width> <scheme> <selector> [frame] [mode]
+import { createRequire } from 'module';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(path.join(path.resolve(here, '../../../../../../..'), 'html_utils/package.json'));
+const puppeteer = require('puppeteer');
+const [tab, w, scheme, sel, frame, mode] = process.argv.slice(2);
+const out = '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/tl/shots';
+const b = await puppeteer.launch({ headless: 'shell' }); const p = await b.newPage();
+await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
+await p.setViewport({ width: +w, height: 900 });
+await p.goto('file://' + path.resolve(here, '../../../index.html'));
+await p.evaluate((t) => window.SHOW_TAB(t), tab);
+await p.evaluate(async (sel, frame, mode) => { const el = document.querySelector(sel); el.scrollIntoView();
+  if (mode) el.querySelector(`.seg button[data-m="${mode}"]`).click();
+  const r = el.querySelector('.an-ctl input[type=range]'); if (r && frame) { r.value = frame; r.dispatchEvent(new Event('input', { bubbles: true })); } }, sel, frame, mode);
+await new Promise(r => setTimeout(r, 300));
+const el = await p.$(sel); const f = `${out}/${tab}_${sel.replace(/[^a-z0-9]/gi, '')}_${w}_${scheme}_${mode || ''}${frame || ''}.png`;
+await el.screenshot({ path: f }); console.log(f); await b.close();

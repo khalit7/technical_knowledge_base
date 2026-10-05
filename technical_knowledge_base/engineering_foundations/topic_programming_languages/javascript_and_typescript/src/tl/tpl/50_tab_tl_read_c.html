@@ -1,0 +1,53 @@
+
+<section id="tl-s5">
+<h2>5. Tool use and the agent loop</h2>
+<p><b>Tool use</b> (OpenAI calls it function calling) works like this. You send, with the messages, a list of <b>tools</b>: a name, a description, and a JSON Schema for the arguments. The model never runs anything. When it wants a tool it stops with <code>stop_reason: "tool_use"</code> and a <code>tool_use</code> block (a name, arguments, an id). <b>Your code</b> runs the function, then sends a new request containing the whole conversation plus a <code>tool_result</code> block with the same id. The model reads the result and either asks for more tools or answers. That repetition is the <b>agent loop</b>, and an "agent" is nothing more than this loop plus tools.</p>
+<p>The loop is small. Everything that makes it safe is in the guards:</p>
+<div class="tl-cost">
+<div><div class="t">Step limit</div>A model can ask for tools forever. Stop after <code>maxSteps</code> model calls and report it.</div>
+<div><div class="t">Timeout per tool</div><code>AbortSignal.timeout(500)</code> gives every tool a deadline; a stuck tool becomes an error result, not a hung agent.</div>
+<div><div class="t">Validate the input</div>The arguments are the model's JSON: untrusted. <code>safeParse</code> them with the same zod schema that produced the JSON Schema.</div>
+<div><div class="t">Errors go to the model</div>A failed tool returns <code>is_error: true</code> with a message the model can act on. Throwing would kill the run.</div>
+<div><div class="t">Run calls concurrently</div>One turn may ask for several tools. <code>Promise.all</code> runs them together, and all results go back in <b>one</b> user message.</div>
+<div><div class="t">Meter the cost</div>Add up <code>usage</code> after every call; a loop multiplies the bill (every step resends everything).</div>
+</div>
+[[code:c1_agent_loop.ts@9-65]]
+<p>The scripted model plays four scenarios: the happy path; a typo in the file name (the tool fails, the model corrects itself); a slow profile service (both lookups hit the 500 ms timeout); and a "runaway" model that keeps asking for one more user and never answers. Step through every message of every run in the {{Agent loop stepper|#t-tl-loop}}.</p>
+[[outpredict:c1_agent_loop|in the "timeout" run, step 2 asks for two profile lookups, each cut off at 500 ms. Does step 2 take about 500 ms or about 1,000 ms? And how many model calls does the runaway run make before it stops?]]
+<p class="small">The recorded run measured step 2 of the timeout scenario at about 500 ms (the stepper shows the exact wall time): the two lookups waited at the same time, because <code>Promise.all</code> started both before awaiting either. A <code>for</code> loop with <code>await</code> inside would have taken twice as long (one at a time versus all at once is taught in section 10 of {{Part 1's Reading|#t-ja-read}}). And because <code>runTool</code> catches every error and returns it as a result, <code>Promise.all</code> can never reject halfway and lose the other results. The cost line uses Claude Sonnet 5.5's list price, US$2 per million input tokens and US$10 per million output tokens (<a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic pricing</a>, checked 2026-10-05) applied to the mock's token estimates, so it shows the arithmetic, not a real bill. A real request with tools also carries a hidden tool-use system prompt (286 tokens on Sonnet 5.5, same page).</p>
+<div class="tl-py"><div class="t">From Python</div>The loop is line for line what you would write in Python. The differences are TypeScript's: <code>msg.content.filter((b): b is Anthropic.ToolUseBlock =&gt; b.type === "tool_use")</code> is a <b>type guard</b> (a function whose return type <code>b is T</code> tells the compiler what passed the filter), and the SDK's types (<code>Anthropic.MessageParam</code>, <code>Anthropic.ToolResultBlockParam</code>) make a malformed message a compile error instead of a 400 at run time.</div>
+</section>
+
+<section id="tl-s6">
+<h2>6. The tool runner: the same loop, written by the SDK</h2>
+<p>The SDK ships the loop as a helper (beta in 0.131.0): <code>client.beta.messages.toolRunner</code> with tools made by <code>betaZodTool</code>. You give each tool a zod schema and a <code>run</code> function; the runner sends the schema, validates the model's arguments against it before calling <code>run</code>, sends the results back, and stops when the model answers or after <code>max_iterations</code>.</p>
+[[run:c2_tool_runner]]
+<p>When to use which: the runner for most custom-tool agents (less code, validation built in). The hand-written loop when you need control the runner does not give, such as your own cost cut-off, a per-step log format, or handling of <code>pause_turn</code> (the SDK's documentation notes the runner does not resume a paused server-tool turn by itself). It is worth writing the loop by hand once, as above, so the runner is not magic.</p>
+</section>
+
+<section id="tl-s7">
+<h2>7. Structured output validated with zod</h2>
+<p>Often you do not want prose but data: <code>{"user": "u0029", "tokens": 9491, "share_pct": 21.2}</code>. Three layers make that reliable, and zod (taught from zero in "Checking data at run time with zod" in {{Part 2's Reading|#t-tb-read}} and its {{LLM JSON lab|#t-tb-zod}}) gives all three from one schema:</p>
+<ol>
+<li><b>Ask with a schema.</b> <code>output_config.format</code> sends a JSON Schema and the API constrains the model to produce matching JSON (Anthropic calls this structured outputs; <a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" target="_blank" rel="noopener noreferrer">docs</a>). <code>zodOutputFormat(schema)</code> converts the zod schema.</li>
+<li><b>Check what came back.</b> <code>client.messages.parse()</code> runs the zod schema on the reply and puts the typed result in <code>parsed_output</code>.</li>
+<li><b>Get the type for free.</b> <code>z.infer&lt;typeof Heaviest&gt;</code> is the TypeScript type, so the rest of your program is checked against the same definition.</li>
+</ol>
+[[run:d1_structured]]
+<div class="tl-find"><div class="t">Found by running it: not every rule reaches the API</div>Look at the <code>output_config sent</code> line. The SDK sent <code>user</code> as a plain string and moved the regular expression into the field's <code>description</code> (<code>"{pattern: \"^u\\\\d{4}$\"}"</code>); the same happened to <code>minimum</code>/<code>maximum</code> on the numbers. So the API's constraint guarantees the JSON's <b>shape</b> (fields, types, no extra keys), but rules like a pattern or a range are only hinted to the model and enforced <b>afterwards</b>, by zod, in <code>parse()</code>. That is why case 2 ends in an error raised by the SDK rather than a wrong value in your program. Keep the zod check even when the API constrains output.</div>
+<p>With OpenAI the equivalent is <code>zodTextFormat(schema, name)</code> in <code>text.format</code> with <code>client.responses.parse()</code> (from <code>openai/helpers/zod</code>, 7.28.0). With any other provider, or a model without constrained decoding: ask for JSON in the prompt, <code>JSON.parse</code>, then <code>safeParse</code>. On failure, send the zod error message back to the model and ask again, once or twice; the error text (the last block above) is written for exactly that.</p>
+<p class="small">An alternative you will see in older code: defining a tool whose input schema is the output you want and forcing the model to call it. On Claude Sonnet 5.5 and Opus 5.5, forcing a specific tool (<code>tool_choice</code> <code>any</code> or <code>tool</code>) is rejected with a 400 (<a href="https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide" target="_blank" rel="noopener noreferrer">Sonnet 5.5 migration guide</a>), so use structured outputs instead.</p>
+</section>
+
+<section id="tl-s8">
+<h2>8. Conversation state</h2>
+<p>The Messages API keeps <b>no memory</b> between requests. The conversation is an array in your program; each turn you append the user's message, send the <b>whole</b> array, and append the reply. Forget to resend, and the model has never heard of you:</p>
+[[predict:e1_state|the first call says "My name is Khalid." and a second, separate call asks "What is my name?". What does the second call answer? Then, in the kept history, how does the input grow over six turns?]]
+<p>The input column grows with every turn because each request carries everything before it, so the total input billed grows with the <b>square</b> of the number of turns: the six turns above billed 636 estimated input tokens for a conversation whose final request was 219. Three tools fight that:</p>
+<ul>
+<li><b>Prompt caching.</b> Mark the stable prefix (<code>cache_control</code>); later requests that start with the same bytes read it from cache at 0.1x the input price on most models (0.05x on Opus 5.5; <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">pricing</a>). Any change early in the prefix (a timestamp in the system prompt) silently defeats it.</li>
+<li><b>Compaction or trimming.</b> Summarise or drop old turns when the context grows (Anthropic offers <a href="https://platform.claude.com/docs/en/build-with-claude/compaction" target="_blank" rel="noopener noreferrer">server-side compaction</a> as a beta).</li>
+<li><b>Server-side state.</b> OpenAI's Responses API can keep the conversation on its servers: pass <code>previous_response_id</code> (<a href="https://developers.openai.com/api/docs/guides/conversation-state" target="_blank" rel="noopener noreferrer">conversation state guide</a>) instead of resending (you are still billed for those input tokens; you just do not send them).</li>
+</ul>
+<p>Where the array lives is an application decision: in memory for a script, in a database row per conversation for a web app (the {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} page covers storing and versioning such data).</p>
+</section>

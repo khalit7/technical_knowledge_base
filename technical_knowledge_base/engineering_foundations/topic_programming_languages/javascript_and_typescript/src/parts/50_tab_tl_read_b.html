@@ -1,0 +1,211 @@
+
+<section id="tl-s2">
+<h2>2. A first call</h2>
+<p>In Python you would write <code>client = anthropic.Anthropic()</code> and <code>client.messages.create(...)</code>. The TypeScript SDK is the same API with one difference you feel at once: <code>create</code> returns a <b>promise</b>, so you <code>await</code> it (promises and <code>await</code> are taught in {{Part 1's Reading|#t-ja-read}}, section 9). Top-level <code>await</code> works because the file is an ES module.</p>
+<div class="tl-snip"><div class="tl-file">a1_first_call.ts</div><pre class="tl-code"><span class="tl-cm">// The first call: the official Anthropic SDK, pointed at the local mock (baseURL) instead of api.anthropic.com.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span> &#125;);   <span class="tl-cm">// real code: new Anthropic() reads ANTHROPIC_API_KEY</span>
+
+<span class="tl-kw">const</span> msg = <span class="tl-kw">await</span> client.messages.create(&#123;
+  model: <span class="tl-st">"claude-sonnet-5-5"</span>,
+  max_tokens: 1024,
+  messages: [&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"In one sentence, what is TypeScript?"</span> &#125;],
+&#125;);
+
+<span class="tl-cm">// msg is typed Anthropic.Message: content is an array of blocks, so narrow on .type before reading .text</span>
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> block <span class="tl-kw">of</span> msg.content) <span class="tl-kw">if</span> (block.<span class="tl-kw">type</span> === <span class="tl-st">"text"</span>) console.log(<span class="tl-st">"text:"</span>, block.text);
+console.log(<span class="tl-st">"stop_reason:"</span>, msg.stop_reason, <span class="tl-st">"| usage:"</span>, JSON.stringify(&#123; <span class="tl-kw">in</span>: msg.usage.input_tokens, out: msg.usage.output_tokens &#125;));
+console.log(<span class="tl-st">"request id:"</span>, msg._request_id);
+
+<span class="tl-kw">const</span> sent = mock.log[0]!;
+console.log(<span class="tl-st">"\nwhat went over the wire:"</span>);
+console.log(<span class="tl-st">"POST"</span>, sent.path, JSON.stringify(sent.headers, <span class="tl-kw">null</span>, 1).replace(/\n\s*/g, <span class="tl-st">" "</span>));
+console.log(<span class="tl-st">"body:"</span>, JSON.stringify(sent.request));
+console.log(<span class="tl-st">"response:"</span>, JSON.stringify(sent.response));
+<span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="a1_first_call.txt">text: TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs.
+stop_reason: end_turn | usage: &#123;"in":20,"out":34&#125;
+request id: req_mock_002
+
+what went over the wire:
+POST /v1/messages &#123; "anthropic-version": "2023-06-01", "content-type": "application/json", "x-stainless-retry-count": "0", "x-stainless-timeout": "600", "user-agent": "Anthropic/JS 0.131.0" &#125;
+body: &#123;"model":"claude-sonnet-5-5","max_tokens":1024,"messages":[&#123;"role":"user","content":"In one sentence, what is TypeScript?"&#125;]&#125;
+response: &#123;"id":"msg_mock_001","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[&#123;"type":"text","text":"TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs."&#125;],"stop_reason":"end_turn","stop_sequence":null,"usage":&#123;"input_tokens":20,"output_tokens":34&#125;&#125;</pre></div>
+<p>Read the response as data, not as text:</p>
+<ul>
+<li><b><code>content</code> is an array of blocks</b>, each with a <code>type</code>: <code>text</code>, <code>tool_use</code>, <code>thinking</code> and others. TypeScript makes you narrow on <code>block.type === "text"</code> before you may read <code>block.text</code>: the response type is a <b>discriminated union</b>, the feature Part 2 teaches with its narrowing stepper ({{Narrowing stepper|#t-tb-narrow}}). <code>msg.content[0].text</code> is a type error, and it should be: the first block is not always text.</li>
+<li><b><code>stop_reason</code></b> says why the model stopped: <code>end_turn</code> (finished), <code>max_tokens</code> (cut off), <code>tool_use</code> (wants a tool), <code>stop_sequence</code>, <code>pause_turn</code>, <code>refusal</code> and <code>model_context_window_exceeded</code> (the full list from the SDK's <code>StopReason</code> type in 0.131.0). Check it on every response.</li>
+<li><b><code>usage</code></b> counts input and output tokens: the bill. Real responses also carry cache counts (<code>cache_read_input_tokens</code>, <code>cache_creation_input_tokens</code>).</li>
+<li>The wire shows what the SDK added for you: the <code>anthropic-version: 2023-06-01</code> header (the API's version, not the model's), its retry counter, and its timeout (600 s).</li>
+</ul>
+<p>The OpenAI SDK has the same shape of code with different names. Its current API is <b>Responses</b> (<code>client.responses.create</code>); the older Chat Completions API still exists. Same question, same mock:</p>
+<div class="tl-snip"><div class="tl-file">a2_openai_first.ts</div><pre class="tl-code"><span class="tl-cm">// The same question through the official OpenAI SDK and its Responses API, against the same mock.</span>
+<span class="tl-kw">import</span> OpenAI <span class="tl-kw">from</span> <span class="tl-st">"openai"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> OpenAI(&#123; baseURL: mock.url + <span class="tl-st">"/v1"</span>, apiKey: <span class="tl-st">"mock-key"</span> &#125;);   <span class="tl-cm">// real code: new OpenAI() reads OPENAI_API_KEY</span>
+
+<span class="tl-kw">const</span> resp = <span class="tl-kw">await</span> client.responses.create(&#123;
+  model: <span class="tl-st">"gpt-5.5"</span>,
+  input: <span class="tl-st">"In one sentence, what is TypeScript?"</span>,
+&#125;);
+console.log(<span class="tl-st">"output_text:"</span>, resp.output_text);        <span class="tl-cm">// a convenience the SDK computes from resp.output</span>
+console.log(<span class="tl-st">"output[0].type:"</span>, resp.output[0]?.<span class="tl-kw">type</span>, <span class="tl-st">"| usage:"</span>, JSON.stringify(resp.usage));
+console.log(<span class="tl-st">"\nbody sent:"</span>, JSON.stringify(mock.log[0]!.request));
+<span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="a2_openai_first.txt">output_text: TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs.
+output[0].type: message | usage: &#123;"input_tokens":17,"output_tokens":28,"total_tokens":45&#125;
+
+body sent: &#123;"model":"gpt-5.5","input":"In one sentence, what is TypeScript?"&#125;</pre></div>
+<div class="tw"><table class="tl-t">
+<thead><tr><th></th><th>Anthropic Messages</th><th>OpenAI Responses</th></tr></thead>
+<tbody>
+<tr><td>Endpoint</td><td><code>POST /v1/messages</code></td><td><code>POST /v1/responses</code></td></tr>
+<tr><td>Input</td><td><code>messages: [{role, content}]</code>, <code>system</code> separate, <code>max_tokens</code> required</td><td><code>input</code>: a string or a list of items; <code>instructions</code> for the system prompt</td></tr>
+<tr><td>Output</td><td><code>content</code>: blocks (<code>text</code>, <code>tool_use</code>, ...)</td><td><code>output</code>: items (<code>message</code> with <code>output_text</code> parts, <code>function_call</code>, ...); the SDK adds <code>output_text</code></td></tr>
+<tr><td>A tool call / its result</td><td><code>tool_use</code> block / <code>tool_result</code> block in the next user message</td><td><code>function_call</code> item / <code>function_call_output</code> item</td></tr>
+<tr><td>Conversation state</td><td>None on the server: you resend the history</td><td>You resend, or pass <code>previous_response_id</code> and the server keeps it</td></tr>
+<tr><td>Key from</td><td><code>ANTHROPIC_API_KEY</code></td><td><code>OPENAI_API_KEY</code></td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: the type definitions in <code>@anthropic-ai/sdk</code> 0.131.0 and <code>openai</code> 7.28.0 (<code>resources/messages/messages.d.ts</code>, <code>resources/responses/responses.d.ts</code>); <a href="https://platform.claude.com/docs/en/api/messages" target="_blank" rel="noopener noreferrer">Messages API reference</a>; <a href="https://developers.openai.com/api/docs/api-reference/responses" target="_blank" rel="noopener noreferrer">Responses API reference</a>.</p>
+</section>
+
+<section id="tl-s3">
+<h2>3. When the call fails: retries, timeouts, typed errors</h2>
+<p>A model API fails in ordinary ways: rate limits (HTTP 429), overload (529 and other 5xx), a slow or dead connection, or a request you got wrong (400). The SDK already handles the first three. Read from the SDK's source (<code>client.js</code>, 0.131.0): it <b>retries 2 times by default</b> (<code>maxRetries</code>), on 408, 409, 429, every 5xx, and connection errors; it waits with exponential backoff or for the server's <code>retry-after</code> / <code>retry-after-ms</code> header; and its <b>timeout is 10 minutes</b> per attempt (in milliseconds in TypeScript: <code>timeout: 600_000</code>). A 400 is never retried: retrying a wrong request cannot fix it. A local server that fails on purpose shows each case:</p>
+<div class="tl-snip tl-pred"><div class="tl-file">a3_errors.ts</div><pre class="tl-code"><span class="tl-cm">// What the SDK does when the API fails: retries (429, 5xx, timeouts) and typed errors you can catch.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; createServer &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:http"</span>;
+
+<span class="tl-kw">let</span> attempts = 0, mode = <span class="tl-st">""</span>;
+<span class="tl-kw">const</span> t0 = Date.now(); <span class="tl-kw">const</span> log = (s: string) =&gt; console.log(<span class="tl-st">`$&#123;String(Date.now() - t0).padStart(5)&#125; ms  $&#123;s&#125;`</span>);
+<span class="tl-kw">const</span> server = createServer((req, res) =&gt; &#123;
+  attempts++; req.resume();
+  log(<span class="tl-st">`server: attempt $&#123;attempts&#125; ($&#123;mode&#125;), retry-count header $&#123;req.headers["x-stainless-retry-count"]&#125;`</span>);
+  <span class="tl-kw">if</span> (mode === <span class="tl-st">"429"</span> &amp;&amp; attempts &lt;= 2) <span class="tl-kw">return</span> res.writeHead(429, &#123; <span class="tl-st">"content-type"</span>: <span class="tl-st">"application/json"</span>, <span class="tl-st">"retry-after-ms"</span>: <span class="tl-st">"100"</span> &#125;)
+    .end(JSON.stringify(&#123; <span class="tl-kw">type</span>: <span class="tl-st">"error"</span>, error: &#123; <span class="tl-kw">type</span>: <span class="tl-st">"rate_limit_error"</span>, message: <span class="tl-st">"slow down"</span> &#125; &#125;));
+  <span class="tl-kw">if</span> (mode === <span class="tl-st">"400"</span>) <span class="tl-kw">return</span> res.writeHead(400, &#123; <span class="tl-st">"content-type"</span>: <span class="tl-st">"application/json"</span> &#125;)
+    .end(JSON.stringify(&#123; <span class="tl-kw">type</span>: <span class="tl-st">"error"</span>, error: &#123; <span class="tl-kw">type</span>: <span class="tl-st">"invalid_request_error"</span>, message: <span class="tl-st">"max_tokens: must be at least 1"</span> &#125; &#125;));
+  <span class="tl-kw">if</span> (mode === <span class="tl-st">"hang"</span>) <span class="tl-kw">return</span>;   <span class="tl-cm">// never answers</span>
+  res.writeHead(200, &#123; <span class="tl-st">"content-type"</span>: <span class="tl-st">"application/json"</span> &#125;).end(JSON.stringify(&#123; id: <span class="tl-st">"msg_1"</span>, <span class="tl-kw">type</span>: <span class="tl-st">"message"</span>, role: <span class="tl-st">"assistant"</span>,
+    model: <span class="tl-st">"m"</span>, content: [&#123; <span class="tl-kw">type</span>: <span class="tl-st">"text"</span>, text: <span class="tl-st">"ok"</span> &#125;], stop_reason: <span class="tl-st">"end_turn"</span>, stop_sequence: <span class="tl-kw">null</span>, usage: &#123; input_tokens: 1, output_tokens: 1 &#125; &#125;));
+&#125;).listen(0);
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: <span class="tl-st">`http://127.0.0.1:$&#123;(server.address() as any).port&#125;`</span>, apiKey: <span class="tl-st">"mock-key"</span> &#125;);
+<span class="tl-kw">const</span> ask = (opts?: Anthropic.RequestOptions) =&gt;
+  client.messages.create(&#123; model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 64, messages: [&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"hi"</span> &#125;] &#125;, opts);
+
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> [m, opts] <span class="tl-kw">of</span> [[<span class="tl-st">"429"</span>, <span class="tl-kw">undefined</span>], [<span class="tl-st">"400"</span>, <span class="tl-kw">undefined</span>], [<span class="tl-st">"hang"</span>, &#123; timeout: 300, maxRetries: 1 &#125;]] <span class="tl-kw">as</span> <span class="tl-kw">const</span>) &#123;
+  mode = m; attempts = 0; console.log(<span class="tl-st">`\n--- server answers $&#123;m&#125;$&#123;opts ? " (timeout 300 ms, maxRetries 1)" : ""&#125;`</span>);
+  <span class="tl-kw">try</span> &#123;
+    <span class="tl-kw">const</span> r = <span class="tl-kw">await</span> ask(opts);
+    log(<span class="tl-st">`client: success after $&#123;attempts&#125; attempts: $&#123;r.content[0]?.type === "text" ? r.content[0].text : ""&#125;`</span>);
+  &#125; <span class="tl-kw">catch</span> (e) &#123;
+    <span class="tl-kw">if</span> (e <span class="tl-kw">instanceof</span> Anthropic.RateLimitError) log(<span class="tl-st">`client: RateLimitError $&#123;e.status&#125;`</span>);
+    <span class="tl-kw">else</span> <span class="tl-kw">if</span> (e <span class="tl-kw">instanceof</span> Anthropic.BadRequestError) log(<span class="tl-st">`client: BadRequestError $&#123;e.status&#125;, not retried: $&#123;e.message&#125;`</span>);
+    <span class="tl-kw">else</span> <span class="tl-kw">if</span> (e <span class="tl-kw">instanceof</span> Anthropic.APIConnectionTimeoutError) log(<span class="tl-st">`client: APIConnectionTimeoutError after $&#123;attempts&#125; attempts`</span>);
+    <span class="tl-kw">else</span> <span class="tl-kw">throw</span> e;
+  &#125;
+&#125;
+server.closeAllConnections(); server.close();</pre><div class="tl-q"><b>Predict:</b> the server answers 429 twice, then succeeds. How many requests does it see, and does your code see an error? And when it never answers, with a 300 ms timeout and maxRetries 1, how long until the error?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="a3_errors.txt">
+--- server answers 429
+   18 ms  server: attempt 1 (429), retry-count header 0
+  129 ms  server: attempt 2 (429), retry-count header 1
+  235 ms  server: attempt 3 (429), retry-count header 2
+  237 ms  client: success after 3 attempts: ok
+
+--- server answers 400
+  240 ms  server: attempt 1 (400), retry-count header 0
+  241 ms  client: BadRequestError 400, not retried: 400 &#123;"type":"error","error":&#123;"type":"invalid_request_error","message":"max_tokens: must be at least 1"&#125;&#125;
+
+--- server answers hang (timeout 300 ms, maxRetries 1)
+  243 ms  server: attempt 1 (hang), retry-count header 0
+  997 ms  server: attempt 2 (hang), retry-count header 1
+ 1298 ms  client: APIConnectionTimeoutError after 2 attempts</pre></details></div>
+<p>Two lessons sit in the last block. First, timeouts are retried, so the worst case is about <code>timeout × (maxRetries + 1)</code> plus backoff (here two 300 ms attempts plus about 450 ms of backoff: about one second from the first attempt to the error). Second, catch the <b>specific</b> error classes (<code>RateLimitError</code>, <code>BadRequestError</code>, <code>APIConnectionTimeoutError</code>, all subclasses of <code>Anthropic.APIError</code>) with <code>instanceof</code>, never by matching message strings. In Python the same classes exist with the same names (<code>anthropic.RateLimitError</code>); TypeScript's <code>catch (e)</code> gives <code>e</code> the type <code>unknown</code>, so <code>instanceof</code> is also how you get a typed error back.</p>
+<p class="small">Timeouts, retries with jitter, circuit breakers and retry budgets in general: {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+</section>
+
+<section id="tl-s4">
+<h2>4. Streaming</h2>
+<p>A long answer takes seconds to generate. Streaming sends each piece as it is produced, so the user sees text at once. On the wire it is <b>server-sent events</b>: one HTTP response that stays open and carries <code>event:</code> and <code>data:</code> lines, each event ended by a blank line. How to parse SSE bytes correctly yourself (chunks split events and even UTF-8 characters) is taught with an animation in {{Part 1's Reading|#t-ja-read}}, section 11; the SDK does that parsing for you. What remains is knowing the events.</p>
+<div class="tl-anim" id="tl-sx-card">
+<div class="seg" id="tl-sx-mode"><button data-m="anthropic" class="on">Anthropic Messages</button><button data-m="openai">OpenAI Responses</button><button data-m="tool">Anthropic, a tool call</button></div>
+<div class="an-ctl" id="tl-sx-ctl"></div>
+<div id="tl-sx-view"></div>
+<div class="tl-cap" id="tl-sx-cap"></div>
+<div class="tl-counters" id="tl-sx-cnt"></div>
+<div class="tl-src">Every frame is one the mock really sent in the recorded runs of <code>b1_stream.ts</code> and <code>b2_stream_openai.ts</code> (same answer text in both formats); the "assembled so far" column is computed in your browser from those frames, the way the SDK assembles them.</div>
+</div>
+<p class="small mute">Event references: <a href="https://platform.claude.com/docs/en/build-with-claude/streaming" target="_blank" rel="noopener noreferrer">Anthropic streaming</a>, <a href="https://developers.openai.com/api/reference/resources/responses/streaming-events" target="_blank" rel="noopener noreferrer">OpenAI Responses streaming events</a>.</p>
+<p>The SDK gives three levels. <code>create({ ..., stream: true })</code> returns an async iterable of the raw events, already parsed (note that it drops the <code>ping</code> keep-alive: 23 events arrive, the wire carried 24). <code>messages.stream()</code> is the helper: <code>.on("text", f)</code> for each text piece and <code>await finalMessage()</code> for the assembled <code>Message</code>, identical to what a non-streaming call returns. And for tool calls, the arguments stream as <b>partial JSON</b> (<code>input_json_delta</code>): fragments like <code>"t.jsonl\",\"to"</code> that are not JSON on their own; the helper re-parses the snapshot after each one.</p>
+<div class="tl-snip"><div class="tl-file">b1_stream.ts</div><pre class="tl-code"><span class="tl-cm">// Streaming three ways with the Anthropic SDK: raw events (stream: true), the stream helper's events, and partial JSON</span>
+<span class="tl-cm">// for a tool call. The mock sends one SSE event per write.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; writeFileSync &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:fs"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span> &#125;);
+<span class="tl-kw">const</span> ask = &#123; model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 1024, messages: [&#123; role: <span class="tl-st">"user"</span> <span class="tl-kw">as</span> <span class="tl-kw">const</span>, content: <span class="tl-st">"In one sentence, what is TypeScript?"</span> &#125;] &#125;;
+
+<span class="tl-cm">// 1. stream: true returns an async iterable of the raw events, already parsed from SSE</span>
+<span class="tl-kw">const</span> raw = <span class="tl-kw">await</span> client.messages.create(&#123; ...ask, stream: <span class="tl-kw">true</span> &#125;);
+<span class="tl-kw">const</span> kinds: string[] = []; <span class="tl-kw">let</span> text = <span class="tl-st">""</span>;
+<span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> ev <span class="tl-kw">of</span> raw) &#123;
+  kinds.push(ev.<span class="tl-kw">type</span> === <span class="tl-st">"content_block_delta"</span> ? <span class="tl-st">`delta($&#123;JSON.stringify(ev.delta.type === "text_delta" ? ev.delta.text : "")&#125;)`</span> : ev.<span class="tl-kw">type</span>);
+  <span class="tl-kw">if</span> (ev.<span class="tl-kw">type</span> === <span class="tl-st">"content_block_delta"</span> &amp;&amp; ev.delta.<span class="tl-kw">type</span> === <span class="tl-st">"text_delta"</span>) text += ev.delta.text;
+&#125;
+console.log(<span class="tl-st">`1. raw events ($&#123;kinds.length&#125;):`</span>, kinds.join(<span class="tl-st">" "</span>));
+console.log(<span class="tl-st">"   first 3 SSE frames on the wire:\n"</span> + mock.log[0]!.sse!.split(<span class="tl-st">"\n\n"</span>).slice(0, 3).map(f =&gt; <span class="tl-st">"   | "</span> + f.replace(/\n/g, <span class="tl-st">"\n   | "</span>)).join(<span class="tl-st">"\n"</span>));
+
+<span class="tl-cm">// 2. the helper: .on("text") per delta, finalMessage() for the assembled Message</span>
+<span class="tl-kw">const</span> s = client.messages.stream(ask);
+<span class="tl-kw">let</span> deltas = 0; s.on(<span class="tl-st">"text"</span>, () =&gt; deltas++);
+<span class="tl-kw">const</span> final = <span class="tl-kw">await</span> s.finalMessage();
+console.log(<span class="tl-st">`2. helper: $&#123;deltas&#125; text events; finalMessage: stop_reason $&#123;final.stop_reason&#125;, $&#123;final.content.length&#125; block, text equal to step 1: $&#123;final.content[0]?.type === "text" &amp;&amp; final.content[0].text === text&#125;`</span>);
+
+<span class="tl-cm">// 3. a tool call streams its input as partial JSON; the helper parses the snapshot so far at every step</span>
+<span class="tl-kw">const</span> t = client.messages.stream(&#123; ...ask, tools: [&#123; name: <span class="tl-st">"count_tokens"</span>, description: <span class="tl-st">"count tokens per user"</span>, input_schema: &#123; <span class="tl-kw">type</span>: <span class="tl-st">"object"</span>, properties: &#123; path: &#123; <span class="tl-kw">type</span>: <span class="tl-st">"string"</span> &#125;, top: &#123; <span class="tl-kw">type</span>: <span class="tl-st">"integer"</span> &#125; &#125; &#125; &#125;] &#125;,
+  &#123; headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"happy"</span> &#125; &#125;);
+t.on(<span class="tl-st">"inputJson"</span>, (partial, snapshot) =&gt; console.log(<span class="tl-st">`   + $&#123;JSON.stringify(partial).padEnd(16)&#125; snapshot $&#123;JSON.stringify(snapshot)&#125;`</span>));
+console.log(<span class="tl-st">"3. tool input as it arrives:"</span>);
+<span class="tl-kw">const</span> tm = <span class="tl-kw">await</span> t.finalMessage();
+console.log(<span class="tl-st">"   final tool_use input:"</span>, JSON.stringify(tm.content.find(b =&gt; b.<span class="tl-kw">type</span> === <span class="tl-st">"tool_use"</span>)));
+<span class="tl-kw">if</span> (process.argv[2]) writeFileSync(process.argv[2], JSON.stringify(&#123; anthropic: mock.log[0]!.sse, tool: mock.log[2]!.sse &#125;));
+<span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="b1_stream.txt">1. raw events (23): message_start content_block_start delta("TypeScript") delta(" is") delta(" JavaScript") delta(" with") delta(" static") delta(" types") delta(" that") delta(" are") delta(" checked") delta(" before") delta(" the") delta(" program") delta(" runs") delta(" and") delta(" erased") delta(" when") delta(" it") delta(" runs.") content_block_stop message_delta message_stop
+   first 3 SSE frames on the wire:
+   | event: message_start
+   | data: &#123;"type":"message_start","message":&#123;"id":"msg_mock_001","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[],"stop_reason":null,"stop_sequence":null,"usage":&#123;"input_tokens":20,"output_tokens":1&#125;&#125;&#125;
+   | event: content_block_start
+   | data: &#123;"type":"content_block_start","index":0,"content_block":&#123;"type":"text","text":""&#125;&#125;
+   | event: ping
+   | data: &#123;"type":"ping"&#125;
+2. helper: 18 text events; finalMessage: stop_reason end_turn, 1 block, text equal to step 1: true
+3. tool input as it arrives:
+   + "&#123;\"path\":\"cha" snapshot &#123;&#125;
+   + "t.jsonl\",\"to" snapshot &#123;"path":"chat.jsonl"&#125;
+   + "p\":3&#125;"         snapshot &#123;"path":"chat.jsonl","top":3&#125;
+   final tool_use input: &#123;"type":"tool_use","id":"toolu_mock_003","name":"count_tokens","input":&#123;"path":"chat.jsonl","top":3&#125;&#125;</pre></div>
+<div class="tl-snip"><div class="tl-file">b2_stream_openai.ts</div><pre class="tl-code"><span class="tl-cm">// The same answer streamed by the OpenAI Responses API: different event names, same idea.</span>
+<span class="tl-kw">import</span> OpenAI <span class="tl-kw">from</span> <span class="tl-st">"openai"</span>;
+<span class="tl-kw">import</span> &#123; writeFileSync &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:fs"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> OpenAI(&#123; baseURL: mock.url + <span class="tl-st">"/v1"</span>, apiKey: <span class="tl-st">"mock-key"</span> &#125;);
+<span class="tl-kw">const</span> stream = <span class="tl-kw">await</span> client.responses.create(&#123; model: <span class="tl-st">"gpt-5.5"</span>, input: <span class="tl-st">"In one sentence, what is TypeScript?"</span>, stream: <span class="tl-kw">true</span> &#125;);
+<span class="tl-kw">const</span> kinds: string[] = []; <span class="tl-kw">let</span> text = <span class="tl-st">""</span>;
+<span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> ev <span class="tl-kw">of</span> stream) &#123;
+  kinds.push(ev.<span class="tl-kw">type</span> === <span class="tl-st">"response.output_text.delta"</span> ? <span class="tl-st">`delta($&#123;JSON.stringify(ev.delta)&#125;)`</span> : ev.<span class="tl-kw">type</span>);
+  <span class="tl-kw">if</span> (ev.<span class="tl-kw">type</span> === <span class="tl-st">"response.output_text.delta"</span>) text += ev.delta;
+&#125;
+console.log(<span class="tl-st">`raw events ($&#123;kinds.length&#125;):`</span>, kinds.join(<span class="tl-st">" "</span>));
+console.log(<span class="tl-st">"text:"</span>, text);
+<span class="tl-kw">if</span> (process.argv[2]) writeFileSync(process.argv[2], JSON.stringify(&#123; openai: mock.log[0]!.sse &#125;));
+<span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="b2_stream_openai.txt">raw events (25): response.created response.output_item.added response.content_part.added delta("TypeScript") delta(" is") delta(" JavaScript") delta(" with") delta(" static") delta(" types") delta(" that") delta(" are") delta(" checked") delta(" before") delta(" the") delta(" program") delta(" runs") delta(" and") delta(" erased") delta(" when") delta(" it") delta(" runs.") response.output_text.done response.content_part.done response.output_item.done response.completed
+text: TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs.</pre></div>
+<p>When not to stream: a batch job, or anything that needs the whole answer before acting (a classifier, a JSON extraction you validate as a whole). Then a plain <code>create</code> is simpler. Note that the SDK's documentation recommends streaming for large <code>max_tokens</code> so that long responses do not hit HTTP timeouts, and <code>finalMessage()</code> gives you a complete message anyway.</p>
+<div class="tl-py"><div class="t">From Python</div><code>with client.messages.stream(...) as s: for text in s.text_stream: ...</code> becomes <code>const s = client.messages.stream(...); for await (const ev of s) ...</code> or <code>s.on("text", ...)</code>. <code>async for</code> is <code>for await</code>; the context manager's cleanup is the stream's own <code>abort()</code> (or breaking out of the loop).</div>
+</section>

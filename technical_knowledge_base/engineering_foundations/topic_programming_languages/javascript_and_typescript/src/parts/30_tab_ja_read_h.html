@@ -1,0 +1,94 @@
+<section id="ja-s14"><h2>14. Bun and Deno</h2>
+<p>Node is not the only runtime. <b>Bun</b> runs on JavaScriptCore (Safari's engine) and bundles a runtime, package manager, test runner and bundler in one binary; it runs TypeScript directly. Bun announced it was joining Anthropic on 2025-12-02, noting that "Claude Code ships as a Bun executable" ({{Bun is joining Anthropic|https://bun.com/blog/bun-joins-anthropic}}); Bun 1.4 (2026-08-20) rewrote Bun itself from Zig to Rust ({{Bun 1.4|https://bun.com/blog/bun-v1.4}}). <b>Deno</b> (by Node's original author) runs on V8, is written in Rust, runs TypeScript directly, and is secure by default: no file, network or environment access without a flag. Since Deno 2 (2024) both run most Node code and npm packages. The same script, three runtimes:</p>
+<div class="ja-snip"><div class="ja-file">m1_runtimes.sh</div><pre class="ja-code"><span class="cm"># One script, three runtimes. Bun (JavaScriptCore engine) and Deno (V8, Rust) run Node-style code too.</span>
+cat &gt; <span class="st">"$WORK/rt.mjs"</span> &lt;&lt;<span class="st">'JS'</span>
+import &#123; readFileSync &#125; from <span class="st">"node:fs"</span>;
+const n = readFileSync(new URL(import.meta.url)).length;
+console.log(`$&#123;typeof Bun !== <span class="st">"undefined"</span> ? <span class="st">"bun "</span> + Bun.version : typeof Deno !== <span class="st">"undefined"</span> ? <span class="st">"deno "</span> + Deno.version.deno : <span class="st">"node "</span> + process.versions.node&#125;: read my own $&#123;n&#125; bytes`);
+JS
+cd <span class="st">"$WORK"</span>
+echo <span class="st">'$ node rt.mjs'</span>; node rt.mjs
+echo <span class="st">'$ bun rt.mjs'</span>; bun rt.mjs
+echo <span class="st">'$ deno run rt.mjs   # Deno denies file access unless you grant it'</span>; deno run --no-prompt rt.mjs 2&gt;&amp;1 | sed <span class="st">'s/\x1b\[[0-9;]*m//g'</span> | head -3
+echo <span class="st">'$ deno run --allow-read rt.mjs'</span>; deno run --allow-read rt.mjs</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="m1_runtimes.txt">$ node rt.mjs
+node 24.21.0: read my own 284 bytes
+$ bun rt.mjs
+bun 1.4.2: read my own 284 bytes
+$ deno run rt.mjs   # Deno denies file access unless you grant it
+error: Uncaught (in promise) NotCapable: Requires read access to "&lt;work&gt;/rt.mjs", run again with the --allow-read flag
+const n = readFileSync(new URL(import.meta.url)).length;
+          ^
+$ deno run --allow-read rt.mjs
+deno 2.9.7: read my own 284 bytes</pre></div>
+<p>Start-up time matters for CLIs, hooks and short scripts (an agent harness may start a tool process hundreds of times per session). Measured on this laptop, an almost empty script:</p>
+<div id="ja-start-bars"></div>
+<div class="ja-snip"><div class="ja-olab">real output of m2_startup.sh: hyperfine, 30 runs after 3 warm-ups each</div><pre class="ja-out" data-ja-src="m2_startup.txt">load average before: 5.27 5.29 8.75
+node 22.22.2                 median   30.3 ms   min   28.4 ms
+node 24.21.0                 median   31.4 ms   min   29.9 ms
+node 26.10.0                 median   32.4 ms   min   30.7 ms
+bun 1.4.2                    median    8.7 ms   min    8.1 ms
+deno 2.9.7                   median   11.3 ms   min   10.3 ms
+python 3.14.8 (reference)    median   17.4 ms   min   16.1 ms
+load average after: 5.16 5.27 8.72</pre></div>
+<p>Node needs about 30 ms to start (it boots V8 and its own JavaScript-written standard library), Bun about 9 ms and Deno about 11 ms; CPython sits between them at about 17 ms. The root's Benchmark measured the same order independently (<code>node -e 0</code> 28.5 ms, <code>bun -e 0</code> 6.6 ms). Newer Node majors are slightly slower to start here, within about 3 ms.</p>
+<div class="ja-cost"><div><div class="t">Choose Node when</div>You want the default: the widest compatibility, LTS releases with a published schedule, governance by the OpenJS Foundation, and every tutorial and SDK tested on it.</div><div><div class="t">Choose Bun when</div>Start-up and install speed matter (CLIs, scripts, tests), or you want one tool instead of five. Check that your native add-ons and edge-case Node APIs work.</div><div><div class="t">Choose Deno when</div>You run code you do not fully trust (permissions), or want TypeScript, formatter, linter and test runner built in with web-standard APIs.</div></div>
+<p class="small">Throughput on a real task (the root's token counter on 38.8 MB, Node and Bun against Python, C++ and Rust) is on the root's {{Benchmark tab|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}; this section does not repeat it.</p>
+</section>
+
+<section id="ja-s15"><h2>15. V8 performance notes</h2>
+<p>V8 does not interpret your code forever. It parses it to bytecode run by the <b>Ignition</b> interpreter, then compiles functions that get hot: <b>Sparkplug</b> (a fast baseline compiler), <b>Maglev</b> (a mid-tier optimising compiler, shipped in Chrome 117 in 2023) and <b>TurboFan</b> (the top tier) ({{V8 blog, Maglev|https://v8.dev/blog/maglev}}). The optimising tiers <b>speculate</b> from what they have seen: "this argument has always been a small integer", "this object always has this shape". When a guess breaks, the code <b>deoptimises</b> back to the interpreter and may be recompiled later. You can watch it:</p>
+<div class="ja-snip"><div class="ja-file">n3_deopt.mjs</div><pre class="ja-code"><span class="cm">// Run with: node --trace-opt --trace-deopt n3_deopt.mjs | grep add   (V8 tells you when it optimises and when it gives up)</span>
+<span class="kw">function</span> add(a, b) &#123; <span class="kw">return</span> a + b; &#125;
+<span class="kw">let</span> s = 0;
+<span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; 200_000; i++) s = add(i, 1);       <span class="cm">// only small integers: V8 compiles add for that</span>
+console.log(<span class="st">"now call it with strings"</span>);
+add(<span class="st">"a"</span>, <span class="st">"b"</span>);                                         <span class="cm">// assumption broken: deoptimise, back to the interpreter</span>
+<span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; 200_000; i++) s = add(i, 2);
+console.log(s);</pre></div>
+<div class="ja-snip"><div class="ja-olab">real output, Node 24.21.0, --trace-opt --trace-deopt (addresses removed); which tier is reached before the string call varies with load</div><pre class="ja-out" data-ja-src="n3_deopt.txt">[marking add for optimization to MAGLEV, reason: hot and stable]
+[compiling method add (target MAGLEV)]
+[completed compiling add (target MAGLEV)]
+now call it with strings
+[bailout (kind: deopt-eager, reason: not a Smi)]
+[marking add for optimization to MAGLEV, reason: hot and stable]
+[compiling method add (target MAGLEV)]
+[completed compiling add (target MAGLEV)]
+200001</pre></div>
+<p>"Not a Smi": a Smi is V8's small-integer representation (31 or 32 bits, stored without allocating). The second lever is the <b>hidden class</b> (V8 calls it a "map"): objects with the same property names added in the same order share one, and each property access site caches the shapes it has seen ("inline caches"). A site that sees one shape is monomorphic and fast; past four it is megamorphic and does a slow lookup.</p>
+<div class="ja-snip"><div class="ja-file">n1_shapes.mjs</div><pre class="ja-code"><span class="cm">// Run with: node --allow-natives-syntax n1_shapes.mjs  (the % functions are V8 internals, for learning only)</span>
+<span class="cm">// V8 gives every object a hidden class ("map"): its property names in insertion order. Same order, same map.</span>
+<span class="kw">const</span> a = &#123; x: 1, y: 2 &#125;, b = &#123; x: 5, y: 6 &#125;, c = &#123; y: 2, x: 1 &#125;;
+console.log(<span class="st">"a and b share a hidden class:"</span>, %HaveSameMap(a, b));
+console.log(<span class="st">"a and c (same keys, other order):"</span>, %HaveSameMap(a, c));
+<span class="kw">const</span> d = &#123; x: 1, y: 2 &#125;; d.z = 3;
+console.log(<span class="st">"a and d after adding z:"</span>, %HaveSameMap(a, d));
+<span class="kw">const</span> e = &#123; x: 1, y: 2, z: 3 &#125;; <span class="kw">delete</span> e.z;
+console.log(<span class="st">"after delete, e is in dictionary mode:"</span>, !%HasFastProperties(e));</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="n1_shapes.txt">a and b share a hidden class: true
+a and c (same keys, other order): false
+a and d after adding z: false
+after delete, e is in dictionary mode: true</pre></div>
+<div class="ja-snip"><div class="ja-file">n2_shapes_bench.mjs</div><pre class="ja-code"><span class="cm">// The cost of shapes: the same loop over objects of 1 shape and of 8 shapes (V8 inline caches, measured).</span>
+<span class="kw">function</span> sumX(objs) &#123; <span class="kw">let</span> s = 0; <span class="kw">for</span> (<span class="kw">let</span> r = 0; r &lt; 200; r++) <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; objs.length; i++) s += objs[i].x; <span class="kw">return</span> s; &#125;
+<span class="kw">function</span> make(nShapes, n) &#123;
+  <span class="kw">const</span> out = [];
+  <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; n; i++) &#123;
+    <span class="kw">const</span> o = &#123;&#125;; <span class="kw">const</span> k = i % nShapes;
+    <span class="kw">for</span> (<span class="kw">let</span> j = 0; j &lt; k; j++) o[<span class="st">"p"</span> + j] = j;    <span class="cm">// k extra properties BEFORE x: a different hidden class per k</span>
+    o.x = 1; out.push(o);
+  &#125;
+  <span class="kw">return</span> out;
+&#125;
+<span class="kw">function</span> time(label, objs) &#123;
+  sumX(objs); sumX(objs);                          <span class="cm">// warm up: let the JIT compile sumX for what it has seen</span>
+  <span class="kw">const</span> t = []; <span class="kw">for</span> (<span class="kw">let</span> k = 0; k &lt; 7; k++) &#123; <span class="kw">const</span> t0 = performance.now(); sumX(objs); t.push(performance.now() - t0); &#125;
+  t.sort((p, q) =&gt; p - q);
+  console.log(<span class="st">`$&#123;label.padEnd(36)&#125; median $&#123;t[3].toFixed(1)&#125; ms per 2,000,000 property reads`</span>);
+&#125;
+time(<span class="st">"1 shape (monomorphic call site)"</span>, make(1, 10_000));
+time(<span class="st">"4 shapes (polymorphic)"</span>, make(4, 10_000));
+time(<span class="st">"8 shapes (megamorphic)"</span>, make(8, 10_000));</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="n2_shapes_bench.txt">1 shape (monomorphic call site)      median 1.6 ms per 2,000,000 property reads
+4 shapes (polymorphic)               median 3.2 ms per 2,000,000 property reads
+8 shapes (megamorphic)               median 8.3 ms per 2,000,000 property reads</pre></div>
+<div class="ja-cost"><div><div class="t">What to do with this</div>Create objects of one kind in one place (a constructor, a class, or one literal shape), with all fields set, in the same order; do not add properties later; do not <code>delete</code> (set to <code>undefined</code> instead); keep arrays of one element type.</div><div><div class="t">What not to do</div>Do not micro-tune before profiling: <code>node --cpu-prof app.mjs</code> writes a profile that Chrome DevTools opens, and <code>node --prof</code> is the lower-level option. Most slow Node services are slow because something blocks the event loop or waits serially, not because of shapes.</div></div>
+<p class="small">The root's {{Reading, How code runs|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} compares V8's tiers with CPython's interpreter and with ahead-of-time compilers.</p>
+</section>
