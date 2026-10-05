@@ -1,0 +1,100 @@
+{'date': '2026-10-05 21:15', 'mlx': '0.32.3', 'numpy': '2.5.3', 'python': '3.12.11', 'device': 'Apple M1 Pro', 'arch': 'applegpu_g13s', 'memory_bytes': 17179869184, 'load_start': (4.7080078125, 5.1904296875, 7.29443359375)}
+reduce  R1 interleaved, divergent branch                         1.644 ms [1.604-1.871] err 4.051681053412349e-08 load 5.69
+reduce  R2 interleaved, strided index                            1.717 ms [1.499-1.865] err 4.051681053412349e-08 load 5.69
+reduce  R3 sequential addressing                                 1.726 ms [1.637-3.021] err 4.051681053412349e-08 load 5.69
+reduce  R4 first add during load                                 1.115 ms [1.065-2.524] err 4.051681053412349e-08 load 5.69
+reduce  R5 last SIMD-group in registers                          1.058 ms [0.994-1.277] err 4.051681053412349e-08 load 5.69
+reduce  R6 grid-stride, float4, SIMD sums                        1.252 ms [1.168-1.585] err 4.051681053412349e-08 load 5.69
+reduce  A1 one launch, atomic add per threadgroup                1.056 ms [1.035-1.159] err 1.5972258072696152e-07 load 5.69
+reduce  MLX library mx.sum                                       1.114 ms [1.070-1.233] err 4.051681053412349e-08 load 5.69
+accuracy {'exact_f64': 16777711.32022065, 'seq_f32': 16777216.0, 'numpy_pairwise_f32': 16777712.0, 'R3': 16777712.0, 'R6': 16777712.0, 'A1_first': 16777710.0, 'mx_sum': 16777712.0, 'atomic_distinct_bits': 6, 'atomic_runs': 30, 'atomic_values': [16777706.0, 16777708.0, 16777710.0, 16777712.0, 16777714.0, 16777716.0], 'tree_distinct_bits': 1, 'tree_runs': 30}
+scan    C1 Hillis-Steele, 24 launches                           20.889 ms [19.559-23.406] err 0.002496937907380925 load 5.69
+scan    C2 reduce, then scan (3 launches)                        1.462 ms [1.419-2.159] err 0.002159811849196558 load 5.88
+scan    MLX library mx.cumsum                                    7.898 ms [7.790-9.819] err 0.00789797617289878 load 5.88
+scan    copy (read once, write once), for scale                  0.997 ms [0.979-1.193] err 0.0 load 5.88
+norm    LN eager: 7 MLX operations                              10.320 ms [9.773-20.665] err 9.838323595801057e-07 load 5.88
+norm    LN eager under mx.compile                                7.526 ms [6.741-7.998] err 9.838323595801057e-07 load 5.88
+norm    LN MLX library mx.fast.layer_norm                        1.896 ms [1.811-2.141] err 8.959617225912098e-07 load 5.88
+norm    LN ours, two-pass from registers                         1.814 ms [1.738-3.089] err 9.253838104683609e-07 load 5.88
+norm    LN ours, E[x^2] - E[x]^2                                 1.765 ms [1.730-1.810] err 9.529717015510641e-07 load 5.88
+norm    LN ours, Welford                                         1.812 ms [1.746-2.137] err 9.86189107266e-07 load 5.88
+ln accuracy {'0': {'two': 6.815993955910926e-07, 'naive': 7.254041687332347e-07, 'welford': 9.135140333071945e-07, 'mlx': 6.666880709715883e-07}, '30': {'two': 5.718187280623344e-06, 'naive': 0.0005439414352359506, 'welford': 4.123497225894113e-06, 'mlx': 3.439066371346833e-06}, '300': {'two': 5.9728517476709264e-05, 'naive': 0.06453065869960195, 'welford': 6.478636038120822e-05, 'mlx': 6.0343300810172806e-05}, '3000': {'two': 0.0006330093176075691, 'naive': 1652.9551640898324, 'welford': 0.0005963757068112585, 'mlx': 0.0004844808064747852}}
+norm    residual + RMSNorm, MLX: add then mx.fast.rms_norm       4.498 ms [4.136-9.266] err 8.250882759242018e-07 load 5.81
+norm    residual + RMSNorm, MLX under mx.compile                 4.068 ms [4.047-4.114] err 8.250882759242018e-07 load 5.81
+norm    residual + RMSNorm, ours fused                           3.349 ms [3.272-3.795] err 9.576826913715308e-07 load 5.81
+fuse    matmul alone, ours (K=1024)                             10.038 ms [9.871-11.043] err 8.451095153905186e-06 load 5.81
+fuse    MLX eager: A @ B, + bias, GELU (K=1024)                 18.029 ms [17.723-20.275] err 7.724647957729758e-06 load 5.81
+fuse    MLX eager under mx.compile (K=1024)                      9.298 ms [9.224-10.147] err 7.724647957729758e-06 load 5.81
+fuse    ours unfused: matmul, then bias + GELU (K=1024)         10.892 ms [10.694-11.400] err 7.724647957729758e-06 load 6.06
+fuse    ours fused epilogue, first attempt: 16 KB staging tile (K=1024)    13.865 ms [13.754-14.101] err 7.724647957729758e-06 load 6.06
+fuse    ours fused epilogue, in registers, precise::tanh (K=1024)    11.419 ms [11.328-11.831] err 7.724647957729758e-06 load 6.06
+fuse    ours fused epilogue, in registers (K=1024)              10.087 ms [10.050-10.459] err 7.724647957729758e-06 load 6.06
+fuse    RMSNorm then matmul, MLX (K=1024)                        8.412 ms [8.394-8.663] err 8.215409441625354e-06 load 6.06
+fuse    RMSNorm then matmul, ours separate (K=1024)             10.146 ms [10.081-10.993] err 8.215409441625354e-06 load 6.06
+fuse    RMSNorm fused into the matmul, first attempt: 16 KB staging (K=1024)    15.071 ms [15.001-15.186] err 7.504411012604351e-06 load 6.06
+fuse    RMSNorm fused into the matmul, in registers (K=1024)    10.534 ms [10.445-10.894] err 7.504411012604351e-06 load 6.06
+fuse    matmul alone, ours (K=256)                               2.673 ms [2.655-2.799] err 4.274818762084465e-06 load 6.06
+fuse    MLX eager: A @ B, + bias, GELU (K=256)                  11.421 ms [11.352-12.405] err 3.877633071525111e-06 load 6.06
+fuse    MLX eager under mx.compile (K=256)                       3.236 ms [3.214-3.738] err 3.877633071525111e-06 load 5.74
+fuse    ours unfused: matmul, then bias + GELU (K=256)           3.450 ms [3.435-3.568] err 3.877633071525111e-06 load 5.74
+fuse    ours fused epilogue, first attempt: 16 KB staging tile (K=256)     3.786 ms [3.751-4.335] err 3.877633071525111e-06 load 5.74
+fuse    ours fused epilogue, in registers, precise::tanh (K=256)     4.082 ms [4.041-4.322] err 3.864599844582983e-06 load 5.74
+fuse    ours fused epilogue, in registers (K=256)                2.857 ms [2.783-2.950] err 3.877633071525111e-06 load 5.74
+fuse    RMSNorm then matmul, MLX (K=256)                         2.372 ms [2.342-2.440] err 3.802130740471199e-06 load 5.74
+fuse    RMSNorm then matmul, ours separate (K=256)               2.788 ms [2.766-3.960] err 3.802130740471199e-06 load 5.74
+fuse    RMSNorm fused into the matmul, first attempt: 16 KB staging (K=256)     4.056 ms [4.035-4.078] err 4.317430414957357e-06 load 5.74
+fuse    RMSNorm fused into the matmul, in registers (K=256)      2.920 ms [2.878-3.415] err 4.317430414957357e-06 load 5.74
+format check 3.0517578125e-05
+gemv    read the 4-bit codes only (mx.sum of wq), for scale      0.517 ms [0.478-1.527] err None load 5.6
+gemv    float16 weights, MLX W @ x                               1.085 ms [1.047-1.147] err 0.0019374179446458584 load 5.6
+gemv    float16 weights, ours (16-byte loads)                    1.056 ms [1.018-1.136] err 5.705974217562471e-07 load 5.6
+gemv    4-bit: dequantize to float16, then W @ x (MLX)           1.961 ms [1.913-2.286] err 0.001953555533873441 load 5.6
+gemv    4-bit fused, one thread per row                          2.818 ms [2.715-3.404] err 0.0008969815789896529 load 5.6
+gemv    4-bit fused, SIMD-group per row                          0.475 ms [0.443-0.506] err 0.0008976074277597945 load 5.6
+gemv    4-bit fused, SIMD-group per row, 16-byte loads           0.512 ms [0.462-0.581] err 0.0008975776254374068 load 5.6
+gemv    4-bit, MLX library mx.quantized_matmul                   0.683 ms [0.548-0.706] err 0.003977177261731413 load 5.6
+attn    full, FA-2 grid (N=1024)                                 1.151 ms [0.994-1.234] err 4.663678258576276e-07 load 5.6
+attn    full, FA-1 grid: one threadgroup per head (N=1024)       3.522 ms [3.491-3.563] err 4.663678258576276e-07 load 5.6
+attn    causal, mask only (N=1024)                               0.712 ms [0.691-0.926] err 7.239289147031869e-07 load 5.6
+attn    causal, skip tiles above the diagonal (N=1024)           0.952 ms [0.724-1.599] err 7.239289147031869e-07 load 5.6
+attn    causal, MLX fused attention (N=1024)                     0.785 ms [0.684-1.027] err 6.047196251524056e-07 load 5.6
+attn    full, FA-2 grid (N=2048)                                 2.265 ms [2.095-2.547] err 4.6349173091209117e-07 load 6.03
+attn    full, FA-1 grid: one threadgroup per head (N=2048)      13.170 ms [13.124-13.234] err 4.6349173091209117e-07 load 6.03
+attn    causal, mask only (N=2048)                               2.256 ms [2.093-3.247] err 9.050243883201858e-07 load 6.03
+attn    causal, skip tiles above the diagonal (N=2048)           1.855 ms [1.787-2.249] err 9.050243883201858e-07 load 6.03
+attn    causal, MLX fused attention (N=2048)                     1.400 ms [1.134-2.893] err 1.024233677870967e-06 load 6.03
+attn    full, FA-2 grid (N=4096)                                 7.799 ms [7.729-7.917] err 4.028342199813295e-07 load 6.03
+attn    full, FA-1 grid: one threadgroup per head (N=4096)      52.236 ms [51.616-53.890] err 4.028342199813295e-07 load 6.03
+attn    causal, mask only (N=4096)                               7.993 ms [7.926-9.022] err 7.178098325733018e-07 load 6.03
+attn    causal, skip tiles above the diagonal (N=4096)           4.740 ms [4.681-4.814] err 7.178098325733018e-07 load 6.03
+attn    causal, MLX fused attention (N=4096)                     3.570 ms [3.523-3.728] err 7.178098325733018e-07 load 5.95
+attn    full, FA-2 grid (N=8192)                                30.621 ms [30.501-30.695] err 1.043081283569336e-07 load 5.95
+attn    full, FA-1 grid: one threadgroup per head (N=8192)     214.543 ms [211.071-217.736] err 1.043081283569336e-07 load 5.95
+attn    causal, mask only (N=8192)                              30.326 ms [30.011-30.448] err 2.384185791015625e-07 load 5.95
+attn    causal, skip tiles above the diagonal (N=8192)          16.848 ms [16.689-17.018] err 2.384185791015625e-07 load 5.95
+attn    causal, MLX fused attention (N=8192)                    12.653 ms [12.535-14.863] err 0.0 load 5.95
+decode  split-KV S=1 (L=4096)                                    0.683 ms [0.653-0.737] err 4.9939541486886726e-08 load 5.79
+decode  split-KV S=2 (L=4096)                                    0.459 ms [0.449-0.487] err 3.7733096633352226e-08 load 5.79
+decode  split-KV S=4 (L=4096)                                    0.366 ms [0.364-0.412] err 2.4194895857643228e-08 load 5.79
+decode  split-KV S=8 (L=4096)                                    0.352 ms [0.348-0.353] err 1.6352671560609933e-08 load 5.79
+decode  split-KV S=16 (L=4096)                                   0.318 ms [0.296-0.363] err 2.0369595912783645e-08 load 5.79
+decode  split-KV S=32 (L=4096)                                   0.389 ms [0.350-0.427] err 1.9811108722261883e-08 load 5.79
+decode  split-KV S=64 (L=4096)                                   0.416 ms [0.400-0.636] err 2.149342727408854e-08 load 5.79
+decode  MLX fused attention, 1 query (L=4096)                    0.361 ms [0.355-0.535] err 2.989944962383806e-05 load 5.79
+decode  split-KV S=1 (L=16384)                                   1.180 ms [1.139-1.806] err 4.349286378355771e-08 load 5.79
+decode  split-KV S=2 (L=16384)                                   0.969 ms [0.741-1.074] err 2.892377007693292e-08 load 5.79
+decode  split-KV S=4 (L=16384)                                   0.618 ms [0.599-0.681] err 2.3690649081364867e-08 load 5.79
+decode  split-KV S=8 (L=16384)                                   0.930 ms [0.905-0.954] err 1.4179037663604455e-08 load 5.79
+decode  split-KV S=16 (L=16384)                                  0.623 ms [0.610-0.646] err 1.443746744465152e-08 load 5.79
+decode  split-KV S=32 (L=16384)                                  0.650 ms [0.646-0.686] err 1.2232974570813848e-08 load 5.79
+decode  split-KV S=64 (L=16384)                                  0.648 ms [0.647-0.659] err 1.8953062612403482e-08 load 5.79
+decode  MLX fused attention, 1 query (L=16384)                   0.597 ms [0.594-0.616] err 1.5229622212706989e-05 load 5.79
+decode  split-KV S=1 (L=65536)                                   3.850 ms [3.725-3.991] err 5.6845861060028646e-08 load 5.79
+decode  split-KV S=2 (L=65536)                                   2.218 ms [2.195-2.354] err 2.7216519385420135e-08 load 5.57
+decode  split-KV S=4 (L=65536)                                   1.726 ms [1.701-2.138] err 1.9300277501188567e-08 load 5.57
+decode  split-KV S=8 (L=65536)                                   6.054 ms [6.012-6.172] err 1.3891027024720386e-08 load 5.57
+decode  split-KV S=16 (L=65536)                                  3.405 ms [3.337-3.928] err 1.1034392254083425e-08 load 5.57
+decode  split-KV S=32 (L=65536)                                  1.973 ms [1.948-2.034] err 8.517434207586105e-09 load 5.57
+decode  split-KV S=64 (L=65536)                                  1.770 ms [1.755-1.836] err 6.964710410825581e-09 load 5.57
+decode  MLX fused attention, 1 query (L=65536)                   1.711 ms [1.691-1.793] err 7.333878716021813e-06 load 5.57
+wrote m1/out/run_2.json
