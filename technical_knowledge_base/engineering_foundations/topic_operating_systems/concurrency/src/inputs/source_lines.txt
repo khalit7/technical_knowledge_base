@@ -1,0 +1,659 @@
+Source excerpts quoted or cited on the concurrency page, with pinned tags and line numbers (fetched 2026-10-05).
+
+=== k510_futex.c lines 487-502  https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c
+    static int get_futex_key(u32 __user *uaddr, bool fshared, union futex_key *key,
+    			 enum futex_access rw)
+    {
+    	unsigned long address = (unsigned long)uaddr;
+    	struct mm_struct *mm = current->mm;
+    	struct page *page, *tail;
+    	struct address_space *mapping;
+    	int err, ro = 0;
+    
+    	/*
+    	 * The futex address must be "naturally" aligned.
+    	 */
+    	key->both.offset = address % PAGE_SIZE;
+    	if (unlikely((address % sizeof(u32)) != 0))
+    		return -EINVAL;
+    	address -= key->both.offset;
+
+=== k510_futex.c lines 2626-2678  https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c
+    static int futex_wait_setup(u32 __user *uaddr, u32 val, unsigned int flags,
+    			   struct futex_q *q, struct futex_hash_bucket **hb)
+    {
+    	u32 uval;
+    	int ret;
+    
+    	/*
+    	 * Access the page AFTER the hash-bucket is locked.
+    	 * Order is important:
+    	 *
+    	 *   Userspace waiter: val = var; if (cond(val)) futex_wait(&var, val);
+    	 *   Userspace waker:  if (cond(var)) { var = new; futex_wake(&var); }
+    	 *
+    	 * The basic logical guarantee of a futex is that it blocks ONLY
+    	 * if cond(var) is known to be true at the time of blocking, for
+    	 * any cond.  If we locked the hash-bucket after testing *uaddr, that
+    	 * would open a race condition where we could block indefinitely with
+    	 * cond(var) false, which would violate the guarantee.
+    	 *
+    	 * On the other hand, we insert q and release the hash-bucket only
+    	 * after testing *uaddr.  This guarantees that futex_wait() will NOT
+    	 * absorb a wakeup if *uaddr does not match the desired values
+    	 * while the syscall executes.
+    	 */
+    retry:
+    	ret = get_futex_key(uaddr, flags & FLAGS_SHARED, &q->key, FUTEX_READ);
+    	if (unlikely(ret != 0))
+    		return ret;
+    
+    retry_private:
+    	*hb = queue_lock(q);
+    
+    	ret = get_futex_value_locked(&uval, uaddr);
+    
+    	if (ret) {
+    		queue_unlock(*hb);
+    
+    		ret = get_user(uval, uaddr);
+    		if (ret)
+    			return ret;
+    
+    		if (!(flags & FLAGS_SHARED))
+    			goto retry_private;
+    
+    		goto retry;
+    	}
+    
+    	if (uval != val) {
+    		queue_unlock(*hb);
+    		ret = -EWOULDBLOCK;
+    	}
+    
+    	return ret;
+
+=== k510_futex.c lines 4045-4058  https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c
+    	unsigned long i;
+    
+    #if CONFIG_BASE_SMALL
+    	futex_hashsize = 16;
+    #else
+    	futex_hashsize = roundup_pow_of_two(256 * num_possible_cpus());
+    #endif
+    
+    	futex_queues = alloc_large_system_hash("futex", sizeof(*futex_queues),
+    					       futex_hashsize, 0,
+    					       futex_hashsize < 256 ? HASH_SMALL : 0,
+    					       &futex_shift, NULL,
+    					       futex_hashsize, futex_hashsize);
+    	futex_hashsize = 1UL << futex_shift;
+
+=== k510_futex.c lines 1584-1586  https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c
+    futex_wake(u32 __user *uaddr, unsigned int flags, int nr_wake, u32 bitset)
+    {
+    	struct futex_hash_bucket *hb;
+
+=== k510_uapi_futex.h lines 11-31  https://github.com/torvalds/linux/blob/v5.10/include/uapi/linux/futex.h
+    #define FUTEX_WAIT		0
+    #define FUTEX_WAKE		1
+    #define FUTEX_FD		2
+    #define FUTEX_REQUEUE		3
+    #define FUTEX_CMP_REQUEUE	4
+    #define FUTEX_WAKE_OP		5
+    #define FUTEX_LOCK_PI		6
+    #define FUTEX_UNLOCK_PI		7
+    #define FUTEX_TRYLOCK_PI	8
+    #define FUTEX_WAIT_BITSET	9
+    #define FUTEX_WAKE_BITSET	10
+    #define FUTEX_WAIT_REQUEUE_PI	11
+    #define FUTEX_CMP_REQUEUE_PI	12
+    
+    #define FUTEX_PRIVATE_FLAG	128
+    #define FUTEX_CLOCK_REALTIME	256
+    #define FUTEX_CMD_MASK		~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
+    
+    #define FUTEX_WAIT_PRIVATE	(FUTEX_WAIT | FUTEX_PRIVATE_FLAG)
+    #define FUTEX_WAKE_PRIVATE	(FUTEX_WAKE | FUTEX_PRIVATE_FLAG)
+    #define FUTEX_REQUEUE_PRIVATE	(FUTEX_REQUEUE | FUTEX_PRIVATE_FLAG)
+
+=== g236_lowlevellock.h lines 90-107  https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/nptl/lowlevellock.h
+    /* If FUTEX is 0 (not acquired), set to 1 (acquired with no waiters) and
+       return.  Otherwise, ensure that it is >1 (acquired, possibly with waiters)
+       and then block until we acquire the lock, at which point FUTEX will still be
+       >1.  The lock is always acquired on return.  */
+    #define __lll_lock(futex, private)                                      \
+      ((void)                                                               \
+       ({                                                                   \
+         int *__futex = (futex);                                            \
+         if (__glibc_unlikely                                               \
+             (atomic_compare_and_exchange_bool_acq (__futex, 1, 0)))        \
+           {                                                                \
+             if (__builtin_constant_p (private) && (private) == LLL_PRIVATE) \
+               __lll_lock_wait_private (__futex);                           \
+             else                                                           \
+               __lll_lock_wait (__futex, private);                          \
+           }                                                                \
+       }))
+    #define lll_lock(futex, private)	\
+
+=== g236_lowlevellock.h lines 145-160  https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/nptl/lowlevellock.h
+    #define __lll_unlock(futex, private)					\
+      ((void)								\
+      ({									\
+         int *__futex = (futex);						\
+         int __private = (private);						\
+         int __oldval = atomic_exchange_rel (__futex, 0);			\
+         if (__glibc_unlikely (__oldval > 1))				\
+           {								\
+             if (__builtin_constant_p (private) && (private) == LLL_PRIVATE) \
+               __lll_lock_wake_private (__futex);                           \
+             else                                                           \
+               __lll_lock_wake (__futex, __private);			\
+           }								\
+       }))
+    #define lll_unlock(futex, private)	\
+      __lll_unlock (&(futex), private)
+
+=== g236_lowlevellock.c lines 38-50  https://github.com/bminor/glibc/blob/glibc-2.36/nptl/lowlevellock.c
+    
+    void
+    __lll_lock_wait (int *futex, int private)
+    {
+      if (atomic_load_relaxed (futex) == 2)
+        goto futex;
+    
+      while (atomic_exchange_acquire (futex, 2) != 0)
+        {
+        futex:
+          LIBC_PROBE (lll_lock_wait, 1, futex);
+          futex_wait ((unsigned int *) futex, 2, private); /* Wait if *futex == 2.  */
+        }
+
+=== g236_pthread_mutex_lock.c lines 132-165  https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_mutex_lock.c
+        }
+      else if (__builtin_expect (PTHREAD_MUTEX_TYPE (mutex)
+    			  == PTHREAD_MUTEX_ADAPTIVE_NP, 1))
+        {
+          if (LLL_MUTEX_TRYLOCK (mutex) != 0)
+    	{
+    	  int cnt = 0;
+    	  int max_cnt = MIN (max_adaptive_count (),
+    			     mutex->__data.__spins * 2 + 10);
+    	  int spin_count, exp_backoff = 1;
+    	  unsigned int jitter = get_jitter ();
+    	  do
+    	    {
+    	      /* In each loop, spin count is exponential backoff plus
+    		 random jitter, random range is [0, exp_backoff-1].  */
+    	      spin_count = exp_backoff + (jitter & (exp_backoff - 1));
+    	      cnt += spin_count;
+    	      if (cnt >= max_cnt)
+    		{
+    		  /* If cnt exceeds max spin count, just go to wait
+    		     queue.  */
+    		  LLL_MUTEX_LOCK (mutex);
+    		  break;
+    		}
+    	      do
+    		atomic_spin_nop ();
+    	      while (--spin_count > 0);
+    	      /* Prepare for next loop.  */
+    	      exp_backoff = get_next_backoff (exp_backoff);
+    	    }
+    	  while (LLL_MUTEX_READ_LOCK (mutex) != 0
+    		 || LLL_MUTEX_TRYLOCK (mutex) != 0);
+    
+    	  mutex->__data.__spins += (cnt - mutex->__data.__spins) / 8;
+
+=== g236_pthread_create.c lines 277-281  https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_create.c
+      const int clone_flags = (CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SYSVSEM
+    			   | CLONE_SIGHAND | CLONE_THREAD
+    			   | CLONE_SETTLS | CLONE_PARENT_SETTID
+    			   | CLONE_CHILD_CLEARTID
+    			   | 0);
+
+=== g236_clone_internal.c lines 50-58  https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/unix/sysv/linux/clone-internal.c
+      int ret;
+    #ifdef HAVE_CLONE3_WRAPPER
+      /* Try clone3 first.  */
+      int saved_errno = errno;
+      ret = __clone3 (cl_args, sizeof (*cl_args), func, arg);
+      if (ret != -1 || errno != ENOSYS)
+        return ret;
+    
+      /* NB: Restore errno since errno may be checked against non-zero
+
+=== k510_eventpoll.c lines 195-204  https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c
+    
+    	/* List of ready file descriptors */
+    	struct list_head rdllist;
+    
+    	/* Lock which protects rdllist and ovflist */
+    	rwlock_t lock;
+    
+    	/* RB tree root used to store monitored fd structs */
+    	struct rb_root_cached rbr;
+    
+
+=== k510_eventpoll.c lines 1240-1248  https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c
+    	 */
+    	if (READ_ONCE(ep->ovflist) != EP_UNACTIVE_PTR) {
+    		if (chain_epi_lockless(epi))
+    			ep_pm_stay_awake_rcu(epi);
+    	} else if (!ep_is_linked(epi)) {
+    		/* In the usual case, add event to ready list. */
+    		if (list_add_tail_lockless(&epi->rdllink, &ep->rdllist))
+    			ep_pm_stay_awake_rcu(epi);
+    	}
+
+=== k510_eventpoll.c lines 1756-1772  https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c
+    		if (epi->event.events & EPOLLONESHOT)
+    			epi->event.events &= EP_PRIVATE_BITS;
+    		else if (!(epi->event.events & EPOLLET)) {
+    			/*
+    			 * If this file has been added with Level
+    			 * Trigger mode, we need to insert back inside
+    			 * the ready list, so that the next call to
+    			 * epoll_wait() will check again the events
+    			 * availability. At this point, no one can insert
+    			 * into ep->rdllist besides us. The epoll_ctl()
+    			 * callers are locked out by
+    			 * ep_scan_ready_list() holding "mtx" and the
+    			 * poll callback will queue them in ep->ovflist.
+    			 */
+    			list_add_tail(&epi->rdllink, &ep->rdllist);
+    			ep_pm_stay_awake(epi);
+    		}
+
+=== k510_select.c lines 505-536  https://github.com/torvalds/linux/blob/v5.10/fs/select.c
+    	for (;;) {
+    		unsigned long *rinp, *routp, *rexp, *inp, *outp, *exp;
+    		bool can_busy_loop = false;
+    
+    		inp = fds->in; outp = fds->out; exp = fds->ex;
+    		rinp = fds->res_in; routp = fds->res_out; rexp = fds->res_ex;
+    
+    		for (i = 0; i < n; ++rinp, ++routp, ++rexp) {
+    			unsigned long in, out, ex, all_bits, bit = 1, j;
+    			unsigned long res_in = 0, res_out = 0, res_ex = 0;
+    			__poll_t mask;
+    
+    			in = *inp++; out = *outp++; ex = *exp++;
+    			all_bits = in | out | ex;
+    			if (all_bits == 0) {
+    				i += BITS_PER_LONG;
+    				continue;
+    			}
+    
+    			for (j = 0; j < BITS_PER_LONG; ++j, ++i, bit <<= 1) {
+    				struct fd f;
+    				if (i >= n)
+    					break;
+    				if (!(bit & all_bits))
+    					continue;
+    				f = fdget(i);
+    				if (f.file) {
+    					wait_key_set(wait, in, out, bit,
+    						     busy_flag);
+    					mask = vfs_poll(f.file, wait);
+    
+    					fdput(f);
+
+=== k510_select.c lines 905-912  https://github.com/torvalds/linux/blob/v5.10/fs/select.c
+    			struct pollfd * pfd, * pfd_end;
+    
+    			pfd = walk->entries;
+    			pfd_end = pfd + walk->len;
+    			for (; pfd != pfd_end; pfd++) {
+    				/*
+    				 * Fish for events. If we found one, record it
+    				 * and kill poll_table->_qproc, so we don't
+
+=== k510_io_uring.c lines 7862-7880  https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c
+    
+    static inline int __io_account_mem(struct user_struct *user,
+    				   unsigned long nr_pages)
+    {
+    	unsigned long page_limit, cur_pages, new_pages;
+    
+    	/* Don't allow more pages than we can safely lock */
+    	page_limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
+    
+    	do {
+    		cur_pages = atomic_long_read(&user->locked_vm);
+    		new_pages = cur_pages + nr_pages;
+    		if (new_pages > page_limit)
+    			return -ENOMEM;
+    	} while (atomic_long_cmpxchg(&user->locked_vm, cur_pages,
+    					new_pages) != cur_pages);
+    
+    	return 0;
+    }
+
+=== k510_io_uring.c lines 7782-7790  https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c
+    	if (ctx->flags & IORING_SETUP_SQPOLL) {
+    		struct io_sq_data *sqd;
+    
+    		ret = -EPERM;
+    		if (!capable(CAP_SYS_ADMIN))
+    			goto err;
+    
+    		sqd = io_get_sq_data(p);
+    		if (IS_ERR(sqd)) {
+
+=== k510_io_uring.c lines 9273-9283  https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c
+    	limit_mem = !capable(CAP_IPC_LOCK);
+    
+    	if (limit_mem) {
+    		ret = __io_account_mem(user,
+    				ring_pages(p->sq_entries, p->cq_entries));
+    		if (ret) {
+    			free_uid(user);
+    			return ret;
+    		}
+    	}
+    
+
+=== py311_ceval_gil.h lines 10-49  https://github.com/python/cpython/blob/v3.11.2/Python/ceval_gil.h
+    
+    /*
+       Notes about the implementation:
+    
+       - The GIL is just a boolean variable (locked) whose access is protected
+         by a mutex (gil_mutex), and whose changes are signalled by a condition
+         variable (gil_cond). gil_mutex is taken for short periods of time,
+         and therefore mostly uncontended.
+    
+       - In the GIL-holding thread, the main loop (PyEval_EvalFrameEx) must be
+         able to release the GIL on demand by another thread. A volatile boolean
+         variable (gil_drop_request) is used for that purpose, which is checked
+         at every turn of the eval loop. That variable is set after a wait of
+         `interval` microseconds on `gil_cond` has timed out.
+    
+          [Actually, another volatile boolean variable (eval_breaker) is used
+           which ORs several conditions into one. Volatile booleans are
+           sufficient as inter-thread signalling means since Python is run
+           on cache-coherent architectures only.]
+    
+       - A thread wanting to take the GIL will first let pass a given amount of
+         time (`interval` microseconds) before setting gil_drop_request. This
+         encourages a defined switching period, but doesn't enforce it since
+         opcodes can take an arbitrary time to execute.
+    
+         The `interval` value is available for the user to read and modify
+         using the Python API `sys.{get,set}switchinterval()`.
+    
+       - When a thread releases the GIL and gil_drop_request is set, that thread
+         ensures that another GIL-awaiting thread gets scheduled.
+         It does so by waiting on a condition variable (switch_cond) until
+         the value of last_holder is changed to something else than its
+         own thread state pointer, indicating that another thread was able to
+         take the GIL.
+    
+         This is meant to prohibit the latency-adverse behaviour on multi-core
+         machines where one thread would speculatively release the GIL, but still
+         run and end up being the first to re-acquire it, making the "timeslices"
+         much longer than expected.
+         (Note: this mechanism is enabled with FORCE_SWITCHING above)
+
+=== py311_ceval_gil.h lines 89-98  https://github.com/python/cpython/blob/v3.11.2/Python/ceval_gil.h
+    
+    
+    #define DEFAULT_INTERVAL 5000
+    
+    static void _gil_initialize(struct _gil_runtime_state *gil)
+    {
+        _Py_atomic_int uninitialized = {-1};
+        gil->locked = uninitialized;
+        gil->interval = DEFAULT_INTERVAL;
+    }
+
+=== py311_selectors.py lines 606-618  https://github.com/python/cpython/blob/v3.11.2/Lib/selectors.py
+    # Choose the best implementation, roughly:
+    #    epoll|kqueue|devpoll > poll > select.
+    # select() also can't accept a FD > FD_SETSIZE (usually around 1024)
+    if _can_use('kqueue'):
+        DefaultSelector = KqueueSelector
+    elif _can_use('epoll'):
+        DefaultSelector = EpollSelector
+    elif _can_use('devpoll'):
+        DefaultSelector = DevpollSelector
+    elif _can_use('poll'):
+        DefaultSelector = PollSelector
+    else:
+        DefaultSelector = SelectSelector
+
+=== py311_base_events.py lines 1880-1886  https://github.com/python/cpython/blob/v3.11.2/Lib/asyncio/base_events.py
+                # Compute the desired timeout.
+                when = self._scheduled[0]._when
+                timeout = min(max(0, when - self.time()), MAXIMUM_SELECT_TIMEOUT)
+    
+            event_list = self._selector.select(timeout)
+            self._process_events(event_list)
+            # Needed to break cycles when an exception occurs.
+
+=== uv151_linux.c lines 480-497  https://github.com/libuv/libuv/blob/v1.51.0/src/unix/linux.c
+    
+      /* SQPOLL is all kinds of buggy but epoll batching should work fine. */
+      if (0 == (flags & UV__IORING_SETUP_SQPOLL))
+        return 1;
+    
+      /* Older kernels have a bug where the sqpoll thread uses 100% CPU. */
+      if (uv__kernel_version() < /*5.10.186*/0x050ABA)
+        return 0;
+    
+      use = atomic_load_explicit(&use_io_uring, memory_order_relaxed);
+    
+      if (use == 0) {
+        val = getenv("UV_USE_IO_URING");
+        use = val != NULL && atoi(val) > 0 ? 1 : -1;
+        atomic_store_explicit(&use_io_uring, use, memory_order_relaxed);
+      }
+    
+      return use > 0;
+
+=== uv148_linux.c lines 1430-1433  https://github.com/libuv/libuv/blob/v1.48.0/src/unix/linux.c
+        lfields->current_timeout = timeout;
+    
+        nfds = epoll_pwait(epollfd, events, ARRAY_SIZE(events), timeout, sigmask);
+    
+
+=== mio_epoll.rs lines 112-117  https://github.com/tokio-rs/mio/blob/v1.0.4/src/sys/unix/selector/epoll.rs
+    }
+    
+    fn interests_to_epoll(interests: Interest) -> u32 {
+        let mut kind = EPOLLET;
+    
+        if interests.is_readable() {
+
+=== pt_pin_memory.py lines 18-30  https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/_utils/pin_memory.py
+    def _pin_memory_loop(in_queue, out_queue, device_id, done_event, device) -> None:
+        # This setting is thread local, and prevents the copy in pin_memory from
+        # consuming all CPU cores.
+        torch.set_num_threads(1)
+    
+        torch.multiprocessing._set_thread_name("pt_data_pin")
+        torch.accelerator.set_device_index(device_id)
+    
+        def do_one_step() -> None:
+            try:
+                r = in_queue.get(timeout=MP_STATUS_CHECK_INTERVAL)
+            except queue.Empty:
+                return
+
+=== pt_dataloader.py lines 1196-1206  https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/dataloader.py
+                self._data_queue = queue.Queue()  # type: ignore[var-annotated]
+                current_device_id = torch.accelerator.current_device_index()
+                pin_memory_thread = threading.Thread(
+                    target=_utils.pin_memory._pin_memory_loop,
+                    args=(
+                        self._worker_result_queue,
+                        self._data_queue,
+                        current_device_id,
+                        self._pin_memory_thread_done_event,
+                        self._pin_memory_device,
+                    ),
+
+=== pt_pgnccl.cpp lines 493-493  https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
+    const int64_t ProcessGroupNCCL::kWatchdogThreadSleepMillis = 100;
+
+=== pt_pgnccl.cpp lines 2152-2156  https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
+    void ProcessGroupNCCL::Watchdog::start() {
+      TORCH_CHECK(
+          !ncclCommWatchdogThread_.joinable(), "Watchdog thread already started");
+      ncclCommWatchdogThread_ = std::thread(&ProcessGroupNCCL::Watchdog::run, this);
+    }
+
+=== pt_pgnccl.cpp lines 1772-1790  https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
+    ProcessGroupNCCL::HeartbeatMonitor::HeartbeatMonitor(ProcessGroupNCCL* pg) {
+      pg_ = pg;
+      heartbeatTimeoutInSec_ =
+          getCvarInt(TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC, 60 * 8 /*8 Mins*/);
+      waitTimeoutDumpInMilSec_ =
+          getCvarInt(TORCH_NCCL_WAIT_TIMEOUT_DUMP_MILSEC, 15 * 1000 /*15 Sec*/);
+      coordCheckIntervalMilSec_ = getCvarInt(TORCH_NCCL_COORD_CHECK_MILSEC, 1000);
+      // TODO, we should either deprecate TORCH_NCCL_DUMP_ON_TIMEOUT
+      // or change its name to reflect that dump happens on exception including
+      // both timeout and other errors.
+      dumpOnTimeoutOrEx_ = getCvarBool(TORCH_NCCL_DUMP_ON_TIMEOUT, true);
+      // logging C++ stack isn't safe. Gate it with an ENV.
+      logCppStackOnUncleanShutdown_ =
+          getCvarBool(TORCH_NCCL_LOG_CPP_STACK_ON_UNCLEAN_SHUTDOWN, true);
+      watchdogHeartbeatMonitorEnabled_ =
+          getCvarBool(TORCH_NCCL_ENABLE_MONITORING, true);
+    
+      // print out ENV settings for the heartbeat monitor thread.
+      if (pg_->getUid() == 0) {
+
+=== nccl_proxy.cc lines 840-852  https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc
+      {
+        std::unique_lock<std::mutex> lock(pool->mutex, std::defer_lock);
+        if (state->active != NULL && (pool->nextOps == -1 || !lock.try_lock())) return ncclSuccess;
+    
+        if (state->active == NULL) {
+          lock.lock();
+          if (pool->nextOps == -1 && state->stop.load(std::memory_order_acquire) == 0) {
+            ncclProfilerStartProxyCtrlEvent(proxyState->profilerContext, &eHandle);
+            ncclProfilerRecordProxyCtrlEventState(eHandle, 0, ncclProfilerProxyCtrlSleep);
+            // Predicate avoids lost wakeups and guarantees we observe stop after ncclProxyProgressDestroy.
+            pool->cond.wait(lock,
+                            [&]() { return pool->nextOps != -1 || state->stop.load(std::memory_order_acquire) != 0; });
+            ncclProfilerRecordProxyCtrlEventState(eHandle, 0, ncclProfilerProxyCtrlWakeup);
+
+=== nccl_proxy.cc lines 986-1006  https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc
+          ncclProfilerStartProxyCtrlEvent(proxyState->profilerContext, &eHandle);
+          if (lastIdle == 0 && idle == 1) ncclProfilerRecordProxyCtrlEventState(eHandle, 0, ncclProfilerProxyCtrlIdle);
+          if (lastIdle == 1 && idle == 0) ncclProfilerRecordProxyCtrlEventState(eHandle, 0, ncclProfilerProxyCtrlActive);
+          ncclProfilerStopProxyCtrlEvent(eHandle);
+        }
+        if (idle || !state->active || (++proxyOpAppendCounter == ncclParamProgressAppendOpFreq())) {
+          int added = 0;
+          proxyOpAppendCounter = 0;
+          TIME_START(3);
+          ret = ncclProxyGetPostedOps(proxyState, &added);
+          if (added) TIME_STOP(3);
+          else TIME_CANCEL(3);
+          if (ret != ncclSuccess) {
+            COMPILER_ATOMIC_STORE(&proxyState->asyncResult, ret, std::memory_order_release);
+            INFO_LOC(NCCL_ALL, "-> %d [Progress Thread]", ret);
+          }
+          if (added == 0) {
+            std::this_thread::yield(); // No request progressed. Let others run.
+          }
+        }
+        lastIdle = idle;
+
+=== nccl_proxy.cc lines 1030-1035  https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc
+    static ncclResult_t ncclProxyProgressCreate(struct ncclProxyState* proxyState) {
+      struct ncclProxyProgressState* state = &proxyState->progressState;
+      if (!state->thread.joinable()) {
+        state->thread = std::thread(ncclProxyProgress, proxyState);
+        ncclSetThreadName(state->thread, "NCCL Progress%2d", proxyState->tpLocalnRanks);
+      }
+
+=== g236_aarch64_pthreaddef.h lines 20-23  https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/aarch64/nptl/pthreaddef.h
+    #define ARCH_STACK_DEFAULT_SIZE	(2 * 1024 * 1024)
+    
+    /* Minimum guard size.  */
+    #define ARCH_MIN_GUARD_SIZE (64 * 1024)
+
+=== g236_allocatestack.c lines 337-346  https://github.com/bminor/glibc/blob/glibc-2.36/nptl/allocatestack.c
+    	 a minimum guard size requirement, ARCH_MIN_GUARD_SIZE, so
+    	 internally enforce it (unless the guard was disabled), but
+    	 report the original guard size for backward compatibility:
+    	 before POSIX 2008 the guardsize was specified to be one page
+    	 by default which is observable via pthread_attr_getguardsize
+    	 and pthread_getattr_np.  */
+          guardsize = (attr->guardsize + pagesize_m1) & ~pagesize_m1;
+          reported_guardsize = guardsize;
+          if (guardsize > 0 && guardsize < ARCH_MIN_GUARD_SIZE)
+    	guardsize = ARCH_MIN_GUARD_SIZE;
+
+=== pt_worker.py lines 272-275  https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/_utils/worker.py
+            torch.multiprocessing._set_thread_name("pt_data_worker")
+    
+            torch.set_num_threads(1)
+            seed = base_seed + worker_id
+
+=== vllm_entry.py lines 198-222  https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/launchers/api_server/entry.py
+    
+    def main():
+        import uvloop
+    
+        from vllm.entrypoints.serve.utils.api_utils import cli_env_setup
+        from vllm.utils.argparse_utils import FlexibleArgumentParser
+    
+        from ..cli_args import (
+            make_arg_parser,
+            validate_parsed_serve_args,
+        )
+    
+        # NOTE(simon):
+        # This section should be in sync with vllm/entrypoints/cli/main.py for CLI
+        # entrypoints.
+        cli_env_setup()
+        parser = FlexibleArgumentParser(
+            description="vLLM OpenAI-Compatible RESTful API server."
+        )
+        parser = make_arg_parser(parser)
+        args = parser.parse_args()
+        configure_logging_from_args(args)
+        validate_parsed_serve_args(args)
+    
+        uvloop.run(run_server(args))
+
+=== sgl_http.py lines 2708-2715  https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/entrypoints/http_server.py
+                        port=get_serving().port,
+                        root_path=get_serving().fastapi_root_path,
+                        log_level=get_observability().log_level_http
+                        or get_observability().log_level,
+                        timeout_keep_alive=envs.SGLANG_TIMEOUT_KEEP_ALIVE.get(),
+                        loop="uvloop",
+                        ssl_keyfile=get_serving().ssl_keyfile,
+                        ssl_certfile=get_serving().ssl_certfile,
+
+=== nccl_proxy.cc lines 2155-2164  https://github.com/NVIDIA/nccl/blob/v2.32.3-1/src/proxy.cc
+        memcpy(proxyState->buffSizes, comm->buffSizes, sizeof(comm->buffSizes));
+    
+        comm->proxyState->thread = std::thread(ncclProxyService, comm->proxyState);
+        ncclSetThreadName(comm->proxyState->thread, "NCCL Service %2d", comm->cudaDev);
+    
+        // UDS support
+        INFO(NCCL_PROXY, "UDS: Creating service thread comm %p rank %d", comm, comm->rank);
+        comm->proxyState->threadUDS = std::thread(ncclProxyServiceUDS, comm->proxyState);
+        ncclSetThreadName(comm->proxyState->threadUDS, "NCCL UDS Svc%2d", comm->cudaDev);
+      }
+
+=== k510_io_uring.c lines 7966-7975  https://github.com/torvalds/linux/blob/v5.10/fs/io_uring.c
+    static unsigned long ring_pages(unsigned sq_entries, unsigned cq_entries)
+    {
+    	size_t pages;
+    
+    	pages = (size_t)1 << get_order(
+    		rings_size(sq_entries, cq_entries, NULL));
+    	pages += (size_t)1 << get_order(
+    		array_size(sizeof(struct io_uring_sqe), sq_entries));
+    
+    	return pages;
+

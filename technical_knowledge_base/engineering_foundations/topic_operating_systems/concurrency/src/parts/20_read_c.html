@@ -1,0 +1,60 @@
+<section id="rd-s4">
+<h2>4. The futex: how every Linux lock sleeps</h2>
+<p><span class="ostep">ch. 28.14 to 28.16 (Linux futex, two-phase locks)</span> <span class="src">from source</span> <span class="meas">measured here</span></p>
+<p><b>The problem.</b> Sleeping needs the kernel (only the kernel can take a thread off the CPU and put it back), but entering the kernel costs about 300 ns, thirty times an uncontended lock. Before futexes, user-space locks paid for a system call either on every operation or on none (and then spun). The <dfn>futex</dfn> ("fast user-space mutex", Linux 2.6, 2003) splits the job: the lock word lives in ordinary user memory and is changed with atomic instructions; the kernel is asked only to sleep on that word or to wake sleepers on it ({{futex(2)|https://man7.org/linux/man-pages/man2/futex.2.html}}; Drepper, {{Futexes Are Tricky|https://www.akkadia.org/drepper/futex.pdf}}, 2011). Two operations do almost all the work:</p>
+<div class="mech">
+<div><b>futex_wait(addr, val)</b>"if <code>*addr</code> still equals <code>val</code>, put me to sleep on <code>addr</code>; otherwise return at once with EAGAIN". The comparison and the going to sleep happen together inside the kernel, under a lock no waker can slip past.</div>
+<div><b>futex_wake(addr, n)</b>"wake up to <code>n</code> threads sleeping on <code>addr</code>". It does not change <code>*addr</code>; the user-space code changed it already.</div>
+</div>
+<p><b>glibc's mutex protocol</b> uses three values for the lock word: <b>0</b> free, <b>1</b> locked with nobody waiting, <b>2</b> locked and someone may be waiting. Simplified from {{sysdeps/nptl/lowlevellock.h L94-106 and L145-160|https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/nptl/lowlevellock.h#L94-L160}} and {{nptl/lowlevellock.c L38-50|https://github.com/bminor/glibc/blob/glibc-2.36/nptl/lowlevellock.c#L38-L50}}:</p>
+<pre class="cd"><span class="k">void</span> lock(<span class="k">int</span> *w) {
+    <span class="k">if</span> (CAS(w, 0, 1)) <span class="k">return</span>;                 <span class="c">// fast path: free, now mine, no system call</span>
+    <span class="k">if</span> (*w == 2) <span class="k">goto</span> wait;
+    <span class="k">while</span> (xchg(w, 2) != 0)                 <span class="c">// mark "waiters"; if it was 0 I own it now (as 2)</span>
+  wait: futex_wait(w, 2);                    <span class="c">// sleep, but only if it is still 2</span>
+}
+<span class="k">void</span> unlock(<span class="k">int</span> *w) {
+    <span class="k">if</span> (xchg(w, 0) &gt; 1)                      <span class="c">// was 2: someone may be asleep</span>
+        futex_wake(w, 1);                      <span class="c">// wake one; it retries the xchg</span>
+}</pre>
+<p>Uncontended, <code>lock</code> is one CAS and <code>unlock</code> one exchange: no system call. Only a thread that finds the lock taken calls <code>futex_wait</code>, and only an unlock that sees 2 calls <code>futex_wake</code>. A thread that takes the lock after a wait sets it to 2, not 1, because it cannot know whether others are still asleep: an occasional unneeded wake-up is the price of never missing one. The hand-built version in <code>locks.c</code> counts its own system calls: with four threads and short critical sections it made <b data-k="lk.S2.futex.fw">208840</b> futex waits in 2 million acquisitions (about one acquisition in ten had to sleep).</p>
+<h3>Why the kernel must compare: the lost wake-up</h3>
+<p>Why not check the lock word in user space and then call a plain "sleep"? Because between the check and the sleep, the holder can unlock and send its wake-up to a thread that is not asleep yet; the wake-up is lost, and the waiter then sleeps forever. The kernel source states the rule ({{kernel/futex.c L2633-2648, v5.10|https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L2633-L2648}}):</p>
+<pre class="cd"><span class="c"> * The basic logical guarantee of a futex is that it blocks ONLY
+ * if cond(var) is known to be true at the time of blocking, for
+ * any cond.  If we locked the hash-bucket after testing *uaddr, that
+ * would open a race condition where we could block indefinitely with
+ * cond(var) false, which would violate the guarantee.</span></pre>
+<p>So <code>futex_wait_setup</code> locks the wait queue first, then reads <code>*uaddr</code>, and returns EAGAIN if it changed ({{L2650-2678|https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L2650-L2678}}). The {{Interleaving lab|#t-lock}} lets you produce the lost wake-up yourself in the "check, then sleep" lock (54 of its 376 possible schedules leave a thread asleep forever) and shows that the futex version has none.</p>
+<h3>Where the sleepers are kept</h3>
+<p>The kernel does not allocate anything per futex while nobody waits. Sleepers go into one global hash table of wait queues, indexed by a key for the address: for a <dfn>private</dfn> futex (threads of one process; glibc passes <code>FUTEX_PRIVATE_FLAG</code>) the key is the address space and the virtual address; for a <dfn>shared</dfn> futex (a lock in memory mapped by several processes) it is the underlying page and offset, so different virtual addresses in different processes meet in the same queue ({{get_futex_key, kernel/futex.c L487-653|https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L487-L653}}). The table has <code>roundup_pow_of_two(256 × CPUs)</code> buckets ({{L4050|https://github.com/torvalds/linux/blob/v5.10/kernel/futex.c#L4050}}), 2,048 on this 5-CPU VM. Python's <code>multiprocessing.Lock</code> is a POSIX semaphore in a <code>/dev/shm/sem.*</code> file mapped by both processes, so its futex is shared: no <code>_PRIVATE</code> in the trace <span class="meas">measured here</span>:</p>
+<pre class="cd res" id="rd-mpfutex"></pre>
+<h3>One contended lock, four ways: before and after the futex</h3>
+<p>The animation runs one input through four lock designs: threads A and B each need the lock twice (a critical section of 2 µs, 1 µs of other work between), while thread C has 8 µs of unrelated work and no lock, all on 2 CPUs. Costs are this VM's measured ones where they exist: a futex system call 0.3 µs (the "wake on every unlock" lock's <b data-k="lk.S1.sysc.wall">288.6</b> ns per pair), and a wake-up of <b data-k="pp.1cpu.futex.half">1.7</b> µs (same CPU) or <b data-k="pp.2cpu.futex.half">23.5</b> µs (across CPUs in this VM; switch below), half a ping-pong round trip. The time slice is shortened to 3 µs so that preemption shows up at this scale <span class="ill">illustrative slice</span>.</p>
+<div class="card" id="rd-fx-card">
+<div class="segb" id="rd-fx-mode"><button data-m="spin" class="on">Spinlock</button><button data-m="sysc">Kernel on every unlock</button><button data-m="futex">Futex (glibc)</button><button data-m="adaptive">Spin, then futex</button></div>
+<div class="segb" id="rd-fx-wake"><button data-m="same" class="on">Wake-up on the same CPU</button><button data-m="cross">Wake-up across CPUs (this VM)</button></div>
+<div class="chart" id="rd-fx-svg"></div>
+<div class="leg" id="rd-fx-leg"></div>
+<div class="an-cap" id="rd-fx-cap"></div>
+<div class="an-cnt" id="rd-fx-cnt"></div>
+<div class="an-ctl" id="rd-fx-ctl"></div>
+</div>
+<p class="small mute">What to try: run the spinlock, then the futex: the futex frees the CPU for thread C but each hand-off now pays a wake-up. Switch to the cross-CPU wake-up: the futex's hand-offs become far slower than spinning, which is exactly why glibc offers an adaptive mutex and why the kernel and NCCL spin when they expect the wait to be short.</p>
+<h3>What a wake-up costs</h3>
+<p>Two threads passing a turn back and forth 200,000 times <span class="meas">measured here</span> (<code>pingpong.c</code>; round trip = two hand-offs; median of 5):</p>
+<div class="tw"><table class="tbl-sm" id="rd-pp-tbl"></table></div>
+<p>On one CPU a hand-off is a context switch: <b data-k="pp.1cpu.futex.half">1.7</b> µs, in line with the root's 1.33 µs pipe ping-pong. Across CPUs it is slower here because the sleeping CPU has gone idle and must be woken by an inter-processor interrupt, which a virtual machine turns into a trip through the hypervisor; how much lower it is on bare metal was not measured here <span class="nrh">not run here</span>. Spinning across two CPUs never sleeps (<b data-k="pp.2cpu.spin.rt2">0.09</b> µs per round trip, median of 5; one run took 44.8 µs when another workload took one of the CPUs), but on one CPU each spin waits for a whole time slice: <b data-k="pp.1cpu.spin.ms">19.8</b> ms per round trip, about <b data-k="pp.spin.ratio">220,000</b> times slower.</p>
+<h3>The rest of the futex family</h3>
+<ul>
+<li><b>FUTEX_WAIT_BITSET</b> with <code>FUTEX_CLOCK_REALTIME</code>: a wait with an absolute deadline; glibc uses it for timed waits and POSIX semaphores (the trace above).</li>
+<li><b>FUTEX_CMP_REQUEUE</b>: wake one waiter and move the rest from a condition variable's futex to the mutex's, so a broadcast does not wake a herd that would immediately fight for the mutex (the <dfn>thundering herd</dfn>). glibc 2.25 (2017) replaced its condition variables with an algorithm based on groups of waiters that never requeues (no requeue call appears in {{nptl/pthread_cond_wait.c, glibc 2.36|https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_cond_wait.c}}); the operation remains in use for priority-inheritance locks.</li>
+<li><b>FUTEX_LOCK_PI</b>: <dfn>priority inheritance</dfn>; the kernel knows the owner (its thread id is in the word) and boosts it while a higher-priority thread waits. It fixes <dfn>priority inversion</dfn>, the bug that kept resetting NASA's Mars Pathfinder in 1997 ({{account by Glenn Reeves|https://www.cs.cornell.edu/courses/cs614/1999sp/papers/pathfinder.html}}).</li>
+<li><b>Robust futexes</b>: the kernel walks a per-thread list at exit and marks locks held by a dead thread (<code>EOWNERDEAD</code>), for locks in memory shared between processes.</li>
+<li><b>futex_waitv</b> (Linux 5.16) waits on several futexes at once, added for Wine and game engines ({{futex2 docs|https://docs.kernel.org/userspace-api/futex2.html}}); <span class="nrh">not on this 5.10 kernel</span>.</li>
+</ul>
+<div class="ml"><span class="t">In ML work</span> Every lock and queue in the stack sleeps on a futex: Python's <code>threading.Lock</code> and <code>queue.Queue</code>, PyTorch's thread pools, libgomp's barriers, NCCL's proxy thread when idle. So when a training process hangs, <code>cat /proc/&lt;pid&gt;/task/*/wchan</code> shows <code>futex_wait_queue_me</code> (5.10; <code>futex_wait_queue</code> on 6.x) for nearly every thread, and the question becomes which address each one waits on and who should have woken it: <code>py-spy dump</code> for Python frames, <code>gdb -p &lt;pid&gt; -ex "thread apply all bt"</code> for native ones (section 6).</div>
+<div class="drill"><div class="q">Predict: under strace, a busy training process shows <code>futex(..., FUTEX_WAIT_PRIVATE, 2, NULL) = -1 EAGAIN</code> thousands of times. A bug?</div>
+<div class="opts"><button>Yes: EAGAIN means the lock is broken</button><button data-right>No: the lock word changed between the user-space check and the kernel's check</button><button>The futex table is full</button></div>
+<div class="ans" hidden>EAGAIN from <code>futex_wait</code> is the futex working as designed: by the time the kernel compared, the holder had released (or someone changed the word), so sleeping would have been wrong. The caller simply retries. In the job's trace in section 10, about a fifth of all futex calls return an error (<code>strace -c</code> counts errors without naming them; for these waits the usual ones are EAGAIN and, for timed waits, ETIMEDOUT).</div></div>
+</section>
