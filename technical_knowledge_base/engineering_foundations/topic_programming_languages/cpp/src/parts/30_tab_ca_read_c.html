@@ -1,0 +1,344 @@
+
+<section id="ca-move">
+<h2>6. Move semantics</h2>
+<p>Copy-by-default has an obvious cost: returning a vector of a million elements, or putting a string into a container, would copy every byte. C++11 added <b>moves</b>: when the source object is about to die anyway, the new object may <i>steal</i> its heap buffer (copy three pointers, set the source's to null) instead of copying the contents.</p>
+<p>The compiler needs to know when stealing is safe. It sorts expressions into two families (simplified):</p>
+<ul>
+<li>an <b>lvalue</b> has a name and an address you can take: <code>a</code>, <code>v[3]</code>, <code>*p</code>. It will be used again, so it must be copied.</li>
+<li>an <b>rvalue</b> is a temporary about to disappear: <code>make_name()</code>, <code>a + b</code>, <code>Tracer{"x"}</code>. It may be moved from.</li>
+</ul>
+<p>A class gets a <b>move constructor</b> <code>T(T&amp;&amp; other)</code> (the <code>&amp;&amp;</code> means "rvalue reference": binds only to things that may be moved from) alongside its copy constructor <code>T(const T&amp; other)</code>, and overload resolution picks one. <b><code>std::move(x)</code> moves nothing.</b> It is a cast that says "treat x as an rvalue; I will not need its value again" ({{cppreference: "exactly equivalent to a static_cast to an rvalue reference type"|https://en.cppreference.com/w/cpp/utility/move}}); the move constructor that it selects does the stealing.</p>
+<div class="ca-src"><div class="ca-fn">lifetime.cpp (lines 26 to 33)</div><pre class="ca-code"><span class="ca-kw">void</span> copymove() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    Tracer b = a;             <span class="ca-cm">// copy constructor</span>
+    Tracer c = std::move(a);  <span class="ca-cm">// move constructor: steals a's string</span>
+    std::printf(<span class="ca-st">"a.name is now \"%s\"\n"</span>, a.name.c_str());
+    b = c;                    <span class="ca-cm">// copy assignment (b already exists)</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> which constructors run, and what is left in a.name?</summary><pre class="ca-out" data-ca-out="lt_copymove"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp -o lifetime &amp;&amp; ./lifetime copymove</span>
+ctor #1 a stack L27
+copy #2 from #1 a stack L28
+move #3 from #1 a stack L29
+a.name is now ""
+copy= #2 from #3
+@32 end of function
+dtor #3
+dtor #2
+dtor #1
+@0 back in main</pre></details>
+<p>The moved-from <code>a</code> is still a valid object (its destructor runs, #1, at the end) but its value is unspecified; libc++ leaves the string empty. You may assign to it or destroy it; do not read it. What moving buys, and one trap:</p>
+<div class="ca-src"><div class="ca-fn">moved_from.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;utility&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    std::string s = <span class="ca-st">"a string long enough to live on the heap"</span>;
+    std::string t = std::move(s);       <span class="ca-cm">// t steals s's heap buffer</span>
+    std::printf(<span class="ca-st">"t: %zu chars, s: %zu chars\n"</span>, t.size(), s.size());
+    s = <span class="ca-st">"reusable"</span>;                     <span class="ca-cm">// a moved-from object can be assigned to</span>
+    std::printf(<span class="ca-st">"s: %s\n"</span>, s.c_str());
+
+    std::vector&lt;<span class="ca-kw">int</span>&gt; v(1<span class="ca-st">'000'</span>000, 7);
+    <span class="ca-kw">const</span> <span class="ca-kw">int</span>* before = v.data();
+    std::vector&lt;<span class="ca-kw">int</span>&gt; w = std::move(v);  <span class="ca-cm">// O(1): three pointers change hands</span>
+    std::printf(<span class="ca-st">"w.data() == old v.data(): %d, v.size() now %zu\n"</span>, w.data() == before, v.size());
+
+    <span class="ca-kw">const</span> std::string c = <span class="ca-st">"const"</span>;
+    std::string d = std::move(c);       <span class="ca-cm">// compiles, but COPIES: you cannot steal from const</span>
+    std::printf(<span class="ca-st">"c after 'move': %s\n"</span>, c.c_str());
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_moved_from"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra moved_from.cpp -o moved_from &amp;&amp; ./moved_from</span>
+t: 40 chars, s: 0 chars
+s: reusable
+w.data() == old v.data(): 1, v.size() now 0
+c after 'move': const</pre>
+<p>The million-element vector changed hands in constant time: <code>w</code> owns the very same buffer. The last line is the trap: <code>std::move</code> of a <code>const</code> object silently copies, because a move constructor needs to modify its source.</p>
+
+<h3>When the compiler copies, moves or does neither</h3>
+<p>Passing and returning values is where moves matter most. One rule removes most of the worry: since C++17, returning a temporary, and in practice a local variable, constructs the result directly in the caller's variable, with no copy and no move (<b>copy elision</b>, {{cppreference|https://en.cppreference.com/w/cpp/language/copy_elision}}). So return big objects by value; never write <code>return std::move(local);</code>, which can only prevent elision.</p>
+<div class="ca-src"><div class="ca-fn">lifetime.cpp (lines 8 to 10)</div><pre class="ca-code"><span class="ca-kw">void</span> by_value(Tracer) &#123; STEP(<span class="ca-st">"inside by_value"</span>); &#125;
+<span class="ca-kw">void</span> by_ref(<span class="ca-kw">const</span> Tracer&amp;) &#123; STEP(<span class="ca-st">"inside by_ref"</span>); &#125;
+Tracer make(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* n) &#123; Tracer t&#123;n&#125;; <span class="ca-kw">return</span> t; &#125;</pre></div>
+<div class="ca-src"><div class="ca-fn">lifetime.cpp (lines 37 to 44)</div><pre class="ca-code"><span class="ca-kw">void</span> calls() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    by_ref(a);                <span class="ca-cm">// no new object</span>
+    by_value(a);              <span class="ca-cm">// a copy for the parameter</span>
+    by_value(std::move(a));   <span class="ca-cm">// a move for the parameter</span>
+    Tracer m = make(<span class="ca-st">"m"</span>);     <span class="ca-cm">// no copy, no move: built in place</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> how many Tracer objects get made in total, and where does m come from?</summary><pre class="ca-out" data-ca-out="lt_calls"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp -o lifetime &amp;&amp; ./lifetime calls</span>
+ctor #1 a stack L38
+@9 inside by_ref
+copy #2 from #1 a stack L40
+@8 inside by_value
+dtor #2
+move #3 from #1 a stack L41
+@8 inside by_value
+dtor #3
+ctor #4 m stack L10
+@43 end of function
+dtor #4
+dtor #1
+@0 back in main</pre></details>
+
+<h3>Why noexcept on a move constructor matters: one vector, two classes</h3>
+<p>A <code>std::vector</code> keeps its elements in one buffer. When the buffer is full, <code>push_back</code> allocates a bigger one, transfers the old elements and frees the old buffer. It would like to <i>move</i> them, but if a move threw an exception halfway, the old buffer would be half-emptied and the vector could not restore it. So the standard library moves only if the move constructor is declared <code>noexcept</code> ("this never throws"); otherwise it copies, to keep its strong exception guarantee ({{std::move_if_noexcept|https://en.cppreference.com/w/cpp/utility/move_if_noexcept}}). The animation runs the same three <code>push_back</code> calls on two versions of Tracer that differ only in that one keyword. Everything shown is the program's real output.</p>
+<div class="card" id="ca-gr-card">
+<div class="seg" id="ca-gr-seg" role="group" aria-label="Which class"><button data-m="growth" class="on">Move is noexcept</button><button data-m="growth_nx">Move without noexcept (before)</button></div>
+<div id="ca-gr"></div>
+<div class="ca-ctl" id="ca-gr-ctl"></div>
+</div>
+<p>With <code>noexcept</code>, each reallocation moves (cheap); without it, the same code copies every existing element on every growth: for a vector of strings, that is a heap allocation and a byte copy per element. The compiler writes a <code>noexcept</code> move constructor for you when every member's is <code>noexcept</code> (the rule of zero, below), which is one more reason not to write them by hand.</p>
+
+<h3>The rule of zero and the rule of five</h3>
+<p>Five special member functions control a class's lifetime: destructor, copy constructor, copy assignment, move constructor, move assignment. The compiler writes all five for you, member by member. That is correct when every member manages itself (<code>std::vector</code>, <code>std::string</code>, <code>std::unique_ptr</code>): the <b>rule of zero</b> says write none of them. A class that owns a raw resource must write all five (the <b>rule of five</b>), because the compiler-written copy would copy the pointer, not the buffer:</p>
+<div class="ca-src"><div class="ca-fn">rule_of_five.cpp (lines 5 to 35)</div><pre class="ca-code"><span class="ca-cm">// A class that owns a raw buffer must write all five special members.</span>
+<span class="ca-kw">class</span> Buffer &#123;
+    <span class="ca-kw">float</span>* data_;
+    std::size_t n_;
+<span class="ca-kw">public</span>:
+    <span class="ca-kw">explicit</span> Buffer(std::size_t n) : data_(<span class="ca-kw">new</span> <span class="ca-kw">float</span>[n]()), n_(n) &#123;&#125;
+    ~Buffer() &#123; <span class="ca-kw">delete</span>[] data_; &#125;                                   <span class="ca-cm">// 1 destructor</span>
+    Buffer(<span class="ca-kw">const</span> Buffer&amp; o) : data_(<span class="ca-kw">new</span> <span class="ca-kw">float</span>[o.n_]), n_(o.n_) &#123;    <span class="ca-cm">// 2 copy constructor</span>
+        std::memcpy(data_, o.data_, n_ * <span class="ca-kw">sizeof</span>(<span class="ca-kw">float</span>));
+    &#125;
+    Buffer&amp; <span class="ca-kw">operator</span>=(<span class="ca-kw">const</span> Buffer&amp; o) &#123;                            <span class="ca-cm">// 3 copy assignment</span>
+        Buffer tmp(o);
+        swap(tmp);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    Buffer(Buffer&amp;&amp; o) <span class="ca-kw">noexcept</span>                                     <span class="ca-cm">// 4 move constructor</span>
+        : data_(std::exchange(o.data_, <span class="ca-kw">nullptr</span>)), n_(std::exchange(o.n_, 0)) &#123;&#125;
+    Buffer&amp; <span class="ca-kw">operator</span>=(Buffer&amp;&amp; o) <span class="ca-kw">noexcept</span> &#123;                        <span class="ca-cm">// 5 move assignment</span>
+        Buffer tmp(std::move(o));
+        swap(tmp);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    <span class="ca-kw">void</span> swap(Buffer&amp; o) <span class="ca-kw">noexcept</span> &#123; std::swap(data_, o.data_); std::swap(n_, o.n_); &#125;
+    std::size_t size() <span class="ca-kw">const</span> &#123; <span class="ca-kw">return</span> n_; &#125;
+&#125;;
+
+<span class="ca-cm">// Rule of zero: let a member that already manages itself do the work.</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+<span class="ca-kw">struct</span> Buffer0 &#123;
+    std::vector&lt;<span class="ca-kw">float</span>&gt; data;   <span class="ca-cm">// the compiler writes all five, correctly</span>
+&#125;;</pre></div>
+<pre class="ca-out" data-ca-out="l_rule_of_five"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra rule_of_five.cpp -o rule_of_five &amp;&amp; ./rule_of_five</span>
+b 4, c 4, moved-from a 0; y 4, z 4, moved-from x 0</pre>
+<p>Thirty lines of careful code against one line (<code>std::vector&lt;float&gt; data;</code>). Write only a destructor and forget the other four, and copying the object gives two owners of one buffer, freed twice: the {{UB gallery|#t-ca-ub}}'s "double free" case shows the crash, and shows the bug vanishing at <code>-O2</code>, where the compiler removed the allocation altogether.</p>
+<div class="ca-cost"><div><b>Problem it solves</b>Copy-by-default without paying for copies of temporaries and returned values.</div><div><b>What it costs</b>The rules (value categories, <code>noexcept</code>, moved-from states) are the hardest part of the language to learn.</div><div><b>Common mistakes</b>Using an object after <code>std::move</code>; <code>return std::move(x)</code>; a hand-written move constructor without <code>noexcept</code>; moving from <code>const</code>.</div></div>
+</section>
+
+<section id="ca-class">
+<h2>7. Classes, operators, inheritance and virtual functions</h2>
+<p>A <code>class</code> and a <code>struct</code> are the same thing except for the default: <code>struct</code> members are public, <code>class</code> members private. Python's conventions become rules the compiler checks: <code>private</code> really is private, <code>const</code> methods really cannot modify the object, and members must be declared with their types.</p>
+<div class="ca-src"><div class="ca-fn">classes.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;compare&gt;</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+
+<span class="ca-kw">class</span> Usage &#123;
+<span class="ca-kw">public</span>:
+    <span class="ca-cm">// explicit: no silent conversion from a string to a Usage</span>
+    <span class="ca-kw">explicit</span> Usage(std::string user, <span class="ca-kw">long</span> tokens = 0)
+        : user_(std::move(user)), tokens_(tokens) &#123;&#125;   <span class="ca-cm">// member initialiser list</span>
+
+    <span class="ca-kw">const</span> std::string&amp; user() <span class="ca-kw">const</span> &#123; <span class="ca-kw">return</span> user_; &#125; <span class="ca-cm">// const: does not modify *this</span>
+    <span class="ca-kw">long</span> tokens() <span class="ca-kw">const</span> &#123; <span class="ca-kw">return</span> tokens_; &#125;
+
+    Usage&amp; <span class="ca-kw">operator</span>+=(<span class="ca-kw">long</span> n) &#123; tokens_ += n; <span class="ca-kw">return</span> *<span class="ca-kw">this</span>; &#125;
+    <span class="ca-cm">// one line gives ==, !=, &lt;, &lt;=, &gt;, &gt;= comparing members in declaration order</span>
+    <span class="ca-kw">auto</span> <span class="ca-kw">operator</span>&lt;=&gt;(<span class="ca-kw">const</span> Usage&amp;) <span class="ca-kw">const</span> = <span class="ca-kw">default</span>;
+
+<span class="ca-kw">private</span>:
+    std::string user_;
+    <span class="ca-kw">long</span> tokens_;
+&#125;;
+
+Usage <span class="ca-kw">operator</span>+(Usage u, <span class="ca-kw">long</span> n) &#123; u += n; <span class="ca-kw">return</span> u; &#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    Usage a&#123;<span class="ca-st">"u0005"</span>, 4816&#125;;
+    Usage b = a + 100;
+    b += 1;
+    std::printf(<span class="ca-st">"%s %ld\n"</span>, b.user().c_str(), b.tokens());
+    std::printf(<span class="ca-st">"a &lt; b: %d, a == a: %d\n"</span>, a &lt; b, a == a);
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_classes"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra classes.cpp -o classes &amp;&amp; ./classes</span>
+u0005 4917
+a &lt; b: 1, a == a: 1</pre>
+<ul>
+<li><b>Member initialiser list</b> (<code>: user_(...), tokens_(...)</code>): members are constructed there, before the body runs, in the order they are <i>declared</i> in the class (not the order you list them; clang warns when they differ).</li>
+<li><b><code>explicit</code></b> forbids using the constructor as a silent conversion. Without it, any function taking a <code>Usage</code> would accept a <code>std::string</code> and build a <code>Usage</code> behind your back:</li>
+</ul>
+<pre class="ca-out ca-bad" data-ca-out="l_explicit_err"><span class="ca-cmd">$ clang++ -std=c++23 -Wall -Wextra -c explicit_err.cpp -o /dev/null</span>
+explicit_err.cpp:12:5: error: no matching function for call to 'bill'
+   12 |     bill(std::string&#123;"u0005"&#125;);  // error: explicit forbids the silent conversion
+      |     ^~~~
+explicit_err.cpp:8:6: note: candidate function not viable: no known conversion from 'std::string' (aka 'basic_string&lt;char&gt;') to 'const Usage' for 1st argument
+    8 | void bill(const Usage&amp;) &#123;&#125;
+      |      ^    ~~~~~~~~~~~~
+1 error generated.
+[exit code 1]</pre>
+<ul>
+<li><b>Operator overloading</b>: <code>operator+=</code> and <code>operator+</code> are ordinary functions with special names, like Python's <code>__iadd__</code> and <code>__add__</code>. <code>operator&lt;=&gt;</code> = <code>default</code> (C++20, "spaceship") generates all six comparisons, member by member, like <code>@dataclass(order=True)</code>.</li>
+</ul>
+<h3>Inheritance and virtual functions</h3>
+<p>A <b>virtual</b> function is chosen at run time by the object's actual type, like every method call in Python. A non-virtual one is chosen at compile time by the declared type, and can be inlined. Making a function virtual adds a hidden pointer to every object (the <b>vtable pointer</b>, pointing to a table of function addresses for that class): the <code>Virtual</code> struct above measured 16 bytes against 8. <code>= 0</code> makes a function <b>pure virtual</b>: the class is abstract, like a Python ABC.</p>
+<div class="ca-src"><div class="ca-fn">virtual.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;memory&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">struct</span> Tokenizer &#123;                       <span class="ca-cm">// a base class with a virtual function</span>
+    <span class="ca-kw">virtual</span> <span class="ca-kw">int</span> count(<span class="ca-kw">const</span> std::string&amp; s) <span class="ca-kw">const</span> = 0;   <span class="ca-cm">// = 0: must be overridden</span>
+    <span class="ca-kw">virtual</span> ~Tokenizer() = <span class="ca-kw">default</span>;      <span class="ca-cm">// virtual destructor: required for delete via base</span>
+&#125;;
+<span class="ca-kw">struct</span> Whitespace : Tokenizer &#123;
+    <span class="ca-kw">int</span> count(<span class="ca-kw">const</span> std::string&amp; s) <span class="ca-kw">const</span> <span class="ca-kw">override</span> &#123;
+        <span class="ca-kw">int</span> n = 0; <span class="ca-kw">bool</span> in = <span class="ca-kw">false</span>;
+        <span class="ca-kw">for</span> (<span class="ca-kw">char</span> c : s) &#123; <span class="ca-kw">bool</span> t = c != <span class="ca-st">' '</span>; n += t &amp;&amp; !in; in = t; &#125;
+        <span class="ca-kw">return</span> n;
+    &#125;
+&#125;;
+<span class="ca-kw">struct</span> Bytes : Tokenizer &#123;
+    <span class="ca-kw">int</span> count(<span class="ca-kw">const</span> std::string&amp; s) <span class="ca-kw">const</span> <span class="ca-kw">override</span> &#123; <span class="ca-kw">return</span> <span class="ca-kw">static_cast</span>&lt;<span class="ca-kw">int</span>&gt;(s.size()); &#125;
+&#125;;
+
+<span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;std::unique_ptr&lt;Tokenizer&gt;&gt; ts;
+    ts.push_back(std::make_unique&lt;Whitespace&gt;());
+    ts.push_back(std::make_unique&lt;Bytes&gt;());
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> <span class="ca-kw">auto</span>&amp; t : ts)             <span class="ca-cm">// which count() runs is decided at run time</span>
+        std::printf(<span class="ca-st">"%d\n"</span>, t-&gt;count(<span class="ca-st">"hello token world"</span>));
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_virtual"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra virtual.cpp -o virtual &amp;&amp; ./virtual</span>
+3
+17</pre>
+<p>What a virtual call costs here: the same sum over 10 million objects, called three ways (best of 7 runs, the laptop's load average printed first):</p>
+<div class="ca-src"><div class="ca-fn">vcost.cpp (lines 7 to 9)</div><pre class="ca-code"><span class="ca-kw">struct</span> Shape &#123; <span class="ca-kw">virtual</span> <span class="ca-kw">long</span> area() <span class="ca-kw">const</span> = 0; <span class="ca-kw">virtual</span> ~Shape() = <span class="ca-kw">default</span>; &#125;;
+<span class="ca-kw">struct</span> Sq : Shape &#123; <span class="ca-kw">long</span> s; <span class="ca-kw">explicit</span> Sq(<span class="ca-kw">long</span> v) : s(v) &#123;&#125; <span class="ca-kw">long</span> area() <span class="ca-kw">const</span> <span class="ca-kw">override</span> &#123; <span class="ca-kw">return</span> s * s; &#125; &#125;;
+<span class="ca-kw">struct</span> SqPlain &#123; <span class="ca-kw">long</span> s; <span class="ca-kw">long</span> area() <span class="ca-kw">const</span> &#123; <span class="ca-kw">return</span> s * s; &#125; &#125;;   <span class="ca-cm">// no virtual</span></pre></div><div class="ca-src"><div class="ca-fn">vcost.cpp (lines 24 to 35)</div><pre class="ca-code">    std::vector&lt;std::unique_ptr&lt;Shape&gt;&gt; virt;     <span class="ca-cm">// (a) heap objects, virtual call</span>
+    std::vector&lt;std::unique_ptr&lt;SqPlain&gt;&gt; boxed;  <span class="ca-cm">// (b) heap objects, ordinary call</span>
+    std::vector&lt;SqPlain&gt; flat;                    <span class="ca-cm">// (c) contiguous values, ordinary call</span>
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> i = 0; i &lt; N; ++i) &#123;
+        virt.push_back(std::make_unique&lt;Sq&gt;(i % 7));
+        boxed.push_back(std::make_unique&lt;SqPlain&gt;(SqPlain&#123;i % 7&#125;));
+        flat.push_back(&#123;i % 7&#125;);
+    &#125;
+    <span class="ca-kw">volatile</span> <span class="ca-kw">long</span> sink;
+    <span class="ca-kw">double</span> a = best_ms([&amp;] &#123; <span class="ca-kw">long</span> s = 0; <span class="ca-kw">for</span> (<span class="ca-kw">auto</span>&amp; p : virt) s += p-&gt;area(); sink = s; &#125;);
+    <span class="ca-kw">double</span> b = best_ms([&amp;] &#123; <span class="ca-kw">long</span> s = 0; <span class="ca-kw">for</span> (<span class="ca-kw">auto</span>&amp; p : boxed) s += p-&gt;area(); sink = s; &#125;);
+    <span class="ca-kw">double</span> c = best_ms([&amp;] &#123; <span class="ca-kw">long</span> s = 0; <span class="ca-kw">for</span> (<span class="ca-kw">auto</span>&amp; q : flat) s += q.area(); sink = s; &#125;);</pre></div>
+<pre class="ca-out" data-ca-out="t_vcost"><span class="ca-cmd">$ sysctl -n vm.loadavg; clang++ -std=c++23 -O2 vcost.cpp -o vcost &amp;&amp; ./vcost</span>
+&#123; 13.10 8.35 7.33 &#125;
+(a) virtual call, objects behind pointers:  1.01 ns per object
+(b) ordinary call, objects behind pointers: 0.47 ns per object
+(c) ordinary call, objects in a flat vector: 0.34 ns per object</pre>
+<p>The virtual call itself (a vs b) roughly doubled the time per object, mostly because the compiler cannot inline a call it cannot predict; storing the values flat (c) helped again, because the CPU reads memory in order ({{Part 2|#t-cb-read}} explains why). A few nanoseconds per call is nothing for a call per request and a lot for a call per element of a tensor. That is why performance code uses templates (section 8) instead of virtual functions in hot loops, and keeps data in flat arrays.</p>
+<p>Two inheritance traps, both silent:</p>
+<div class="ca-two"><div><div class="ca-src"><div class="ca-fn">slicing.cpp (lines 12 to 19)</div><pre class="ca-code"><span class="ca-kw">void</span> by_value(Base b) &#123; std::printf(<span class="ca-st">"by value: %s\n"</span>, b.name()); &#125;
+<span class="ca-kw">void</span> by_ref(<span class="ca-kw">const</span> Base&amp; b) &#123; std::printf(<span class="ca-st">"by reference: %s\n"</span>, b.name()); &#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    Derived d;
+    by_value(d);   <span class="ca-cm">// copies only the Base part: "sliced"</span>
+    by_ref(d);
+&#125;</pre></div><pre class="ca-out" data-ca-out="l_slicing"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra slicing.cpp -o slicing &amp;&amp; ./slicing</span>
+by value: Base
+by reference: Derived</pre></div><div><div class="ca-src"><div class="ca-fn">nonvirtual_dtor.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+
+<span class="ca-kw">struct</span> Base &#123;
+    ~Base() &#123; std::printf(<span class="ca-st">"~Base\n"</span>); &#125;          <span class="ca-cm">// NOT virtual</span>
+&#125;;
+<span class="ca-kw">struct</span> Derived : Base &#123;
+    <span class="ca-kw">int</span>* buf = <span class="ca-kw">new</span> <span class="ca-kw">int</span>[100];
+    ~Derived() &#123; <span class="ca-kw">delete</span>[] buf; std::printf(<span class="ca-st">"~Derived\n"</span>); &#125;
+&#125;;
+
+<span class="ca-kw">int</span> main() &#123;
+    Base* p = <span class="ca-kw">new</span> Derived;
+    <span class="ca-kw">delete</span> p;    <span class="ca-cm">// undefined behaviour: only ~Base runs here, buf leaks</span>
+&#125;</pre></div><pre class="ca-out" data-ca-out="l_nonvirtual_dtor"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall nonvirtual_dtor.cpp -o nonvirtual_dtor &amp;&amp; ./nonvirtual_dtor</span>
+~Base</pre></div></div>
+<p><b>Slicing</b>: passing a <code>Derived</code> by value as a <code>Base</code> copies only the base part; the copy forgets it was a <code>Derived</code>. Pass polymorphic objects by reference or pointer. <b>Non-virtual destructor</b>: deleting a <code>Derived</code> through a <code>Base*</code> ran only <code>~Base</code>, so the 400-byte buffer leaked; formally it is undefined behaviour. A base class meant for polymorphic use needs <code>virtual ~Base() = default;</code>.</p>
+<div class="ca-cost"><div><b>Problem it solves</b>Types with invariants, natural syntax for maths types, run-time polymorphism.</div><div><b>What it costs</b>Virtual: 8 bytes per object and an indirect, non-inlinable call.</div><div><b>Common mistakes</b>Missing <code>explicit</code> on one-argument constructors; slicing; non-virtual base destructor; forgetting <code>override</code> (it makes the compiler check that you really override something).</div></div>
+</section>
+
+<section id="ca-tmpl">
+<h2>8. Templates and concepts</h2>
+<p>Python functions accept anything with the right methods (duck typing), checked when the line runs. A C++ <b>template</b> is a pattern from which the compiler writes a separate function or class for each type you use it with (<b>instantiation</b>, or monomorphisation), checked at compile time. The generated code is as fast as if you had written each version by hand: no boxing, no dispatch.</p>
+<div class="ca-src"><div class="ca-fn">templates.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-cm">// One template, many functions: the compiler writes a copy per type used.</span>
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">typename</span> T&gt;
+T total(<span class="ca-kw">const</span> std::vector&lt;T&gt;&amp; xs) &#123;
+    T sum&#123;&#125;;
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> T&amp; x : xs) sum += x;
+    <span class="ca-kw">return</span> sum;
+&#125;
+
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">typename</span> K, <span class="ca-kw">typename</span> V&gt;
+<span class="ca-kw">struct</span> Pair &#123; K key; V value; &#125;;       <span class="ca-cm">// a class template</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    std::printf(<span class="ca-st">"%d\n"</span>, total(std::vector&lt;<span class="ca-kw">int</span>&gt;&#123;1, 2, 3&#125;));
+    std::printf(<span class="ca-st">"%.1f\n"</span>, total(std::vector&lt;<span class="ca-kw">double</span>&gt;&#123;0.5, 0.25&#125;));
+    std::printf(<span class="ca-st">"%s\n"</span>, total(std::vector&lt;std::string&gt;&#123;<span class="ca-st">"to"</span>, <span class="ca-st">"ken"</span>&#125;).c_str());
+    Pair&lt;std::string, <span class="ca-kw">long</span>&gt; p&#123;<span class="ca-st">"u0029"</span>, 9491&#125;;
+    std::printf(<span class="ca-st">"%s %ld\n"</span>, p.key.c_str(), p.value);
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_templates"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra templates.cpp -o templates &amp;&amp; ./templates</span>
+6
+0.8
+token
+u0029 9491</pre>
+<p>One template, three real functions in the object file:</p>
+<pre class="ca-out" data-ca-out="l_templates_nm"><span class="ca-cmd">$ clang++ -std=c++23 -O0 -c templates.cpp -o templates.o &amp;&amp; nm -C templates.o | grep " total&lt;"</span>
+0000000000000580 T std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt; total&lt;std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt; &gt;(std::__1::vector&lt;std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt;, std::__1::allocator&lt;std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt; &gt; &gt; const&amp;)
+0000000000000488 T double total&lt;double&gt;(std::__1::vector&lt;double, std::__1::allocator&lt;double&gt; &gt; const&amp;)
+0000000000000394 T int total&lt;int&gt;(std::__1::vector&lt;int, std::__1::allocator&lt;int&gt; &gt; const&amp;)</pre>
+<p>The cost shows up when the type does not fit. Without constraints, the error appears deep inside the template body, at the line that failed, and the compiler explains the whole chain of instantiations that led there. For a small template that is readable; for a standard algorithm it is not. Here is <code>std::sort</code> on a struct with no <code>&lt;</code>, against C++20's <code>std::ranges::sort</code>, which states its requirements as <b>concepts</b>:</p>
+<pre class="ca-out" data-ca-out="l_sort_err_count"><span class="ca-cmd">$ for f in sort_err rsort_err; do printf "%-10s %4s lines of diagnostics, %s errors\n" $f $(clang++ -std=c++23 -c $f.cpp -o /dev/null 2&gt;&amp;1 | wc -l) $(clang++ -std=c++23 -c $f.cpp -o /dev/null 2&gt;&amp;1 | grep -c " error: "); done</span>
+sort_err    308 lines of diagnostics, 20 errors
+rsort_err    34 lines of diagnostics, 1 errors</pre>
+<p>A <b>concept</b> is a named, compile-time predicate on types. Using it in a template's signature makes the compiler check it at the call, and the error names the requirement that failed:</p>
+<div class="ca-src"><div class="ca-fn">concept_err.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;vector&gt;</span>
+<span class="ca-cm">// A concept names the requirement: T must support += and start from T&#123;&#125;</span>
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">typename</span> T&gt;
+<span class="ca-kw">concept</span> Summable = <span class="ca-kw">requires</span>(T a, T b) &#123; T&#123;&#125;; a += b; &#125;;
+
+<span class="ca-kw">template</span> &lt;Summable T&gt;
+T total(<span class="ca-kw">const</span> std::vector&lt;T&gt;&amp; xs) &#123;
+    T sum&#123;&#125;;
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> T&amp; x : xs) sum += x;
+    <span class="ca-kw">return</span> sum;
+&#125;
+<span class="ca-kw">struct</span> Msg &#123; <span class="ca-kw">const</span> <span class="ca-kw">char</span>* text; &#125;;
+
+<span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;Msg&gt; msgs&#123;&#123;<span class="ca-st">"hi"</span>&#125;, &#123;<span class="ca-st">"there"</span>&#125;&#125;;
+    total(msgs);    <span class="ca-cm">// rejected at the call, with the reason</span>
+&#125;</pre></div>
+<pre class="ca-out ca-bad" data-ca-out="l_concept_err"><span class="ca-cmd">$ clang++ -std=c++23 -Wall -Wextra -c concept_err.cpp -o /dev/null</span>
+concept_err.cpp:16:5: error: no matching function for call to 'total'
+   16 |     total(msgs);    // rejected at the call, with the reason
+      |     ^~~~~
+concept_err.cpp:7:3: note: candidate template ignored: constraints not satisfied [with T = Msg]
+    7 | T total(const std::vector&lt;T&gt;&amp; xs) &#123;
+      |   ^
+concept_err.cpp:6:11: note: because 'Msg' does not satisfy 'Summable'
+    6 | template &lt;Summable T&gt;
+      |           ^
+concept_err.cpp:4:48: note: because 'a += b' would be invalid: no viable overloaded '+='
+    4 | concept Summable = requires(T a, T b) &#123; T&#123;&#125;; a += b; &#125;;
+      |                                                ^
+1 error generated.
+[exit code 1]</pre>
+<div class="ca-py"><div class="t">Python bridge</div>A concept is like a <code>typing.Protocol</code> that the compiler enforces at every call, and a template is like a generic function where the type checker is the compiler. The difference: Python runs one function for all types; C++ compiles one per type, which costs compile time and binary size.</div>
+<div class="ca-cost"><div><b>Problem it solves</b>Generic code at full speed (the standard library is almost all templates).</div><div><b>What it costs</b>Compile time, binary size, and template code must live in headers (the compiler needs the body to instantiate it).</div><div><b>Common mistakes</b>Unconstrained templates with unreadable errors; heavy template metaprogramming where a plain function would do.</div></div>
+</section>

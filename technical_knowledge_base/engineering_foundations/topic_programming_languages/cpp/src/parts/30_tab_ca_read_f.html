@@ -1,0 +1,94 @@
+
+<section id="ca-ver">
+<h2>14. Modern C++: where C++20, C++23 and C++26 stand (October 2026)</h2>
+<p>C++ is standardised by an ISO committee (WG21) on a three-year train: C++11, 14, 17, 20, 23, 26. Nothing old is removed, so "modern C++" is a subset you choose to write, the one this part teaches. Each compiler and standard library implements each standard gradually, and the two can differ: a feature needs both.</p>
+<h3>Ask for a standard, always</h3>
+<p>The default language version differs between compilers and even versions of one compiler. Measured here:</p>
+<pre class="ca-out" data-ca-out="l_std_default"><span class="ca-cmd">$ for c in /usr/bin/clang++ clang++ clang++-23; do printf "%-18s default __cplusplus = " $c; echo __cplusplus | $c -x c++ -E -P - | tail -n 1; done</span>
+/usr/bin/clang++   default __cplusplus = 199711L
+clang++            default __cplusplus = 201402L
+clang++-23         default __cplusplus = 201703L</pre>
+<p>(<code>199711L</code> is C++98, <code>201402L</code> C++14, <code>201703L</code> C++17.) Elsewhere: GCC 16 (released 2026-04-30) is the first major compiler to default to C++20 ({{GCC 16 changes|https://gcc.gnu.org/gcc-16/changes.html}}); upstream Clang has defaulted to C++17 since Clang 16 ({{Clang status|https://clang.llvm.org/cxx_status.html}}); MSVC still defaults to C++14 ({{/std|https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version}}). So pass <code>-std=c++20</code> or newer, or in CMake <code>target_compile_features(t PUBLIC cxx_std_20)</code>.</p>
+<h3>What each standard brought, and what works here</h3>
+<p>The standard way to ask a toolchain what it supports is the <b>feature-test macros</b> in <code>&lt;version&gt;</code>. This program prints them; "-" means not defined:</p>
+<div class="ca-two"><div><pre class="ca-out" data-ca-out="l_features17"><span class="ca-cmd">$ clang++ -std=c++26 features.cpp -o features17 &amp;&amp; ./features17</span>
+__cplusplus                    202400L
+__cpp_concepts                 202002
+__cpp_lib_ranges               202406L
+__cpp_lib_span                 202002L
+__cpp_lib_format               202110L
+__cpp_impl_coroutine           201902L
+__cpp_lib_jthread              201911L
+__cpp_lib_expected             202211L
+__cpp_lib_print                202207L
+__cpp_lib_mdspan               202406L
+__cpp_lib_ranges_to_container  202202L
+__cpp_lib_generator            -
+__cpp_lib_flat_map             202207L
+__cpp_lib_stacktrace           -
+__cpp_explicit_this_parameter  -
+__cpp_lib_modules              202207L
+__cpp_contracts                -
+__cpp_impl_reflection          -
+__cpp_lib_simd                 -
+__cpp_lib_senders              -
+__cpp_pack_indexing            202311L</pre></div><div><pre class="ca-out" data-ca-out="l_features23"><span class="ca-cmd">$ clang++-23 -std=c++26 features.cpp -o features23 &amp;&amp; ./features23</span>
+__cplusplus                    202400L
+__cpp_concepts                 202002
+__cpp_lib_ranges               202406L
+__cpp_lib_span                 202002L
+__cpp_lib_format               202110L
+__cpp_impl_coroutine           201902L
+__cpp_lib_jthread              201911L
+__cpp_lib_expected             202211L
+__cpp_lib_print                202207L
+__cpp_lib_mdspan               202406L
+__cpp_lib_ranges_to_container  202202L
+__cpp_lib_generator            -
+__cpp_lib_flat_map             202511L
+__cpp_lib_stacktrace           -
+__cpp_explicit_this_parameter  202110L
+__cpp_lib_modules              202207L
+__cpp_contracts                -
+__cpp_impl_reflection          -
+__cpp_lib_simd                 -
+__cpp_lib_senders              -
+__cpp_pack_indexing            202311L</pre></div></div>
+<div class="tw"><table><thead><tr><th>Standard</th><th>What matters for you</th><th>Status here (Apple clang 17 / LLVM clang 23)</th></tr></thead><tbody>
+<tr><td><b>C++20</b> (the baseline to write)</td><td>Concepts (section 8), ranges (9), <code>std::span</code>, <code>std::format</code>, <code>&lt;=&gt;</code> (7), coroutines (language machinery only), <code>std::jthread</code>, modules</td><td>All reported by both, modules aside (see below)</td></tr>
+<tr><td><b>C++23</b> (usable now)</td><td><code>std::expected</code> (11), <code>std::print</code>, <code>ranges::to</code> (9), <code>std::mdspan</code> (a multidimensional view over a flat buffer: the standard way to pass a tensor), <code>std::flat_map</code>, deducing <code>this</code>, <code>import std;</code>, <code>std::generator</code>, <code>std::stacktrace</code></td><td>Most reported by both; <code>std::generator</code> and <code>std::stacktrace</code> by neither; deducing <code>this</code> only by clang 23</td></tr>
+<tr><td><b>C++26</b> (technical work finished 2026-03-28)</td><td>Static <b>reflection</b> (P2996: code that inspects types at compile time, e.g. enum-to-string and bindings without macros), <b>contracts</b> (P2900: <code>pre</code>, <code>post</code>, <code>contract_assert</code>), <b><code>std::execution</code></b> (P2300: a standard model for asynchronous and parallel work), a <b>hardened standard library</b> (P3471), <b>erroneous behaviour</b> for uninitialised reads (P2795), <code>std::simd</code>, <code>std::inplace_vector</code>, <code>std::hive</code>, <code>&lt;linalg&gt;</code></td><td>Reflection, contracts, <code>std::execution</code> and <code>std::simd</code> reported by neither; Clang's status page lists reflection, contracts and P2795 as "No". GCC 16 implements reflection (behind <code>-freflection</code>), contracts and P2795</td></tr>
+</tbody></table></div>
+<p>Sources: {{Sutter's trip report, "C++26 is done"|https://herbsutter.com/2026/03/29/c26-is-done-trip-report-march-2026-iso-c-standards-meeting-london-croydon-uk/}} (reflection, contracts, <code>std::execution</code>, hardening, erroneous behaviour); {{cppreference's C++26 page|https://en.cppreference.com/w/cpp/26.html}} (paper numbers, the other library additions); {{GCC 16 changes|https://gcc.gnu.org/gcc-16/changes.html}} and {{Clang's C++ status|https://clang.llvm.org/cxx_status.html}} (compiler support). For any feature, {{cppreference's compiler support tables|https://en.cppreference.com/w/cpp/compiler_support}} are the place to check.</p>
+<p><b>Modules</b> replace textual <code>#include</code> with compiled interfaces (<code>import std;</code>), attacking the 55,000-line problem of section 1. The language feature is in C++20 and <code>import std</code> in C++23, but tooling still lags: GCC 16's notes say modules support "is still experimental and must be enabled by -fmodules", and CMake supports named modules since 3.28 but <code>import std</code> only behind an experimental gate ({{cmake-cxxmodules|https://cmake.org/cmake/help/latest/manual/cmake-cxxmodules.7.html}}). Headers remain the pragmatic default in 2026; llama.cpp uses them.</p>
+<div class="co warn"><div class="t">Corrections to the old "C++: modern practice and standards status" page</div><ul class="tight">
+<li>"C++26 was finalized in March 2026": the <i>technical work</i> finished on 2026-03-28 in London (Croydon); then comes the international ballot (DIS) and ISO publication, which was not confirmed as of 2026-10-05.</li>
+<li>"C++20 is the production baseline nearly everywhere": as a target, yes; as a default, no. Only GCC 16 defaults to C++20; Clang defaults to C++17, MSVC to C++14, and Apple clang 17 here to C++14 (measured above).</li>
+<li>"MSVC completes <code>/std:c++23</code> with Build Tools 14.52": not yet true. The current release is 14.51 in Visual Studio 2026 18.10.3 (2026-09-29) and Microsoft's documentation still lists <code>/std:c++23preview</code> (root page, Toolchain atlas corrections).</li>
+<li>"Pattern matching did NOT make it": confirmed in the sense that cppreference's C++26 feature list has no pattern matching.</li>
+<li>The old list of C++26 features is otherwise right; this page adds hardening and erroneous behaviour, the two that change day-to-day safety.</li>
+</ul></div>
+</section>
+
+<section id="ca-mist">
+<h2>15. Mistakes that catch experienced people, and a hygiene checklist</h2>
+<p>Each of these compiles. Most were shown above; the ones marked "gallery" crash or misbehave in the {{UB gallery|#t-ca-ub}}.</p>
+<details class="mist"><summary>A <code>string_view</code>, <code>span</code> or range view that outlives its owner</summary><div class="b">Views do not own. Initialising one from a temporary dangles at the semicolon (gallery). Range-for over a member of a temporary, <code>for (auto&amp; x : make().items())</code>, dangled until C++23 extended the lifetime of every temporary in the range-for initializer ({{P2718|https://wg21.link/P2718}}); the same expression outside a range-for still dangles, so the old page's "fixed for some cases in C++23, not all" stands.</div></details>
+<details class="mist"><summary>A reference, pointer or iterator into a vector, kept across <code>push_back</code></summary><div class="b">Growth reallocates and frees the old buffer (section 9; gallery). Use indices, or <code>reserve</code> first.</div></details>
+<details class="mist"><summary>Slicing a derived object into a base by value</summary><div class="b">Section 7. Pass polymorphic objects by reference or pointer.</div></details>
+<details class="mist"><summary>A public non-virtual destructor in a base class used through pointers</summary><div class="b">Only the base part is destroyed (section 7).</div></details>
+<details class="mist"><summary>Static initialisation order across files</summary><div class="b">Globals in different <code>.cpp</code> files are initialised in an unspecified order; one global's constructor that uses another may see it unconstructed. Use a function returning a reference to a function-local <code>static</code>, which is initialised on first use.</div></details>
+<details class="mist"><summary>Unsigned arithmetic going below zero: <code>for (size_t i = v.size() - 1; i &gt;= 0; --i)</code></summary><div class="b"><code>size_t</code> is unsigned: <code>i &gt;= 0</code> is always true and <code>0 - 1</code> wraps to 18,446,744,073,709,551,615. An empty vector makes even the first value huge. Mixing signed and unsigned in a comparison converts the signed side to unsigned (clang warns with <code>-Wextra</code>).</div></details>
+<details class="mist"><summary>Treating a data race as "sometimes a wrong value"</summary><div class="b">It is UB. The gallery's race printed 1098717 instead of 2000000 at <code>-O0</code> and the right answer at <code>-O2</code> (the optimiser turned the loop into one addition), so a test at <code>-O2</code> passes. Use <code>std::atomic</code> or a mutex; {{Part 2|#t-cb-read}} covers the memory model.</div></details>
+<details class="mist"><summary><code>shared_ptr</code> by reflex</summary><div class="b">Cycles leak; atomic counting slows single-threaded paths; ownership becomes unclear. <code>unique_ptr</code> first.</div></details>
+<details class="mist"><summary>Using an object after <code>std::move</code></summary><div class="b">Valid but unspecified (section 6). Assign to it or let it die.</div></details>
+<h3>Hygiene checklist</h3>
+<ul class="tight">
+<li>RAII everywhere; no naked <code>new</code>/<code>delete</code>; <code>unique_ptr</code> by default.</li>
+<li>Rule of zero; if you must write one special member, write all five, with <code>noexcept</code> moves.</li>
+<li>Parameters: <code>string_view</code> and <code>span&lt;const T&gt;</code> to read; never store them past the call without thought.</li>
+<li><code>const</code> by default; <code>constexpr</code> where a value can be computed at compile time.</li>
+<li><code>auto</code> for iterators, lambdas and long type names; concrete types at API boundaries.</li>
+<li>Build with <code>-std=c++20</code> or newer and <code>-Wall -Wextra</code> (<code>-Werror</code> in CI); ASan, UBSan and TSan in CI test runs; clang-format and clang-tidy; CMake targets with <code>PUBLIC</code>/<code>PRIVATE</code> properties, presets, and vcpkg or Conan.</li>
+</ul>
+</section>

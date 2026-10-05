@@ -1,0 +1,71 @@
+<section id="cb-s12">
+<h2>12. The ABI: C++'s binary contract</h2>
+<p>An <b>API</b> is a contract in source code: names, types, what functions do. An <b>ABI</b> (application binary interface) is the contract between already-compiled pieces of machine code: which registers carry arguments (section 5), how structs are laid out (section 3), how virtual tables and exceptions work, and what the symbols are called. Two object files work together only if they agree on all of it. Python programmers meet the ABI as "this wheel does not match your Python" or as a crash after mixing builds.</p>
+<h3>Name mangling</h3>
+<p>C has one function per name. C++ allows the same name in different namespaces and overloads with different parameter types, so the compiler encodes the namespace and the parameter types into the symbol, following the {{Itanium C++ ABI|https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling}} (used by clang and GCC on every platform except Windows, despite its name). <code>extern "C"</code> turns mangling off, which is why every C++ library meant to be called from another language exposes a C interface.</p>
+<pre data-src="abi.cpp"></pre>
+<pre class="cb-o" data-out="abi"></pre>
+<p>Read <code>__ZN9ggml_like3dotEPKfS1_i</code> as: <code>_Z</code> a mangled name (macOS adds one more underscore in front), <code>N ... E</code> a nested name made of <code>9ggml_like</code> (9 characters) and <code>3dot</code>, then the parameters: <code>PKf</code> pointer to const float, <code>S1_</code> the same type again, <code>i</code> int. The <code>double</code> overload differs only in <code>d</code>. <code>c_dot</code> is just <code>_c_dot</code>.</p>
+<h3>What breaks when you mix</h3>
+<ul>
+<li><b>Different standard libraries.</b> clang on macOS uses libc++; GCC on Linux uses libstdc++. Their <code>std::string</code>, <code>std::vector</code> and friends have different layouts, so a <code>std::string</code> cannot cross between code built against the two. Even within one library, flags that change layouts (debug iterators, <code>_GLIBCXX_USE_CXX11_ABI</code> on Linux) must match.</li>
+<li><b>Standard library designs that cannot be fixed.</b> Because programs compiled years ago still link against today's shared standard library, library vendors avoid any change to a type's layout or a function's mangled name; known-slow designs (<code>std::unordered_map</code>'s node-based buckets, <code>std::regex</code>) stay as they are for that reason.</li>
+<li><b>Headers and flags out of step.</b> Two translation units that see different definitions of the same struct (a different <code>#define</code>, packing pragma or alignment) break the one-definition rule: no error, just corrupted fields at run time.</li>
+<li><b>Mixing compilers</b> is fine through a C interface, risky through C++ types, and the reason C++ has no universal package of prebuilt binaries like PyPI's wheels ({{Part 1|#t-ca-read}} covers builds and package managers).</li>
+</ul>
+<p>Apple's ARM64 ABI differs from the standard Linux one in a few details (for example, how variadic arguments are passed): {{Writing ARM64 code for Apple platforms|https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms}}.</p>
+<div class="cb-py"><div class="t">In Python</div><code>ctypes</code> and <code>cffi</code> can call only C symbols, so they need <code>extern "C"</code>. pybind11 and nanobind compile C++ against CPython's own C ABI; a wheel built for one Python version works only on that version unless it uses the limited "abi3" stable ABI (the {{Rust page|n:3c65c17b0d0d8156bed9ead8a22f33b0}} covers abi3 wheels with PyO3).</div>
+</section>
+
+<section id="cb-s13">
+<h2>13. To the GPU: what changes</h2>
+<p>Everything above carries over to GPUs, with the dials turned. This page stops at the CPU; {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}} owns kernels, CUDA C++ and the GPU memory hierarchy.</p>
+<div class="tw"><table class="cb-t"><thead><tr><th>Idea on the CPU (this page)</th><th>Its GPU counterpart</th></tr></thead><tbody>
+<tr><td>A few large cores with big caches, branch predictors and out-of-order execution, built to make one thread fast</td><td>Thousands of simple lanes, built for throughput; little cache per lane, no out-of-order execution</td></tr>
+<tr><td>Latency hidden by caches and the prefetcher</td><td>Latency hidden by switching between many groups of threads while some wait for memory</td></tr>
+<tr><td>SIMD: one instruction on 4 lanes (NEON), written as vectors</td><td>SIMT: groups of 32 threads (a warp) run one instruction together, written as scalar code per thread</td></tr>
+<tr><td>Cache lines: read neighbours together</td><td>Coalescing: the threads of a warp should read neighbouring addresses</td></tr>
+<tr><td>A branch mispredicted costs a pipeline flush</td><td>Threads of a warp that take different branches run both paths, one after the other (divergence)</td></tr>
+<tr><td>Register blocking, cache tiling</td><td>Shared-memory tiling, tensor cores</td></tr>
+<tr><td>Roofline with about 100 GB/s and 0.5 TFLOP/s on this laptop's CPU</td><td>The same model at TB/s and hundreds of TFLOP/s: the ridge is further right, so LLM decode is even more memory-bound</td></tr>
+<tr><td>Atomics and memory orders between threads</td><td>The same, plus scopes (block, device, system)</td></tr>
+</tbody></table></div>
+<p>CUDA C++ is C++ with extensions; Parts 1 and 2 of this page are its prerequisites.</p>
+</section>
+
+<section id="cb-s14">
+<h2>14. Common mistakes</h2>
+<details class="mist"><summary>Timing a loop whose result is never used</summary><div class="b">The optimiser deletes it and you measure nothing. Use the result (print it, or pass it to a <code>DoNotOptimize</code>/<code>keep</code> barrier) and look at the assembly.</div></details>
+<details class="mist"><summary>"Float sums vectorise automatically"</summary><div class="b">Not without permission to reorder additions (<code>-ffast-math</code>, <code>-fassociative-math</code> or a local pragma). Integer sums do. Section 6 measured a 13x gap between the two.</div></details>
+<details class="mist"><summary>Padding to 64 bytes on Apple silicon</summary><div class="b">Lines are 128 bytes here; 64-byte padding still left a 2x false-sharing penalty. <code>std::hardware_destructive_interference_size</code> said 64.</div></details>
+<details class="mist"><summary>Using relaxed atomics, or plain variables, to publish data</summary><div class="b">Correct on x86 by luck of its strong ordering, wrong on ARM: the reader can see the flag before the data. Use release on the store and acquire on the load (or a mutex).</div></details>
+<details class="mist"><summary>Walking a matrix against its layout</summary><div class="b">Columns of a row-major matrix cost 50x here. Swap the loops, transpose once, or store the other order.</div></details>
+<details class="mist"><summary>A vector of pointers where a vector of values would do</summary><div class="b">Each element is a separate allocation and a pointer chase; <code>std::vector&lt;T&gt;</code> beats <code>std::vector&lt;std::unique_ptr&lt;T&gt;&gt;</code> unless you need stable addresses or polymorphism.</div></details>
+<details class="mist"><summary>Assuming a debug build's speed means anything</summary><div class="b"><code>-O0</code> keeps every variable in memory and calls every function; section 5's loop went from n calls to a formula. Benchmark optimised builds, with debug info (<code>-O2 -g</code>) for profiling.</div></details>
+<details class="mist"><summary>Optimising FLOPs in a memory-bound kernel</summary><div class="b">Matrix-vector work (LLM decode) is limited by bytes; faster arithmetic does nothing. Fewer bytes (quantisation) or more reuse (batching) does.</div></details>
+<details class="mist"><summary>Reading a vectorisation remark as a guarantee</summary><div class="b">The remark said "vectorized" for a loop whose additions were still serial. The assembly decides.</div></details>
+</section>
+
+<section id="cb-s15">
+<h2>Further reading for Part 2</h2>
+<div class="grid">
+<div class="sp"><div class="n">{{Latency ladder|#t-cb-ladder}}, {{Cache simulator|#t-cb-cache}}, {{SIMD lanes|#t-cb-simd}}, {{Roofline|#t-cb-roof}}</div><p>This part's labs. <span class="rt">5 minutes each</span></p></div>
+<div class="sp"><div class="n">{{Part 1: The language|#t-ca-read}} and {{Part 3: Reading llama.cpp|#t-cl-read}}</div><p>Lifetimes, move semantics and builds; then this part's ideas in a real inference engine.</p></div>
+<div class="sp"><div class="n">{{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}</div><p>The root: section 5 (memory and lifetimes), section 9 (concurrency), and the Benchmark tab. <span class="rt">about 50 minutes</span></p></div>
+<div class="sp"><div class="n">{{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}</div><p>Where section 13 continues: kernels, GPU memory, tiling.</p></div>
+<div class="sp"><div class="n">{{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}</div><p>The SWE topic's page on measuring and load; profiling services rather than loops.</p></div>
+<div class="sp"><div class="n">{{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}</div><p>Why decode is memory-bound, batching, KV cache.</p></div>
+<div class="sp"><div class="n">{{Numerical computing|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}</div><p>Floating-point rounding, summation error and why order matters (section 6's 23% error).</p></div>
+<div class="sp"><div class="n">{{What every programmer should know about memory (Drepper, 2007)|https://people.freebsd.org/~lstewart/articles/cpumemory.pdf}}</div><p>The classic on caches, TLBs and NUMA; old numbers, lasting ideas. <span class="rt">about 4 hours</span></p></div>
+<div class="sp"><div class="n">{{Algorithms for Modern Hardware (Slotin)|https://en.algorithmica.org/hpc/}}</div><p>A free book on exactly this part's subject, with measured examples: SIMD, caches, branchless code. <span class="rt">about 10 hours; chapters stand alone</span></p></div>
+<div class="sp"><div class="n">{{Agner Fog's optimisation manuals|https://www.agner.org/optimize/}}</div><p>The reference for x86 code generation and microarchitecture (the old page's Stage 3 pick). <span class="rt">about 5 hours for the C++ manual</span></p></div>
+<div class="sp"><div class="n">{{Dougall Johnson's Apple Firestorm tables|https://dougallj.github.io/applecpu/firestorm.html}}</div><p>Measured latencies and units of the M1's performance core, used in section 6. <span class="rt">reference</span></p></div>
+<div class="sp"><div class="n">{{Acquire and release semantics (Preshing)|https://preshing.com/20120913/acquire-and-release-semantics/}}</div><p>The clearest short explanation of memory orders. <span class="rt">15 minutes</span></p></div>
+<div class="sp"><div class="n">{{Compiler Explorer|https://godbolt.org/}}</div><p>Section 5's habit, in the browser. <span class="rt">no reading time</span></p></div>
+<div class="sp"><div class="n">{{Roofline paper (Williams et al., 2009)|https://dl.acm.org/doi/10.1145/1498765.1498785}}</div><p>The model of section 9. <span class="rt">45 minutes</span></p></div>
+<div class="sp"><div class="n">{{Data-Oriented Design and C++ (Acton, CppCon 2014)|https://www.youtube.com/watch?v=rX0ItVEVjHc}}</div><p>The talk that made AoS against SoA mainstream. <span class="rt">1 hour 30 minutes</span></p></div>
+<div class="sp"><div class="n">{{Efficiency with Algorithms, Performance with Data Structures (Carruth, CppCon 2014)|https://www.youtube.com/watch?v=fHNmRkzxHWs}}</div><p>Why contiguous containers win, from the old page's list of CppCon performance talks. <span class="rt">1 hour 15 minutes</span></p></div>
+<div class="sp"><div class="n">Optimized C++ (Guntheroth, O'Reilly 2016)</div><p>Book: allocation, containers and profiling in practice (the old page's Stage 3 pick). <span class="rt">about 9 hours 30 minutes</span></p></div>
+</div>
+</section>
+</div>
