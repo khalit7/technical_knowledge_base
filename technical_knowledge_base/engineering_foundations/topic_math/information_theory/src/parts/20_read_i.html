@@ -1,0 +1,40 @@
+<section id="it-s7">
+<h2>7. Forward against reverse KL: covering every mode or choosing one</h2>
+<p class="raise"><b>The question.</b> If KL is not symmetric, which way round should you minimise it, and what does each choice do to the model you get?</p>
+
+<h3>The picture: fit one bell curve to a two-humped truth</h3>
+<p>The truth \(p\) has two humps, \(\tfrac12 \mathcal{N}(-2, 0.6^2) + \tfrac12 \mathcal{N}(2, 0.6^2)\). The model \(q\) is a single Gaussian with mean \(\mu\) and standard deviation \(\sigma\). Start both fits from the same place (\(\mu = 1, \sigma = 1\)) and run gradient descent on each objective: the top run minimises the forward KL \(D_{\mathrm{KL}}(p \Vert q)\), the bottom run the reverse KL \(D_{\mathrm{KL}}(q \Vert p)\).</p>
+<div class="card" id="it-fr-card">
+<div class="seg" id="it-fr-seg"><button data-m="both" class="on">Both, stacked</button><button data-m="fwd">Forward only</button><button data-m="rev">Reverse only</button></div>
+<div id="it-fr" class="an-svg"></div>
+<div class="an-ctl" id="it-fr-ctl"></div>
+<div class="an-cap" id="it-fr-cap"></div>
+<div class="an-cnt" id="it-fr-cnt"></div>
+<p class="small mute">Computed on a grid of 801 points from \(-8\) to 8; gradients by central differences on \((\mu, \ln\sigma)\), step size 0.1, 200 steps. The same computation in <code>src/recompute.py</code> gives the end points quoted below.</p>
+</div>
+
+<h3>Why they differ: where each one takes its average</h3>
+<ul>
+<li><b>Forward</b>, \(D_{\mathrm{KL}}(p \Vert q) = \mathbb{E}_{x \sim p}\big[\log \frac{p(x)}{q(x)}\big]\), averages over the <b>truth</b>. Wherever the truth has mass and the model has almost none, \(\log \frac{p}{q}\) is huge. So the model is forced to put some probability everywhere the data goes: <dfn>mode-covering</dfn> (also called mean-seeking, or zero-avoiding). Its weakness: to cover both humps with one bell, it also covers the valley between them, where the truth has almost nothing.</li>
+<li><b>Reverse</b>, \(D_{\mathrm{KL}}(q \Vert p) = \mathbb{E}_{x \sim q}\big[\log \frac{q(x)}{p(x)}\big]\), averages over the <b>model</b>. Wherever the model puts mass and the truth has almost none, it pays heavily; where the truth has mass the model ignores, it pays nothing, because those points are never averaged over. So the model picks one hump and fits it tightly: <dfn>mode-seeking</dfn> (or zero-forcing).</li>
+</ul>
+<div class="nums"><div class="t">The numbers (src/recompute.py)</div>
+<ul class="tight">
+<li><b>Forward fit</b>: \(\mu = 0.009, \sigma = 2.088\). It converges to <dfn>moment matching</dfn>: the mean and variance of \(p\), \(\mu = 0\) and \(\sigma = \sqrt{0.6^2 + 2^2} = 2.088\). It puts 18.6% of its mass in the valley \(|x| \lt 0.5\), where the truth has 0.6%. Its divergences: forward 0.555 nats, reverse 1.267.</li>
+<li><b>Reverse fit</b>: \(\mu = 1.997, \sigma = 0.605\), sitting on the right hump. Reverse KL 0.692 nats, almost exactly \(\ln 2 = 0.693\): on its hump \(q(x) \approx 2p(x)\), because \(p\) gives that hump only half its mass. Forward KL of this fit is 10.23 nats: it ignores half the data. Started at \(\mu = -1\) instead, it lands on the left hump (the problem is symmetric): the reverse objective has a local minimum at each hump.</li>
+</ul></div>
+<div class="der"><b>Why the forward fit matches moments</b> (for a Gaussian \(q\)):<ol>
+<li>\(D_{\mathrm{KL}}(p \Vert q) = -H(p) - \mathbb{E}_p[\ln q(x)]\), and \(H(p)\) does not depend on \(\mu, \sigma\).</li>
+<li>\(\ln q(x) = -\tfrac12 \ln(2\pi\sigma^2) - \frac{(x - \mu)^2}{2\sigma^2}\), so \(-\mathbb{E}_p[\ln q] = \tfrac12 \ln(2\pi\sigma^2) + \frac{\mathbb{E}_p[(x-\mu)^2]}{2\sigma^2}\).</li>
+<li>Derivative in \(\mu\): \(-\frac{\mathbb{E}_p[x - \mu]}{\sigma^2} = 0\), so \(\mu = \mathbb{E}_p[x]\).</li>
+<li>Derivative in \(\sigma\): \(\frac{1}{\sigma} - \frac{\mathbb{E}_p[(x-\mu)^2]}{\sigma^3} = 0\), so \(\sigma^2 = \mathrm{Var}_p(x)\).</li>
+</ol>This is maximum likelihood for a Gaussian: the fitted mean is the data mean and the fitted variance the data variance, whatever shape the data has.</div>
+
+<h3>Where each direction shows up</h3>
+<ul>
+<li><b>Maximum likelihood is forward KL.</b> Training a language model on cross-entropy minimises \(D_{\mathrm{KL}}(\text{data} \Vert \text{model})\), so it learns to put some probability on everything the data does. That is good for coverage; it is also the usual explanation (an argument, not a measurement) for why pure sampling from a pretrained model wanders into low-probability text, and why decoding tricks such as top-p cut the tail ({{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}).</li>
+<li><b>Variational inference is reverse KL.</b> The evidence lower bound (ELBO) is raised by lowering \(D_{\mathrm{KL}}(q(z) \Vert p(z \mid x))\) (section 13): the approximate posterior hugs one mode and underestimates uncertainty. MacKay's Figure 33.6 shows the same effect for a correlated two-dimensional Gaussian: the reverse-KL fit is too narrow ({{ITILA ch. 33|https://www.inference.org.uk/mackay/itila/}}).</li>
+<li><b>RLHF's KL penalty is reverse KL</b>, \(D_{\mathrm{KL}}(\pi \Vert \pi_{\text{ref}})\), averaged over the policy's own samples. It punishes the policy for saying things the reference finds unlikely, and does not punish it for dropping things the reference would say: one mechanism behind the narrower, less diverse outputs of aligned models (section 13).</li>
+</ul>
+<div class="co key"><div class="t">Choosing a direction</div>Forward KL when missing a mode is the worse failure (a density model, a speech recogniser that must not rule out a word). Reverse KL when putting mass where the truth has none is the worse failure (a policy that must not say unacceptable things), or when you can sample from your approximation and evaluate the target only up to a constant (the variational-inference case, where \(p(z \mid x)\) is known only up to \(p(x)\)).</div>
+</section>

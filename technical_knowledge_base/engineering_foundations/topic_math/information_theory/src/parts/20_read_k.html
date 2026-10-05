@@ -1,0 +1,33 @@
+<section id="it-s9">
+<h2>9. InfoNCE: a classification loss that bounds mutual information, up to \(\ln N\)</h2>
+<p class="raise"><b>The question.</b> Contrastive models (CPC, SimCLR, CLIP) are trained to pick the matching pair out of a batch. What does that have to do with mutual information, and why do they want batches of tens of thousands?</p>
+
+<h3>The words, then the formula</h3>
+<p>Take an anchor \(x\) (an image, a context window) and \(N\) candidates \(y_1, \dots, y_N\): one <dfn>positive</dfn> \(y^+\) that truly goes with \(x\) (its caption, a later frame) and \(N - 1\) <dfn>negatives</dfn>, usually the other items in the batch. A learned score \(f(x, y)\) rates each candidate. The <dfn>InfoNCE</dfn> loss is the cross-entropy of picking the positive with a softmax over the scores:</p>
+\[ L_{\text{NCE}} = -\,\mathbb{E}\left[\log \frac{e^{f(x, y^+)}}{\sum_{j=1}^{N} e^{f(x, y_j)}}\right] \]
+<dl class="sym">
+<dt>\(f(x, y)\)</dt><dd>the <dfn>critic</dfn>: a similarity score, often a scaled cosine similarity of two embeddings.</dd>
+<dt>\(N\)</dt><dd>the number of candidates, positive included.</dd>
+<dt>\(\mathbb{E}\)</dt><dd>the average over anchors and sampled candidate sets.</dd>
+</dl>
+<p class="plain">In plain words: it is an \(N\)-way classification loss whose "classes" are the candidates in the batch. And it certifies information: \(I(X; Y) \ge \ln N - L_{\text{NCE}}\) ({{van den Oord et al. 2018, §2.3|https://arxiv.org/abs/1807.03748}}). Their derivation used an approximation; {{Poole et al. 2019 (eq. 10 and footnote 2)|https://arxiv.org/abs/1905.06922}} prove the bound exactly and show that the best critic is the log density ratio \(\log \frac{p(y \mid x)}{p(y)}\) plus any function of \(x\) alone (the constant cancels inside the softmax).</p>
+<div class="nums"><div class="t">The root's example, and the old page's</div>
+<ul class="tight">
+<li><b>The tiny model as a contrastive scorer</b> ({{root page, "Cross-entropy wears four hats"|n:3c65c17b0d0d81cdb851c0835b25a538}}): read cat as the positive and dog, sat as negatives with scores 2, 1, 0. The loss is \(-\ln 0.665 = 0.408\) nats and the bound gives \(I \ge \ln 3 - 0.408 = 1.099 - 0.408 = 0.691\) nats. With sat as the positive the loss is 2.408 and the bound is negative: it certifies nothing.</li>
+<li><b>\(N = 4\)</b>, positive scored 2.0, three negatives 0.0: the positive's probability is \(e^2/(e^2 + 3) = 7.389 / 10.389 = 0.711\), the loss \(-\ln 0.711 = 0.341\) nats, and \(I \ge \ln 4 - 0.341 = 1.386 - 0.341 = 1.046\) nats (1.51 bits).</li>
+</ul></div>
+
+<h3>The ceiling: the bound can never exceed \(\ln N\)</h3>
+<p>A loss is never negative, so \(\ln N - L_{\text{NCE}} \le \ln N\). With 4 candidates, even a perfect critic with loss 0 certifies at most \(\ln 4 = 1.386\) nats (2 bits). When the true mutual information is larger than \(\ln N\), the bound cannot see it: Poole et al. (§2.3, with \(K\) for \(N\)): "\(I_{\text{NCE}}\) is upper bounded by \(\log K\), meaning that this bound will be loose when \(I(X; Y) > \log K\)". The chart computes the bound exactly as defined, with the best possible critic, for two correlated Gaussians whose mutual information is known in closed form, \(I = -\tfrac12 \ln(1 - \rho^2)\):</p>
+<div class="card" id="it-nce-card">
+<div class="seg" id="it-nce-seg"><button data-m="0">ρ = 0.5 (0.144 nats)</button><button data-m="1">ρ = 0.9 (0.830)</button><button data-m="2">ρ = 0.99 (1.959)</button><button data-m="3">ρ = 0.999 (3.108)</button><button data-m="4" class="on">ρ = 0.99999 (5.410)</button></div>
+<div id="it-nce" class="an-svg"></div>
+<div class="leg"><span style="--sw:var(--c2)">estimate ln N − L</span><span style="--sw:var(--mute)">ln N, the ceiling (dashed)</span><span style="--sw:var(--c3)">true I</span></div>
+<div id="it-nce-tab" class="tw"></div>
+<p class="small mute">\(x \sim \mathcal{N}(0,1)\), \(y = \rho x + \sqrt{1-\rho^2}\,\varepsilon\). Critic \(f(x, y) = \log p(y \mid x) - \log p(y)\), the optimal one. For each \(N\), 2,048 anchors in batches of \(N\) (two batches at \(N = 1{,}024\)); seeded random numbers (mulberry32, seed 7) identical in this page and in <code>src/recompute.py</code>. Dots: the estimate \(\ln N - L_{\text{NCE}}\); dashed: \(\ln N\); flat line: the true \(I\).</p>
+</div>
+<p>Two lessons in one chart. With weak dependence (\(\rho = 0.5\)) every batch size gets close to the truth, from below. With strong dependence (\(\rho = 0.99999\), 5.41 nats) the estimate rides the \(\ln N\) ceiling until \(N\) is in the hundreds: at \(N = 16\) it reports 2.73 nats, at 1,024 it reports 5.20. A small batch does not just add noise; it caps what the loss can certify.</p>
+<p>The ceiling is not a quirk of InfoNCE. {{McAllester and Stratos (2020)|https://arxiv.org/abs/1811.04251}} prove that "any distribution-free high-confidence lower bound on mutual information estimated from N samples cannot be larger than O(ln N)": without assumptions about the distribution, no estimator can certify much more than \(\ln N\) from \(N\) samples.</p>
+<div class="nums"><div class="t">CLIP's batch</div>CLIP trains with 32,768 image-text pairs per batch, so each direction is a 32,768-way classification and the ceiling is \(\ln 32{,}768 = 10.4\) nats (15 bits). Its loss is symmetric (image to text and text to image) and its temperature, which divides the similarities before the softmax, is learned as a log-parameterised scalar initialised to 0.07 and clipped so the logits are never scaled by more than 100 ({{Radford et al. 2021, §2.3 and §2.5|https://arxiv.org/abs/2103.00020}}; the {{CLIP page|n:3c65c17b0d0d8194a85dfc5f3bf3f799}} trains a toy one).</div>
+<div class="use"><div class="t">What it is used for in ML</div>Training image-text encoders (CLIP), sentence embeddings (SimCSE), self-supervised vision (SimCLR, MoCo), and retrieval models; the {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}} page runs InfoNCE on a real batch. Reading a reported "mutual information" estimate: check the batch size first; any value near \(\ln N\) is the ceiling talking.</div>
+</section>
