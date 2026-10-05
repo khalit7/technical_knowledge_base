@@ -61,7 +61,7 @@ Saved verbatim (read-only fetch, extracted by `save_fetch.py` from the agent tra
 - MI example: H(X,Y) 1.722, I 0.278, H(X|Y) 0.722; X, X^2: I = 0.918 bits: **verified**.
 - Perplexity and BPB example (7.39, 4.95, 0.721): **verified**. Pile 0.29335 tokens per byte, 0.846 BPB: **verified** (Gao et al. 2020).
 - enwik8 = first 10^8 bytes of the 3 March 2006 Wikipedia dump: **verified** (LTCB page).
-- Deletang et al. 43.4% / 16.4% vs PNG 58.5% / FLAC 30.3%: **verified** (raw rates that ignore model size; say so if carried).
+- Deletang et al. vs PNG 58.5% / FLAC 30.3%: **corrected** (2026-10-05). The old page's 43.4% / 16.4% are the abstract's figures; Table 1 gives 48.0% (ImageNet) and 21.0% (LibriSpeech) for Chinchilla 70B in both arXiv versions (raw rates that ignore model size; say so if carried, and cite Table 1).
 - InfoNCE example N = 4: p 0.711, loss 0.341, bound 1.046 nats (1.51 bits), ceiling ln 4: **verified**. CPC bound: **verified**.
 - CLIP batch 32,768 (ceiling 10.4 nats, 15 bits); temperature init 0.07, logit scale capped at 100: **verified** (Radford et al. 2021).
 - 2.0 nats = 2.885 bits: **verified**.
