@@ -1,0 +1,23 @@
+Side experiments on the Apple M1 Pro GPU, 2026-10-05, MLX 0.32.3, run while developing the kernels (single runs, not
+part of the three recorded runs; quoted on the page only where stated). Scripts were scratch files; their outputs, verbatim:
+
+1) GELU epilogue variants, M = N = 4096, K = 1024 (median ms; last column = max |difference| from the precise::tanh version)
+plain 9.997858398128301 None
+precise 11.298633203841746 0.0
+fast 10.017541598062962 4.76837158203125e-07
+expform 10.21116659976542 4.859102773480117e-07
+biasonly 9.982416604179889 5.109737396240234
+   -> the page uses fast::tanh (error about 5e-7); the precise version is kept as a recorded lesson case (Fp).
+   ("biasonly" skips GELU, so its difference is the GELU itself, not an error.)
+
+2) The bug that passed: the first RMS_ONLY kernel computed its loop count as C/4/256 = 0 for rows of 256 floats and wrote
+   nothing; the harness reported "RMSNorm then matmul, ours separate (K=256) 2.720 ms err 3.802130740471199e-06" (pass).
+   Fixed (grid-stride loop over the row) before the recorded runs; measure.py now empties MLX's buffer cache before checks.
+
+3) Split-KV at S = 8: first seen in the recorded runs (6.05 ms at L = 65536); a quick check with L = 66048 gave
+65536 4 1.727 / 65536 8 5.316 / 65536 16 3.566 / 66048 4 1.845 / 66048 8 1.991 / 66048 16 2.07
+   -> made into the recorded "camp" group (camp_1..3.json).
+
+4) 4-bit GEMV, rows per SIMD-group R and threadgroup size (ms): R=1 0.439, R=2 0.531, R=4 0.790; tg 64 0.634, 128 0.895,
+   256 0.573, 512 0.429; MLX quantized_matmul 0.402. Noisy (shared machine); not used on the page except as the reason
+   only the one-row-per-SIMD-group kernel was kept.
