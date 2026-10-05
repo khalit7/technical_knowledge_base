@@ -1,0 +1,280 @@
+
+<section id="ra-conc">
+<h2>16. Threads without data races</h2>
+<p>A <dfn>data race</dfn> is two threads touching the same memory at the same time, at least one of them writing, with nothing ordering them. Updates get lost or values tear. In CPython the GIL used to hide most of these; free-threaded Python 3.14 does not, and an unsynchronised counter there loses updates (measured on the {{Python page|n:3cd5c17b0d0d81b28acdea39e7a4d998}}). Rust makes data races a <b>compile error</b> in safe code, by applying section 5's rule across threads: shared data may be read by many threads, and changed only through a type that synchronises (a lock or an atomic).</p>
+<p>The obvious Python translation, eight threads incrementing one counter, does not compile, and the three errors are the three problems:</p>
+<div class="ra-src"><div class="ra-fn">race_err.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::thread;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> counter = 0u64;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> hs = <span class="ra-mac">vec!</span>[];
+    <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..8 &#123;
+        hs.push(thread::spawn(|| <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..100_000 &#123; counter += 1; &#125;));
+    &#125;
+    <span class="ra-kw">for</span> h <span class="ra-kw">in</span> hs &#123; h.join().unwrap(); &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;counter&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_race_err">
+<span class="ra-cmd">$ rustc --edition 2024 race_err.rs</span>
+error[E0373]: closure may outlive the current function, but it borrows `counter`, which is owned by the current function
+ --&gt; race_err.rs:7:31
+  |
+7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                               ^^                       ------- `counter` is borrowed here
+  |                               |
+  |                               may outlive borrowed value `counter`
+  |
+note: function requires argument type to outlive `'static`
+ --&gt; race_err.rs:7:17
+  |
+7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `counter` (and any other referenced variables), use the `move` keyword
+  |
+7 |         hs.push(thread::spawn(move || for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                               ++++
+</pre><details class="ra-more"><summary>show the remaining 34 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_race_err">
+error[E0499]: cannot borrow `counter` as mutable more than once at a time
+ --&gt; race_err.rs:7:31
+  |
+7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                 --------------^^---------------------------------------
+  |                 |             |                        |
+  |                 |             |                        borrows occur due to use of `counter` in closure
+  |                 |             `counter` was mutably borrowed here in the previous iteration of the loop
+  |                 argument requires that `counter` is borrowed for `'static`
+  |
+note: requirement that the value outlives `'static` introduced here
+ --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:128:14
+
+error[E0502]: cannot borrow `counter` as immutable because it is also borrowed as mutable
+  --&gt; race_err.rs:10:16
+   |
+ 7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+   |                 -------------------------------------------------------
+   |                 |             |                        |
+   |                 |             |                        first borrow occurs due to use of `counter` in closure
+   |                 |             mutable borrow occurs here
+   |                 argument requires that `counter` is borrowed for `'static`
+...
+10 |     println!("&#123;counter&#125;");
+   |                ^^^^^^^ immutable borrow occurs here
+   |
+note: requirement that the value outlives `'static` introduced here
+  --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:128:14
+
+error: aborting due to 3 previous errors
+
+Some errors have detailed explanations: E0373, E0499, E0502.
+For more information about an error, try `rustc --explain E0373`.
+[exit code 1]</pre></details>
+<p>E0373: the thread may outlive <code>counter</code> (a spawned thread is not joined automatically). E0499: eight closures would each hold <code>&amp;mut counter</code> at once. Scoped threads fix the first problem but not the second, which is the data race itself:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_race_scope_err">
+<span class="ra-cmd">$ rustc --edition 2024 race_scope_err.rs</span>
+error[E0499]: cannot borrow `counter` as mutable more than once at a time
+ --&gt; race_scope_err.rs:7:21
+  |
+5 |     thread::scope(|s| &#123;
+  |                    - has type `&amp;'1 Scope&lt;'1, '_&gt;`
+6 |         for _ in 0..8 &#123;
+7 |             s.spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;);
+  |             --------^^---------------------------------------
+  |             |       |                        |
+  |             |       |                        borrows occur due to use of `counter` in closure
+  |             |       `counter` was mutably borrowed here in the previous iteration of the loop
+  |             argument requires that `counter` is borrowed for `'1`
+  |
+note: requirement that the value outlives `'1` introduced here
+ --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/scoped.rs:203:34
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0499`.
+[exit code 1]</pre>
+<p>Two marker traits carry the rule. They are implemented automatically by the compiler for types whose parts qualify ({{std::marker::Send|https://doc.rust-lang.org/std/marker/trait.Send.html}}):</p>
+<ul>
+<li><code>Send</code>: a value of this type may be moved to another thread.</li>
+<li><code>Sync</code>: a <code>&amp;T</code> may be shared between threads (precisely, <code>T</code> is <code>Sync</code> if <code>&amp;T</code> is <code>Send</code>).</li>
+</ul>
+<p><code>Rc</code> is neither, because two threads updating its non-atomic counter at once would be a race; <code>Arc</code> uses atomic updates and is both. Try to send an <code>Rc</code>:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_rc_thread_err">
+<span class="ra-cmd">$ rustc --edition 2024 rc_thread_err.rs</span>
+error[E0277]: `Rc&lt;Vec&lt;i32&gt;&gt;` cannot be sent between threads safely
+ --&gt; rc_thread_err.rs:7:27
+  |
+7 |     let h = thread::spawn(move || s2.len());
+  |             ------------- -------^^^^^^^^^
+  |             |             |
+  |             |             `Rc&lt;Vec&lt;i32&gt;&gt;` cannot be sent between threads safely
+  |             |             within this `&#123;closure@rc_thread_err.rs:7:27: 7:34&#125;`
+  |             required by a bound introduced by this call
+  |
+  = help: within `&#123;closure@rc_thread_err.rs:7:27: 7:34&#125;`, the trait `Send` is not implemented for `Rc&lt;Vec&lt;i32&gt;&gt;`
+note: required because it's used within this closure
+ --&gt; rc_thread_err.rs:7:27
+  |
+7 |     let h = thread::spawn(move || s2.len());
+  |                           ^^^^^^^
+note: required by a bound in `spawn`
+ --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:125:0</pre><details class="ra-more"><summary>show the remaining 5 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_rc_thread_err">
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0277`.
+[exit code 1]</pre></details>
+<p>The working toolbox, every result exact:</p>
+<div class="ra-src"><div class="ra-fn">threads.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::sync::atomic::&#123;AtomicU64, Ordering&#125;;
+<span class="ra-kw">use</span> std::sync::mpsc;
+<span class="ra-kw">use</span> std::sync::&#123;Arc, Mutex&#125;;
+<span class="ra-kw">use</span> std::thread;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-cm">// 1. spawn + join; `move` gives the thread its own copy of what it uses</span>
+    <span class="ra-kw">let</span> docs = <span class="ra-mac">vec!</span>[<span class="ra-st">"a b c"</span>, <span class="ra-st">"d e"</span>, <span class="ra-st">"f"</span>];
+    <span class="ra-kw">let</span> handles: Vec&lt;_&gt; = docs.into_iter().enumerate().map(|(i, d)| &#123;
+        thread::spawn(<span class="ra-kw">move</span> || (i, d.split_whitespace().count()))
+    &#125;).collect();
+    <span class="ra-kw">let</span> counts: Vec&lt;_&gt; = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"spawned: &#123;counts:?&#125;"</span>);
+
+    <span class="ra-cm">// 2. scoped threads may borrow local data, because they are joined before the scope ends</span>
+    <span class="ra-kw">let</span> data = <span class="ra-mac">vec!</span>[1u64; 1_000_000];
+    <span class="ra-kw">let</span> (left, right) = data.split_at(data.len() / 2);
+    <span class="ra-kw">let</span> total = thread::scope(|s| &#123;
+        <span class="ra-kw">let</span> a = s.spawn(|| left.iter().sum::&lt;u64&gt;());
+        <span class="ra-kw">let</span> b = s.spawn(|| right.iter().sum::&lt;u64&gt;());
+        a.join().unwrap() + b.join().unwrap()
+    &#125;);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"scoped sum: &#123;total&#125;"</span>);
+
+    <span class="ra-cm">// 3. shared mutable state: Arc (shared ownership across threads) + Mutex (one writer at a time)</span>
+    <span class="ra-kw">let</span> counter = Arc::new(Mutex::new(0u64));
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> hs = <span class="ra-mac">vec!</span>[];
+    <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..8 &#123;
+        <span class="ra-kw">let</span> c = Arc::clone(&amp;counter);
+        hs.push(thread::spawn(<span class="ra-kw">move</span> || <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..100_000 &#123; *c.lock().unwrap() += 1; &#125;));
+    &#125;
+    <span class="ra-kw">for</span> h <span class="ra-kw">in</span> hs &#123; h.join().unwrap(); &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"mutex counter: &#123;&#125; (expected 800000)"</span>, *counter.lock().unwrap());
+
+    <span class="ra-cm">// 4. an atomic does the same without a lock</span>
+    <span class="ra-kw">let</span> hits = Arc::new(AtomicU64::new(0));
+    thread::scope(|s| <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..8 &#123; <span class="ra-kw">let</span> h = &amp;hits; s.spawn(<span class="ra-kw">move</span> || <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..100_000 &#123; h.fetch_add(1, Ordering::Relaxed); &#125;); &#125;);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"atomic counter: &#123;&#125;"</span>, hits.load(Ordering::Relaxed));
+
+    <span class="ra-cm">// 5. channels: send values from many producers to one consumer</span>
+    <span class="ra-kw">let</span> (tx, rx) = mpsc::channel();
+    <span class="ra-kw">for</span> id <span class="ra-kw">in</span> 0..3 &#123;
+        <span class="ra-kw">let</span> tx = tx.clone();
+        thread::spawn(<span class="ra-kw">move</span> || tx.send(<span class="ra-mac">format!</span>(<span class="ra-st">"worker &#123;id&#125; done"</span>)).unwrap());
+    &#125;
+    drop(tx); <span class="ra-cm">// close our copy so the loop below ends when the workers finish</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> got: Vec&lt;String&gt; = rx.iter().collect();
+    got.sort();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"channel: &#123;got:?&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_threads">
+<span class="ra-cmd">$ rustc --edition 2024 threads.rs &amp;&amp; ./threads</span>
+spawned: [(0, 3), (1, 2), (2, 1)]
+scoped sum: 1000000
+mutex counter: 800000 (expected 800000)
+atomic counter: 800000
+channel: ["worker 0 done", "worker 1 done", "worker 2 done"]</pre>
+<ul>
+<li><code>thread::spawn(move || ...)</code> plus <code>join()</code> for owned work; <code>thread::scope</code> when threads should borrow local data.</li>
+<li><code>Arc&lt;Mutex&lt;T&gt;&gt;</code> for shared mutable state: <code>lock()</code> returns a guard that unlocks when dropped, and the data is reachable <i>only</i> through the guard, so you cannot forget the lock. Atomics (<code>AtomicU64</code>) for single counters and flags.</li>
+<li>Channels (<code>mpsc</code>) to pass messages instead of sharing memory.</li>
+<li>For data parallelism over a collection, the {{rayon|https://docs.rs/rayon}} crate turns <code>iter()</code> into <code>par_iter()</code>; Part 2 uses it to parallelise the token counter inside a Python extension ({{Part 2|#t-rb-read}}).</li>
+</ul>
+<div class="co warn"><div class="t">What the compiler does not prevent</div>Deadlocks (two threads each holding the lock the other needs), logic races (check-then-act with the lock released in between), and leaked memory are all possible in safe Rust. "Fearless" means no data races and no use after free, not no concurrency bugs.</div>
+<h3>Async, in one paragraph</h3>
+<p>Threads suit CPU work. For thousands of concurrent network calls (an LLM gateway, an agent fanning out tool calls), Rust uses <code>async fn</code> and <code>.await</code>, as Python's asyncio does, with two differences worth knowing now: a future does nothing until it is awaited or spawned (calling an <code>async fn</code> does not start it), and the language ships no event loop, so you choose a runtime library, almost always {{tokio|https://tokio.rs}}. {{Part 3, Services and CLIs|#t-rs-read}} teaches async from zero and builds an HTTP service with it.</p>
+</section>
+
+<section id="ra-unsafe">
+<h2>17. unsafe, in one section</h2>
+<p>Some correct code cannot be proved safe by the compiler: the inside of <code>Vec</code>, calls into C libraries, hardware access. Inside an <code>unsafe</code> block you may do five extra things, the "unsafe superpowers" ({{Rust Book 20.1|https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html}}): dereference a raw pointer; call an <code>unsafe</code> function; access or modify a mutable <code>static</code>; implement an <code>unsafe</code> trait; access fields of a <code>union</code>. Nothing else changes: "<code>unsafe</code> doesn't turn off the borrow checker or disable any of Rust's other safety checks".</p>
+<div class="ra-src"><div class="ra-fn">unsafe_ok.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> v = <span class="ra-mac">vec!</span>[10u32, 20, 30];
+    <span class="ra-kw">let</span> p: *<span class="ra-kw">const</span> u32 = v.as_ptr(); <span class="ra-cm">// making a raw pointer is safe</span>
+    <span class="ra-kw">let</span> second = <span class="ra-kw">unsafe</span> &#123; *p.add(1) &#125;; <span class="ra-cm">// dereferencing it is not: we promise it is in bounds</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"second = &#123;second&#125;"</span>);
+    <span class="ra-cm">// A safe API built on unsafe: split_at_mut hands out two &amp;mut halves of one slice,</span>
+    <span class="ra-cm">// which the borrow checker cannot prove disjoint by itself.</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> a = [1, 2, 3, 4];
+    <span class="ra-kw">let</span> (l, r) = a.split_at_mut(2);
+    l[0] += 100;
+    r[0] += 100;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;a:?&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_unsafe_ok">
+<span class="ra-cmd">$ rustc --edition 2024 unsafe_ok.rs &amp;&amp; ./unsafe_ok</span>
+second = 20
+[101, 2, 103, 4]</pre>
+<p>Without the block, the compiler refuses and says why each operation needs it:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_unsafe_deref_err">
+<span class="ra-cmd">$ rustc --edition 2024 unsafe_deref_err.rs</span>
+error[E0133]: dereference of raw pointer is unsafe and requires unsafe block
+ --&gt; unsafe_deref_err.rs:4:20
+  |
+4 |     println!("&#123;&#125;", *p.add(1));
+  |                    ^^^^^^^^^ dereference of raw pointer
+  |
+  = note: raw pointers may be null, dangling or unaligned; they can violate aliasing rules and cause data races: all of these are undefined behavior
+
+error[E0133]: call to unsafe function `std::ptr::const_ptr::&lt;impl *const T&gt;::add` is unsafe and requires unsafe block
+ --&gt; unsafe_deref_err.rs:4:21
+  |
+4 |     println!("&#123;&#125;", *p.add(1));
+  |                     ^^^^^^^^ call to unsafe function
+  |
+  = note: consult the function's documentation for information on how to avoid undefined behavior
+
+error: aborting due to 2 previous errors
+
+For more information about this error, try `rustc --explain E0133`.
+[exit code 1]</pre>
+<p>The pattern to aim for is the one <code>split_at_mut</code> shows: a small <code>unsafe</code> core with a stated <b>invariant</b> ("the two halves never overlap"), wrapped in a safe API that cannot be used to break it. Because <code>unsafe</code> is a keyword, every such place can be found with a text search and reviewed.</p>
+<h3>When you get it wrong: Miri</h3>
+<p>Breaking an invariant is <dfn>undefined behaviour</dfn>, exactly as in C++: the program may do anything, including appear to work. This program reads one element past the end of a vector, and then reads a freed vector; built in release mode, it runs and prints plausible numbers:</p>
+<div class="ra-src"><div class="ra-fn">main.rs</div><pre class="ra-code"><span class="ra-cm">// Undefined behaviour that compiles and "works": reading one element past the end</span>
+<span class="ra-cm">// through a raw pointer, and using a pointer after its Vec was freed.</span>
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> v = <span class="ra-mac">vec!</span>[10u32, 20, 30];
+    <span class="ra-kw">let</span> p = v.as_ptr();
+    <span class="ra-kw">let</span> past_end = <span class="ra-kw">unsafe</span> &#123; *p.add(3) &#125;; <span class="ra-cm">// out of bounds: UB</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"read past the end: &#123;past_end&#125;"</span>);
+    <span class="ra-kw">let</span> q = &#123;
+        <span class="ra-kw">let</span> w = <span class="ra-mac">vec!</span>[1u32, 2, 3];
+        w.as_ptr()
+    &#125;; <span class="ra-cm">// w freed here; q dangles</span>
+    <span class="ra-kw">let</span> after_free = <span class="ra-kw">unsafe</span> &#123; *q &#125;; <span class="ra-cm">// use after free: UB</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"read after free: &#123;after_free&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_ub_run">
+<span class="ra-cmd">$ cargo run -q --release</span>
+read past the end: 0
+read after free: 0</pre>
+<p>{{Miri|https://github.com/rust-lang/miri}} is an interpreter for Rust's intermediate representation that checks every memory access against the rules. It runs on the nightly toolchain (here rustc 1.101.0-nightly of 2026-10-04) and is much slower than native code, so you run your tests under it, not production:</p>
+<pre class="ra-out" data-ra-out="l_ub_miri">
+<span class="ra-cmd">$ cargo +nightly miri run -q 2&gt;&amp;1 | grep -v "^Preparing a sysroot" </span>
+error: Undefined Behavior: memory access failed: attempting to access 4 bytes, but got alloc291+0xc which is at or beyond the end of the allocation of size 12 bytes
+ --&gt; src/main.rs:6:29
+  |
+6 |     let past_end = unsafe &#123; *p.add(3) &#125;; // out of bounds: UB
+  |                             ^^^^^^^^^ Undefined Behavior occurred here
+  |
+  = help: this indicates a bug in the program: it performed an invalid operation, and caused Undefined Behavior
+  = help: see https://doc.rust-lang.org/nightly/reference/behavior-considered-undefined.html for further information
+help: alloc291 was allocated here:
+ --&gt; src/main.rs:4:13
+  |
+4 |     let v = vec![10u32, 20, 30];
+  |             ^^^^^^^^^^^^^^^^^^^
+
+note: some details are omitted, run with `MIRIFLAGS=-Zmiri-backtrace=full` for a verbose backtrace
+
+error: aborting due to 1 previous error</pre>
+<p>It stops at the first violation, names it (<i>at or beyond the end of the allocation of size 12 bytes</i>) and points at where the memory was allocated. If you write <code>unsafe</code>, run <code>cargo +nightly miri test</code> in CI. The C++ page's equivalent tools are the sanitizers ({{C++ page, Part 1|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}).</p>
+<div class="ra-cost"><div><b>Use it for</b>FFI (calling C), performance-critical data structures, and building safe abstractions the checker cannot verify.</div><div><b>Costs</b>You take on C's obligations for that block; reviewers must check the invariant by hand.</div><div><b>Do not</b>Use <code>unsafe</code> to silence a borrow error. If safe code cannot express it, the design usually needs an index, a <code>RefCell</code> or a different owner.</div></div>
+</section>

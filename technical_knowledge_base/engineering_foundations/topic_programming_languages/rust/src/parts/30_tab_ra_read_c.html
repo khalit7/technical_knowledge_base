@@ -1,0 +1,569 @@
+
+<section id="ra-enum">
+<h2>8. Structs, enums and match: make illegal states unrepresentable</h2>
+<p>A <dfn>struct</dfn> is a record with named fields, like a dataclass. An <dfn>enum</dfn> in Rust is far more than Python's <code>Enum</code>: each <dfn>variant</dfn> can carry its own data, so one type says "a message is <i>either</i> text from a user, <i>or</i> a tool call with arguments, <i>or</i> an image of some size". This is called a sum type or tagged union. <code>match</code> takes it apart, and must cover every variant.</p>
+<div class="ra-src"><div class="ra-fn">enums.rs</div><pre class="ra-code"><span class="ra-at">#[derive(Debug, Clone, PartialEq)]</span>
+<span class="ra-kw">struct</span> Usage &#123;
+    user: String,
+    tokens: u64,
+&#125;
+
+<span class="ra-cm">// An enum's variants can carry different data: a "tagged union".</span>
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">enum</span> Message &#123;
+    Text &#123; user: String, text: String &#125;,
+    ToolCall &#123; name: String, args: Vec&lt;String&gt; &#125;,
+    Image &#123; width: u32, height: u32 &#125;,
+    Ping,
+&#125;
+
+<span class="ra-kw">impl</span> Message &#123;
+    <span class="ra-kw">fn</span> describe(&amp;<span class="ra-kw">self</span>) -&gt; String &#123;
+        <span class="ra-kw">match</span> <span class="ra-kw">self</span> &#123;
+            Message::Text &#123; user, text &#125; <span class="ra-kw">if</span> text.is_empty() =&gt; <span class="ra-mac">format!</span>(<span class="ra-st">"&#123;user&#125; sent nothing"</span>),
+            Message::Text &#123; user, text &#125; =&gt; <span class="ra-mac">format!</span>(<span class="ra-st">"&#123;user&#125;: &#123;&#125; chars"</span>, text.len()),
+            Message::ToolCall &#123; name, args &#125; =&gt; <span class="ra-mac">format!</span>(<span class="ra-st">"call &#123;name&#125; with &#123;&#125; args"</span>, args.len()),
+            Message::Image &#123; width, height &#125; =&gt; <span class="ra-mac">format!</span>(<span class="ra-st">"image &#123;width&#125;x&#123;height&#125;"</span>),
+            Message::Ping =&gt; <span class="ra-st">"ping"</span>.to_string(),
+        &#125;
+    &#125;
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> u = Usage &#123; user: <span class="ra-st">"u0029"</span>.into(), tokens: 9491 &#125;;
+    <span class="ra-kw">let</span> v = Usage &#123; tokens: 10, ..u.clone() &#125;; <span class="ra-cm">// struct update syntax</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;u:?&#125;\n&#123;v:?&#125; equal? &#123;&#125;"</span>, u == v);
+    <span class="ra-kw">let</span> msgs = <span class="ra-mac">vec!</span>[
+        Message::Text &#123; user: <span class="ra-st">"ada"</span>.into(), text: <span class="ra-st">"hi there"</span>.into() &#125;,
+        Message::Text &#123; user: <span class="ra-st">"bob"</span>.into(), text: String::new() &#125;,
+        Message::ToolCall &#123; name: <span class="ra-st">"search"</span>.into(), args: <span class="ra-mac">vec!</span>[<span class="ra-st">"rust"</span>.into()] &#125;,
+        Message::Image &#123; width: 640, height: 480 &#125;,
+        Message::Ping,
+    ];
+    <span class="ra-kw">for</span> m <span class="ra-kw">in</span> &amp;msgs &#123;
+        <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, m.describe());
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;:#?&#125;"</span>, msgs[2]);
+    <span class="ra-kw">let</span> n = 7;
+    <span class="ra-kw">let</span> kind = <span class="ra-kw">match</span> n &#123;
+        0 =&gt; <span class="ra-st">"zero"</span>,
+        1..=9 =&gt; <span class="ra-st">"one digit"</span>,
+        _ =&gt; <span class="ra-st">"more"</span>, <span class="ra-cm">// `_` matches anything else</span>
+    &#125;;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;n&#125; is &#123;kind&#125;"</span>);
+    <span class="ra-kw">if</span> <span class="ra-kw">let</span> Message::Image &#123; width, .. &#125; = &amp;msgs[3] &#123;
+        <span class="ra-mac">println!</span>(<span class="ra-st">"if let: width &#123;width&#125;"</span>);
+    &#125;
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_enums">
+<span class="ra-cmd">$ rustc --edition 2024 enums.rs &amp;&amp; ./enums</span>
+Usage &#123; user: "u0029", tokens: 9491 &#125;
+Usage &#123; user: "u0029", tokens: 10 &#125; equal? false
+ada: 8 chars
+bob sent nothing
+call search with 1 args
+image 640x480
+ping
+ToolCall &#123;
+    name: "search",
+    args: [
+        "rust",
+    ],
+&#125;
+7 is one digit
+if let: width 640</pre>
+<ul>
+<li><code>#[derive(Debug, Clone, PartialEq)]</code> asks the compiler to write the code for printing with <code>{:?}</code>, cloning and <code>==</code>, as <code>@dataclass</code> writes <code>__repr__</code> and <code>__eq__</code>.</li>
+<li><code>impl Message { ... }</code> holds the methods. <code>&amp;self</code> is a borrowed <code>self</code>; <code>&amp;mut self</code> may change it; plain <code>self</code> consumes it.</li>
+<li>Patterns can destructure fields, add guards (<code>if text.is_empty()</code>), match ranges (<code>1..=9</code>) and use <code>_</code> for "anything else". <code>if let</code> handles one variant and ignores the rest.</li>
+</ul>
+<p>Forget a variant and the program does not compile. Add a <code>Tool</code> role a year from now, and the compiler lists every <code>match</code> that must learn about it:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_match_err">
+<span class="ra-cmd">$ rustc --edition 2024 match_err.rs</span>
+error[E0004]: non-exhaustive patterns: `Role::Tool` not covered
+ --&gt; match_err.rs:4:11
+  |
+4 |     match r &#123;
+  |           ^ pattern `Role::Tool` not covered
+  |
+note: `Role` defined here
+ --&gt; match_err.rs:1:6
+  |
+1 | enum Role &#123; User, Assistant, Tool &#125;
+  |      ^^^^                    ---- not covered
+  = note: the matched value is of type `Role`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern or an explicit pattern as shown
+  |
+6 ~         Role::Assistant =&gt; "assistant",
+7 ~         Role::Tool =&gt; todo!(),
+  |
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0004`.
+[exit code 1]</pre>
+<h3>The design habit this enables</h3>
+<p>Python code often models state as one class with optional fields and a status string, and every method checks that the fields agree with the status. In Rust, give each state exactly the data it has. "Connected but no session id" or "failed with no error" then cannot be written at all:</p>
+<div class="ra-src"><div class="ra-fn">states.rs (lines 1 to 20)</div><pre class="ra-code"><span class="ra-cm">// Python habit: one class with optional fields and a status string.</span>
+<span class="ra-cm">// Here every state carries exactly the data that state has, so</span>
+<span class="ra-cm">// "connected but no socket" or "failed but no error" cannot be written.</span>
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">enum</span> Conn &#123;
+    Idle,
+    Connecting &#123; attempt: u32 &#125;,
+    Connected &#123; session_id: u64 &#125;,
+    Failed &#123; error: String &#125;,
+&#125;
+
+<span class="ra-kw">fn</span> step(c: Conn) -&gt; Conn &#123;
+    <span class="ra-kw">match</span> c &#123;
+        Conn::Idle =&gt; Conn::Connecting &#123; attempt: 1 &#125;,
+        Conn::Connecting &#123; attempt &#125; <span class="ra-kw">if</span> attempt &lt; 3 =&gt; Conn::Connecting &#123; attempt: attempt + 1 &#125;,
+        Conn::Connecting &#123; .. &#125; =&gt; Conn::Connected &#123; session_id: 42 &#125;,
+        Conn::Connected &#123; session_id &#125; =&gt; Conn::Connected &#123; session_id &#125;,
+        Conn::Failed &#123; error &#125; =&gt; Conn::Failed &#123; error &#125;,
+    &#125;
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_states">
+<span class="ra-cmd">$ rustc --edition 2024 states.rs &amp;&amp; ./states</span>
+Idle
+Connecting &#123; attempt: 1 &#125;
+Connecting &#123; attempt: 2 &#125;
+Connecting &#123; attempt: 3 &#125;
+Connected &#123; session_id: 42 &#125;
+Failed &#123; error: "timeout" &#125;
+size_of Option&lt;u64&gt; = 16
+size_of Option&lt;&amp;u64&gt; = 8
+size_of Option&lt;Box&lt;u64&gt;&gt; = 8</pre>
+<p>The last three lines show a related point: <code>Option&lt;u64&gt;</code> needs 16 bytes (8 for the number, plus a tag, padded), but <code>Option&lt;&amp;u64&gt;</code> and <code>Option&lt;Box&lt;u64&gt;&gt;</code> fit in 8, because a reference is never null and the compiler uses the null value to mean <code>None</code> (the "niche" optimisation). Safety without null costs nothing there.</p>
+<div class="ra-cost"><div><b>Solves</b>Whole classes of "this field should not be None here" bugs; adding a case shows every place to update.</div><div><b>Costs</b>An enum is as big as its largest variant (box a huge rarely used one); exhaustive matching makes public enums hard to extend without breaking users (<code>#[non_exhaustive]</code> exists for that).</div><div><b>Python today</b>The same idea is available as a union of dataclasses plus <code>match</code> and a type checker's exhaustiveness check (<code>assert_never</code>); Rust enforces it always.</div></div>
+</section>
+
+<section id="ra-err">
+<h2>9. Option, Result and ?: errors as values</h2>
+<p>Rust has no <code>None</code> that can appear anywhere and no exceptions for expected failures. Two enums from the standard library carry them, written like any other enum:</p>
+<ul>
+<li><code>Option&lt;T&gt;</code> is <code>Some(value)</code> or <code>None</code>: maybe missing. <code>dict.get</code>, <code>str.find</code> and "first element" return one.</li>
+<li><code>Result&lt;T, E&gt;</code> is <code>Ok(value)</code> or <code>Err(error)</code>: may fail. Parsing, I/O and network calls return one.</li>
+</ul>
+<p>You cannot use the value inside without deciding what happens in the other case. The <code>?</code> operator is the common decision: "if this is an <code>Err</code>, return it from my function now; otherwise give me the value". It is the explicit, typed version of letting an exception propagate.</p>
+<div class="ra-src"><div class="ra-fn">errors.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::HashMap;
+<span class="ra-kw">use</span> std::fmt;
+<span class="ra-kw">use</span> std::num::ParseIntError;
+
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">enum</span> ConfigError &#123;
+    Missing(&amp;<span class="ra-lt">'static</span> str),
+    BadNumber &#123; key: &amp;<span class="ra-lt">'static</span> str, source: ParseIntError &#125;,
+&#125;
+
+<span class="ra-kw">impl</span> fmt::Display <span class="ra-kw">for</span> ConfigError &#123;
+    <span class="ra-kw">fn</span> fmt(&amp;<span class="ra-kw">self</span>, f: &amp;<span class="ra-kw">mut</span> fmt::Formatter) -&gt; fmt::Result &#123;
+        <span class="ra-kw">match</span> <span class="ra-kw">self</span> &#123;
+            ConfigError::Missing(k) =&gt; <span class="ra-mac">write!</span>(f, <span class="ra-st">"missing key &#123;k&#125;"</span>),
+            ConfigError::BadNumber &#123; key, source &#125; =&gt; <span class="ra-mac">write!</span>(f, <span class="ra-st">"&#123;key&#125; is not a number: &#123;source&#125;"</span>),
+        &#125;
+    &#125;
+&#125;
+
+<span class="ra-kw">impl</span> std::error::Error <span class="ra-kw">for</span> ConfigError &#123;&#125;
+
+<span class="ra-kw">fn</span> get_num(cfg: &amp;HashMap&lt;&amp;str, &amp;str&gt;, key: &amp;<span class="ra-lt">'static</span> str) -&gt; Result&lt;u32, ConfigError&gt; &#123;
+    <span class="ra-kw">let</span> raw = cfg.get(key).ok_or(ConfigError::Missing(key))?; <span class="ra-cm">// Option -&gt; Result, then ?</span>
+    raw.trim()
+        .parse::&lt;u32&gt;()
+        .map_err(|e| ConfigError::BadNumber &#123; key, source: e &#125;)
+&#125;
+
+<span class="ra-kw">fn</span> budget(cfg: &amp;HashMap&lt;&amp;str, &amp;str&gt;) -&gt; Result&lt;u32, ConfigError&gt; &#123;
+    <span class="ra-kw">let</span> ctx = get_num(cfg, <span class="ra-st">"context"</span>)?; <span class="ra-cm">// ? returns the error to our caller</span>
+    <span class="ra-kw">let</span> out = get_num(cfg, <span class="ra-st">"max_output"</span>)?;
+    Ok(ctx - out)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> good = HashMap::<span class="ra-kw">from</span>([(<span class="ra-st">"context"</span>, <span class="ra-st">"8192"</span>), (<span class="ra-st">"max_output"</span>, <span class="ra-st">" 1024"</span>)]);
+    <span class="ra-kw">let</span> bad = HashMap::<span class="ra-kw">from</span>([(<span class="ra-st">"context"</span>, <span class="ra-st">"8k"</span>), (<span class="ra-st">"max_output"</span>, <span class="ra-st">"1024"</span>)]);
+    <span class="ra-kw">let</span> missing = HashMap::<span class="ra-kw">from</span>([(<span class="ra-st">"context"</span>, <span class="ra-st">"8192"</span>)]);
+    <span class="ra-kw">for</span> cfg <span class="ra-kw">in</span> [&amp;good, &amp;bad, &amp;missing] &#123;
+        <span class="ra-kw">match</span> budget(cfg) &#123;
+            Ok(n) =&gt; <span class="ra-mac">println!</span>(<span class="ra-st">"ok: &#123;n&#125; tokens for the prompt"</span>),
+            Err(e) =&gt; <span class="ra-mac">println!</span>(<span class="ra-st">"error: &#123;e&#125;   (debug: &#123;e:?&#125;)"</span>),
+        &#125;
+    &#125;
+    <span class="ra-kw">let</span> first: Option&lt;&amp;str&gt; = <span class="ra-st">""</span>.split_whitespace().next();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"first word of \"\": &#123;:?&#125;, or default: &#123;&#125;"</span>, first, first.unwrap_or(<span class="ra-st">"&lt;none&gt;"</span>));
+    <span class="ra-kw">let</span> n: Result&lt;u8, _&gt; = <span class="ra-st">"300"</span>.parse::&lt;u8&gt;();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"\"300\".parse::&lt;u8&gt;() = &#123;n:?&#125;"</span>);
+    <span class="ra-kw">let</span> x: u32 = <span class="ra-st">"12"</span>.parse().unwrap(); <span class="ra-cm">// fine</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"unwrap ok: &#123;x&#125;"</span>);
+    <span class="ra-kw">let</span> y: u32 = <span class="ra-st">"twelve"</span>.parse().expect(<span class="ra-st">"config value must be a number"</span>); <span class="ra-cm">// panics</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;y&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_errors">
+<span class="ra-cmd">$ rustc --edition 2024 errors.rs &amp;&amp; ./errors</span>
+ok: 7168 tokens for the prompt
+error: context is not a number: invalid digit found in string   (debug: BadNumber &#123; key: "context", source: ParseIntError &#123; kind: InvalidDigit &#125; &#125;)
+error: missing key max_output   (debug: Missing("max_output"))
+first word of "": None, or default: &lt;none&gt;
+"300".parse::&lt;u8&gt;() = Err(ParseIntError &#123; kind: PosOverflow &#125;)
+unwrap ok: 12
+
+thread 'main' (16490500) panicked at errors.rs:51:35:
+config value must be a number: ParseIntError &#123; kind: InvalidDigit &#125;
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit code 101]</pre>
+<ul>
+<li><code>ok_or</code> turns an <code>Option</code> into a <code>Result</code>; <code>map_err</code> converts one error type into another; <code>unwrap_or</code> supplies a default.</li>
+<li><code>unwrap()</code> and <code>expect("why")</code> say "this cannot fail; if it does, it is a bug": they <b>panic</b>, as the last line shows. Fine in tests and prototypes; in libraries prefer returning the error.</li>
+<li>A custom error type is an enum with a <code>Display</code> implementation (the message) and the <code>Error</code> trait. That is boilerplate, which is why two crates are everywhere:</li>
+</ul>
+<p><code>?</code> only works in a function that returns <code>Result</code> or <code>Option</code>, which catches people in <code>main</code>:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_qmark_err">
+<span class="ra-cmd">$ rustc --edition 2024 qmark_err.rs</span>
+error[E0277]: the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `FromResidual`)
+ --&gt; qmark_err.rs:2:30
+  |
+1 | fn main() &#123;
+  | --------- this function should return `Result` or `Option` to accept `?`
+2 |     let n: u32 = "42".parse()?;
+  |                              ^ cannot use the `?` operator in a function that returns `()`
+  |
+help: consider adding return type
+  |
+1 ~ fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; &#123;
+2 |     let n: u32 = "42".parse()?;
+3 |     println!("&#123;n&#125;");
+4 +     Ok(())
+  |
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0277`.
+[exit code 1]</pre>
+<h3>thiserror and anyhow (a preview)</h3>
+<p>The common split ({{thiserror|https://docs.rs/thiserror}}, {{anyhow|https://docs.rs/anyhow}}): <b>libraries</b> define typed error enums so callers can <code>match</code> on them, and <code>thiserror</code> writes the <code>Display</code> and <code>Error</code> code from attributes; <b>applications</b> mostly report errors, and <code>anyhow::Result</code> holds any error plus a chain of context messages. Versions used here: thiserror 2.0.21, anyhow 1.0.104.</p>
+<div class="ra-src"><div class="ra-fn">main.rs</div><pre class="ra-code"><span class="ra-cm">// A library-style typed error (thiserror) under an application-style error (anyhow).</span>
+<span class="ra-kw">use</span> anyhow::&#123;Context, Result&#125;;
+<span class="ra-kw">use</span> thiserror::Error;
+
+<span class="ra-at">#[derive(Debug, Error)]</span>
+<span class="ra-kw">enum</span> ParseError &#123;
+    <span class="ra-at">#[error("line &#123;line&#125;: missing field &#123;field&#125;")]</span>
+    MissingField &#123; line: usize, field: &amp;<span class="ra-lt">'static</span> str &#125;,
+    <span class="ra-at">#[error("line &#123;line&#125;: bad token count")]</span>
+    BadCount &#123; line: usize, <span class="ra-at">#[source]</span> source: std::num::ParseIntError &#125;,
+&#125;
+
+<span class="ra-cm">// typed: callers can match on the variant</span>
+<span class="ra-kw">fn</span> parse_line(line: usize, s: &amp;str) -&gt; Result&lt;(String, u64), ParseError&gt; &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> it = s.split(<span class="ra-st">','</span>);
+    <span class="ra-kw">let</span> user = it.next().filter(|u| !u.is_empty()).ok_or(ParseError::MissingField &#123; line, field: <span class="ra-st">"user"</span> &#125;)?;
+    <span class="ra-kw">let</span> n = it.next().ok_or(ParseError::MissingField &#123; line, field: <span class="ra-st">"tokens"</span> &#125;)?;
+    <span class="ra-kw">let</span> n = n.trim().parse().map_err(|source| ParseError::BadCount &#123; line, source &#125;)?;
+    Ok((user.to_string(), n))
+&#125;
+
+<span class="ra-cm">// application: any error, plus context explaining what we were doing</span>
+<span class="ra-kw">fn</span> load(path: &amp;str) -&gt; Result&lt;u64&gt; &#123;
+    <span class="ra-kw">let</span> text = std::fs::read_to_string(path).with_context(|| <span class="ra-mac">format!</span>(<span class="ra-st">"reading &#123;path&#125;"</span>))?;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> total = 0;
+    <span class="ra-kw">for</span> (i, l) <span class="ra-kw">in</span> text.lines().enumerate() &#123;
+        <span class="ra-kw">let</span> (_, n) = parse_line(i + 1, l).context(<span class="ra-st">"parsing usage file"</span>)?;
+        total += n;
+    &#125;
+    Ok(total)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    std::fs::write(<span class="ra-st">"good.csv"</span>, <span class="ra-st">"ada,10\nbob,32\n"</span>).unwrap();
+    std::fs::write(<span class="ra-st">"bad.csv"</span>, <span class="ra-st">"ada,10\nbob,thirty\n"</span>).unwrap();
+    <span class="ra-kw">for</span> p <span class="ra-kw">in</span> [<span class="ra-st">"good.csv"</span>, <span class="ra-st">"bad.csv"</span>, <span class="ra-st">"nope.csv"</span>] &#123;
+        <span class="ra-kw">match</span> load(p) &#123;
+            Ok(t) =&gt; <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;p&#125;: total &#123;t&#125;"</span>),
+            Err(e) =&gt; <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;p&#125;: error: &#123;e:#&#125;"</span>), <span class="ra-cm">// &#123;:#&#125; prints the whole chain</span>
+        &#125;
+    &#125;
+    <span class="ra-kw">match</span> parse_line(7, <span class="ra-st">",5"</span>) &#123;
+        Err(ParseError::MissingField &#123; field, .. &#125;) =&gt; <span class="ra-mac">println!</span>(<span class="ra-st">"caller matched: missing &#123;field&#125;"</span>),
+        other =&gt; <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;other:?&#125;"</span>),
+    &#125;
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_errs">
+<span class="ra-cmd">$ cargo run -q</span>
+good.csv: total 42
+bad.csv: error: parsing usage file: line 2: bad token count: invalid digit found in string
+nope.csv: error: reading nope.csv: No such file or directory (os error 2)
+caller matched: missing user</pre>
+<p>The second line is what a user wants to read: what the program was doing (parsing usage file), where (line 2), and the root cause, all from <code>{:#}</code> on the chain. Part 3 uses this pattern for the CLI and service ({{Part 3|#t-rs-read}}).</p>
+<div class="ra-cost"><div><b>Solves</b>Every failure is visible in the signature; nothing is thrown past a caller that did not expect it.</div><div><b>Costs</b>More words than <code>try</code>/<code>except</code> at the top, and error types to design; <code>?</code> keeps the middle short.</div><div><b>Common mistake</b><code>unwrap()</code> everywhere in library code; or one giant error enum for a whole crate. Prefer one enum per module boundary.</div></div>
+</section>
+
+<section id="ra-trait">
+<h2>10. Traits and generics: duck typing, checked</h2>
+<p>A <dfn>trait</dfn> names a set of methods a type promises to provide, like a Python <code>Protocol</code>, except that a type must say so explicitly (<code>impl Tokenizer for Whitespace</code>) and the compiler checks it before the program runs. A trait may have default methods written in terms of the others. A <dfn>generic</dfn> function takes a type parameter with a <dfn>bound</dfn>: <code>fn total&lt;T: Tokenizer&gt;</code> accepts any <code>T</code> that implements <code>Tokenizer</code>.</p>
+<div class="ra-src"><div class="ra-fn">traits.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::fmt::Display;
+
+<span class="ra-cm">// A trait: a named set of methods a type promises to have (like a Protocol).</span>
+<span class="ra-kw">trait</span> Tokenizer &#123;
+    <span class="ra-kw">fn</span> name(&amp;<span class="ra-kw">self</span>) -&gt; String;
+    <span class="ra-kw">fn</span> count(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; usize;
+    <span class="ra-cm">// a default method, written once in terms of the others</span>
+    <span class="ra-kw">fn</span> report(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; String &#123;
+        <span class="ra-mac">format!</span>(<span class="ra-st">"&#123;&#125; -&gt; &#123;&#125; tokens"</span>, <span class="ra-kw">self</span>.name(), <span class="ra-kw">self</span>.count(text))
+    &#125;
+&#125;
+
+<span class="ra-kw">struct</span> Whitespace;
+<span class="ra-kw">struct</span> Chars &#123; per_token: usize &#125;
+
+<span class="ra-kw">impl</span> Tokenizer <span class="ra-kw">for</span> Whitespace &#123;
+    <span class="ra-kw">fn</span> name(&amp;<span class="ra-kw">self</span>) -&gt; String &#123; <span class="ra-st">"whitespace"</span>.into() &#125;
+    <span class="ra-kw">fn</span> count(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; usize &#123; text.split_whitespace().count() &#125;
+&#125;
+
+<span class="ra-kw">impl</span> Tokenizer <span class="ra-kw">for</span> Chars &#123;
+    <span class="ra-kw">fn</span> name(&amp;<span class="ra-kw">self</span>) -&gt; String &#123; <span class="ra-mac">format!</span>(<span class="ra-st">"chars/&#123;&#125;"</span>, <span class="ra-kw">self</span>.per_token) &#125;
+    <span class="ra-kw">fn</span> count(&amp;<span class="ra-kw">self</span>, text: &amp;str) -&gt; usize &#123; text.chars().count().div_ceil(<span class="ra-kw">self</span>.per_token) &#125;
+&#125;
+
+<span class="ra-cm">// Generic: one copy of this function is compiled per concrete T (monomorphisation).</span>
+<span class="ra-kw">fn</span> total&lt;T: Tokenizer&gt;(t: &amp;T, docs: &amp;[&amp;str]) -&gt; usize &#123;
+    docs.iter().map(|d| t.count(d)).sum()
+&#125;
+
+<span class="ra-cm">// Trait object: one compiled copy; the call goes through a table of function pointers.</span>
+<span class="ra-kw">fn</span> total_dyn(t: &amp;<span class="ra-kw">dyn</span> Tokenizer, docs: &amp;[&amp;str]) -&gt; usize &#123;
+    docs.iter().map(|d| t.count(d)).sum()
+&#125;
+
+<span class="ra-cm">// impl Trait in argument position is shorthand for a generic</span>
+<span class="ra-kw">fn</span> show_all(items: &amp;[<span class="ra-kw">impl</span> Display]) -&gt; String &#123;
+    items.iter().map(|x| x.to_string()).collect::&lt;Vec&lt;_&gt;&gt;().join(<span class="ra-st">", "</span>)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> docs = [<span class="ra-st">"the cat sat"</span>, <span class="ra-st">"on the mat today"</span>];
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, Whitespace.report(docs[0]));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, Chars &#123; per_token: 4 &#125;.report(docs[0]));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"generic: &#123;&#125; &#123;&#125;"</span>, total(&amp;Whitespace, &amp;docs), total(&amp;Chars &#123; per_token: 4 &#125;, &amp;docs));
+    <span class="ra-kw">let</span> toks: Vec&lt;Box&lt;<span class="ra-kw">dyn</span> Tokenizer&gt;&gt; = <span class="ra-mac">vec!</span>[Box::new(Whitespace), Box::new(Chars &#123; per_token: 3 &#125;)];
+    <span class="ra-kw">for</span> t <span class="ra-kw">in</span> &amp;toks &#123;
+        <span class="ra-mac">println!</span>(<span class="ra-st">"dyn: &#123;&#125; = &#123;&#125;"</span>, t.name(), total_dyn(t.as_ref(), &amp;docs));
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, show_all(&amp;[1.5, 2.25]));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"size_of &amp;Whitespace = &#123;&#125;, &amp;dyn Tokenizer = &#123;&#125;"</span>,
+        std::mem::size_of::&lt;&amp;Whitespace&gt;(), std::mem::size_of::&lt;&amp;<span class="ra-kw">dyn</span> Tokenizer&gt;());
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_traits">
+<span class="ra-cmd">$ rustc --edition 2024 traits.rs &amp;&amp; ./traits</span>
+whitespace -&gt; 3 tokens
+chars/4 -&gt; 3 tokens
+generic: 7 7
+dyn: whitespace = 7
+dyn: chars/3 = 10
+1.5, 2.25
+size_of &amp;Whitespace = 8, &amp;dyn Tokenizer = 16</pre>
+<p>There are two ways to call through a trait, and the choice is a real trade-off:</p>
+<div class="tw"><table><thead><tr><th></th><th>Generic <code>&lt;T: Tokenizer&gt;</code></th><th>Trait object <code>&amp;dyn Tokenizer</code></th></tr></thead><tbody>
+<tr><td>How it is compiled</td><td><dfn>monomorphisation</dfn>: one copy of the function per concrete type, each optimised (inlined) for that type</td><td>one copy; each call looks the method up in a table of function pointers (a <dfn>vtable</dfn>)</td></tr>
+<tr><td>Pointer size</td><td>a normal reference, 8 bytes</td><td>a "fat" pointer, 16 bytes (data plus vtable, recorded above)</td></tr>
+<tr><td>Costs</td><td>compile time and binary size grow with each type used</td><td>an indirect call per method; no inlining across it</td></tr>
+<tr><td>Use when</td><td>the type is known at compile time (most code)</td><td>you need a mixed collection (<code>Vec&lt;Box&lt;dyn Tokenizer&gt;&gt;</code>) or a plug-in boundary</td></tr>
+</tbody></table></div>
+<p>Monomorphisation is visible in the compiled program: one generic function used with four types becomes four functions in the symbol table.</p>
+<div class="ra-src"><div class="ra-fn">mono.rs</div><pre class="ra-code"><span class="ra-cm">// Count how many machine-code copies a generic function gets.</span>
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> biggest&lt;T: PartialOrd + Copy&gt;(xs: &amp;[T]) -&gt; T &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> b = xs[0];
+    <span class="ra-kw">for</span> &amp;x <span class="ra-kw">in</span> xs &#123; <span class="ra-kw">if</span> x &gt; b &#123; b = x; &#125; &#125;
+    b
+&#125;
+
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> biggest_dyn(xs: &amp;[&amp;<span class="ra-kw">dyn</span> Fn() -&gt; f64]) -&gt; f64 &#123;
+    xs.iter().map(|f| f()).fold(f64::MIN, f64::max)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">use</span> std::hint::black_box; <span class="ra-cm">// hide the inputs so the optimiser cannot precompute the answers</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; &#123;&#125; &#123;&#125; &#123;&#125;"</span>, biggest(black_box(&amp;[1u8, 7, 3])), biggest(black_box(&amp;[1i64, -7, 3])),
+        biggest(black_box(&amp;[1.5f64, 0.5])), biggest(black_box(&amp;[<span class="ra-st">'a'</span>, <span class="ra-st">'z'</span>])));
+    <span class="ra-kw">let</span> one = || 1.0; <span class="ra-kw">let</span> two = || 2.0;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, biggest_dyn(&amp;[&amp;one, &amp;two]));
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_mono">
+<span class="ra-cmd">$ rustc --edition 2024 -O mono.rs &amp;&amp; ./mono &amp;&amp; nm mono | c++filt | grep biggest | cut -c 18- | sort</span>
+7 3 1.5 z
+2
+t mono::biggest::&lt;char&gt;
+t mono::biggest::&lt;f64&gt;
+t mono::biggest::&lt;i64&gt;
+t mono::biggest::&lt;u8&gt;
+t mono::biggest_dyn</pre>
+<p>Section 11 measures what the vtable costs in a hot loop. Two real errors worth recognising. Use an operator the bound does not promise:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_bound_err">
+<span class="ra-cmd">$ rustc --edition 2024 bound_err.rs</span>
+error[E0369]: binary operation `&gt;` cannot be applied to type `&amp;T`
+ --&gt; bound_err.rs:4:14
+  |
+4 |         if x &gt; best &#123;
+  |            - ^ ---- &amp;T
+  |            |
+  |            &amp;T
+  |
+help: consider restricting type parameter `T` with trait `PartialOrd`
+  |
+1 | fn largest&lt;T: std::cmp::PartialOrd&gt;(items: &amp;[T]) -&gt; &amp;T &#123;
+  |             ++++++++++++++++++++++
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0369`.
+[exit code 1]</pre>
+<p>Pass a type that does not implement the trait (Python would fail at run time, on the first call to the missing method):</p>
+<pre class="ra-out ra-bad" data-ra-out="l_notimpl_err">
+<span class="ra-cmd">$ rustc --edition 2024 notimpl_err.rs</span>
+error[E0277]: the trait bound `Whitespace: Tokenizer` is not satisfied
+  --&gt; notimpl_err.rs:12:26
+   |
+12 |     println!("&#123;&#125;", total(&amp;Whitespace, &amp;["a b"]));
+   |                    ----- ^^^^^^^^^^^ unsatisfied trait bound
+   |                    |
+   |                    required by a bound introduced by this call
+   |
+help: the trait `Tokenizer` is not implemented for `Whitespace`
+  --&gt; notimpl_err.rs:5:1
+   |
+ 5 | struct Whitespace;
+   | ^^^^^^^^^^^^^^^^^
+help: this trait has no implementations, consider adding one
+  --&gt; notimpl_err.rs:1:1
+   |
+ 1 | trait Tokenizer &#123;
+   | ^^^^^^^^^^^^^^^</pre><details class="ra-more"><summary>show the remaining 10 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_notimpl_err">
+note: required by a bound in `total`
+  --&gt; notimpl_err.rs:7:13
+   |
+ 7 | fn total&lt;T: Tokenizer&gt;(t: &amp;T, docs: &amp;[&amp;str]) -&gt; usize &#123;
+   |             ^^^^^^^^^ required by this bound in `total`
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0277`.
+[exit code 1]</pre></details>
+<ul>
+<li><b>No inheritance.</b> Share behaviour with default methods and generic functions, and share data by putting one struct inside another. Python programmers rarely miss class hierarchies after a week.</li>
+<li><b>The standard traits matter:</b> <code>Debug</code>, <code>Clone</code>, <code>Copy</code>, <code>PartialEq</code>, <code>Eq</code>, <code>Hash</code>, <code>Ord</code>, <code>Default</code>, <code>Display</code>, <code>From</code>/<code>Into</code>, <code>Iterator</code>. Most are derivable; implementing <code>Display</code> is Rust's <code>__str__</code>, <code>Add</code> its <code>__add__</code>.</li>
+<li><b>The orphan rule:</b> you may implement a trait for a type only if your crate defines the trait or the type. To add a foreign trait to a foreign type, wrap the type in a one-field struct of your own (the "newtype" pattern).</li>
+</ul>
+</section>
+
+<section id="ra-iter">
+<h2>11. Iterators and closures: lazy pipelines that cost nothing</h2>
+<p>An <dfn>iterator</dfn> in Rust is any type with a <code>next()</code> method returning <code>Option&lt;Item&gt;</code>, the same protocol as Python's <code>__next__</code> raising <code>StopIteration</code>. Adapters such as <code>map</code>, <code>filter</code>, <code>zip</code>, <code>enumerate</code>, <code>take</code> build a lazy pipeline, like a generator expression; a <dfn>consumer</dfn> (<code>collect</code>, <code>sum</code>, <code>count</code>, <code>fold</code>, a <code>for</code> loop) runs it. A <dfn>closure</dfn> is an anonymous function that can capture variables from where it is written: <code>|x| x * 2</code> is Python's <code>lambda x: x * 2</code>, but with any number of statements.</p>
+<div class="ra-src"><div class="ra-fn">iters.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> words = [<span class="ra-st">"Rust"</span>, <span class="ra-st">"is"</span>, <span class="ra-st">"fast"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"safe"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"fun"</span>];
+    <span class="ra-cm">// An iterator chain: lazy until something consumes it (collect, sum, for).</span>
+    <span class="ra-kw">let</span> long: Vec&lt;String&gt; = words.iter()
+        .filter(|w| w.len() &gt; 2)
+        .map(|w| w.to_lowercase())
+        .collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;long:?&#125;"</span>);
+    <span class="ra-cm">// Laziness, visible: nothing is printed until next() is called.</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> it = (1..=3).map(|x| &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"  computing &#123;x&#125;"</span>); x * 10 &#125;);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"built the iterator"</span>);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"first = &#123;:?&#125;"</span>, it.next());
+    <span class="ra-cm">// Python's enumerate, zip, sum, any, max_by_key all exist</span>
+    <span class="ra-kw">for</span> (i, w) <span class="ra-kw">in</span> words.iter().enumerate().skip(5) &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;i&#125; &#123;w&#125;"</span>); &#125;
+    <span class="ra-kw">let</span> lens: usize = words.iter().map(|w| w.len()).sum();
+    <span class="ra-kw">let</span> pairs: Vec&lt;(char, usize)&gt; = <span class="ra-st">"abc"</span>.chars().zip(1..).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"lens &#123;lens&#125;, pairs &#123;pairs:?&#125;, any 'fun' &#123;&#125;"</span>, words.contains(&amp;<span class="ra-st">"fun"</span>));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"longest &#123;:?&#125;"</span>, words.iter().max_by_key(|w| w.len()));
+    <span class="ra-kw">let</span> (even, odd): (Vec&lt;u32&gt;, Vec&lt;u32&gt;) = (1..=6).partition(|n| n % 2 == 0);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"even &#123;even:?&#125; odd &#123;odd:?&#125;"</span>);
+    <span class="ra-cm">// Closures capture their environment: by reference, by mutable reference, or by value</span>
+    <span class="ra-kw">let</span> limit = 4;
+    <span class="ra-kw">let</span> short = |w: &amp;str| w.len() &lt; limit; <span class="ra-cm">// borrows limit (Fn)</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> seen = 0;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> count = |_w: &amp;str| seen += 1; <span class="ra-cm">// mutably borrows seen (FnMut)</span>
+    <span class="ra-kw">for</span> w <span class="ra-kw">in</span> words &#123; count(w); &#125;
+    <span class="ra-kw">let</span> name = String::<span class="ra-kw">from</span>(<span class="ra-st">"owner"</span>);
+    <span class="ra-kw">let</span> consume = <span class="ra-kw">move</span> || name.len(); <span class="ra-cm">// moves name into the closure</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"short &#123;&#125;, seen &#123;seen&#125;, consume() &#123;&#125;"</span>, words.iter().filter(|w| short(w)).count(), consume());
+    <span class="ra-cm">// A generator-like iterator: implement next()</span>
+    <span class="ra-kw">struct</span> Countdown(u32);
+    <span class="ra-kw">impl</span> Iterator <span class="ra-kw">for</span> Countdown &#123;
+        <span class="ra-kw">type</span> Item = u32;
+        <span class="ra-kw">fn</span> next(&amp;<span class="ra-kw">mut</span> <span class="ra-kw">self</span>) -&gt; Option&lt;u32&gt; &#123;
+            <span class="ra-kw">if</span> <span class="ra-kw">self</span>.0 == 0 &#123; <span class="ra-kw">None</span> &#125; <span class="ra-kw">else</span> &#123; <span class="ra-kw">self</span>.0 -= 1; Some(<span class="ra-kw">self</span>.0 + 1) &#125;
+        &#125;
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;:?&#125;"</span>, Countdown(3).collect::&lt;Vec&lt;_&gt;&gt;());
+&#125;</pre></div>
+<details class="ra-pr"><summary><b>Predict, then reveal:</b> Which line comes first: "built the iterator" or "computing 1"? And how many times does "computing" print?</summary><pre class="ra-out" data-ra-out="l_iters">
+<span class="ra-cmd">$ rustc --edition 2024 iters.rs &amp;&amp; ./iters</span>
+["rust", "fast", "and", "safe", "and", "fun"]
+built the iterator
+  computing 1
+first = Some(10)
+5 and
+6 fun
+lens 23, pairs [('a', 1), ('b', 2), ('c', 3)], any 'fun' true
+longest Some("safe")
+even [2, 4, 6] odd [1, 3, 5]
+short 4, seen 7, consume() 5
+[3, 2, 1]</pre></details>
+<p>Closures capture in the least demanding way that works, and the compiler records which in the closure's type: <code>Fn</code> (reads captured values), <code>FnMut</code> (changes them: <code>count</code> above), <code>FnOnce</code> (moves them out, so it can run once). <code>move</code> before a closure makes it take ownership of what it captures, needed when the closure outlives the current function (threads, section 16).</p>
+<h3>Zero-cost, measured</h3>
+<p>Rust's claim is that the iterator chain compiles to the same machine code as the hand-written loop. The same work five ways (sum of <code>x*x</code> over the even values in 10 million <code>u64</code>, release build, best of 9) and in CPython 3.14 (best of 3):</p>
+<div class="ra-src"><div class="ra-fn">iterbench.rs (lines 1 to 31)</div><pre class="ra-code"><span class="ra-cm">// Is an iterator chain really as fast as a hand-written loop? Same work, five ways:</span>
+<span class="ra-cm">// sum of x*x over the even numbers in a Vec&lt;u64&gt; of 10 million pseudo-random values.</span>
+<span class="ra-kw">use</span> std::hint::black_box;
+<span class="ra-kw">use</span> std::time::Instant;
+
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> index_loop(v: &amp;[u64]) -&gt; u64 &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> s = 0u64;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> i = 0;
+    <span class="ra-kw">while</span> i &lt; v.len() &#123; <span class="ra-kw">let</span> x = v[i]; <span class="ra-kw">if</span> x % 2 == 0 &#123; s = s.wrapping_add(x * x); &#125; i += 1; &#125;
+    s
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> for_loop(v: &amp;[u64]) -&gt; u64 &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> s = 0u64;
+    <span class="ra-kw">for</span> &amp;x <span class="ra-kw">in</span> v &#123; <span class="ra-kw">if</span> x % 2 == 0 &#123; s = s.wrapping_add(x * x); &#125; &#125;
+    s
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> chain(v: &amp;[u64]) -&gt; u64 &#123;
+    v.iter().filter(|&amp;&amp;x| x % 2 == 0).map(|&amp;x| x * x).fold(0u64, |a, b| a.wrapping_add(b))
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> generic_closure&lt;F: Fn(u64) -&gt; u64&gt;(v: &amp;[u64], f: F) -&gt; u64 &#123;
+    v.iter().fold(0u64, |a, &amp;x| a.wrapping_add(f(x)))
+&#125;
+<span class="ra-at">#[inline(never)]</span>
+<span class="ra-kw">fn</span> dyn_closure(v: &amp;[u64], f: &amp;<span class="ra-kw">dyn</span> Fn(u64) -&gt; u64) -&gt; u64 &#123;
+    v.iter().fold(0u64, |a, &amp;x| a.wrapping_add(f(x)))
+&#125;
+</pre></div>
+<div class="bars ra-bench" id="ra-bench-bars"></div>
+<details class="ra-more"><summary>the raw recordings and the load average</summary><pre class="ra-out" data-ra-out="t_iterbench">
+<span class="ra-cmd">$ rustc --edition 2024 -C opt-level=3 iterbench.rs &amp;&amp; ./iterbench</span>
+while loop with v[i]           0.290 ns/element  result 1662703719376
+for x in v                     0.297 ns/element  result 1662703719376
+iter().filter().map().fold()   0.293 ns/element  result 1662703719376
+generic closure F: Fn          0.289 ns/element  result 1662703719376
+&amp;dyn Fn closure                0.954 ns/element  result 1662703719376</pre><pre class="ra-out" data-ra-out="t_iterbench_py">
+<span class="ra-cmd">$ python3.14 iterbench.py</span>
+for loop                         71.4 ns/element  result 1662703719376
+sum(generator)                   45.8 ns/element  result 1662703719376</pre><pre class="ra-out" data-ra-out="t_load">
+<span class="ra-cmd">$ sysctl -n vm.loadavg; sysctl -n machdep.cpu.brand_string</span>
+&#123; 16.52 15.93 12.08 &#125;
+Apple M1 Pro</pre><pre class="ra-out" data-ra-out="t_load_after">
+<span class="ra-cmd">$ sysctl -n vm.loadavg</span>
+&#123; 17.03 16.06 12.18 &#125;</pre></details>
+<p><span class="ra-meas">measured</span> All four statically dispatched versions take the same time, about <b>0.293 ns per element</b>: the closures were inlined and the loop vectorised, so the chain really is free. Calling the closure through <code>&amp;dyn Fn</code>, with the target hidden from the optimiser, blocks inlining and takes 0.954 ns, about three times slower: still far below CPython's 45.8 ns per element for the generator expression. The machine was busy (load average around 16 on 10 cores, recorded before and after), so take the ratios, not the absolute values; all seven results agree (1662703719376).</p>
+<div class="ra-cost"><div><b>Solves</b>Readable pipelines with no speed penalty; laziness means no intermediate lists.</div><div><b>Costs</b>Long chains have long type names in errors; <code>collect</code> sometimes needs a type hint (<code>collect::&lt;Vec&lt;_&gt;&gt;()</code>).</div><div><b>Common mistake</b>Building a chain and never consuming it: nothing runs (clippy warns, and the drill tab shows what printing one gives).</div></div>
+</section>

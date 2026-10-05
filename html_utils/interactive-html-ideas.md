@@ -2510,3 +2510,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/cpp/src/viz_ideas.md`.
 
+### Rust: for Python programmers, Python extensions, services and CLIs (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/rust/src/viz_ideas.md`.
+

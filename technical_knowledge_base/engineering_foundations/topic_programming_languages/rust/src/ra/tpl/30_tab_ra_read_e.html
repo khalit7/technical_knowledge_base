@@ -1,0 +1,47 @@
+
+<section id="ra-conc">
+<h2>16. Threads without data races</h2>
+<p>A <dfn>data race</dfn> is two threads touching the same memory at the same time, at least one of them writing, with nothing ordering them. Updates get lost or values tear. In CPython the GIL used to hide most of these; free-threaded Python 3.14 does not, and an unsynchronised counter there loses updates (measured on the {{Python page|n:3cd5c17b0d0d81b28acdea39e7a4d998}}). Rust makes data races a <b>compile error</b> in safe code, by applying section 5's rule across threads: shared data may be read by many threads, and changed only through a type that synchronises (a lock or an atomic).</p>
+<p>The obvious Python translation, eight threads incrementing one counter, does not compile, and the three errors are the three problems:</p>
+[[code:lang/race_err.rs]]
+[[out:l_race_err]]
+<p>E0373: the thread may outlive <code>counter</code> (a spawned thread is not joined automatically). E0499: eight closures would each hold <code>&amp;mut counter</code> at once. Scoped threads fix the first problem but not the second, which is the data race itself:</p>
+[[out:l_race_scope_err]]
+<p>Two marker traits carry the rule. They are implemented automatically by the compiler for types whose parts qualify ({{std::marker::Send|https://doc.rust-lang.org/std/marker/trait.Send.html}}):</p>
+<ul>
+<li><code>Send</code>: a value of this type may be moved to another thread.</li>
+<li><code>Sync</code>: a <code>&amp;T</code> may be shared between threads (precisely, <code>T</code> is <code>Sync</code> if <code>&amp;T</code> is <code>Send</code>).</li>
+</ul>
+<p><code>Rc</code> is neither, because two threads updating its non-atomic counter at once would be a race; <code>Arc</code> uses atomic updates and is both. Try to send an <code>Rc</code>:</p>
+[[out:l_rc_thread_err]]
+<p>The working toolbox, every result exact:</p>
+[[code:lang/threads.rs]]
+[[out:l_threads]]
+<ul>
+<li><code>thread::spawn(move || ...)</code> plus <code>join()</code> for owned work; <code>thread::scope</code> when threads should borrow local data.</li>
+<li><code>Arc&lt;Mutex&lt;T&gt;&gt;</code> for shared mutable state: <code>lock()</code> returns a guard that unlocks when dropped, and the data is reachable <i>only</i> through the guard, so you cannot forget the lock. Atomics (<code>AtomicU64</code>) for single counters and flags.</li>
+<li>Channels (<code>mpsc</code>) to pass messages instead of sharing memory.</li>
+<li>For data parallelism over a collection, the {{rayon|https://docs.rs/rayon}} crate turns <code>iter()</code> into <code>par_iter()</code>; Part 2 uses it to parallelise the token counter inside a Python extension ({{Part 2|#t-rb-read}}).</li>
+</ul>
+<div class="co warn"><div class="t">What the compiler does not prevent</div>Deadlocks (two threads each holding the lock the other needs), logic races (check-then-act with the lock released in between), and leaked memory are all possible in safe Rust. "Fearless" means no data races and no use after free, not no concurrency bugs.</div>
+<h3>Async, in one paragraph</h3>
+<p>Threads suit CPU work. For thousands of concurrent network calls (an LLM gateway, an agent fanning out tool calls), Rust uses <code>async fn</code> and <code>.await</code>, as Python's asyncio does, with two differences worth knowing now: a future does nothing until it is awaited or spawned (calling an <code>async fn</code> does not start it), and the language ships no event loop, so you choose a runtime library, almost always {{tokio|https://tokio.rs}}. {{Part 3, Services and CLIs|#t-rs-read}} teaches async from zero and builds an HTTP service with it.</p>
+</section>
+
+<section id="ra-unsafe">
+<h2>17. unsafe, in one section</h2>
+<p>Some correct code cannot be proved safe by the compiler: the inside of <code>Vec</code>, calls into C libraries, hardware access. Inside an <code>unsafe</code> block you may do five extra things, the "unsafe superpowers" ({{Rust Book 20.1|https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html}}): dereference a raw pointer; call an <code>unsafe</code> function; access or modify a mutable <code>static</code>; implement an <code>unsafe</code> trait; access fields of a <code>union</code>. Nothing else changes: "<code>unsafe</code> doesn't turn off the borrow checker or disable any of Rust's other safety checks".</p>
+[[code:lang/unsafe_ok.rs]]
+[[out:l_unsafe_ok]]
+<p>Without the block, the compiler refuses and says why each operation needs it:</p>
+[[out:l_unsafe_deref_err]]
+<p>The pattern to aim for is the one <code>split_at_mut</code> shows: a small <code>unsafe</code> core with a stated <b>invariant</b> ("the two halves never overlap"), wrapped in a safe API that cannot be used to break it. Because <code>unsafe</code> is a keyword, every such place can be found with a text search and reviewed.</p>
+<h3>When you get it wrong: Miri</h3>
+<p>Breaking an invariant is <dfn>undefined behaviour</dfn>, exactly as in C++: the program may do anything, including appear to work. This program reads one element past the end of a vector, and then reads a freed vector; built in release mode, it runs and prints plausible numbers:</p>
+[[code:ub/src/main.rs]]
+[[out:l_ub_run]]
+<p>{{Miri|https://github.com/rust-lang/miri}} is an interpreter for Rust's intermediate representation that checks every memory access against the rules. It runs on the nightly toolchain (here rustc 1.101.0-nightly of 2026-10-04) and is much slower than native code, so you run your tests under it, not production:</p>
+[[out:l_ub_miri]]
+<p>It stops at the first violation, names it (<i>at or beyond the end of the allocation of size 12 bytes</i>) and points at where the memory was allocated. If you write <code>unsafe</code>, run <code>cargo +nightly miri test</code> in CI. The C++ page's equivalent tools are the sanitizers ({{C++ page, Part 1|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}).</p>
+<div class="ra-cost"><div><b>Use it for</b>FFI (calling C), performance-critical data structures, and building safe abstractions the checker cannot verify.</div><div><b>Costs</b>You take on C's obligations for that block; reviewers must check the invariant by hand.</div><div><b>Do not</b>Use <code>unsafe</code> to silence a borrow error. If safe code cannot express it, the design usually needs an index, a <code>RefCell</code> or a different owner.</div></div>
+</section>

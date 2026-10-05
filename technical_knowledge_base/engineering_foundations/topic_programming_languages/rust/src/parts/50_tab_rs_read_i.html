@@ -1,0 +1,91 @@
+<section id="rs-s-test"><h2>Testing</h2>
+<p>Three levels, all run by one <code>cargo test</code> (Part 1 covers <code>#[test]</code>, assertions and test layout: {{Reading|#t-ra-read}}). Test strategy in general (what to test, CI) is the SWE topic's {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}} page.</p>
+<ul class="tight"><li><b>Unit tests</b> of the logic, next to it in <code>src/lib.rs</code>, with no async and no HTTP: the token rules from the root page's spec, and malformed lines being counted rather than fatal.</li>
+<li><b>Router tests without a network.</b> An axum <code>Router</code> is a tower <code>Service</code>: call it with a request object and await the response, with <code>tower::ServiceExt::oneshot</code>. Fast (no sockets), and it exercises extractors, layers and status codes. <code>#[tokio::test]</code> gives each test its own runtime.</li>
+<li><b>A real server on a real port.</b> Bind port 0 (the OS picks a free one, so tests can run in parallel), spawn the server, talk TCP to it. Slower, but it catches what in-process tests cannot (the listener, HTTP framing).</li></ul>
+<div class="rs-src"><div class="rs-fn">tok/tests/service.rs (lines 13 to 26)</div><pre class="rs-code"><span class="rs-at">#[tokio::test]</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> count_without_a_network() &#123;
+    <span class="rs-kw">let</span> req = Request::post(<span class="rs-st">"/count"</span>)
+        .header(<span class="rs-st">"content-type"</span>, <span class="rs-st">"application/json"</span>)
+        .body(Body::<span class="rs-kw">from</span>(r#"&#123;"text":"x86_64 and v2.1"&#125;"#))
+        .unwrap();
+    <span class="rs-kw">let</span> resp = app(cfg()).oneshot(req).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-mac">assert_eq!</span>(resp.status(), StatusCode::OK);
+    <span class="rs-kw">let</span> bytes = resp.into_body().collect().<span class="rs-kw">await</span>.unwrap().to_bytes();
+    <span class="rs-kw">let</span> body: CountResp = serde_json::from_slice(&amp;bytes).unwrap();
+    <span class="rs-mac">assert_eq!</span>(body.tokens, 5); <span class="rs-cm">// x86, 64, and, v2, 1</span>
+&#125;
+
+<span class="rs-at">#[tokio::test]</span></pre></div>
+<div class="rs-src"><div class="rs-fn">tok/tests/service.rs (lines 42 to 57)</div><pre class="rs-code">
+<span class="rs-cm">/// A real server on port 0 (the OS picks a free port), talked to over TCP.</span>
+<span class="rs-at">#[tokio::test]</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> real_server_over_tcp() &#123;
+    <span class="rs-kw">let</span> listener = tokio::net::TcpListener::bind(<span class="rs-st">"127.0.0.1:0"</span>).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-kw">let</span> addr = listener.local_addr().unwrap();
+    tokio::spawn(<span class="rs-kw">async</span> <span class="rs-kw">move</span> &#123; axum::serve(listener, app(cfg())).<span class="rs-kw">await</span>.unwrap() &#125;);
+
+    <span class="rs-kw">use</span> tokio::io::&#123;AsyncReadExt, AsyncWriteExt&#125;;
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> s = tokio::net::TcpStream::connect(addr).<span class="rs-kw">await</span>.unwrap();
+    s.write_all(b<span class="rs-st">"GET /health HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"</span>).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> raw = String::new();
+    s.read_to_string(&amp;<span class="rs-kw">mut</span> raw).<span class="rs-kw">await</span>.unwrap();
+    <span class="rs-mac">assert!</span>(raw.starts_with(<span class="rs-st">"HTTP/1.1 200 OK"</span>), <span class="rs-st">"&#123;raw&#125;"</span>);
+    <span class="rs-mac">assert!</span>(raw.ends_with(<span class="rs-st">"\r\n\r\nok"</span>), <span class="rs-st">"&#123;raw&#125;"</span>);
+&#125;</pre></div>
+<pre class="rs-out" data-rs-out="test">
+
+running 2 tests
+test tests::tokens_follow_the_rules ... ok
+test tests::malformed_lines_are_counted_not_fatal ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test missing_field_is_422 ... ok
+test count_without_a_network ... ok
+test real_server_over_tcp ... ok
+test slow_request_times_out ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s</pre>
+<p class="small mute">The timeout test runs the real 500 ms timeout; for longer timers, <code>tokio::time::pause()</code> lets a test advance a fake clock instantly.</p>
+</section>
+
+<section id="rs-s-deploy"><h2>Deployment: a container image</h2>
+<p>A <dfn>container image</dfn> is a file system plus a start command. A Python service image needs an interpreter and its packages; a Rust service image needs the binary and, at most, a C library. The standard recipe is a <dfn>multi-stage build</dfn>: compile in a full Rust image, then copy only the binary into a minimal one.</p>
+<div class="rs-src"><div class="rs-fn">tok/Dockerfile</div><pre class="rs-code"><span class="rs-cm"># Multi-stage build: compile in a full Rust image, ship only the binary.</span>
+<span class="rs-cm"># Stage 1: the builder (about 1.5 GB of compilers and headers; thrown away).</span>
+<span class="rs-kw">FROM</span> rust:1.99-slim-bookworm <span class="rs-kw">AS</span> build
+<span class="rs-kw">WORKDIR</span> /src
+<span class="rs-cm"># Cache dependencies: build once with a dummy main so code edits do not refetch crates.</span>
+<span class="rs-kw">COPY</span> Cargo.toml Cargo.lock ./
+<span class="rs-kw">RUN</span> mkdir -p src/bin &amp;&amp; echo 'fn main()&#123;&#125;' &gt; src/bin/tokserve.rs &amp;&amp; echo '' &gt; src/lib.rs \
+ &amp;&amp; cargo build --release --bin tokserve &amp;&amp; rm -rf src
+<span class="rs-kw">COPY</span> src ./src
+<span class="rs-kw">RUN</span> touch src/lib.rs src/bin/tokserve.rs &amp;&amp; cargo build --release --bin tokserve
+
+<span class="rs-cm"># Stage 2: distroless "cc" = glibc + libgcc + CA certs, no shell, no package manager, non-root user.</span>
+<span class="rs-kw">FROM</span> gcr.io/distroless/cc-debian12:nonroot
+<span class="rs-kw">COPY</span> --from=build /src/target/release/tokserve /tokserve
+<span class="rs-kw">ENV</span> TOK_ADDR=0.0.0.0:3000
+<span class="rs-kw">EXPOSE</span> 3000
+<span class="rs-kw">ENTRYPOINT</span> [<span class="rs-st">"/tokserve"</span>]</pre></div>
+<p>Two base images matter for the last stage. <b>Distroless</b> images ({{GoogleContainerTools/distroless|https://github.com/GoogleContainerTools/distroless}}) contain no shell and no package manager, so there is less to patch and less for an attacker to use; <code>cc-debian12</code> adds glibc and libgcc for a normally linked Rust binary, and the <code>:nonroot</code> tag runs as an unprivileged user. <b>scratch</b> is the empty image: it works only with a fully static binary, which the musl cross-build above produces:</p>
+<div class="rs-src"><div class="rs-fn">tok/Dockerfile.scratch</div><pre class="rs-code"><span class="rs-cm"># The smallest image: a static musl binary in an empty image.</span>
+<span class="rs-cm"># Build the binary first (on any machine): see ../../cross.sh, or in a builder stage with</span>
+<span class="rs-cm">#   rustup target add x86_64-unknown-linux-musl &amp;&amp; cargo build --release --target x86_64-unknown-linux-musl</span>
+<span class="rs-kw">FROM</span> scratch
+<span class="rs-kw">COPY</span> tokserve /tokserve
+<span class="rs-kw">ENV</span> TOK_ADDR=0.0.0.0:3000
+<span class="rs-kw">USER</span> 65532:65532
+<span class="rs-kw">EXPOSE</span> 3000
+<span class="rs-kw">ENTRYPOINT</span> [<span class="rs-st">"/tokserve"</span>]</pre></div>
+<div class="tw"><table><thead><tr><th>Image for this service</th><th class="num">Base (compressed, linux/arm64)</th><th class="num">+ the service</th><th>Source</th></tr></thead><tbody>
+<tr><td>FastAPI on <code>python:3.14-slim</code></td><td class="num">47.1 MB</td><td class="num">+ fastapi, pydantic, uvicorn and deps</td><td>{{Docker Hub tag API|https://hub.docker.com/v2/repositories/library/python/tags/3.14-slim}}</td></tr>
+<tr><td>tokserve on <code>distroless/cc-debian12</code></td><td class="num">9.0 MB</td><td class="num">+ 2.84 MB binary (glibc build)</td><td>gcr.io registry manifest</td></tr>
+<tr><td>tokserve on <code>distroless/static-debian12</code> or <code>scratch</code></td><td class="num">0.7 MB / 0</td><td class="num">+ 4582976 bytes (static musl build, arm64, not stripped)</td><td>gcr.io registry manifest; measured binary</td></tr>
+</tbody></table></div>
+<div class="co warn"><div class="t">Not built here</div>The Docker daemon on this laptop was not running and was not started for this page, so the two Dockerfiles are shown as written and the image sizes are base-image sizes from the registries (compressed layer sums, checked 2026-10-05) plus the binaries measured on this machine. The binary in the table is the macOS build; the Linux glibc build will differ slightly. To verify: <code>docker build -t tokserve . &amp;&amp; docker images tokserve</code>.</div>
+<p><b>What else production needs</b>, briefly: a health endpoint for the orchestrator (<code>/health</code>), SIGTERM handling (above), logs on stdout, configuration from the environment, resource limits (and a worker count to match the CPUs the container is given: tokserve takes <code>--workers</code> or <code>TOK_WORKERS</code>), and TLS terminated in front (a load balancer or proxy) or in-process with rustls. Load balancing and capacity are the SWE topic's {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}} page.</p>
+</section>

@@ -1,0 +1,213 @@
+<section id="rs-s-axum"><h2>An HTTP service with axum</h2>
+<p><b>The problem it solves.</b> Turn the token counter into something other programs call over HTTP: <code>POST /count</code> with <code>{"text": "..."}</code> returns <code>{"tokens": n}</code>, <code>POST /count_log</code> with a JSONL body returns the root program's report as JSON. <b>axum</b> is the tokio project's web framework: a thin, typed layer over the hyper HTTP library. If you know FastAPI, most of it maps one to one. HTTP design itself (methods, status codes, idempotency, versioning) is the SWE topic's page: {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
+<h3>Routes and handlers</h3>
+<div class="rs-src"><div class="rs-fn">tok/src/service.rs (lines 70 to 98)</div><pre class="rs-code"><span class="rs-kw">pub</span> <span class="rs-kw">fn</span> app(cfg: Config) -&gt; Router &#123;
+    <span class="rs-kw">let</span> timeout = cfg.request_timeout;
+    <span class="rs-kw">let</span> limit = cfg.max_body_bytes;
+    <span class="rs-kw">let</span> state = Arc::new(AppState &#123; cfg, requests: AtomicU64::new(0), tokens_counted: AtomicU64::new(0) &#125;);
+    Router::new()
+        .route(<span class="rs-st">"/health"</span>, get(|| <span class="rs-kw">async</span> &#123; <span class="rs-st">"ok"</span> &#125;))
+        .route(<span class="rs-st">"/count"</span>, post(count))
+        .route(<span class="rs-st">"/count_log"</span>, post(count_log))
+        .route(<span class="rs-st">"/slow"</span>, get(slow))
+        .route(<span class="rs-st">"/stats"</span>, get(stats))
+        .with_state(state)
+        <span class="rs-cm">// Layers wrap every route; the last added is the outermost.</span>
+        <span class="rs-cm">// axum's own extractor limit (2 MB) is replaced by one configurable limit for every route.</span>
+        .layer(DefaultBodyLimit::disable())
+        .layer(RequestBodyLimitLayer::new(limit))
+        .layer(TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, timeout))
+        .layer(TraceLayer::new_for_http())
+&#125;
+
+<span class="rs-cm">/// POST /count &#123;"text": "..."&#125; -&gt; &#123;"tokens": n&#125;</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> count(State(st): State&lt;Arc&lt;AppState&gt;&gt;, Json(req): Json&lt;CountReq&gt;) -&gt; Result&lt;Json&lt;CountResp&gt;, AppError&gt; &#123;
+    st.requests.fetch_add(1, Ordering::Relaxed);
+    <span class="rs-kw">if</span> req.text.is_empty() &#123;
+        <span class="rs-kw">return</span> Err(AppError::Empty);
+    &#125;
+    <span class="rs-kw">let</span> tokens = count_tokens(&amp;req.text);
+    st.tokens_counted.fetch_add(tokens, Ordering::Relaxed);
+    Ok(Json(CountResp &#123; tokens &#125;))
+&#125;</pre></div>
+<p>A <dfn>handler</dfn> is an <code>async fn</code>. Its parameters are <dfn>extractors</dfn>: types that know how to pull something out of the request. <code>Json&lt;CountReq&gt;</code> parses the body as JSON into the struct (serde checks every field and type, like a pydantic model); <code>State&lt;...&gt;</code> hands over shared state; <code>Query&lt;T&gt;</code> parses the query string; <code>axum::body::Bytes</code> takes the raw body. Its return type must implement <code>IntoResponse</code>: a <code>String</code>, a <code>Json&lt;T&gt;</code>, a status code, a tuple of those, or a <code>Result</code> of two of them. If an extractor fails, axum answers for you and the handler never runs:</p>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> Send <code>{"txt": "oops"}</code> (a typo in the field name). Which status, and what body?</summary><pre class="rs-out" data-rs-out="svc_missing">
+<span class="rs-cmd">$ curl -i -X POST localhost:3000/count -H 'content-type: application/json' -d '&#123;"txt":"oops"&#125;'</span>
+HTTP/1.1 422 Unprocessable Entity
+content-type: text/plain; charset=utf-8
+content-length: 98
+date: (removed)
+
+Failed to deserialize the JSON body into the target type: missing field `text` at line 1 column 14</pre></details>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> Send valid JSON without a <code>content-type: application/json</code> header. Which status?</summary><pre class="rs-out" data-rs-out="svc_ctype">
+<span class="rs-cmd">$ curl -i -X POST localhost:3000/count -d '&#123;"text":"hi"&#125;'</span>
+HTTP/1.1 415 Unsupported Media Type
+content-type: text/plain; charset=utf-8
+content-length: 54
+date: (removed)
+
+Expected request with `Content-Type: application/json`</pre></details>
+<div class="rs-py"><div class="t">Python bridge</div>FastAPI answers the same mistake with 422 and a structured JSON <code>detail</code> list (recorded from the FastAPI twin in <code>code/py/app.py</code>: <code>{"detail":[{"type":"missing","loc":["body","text"],"msg":"Field required",...}]}</code>). axum's default rejection is a plain-text sentence; to get JSON errors, write your own extractor wrapper or map rejections in a layer. FastAPI's dependency injection corresponds to extractors and <code>State</code>; Starlette middleware corresponds to tower layers.</div>
+<h3>Errors the handler returns</h3>
+<p>For errors the handler decides, define an enum with <b>thiserror</b> (a library-style error type, so each case can map to its own status) and implement <code>IntoResponse</code> once:</p>
+<div class="rs-src"><div class="rs-fn">tok/src/service.rs (lines 49 to 68)</div><pre class="rs-code"><span class="rs-cm">/// Errors a handler can return. IntoResponse turns each into a status code and a JSON body.</span>
+<span class="rs-at">#[derive(Debug, thiserror::Error)]</span>
+<span class="rs-kw">pub</span> <span class="rs-kw">enum</span> AppError &#123;
+    <span class="rs-at">#[error("body is not valid UTF-8")]</span>
+    NotUtf8,
+    <span class="rs-at">#[error("text is empty")]</span>
+    Empty,
+    <span class="rs-at">#[error("worker failed: &#123;0&#125;")]</span>
+    Join(<span class="rs-at">#[from]</span> tokio::task::JoinError),
+&#125;
+
+<span class="rs-kw">impl</span> IntoResponse <span class="rs-kw">for</span> AppError &#123;
+    <span class="rs-kw">fn</span> into_response(<span class="rs-kw">self</span>) -&gt; Response &#123;
+        <span class="rs-kw">let</span> status = <span class="rs-kw">match</span> <span class="rs-kw">self</span> &#123;
+            AppError::NotUtf8 | AppError::Empty =&gt; StatusCode::BAD_REQUEST,
+            AppError::Join(_) =&gt; StatusCode::INTERNAL_SERVER_ERROR,
+        &#125;;
+        (status, Json(serde_json::<span class="rs-mac">json!</span>(&#123; <span class="rs-st">"error"</span>: <span class="rs-kw">self</span>.to_string() &#125;))).into_response()
+    &#125;
+&#125;</pre></div>
+<pre class="rs-out" data-rs-out="svc_empty">
+<span class="rs-cmd">$ curl -i -X POST localhost:3000/count -H 'content-type: application/json' -d '&#123;"text":""&#125;'</span>
+HTTP/1.1 400 Bad Request
+content-type: application/json
+content-length: 25
+date: (removed)
+
+&#123;"error":"text is empty"&#125;</pre>
+<p>The <code>#[from] tokio::task::JoinError</code> line lets <code>?</code> convert a crashed background job into a 500 automatically. A panic (a bug such as an out-of-bounds index) inside a handler does not take the server down: tokio catches it at the task boundary, that one connection is closed without a response, and other requests carry on. <code>examples/b3_panic.rs</code>, with curl as the client:</p>
+<pre class="rs-out" data-rs-out="b3_panic">
+
+thread 'tokio-rt-worker' (N) panicked at examples/b3_panic.rs:25:14:
+index out of bounds: the len is 0 but the index is 3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+GET /boom    -&gt; HTTP 000 (curl exit 52)
+GET /health  -&gt; HTTP 200 (curl exit 0)
+
+thread 'tokio-rt-worker' (N) panicked at examples/b3_panic.rs:25:14:
+index out of bounds: the len is 0 but the index is 3
+GET /boom    -&gt; HTTP 000 (curl exit 52)
+GET /health  -&gt; HTTP 200 (curl exit 0)</pre>
+<p>curl's exit 52 is "empty reply from server". To answer 500 instead, add tower-http's <code>CatchPanicLayer</code>; to find the bug, the panic message is on stderr with the file and line.</p>
+<h3>Shared state</h3>
+<p>Every request runs as its own task, maybe on another thread, so shared state goes behind an <code>Arc</code> (a thread-safe shared pointer; Part 1, {{Reading|#t-ra-read}}) and anything mutable inside it must be thread-safe: here, two atomic counters. <code>with_state(state)</code> gives each handler a cheap clone of the <code>Arc</code>. For a mutable map, use a <code>Mutex</code> (held briefly, never across an await) or a concurrent map; for a database pool, the pool type is already shareable. Python's equivalent, a module-level dict, is per worker process under <code>uvicorn --workers 4</code>, so <code>/stats</code> on the FastAPI twin reports only the worker that answered. tokserve's counters are process-wide because its workers are threads:</p>
+<pre class="rs-out" data-rs-out="svc_stats">
+<span class="rs-cmd">$ curl localhost:3000/stats</span>
+&#123;"requests":3,"tokens_counted":44703&#125;</pre>
+<h3>CPU work inside a handler</h3>
+<div class="rs-src"><div class="rs-fn">tok/src/service.rs (lines 100 to 113)</div><pre class="rs-code"><span class="rs-cm">/// POST /count_log with a JSONL body -&gt; the root program's report as JSON.</span>
+<span class="rs-cm">/// Counting a large body is CPU work: with offload on it runs on the blocking pool.</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> count_log(State(st): State&lt;Arc&lt;AppState&gt;&gt;, body: axum::body::Bytes) -&gt; Result&lt;Json&lt;<span class="rs-kw">crate</span>::Report&gt;, AppError&gt; &#123;
+    st.requests.fetch_add(1, Ordering::Relaxed);
+    <span class="rs-kw">let</span> work = <span class="rs-kw">move</span> || -&gt; Result&lt;<span class="rs-kw">crate</span>::Report, AppError&gt; &#123;
+        <span class="rs-kw">let</span> text = std::str::from_utf8(&amp;body).map_err(|_| AppError::NotUtf8)?;
+        <span class="rs-kw">let</span> <span class="rs-kw">mut</span> t = Tally::default();
+        t.add_text(text);
+        Ok(t.report(5))
+    &#125;;
+    <span class="rs-kw">let</span> report = <span class="rs-kw">if</span> st.cfg.offload &#123; tokio::task::spawn_blocking(work).<span class="rs-kw">await</span>?? &#125; <span class="rs-kw">else</span> &#123; work()? &#125;;
+    st.tokens_counted.fetch_add(report.tokens, Ordering::Relaxed);
+    Ok(Json(report))
+&#125;</pre></div>
+<p>Counting a 391 KB log is about a millisecond of CPU; a 3.9 MB one about ten times that. Either is far above the 10 to 100 &micro;s budget between awaits, so the handler moves it to the blocking pool (the inline mode exists only for the measurement above). Note the double <code>??</code>: the first unwraps the <code>JoinError</code> (did the background job panic?), the second the counting's own <code>Result</code>.</p>
+<h3>Middleware: tower layers</h3>
+<p>A <dfn>layer</dfn> wraps the whole router in reusable behaviour; <b>tower-http</b> provides the common ones. The last <code>.layer</code> added is the outermost, so a request passes through tracing, then the timeout, then the body limit, then the route. Two of them in action:</p>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> <code>GET /slow?ms=1500</code> with the default 1,000 ms request timeout. What comes back?</summary><pre class="rs-out" data-rs-out="svc_timeout">
+<span class="rs-cmd">$ curl -i 'localhost:3000/slow?ms=1500'</span>
+HTTP/1.1 408 Request Timeout
+content-length: 0
+date: (removed)</pre></details>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> POST a 3.9 MB log when the limit is 1 MiB. What comes back, and does the handler run?</summary><pre class="rs-out" data-rs-out="svc_toolarge">
+<span class="rs-cmd">$ curl -i -X POST localhost:3000/count_log --data-binary @pl/chat20k.jsonl</span>
+HTTP/1.1 413 Payload Too Large
+content-type: text/plain; charset=utf-8
+content-length: 21
+date: (removed)
+
+length limit exceeded</pre></details>
+<p>Watch out for <b>two body limits</b>: axum's extractors refuse bodies over 2 MB by default ({{DefaultBodyLimit|https://docs.rs/axum/latest/axum/extract/struct.DefaultBodyLimit.html}}), independently of any tower layer. This project's first benchmark of the blocking experiment was silently measuring fast 413 rejections because of it; <code>DefaultBodyLimit::disable()</code> plus one configured <code>RequestBodyLimitLayer</code> leaves a single limit to reason about.</p>
+<h3>Logs and spans: tracing</h3>
+<p><b>tracing</b> records <dfn>events</dfn> (log lines with typed fields) inside <dfn>spans</dfn> (a named period of work, here one per request, opened by <code>TraceLayer</code>). The subscriber decides the format and filter; <code>RUST_LOG=info,tower_http=debug</code> asks for info everywhere and per-request lines from tower-http. The service's log for the requests above (timestamps removed):</p>
+<pre class="rs-out" data-rs-out="svc_log">
+INFO tokserve: starting cfg=Config &#123; max_body_bytes: 1048576, request_timeout: 1s, offload: true &#125;
+INFO tokserve: listening on http://127.0.0.1:3000
+DEBUG request&#123;method=GET uri=/health version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=GET uri=/health version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=0 ms status=200
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=0 ms status=200
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=0 ms status=422
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=0 ms status=415
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=POST uri=/count version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=0 ms status=400
+DEBUG request&#123;method=POST uri=/count_log version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=POST uri=/count_log version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=1 ms status=200
+DEBUG request&#123;method=GET uri=/slow?ms=1500 version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=GET uri=/slow?ms=1500 version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=1002 ms status=408
+DEBUG request&#123;method=POST uri=/count_log version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=POST uri=/count_log version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=0 ms status=413
+DEBUG request&#123;method=GET uri=/stats version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+DEBUG request&#123;method=GET uri=/stats version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=0 ms status=200
+INFO tokserve: SIGTERM received, draining
+INFO tokserve: drained, bye</pre>
+<p>The same spans can be exported to OpenTelemetry for distributed traces; what to log and alert on is the SWE topic's {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}} page.</p>
+<h3>Configuration and graceful shutdown</h3>
+<p>The service reads its settings with clap, with <code>env = "TOK_ADDR"</code> on each flag, so the same binary takes flags on a laptop and environment variables in a container (twelve-factor style):</p>
+<pre class="rs-out" data-rs-out="svc_help">
+Serve the token counter over HTTP. Every flag can also come from the environment
+
+Usage: tokserve [OPTIONS]
+
+Options:
+      --addr &lt;ADDR&gt;              Address to listen on [env: TOK_ADDR=] [default: 127.0.0.1:3000]
+      --max-body &lt;MAX_BODY&gt;      Largest request body accepted, in bytes [env: TOK_MAX_BODY=] [default: 1048576]
+      --timeout-ms &lt;TIMEOUT_MS&gt;  Per-request time limit, in milliseconds [env: TOK_TIMEOUT_MS=] [default: 1000]
+      --workers &lt;WORKERS&gt;        Async worker threads (default: one per CPU core) [env: TOK_WORKERS=]
+      --inline                   Count large bodies inline on the async worker instead of the blocking pool
+  -h, --help                     Print help
+  -V, --version                  Print version</pre>
+<p>When an orchestrator stops a container it sends <b>SIGTERM</b>, waits a grace period, then sends SIGKILL: 10 s by default for <code>docker stop</code> ({{docs|https://docs.docker.com/reference/cli/docker/container/stop/}}), 30 s by default on Kubernetes ({{pod lifecycle|https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/}}). A service that dies on SIGTERM drops every request in flight. <code>with_graceful_shutdown</code> takes a future; when it resolves, axum stops accepting connections and waits for in-flight requests to finish:</p>
+<div class="rs-src"><div class="rs-fn">tok/src/bin/tokserve.rs (lines 51 to 75)</div><pre class="rs-code">    axum::serve(listener, app(cfg))
+        .with_graceful_shutdown(shutdown_signal())
+        .<span class="rs-kw">await</span>?;
+    <span class="rs-mac">info!</span>(<span class="rs-st">"drained, bye"</span>);
+    Ok(())
+&#125;
+
+<span class="rs-cm">/// Resolves on Ctrl-C or SIGTERM (what `docker stop` and Kubernetes send).</span>
+<span class="rs-cm">/// After it resolves, axum stops accepting and waits for in-flight requests to finish.</span>
+<span class="rs-kw">async</span> <span class="rs-kw">fn</span> shutdown_signal() &#123;
+    <span class="rs-kw">let</span> ctrl_c = <span class="rs-kw">async</span> &#123; tokio::signal::ctrl_c().<span class="rs-kw">await</span>.expect(<span class="rs-st">"ctrl-c handler"</span>) &#125;;
+    <span class="rs-at">#[cfg(unix)]</span>
+    <span class="rs-kw">let</span> term = <span class="rs-kw">async</span> &#123;
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect(<span class="rs-st">"SIGTERM handler"</span>)
+            .recv()
+            .<span class="rs-kw">await</span>;
+    &#125;;
+    <span class="rs-at">#[cfg(not(unix))]</span>
+    <span class="rs-kw">let</span> term = std::future::pending::&lt;()&gt;();
+    tokio::<span class="rs-mac">select!</span> &#123;
+        _ = ctrl_c =&gt; <span class="rs-mac">info!</span>(<span class="rs-st">"Ctrl-C received, draining"</span>),
+        _ = term =&gt; <span class="rs-mac">info!</span>(<span class="rs-st">"SIGTERM received, draining"</span>),
+    &#125;
+&#125;</pre></div>
+<pre class="rs-out" data-rs-out="svc_graceful">
+[client] GET /slow?ms=800 (in the background)
+[shell] kill -TERM &lt;tokserve&gt;
+[client] new connection refused (curl exit 7)
+[server] exited with code 0
+[client] slow request: HTTP 200 after 0.803311 s
+--- server log ---
+INFO tokserve: starting cfg=Config &#123; max_body_bytes: 1048576, request_timeout: 5s, offload: true &#125;
+INFO tokserve: listening on http://127.0.0.1:3000
+DEBUG request&#123;method=GET uri=/slow?ms=800 version=HTTP/1.1&#125;: tower_http::trace::on_request: started processing request
+INFO tokserve: SIGTERM received, draining
+DEBUG request&#123;method=GET uri=/slow?ms=800 version=HTTP/1.1&#125;: tower_http::trace::on_response: finished processing request latency=802 ms status=200
+INFO tokserve: drained, bye</pre>
+<p>The slow request that was in flight when SIGTERM arrived completed with 200; the new connection was refused; the process exited 0 after draining. In production, also put a timeout on the drain (requests longer than the grace period are killed anyway).</p>
+</section>

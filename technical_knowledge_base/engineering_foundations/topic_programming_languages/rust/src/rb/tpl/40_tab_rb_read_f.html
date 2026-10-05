@@ -1,0 +1,33 @@
+
+<section id="rb-s10">
+<h2>10. The token counter, step by step: the optimisation ladder</h2>
+<p>Now the whole program, end to end, as the user runs it: <code>python ladder.py STEP chat200k.jsonl</code>, timed by hyperfine (7 runs after a warm-up, including interpreter start-up), each step printing exactly the expected output of the root's <code>PROGRAM.md</code> (checked byte for byte: <code>outputs/ladder_check.txt</code>).</p>
+<div class="card"><div id="rb-lad-mini"></div>
+<p class="small mute">Seconds, median of 7 (the dark tick shows min to max). Reference lines from the root's {{Benchmark|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} (separate runs, same machine): a standalone Rust binary does the whole job in <span data-rbv="root.rust" data-d="3"></span> s.</p></div>
+<div class="tw"><table class="rb-t"><thead><tr><th>Step</th><th>What changed</th><th class="num">Time</th><th class="num">vs Python</th></tr></thead><tbody id="rb-lad-tb"></tbody></table></div>
+<p>Read it as a story. <b>Steps 1 to 3</b> move only the token loop: a 3x gain, and batching (step 3) barely beats one call per message, because once the loop is in Rust the program is waiting on <code>json.loads</code>. Copying the strings (step 2) is visibly slower than borrowing them (step 3). <b>Step 4</b> moves the parsing too: Python reads the file as <code>bytes</code> and makes one call; serde parses each line straight into a typed struct, and the program runs <span class="rb-n" data-rbr="L.python.median|L.bytes.median" data-d="0"></span> times faster than the Python version. <b>Step 5</b> releases the GIL and splits the file over 8 rayon threads. The root's own whole-file PyO3 variant measured <span data-rbv="root.pyrs_file" data-d="3"></span> s (one thread) and <span data-rbv="root.pyrs_file4" data-d="3"></span> s (4 threads), in line with steps 4 and 5.</p>
+<div class="deepnote"><b>Go deeper.</b> The {{Optimisation ladder|#t-rb-ladder}} tab shows each step's code change, where its time goes phase by phase, and lets you compare any two steps.</div>
+<div class="rb-pq"><b>Predict:</b> step 5 runs on 8 threads. Why is it about 2x faster than step 4 and not 8x?</div>
+<button class="rb-rv" data-for="rb-pr-l5" aria-expanded="false">Reveal the real output</button>
+<div id="rb-pr-l5" hidden><p class="small">The phases (from <code>ladder.py --phases</code>): the Rust part fell from <span class="rb-n" data-rbv="phases/bytes/Rust: parse + count" data-d="0"></span> ms to <span class="rb-n" data-rbv="phases/parallel/Rust: parse + count" data-d="0"></span> ms (<span data-rbr="phases/bytes/Rust: parse + count|phases/parallel/Rust: parse + count" data-d="1"></span>x on a busy laptop with 2 of its 10 cores slower efficiency cores). What did not shrink is everything else in the process: starting Python and importing <code>tokrs</code> (<span class="rb-n" data-rbv="startup.median" data-rbm="1000" data-d="0"></span> ms on its own, measured with hyperfine), reading the file, building the result dict and printing. Amdahl again.</p></div>
+</section>
+
+<section id="rb-s11">
+<h2>11. Type stubs and tests</h2>
+<p>A compiled module has no Python source, so mypy, ty and your editor cannot see its signatures. You give them a <b>stub file</b> (<code>.pyi</code>): Python syntax with <code>...</code> for bodies, read only by type checkers. For a project like this one (Rust only, no Python package directory), maturin picks up <code>&lt;module&gt;.pyi</code> next to <code>Cargo.toml</code> and adds it to the wheel with a <code>py.typed</code> marker (<a href="https://www.maturin.rs/project_layout.html#adding-python-type-information" target="_blank" rel="noopener noreferrer">maturin: adding Python type information</a>). The hand-written one, abridged:</p>
+[[file:ext/tokrs.pyi@1-14]]
+<p>A script with four mistakes (<code>code/c11_typed.py</code>) checked three ways:</p>
+[[file:code/c11_typed.py]]
+[[out:c11_mypy_nostub.txt|$ mypy --strict c11_typed.py   (wheel without the stub)]]
+[[out:c11_mypy.txt|$ mypy --strict c11_typed.py   (with the stub)]]
+[[out:c11_ty.txt|$ ty check c11_typed.py   (with the stub)]]
+<p>Without the stub, mypy cannot check any call into <code>tokrs</code>. With it, mypy catches three mistakes; ty catches all four, including the <code>float32</code> array that mypy let through. A stub can also drift out of date: nothing checks it against the Rust code. PyO3 is building automatic stubs (<code>experimental-inspect</code> feature, <code>maturin generate-stubs</code>, labelled "still in active development"); on this crate it produced:</p>
+[[file:outputs/b9_stubs_auto.pyi@41-65]]
+<p>Close, from the Rust types alone, but with gaps: <code>count_many(texts: list)</code> lost the element type (PyO3 cannot see inside a <code>Bound&lt;PyList&gt;</code>), NumPy arrays became <code>Incomplete</code>, <code>MalformedLine</code> was missing, and the file ends with a catch-all <code>def __getattr__(name: str) -> Incomplete</code>. It also shows <code>count_bytes_owned(data: Sequence[int])</code>: a <code>Vec&lt;u8&gt;</code> parameter accepts any sequence of ints, not only <code>bytes</code>. For now, write the stub by hand and test it with <code>mypy.stubtest</code>.</p>
+<h3>Tests from pytest</h3>
+<p>Test the extension the way users call it: from Python. The suite (<code>ext/tests/test_tokrs.py</code>) checks the rule 3 examples, equality with the Python reference on all 1,992 messages of the root's small log, the whole-file result against <code>PROGRAM.md</code>, the parallel split against the serial one, that errors arrive as the right exception types, and eight threads sharing nothing:</p>
+[[file:ext/tests/test_tokrs.py@28-49]]
+[[out:c12_pytest.txt|$ python -m pytest -q tests   (CPython 3.14.8)]]
+[[out:c12_pytest_314t.txt|$ python3.14t -m pytest -q tests   (free-threaded)]]
+<p>Rust-only helpers (<code>tokens</code>, <code>chunks</code>) can also have <code>#[test]</code> functions run by <code>cargo test</code>; tests that call into Python need an interpreter linked in, which is why most PyO3 projects test from pytest. Run the suite on the free-threaded build too: the <code>Already borrowed</code> failure of section 9 only shows there.</p>
+</section>

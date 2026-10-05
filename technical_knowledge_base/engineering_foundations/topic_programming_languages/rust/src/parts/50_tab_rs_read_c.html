@@ -1,0 +1,140 @@
+<section id="rs-s-cli"><h2>A CLI with clap</h2>
+<p><b>The problem it solves.</b> A command-line tool has to read arguments, validate them, print help, report errors on stderr, write results on stdout, and return an exit code a shell script can test. Doing that by hand is tedious and always slightly wrong. <b>clap</b> generates all of it from a struct.</p>
+<h3>Arguments are a struct</h3>
+<div class="rs-src"><div class="rs-fn">tok/src/bin/tokcount.rs (lines 10 to 37)</div><pre class="rs-code"><span class="rs-cm">/// Count word-ish tokens per user in JSONL chat logs.</span>
+<span class="rs-at">#[derive(Parser)]</span>
+<span class="rs-at">#[command(name = "tokcount", version)]</span>
+<span class="rs-kw">struct</span> Cli &#123;
+    <span class="rs-at">#[command(subcommand)]</span>
+    cmd: Cmd,
+&#125;
+
+<span class="rs-at">#[derive(Subcommand)]</span>
+<span class="rs-kw">enum</span> Cmd &#123;
+    <span class="rs-cm">/// Count tokens per user in one or more JSONL files ("-" reads stdin)</span>
+    Count &#123;
+        <span class="rs-cm">/// Input files; "-" means standard input</span>
+        <span class="rs-at">#[arg(required = true)]</span>
+        files: Vec&lt;PathBuf&gt;,
+        <span class="rs-cm">/// How many users to list</span>
+        <span class="rs-at">#[arg(short = 'n', long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=1000))]</span>
+        top: u16,
+        <span class="rs-cm">/// Print JSON instead of text</span>
+        <span class="rs-at">#[arg(long)]</span>
+        json: bool,
+        <span class="rs-cm">/// Exit with code 3 if any line is malformed</span>
+        <span class="rs-at">#[arg(long)]</span>
+        strict: bool,
+    &#125;,
+    <span class="rs-cm">/// Count tokens in a piece of text (an argument, or stdin when absent)</span>
+    Text &#123; text: Option&lt;String&gt; &#125;,
+&#125;</pre></div>
+<p>Read it like a typed <code>argparse</code> declaration. <code>#[derive(Parser)]</code> is a <dfn>derive macro</dfn>: at compile time it writes the parsing code for this struct. Each field is an argument; its type decides parsing (<code>Vec&lt;PathBuf&gt;</code> takes one or more paths, <code>bool</code> is a flag, <code>Option&lt;String&gt;</code> is optional, <code>u16</code> must parse as a number); the <code>///</code> doc comments become the help text. An <code>enum</code> with <code>#[derive(Subcommand)]</code> gives subcommands, one variant each, like <code>git commit</code> and <code>git push</code>. Part 1 explains why enums with data are the natural shape for "one of these" ({{Reading|#t-ra-read}}).</p>
+<pre class="rs-out" data-rs-out="cli_count_help">
+<span class="rs-cmd">$ tokcount count --help</span>
+Count tokens per user in one or more JSONL files ("-" reads stdin)
+
+Usage: tokcount count [OPTIONS] &lt;FILES&gt;...
+
+Arguments:
+  &lt;FILES&gt;...  Input files; "-" means standard input
+
+Options:
+  -n, --top &lt;TOP&gt;  How many users to list [default: 5]
+      --json       Print JSON instead of text
+      --strict     Exit with code 3 if any line is malformed
+  -h, --help       Print help
+[exit 0]</pre>
+<h3>Errors and exit codes</h3>
+<p>Unix convention: exit <b>0</b> for success, non-zero for failure, and clap uses <b>2</b> for usage errors (its source defines <code>USAGE_CODE = 2</code>: {{clap_builder util|https://github.com/clap-rs/clap/blob/master/clap_builder/src/util/mod.rs}}). Everything after parsing is ours. The pattern: <code>main</code> calls a <code>run</code> function that returns <code>anyhow::Result</code>, so every fallible step can use <code>?</code>, and only <code>main</code> decides how an error looks and which code it returns.</p>
+<div class="rs-src"><div class="rs-fn">tok/src/bin/tokcount.rs (lines 39 to 49)</div><pre class="rs-code"><span class="rs-kw">fn</span> main() -&gt; ExitCode &#123;
+    <span class="rs-kw">let</span> cli = Cli::parse(); <span class="rs-cm">// bad arguments: clap prints usage and exits with code 2</span>
+    <span class="rs-kw">match</span> run(cli) &#123;
+        Ok(code) =&gt; code,
+        Err(e) =&gt; &#123;
+            <span class="rs-cm">// &#123;:#&#125; prints the whole context chain on one line: "outer: inner: cause"</span>
+            <span class="rs-mac">eprintln!</span>(<span class="rs-st">"error: &#123;e:#&#125;"</span>);
+            ExitCode::<span class="rs-kw">from</span>(1)
+        &#125;
+    &#125;
+&#125;</pre></div>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> <code>tokcount count -n 0 chat.jsonl</code>: which exit code, and does any of our code run?</summary><pre class="rs-out rs-bad" data-rs-out="cli_bad_n">
+<span class="rs-cmd">$ tokcount count -n 0 chat.jsonl</span>
+error: invalid value '0' for '--top &lt;TOP&gt;': 0 is not in 1..=1000
+
+For more information, try '--help'.
+[exit 2]</pre></details>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> <code>tokcount count nope.jsonl</code>: what does the message look like, and which code?</summary><pre class="rs-out rs-bad" data-rs-out="cli_nofile">
+<span class="rs-cmd">$ tokcount count nope.jsonl</span>
+error: cannot open nope.jsonl: No such file or directory (os error 2)
+[exit 1]</pre></details>
+<p><code>with_context(|| format!("cannot open {}", ...))</code> wrapped the OS error in a sentence, and <code>{e:#}</code> printed the chain on one line: "cannot open nope.jsonl: No such file or directory (os error 2)". That is <b>anyhow</b>: an error type for applications that carries any error plus context. Libraries define their own error enums with <b>thiserror</b> instead (the service's <code>AppError</code> below), so callers can match on them. Part 1 teaches <code>Result</code> and <code>?</code> ({{Reading|#t-ra-read}}).</p>
+<h3>stdin, stdout, stderr, and the broken pipe</h3>
+<p>Three conventions make a tool composable with <code>|</code>: results go to <b>stdout</b>, messages and progress to <b>stderr</b>, and <code>-</code> as a file name means stdin. The count branch:</p>
+<div class="rs-src"><div class="rs-fn">tok/src/bin/tokcount.rs (lines 65 to 91)</div><pre class="rs-code">        Cmd::Count &#123; files, top, json, strict &#125; =&gt; &#123;
+            <span class="rs-kw">let</span> <span class="rs-kw">mut</span> tally = Tally::default();
+            <span class="rs-kw">for</span> path <span class="rs-kw">in</span> &amp;files &#123;
+                <span class="rs-kw">if</span> path.as_os_str() == <span class="rs-st">"-"</span> &#123;
+                    feed(&amp;<span class="rs-kw">mut</span> tally, io::stdin().lock(), <span class="rs-st">"stdin"</span>)?;
+                &#125; <span class="rs-kw">else</span> &#123;
+                    <span class="rs-kw">let</span> f = File::open(path)
+                        .with_context(|| <span class="rs-mac">format!</span>(<span class="rs-st">"cannot open &#123;&#125;"</span>, path.display()))?;
+                    feed(&amp;<span class="rs-kw">mut</span> tally, BufReader::new(f), &amp;path.display().to_string())?;
+                &#125;
+            &#125;
+            <span class="rs-kw">let</span> report = tally.report(top <span class="rs-kw">as</span> usize);
+            <span class="rs-kw">let</span> out = <span class="rs-kw">if</span> json &#123;
+                serde_json::to_string_pretty(&amp;report)? + <span class="rs-st">"\n"</span>
+            &#125; <span class="rs-kw">else</span> &#123;
+                report.to_text()
+            &#125;;
+            <span class="rs-cm">// Write through a locked handle and treat a closed pipe (`| head`) as success:</span>
+            <span class="rs-cm">// println! would panic with "failed printing to stdout: Broken pipe".</span>
+            <span class="rs-kw">let</span> <span class="rs-kw">mut</span> stdout = io::stdout().lock();
+            <span class="rs-kw">if</span> <span class="rs-kw">let</span> Err(e) = stdout.write_all(out.as_bytes()).and_then(|_| stdout.flush()) &#123;
+                <span class="rs-kw">if</span> e.kind() != io::ErrorKind::BrokenPipe &#123;
+                    <span class="rs-kw">return</span> Err(e).context(<span class="rs-st">"writing stdout"</span>);
+                &#125;
+            &#125;
+            Ok(<span class="rs-kw">if</span> strict &amp;&amp; report.malformed &gt; 0 &#123; ExitCode::<span class="rs-kw">from</span>(3) &#125; <span class="rs-kw">else</span> &#123; ExitCode::SUCCESS &#125;)
+        &#125;</pre></div>
+<details class="rs-pr"><summary><b>Predict, then reveal:</b> A program that prints 100,000 lines with <code>println!</code>, piped into <code>head -1</code>. What happens after the first line?</summary><pre class="rs-out" data-rs-out="cli_pipe_naive">
+<span class="rs-cmd">$ target/release/examples/b1_naive_print | head -1; echo "[left side exit $&#123;pipestatus[1]&#125;]"</span>
+line 1
+
+thread 'main' (N) panicked at /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/io/stdio.rs:1168:9:
+failed printing to stdout: Broken pipe (os error 32)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[left side exit 101]
+[exit 0]</pre></details>
+<p><code>head</code> exits after one line, the pipe closes, and the next write fails with <code>EPIPE</code>. Rust programs ignore the SIGPIPE signal that would silently kill a C program (the runtime sets it to ignored before <code>main</code>: {{unstable book, on-broken-pipe|https://doc.rust-lang.org/beta/unstable-book/compiler-flags/on-broken-pipe.html}}), so the error reaches <code>println!</code>, which panics: exit code 101 and a panic message, in every Rust CLI that prints with <code>println!</code> in a loop. tokcount writes through a locked stdout handle (one lock for the whole output, also faster) and treats <code>BrokenPipe</code> as a normal end:</p>
+<pre class="rs-out" data-rs-out="cli_pipe_ok">
+<span class="rs-cmd">$ tokcount count chat.jsonl | head -1; echo "[left side exit $&#123;pipestatus[1]&#125;]"</span>
+lines 2000  ok 1992  malformed 8 (first at line 53)
+[left side exit 0]
+[exit 0]</pre>
+<p><b>Progress</b> belongs on stderr, and only when a person is watching: <code>io::stderr().is_terminal()</code> is false in a pipe, a cron job or a CI log, so tokcount prints its line counter only in an interactive terminal (the {{indicatif|https://docs.rs/indicatif}} crate draws real progress bars the same way).</p>
+<div class="rs-src"><div class="rs-fn">tok/src/bin/tokcount.rs (lines 95 to 115)</div><pre class="rs-code"><span class="rs-cm">/// Read lines into the tally. Progress goes to stderr, and only when stderr is a terminal,</span>
+<span class="rs-cm">/// so pipes and logs stay clean.</span>
+<span class="rs-kw">fn</span> feed(tally: &amp;<span class="rs-kw">mut</span> Tally, <span class="rs-kw">mut</span> r: <span class="rs-kw">impl</span> BufRead, name: &amp;str) -&gt; Result&lt;()&gt; &#123;
+    <span class="rs-kw">let</span> show = io::stderr().is_terminal();
+    <span class="rs-kw">let</span> <span class="rs-kw">mut</span> line = String::new();
+    <span class="rs-kw">loop</span> &#123;
+        line.clear();
+        <span class="rs-kw">let</span> n = r.read_line(&amp;<span class="rs-kw">mut</span> line).with_context(|| <span class="rs-mac">format!</span>(<span class="rs-st">"reading &#123;name&#125;"</span>))?;
+        <span class="rs-kw">if</span> n == 0 &#123;
+            <span class="rs-kw">break</span>;
+        &#125;
+        tally.add_line(line.trim_end_matches([<span class="rs-st">'\n'</span>, <span class="rs-st">'\r'</span>]));
+        <span class="rs-kw">if</span> show &amp;&amp; tally.lines % 100_000 == 0 &#123;
+            <span class="rs-mac">eprint!</span>(<span class="rs-st">"\r&#123;name&#125;: &#123;&#125; lines"</span>, tally.lines);
+        &#125;
+    &#125;
+    <span class="rs-kw">if</span> show &amp;&amp; tally.lines &gt;= 100_000 &#123;
+        <span class="rs-mac">eprintln!</span>();
+    &#125;
+    Ok(())
+&#125;</pre></div>
+<div class="rs-py"><div class="t">Python bridge</div><code>argparse</code> also exits 2 on usage errors. The differences: clap's checks are generated from types (a <code>u16</code> field cannot receive "abc"), the help is always in sync with the code, and Python prints a traceback for an uncaught exception where tokcount prints one line. Python's <code>print</code> in a loop piped into <code>head</code> raises <code>BrokenPipeError</code>: the same bug, different name.</div>
+<div class="rs-cost"><div><b>Costs</b>clap, with serde_json, is most of the CLI's dependencies: compile time on the first build and binary size (the whole stripped tokcount is 0.93 MB). For a two-flag internal tool, <code>std::env::args()</code> is fine.</div><div><b>When not</b>A ten-line script you run once: write it in Python. A CLI earns Rust when it is distributed, run often, or does real work per byte.</div><div><b>Try it</b>The {{CLI replay|#t-rs-cli}} tab steps through eleven recorded sessions and asks you to predict each exit code first.</div></div>
+</section>

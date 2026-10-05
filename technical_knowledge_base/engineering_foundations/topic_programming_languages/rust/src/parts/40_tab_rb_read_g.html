@@ -1,0 +1,107 @@
+
+<section id="rb-s12">
+<h2>12. Wheels: platforms, abi3, CI and publishing</h2>
+<p>Users should never need Rust to install your package. They need a <b>wheel</b> built for their Python and their machine; pip or uv picks the right one from PyPI by its file name. <code>maturin build --release</code> writes one:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release -o dist</div><pre class="rb-out" data-rb-out="b3_wheel.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 0.03s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for CPython 3.14 to &lt;pl&gt;/rb/dist/tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</pre></div>
+<div class="tw"><table class="rb-t"><thead><tr><th>Part of <code>tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</code></th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>tokrs-0.1.0</code></td><td>Distribution name and version</td></tr>
+<tr><td><code>cp314</code> (Python tag)</td><td>Built for CPython 3.14</td></tr>
+<tr><td><code>cp314</code> (ABI tag)</td><td>Uses CPython 3.14's full C ABI (struct layouts, macros), so it loads on 3.14 only. A free-threaded build would say <code>cp314t</code>.</td></tr>
+<tr><td><code>macosx_11_0_arm64</code> (platform)</td><td>macOS 11 or later on Apple silicon. Linux wheels say <code>manylinux_2_17_x86_64</code> and the like: built against an old glibc so they run on most distributions (<a href="https://peps.python.org/pep-0600/" target="_blank" rel="noopener noreferrer">PEP 600</a>); <code>musllinux</code> is for Alpine.</td></tr>
+</tbody></table></div>
+<div class="rb-snip"><div class="rb-olab">$ unzip -l dist/*.whl; otool -L tokrs/*.so</div><pre class="rb-out" data-rb-out="b4_wheel_files.txt">Archive:  tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+      103  01-01-1980 00:00   tokrs/__init__.py
+     1642  01-01-1980 00:00   tokrs/__init__.pyi
+        0  01-01-1980 00:00   tokrs/py.typed
+  1012496  01-01-1980 00:00   tokrs/tokrs.cpython-314-darwin.so
+      183  01-01-1980 00:00   tokrs-0.1.0.dist-info/METADATA
+      105  01-01-1980 00:00   tokrs-0.1.0.dist-info/WHEEL
+    46021  01-01-1980 00:00   tokrs-0.1.0.dist-info/sboms/tokrs.cyclonedx.json
+      615  01-01-1980 00:00   tokrs-0.1.0.dist-info/RECORD
+---------                     -------
+  1061165                     8 files
+tokrs/tokrs.cpython-314-darwin.so:
+	@rpath/tokrs.cpython-314-darwin.so (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1319.0.0)</pre></div>
+<p>The wheel is a zip of the compiled library, the stub and <code>py.typed</code> (section 11), metadata, and a software bill of materials (<code>sboms/</code>, the Rust crates compiled in, written by maturin). <code>otool -L</code> (macOS's <code>ldd</code>) shows the library does not link to <code>libpython</code>: it finds Python's C API symbols in the process that loads it, which is what lets one wheel work with any CPython 3.14 binary.</p>
+
+<h3>abi3: one wheel for many Python versions</h3>
+<p>A wheel per Python version per platform multiplies fast. CPython's <b>stable ABI</b> (the "limited API", <a href="https://peps.python.org/pep-0384/" target="_blank" rel="noopener noreferrer">PEP 384</a>) is a subset of the C API that is promised not to change; an extension that uses only that subset gets the <code>abi3</code> tag and loads on that version and every later one. In PyO3 it is a feature flag: <code>pyo3/abi3-py310</code> (minimum Python 3.10). Built once, installed into fresh virtual environments:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release --features pyo3/abi3-py310</div><pre class="rb-out" data-rb-out="b5_abi3.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings with abi3-py3.10 support
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 1.29s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for abi3 Python ≥ 3.10 to &lt;pl&gt;/rb/dist_abi3/tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">one abi3 wheel on CPython 3.12, 3.13, 3.14 and 3.14t</div><pre class="rb-out" data-rb-out="b6_abi3_install.txt">Python 3.12.15 loads tokrs.abi3.so -&gt; 3
+Python 3.13.16 loads tokrs.abi3.so -&gt; 3
+Python 3.14.8 loads tokrs.abi3.so -&gt; 3
+$ uv pip install (3.14t) tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl
+Using Python 3.14.8 environment at: abi_314t
+Resolved 2 packages in 1ms
+error: Failed to determine installation plan
+  cause: A path (dist_abi3/tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl) dependency is incompatible with the current platform
+
+hint: You're using free-threaded CPython 3.14 (`cp314t`), but the wheel was built for the stable ABI (`abi3`), which requires a GIL-enabled interpreter</pre></div>
+<p>The same file loaded on three versions and was refused by the free-threaded build: <code>abi3</code> assumes the GIL build's object layout. What it costs at run time, the same calls against both builds on 3.14 (ns per item, medians; <code>code/c9_abi_cost.py</code>):</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Call</th><th class="num"><code>cp314</code> build</th><th class="num"><code>abi3</code> build</th></tr></thead><tbody id="rb-abi-tb"></tbody></table></div>
+<p class="small mute">These were measured on a busy laptop (load average about 10) and the spread between runs was wide; only the <code>total_len</code> gap (reading items from a list) repeated across runs here. Under the limited API, PyO3 must call real C functions where the full API uses inline macros (list item access, string data). PyO3's changelog lists such cases, for example "Optimize <code>PyBytes::as_bytes()</code> when not using <code>abi3</code> or <code>abi3t</code>" (0.29.3).</p>
+<p><b>abi3t</b> is the stable ABI for free-threaded builds, <a href="https://peps.python.org/pep-0803/" target="_blank" rel="noopener noreferrer">PEP 803</a> (status Final, Python 3.15), supported by PyO3 0.29 through the <code>abi3t-py315</code> feature. Built against the 3.15 release candidate:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release --features pyo3/abi3t-py315 -i python3.15t</div><pre class="rb-out" data-rb-out="b7_abi3t.txt">🐍 Found CPython 3.15t at &lt;pl&gt;/py/cpython-3.15.0rc3+freethreaded-macos-aarch64-none/bin/python3.15t
+🔗 Found pyo3 bindings with abi3t-py3.15 support
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 1.30s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for abi3t Python ≥ 3.15 to &lt;pl&gt;/rb/dist_abi3t/tokrs-0.1.0-cp315-abi3.abi3t-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">the abi3t wheel on CPython 3.15.0rc3, free-threaded and with the GIL</div><pre class="rb-out" data-rb-out="b8_abi3t_install.txt">Python 3.15.0rc3 GIL enabled: False loads tokrs.abi3t.so -&gt; 3
+Python 3.15.0rc3 GIL enabled: True loads tokrs.abi3t.so -&gt; 3</pre></div>
+<p>The tag <code>abi3.abi3t</code> means one file for both 3.15 builds. Until you can require 3.15, ship an <code>abi3</code> wheel plus a <code>cp314t</code> wheel per platform (tokenizers, safetensors and polars build <code>abi3-py310</code> today, section 13).</p>
+
+<h3>Building for every platform in CI</h3>
+<p>You cannot build Windows or Linux wheels on a Mac without cross-compilers, so a CI service builds them on each platform. <code>maturin generate-ci github</code> writes a complete GitHub Actions workflow (<a href="https://github.com/PyO3/maturin-action" target="_blank" rel="noopener noreferrer">PyO3/maturin-action</a> does the builds; the generated file is <code>outputs/b10_ci.yml</code>, 186 lines). What it builds, as generated by maturin 1.15.0:</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Job</th><th>Targets</th></tr></thead><tbody>
+<tr><td>linux (manylinux)</td><td>x86_64, x86, aarch64, armv7, s390x, ppc64le</td></tr>
+<tr><td>musllinux</td><td>x86_64, x86, aarch64, armv7</td></tr>
+<tr><td>windows</td><td>x64, x86, aarch64</td></tr>
+<tr><td>macos</td><td>x86_64 (Intel runner), aarch64</td></tr>
+<tr><td>sdist</td><td>The source distribution, for anyone with no matching wheel (they need Rust)</td></tr>
+<tr><td>release</td><td>On a git tag: attest the artifacts and upload everything to PyPI</td></tr>
+</tbody></table></div>
+<p>Each build job runs <code>maturin build --release --out dist --find-interpreter</code>, which builds one wheel per Python found (one in total with abi3). The release job, verbatim:</p>
+<div class="rb-snip"><div class="rb-file">b10_ci.yml</div><pre class="rb-code">  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' &#125;&#125;
+    needs: [linux, musllinux, windows, macos, sdist]
+    permissions:
+      <span class="rb-cm"># Use to sign the release artifacts</span>
+      id-token: write
+      <span class="rb-cm"># Used to upload release artifacts</span>
+      contents: write
+      <span class="rb-cm"># Used to generate artifact attestation</span>
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v7
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: 'wheels-*/*'
+      - name: Install uv
+        if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') &#125;&#125;
+        uses: astral-sh/setup-uv@v7
+      - name: Publish to PyPI
+        if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') &#125;&#125;
+        run: uv publish 'wheels-*/*'
+        env:
+          UV_PUBLISH_TOKEN: $&#123;&#123; secrets.PYPI_API_TOKEN &#125;&#125;</pre></div>
+<div class="co warn"><div class="t">Change one thing before you use it</div>The generated job uploads with a long-lived <code>PYPI_API_TOKEN</code> secret. PyPI's <b>trusted publishing</b> removes the secret: you register the repository and workflow on PyPI once, the job (which already has <code>id-token: write</code>) receives a short-lived token from GitHub, and <code>uv publish</code> needs no credentials (<a href="https://docs.astral.sh/uv/guides/package/" target="_blank" rel="noopener noreferrer">uv packaging guide</a>, <a href="https://docs.pypi.org/trusted-publishers/" target="_blank" rel="noopener noreferrer">PyPI trusted publishers</a>). Delete the <code>env:</code> lines after setting it up.</div>
+<p><b>cibuildwheel</b> is the other common route: one tool that builds wheels for every CPython on every platform for any build backend, including maturin; for Rust it must install a Rust toolchain inside its Linux containers (<a href="https://cibuildwheel.pypa.io/en/stable/faq/" target="_blank" rel="noopener noreferrer">cibuildwheel FAQ, "Building Rust wheels"</a>). maturin-action is the simpler choice for a Rust-only package; cibuildwheel suits projects that also run test suites per wheel or mix C, C++ and Rust. <code>tokrs</code> was not uploaded to PyPI for this page; the steps above are what would publish it.</p>
+</section>

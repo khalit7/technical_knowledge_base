@@ -1,0 +1,114 @@
+
+<section id="rb-s10">
+<h2>10. The token counter, step by step: the optimisation ladder</h2>
+<p>Now the whole program, end to end, as the user runs it: <code>python ladder.py STEP chat200k.jsonl</code>, timed by hyperfine (7 runs after a warm-up, including interpreter start-up), each step printing exactly the expected output of the root's <code>PROGRAM.md</code> (checked byte for byte: <code>outputs/ladder_check.txt</code>).</p>
+<div class="card"><div id="rb-lad-mini"></div>
+<p class="small mute">Seconds, median of 7 (the dark tick shows min to max). Reference lines from the root's {{Benchmark|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} (separate runs, same machine): a standalone Rust binary does the whole job in <span data-rbv="root.rust" data-d="3"></span> s.</p></div>
+<div class="tw"><table class="rb-t"><thead><tr><th>Step</th><th>What changed</th><th class="num">Time</th><th class="num">vs Python</th></tr></thead><tbody id="rb-lad-tb"></tbody></table></div>
+<p>Read it as a story. <b>Steps 1 to 3</b> move only the token loop: a 3x gain, and batching (step 3) barely beats one call per message, because once the loop is in Rust the program is waiting on <code>json.loads</code>. Copying the strings (step 2) is visibly slower than borrowing them (step 3). <b>Step 4</b> moves the parsing too: Python reads the file as <code>bytes</code> and makes one call; serde parses each line straight into a typed struct, and the program runs <span class="rb-n" data-rbr="L.python.median|L.bytes.median" data-d="0"></span> times faster than the Python version. <b>Step 5</b> releases the GIL and splits the file over 8 rayon threads. The root's own whole-file PyO3 variant measured <span data-rbv="root.pyrs_file" data-d="3"></span> s (one thread) and <span data-rbv="root.pyrs_file4" data-d="3"></span> s (4 threads), in line with steps 4 and 5.</p>
+<div class="deepnote"><b>Go deeper.</b> The {{Optimisation ladder|#t-rb-ladder}} tab shows each step's code change, where its time goes phase by phase, and lets you compare any two steps.</div>
+<div class="rb-pq"><b>Predict:</b> step 5 runs on 8 threads. Why is it about 2x faster than step 4 and not 8x?</div>
+<button class="rb-rv" data-for="rb-pr-l5" aria-expanded="false">Reveal the real output</button>
+<div id="rb-pr-l5" hidden><p class="small">The phases (from <code>ladder.py --phases</code>): the Rust part fell from <span class="rb-n" data-rbv="phases/bytes/Rust: parse + count" data-d="0"></span> ms to <span class="rb-n" data-rbv="phases/parallel/Rust: parse + count" data-d="0"></span> ms (<span data-rbr="phases/bytes/Rust: parse + count|phases/parallel/Rust: parse + count" data-d="1"></span>x on a busy laptop with 2 of its 10 cores slower efficiency cores). What did not shrink is everything else in the process: starting Python and importing <code>tokrs</code> (<span class="rb-n" data-rbv="startup.median" data-rbm="1000" data-d="0"></span> ms on its own, measured with hyperfine), reading the file, building the result dict and printing. Amdahl again.</p></div>
+</section>
+
+<section id="rb-s11">
+<h2>11. Type stubs and tests</h2>
+<p>A compiled module has no Python source, so mypy, ty and your editor cannot see its signatures. You give them a <b>stub file</b> (<code>.pyi</code>): Python syntax with <code>...</code> for bodies, read only by type checkers. For a project like this one (Rust only, no Python package directory), maturin picks up <code>&lt;module&gt;.pyi</code> next to <code>Cargo.toml</code> and adds it to the wheel with a <code>py.typed</code> marker (<a href="https://www.maturin.rs/project_layout.html#adding-python-type-information" target="_blank" rel="noopener noreferrer">maturin: adding Python type information</a>). The hand-written one, abridged:</p>
+<div class="rb-snip"><div class="rb-file">tokrs.pyi</div><pre class="rb-code"><span class="rb-st">""</span><span class="rb-st">"Type stubs for the tokrs extension: what mypy, ty and your editor see."</span><span class="rb-st">""</span>
+<span class="rb-kw">import</span> os
+
+<span class="rb-kw">import</span> numpy <span class="rb-kw">as</span> np
+<span class="rb-kw">import</span> numpy.typing <span class="rb-kw">as</span> npt
+
+Report = tuple[int, int, int, int, dict[str, int]]
+
+<span class="rb-kw">def</span> noop() -&gt; <span class="rb-kw">None</span>: ...
+<span class="rb-kw">def</span> count_tokens(text: str) -&gt; int: ...
+<span class="rb-kw">def</span> count_many(texts: list[str]) -&gt; list[int]: ...
+<span class="rb-kw">def</span> count_many_owned(texts: list[str]) -&gt; list[int]: ...
+<span class="rb-kw">def</span> total_len(texts: list[str]) -&gt; int: ...
+<span class="rb-kw">def</span> total_len_owned(texts: list[str]) -&gt; int: ...</pre></div>
+<p>A script with four mistakes (<code>code/c11_typed.py</code>) checked three ways:</p>
+<div class="rb-snip"><div class="rb-file">c11_typed.py</div><pre class="rb-code"><span class="rb-st">""</span><span class="rb-st">"Calls that run, and calls a type checker should reject before they run."</span><span class="rb-st">""</span>
+<span class="rb-kw">import</span> numpy <span class="rb-kw">as</span> np
+<span class="rb-kw">import</span> tokrs
+
+n: int = tokrs.count_tokens(<span class="rb-st">"attention is all you need"</span>)
+counts = tokrs.count_many([<span class="rb-st">"a b"</span>, <span class="rb-st">"c"</span>])
+top: list[tuple[str, int]] = tokrs.Counter().top()
+
+tokrs.count_tokens(b<span class="rb-st">"bytes, not str"</span>)          <span class="rb-cm"># wrong argument type</span>
+tokrs.sum_sq_array(np.arange(3, dtype=np.float32))  <span class="rb-cm"># float32 array where float64 is expected</span>
+label: str = tokrs.count_bytes(b<span class="rb-st">"abc"</span>)          <span class="rb-cm"># returns int, not str</span>
+tokrs.tally_file(<span class="rb-st">"chat.jsonl"</span>, thread=4)        <span class="rb-cm"># misspelt keyword</span></pre></div>
+<div class="rb-snip"><div class="rb-olab">$ mypy --strict c11_typed.py   (wheel without the stub)</div><pre class="rb-out" data-rb-out="c11_mypy_nostub.txt">c11_typed.py:3: error: Skipping analyzing "tokrs": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+c11_typed.py:3: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+Found 1 error in 1 file (checked 1 source file)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ mypy --strict c11_typed.py   (with the stub)</div><pre class="rb-out" data-rb-out="c11_mypy.txt">c11_typed.py:9: error: Argument 1 to "count_tokens" has incompatible type "bytes"; expected "str"  [arg-type]
+c11_typed.py:11: error: Incompatible types in assignment (expression has type "int", variable has type "str")  [assignment]
+c11_typed.py:12: error: Unexpected keyword argument "thread" for "tally_file"; did you mean "threads"?  [call-arg]
+c11_typed.py:12: note: "tally_file" defined in "tokrs"
+Found 3 errors in 1 file (checked 1 source file)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ ty check c11_typed.py   (with the stub)</div><pre class="rb-out" data-rb-out="c11_ty.txt">c11_typed.py:9:20: error[invalid-argument-type] Argument to function `count_tokens` is incorrect: Expected `str`, found `Literal[b"bytes, not str"]`
+c11_typed.py:10:20: error[invalid-argument-type] Argument to function `sum_sq_array` is incorrect: Expected `NDArray[float64]`, found `_Array1D[floating[_32Bit]]`
+c11_typed.py:11:14: error[invalid-assignment] Object of type `int` is not assignable to `str`
+c11_typed.py:12:32: error[unknown-argument] Argument `thread` does not match any known parameter of function `tally_file`
+Found 4 diagnostics</pre></div>
+<p>Without the stub, mypy cannot check any call into <code>tokrs</code>. With it, mypy catches three mistakes; ty catches all four, including the <code>float32</code> array that mypy let through. A stub can also drift out of date: nothing checks it against the Rust code. PyO3 is building automatic stubs (<code>experimental-inspect</code> feature, <code>maturin generate-stubs</code>, labelled "still in active development"); on this crate it produced:</p>
+<div class="rb-snip"><div class="rb-file">b9_stubs_auto.pyi</div><pre class="rb-code"><span class="rb-kw">def</span> count_bytes_owned(data: Sequence[int]) -&gt; int:
+    <span class="rb-st">""</span>"
+    `Vec&lt;u8&gt;` <span class="rb-kw">from</span> `bytes`: a fresh copy of the whole buffer first.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_many(texts: list) -&gt; list[int]:
+    <span class="rb-st">""</span>"
+    Step 2b: the same list, borrowed: each item is viewed <span class="rb-kw">in</span> place, nothing is copied.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_many_owned(texts: Sequence[str]) -&gt; list[int]:
+    <span class="rb-st">""</span>"
+    Step 2a: one call <span class="rb-kw">for</span> a list. `Vec&lt;String&gt;` copies every string into a new Rust allocation.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_tokens(text: str) -&gt; int:
+    <span class="rb-st">""</span>"
+    Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> counts_array(texts: list) -&gt; Incomplete:
+    <span class="rb-st">""</span>"
+    ... <span class="rb-kw">or</span> a NumPy array that takes over the Vec's buffer without copying it.
+    <span class="rb-st">""</span>"
+</pre></div>
+<p>Close, from the Rust types alone, but with gaps: <code>count_many(texts: list)</code> lost the element type (PyO3 cannot see inside a <code>Bound&lt;PyList&gt;</code>), NumPy arrays became <code>Incomplete</code>, <code>MalformedLine</code> was missing, and the file ends with a catch-all <code>def __getattr__(name: str) -> Incomplete</code>. It also shows <code>count_bytes_owned(data: Sequence[int])</code>: a <code>Vec&lt;u8&gt;</code> parameter accepts any sequence of ints, not only <code>bytes</code>. For now, write the stub by hand and test it with <code>mypy.stubtest</code>.</p>
+<h3>Tests from pytest</h3>
+<p>Test the extension the way users call it: from Python. The suite (<code>ext/tests/test_tokrs.py</code>) checks the rule 3 examples, equality with the Python reference on all 1,992 messages of the root's small log, the whole-file result against <code>PROGRAM.md</code>, the parallel split against the serial one, that errors arrive as the right exception types, and eight threads sharing nothing:</p>
+<div class="rb-snip"><div class="rb-file">test_tokrs.py</div><pre class="rb-code"><span class="rb-kw">def</span> test_matches_python_on_every_message():
+    texts = []
+    <span class="rb-kw">for</span> line <span class="rb-kw">in</span> CHAT.read_text(encoding=<span class="rb-st">"utf-8"</span>).splitlines():
+        <span class="rb-kw">try</span>:
+            rec = json.loads(line)
+        <span class="rb-kw">except</span> ValueError:
+            continue
+        <span class="rb-kw">if</span> isinstance(rec, dict) <span class="rb-kw">and</span> isinstance(rec.get(<span class="rb-st">"text"</span>), str):
+            texts.append(rec[<span class="rb-st">"text"</span>])
+    <span class="rb-kw">assert</span> tokrs.count_many(texts) == [py_tokens(t) <span class="rb-kw">for</span> t <span class="rb-kw">in</span> texts]
+
+
+<span class="rb-kw">def</span> test_whole_file_matches_program_md():
+    lines, ok, bad, first_bad, per_user = tokrs.tally_file(CHAT)
+    <span class="rb-kw">assert</span> (lines, ok, bad, first_bad) == (2000, 1992, 8, 53)
+    <span class="rb-kw">assert</span> sum(per_user.values()) == 44698 <span class="rb-kw">and</span> per_user[<span class="rb-st">"u0029"</span>] == 9491
+
+
+@pytest.mark.parametrize(<span class="rb-st">"threads"</span>, [1, 2, 3, 8, 64])
+<span class="rb-kw">def</span> test_parallel_split_is_exact(threads):
+    data = CHAT.read_bytes()
+    <span class="rb-kw">assert</span> tokrs.tally_bytes_parallel(data, threads) == tokrs.tally_bytes(data)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ python -m pytest -q tests   (CPython 3.14.8)</div><pre class="rb-out" data-rb-out="c12_pytest.txt">................                                                         [100%]
+16 passed in 0.09s</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ python3.14t -m pytest -q tests   (free-threaded)</div><pre class="rb-out" data-rb-out="c12_pytest_314t.txt">................                                                         [100%]
+16 passed in 0.11s</pre></div>
+<p>Rust-only helpers (<code>tokens</code>, <code>chunks</code>) can also have <code>#[test]</code> functions run by <code>cargo test</code>; tests that call into Python need an interpreter linked in, which is why most PyO3 projects test from pytest. Run the suite on the free-threaded build too: the <code>Already borrowed</code> failure of section 9 only shows there.</p>
+</section>

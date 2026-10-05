@@ -1,0 +1,174 @@
+
+<section id="rb-s8">
+<h2>8. Releasing the GIL, and parallel Rust with rayon</h2>
+<p>On the normal (GIL) build of CPython, a thread must hold the <b>global interpreter lock</b> to touch any Python object, and only one thread holds it at a time. While your Rust function runs, the calling thread still holds it, so four Python threads calling the same Rust function take turns, exactly like four threads running Python. But a function that only touches Rust data (bytes already borrowed, a <code>Vec</code>, a <code>HashMap</code>) does not need the interpreter. <code>py.detach(closure)</code> releases the GIL, runs the closure, and takes it back:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 4: the same work with the GIL released. `py.detach` runs the closure</span>
+<span class="rb-cm">/// detached from the interpreter, so other Python threads keep running.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> tally_bytes_detached&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8]) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = py.detach(|| tally(data, 1));
+    to_python(py, t)
+&#125;</pre></div>
+<div class="co"><div class="t">Name check (PyO3 0.26 and later)</div>This method was called <code>allow_threads</code> until PyO3 0.26 (2025-08-29), which renamed it <code>detach</code>; the token type that used to be described as "holding the GIL" is now described as being "attached" to the interpreter, because on free-threaded Python there is no GIL to hold (<a href="https://github.com/PyO3/pyo3/blob/v0.29.3/CHANGELOG.md" target="_blank" rel="noopener noreferrer">PyO3 changelog</a>). Code and answers written before mid-2025 say <code>allow_threads</code>.</div>
+<p>Can you forget the rule and touch a Python object inside <code>detach</code>? No: the compiler refuses. The closure must be <code>Ungil</code> (on normal builds, the same as <code>Send</code>: safe to use from another thread), and a <code>Bound</code> is deliberately not. This deliberately wrong function (<code>code/send_err/</code>):</p>
+<div class="rb-snip"><div class="rb-file">lib.rs</div><pre class="rb-code"><span class="rb-kw">use</span> pyo3::prelude::*;
+<span class="rb-kw">use</span> pyo3::types::PyList;
+
+<span class="rb-cm">/// Wrong on purpose: reads a Python list while detached from the interpreter.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_detached(py: Python&lt;'_&gt;, texts: Bound&lt;'_, PyList&gt;) -&gt; usize &#123;
+    py.detach(|| texts.len())
+&#125;</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ cargo build --release   (the real error, first part)</div><pre class="rb-out" data-rb-out="b2_send_err.txt">error[E0277]: `*mut pyo3::Python&lt;'static&gt;` cannot be shared between threads safely
+   --&gt; src/lib.rs:7:15
+    |
+  7 |     py.detach(|| texts.len())
+    |        ------ ^^^^^^^^^^^^^^ `*mut pyo3::Python&lt;'static&gt;` cannot be shared between threads safely
+    |        |
+    |        required by a bound introduced by this call
+    |
+    = help: within `pyo3::Bound&lt;'_, PyList&gt;`, the trait `Sync` is not implemented for `*mut pyo3::Python&lt;'static&gt;`
+note: required because it appears within the type `PhantomData&lt;*mut pyo3::Python&lt;'static&gt;&gt;`
+   --&gt; &lt;rustc&gt;/library/core/src/marker.rs:811:11
+note: required because it appears within the type `pyo3::marker::NotSend`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/marker.rs:362:8
+    |
+362 | struct NotSend(PhantomData&lt;*mut Python&lt;'static&gt;&gt;);
+    |        ^^^^^^^
+note: required because it appears within the type `PhantomData&lt;pyo3::marker::NotSend&gt;`
+   --&gt; &lt;rustc&gt;/library/core/src/marker.rs:811:11
+note: required because it appears within the type `pyo3::Python&lt;'_&gt;`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/marker.rs:358:12
+    |
+358 | pub struct Python&lt;'py&gt;(PhantomData&lt;&amp;'py AttachGuard&gt;, PhantomData&lt;NotSend&gt;);
+    |            ^^^^^^
+note: required because it appears within the type `pyo3::Bound&lt;'_, PyList&gt;`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/instance.rs:73:12
+    |
+ 73 | pub struct Bound&lt;'py, T&gt;(Python&lt;'py&gt;, ManuallyDrop&lt;Py&lt;T&gt;&gt;);
+    |            ^^^^^
+    = note: required for `&amp;pyo3::Bound&lt;'_, PyList&gt;` to implement `Send`
+note: required because it's used within this closure
+   --&gt; src/lib.rs:7:15
+    |
+  7 |     py.detach(|| texts.len())
+    |               ^^
+    = note: required for `&#123;closure@src/lib.rs:7:15: 7:17&#125;` to implement `Ungil`
+note: required by a bound in `pyo3::Python::&lt;'py&gt;::detach`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/marker.rs:564:12
+    |
+562 |     pub fn detach&lt;T, F&gt;(self, f: F) -&gt; T
+    |            ------ required by a bound in this associated function
+563 |     where
+564 |         F: Ungil + FnOnce() -&gt; T,
+    |            ^^^^^ required by this bound in `Python::&lt;'py&gt;::detach`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `send_err` (lib) due to 1 previous error</pre></div>
+<p>The error chain reads bottom-up: <code>detach</code> needs <code>F: Ungil</code>; the closure captures <code>&amp;Bound&lt;PyList&gt;</code>; <code>Bound</code> contains a <code>Python</code> token, which contains a raw pointer marker (<code>NotSend</code>) that is never <code>Sync</code>. In C you would find this bug as a crash under load; here it is a compile error. To use Python data inside <code>detach</code>, copy what you need into Rust values first (that is a reason to own, section 4).</p>
+
+<h3>One call, four Python threads, real timelines</h3>
+<p>Below, four Python threads each call Rust on one quarter of the log (9.7 MB each). Each bar is a real thread's call, from the moment its Python code started the call to the moment it returned, recorded with <code>time.perf_counter</code> (<code>code/c7_gil.py</code>, the median of 7 runs), drawn to the same time scale in every mode.</p>
+<div class="card" id="rb-gil-card">
+<div class="seg" id="rb-gil-mode" role="group" aria-label="Mode"><button data-m="serial" class="on">One thread, 4 calls</button><button data-m="held">4 threads, GIL held</button><button data-m="detached">4 threads, GIL released</button><button data-m="ft">4 threads, free-threaded 3.14t</button></div>
+<div id="rb-gil-svg"></div>
+<p class="small mute">Same time scale in every mode. Bars are the real start and end of each call; the GIL row shows who holds it.</p>
+<div class="out" id="rb-gil-stats"></div>
+<div class="an-cap" id="rb-gil-cap" aria-live="polite"></div>
+<div class="an-ctl" id="rb-gil-ctl"></div>
+</div>
+<p>With the GIL held, the four calls run one after another (<span class="rb-n" data-rbv="gil314.held.wall_ms" data-d="0"></span> ms, in the range of one thread doing all four: <span class="rb-n" data-rbv="gil314.serial.min_ms" data-d="0"></span> to <span class="rb-n" data-rbv="gil314.serial.max_ms" data-d="0"></span> ms over 7 runs on the busy laptop). Released, they overlap: <span class="rb-n" data-rbv="gil314.detached.wall_ms" data-d="0"></span> ms, <span class="rb-n" data-rbr="gil314.held.wall_ms|gil314.detached.wall_ms" data-d="1"></span>x faster on 4 threads (not 4x: the machine was busy, and building the result dict at the end needs the GIL again).</p>
+
+<h3>Parallelism inside one call: rayon</h3>
+<p>If the caller is single-threaded, Rust can split the work itself. <a href="https://docs.rs/rayon/1.12.0/rayon/" target="_blank" rel="noopener noreferrer">rayon</a> turns an iterator into a parallel one (<code>.into_par_iter()</code>) and runs it on a pool of OS threads, one per core by default; <code>reduce</code> merges the partial tallies:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Pure Rust, no Python objects: safe to run without the GIL and on many threads.</span>
+<span class="rb-kw">fn</span> tally(data: &amp;[u8], first_lineno: u64) -&gt; Tally &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> t = Tally::default();
+    <span class="rb-kw">for</span> (i, line) <span class="rb-kw">in</span> data.split_inclusive(|&amp;b| b == b'\n').enumerate() &#123;
+        t.lines += 1;
+        <span class="rb-kw">match</span> serde_json::from_slice::&lt;Message&gt;(line) &#123;
+            Ok(m) =&gt; &#123;
+                t.ok += 1;
+                *t.per_user.entry(m.user).or_insert(0) += tokens(m.text.as_bytes());
+            &#125;
+            Err(_) =&gt; &#123;
+                t.bad += 1;
+                <span class="rb-kw">if</span> t.first_bad == 0 &#123;
+                    t.first_bad = first_lineno + i <span class="rb-kw">as</span> u64;
+                &#125;
+            &#125;
+        &#125;
+    &#125;
+    t
+&#125;
+
+<span class="rb-kw">fn</span> merge(<span class="rb-kw">mut</span> a: Tally, b: Tally) -&gt; Tally &#123;
+    a.lines += b.lines;
+    a.ok += b.ok;
+    a.bad += b.bad;
+    <span class="rb-kw">if</span> a.first_bad == 0 &#123;
+        a.first_bad = b.first_bad;
+    &#125;
+    <span class="rb-kw">for</span> (u, n) <span class="rb-kw">in</span> b.per_user &#123;
+        *a.per_user.entry(u).or_insert(0) += n;
+    &#125;
+    a
+&#125;</pre></div>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 5: detached and parallel. rayon splits the chunks over its thread pool.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-at">#[pyo3(signature = (data, threads=8))]</span>
+<span class="rb-kw">fn</span> tally_bytes_parallel&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8], threads: usize) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = py.detach(|| &#123;
+        chunks(data, threads)
+            .into_par_iter()
+            .map(|(part, first)| tally(part, first))
+            .reduce(Tally::default, merge)
+    &#125;);
+    to_python(py, t)
+&#125;</pre></div>
+<p><code>tally</code> takes only <code>&amp;[u8]</code> and returns plain Rust data, so it is safe to run on any thread; the compiler checks that too (rayon requires <code>Send</code>). The split itself (<code>chunks</code>, in <code>lib.rs</code>) cuts at newlines and remembers each chunk's first line number so "first malformed line" stays exact; the pytest suite (section 11) checks the parallel result equals the serial one for 1, 2, 3, 8 and 64 chunks.</p>
+<div class="rb-cost"><div><div class="t">Detach when</div>the Rust work is long-running and touches no Python objects. Do it on free-threaded Python too: there, a thread that stays attached through long work can stall the interpreter's stop-the-world pauses (garbage collection, <code>sys.settrace</code>, <code>fork</code>) for every other thread (<a href="https://pyo3.rs/v0.29.3/free-threading.html" target="_blank" rel="noopener noreferrer">PyO3 free-threading guide</a>).</div><div><div class="t">Mistakes</div>Detaching around a tiny function (all overhead, no gain); initialising a <code>std::sync::OnceLock</code> or <code>LazyLock</code> with code that calls Python, which can deadlock against the GIL (PyO3's FAQ: use <code>PyOnceLock</code>); starting a rayon pool in a process that already runs one worker per core (oversubscription).</div></div>
+</section>
+
+<section id="rb-s9">
+<h2>9. Free-threaded Python (3.14t)</h2>
+<p>CPython 3.14 officially supports a second build without the GIL, <code>python3.14t</code> (PEP 779); the root's {{Reading|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} and the {{Python page|n:3cd5c17b0d0d81b28acdea39e7a4d998}} cover what it costs and what it breaks. For extension authors it changes two things.</p>
+<p><b>1. A module must declare that it is safe without the GIL,</b> or importing it turns the GIL back on for the whole process. Since PyO3 0.28 (2026-02-01) every PyO3 module declares itself safe by default; you opt out with <code>#[pymodule(gil_used = true)]</code> (from 0.23 to 0.27 it was the other way round). A one-function module that opts out (<code>code/gilused/</code>), imported after <code>tokrs</code> on 3.14t:</p>
+<div class="rb-snip"><div class="rb-olab">$ python3.14t c10_ft.py</div><pre class="rb-out" data-rb-out="c10_ft.txt">GIL enabled at start: False
+after import tokrs: False
+after import gilused: True
+RuntimeWarning: The global interpreter lock (GIL) has been enabled to load module 'gilused.gilused', which has not declared that it can run safely without the GIL. To override this behavior and keep the GIL disabled (at your own risk), run with PYTHON_GIL=0 or -Xgil=0.</pre></div>
+<p><b>2. Calls really do run at the same time,</b> so state shared between threads must be protected by Rust, not by the GIL. <code>tokrs</code> functions that only read their arguments are fine. The <code>Counter</code> class of section 7 is not: its <code>add</code> takes <code>&amp;mut self</code>, and PyO3's run-time borrow flag now sees two threads asking for it at once. Eight threads, one shared <code>Counter</code>, 20,000 <code>add</code> calls each:</p>
+<div class="rb-snip"><div class="rb-olab">$ python3.14t c13_ft_borrow.py, then python3.14 c13_ft_borrow.py</div><pre class="rb-out" data-rb-out="c13_ft_borrow.txt">GIL enabled: False
+Counter: 160000 calls, added 139164, raised 20836 Already borrowed
+SharedCounter: 160000 calls, added 160000, raised 0
+GIL enabled: True
+Counter: 160000 calls, added 160000, raised 0
+SharedCounter: 160000 calls, added 160000, raised 0</pre></div>
+<p>Nothing was corrupted (Rust's guarantee held: added plus raised equals 160,000), but on 3.14t 13% of the calls failed (22% to 27% in three earlier runs of the same script) with <code>RuntimeError: Already borrowed</code>, and the same script on the GIL build never fails, which is how this bug hides in testing. The fix is the Rust way of sharing: make the class <code>frozen</code> (no <code>&amp;mut self</code>, so no borrow flag) and put the mutable part behind a <code>Mutex</code>, which makes threads wait their turn instead of failing ({{Part 1|#t-ra-read}}, sections 15 and 16, covers <code>Mutex</code> and <code>Send</code>):</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// The thread-safe version: `frozen` means no `&amp;mut self` ever, so PyO3 needs no</span>
+<span class="rb-cm">/// run-time borrow flag; the mutable state sits behind a Mutex that threads queue on.</span>
+#[pyclass(module = <span class="rb-st">"tokrs"</span>, frozen)]
+<span class="rb-kw">struct</span> SharedCounter &#123;
+    per_user: std::sync::Mutex&lt;HashMap&lt;String, u64&gt;&gt;,
+&#125;
+
+<span class="rb-at">#[pymethods]</span>
+<span class="rb-kw">impl</span> SharedCounter &#123;
+    <span class="rb-at">#[new]</span>
+    <span class="rb-kw">fn</span> new() -&gt; <span class="rb-kw">Self</span> &#123;
+        SharedCounter &#123; per_user: std::sync::Mutex::new(HashMap::new()) &#125;
+    &#125;
+
+    <span class="rb-kw">fn</span> add(&amp;<span class="rb-kw">self</span>, user: &amp;str, text: &amp;str) &#123;
+        <span class="rb-kw">let</span> n = tokens(text.as_bytes()); <span class="rb-cm">// count outside the lock</span>
+        *<span class="rb-kw">self</span>.per_user.lock().unwrap().entry(user.to_owned()).or_insert(0) += n;
+    &#125;
+
+    <span class="rb-at">#[getter]</span>
+    <span class="rb-kw">fn</span> total(&amp;<span class="rb-kw">self</span>) -&gt; u64 &#123;
+        <span class="rb-kw">self</span>.per_user.lock().unwrap().values().sum()
+    &#125;
+&#125;</pre></div>
+<p>The token counting happens before <code>lock()</code>, so threads only queue for the short dictionary update. PyO3's guide has the full checklist (<a href="https://pyo3.rs/v0.29.3/free-threading.html" target="_blank" rel="noopener noreferrer">free-threading</a>, <a href="https://pyo3.rs/v0.29.3/class/thread-safety.html" target="_blank" rel="noopener noreferrer">pyclass thread safety</a>), and <a href="https://py-free-threading.github.io/porting-extensions/" target="_blank" rel="noopener noreferrer">py-free-threading.github.io</a> tracks which libraries are ready. PyO3 0.29 supports 3.14t and later only (it dropped 3.13t, which CPython never declared supported).</p>
+</section>

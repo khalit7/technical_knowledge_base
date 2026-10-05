@@ -1,0 +1,86 @@
+
+<section id="ra-enum">
+<h2>8. Structs, enums and match: make illegal states unrepresentable</h2>
+<p>A <dfn>struct</dfn> is a record with named fields, like a dataclass. An <dfn>enum</dfn> in Rust is far more than Python's <code>Enum</code>: each <dfn>variant</dfn> can carry its own data, so one type says "a message is <i>either</i> text from a user, <i>or</i> a tool call with arguments, <i>or</i> an image of some size". This is called a sum type or tagged union. <code>match</code> takes it apart, and must cover every variant.</p>
+[[code:lang/enums.rs]]
+[[out:l_enums]]
+<ul>
+<li><code>#[derive(Debug, Clone, PartialEq)]</code> asks the compiler to write the code for printing with <code>{:?}</code>, cloning and <code>==</code>, as <code>@dataclass</code> writes <code>__repr__</code> and <code>__eq__</code>.</li>
+<li><code>impl Message { ... }</code> holds the methods. <code>&amp;self</code> is a borrowed <code>self</code>; <code>&amp;mut self</code> may change it; plain <code>self</code> consumes it.</li>
+<li>Patterns can destructure fields, add guards (<code>if text.is_empty()</code>), match ranges (<code>1..=9</code>) and use <code>_</code> for "anything else". <code>if let</code> handles one variant and ignores the rest.</li>
+</ul>
+<p>Forget a variant and the program does not compile. Add a <code>Tool</code> role a year from now, and the compiler lists every <code>match</code> that must learn about it:</p>
+[[out:l_match_err]]
+<h3>The design habit this enables</h3>
+<p>Python code often models state as one class with optional fields and a status string, and every method checks that the fields agree with the status. In Rust, give each state exactly the data it has. "Connected but no session id" or "failed with no error" then cannot be written at all:</p>
+[[code:lang/states.rs:1-20]]
+[[out:l_states]]
+<p>The last three lines show a related point: <code>Option&lt;u64&gt;</code> needs 16 bytes (8 for the number, plus a tag, padded), but <code>Option&lt;&amp;u64&gt;</code> and <code>Option&lt;Box&lt;u64&gt;&gt;</code> fit in 8, because a reference is never null and the compiler uses the null value to mean <code>None</code> (the "niche" optimisation). Safety without null costs nothing there.</p>
+<div class="ra-cost"><div><b>Solves</b>Whole classes of "this field should not be None here" bugs; adding a case shows every place to update.</div><div><b>Costs</b>An enum is as big as its largest variant (box a huge rarely used one); exhaustive matching makes public enums hard to extend without breaking users (<code>#[non_exhaustive]</code> exists for that).</div><div><b>Python today</b>The same idea is available as a union of dataclasses plus <code>match</code> and a type checker's exhaustiveness check (<code>assert_never</code>); Rust enforces it always.</div></div>
+</section>
+
+<section id="ra-err">
+<h2>9. Option, Result and ?: errors as values</h2>
+<p>Rust has no <code>None</code> that can appear anywhere and no exceptions for expected failures. Two enums from the standard library carry them, written like any other enum:</p>
+<ul>
+<li><code>Option&lt;T&gt;</code> is <code>Some(value)</code> or <code>None</code>: maybe missing. <code>dict.get</code>, <code>str.find</code> and "first element" return one.</li>
+<li><code>Result&lt;T, E&gt;</code> is <code>Ok(value)</code> or <code>Err(error)</code>: may fail. Parsing, I/O and network calls return one.</li>
+</ul>
+<p>You cannot use the value inside without deciding what happens in the other case. The <code>?</code> operator is the common decision: "if this is an <code>Err</code>, return it from my function now; otherwise give me the value". It is the explicit, typed version of letting an exception propagate.</p>
+[[code:lang/errors.rs]]
+[[out:l_errors]]
+<ul>
+<li><code>ok_or</code> turns an <code>Option</code> into a <code>Result</code>; <code>map_err</code> converts one error type into another; <code>unwrap_or</code> supplies a default.</li>
+<li><code>unwrap()</code> and <code>expect("why")</code> say "this cannot fail; if it does, it is a bug": they <b>panic</b>, as the last line shows. Fine in tests and prototypes; in libraries prefer returning the error.</li>
+<li>A custom error type is an enum with a <code>Display</code> implementation (the message) and the <code>Error</code> trait. That is boilerplate, which is why two crates are everywhere:</li>
+</ul>
+<p><code>?</code> only works in a function that returns <code>Result</code> or <code>Option</code>, which catches people in <code>main</code>:</p>
+[[out:l_qmark_err]]
+<h3>thiserror and anyhow (a preview)</h3>
+<p>The common split ({{thiserror|https://docs.rs/thiserror}}, {{anyhow|https://docs.rs/anyhow}}): <b>libraries</b> define typed error enums so callers can <code>match</code> on them, and <code>thiserror</code> writes the <code>Display</code> and <code>Error</code> code from attributes; <b>applications</b> mostly report errors, and <code>anyhow::Result</code> holds any error plus a chain of context messages. Versions used here: thiserror 2.0.21, anyhow 1.0.104.</p>
+[[code:errs/src/main.rs]]
+[[out:l_errs]]
+<p>The second line is what a user wants to read: what the program was doing (parsing usage file), where (line 2), and the root cause, all from <code>{:#}</code> on the chain. Part 3 uses this pattern for the CLI and service ({{Part 3|#t-rs-read}}).</p>
+<div class="ra-cost"><div><b>Solves</b>Every failure is visible in the signature; nothing is thrown past a caller that did not expect it.</div><div><b>Costs</b>More words than <code>try</code>/<code>except</code> at the top, and error types to design; <code>?</code> keeps the middle short.</div><div><b>Common mistake</b><code>unwrap()</code> everywhere in library code; or one giant error enum for a whole crate. Prefer one enum per module boundary.</div></div>
+</section>
+
+<section id="ra-trait">
+<h2>10. Traits and generics: duck typing, checked</h2>
+<p>A <dfn>trait</dfn> names a set of methods a type promises to provide, like a Python <code>Protocol</code>, except that a type must say so explicitly (<code>impl Tokenizer for Whitespace</code>) and the compiler checks it before the program runs. A trait may have default methods written in terms of the others. A <dfn>generic</dfn> function takes a type parameter with a <dfn>bound</dfn>: <code>fn total&lt;T: Tokenizer&gt;</code> accepts any <code>T</code> that implements <code>Tokenizer</code>.</p>
+[[code:lang/traits.rs]]
+[[out:l_traits]]
+<p>There are two ways to call through a trait, and the choice is a real trade-off:</p>
+<div class="tw"><table><thead><tr><th></th><th>Generic <code>&lt;T: Tokenizer&gt;</code></th><th>Trait object <code>&amp;dyn Tokenizer</code></th></tr></thead><tbody>
+<tr><td>How it is compiled</td><td><dfn>monomorphisation</dfn>: one copy of the function per concrete type, each optimised (inlined) for that type</td><td>one copy; each call looks the method up in a table of function pointers (a <dfn>vtable</dfn>)</td></tr>
+<tr><td>Pointer size</td><td>a normal reference, 8 bytes</td><td>a "fat" pointer, 16 bytes (data plus vtable, recorded above)</td></tr>
+<tr><td>Costs</td><td>compile time and binary size grow with each type used</td><td>an indirect call per method; no inlining across it</td></tr>
+<tr><td>Use when</td><td>the type is known at compile time (most code)</td><td>you need a mixed collection (<code>Vec&lt;Box&lt;dyn Tokenizer&gt;&gt;</code>) or a plug-in boundary</td></tr>
+</tbody></table></div>
+<p>Monomorphisation is visible in the compiled program: one generic function used with four types becomes four functions in the symbol table.</p>
+[[code:lang/mono.rs]]
+[[out:l_mono]]
+<p>Section 11 measures what the vtable costs in a hot loop. Two real errors worth recognising. Use an operator the bound does not promise:</p>
+[[out:l_bound_err]]
+<p>Pass a type that does not implement the trait (Python would fail at run time, on the first call to the missing method):</p>
+[[out:l_notimpl_err]]
+<ul>
+<li><b>No inheritance.</b> Share behaviour with default methods and generic functions, and share data by putting one struct inside another. Python programmers rarely miss class hierarchies after a week.</li>
+<li><b>The standard traits matter:</b> <code>Debug</code>, <code>Clone</code>, <code>Copy</code>, <code>PartialEq</code>, <code>Eq</code>, <code>Hash</code>, <code>Ord</code>, <code>Default</code>, <code>Display</code>, <code>From</code>/<code>Into</code>, <code>Iterator</code>. Most are derivable; implementing <code>Display</code> is Rust's <code>__str__</code>, <code>Add</code> its <code>__add__</code>.</li>
+<li><b>The orphan rule:</b> you may implement a trait for a type only if your crate defines the trait or the type. To add a foreign trait to a foreign type, wrap the type in a one-field struct of your own (the "newtype" pattern).</li>
+</ul>
+</section>
+
+<section id="ra-iter">
+<h2>11. Iterators and closures: lazy pipelines that cost nothing</h2>
+<p>An <dfn>iterator</dfn> in Rust is any type with a <code>next()</code> method returning <code>Option&lt;Item&gt;</code>, the same protocol as Python's <code>__next__</code> raising <code>StopIteration</code>. Adapters such as <code>map</code>, <code>filter</code>, <code>zip</code>, <code>enumerate</code>, <code>take</code> build a lazy pipeline, like a generator expression; a <dfn>consumer</dfn> (<code>collect</code>, <code>sum</code>, <code>count</code>, <code>fold</code>, a <code>for</code> loop) runs it. A <dfn>closure</dfn> is an anonymous function that can capture variables from where it is written: <code>|x| x * 2</code> is Python's <code>lambda x: x * 2</code>, but with any number of statements.</p>
+[[code:lang/iters.rs]]
+[[pr:l_iters|Which line comes first: "built the iterator" or "computing 1"? And how many times does "computing" print?]]
+<p>Closures capture in the least demanding way that works, and the compiler records which in the closure's type: <code>Fn</code> (reads captured values), <code>FnMut</code> (changes them: <code>count</code> above), <code>FnOnce</code> (moves them out, so it can run once). <code>move</code> before a closure makes it take ownership of what it captures, needed when the closure outlives the current function (threads, section 16).</p>
+<h3>Zero-cost, measured</h3>
+<p>Rust's claim is that the iterator chain compiles to the same machine code as the hand-written loop. The same work five ways (sum of <code>x*x</code> over the even values in 10 million <code>u64</code>, release build, best of 9) and in CPython 3.14 (best of 3):</p>
+[[code:lang/iterbench.rs:1-31]]
+<div class="bars ra-bench" id="ra-bench-bars"></div>
+<details class="ra-more"><summary>the raw recordings and the load average</summary>[[out:t_iterbench]][[out:t_iterbench_py]][[out:t_load]][[out:t_load_after]]</details>
+<p><span class="ra-meas">measured</span> All four statically dispatched versions take the same time, about <b>[[g:t_iterbench|iter\(\)\.filter\(\)\.map\(\)\.fold\(\)\s+([0-9.]+)]] ns per element</b>: the closures were inlined and the loop vectorised, so the chain really is free. Calling the closure through <code>&amp;dyn Fn</code>, with the target hidden from the optimiser, blocks inlining and takes [[g:t_iterbench|&dyn Fn closure\s+([0-9.]+)]] ns, about three times slower: still far below CPython's [[g:t_iterbench_py|sum\(generator\)\s+([0-9.]+)]] ns per element for the generator expression. The machine was busy (load average around 16 on 10 cores, recorded before and after), so take the ratios, not the absolute values; all seven results agree (1662703719376).</p>
+<div class="ra-cost"><div><b>Solves</b>Readable pipelines with no speed penalty; laziness means no intermediate lists.</div><div><b>Costs</b>Long chains have long type names in errors; <code>collect</code> sometimes needs a type hint (<code>collect::&lt;Vec&lt;_&gt;&gt;()</code>).</div><div><b>Common mistake</b>Building a chain and never consuming it: nothing runs (clippy warns, and the drill tab shows what printing one gives).</div></div>
+</section>
