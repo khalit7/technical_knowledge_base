@@ -1,0 +1,946 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPU architecture: SMs, warps, tensor cores, Ampere to Blackwell and Rubin</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+#ovBars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 6.6em;margin:5px 0}#ovBars .row .nm{white-space:normal;line-height:1.2}#ovBars .ml{display:block;font-size:11.5px;color:var(--mute)}
+#ovBars .track{height:12px}
+#pcBars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.2em}a{color:var(--acc)}a:visited{color:var(--acc)}#s-over .bets{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+@media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<h1>GPU architecture: SMs, warps, tensor cores, Ampere to Blackwell and Rubin</h1>
+<div class="sub">The NVIDIA GPU from the inside, taught from zero: the streaming multiprocessor, how warps hide memory latency, what limits occupancy, the memory ladder from registers to HBM, five generations of tensor cores and the machinery that feeds them, the whole chip and its dies, number formats per generation, and consumer against datacenter parts. Real measurements on an Apple M1 Pro GPU where they teach; NVIDIA numbers from vendor documents and microbenchmark papers, kept apart. A child of <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>. Data as of October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-floor" aria-selected="false">Chip floorplans</button><button role="tab" data-t="t-lab" aria-selected="false">M1 GPU lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .an-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}#t-read .an-ctl input[type=range]{flex:1 1 140px;width:auto;min-width:120px}
+#t-read .cap{font-size:13.5px;min-height:3.2em;margin:6px 0;padding:6px 10px;background:var(--soft);border-radius:6px}
+#t-read .plotbox{margin:8px 0;overflow:hidden}
+#t-read table.gen td,#t-read table.gen th{white-space:nowrap}#t-read table.gen td.wrap{white-space:normal;min-width:12em}
+body .pill{display:inline-block;font-size:11px;border-radius:99px;padding:0 7px;border:1px solid var(--line);margin-left:4px;color:var(--mute);vertical-align:1px}
+body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(--acc);border-color:var(--acc)}body .pill.i{color:var(--c4);border-color:var(--c4)}body .pill.d{color:var(--c5);border-color:var(--c5)}
+#t-read .pred{border:1px dashed var(--acc);border-radius:8px;padding:8px 12px;margin:10px 0}#t-read .pred .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}#t-read .pred .ans{display:none;font-size:13.5px;margin-top:6px}#t-read .pred.done .ans{display:block}
+#t-read .pred button.right{border-color:var(--good);color:var(--good)}#t-read .pred button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-read td.fmtcell{text-align:center;font-variant-numeric:tabular-nums}#t-read td.none{color:var(--dim)}#t-read td.ns{color:var(--mute);font-style:italic}
+</style>
+<nav class="nav" id="ga-nav" aria-label="Sections">
+<a href="#ga-s1">In one screen</a><a href="#ga-s2">The SM</a><a href="#ga-s3">Hiding latency</a><a href="#ga-s4">Occupancy</a><a href="#ga-s5">Divergence</a><a href="#ga-s6">Memory ladder</a><a href="#ga-s7">Tensor cores</a><a href="#ga-s8">Feeding them</a><a href="#ga-s9">The whole chip</a><a href="#ga-s10">Formats</a><a href="#ga-s11">Consumer vs datacenter</a><a href="#ga-s12">Why each change</a><a href="#ga-s13">Check, mistakes, interview</a>
+</nav>
+
+<section id="ga-s1">
+<h2>1. In one screen</h2>
+<p class="lead">A GPU is a few hundred identical processors, called <b>streaming multiprocessors (SMs)</b>, sharing one large cache and one memory. Each SM runs thousands of threads at once in groups of 32 called <b>warps</b>, and hides the slowness of memory by always having another warp ready to run. Since the Volta generation, two before the A100, each SM also carries <b>tensor cores</b>, small units that multiply whole tiles of matrices in one instruction; they hold almost all of the chip's arithmetic. Every generation since the A100 has done three things: made the tensor cores faster and added smaller number formats, added hardware that moves data to them without spending threads (asynchronous copies, then TMA, then tensor memory), and grown the chip past what one die can hold.</p>
+<p>The parent page, <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>, gives the intuition in its section 2 and compares every accelerator in its <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Chip atlas</a> tab. This page is the depth on NVIDIA's GPU itself: how each piece works, what it costs, and how you can see it. How you program these pieces (CUDA, Triton, the mma, wgmma and tcgen05 instructions) lives on <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>; this page links its simulator and compiler output rather than repeating them.</p>
+<p><b>The running example.</b> The training step on the parent page (Llama 3.1 8B) is almost all matrix multiplies. A matmul kernel cuts each output matrix into tiles and gives each tile to one SM. We follow one such tile: a 128 &times; 128 block of the output, built from a 128 &times; 64 slice of one input and a 64 &times; 128 slice of the other, which is <b id="ga-fmas">1,048,576</b> multiply-adds (FMAs) <span class="pill d">derived: 128 &times; 128 &times; 64</span>. Where that tile's numbers come from, where they wait, which unit multiplies them and how each generation changed that, is this page.</p>
+<div class="tw"><table class="gen" id="ga-oneTable"></table></div>
+<p class="small mute">Dense tensor-core peaks in TFLOPS, never the 2:4 sparse figures vendors print first. RTX 5090 BF16 and FP8 are with FP32 accumulation, the setting training uses. B200 is the HGX part (the GB200 rack's B200 runs at 2,500 BF16). Sources per column: <a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">A100 in depth</a>, <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>, <a href="https://www.nvidia.com/en-us/data-center/hgx/" target="_blank" rel="noopener noreferrer">HGX page</a>, <a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">Inside Blackwell Ultra</a>, <a href="https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/" target="_blank" rel="noopener noreferrer">Inside Rubin</a> (Jul 21 2026), <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a> Appendix A, <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, compute capabilities</a> (shared memory per SM). B200's 148 SMs are from an independent paper (<a href="https://arxiv.org/html/2512.02189" target="_blank" rel="noopener noreferrer">Jarmusch and Chandrasekaran 2025</a>) and <a href="https://jax-ml.github.io/scaling-book/gpus/" target="_blank" rel="noopener noreferrer">How To Scale Your Model</a>; NVIDIA's fetched pages do not state it. <span class="pill v">vendor spec</span></p>
+<div class="co key"><div class="t">Four labels used on this page</div><span class="pill v">vendor spec</span> a number NVIDIA (or Apple) publishes; <span class="pill i">independent</span> measured by someone else on real NVIDIA hardware, with their paper linked; <span class="pill m">measured here</span> run for this page on an Apple M1 Pro GPU (no NVIDIA GPU was available); <span class="pill d">derived</span> computed from the others, formula shown. Anything not run here says so.</div>
+</section>
+
+<section id="ga-s2">
+<h2>2. The SM from zero: what is inside, and why</h2>
+<p><b>The problem.</b> Our tile needs a million multiply-adds, and its inputs live in memory that answers in hundreds of cycles. A CPU core spends its area on making one thread fast (big caches, branch prediction, out-of-order execution). An SM spends its area on arithmetic lanes and on storage for many threads, so that the arithmetic never waits. Everything inside it follows from that choice.</p>
+<p><b>How it is laid out.</b> An SM is split into four identical <b>sub-partitions</b> (quadrants). Each has its own <b>warp scheduler</b>, which picks one warp each cycle and issues that warp's next instruction to 32 lanes at once; its own slice of the <b>register file</b> (16K 32-bit registers, 64 KB); its own arithmetic lanes ("CUDA cores": 32 fp32 lanes on Hopper, 16 on the A100); and its own <b>tensor core</b>. The four quadrants share one block of fast on-chip SRAM that is split, at kernel launch, between an <b>L1 cache</b> (filled automatically) and <b>shared memory</b> (filled by the program), plus load/store units and, from Hopper on, a copy engine called the <b>TMA</b> (section 8). Blackwell datacenter parts add a fifth store, <b>tensor memory (TMEM)</b>, 256 KB per SM that only the tensor cores use.</p>
+<div class="card" id="ga-smCard">
+<div class="seg" id="ga-smSeg"><button data-m="a100">A100</button><button data-m="h100" class="on">H100</button><button data-m="b300">B200 / B300</button><button data-m="rtx5090">RTX 5090</button></div>
+<div id="ga-smSvg" class="plotbox"></div>
+<div class="small mute" id="ga-smNote"></div>
+</div>
+<p class="try"><b>Try:</b> switch A100 to H100: the lanes per quadrant double (16 to 32) and the shared store grows from 192 to 256 KB; switch to B200 / B300: the tensor memory appears beside the shared store; switch to RTX 5090: the same quadrants with half the shared store and no TMEM. Drawn to the counts, not to silicon area.</p>
+<div class="tw"><table id="ga-smTable"></table></div>
+<p class="small mute">Sources: <a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">A100 in depth</a> (64 fp32 lanes, 4 tensor cores, 192 KB L1/shared, 256 KB registers per SM), <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a> (128 fp32 lanes, 256 KB L1/shared, 256 KB registers), <a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">Inside Blackwell Ultra</a> (128 CUDA cores, 4 tensor cores, 256 KB TMEM per SM), <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a> (256 KB registers, 128 KB L1/shared per SM), <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, compute capabilities</a> v13.4.2 (warps, blocks, shared memory per SM, 255 registers per thread), <a href="https://jax-ml.github.io/scaling-book/gpus/" target="_blank" rel="noopener noreferrer">How To Scale Your Model, GPUs</a> (four sub-partitions, 16K registers and one tensor core each). <span class="pill v">vendor spec</span></p>
+<p><b>Why the register file is the largest memory in the SM.</b> 256 KB of registers per SM is more than the 228 KB of shared memory an H100 kernel can use. Across 132 SMs that is <span id="ga-rfTot">33.0</span> MiB of registers <span class="pill d">derived: 132 &times; 256 KiB</span>, two thirds of the size of the 50 MB L2 cache. The reason: every warp that lives on the SM keeps all of its registers there all the time, so that switching from a stalled warp to a ready one costs nothing (no state is saved or restored, unlike a CPU context switch). That free switch is the whole latency-hiding trick of section 3, and the size of the register file is what pays for it.</p>
+<p><b>What it means for our tile.</b> The tile's running sums are 128 &times; 128 fp32 numbers, <span id="ga-accKB">64</span> KB: a quarter of the SM's entire register file, held for the whole time the tile is computed. On Ampere and Hopper they really do live in registers (128 per thread for a 128-thread block). Blackwell's tensor memory exists to take them out (section 8).</p>
+<div class="deepnote"><b>Go deeper (optional).</b> The parent page's section 2 draws the H100 at two zoom levels. The same SM from the programmer's side (threads, blocks, how a kernel is mapped onto it) with a step simulator: <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming, GPU simulator tab</a>.</div>
+</section>
+
+<section id="ga-s3">
+<h2>3. Hiding latency: why a GPU needs thousands of threads</h2>
+<p><b>The problem.</b> A load from HBM takes about 466 cycles on an A100 and 479 on a Hopper (H800), measured by <a href="https://arxiv.org/html/2402.13499v1" target="_blank" rel="noopener noreferrer">Luo et al. 2024</a>, Table IV <span class="pill i">independent</span>. A scheduler that issues one instruction per cycle would sit idle for all of them if the warp it was running were the only one.</p>
+<p><b>How it works.</b> Each quadrant's scheduler holds up to 16 resident warps on A100, H100 and B200 (64 per SM, 48 on the RTX 5090's SM). Every cycle it looks for a warp whose next instruction has its inputs ready and issues it; a warp waiting for memory is simply skipped. Nothing is saved or restored (section 2). So the question is never "how fast is one warp" but "is there always some warp ready". The animation runs one quadrant's scheduler on a simple program: each warp loads a value, then does arithmetic that needs it.</p>
+<div class="card" id="ga-hideCard">
+<div class="seg" id="ga-hideSeg"><button data-m="0" class="on">2 warps</button><button data-m="1">16 warps (the maximum)</button><button data-m="2">16 warps, 4 loads in flight each</button></div>
+<div id="ga-hideSvg" class="plotbox"></div>
+<div class="cap" id="ga-hideCap"></div>
+<div class="out" id="ga-hideOut"></div>
+<div class="an-ctl" id="ga-hideCtl"></div>
+<p class="small mute"><span class="ill">Illustrative program</span>: each warp issues its load(s), waits for all of them, then issues 8 arithmetic instructions per load; one issue per cycle; load latency 466 cycles (A100, Luo et al. Table IV). Scheduler policy: greedy then oldest (keep the current warp until it stalls, then the lowest-numbered ready warp), a policy from the research literature; NVIDIA does not publish its own. Utilisation counted from cycle 1,000 on, after the start-up. Python reference: <code>src/recompute.py</code> (<code>hide_sim</code>), which the page's numbers match.</p>
+</div>
+<p><b>What it shows.</b> With 2 warps the scheduler issues in <span id="ga-h0">3.6</span>% of cycles. With all 16 warp slots filled it still issues in only about <span id="ga-h1">34</span>%: <b>the maximum number of warps is not enough</b> when each warp has only a few instructions of work per load. The formula is the fraction of time any warp has work: utilisation &asymp; W &times; (instructions per load round) / (instructions + latency) = 16 &times; 9 / 474 &asymp; 30% <span class="pill d">derived</span> (the simulation's window, cycles 1,000 to 2,000, happens to catch a little more). The fix is the third mode: the same 16 warps, but each issues 4 independent loads before it needs any of them, and the scheduler is busy <span id="ga-h2">100</span>% of the time. That is <b>memory-level parallelism inside each thread</b>: unrolled loops, wide vector loads (16 bytes per thread instead of 4), and, from Ampere on, copy hardware that fetches the next tile while the current one is computed (section 8).</p>
+<h3>How many bytes must be in flight: Little's law</h3>
+<p>Queueing theory gives the rule in one line: <b>requests in flight = throughput &times; latency</b> (Little's law). To stream memory at full bandwidth, the chip must always have bandwidth &times; latency bytes requested and not yet returned.</p>
+<div class="fm"><div class="eq">bytes in flight = bandwidth &times; latency</div>
+<dl><dt>M1 Pro</dt><dd><span id="ga-lM1bw">148</span> GB/s (best coalesced read measured here) &times; <span id="ga-lM1lat">485</span> ns (pointer chase into DRAM, measured here) = <b><span id="ga-lM1kb">70</span> KiB</b> in flight, about <span id="ga-lM1core">4.4</span> KiB per GPU core <span class="pill m">measured here</span> <span class="pill d">derived</span></dd>
+<dt>H100 SXM</dt><dd>3.35 TB/s (vendor) &times; <span id="ga-lHlat">273</span> ns (H800's 478.8 cycles at 1.755 GHz, Luo et al., used as a stand-in) = <b><span id="ga-lHmb">0.91</span> MB</b> in flight, about <span id="ga-lHsm">6,900</span> bytes per SM <span class="pill d">derived</span></dd></dl></div>
+<p>At 4 bytes per thread, <span id="ga-lH4">1,731</span> loads must be in flight on every SM at once, close to the 2,048 threads an SM can hold at all; at 16 bytes per thread (one <code>float4</code>), <span id="ga-lH16">433</span>. That is why fast kernels load 16 bytes per thread, keep several loads outstanding, and on Hopper and Blackwell hand bulk copies to the TMA, which keeps whole tiles in flight without using threads.</p>
+<p><b>Measured on the M1 Pro GPU.</b> A coalesced read of 256 MB reaches only <span id="ga-sOne">1.27</span> GB/s with 32 threads (one SIMD-group, Apple's name for a warp) and <span id="ga-sPeak">148</span> GB/s with thousands, <span id="ga-sRatio">117</span> times more, from parallelism alone; the curve flattens near 8,192 threads, 512 per core. A pointer chase, where each thread's next address depends on its last load, goes from <span id="ga-cOne">2.0</span> million to <span id="ga-cSat">406</span> million loads per second as threads are added, <span id="ga-cRatio">202</span> times. Both curves, with spread and method: <a href="#" data-tab="t-lab">M1 GPU lab</a>. <span class="pill m">measured here</span></p>
+<div class="pred" id="ga-pred1" data-right="0"><b>Predict first.</b> An H100 has 132 SMs with up to 2,048 threads each. If every thread could keep only one 4-byte load in flight, what fraction of the 3.35 TB/s could the chip reach?
+<div class="opts"><button data-a="0">about 100%</button><button data-a="1">about half</button><button data-a="2">under 5%</button></div>
+<div class="ans">270,336 threads &times; 4 bytes = 1.08 MB in flight, against the 0.91 MB needed, so in principle about all of it, <b>but only if every thread slot on every SM is filled</b> and nothing else limits occupancy (section 4). Any kernel that uses many registers or much shared memory falls below that, which is why real kernels load 16 bytes per thread and keep several loads in flight instead of relying on thread count. <span class="pill d">derived</span></div></div>
+<div class="deepnote"><b>Transfers to NVIDIA:</b> the shape of the curves (bandwidth grows with requests in flight, then flattens) and Little's law. <b>Does not transfer:</b> the numbers. The M1's GPU shares its system memory (200 GB/s, Apple's figure) with the CPU; the H100's HBM is about 17 times that, and its latency in nanoseconds a little over half the M1's.</div>
+</section>
+
+<section id="ga-s4">
+<h2>4. Occupancy: what limits how many warps fit</h2>
+<p><b>The problem.</b> Section 3 needs many warps resident. But every resident warp holds its registers and its block's shared memory for its whole life, and the SM has a fixed amount of each. <b>Occupancy</b> is the number of resident warps divided by the maximum (64 on A100, H100 and B200).</p>
+<p><b>How it works.</b> Four limits, and the smallest wins: warp slots, block slots, registers (64K per SM, given to each warp in units of 256 and split across the four quadrants) and shared memory (each block's request plus 1 KB that CUDA reserves). The table gives the limits per generation; the rules are NVIDIA's own <code>cuda_occupancy.h</code>, which the CUDA topic's agent ported and checked on 1,988 cases.</p>
+<div class="tw"><table>
+<thead><tr><th>Per SM</th><th class="num">A100 (8.0)</th><th class="num">RTX 4090 (8.9)</th><th class="num">H100 (9.0)</th><th class="num">B200 (10.0)</th><th class="num">RTX 5090 (12.0)</th></tr></thead>
+<tbody>
+<tr><td>Resident warps (threads)</td><td class="num">64 (2,048)</td><td class="num">48 (1,536)</td><td class="num">64 (2,048)</td><td class="num">64 (2,048)</td><td class="num">48 (1,536)</td></tr>
+<tr><td>Resident blocks</td><td class="num">32</td><td class="num">24</td><td class="num">32</td><td class="num">32</td><td class="num">24</td></tr>
+<tr><td>Registers (max per thread)</td><td class="num">64K (255)</td><td class="num">64K (255)</td><td class="num">64K (255)</td><td class="num">64K (255)</td><td class="num">64K (255)</td></tr>
+<tr><td>Shared memory per SM (per block)</td><td class="num">164 KB (163)</td><td class="num">100 KB (99)</td><td class="num">228 KB (227)</td><td class="num">228 KB (227)</td><td class="num">100 KB (99)</td></tr>
+<tr><td>L1 + shared memory, unified</td><td class="num">192 KB</td><td class="num">128 KB</td><td class="num">256 KB</td><td class="num">256 KB</td><td class="num">128 KB</td></tr>
+</tbody></table></div>
+<p class="small mute">Source: <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide v13.4.2, compute capabilities, Tables 30 and 31</a> (fetched 2026-10-05); RTX 4090 L1 from the <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a> Appendix A (16,384 KB over 128 SMs). The 1 KB reservation: <a href="https://docs.nvidia.com/cuda/ampere-tuning-guide/index.html" target="_blank" rel="noopener noreferrer">Ampere tuning guide</a>. <span class="pill v">vendor spec</span></p>
+<p><b>Our tile's kernel</b> <span class="ill">illustrative kernel</span>. Suppose the matmul kernel uses 128-thread blocks, 168 registers per thread (the 128 accumulator registers of section 2 plus addresses and operands) and 64 KB of shared memory (two 32 KB stages of the A and B slices, so the next one loads while this one is used). On an H100: registers allow <span id="ga-oR">3</span> blocks, shared memory <span id="ga-oS">3</span>, so <span id="ga-oW">12</span> warps of 64, an occupancy of <span id="ga-oP">19</span>% <span class="pill d">derived with the cuda_occupancy.h rules</span>. That is normal and fine for a tensor-core kernel: it hides latency with copies in flight (section 8), not with warps. A simple elementwise kernel (256 threads, 32 registers, no shared memory) reaches 100%.</p>
+<div class="co warn"><div class="t">A common mistake</div>"Higher occupancy is always better." It only helps when latency is hidden by switching warps. The fastest matmul and attention kernels deliberately run few warps with many registers each, and hide latency with asynchronous copies and deep pipelines; forcing occupancy up (by capping registers) makes them spill to memory and slower.</div>
+<p><b>Measured on the M1 Pro GPU.</b> The same 256 MB read as in section 3, with enough threads to fill the GPU, but each 64-thread group reserving more and more threadgroup memory (Apple's shared memory). Up to 4 KB per group the bandwidth stays near 140 GB/s; at 20 KB it falls to <span id="ga-sm20">95</span> GB/s and from 24 KB to <span id="ga-sm24">66</span> GB/s, because fewer groups fit on a core at once. The steps fall where a core holding 64 KB of threadgroup memory would fit 3 groups (20 KB) and then 2 (24 to 32 KB) <span class="pill d">inferred: Apple does not publish the per-core size</span>. Chart: <a href="#" data-tab="t-lab">M1 GPU lab</a>. <span class="pill m">measured here</span></p>
+<div class="deepnote"><b>Go deeper (optional).</b> An occupancy calculator that matches NVIDIA's header on every case, and the compiler's register and shared-memory report for real kernels on sm_80 to sm_120: <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming, GPU simulator and Compiler explorer tabs</a>.</div>
+</section>
+
+<section id="ga-s5">
+<h2>5. Divergence: what SIMT costs</h2>
+<p><b>The problem.</b> A warp's 32 threads share one instruction stream (SIMT, single instruction, multiple threads). If an <code>if</code> sends some threads one way and some the other, the hardware cannot run both paths at once on the same lanes.</p>
+<p><b>How it works.</b> The warp runs each path in turn with the threads that did not take it switched off, then the paths rejoin. The cost is therefore the sum of the paths taken by any thread in the warp, not a fixed "halving": two paths of equal length cost 2 times, 32 different paths cost 32 times. Divergence between warps costs nothing, because each warp has its own instruction stream.</p>
+<div class="card"><div id="ga-divBars" class="bars"></div>
+<p class="small mute">Every thread runs one of K different FMA loops of equal length (65,536 threads, 8,192 iterations of 8 FMAs). <b>Divergent:</b> the loop is chosen by the thread's lane within its 32-wide SIMD-group. <b>Uniform:</b> chosen by SIMD-group, so all 32 lanes agree. Median of 3 runs of 5 timings each; system load average <span class="ga-load"></span> (the laptop was shared). Apple M1 Pro GPU, MLX <span class="ga-mlx"></span>. <span class="pill m">measured here</span></p></div>
+<p><b>What it shows.</b> Divergent: 2 paths take <span id="ga-d2">1.95</span> times as long, 32 paths <span id="ga-d32">38.6</span> times (a little over 32, likely because 32 loop bodies no longer fit the instruction cache; not verified). Uniform: <span id="ga-dsg">1.14</span> times at 32 paths, essentially free. The M1's SIMD-group is 32 wide like an NVIDIA warp, so the lesson transfers directly.</p>
+<p><b>When it matters for training.</b> Rarely in matmuls (every thread does the same thing), more in kernels with data-dependent work per thread: masks in attention, ragged sequence lengths, sampling, MoE routing. The fix is to assign work so that whole warps take the same path (sort or bucket by length, process a row per warp).</p>
+</section>
+
+<section id="ga-s6">
+<h2>6. The memory ladder inside the chip</h2>
+<p><b>The problem.</b> Our tile's 32 KB of inputs (a 128 &times; 64 and a 64 &times; 128 slice of BF16, 2 bytes per number) are used 128 times each. Fetching them from HBM every time would need 128 times the bytes; keeping them close to the tensor cores turns a memory-bound tile into a compute-bound one. Each rung of the ladder below is bigger, farther and slower than the one before.</p>
+<div class="tw"><table id="ga-ladder">
+<thead><tr><th>Rung</th><th>Size (H100)</th><th>Who manages it</th><th class="num">Latency, cycles (A100 / H800 / RTX 4090)</th><th class="num">ns on H800 <span class="pill d">derived</span></th></tr></thead>
+<tbody>
+<tr><td>Registers</td><td>256 KB per SM</td><td>compiler</td><td class="num">operand of the instruction</td><td class="num"></td></tr>
+<tr><td>Shared memory</td><td>up to 228 KB per SM</td><td>the program</td><td class="num" id="ga-lSm"></td><td class="num" id="ga-lSmNs"></td></tr>
+<tr><td>L1 cache</td><td>the rest of the 256 KB</td><td>hardware</td><td class="num" id="ga-lL1"></td><td class="num" id="ga-lL1Ns"></td></tr>
+<tr><td>Another SM's shared memory (DSMEM, Hopper on)</td><td>within a cluster</td><td>the program</td><td class="num">180 (H800 only)</td><td class="num" id="ga-lDsNs"></td></tr>
+<tr><td>L2 cache</td><td>50 MB, shared by all SMs</td><td>hardware</td><td class="num" id="ga-lL2"></td><td class="num" id="ga-lL2Ns"></td></tr>
+<tr><td>HBM (global memory)</td><td>80 GB</td><td>the program</td><td class="num" id="ga-lGl"></td><td class="num" id="ga-lGlNs"></td></tr>
+</tbody></table></div>
+<p class="small mute">Latencies: <a href="https://arxiv.org/html/2402.13499v1" target="_blank" rel="noopener noreferrer">Luo et al., Benchmarking and Dissecting the Nvidia Hopper GPU Architecture</a> (Feb 2024), Table IV, on an A100 PCIe, an H800 PCIe (a Hopper GPU, 114 SMs) and an RTX 4090; DSMEM latency from its section on distributed shared memory. Nanoseconds at the H800's 1,755 MHz <span class="pill d">cycles / clock</span>. Sizes: <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>. <span class="pill i">independent</span></p>
+<p><b>What it shows.</b> Shared memory answers in about 29 cycles on all three GPUs; L2 in about 260 to 270, nine times longer; HBM in 470 to 540, almost twice L2 again. A likely reason, not measured by the paper: L2 is one structure shared by every SM on a die of about 800 mm&sup2;, so a request may cross the chip and back. Luo et al. also measured H800's L2 throughput at 4,472 bytes per clock, 2.2 times the A100's, and about 3.27 TB/s for DSMEM traffic between SMs of a 2-SM cluster, falling to 2.65 TB/s with 4.</p>
+<p><b>Measured on the M1 Pro GPU.</b> One thread chasing pointers through buffers from 4 KB to 256 MB shows the same staircase: about <span id="ga-m1L1">41</span> ns up to 16 KB, <span id="ga-m1L2">74</span> ns from 32 KB to 1 MB, about <span id="ga-m1SLC">340</span> ns from 4 to 32 MB, and <span id="ga-m1D">485</span> ns at 256 MB (DRAM, with address-translation misses included). Apple does not publish its GPU cache sizes, so the rungs are inferred from where the steps fall. Chart and spread: <a href="#" data-tab="t-lab">M1 GPU lab</a>. <span class="pill m">measured here</span></p>
+<p><b>Two things the ladder decides for training.</b> First, the L2 sizes matter more than they look: 40 MB (A100), 50 MB (H100) and 96 MB (RTX 5090) are large enough to hold a whole layer's activations for small batches, so a kernel that re-reads data soon after it was written may never touch HBM. Second, the split between L1 and shared memory is chosen per kernel: matmul and attention kernels take nearly all of it as shared memory, because they know exactly which tile they will reuse; elementwise kernels leave it as cache.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Coalescing, bank conflicts and tiling from the programmer's side: <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>. HBM, GDDR and SRAM as technologies, and bandwidth against working-set size: <a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a>.</div>
+</section>
+
+<section id="ga-s7">
+<h2>7. Tensor cores, generation by generation</h2>
+<p><b>The problem.</b> Ordinary lanes do one multiply-add per thread per instruction. An H100 SM has 128 of them, so our tile's million FMAs would take 8,192 cycles of perfect issue. Matrix multiplication has far more structure than that: every number of A meets a whole row of B. A tensor core exploits it.</p>
+<p><b>How it works.</b> A tensor core is a small fixed-function array that takes a tile of A, a tile of B and an accumulator tile, and returns A&middot;B + C in one instruction for a whole warp (or more). On the A100 each of the 4 tensor cores per SM does 256 FP16 multiply-adds per clock, 1,024 per SM, sixteen times the A100 SM's 64 FP32 lanes (<a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">A100 in depth</a>). The H100's do twice that per SM on the same types and four times with FP8 (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>), so 2,048 FP16 FMAs per SM per clock; that rate reproduces the H100's 989.5 TFLOPS at a <span id="ga-hclk">1.83</span> GHz clock <span class="pill d">989.5e12 / (132 &times; 2,048 &times; 2)</span>, a clock NVIDIA's blog leaves "not finalized". NVIDIA publishes no per-SM rate for Blackwell; Rubin "doubles the Tensor Core throughput per clock by doubling the amount of data it can process along the K dimension" (<a href="https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/" target="_blank" rel="noopener noreferrer">Inside Rubin</a>).</p>
+<p>The bigger change over the generations is not the rate but <b>who issues the multiply, where its operands come from, and where its results go</b>. The animation follows our tile through the three instruction families.</p>
+<div class="card" id="ga-tcCard">
+<div class="seg" id="ga-tcSeg"><button data-m="amp" class="on">Ampere: mma.sync</button><button data-m="hop">Hopper: wgmma</button><button data-m="bw">Blackwell: tcgen05</button></div>
+<div id="ga-tcSvg" class="plotbox"></div>
+<div class="cap" id="ga-tcCap"></div>
+<div class="out" id="ga-tcOut"></div>
+<div class="an-ctl" id="ga-tcCtl"></div>
+<p class="small mute">Tile 128 &times; 128 &times; 64, BF16 inputs, FP32 accumulators, one thread block on one SM. Instruction counts from the shapes in the <a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener noreferrer">PTX ISA</a> (9.4): <code>mma.sync m16n8k16</code> per warp, <code>wgmma m64nNk16</code> (N up to 256) per warpgroup of 4 warps, <code>tcgen05.mma</code> 128 &times; N &times; 16 issued by one thread <span class="pill d">derived: (128/m) &times; (128/n) &times; (64/k)</span>. Clocks at the published per-SM rates; none for Blackwell (not published). Layout schematic, not to silicon area.</p>
+</div>
+<p><b>What it shows.</b> Ampere needs <span id="ga-tA">512</span> warp instructions and every operand passes through registers; Hopper needs <span id="ga-tH">8</span> warpgroup instructions reading straight from shared memory, but its accumulators still fill a quarter of the register file; Blackwell needs <span id="ga-tB">4</span> instructions, issued by a single thread, and the accumulators leave the register file for tensor memory. Each step frees the threads for something else: computing addresses, the epilogue of the previous tile, softmax in attention.</p>
+<p><b>Independent evidence that the instruction family matters.</b> On an H800, Luo et al. found that the Ampere-style <code>mma</code> instructions reach on average only <b>62.9%</b> of the tensor cores' peak, while <code>wgmma</code> reaches <b>729.3</b> of 756.5 TFLOPS (<span id="ga-wgPct">96.4</span>%) in FP16 (<a href="https://arxiv.org/html/2402.13499v1" target="_blank" rel="noopener noreferrer">Luo et al. 2024</a>, Table VIII) <span class="pill i">independent</span>. So a kernel written for the A100 runs on an H100 but leaves a third of its tensor-core peak unused.</p>
+<p><b>Real compiler output, no GPU needed.</b> The CUDA topic compiled the same kernels with CUDA 13.4.2 for each target and read the machine code (SASS): <code>wgmma</code> compiles only for sm_90a (Hopper) and <code>tcgen05</code> only for sm_100a (Blackwell datacenter), not for the RTX 5090's sm_120; Triton turns one <code>tl.dot</code> into HMMA on sm_80, HGMMA on sm_90a and UTCHMMA on sm_100a; and an FP8 <code>mma.sync</code> runs natively (QMMA) on sm_120 but is emulated on sm_90a and sm_100a (converted to FP16 and run as two HMMA). See <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming, Compiler explorer tab</a>. <span class="pill m">compiled there, not run</span></p>
+<div class="tw"><table class="gen">
+<thead><tr><th>Generation</th><th>First in</th><th>Formats added</th><th>Instruction, who issues</th><th>Operands from</th><th>Accumulator in</th></tr></thead>
+<tbody>
+<tr><td>3rd</td><td>A100, 2020</td><td class="wrap">TF32, BF16, 2:4 sparsity</td><td class="wrap">mma.sync, one warp, synchronous</td><td class="wrap">registers</td><td class="wrap">registers</td></tr>
+<tr><td>4th</td><td class="wrap">H100, 2022 (Ada RTX 4090 too, without wgmma)</td><td class="wrap">FP8 (E4M3, E5M2)</td><td class="wrap">wgmma, a warpgroup of 4 warps, asynchronous</td><td class="wrap">shared memory (A may be registers)</td><td class="wrap">registers</td></tr>
+<tr><td>5th</td><td>B200, 2024</td><td class="wrap">FP6, FP4, block-scaled MXFP8/6/4 and NVFP4</td><td class="wrap">tcgen05.mma, one thread, asynchronous; one instruction can span a pair of SMs</td><td class="wrap">shared memory (A may be TMEM)</td><td class="wrap">tensor memory</td></tr>
+<tr><td>5th, consumer</td><td>RTX 5090, 2025</td><td class="wrap">FP4, FP8 (native mma.sync)</td><td class="wrap">mma.sync only: no wgmma, no tcgen05</td><td class="wrap">registers</td><td class="wrap">registers</td></tr>
+<tr><td>Rubin</td><td>2026</td><td class="wrap">FP8 at 4.4 and NVFP4 at 8.75 times the BF16 rate (dense); a 3-bit lookup-table format for matrix B</td><td class="wrap">not described in detail yet</td><td colspan="2">not stated</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: <a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">A100 in depth</a>, <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>, <a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener noreferrer">PTX ISA</a> (wgmma, tcgen05, TMEM, cta_group::2), <a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">Inside Blackwell Ultra</a> ("dual-thread-block MMA, where paired SMs cooperate on a single MMA operation"), <a href="https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/" target="_blank" rel="noopener noreferrer">Inside Rubin</a>; consumer rows from the CUDA topic's compiles. Ada's FP8 tensor cores: <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a> Appendix A (RTX 4090 FP8 column). The generation numbers follow NVIDIA's naming.</p>
+</section>
+
+<section id="ga-s8">
+<h2>8. Feeding the tensor cores: async copy, TMA, clusters, tensor memory</h2>
+<p><b>The problem.</b> Each generation doubled the tensor cores' appetite, but the threads that had to fetch their data stayed the same. On an A100 a thread copies 16 bytes per instruction, so filling our tile's 32 KB of inputs takes <span id="ga-cpa">2,048</span> copy instructions plus the address arithmetic for each <span class="pill d">32,768 / 16</span>, every k-step, competing for the same issue slots as the math. The hardware added since then moves that work off the threads.</p>
+<div class="grid">
+<div class="sp"><div class="n">Ampere: asynchronous copy</div><p>A copy from global memory straight into shared memory that skips the registers and does not stall the thread that issued it ("eliminating the need for intermediate register file usage", <a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">A100 in depth</a>). Threads still issue one per 16 bytes, but can issue the next tile's copies and then compute on the current one: double buffering.</p></div>
+<div class="sp"><div class="n">Hopper: TMA</div><p>A copy engine in each SM. One thread hands it a descriptor (base address, shape and strides of a 1D to 5D tensor, the box to fetch) and the TMA moves the whole tile between global and shared memory, address arithmetic included (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>). Our tile's inputs: <span id="ga-tma">2</span> instructions instead of 2,048. Completion is tracked by an <b>asynchronous transaction barrier</b> that counts arriving bytes.</p></div>
+<div class="sp"><div class="n">Hopper: clusters and DSMEM</div><p>A <b>cluster</b> is a group of up to 16 thread blocks that "run concurrently across SMs within a GPC" (Hopper in depth); each can read and write the others' shared memory (distributed shared memory), about 7 times faster than exchanging through global memory per NVIDIA, 180 cycles and up to 3.27 TB/s per Luo et al. One TMA load can also be multicast to several SMs of the cluster that need the same tile (<code>.multicast::cluster</code> in the PTX ISA).</p></div>
+<div class="sp"><div class="n">Blackwell: tensor memory</div><p>256 KB per SM, organised as 128 lanes &times; 512 columns of 32-bit cells, allocated by columns and read only by the tensor cores and by explicit copies to registers (<a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener noreferrer">PTX ISA</a>, tcgen05). Our tile's FP32 accumulators take <span id="ga-tmc">128</span> of the 512 columns, so two tiles can be accumulating while a third is being written out.</p></div>
+</div>
+<p><b>What this changed in kernels.</b> Once copies and multiplies are both asynchronous, the fastest kernels split warps by role: one <b>producer</b> warp issues TMA copies into a ring of shared-memory buffers, <b>consumer</b> warps issue the matrix multiplies and the epilogue, and barriers pass buffers between them. <a href="https://arxiv.org/abs/2407.08608" target="_blank" rel="noopener noreferrer">FlashAttention-3</a> names this warp specialisation and the overlap of TMA and tensor cores as two of its three techniques, reaching up to 740 TFLOPS in FP16 on an H100 (75% of peak). Reading CUTLASS or FlashAttention code for Hopper or Blackwell means reading this pipeline.</p>
+<div class="co"><div class="t">The RTX 5090 is in between</div>Its sm_120 target compiles TMA copies and clusters (the CUDA topic's compiles) but has no wgmma, no tcgen05 and no tensor memory, so its kernels look like Ampere's mma.sync kernels fed by Hopper's copy engine.</div>
+</section>
+
+<section id="ga-s9">
+<h2>9. The whole chip: GPCs, L2, memory, dies</h2>
+<p><b>How SMs are grouped.</b> Two SMs form a <b>TPC</b> (texture processing cluster); TPCs form a <b>GPC</b> (graphics processing cluster), the unit that also bounds a thread-block cluster. The full GA100 has 8 GPCs of 8 TPCs (128 SMs); the A100 enables 108. The full GH100 has 8 GPCs of 9 TPCs (144 SMs); the H100 SXM enables 132. The RTX 5090's GB202 has 12 GPCs (192 SMs) and enables 170 in 11 GPCs. Shipping fewer SMs than the die has lets a die with a few defective SMs still be sold; NVIDIA's documents give the counts, not the yields.</p>
+<p><b>L2 and memory.</b> Memory controllers sit at the die edge, each driving one channel: on the A100 and H100, 10 of the die's 12 512-bit controllers are enabled, feeding 5 of its 6 HBM stack sites; the RTX 5090 has sixteen 32-bit GDDR7 controllers (a 512-bit bus). The L2 is split into partitions near the controllers (two on the A100, "divided into two partitions to enable higher bandwidth and lower latency"; four on the B200 per Jarmusch and Chandrasekaran).</p>
+<p><b>Two dies as one GPU.</b> A die cannot be larger than the area a lithography scanner exposes at once (the reticle); the A100 (826 mm&sup2;) and H100 (814 mm&sup2;) are near it. Blackwell's answer is two "reticle-sized" dies, 208 billion transistors in total, joined by a 10 TB/s link (NV-HBI) and presented to software as one GPU with one memory space. Blackwell Ultra keeps the two-die design with 160 SMs in 8 GPCs and eight 12-high HBM3e stacks on 16 512-bit controllers; Rubin is again two dies, 336 billion transistors and 224 SMs (<a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">Inside Blackwell Ultra</a>, <a href="https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/" target="_blank" rel="noopener noreferrer">Inside Rubin</a>).</p>
+<p class="try"><b>See it:</b> <a href="#" data-tab="t-floor">Chip floorplans</a> draws each chip from its published counts (GPCs, enabled and disabled SMs, L2, memory stacks or controllers, dies) and compares any two side by side.</p>
+<p class="small mute">Sources: <a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">A100 in depth</a>, <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>, <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a>, <a href="https://arxiv.org/html/2512.02189" target="_blank" rel="noopener noreferrer">Jarmusch and Chandrasekaran 2025</a>; die areas and transistor counts via the parent page's Chip atlas sources. <span class="pill v">vendor spec</span></p>
+</section>
+
+<section id="ga-s10">
+<h2>10. Number formats, generation by generation</h2>
+<p><b>The rule.</b> A tensor core is faster at a format only if it has a datapath for it; otherwise the format saves memory and bandwidth but the multiply runs at a format the hardware does have. The table gives each chip's dense tensor-core peak per format, coloured by its ratio to the same chip's BF16 rate.</p>
+<div class="seg" id="ga-fmtSeg"><button data-m="tf" class="on">TFLOPS</button><button data-m="ratio">Ratio to BF16</button></div>
+<div class="tw"><table id="ga-fmtTable"></table></div>
+<p class="small mute">Dense figures, vendor pages via the shared facts file (fetched 2026-10-05): <a href="https://www.nvidia.com/en-us/data-center/a100/" target="_blank" rel="noopener noreferrer">A100</a>, <a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">H100</a>, <a href="https://www.nvidia.com/en-us/data-center/hgx/" target="_blank" rel="noopener noreferrer">HGX B200 and B300</a> (per GPU = board total / 8, sparse rows halved as the page's footnote says), <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a> Appendix A (FP32 accumulation where it matters), <a href="https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/" target="_blank" rel="noopener noreferrer">Inside Rubin</a> and the HGX page (Rubin FP4 is the 35 PF dense training figure, not the 50 PF sparse inference one). "none": no tensor-core path; "n/s": not stated on the fetched source. INT8 in TOPS. <span class="pill v">vendor spec</span></p>
+<p><b>What to notice.</b></p>
+<ul class="tight">
+<li><b>The halving ladder held for three generations</b>: TF32 at half of BF16, FP8 at twice, FP4 at four times (B200). Blackwell Ultra broke it on purpose: FP4 at 6 times BF16, paid for by cutting FP64 from 37 to 1.25 TFLOPS and INT8 to 187.5 TOPS per GPU.</li>
+<li><b>Rubin breaks it again</b>: BF16 rises 1.78 times over the B200 but FP8 3.9 times, so FP8 is 4.4 times BF16. On Rubin, training in FP8 rather than BF16 is worth more than on any earlier part.</li>
+<li><b>Consumer parts halve the training format</b>: the RTX 5090's BF16 with FP32 accumulation is 209.5 TFLOPS, half its 419 with FP16 accumulation; the same was true of the 4090. Training accumulates in FP32, so the lower number is the one to compare.</li>
+<li><b>No datapath, no speed-up</b>: FP8 on an A100 or FP4 on an H100 runs as a wider format after conversion (the CUDA topic's compile shows FP8 <code>mma.sync</code> becoming two FP16 multiplies on sm_90a).</li>
+</ul>
+<p><b>The ridge moves with the format, not the generation.</b> A kernel is compute-bound only above peak / bandwidth FLOPs per byte. At BF16 that is <span id="ga-rA">153</span> on the A100, <span id="ga-rH">295</span> on the H100, <span id="ga-rB">281</span> on the B200 and <span id="ga-rR">182</span> on Rubin, whose HBM4 grew faster than its BF16 math; at FP8 it is <span id="ga-rH8">591</span>, <span id="ga-rB8">563</span> and <span id="ga-rR8">795</span> <span class="pill d">dense peak / bandwidth</span>. The parent page's <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Roofline lab</a> tab explains the ridge with measured kernels.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> How the bits encode a number and where each format overflows: <a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a>. Block scaling (MX, NVFP4) and what it costs in bits: the parent page's section 4. Training and serving in these formats: <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>.</div>
+</section>
+
+<section id="ga-s11">
+<h2>11. Consumer against datacenter: RTX 5090, H100, B200</h2>
+<p>The RTX 5090 has more SMs than an H100 and the same instruction set generation as the B200. What separates them is everything around the SM.</p>
+<div class="tw"><table id="ga-cvd"></table></div>
+<p class="small mute">Sources: <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a> Appendix A; <a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">H100 page</a>; <a href="https://www.nvidia.com/en-us/data-center/hgx/" target="_blank" rel="noopener noreferrer">HGX page</a> and <a href="https://www.nvidia.com/en-us/data-center/dgx-b200/" target="_blank" rel="noopener noreferrer">DGX B200</a> (180 GB, 8 TB/s per GPU); B200 power from <a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">Inside Blackwell Ultra</a> Table 2 ("up to 1,200 W", SKU not stated); per-SM limits from the <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide</a>; RTX 5090 price <a href="https://nvidianews.nvidia.com/news/nvidia-blackwell-geforce-rtx-50-series-opens-new-world-of-ai-computer-graphics" target="_blank" rel="noopener noreferrer">NVIDIA newsroom, Jan 6 2025</a>. <span class="pill v">vendor spec</span></p>
+<p><b>Reading the table.</b> For one-GPU, memory-bound inference of a model that fits in 32 GB, a 5090 is about half an H100 (bandwidth 0.53 times), and FP4 helps it further. For training it is much further behind: BF16 with FP32 accumulation is 0.21 times an H100's, 32 GB holds model and optimizer state for only about 2 billion parameters at 16 bytes each, there is no NVLink, so two cards talk over PCIe 5.0 at 64 GB/s each way, about 7 times less than an H100's 450 GB/s NVLink per direction, and its kernels cannot use wgmma or tcgen05. It is a good target for learning kernels at sm_120 and for FP8/FP4 inference; it is not a small H100.</p>
+<div class="co warn"><div class="t">Corrections to the old page</div>The old table gave the 5090's dense FP4 as about 838 TFLOPS; the whitepaper's dense figure is 1,676 (838 is not in it). The old "PCIe ~28 times less than one H100's NVLink" compared one direction of PCIe with NVLink's two-direction total and still came out wrong: 64 against 900 is 14 times, 64 against 450 per direction is 7 times. The parent page's coverage notes record both.</div>
+</section>
+
+<section id="ga-s12">
+<h2>12. Generation by generation: what changed and why</h2>
+<p>Each generation answers the bottleneck the previous one exposed. Read down the column "why".</p>
+<div class="tw"><table class="gen">
+<thead><tr><th>Part, year</th><th>What changed</th><th>Why (the bottleneck it answers)</th></tr></thead>
+<tbody>
+<tr><td>A100, 2020</td><td class="wrap">TF32 and BF16 tensor cores, 2:4 sparsity, asynchronous copy, 40 MB L2, 1,024 FP16 FMAs per SM per clock (2 times Volta)</td><td class="wrap">FP32 training could not use tensor cores at all; BF16 keeps FP32's range so no loss scaling; copies through registers wasted issue slots and registers</td></tr>
+<tr><td>H100, 2022</td><td class="wrap">FP8, 2 times the per-SM tensor rate, wgmma, TMA, clusters with DSMEM, 50 MB L2, HBM3 3.35 TB/s, NVLink 900 GB/s</td><td class="wrap">Feeding a faster tensor core from threads did not scale (mma reaches 62.9% of Hopper's peak); data had to move without threads, and between SMs without L2</td></tr>
+<tr><td>H200, 2023</td><td class="wrap">Same compute, 141 GB HBM3e at 4.8 TB/s</td><td class="wrap">Memory capacity and bandwidth, not FLOPS, limited large-model inference and long contexts</td></tr>
+<tr><td>B200, 2024</td><td class="wrap">Two dies as one GPU (208 billion transistors, 10 TB/s NV-HBI), FP6, FP4 and block-scaled formats, tcgen05 and 256 KB TMEM per SM, 8 TB/s, up to 1,200 W</td><td class="wrap">One die had reached the reticle limit; accumulators were crowding the register file; inference wanted 4-bit</td></tr>
+<tr><td>B300, 2025</td><td class="wrap">FP4 1.5 times B200 (15 against 10 PF), 288 GB, attention SFU throughput doubled, FP64 and INT8 cut, up to 1,400 W</td><td class="wrap">Inference: FP4 math, KV-cache capacity, and the softmax exponentials that were starting to bound attention once matmuls got this fast</td></tr>
+<tr><td>Rubin, 2026</td><td class="wrap">336 billion transistors, 224 SMs, HBM4 up to 22 TB/s, NVLink 6 at 3.6 TB/s, tensor throughput per clock doubled along K, FP8 at 4.4 times BF16, exponential throughput 2 times (FP32) and 4 times (BF16) Blackwell</td><td class="wrap">Bandwidth again (2.8 times Blackwell), low-precision training, attention</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources as in sections 7 to 11 plus <a href="https://www.nvidia.com/en-us/data-center/h200/" target="_blank" rel="noopener noreferrer">H200 page</a>. The "why" column is the reading of NVIDIA's own stated motivations (the blogs above) and of the measurements on this page; where NVIDIA states no motivation (H200, FP64 cut), it is labelled as the page's reading. Rubin: "ramping into full production" and "production shipments ... set to begin starting this fall" (<a href="https://nvidianews.nvidia.com/news/vera-rubin-full-production-agentic-ai-factory" target="_blank" rel="noopener noreferrer">NVIDIA newsroom, May 31 2026</a>); no independent measurement exists yet.</p>
+<div class="co"><div class="t">The pattern to remember</div>Math got cheaper faster than data movement in every generation. So each generation added hardware to move data (async copy, TMA, DSMEM, TMEM, bigger L2, faster HBM) and the code that runs fastest is the code that overlaps moving with computing. A kernel written for the previous generation usually runs, but does not use what is new.</div>
+</section>
+
+<section id="ga-s13">
+<h2>13. Checking your GPU, common mistakes, interview questions</h2>
+<h3>Checking what you are running on <span class="pill">not run here: no NVIDIA GPU</span></h3>
+<ul class="tight">
+<li><code>torch.cuda.get_device_capability()</code> gives the compute capability (8, 0) A100, (9, 0) H100, (10, 0) B200, (12, 0) RTX 5090: it decides which instructions a kernel can use. <code>torch.cuda.get_device_properties(0)</code> gives the SM count and memory.</li>
+<li><code>nvidia-smi -q</code> lists clocks, power limit and memory; a power or clock cap lowers every peak on this page proportionally.</li>
+<li>A kernel's registers, shared memory and spills: compile with <code>-Xptxas -v</code>, or read them per kernel in Nsight Compute, which also reports achieved occupancy and tensor-pipe utilisation (see the CUDA topic).</li>
+</ul>
+<h3>Common mistakes</h3>
+<details class="mist"><summary>Quoting sparse FLOPS as the chip's speed</summary><div class="b">Vendor tables print the 2:4 structured-sparsity figure first (H100 BF16 "1,979"); dense training gets half (989.5). Compare dense with dense.</div></details>
+<details class="mist"><summary>"Divergence halves throughput"</summary><div class="b">The paths taken within a warp run one after the other, so the cost is the sum of the paths: 2 equal paths cost 1.95 times, 32 paths 38.6 times on the M1 measurement in section 5. Divergence between warps is free.</div></details>
+<details class="mist"><summary>Chasing 100% occupancy</summary><div class="b">The fastest tensor-core kernels run at low occupancy with many registers per thread and hide latency with asynchronous copies (section 4).</div></details>
+<details class="mist"><summary>"An H100 is just a faster A100"</summary><div class="b">Ampere-style mma code reaches about 63% of Hopper's tensor peak; wgmma reaches 96% (Luo et al.). Blackwell kernels need tcgen05 and TMEM. Use libraries and compilers built for the target (sm_90a, sm_100a).</div></details>
+<details class="mist"><summary>"B200" is one number</summary><div class="b">HGX B200 is 2,250 BF16 TFLOPS dense; the B200 inside a GB200 rack is 2,500; Blackwell Ultra 2,250 BF16 but 15 PF FP4. Name the SKU.</div></details>
+<details class="mist"><summary>Comparing a consumer card's FP16-accumulate rate with a datacenter BF16 rate</summary><div class="b">The RTX 5090's 419 TFLOPS is FP16 with FP16 accumulation; training uses FP32 accumulation, 209.5.</div></details>
+<h3>Interview questions, short answers</h3>
+<details class="mist"><summary>What is an SM, and what is inside it?</summary><div class="b">The GPU's repeated processor: four quadrants, each with a warp scheduler, 64 KB of registers, 32 FP32 lanes (Hopper) and a tensor core; shared L1/shared memory (256 KB on H100); on Blackwell also 256 KB of tensor memory. H100 SXM has 132.</div></details>
+<details class="mist"><summary>How does a GPU hide memory latency?</summary><div class="b">By keeping many warps resident with their registers in place and issuing from whichever is ready; plus memory-level parallelism per thread and asynchronous copies. Little's law: bytes in flight = bandwidth &times; latency, about 0.9 MB for an H100.</div></details>
+<details class="mist"><summary>What limits occupancy?</summary><div class="b">Warp slots, block slots, registers (64K per SM) and shared memory per SM; the smallest wins. Low occupancy is fine if latency is hidden another way.</div></details>
+<details class="mist"><summary>What did Hopper add for matmuls, and why?</summary><div class="b">FP8, wgmma (warpgroup MMA from shared memory, asynchronous), TMA (descriptor-driven tile copies) and clusters with distributed shared memory: the tensor cores had outgrown what threads could feed.</div></details>
+<details class="mist"><summary>What is TMEM and why does it exist?</summary><div class="b">256 KB per SM on Blackwell datacenter GPUs, 128 lanes by 512 columns, holding tensor-core accumulators. It frees the register file (a 128 &times; 128 FP32 accumulator is a quarter of it) for the epilogue and other work.</div></details>
+<details class="mist"><summary>Why is the B200 two dies?</summary><div class="b">One die is limited by the reticle; two reticle-sized dies joined at 10 TB/s give 208 billion transistors presented as one GPU.</div></details>
+<details class="mist"><summary>RTX 5090 or H100 for training a 7B model?</summary><div class="b">H100: 80 GB against 32 GB (full fine-tuning needs about 16 bytes per parameter), 4.7 times the BF16 rate with FP32 accumulation, NVLink, wgmma. The 5090 is for inference and kernel development.</div></details>
+<details class="mist"><summary>Why did the BF16 ridge point fall on Rubin?</summary><div class="b">HBM4 bandwidth (22 TB/s) grew faster than BF16 math (4 PF): 182 FLOPs per byte against the H100's 295. At FP8 it rose to 795.</div></details>
+</section>
+</div>
+<div class="tab" id="t-floor" role="tabpanel" hidden>
+<style>
+#t-floor .fl-ctl{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:8px 0}#t-floor .fl-ctl label{font-size:13px}
+#t-floor .fl-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-floor .fl-card h3{margin:0 0 4px}#t-floor .fl-note{font-size:12.5px;color:var(--mute);margin:4px 0}
+#t-floor td.diff{background:var(--hl)}#t-floor td.num{white-space:normal}#t-floor table{font-size:12.5px}
+</style>
+<h2 style="margin-top:14px">Chip floorplans: each GPU drawn from its published counts</h2>
+<p>Each drawing places a chip's dies, GPCs, SMs (enabled and disabled), L2 and memory interfaces from the counts NVIDIA publishes (or, for the B200, an independent paper). It is a <b>schematic drawn to the counts, not to silicon area or position</b>: NVIDIA does not publish which SMs are disabled on a given chip, so their positions are illustrative, and where a count is not published the drawing says so instead of guessing.</p>
+<p class="try"><b>Try:</b> A100 against H100 (same 8-GPC plan, one more TPC (two more SMs) per GPC, same 5 of 6 HBM sites); H100 against B200 (one die to two); B200 against Rubin; H100 against RTX 5090 (12 GPCs, GDDR7 controllers around the edge instead of HBM stacks). Cells that differ are highlighted in the table.</p>
+<div class="fl-ctl"><label>Chip <select id="fl-a"></select></label><label>against <select id="fl-b"></select></label></div>
+<div class="fl-card"><h3 id="fl-ta"></h3><div id="fl-sa" class="plotbox"></div><div class="fl-note" id="fl-na"></div></div>
+<div class="fl-card"><h3 id="fl-tb"></h3><div id="fl-sb" class="plotbox"></div><div class="fl-note" id="fl-nb"></div></div>
+<div class="tw"><table id="fl-table"></table></div>
+<p class="small mute">Sources: <a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">A100 in depth</a> (GA100: 8 GPCs, 8 TPCs per GPC, 128 SMs, 6 HBM2 stacks, 12 512-bit controllers; A100: 108 SMs in 7 GPCs, 5 stacks, 10 controllers; 40 MB L2 in two partitions), <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a> (GH100: 8 GPCs, 9 TPCs per GPC, 144 SMs, 6 stacks, 60 MB L2; H100 SXM5: 66 TPCs, 132 SMs, 5 HBM3 stacks, 10 controllers, 50 MB), <a href="https://arxiv.org/html/2512.02189" target="_blank" rel="noopener noreferrer">Jarmusch and Chandrasekaran 2025</a> (B200: 148 SMs in 8 GPCs, four L2 partitions, eight HBM3e stacks; independent), <a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">Inside Blackwell Ultra</a> (160 SMs in 8 GPCs, two reticle-sized dies, eight 12-Hi stacks, 16 512-bit controllers, 208B transistors, TSMC 4NP), <a href="https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/" target="_blank" rel="noopener noreferrer">Inside Rubin</a> (two dies, 224 SMs, 336B transistors, HBM4 12-Hi), <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a> (GB202: 12 GPCs, 96 TPCs, 192 SMs, sixteen 32-bit controllers, 128 MB L2; RTX 5090: 11 GPCs, 85 TPCs, 170 SMs, 96 MB L2), and the parent page's Chip atlas for process, transistors and area. <span class="pill v">vendor spec</span></p>
+</div>
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>#t-lab .lb-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}#t-lab .lb-card h3{margin:0 0 4px}#t-lab .tr{font-size:13px;border-left:3px solid var(--good);padding:2px 0 2px 10px;margin:6px 0}#t-lab .ntr{border-left-color:var(--bad)}</style>
+<h2 style="margin-top:14px">M1 GPU lab: four NVIDIA microbenchmarks, run on an Apple GPU</h2>
+<p>No NVIDIA GPU was available for this page, so the microbenchmarks that papers such as <a href="https://arxiv.org/html/2402.13499v1" target="_blank" rel="noopener noreferrer">Luo et al.</a> run to dissect NVIDIA GPUs were run on the Apple M1 Pro's 16-core GPU instead. It is a real SIMT GPU: SIMD-groups of 32 threads (Apple's warps), threadgroups (blocks), threadgroup memory (shared memory). What transfers to NVIDIA is the shape of each result and the mechanism behind it; the numbers do not, and each chart says which is which. <span class="pill m">measured here</span></p>
+<p class="small mute" id="lb-meta"></p>
+
+<div class="lb-card"><h3>1. The latency ladder: one thread chasing pointers</h3>
+<p class="small">One thread follows a random cyclic chain through a buffer, one hop per 128-byte line, so every load depends on the last and nothing can overlap. Time per hop against buffer size shows each level of the memory system as a step. Launch overhead is cancelled by timing two chain lengths and taking the difference.</p>
+<label class="chk"><input type="checkbox" id="lb-ref" checked> show H800 levels (Luo et al., cycles at 1,755 MHz)</label>
+<div id="lb-chase" class="plotbox"></div>
+<div class="tr">Transfers: the staircase (each level a plateau, a jump where the working set stops fitting), and the method; it is how Table IV of Luo et al. was measured.</div>
+<div class="tr ntr">Does not transfer: the sizes and the nanoseconds. Apple does not publish its GPU cache sizes (the steps here are inferred), and the last step includes address-translation misses of a 256 MB random walk.</div></div>
+
+<div class="lb-card"><h3>2. Latency hiding: throughput against threads in flight</h3>
+<p class="small">Left: a coalesced read of 256 MB (each thread loops over the buffer in 16-byte loads). Right: the pointer chase of chart 1 in a 256 MB chain, with every thread starting at a different place. Both grow with threads until the memory system saturates: Little's law, throughput = requests in flight / latency.</p>
+<div class="grid"><div id="lb-stream" class="plotbox"></div><div id="lb-little" class="plotbox"></div></div>
+<div class="tr">Transfers: a single warp reaches about 1% of the bandwidth; saturating memory needs thousands of threads or, per thread, several wide loads in flight. On an H100 the same rule asks for about 0.9 MB in flight (Reading, section 3).</div>
+<div class="tr ntr">Does not transfer: where the curve flattens (here about 512 threads per core) and the plateau (148 GB/s here, 3.35 TB/s nominal on an H100).</div></div>
+
+<div class="lb-card"><h3>3. Occupancy: reserving shared memory evicts warps</h3>
+<p class="small">The coalesced read again, with 65,536 threads in 64-thread groups, but each group reserves X KB of threadgroup memory it does not need. Fewer groups fit on a core, fewer loads are in flight, bandwidth falls in steps.</p>
+<div id="lb-smem" class="plotbox"></div>
+<div class="tr">Transfers: the mechanism. On an H100, a block's shared memory (plus 1 KB) divided into 228 KB sets how many blocks fit, exactly as the steps here show (Reading, section 4).</div>
+<div class="tr ntr">Does not transfer: the per-core budget. The steps fall where 64 KB per core would put them (3 groups at 20 KB, 2 from 24 KB), but Apple does not publish the figure.</div></div>
+
+<div class="lb-card"><h3>4. Divergence</h3>
+<p class="small">Shown with its bars in Reading, section 5 (<a href="#" data-tab="t-read">go there</a>): K different loops chosen by lane (divergent) cost about K times; chosen by SIMD-group (uniform) cost nothing. Same kernel, same work per thread.</p></div>
+
+<p class="small mute">Method: <code>src/m1/gpu_micro.py</code>, custom Metal kernels through <code>mx.fast.metal_kernel</code>; three full runs 20 s apart (<code>src/run_all.sh</code>); each point is the median of the three runs' medians of 5 timings, whiskers the lowest and highest run median. Every chase result is checked against the chain computed in NumPy, every read against a float64 sum. The laptop was shared with other work: load average during the runs is given above. Raw outputs: <code>src/m1/out/</code>.</p>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<section id="s-more">
+<h2 style="margin-top:14px">Further reading</h2>
+<h3>This page's tabs</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="#" data-tab="t-floor">Chip floorplans</a></div><p>A100, H100, B200, B300, Rubin and RTX 5090 drawn from their published counts, any two compared. <span class="rt">5 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-lab">M1 GPU lab</a></div><p>Latency ladder, latency hiding and the occupancy cliff, measured on an Apple GPU, with what transfers. <span class="rt">10 min</span></p></div>
+</div>
+<h3>The parent topic and its other children</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a></div><p>One training step down to the silicon; its Chip atlas (25 accelerators), Performance calculator and Roofline lab tabs. <span class="rt">35 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a></div><p>HBM, GDDR, SRAM, capacity against bandwidth, the KV cache. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a></div><p>Systolic arrays, TPU pods, AMD, Trainium, Groq, Cerebras: the other answers to the same problem. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a></div><p>PCIe, NVLink, InfiniBand and RoCE; why the network picks your parallelism. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a></div><p>FLOPs, memory, MFU and costing a run, from the peaks on this page. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability and the data centre</a></div><p>Watts per GPU and rack, failures at scale. <span class="rt">reading time on that page</span></p></div>
+</div>
+<h3>Programming these pieces, and neighbouring pages</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a></div><p>Threads, warps and blocks from the programmer's side; GPU simulator (occupancy matching NVIDIA's header), Compiler explorer (real PTX and SASS for sm_80 to sm_120), Kernel lab. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8158b029e9b2ba2e161b" target="_blank" rel="noopener noreferrer">Virtualization and the GPU driver stack</a></div><p>How one CUDA call reaches the hardware: driver, IOMMU, MIG. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++: the machine underneath</a></div><p>CPU caches, SIMD and a measured roofline on the M1's CPU: the CPU side of this page's contrast. <span class="rt">part 2 of that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a></div><p>The bits of FP32, BF16, FP8 and FP4. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a> &middot; <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> &middot; <a href="https://app.notion.com/p/3c65c17b0d0d81c9b2cac997583bf572" target="_blank" rel="noopener noreferrer">Training Infrastructure</a></div><p>Using these formats and GPUs in training. <span class="rt">reading times on those pages</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381" target="_blank" rel="noopener noreferrer">FlashAttention (paper page)</a> &middot; <a href="https://app.notion.com/p/3c65c17b0d0d81aca58ccb9d720b474e" target="_blank" rel="noopener noreferrer">The Llama 3 Herd of Models</a></div><p>An algorithm designed around the memory ladder; a 16,384-H100 training run and what limited it. <span class="rt">reading times on those pages</span></p></div>
+</div>
+<h3>Best resources</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://modal.com/gpu-glossary/readme" target="_blank" rel="noopener noreferrer">Modal GPU Glossary</a></div><p>Every term on this page (SM, warp, occupancy, TMA, tensor memory), one short page each. <span class="rt">30 min for the core pages</span></p></div>
+<div class="sp"><div class="n"><a href="https://jax-ml.github.io/scaling-book/gpus/" target="_blank" rel="noopener noreferrer">How To Scale Your Model: GPUs</a></div><p>The GPU from a systems view: SM quadrants, rooflines, networking; B200 estimates. <span class="rt">1 h</span></p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">NVIDIA Ampere architecture in depth</a> &middot; <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a></div><p>The primary sources for A100 and H100: SM, tensor cores, async copy, TMA, clusters. <span class="rt">30 min each</span></p></div>
+<div class="sp"><div class="n"><a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">Inside Blackwell Ultra</a> &middot; <a href="https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/" target="_blank" rel="noopener noreferrer">Inside Rubin</a></div><p>NVIDIA's own descriptions of the newest two generations. <span class="rt">20 min each</span></p></div>
+<div class="sp"><div class="n"><a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell GPU architecture whitepaper</a></div><p>GB202 and the RTX 5090; Appendix A compares the 3090, 4090 and 5090 line by line. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/html/2402.13499v1" target="_blank" rel="noopener noreferrer">Luo et al., Benchmarking and Dissecting the Nvidia Hopper GPU Architecture</a></div><p>Independent latencies, wgmma against mma, DSMEM, FP8: the method this page's M1 lab copies. <span class="rt">45 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/html/2512.02189" target="_blank" rel="noopener noreferrer">Jarmusch and Chandrasekaran, Microbenchmarking NVIDIA's Blackwell Architecture</a></div><p>B200 against H200. Read its configuration section; its tensor-core tables are not internally consistent (an H200 BF16 result of 1,513.5 TFLOPS is above that chip's 989.5 dense peak), so this page does not use them. <span class="rt">40 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2407.08608" target="_blank" rel="noopener noreferrer">FlashAttention-3</a></div><p>A kernel built around Hopper's asynchrony: TMA, wgmma, warp specialisation, FP8. <span class="rt">40 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide: compute capabilities</a> &middot; <a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener noreferrer">PTX ISA</a></div><p>The reference tables for per-SM limits, and the instruction shapes behind section 7. <span class="rt">reference</span></p></div>
+<div class="sp"><div class="n"><a href="https://horace.io/brrr_intro.html" target="_blank" rel="noopener noreferrer">Making Deep Learning Go Brrrr From First Principles</a></div><p>Horace He on compute, memory and overhead: why the memory ladder usually rules. <span class="rt">25 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://chipsandcheese.com/" target="_blank" rel="noopener noreferrer">Chips and Cheese</a></div><p>Independent microarchitecture deep dives, including the H100's L2 and memory bandwidth. <span class="rt">30 min per article</span></p></div>
+<div class="sp"><div class="n"><a href="https://github.com/philipturner/metal-benchmarks" target="_blank" rel="noopener noreferrer">metal-benchmarks</a></div><p>Philip Turner's independent measurements of Apple GPUs, the source of the M1's clock and ALU counts used here. <span class="rt">20 min</span></p></div>
+</div>
+</section>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_common.js */
+// ---- Shared helpers and the step-animation controller (play, pause, step, scrub, speed), copied from Topic: hardware; o.tab names the tab an animation lives in ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=(f,tab)=>{tab=tab||'t-read';(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()},o.tab);
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=(f,tab)=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById(tab||'t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('ga-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_ga_data.js */
+// Generated by src/recompute.py from m1/out/run_*.json and typed vendor figures. Do not edit.
+window.GA={"m1":{"chase":[[4096,25.173,22.667,28.831],[8192,41.412,39.54,42.186],[16384,39.833,7.364,41.014],[32768,72.892,72.797,72.94],[65536,72.905,72.723,79.114],[131072,73.481,72.883,77.495],[262144,74.163,71.307,82.055],[524288,77.317,73.0,95.828],[1048576,77.146,74.928,90.179],[2097152,297.187,251.373,301.517],[4194304,321.858,291.44,332.075],[8388608,344.658,330.39,361.954],[16777216,351.923,332.744,357.35],[33554432,335.954,323.71,350.802],[67108864,427.592,409.3,509.49],[134217728,453.392,440.987,471.377],[268435456,484.996,476.098,499.944]],"little":[[1,2.01,1.994,2.069],[8,18.95,18.91,19.152],[32,60.975,59.249,61.177],[64,119.131,103.428,133.893],[128,176.104,175.959,185.253],[256,179.258,178.495,179.326],[512,406.377,389.082,431.526],[1024,387.844,382.922,431.786],[2048,385.113,381.968,387.368],[4096,387.453,384.921,431.994],[8192,386.142,386.011,387.994],[16384,387.762,387.441,430.472],[32768,356.082,346.336,382.452],[65536,387.108,351.906,387.16]],"stream":[[32,1.267,1.22,1.276],[64,2.221,2.209,2.224],[128,4.687,4.677,4.698],[256,10.629,10.549,11.029],[512,21.609,20.942,22.207],[1024,43.926,40.342,44.825],[2048,79.392,70.986,80.602],[4096,127.5,113.844,128.425],[8192,142.076,133.669,148.454],[16384,148.358,95.214,149.373],[32768,139.834,122.252,140.087],[65536,142.69,132.714,143.545],[131072,143.612,135.405,145.103],[262144,147.506,135.329,147.543]],"smem":[[0.25,136.864,124.24,140.008],[2,143.44,141.078,145.694],[4,130.151,121.008,133.29],[8,121.592,103.66,137.31],[12,118.536,113.489,123.312],[16,113.417,101.293,118.013],[20,94.488,91.792,99.582],[24,66.691,62.991,68.703],[28,66.22,64.197,69.336],[32,66.336,63.198,69.161]],"div":[[1,3.141,3.134,3.187,3.162,3.126,3.164],[2,6.132,6.072,6.133,3.177,3.137,3.201],[4,11.907,11.889,11.911,3.255,3.188,3.282],[8,23.256,23.231,23.844,3.21,3.168,3.245],[16,47.766,47.747,50.793,3.408,3.334,5.727],[32,121.188,119.879,146.194,3.608,3.599,4.126]],"levels_ns":{"l1_ns":40.6,"l2_ns":73.8,"slc_ns":340.3,"dram_ns":485.0},"levels_cyc":{"l1_cyc":53,"l2_cyc":96,"slc_cyc":441,"dram_cyc":629},"load_min":6.8,"load_max":13.0,"versions":"mlx 0.32.3 numpy 2.5.3 python 3.12.11","dates":["2026-10-05","2026-10-05","2026-10-05"],"smem_groups_64k":[[0.25,null],[2,32],[4,16],[8,8],[12,5],[16,4],[20,3],[24,2],[28,2],[32,2]]},"little":{"stream_peak":148.4,"one_warp":1.27,"ratio":117,"m1_inflight_kb":70.3,"m1_per_core_kb":4.39,"h100_lat_ns":273,"h100_inflight_mb":0.91,"h100_per_sm_kb":6.76,"h100_per_sm_bytes":6900.0,"h100_threads_4b":1731,"h100_threads_16b":433,"chase_sat":406.4,"chase_one":2.01,"chase_ratio":202},"hide":[{"W":2,"nload":1,"C":8,"lat":466,"T":2000,"issued":74,"util":0.037,"steady_from":1000,"util_steady":0.036,"arith":64,"loads":10,"bound":0.038},{"W":16,"nload":1,"C":8,"lat":466,"T":2000,"issued":560,"util":0.28,"steady_from":1000,"util_steady":0.34,"arith":484,"loads":76,"bound":0.3038},{"W":16,"nload":4,"C":32,"lat":466,"T":2000,"issued":1595,"util":0.7975,"steady_from":1000,"util_steady":1.0,"arith":1363,"loads":232,"bound":1.0}],"occ_tile":{"regs":168,"threads":128,"smem_kb":64,"by_regs":3,"by_smem":3,"by_warps":16,"blocks":3,"warps":12,"occ":0.1875},"occ_small":{"regs":32,"threads":256,"smem_kb":0,"by_regs":8,"by_smem":228,"by_warps":8,"blocks":8,"warps":64,"occ":1.0},"luo_ns":{"A100":{"l1":26.9,"smem":20.6,"l2":185.5,"glob":330.7},"H800":{"l1":23.2,"smem":16.5,"l2":149.9,"glob":272.8},"RTX4090":{"l1":17.2,"smem":11.9,"l2":108.3,"glob":214.9}},"luo":{"A100":{"clk":1.41,"l1":37.9,"smem":29.0,"l2":261.5,"glob":466.3},"H800":{"clk":1.755,"l1":40.7,"smem":29.0,"l2":263.0,"glob":478.8},"RTX4090":{"clk":2.52,"l1":43.4,"smem":30.1,"l2":273.0,"glob":541.5}},"tile":{"M":128,"N":128,"K":64,"fmas":1048576,"ampere_instr":512,"hopper_instr":8,"blackwell_instr":4,"acc_bytes":65536,"ab_bytes":32768,"cpasync_16B":2048,"tma_instr":2,"a100_fma_clk_sm":1024,"h100_fma_clk_sm":2048,"acc_regs_per_thread_128":128,"tmem_cols":128,"tmem_frac":0.25,"a100_clk":1024,"h100_clk":512},"h100_clock":1.83,"chips":[{"id":"a100","name":"A100 SXM","arch":"Ampere GA100","cc":"8.0","year":2020,"dies":1,"gpc_full":8,"gpc_on":7,"sm_full":128,"sm_on":108,"tc_sm":4,"fp32_sm":64,"l1_kb":192,"smem_kb":164,"rf_kb":256,"l2_mb":40,"mem":"HBM2e","stacks_full":6,"stacks_on":5,"mc":"10 of 12 x 512-bit","gb":80,"tbs":2.039,"node":"TSMC N7","xtors":54.2,"area":826,"src":["ampere","a100","cc"]},{"id":"h100","name":"H100 SXM","arch":"Hopper GH100","cc":"9.0","year":2022,"dies":1,"gpc_full":8,"gpc_on":8,"sm_full":144,"sm_on":132,"tc_sm":4,"fp32_sm":128,"l1_kb":256,"smem_kb":228,"rf_kb":256,"l2_mb":50,"mem":"HBM3","stacks_full":6,"stacks_on":5,"mc":"10 of 12 x 512-bit","gb":80,"tbs":3.35,"node":"TSMC 4N","xtors":80,"area":814,"src":["hopper","h100","cc"]},{"id":"b200","name":"B200","arch":"Blackwell (2 dies)","cc":"10.0","year":2024,"dies":2,"gpc_full":null,"gpc_on":8,"sm_full":null,"sm_on":148,"tc_sm":4,"fp32_sm":128,"l1_kb":256,"smem_kb":228,"rf_kb":256,"l2_mb":null,"mem":"HBM3e","stacks_full":8,"stacks_on":8,"mc":"not stated","gb":180,"tbs":8.0,"node":"TSMC 4NP","xtors":208,"area":null,"src":["jarmusch","hgx","cc"],"note":"148 SMs and 8 GPCs from Jarmusch and Chandrasekaran (independent paper); NVIDIA's fetched pages do not state them"},{"id":"b300","name":"B300 (Blackwell Ultra)","arch":"Blackwell Ultra (2 dies)","cc":"10.3","year":2025,"dies":2,"gpc_full":8,"gpc_on":null,"sm_full":160,"sm_on":null,"tc_sm":4,"fp32_sm":128,"l1_kb":256,"smem_kb":228,"rf_kb":256,"l2_mb":null,"mem":"HBM3e 12-Hi","stacks_full":8,"stacks_on":8,"mc":"16 x 512-bit","gb":288,"tbs":8.0,"node":"TSMC 4NP","xtors":208,"area":null,"src":["bwu","cc"],"note":"NVIDIA describes the GPU as 160 SMs in 8 GPCs; how many a shipping product enables is not stated"},{"id":"rubin","name":"Rubin","arch":"Rubin (2 dies)","cc":null,"year":2026,"dies":2,"gpc_full":null,"gpc_on":null,"sm_full":null,"sm_on":224,"tc_sm":4,"fp32_sm":null,"l1_kb":null,"smem_kb":null,"rf_kb":null,"l2_mb":null,"mem":"HBM4 12-Hi","stacks_full":null,"stacks_on":null,"mc":"not stated","gb":288,"tbs":22,"node":"not stated","xtors":336,"area":null,"src":["rubin"],"note":"224 SMs and 896 tensor cores (4 per SM derived); stack count, GPCs and L2 not stated"},{"id":"rtx5090","name":"RTX 5090","arch":"Blackwell GB202","cc":"12.0","year":2025,"dies":1,"gpc_full":12,"gpc_on":11,"sm_full":192,"sm_on":170,"tc_sm":4,"fp32_sm":128,"l1_kb":128,"smem_kb":100,"rf_kb":256,"l2_mb":96,"mem":"GDDR7","stacks_full":null,"stacks_on":null,"mc":"16 x 32-bit (512-bit)","gb":32,"tbs":1.792,"node":"TSMC 4N","xtors":92.2,"area":750,"src":["rtxbw","cc"]}],"peak":{"A100":{"tf32":156,"bf16":312,"fp8":null,"fp6":null,"fp4":null,"fp64":19.5,"int8":624,"src":"a100"},"RTX 4090":{"tf32":82.6,"bf16":165.2,"fp8":330.3,"fp6":null,"fp4":null,"fp64":"ns","int8":"ns","src":"rtxbw"},"H100 SXM":{"tf32":494.5,"bf16":989.5,"fp8":1979,"fp6":null,"fp4":null,"fp64":67,"int8":1979,"src":"h100"},"B200 (HGX)":{"tf32":1125,"bf16":2250,"fp8":4500,"fp6":4500,"fp4":9000,"fp64":37,"int8":"ns","src":"hgx"},"B300 (HGX)":{"tf32":"ns","bf16":2250,"fp8":4500,"fp6":4500,"fp4":13500,"fp64":1.25,"int8":187.5,"src":"hgx"},"RTX 5090":{"tf32":104.8,"bf16":209.5,"fp8":419,"fp6":"ns","fp4":1676,"fp64":"ns","int8":"ns","src":"rtxbw"},"Rubin":{"tf32":2000,"bf16":4000,"fp8":17500,"fp6":17500,"fp4":35000,"fp64":33,"int8":"ns","src":"rubin"}},"ratios":{"A100":{"tf32":0.5,"fp8":null,"fp6":null,"fp4":null},"RTX 4090":{"tf32":0.5,"fp8":1.999,"fp6":null,"fp4":null},"H100 SXM":{"tf32":0.5,"fp8":2.0,"fp6":null,"fp4":null},"B200 (HGX)":{"tf32":0.5,"fp8":2.0,"fp6":2.0,"fp4":4.0},"B300 (HGX)":{"tf32":"ns","fp8":2.0,"fp6":2.0,"fp4":6.0},"RTX 5090":{"tf32":0.5,"fp8":2.0,"fp6":"ns","fp4":8.0},"Rubin":{"tf32":0.5,"fp8":4.375,"fp6":4.375,"fp4":8.75}},"gens":{"a100_to_h100_sm":2.0,"h100_bf16_over_a100":3.17,"b200_over_h100":2.27,"rubin_over_b200":1.78,"rubin_fp8_over_bf16":4.375,"b300_fp4_over_fp8":3.0,"rtx5090_over_h100_bf16":0.212,"h100_rf_total_mb":33.0,"h100_smem_total_mb":29.4,"b300_tmem_total_mb":40.0,"a100_sm_enabled_frac":0.844,"h100_sm_enabled_frac":0.917,"rtx5090_sm_enabled_frac":0.885,"rubin_tc_per_sm":4.0,"luo_mma_frac":62.9,"luo_wgmma_fp16":729.3,"luo_wgmma_fp16_peak":756.5,"luo_wgmma_frac":96.4,"dsmem_cyc":180,"dsmem_tbs":3.27},"src":{"ampere":"https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/","hopper":"https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/","bwu":"https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/","rubin":"https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/","rtxbw":"https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf","luo":"https://arxiv.org/html/2402.13499v1","jarmusch":"https://arxiv.org/html/2512.02189","cc":"https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html","ptx":"https://docs.nvidia.com/cuda/parallel-thread-execution/index.html","h100":"https://www.nvidia.com/en-us/data-center/h100/","a100":"https://www.nvidia.com/en-us/data-center/a100/","hgx":"https://www.nvidia.com/en-us/data-center/hgx/","gb200":"https://www.nvidia.com/en-us/data-center/gb200-nvl72/","mb":"https://github.com/philipturner/metal-benchmarks"},"m1_clock":1.296,"div_ratio32":38.6,"div_ratio2":1.95,"div_sg32":1.14};
+</script>
+<script>/* 23_js_rd_hide.js */
+// ---- Reading s3: one quadrant's scheduler hiding memory latency (2 warps, 16 warps, 16 warps with 4 loads in flight) ----
+// Port of hide_sim in src/recompute.py (greedy-then-oldest); the page's utilisation must equal window.GA.hide.
+(function(){
+  const G=window.GA,$=id=>document.getElementById(id);
+  const MODES=[{W:2,n:1,C:8},{W:16,n:1,C:8},{W:16,n:4,C:32}];
+  const LAT=G.hide[0].lat,T=G.hide[0].T,S=G.hide[0].steady_from,STEP=100,N=T/STEP+1;
+  function sim(m){
+    const W=m.W,prog=[];for(let i=0;i<m.n;i++)prog.push('L');for(let i=0;i<m.C;i++)prog.push('C');
+    const pc=new Array(W).fill(0),ra=new Array(W).fill(0),st=[];let cur=0,iss=0,steady=0;const issuedAt=new Uint8Array(T);
+    for(let w=0;w<W;w++)st.push(new Uint8Array(T)); // 0 ready-not-picked, 1 waiting on memory, 2 issue arith, 3 issue load
+    const cum=new Int32Array(T+1),ar=new Int32Array(T+1);let arith=0;
+    for(let t=0;t<T;t++){
+      for(let w=0;w<W;w++)st[w][t]=ra[w]>t?1:0;
+      let pick=-1;
+      if(ra[cur]<=t)pick=cur;else{for(let w=0;w<W;w++)if(ra[w]<=t){pick=w;break}}
+      if(pick>=0){cur=pick;const op=prog[pc[pick]];iss++;issuedAt[t]=1;if(t>=S)steady++;
+        if(op==='L'){st[pick][t]=3;ra[pick]=(pc[pick]===m.n-1)?t+LAT:t+1}else{st[pick][t]=2;arith++;ra[pick]=t+1}
+        pc[pick]=(pc[pick]+1)%prog.length}
+      cum[t+1]=iss;ar[t+1]=arith;
+    }
+    // runs per warp
+    const runs=st.map(a=>{const r=[];let s0=0;for(let t=1;t<=T;t++){if(t===T||a[t]!==a[s0]){r.push([s0,t,a[s0]]);s0=t}}return r});
+    const sr=[];{let s0=0;for(let t=1;t<=T;t++){if(t===T||issuedAt[t]!==issuedAt[s0]){sr.push([s0,t,issuedAt[s0]]);s0=t}}}
+    return {W,st,runs,sr,cum,ar,util:iss/T,steady:steady/(T-S)};
+  }
+  const R=MODES.map(sim);
+  // self-check against the Python reference
+  R.forEach((r,i)=>{if(Math.abs(r.steady-G.hide[i].util_steady)>1e-3||r.cum[T]!==G.hide[i].issued)window.__jsErr&&window.__jsErr('latency sim mismatch, mode '+i)});
+  let mode=0;
+  const COL=['var(--c5)','var(--dim)','var(--c1)','var(--c2)'];
+  function draw(i){
+    const r=R[mode],box=$('ga-hideSvg'),W=Math.min(860,RD.width(box)),lw=W<480?44:60,pw=W-lw-6;
+    const rh=r.W>4?Math.max(8,Math.min(12,200/r.W)):18,y0=40,tc=Math.min(T,i*STEP),X=t=>lw+t/T*pw;
+    let g=RD.t(2,12,'cycle',{fs:10,fill:'var(--mute)'});
+    for(let t=0;t<=T;t+=500)g+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="16" y2="'+(y0+r.W*rh+4)+'" stroke="var(--line)"/>'+RD.t(X(t),12,t,{a:t===T?'end':'middle',fs:10,fill:'var(--mute)'});
+    g+=RD.t(2,30,'issue',{fs:10,w:600});
+    r.sr.forEach(s=>{if(s[0]>=tc)return;const e=Math.min(s[1],tc);if(s[2])g+='<rect x="'+X(s[0])+'" y="20" width="'+Math.max(.6,X(e)-X(s[0]))+'" height="12" fill="var(--c3)"/>'});
+    for(let w=0;w<r.W;w++){const y=y0+w*rh;
+      if(r.W<=4||w%2===0||rh>=10)g+=RD.t(2,y+rh-2,'warp '+w,{fs:Math.min(10,rh-1),fill:'var(--mute)'});
+      r.runs[w].forEach(s=>{if(s[0]>=tc)return;const e=Math.min(s[1],tc);g+='<rect x="'+X(s[0])+'" y="'+(y+1)+'" width="'+Math.max(.6,X(e)-X(s[0]))+'" height="'+(rh-2)+'" fill="'+COL[s[2]]+'"'+(s[2]===0?' opacity=".5"':'')+'/>'})}
+    const yb=y0+r.W*rh+6;
+    g+='<line x1="'+X(tc)+'" x2="'+X(tc)+'" y1="16" y2="'+yb+'" stroke="var(--ink)" stroke-width="1.5"/>';
+    const leg=[['var(--c3)','scheduler issued'],['var(--c2)','load issued'],['var(--c1)','arithmetic issued'],['var(--dim)','waiting on memory'],['var(--c5)','ready, not picked']];
+    let lx=lw,ly=yb+16;leg.forEach(l=>{const tw=l[1].length*5.6+22;if(lx+tw>W){lx=lw;ly+=15}g+='<rect x="'+lx+'" y="'+(ly-9)+'" width="10" height="10" fill="'+l[0]+'"/>'+RD.t(lx+14,ly,l[1],{fs:10});lx+=tw});
+    box.innerHTML=RD.svg(W,ly+6,g,'Scheduler timeline');
+    const used=tc?r.cum[tc]/tc:0,waiting=tc<T?r.st.filter(a=>a[tc]===1).length:r.st.filter(a=>a[T-1]===1).length;
+    $('ga-hideOut').innerHTML=RD.stat('Cycle',tc.toLocaleString('en-US'),'of '+T.toLocaleString('en-US'))+RD.stat('Issue slots used so far',(used*100).toFixed(1)+'%',r.cum[tc].toLocaleString('en-US')+' instructions')+
+      RD.stat('Arithmetic done',r.ar[tc].toLocaleString('en-US'),'instructions')+RD.stat('Steady state (cycles 1,000 to 2,000)',tc>=T?(r.steady*100).toFixed(1)+'%':'at the end','issue-slot utilisation')+RD.stat('Warps waiting on memory now',waiting+' of '+r.W,'');
+    let c;
+    if(i===0)c=['Two warps. Each issues its load, then has nothing to do for 466 cycles.','All 16 warp slots filled. Each warp issues its one load as soon as the scheduler reaches it, then waits.','16 warps, each issuing 4 independent loads back to back before it needs any of them, then 32 arithmetic instructions.'][mode];
+    else if(tc>=T)c=['Two warps keep the scheduler busy only '+(r.steady*100).toFixed(1)+'% of the time: almost every cycle is wasted.','Even the maximum number of warps fills only '+(r.steady*100).toFixed(0)+'% of the issue slots: 16 warps x 9 instructions cannot cover 466 cycles of waiting.','The scheduler issues every cycle in the steady state ('+(r.steady*100).toFixed(0)+'%): more work per load, not more warps, closed the gap.'][mode];
+    else c='Cycle '+tc+': '+waiting+' of '+r.W+' warps are waiting on memory; the scheduler has issued in '+(used*100).toFixed(1)+'% of cycles so far.'+(mode===2&&tc>=500&&tc<=700?' The first loads are returning while later warps still have arithmetic queued: the gaps start to close.':'');
+    $('ga-hideCap').textContent=c;
+  }
+  const an=RD.anim({card:'ga-hideCard',ctl:'ga-hideCtl',n:N,draw,ms:900,label:'Cycle step'});
+  RD.seg($('ga-hideSeg'),m=>{mode=+m;an.reset(N);an.play()});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 24_js_rd_sm.js */
+// ---- Reading s2: one SM per generation, drawn from its published counts (schematic, not silicon area) ----
+(function(){
+  const G=window.GA,$=id=>document.getElementById(id);
+  const SM={
+    a100:{name:'A100 SM (Ampere, 8.0)',lanes:16,l1:192,smem:164,tma:false,tmem:0,warps:64,note:'64 FP32 lanes per SM, 16 per quadrant; 192 KB L1/shared, up to 164 KB as shared memory; asynchronous copy but no TMA.'},
+    h100:{name:'H100 SM (Hopper, 9.0)',lanes:32,l1:256,smem:228,tma:true,tmem:0,warps:64,note:'128 FP32 lanes per SM, 32 per quadrant; 256 KB L1/shared, up to 228 KB as shared memory; TMA copy engine.'},
+    b300:{name:'B200 / B300 SM (Blackwell, 10.0 / 10.3)',lanes:32,l1:256,smem:228,tma:true,tmem:256,warps:64,note:'128 CUDA cores per SM; 256 KB L1/shared (228 KB shared); plus 256 KB tensor memory for tensor-core accumulators. SM details from Inside Blackwell Ultra; B200 shares the 10.0 limits.'},
+    rtx5090:{name:'RTX 5090 SM (Blackwell consumer, 12.0)',lanes:32,l1:128,smem:100,tma:true,tmem:0,warps:48,note:'128 FP32 lanes per SM; 128 KB L1/shared (100 KB shared); TMA compiles for sm_120, but no tensor memory and at most 48 resident warps.'}
+  };
+  let cur='h100';
+  function draw(){
+    const s=SM[cur],box=$('ga-smSvg'),W=Math.min(760,RD.width(box));
+    const pad=8,qw=(W-pad*3)/2,qh=Math.max(118,Math.min(150,qw*0.5));
+    let g='';
+    const q=(x,y,i)=>{
+      let o='<rect x="'+x+'" y="'+y+'" width="'+qw+'" height="'+qh+'" rx="6" fill="var(--soft)" stroke="var(--line)"/>';
+      o+=RD.t(x+8,y+15,'Quadrant '+(i+1),{fs:11,w:600});
+      o+='<rect x="'+(x+8)+'" y="'+(y+21)+'" width="'+(qw-16)+'" height="16" rx="3" fill="var(--acc2)"/>'+RD.t(x+qw/2,y+33,qw<260?'warp scheduler':'warp scheduler + dispatch (1 instruction / cycle)',{a:'middle',fs:10});
+      // registers
+      const rw=Math.max(54,(qw-16)*0.3);
+      o+='<rect x="'+(x+8)+'" y="'+(y+43)+'" width="'+rw+'" height="'+(qh-51)+'" rx="3" fill="var(--c5)" opacity=".35"/>'+RD.t(x+8+rw/2,y+43+(qh-51)/2-2,'registers',{a:'middle',fs:10})+RD.t(x+8+rw/2,y+43+(qh-51)/2+11,'64 KB',{a:'middle',fs:10,w:600});
+      // lanes
+      const lx=x+14+rw,lw=qw-16-rw-6-Math.max(40,(qw-16)*0.24),cols=8,rows=s.lanes/cols,cw=Math.min(14,(lw-4)/cols),ch=Math.min(11,(qh-51-16)/4);
+      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)o+='<rect x="'+(lx+c*cw)+'" y="'+(y+46+r*ch)+'" width="'+(cw-2)+'" height="'+(ch-2)+'" fill="var(--c1)" opacity=".7"/>';
+      o+=RD.t(lx,y+qh-8,s.lanes+' FP32 lanes',{fs:9.5});
+      const tx=x+qw-8-Math.max(40,(qw-16)*0.24),tw=Math.max(40,(qw-16)*0.24);
+      o+='<rect x="'+tx+'" y="'+(y+43)+'" width="'+tw+'" height="'+(qh-51)+'" rx="3" fill="var(--c3)" opacity=".55"/>'+RD.t(tx+tw/2,y+43+(qh-51)/2-2,'tensor',{a:'middle',fs:10})+RD.t(tx+tw/2,y+43+(qh-51)/2+11,'core',{a:'middle',fs:10});
+      return o;
+    };
+    g+=RD.t(pad,14,s.name,{fs:12.5,w:600});
+    const y0=22;
+    for(let i=0;i<4;i++)g+=q(pad+(i%2)*(qw+pad),y0+Math.floor(i/2)*(qh+pad),i);
+    let y=y0+2*(qh+pad);
+    const full=W-2*pad,scale=full/256;
+    // L1/shared to scale of 256 KB
+    const l1w=s.l1*scale,shw=s.smem*scale;
+    g+='<rect x="'+pad+'" y="'+y+'" width="'+l1w+'" height="26" rx="4" fill="var(--c4)" opacity=".25" stroke="var(--c4)"/>';
+    g+='<rect x="'+pad+'" y="'+y+'" width="'+shw+'" height="26" rx="4" fill="var(--c4)" opacity=".35"/>';
+    g+=RD.t(pad+6,y+17,'L1 + shared memory '+s.l1+' KB (up to '+s.smem+' KB shared)',{fs:W<420?9.5:11});
+    y+=32;
+    if(s.tma){g+='<rect x="'+pad+'" y="'+y+'" width="'+Math.min(140,full*0.36)+'" height="22" rx="4" fill="var(--c6)" opacity=".4"/>'+RD.t(pad+6,y+15,'TMA copy engine',{fs:10.5});}
+    else{g+=RD.t(pad,y+15,'no TMA (asynchronous copy is issued by threads)',{fs:10.5,fill:'var(--mute)'});}
+    y+=28;
+    if(s.tmem){g+='<rect x="'+pad+'" y="'+y+'" width="'+(s.tmem*scale)+'" height="26" rx="4" fill="var(--c2)" opacity=".35" stroke="var(--c2)"/>'+RD.t(pad+6,y+17,'tensor memory (TMEM) 256 KB: 128 lanes x 512 columns, accumulators only',{fs:W<420?9:11});y+=32;}
+    g+=RD.t(pad,y+12,W<480?'Up to '+s.warps+' resident warps per SM. Bars: 256 KB scale.':'Resident warps: up to '+s.warps+' per SM ('+(s.warps/4)+' per scheduler). Bars to scale of 256 KB.',{fs:10,fill:'var(--mute)'});
+    y+=18;
+    box.innerHTML=RD.svg(W,y,g,s.name);
+    $('ga-smNote').textContent=s.note;
+  }
+  RD.seg($('ga-smSeg'),m=>{cur=m;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+  // table
+  const rows=[['FP32 lanes per SM (per quadrant)','64 (16)','128 (32)','128 (32)','128 (32)'],['Tensor cores per SM','4','4','4','4'],['Register file','256 KB','256 KB','256 KB','256 KB'],
+    ['L1 + shared (max shared)','192 KB (164)','256 KB (228)','256 KB (228)','128 KB (100)'],['Tensor memory','none','none','256 KB','none'],['Resident warps','64','64','64','48'],['Copy engine','async copy','TMA','TMA','TMA']];
+  $('ga-smTable').innerHTML='<thead><tr><th>Per SM</th><th class="num">A100</th><th class="num">H100</th><th class="num">B200 / B300</th><th class="num">RTX 5090</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(v=>'<td class="num">'+v+'</td>').join('')+'</tr>').join('')+'</tbody>';
+})();
+</script>
+<script>/* 25_js_rd_tc.js */
+// ---- Reading s7: one 128x128x64 tile through mma.sync (Ampere), wgmma (Hopper) and tcgen05 (Blackwell) ----
+// Counts come from window.GA.tile (src/recompute.py, PTX ISA shapes); the layout is a schematic.
+(function(){
+  const G=window.GA,T=G.tile,$=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('en-US');
+  const kst=T.K/16; // k-steps of 16
+  // each step: {a: active arrows, ld: inputs in smem, rg: operands in registers, tc: tensor cores busy, acc: 'reg'|'tmem'|'', out: stored, cap, mma, cp, clk}
+  const M={
+    amp:{who:'4 warps (128 threads), each issuing its own mma.sync',accIn:'registers',steps:[
+      {a:[],cap:'The tile\'s inputs start in HBM (or L2): a 128 x 64 slice of A and a 64 x 128 slice of B, '+f(T.ab_bytes)+' bytes in BF16.',mma:0,cp:0},
+      {a:['hs'],ld:1,cap:'Asynchronous copy: the 128 threads issue '+f(T.cpasync_16B)+' copies of 16 bytes each ('+T.cpasync_16B/128+' per thread), global to shared memory, skipping the registers. Every one costs an issue slot and address arithmetic.',mma:0,cp:T.cpasync_16B},
+      {a:['sr'],ld:1,rg:1,cap:'Each warp copies its fragments of A and B from shared memory into registers (ldmatrix): each of the 4 warps needs a 64-row strip of A and a 64-column strip of B, '+f(4*(64*64+64*64)*2)+' bytes of shared-memory reads, twice the tile.',mma:0,cp:T.cpasync_16B},
+      {a:['rt','tr'],ld:1,rg:1,tc:1,acc:'reg',cap:'mma.sync m16n8k16: one instruction per warp multiplies a 16 x 16 piece of A by a 16 x 8 piece of B (2,048 FMAs). The first 16-wide k-step takes '+(T.ampere_instr/kst)+' of them. The 128 x 128 FP32 accumulators, '+T.acc_bytes/1024+' KB, sit in registers: '+T.acc_regs_per_thread_128+' per thread.',mma:T.ampere_instr/kst,cp:T.cpasync_16B},
+      {a:['rt','tr'],ld:1,rg:1,tc:1,acc:'reg',cap:'The other 3 k-steps: '+f(T.ampere_instr)+' mma.sync in total, each issued by a warp scheduler. At the A100\'s 1,024 FMAs per SM per clock the math takes '+f(T.a100_clk)+' clocks.',mma:T.ampere_instr,cp:T.cpasync_16B,clk:T.a100_clk},
+      {a:['rh'],ld:1,acc:'reg',out:1,cap:'Epilogue: the results are already in registers; convert to BF16 and store. Operands and results both passed through the register file.',mma:T.ampere_instr,cp:T.cpasync_16B,clk:T.a100_clk}]},
+    hop:{who:'1 warpgroup (4 warps, 128 threads) issuing wgmma together',accIn:'registers',steps:[
+      {a:[],cap:'The same tile, on Hopper.',mma:0,cp:0},
+      {a:['hs'],ld:1,tma:1,cap:'TMA: one thread issues '+T.tma_instr+' copy instructions, one per input, each with a tensor descriptor. The copy engine moves all '+f(T.ab_bytes)+' bytes and an asynchronous transaction barrier counts them in.',mma:0,cp:T.tma_instr},
+      {a:['st','tr'],ld:1,tc:1,acc:'reg',cap:'wgmma m64n128k16: the warpgroup issues one instruction per 64 rows, reading A and B straight from shared memory. No ldmatrix, no operand registers. The first k-step takes '+(T.hopper_instr/kst)+'.',mma:T.hopper_instr/kst,cp:T.tma_instr},
+      {a:['st','tr'],ld:1,tc:1,acc:'reg',cap:'wgmma is asynchronous: the warps can issue other work while the tensor cores run, and wait on a fence later. But the accumulators are still in registers: '+T.acc_bytes/1024+' KB, '+T.acc_regs_per_thread_128+' per thread.',mma:T.hopper_instr/kst,cp:T.tma_instr},
+      {a:['st','tr'],ld:1,tc:1,acc:'reg',cap:'4 k-steps: '+T.hopper_instr+' wgmma in total, '+(T.ampere_instr/T.hopper_instr)+' times fewer instructions than Ampere. At the H100\'s 2,048 FMAs per SM per clock: '+f(T.h100_clk)+' clocks.',mma:T.hopper_instr,cp:T.tma_instr,clk:T.h100_clk},
+      {a:['rh'],ld:1,acc:'reg',out:1,cap:'Epilogue from registers, as on Ampere.',mma:T.hopper_instr,cp:T.tma_instr,clk:T.h100_clk}]},
+    bw:{who:'1 thread issues tcgen05.mma for the whole block',accIn:'tensor memory',steps:[
+      {a:[],cap:'The same tile, on a Blackwell datacenter GPU (sm_100).',mma:0,cp:0},
+      {a:['hs'],ld:1,tma:1,cap:'TMA, as on Hopper: '+T.tma_instr+' instructions from one thread.',mma:0,cp:T.tma_instr},
+      {a:['st','tm'],ld:1,tc:1,acc:'tmem',cap:'tcgen05.mma 128 x 128 x 16: a single thread issues it. Operands come from shared memory; the accumulator is allocated in tensor memory, '+T.tmem_cols+' of its 512 columns.',mma:T.blackwell_instr/kst,cp:T.tma_instr},
+      {a:['st','tm'],ld:1,tc:1,acc:'tmem',cap:'4 k-steps: '+T.blackwell_instr+' instructions in total. The register file holds no accumulators, so the warps are free for other work, such as writing out the previous tile.',mma:T.blackwell_instr,cp:T.tma_instr},
+      {a:['mr','rh'],ld:1,acc:'tmem',out:1,cap:'Epilogue: tcgen05.ld copies the results from tensor memory into registers, a slice at a time, then convert and store.',mma:T.blackwell_instr,cp:T.tma_instr},
+      {a:[],ld:1,acc:'tmem',out:1,pair:1,cap:'One more option: with cta_group::2 a pair of SMs cooperates on one instruction covering a 256-row tile ("paired SMs cooperate on a single MMA operation", Inside Blackwell Ultra). NVIDIA publishes no per-SM clock rate for Blackwell, so no clock count is shown.',mma:T.blackwell_instr,cp:T.tma_instr}]}
+  };
+  ['amp','hop'].forEach(k=>{while(M[k].steps.length<M.bw.steps.length)M[k].steps.push(Object.assign({},M[k].steps[M[k].steps.length-1],{cap:M[k].steps[M[k].steps.length-1].cap}))});
+  let mode='amp';
+  function box(x,y,w,h,lab,fill,on){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="'+fill+'" opacity="'+(on?.55:.18)+'" stroke="var(--line)"/>'+RD.t(x+6,y+14,lab,{fs:11,w:600})}
+  function arrow(x1,y1,x2,y2,on,lab){const c=on?'var(--acc)':'var(--line)',sw=on?2.6:1.2,ang=Math.atan2(y2-y1,x2-x1),hx=x2-8*Math.cos(ang-0.45),hy=y2-8*Math.sin(ang-0.45),kx=x2-8*Math.cos(ang+0.45),ky=y2-8*Math.sin(ang+0.45);
+    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+sw+'"/><path d="M'+x2+' '+y2+'L'+hx+' '+hy+'L'+kx+' '+ky+'Z" fill="'+c+'"/>'+(on&&lab?(Math.abs(x2-x1)<30?RD.t(Math.max(x1,x2)+5,(y1+y2)/2+4,lab,{fs:10,fill:'var(--acc)',w:600}):RD.t((x1+x2)/2,(y1+y2)/2-5,lab,{a:'middle',fs:10,fill:'var(--acc)',w:600})):'')}
+  function draw(i){
+    const m=M[mode],s=m.steps[i],el=$('ga-tcSvg'),W=Math.max(330,Math.min(800,RD.width(el))),act=k=>s.a.indexOf(k)>=0;
+    const bw=W*0.24,gap=(W-3*bw)/2,xH=2,xS=xH+bw+gap,xT=xS+bw+gap,y1=8,h1=92;
+    let g='';
+    g+=box(xH,y1,bw,h1,'HBM / L2','var(--c4)',!s.ld||act('hs'));
+    g+=box(xS,y1,bw,h1,'Shared mem','var(--c4)',s.ld);
+    if(s.ld){const ah=h1-30,aw=ah/2;g+='<rect x="'+(xS+8)+'" y="'+(y1+22)+'" width="'+aw+'" height="'+ah+'" fill="var(--c1)" opacity=".7"/>'+RD.t(xS+8+aw/2,y1+22+ah/2+4,'A',{a:'middle',fs:11,fill:'var(--bg)',w:600});
+      const bwid=Math.min(bw-aw-24,ah*2),bh=bwid/2;g+='<rect x="'+(xS+16+aw)+'" y="'+(y1+22)+'" width="'+bwid+'" height="'+bh+'" fill="var(--c2)" opacity=".7"/>'+RD.t(xS+16+aw+bwid/2,y1+22+bh/2+4,'B',{a:'middle',fs:11,fill:'var(--bg)',w:600})}
+    g+=box(xT,y1,bw,h1,'Tensor cores','var(--c3)',s.tc);
+    const tq=(bw-30)/2;for(let q=0;q<4;q++)g+='<rect x="'+(xT+10+(q%2)*(tq+10))+'" y="'+(y1+22+Math.floor(q/2)*Math.min(32,(h1-30)/2))+'" width="'+tq+'" height="'+(Math.min(32,(h1-30)/2)-4)+'" rx="3" fill="var(--c3)" opacity="'+(s.tc?.95:.3)+'"/>';
+    if(s.tma)g+=RD.t(xS+bw/2,y1+h1+13,'TMA engine',{a:'middle',fs:10,fill:'var(--c6)',w:600});
+    // register file bar
+    const yR=y1+h1+40,full=W-4,scale=full/256;
+    g+='<rect x="2" y="'+yR+'" width="'+full+'" height="24" rx="4" fill="var(--c5)" opacity=".2" stroke="var(--line)"/>'+RD.t(W-6,yR+16,W<480?'Registers 256 KB':'Register file, 256 KB per SM',{a:'end',fs:10.5,w:600});
+    if(s.acc==='reg')g+='<rect x="2" y="'+yR+'" width="'+(T.acc_bytes/1024*scale)+'" height="24" rx="4" fill="var(--c5)" opacity=".85"/>'+RD.t(8,yR+16,(W<480?'acc. ':'accumulators ')+T.acc_bytes/1024+' KB',{fs:10.5});
+    if(s.rg)g+='<rect x="'+(2+(s.acc==='reg'?T.acc_bytes/1024*scale+4:0))+'" y="'+(yR+3)+'" width="'+(16*scale)+'" height="18" rx="3" fill="var(--c1)" opacity=".6"/>'+RD.t(6+(s.acc==='reg'?T.acc_bytes/1024*scale+4:0)+16*scale,yR+16,W<480?'operands':'operand fragments',{fs:10});
+    // TMEM bar
+    const yM=yR+50;
+    if(mode==='bw'){g+='<rect x="2" y="'+yM+'" width="'+full+'" height="24" rx="4" fill="var(--c2)" opacity=".15" stroke="var(--line)"/>'+RD.t(W-6,yM+16,W<480?'TMEM 256 KB':'Tensor memory, 256 KB per SM (512 columns)',{a:'end',fs:10.5,w:600});
+      if(s.acc==='tmem')g+='<rect x="2" y="'+yM+'" width="'+(full*T.tmem_frac)+'" height="24" rx="4" fill="var(--c2)" opacity=".75"/>'+RD.t(8,yM+16,T.tmem_cols+' columns',{fs:10.5});}
+    else g+=RD.t(6,yM+12,'No tensor memory on this generation',{fs:10.5,fill:'var(--mute)'});
+    // arrows
+    const cy=y1+h1/2;
+    g+=arrow(xH+bw,cy,xS-2,cy,act('hs'),s.tma?'TMA':'copy');
+    g+=arrow(xS+bw,cy-14,xT-2,cy-14,act('st'),'operands');
+    g+=arrow(xS+bw/2,y1+h1,xS+bw/2-20,yR-14,act('sr'),'ldmatrix');
+    g+=arrow(xT+bw*0.3,yR-14,xT+bw*0.3,y1+h1+2,act('rt'),'operands');
+    g+=arrow(xT+bw*0.7,y1+h1+2,xT+bw*0.7,yR-14,act('tr'),'C += AB');
+    g+=arrow(xT+bw-6,y1+h1+2,xT+bw-6,yM-2,act('tm'),act('tm')?'C += AB':'');
+    g+=arrow(W*0.42,yM-2,W*0.42,yR+26,act('mr'),'tcgen05.ld');
+    g+=arrow(xH+bw*0.5,yR-2,xH+bw*0.5,y1+h1+2,act('rh'),'store');
+    if(s.pair)g+=RD.t(W/2,yM+44,'cta_group::2: two SMs, one 256-row instruction',{a:'middle',fs:11,fill:'var(--c2)',w:600});
+    el.innerHTML=RD.svg(W,yM+(s.pair?52:34),g,'Tile through the tensor cores');
+    $('ga-tcCap').textContent=s.cap;
+    $('ga-tcOut').innerHTML=RD.stat('Matrix instructions issued',f(s.mma),m.who)+RD.stat('Copy instructions for the inputs',f(s.cp),s.tma||mode!=='amp'?'TMA, from one thread':'16 bytes each, from every thread')+
+      RD.stat('Accumulators live in',s.acc==='tmem'?'tensor memory':s.acc==='reg'?'registers':'not yet allocated',s.acc==='reg'?T.acc_regs_per_thread_128+' registers per thread':s.acc==='tmem'?T.tmem_cols+' of 512 columns':'')+
+      RD.stat('Tensor math, SM clocks',s.clk?f(s.clk):(mode==='bw'&&i>=3?'not published':'...'),mode==='amp'?'1,024 FMAs per clock':mode==='hop'?'2,048 FMAs per clock':'');
+  }
+  const an=RD.anim({card:'ga-tcCard',ctl:'ga-tcCtl',n:M.bw.steps.length,draw,ms:2600,label:'Step'});
+  RD.seg($('ga-tcSeg'),m=>{mode=m;an.reset(M[mode].steps.length);an.play()});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 26_js_rd_fill.js */
+// ---- Reading tab: tables and numbers filled from window.GA (src/recompute.py), so prose and data cannot drift ----
+(function(){
+  const G=window.GA,$=id=>document.getElementById(id);
+  const fmt=(v,d)=>v==null?'':Number(v).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+  const set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
+  const chip=id=>G.chips.find(c=>c.id===id);
+  // s1: one-screen table
+  (function(){
+    const cols=[['a100','A100 SXM','A100'],['h100','H100 SXM','H100 SXM'],['b200','B200','B200 (HGX)'],['b300','B300','B300 (HGX)'],['rubin','Rubin','Rubin'],['rtx5090','RTX 5090','RTX 5090']];
+    const P=k=>G.peak[k];
+    const pk=(v)=>v===null?'<span class="mute">none</span>':v==='ns'?'<span class="mute">n/s</span>':fmt(v);
+    const rows=[
+      ['Year',c=>c.year],
+      ['Compute capability',c=>c.cc||'<span class="mute">n/s</span>'],
+      ['SMs enabled (of full die)',c=>(c.sm_on!=null?fmt(c.sm_on):'<span class="mute">n/s</span>')+(c.sm_full!=null?' ('+fmt(c.sm_full)+')':'')],
+      ['Dies',c=>c.dies],
+      ['Tensor core generation',c=>({a100:'3rd',h100:'4th',b200:'5th',b300:'5th',rubin:'n/s',rtx5090:'5th (consumer)'})[c.id]],
+      ['Shared memory per SM, KB',c=>c.smem_kb!=null?c.smem_kb:'<span class="mute">n/s</span>'],
+      ['Tensor memory per SM',c=>(c.id==='b200'||c.id==='b300')?'256 KB':(c.id==='rubin'?'<span class="mute">n/s</span>':'none')],
+      ['L2, MB',c=>c.l2_mb!=null?c.l2_mb:'<span class="mute">n/s</span>'],
+      ['Memory',c=>fmt(c.gb)+' GB '+c.mem],
+      ['Bandwidth, TB/s',c=>c.tbs],
+      ['BF16 dense, TFLOPS',(c,k)=>pk(P(k).bf16)],
+      ['FP8 dense',(c,k)=>pk(P(k).fp8)],
+      ['FP4 dense',(c,k)=>pk(P(k).fp4)],
+    ];
+    let h='<thead><tr><th></th>'+cols.map(c=>'<th class="num">'+c[1]+'</th>').join('')+'</tr></thead><tbody>';
+    rows.forEach(r=>{h+='<tr><td>'+r[0]+'</td>'+cols.map(c=>'<td class="num">'+r[1](chip(c[0]),c[2])+'</td>').join('')+'</tr>'});
+    $('ga-oneTable').innerHTML=h+'</tbody>';
+  })();
+  set('ga-fmas',fmt(G.tile.fmas));
+  set('ga-rfTot',G.gens.h100_rf_total_mb.toFixed(1));
+  set('ga-accKB',G.tile.acc_bytes/1024);
+  // s3 numbers
+  const H=G.hide,L=G.little;
+  set('ga-h0',(H[0].util_steady*100).toFixed(1));set('ga-h1',Math.round(H[1].util_steady*100));set('ga-h2',Math.round(H[2].util_steady*100));
+  set('ga-lM1bw',Math.round(L.stream_peak));set('ga-lM1lat',Math.round(G.m1.levels_ns.dram_ns));set('ga-lM1kb',Math.round(L.m1_inflight_kb));set('ga-lM1core',L.m1_per_core_kb.toFixed(1));
+  set('ga-lHlat',L.h100_lat_ns);set('ga-lHmb',L.h100_inflight_mb.toFixed(2));set('ga-lHsm',fmt(L.h100_per_sm_bytes));set('ga-lH4',fmt(L.h100_threads_4b));set('ga-lH16',fmt(L.h100_threads_16b));
+  set('ga-sOne',L.one_warp.toFixed(2));set('ga-sPeak',Math.round(L.stream_peak));set('ga-sRatio',L.ratio);
+  set('ga-cOne',L.chase_one.toFixed(1));set('ga-cSat',Math.round(L.chase_sat));set('ga-cRatio',L.chase_ratio);
+  // s4
+  const O=G.occ_tile;set('ga-oR',O.by_regs);set('ga-oS',O.by_smem);set('ga-oW',O.warps);set('ga-oP',Math.round(O.occ*100));
+  const sm=k=>G.m1.smem.find(p=>p[0]===k)[1];
+  set('ga-sm20',Math.round(sm(20)));set('ga-sm24',Math.round(sm(24)));
+  // s5 divergence bars
+  (function(){
+    const D=G.m1.div,mx=D[D.length-1][1];let h='';
+    D.forEach(d=>{
+      h+='<div class="row"><div class="nm">'+d[0]+' path'+(d[0]>1?'s':'')+', divergent</div><div class="track"><div class="fill" style="width:'+(100*d[1]/mx).toFixed(2)+'%;background:var(--c2)"></div></div><div class="val">'+d[1].toFixed(1)+' ms</div></div>';
+      h+='<div class="row"><div class="nm mute">'+d[0]+' path'+(d[0]>1?'s':'')+', uniform</div><div class="track"><div class="fill" style="width:'+(100*d[4]/mx).toFixed(2)+'%;background:var(--c1)"></div></div><div class="val">'+d[4].toFixed(1)+' ms</div></div>';
+    });
+    $('ga-divBars').innerHTML=h;
+  })();
+  set('ga-d2',G.div_ratio2.toFixed(2));set('ga-d32',G.div_ratio32.toFixed(1));set('ga-dsg',G.div_sg32.toFixed(2));
+  document.querySelectorAll('.ga-load').forEach(e=>e.textContent=G.m1.load_min+' to '+G.m1.load_max);
+  document.querySelectorAll('.ga-mlx').forEach(e=>e.textContent=G.m1.versions.split(' ')[1]);
+  // s6 ladder
+  const Lu=G.luo,Ln=G.luo_ns;
+  const tri=k=>Lu.A100[k]+' / '+Lu.H800[k]+' / '+Lu.RTX4090[k];
+  set('ga-lSm',tri('smem'));set('ga-lL1',tri('l1'));set('ga-lL2',tri('l2'));set('ga-lGl',tri('glob'));
+  set('ga-lSmNs',Ln.H800.smem);set('ga-lL1Ns',Ln.H800.l1);set('ga-lL2Ns',Ln.H800.l2);set('ga-lGlNs',Ln.H800.glob);set('ga-lDsNs',(180/Lu.H800.clk).toFixed(1));
+  const lv=G.m1.levels_ns;set('ga-m1L1',Math.round(lv.l1_ns));set('ga-m1L2',Math.round(lv.l2_ns));set('ga-m1SLC',Math.round(lv.slc_ns/10)*10);set('ga-m1D',Math.round(lv.dram_ns));
+  // s7, s8
+  set('ga-hclk',G.h100_clock.toFixed(2));set('ga-tA',G.tile.ampere_instr);set('ga-tH',G.tile.hopper_instr);set('ga-tB',G.tile.blackwell_instr);set('ga-wgPct',G.gens.luo_wgmma_frac);
+  set('ga-cpa',fmt(G.tile.cpasync_16B));set('ga-tma',G.tile.tma_instr);set('ga-tmc',G.tile.tmem_cols);
+  // s10 formats table
+  (function(){
+    const F=[['tf32','TF32'],['bf16','FP16 / BF16'],['fp8','FP8'],['fp6','FP6'],['fp4','FP4'],['int8','INT8 (TOPS)'],['fp64','FP64 tensor']];
+    const names=Object.keys(G.peak);let mode='tf';
+    function draw(){
+      let h='<thead><tr><th>Format</th>'+names.map(n=>'<th class="num">'+n+'</th>').join('')+'</tr></thead><tbody>';
+      F.forEach(f=>{h+='<tr><td>'+f[1]+'</td>'+names.map(n=>{const v=G.peak[n][f[0]],b=G.peak[n].bf16;
+        if(v===null)return '<td class="fmtcell none">none</td>';if(v==='ns')return '<td class="fmtcell ns">n/s</td>';
+        const r=v/b,al=Math.max(.08,Math.min(.85,Math.log2(r+1e-9)/4+.35));
+        const bg=f[0]==='bf16'?'var(--soft)':(r>1.01?'rgba(63,127,86,'+al.toFixed(2)+')':'rgba(194,112,58,'+(Math.min(.6,.25+(1-r)*.5)).toFixed(2)+')');
+        return '<td class="fmtcell" style="background:'+bg+'">'+(mode==='tf'?fmt(v,v<10?2:(v%1?1:0)):(r>=10?r.toFixed(1):r.toFixed(r%1?2:0))+'&times;')+'</td>'}).join('')+'</tr>'});
+      $('ga-fmtTable').innerHTML=h+'</tbody>';
+    }
+    RD.seg($('ga-fmtSeg'),m=>{mode=m;draw()});draw();
+    const R=(p,b)=>Math.round(p/b);
+    set('ga-rA',R(312,2.039));set('ga-rH',R(989.5,3.35));set('ga-rB',R(2250,8));set('ga-rR',R(4000,22));set('ga-rH8',R(1979,3.35));set('ga-rB8',R(4500,8));set('ga-rR8',R(17500,22));
+  })();
+  // s11 consumer vs datacenter
+  (function(){
+    const r=[
+      ['SMs','170','132','148 (independent)'],
+      ['Compute capability, wgmma / tcgen05','12.0, neither','9.0, wgmma','10.0, tcgen05 + TMEM'],
+      ['BF16 dense, FP32 accumulate, TFLOPS','209.5','989.5','2,250'],
+      ['FP8 dense','419','1,979','4,500'],
+      ['FP4 dense','1,676','none','9,000'],
+      ['Memory','32 GB GDDR7','80 GB HBM3','180 GB HBM3e'],
+      ['Bandwidth','1.79 TB/s','3.35 TB/s','8 TB/s'],
+      ['L2','96 MB','50 MB','n/s'],
+      ['Shared memory per SM / resident warps','100 KB / 48','228 KB / 64','228 KB / 64'],
+      ['GPU-to-GPU','PCIe 5.0 x16, 64 GB/s each way','NVLink 900 GB/s','NVLink 1.8 TB/s'],
+      ['Power','575 W','up to 700 W','up to 1,200 W'],
+      ['Price','$1,999 at launch','not listed','not listed'],
+    ];
+    $('ga-cvd').innerHTML='<thead><tr><th></th><th class="num">RTX 5090</th><th class="num">H100 SXM</th><th class="num">B200</th></tr></thead><tbody>'+r.map(x=>'<tr><td>'+x[0]+'</td><td class="num">'+x[1]+'</td><td class="num">'+x[2]+'</td><td class="num">'+x[3]+'</td></tr>').join('')+'</tbody>';
+  })();
+  // predict-then-reveal widgets
+  document.querySelectorAll('#t-read .pred').forEach(p=>{const right=p.dataset.right;p.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
+    p.querySelectorAll('.opts button').forEach(x=>x.classList.toggle('right',x.dataset.a===right));if(b.dataset.a!==right)b.classList.add('wrong');p.classList.add('done')}))});
+})();
+</script>
+<script>/* 31_js_floor.js */
+// ---- Chip floorplans tab: schematic drawings from published counts (window.GA.chips) ----
+(function(){
+  const G=window.GA,$=id=>document.getElementById(id),C=id=>G.chips.find(c=>c.id===id);
+  // SMs per GPC: [full, enabled]; which GPC loses SMs is illustrative (not published)
+  const PLAN={
+    a100:{dies:[{gpcs:[[16,16],[16,16],[16,16],[16,15],[16,15],[16,15],[16,15],[16,0]]}],mem:{kind:'hbm',sites:6,on:5},l2:'40 MB L2 (two partitions)',l2s:'40 MB L2'},
+    h100:{dies:[{gpcs:[[18,18],[18,16],[18,16],[18,16],[18,16],[18,18],[18,16],[18,16]]}],mem:{kind:'hbm',sites:6,on:5},l2:'50 MB L2 (60 MB on the full die)',l2s:'50 MB L2'},
+    b200:{dies:[{gpcs:[[19,19],[18,18],[19,19],[18,18]]},{gpcs:[[19,19],[18,18],[19,19],[18,18]]}],mem:{kind:'hbm',sites:8,on:8},l2:'L2 size n/s (4 partitions, independent paper)',l2s:'L2: size n/s',unk:'148 SMs in 8 GPCs from an independent paper; how they split across GPCs and dies, and how many SMs the full dies have, is not published (drawn evenly).'},
+    b300:{dies:[{gpcs:[[20,20],[20,20],[20,20],[20,20]]},{gpcs:[[20,20],[20,20],[20,20],[20,20]]}],mem:{kind:'hbm',sites:8,on:8},l2:'L2 size n/s',unk:'NVIDIA describes 160 SMs in 8 GPCs; the split per die and how many a shipping B300 enables are not stated (drawn evenly, all enabled).'},
+    rubin:{dies:[{flat:112},{flat:112}],mem:{kind:'none'},l2:'"large centralized L2", size n/s',l2s:'L2: size n/s',unk:'224 SMs on two dies; GPCs, L2 size and HBM4 stack count are not stated, so SMs are drawn as one block per die and no stacks are drawn.'},
+    rtx5090:{dies:[{gpcs:[[16,16],[16,16],[16,16],[16,16],[16,16],[16,15],[16,15],[16,15],[16,15],[16,15],[16,15],[16,0]]}],mem:{kind:'gddr',n:16},l2:'96 MB L2 (128 MB on the full die)',l2s:'96 MB L2'}
+  };
+  const ids=['a100','h100','b200','b300','rubin','rtx5090'];
+  ['fl-a','fl-b'].forEach((s,j)=>{$(s).innerHTML=ids.map(id=>'<option value="'+id+'"'+((j===0&&id==='h100')||(j===1&&id==='b200')?' selected':'')+'>'+C(id).name+'</option>').join('')});
+  function drawChip(id,el){
+    const P=PLAN[id],c=C(id),W=Math.min(860,RD.width(el)),nd=P.dies.length;
+    const memW=P.mem.kind==='hbm'?Math.max(26,W*0.07):0,padG=P.mem.kind==='gddr'?16:4;
+    const pkgX=2,pkgW=W-4,dieGap=nd>1?8:0,dieW=(pkgW-2*memW-2*padG-dieGap*(nd-1))/nd,dieH=Math.max(170,Math.min(280,dieW*(nd>1?1.15:0.62)));
+    let g='',y0=padG+2,sOn=0,sOff=0;
+    g+='<rect x="'+pkgX+'" y="2" width="'+pkgW+'" height="'+(dieH+2*padG)+'" rx="8" fill="none" stroke="var(--line)" stroke-dasharray="4 3"/>';
+    P.dies.forEach((d,di)=>{
+      const dx=pkgX+memW+padG+di*(dieW+dieGap);
+      g+='<rect x="'+dx+'" y="'+y0+'" width="'+dieW+'" height="'+dieH+'" rx="5" fill="var(--soft)" stroke="var(--mute)"/>';
+      const l2h=18,half=(dieH-l2h-12)/2;
+      g+='<rect x="'+(dx+4)+'" y="'+(y0+4+half+2)+'" width="'+(dieW-8)+'" height="'+l2h+'" rx="3" fill="var(--c4)" opacity=".35"/>'+RD.t(dx+dieW/2,y0+4+half+15,di===0?(dieW<P.l2.length*5.2?(P.l2s||'L2'):P.l2):'L2',{a:'middle',fs:dieW<200?8.5:10});
+      if(d.flat){
+        const n=d.flat,cols=Math.ceil(Math.sqrt(n*(dieW-8)/(2*half))),rows=Math.ceil(n/cols),rh=Math.ceil(rows/2),cw=(dieW-8)/cols,cs=Math.min(cw,(half-2)/rh);
+        for(let k=0;k<n;k++){const r=Math.floor(k/cols),cc=k%cols,yy=r<rh?y0+4+r*cs:y0+4+half+2+l2h+4+(r-rh)*cs;g+='<rect x="'+(dx+4+cc*cw)+'" y="'+yy+'" width="'+(cs-1.5)+'" height="'+(cs-1.5)+'" fill="var(--c3)" opacity=".75"/>'}
+        sOn+=n;
+      }else{
+        const ng=d.gpcs.length,perRow=Math.ceil(ng/2),gw=(dieW-8)/perRow;
+        d.gpcs.forEach((gp,k)=>{
+          const row=k<perRow?0:1,col=k%perRow,gx=dx+4+col*gw,gy=row===0?y0+4:y0+8+half+l2h+4;
+          const off=gp[1]===0;
+          g+='<rect x="'+(gx+1)+'" y="'+gy+'" width="'+(gw-2)+'" height="'+(half-4)+'" rx="3" fill="none" stroke="'+(off?'var(--dim)':'var(--acc)')+'" stroke-width="1"/>';
+          const full=gp[0],iw=gw-6,ih=half-8,cols=Math.ceil(Math.sqrt(full*iw/ih)),rows=Math.ceil(full/cols),cs=Math.min(iw/cols,ih/rows);
+          for(let s=0;s<full;s++){const on=s<gp[1];const r=Math.floor(s/cols),cc=s%cols;
+            g+='<rect x="'+(gx+3+cc*cs)+'" y="'+(gy+2+r*cs)+'" width="'+Math.max(1,cs-1.5)+'" height="'+Math.max(1,cs-1.5)+'" fill="'+(on?'var(--c3)':'var(--dim)')+'" opacity="'+(on?.8:.9)+'"/>';
+            if(on)sOn++;else sOff++}
+        });
+      }
+    });
+    // memory
+    if(P.mem.kind==='hbm'){const per=P.mem.sites/2,sh=(dieH)/per;
+      for(let k=0;k<P.mem.sites;k++){const left=k<per,idx=k%per,x=left?pkgX+padG/2:pkgX+pkgW-memW-padG/2,y=y0+idx*sh+3,isOn=k<P.mem.on;
+        g+='<rect x="'+x+'" y="'+y+'" width="'+(memW-2)+'" height="'+(sh-6)+'" rx="3" fill="'+(isOn?'var(--c2)':'none')+'" opacity="'+(isOn?.55:1)+'" stroke="'+(isOn?'var(--c2)':'var(--mute)')+'" stroke-dasharray="'+(isOn?'':'3 2')+'"/>'+RD.t(x+memW/2-1,y+sh/2,isOn?'HBM':'off',{a:'middle',fs:9})}}
+    else if(P.mem.kind==='gddr'){const n=P.mem.n/2,cw=pkgW/n;for(let k=0;k<P.mem.n;k++){const top=k<n,x=pkgX+(k%n)*cw+cw*0.2,y=top?3:dieH+2*padG-11;g+='<rect x="'+x+'" y="'+y+'" width="'+cw*0.6+'" height="9" rx="2" fill="var(--c2)" opacity=".6"/>'}}
+    const H=dieH+2*padG+6;
+    let leg='<rect x="2" y="'+(H+2)+'" width="10" height="10" fill="var(--c3)"/>'+RD.t(16,H+11,'SM enabled ('+sOn+')',{fs:10})+'<rect x="'+(W<420?100:130)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--dim)"/>'+RD.t((W<420?114:144),H+11,'disabled ('+sOff+')',{fs:10});
+    if(P.mem.kind==='hbm')leg+='<rect x="'+(W<420?190:240)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--c2)" opacity=".55"/>'+RD.t((W<420?204:254),H+11,'HBM stack',{fs:10});
+    if(P.mem.kind==='gddr')leg+='<rect x="'+(W<420?190:240)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--c2)" opacity=".6"/>'+RD.t((W<420?204:254),H+11,'GDDR7 controller',{fs:10});
+    el.innerHTML=RD.svg(W,H+18,g+leg,c.name+' floorplan schematic');
+    return {sOn,sOff};
+  }
+  const rowsDef=[['Architecture',c=>c.arch],['Year',c=>c.year],['Compute capability',c=>c.cc||'n/s'],['Dies',c=>c.dies],['GPCs enabled (full die)',c=>(c.gpc_on!=null?c.gpc_on:'n/s')+(c.gpc_full!=null?' ('+c.gpc_full+')':'')],
+    ['SMs enabled (full die)',c=>(c.sm_on!=null?c.sm_on:'n/s')+(c.sm_full!=null?' ('+c.sm_full+')':'')],['Tensor cores per SM',c=>c.tc_sm],['FP32 lanes per SM',c=>c.fp32_sm!=null?c.fp32_sm:'n/s'],
+    ['L1 + shared per SM, KB',c=>c.l1_kb!=null?c.l1_kb:'n/s'],['Max shared per SM, KB',c=>c.smem_kb!=null?c.smem_kb:'n/s'],['L2, MB',c=>c.l2_mb!=null?c.l2_mb:'n/s'],
+    ['Memory',c=>c.gb+' GB '+c.mem],['Stacks (sites)',c=>c.stacks_on!=null?c.stacks_on+(c.stacks_full!==c.stacks_on?' of '+c.stacks_full:''):'n/a or n/s'],['Memory controllers',c=>c.mc],['Bandwidth, TB/s',c=>c.tbs],
+    ['Process',c=>c.node],['Transistors, billions',c=>c.xtors],['Die area, mm²',c=>c.area!=null?c.area:(c.dies>1?'n/s (two reticle-sized dies)':'n/s')]];
+  function render(){
+    const a=$('fl-a').value,b=$('fl-b').value,A=C(a),B=C(b);
+    $('fl-ta').textContent=A.name;$('fl-tb').textContent=B.name;
+    drawChip(a,$('fl-sa'));drawChip(b,$('fl-sb'));
+    $('fl-na').textContent=PLAN[a].unk||'Which SMs, GPCs and stack sites are disabled varies from chip to chip; positions are illustrative, counts are published.';
+    $('fl-nb').textContent=PLAN[b].unk||'Which SMs, GPCs and stack sites are disabled varies from chip to chip; positions are illustrative, counts are published.';
+    $('fl-table').innerHTML='<thead><tr><th></th><th class="num">'+A.name+'</th><th class="num">'+B.name+'</th></tr></thead><tbody>'+rowsDef.map(r=>{const va=String(r[1](A)),vb=String(r[1](B));const d=va!==vb?' diff':'';return '<tr><td>'+r[0]+'</td><td class="num'+d+'">'+va+'</td><td class="num'+d+'">'+vb+'</td></tr>'}).join('')+'</tbody>';
+  }
+  $('fl-a').addEventListener('change',render);$('fl-b').addEventListener('change',render);
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-floor']=window.TAB_RENDER['t-floor']||[]).push(render);
+  RD.onResize(render,'t-floor');
+})();
+</script>
+<script>/* 32_js_lab.js */
+// ---- M1 GPU lab tab: measured curves (window.GA.m1), sized from the measured container width ----
+(function(){
+  const G=window.GA,M=G.m1,$=id=>document.getElementById(id);
+  $('lb-meta').textContent='Apple M1 Pro, 16-core GPU ('+M.chase.length+' sizes, '+M.stream.length+' thread counts); '+M.versions+'; runs on '+[...new Set(M.dates)].join(', ')+'; load average during runs '+M.load_min+' to '+M.load_max+' (other agents were using the machine).';
+  const nice=v=>v>=1e6?(v/1048576)+' MB':v>=1024?(v/1024)+' KB':v+' B';
+  // generic chart: log2 x, linear y
+  function chart(el,o){
+    const W=Math.min(860,RD.width(el)),H=o.h||230,L=W<400?40:48,R=22,T=14,B=38,pw=W-L-R,ph=H-T-B;
+    const xs=o.series[0].pts.map(p=>p[0]),x0=Math.log2(Math.min(...xs)),x1=Math.log2(Math.max(...xs));
+    const ymax=o.ymax||Math.max(...o.series.flatMap(s=>s.pts.map(p=>p[3]!=null?p[3]:p[1])))*1.08;
+    const X=x=>L+(o.lin?(x-xs[0])/(xs[xs.length-1]-xs[0]):(Math.log2(x)-x0)/(x1-x0))*pw,Y=y=>T+ph-(y/ymax)*ph;
+    let g='';
+    const yt=o.yticks||[0,.25,.5,.75,1].map(f=>Math.round(ymax*f/10)*10);
+    yt.forEach(v=>{if(v>ymax)return;g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,Y(v)+4,v,{a:'end',fs:10,fill:'var(--mute)'})});
+    const step=Math.max(1,Math.ceil(xs.length/(W<420?5:9)));
+    xs.forEach((x,i)=>{const last=xs.length-1;if((i%step&&i!==last)||(i!==last&&i%step===0&&last-i<step))return;g+=RD.t(X(x),H-B+14,o.xf(x),{a:'middle',fs:9.5,fill:'var(--mute)'})});
+    g+=RD.t(L+pw/2,H-6,o.xl,{a:'middle',fs:10.5});
+    g+='<text transform="translate(11,'+(T+ph/2)+') rotate(-90)" text-anchor="middle" font-size="10.5">'+o.yl+'</text>';
+    (o.refs||[]).forEach(r=>{g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(r.y)+'" y2="'+Y(r.y)+'" stroke="var(--c4)" stroke-dasharray="4 3"/>'+RD.t(W-R-2,Y(r.y)-3,r.l,{a:'end',fs:9.5,fill:'var(--c4)'})});
+    o.series.forEach(s=>{
+      g+='<polyline fill="none" stroke="'+s.c+'" stroke-width="2" points="'+s.pts.map(p=>X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ')+'"/>';
+      s.pts.forEach(p=>{if(p[2]!=null)g+='<line x1="'+X(p[0])+'" x2="'+X(p[0])+'" y1="'+Y(p[2])+'" y2="'+Y(Math.min(p[3],ymax))+'" stroke="'+s.c+'" opacity=".6"/>';
+        g+='<circle cx="'+X(p[0])+'" cy="'+Y(p[1])+'" r="3" fill="'+s.c+'"><title>'+o.xf(p[0])+': '+p[1]+'</title></circle>'});
+    });
+    if(o.title)g+=RD.t(L,10,o.title,{fs:11,w:600});
+    el.innerHTML=RD.svg(W,H,g,o.title||o.yl);
+  }
+  function render(){
+    const lv=G.luo_ns.H800;
+    chart($('lb-chase'),{series:[{pts:M.chase,c:'var(--c1)'}],xf:nice,xl:'buffer size (log scale)',yl:'ns per dependent load',h:260,
+      refs:$('lb-ref').checked?[{y:lv.smem,l:'H800 shared '+lv.smem},{y:lv.l2,l:'H800 L2 '+lv.l2},{y:lv.glob,l:'H800 HBM '+lv.glob}]:[]});
+    chart($('lb-stream'),{series:[{pts:M.stream,c:'var(--c3)'}],xf:v=>v>=1024?(v/1024)+'K':v,xl:'threads (log scale)',yl:'GB/s',title:'Coalesced read',h:220});
+    chart($('lb-little'),{series:[{pts:M.little,c:'var(--c2)'}],xf:v=>v>=1024?(v/1024)+'K':v,xl:'threads (log scale)',yl:'million loads / s',title:'Pointer chase',h:220});
+    chart($('lb-smem'),{series:[{pts:M.smem,c:'var(--c4)'}],xf:v=>v<1?v:v+'',xl:'KB of threadgroup memory reserved per 64-thread group',yl:'GB/s',lin:true,h:230});
+  }
+  $('lb-ref').addEventListener('change',render);
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lab']=window.TAB_RENDER['t-lab']||[]).push(render);
+  RD.onResize(render,'t-lab');
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ----
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('ga-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('ga-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  show(start,false);
+})();
+</script>
+</div></body></html>

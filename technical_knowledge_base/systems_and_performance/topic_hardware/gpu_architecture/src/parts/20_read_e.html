@@ -1,0 +1,20 @@
+
+<section id="ga-s6">
+<h2>6. The memory ladder inside the chip</h2>
+<p><b>The problem.</b> Our tile's 32 KB of inputs (a 128 &times; 64 and a 64 &times; 128 slice of BF16, 2 bytes per number) are used 128 times each. Fetching them from HBM every time would need 128 times the bytes; keeping them close to the tensor cores turns a memory-bound tile into a compute-bound one. Each rung of the ladder below is bigger, farther and slower than the one before.</p>
+<div class="tw"><table id="ga-ladder">
+<thead><tr><th>Rung</th><th>Size (H100)</th><th>Who manages it</th><th class="num">Latency, cycles (A100 / H800 / RTX 4090)</th><th class="num">ns on H800 <span class="pill d">derived</span></th></tr></thead>
+<tbody>
+<tr><td>Registers</td><td>256 KB per SM</td><td>compiler</td><td class="num">operand of the instruction</td><td class="num"></td></tr>
+<tr><td>Shared memory</td><td>up to 228 KB per SM</td><td>the program</td><td class="num" id="ga-lSm"></td><td class="num" id="ga-lSmNs"></td></tr>
+<tr><td>L1 cache</td><td>the rest of the 256 KB</td><td>hardware</td><td class="num" id="ga-lL1"></td><td class="num" id="ga-lL1Ns"></td></tr>
+<tr><td>Another SM's shared memory (DSMEM, Hopper on)</td><td>within a cluster</td><td>the program</td><td class="num">180 (H800 only)</td><td class="num" id="ga-lDsNs"></td></tr>
+<tr><td>L2 cache</td><td>50 MB, shared by all SMs</td><td>hardware</td><td class="num" id="ga-lL2"></td><td class="num" id="ga-lL2Ns"></td></tr>
+<tr><td>HBM (global memory)</td><td>80 GB</td><td>the program</td><td class="num" id="ga-lGl"></td><td class="num" id="ga-lGlNs"></td></tr>
+</tbody></table></div>
+<p class="small mute">Latencies: {{Luo et al., Benchmarking and Dissecting the Nvidia Hopper GPU Architecture|https://arxiv.org/html/2402.13499v1}} (Feb 2024), Table IV, on an A100 PCIe, an H800 PCIe (a Hopper GPU, 114 SMs) and an RTX 4090; DSMEM latency from its section on distributed shared memory. Nanoseconds at the H800's 1,755 MHz <span class="pill d">cycles / clock</span>. Sizes: {{Hopper in depth|https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/}}. <span class="pill i">independent</span></p>
+<p><b>What it shows.</b> Shared memory answers in about 29 cycles on all three GPUs; L2 in about 260 to 270, nine times longer; HBM in 470 to 540, almost twice L2 again. A likely reason, not measured by the paper: L2 is one structure shared by every SM on a die of about 800 mm&sup2;, so a request may cross the chip and back. Luo et al. also measured H800's L2 throughput at 4,472 bytes per clock, 2.2 times the A100's, and about 3.27 TB/s for DSMEM traffic between SMs of a 2-SM cluster, falling to 2.65 TB/s with 4.</p>
+<p><b>Measured on the M1 Pro GPU.</b> One thread chasing pointers through buffers from 4 KB to 256 MB shows the same staircase: about <span id="ga-m1L1">41</span> ns up to 16 KB, <span id="ga-m1L2">74</span> ns from 32 KB to 1 MB, about <span id="ga-m1SLC">340</span> ns from 4 to 32 MB, and <span id="ga-m1D">485</span> ns at 256 MB (DRAM, with address-translation misses included). Apple does not publish its GPU cache sizes, so the rungs are inferred from where the steps fall. Chart and spread: {{M1 GPU lab|#t-lab}}. <span class="pill m">measured here</span></p>
+<p><b>Two things the ladder decides for training.</b> First, the L2 sizes matter more than they look: 40 MB (A100), 50 MB (H100) and 96 MB (RTX 5090) are large enough to hold a whole layer's activations for small batches, so a kernel that re-reads data soon after it was written may never touch HBM. Second, the split between L1 and shared memory is chosen per kernel: matmul and attention kernels take nearly all of it as shared memory, because they know exactly which tile they will reuse; elementwise kernels leave it as cache.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Coalescing, bank conflicts and tiling from the programmer's side: {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}. HBM, GDDR and SRAM as technologies, and bandwidth against working-set size: {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}}.</div>
+</section>
