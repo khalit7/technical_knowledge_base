@@ -1,0 +1,51 @@
+<section id="rd-s7">
+<h2>7. Serving: prefill, decode, and tokens per second</h2>
+<p><b>The problem.</b> A served request has two phases with opposite limits. <dfn>Prefill</dfn> runs the whole prompt through the model at once; <dfn>decode</dfn> then produces one token per step, and each step must read every weight it uses plus the conversation's KV cache (the keys and values of every earlier token, which attention needs). The first is limited by arithmetic, the second by memory bandwidth.</p>
+<div class="fm"><div class="eq">time to first token &asymp; prefill FLOPs / (peak &times; efficiency) &nbsp;&nbsp;&nbsp; time per output token &asymp; bytes read per step / bandwidth</div>
+<dl><dt>prefill FLOPs</dt><dd>2N per prompt token, plus attention over the prompt (causal: about half the score square)</dd><dt>bytes per step</dt><dd>weights used (all of them for a dense model) plus every sequence's KV cache</dd></dl></div>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Llama 3.1 8B, BF16, one H100</th><th class="num">Value</th><th>Arithmetic</th></tr>
+<tr><td>Prefill of a 4,096-token prompt</td><td class="num">70.9 ms</td><td>at 100% of 989.5 TFLOP/s; 141.9 ms at 50%</td></tr>
+<tr><td>KV cache of one 4,096-token conversation</td><td class="num">0.54 GB</td><td>2 (K and V) &times; 32 layers &times; 8 heads &times; 128 &times; 2 bytes = 128 KiB per token</td></tr>
+<tr><td>Decode step, batch 1</td><td class="num">4.95 ms</td><td>(16.06 GB weights + 0.54 GB cache) / 3.35 TB/s: <b>202 tokens/s</b> at most</td></tr>
+<tr><td>Decode step, batch 64</td><td class="num">15.1 ms</td><td>weights read once, 64 caches read: 4,252 tokens/s in total, 66 per user; memory 50.4 GB</td></tr>
+<tr><td>Cost per million output tokens at $3.99 per GPU-hour</td><td class="num">$5.49 / $0.26</td><td>batch 1 / batch 64: price / (tokens/s &times; 3,600) &times; 10<sup>6</sup></td></tr>
+</table></div>
+<p class="small mute">The parent's calculator functions (decode, prefill), copied unchanged; ceilings at full bandwidth or full peak, real serving reaches less <span class="der">derived</span>. Lambda on-demand H100 price fetched 2026-10-05.</p>
+<p><b>The lesson in the table:</b> batching is the whole economics of serving. Each step reads the weights once whatever the batch, so 64 users share the 16 GB read and cost 21 times less per token, at the price of each user waiting 3 times longer per token. The cache does not share: at long contexts each conversation's KV reads dominate and batching stops helping, the reason grouped-query attention, latent attention and FP8 caches exist. The physical side of the KV cache (sizes for 13 real configs, paging) is the sibling {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}} page; the step at batch 1 and 64 is animated in the parent's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}}.</p>
+<p><b>Long prompts.</b> Llama 3.1 70B with a 32,768-token prompt on 8 H100s at 50% of peak: 1.52 s before the first token, and attention is 23% of those FLOPs (causal count). Prefill time grows faster than linearly with the prompt.</p>
+<p><b>Mixture of experts.</b> At batch 1 a decode step reads only the routed experts: DeepSeek-V3 in FP8 reads 37.6 GB of its 671 GB. But 64 tokens with 8 of 256 experts each touch about 222 experts per layer (uniform routing, 256 &times; (1 &minus; (1 &minus; 8/256)<sup>64</sup>)), so the step reads 585 GB: an MoE's bandwidth advantage disappears at the batch sizes that make serving cheap, while its FLOP advantage stays <span class="der">derived</span>.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Tokens per second against cost for any model, chip and batch, with the out-of-memory edge: {{Run and serving planner|#t-plan}}. Scheduling, paged caches and speculative decoding: {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</div>
+</section>
+
+<section id="rd-s8">
+<h2>8. Communication: bytes per step for each kind of parallelism</h2>
+<p><b>The problem.</b> On many GPUs every step also moves data. The arithmetic is the same each time: count the bytes each GPU sends, divide by the bandwidth of the link it crosses, and ask whether it overlaps with compute.</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Parallelism</th><th>What moves, per GPU</th><th>Formula</th><th class="num">Llama 3.1 8B, 8 GPUs</th></tr>
+<tr><td>Data parallel (DDP)</td><td>all-reduce of the BF16 gradients, once per step</td><td>2(n&minus;1)/n &times; 2N</td><td class="num">28.1 GB; 62.5 ms over NVLink 4</td></tr>
+<tr><td>Fully sharded (FSDP, ZeRO-3)</td><td>gather weights forward, gather again backward, reduce-scatter gradients</td><td>3 &times; (n&minus;1)/n &times; 2N</td><td class="num">42.2 GB (1.5 &times; DDP)</td></tr>
+<tr><td>Tensor parallel (Megatron)</td><td>4 all-reduces of the layer's activations per layer and micro-batch, on the critical path</td><td>4 &times; 2(t&minus;1)/t &times; s b h &times; 2</td><td class="num">0.47 GB per layer, 15.0 GB per 8,192-token micro-batch</td></tr>
+<tr><td>Pipeline parallel</td><td>activations forward and gradients back at each stage boundary</td><td>s b h &times; 2 each way</td><td class="num">67 MB per micro-batch</td></tr>
+<tr><td>Expert parallel (MoE)</td><td>each token's hidden vector to its k experts and back (all-to-all)</td><td>&le; 2 &times; k &times; h &times; 2 per token per MoE layer</td><td class="num">DeepSeek-V3: &le; 229 KB per token per layer</td></tr>
+</table></div>
+<p class="small mute">n data-parallel GPUs, t tensor-parallel GPUs, s sequence length, b micro-batch, h hidden size, k experts per token; 2 bytes per BF16 value <span class="der">derived</span>. Ring collectives follow NCCL's bus-bandwidth model ({{nccl-tests PERFORMANCE.md|https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md}}). The MoE row is an upper bound: tokens whose experts sit on the same GPU do not move, and DeepSeek-V3 limits each token to 4 nodes.</p>
+<p>The pattern decides placement. Data-parallel traffic is per step and overlaps with backward, so it can cross the slower network between servers. Tensor-parallel traffic is per layer and blocks compute, so it stays inside the NVLink domain; expert parallelism's all-to-all is per layer too. The parent calculator's "Why tensor parallelism stays inside the NVLink domain" chart puts numbers on it; the sibling {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}} page covers the links and collectives, and {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} the layouts.</p>
+</section>
+
+<section id="rd-s9">
+<h2>9. Costing a run, and planning capacity</h2>
+<div class="fm"><div class="eq">GPU-hours = total FLOPs / (peak &times; MFU) / 3,600 &nbsp;&nbsp; cost = GPU-hours / goodput &times; price</div>
+<dl><dt>goodput</dt><dd>the share of wall-clock time spent on useful training; Llama 3 reports "higher than 90% effective training time" despite 419 unexpected interruptions in 54 days ({{Llama 3, section 3.3.4|https://arxiv.org/html/2407.21783v3}})</dd><dt>price</dt><dd>dated, with its terms (on-demand list prices here; reserved and committed prices are lower)</dd></dl></div>
+<p><b>Worked example: pretrain Llama 3.1 8B on 15 trillion tokens.</b> 6 &times; 8.03e9 &times; 15e12 = 7.2 &times; 10<sup>23</sup> FLOPs.</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>At 40% MFU, 90% goodput</th><th class="num">GPU-hours</th><th class="num">Cost (list)</th><th class="num">GPUs for 30 days</th></tr>
+<tr><td>H100 SXM (989.5 TFLOP/s, $3.99/h)</td><td class="num">507K</td><td class="num">$2.02M; $2.25M with goodput</td><td class="num">783</td></tr>
+<tr><td>B200 (2,250 TFLOP/s, $6.69/h)</td><td class="num">223K</td><td class="num">$1.49M; $1.66M with goodput</td><td class="num">344</td></tr>
+</table></div>
+<p class="small mute">GPU-hours before goodput; GPUs for 30 days include it. Lambda on-demand 8-GPU instance prices fetched 2026-10-05 ({{Lambda pricing|https://lambda.ai/pricing}}) <span class="der">derived</span>. The B200 costs more per hour and less per run, if the software reaches the same MFU on it.</p>
+<p><b>Check against what Meta reported.</b> Llama 3.1 8B's model card lists 1.46M H100-hours, 2.9 times our 507K: at list price $5.8M. Either the steady-state MFU was far below 40%, or (more likely) the hours include more than one clean pass: experiments, restarts, other stages ({{model card|https://huggingface.co/meta-llama/Llama-3.1-8B}}). Headline GPU-hours are a budget, not a measurement of efficiency. DeepSeek-V3's $5.576M is 2.788M H800-hours at the $2 per hour DeepSeek assumes, and excludes "prior research and ablation experiments" by its own statement (the {{DeepSeek-V3 paper page|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} checks the bill).</p>
+<p><b>Smaller jobs.</b> Fine-tuning the 8B on 1 billion tokens with FSDP on one 8-GPU H100 server takes 4.2 hours at 40% MFU: about $135 at list price (the parent's worked example).</p>
+<p><b>Serving capacity.</b> To produce one million output tokens per minute (16,667 per second) from Llama 3.1 8B at 4,096 tokens of context: about 4 H100s at batch 64, or 83 at batch 1, at the bandwidth ceiling. Real deployments reach a fraction of the ceiling and must also run prefill, so plan from measured throughput once you have it.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> GPU-hours, GPUs for a deadline and cost for any model, chip, MFU and goodput, and the serving frontier: {{Run and serving planner|#t-plan}}. Power, failures and checkpoint intervals: the sibling {{Power, cooling and reliability|n:3f05c17b0d0d8143851cfc3ae14c3c22}} page. Prices and peaks for every chip: the parent's {{Chip atlas|n:3c65c17b0d0d8118beeefaed56da6f8e}}.</div>
+</section>

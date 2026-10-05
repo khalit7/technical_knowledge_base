@@ -1,0 +1,22 @@
+<section id="rd-s6">
+<h2>6. Measuring MFU yourself, and predicting it operator by operator</h2>
+<p><b>The problem.</b> A published MFU is someone else's run. To check your own you need a clean timing, the FLOP count from section 1, and the right peak; to know what to fix you need to know where the time goes. Both were done here on a real GPU: this laptop's Apple M1 Pro.</p>
+<h3>How to measure</h3>
+<ol>
+<li>Warm up (the first iterations compile kernels and fill allocator caches), then time many steps.</li>
+<li>Synchronise before reading the clock: GPU calls return before the work finishes (<code>torch.cuda.synchronize()</code>, here <code>torch.mps.synchronize()</code>).</li>
+<li>Take the median, repeat the whole run, and report the spread and what else was running.</li>
+<li>MFU = model FLOPs of the step / time / dense peak. Get the FLOPs from <code>torch.utils.flop_counter.FlopCounterMode</code> or from section 1's formulas; they agree.</li>
+</ol>
+<h3>Measured: two Llama 3.1 8B layers on the M1 Pro GPU</h3>
+<p>Two decoder layers with the real 8B shapes (436M parameters; the 128K-vocabulary embedding and head left out to fit the shared laptop's memory), FP16, forward and backward, batch 1, PyTorch 2.14.1 on the MPS backend <span class="meas">measured</span>:</p>
+<div class="tw"><table class="tbl-sm" id="rd-m1t"></table></div>
+<div class="card"><div class="rd-chart" id="rd-m1"></div>
+<p class="small mute">Peak 5.06 TFLOP/s (FP16 fused multiply-add) and bandwidth 165 GB/s are the parent's {{Roofline lab|n:3c65c17b0d0d8118beeefaed56da6f8e}} measurements on this GPU. Each run is the median of 8 timed steps after 3 warm-up steps; 3 runs, 20 s apart, with the 1-minute load average of the shared machine recorded. At 2,048 tokens the first run hit memory swapping (41.7 s) and is excluded by taking the median of the three runs. Script: <code>src/code/m1_step.py</code>.</p></div>
+<p><b>72 to 75% MFU on one GPU.</b> With large matrices, no communication and no tensor cores (the M1's FP16 runs at the same rate as FP32 through ordinary ALUs, so its ridge point is only about 31 FLOPs per byte), almost every operator is compute-bound and the GPU runs near its own matmul speed. That is the first lesson: a single GPU on big matmuls reaches high MFU; the losses in section 5 come from elsewhere.</p>
+<h3>Predicting the step from its operators</h3>
+<p>The same step was run once more with a <code>TorchDispatchMode</code> recording every operator PyTorch launched (447 per step, 315 of which compute or move data): its FLOPs and the bytes it reads and writes. Each operator gets a roofline time, max(FLOPs / peak, bytes / bandwidth), and the step's prediction is the sum. The measurement takes 14 to 22% longer than the prediction: the overhead of launching each kernel and of matmuls that do not quite reach the FMA peak.</p>
+<div class="co key"><div class="t">The same operators on an H100: why fusion matters more on faster chips</div><p id="rd-m1-h100"></p></div>
+<p>That projection is a roofline estimate, not a run. It is why the operator count matters for training performance: torch.compile and hand-written fused kernels (FlashAttention, fused norms, fused cross-entropy) exist to remove exactly this traffic, and it matters wherever the ridge is high: 295 FLOPs per byte for an H100 at BF16, twice that at FP8. Writing such kernels is the {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}} root's subject.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> The roofline itself, measured on this GPU with real kernels: the parent's {{Roofline lab|n:3c65c17b0d0d8118beeefaed56da6f8e}}. Timing honestly with CUDA events and the profiler: the CUDA root's {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}} child page.</div>
+</section>
