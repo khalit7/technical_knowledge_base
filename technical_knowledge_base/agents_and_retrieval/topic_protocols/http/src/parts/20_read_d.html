@@ -1,0 +1,62 @@
+
+<section id="rd-s5">
+<h2>5. HTTP/2: binary frames, many streams, compressed headers</h2>
+<p><b>The problem it solved.</b> HTTP/1.1 needs one connection per request in flight and repeats hundreds of bytes of identical headers on every request. HTTP/2 (2015, from Google's SPDY; today {{RFC 9113, June 2022|https://www.rfc-editor.org/rfc/rfc9113}}) keeps the same meaning and changes only the wire: one connection carries many requests at once, and headers are compressed against what both sides already sent.</p>
+<h3>How it works: frames on streams</h3>
+<p>Everything on an HTTP/2 connection is a <dfn id="g-frame">frame</dfn>: a 9-byte header (length 24 bits, type 8, flags 8, one reserved bit, a 31-bit stream identifier) followed by up to 16,384 bytes of payload unless the peer allows more. A <dfn id="g-stream">stream</dfn> is one request and its response; the client numbers its streams 1, 3, 5 (odd), so frames of different streams can interleave and the receiver sorts them by number. Stream 0 is the connection itself. A connection over TLS is chosen by ALPN (the client offers <code>h2</code> in the TLS handshake; {{TLS and certificates|n:3c65c17b0d0d8105a37ff2d2f602a421}}); the client then sends a fixed 24-byte <dfn id="g-preface">connection preface</dfn> (<code>PRI * HTTP/2.0</code> ...), and both sides send SETTINGS.</p>
+<div class="tw"><table>
+<thead><tr><th>Frame type</th><th>Carries</th><th>Seen in the running request</th></tr></thead>
+<tbody>
+<tr><td>HEADERS (0x1) and CONTINUATION (0x9)</td><td>A compressed header block; CONTINUATION extends one that did not fit</td><td>Request and response heads</td></tr>
+<tr><td>DATA (0x0)</td><td>Body bytes; the END_STREAM flag marks the last</td><td>The JSON body; one per SSE event</td></tr>
+<tr><td>SETTINGS (0x4)</td><td>Each side's limits: table size, window, frame size, concurrent streams</td><td>Both sides, first thing; then empty ACKs</td></tr>
+<tr><td>WINDOW_UPDATE (0x8)</td><td>Flow-control credit for a stream or the whole connection</td><td>The 200 KB download below</td></tr>
+<tr><td>RST_STREAM (0x3)</td><td>Cancel one stream, with an error code</td><td>Not here; see Rapid Reset below</td></tr>
+<tr><td>GOAWAY (0x7)</td><td>"No new streams on this connection; I processed up to stream N"</td><td>The client's clean close</td></tr>
+<tr><td>PING (0x6)</td><td>Liveness check and round-trip measurement</td><td>Not here</td></tr>
+<tr><td>PRIORITY (0x2), PUSH_PROMISE (0x5)</td><td>Old priority tree; server push</td><td>Both effectively retired (below)</td></tr>
+</tbody></table></div>
+<p><span class="meas">measured</span> The SETTINGS each side sent on the recorded connection (h2 4.4.1 client, hypercorn 0.18.0 server):</p>
+<div class="tw"><table id="rd-settings"></table></div>
+<p class="small mute">Both advertise a 65,535-byte initial window, 16,384-byte frames and a 4,096-byte header table, which are the protocol's initial values (RFC 9113 section 6.5.2), and 100 concurrent streams. The server turns server push off (ENABLE_PUSH 0) and offers extended CONNECT (for WebSockets over HTTP/2, {{RFC 8441|https://www.rfc-editor.org/rfc/rfc8441}}).</p>
+<h3>HPACK: why the second request's headers cost 7 bytes</h3>
+<p><b>The problem.</b> Requests to one API repeat the same header fields: the same host, path, content type, API key, user agent. <dfn id="g-hpack">HPACK</dfn> ({{RFC 7541, May 2015|https://www.rfc-editor.org/rfc/rfc7541}}) compresses them with three tools: a <b>static table</b> of 61 common fields both sides know by heart (index 2 is <code>:method: GET</code>, 3 is <code>:method: POST</code>), a <b>dynamic table</b> (4,096 bytes by default) to which each side adds fields as it sends them, so a repeat becomes a one-byte index, and a fixed <b>Huffman code</b> that shrinks literal text (by 26% on the SDK header values below: 164 bytes of values became 121). Press play: the running request's headers, sent twice on one connection, as HTTP/1.1 text and as the bytes HPACK actually produced.</p>
+<div class="card" id="rd-hp">
+<div class="seg" id="rd-hp-set"><button class="on" data-m="running">The running request</button><button data-m="bearer">With authorization: Bearer</button><button data-m="sdk">The Anthropic SDK's real headers</button></div>
+<div class="seg" id="rd-hp-mode"><button class="on" data-m="h2">HPACK (HTTP/2)</button><button data-m="h1">HTTP/1.1 text</button><button data-m="h3">QPACK (HTTP/3)</button></div>
+<div id="rd-hp-rows"></div>
+<div class="an-ctl" id="rd-hp-ctl"></div>
+<div class="an-cap" id="rd-hp-cap"></div>
+<div class="an-cnt" id="rd-hp-cnt"></div>
+<p class="small mute"><span class="meas">measured</span> The running request's HPACK bytes are the HEADERS frames of a real HTTP/2 connection (<code>raw/h2_frames.json</code>); the other two header sets were encoded by the same h2 library on a fresh connection and parsed field by field (<code>src/lab/hpack_sizes.py</code>, <code>hpack_parse.py</code>, which checks its decoding against the hpack library on every block). QPACK sizes are pylsqpack's (aioquic's encoder). Bars are drawn to scale within each header set. "HTTP/1.1 text" is the same fields written as HTTP/1.1 lines (141 bytes for the running request; the root's recording is 160 because it also sends <code>connection: close</code>).</p>
+</div>
+<div class="co warn"><div class="t">Security: secrets in a compression table</div>Compression leaks information when an attacker can mix guesses with a secret and watch the size (the CRIME and BREACH attacks on TLS and HTTP compression). HPACK was designed against this: literal fields can be marked <b>never indexed</b>, so they are sent in full every time and no intermediary may add them to a table ({{RFC 7541 section 7.1.3|https://www.rfc-editor.org/rfc/rfc7541#section-7.1.3}}). <span class="meas">measured</span> The h2 library marks <code>authorization</code> never-indexed automatically (the "Bearer" set above costs 32 bytes on every request instead of 7), but not <code>x-api-key</code>, which it added to the dynamic table on the first request. HPACK's per-connection table and fixed Huffman code make the attack far harder than with gzip, so this is defence in depth, not an open hole; but a library's list of "sensitive" headers is worth knowing when your API key travels in a custom header.</div>
+<h3>Flow control: a window, and credit returned by WINDOW_UPDATE</h3>
+<p><b>The problem.</b> Many streams share one connection, so a receiver needs a way to say "slow down on this one" without stopping the others (TCP's own flow control can only throttle the whole connection). HTTP/2 gives each stream, and the connection as a whole, a <dfn id="g-window">window</dfn>: the number of DATA bytes the sender may send before it must wait. The receiver adds credit back with WINDOW_UPDATE frames as it consumes data. The cost: a stream can never move more than one window per round trip, so throughput is at most window divided by round-trip time, whatever the link's bandwidth.</p>
+<div class="card" id="rd-fc">
+<div class="seg" id="rd-fc-seg"><button class="on" data-m="0">16 KB window</button><button data-m="1">64 KB window (the default)</button><button data-m="2">1 MB window</button></div>
+<div class="rd-svg" id="rd-fc-svg"></div>
+<div class="an-ctl" id="rd-fc-ctl"></div>
+<div class="an-cap" id="rd-fc-cap"></div>
+<div class="an-cnt" id="rd-fc-cnt"></div>
+<p class="small mute"><span class="meas">measured</span> A 200,000-byte <code>GET /big</code> from the lab server over HTTP/2 (<code>src/lab/flow_h2.py</code>, <code>raw/flow_h2.json</code>): every DATA frame and every WINDOW_UPDATE with its time. <span class="ill">simulated</span> Loopback has almost no round trip, so the client holds each WINDOW_UPDATE for 50 ms, standing in for one; the server's behaviour is real. <span class="ill">derived</span> Expected time is about ceil(200,000 / window) &#215; 50 ms when the window is the limit.</p>
+</div>
+<p>The default 65,535-byte window is small for a fast long path: at 100 ms round trip it caps one stream at about 0.65 MB/s. Servers that move large bodies raise it (SETTINGS_INITIAL_WINDOW_SIZE for streams, a WINDOW_UPDATE on stream 0 for the connection, which always starts at 65,535). The root page's Failure lab measures the same cap on a real path ("One stream's throughput is capped at window / round trip"); for token streams of a few KB it never matters.</p>
+<h3>What was tried and retired</h3>
+<ul class="tight">
+<li><b>Priorities.</b> RFC 7540 let clients build a dependency tree of streams with weights. Few servers implemented it well, and RFC 9113 "deprecates the priority signaling defined in RFC 7540" (section 5.3.2). Its replacement is a simple <code>Priority</code> header (urgency 0 to 7, incremental or not) shared with HTTP/3 ({{RFC 9218, June 2022|https://www.rfc-editor.org/rfc/rfc9218}}).</li>
+<li><b>Server push.</b> The server could send responses the client had not asked for yet. Chrome turned it off by default in Chrome 106, after measuring that only 1.25%, later 0.7%, of HTTP/2 sites used it; <code>103 Early Hints</code> (a hint, not the bytes) replaced it ({{Chrome, 18 Aug 2022|https://developer.chrome.com/blog/removing-push}}). The server recorded here sends ENABLE_PUSH 0.</li>
+<li><b>Upgrading a cleartext connection to h2c.</b> The <code>Upgrade: h2c</code> dance from HTTP/1.1 is deprecated in RFC 9113 (section 3.1). Cleartext HTTP/2 itself is alive inside clusters, started with "prior knowledge" (the client just sends the preface): that is how much gRPC traffic runs.</li>
+</ul>
+<h3>Ending streams and connections, safely</h3>
+<p><b>RST_STREAM</b> cancels one stream (a user pressed stop; a client gave up). <b>GOAWAY</b> starts a graceful shutdown: it carries the highest stream number the server may have processed. This is HTTP/2's gift to retries: requests on higher-numbered streams "are therefore guaranteed to be safe to retry", and so is any request reset with the REFUSED_STREAM code, "even those with non-idempotent methods" ({{RFC 9113 section 8.7|https://www.rfc-editor.org/rfc/rfc9113#section-8.7}}). A server being deployed should send GOAWAY and let in-flight streams finish; a client should retry what GOAWAY says was never started (<a href="#rd-s9">section 9</a>).</p>
+<h3>How it fails, and how it was attacked</h3>
+<ul class="tight">
+<li><b>One lost TCP packet stalls every stream.</b> All streams share one TCP byte stream, which must be delivered in order; the root page's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab measured one lost packet delaying all three concurrent streams by 43 to 68 ms. This is what HTTP/3 fixes.</li>
+<li><b>Streams queue on a connection.</b> When a client opens more than SETTINGS_MAX_CONCURRENT_STREAMS (100 here), the rest wait for a free slot; the root's Failure lab shows calls queuing ("Max concurrent streams").</li>
+<li><b>One connection, one backend.</b> A long-lived HTTP/2 connection through a connection-level (L4) load balancer pins every request to one backend ({{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}; Failure lab "gRPC behind an L4 load balancer").</li>
+<li><b>Rapid Reset (CVE-2023-44487).</b> An attacker opens a stream and immediately cancels it with RST_STREAM, again and again: cancelled streams do not count against the concurrency limit, but the server has already started work on each. Cloudflare saw a peak just above 201 million requests per second from about 20,000 machines; Google saw 398 million ({{Cloudflare, 10 Oct 2023|https://blog.cloudflare.com/technical-breakdown-http2-rapid-reset-ddos-attack/}}; {{Google Cloud|https://cloud.google.com/blog/products/identity-security/how-it-works-the-novel-http2-rapid-reset-ddos-attack}}). Fix: servers now count resets and close abusive connections.</li>
+<li><b>CONTINUATION flood (April 2024).</b> HEADERS followed by endless CONTINUATION frames without END_HEADERS makes a server buffer headers forever; one connection could crash many implementations, and because no request ever completes, nothing appears in access logs ({{Nowotarski, 3 Apr 2024|https://nowotarski.info/http2-continuation-flood-technical-details/}}).</li>
+</ul>
+<div class="deepnote"><b>Go deeper (optional).</b> Every frame of the recorded HTTP/2 connection, with each header field's encoding: {{Frame by frame|#t-frames}}. gRPC's use of HTTP/2 (trailers, deadlines, status codes): {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}.</div>
+</section>

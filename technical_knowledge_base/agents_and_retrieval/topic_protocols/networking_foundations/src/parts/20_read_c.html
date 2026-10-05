@@ -1,0 +1,22 @@
+
+<section id="rd-sock">
+<h2>2. Ports, sockets and the 5-tuple</h2>
+<p><b>The problem.</b> An address picks a machine, but a machine runs many programs. A <b>port</b> (a 16-bit number, 0 to 65,535) picks the program. A <b>socket</b> is the operating system's handle for one end of a conversation: your code reads and writes the socket, the kernel does the protocol. Servers <b>listen</b> on a well-known port (443 for HTTPS, 22 for SSH, 29500 by convention for <code>torch.distributed</code>'s rendezvous); the client's kernel picks a temporary <b>ephemeral port</b> for its end.</p>
+<p>A TCP connection is named by its <b>5-tuple</b>: protocol, source address, source port, destination address, destination port. Every packet of the connection carries the four addresses and ports, and the kernel at each end uses them to find the socket. Three consequences you will meet:</p>
+<ul>
+<li><b>One client address can only have so many connections to one server address and port</b>, because only the source port varies. The ephemeral range is 32,768 to 60,999 on Linux, 28,232 ports ({{ip-sysctl docs|https://docs.kernel.org/networking/ip-sysctl.html}}), and 49,152 to 65,535 on this Mac, 16,384 ports (<span class="meas">measured</span>: <code>sysctl net.inet.ip.portrange</code>, the IANA dynamic range of {{RFC 6335|https://www.rfc-editor.org/rfc/rfc6335}}). Section 3 shows how TIME_WAIT turns that into a rate limit.</li>
+<li><b>Anything that rewrites addresses or ports</b> (NAT, section 9; a load balancer) must keep a table keyed on the 5-tuple, and the table is a resource that fills and forgets.</li>
+<li><b>Changing any element ends a TCP connection.</b> A laptop moving from Wi-Fi to a phone hotspot gets a new address, so every TCP connection on it dies. QUIC names connections differently and survives this; section 12 records it happening.</li>
+</ul>
+<h3>The calls behind every server and client</h3>
+<div class="grid">
+<div class="sp"><div class="n">Server</div><p><code>socket()</code> &rarr; <code>bind(addr, port)</code> &rarr; <code>listen(backlog)</code> &rarr; loop: <code>accept()</code> returns a new socket per client &rarr; <code>recv</code>/<code>send</code> &rarr; <code>close()</code></p></div>
+<div class="sp"><div class="n">Client</div><p><code>socket()</code> &rarr; <code>connect(addr, port)</code> (the kernel picks the ephemeral port and runs the handshake) &rarr; <code>send</code>/<code>recv</code> &rarr; <code>close()</code></p></div>
+</div>
+<p><b>Which address the server binds matters.</b> <code>127.0.0.1</code> (loopback) accepts connections only from the same machine; <code>0.0.0.0</code> (or <code>::</code>) accepts on every interface. A model server started on <code>127.0.0.1</code> inside a container is unreachable from outside the container even with the port published, and the client sees "connection refused" (the root's {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} case "Connection refused" shows the exact error text of curl, requests, httpx and Node). The reverse mistake, a notebook or debug server on <code>0.0.0.0</code> on a machine with a public address, exposes it to the internet.</p>
+<h3>A TCP socket is a stream, not a list of messages</h3>
+<p>TCP promises the bytes and their order, not where your writes started and ended. Three writes of 10 bytes can arrive as one read of 30, or as reads of 7 and 23; UDP keeps each datagram whole. <span class="meas">measured</span> on loopback, three writes of <code>token-000n</code> each, reader started after the writes:</p>
+<pre class="rec" id="rd-bound"></pre>
+<p>This is why every protocol on TCP has <b>framing</b>: HTTP/1.1 uses <code>Content-Length</code> or chunk sizes, Server-Sent Events use blank lines, gRPC and HTTP/2 put a length in front of each frame. Code that assumes "one <code>recv</code> equals one message" passes every test on loopback and fails under load or on a real network, where segments split and merge differently.</p>
+<div class="deepnote"><b>See it yourself.</b> <code>lsof -nP -iTCP -sTCP:ESTABLISHED</code> (macOS and Linux) or <code>ss -tnp</code> (Linux) lists each connection's 5-tuple and owning process; <code>lsof -nP -iTCP:8000 -sTCP:LISTEN</code> shows who listens on a port and on which address.</div>
+</section>

@@ -2553,3 +2553,40 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | 6 | SigV4 calculator showing canonical request, string to sign, signing key, header; defaults reproduce two botocore test-suite vectors independently | Reading s7 | 4 | 5 | 2 | `inputs/sigv4_vectors.json` |
 | 7 | API key checksum checker | Reading s2 | 3 | 5 | 1 | `small.json` |
 | 8 | Recorded tables: refresh rotation and reuse, device polling timeline, client credentials, revocation versus offline JWT, DPoP stolen-token attempts, passthrough results, real discovery documents, algorithm sizes and timings | Reading s4 to s9 | 4 | 5 | 1 | lab outputs, `inputs/real_discovery.json` |
+
+### Networking foundations: IP, TCP, UDP and QUIC (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_protocols/networking_foundations/src/viz_ideas.md`.
+
+| Idea | T | D | C | Placement | Data and formula |
+|---|---|---|---|---|---|
+| TCP timeline: event-driven model of the root's recorded request, before/after pairs (timer vs fast retransmit + tail probe; Nagle on vs TCP_NODELAY; delayed ACK on/off), RTT slider, to scale | 5 | 4 | 2 | own tab | writes and sizes from the root's `wire/raw/h1_arrivals.json` and `h1_response.bin`; rules from RFC 5681 s3.2/4.2, RFC 8985 s7.2 (PTO = 2 SRTT + max_ack_delay when one segment is in flight), RFC 9293 s3.7.4; RTO = RTT + 200 ms (Linux floor) |
+| Throughput lab: four ceilings, streams, payload time, measured runs against window / RTT | 5 | 4 | 3 | own tab | window/RTT; Mathis C = sqrt(3/2); AWS per-flow caps; `meas/out/tcp_path.json` |
+| Window over RTT measured: 12 real downloads with pinned and autotuned buffers vs prediction | 5 | 5 | 3 | Reading 5 | speed.cloudflare.com/__down, TCP_CONNECTION_INFO (macOS) |
+| Autotuning window growth over time | 4 | 5 | 4 | Reading 5 | same run, sampled every 4 ms |
+| Latency under load (bufferbloat): ping every 100 ms around one download | 5 | 5 | 4 | Reading 6 | `loaded_latency.json` |
+| Reno vs CUBIC cwnd animation on one path (before/after, then both) | 4 | 2 | 3 | Reading 6 | RFC 5681, RFC 9438 (C 0.4, beta 0.7, W_est); recomputed in Python by `check_embed.py` |
+| TCP state ladder stepper (11 states, CLOSE_WAIT and TIME_WAIT called out) | 4 | 2 | 4 | Reading 3 | RFC 9293 s3.3.2, s3.6 |
+| NAT idle timeout animation, no keepalive vs keepalive (before/after) | 4 | 2 | 4 | Reading 9 | AWS 350 s, RST; documentation addresses |
+| Path MTU binary search chart plus the real ICMP "frag needed (MTU 1492)" | 5 | 5 | 4 | Reading 10 | `path_mtu.json` |
+| UDP receive-buffer overflow bars | 4 | 5 | 5 | Reading 11 | `local_sockets.json` |
+| QUIC connection migration ladder: every real datagram (aioquic, qlog) vs TCP on the same move (before/after) | 5 | 5 | 2 | Reading 12 | `quic_migrate.json`, packets grouped into datagrams in `make_data.py` |
+| Accept-queue table, TCP_NODELAY defaults table, stream vs datagram boundary recording | 4 | 5 | 5 | Reading 2, 7, 8 | `local_sockets.json` |
+| Prefix (CIDR) calculator with overlap check | 4 | 1 | 5 | Reading 1 | RFC 4632, reserved blocks |
+| Predict-then-reveal drills (8) | 4 | 3 | 5 | Reading 16 | page numbers |
+
+### HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_protocols/http/src/viz_ideas.md`.
+
+| # | Idea | Placement | Data | Score |
+|---|---|---|---|---|
+| H1 | **Header compression, field by field, before/after**: the same headers on request 1 and 2 as HTTP/1.1 text, HPACK and QPACK, three real header sets (running request, `authorization: Bearer`, the Anthropic SDK's real headers); each field's representation and bytes, bars to scale, counters | Reading s5 (animation) | `raw/h2_frames.json`, `raw/hpack_sizes.json` (h2 encoder, hpack_parse checked against hpack) | 15 |
+| H2 | **Timeout chain lab**: pick the hop at each position (documented defaults), the generation's think time, token gap, count, pings, streamed or not; replays the bytes against every timer, animated; verdict says which hop fires and what the client sees; **validation table: the model predicts all 8 measured runs** (independently: the measurements are not inputs) | Own tab | `raw/timeouts.json`; defaults from vendor docs (inputs/sources.md); `recompute.py` | 15 |
+| H3 | **Frame by frame**: every frame of the running request on HTTP/2 and HTTP/3 (and the root's HTTP/1.1 bytes), stepper plus list, each header field's encoding, SETTINGS, QPACK instructions, GOAWAY; jump to request 1 / 2 / concurrent / close | Own tab | `raw/h2_frames.json`, `raw/h3_frames.json` | 13 |
+| H4 | **HTTP-layer head-of-line blocking, before/after**: slow A and fast B on one pipelined HTTP/1.1 connection, two connections, one HTTP/2 connection; measured medians (B: 1,207 ms vs 13 ms) | Reading s4 (animation) | `raw/hol_app.json` | 12 |
+| H5 | **HTTP/2 flow control on a real frame log**: 200 KB with 16 KB, 64 KB, 1 MB windows; credit bar, DATA and WINDOW_UPDATE on a time axis; derived stalls x RTT reproduces the measured times (652 / 163 / 2 ms in the committed run; 629 / 155 / 2 in the first) | Reading s5 (animation) | `raw/flow_h2.json` (WINDOW_UPDATE held 50 ms, labelled simulated) | 12 |
+| H6 | **What a proxy changes**: client-sent vs backend-received headers through nginx, 4 configurations, diff colouring | Reading s7 | `raw/proxy_rewrite.json` | 10 |
+| H7 | **Ambiguous messages table** (smuggling probes) against nginx and hypercorn, plus the two-parser byte picture | Reading s7 | `raw/ambiguous.json`; picture illustrative | 11 (found an RFC 9112 6.3 deviation in hypercorn/h11) |
+| H8 | **SDK retries, every attempt the server saw**, 7 failure kinds x 2 SDKs | Reading s9 | `raw/sdk_retries.json` | 11 (corrects "retry only on connection errors"; shows triple execution on read timeout) |
+| H9 | Message anatomy (tap a part), measured timeout runs table, public LLM hosts' headers table, SETTINGS table, conditional GET output, four predict-then-reveal drills | Reading | raw/ | small |

@@ -1,0 +1,37 @@
+# HTTP page lab nginx (the Failure lab's nginx 1.31.6 build). @WORK@ and @PKI@ are filled in by run_all.sh.
+# Upstreams: echo_backend.py on 127.0.0.1:30320 (records the bytes it receives), lab_server.py plain on 127.0.0.1:30301.
+daemon off;
+worker_processes 1;
+pid @WORK@/nginx.pid;
+error_log @WORK@/nginx_error.log info;
+events { worker_connections 256; use poll; }
+
+http {
+  access_log @WORK@/nginx_access.log;
+  client_body_temp_path @WORK@/ngx_tmp/body;
+  proxy_temp_path @WORK@/ngx_tmp/proxy;
+  fastcgi_temp_path @WORK@/ngx_tmp/fcgi; uwsgi_temp_path @WORK@/ngx_tmp/uwsgi; scgi_temp_path @WORK@/ngx_tmp/scgi;
+
+  upstream echo_keep { server 127.0.0.1:30320; keepalive 8; }
+
+  # 30311: plain HTTP, nothing but proxy_pass (every other proxy setting at its default)
+  server { listen 127.0.0.1:30311; location / { proxy_pass http://127.0.0.1:30320; } }
+  # 30310: TLS with HTTP/2 and HTTP/1.1 (ALPN), nothing but proxy_pass
+  server { listen 127.0.0.1:30310 ssl; http2 on; server_name api.llm.test;
+           ssl_certificate @PKI@/server.pem; ssl_certificate_key @PKI@/server.key;
+           location / { proxy_pass http://127.0.0.1:30320; } }
+  # 30312: plain, the usual reverse-proxy settings for an API (forwarded headers, upstream keep-alive)
+  server { listen 127.0.0.1:30312; location / { proxy_pass http://echo_keep;
+           proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme; proxy_set_header Connection ""; } }
+  # 30313: TLS HTTP/2 with the same settings
+  server { listen 127.0.0.1:30313 ssl; http2 on; server_name api.llm.test;
+           ssl_certificate @PKI@/server.pem; ssl_certificate_key @PKI@/server.key;
+           location / { proxy_pass http://echo_keep;
+           proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme; proxy_set_header Connection ""; } }
+  # 30314: in front of the LLM stand-in: buffering off, a 2 s idle (read) timeout
+  server { listen 127.0.0.1:30314; location / { proxy_pass http://127.0.0.1:30301; proxy_buffering off; proxy_read_timeout 2s; } }
+  # 30315: the same with nginx's defaults (buffering on, 60 s read timeout), for the non-streaming comparison
+  server { listen 127.0.0.1:30315; location / { proxy_pass http://127.0.0.1:30301; proxy_read_timeout 2s; } }
+}

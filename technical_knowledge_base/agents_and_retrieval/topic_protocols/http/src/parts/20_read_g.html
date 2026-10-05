@@ -1,0 +1,54 @@
+
+<section id="rd-s10">
+<h2>10. What this means for LLM APIs</h2>
+<p><span class="meas">measured</span> One credential-free <code>GET /v1/models</code> to each of three public LLM hosts on 5 October 2026, with curl 8.7.1 (request ids and cookies removed; <code>src/lab/public.sh</code>, <code>raw/public_headers.txt</code>):</p>
+<div class="tw"><table id="rd-pub"></table></div>
+<p>What the headers say. All three negotiated HTTP/2 through ALPN. Two answered through Cloudflare (<code>server: cloudflare</code>, <code>cf-cache-status: DYNAMIC</code>, meaning "not cached"): your request ends at a CDN edge, which then makes its own request to the provider, so CDN limits (the 125 s read timeout, the 413 for oversized bodies) apply before the API sees anything. OpenAI and Google advertise HTTP/3 with <code>alt-svc</code>; Anthropic does not, so browsers will stay on HTTP/2 there. Anthropic's 401 carries <code>x-should-retry: false</code>, which its SDK obeys. Each refusal used the status code that fits (401 no credentials, 403 for Google's API key requirement).</p>
+<h3>A checklist for calling a model over HTTP</h3>
+<ul class="tight">
+<li><b>Stream long generations.</b> It keeps idle timeouts happy, gives a first token early, and is what the Claude docs recommend for requests that could exceed 10 minutes; for anything that can wait, use the batch API (the 202-and-poll shape).</li>
+<li><b>Handle errors in the stream</b>, not only the status code (section 2).</li>
+<li><b>Set your client timeout above the slowest real generation</b>, and know that the SDK will retry a timeout twice (section 9).</li>
+<li><b>Read the rate-limit headers.</b> On a 429, wait <code>retry-after</code> seconds; the Claude API also sends <code>anthropic-ratelimit-requests-remaining</code>, <code>-tokens-remaining</code> and their reset times on every response ({{rate limits|https://platform.claude.com/docs/en/api/rate-limits}}), which lets a client slow down before it is refused. A 429 from a spend cap carries no retry-after and will not clear by retrying.</li>
+<li><b>Log the request id</b> (<code>request-id</code> on the Claude API) with every failure; it is what support will ask for.</li>
+<li><b>Reuse connections.</b> One client object per process, not per call: a new connection costs the TCP and TLS round trips again (the root measured 108 ms against 54 ms to the first byte on a 50 ms path). In serverless functions, create the client outside the handler.</li>
+<li><b>Behind your own proxy</b>: buffering off for streams, idle timeouts above the longest think, keep-alive timeouts ordered, no total timeout shorter than the longest generation.</li>
+<li><b>Serving a model yourself</b> (vLLM and Ollama, for example, expose OpenAI-style HTTP APIs): send the response head and periodic SSE comments early, so every proxy in front sees bytes; return 429 or 503 with <code>Retry-After</code> when the queue is full instead of letting requests time out.</li>
+</ul>
+</section>
+
+<section id="rd-s11">
+<h2>11. Debugging HTTP: tools and symptoms</h2>
+<div class="tw"><table>
+<thead><tr><th>Tool</th><th>What it shows</th></tr></thead>
+<tbody>
+<tr><td><code>curl -v URL</code></td><td>Connection, TLS and ALPN choice, every request and response header (<code>&gt;</code> sent, <code>&lt;</code> received). Add <code>--http1.1</code>, <code>--http2</code> or <code>--http3</code> (if built in) to force a version, <code>-N</code> to see a stream as it arrives, <code>--resolve host:443:IP</code> to aim at one server, <code>--trace-ascii -</code> for every byte</td></tr>
+<tr><td><code>curl -w '%{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total}\n'</code></td><td>Where the time went: TCP done, TLS done, first byte, all done</td></tr>
+<tr><td><code>curl -sI URL | grep -i alt-svc</code></td><td>Whether the server offers HTTP/3</td></tr>
+<tr><td>Python: <code>logging.getLogger("httpx").setLevel("DEBUG")</code>; SDKs: <code>ANTHROPIC_LOG=debug</code> or <code>OPENAI_LOG=debug</code></td><td>Each request, response status, and retries with their delays</td></tr>
+<tr><td><code>nghttp -nv URL</code> (nghttp2)</td><td>Every HTTP/2 frame, like the {{Frame by frame|#t-frames}} tab</td></tr>
+<tr><td>Browser DevTools, Network panel (Protocol column)</td><td>Which version each request used, timing per phase</td></tr>
+<tr><td>A proxy's own logs</td><td>nginx's <code>$upstream_response_time</code> and <code>$request_time</code> in the access log separate "the backend was slow" from "the client was slow"</td></tr>
+</tbody></table></div>
+<div class="tw"><table class="symp">
+<thead><tr><th>Symptom</th><th>Most likely cause</th><th>First check</th></tr></thead>
+<tbody>
+<tr><td>Tokens arrive all at once at the end</td><td>A buffering proxy, or compression on the stream</td><td><code>curl -N</code> against each hop in turn; <code>proxy_buffering</code>, gzip settings</td></tr>
+<tr><td>Long answers fail at a round number of seconds (30, 60, 100, 125)</td><td>A proxy timeout: idle if pauses matter, total if length matters</td><td>Time the failure; match it to the defaults table (section 8)</td></tr>
+<tr><td>Stream cut mid-answer, status was 200</td><td>Idle timeout on a hop that had already sent the head</td><td>curl exit 18; the proxy's error log</td></tr>
+<tr><td>502 after idle periods only</td><td>Keep-alive timeouts in the wrong order</td><td>Compare the app's and the balancer's keep-alive idle</td></tr>
+<tr><td>504 from the proxy</td><td>Backend slower than the proxy's timeout before any header</td><td>Proxy's upstream timing in its logs</td></tr>
+<tr><td>Duplicate side effects after network errors</td><td>Retries of a non-idempotent POST</td><td>SDK debug logs: retry count; server logs: same body twice</td></tr>
+<tr><td>Works with curl, fails in the app</td><td>Different proxy environment variables, HTTP version or timeout defaults</td><td>Print the client's effective config; <code>env | grep -i proxy</code></td></tr>
+<tr><td>Parallel calls barely faster than sequential</td><td>A small connection pool, or HTTP/1.1 where HTTP/2 was expected</td><td>Pool limits; the negotiated version in debug logs</td></tr>
+</tbody></table></div>
+<div class="deepnote"><b>Go deeper (optional).</b> 39 failures reproduced with the exact error text of curl, requests, httpx and Node, in a drill mode: the root's {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}}.</div>
+<h3>Common mistakes</h3>
+<details class="mist"><summary>Treating 200 as success for a stream</summary><div class="b">The status goes out before the first token. Count in-stream error events as failures.</div></details>
+<details class="mist"><summary>Setting a short client timeout "to fail fast" on generations</summary><div class="b">The SDK retries it twice, so the server may run the same request three times (measured in section 9). Fail fast on connect, not on read.</div></details>
+<details class="mist"><summary>Streaming behind a total timeout and expecting it to help</summary><div class="b">Google Cloud's backend service timeout, API Gateway's integration timeout, Envoy's route timeout and <code>curl --max-time</code> count the whole response.</div></details>
+<details class="mist"><summary>Trusting X-Forwarded-For from anyone</summary><div class="b">Any client can send it. Take the address appended by your own outermost proxy, and only from proxies you run.</div></details>
+<details class="mist"><summary>Retrying on 301 or 302 with a POST</summary><div class="b">Clients may turn the POST into a GET and drop the body; APIs that move use 307 or 308.</div></details>
+<details class="mist"><summary>One HTTP client per request</summary><div class="b">Every call pays a new TCP and TLS handshake and leaves sockets in TIME_WAIT. Create one client and reuse it.</div></details>
+<details class="mist"><summary>Assuming HTTP/2 because the server supports it</summary><div class="b">The Python SDKs and <code>requests</code> speak HTTP/1.1 unless told otherwise (measured in section 4).</div></details>
+</section>

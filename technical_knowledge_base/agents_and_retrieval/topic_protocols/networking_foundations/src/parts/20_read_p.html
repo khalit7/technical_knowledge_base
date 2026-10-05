@@ -1,0 +1,39 @@
+
+<section id="rd-dbg">
+<h2>15. Debugging: from symptom to mechanism</h2>
+<div class="tw"><table class="symp">
+<thead><tr><th>Symptom</th><th>Most likely mechanism</th><th>Command that shows it</th></tr></thead>
+<tbody>
+<tr><td>"Connection refused" in under a millisecond</td><td>nothing listens there, or it listens on another address (section 2)</td><td><code>lsof -nP -iTCP:PORT -sTCP:LISTEN</code>; <code>ss -ltnp</code></td></tr>
+<tr><td>Connect hangs, then times out</td><td>SYN dropped by a firewall or security group (section 3)</td><td><code>nc -vz -w 3 host port</code>; <code>mtr host</code></td></tr>
+<tr><td>Connects take 1 s or 3 s instead of milliseconds</td><td>full accept queue or lost SYNs (section 8)</td><td><code>ss -lnt</code> (Recv-Q against Send-Q); <code>nstat -az TcpExtListenOverflows</code></td></tr>
+<tr><td>"Cannot assign requested address" under load</td><td>ephemeral ports exhausted by TIME_WAIT (section 3)</td><td><code>ss -tan state time-wait | wc -l</code>; fix with pooling</td></tr>
+<tr><td>Many CLOSE_WAIT sockets that never go away</td><td>your code does not close connections the peer closed (section 3)</td><td><code>ss -tan state close-wait</code>; find the leak</td></tr>
+<tr><td>Transfer far below link speed, no retransmissions</td><td>window over RTT (section 5)</td><td><code>ss -ti</code> (<code>rtt</code>, <code>cwnd</code>, <code>rcv_space</code>); <code>iperf3 -P 1</code> against <code>-P 8</code></td></tr>
+<tr><td>Transfer slow with growing retransmissions</td><td>loss (sections 4, 6)</td><td><code>nstat -az TcpRetransSegs</code>; <code>ethtool -S eth0</code> for NIC drops</td></tr>
+<tr><td>Everything slows while one big transfer runs</td><td>queue at the bottleneck: bufferbloat (section 6)</td><td><code>ping</code> during the transfer: idle against loaded RTT</td></tr>
+<tr><td>Each request about 40 ms slower than it should be</td><td>Nagle plus delayed ACK (section 7)</td><td>check <code>TCP_NODELAY</code> on both ends</td></tr>
+<tr><td>Fails after idle periods with "connection reset"</td><td>NAT or load-balancer idle timeout (section 9)</td><td>time since last use against the middlebox's timer; <code>ss -to</code></td></tr>
+<tr><td>Small requests work, big ones hang</td><td>MTU black hole or mismatch (section 10)</td><td><code>ping -M do -s 1472</code> (Linux), <code>ping -D -s 1472</code> (macOS); <code>tracepath</code></td></tr>
+<tr><td>HTTP/3 slow or falling back on one network</td><td>UDP blocked or UDP buffer drops (sections 11, 12)</td><td><code>nstat -az UdpRcvbufErrors</code>; test UDP 443</td></tr>
+<tr><td>Distributed job hangs at <code>init_process_group</code></td><td>wrong interface, firewall, MTU (section 14)</td><td><code>NCCL_DEBUG=INFO</code>; <code>NCCL_SOCKET_IFNAME</code></td></tr>
+</tbody></table></div>
+<h3>Linux settings you will actually meet</h3>
+<p class="small mute">Defaults from the current kernel documentation ({{ip-sysctl|https://docs.kernel.org/networking/ip-sysctl.html}}, {{net.core sysctls|https://docs.kernel.org/admin-guide/sysctl/net.html}}) and {{include/net/tcp.h|https://github.com/torvalds/linux/blob/master/include/net/tcp.h}}, read 5 October 2026; distributions may override them. This Mac's equivalents are in <code>src/meas/out/env.txt</code>.</p>
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th>Default</th><th>What it does, and when to change it</th></tr></thead>
+<tbody>
+<tr><td><code>net.ipv4.tcp_congestion_control</code></td><td>chosen when the kernel is built (CUBIC is the default named in RFC 9438 s1); read it, do not assume</td><td>sender's algorithm; try <code>bbr</code> on long lossy paths (section 6)</td></tr>
+<tr><td><code>net.core.somaxconn</code></td><td>4096 (128 before 5.4)</td><td>cap on any <code>listen()</code> backlog (section 8)</td></tr>
+<tr><td><code>net.ipv4.tcp_rmem</code> / <code>tcp_wmem</code></td><td>4K, 131072, up to 32 MB / 4K, 16K, up to 4 MB (depends on RAM)</td><td>min, initial, autotuning maximum; raise the third value to the BDP for long fat paths (section 5)</td></tr>
+<tr><td><code>net.core.rmem_max</code> / <code>wmem_max</code></td><td>4194304 since 6.18 (212992 before)</td><td>caps explicit <code>SO_RCVBUF</code>/<code>SO_SNDBUF</code> only, not autotuning; matters for UDP and QUIC (section 11)</td></tr>
+<tr><td><code>net.ipv4.ip_local_port_range</code></td><td>32768 60999</td><td>ephemeral ports (section 3)</td></tr>
+<tr><td><code>net.ipv4.tcp_tw_reuse</code></td><td>2 (loopback only)</td><td>1 allows reuse of TIME_WAIT for outgoing connections; pooling is the real fix</td></tr>
+<tr><td><code>net.ipv4.tcp_mtu_probing</code></td><td>0</td><td>1 probes when a black hole is detected, 2 always (section 10)</td></tr>
+<tr><td><code>net.ipv4.tcp_slow_start_after_idle</code></td><td>1</td><td>0 keeps the congestion window across idle periods on long-lived connections</td></tr>
+<tr><td><code>net.ipv4.tcp_syn_retries</code></td><td>6 (about 131 s to give up)</td><td>shorter connect failure; better: set a connect timeout in the client</td></tr>
+<tr><td>keepalive time / interval / probes</td><td>7200 s / 75 s / 9 (tcp.h)</td><td>set per socket below the NAT idle timeout (section 9)</td></tr>
+<tr><td>TIME_WAIT length</td><td>60 s, fixed (tcp.h)</td><td>not tunable; reuse connections</td></tr>
+</tbody></table></div>
+<div class="deepnote"><b>Reading <code>ss -ti</code>.</b> One line per connection: <code>cubic</code> or <code>bbr</code> (algorithm), <code>wscale</code> (send and receive window-scale shifts), <code>rto:</code> (current timer, ms), <code>rtt:x/y</code> (smoothed RTT / variance, ms), <code>mss:</code>, <code>cwnd:</code> (segments), <code>ssthresh:</code>, <code>bytes_acked:</code>, <code>retrans:</code> (in flight / total), <code>pacing_rate</code>, <code>rcv_space:</code> (autotuning's estimate); field list in {{man 8 ss|https://man7.org/linux/man-pages/man8/ss.8.html}}. Small <code>cwnd</code> with climbing <code>retrans</code>: loss-limited. Large <code>cwnd</code> and a throughput equal to window / RTT: window-limited. The macOS counterpart is <code>netstat -s -p tcp</code> for totals; per-connection detail needs <code>getsockopt(TCP_CONNECTION_INFO)</code>, which this page's scripts use.</div>
+</section>

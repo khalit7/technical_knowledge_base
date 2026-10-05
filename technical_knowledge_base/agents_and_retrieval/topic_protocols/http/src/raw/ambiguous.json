@@ -1,0 +1,178 @@
+{
+ "recorded": "2026-10-05",
+ "servers": {
+  "nginx": "1.31.6 (plain HTTP/1.1 port 30311 in front of echo_backend.py; HTTP/2 port 30310)",
+  "hypercorn": "0.18.0 with h11 0.16.0 (lab_server.py plain port 30301)"
+ },
+ "probes": [
+  {
+   "id": "cl_and_te",
+   "what": "Content-Length and Transfer-Encoding: chunked together",
+   "sent": "POST /v1/messages HTTP/1.1\r\nHost: api.llm.test\r\ncontent-type: application/json\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: x\r\n\r\n",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 400 Bad Request"
+    ],
+    "backend_received": []
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 400 ",
+     "HTTP/1.1 404 "
+    ]
+   }
+  },
+  {
+   "id": "two_cl",
+   "what": "Two Content-Length headers that disagree",
+   "sent": "POST /v1/messages HTTP/1.1\r\nHost: api.llm.test\r\ncontent-type: application/json\r\nContent-Length: 3\r\nContent-Length: 5\r\n\r\nabcde",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 400 Bad Request"
+    ],
+    "backend_received": []
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 400 "
+    ]
+   }
+  },
+  {
+   "id": "te_obfuscated",
+   "what": "Transfer-Encoding: xchunked (an unknown coding)",
+   "sent": "POST /v1/messages HTTP/1.1\r\nHost: api.llm.test\r\ncontent-type: application/json\r\nTransfer-Encoding: xchunked\r\n\r\n0\r\n\r\n",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 501 Not Implemented"
+    ],
+    "backend_received": []
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 501 "
+    ]
+   }
+  },
+  {
+   "id": "te_space",
+   "what": "A space before the colon: 'Transfer-Encoding : chunked'",
+   "sent": "POST /v1/messages HTTP/1.1\r\nHost: api.llm.test\r\ncontent-type: application/json\r\nTransfer-Encoding : chunked\r\n\r\n0\r\n\r\n",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 400 Bad Request"
+    ],
+    "backend_received": []
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 400 "
+    ]
+   }
+  },
+  {
+   "id": "obs_fold",
+   "what": "A folded header line (obs-fold)",
+   "sent": "POST /v1/messages HTTP/1.1\r\nHost: api.llm.test\r\ncontent-type: application/json\r\nContent-Length: 2\r\nX-Note: first\r\n second\r\n\r\nok",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 400 Bad Request"
+    ],
+    "backend_received": []
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 400 "
+    ]
+   }
+  },
+  {
+   "id": "no_host",
+   "what": "HTTP/1.1 without a Host header",
+   "sent": "GET /health HTTP/1.1\r\n\r\n",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 400 Bad Request"
+    ],
+    "backend_received": []
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 400 "
+    ]
+   }
+  },
+  {
+   "id": "bare_lf",
+   "what": "Lines ended by LF alone, no CR",
+   "sent": "GET /health HTTP/1.1\nHost: api.llm.test\n\n",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 200 OK"
+    ],
+    "backend_received": [
+     "GET /health HTTP/1.1\r\nHost: 127.0.0.1:30320\r\n\r\n"
+    ]
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 200 "
+    ]
+   }
+  },
+  {
+   "id": "pipelined",
+   "what": "Two requests in one write (pipelining), as a control",
+   "sent": "GET /health HTTP/1.1\r\nHost: a\r\n\r\nGET /health HTTP/1.1\r\nHost: a\r\nConnection: close\r\n\r\n",
+   "nginx": {
+    "status_lines": [
+     "HTTP/1.1 200 OK",
+     "HTTP/1.1 200 OK"
+    ],
+    "backend_received": [
+     "GET /health HTTP/1.1\r\nHost: 127.0.0.1:30320\r\n\r\n",
+     "GET /health HTTP/1.1\r\nHost: 127.0.0.1:30320\r\n\r\n"
+    ]
+   },
+   "hypercorn": {
+    "status_lines": [
+     "HTTP/1.1 200 ",
+     "HTTP/1.1 200 "
+    ]
+   }
+  },
+  {
+   "id": "h2_crlf_value",
+   "what": "HTTP/2 header value containing CR LF and a second header",
+   "sent": "[(b'x-note', b'a\\r\\nTransfer-Encoding: chunked')] body 5 bytes",
+   "nginx_h2": {
+    "status": "400",
+    "reset": null,
+    "goaway": null,
+    "backend_received": []
+   }
+  },
+  {
+   "id": "h2_cl_mismatch",
+   "what": "HTTP/2 content-length: 5 with a 117-byte body",
+   "sent": "[(b'content-length', b'5')] body 117 bytes",
+   "nginx_h2": {
+    "status": "400",
+    "reset": null,
+    "goaway": null,
+    "backend_received": []
+   }
+  },
+  {
+   "id": "h2_te_header",
+   "what": "HTTP/2 request carrying transfer-encoding: chunked",
+   "sent": "[(b'transfer-encoding', b'chunked')] body 5 bytes",
+   "nginx_h2": {
+    "status": "400",
+    "reset": null,
+    "goaway": null,
+    "backend_received": []
+   }
+  }
+ ]
+}
