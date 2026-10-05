@@ -1,3 +1,161 @@
 <div class="tab" id="t-roof" role="tabpanel" hidden>
-<p>Being built.</p>
+<style>
+#t-roof .roof-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px 14px;margin:8px 0}
+#t-roof .roof-ctl label{font-size:13px;display:block;min-width:0}
+#t-roof .roof-ctl select{width:100%;max-width:100%}
+#t-roof .roof-plot{border:1px solid var(--line);border-radius:10px;padding:6px;margin:8px 0;min-width:0}
+#t-roof .roof-why{font-size:13.5px;margin:6px 0}
+#t-roof .roof-anctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+#t-roof .roof-anctl input[type=range]{flex:1 1 140px;width:auto;min-width:100px}
+#t-roof .roof-cap{min-height:4.4em;font-size:13.5px;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:6px 0}
+#t-roof .roof-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-roof .roof-leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+#t-roof .roof-leg i.sq{border-radius:2px}
+#t-roof .roof-pr{border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:10px 0;background:var(--soft)}
+#t-roof .roof-pr .q{color:var(--ink);font-size:14px;font-weight:600}
+#t-roof .roof-pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-roof .roof-pr .opts button{font-size:13px}
+#t-roof .roof-pr .opts button.right{background:var(--open2);border-color:var(--good)}
+#t-roof .roof-pr .opts button.wrong{background:var(--hl)}
+#t-roof .roof-pr .ans{font-size:13.5px;margin-top:4px}
+#t-roof .roof-tbl td.num{font-variant-numeric:tabular-nums}
+#t-roof .roof-tbl td small{color:var(--mute)}
+#t-roof .roof-tag{display:inline-block;font-size:11px;border-radius:99px;padding:0 7px;border:1px solid var(--line)}
+#t-roof .roof-tag.m{color:var(--good);border-color:var(--good)}
+#t-roof .roof-tag.v{color:var(--closed);border-color:var(--closed)}
+#t-roof .roof-tag.c{color:var(--mute)}
+#t-roof .roof-src{font-size:12.5px;color:var(--mute)}
+#t-roof .roof-bars .row{grid-template-columns:minmax(0,13em) minmax(0,1fr) 6.5em}
+@media (max-width:520px){#t-roof .roof-bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 5.4em}}
+</style>
+<h2 style="margin-top:14px">Roofline lab</h2>
+<p class="lead">Every kernel a GPU runs is limited by one of two things: how fast the chip can do arithmetic, or how fast it can bring the numbers in from memory. The <b>roofline</b> is a one-line picture that tells you which, before you profile anything. This tab measures a real roofline on a real GPU (the 16-core GPU of an Apple M1 Pro laptop, the only GPU available here), places real measured kernels on it, then places the same operations on the published rooflines of datacenter chips.</p>
+<div class="co warn"><div class="t">What was measured and what was not</div>Every green dot and every number marked <span class="roof-tag m">measured</span> was run on the <b>Apple M1 Pro GPU</b> on <span id="roof-mdate"></span> through MLX <span id="roof-mver"></span> (three full runs of seven timed trials each; laptop shared with other jobs, load average <span id="roof-mload"></span>). Nothing was run on an NVIDIA, AMD or Google chip: their roofs are <span class="roof-tag v">vendor</span> specifications, dated and linked, and ops are placed on them by <span class="roof-tag c">computed</span> arithmetic intensity. Vendor peaks are ceilings nobody reaches; the M1 Pro section shows by how much a real chip falls short of its own.</div>
+
+<section id="roof-s-what">
+<h3>The idea in one picture</h3>
+<p>Three terms, then one formula.</p>
+<ul class="tight">
+<li><b>FLOP</b>: one floating-point add or multiply. A fused multiply-add (FMA, <code>a*b+c</code> in one instruction) counts as 2. <b>FLOP/s</b> is how many per second; the chip's <b>peak</b> is its maximum, set by the number of arithmetic units times the clock.</li>
+<li><b>Memory bandwidth</b>: bytes per second the chip can move between its main memory (HBM on datacenter GPUs, GDDR on gaming cards, LPDDR on the M1) and its compute units.</li>
+<li><b>Arithmetic intensity</b> (AI): FLOPs an operation does per byte it moves to and from main memory. Adding two vectors does 1 FLOP per 12 bytes (read 4, read 4, write 4 in fp32): AI = 0.083. Multiplying two big matrices reuses every number loaded hundreds of times: AI in the hundreds.</li>
+</ul>
+<div class="fm"><div class="eq">attainable FLOP/s = min( peak FLOP/s , AI × bandwidth )</div>
+<dl><dt>AI</dt><dd>FLOPs ÷ bytes moved (a property of the operation and its shape, not of the chip)</dd>
+<dt>ridge</dt><dd>peak ÷ bandwidth: the AI where the two limits meet. Left of it a kernel is <b>memory-bound</b> (faster memory helps, more FLOPs do not); right of it, <b>compute-bound</b>.</dd></dl></div>
+<p>The running example on this tab is one linear layer, <code>y = x W<sup>T</sup></code>, with an 8192 × 8192 weight in fp16 (128 MB; Llama 3 70B has a model dimension of 8192 ({{Llama 3 paper, Table 3|https://arxiv.org/html/2407.21783v3}}), so their query and output projections have this shape). At <b>batch 1</b> (one token being generated, as in LLM decoding) every weight is read once and used for one multiply-add: 2 FLOPs per 2 bytes, AI ≈ 1. At <b>batch 64</b> each weight read is used 64 times: AI ≈ 63. Same weight, same code, a different side of the ridge.</p>
+<div class="co key"><div class="t">Rule of thumb this tab keeps confirming</div>For a linear layer with fp16 or bf16 weights and a batch much smaller than the layer's width, <b>AI ≈ batch size</b> (tokens processed together). So a layer becomes compute-bound when the batch passes the chip's ridge: about <span id="roof-r-m1"></span> tokens on the M1 Pro GPU, <span id="roof-r-h100"></span> on an H100 in BF16. Decoding one sequence at a time is therefore memory-bound on every chip below.</div>
+</section>
+
+<section id="roof-s-lab">
+<h3>The lab: pick a chip, a precision, an operation and a shape</h3>
+<p class="try"><b>Try:</b> choose the linear layer and drag the batch from 1 to 4096 on the H100, then on the M1 Pro; switch the precision to FP8 on B200 and watch the ridge move right; tick "all chips" to compare their roofs.</p>
+<div class="roof-ctl">
+<label>Chip<select id="roof-chip"></select></label>
+<label>Precision<select id="roof-prec"></select></label>
+<label>Operation<select id="roof-op">
+<option value="linear">Linear layer y = x W^T (decode and training)</option>
+<option value="attn_dec">Attention, decode step (one new token)</option>
+<option value="attn_pre">Attention, prefill (whole prompt, fused)</option>
+<option value="softmax">Softmax over rows</option>
+<option value="vadd">Vector add c = a + b</option>
+</select></label>
+<label><span id="roof-shl">Shape</span>: <b id="roof-shv"></b><input type="range" id="roof-sh" min="0" max="12" step="1" value="0"></label>
+<label id="roof-gl">Width of the layer (K = N)<select id="roof-kn"><option value="4096">4096</option><option value="8192" selected>8192</option><option value="16384">16384</option></select></label>
+</div>
+<div><label class="chk"><input type="checkbox" id="roof-all"> all chips' roofs</label><label class="chk"><input type="checkbox" id="roof-meas" checked> measured M1 Pro kernels</label></div>
+<div class="roof-plot" id="roof-plot"></div>
+<div class="roof-leg" id="roof-leg"></div>
+<div class="out" id="roof-out"></div>
+<p class="roof-why" id="roof-why"></p>
+<p class="roof-src" id="roof-csrc"></p>
+</section>
+
+<section id="roof-s-anim">
+<h3>Watch one layer cross the ridge</h3>
+<p>The running example, measured: the same 8192 × 8192 fp16 weight multiplied by a batch of 1, 2, 4, ... 2048 tokens on the M1 Pro GPU. Each step is a real measurement (median of three runs). The toggle replays the same shapes on an H100's published roof, computed, so you can see how much bigger the batch must be before a datacenter GPU stops waiting for memory.</p>
+<div class="seg" id="roof-anmode"><button data-m="m1" class="on">M1 Pro GPU, measured</button><button data-m="h100">H100 SXM BF16, computed</button></div>
+<div class="roof-plot" id="roof-anplot"></div>
+<div class="roof-anctl" id="roof-anctl"></div>
+<div class="roof-cap" id="roof-ancap"></div>
+<div class="out" id="roof-anout"></div>
+<div class="roof-pr" data-q="b2"><div class="q">Predict: on the M1 Pro, going from batch 1 to batch 2 doubles the useful work. What happens to the time per call?</div>
+<div class="opts"><button data-a="0">Stays about the same</button><button data-a="1">Roughly doubles</button><button data-a="2">Halves</button></div><div class="ans" hidden></div></div>
+</section>
+
+<section id="roof-s-meas">
+<h3>How the M1 Pro roof was measured</h3>
+<p>A roofline has two lines, and each is measured with a kernel that does nothing else. <b>Peak compute</b>: every GPU thread runs 16 independent chains of FMAs on numbers held in registers, so no memory is touched; independent chains matter because one FMA has to wait a few cycles for the previous result in its own chain. <b>Bandwidth</b>: copy a 512 MB array (far larger than any cache) as 4-wide vectors, one per thread. Both are custom Metal kernels written through MLX's <code>mx.fast.metal_kernel</code>; the scripts are in the repository (<code>src/roof/</code>, <code>run_all.sh</code>).</p>
+<div class="out" id="roof-mstats"></div>
+<div class="co"><div class="t">A lesson the first attempt taught</div>The first peak kernel wrote the 16 FMAs once inside a loop and reached only <b id="roof-rolled"></b>. Writing the same 16 FMAs eight times per loop trip (the same work, one eighth of the loop bookkeeping) reached <b id="roof-unrolled"></b>. Every trip round a loop costs a counter increment, a compare and a branch, and on this GPU that overhead was large enough to cut throughput by more than half. CUDA programmers meet the same thing as <code>#pragma unroll</code>; it is one reason a "peak" number from a microbenchmark is only as good as the microbenchmark.</div>
+<p>Two more things the numbers show. <b>fp16 runs at the same rate as fp32 here</b>: the M1 has no separate matrix units, so both use the same arithmetic units (on an H100, BF16 on tensor cores is <span id="roof-h100x"></span> times its plain FP32 rate). And the measured bandwidth is <span id="roof-bwfrac"></span> of Apple's 200 GB/s: a datasheet bandwidth is the memory interface's theoretical rate, and real kernels typically get 80 to 90 percent of it. The batch-1 matrix-vector product below read its weights at <span id="roof-mvbw"></span>, a little above the copy kernel, which is why a measured roof is a lower bound on the true one.</p>
+
+<h3>Every measured kernel on its roof</h3>
+<p>For each kernel: its arithmetic intensity (computed from its shape, each operand read once), the FLOP/s it achieved, and how close that is to the roof at its intensity. The small numbers under "Achieved" are the slowest and fastest of all 21 trials (3 runs of 7); a single slow trial means another job briefly took the GPU. "Limited by" is the honest reading, not a profile: no GPU performance counters were read here.</p>
+<div class="tw"><table class="roof-tbl" id="roof-ktbl"></table></div>
+
+<h3>Same operation, three kernels</h3>
+<p>The roofline gives a ceiling; the kernel decides how close you get. Three implementations of the same fp32 2048 × 2048 matrix multiply, same AI (341 FLOPs per byte if each matrix is read once), measured:</p>
+<div class="bars roof-bars" id="roof-3k"></div>
+<ul class="tight">
+<li><b>Naive</b>: one thread per output element, reading a row of A and a column of B straight from memory. Each FMA needs two 4-byte loads, so if no cache helped its true intensity would be 0.25 FLOP/byte and its ceiling <span id="roof-nb"></span>. It does better than that only because the GPU's caches catch repeated reads.</li>
+<li><b>Tiled</b>: each group of 16 × 16 threads first copies a 16 × 16 tile of A and of B into fast on-chip memory (threadgroup memory on Apple, shared memory on NVIDIA), then every number in the tile is used 16 times. Intensity from main memory rises 16-fold to 4 FLOP/byte, a ceiling of <span id="roof-tb"></span>, and the measurement lands right there: <span id="roof-tm"></span>. Consistent with tile loads being the limit, though without counters this is a reading, not a proof.</li>
+<li><b>Library</b> (MLX's matmul): bigger tiles, each thread computing many outputs from registers, and the GPU's 8 × 8 SIMD-group matrix instructions. It reaches <span id="roof-lm"></span> of measured peak. The gap between naive and library, <span id="roof-gap"></span> times, is the whole subject of {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}.</li>
+</ul>
+</section>
+
+<section id="roof-s-mfu">
+<h3>MFU: measured FLOPs over peak</h3>
+<p><b>Model FLOPs Utilization</b> (MFU) is the roofline turned into one training number: the FLOPs your model mathematically needs per second, divided by the hardware's peak.</p>
+<div class="fm"><div class="eq">MFU = (FLOPs per token × tokens per second) ÷ (peak FLOP/s × number of chips)</div>
+<dl><dt>FLOPs per token</dt><dd>for training a dense transformer, about 6 × parameters (2 for the forward pass, 4 for the backward), ignoring attention's own FLOPs</dd>
+<dt>peak</dt><dd>the vendor's dense figure for the precision used (BF16 for most training runs today)</dd></dl></div>
+<p>On the M1 Pro, MLX's fp16 4096 × 4096 matmul alone achieves <span id="roof-mfu1"></span> of the measured peak and <span id="roof-mfu2"></span> of the theoretical 5,308 GFLOP/s (16 cores × 128 arithmetic units × 2 × 1.296 GHz, an independent derivation by {{Philip Turner's metal-benchmarks|https://github.com/philipturner/metal-benchmarks}}; Apple publishes no TFLOPS figure). Which denominator you choose changes the MFU by several points, so always say which one. A whole training step is far below a single matmul, because it also runs memory-bound kernels (normalisation, activations, softmax, optimizer), waits on communication between GPUs, and sometimes recomputes activations. Meta's Llama 3 405B pre-training, on H100s:</p>
+<div class="tw"><table class="roof-tbl" id="roof-l3"></table></div>
+<p class="roof-src">Source: {{The Llama 3 Herd of Models, Table 4|https://arxiv.org/html/2407.21783v3}} (TFLOPs per GPU and BF16 MFU as printed). Recomputed column: TFLOPs per GPU ÷ 989.5 (H100 SXM dense BF16, {{NVIDIA|https://www.nvidia.com/en-us/data-center/h100/}}). The middle row recomputes to 40.4% against the printed 41%: the paper does not say which peak or rounding it used.</p>
+<div class="card"><b>MFU calculator</b> <span class="mute small">(the {{Performance calculator|#t-calc}} tab does the full run: memory, time and cost)</span>
+<div class="roof-ctl">
+<label>Parameters (billions): <b id="roof-mpv"></b><input type="range" id="roof-mp" min="0" max="8" step="1" value="7"></label>
+<label>Tokens per second per chip: <b id="roof-mtv"></b><input type="range" id="roof-mt" min="10" max="5000" step="1" value="177"></label>
+<label>Chip and precision<select id="roof-mchip"></select></label>
+</div>
+<div class="out" id="roof-mout"></div>
+<p class="roof-src">Defaults: 405B parameters at 177 tokens per second per H100, back-solved from Table 4's 430 TFLOPs per GPU (so they reproduce 43% by construction, not independently).</p>
+</div>
+</section>
+
+<section id="roof-s-transfer">
+<h3>What transfers from the M1 Pro to an NVIDIA GPU, and what does not</h3>
+<div class="grid">
+<div class="sp"><div class="n">Transfers</div><p>The roofline itself and how to measure it; AI as a property of the operation and its shape; decode being memory-bound and big matmuls compute-bound; tiling into fast on-chip memory (threadgroup memory here, shared memory on NVIDIA); loop overhead and independent instruction chains; a library kernel beating a hand-written one by an order of magnitude; SIMD groups of 32 threads (NVIDIA calls them warps).</p></div>
+<div class="sp"><div class="n">Does not transfer</div><p>The numbers. No tensor cores here, so fp16 = fp32 rate (on an H100 BF16 is about 15 times FP32); a ridge of about <span id="roof-rm1b"></span> FLOP/byte against about 295 on an H100 BF16, so the same batch crosses at a different place; LPDDR5 unified memory shared with the CPU instead of HBM; different cache sizes; no NVLink or any link between GPUs. Kernel-specific numbers (which tile size, which kernel the library picks) differ completely.</p></div>
+</div>
+</section>
+
+<section id="roof-s-drill">
+<h3>Predict, then check</h3>
+<div class="roof-pr" data-q="sm"><div class="q">Softmax over rows of a big matrix, on an H100 in BF16: compute-bound or memory-bound?</div>
+<div class="opts"><button data-a="0">Memory-bound</button><button data-a="1">Compute-bound</button><button data-a="2">Depends on the row length</button></div><div class="ans" hidden></div></div>
+<div class="roof-pr" data-q="ratio"><div class="q">Batch-1 decode of the 8192 × 8192 fp16 layer: roughly how much faster on an H100 SXM than on the M1 Pro GPU?</div>
+<div class="opts"><button data-a="0">About 20 times</button><button data-a="1">About 200 times</button><button data-a="2">About the same</button></div><div class="ans" hidden></div></div>
+<div class="roof-pr" data-q="fp8"><div class="q">Moving a big training matmul on B200 from BF16 to FP8 doubles the peak. What happens to the ridge point?</div>
+<div class="opts"><button data-a="0">Doubles: you need twice the intensity to be compute-bound</button><button data-a="1">Halves</button><button data-a="2">Unchanged</button></div><div class="ans" hidden></div></div>
+
+<h3>Interview questions</h3>
+<details class="mist"><summary>What is arithmetic intensity, and why does it decide whether a kernel is memory-bound?</summary><div class="b">FLOPs per byte moved to and from main memory. The chip can do peak FLOP/s or move bandwidth bytes/s; a kernel needs FLOPs ÷ peak seconds of compute and bytes ÷ bandwidth of memory traffic, and the larger one wins. They are equal at AI = peak ÷ bandwidth, the ridge.</div></details>
+<details class="mist"><summary>Why is LLM decoding slow per token, and why does batching help?</summary><div class="b">Each new token reads every weight once for one multiply-add: AI ≈ 1, deep in the memory-bound region, so time per step ≈ weight bytes ÷ bandwidth. Batching B sequences reuses each weight read B times, so throughput grows almost linearly with B until AI ≈ B reaches the ridge (about 300 on H100 BF16). Measured here: batch 64 took <span id="roof-iq64"></span> times as long as batch 1 for 64 times the tokens.</div></details>
+<details class="mist"><summary>How do you compute MFU, and what is a good number?</summary><div class="b">6 × parameters × tokens per second ÷ (peak dense FLOP/s × chips), stating the precision and which peak. Llama 3 405B published 38 to 43 percent on H100s in BF16. Hardware FLOPs utilization (HFU) also counts FLOPs spent recomputing activations, so it is higher than MFU for the same run ({{PaLM, Appendix B|https://arxiv.org/abs/2204.02311}} defines both).</div></details>
+<details class="mist"><summary>Your training run gets 20% MFU. Where do you look first?</summary><div class="b">The profile's time split: memory-bound kernels that could be fused (normalisation, activations, attention without a fused kernel), communication not overlapped with compute, small per-GPU batches making matmuls memory-bound, pipeline bubbles, data loading stalls. The roofline tells you which kernels are below their ceiling, and by how much.</div></details>
+<details class="mist"><summary>Why can a GeForce card look close to a datacenter GPU on paper and still train much slower?</summary><div class="b">Check which tensor figure is quoted. An RTX 5090's 419 TFLOPS FP16 is with FP16 accumulate; with the FP32 accumulate training uses it is 209.5, against 989.5 on an H100. It also has 1.8 TB/s against 3.35, 32 GB of memory and no NVLink.</div></details>
+<details class="mist"><summary>Does FP8 make a memory-bound kernel faster?</summary><div class="b">Yes, but because it halves the bytes, not because of the higher peak: a memory-bound kernel's time is bytes ÷ bandwidth. For a compute-bound one the doubled peak is what helps, and the ridge doubles too, so smaller batches may fall back into the memory-bound region.</div></details>
+</section>
+
+<section id="roof-s-src">
+<h3>Sources for this tab</h3>
+<ul class="tight small">
+<li>Measurements: <code>src/roof/</code> (scripts <code>code/roof_gpu.py</code>, data <code>out/run_*.json</code>, Python reference <code>code/recompute.py</code>); M1 Pro CPU: the {{C++ page, Part 2|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} (<code>roof.cpp</code>).</li>
+<li>Vendor specifications, all fetched 2026-10-05: {{H100|https://www.nvidia.com/en-us/data-center/h100/}}; {{HGX B200 and B300|https://www.nvidia.com/en-us/data-center/hgx/}}; {{DGX B200|https://www.nvidia.com/en-us/data-center/dgx-b200/}}; {{RTX Blackwell whitepaper, Appendix A|https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf}}; {{MI300X data sheet|https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf}}; {{TPU v6e|https://docs.cloud.google.com/tpu/docs/v6e}}; {{TPU7x|https://docs.cloud.google.com/tpu/docs/tpu7x}}; {{Apple M1 Pro announcement|https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/}}.</li>
+<li>The roofline model: {{Williams, Waterman and Patterson, "Roofline", CACM 2009|https://doi.org/10.1145/1498765.1498785}}.</li>
+</ul>
+</section>
 </div>
