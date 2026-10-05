@@ -1,0 +1,155 @@
+# runc v1.1.2 libcontainer/cgroups/utils.go lines 423-428
+func ConvertCPUSharesToCgroupV2Value(cpuShares uint64) uint64 {
+	if cpuShares == 0 {
+		return 0
+	}
+	return (1 + ((cpuShares-2)*9999)/262142)
+}
+
+# opencontainers/cgroups v0.0.3 utils.go lines 425-441
+func ConvertCPUSharesToCgroupV2Value(cpuShares uint64) uint64 {
+	// The value of 0 means "unset".
+	if cpuShares == 0 {
+		return 0
+	}
+	if cpuShares <= 2 {
+		return 1
+	}
+	if cpuShares >= 262144 {
+		return 10000
+	}
+	l := math.Log2(float64(cpuShares))
+	// Quadratic function which fits min, max, and default.
+	exponent := (l*l+125*l)/612.0 - 7.0/34.0
+
+	return uint64(math.Ceil(math.Pow(10, exponent)))
+}
+
+# kubernetes v1.34.0 pkg/kubelet/cm/helpers_linux.go lines 40-100
+	// https://github.com/torvalds/linux/blob/0bddd227f3dc55975e2b8dfa7fc6f959b062a2c7/kernel/sched/sched.h#L427-L428
+	MinShares = 2
+	MaxShares = 262144
+
+	SharesPerCPU  = 1024
+	MilliCPUToCPU = 1000
+
+	// 100000 microseconds is equivalent to 100ms
+	QuotaPeriod = 100000
+	// 1000 microseconds is equivalent to 1ms
+	// defined here:
+	// https://github.com/torvalds/linux/blob/cac03ac368fabff0122853de2422d4e17a32de08/kernel/sched/core.c#L10546
+	MinQuotaPeriod = 1000
+
+	// From the inverse of the conversion in MilliCPUToQuota:
+	// MinQuotaPeriod * MilliCPUToCPU / QuotaPeriod
+	MinMilliCPULimit = 10
+)
+
+// MilliCPUToQuota converts milliCPU to CFS quota and period values.
+// Input parameters and resulting value is number of microseconds.
+func MilliCPUToQuota(milliCPU int64, period int64) (quota int64) {
+	// CFS quota is measured in two values:
+	//  - cfs_period_us=100ms (the amount of time to measure usage across given by period)
+	//  - cfs_quota=20ms (the amount of cpu time allowed to be used across a period)
+	// so in the above example, you are limited to 20% of a single CPU
+	// for multi-cpu environments, you just scale equivalent amounts
+	// see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt for details
+
+	if milliCPU == 0 {
+		return
+	}
+
+	if !utilfeature.DefaultFeatureGate.Enabled(kubefeatures.CPUCFSQuotaPeriod) {
+		period = QuotaPeriod
+	}
+
+	// we then convert your milliCPU to a value normalized over a period
+	quota = (milliCPU * period) / MilliCPUToCPU
+
+	// quota needs to be a minimum of 1ms.
+	if quota < MinQuotaPeriod {
+		quota = MinQuotaPeriod
+	}
+	return
+}
+
+// MilliCPUToShares converts the milliCPU to CFS shares.
+func MilliCPUToShares(milliCPU int64) uint64 {
+	if milliCPU == 0 {
+		// Docker converts zero milliCPU to unset, which maps to kernel default
+		// for unset: 1024. Return 2 here to really match kernel default for
+		// zero milliCPU.
+		return MinShares
+	}
+	// Conceptually (milliCPU / milliCPUToCPU) * sharesPerCPU, but factored to improve rounding.
+	shares := (milliCPU * SharesPerCPU) / MilliCPUToCPU
+	if shares < MinShares {
+		return MinShares
+	}
+	if shares > MaxShares {
+
+# pytorch v2.14.1 torch/distributed/run.py lines 978-992, 752-760
+
+    nproc_per_node = determine_local_world_size(args.nproc_per_node)
+    if "OMP_NUM_THREADS" not in os.environ and nproc_per_node > 1:
+        omp_num_threads = 1
+        logger.warning(
+            "\n*****************************************\n"
+            "Setting OMP_NUM_THREADS environment variable for each process to be "
+            "%s in default, to avoid your system being overloaded, "
+            "please further tune the variable for optimal performance in "
+            "your application as needed. \n"
+            "*****************************************",
+            omp_num_threads,
+        )
+        # This env variable will be passed down to the subprocesses
+        os.environ["OMP_NUM_THREADS"] = str(omp_num_threads)
+
+    parser.add_argument(
+        "--numa-binding",
+        "--numa_binding",
+        type=str,
+        choices=[mode.value for mode in _AffinityMode],
+        default=None,
+        help="Bind worker processes to CPUs near their assigned GPUs for better performance. "
+        "See torch/numa/binding.py for available modes and details.",
+# torch/utils/data/_utils/worker.py line 274
+        torch.set_num_threads(1)
+# torch/numa/binding.py lines 44-80
+class AffinityMode(str, Enum):
+    NODE = "node"
+    """
+    Each worker process and its threads will be bound to all the CPUs
+    on the NUMA node containing the accelerator device whose local index equals the worker's
+    local rank. If in doubt, use this option rather than the others.
+
+    **Ex.:** If device 3 lives on NUMA node 1, then the worker whose local rank is 3 will
+    only be able to run on the CPUs of NUMA node 1.
+    """
+
+    SOCKET = "socket"
+    """
+    Each worker process and its threads will be bound to all the CPUs on all the NUMA nodes of the
+    socket containing the accelerator device whose local index equals the worker's local rank.
+
+    **Ex.:** If socket 0 contains device 3 and NUMA nodes 0-1, then the worker whose
+    local rank is 3 will be bound to the CPUs of NUMA nodes 0-1.
+
+    For cases where there is only one NUMA node per socket anyway, this is equivalent to NODE.
+    """
+
+    EXCLUSIVE = "exclusive"
+    """
+    Each worker process and its threads will be bound to an exclusive subset of CPUs
+    on the NUMA node containing the accelerator device whose local index equals the worker's
+    local rank. The CPUs on the NUMA node are divided evenly among all devices on that node,
+    so no two workers share the same CPU cores.
+
+    **Ex.:** If NUMA node 1 has 16 physical cores and devices 2 and 3, then the worker whose
+    local rank is 2 will be bound to cores 0-7, and the worker whose local rank is 3 will
+    be bound to cores 8-15.
+    """
+
+    CORE_COMPLEX = "core-complex"
+    """
+    Each worker process and its threads will be bound to a single core complex (a group of cores

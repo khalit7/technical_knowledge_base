@@ -1,0 +1,39 @@
+<section id="rd-s11">
+<h2>11. ML recipes: threads, workers, pinning, neighbours</h2>
+<p>Everything above comes down to a budget: a training process gets some number of CPUs (a quota, a cpuset, or a whole node), and every thread it starts spends from it. The defaults are sized for the whole machine, so they overspend whenever the job is given less.</p>
+<h3>Who starts threads in a PyTorch job</h3>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Pool</th><th>Default size</th><th>Set with</th></tr></thead><tbody>
+<tr><td>Intra-op (one operator split across threads: matmul, convolution)</td><td>the CPUs in the affinity mask (5 here; section 7)</td><td><code>torch.set_num_threads(n)</code>, <code>OMP_NUM_THREADS</code>, <code>MKL_NUM_THREADS</code></td></tr>
+<tr><td>Inter-op (independent operators in parallel, TorchScript and some backends)</td><td>the same</td><td><code>torch.set_num_interop_threads(n)</code> (before any parallel work)</td></tr>
+<tr><td>DataLoader workers (processes)</td><td>0</td><td><code>num_workers</code>; each worker sets its own torch threads to 1 ({{worker.py line 274, v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/_utils/worker.py#L274}})</td></tr>
+<tr><td>Pin-memory thread (copies batches into page-locked memory)</td><td>1 if <code>pin_memory=True</code></td><td>(dataloader.py line 1198)</td></tr>
+<tr><td>Per-process launchers</td><td>torchrun sets <code>OMP_NUM_THREADS=1</code> when it starts several processes and the variable is unset ({{run.py line 980|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/run.py#L980}})</td><td>set it yourself, per process</td></tr>
+<tr><td>Libraries inside workers (tokenizers, OpenCV, NumPy's BLAS)</td><td>often all CPUs, per worker</td><td>their own variables (e.g. <code>TOKENIZERS_PARALLELISM</code>, <code>OPENBLAS_NUM_THREADS</code>)</td></tr>
+</tbody></table></div>
+<p>Add them up for one process with 4 workers that each start a 5-thread tokenizer pool, plus PyTorch's own pools, and a container allowed 2 CPUs runs dozens of busy threads: <dfn id="g-oversub">oversubscription</dfn>, more busy threads than CPUs to run them.</p>
+<h3>The budget, measured <span class="meas">measured</span></h3>
+<p>The {{CPU budget lab|#t-budget}} tab runs one loop (a DataLoader decoding samples with real CPU work, a model step of matmuls) for every combination of 1, 2, 4 or 5 torch threads and 0, 1, 2 or 4 workers, under quotas of 1, 2 and 4 CPUs, three times each. The best and the default:</p>
+<div class="tw" id="sc-grid-sum"></div>
+<p>The default (5 threads, sized from the machine) was the worst or near the worst choice at every quota smaller than the machine. With one CPU, workers did not help at all (they only add more threads to throttle); with two or four, the best was a couple of compute threads plus a couple of workers, about one busy thread per CPU of quota. The exact best point depends on how heavy your decode is against your model step; the rule does not.</p>
+<h3>Recipes</h3>
+<ol class="tight">
+<li><b>Read the budget, then set every pool.</b> <code>quota = cpu.max[0] / cpu.max[1]</code> (or the cpuset size, or the Kubernetes limit), divided by the number of training processes on the node. Set <code>torch.set_num_threads</code> and <code>num_workers</code> so that compute threads + busy workers ≈ budget.</li>
+<li><b>Keep workers alive.</b> Without <code>persistent_workers=True</code> every epoch forks a new set (section 1 measured new pids every half second on a tiny epoch).</li>
+<li><b>Check the signature of a starving GPU.</b> Rising <code>nr_throttled</code> in <code>cpu.stat</code>, involuntary switches in the thousands, or the main thread waiting on a run queue (schedstat) all mean the feeding CPUs are short; <code>py-spy dump</code> shows whether the main thread waits in <code>next(it)</code> (the root's Debug lab case "The training loop waits for data: DataLoader-bound").</li>
+<li><b>On multi-socket GPU nodes, bind each rank near its GPU:</b> <code>torchrun --numa-binding=node</code> (section 8).</li>
+<li><b>Against noisy neighbours,</b> weights help only under contention and in proportion (section 9); exclusive cores (a cpuset, the kubelet's static CPU manager) are the only real isolation.</li>
+<li><b>Background work yields:</b> preprocessing and evaluation at <code>nice -n 10</code> or SCHED_BATCH, uploads at SCHED_IDLE (section 6); never real-time.</li>
+</ol>
+<pre class="cd"><span class="c"># size PyTorch's pools from the container's quota (or affinity), not from os.cpu_count()</span>
+<span class="k">import</span> os, math, torch
+<span class="k">def</span> cpu_budget():
+    n = len(os.sched_getaffinity(0))                    <span class="c"># cpuset / taskset</span>
+    <span class="k">try</span>:
+        q, p = open(<span class="s">"/sys/fs/cgroup/cpu.max"</span>).read().split()
+        <span class="k">if</span> q != <span class="s">"max"</span>: n = min(n, max(1, math.floor(int(q) / int(p))))
+    <span class="k">except</span> OSError: <span class="k">pass</span>                              <span class="c"># cgroup v1 or no cgroup</span>
+    <span class="k">return</span> n
+b = cpu_budget() // int(os.environ.get(<span class="s">"LOCAL_WORLD_SIZE"</span>, <span class="s">"1"</span>))
+torch.set_num_threads(max(1, b // 2)); num_workers = max(0, b - b // 2)</pre>
+<p class="small mute">The split between threads and workers in the last line is a starting point, not a rule; measure your own step with the lab's method.</p>
+</section>
