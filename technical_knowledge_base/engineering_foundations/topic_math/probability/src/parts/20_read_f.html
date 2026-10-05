@@ -1,0 +1,49 @@
+<section id="rd-s8">
+<h2>8. From distribution to loss: the five standard losses, derived</h2>
+<p class="raise"><b>The question.</b> Why is BCE the loss for yes-or-no labels, squared error for real numbers, and \(e^{z} - yz\) for counts? Is the loss a free design choice?</p>
+<p>It is not. The recipe is always the same three moves: (1) say which distribution \(y\) follows given the input, with the network outputting its parameter; (2) the loss for one example is \(-\ln p(y \mid \text{output})\); (3) drop every term that does not depend on the network's output, since it changes neither the gradient nor the optimum. Over a dataset of independent examples the losses add (section 10).</p>
+
+<h3>Bernoulli to binary cross-entropy (BCE)</h3>
+<p>Model \(y \in \{0, 1\}\), \(y \mid x \sim \text{Bernoulli}(\hat p)\) with \(\hat p = \sigma(z) = 1/(1 + e^{-z})\) and \(z\) the network's logit.</p>
+\[ \ell = -\ln\big(\hat p^{\,y} (1 - \hat p)^{1 - y}\big) = -\big[y \ln \hat p + (1 - y)\ln(1 - \hat p)\big]. \]
+<p>In terms of the logit, using \(\ln \hat p = -\ln(1 + e^{-z})\) and \(\ln(1 - \hat p) = -z - \ln(1 + e^{-z})\): \(\ell = \ln(1 + e^{z}) - yz\), which is the exponential-family form \(A(z) - zT(y)\). So \(\partial \ell / \partial z = \sigma(z) - y = \hat p - y\). (Through the chain rule instead: \(\partial \ell/\partial \hat p = (\hat p - y)/(\hat p(1 - \hat p))\) and \(\sigma'(z) = \hat p(1 - \hat p)\); the factors cancel. The full step-by-step derivation is on the root's section 4.)</p>
+<div class="nums"><div class="t">The numbers (spam filter, carried and rechecked)</div>Output \(\hat p = 0.8\). Spam (\(y = 1\)): loss \(-\ln 0.8 = 0.223\), gradient \(0.8 - 1 = -0.2\) (push \(z\) up a little). Not spam (\(y = 0\)): loss \(-\ln 0.2 = 1.609\), gradient \(0.8\) (push \(z\) down hard). The confident wrong answer costs 7.2 times the right one, and the cost grows without bound as a wrong prediction nears certainty.</div>
+<p>In code: PyTorch's <code>torch.distributions.Bernoulli.log_prob</code> is literally <code>-binary_cross_entropy_with_logits(logits, value)</code> (torch 2.14.1 source, saved in <code>src/inputs/</code>).</p>
+
+<h3>Categorical to softmax cross-entropy</h3>
+<p>Model \(y \in \{1, \dots, K\}\), \(y \mid x \sim \text{Categorical}(p)\), \(p = \operatorname{softmax}(z)\).</p>
+\[ \ell = -\ln p_y = -z_y + \ln \sum_{k=1}^{K} e^{z_k}, \qquad \frac{\partial \ell}{\partial z_k} = p_k - [k = y], \ \text{ i.e. } \ \nabla_z \ell = p - e_y. \]
+<p>The derivative of \(\ln\sum_k e^{z_k}\) with respect to \(z_k\) is \(e^{z_k}/\sum_j e^{z_j} = p_k\); the derivative of \(-z_y\) is \(-1\) for \(k = y\) and 0 otherwise. With \(K = 2\) and \(z = (z_1, 0)\) this is exactly sigmoid plus BCE.</p>
+<div class="nums"><div class="t">The numbers (the tiny model)</div>Target sat: \(\ell = -z_{\text{sat}} + \ln 11.107 = 0 + 2.408 = 2.408\); gradient \((0.665, 0.245, -0.910)\). Had the target been cat: \(\ell = -2 + 2.408 = 0.408\), gradient \((-0.335, 0.245, 0.090)\): raise cat's score, lower the others in proportion to the probability they took.</div>
+
+<h3>Gaussian to squared error (MSE)</h3>
+<p>Model \(y \in \mathbb{R}\), \(y \mid x \sim \mathcal{N}(\hat y, \sigma^2)\) with \(\hat y\) the network's output and \(\sigma\) fixed.</p>
+\[ \ell = -\ln\Big(\frac{1}{\sqrt{2\pi\sigma^2}} e^{-(y - \hat y)^2 / 2\sigma^2}\Big) = \frac{(y - \hat y)^2}{2\sigma^2} + \tfrac12 \ln(2\pi\sigma^2), \qquad \frac{\partial \ell}{\partial \hat y} = \frac{\hat y - y}{\sigma^2}. \]
+<p>The second term and the factor \(1/(2\sigma^2)\) do not depend on \(\hat y\), so minimising this NLL over the network is minimising the squared error: MSE is Gaussian maximum likelihood. The constant that minimises squared error over a sample is its mean.</p>
+<div class="nums"><div class="t">The numbers</div>\(\sigma = 1\), prediction 2.5, target 3: \(\ell = 0.125 + 0.919 = 1.044\), of which only the 0.125 (half the squared error) depends on the model; gradient \(-0.5\).</div>
+<p><b>Learning the variance too</b> (heteroscedastic regression): let the network output \(\sigma^2\) as well. Then \(\ell = \tfrac12\big(\ln \sigma^2 + (y - \hat y)^2/\sigma^2\big)\) plus a constant, which is exactly PyTorch's <code>gaussian_nll_loss</code> (with <code>full=False</code> it drops \(\tfrac12\ln 2\pi\), and it clamps \(\sigma^2\) at <code>eps</code>; torch 2.14.1 source in <code>src/inputs/</code>). Setting \(\partial \ell/\partial \sigma^2 = 0\) gives \(\sigma^2 = (y - \hat y)^2\): the model learns its own error size. With residual 0.5, the loss is 0.125 at \(\sigma^2 = 1\) and \(-0.193\) at the optimum \(\sigma^2 = 0.25\) (densities above 1 give negative losses). A known pitfall: the \(1/\sigma^2\) weight lets the model give up on hard points by inflating \(\sigma^2\); {{Seitzer et al., 2022|https://arxiv.org/abs/2203.09168}} propose the \(\beta\)-NLL fix.</p>
+
+<h3>Laplace to absolute error (L1)</h3>
+<p>Model \(y \mid x \sim \text{Laplace}(\hat y, b)\), \(b\) fixed.</p>
+\[ \ell = -\ln\Big(\frac{1}{2b} e^{-|y - \hat y| / b}\Big) = \frac{|y - \hat y|}{b} + \ln 2b, \qquad \frac{\partial \ell}{\partial \hat y} = \frac{\operatorname{sign}(\hat y - y)}{b}. \]
+<p>The Laplace has heavier tails than the Gaussian, so a large residual is not astronomically improbable and is charged linearly, not quadratically: one outlier cannot dominate the fit. The constant that minimises absolute error over a sample is its median, which ignores how far away an outlier is. The gradient has the same size for every wrong prediction, a sign rather than a difference, because the Laplace is not in the exponential family.</p>
+<div class="nums"><div class="t">The numbers</div>\(b = 1\), prediction 2.5, target 3: \(\ell = 0.5 + \ln 2 = 1.193\); gradient \(-1\).</div>
+
+<h3>Poisson to the Poisson loss</h3>
+<p>Model a count \(y \in \{0, 1, 2, \dots\}\), \(y \mid x \sim \text{Poisson}(\lambda)\) with \(\lambda = e^{z}\) (the log link keeps the rate positive).</p>
+\[ \ell = -\ln\frac{\lambda^y e^{-\lambda}}{y!} = \lambda - y\ln\lambda + \ln y! = e^{z} - yz + \ln y!, \qquad \frac{\partial \ell}{\partial z} = e^{z} - y = \lambda - y. \]
+<p>\(\ln y!\) does not depend on the model, so the loss is \(e^z - yz\) (PyTorch's <code>PoissonNLLLoss</code> with <code>log_input=True</code>).</p>
+<div class="nums"><div class="t">The numbers (carried and rechecked)</div>Rate \(\lambda = 2\), observed \(y = 3\): \(P(Y = 3) = 8e^{-2}/6 = 0.180\), NLL \(2 - 3\ln 2 + \ln 6 = 1.712\), of which the model-dependent part is \(2 - 3 \times 0.693 = -0.079\) (a loss that drops constants can be negative); gradient \(2 - 3 = -1\).</div>
+
+<h3>The pattern in one table</h3>
+<div class="tw"><table class="mini one">
+<tr><th>Target</th><th>Distribution for \(y \mid x\)</th><th>Network output and activation</th><th>Loss (its NLL, constants dropped)</th><th>Gradient in the output</th></tr>
+<tr><td>yes or no</td><td>Bernoulli</td><td>logit \(z\), sigmoid</td><td>BCE: \(\ln(1 + e^z) - yz\)</td><td>\(\hat p - y\)</td></tr>
+<tr><td>one of \(K\)</td><td>Categorical</td><td>logits \(z\), softmax</td><td>cross-entropy: \(-z_y + \ln\sum_k e^{z_k}\)</td><td>\(p - e_y\)</td></tr>
+<tr><td>real number</td><td>Gaussian, fixed \(\sigma\)</td><td>mean \(\hat y\), none</td><td>squared error / \(2\sigma^2\)</td><td>\((\hat y - y)/\sigma^2\)</td></tr>
+<tr><td>real number with outliers</td><td>Laplace, fixed \(b\)</td><td>\(\hat y\), none</td><td>absolute error / \(b\)</td><td>\(\operatorname{sign}(\hat y - y)/b\)</td></tr>
+<tr><td>count</td><td>Poisson</td><td>log-rate \(z\), exp</td><td>\(e^z - yz\)</td><td>\(\lambda - y\)</td></tr>
+</table></div>
+<p>Every row is live in the {{Distribution explorer|#t-dist}}: pick the observed \(y\), and see the loss as a function of the network's output and its gradient. The catalogue of losses beyond these (focal, Huber, hinge, contrastive, z-loss) and when to use each is on {{Loss functions|n:3c65c17b0d0d8161a72bc8c572f37d55}}; the gradient checks are in the root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}}.</p>
+<div class="co warn"><div class="t">The mistake this prevents</div>Squared error on a yes-or-no label is a Gaussian model of a binary outcome. Through a sigmoid its gradient \((\hat p - y)\,\hat p(1 - \hat p)\) vanishes when the model is confidently wrong (at \(z = -6\) and \(y = 1\), about 200 times smaller than BCE's; worked on {{Calculus and optimisation for ML|n:3c65c17b0d0d81eb8b49ed6a0f897f3b}}). The loss and the distribution are one decision.</div>
+</section>

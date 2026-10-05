@@ -1,0 +1,35 @@
+<div class="tab" id="t-cal" role="tabpanel" hidden>
+<style>
+#t-cal .seg{display:flex;flex-wrap:wrap;gap:4px;border:0;margin:6px 0}#t-cal .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-cal .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-cal .pane{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;min-width:0}
+#t-cal .pane h3{margin:0 0 4px;font-size:14.5px}
+#t-cal .csv{width:100%;overflow:hidden}
+#t-cal .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-cal .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-cal .ex{font-size:13px;border-bottom:1px solid var(--line);padding:6px 0}#t-cal .ex code{white-space:pre-wrap;overflow-wrap:anywhere}
+</style>
+<h2 style="margin-top:14px">Calibration, real models</h2>
+<p>Three small open models predict the next token of the same text. For every position, we record the model's top-1 token, its probability (the <i>confidence</i>), and whether it was the right token. Grouping positions by confidence into 15 bins and comparing each bin's accuracy with its average confidence gives the reliability diagram of the Reading's {{section 9|#t-read}}; the expected calibration error (ECE) is the size-weighted average gap. The temperature slider divides every logit by \(T\) before the softmax, the one-number fix of temperature scaling.</p>
+<p class="try"><b>Try:</b> GPT-2 at \(T = 1\) sits on the diagonal; drag \(T\) to 0.6 and every bar falls below it (overconfident: ECE 0.250 against 0.015), to 1.6 and above it (underconfident). Switch to the instruct model: its bars at \(T = 1\) sit a little below the diagonal, and the best \(T\) by NLL is 1.05. Accuracy never moves: dividing by \(T\) keeps the top token.</p>
+<div class="seg" id="cal-seg" role="group" aria-label="Model"></div>
+<div class="ctl"><label>Temperature \(T\): <b id="cal-tv">1.00</b><input type="range" id="cal-t" min="0" max="30" step="1" value="10" aria-label="Temperature"></label></div>
+<div class="out" id="cal-stats"></div>
+<div class="pane"><h3>Reliability diagram</h3>
+<div class="csv" id="cal-svg"></div>
+<div class="leg"><span style="--sw:var(--c1)">accuracy in the bin</span><span style="--sw:var(--c2)">gap to the diagonal (confidence minus accuracy)</span><span style="--sw:var(--dim)">share of tokens in the bin (bottom strip)</span></div>
+</div>
+<div class="pane"><h3>ECE and NLL against temperature</h3>
+<div class="csv" id="cal-svg2"></div>
+<div class="leg"><span style="--sw:var(--c2)">ECE (left axis)</span><span style="--sw:var(--c1)">NLL in nats per token (right axis)</span><span style="--sw:var(--ink)">current \(T\)</span></div>
+<p class="small mute">The NLL is a proper score, so the \(T\) that minimises it is the temperature-scaling fit (Guo et al. fit it on a validation set; here it is fitted and shown on the same tokens, so it is an in-sample illustration). ECE's minimum need not coincide with the NLL's.</p>
+</div>
+<div class="pane"><h3>Three positions, as the model saw them</h3><div id="cal-ex"></div></div>
+<h3>How this was computed</h3>
+<ul class="tight">
+<li><b>Text:</b> the test split of WikiText-2 (raw), <code>Salesforce/wikitext</code>, <code>wikitext-2-raw-v1</code>, concatenated; the first 20,480 tokens under each model's own tokenizer, scored in windows of 512 tokens (each window starts without earlier context, so its first tokens are hard).</li>
+<li><b>Models:</b> <code>openai-community/gpt2</code> (124M), <code>Qwen/Qwen2.5-0.5B</code> (base) and <code>Qwen/Qwen2.5-0.5B-Instruct</code>, in float32 with transformers 5.18.0 and torch 2.14.1 on CPU; no chat template for the instruct model, so it is scored on text unlike its post-training data.</li>
+<li><b>Measures:</b> top-1 confidence binned into 15 equal-width bins (Guo et al., 2017, eq. 3); NLL is the average \(-\ln p(\text{true token})\) at each \(T\) from 0.50 to 2.00 in steps of 0.05. Script <code>src/inputs/calib.py</code>, output <code>src/inputs/calibration.json</code>; <code>src/recompute.py</code> recomputes every ECE from the stored bins.</li>
+<li><b>Caveats:</b> one text sample, 20,480 tokens, three small models; Qwen's training data may include Wikipedia (GPT-2's removed it). Read the numbers as the measurement made concrete, not as a comparison of the models.</li>
+</ul>
+</div>

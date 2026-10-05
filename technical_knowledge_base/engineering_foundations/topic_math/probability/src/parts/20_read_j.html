@@ -1,0 +1,55 @@
+<section id="rd-s13">
+<h2>13. Sampling: inverse CDF, the Gumbel-max trick, temperature and top-p</h2>
+<p class="raise"><b>The question.</b> Generating text means drawing the next word from \(p = (0.665, 0.245, 0.090)\). A computer only makes uniform random numbers between 0 and 1. How do you turn one into a draw from \(p\), and what are temperature and top-p doing to \(p\)?</p>
+<h3>Inverse CDF: one uniform number, read through the CDF</h3>
+<p>Draw \(u\) uniform on \([0, 1)\) and return the first value whose CDF reaches \(u\): \(x = F^{-1}(u)\). Then \(P(X \le x) = P(u \le F(x)) = F(x)\), so \(X\) has CDF \(F\).</p>
+<div class="nums"><div class="t">The numbers</div>Tiny model, CDF \((0.665, 0.910, 1)\): \(u \lt 0.665\) gives cat, \(0.665 \le u \lt 0.910\) dog, otherwise sat. \(u = 0.7\) gives dog. For a continuous example, the exponential distribution has \(F(x) = 1 - e^{-\lambda x}\), so \(x = -\ln(1 - u)/\lambda\); with \(\lambda = 2\) and \(u = 0.5\), \(x = 0.347\), the median. Hugging Face transformers samples with <code>torch.multinomial(probs, num_samples=1)</code> (v5.18.0 <code>generation/utils.py</code>, excerpt in <code>src/inputs/</code>).</div>
+<h3>The Gumbel-max trick: sampling as an argmax</h3>
+<p>Add independent Gumbel noise \(g_i = -\ln(-\ln u_i)\) to each logit and take the largest:</p>
+\[ \arg\max_i \,(z_i + g_i) \;\sim\; \operatorname{Categorical}\big(\operatorname{softmax}(z)\big). \]
+<p><b>Why it works, step by step.</b> A standard Gumbel has CDF \(P(g \le x) = \exp(-e^{-x})\) (inverse CDF: \(g = -\ln(-\ln u)\)). So \(M_j = z_j + g_j\) has CDF \(\exp(-e^{z_j - m})\) and density \(e^{z_i - m}\exp(-e^{z_i - m})\). Item \(i\) wins when \(M_i = m\) and every other \(M_j \le m\):</p>
+\[ P(i \text{ wins}) = \int_{-\infty}^{\infty} e^{z_i - m} e^{-e^{z_i - m}} \prod_{j \ne i} e^{-e^{z_j - m}}\, dm = \int_{-\infty}^{\infty} e^{z_i} e^{-m} \exp\!\big(-S e^{-m}\big)\, dm, \quad S = \sum_j e^{z_j}. \]
+<p>Substitute \(s = e^{-m}\) (\(ds = -s\,dm\)), so the integral becomes \(\int_0^\infty e^{z_i} e^{-Ss}\,ds = e^{z_i}/S\): exactly the softmax. Two practical facts follow. You never need to normalise the logits. And since \(-\ln(-\ln u) = -\ln E\) with \(E = -\ln u\) an exponential variable, \(\arg\max_i (z_i - \ln E_i) = \arg\max_i\, p_i / E_i\): the "exponential race", which is how vLLM samples (v0.11.0 <code>random_sample</code>: <code>probs.div_(q).argmax(dim=-1)</code> with <code>q.exponential_()</code>, avoiding a CPU-GPU synchronisation that <code>torch.multinomial</code> causes, per its own comment).</p>
+<div class="nums"><div class="t">The numbers</div>Uniforms \(u = (0.2, 0.9, 0.5)\) give Gumbels \(g = (-0.476, 2.250, 0.367)\); \(z + g = (1.524, 3.250, 0.367)\); the argmax is dog. The same draw as an exponential race: \(E = -\ln u = (1.609, 0.105, 0.693)\), and \(p_i/E_i = (0.413, 2.323, 0.130)\) also picks dog.</div>
+<p>Replacing the argmax with a softmax at temperature \(\tau\) gives the <b>Gumbel-softmax</b> (or Concrete) relaxation, a differentiable approximate sample ({{Jang et al., 2017|https://arxiv.org/abs/1611.01144}}; {{Maddison et al., 2017|https://arxiv.org/abs/1611.00712}}); PyTorch's <code>F.gumbel_softmax</code> draws its Gumbels as <code>-empty_like(logits).exponential_().log()</code> (torch 2.14.1). It is a reparameterisation (section 15) for discrete choices.</p>
+<div class="card" id="rd-smp-card">
+<div class="seg" id="rd-smp-seg" role="group" aria-label="Sampler"><button data-m="inv" class="on">Inverse CDF</button><button data-m="gum">Gumbel-max</button></div>
+<div class="dgm" id="rd-smp-svg"></div>
+<div class="an-ctl" id="rd-smp-ctl"></div>
+<div class="an-cap" id="rd-smp-cap"></div>
+<p class="small mute">Both samplers use the same seeded uniform stream (one uniform per draw for inverse CDF, three for Gumbel-max). The bars are counts after each batch; the ticks are \(p\). Steps go 1, 2, 3, 10, 100, 1,000, 10,000 draws.</p>
+</div>
+<h3>Temperature, top-k and top-p: sampling from a modified distribution</h3>
+<p>Every decoding knob replaces \(p\) by another distribution and then samples from that:</p>
+<ul class="tight">
+<li><b>Temperature</b> \(T\): \(p^{(T)}_i \propto e^{z_i / T} \propto p_i^{1/T}\). At \(T = 0.5\), \((0.867, 0.117, 0.016)\), the same as squaring \(p\) and renormalising; at \(T = 2\), \((0.506, 0.307, 0.186)\); as \(T \to 0\), greedy decoding.</li>
+<li><b>Top-k:</b> keep the \(k\) most probable, renormalise. \(k = 1\) is greedy.</li>
+<li><b>Top-p</b> (nucleus): keep the smallest set of most probable items whose total reaches a threshold (0.9 here), renormalise. At top-p 0.9: cat (0.665) is not enough, cat plus dog (0.910) is, so sat is removed and the bet becomes \((0.731, 0.269, 0)\).</li>
+</ul>
+<p>None of these changes the model; they change which distribution you sample. Sampling from a truncated distribution means the text's probability under the model is no longer what you sampled from, which matters when the samples train another model (RL, distillation). The full sampler stack, its order, min-p and the rest, with a live lab on a real model, is on {{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}} (its Sampler lab tab).</p>
+<div class="use"><div class="t">What it is used for in ML</div>Text generation; RL rollouts (GRPO and PPO sample several answers per prompt); Gumbel-top-k for sampling without replacement; Gumbel-softmax for discrete latent variables and differentiable architecture search; inverse CDF and Cholesky (section 6) for continuous draws.</div>
+</section>
+
+<section id="rd-s14">
+<h2>14. Monte Carlo estimation</h2>
+<p class="raise"><b>The question.</b> Most expectations in ML (an expected reward, a predictive integral, an expected loss over all possible texts) are sums over far too many outcomes to compute. How do we estimate them?</p>
+<p>Draw \(x_1, \dots, x_n\) independently from \(p\) and average:</p>
+\[ \mathbb{E}_{x \sim p}[f(x)] \approx \hat\mu_n = \frac1n \sum_{i=1}^{n} f(x_i), \qquad \operatorname{SE}(\hat\mu_n) = \frac{\sigma_f}{\sqrt{n}}. \]
+<p class="plain">In plain words: the average of samples is unbiased (linearity of expectation), it converges to the true value as \(n\) grows (the law of large numbers), and its error shrinks like \(1/\sqrt{n}\) (variances of independent draws add; the central limit theorem behind it is on {{Statistics for ML|n:3f05c17b0d0d810f896cf688ce9aed1b}}). Four times the samples halve the error, whatever the dimension.</p>
+<div class="nums"><div class="t">The numbers (estimating the tiny model's entropy by sampling)</div>Draw words from \(p\) and average \(f = -\ln p(\text{word})\). The true value is 0.832; the standard deviation of \(f\) is 0.651; so 100 draws give an estimate within about \(\pm 0.065\) (one standard error), 10,000 draws within \(\pm 0.0065\).</div>
+<p><b>Importance sampling.</b> If you can only sample from \(q\), reweight: \(\mathbb{E}_p[f] = \mathbb{E}_q\big[f(x)\, p(x)/q(x)\big]\). The ratio \(p/q\) is the importance weight; with \(q\) uniform over the tiny model's three words, the weights are \(3p = (1.996, 0.734, 0.270)\). It is unbiased but its variance explodes when \(q\) puts little mass where \(p\) has a lot. PPO's probability ratio and every off-policy correction are importance weights (on {{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}).</p>
+<div class="use"><div class="t">What it is used for in ML</div>Minibatch gradients (a Monte Carlo estimate of the full-data gradient); policy gradients and RL returns; the ELBO and diffusion losses (sampled noise and time steps); MCMC predictive averages; pass@k and other sampled eval metrics.</div>
+</section>
+
+<section id="rd-s15">
+<h2>15. The reparameterisation idea: gradients through random samples</h2>
+<p class="raise"><b>The question.</b> To train a VAE or a diffusion model, we need the gradient of an expectation, \(\nabla_\theta\, \mathbb{E}_{x \sim p_\theta}[f(x)]\), where the parameters are inside the distribution we sample from. You cannot backpropagate through "draw a random number". What can you do?</p>
+<p><b>Two estimators.</b> The <b>score-function</b> (REINFORCE, likelihood-ratio) estimator uses \(\nabla_\theta p_\theta = p_\theta \nabla_\theta \ln p_\theta\):</p>
+\[ \nabla_\theta\, \mathbb{E}_{p_\theta}[f(x)] = \mathbb{E}_{p_\theta}\big[f(x)\, \nabla_\theta \ln p_\theta(x)\big]. \]
+<p>It works for any distribution and any \(f\), even a non-differentiable reward ({{Williams, 1992|https://doi.org/10.1007/BF00992696}}), but it is noisy. The <b>reparameterisation</b> (pathwise) estimator writes the sample as a deterministic function of the parameters and parameter-free noise, \(x = g_\theta(\varepsilon)\) with \(\varepsilon \sim p(\varepsilon)\); for a Gaussian, \(x = \mu + \sigma\varepsilon\), \(\varepsilon \sim \mathcal{N}(0, 1)\). Then the expectation is over \(\varepsilon\), which does not depend on \(\theta\), and the gradient moves inside:</p>
+\[ \nabla_\theta\, \mathbb{E}_{\varepsilon}\big[f(g_\theta(\varepsilon))\big] = \mathbb{E}_{\varepsilon}\big[\nabla_x f(x)\, \nabla_\theta g_\theta(\varepsilon)\big]. \]
+<p class="plain">In plain words: move the randomness to an input that does not depend on what you train, and the sample becomes an ordinary differentiable computation.</p>
+<div class="nums"><div class="t">The numbers (derived exactly; a 200,000-draw simulation in <code>src/recompute.py</code> agrees)</div>Take \(f(x) = x^2\) and \(x \sim \mathcal{N}(\mu, 1)\), at \(\mu = 1\). The truth: \(\mathbb{E}[x^2] = \mu^2 + 1\), gradient \(2\mu = 2\). Pathwise, one sample gives \(2x = 2(1 + \varepsilon)\): mean 2, variance 4. Score function, one sample gives \(x^2 (x - \mu) = (1 + \varepsilon)^2 \varepsilon\): mean 2, variance \(\mathbb{E}[(\varepsilon + 2\varepsilon^2 + \varepsilon^3)^2] - 4 = 34 - 4 = 30\) (using \(\mathbb{E}\varepsilon^2 = 1\), \(\mathbb{E}\varepsilon^4 = 3\), \(\mathbb{E}\varepsilon^6 = 15\)). Subtracting a baseline \(b = \mathbb{E}[f] = 2\) from \(f\) keeps the mean and cuts the variance to 18, still 4.5 times the pathwise estimator's. That gap is why VAEs ({{Kingma and Welling, 2013|https://arxiv.org/abs/1312.6114}}) use the reparameterisation, and why policy gradients, which cannot (the reward is not differentiable in the sampled text), work so hard on baselines.</div>
+<p>The ELBO, the VAE and the diffusion training loss that use it are derived on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}; the score-function estimator with baselines and advantages is on {{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}.</p>
+<div class="use"><div class="t">What it is used for in ML</div>VAEs (sampling the latent), diffusion (\(x_t = \sqrt{\bar\alpha_t}\,x_0 + \sqrt{1 - \bar\alpha_t}\,\varepsilon\) is a reparameterisation), SAC's squashed Gaussian policy, Gumbel-softmax for discrete choices (section 13), and the Cholesky sampler of section 6.</div>
+</section>

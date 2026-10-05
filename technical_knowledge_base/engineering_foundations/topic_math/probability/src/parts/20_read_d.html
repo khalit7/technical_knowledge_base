@@ -1,0 +1,70 @@
+<section id="rd-s5">
+<h2>5. Joint, marginal and conditional distributions, and the chain rule</h2>
+<p class="raise"><b>The question.</b> A sentence is many words, an image many pixels. How do we put one probability on a whole sentence, and why do language models predict one token at a time?</p>
+<h3>The picture: one table, three readings</h3>
+<p>The umbrella example as a table of the <dfn id="g-joint">joint distribution</dfn> \(P(X, Y)\), one cell per pair of values:</p>
+<div class="tw"><table class="mini">
+<tr><th></th><th>umbrella \(Y = 1\)</th><th>no umbrella \(Y = 0\)</th><th>row sum: \(P(X)\)</th></tr>
+<tr><th>rain \(X = 1\)</th><td class="num">0.24</td><td class="num">0.06</td><td class="num">0.30</td></tr>
+<tr><th>dry \(X = 0\)</th><td class="num">0.14</td><td class="num">0.56</td><td class="num">0.70</td></tr>
+<tr><th>column sum: \(P(Y)\)</th><td class="num">0.38</td><td class="num">0.62</td><td class="num">1</td></tr>
+</table></div>
+<ul class="tight">
+<li><b>Joint:</b> the four cells, adding to 1.</li>
+<li><b>Marginal:</b> sum out the other variable, \(P(x) = \sum_y P(x, y)\): the row and column sums written in the margins (hence the name).</li>
+<li><b>Conditional:</b> take one row or column and renormalise, \(P(y \mid x) = P(x, y) / P(x)\): given rain, \((0.24, 0.06)/0.30 = (0.8, 0.2)\).</li>
+</ul>
+<p>For densities the sums become integrals: \(p(x) = \int p(x, y)\,dy\). "Marginalising out" a variable is the single most common move in probabilistic ML: the evidence in Bayes' rule, the likelihood of a latent-variable model and the ELBO (on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}) are all marginals.</p>
+<h3>The chain rule of probability</h3>
+<p>Apply the product rule repeatedly:</p>
+\[ p(x_1, x_2, \dots, x_n) = p(x_1)\, p(x_2 \mid x_1)\, p(x_3 \mid x_1, x_2) \cdots = \prod_{t=1}^{n} p(x_t \mid x_{\lt t}). \]
+<dl class="sym"><dt>\(x_{\lt t}\)</dt><dd>all the earlier items \(x_1, \dots, x_{t-1}\) (for \(t = 1\), nothing).</dd><dt>\(\prod\)</dt><dd>product, the multiplication counterpart of \(\sum\).</dd></dl>
+<p class="plain">In plain words: the probability of a whole sequence is the probability of the first item, times the probability of the second given the first, and so on. It holds for any joint distribution, with no assumption at all.</p>
+<p>This identity is the whole design of an autoregressive language model: it learns only the conditional \(p(x_t \mid x_{\lt t})\), one softmax over the vocabulary per position, and the chain rule turns those into a probability for any text. Its training loss is the sum of the per-token losses, because the log of the product is the sum of the logs. The tiny model's bet on "sat" is one factor: if the earlier words had probabilities \(q_1\) and \(q_2\), the sentence "the cat sat" would get \(q_1 \times q_2 \times 0.090\), and its loss would be \(-\ln q_1 - \ln q_2 + 2.408\).</p>
+<div class="use"><div class="t">What it is used for in ML</div>Next-token prediction (the chain rule); perplexity and bits per byte (sums of per-token losses, on {{Information theory for ML|n:3c65c17b0d0d81c6baf3f778a62e14e5}}); latent-variable models and mixture models (marginals); graphical models and Naive Bayes (factorised joints); masked and diffusion language models, which factor the joint differently.</div>
+</section>
+
+<section id="rd-s6">
+<h2>6. The distributions ML uses</h2>
+<p class="raise"><b>The question.</b> Which few distributions cover nearly every target a model predicts, and which ones serve as priors and noise?</p>
+<p>Each one below: what it describes, its formula, its mean and variance, and where it appears. All of them are live in the {{Distribution explorer|#t-dist}}, which samples from each and checks the sample mean and variance against these formulas.</p>
+<div class="tw"><table class="mini one">
+<tr><th>Distribution</th><th>For</th><th>PMF or PDF</th><th>Mean</th><th>Variance</th><th>In ML</th></tr>
+<tr><td>Bernoulli\((p)\)</td><td>one yes or no</td><td>\(p^y (1 - p)^{1 - y}\), \(y \in \{0, 1\}\)</td><td>\(p\)</td><td>\(p(1 - p)\)</td><td>binary labels; dropout masks</td></tr>
+<tr><td>Categorical\((p)\)</td><td>one of \(K\)</td><td>\(\prod_k p_k^{[y = k]}\), i.e. \(p_y\)</td><td>\(p\) (one-hot)</td><td>\(\operatorname{diag}(p) - pp^\top\)</td><td>classifiers, next token</td></tr>
+<tr><td>Binomial\((n, p)\)</td><td>successes in \(n\) tries</td><td>\(\binom{n}{k} p^k (1 - p)^{n - k}\)</td><td>\(np\)</td><td>\(np(1 - p)\)</td><td>an accuracy count on \(n\) items</td></tr>
+<tr><td>Poisson\((\lambda)\)</td><td>a count per interval</td><td>\(\lambda^k e^{-\lambda} / k!\)</td><td>\(\lambda\)</td><td>\(\lambda\)</td><td>clicks, events, arrivals</td></tr>
+<tr><td>Gaussian \(\mathcal{N}(\mu, \sigma^2)\)</td><td>a real number</td><td>\(\frac{1}{\sqrt{2\pi\sigma^2}} e^{-(y - \mu)^2 / 2\sigma^2}\)</td><td>\(\mu\)</td><td>\(\sigma^2\)</td><td>regression noise, initialisation, priors, diffusion noise</td></tr>
+<tr><td>Laplace\((\mu, b)\)</td><td>a real number, heavy tails</td><td>\(\frac{1}{2b} e^{-|y - \mu| / b}\)</td><td>\(\mu\)</td><td>\(2b^2\)</td><td>L1 loss; L1 prior</td></tr>
+<tr><td>Exponential\((\lambda)\)</td><td>a waiting time</td><td>\(\lambda e^{-\lambda x}\), \(x \ge 0\)</td><td>\(1/\lambda\)</td><td>\(1/\lambda^2\)</td><td>inter-arrival times; the "exponential race" sampler</td></tr>
+<tr><td>Beta\((a, b)\)</td><td>a probability in \([0, 1]\)</td><td>\(\frac{p^{a - 1} (1 - p)^{b - 1}}{B(a, b)}\)</td><td>\(\frac{a}{a + b}\)</td><td>\(\frac{ab}{(a + b)^2 (a + b + 1)}\)</td><td>prior on a rate (section 12)</td></tr>
+<tr><td>Dirichlet\((\alpha)\)</td><td>a probability vector</td><td>\(\frac{1}{B(\alpha)} \prod_k p_k^{\alpha_k - 1}\)</td><td>\(\alpha_k / \alpha_0\)</td><td>\(\frac{\alpha_k(\alpha_0 - \alpha_k)}{\alpha_0^2(\alpha_0 + 1)}\)</td><td>prior on a categorical; topic models; smoothing</td></tr>
+</table></div>
+<p class="small mute">\([y = k]\) is 1 when \(y = k\) and 0 otherwise. \(\binom{n}{k} = \frac{n!}{k!(n - k)!}\) counts the ways to choose which \(k\) of the \(n\) tries succeed. \(B(a, b) = \Gamma(a)\Gamma(b)/\Gamma(a + b)\) is the Beta function, the constant that makes the area 1 (\(\Gamma\) extends the factorial: \(\Gamma(n) = (n - 1)!\)); \(\alpha_0 = \sum_k \alpha_k\). Formulas as in Bishop, <i>Pattern Recognition and Machine Learning</i>, chapter 2 and appendix B.</p>
+<div class="nums"><div class="t">The numbers</div>
+<b>Binomial:</b> a model with true accuracy 0.7 on a 500-item eval scores \(350\) on average, with standard deviation \(\sqrt{500 \times 0.7 \times 0.3} = 10.25\) items (2.0 points): the noise in any single eval run. <b>Poisson:</b> at rate \(\lambda = 2\), \(P(Y = 3) = 2^3 e^{-2} / 3! = 0.180\). <b>Laplace</b> with \(b = 1\) has variance 2. <b>Beta(2, 2)</b> has mean 0.5 and standard deviation 0.224. <b>Dirichlet(2, 1, 1)</b> has mean \((0.5, 0.25, 0.25)\).</div>
+<p><b>How they relate.</b> A Bernoulli is a categorical with \(K = 2\) and a binomial with \(n = 1\). A binomial is a sum of \(n\) independent Bernoullis (so its mean and variance are \(n\) times theirs, by linearity and by variances adding). A Poisson is the limit of a binomial with many tries and a small chance each (\(n \to \infty\), \(np = \lambda\)). A Beta is a Dirichlet with two components. The Gaussian is the limit of sums of many independent pieces (the central limit theorem, on {{Statistics for ML|n:3f05c17b0d0d810f896cf688ce9aed1b}}), which is why it models noise. When counts vary more than their mean (overdispersion, common when some users click far more than others), the negative binomial, with variance \(\mu + \mu^2/r\) for a dispersion parameter \(r\), replaces the Poisson.</p>
+
+<h3>The multivariate Gaussian: covariance is a shape</h3>
+<p>For a vector \(x \in \mathbb{R}^d\) with mean vector \(\mu\) and covariance matrix \(\Sigma\):</p>
+\[ \mathcal{N}(x; \mu, \Sigma) = \frac{1}{\sqrt{(2\pi)^d \det \Sigma}} \exp\!\Big(-\tfrac12 (x - \mu)^\top \Sigma^{-1} (x - \mu)\Big). \]
+<dl class="sym">
+<dt>\(\Sigma\)</dt><dd>the \(d \times d\) covariance matrix: variances on the diagonal, covariances off it; symmetric and positive definite.</dd>
+<dt>\((x - \mu)^\top \Sigma^{-1} (x - \mu)\)</dt><dd>the squared <dfn id="g-maha">Mahalanobis distance</dfn>: distance from the mean measured in units of the spread in each direction. Points with equal density lie on ellipses where it is constant.</dd>
+<dt>\(\det \Sigma\)</dt><dd>the determinant, the squared volume scale of the ellipse; it keeps the total probability at 1.</dd>
+</dl>
+<p class="plain">In plain words: the log-density is a bowl (a quadratic form), and \(\Sigma\) sets its shape. The eigenvectors of \(\Sigma\) are the ellipse's axes; the square roots of its eigenvalues are their half-lengths.</p>
+<p><b>Sampling one</b>, the Cholesky way: factor \(\Sigma = LL^\top\) with \(L\) lower triangular, draw \(\varepsilon\) with independent standard Gaussian entries, and return \(x = \mu + L\varepsilon\). Its covariance is \(\mathbb{E}[L\varepsilon\varepsilon^\top L^\top] = L\,I\,L^\top = \Sigma\). This is the reparameterisation of section 15 in matrix form. For \(\Sigma = \begin{pmatrix}1 & 0.8 \\ 0.8 & 1\end{pmatrix}\), \(L = \begin{pmatrix}1 & 0 \\ 0.8 & 0.6\end{pmatrix}\) and the eigenvalues are 1.8 and 0.2: a long thin ellipse along the diagonal. The decompositions themselves are on {{Linear algebra for ML|n:3c65c17b0d0d81d89c26e1dab2fcb701}}.</p>
+<div class="card" id="rd-mvn-card">
+<div class="ctl">
+<label>\(\sigma_1\): <b id="rd-mvn-av">1.0</b><input type="range" id="rd-mvn-a" min="0.3" max="2" step="0.1" value="1" aria-label="sigma 1"></label>
+<label>\(\sigma_2\): <b id="rd-mvn-bv">1.0</b><input type="range" id="rd-mvn-b" min="0.3" max="2" step="0.1" value="1" aria-label="sigma 2"></label>
+<label>correlation \(\rho\): <b id="rd-mvn-rv">0.80</b><input type="range" id="rd-mvn-r" min="-0.95" max="0.95" step="0.05" value="0.8" aria-label="correlation"></label>
+</div>
+<div class="dgm" id="rd-mvn-svg"></div>
+<div class="out" id="rd-mvn-out"></div>
+<p class="small mute">400 points drawn as \(\mu + L\varepsilon\) from a fixed seed (the same \(\varepsilon\) for every setting, so you watch one cloud being stretched and sheared); the ellipses are Mahalanobis distance 1 and 2.</p>
+</div>
+<p class="try"><b>Try:</b> set \(\rho\) to 0 and the ellipse aligns with the axes; push it towards 0.95 and the cloud collapses onto a line (the smaller eigenvalue goes to 0, \(\Sigma\) nears singular, and \(\Sigma^{-1}\) blows up: the numerical trouble behind adding a small "jitter" to the diagonal).</p>
+<div class="use"><div class="t">What it is used for in ML</div>Gaussian noise in diffusion models and VAEs; Gaussian processes; weight initialisation (\(\mathcal{N}(0, \sigma^2)\) with \(\sigma\) set by fan-in); Gaussian discriminant analysis; the Laplace approximation and K-FAC (a Gaussian around the trained weights); the Fréchet Inception Distance (two Gaussians fitted to features). Bernoulli, categorical, Gaussian, Laplace and Poisson become the losses of section 8; Beta and Dirichlet are the priors of sections 11 and 12.</div>
+</section>
