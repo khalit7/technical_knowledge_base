@@ -1,0 +1,62 @@
+Every source line the page cites, with file, line and tag (fetched 2026-10-05).
+
+Linux v5.10 (the guest kernel here, 5.10.104-linuxkit):
+drivers/irqchip/irq-gic.c L334-348 gic_handle_irq reads GIC_CPU_INTACK, writes GIC_CPU_EOI (memory-mapped GICv2 CPU interface)
+drivers/irqchip/irq-gic.c L800-808 gic_ipi_send_mask writes GIC_DIST_SOFTINT (an IPI is an MMIO write to the distributor)
+drivers/irqchip/irq-gic.c L1255-1258 irq chip named "GICv2" or "GIC-%d" (what /proc/interrupts shows: GIC-0)
+arch/arm64/kernel/smp.c L791-792 IPI names "Rescheduling interrupts", "Function call interrupts"; L1006-1008 smp_send_reschedule
+arch/arm64/kernel/process.c L75-78 __cpu_do_idle: wfi()
+kernel/sched/core.c L482 set_nr_if_polling; L609-628 resched_curr -> smp_send_reschedule; L2592-2597 send_call_function_single_ipi
+kernel/sched/membarrier.c L170 membarrier_private_expedited; L264 smp_call_function_many(..., true) waits for every IPI
+kernel/sched/cputime.c L237-243 steal time read from paravirt_steal_clock
+arch/arm64/kernel/paravirt.c L122-136 has_pv_steal_clock: asks the hypervisor via SMCCC (ARM_SMCCC_HV_PV_TIME_FEATURES)
+include/uapi/linux/virtio_ring.h L97 vring_desc, L108 vring_avail, L125 vring_used, L216 vring_need_event; L87 VIRTIO_RING_F_EVENT_IDX 29
+drivers/virtio/virtio_ring.c L589-608 virtqueue_kick_prepare_split uses vring_need_event
+
+Linux v6.12 (a current host kernel):
+virt/kvm/kvm_main.c L4454 case KVM_RUN; L5153 KVM_CREATE_VCPU; L5166 KVM_SET_USER_MEMORY_REGION; L5475 kvm_dev_ioctl_create_vm
+arch/arm64/kvm/handle_exit.c L129 kvm_handle_wfx; L294-312 arm_exit_handlers (WFx, HVC64, SYS64, DABT_LOW)
+arch/x86/kvm/vmx/vmx.c L6110-6146 kvm_vmx_exit_handlers (EXTERNAL_INTERRUPT, IO_INSTRUCTION, CPUID, MSR_WRITE, HLT, EPT_VIOLATION)
+include/uapi/linux/kvm.h L143-147 KVM_EXIT_IO 2, KVM_EXIT_HLT 5, KVM_EXIT_MMIO 6; L216 exit_reason
+Documentation/virt/kvm/api.rst L379 KVM_RUN
+Documentation/virt/kvm/halt-polling.rst L7-16; Documentation/virt/guest-halt-polling.rst L5-15
+drivers/vfio/vfio_iommu_type1.c L597 vfio_pin_pages_remote; L1441-1449 vfio_pin_map_dma (RLIMIT_MEMLOCK); L1541 vfio_dma_do_map
+Documentation/driver-api/vfio.rst L1-30 why VFIO; L55-71 IOMMU groups; L177-213 the example (container, group, MAP_DMA, device fd)
+Documentation/PCI/pci-iov-howto.rst L77 sriov_numvfs
+
+QEMU v6.2.0 (upstream version of the HVF arm64 code; Docker Desktop 4.11.1 ships QEMU 5.2.0 v5.2.0-11-ge7395802aa with these patches):
+hw/arm/virt.c L1802-1806 finalize_gic_version: without KVM, no gic-version given -> GICv2 (emulated in QEMU)
+hw/vfio/common.c L864 vfio_listener_region_add; L1063 vfio_dma_map of each guest RAM region (pins it)
+target/arm/hvf/hvf.c L602-606 hvf_kick_vcpu_thread: cpus_kick_thread + hv_vcpus_exit
+target/arm/hvf/hvf.c L975-988 hvf_inject_interrupts: hv_vcpu_set_pending_interrupt
+target/arm/hvf/hvf.c L1011-1021 hvf_wait_for_ipi: unlock BQL, pselect, lock BQL
+target/arm/hvf/hvf.c L1023 hvf_wfi; L1101 hvf_vcpu_exec; L1119-1127 unlock BQL, hv_vcpu_run, lock BQL; L1146-1175 EC_DATAABORT: an MMIO access becomes address_space_write/read into the emulated device; L1200-1205 EC_WFX_TRAP -> hvf_wfi
+
+NVIDIA open-gpu-kernel-modules 615.71.09 (the driver version of the cuda-compat libcuda used here):
+kernel-open/common/inc/nv-chardev-numbers.h L29 NV_MAJOR_DEVICE_NUMBER 195; L40 NV_MINOR_DEVICE_NUMBER_CONTROL_DEVICE 255
+kernel-open/common/inc/nv-ioctl-numbers.h L33-52 NV_IOCTL_MAGIC 'F', NV_IOCTL_BASE 200, NV_ESC_CHECK_VERSION_STR (+10) ...
+src/nvidia/arch/nvalloc/unix/include/nv_escape.h L31-53 NV_ESC_RM_ALLOC_MEMORY 0x27 ... NV_ESC_RM_CONTROL 0x2A, NV_ESC_RM_ALLOC 0x2B, NV_ESC_RM_MAP_MEMORY 0x4E
+src/common/sdk/nvidia/inc/nvos.h L2231-2240 NVOS54_PARAMETERS (32 bytes)
+src/nvidia/arch/nvalloc/unix/src/escape.c L314 NV_ESC_RM_CONTROL size table entry; L365 RmIoctl; L461 NV_ESC_RM_ALLOC; L587 NV_ESC_RM_MAP_MEMORY; L796 NV_ESC_RM_CONTROL
+kernel-open/nvidia/nv.c L259-269 nvidia_fops; L1059-1066 register major 195 as "nvidia" (minors 0..) and "nvidiactl" (minor 255); L2007 nvidia_open; L2216 "Tears down the device on the last file close"; L2259-2265 persistence-mode deprecation message; L2627 nvidia_ioctl; L2846-2853 NV_ESC_CHECK_VERSION_STR; L2981-2982 default: rm_ioctl
+kernel-open/nvidia/nv-mmap.c L772 nvidia_mmap
+src/nvidia/arch/nvalloc/unix/src/osapi.c L1199-1302 RmPerformVersionCheck: query, exact or relaxed (up to the first dot) match; "NVRM: API mismatch" message L1297-1302
+kernel-open/nvidia-uvm/uvm.c L1074-1079 uvm_fops (mmap, unlocked_ioctl)
+kernel-open/nvidia-uvm/uvm_ioctl.h L405 UVM_REGISTER_GPU; L602 UVM_MIGRATE; L869 UVM_INITIALIZE
+kernel-open/nvidia-uvm/uvm_channel.c L984-1015 internal_channel_submit_work: GPFIFO entry, mb(), write_gpu_put
+kernel-open/nvidia-uvm/uvm_turing_host.c L222-236 write_gpu_put: write GPPut, wmb(), write workSubmissionToken to the doorbell
+src/common/sdk/nvidia/inc/class/clc361.h L27-33 VOLTA_USERMODE_A, NVC361_NOTIFY_CHANNEL_PENDING 0x90
+kernel-open/nvidia-uvm/uvm_gpu_replayable_faults.c L2900 uvm_parent_gpu_service_replayable_faults
+kernel-open/nvidia-uvm/uvm_hmm.c L27 HMM support
+kernel-open/nvidia-peermem/nvidia-peermem.c L216 nvidia_p2p_get_pages
+
+PyTorch v2.14.1:
+c10/cuda/CUDAFunctions.cpp L17-64 device_count_impl (cudaErrorNoDevice -> 0; cudaErrorInsufficientDriver -> "Found no NVIDIA driver" or "driver ... too old")
+torch/__init__.py L351-362 _preload_cuda_deps (libcudart from the nvidia-cuda-runtime wheel)
+torch/cuda/__init__.py L209-228 is_available -> _cuda_getDeviceCount (cudaGetDeviceCount, which calls cuInit)
+
+Documents: NVIDIA MIG user guide (introduction, concepts table 3, supported profiles table 10, getting started -lgipp for A100 40GB),
+GPU Operator time-slicing, CUDA Compatibility (why, minor version table 1, forward compatibility table 3 and errors 803/804),
+CUDA Programming Guide 1.3.4 (cubins, fatbins, binary compatibility, JIT, compute cache), 4.8 lazy loading, 5.2 environment variables,
+4.1 unified memory (HMM requirements), driver persistence background, nvidia-smi persistence mode, Xid errors, NCCL GPU troubleshooting (ACS, VMs, /sys topology),
+OSTEP Appendix B (vmm-intro.pdf), Robin and Irvine 2000 (seventeen instructions), Popek and Goldberg 1974, Bhargava et al. 2008.

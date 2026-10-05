@@ -1,0 +1,40 @@
+<section id="rd-s3">
+<h2>3. The VM you are running in, seen from both sides</h2>
+<p><b>The problem.</b> Every number measured on these OS pages came from inside a virtual machine. To read them correctly, and to recognise a VM when you are inside one on a cloud, you need to know what this one is made of.</p>
+<p><b>From the host side.</b> On macOS, Docker Desktop 4.11 starts the Linux VM as an ordinary process: QEMU, accelerated by Hypervisor.framework. Its command line (disk path, console pipe, MAC address and network token removed) says almost everything:</p>
+<pre class="cd out" id="vm-args"></pre>
+<p class="small mute"><span class="meas">measured</span> <code>ps -o args=</code> of the VM process and <code>qemu-system-aarch64 --version</code> on the macOS host (<code>src/exp/host_qemu.sh</code>; raw: <code>src/raw/host_qemu.txt</code>).</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Argument</th><th>Means</th></tr></thead><tbody>
+<tr><td><code>-accel hvf</code></td><td>run guest code directly on the CPU through Apple's Hypervisor.framework (the exits of section 2), instead of emulating every instruction in software</td></tr>
+<tr><td><code>-cpu host -smp 5 -m 10240</code></td><td>the guest sees this CPU's features, 5 virtual CPUs (each a thread of the QEMU process) and 10 GiB of "physical" memory, which is ordinary memory of the QEMU process</td></tr>
+<tr><td><code>-machine virt,highmem=off</code></td><td>QEMU's generic arm64 board: a PL011 serial port, a PL031 clock, a PCIe host bridge, and, when no version is asked for and KVM is not in use, a GICv2 interrupt controller emulated by QEMU itself ({{finalize_gic_version, hw/arm/virt.c L1802-1806, QEMU v6.2.0|https://github.com/qemu/qemu/blob/v6.2.0/hw/arm/virt.c#L1802-L1806}})</td></tr>
+<tr><td><code>-device virtio-blk-pci</code>, <code>virtio-net-device</code></td><td>a paravirtual disk on PCI and a paravirtual network card on a memory-mapped bus (section 6)</td></tr>
+<tr><td><code>-kernel ... -append ... mitigations=off</code></td><td>boot the linuxkit kernel directly, with CPU side-channel mitigations off</td></tr>
+</tbody></table></div>
+<p><b>From the guest side.</b> Inside, nothing says "you are in a VM" in so many words (arm64 has no equivalent of x86's CPUID "hypervisor" bit), but the hardware gives it away:</p>
+<div class="two">
+<div><div class="fname">PCI devices: vendor:device, class, driver</div><pre class="cd out" id="vm-pci"></pre>
+<p class="small">{{1b36:0008|https://pci-ids.ucw.cz/read/PC/1b36/0008}} is QEMU's PCIe host bridge (Red Hat's vendor ID); {{1af4:1001|https://pci-ids.ucw.cz/read/PC/1af4/1001}} is a virtio block device.</p></div>
+<div><div class="fname">virtio devices: device ID, vendor, driver</div><pre class="cd out" id="vm-virtio"></pre>
+<p class="small">Device 1 is network, 2 is block; vendor 0x554d4551 is the ASCII bytes "QEMU" read as a little-endian number.</p></div>
+</div>
+<div class="fname">/proc/interrupts (the lines that matter)</div>
+<pre class="cd out" id="vm-intr"></pre>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>What the guest sees</th><th>What it tells you</th></tr></thead><tbody>
+<tr><td><code>GIC-0</code> on every line</td><td>the interrupt controller driver is Linux's GICv2 driver ({{irq-gic.c names its chip "GIC-%d"|https://github.com/torvalds/linux/blob/v5.10/drivers/irqchip/irq-gic.c#L1255-L1258}}); its CPU interface is a set of memory-mapped registers that QEMU emulates. Section 5 shows why that matters.</td></tr>
+<tr><td><code>IPI0</code>, <code>IPI1</code> counts in the millions</td><td>inter-processor interrupts, the subject of section 5</td></tr>
+<tr><td><code>virtio1-req.0</code> to <code>.4</code>, one per CPU</td><td>the virtual disk has one request queue per vCPU (multi-queue), each with its own interrupt (section 6)</td></tr>
+<tr><td>clock source <code id="vm-clk"></code>, cpuidle driver <code>none</code></td><td>time comes from the CPU's own counter (virtualized by the hardware, no exit to read it); idle is a plain <code>wfi</code>, which exits</td></tr>
+<tr><td>steal time <code id="vm-steal"></code> on every CPU</td><td>this hypervisor offers no paravirtual steal clock, so the guest cannot see time stolen by macOS (section 5)</td></tr>
+<tr><td>no <code>/dev/kvm</code>, no <code>/sys/class/iommu</code></td><td>no nested virtualization (KVM inside this guest is impossible) and no virtual IOMMU (section 7 is from sources)</td></tr>
+</tbody></table></div>
+<p class="small mute"><span class="meas">measured</span> <code>src/exp/vmid.sh</code> in an unprivileged container; raw: <code>src/raw/vmid.txt</code>, which also lists the kernel's virtualization config (<code>CONFIG_PARAVIRT=y</code>, <code>CONFIG_VIRTIO_BALLOON=y</code>, <code>CONFIG_KVM=y</code> compiled in but unusable here).</p>
+<div class="ff"><div class="t">On a cloud instance, the same questions</div><ul>
+<li><code>systemd-detect-virt</code> names the hypervisor (kvm, amazon, microsoft, xen) from firmware tables; <code>lspci -nn</code> shows virtio or vendor-specific devices next to the passed-through GPU.</li>
+<li><code>grep -c ^processor /proc/cpuinfo</code> counts vCPUs, which on many instance types are hyperthreads, not cores; <code>lscpu</code> shows threads per core.</li>
+<li><code>top</code>'s <code>st</code> column is steal time where the hypervisor reports it; a large value means your vCPUs wait for the host.</li>
+</ul></div>
+<div class="drill"><div class="q">The QEMU process on the Mac has 5 vCPU threads. While your training job in this VM is idle, what are those threads doing on macOS?</div>
+<div class="ch"><button>Spinning at 100% in the guest's idle loop</button><button data-ok="1">Sleeping in the host kernel, waiting to be signalled</button><button>Exited; QEMU recreates them on demand</button></div>
+<div class="ans" hidden>The guest's idle loop executes <code>wfi</code>, which exits to QEMU; QEMU then puts the vCPU thread to sleep in <code>pselect</code> until the guest's timer is due or another thread signals it ({{hvf_wfi and hvf_wait_for_ipi, QEMU v6.2.0|https://github.com/qemu/qemu/blob/v6.2.0/target/arm/hvf/hvf.c#L1011-L1021}}). That is OSTEP's "information gap" handled well: the VMM notices the guest went idle and gives the CPU back. Section 5 shows what it costs to wake such a thread.</div></div>
+</section>

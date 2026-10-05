@@ -1,0 +1,70 @@
+<section id="rd-s1">
+<h2>1. Why virtual machines, and what makes a CPU virtualizable</h2>
+<span class="ostep">Appendix B, 6</span>
+<p><b>The problem.</b> A cloud provider owns a big machine and wants to sell slices of it to strangers. Each customer wants root, their own kernel version, their own drivers, and the certainty that the neighbour cannot read their memory or crash their kernel. A container (the {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} page) cannot promise that: every container shares one kernel, so a kernel bug is everyone's bug. A <dfn>virtual machine</dfn> (VM) gives each customer a whole kernel of their own. The program that makes this possible is the <dfn>hypervisor</dfn> (also called a <dfn>virtual machine monitor</dfn>, VMM): it does for operating systems what an operating system does for processes.</p>
+<p><b>How it works: limited direct execution, one level down.</b> The root page explained how a kernel runs your program directly on the CPU and only takes control back on a system call, a fault or a timer interrupt (OSTEP chapter 6). A hypervisor does the same to a whole kernel: the guest kernel's instructions run directly on the real CPU, at full speed, and the hypervisor only takes over when the guest does something it must not do alone, such as touch a device or reprogram the interrupt controller. That hand-over is a <dfn>trap</dfn>; in a VM it is called a <dfn>VM exit</dfn>. OSTEP's appendix calls the key method extending "the notion of limited direct execution" so the VMM can "interpose on key events (such as traps)" ({{OSTEP Appendix B|https://pages.cs.wisc.edu/~remzi/OSTEP/vmm-intro.pdf}}).</p>
+<div class="card">
+<div class="small mute" style="margin-bottom:4px">Privilege levels on this laptop's CPU (arm64), and the x86 equivalent. Code at a level can only be stopped by the level below it in this list.</div>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>arm64</th><th>Runs</th><th>x86-64 equivalent</th></tr></thead><tbody>
+<tr><td><b>EL0</b></td><td>your process (Python, the training job)</td><td>ring 3</td></tr>
+<tr><td><b>EL1</b></td><td>the (guest) kernel</td><td>ring 0, VMX non-root mode</td></tr>
+<tr><td><b>EL2</b></td><td>the hypervisor (KVM's core, Apple's Hypervisor.framework)</td><td>VMX root mode (Intel VT-x), or SVM host mode (AMD-V)</td></tr>
+<tr><td><b>EL3</b></td><td>firmware (secure monitor)</td><td>SMM, roughly</td></tr>
+</tbody></table></div></div>
+<p><b>Which instructions must trap.</b> In 1974 Popek and Goldberg stated the condition (Theorem 1, paraphrased): a VMM can be built for a machine if every <dfn>sensitive</dfn> instruction (one that reads or changes the machine's control state) is also <dfn>privileged</dfn> (traps when run outside the most privileged mode) ({{Popek and Goldberg, CACM 1974|https://doi.org/10.1145/361011.361073}}). Then the guest kernel can run deprivileged, and every sensitive thing it does traps to the hypervisor, which emulates it on the guest's virtual state. This is <dfn>trap and emulate</dfn>.</p>
+<p><b>x86 broke the rule.</b> Robin and Irvine examined the Pentium's instruction set in 2000 and "found that seventeen instructions violate" the requirement, for example <code>POPF</code>, which in user mode silently ignores a change to the interrupt flag instead of trapping, and <code>SGDT</code>/<code>SIDT</code>, which reveal where the real descriptor tables are ({{Robin and Irvine, USENIX Security 2000|https://www.usenix.org/legacy/events/sec2000/full_papers/robin/robin_html/index.html}}). A guest kernel that executes <code>POPF</code> thinking it disabled interrupts would be wrong, and the hypervisor would never know. Three answers followed:</p>
+<div class="mech">
+<div><b>Binary translation</b>VMware's approach: scan the guest kernel's code before it runs and rewrite the problem instructions into safe sequences. Works on any x86; complex.</div>
+<div><b>Paravirtualization</b>Xen's approach: change the guest kernel so it calls the hypervisor directly (a <dfn>hypercall</dfn>) instead of executing sensitive instructions. Fast; needs a modified guest. OSTEP: such a system "can be made to be nearly as efficient a system without a VMM".</div>
+<div><b>Hardware support</b>Intel VT-x and AMD-V added a new mode for the hypervisor (VMX root) and made the guest's sensitive instructions exit to it; ARM added EL2. Every cloud uses this now, plus paravirtual devices (section 6).</div>
+</div>
+<p><b>Who is the hypervisor?</b> In a <dfn>type 1</dfn> (bare-metal) design the hypervisor is the thing that boots (Xen, VMware ESXi). In a <dfn>type 2</dfn> (hosted) design it is a program on an ordinary OS: here, QEMU running on macOS and asking the macOS kernel, through Hypervisor.framework, to enter the guest (section 3). Linux's <dfn>KVM</dfn> blurs the two: a kernel module turns Linux itself into the hypervisor, and a user-space program (QEMU, Firecracker, cloud-hypervisor) provides the virtual devices. AWS's Nitro System uses "a custom-developed, minimized hypervisor based on KVM" with device work moved onto dedicated cards ({{AWS Nitro whitepaper|https://docs.aws.amazon.com/whitepapers/latest/security-design-of-aws-nitro-system/the-nitro-system-journey.html}}).</p>
+<div class="drill"><div class="q">Inside a hardware-virtualized VM, which loop slows down more against bare metal: a million <code>getpid()</code> system calls, or a million 4 KiB disk reads?</div>
+<div class="ch"><button>The system calls: the hypervisor must handle each one</button><button data-ok="1">The disk reads</button><button>Both the same</button></div>
+<div class="ans" hidden>A system call goes from EL0 to the guest kernel at EL1 without involving the hypervisor at all: hardware virtualization exists so that this path does not exit. A disk read touches a (virtual) device: the guest writes a device register to say "go", which exits to the hypervisor, and the completion arrives as an interrupt the hypervisor injects. Sections 2, 5 and 6 measure those exits.</div></div>
+</section>
+<section id="rd-s2">
+<h2>2. A VM exit, measured</h2>
+<span class="ostep">Appendix B</span>
+<p><b>What an exit is.</b> When the guest does something the hypervisor asked to see, the CPU stops the guest, saves its registers, switches to the hypervisor's privilege level and jumps to the hypervisor's handler with a <dfn>syndrome</dfn> describing why (on arm64 the exception class, <dfn>EC</dfn>; on x86 the exit reason). The handler emulates the effect, then resumes the guest. Everything a guest does is either free (runs directly) or costs one of these round trips.</p>
+<p><b>The hypervisor's API, as a program.</b> KVM exposes all of this to an ordinary Linux process through one device file. The shape of every VMM (QEMU, Firecracker) is this loop; LWN's {{Using the KVM API|https://lwn.net/Articles/658511/}} builds a complete one in about 100 lines.</p>
+<div class="fname">a minimal KVM monitor (C; the calls of LWN's example; <span class="nrh">not run here</span>: this VM has no /dev/kvm)</div>
+<pre class="cd"><span class="k">int</span> kvm  = open(<span class="s">"/dev/kvm"</span>, O_RDWR);
+<span class="k">int</span> vm   = ioctl(kvm, KVM_CREATE_VM, <span class="n">0</span>);             <span class="c">// a VM is a file descriptor</span>
+<span class="k">void</span> *mem = mmap(<span class="n">NULL</span>, <span class="n">0x1000</span>, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, -<span class="n">1</span>, <span class="n">0</span>);
+<span class="c">// guest "physical" memory is ordinary memory of this process</span>
+<span class="k">struct</span> kvm_userspace_memory_region r = { .guest_phys_addr = <span class="n">0x1000</span>, .memory_size = <span class="n">0x1000</span>, .userspace_addr = (<span class="k">long</span>)mem };
+ioctl(vm, KVM_SET_USER_MEMORY_REGION, &amp;r);
+<span class="k">int</span> vcpu = ioctl(vm, KVM_CREATE_VCPU, <span class="n">0</span>);             <span class="c">// a virtual CPU is another fd</span>
+<span class="k">struct</span> kvm_run *run = mmap(<span class="n">NULL</span>, mmap_size, PROT_READ|PROT_WRITE, MAP_SHARED, vcpu, <span class="n">0</span>);
+<span class="k">for</span> (;;) {
+    ioctl(vcpu, KVM_RUN, <span class="n">0</span>);                          <span class="c">// enter the guest; returns on an exit</span>
+    <span class="k">switch</span> (run-&gt;exit_reason) {
+    <span class="k">case</span> KVM_EXIT_IO:   <span class="c">/* the guest touched an I/O port: emulate the device */</span>  <span class="k">break</span>;
+    <span class="k">case</span> KVM_EXIT_MMIO: <span class="c">/* a device register in memory: emulate it */</span>          <span class="k">break</span>;
+    <span class="k">case</span> KVM_EXIT_HLT:  <span class="k">return</span> <span class="n">0</span>;                                    <span class="c">// the guest idled</span>
+    }
+}</pre>
+<p class="small mute">Kernel side, Linux v6.12: {{case KVM_RUN|https://github.com/torvalds/linux/blob/v6.12/virt/kvm/kvm_main.c#L4454}}, {{KVM_CREATE_VCPU|https://github.com/torvalds/linux/blob/v6.12/virt/kvm/kvm_main.c#L5153}}, {{KVM_SET_USER_MEMORY_REGION|https://github.com/torvalds/linux/blob/v6.12/virt/kvm/kvm_main.c#L5166}}; the exit codes {{KVM_EXIT_IO 2, KVM_EXIT_HLT 5, KVM_EXIT_MMIO 6|https://github.com/torvalds/linux/blob/v6.12/include/uapi/linux/kvm.h#L143-L147}}. Only exits the kernel cannot finish itself come back to user space; many (timer, some interrupt work) are handled inside KVM.</p>
+<p><b>Measured: our own tiny VM on this laptop.</b> This VM cannot run KVM (no <code>/dev/kvm</code>: the M1 Pro has no nested virtualization, see section 3). But macOS can be asked directly: Apple's Hypervisor.framework has the same shape (create a VM, map memory, create a vCPU, <code>hv_vcpu_run</code> until an exit). <code>src/exp/hvf_exits.c</code> builds a VM with one vCPU and two instructions of guest code, an instruction that exits and a branch back to it, and times one exit round trip out of the guest into our process and back, 20,000 times.</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Guest instruction</th><th>Why it exits</th><th>Exception class</th><th>Median per exit <span class="meas">measured</span></th></tr></thead><tbody>
+<tr><td><code>hvc #0</code></td><td>a hypercall: the guest asks the hypervisor for something</td><td>0x16</td><td><b data-k="hvf.hvc_med">0.88</b> µs</td></tr>
+<tr><td><code>str x1, [x2]</code> to an address with no memory</td><td>a device register (<dfn>MMIO</dfn>): the hypervisor must emulate the device</td><td>0x24</td><td><b data-k="hvf.mmio_med">0.92</b> µs</td></tr>
+<tr><td><code>wfi</code></td><td>"wait for interrupt": the guest kernel's idle instruction</td><td>0x01</td><td><b data-k="hvf.wfi_med">0.88</b> µs</td></tr>
+<tr><td>(another host thread calls <code>hv_vcpus_exit</code>)</td><td>a forced exit, how a VMM interrupts a running vCPU</td><td>canceled</td><td><b data-k="hvf.kick_med">1.08</b> µs from the call to the exit</td></tr>
+</tbody></table></div>
+<p class="small mute"><span class="meas">measured</span> macOS host, not the VM: Apple M1 Pro, Hypervisor.framework, 3 runs of 20,000 exits (2,000 kicks), median of the three run medians; timer resolution 0.042 µs. Raw: <code>src/raw/hvf_macos.txt</code>.</p>
+<p><b>Reading it.</b> About 0.9 µs per exit, whatever the reason, is the floor: the hardware switch to EL2, Apple's kernel code, the return to our user-space loop, and back. That is roughly <b>three system calls' worth</b> (the root measured a <code>read</code> system call at 0.316 µs). It is cheap once, and the whole design of a fast VM is about keeping it rare: the guest's own system calls, page faults and arithmetic never exit. What does exit in practice:</p>
+<div class="tw"><table class="tbl-sm"><thead><tr><th>Exit</th><th>KVM on arm64 (v6.12)</th><th>KVM on Intel (v6.12)</th><th>Typical cause</th></tr></thead><tbody>
+<tr><td>Idle</td><td>{{ESR_ELx_EC_WFx|https://github.com/torvalds/linux/blob/v6.12/arch/arm64/kvm/handle_exit.c#L296}}</td><td>{{EXIT_REASON_HLT|https://github.com/torvalds/linux/blob/v6.12/arch/x86/kvm/vmx/vmx.c#L6122}}</td><td>a guest CPU has nothing to run</td></tr>
+<tr><td>Device register</td><td>{{ESR_ELx_EC_DABT_LOW|https://github.com/torvalds/linux/blob/v6.12/arch/arm64/kvm/handle_exit.c#L312}}</td><td>{{IO_INSTRUCTION, EPT_VIOLATION|https://github.com/torvalds/linux/blob/v6.12/arch/x86/kvm/vmx/vmx.c#L6115}}</td><td>emulated devices, virtio "kicks" (section 6)</td></tr>
+<tr><td>System register</td><td>{{ESR_ELx_EC_SYS64|https://github.com/torvalds/linux/blob/v6.12/arch/arm64/kvm/handle_exit.c#L308}}</td><td>{{MSR_WRITE, CPUID|https://github.com/torvalds/linux/blob/v6.12/arch/x86/kvm/vmx/vmx.c#L6118-L6120}}</td><td>timers, interrupt controller, feature probing</td></tr>
+<tr><td>Hypercall</td><td>{{ESR_ELx_EC_HVC64|https://github.com/torvalds/linux/blob/v6.12/arch/arm64/kvm/handle_exit.c#L305}}</td><td>VMCALL</td><td>paravirtual services (steal time, power off)</td></tr>
+<tr><td>Interrupt for the host</td><td>(IRQ exit)</td><td>{{EXTERNAL_INTERRUPT|https://github.com/torvalds/linux/blob/v6.12/arch/x86/kvm/vmx/vmx.c#L6112}}</td><td>a device of the host's fired while the guest ran</td></tr>
+</tbody></table></div>
+<div class="ff"><div class="t">When it bites in ML</div><ul>
+<li>A GPU's work does <b>not</b> exit: with passthrough the GPU's registers are mapped straight into the guest, so writing a doorbell is an ordinary store (sections 7 and 9). The CUDA kernel itself never notices the VM.</li>
+<li>What exits is the CPU side: interrupts, idle and wake-ups (section 5), disk and network I/O (section 6). A data loader with many threads handing work to each other is the part of a training job that pays.</li>
+</ul></div>
+<p class="cmd">perf kvm stat live</p><p class="small mute">On a KVM host (not inside the guest): exits per second by reason, and the time each took.</p>
+</section>
