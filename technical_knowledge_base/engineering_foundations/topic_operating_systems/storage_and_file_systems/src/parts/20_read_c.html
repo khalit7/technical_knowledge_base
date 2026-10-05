@@ -1,0 +1,29 @@
+<section id="rd-s3">
+<h2>3. File systems and the VFS: names, inodes and open files</h2>
+<p class="ostep">ch. 39 Files and Directories, ch. 40 File System Implementation, ch. 41 Locality and FFS</p>
+<p><b>The problem.</b> A device is a flat array of blocks. Programs want named files in directories, permissions, sizes and times, and they want the same <code>open</code>, <code>read</code>, <code>write</code> to work on ext4, XFS, tmpfs, NFS or <code>/proc</code>. The kernel solves the second problem with the <dfn id="g-vfs">VFS</dfn> (virtual file system switch): one set of objects and calls that every file system implements ({{kernel docs: VFS|https://docs.kernel.org/filesystems/vfs.html}}).</p>
+<h3>Four objects</h3>
+<div class="mech">
+<div><b>superblock</b>One per mounted file system: its type, block size, and the operations to read and write inodes (<code>struct super_block</code>, include/linux/fs.h line 1416, v5.10).</div>
+<div><b>inode</b>One per file, whatever its names: type, permissions, owner, size, times, link count, and where its data lives (<code>struct inode</code>, fs.h line 610). It holds an <code>address_space</code> (line 451): that file's pages in the page cache.</div>
+<div><b>dentry</b>One per name in a path, cached: "the name <code>ckpt.pt</code> in directory X is inode 13" (<code>struct dentry</code>, include/linux/dcache.h line 89). A <dfn id="g-negdentry">negative dentry</dfn> caches "this name does not exist".</div>
+<div><b>file</b>One per <code>open()</code>: the current offset, the open flags, and a pointer to the dentry and inode (<code>struct file</code>, fs.h line 916). File descriptors are indexes into a per-process table of these; the sibling page {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}} section 7 draws the three tables.</div>
+</div>
+<p><b>Path lookup.</b> <code>open("/data/out/ckpt.pt")</code> walks the path one component at a time, looking each name up in the dentry cache and asking the file system only on a miss (fs/namei.c). The root's Syscall tracer shows <code>import torch</code> making hundreds of <code>newfstatat</code> calls that fail with ENOENT: Python searching its path. Each failure leaves a negative dentry, so the second import is cheap.</p>
+<p><b>Names are not files.</b> A directory is itself a file whose content is a table of (name, inode number). A <dfn id="g-hardlink">hard link</dfn> is a second entry pointing at the same inode; a <dfn id="g-symlink">symbolic link</dfn> is a small file containing a path. The inode counts its names (its link count) and is freed when that count is zero <b>and</b> no process has it open. So deleting a checkpoint that a running process still holds open frees no space until that process closes it or exits; <code>lsof +L1</code> lists such deleted-but-open files.</p>
+<h3>An ext4 inode, for real</h3>
+<p>Below, <code>mke2fs</code> built a 64 MiB ext4 file system inside an ordinary file and <code>debugfs</code> (which reads and writes the image directly, so no mount and no privileges were needed) copied in a 3,000,000-byte "checkpoint" and a small file with two names. <span class="meas">measured</span></p>
+<pre class="cd out" id="rd-img"></pre>
+<p class="small">Read it from the bottom of the stack up. The directory <code>out</code> is a table: <code>ckpt.pt</code> is inode 13, and <code>hello.txt</code> and <code>hardlink.txt</code> are both inode 14 (one file, <code>Links: 2</code>). Inode 13's data is one <dfn id="g-extent">extent</dfn>: logical blocks 0 to 732 stored in physical blocks 2066 to 2798, contiguous. That is 733 blocks of 4,096 bytes, the smallest number that holds 3,000,000 bytes (3,000,000 / 4,096 = 732.4), and <code>Blockcount: 5864</code> counts the same space in 512-byte sectors (733 x 8). Old file systems (ext2, ext3) listed every block number; an extent says "start, length" once, which is why a large file costs ext4 almost no metadata. ext4 also groups inodes and their data into <dfn id="g-blockgroup">block groups</dfn> so a file's inode sits near its data, the idea OSTEP ch. 41 credits to FFS. The journal (<a href="#rd-s8">section 8</a>) is itself an inode inside the file system, 4 MiB here.</p>
+<h3>What metadata costs</h3>
+<p>The same 40 MiB written as 10,240 files of 4 KiB or as one file, on ext4: <span class="meas">measured</span></p>
+<div class="rd-chart" id="rd-meta"></div>
+<p class="small" id="rd-meta-note"></p>
+<p><b>Why.</b> Every small file pays for a path lookup, an inode allocation, a directory entry, a journal transaction share and a separate block allocation; every cold read of one is at least one device request that readahead cannot merge with its neighbours (<a href="#rd-s4">section 4</a>). On a network or parallel file system each <code>open</code> and <code>stat</code> is also a round trip to a metadata server (<a href="#rd-s10">section 10</a>), so the gap grows from tens to thousands of times.</p>
+<div class="ff"><div class="t">Commands that show it</div><ul>
+<li><code>stat file</code> (inode number, links, size, blocks, times); <code>ls -li</code> (inode numbers)</li>
+<li><code>df -h</code> (space) and <code>df -i</code> (inodes: a file system can run out of inodes with free space left, the small-files failure)</li>
+<li><code>filefrag -v file</code> (extents of a file on a mounted ext4 or XFS); <code>debugfs -R "stat &lt;13&gt;" image</code></li>
+<li><code>lsof +L1</code> (deleted files still open, still using space)</li>
+</ul></div>
+</section>
