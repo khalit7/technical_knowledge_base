@@ -18,7 +18,7 @@ Numbers measured for this page are in `code/out/` and checked by `check_embed.py
 | UDP has no receive-buffer autotuning; QUIC substrate | QUIC substrate verified (RFC 9000); autotuning: child | R3 / child |
 | RoCEv2 is RDMA in UDP port 4791, needs near-lossless fabric | port unconfirmed today; "RoCE carries RDMA over Ethernet inside UDP" kept without the port | R3 |
 | TLS 1.3: one round trip, forward secrecy mandatory, everything after ServerHello encrypted | verified (RFC 9846 s2; own capture) | R4 |
-| PQ hybrid past 60% of client traffic, ~10% of origins | verified (Cloudflare blog 2026-02-27). Atlas agent lists "adoption percentages" as unconfirmed; this tab cites the Cloudflare post directly | R4 |
+| PQ hybrid past 60% of client traffic, ~10% of origins | verified (Cloudflare blog 2026-02-27). the atlas now lists it as confirmed too (correction 23) | R4 |
 | Certificate lifetimes to 47 days by 2029 with 10-day validation reuse | verified (CA/B SC-081v3; DigiCert summary) | R4 |
 | SSH hybrid PQ default since OpenSSH 9.0 | verified (9.0 2022-04-08 sntrup761x25519; 10.0 2025-04-09 mlkem768x25519; RFC 10042 Aug 2026) | R4 |
 | SSH certificates, ProxyJump | child | child (SSH) |
@@ -132,7 +132,7 @@ Numbers measured for this page are in `code/out/` and checked by `check_embed.py
 | Status codes list | verified (RFC 9110 s15, RFC 6585 s4) | R5 |
 | Caching headers, content negotiation | child | child |
 | Proxy buffering, X-Accel-Buffering | verified (nginx docs) | R6 |
-| Idempotency-Key draft | verified exists (datatracker) | R5 |
+| Idempotency-Key draft | corrected: the draft reached revision 07 and expired without becoming an RFC (datatracker; http child section 9); no longer called a standard | R5 |
 | Streaming resets idle timers | verified in substance | R5 |
 
 ## Real-time and event delivery (realtime_and_event_delivery.md)
@@ -141,8 +141,8 @@ Numbers measured for this page are in `code/out/` and checked by `check_embed.py
 |---|---|---|
 | Four mechanisms table | rebuilt | R6 |
 | SSE format, Last-Event-ID, 15 s comment advice | verified (WHATWG 9.2, 9.2.7) | R6 |
-| Anthropic SSE event types, OpenAI [DONE] | Anthropic flow verified (streaming docs, incl. mid-stream overloaded_error); OpenAI sentinel unconfirmed today | R6, R5 |
-| MCP Streamable HTTP is SSE; 2026-07-28 removed SSE resumability | verified (changelog) | R9 |
+| Anthropic SSE event types, OpenAI [DONE] | Anthropic flow verified (streaming docs, incl. mid-stream overloaded_error); OpenAI sentinel confirmed by the streaming child (openai-python `_streaming.py`, vLLM server source) | R6, R5 |
+| MCP Streamable HTTP is SSE; 2026-07-28 removed SSE resumability | corrected: the server replies with plain JSON unless it has notifications to send, then SSE (measured on the mcp child, Python SDK 2.3.0); resumability removal verified (changelog) | R9 |
 | Webhook practices; Stripe 3-day retries | practices kept; 3 days unconfirmed | R6 |
 | Meteor DDP section | child (not a protocol an ML engineer meets); kept for the real-time child | child |
 | Realtime voice APIs use WebSockets/WebRTC/SIP; GPT-Live-1 full duplex Sept 2026 at $0.05/min | WebSockets for voice kept generically; GPT-Live-1 unconfirmed, dropped | R6 |
