@@ -1,0 +1,385 @@
+Linux v5.10 source excerpts used by the virtual memory page (https://github.com/torvalds/linux/tree/v5.10). Line numbers are the file's own.
+
+===== mm/oom_kill.c lines 201-238: oom_badness: points = rss + swap + page tables, plus adj scaled by totalpages/1000
+  201  long oom_badness(struct task_struct *p, unsigned long totalpages)
+  202  {
+  203  	long points;
+  204  	long adj;
+  205  
+  206  	if (oom_unkillable_task(p))
+  207  		return LONG_MIN;
+  208  
+  209  	p = find_lock_task_mm(p);
+  210  	if (!p)
+  211  		return LONG_MIN;
+  212  
+  213  	/*
+  214  	 * Do not even consider tasks which are explicitly marked oom
+  215  	 * unkillable or have been already oom reaped or the are in
+  216  	 * the middle of vfork
+  217  	 */
+  218  	adj = (long)p->signal->oom_score_adj;
+  219  	if (adj == OOM_SCORE_ADJ_MIN ||
+  220  			test_bit(MMF_OOM_SKIP, &p->mm->flags) ||
+  221  			in_vfork(p)) {
+  222  		task_unlock(p);
+  223  		return LONG_MIN;
+  224  	}
+  225  
+  226  	/*
+  227  	 * The baseline for the badness score is the proportion of RAM that each
+  228  	 * task's rss, pagetable and swap space use.
+  229  	 */
+  230  	points = get_mm_rss(p->mm) + get_mm_counter(p->mm, MM_SWAPENTS) +
+  231  		mm_pgtables_bytes(p->mm) / PAGE_SIZE;
+  232  	task_unlock(p);
+  233  
+  234  	/* Normalize to oom_score_adj units */
+  235  	adj *= totalpages / 1000;
+  236  	points += adj;
+  237  
+  238  	return points;
+
+===== fs/proc/base.c lines 549-566: /proc/<pid>/oom_score: totalpages = RAM + swap of the whole machine; (1000 + badness*1000/totalpages)*2/3
+  549  static int proc_oom_score(struct seq_file *m, struct pid_namespace *ns,
+  550  			  struct pid *pid, struct task_struct *task)
+  551  {
+  552  	unsigned long totalpages = totalram_pages() + total_swap_pages;
+  553  	unsigned long points = 0;
+  554  	long badness;
+  555  
+  556  	badness = oom_badness(task, totalpages);
+  557  	/*
+  558  	 * Special case OOM_SCORE_ADJ_MIN for all others scale the
+  559  	 * badness value into [0, 2000] range which we have been
+  560  	 * exporting for a long time so userspace might depend on it.
+  561  	 */
+  562  	if (badness != LONG_MIN)
+  563  		points = (1000 + badness * 1000 / (long)totalpages) * 2 / 3;
+  564  
+  565  	seq_printf(m, "%lu\n", points);
+  566  
+
+===== mm/memcontrol.c lines 1690-1707: mem_cgroup_get_max: the totalpages of a cgroup OOM (memory.max + swap allowed)
+ 1690  unsigned long mem_cgroup_get_max(struct mem_cgroup *memcg)
+ 1691  {
+ 1692  	unsigned long max = READ_ONCE(memcg->memory.max);
+ 1693  
+ 1694  	if (cgroup_subsys_on_dfl(memory_cgrp_subsys)) {
+ 1695  		if (mem_cgroup_swappiness(memcg))
+ 1696  			max += min(READ_ONCE(memcg->swap.max),
+ 1697  				   (unsigned long)total_swap_pages);
+ 1698  	} else { /* v1 */
+ 1699  		if (mem_cgroup_swappiness(memcg)) {
+ 1700  			/* Calculate swap excess capacity from memsw limit */
+ 1701  			unsigned long swap = READ_ONCE(memcg->memsw.max) - max;
+ 1702  
+ 1703  			max += min(swap, (unsigned long)total_swap_pages);
+ 1704  		}
+ 1705  	}
+ 1706  	return max;
+ 1707  }
+
+===== mm/memcontrol.c lines 2466-2466: memory.high: the longest sleep per return to user space
+ 2466  #define MEMCG_MAX_HIGH_DELAY_JIFFIES (2UL*HZ)
+
+===== mm/util.c lines 805-816: vm_commit_limit: CommitLimit = RAM*overcommit_ratio/100 + swap
+  805  unsigned long vm_commit_limit(void)
+  806  {
+  807  	unsigned long allowed;
+  808  
+  809  	if (sysctl_overcommit_kbytes)
+  810  		allowed = sysctl_overcommit_kbytes >> (PAGE_SHIFT - 10);
+  811  	else
+  812  		allowed = ((totalram_pages() - hugetlb_total_pages())
+  813  			   * sysctl_overcommit_ratio / 100);
+  814  	allowed += total_swap_pages;
+  815  
+  816  	return allowed;
+
+===== mm/util.c lines 860-876: __vm_enough_memory: mode 1 always yes; mode 0 refuses one request larger than RAM+swap
+  860  int __vm_enough_memory(struct mm_struct *mm, long pages, int cap_sys_admin)
+  861  {
+  862  	long allowed;
+  863  
+  864  	vm_acct_memory(pages);
+  865  
+  866  	/*
+  867  	 * Sometimes we want to use more memory than we have
+  868  	 */
+  869  	if (sysctl_overcommit_memory == OVERCOMMIT_ALWAYS)
+  870  		return 0;
+  871  
+  872  	if (sysctl_overcommit_memory == OVERCOMMIT_GUESS) {
+  873  		if (pages > totalram_pages() + total_swap_pages)
+  874  			goto error;
+  875  		return 0;
+  876  	}
+
+===== mm/memory.c lines 851-880: copy_present_pte (fork): write-protect the parent's PTE for copy-on-write
+  851  copy_present_pte(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma,
+  852  		 pte_t *dst_pte, pte_t *src_pte, unsigned long addr, int *rss,
+  853  		 struct page **prealloc)
+  854  {
+  855  	struct mm_struct *src_mm = src_vma->vm_mm;
+  856  	unsigned long vm_flags = src_vma->vm_flags;
+  857  	pte_t pte = *src_pte;
+  858  	struct page *page;
+  859  
+  860  	page = vm_normal_page(src_vma, addr, pte);
+  861  	if (page) {
+  862  		int retval;
+  863  
+  864  		retval = copy_present_page(dst_vma, src_vma, dst_pte, src_pte,
+  865  					   addr, rss, prealloc, pte, page);
+  866  		if (retval <= 0)
+  867  			return retval;
+  868  
+  869  		get_page(page);
+  870  		page_dup_rmap(page, false);
+  871  		rss[mm_counter(page)]++;
+  872  	}
+  873  
+  874  	/*
+  875  	 * If it's a COW mapping, write protect it both
+  876  	 * in the parent and the child
+  877  	 */
+  878  	if (is_cow_mapping(vm_flags) && pte_write(pte)) {
+  879  		ptep_set_wrprotect(src_mm, addr, src_pte);
+  880  		pte = pte_wrprotect(pte);
+
+===== mm/memory.c lines 2817-2817: wp_page_copy: the copy in copy-on-write
+ 2817  static vm_fault_t wp_page_copy(struct vm_fault *vmf)
+
+===== mm/memory.c lines 3469-3469: do_anonymous_page
+ 3469  static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
+
+===== mm/memory.c lines 3496-3500: read fault on fresh anonymous memory maps the shared zero page
+ 3496  
+ 3497  	/* Use the zero-page for reads */
+ 3498  	if (!(vmf->flags & FAULT_FLAG_WRITE) &&
+ 3499  			!mm_forbids_zeropage(vma->vm_mm)) {
+ 3500  		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address),
+
+===== mm/memory.c lines 3875-3876: fault_around_bytes = 64 KiB: a file read fault maps up to 16 neighbouring cached pages
+ 3875  static unsigned long fault_around_bytes __read_mostly =
+ 3876  	rounddown_pow_of_two(65536);
+
+===== mm/memory.c lines 4377-4393: handle_pte_fault: not present -> swap-in; write to a read-only PTE -> do_wp_page (copy-on-write)
+ 4377  	if (!pte_present(vmf->orig_pte))
+ 4378  		return do_swap_page(vmf);
+ 4379  
+ 4380  	if (pte_protnone(vmf->orig_pte) && vma_is_accessible(vmf->vma))
+ 4381  		return do_numa_page(vmf);
+ 4382  
+ 4383  	vmf->ptl = pte_lockptr(vmf->vma->vm_mm, vmf->pmd);
+ 4384  	spin_lock(vmf->ptl);
+ 4385  	entry = vmf->orig_pte;
+ 4386  	if (unlikely(!pte_same(*vmf->pte, entry))) {
+ 4387  		update_mmu_tlb(vmf->vma, vmf->address, vmf->pte);
+ 4388  		goto unlock;
+ 4389  	}
+ 4390  	if (vmf->flags & FAULT_FLAG_WRITE) {
+ 4391  		if (!pte_write(entry))
+ 4392  			return do_wp_page(vmf);
+ 4393  		entry = pte_mkdirty(entry);
+
+===== mm/memory.c lines 4548-4557: major vs minor fault accounting
+ 4548  	 * We define the fault as a major fault when the final successful fault
+ 4549  	 * is VM_FAULT_MAJOR, or if it retried (which implies that we couldn't
+ 4550  	 * handle it immediately previously).
+ 4551  	 */
+ 4552  	major = (ret & VM_FAULT_MAJOR) || (flags & FAULT_FLAG_TRIED);
+ 4553  
+ 4554  	if (major)
+ 4555  		current->maj_flt++;
+ 4556  	else
+ 4557  		current->min_flt++;
+
+===== mm/huge_memory.c lines 615-625: a THP fault deposits a page-table page per huge page (so VmPTE does not shrink)
+  615  			VM_BUG_ON(ret2 & VM_FAULT_FALLBACK);
+  616  			return ret2;
+  617  		}
+  618  
+  619  		entry = mk_huge_pmd(page, vma->vm_page_prot);
+  620  		entry = maybe_pmd_mkwrite(pmd_mkdirty(entry), vma);
+  621  		page_add_new_anon_rmap(page, vma, haddr, true);
+  622  		lru_cache_add_inactive_or_unevictable(page, vma);
+  623  		pgtable_trans_huge_deposit(vma->vm_mm, vmf->pmd, pgtable);
+  624  		set_pmd_at(vma->vm_mm, haddr, vmf->pmd, entry);
+  625  		add_mm_counter(vma->vm_mm, MM_ANONPAGES, HPAGE_PMD_NR);
+
+===== mm/huge_memory.c lines 1310-1317: write fault on a shared THP after fork: split the PMD, fall back to 4 KiB copy-on-write
+ 1310  		return VM_FAULT_WRITE;
+ 1311  	}
+ 1312  
+ 1313  	unlock_page(page);
+ 1314  	spin_unlock(vmf->ptl);
+ 1315  fallback:
+ 1316  	__split_huge_pmd(vma, vmf->pmd, vmf->address, false, NULL);
+ 1317  	return VM_FAULT_FALLBACK;
+
+===== arch/arm64/mm/fault.c lines 599-605: arm64: a translation fault at any level goes to do_page_fault
+  599  static int __kprobes do_translation_fault(unsigned long addr,
+  600  					  unsigned int esr,
+  601  					  struct pt_regs *regs)
+  602  {
+  603  	if (is_ttbr0_addr(addr))
+  604  		return do_page_fault(addr, esr, regs);
+  605  
+
+===== arch/arm64/mm/fault.c lines 408-434: arm64 __do_page_fault -> handle_mm_fault
+  408  static vm_fault_t __do_page_fault(struct mm_struct *mm, unsigned long addr,
+  409  				  unsigned int mm_flags, unsigned long vm_flags,
+  410  				  struct pt_regs *regs)
+  411  {
+  412  	struct vm_area_struct *vma = find_vma(mm, addr);
+  413  
+  414  	if (unlikely(!vma))
+  415  		return VM_FAULT_BADMAP;
+  416  
+  417  	/*
+  418  	 * Ok, we have a good vm_area for this memory access, so we can handle
+  419  	 * it.
+  420  	 */
+  421  	if (unlikely(vma->vm_start > addr)) {
+  422  		if (!(vma->vm_flags & VM_GROWSDOWN))
+  423  			return VM_FAULT_BADMAP;
+  424  		if (expand_stack(vma, addr))
+  425  			return VM_FAULT_BADMAP;
+  426  	}
+  427  
+  428  	/*
+  429  	 * Check that the permissions on the VMA allow for the fault which
+  430  	 * occurred.
+  431  	 */
+  432  	if (!(vma->vm_flags & vm_flags))
+  433  		return VM_FAULT_BADACCESS;
+  434  	return handle_mm_fault(vma, addr & PAGE_MASK, mm_flags, regs);
+
+===== arch/arm64/include/asm/tlbflush.h lines 255-272: arm64 TLB flush: TLBI VALE1IS broadcast by hardware to all CPUs (inner shareable), no IPI
+  255  
+  256  static inline void flush_tlb_page_nosync(struct vm_area_struct *vma,
+  257  					 unsigned long uaddr)
+  258  {
+  259  	unsigned long addr = __TLBI_VADDR(uaddr, ASID(vma->vm_mm));
+  260  
+  261  	dsb(ishst);
+  262  	__tlbi(vale1is, addr);
+  263  	__tlbi_user(vale1is, addr);
+  264  }
+  265  
+  266  static inline void flush_tlb_page(struct vm_area_struct *vma,
+  267  				  unsigned long uaddr)
+  268  {
+  269  	flush_tlb_page_nosync(vma, uaddr);
+  270  	dsb(ish);
+  271  }
+  272  
+
+===== arch/x86/mm/tlb.c lines 798-825: x86 TLB shootdown: interrupts (IPIs) to the other CPUs running this mm
+  798  STATIC_NOPV void native_flush_tlb_others(const struct cpumask *cpumask,
+  799  					 const struct flush_tlb_info *info)
+  800  {
+  801  	count_vm_tlb_event(NR_TLB_REMOTE_FLUSH);
+  802  	if (info->end == TLB_FLUSH_ALL)
+  803  		trace_tlb_flush(TLB_REMOTE_SEND_IPI, TLB_FLUSH_ALL);
+  804  	else
+  805  		trace_tlb_flush(TLB_REMOTE_SEND_IPI,
+  806  				(info->end - info->start) >> PAGE_SHIFT);
+  807  
+  808  	/*
+  809  	 * If no page tables were freed, we can skip sending IPIs to
+  810  	 * CPUs in lazy TLB mode. They will flush the CPU themselves
+  811  	 * at the next context switch.
+  812  	 *
+  813  	 * However, if page tables are getting freed, we need to send the
+  814  	 * IPI everywhere, to prevent CPUs in lazy TLB mode from tripping
+  815  	 * up on the new contents of what used to be page tables, while
+  816  	 * doing a speculative memory access.
+  817  	 */
+  818  	if (info->freed_tables)
+  819  		smp_call_function_many(cpumask, flush_tlb_func_remote,
+  820  			       (void *)info, 1);
+  821  	else
+  822  		on_each_cpu_cond_mask(tlb_is_not_lazy, flush_tlb_func_remote,
+  823  				(void *)info, 1, cpumask);
+  824  }
+  825  
+
+===== arch/x86/mm/tlb.c lines 842-842: x86: more than 33 pages -> flush the whole TLB instead
+  842  unsigned long tlb_single_page_flush_ceiling __read_mostly = 33;
+
+===== fs/proc/task_mmu.c lines 75-75: VmPTE = mm_pgtables_bytes
+   75  		    " kB\nVmPTE:\t", mm_pgtables_bytes(mm) >> 10, 8);
+===== include/linux/mm_types.h lines 305-308: struct vm_area_struct: one mapping (a line of /proc/PID/maps)
+  305  struct vm_area_struct {
+  306  	/* The first cache line has the info for VMA tree walking. */
+  307  
+  308  	unsigned long vm_start;		/* Our start address within vm_mm. */
+
+===== include/linux/mm_types.h lines 356-361: a VMA's operations and file
+  356  	const struct vm_operations_struct *vm_ops;
+  357  
+  358  	/* Information about our backing store: */
+  359  	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
+  360  					   units */
+  361  	struct file * vm_file;		/* File we map to (can be NULL). */
+
+===== include/linux/mm_types.h lines 388-407: struct mm_struct: one address space; pgd = root of the page-table tree
+  388  struct mm_struct {
+  389  	struct {
+  390  		struct vm_area_struct *mmap;		/* list of VMAs */
+  391  		struct rb_root mm_rb;
+  392  		u64 vmacache_seqnum;                   /* per-thread vmacache */
+  393  #ifdef CONFIG_MMU
+  394  		unsigned long (*get_unmapped_area) (struct file *filp,
+  395  				unsigned long addr, unsigned long len,
+  396  				unsigned long pgoff, unsigned long flags);
+  397  #endif
+  398  		unsigned long mmap_base;	/* base of mmap area */
+  399  		unsigned long mmap_legacy_base;	/* base of mmap area in bottom-up allocations */
+  400  #ifdef CONFIG_HAVE_ARCH_COMPAT_MMAP_BASES
+  401  		/* Base adresses for compatible mmap() */
+  402  		unsigned long mmap_compat_base;
+  403  		unsigned long mmap_compat_legacy_base;
+  404  #endif
+  405  		unsigned long task_size;	/* size of task vm space */
+  406  		unsigned long highest_vm_end;	/* highest vma end address */
+  407  		pgd_t * pgd;
+
+===== include/linux/mm_types.h lines 452-452: map_count: number of VMAs (capped by vm.max_map_count)
+  452  		int map_count;			/* number of VMAs */
+
+===== arch/arm64/include/asm/pgtable-hwdef.h lines 26-26: levels = (VA bits - 4) / (page shift - 3): 48-bit with 4 KiB pages -> 4 levels
+   26  #define ARM64_HW_PGTABLE_LEVELS(va_bits) (((va_bits) - 4) / (PAGE_SHIFT - 3))
+
+===== arch/arm64/include/asm/pgtable-hwdef.h lines 43-43: entries per table = page size / 8 bytes
+   43  #define PTRS_PER_PTE		(1 << (PAGE_SHIFT - 3))
+
+===== arch/arm64/include/asm/pgtable-hwdef.h lines 135-148: arm64 page-table entry bits
+  135  #define PTE_VALID		(_AT(pteval_t, 1) << 0)
+  136  #define PTE_TYPE_MASK		(_AT(pteval_t, 3) << 0)
+  137  #define PTE_TYPE_PAGE		(_AT(pteval_t, 3) << 0)
+  138  #define PTE_TABLE_BIT		(_AT(pteval_t, 1) << 1)
+  139  #define PTE_USER		(_AT(pteval_t, 1) << 6)		/* AP[1] */
+  140  #define PTE_RDONLY		(_AT(pteval_t, 1) << 7)		/* AP[2] */
+  141  #define PTE_SHARED		(_AT(pteval_t, 3) << 8)		/* SH[1:0], inner shareable */
+  142  #define PTE_AF			(_AT(pteval_t, 1) << 10)	/* Access Flag */
+  143  #define PTE_NG			(_AT(pteval_t, 1) << 11)	/* nG */
+  144  #define PTE_GP			(_AT(pteval_t, 1) << 50)	/* BTI guarded */
+  145  #define PTE_DBM			(_AT(pteval_t, 1) << 51)	/* Dirty Bit Management */
+  146  #define PTE_CONT		(_AT(pteval_t, 1) << 52)	/* Contiguous range */
+  147  #define PTE_PXN			(_AT(pteval_t, 1) << 53)	/* Privileged XN */
+  148  #define PTE_UXN			(_AT(pteval_t, 1) << 54)	/* User XN */
+===== mm/page_alloc.c lines 7874-7880: watermarks: low = min + max(min/4, managed*watermark_scale_factor/10000); high = min + 2 x that
+ 7874  		tmp = max_t(u64, tmp >> 2,
+ 7875  			    mult_frac(zone_managed_pages(zone),
+ 7876  				      watermark_scale_factor, 10000));
+ 7877  
+ 7878  		zone->watermark_boost = 0;
+ 7879  		zone->_watermark[WMARK_LOW]  = min_wmark_pages(zone) + tmp;
+ 7880  		zone->_watermark[WMARK_HIGH] = min_wmark_pages(zone) + tmp * 2;
+
+===== mm/vmscan.c lines 172-172: vm.swappiness default 60
+  172  int vm_swappiness = 60;

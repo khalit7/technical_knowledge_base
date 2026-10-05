@@ -1,0 +1,35 @@
+<section id="rd-one">
+<h2>In one screen</h2>
+<p class="lead">Every address your training job touches is a <b>virtual</b> address. Hardware translates it, page by page, through a tree of tables the kernel keeps for each process; a small cache (the TLB) makes that free most of the time; and the kernel fills the tables only when a page is first touched (a page fault). Everything else on this page, from <code>mmap</code> and copy-on-write to huge pages and the OOM killer, is a way of filling, sharing, enlarging or taking back those pages.</p>
+<p>The root page, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 4, gave the intuition and measured the TLB, page faults and copy-on-write on the running job. This page goes one level down: the kernel's actual code paths (Linux v5.10, the kernel these runs used, file and line), every knob that matters in ML work, and new measurements. Each mechanism follows the same pattern: <b>problem, how it works, what it costs here, when it bites in ML, the command that shows it, the fix.</b></p>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Mechanism</th><th>What it does</th><th>Cost measured here <span class="meas">measured</span></th><th>When it bites in ML</th><th>Look with</th></tr></thead>
+<tbody>
+<tr><td><a href="#rd-s2">Page tables</a></td><td>map 4 KiB virtual pages to physical frames, 4 levels</td><td>2,052 KiB of tables per GiB touched</td><td>rarely; huge resident sets on many processes</td><td><code>grep VmPTE /proc/PID/status</code></td></tr>
+<tr><td><a href="#rd-s3">TLB</a></td><td>caches translations</td><td>miss: 7.6 ns vs hit 1.1 ns (root)</td><td>random gathers over big embeddings, hash tables</td><td><code>perf stat -e dTLB-load-misses</code></td></tr>
+<tr><td><a href="#rd-s4">Page fault</a></td><td>fills a table entry on first touch</td><td>about 1 us per 4 KiB page</td><td>first epoch, first touch of a huge buffer</td><td><code>/usr/bin/time -v</code>, <code>ps -o min_flt,maj_flt</code></td></tr>
+<tr><td><a href="#rd-s5">mmap</a></td><td>maps a file's cached pages into memory, no copy</td><td>random rows: 13x read amplification</td><td>datasets, safetensors, <code>torch.load(mmap=True)</code></td><td><code>cat /proc/PID/maps</code></td></tr>
+<tr><td><a href="#rd-s7">Copy-on-write</a></td><td>fork shares pages until written</td><td>fork of 1 GiB: 19.8 ms; one copy about 3.3 us</td><td>DataLoader workers growing to the parent's size</td><td><code>smaps_rollup</code> Private_Dirty</td></tr>
+<tr><td><a href="#rd-s8">Huge pages</a></td><td>one 2 MiB page instead of 512</td><td>512x fewer faults; up to 298x more memory</td><td>allocators, pinned buffers, bloat in sparse arrays</td><td><code>grep AnonHugePages /proc/meminfo</code></td></tr>
+<tr><td><a href="#rd-s9">Pinned memory</a></td><td>pages the kernel may not move or swap</td><td>default limit here 64 KiB</td><td><code>pin_memory=True</code>, RDMA, containers</td><td><code>ulimit -l</code>, VmLck</td></tr>
+<tr><td><a href="#rd-s12">memory cgroup, OOM</a></td><td>caps a container, kills when it cannot reclaim</td><td>killed at the limit, exit 137</td><td>"Killed" with no traceback; /dev/shm counted</td><td><code>memory.events</code>, <code>memory.stat</code></td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Five things to remember</div>
+<ol class="tight">
+<li><b>Allocating is not using.</b> A 64 GiB <code>mmap</code> succeeded here on a 10 GB machine; memory is spent page by page, at first touch.</li>
+<li><b>Resident is not owned.</b> The job's three processes report 815 MiB of RSS together but own only 104 MiB alone; the rest is shared (<a href="#rd-s13">section 13</a>).</li>
+<li><b>Reading a Python object writes to it</b> (reference counts, the garbage collector), so forked DataLoader workers copy what they read. NumPy arrays and <code>gc.freeze()</code> stop it (<a href="#rd-s7">section 7</a>).</li>
+<li><b>The page cache counts toward your container's limit</b> but is given back; anonymous memory and /dev/shm are not (<a href="#rd-s12">section 12</a>).</li>
+<li><b>The OOM killer sends SIGKILL:</b> no exception, no traceback, exit code 137.</li>
+</ol></div>
+<p class="small mute">How this page was measured: Docker Desktop's Linux VM on an Apple M1 laptop (Linux 5.10.104-linuxkit, arm64, 4 KiB pages, 5 CPUs, about 10 GB, 1 GiB swap, THP in "madvise" mode, overcommit mode 1, one NUMA node, no GPU), image <code>kb-os-vm:1</code> (the root's lab image plus safetensors), October 2026. Containers were not privileged. Things that need a GPU, a newer kernel, writable sysctls or real NUMA are taught from primary sources and tagged <span class="nrh">not run here</span>. Labels: <span class="meas">measured</span> ran here; <span class="src">source</span> read from kernel source or documentation. Scripts and raw outputs: <code>src/exp/</code> and <code>src/raw/</code> in the repository.</p>
+<div class="tw"><table class="tbl-sm"><caption class="small mute" style="text-align:left">OSTEP chapter map for this page (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/" target="_blank" rel="noopener noreferrer">free online</a>)</caption>
+<thead><tr><th>OSTEP chapter</th><th>Sections here</th></tr></thead><tbody>
+<tr><td>13 The Abstraction: Address Spaces; 14 Memory API</td><td>1</td></tr>
+<tr><td>15 Address Translation; 16 Segmentation; 17 Free-Space Management</td><td>1, 2 (allocators: the sibling page {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}})</td></tr>
+<tr><td>18 Paging: Introduction; 20 Paging: Smaller Tables</td><td>2, 8</td></tr>
+<tr><td>19 Paging: Faster Translations (TLBs)</td><td>3, 8</td></tr>
+<tr><td>21 Beyond Physical Memory: Mechanisms; 22 Policies</td><td>4, 6, 11</td></tr>
+<tr><td>23 Complete Virtual Memory Systems (VAX/VMS, Linux)</td><td>4, 5, 7, 8 (this page is chapter 23 extended to Linux 5.10 and to ML)</td></tr>
+</tbody></table></div>
+</section>
