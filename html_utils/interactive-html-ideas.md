@@ -3077,3 +3077,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/src/viz_ideas.md`.
 
+### Topic: agentic-frameworks (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/src/viz_ideas.md`.
+
