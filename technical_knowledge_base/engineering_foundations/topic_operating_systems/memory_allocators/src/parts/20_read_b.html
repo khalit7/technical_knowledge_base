@@ -1,0 +1,57 @@
+<style>
+#t-read .stack{display:flex;flex-direction:column;gap:4px;margin:10px 0}
+#t-read .stack .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:4px}
+#t-read .stack .bx{border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:6px;padding:4px 9px;font-size:12.5px;background:var(--bg);min-width:0;overflow-wrap:anywhere}
+#t-read .stack .bx b{display:block;font-size:13px}#t-read .stack .bx span{color:var(--mute)}
+#t-read .stack .arr{text-align:center;color:var(--mute);font-size:12px;line-height:1}
+#t-read .stack .k{background:var(--soft)}
+#t-read .five{counter-reset:fv;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:10px 0}
+#t-read .five>div{border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13.5px;min-width:0}
+#t-read .five>div b:first-child:before{counter-increment:fv;content:counter(fv) ". ";color:var(--mute)}
+#t-read .hbar{margin:8px 0}#t-read .hbar .r{display:grid;grid-template-columns:minmax(0,10.5em) minmax(0,1fr) 7.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+#t-read .hbar .tr{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+#t-read .hbar .f{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+#t-read .hbar .v{text-align:right;font-variant-numeric:tabular-nums}
+#t-read .hbar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:520px){#t-read .hbar .r{grid-template-columns:minmax(0,7.4em) minmax(0,1fr) 6.2em;font-size:12px}}
+#t-read .chunk{display:flex;margin:8px 0;font:11.5px ui-monospace,Menlo,monospace;flex-wrap:wrap}
+#t-read .chunk div{border:1px solid var(--mute);padding:4px 6px;min-width:0;text-align:center}
+#t-read .chunk .h{background:var(--acc2)}#t-read .chunk .u{flex:1 1 120px;background:var(--soft)}
+#t-read .lanes2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:8px}
+#t-read .lanes2>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+#t-read .lanes2 h4{margin:0 0 4px;font-size:13px}
+#t-read .sys{font:11.5px/1.5 ui-monospace,Menlo,monospace;min-height:6.2em;overflow-wrap:anywhere;color:var(--mute)}
+#t-read .sys .now{color:var(--ink);background:var(--hl)}
+</style>
+<nav class="nav" id="rd-nav">
+<a href="#rd-one">One screen</a><a href="#rd-s1">1 Free space</a><a href="#rd-s2">2 The C API</a><a href="#rd-s3">3 Inside glibc</a><a href="#rd-s4">4 Arenas</a><a href="#rd-s5">5 Fragmentation</a><a href="#rd-s6">6 jemalloc, tcmalloc, mimalloc</a><a href="#rd-s7">7 Python</a><a href="#rd-s8">8 NumPy and torch CPU</a><a href="#rd-s9">9 CUDA caching allocator</a><a href="#rd-s10">10 Playbook</a><a href="#rd-s11">Interview</a><a href="#rd-s12">OSTEP map</a>
+</nav>
+<section id="rd-one">
+<h2>In one screen: who hands out your memory</h2>
+<p class="lead">The kernel gives a process memory in whole pages (4 KiB here), and only through system calls that cost hundreds of nanoseconds. A training job asks for memory millions of times: a 32-byte Python tuple, a 600-byte string, a 1 MiB NumPy batch, a 64 MiB tensor, a 300 MiB activation on the GPU. In between sits a stack of <dfn id="g-alloc">allocators</dfn>, user-space libraries that get big regions from the kernel rarely, cut them into pieces quickly, and keep freed pieces to hand out again. This page follows the {{root's running training job|n:3f05c17b0d0d81c5a97ce991644af140}} down that stack, measures each layer on a real Linux kernel, and reads the source where it explains a number.</p>
+<div class="stack" aria-label="The allocator stack">
+<div class="row"><div class="bx" style="--sc:var(--c4)"><b>Python objects</b><span>tuples, ints, small strings: CPython's pymalloc (objects up to 512 bytes), else malloc</span></div><div class="bx" style="--sc:var(--c3)"><b>NumPy arrays</b><span>a small-buffer cache, then malloc; madvise(MADV_HUGEPAGE) from 4 MiB</span></div><div class="bx" style="--sc:var(--c1)"><b>torch CPU tensors</b><span>c10's alloc_cpu: mimalloc inside libc10.so on Linux arm64 and Windows, posix_memalign (glibc) elsewhere</span></div><div class="bx" style="--sc:var(--c2)"><b>torch CUDA tensors</b><span>the caching allocator: blocks cut from segments got with cudaMalloc or mapped with cuMemMap</span></div></div>
+<div class="arr">&#9660; most of these end in</div>
+<div class="row"><div class="bx" style="--sc:var(--c5)"><b>malloc / free (glibc's ptmalloc, or jemalloc, tcmalloc, mimalloc via LD_PRELOAD)</b><span>chunks with a header, per-thread caches (tcache), bins of free chunks, one arena per group of threads</span></div></div>
+<div class="arr">&#9660; system calls, rarely</div>
+<div class="row"><div class="bx k" style="--sc:var(--bad)"><b>the kernel: brk, mmap, munmap, madvise</b><span>whole pages, mapped on first touch; the kernel's own allocators (buddy, slab) underneath. Pages, faults, THP and the OOM killer belong to the {{virtual memory page|n:3f05c17b0d0d81a48892cea154ce950b}}</span></div></div>
+</div>
+<div class="five">
+<div><b>free() rarely gives memory back.</b> Freeing 98% of 400,000 small blocks left resident memory (RSS) at <span data-k="frag.glibc.freed">110,524</span> KiB for <span data-k="frag.live">1,562</span> KiB of live data under glibc; <code>malloc_trim(0)</code> brought it to <span data-k="frag.glibc.trim">29,404</span> KiB. RSS is not live data (section 5).</div>
+<div><b>One live object pins a page, or an arena.</b> The 6,250 surviving 272-byte chunks still pinned about 24 MiB of pages after the trim; 2,000 surviving Python tuples kept all 158 of CPython's 1 MiB arenas (sections 5 and 7).</div>
+<div><b>Free one big block and the next ones change path.</b> glibc serves a 1 MiB request with its own mmap, but freeing it raises the threshold, and the same request then comes from the heap and stays resident (section 3, traced).</div>
+<div><b>No allocator wins everything.</b> On one data-loader-like workload, the allocator with the least memory was 4 times slower, and the fastest held the most (section 6, measured). Measure yours.</div>
+<div><b>On the GPU, "reserved" is not "allocated".</b> PyTorch caches freed GPU blocks; when tensor sizes vary, free memory ends up in pieces no request fits, and you get "out of memory" with gigabytes free. <code>expandable_segments:True</code> is the fix (section 9, simulated from source).</div>
+</div>
+<p><b>Where the running job meets each layer.</b> The root's job (a 256-128-10 MLP on 8 MiB of memory-mapped data, two DataLoader workers) touches all of them: its Python objects and the DataLoader's bookkeeping go through pymalloc; each batch NumPy builds goes through glibc's malloc; the model's weights and every activation go through mimalloc inside <code>libc10.so</code>, which is why building the model made the 1 GiB address-space reservation the root's {{Syscall tracer|n:3f05c17b0d0d81c5a97ce991644af140}} tab found; its threads (OpenMP, the DataLoader's) get their own glibc arenas, the 64 MiB reservations the root's section 5 saw in the memory map. On a GPU, the same tensors would go through the caching allocator. Section 6 runs the job under four allocators.</p>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Layer</th><th>Gets memory from</th><th>Unit it hands out</th><th>Gives memory back</th><th>See it with</th></tr></thead>
+<tbody>
+<tr><td>pymalloc</td><td>mmap, 1 MiB arenas</td><td>16-byte size classes up to 512 B, in 16 KiB pools</td><td>an arena when every object in it is dead</td><td><code>sys._debugmallocstats()</code>, <code>tracemalloc</code></td></tr>
+<tr><td>glibc malloc</td><td>brk (main heap), mmap (big blocks, thread arenas)</td><td>chunks: request + 8 bytes, rounded to 16, at least 32</td><td>the heap's top past 128 KiB (trim threshold); mmapped chunks at once; <code>malloc_trim</code></td><td><code>malloc_info</code>, <code>malloc_stats</code>, <code>/proc/&lt;pid&gt;/smaps</code></td></tr>
+<tr><td>jemalloc, tcmalloc, mimalloc</td><td>mmap</td><td>size classes in per-size runs, slabs, spans or pages</td><td>after a delay or rate (decay, release rate, purge delay)</td><td>their stats calls and environment options</td></tr>
+<tr><td>CUDA caching allocator</td><td>cudaMalloc, or cuMemCreate plus cuMemMap</td><td>blocks: 512-byte multiples in 2 MiB or 20 MiB-plus segments</td><td>only on OOM retry or <code>torch.cuda.empty_cache()</code></td><td><code>memory_summary()</code>, memory snapshots</td></tr>
+<tr><td>kernel</td><td>physical memory</td><td>4 KiB pages (buddy allocator for runs of pages, slab caches for its own objects)</td><td>munmap, madvise(MADV_DONTNEED)</td><td><code>/proc/buddyinfo</code>, <code>/proc/slabinfo</code>, <code>/proc/meminfo</code></td></tr>
+</tbody></table></div>
+<p class="small mute">Measured in Docker Desktop's Linux VM (Linux 5.10.104-linuxkit, arm64, 4 KiB pages, 5 CPUs; glibc 2.36, Python 3.11.2, torch 2.14.1+cpu, NumPy 2.4.6; jemalloc 5.3.0, gperftools tcmalloc 2.10, mimalloc 2.0.9 from Debian 12), image <code>kb-os-alloc:1</code>, 2026-10-05; scripts and raw outputs in <code>src/</code>. Each container was capped at 1 or 2 CPUs and 1,500 MiB, on a VM shared with other experiments, so times carry some noise; repeated runs are shown where it matters.</p>
+</section>

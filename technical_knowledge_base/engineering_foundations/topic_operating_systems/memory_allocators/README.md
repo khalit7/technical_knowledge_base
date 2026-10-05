@@ -2,4 +2,5 @@
 
 Notion: https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958 (child of Topic: operating-systems)
 
-Not migrated yet: a new page, being built.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Free-space management from zero (headers, free lists, splitting, coalescing, policies, slab and buddy allocators read live from `/proc`), the C API and its bugs, glibc's ptmalloc in depth (chunks, tcache and bins, brk against mmap and the dynamic threshold traced, the trim threshold, malloc_trim, arenas), fragmentation measured, jemalloc, tcmalloc and mimalloc compared on the same workloads and on the root's training job, CPython's pymalloc, NumPy's and PyTorch's CPU allocators (mimalloc inside libc10 on arm64: the root's 1 GiB reservation explained), and PyTorch's CUDA caching allocator from its source (not run: no GPU). Tabs: Reading, Free-list lab (OSTEP's malloc.py ported and animated), Caching allocator (a model of CUDACachingAllocator.cpp at v2.14.1, two configurations side by side), Further reading. A new page; no child pages, databases or video.
+Real runs: Docker Desktop's Linux VM (Linux 5.10.104-linuxkit, arm64, 4 KiB pages), image `kb-os-alloc:1` (`src/Dockerfile.alloc`, from the shared `kb-os-lab:1`), 2026-10-05.
