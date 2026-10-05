@@ -2497,3 +2497,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | 11 | Learned score field arrows | rejected | | the DDPM paper page has it |
 | 12 | Image-scale diffusion model | rejected | | weights too large for a sandboxed page; 2-D makes every sample checkable |
 | 13 | Normalising-flow toy (RealNVP on moons) | rejected | | one section of scope; two checked closed forms carry the idea |
+
+### Topic: programming-languages (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/src/viz_ideas.md`.
+

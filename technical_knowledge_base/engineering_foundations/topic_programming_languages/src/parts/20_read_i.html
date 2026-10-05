@@ -1,0 +1,56 @@
+
+<section id="rd-s14">
+<h2>14. Choosing, and a learning path for you</h2>
+<h3>Which language for which job</h3>
+<div class="tw"><table class="four">
+<thead><tr><th>Job</th><th>Language</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Research, training, evaluation, notebooks, data wrangling</td><td class="lang-py"><b>Python</b></td><td>The libraries are there (PyTorch, NumPy, polars, Transformers), and their fast parts are already C++ or Rust underneath.</td></tr>
+<tr><td>Make a hot Python loop fast</td><td class="lang-rs"><b>Rust</b> through PyO3 (or C++ through nanobind in a C++ codebase)</td><td>Memory-safe speed; maturin builds wheels; the pattern of pydantic-core, tokenizers and polars.</td></tr>
+<tr><td>Command-line tools and network services that must be fast, small and reliable</td><td class="lang-rs"><b>Rust</b></td><td>A single binary, start-up in milliseconds, data races refused at compile time; cargo for everything.</td></tr>
+<tr><td>LLM applications, agents, MCP servers, anything with a web front end</td><td class="lang-ts"><b>TypeScript</b> on Node or Bun</td><td>The SDKs and harnesses are written in it (section 1); one language from browser to server. Python is a fine second choice for agents.</td></tr>
+<tr><td>Reading and changing PyTorch internals, llama.cpp, inference engines; writing CUDA kernels</td><td class="lang-cpp"><b>C++</b> (and C)</td><td>That is the language those systems are written in; CUDA C++ is C++ with extensions.</td></tr>
+</tbody></table></div>
+
+<h3>A learning path, for an ML engineer who knows Python</h3>
+<p>In the order that pays off soonest. Each step names its milestone, a small program you can show working. The children of this page (below) will teach each language in this order.</p>
+<ol>
+<li><b>TypeScript, through JavaScript's runtime</b> (closest to Python, immediately useful). Learn the event loop and <code>async</code>/<code>await</code> (section 9), objects as shared references (section 4), <code>null</code> and <code>undefined</code> and strict mode (section 6), then types: narrowing, <code>unknown</code>, and validating input at the boundary because types are erased (section 3). <i>Milestone:</i> an MCP server in TypeScript that exposes the token counter as a tool.</li>
+<li><b>Rust, ownership first.</b> Ownership, moves and borrowing (sections 4 and 5; chapter 4 of the Rust Book), then <code>Option</code> and <code>Result</code> (section 6), traits (section 8), cargo and clippy. <i>Milestones:</i> the token counter as a PyO3 extension called from Python and timed against the Python loop; then the same as a command-line tool; then a small HTTP service with tokio.</li>
+<li><b>C++, from the machine up, to reading llama.cpp.</b> The goal is to read real inference-engine source, so learn the features in the order that code uses them (counts at llama.cpp commit <span class="lc"></span>, from <code>read/code/llama/excerpts.sh</code>):
+<ol type="a">
+<li><b>C first: structs, fixed-size arrays, pointers and pointer arithmetic, <code>void*</code> casts.</b> <code>ggml_tensor</code> and <code>block_q4_0</code> (section 5) are plain C structs; the CPU kernels walk arrays of blocks through pointers (<code>x[ib].qs[j]</code>).</li>
+<li><b>Memory and files:</b> stack and heap, alignment and padding, <code>mmap</code> (section 5), and reading a binary format (the GGUF reader is <code>ggml/src/gguf.cpp</code>).</li>
+<li><b>The preprocessor:</b> <code>#if</code>/<code>#ifdef</code> select code per processor and backend (50 such lines in the ARM CPU kernel file alone) and macros such as <code>GGML_RESTRICT</code>.</li>
+<li><b>SIMD intrinsics with a scalar twin:</b> each hot kernel has a portable C loop (<code>ggml-cpu/quants.c</code>) and per-architecture versions full of NEON calls like <code>vld1q_u8</code> (209 <code>vld1q_</code> calls in <code>arch/arm/quants.c</code>). Read the scalar one first; it says what the SIMD one computes.</li>
+<li><b>Threads:</b> ggml's CPU backend starts its worker threads with <code>pthread_create</code> behind a <code>ggml_thread_create</code> macro; the data-race rules of section 9 apply.</li>
+<li><b>Modern C++ in <code>src/</code>:</b> classes and RAII (<code>llama_mmap</code>'s destructor), <code>std::unique_ptr</code> (60 uses in the headers), <code>std::vector</code> and <code>std::string</code>, lambdas, exceptions (260 <code>throw std::runtime_error</code>), then templates (58 declarations; read, rarely written).</li>
+<li><b>The build:</b> CMake with backend options (<code>GGML_CUDA</code>, <code>GGML_METAL</code>, <code>GGML_VULKAN</code>, <code>GGML_HIP</code>, <code>GGML_SYCL</code>, <code>GGML_BLAS</code>), and sanitizers for your own changes.</li>
+</ol>
+<i>Milestones:</i> the token counter in C++ under AddressSanitizer with no reports; then build llama.cpp from source, run a small GGUF model, and trace one call of <code>ggml_vec_dot_q4_0_q8_0</code> from the scalar version to the NEON one. Then CUDA, which is {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}'s path, and what llama.cpp's kernels compute (attention, KV cache, quantisation), which is {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}'s.</li>
+<li><b>Python, deeper</b> (you already use it daily): the object model and data model protocols, what CPython does with your code (sections 2 and 5), packaging with uv, free-threaded 3.14 and the changes in 3.15. <i>Milestone:</i> profile a slow script, then make it faster three ways (algorithm, vectorised library, extension) and explain each gain.</li>
+</ol>
+<div class="co"><div class="t">What the children will cover</div>This page is the overview. Four child pages are proposed, one per language, each written for a Python programmer and following the steps above: <b>Python</b> (the object model, the interpreter, packaging, free threading, current releases), <b>C++</b> (the machine, RAII, templates, the build, ending in a guided reading of llama.cpp), <b>Rust</b> (ownership to PyO3 extensions, command-line tools and async services), and <b>TypeScript</b> (JavaScript's runtime, then types, ending in an MCP server).</div>
+
+<h3>Each axis, traced back to each founding value</h3>
+<div class="tw"><table class="four">
+<thead><tr><th>Axis</th><th class="lang-py">Python: readability</th><th class="lang-cpp">C++: zero overhead, C compatibility</th><th class="lang-rs">Rust: safety without a GC, at compile time</th><th class="lang-ts">TypeScript: erasable types over JavaScript</th></tr></thead>
+<tbody>
+<tr><th>How code runs</th><td>An interpreter: no compile step to think about</td><td>Ahead-of-time machine code, nothing at run time</td><td>Ahead-of-time machine code, checks done while compiling</td><td>Types erased, so JavaScript runs unchanged</td></tr>
+<tr><th>Types</th><td>Dynamic; hints optional and outside the language</td><td>Static, so the compiler can lay out and inline</td><td>Static and strict: the compiler needs the facts to prove safety</td><td>Static but structural and unsound, to fit existing JavaScript</td></tr>
+<tr><th>b = a</th><td>Share: names, not boxes, are simplest to read</td><td>Copy, as C does with structs</td><td>Move: one owner, so freeing is provable</td><td>Share, as JavaScript does</td></tr>
+<tr><th>Memory</th><td>Reference counting: invisible to the reader</td><td>RAII: deterministic, no collector to pay for</td><td>Ownership: RAII made checkable</td><td>JavaScript's garbage collector</td></tr>
+<tr><th>Errors, nothing</th><td>"Errors should never pass silently": exceptions</td><td>Exceptions, or no checks at all where they cost</td><td>Result and Option: failure visible in types</td><td>JavaScript's exceptions; strict null checks added on top</td></tr>
+<tr><th>Numbers, text</th><td>Big ints and code points: what a reader expects</td><td>Machine integers and bytes: what the hardware does</td><td>Machine integers, checked in debug; UTF-8 that cannot be misindexed</td><td>JavaScript's doubles and UTF-16, kept for compatibility</td></tr>
+<tr><th>Abstraction</th><td>Duck typing: nothing to declare</td><td>Templates: generic code with no run-time cost</td><td>Traits and monomorphisation: generic, fast and checked</td><td>Structural interfaces: describe existing JavaScript shapes</td></tr>
+<tr><th>Concurrency</th><td>The GIL kept the interpreter simple; now optional</td><td>Threads with no hidden cost, and no protection</td><td>Send and Sync: data races are type errors</td><td>One thread and an event loop, as browsers require</td></tr>
+<tr><th>Safety</th><td>Everything checked at run time</td><td>Undefined behaviour instead of checks</td><td>Safe by default; <code>unsafe</code> fenced and searchable</td><td>Memory-safe JavaScript; types may lie</td></tr>
+<tr><th>Evolution</th><td>Yearly, with deprecations</td><td>Never break old code</td><td>Editions: fix mistakes without breaking crates</td><td>"Don't break the web"; TypeScript moves faster</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="rd-gloss">
+<h2>Glossary</h2>
+<p class="small mute">Every term defined on this page, alphabetically; click to jump to where it is explained.</p>
+<div class="gl" id="rd-gl"></div>
+</section>
