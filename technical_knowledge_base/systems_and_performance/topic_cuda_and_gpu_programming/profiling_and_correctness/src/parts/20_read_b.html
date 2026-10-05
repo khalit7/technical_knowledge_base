@@ -1,0 +1,30 @@
+<section id="rd-s1">
+<h2>1. Why a stopwatch around GPU code lies</h2>
+<p><b>The problem.</b> The CPU and the GPU are two workers with a queue between them. When Python runs <code>c = a @ b</code> on a GPU tensor, the CPU does not wait for the multiply: it writes a command into the queue (CUDA calls the queue a <dfn>stream</dfn>) and returns at once. The GPU picks the command up when it is free. So a clock read on the CPU before and after that line measures how long it took to <i>queue</i> the work, not to do it. This is called <dfn>asynchronous execution</dfn>, and it is the reason PyTorch on a GPU can be fast at all: the CPU runs ahead and keeps the queue full.</p>
+<p><b>How to time it.</b> Either make the CPU wait for the queue to drain before reading the clock (<code>torch.cuda.synchronize()</code>, and also before starting it, or earlier queued work is charged to you), or put two markers into the queue itself and ask the GPU how far apart they were: a CUDA <dfn>event</dfn>. Below, one 2,048 &times; 2,048 float32 matrix multiply is timed four ways on this laptop's GPU, drawn to scale.</p>
+<div class="card" id="rd-tl-card">
+<div class="seg" id="rd-tl-seg"><button data-m="nosync" class="on">Clock, no synchronise</button><button data-m="sync">Clock + synchronise</button><button data-m="event">Events</button><button data-m="queued">Forgot to synchronise first</button></div>
+<div class="rd-chart" id="rd-tl-svg"></div>
+<div class="an-ctl" id="rd-tl-ctl"></div>
+<div class="an-cap" id="rd-tl-cap"></div>
+<div class="an-cnt" id="rd-tl-cnt"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro GPU</span> PyTorch 2.14.1, MPS backend; each bar is the median of 25 repetitions in each of 3 runs, the median of the 3 run medians shown; the runs are listed under the counters. The same queue exists on every NVIDIA GPU; only the durations differ.</p>
+</div>
+<div class="pr" id="rd-pr1"><div class="q">Predict: four earlier multiplies are still in the queue when you start the clock, then you queue one more and synchronise. What does the clock say, roughly?</div>
+<div class="opts"><button data-a="0">About one multiply (4 ms)</button><button data-a="1" data-right="1">About five multiplies (20 ms)</button><button data-a="2">Almost nothing (0.2 ms)</button></div>
+<div class="ans" hidden>The synchronise waits for everything in the queue, including the four multiplies queued before the clock started. <span class="meas">measured</span>: <b><span data-v="q_ms">19.93</span> ms</b> against <b><span data-v="sync_ms">4.243</span> ms</b> for one. The fix is a <code>synchronize()</code> before reading the start time too.</div></div>
+<h3>The PyTorch recipe on CUDA</h3>
+<pre class="code"><span class="c"># warm up first (section 2), then:</span>
+start = torch.cuda.Event(enable_timing=True)
+end = torch.cuda.Event(enable_timing=True)
+torch.cuda.synchronize()          <span class="c"># nothing else in the queue</span>
+start.record()                    <span class="c"># a marker in the stream</span>
+y = f(x)
+end.record()
+torch.cuda.synchronize()          <span class="c"># or end.synchronize()</span>
+ms = start.elapsed_time(end)      <span class="c"># GPU time between the markers, in ms</span></pre>
+<p>NVIDIA documents event timing with "a resolution of around 0.5 microseconds" ({{CUDA Runtime API 13.4, cudaEventElapsedTime|https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EVENT.html}}) <span class="vend">docs</span>. Events measure the stream, so they leave out the CPU's own overhead; a synchronised CPU clock includes it. Use events for "how fast is this kernel", and a synchronised clock (or a profiler timeline) when the question is "how fast is this step", because in launch-bound code the CPU <i>is</i> the cost. One more trap: an event pair also counts any time the GPU sat idle between the markers waiting for the CPU to queue the next kernel, so a slow Python loop inflates event times too.</p>
+<h3>Know what your timer brackets</h3>
+<p>Apple's MPS events are not CUDA events: they mark command-buffer boundaries, so they carry a fixed overhead. On this laptop, a tiny multiply of 4,096 numbers measured <b><span data-v="tiny_ev">0.157</span> ms</b> with an event pair and <b><span data-v="tiny_sync">0.196</span> ms</b> with a clock and a synchronise per call, but <b><span data-v="tiny_batch_us">4.96</span> &micro;s</b> per call when 200 calls were queued back to back with one synchronise at the end <span class="meas">measured</span>. The GPU work is a few microseconds; everything else is the measuring. On CUDA the same effect exists at a smaller scale: a kernel of a few microseconds timed alone is mostly launch and synchronisation, which is why {{CUDA graphs|n:3f05c17b0d0d81b19a6acab65c370b75}} and Triton's <code>do_bench_cudagraph</code> exist. For tiny kernels, time many back-to-back calls and divide, and say so.</p>
+<div class="co warn"><div class="t">The same trap inside PyTorch code you did not write</div>Any operation that needs a value on the CPU forces a synchronise: <code>loss.item()</code>, <code>print(tensor)</code>, <code>tensor.cpu()</code>, <code>if tensor.any():</code>, a <code>nonzero()</code> whose size the CPU must know. In a training loop these silently serialise the CPU and GPU, and a stopwatch then "works" by accident. The timeline in section 3 shows where they are.</div>
+</section>

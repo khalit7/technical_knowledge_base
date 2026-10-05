@@ -1,0 +1,47 @@
+Documentation quotes used on the page, with source and date read (2026-10-05 unless said).
+
+== Nsight Compute 2026.3.1 (documentation shipped in kb-gpu-lab:1 at /opt/nvidia/nsight-compute/2026.3.1/docs; online https://docs.nvidia.com/nsight-compute/) ==
+ReleaseNotes, "Updates in 2026.1": "The default value of --clock-control is now boost."
+ReleaseNotes, "Updates in 2025.4": "Added support for locking GPUs to boost clock instead of base on Ampere and newer GPU. Use the boost and force-boost options on supported drivers."
+CLI help (ncu --help, out/ncu/ncu_help.txt): "--cache-control arg (=all)"; "--clock-control arg (=boost) ... base (Lock GPU clocks to base/rated tdp) boost (Lock clocks to turbo boost, fallback to base if not supported) force-boost ... none (Don't lock clocks)"; "--replay-mode arg (=kernel)"; "--set arg Identifier of section set to collect. If not specified, the basic set is collected."; "-k [ --kernel-name ] arg ... regex:<expression>"; "-c [ --launch-count ] arg Limit the number of collected profile results."
+ProfilingGuide, Kernel Replay: "For the first pass, all GPU memory that can be accessed by the kernel is saved. After the first pass, the subset of memory that is written by the kernel is determined. Before each pass (except the first one), this subset is restored in its original location to have the kernel access the same memory contents in each replay pass."
+ProfilingGuide, Workload Durations: "Nsight Compute locks SM clocks by default. Nsight Systems does not lock clocks. When comparing results, we recommend to lock clocks with nvidia-smi externally before profiling and use --clock-control none for ncu." "Nsight Compute flushes all GPU caches by default between replay passes." "Nsight Compute serializes kernel launches, unless a dedicated replay mode is used." "... this makes it impossible to derive the workload duration using host-side timers or CUDA events when profiling with Nsight Compute".
+ProfilingGuide, SpeedOfLight: "High-level overview of the throughput for compute and memory resources of the GPU. For each unit, the throughput reports the achieved percentage of utilization with respect to the theoretical maximum."
+ProfilingGuide, Metrics Structure: "Throughput metrics return the maximum percentage value of their constituent counters." Roll-ups .sum .avg .min .max; sub-metrics .peak_sustained, .per_second, .per_cycle_active, .per_cycle_elapsed, .pct_of_peak_sustained_active, .pct_of_peak_sustained_elapsed. "Percentages of sustained rate can occasionally exceed 100% in edge cases."
+ProfilingGuide, WarpStateStats: "Stalls are not always impacting the overall performance nor are they completely avoidable. Only focus on stall reasons if the schedulers fail to issue every cycle."
+ProfilingGuide, Warp Stall Reasons: long_scoreboard "Warp was stalled waiting for a scoreboard dependency on a L1TEX (local, global, surface, texture) operation."; mio_throttle "Warp was stalled waiting for the MIO (memory input/output) instruction queue to be not full."; barrier "Warp was stalled waiting for sibling warps at a CTA barrier."
+ProfilingGuide, Multi-pass data collection: a hit rate "can have significant error if hits and queries are collected on different passes and the kernel does not saturate the GPU to reach a steady state (generally > 20 us)."
+ProfilingGuide, Overhead: "There is a relatively high one-time overhead for the first profiled kernel in each context to generate the metric configuration."
+Samples: extras/samples/*/README.TXT (copied in inputs/ncu_samples/): the six .ncu-rep files were made with "ncu --set full --import-source on -o <name>.ncu-rep ./<sample>".
+
+== compute-sanitizer 2026.3.0 (compute-sanitizer --help, out/ncu/sanitizer_help.txt) ==
+"--tool arg (=memcheck) memcheck : Memory access checking racecheck : Shared memory hazard checking synccheck : Synchronization checking initcheck : Global memory initialization checking"; "--leak-check arg (=no) <full|no>"; "--padding arg (=0) Size in bytes for padding buffer to add after each allocation."
+
+== Nsight Systems User Guide v2026.5 (https://docs.nvidia.com/nsight-systems/UserGuide/index.html) ==
+--trace defaults: cuda, opengl, nvtx, osrt. "--capture-range ... cudaProfilerApi, hotkey, nvtx". --cuda-graph-trace: "Use graph to trace whole CUDA graphs without node activities ... is the default when available."
+Analysis Guide v2026.5 (https://docs.nvidia.com/nsight-systems/AnalysisGuide/index.html): report scripts cuda_gpu_kern_sum ("a summary of CUDA kernels and their execution times"), cuda_api_sum, cuda_gpu_mem_time_sum, nvtx_sum, osrt_sum.
+
+== CUDA Runtime API 13.4 (https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EVENT.html) ==
+cudaEventElapsedTime: "Computes the elapsed time between two events (in milliseconds with a resolution of around 0.5 microseconds)."
+
+== cuBLAS 13.4, Results reproducibility (https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility) ==
+"the same bit-wise results at every run when executed on GPUs with the same architecture and the same number of SMs"; not guaranteed with multiple concurrent streams unless a workspace per stream, one handle per stream, cublasLtMatmul with user-owned workspace, or CUBLAS_WORKSPACE_CONFIG ":16:8" (may limit performance) or ":4096:8" (about 24 MiB more memory); cublasSymv/cublasHemv with atomics (cublasSetAtomicsMode) are not bitwise reproducible.
+
+== nvidia-smi (https://docs.nvidia.com/deploy/nvidia-smi/index.html) ==
+-lgc "Specifies <minGpuClock,maxGpuClock> clocks as a pair (e.g. 1500,1500) that defines closest desired locked GPU clock speed in MHz." -rgc "Resets the GPU clocks to the default value. Supported on Volta+. Requires root." -lmc "... does not work on GPUs based on NVIDIA Hopper architectures; to lock memory clocks on those systems use --lock-memory-clocks-deferred instead."
+
+== PyTorch 2.14 ==
+torch.testing._comparison._DTYPE_PRECISIONS (source of torch 2.14.1): float16 (0.001, 1e-5), bfloat16 (0.016, 1e-5), float32 (1.3e-6, 1e-5), float64 (1e-7, 1e-7).
+torch.use_deterministic_algorithms docstring (2.14.1): "operations will use deterministic algorithms when available, and if only nondeterministic algorithms are available they will throw a RuntimeError when called." "Note that deterministic operations tend to have worse performance than nondeterministic operations." Lists torch.Tensor.index_add_, scatter_add_ on CUDA among normally nondeterministic ops; Inductor deterministic mode turns off autotuning that affects numerics.
+Reproducibility notes (https://docs.pytorch.org/docs/2.14/notes/randomness.html): "Disabling the benchmarking feature with torch.backends.cudnn.benchmark = False causes cuDNN to deterministically select an algorithm" ... "unless either torch.use_deterministic_algorithms(True) or torch.backends.cudnn.deterministic = True is set".
+torch.profiler.ProfilerActivity members in 2.14.1: CPU, XPU, MTIA, CUDA, HPU, PrivateUse1 (no MPS). key_averages().table maps sort keys "cuda" to "device" (profiler_util.py: sort_by.replace("cuda", "device")).
+
+== Triton 3.8.0 (python/triton/testing.py, read inside kb-gpu-lab:1; inputs/triton_do_bench.txt) ==
+do_bench(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, return_mode="mean"); estimates from 5 runs; n_warmup = max(1, int(warmup / estimate_ms)); n_repeat = max(1, int(rep / estimate_ms)); clears a 256 MB buffer ("We maintain a buffer of 256 MB that we clear before each kernel call to make sure that the L2 cache doesn't contain any input data before the run", backends/nvidia/driver.py) before each timed run; one event pair per run. Also do_bench_cudagraph.
+
+== Other ==
+AMD ROCm blog, Aug 27 2026 (https://rocm.blogs.amd.com/ecosystems-and-partners/rocm-x-blog/README.html): Hyperloom "automates end-to-end inference workload optimization ... profiling a workload, analyzing the results, planning changes, applying them, and validating correctness"; "AMD reports that Hyperloom cuts what used to be weeks of manual optimization work down to hours"; runs on MI300X, MI325X, MI355X.
+Dream-RSI, arXiv 2609.14858 (Sep 14 2026): domains include "GPU kernel engineering"; "achieves competitive or improved discovery quality while substantially reducing discovery cost in several settings".
+Phi-Bench: not found on arXiv (export.arxiv.org query, 0 results, 2026-10-05): unconfirmed.
+GPU MODE lectures (https://github.com/gpu-mode/lectures): "Lecture 1: Profiling and Integrating CUDA kernels in PyTorch" (Mark Saroufim); "Lecture 8: CUDA Performance Checklist" (Mark Saroufim).
+Holistic Trace Analysis (https://github.com/facebookresearch/HolisticTraceAnalysis): "A performance analysis tool to identify performance bottlenecks in distributed training workloads."; temporal breakdown, idle time, kernel breakdown, communication computation overlap, trace comparison.
