@@ -89,7 +89,7 @@ m1_b64 = case['y = x W^T, batch 64 (fp16, 8192 x 8192)']
 
 # ---------- 4. Ridge points (dense, FLOP per byte) ----------
 ridge = [('A100 SXM 80GB', 'BF16', 312e12, 2039e9), ('H100 SXM', 'BF16', 989.5e12, 3.35e12),
-         ('B200 (HGX)', 'BF16', 2250e12, 8e12), ('B200 (HGX)', 'FP8', 4500e12, 8e12), ('B200 (HGX)', 'FP4', 9000e12, 8e12),
+         ('B200 (HGX)', 'BF16', 2250e12, 8e12), ('B200 (HGX)', 'FP8', 4500e12, 8e12), ('B200 (HGX)', 'FP4', 9000e12, 8e12), ('Rubin (announced)', 'BF16', 4000e12, 22e12),
          ('RTX 5090', 'BF16, FP32 accumulate', 209.5e12, 1792e9), ('MI355X', 'BF16', 2516.6e12, 8e12),
          ('TPU7x Ironwood', 'BF16', 2307e12, 7380e9),
          ('M1 Pro GPU (measured)', 'fp16', case['peak FMA fp16 (custom Metal kernel)']['gf'] * 1e9, mem[0]['bw'])]
@@ -102,7 +102,7 @@ mfu_llama = 400e12 / 989.5e12
 G = 8
 S = bytes_bf16
 ring_factor = 2 * (G - 1) / G
-links = dict(nvlink=450e9, ib=50e9, pcie=64e9)    # per GPU per direction: NVLink 4 (900 GB/s total), IB NDR 400 Gb/s, PCIe 5.0 x16
+links = dict(nvlink=450e9, ib=50e9, pcie=63e9)    # per GPU per direction: NVLink 4 (900 GB/s total), IB NDR 400 Gb/s, PCIe 5.0 x16 (32 GT/s x 16, 128b/130b, as the interconnects page)
 ar = {k: ring_factor * S / v for k, v in links.items()}
 ar_pcie_2gpu = 2 * (2 - 1) / 2 * S / links['pcie']
 step_8gpu = flops_6nd / (8 * H100['bf16'] * mfu)
