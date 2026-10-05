@@ -1,0 +1,73 @@
+<section id="pm-s9">
+<h2>9. The same kernels from Python</h2>
+<p>You will rarely write a <code>main()</code>. The programming model is the same from Python; only the spelling changes. Four routes, each tried here for real in the container with the CUDA toolkit and no GPU, so each says how far it got.</p>
+<h3>Numba CUDA: Python syntax, CUDA semantics</h3>
+<pre class="rd-code">from numba import cuda, float32
+@cuda.jit
+def scale(x, y, a):
+    i = cuda.grid(1)                  <span class="c"># = blockIdx.x * blockDim.x + threadIdx.x</span>
+    if i &lt; x.size:
+        y[i] = a * x[i]
+@cuda.jit
+def block_sum(x, out):
+    s = cuda.shared.array(256, dtype=float32)     <span class="c"># __shared__ float s[256]</span>
+    t = cuda.threadIdx.x
+    s[t] = x[cuda.blockIdx.x * 256 + t]
+    cuda.syncthreads()                            <span class="c"># __syncthreads()</span>
+    k = 128
+    while k &gt; 0:
+        if t &lt; k:
+            s[t] += s[t + k]
+        cuda.syncthreads()
+        k //= 2
+    if t == 0:
+        out[cuda.blockIdx.x] = s[0]
+scale[grid, block](x, y, 2.0)                     <span class="c"># the launch: [grid, block] instead of &lt;&lt;&lt;&gt;&gt;&gt;</span></pre>
+<p id="pm-numba-res"></p>
+<p>Numba-CUDA is now a separate package maintained by NVIDIA ({{numba-cuda docs|https://nvidia.github.io/numba-cuda/}}). Its simulator executes kernels "one block at a time. One thread is spawned for each thread in the block, and scheduling of the execution of these threads is left up to the operating system", and it "does not implement warp-level operations" ({{simulator docs|https://nvidia.github.io/numba-cuda/user/simulator.html}}): good for checking indexing and barriers, useless for timing.</p>
+<h3>CuPy RawKernel: CUDA C++ in a string</h3>
+<pre class="rd-code">import cupy as cp
+k = cp.RawKernel(r'''
+extern "C" __global__ void scale(const float* x, float* y, float a, int n) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i &lt; n) y[i] = a * x[i];
+}''', "scale")
+k((grid,), (block,), (x, y, cp.float32(2.0), cp.int32(n)))   <span class="c"># grid, block, arguments</span></pre>
+<p id="pm-cupy-res"></p>
+<h3>torch.utils.cpp_extension: a CUDA kernel as a PyTorch function</h3>
+<pre class="rd-code">from torch.utils.cpp_extension import load_inline
+cuda_src = r'''
+#include &lt;torch/extension.h&gt;
+__global__ void scale_kernel(const float* x, float* y, float a, int n) { ... }
+torch::Tensor scale(torch::Tensor x, double a) {
+  auto y = torch::empty_like(x);
+  int n = x.numel(), block = 256, grid = (n + block - 1) / block;
+  scale_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(x.data_ptr&lt;float&gt;(), y.data_ptr&lt;float&gt;(), (float)a, n);
+  return y;
+}'''
+m = load_inline("pm_scale", cpp_sources="torch::Tensor scale(torch::Tensor x, double a);",
+                cuda_sources=cuda_src, functions=["scale"])   <span class="c"># nvcc + ninja, then import</span></pre>
+<p id="pm-torch-res"></p>
+<p>On a CUDA build of PyTorch with a GPU, <code>load_inline</code> writes the sources to a build directory, compiles them with nvcc and ninja, and imports the result as a Python module ({{PyTorch C++ extension docs|https://docs.pytorch.org/docs/2.14/cpp_extension.html}}). A production version also launches on PyTorch's current stream, checks devices and dtypes, and registers the function with <code>torch.library</code> so <code>torch.compile</code> can see it; that is {{pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} territory.</p>
+<h3>Triton: blocks, not threads</h3>
+<p>Triton changes the model itself: you write the program of one <b>block</b> on whole tiles (<code>tl.load</code> of 1,024 elements at once), and the compiler decides threads, warps, shared memory and synchronisation. Everything on this page still happens; Triton does it for you. That is {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}, the rung the parent page's ladder puts right after calling a library.</p>
+</section>
+<section id="pm-s10">
+<h2>10. The same model in Metal, on the M1</h2>
+<p>Every measurement on this page ran as a Metal kernel through <code>mx.fast.metal_kernel</code> in MLX. Apple's GPU is a SIMT GPU with the same structure under different names, which is why the ideas transfer and the numbers do not.</p>
+<div class="tw"><table>
+<thead><tr><th>CUDA</th><th>Metal (MSL)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>warp (32 threads)</td><td>SIMD-group</td><td>32 threads on the M1 Pro (<code>threads_per_simdgroup</code>, measured by the root's simulator agent)</td></tr>
+<tr><td>block, <code>__shared__</code></td><td>threadgroup, <code>threadgroup</code> memory</td><td>up to 1,024 threads and 32 KB per threadgroup on Apple7 (M1), Apple's {{Metal feature set tables|https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf}}</td></tr>
+<tr><td><code>threadIdx</code>, <code>blockIdx</code>, global index</td><td><code>thread_position_in_threadgroup</code>, <code>threadgroup_position_in_grid</code>, <code>thread_position_in_grid</code></td><td>the global index is built in</td></tr>
+<tr><td>lane, warp id</td><td><code>thread_index_in_simdgroup</code>, <code>simdgroup_index_in_threadgroup</code></td><td>used in the atomics kernels here</td></tr>
+<tr><td><code>__syncthreads()</code></td><td><code>threadgroup_barrier(mem_flags::mem_threadgroup)</code></td><td>the race measurement of section 4</td></tr>
+<tr><td>warp shuffle reduction</td><td><code>simd_sum</code> (also <code>simd_shuffle_down</code>, <code>simd_ballot</code>)</td><td><code>simd_sum</code> used here</td></tr>
+<tr><td><code>atomicAdd</code></td><td><code>atomic_fetch_add_explicit(..., memory_order_relaxed)</code></td><td>used here</td></tr>
+<tr><td><code>k&lt;&lt;&lt;grid, block&gt;&gt;&gt;</code> (grid counts <b>blocks</b>)</td><td>dispatch with <code>grid=</code>, <code>threadgroup=</code> (MLX's <code>grid</code> counts <b>threads</b>)</td><td>an easy off-by-a-factor mistake when porting</td></tr>
+<tr><td>stream</td><td>command queue and command buffers</td><td>MLX batches launches into command buffers</td></tr>
+</tbody></table></div>
+<p class="small mute">Names from the {{Metal Shading Language Specification|https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf}}; those marked "used here" compiled and ran in <code>src/m1/measure.py</code> (MLX <span data-pmv="m1.meta.0.mlx">0.32.3</span>) <span class="rd-meas">measured on Apple M1 Pro GPU</span>. MLX's grid convention is from its {{custom Metal kernels guide|https://ml-explore.github.io/mlx/build/html/dev/custom_metal_kernels.html}}.</p>
+<p><b>What transfers and what does not.</b> Warp-sized SIMD groups, barriers, races, the cost of launch-and-wait, and waves on a fixed number of cores all behaved as the CUDA model predicts. Absolute numbers do not transfer: the M1 Pro has 16 cores where an H100 has 132 SMs, about 160 GB/s where an H100 has 3.35 TB/s, and its compiler and driver are Apple's, so occupancy limits, atomic throughput and launch overheads differ.</p>
+</section>

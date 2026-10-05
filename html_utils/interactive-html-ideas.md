@@ -2939,3 +2939,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy/src/viz_ideas.md`.
 
+### The CUDA programming model: threads, warps, blocks, launches, occupancy (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/programming_model/src/viz_ideas.md`.
+

@@ -1,0 +1,31 @@
+<section id="pm-s6">
+<h2>6. When things go wrong: CUDA's error model</h2>
+<p><b>The problem.</b> CUDA functions return an error code (<code>cudaError_t</code>) instead of throwing, a kernel launch returns nothing at all, and a kernel that crashes is noticed only by some later call. Without a habit of checking, a bad launch looks like garbage output three functions later.</p>
+<p><b>Three kinds of error, three places to catch them.</b></p>
+<ol>
+<li><b>API errors</b>, returned by the call itself: a bad argument to <code>cudaMemcpy</code>, out of memory in <code>cudaMalloc</code>. Wrap every call in a check macro (below).</li>
+<li><b>Launch errors</b>: an impossible configuration (more than 1,024 threads per block, too much shared memory: <code>cudaErrorInvalidConfiguration</code>; too many registers for the block: <code>cudaErrorLaunchOutOfResources</code>). The launch statement cannot return them, so ask right after it: <code>cudaGetLastError()</code>, which "returns current error state and then resets it to <code>cudaSuccess</code>" (<code>cudaPeekAtLastError()</code> returns it "without resetting it").</li>
+<li><b>Execution errors</b>, raised while the kernel runs: an out-of-bounds or misaligned access, a device-side <code>assert</code>, a timeout. They surface at the next call that waits for the GPU (<code>cudaDeviceSynchronize</code>, a <code>cudaMemcpy</code>, or any later call), "returned by every CUDA runtime API until the error state has been cleared" ({{Programming Guide 2.1.7|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html}}) <span class="rd-vend">vendor doc</span>.</li>
+</ol>
+<pre class="rd-code">#define CUDA_CHECK(call) do { cudaError_t e_ = (call); if (e_ != cudaSuccess) \
+  printf("%s:%d %s failed: %s (%s, code %d)\n", __FILE__, __LINE__, #call, \
+         cudaGetErrorName(e_), cudaGetErrorString(e_), (int)e_); } while (0)
+CUDA_CHECK(cudaGetDeviceCount(&amp;n));
+CUDA_CHECK(cudaMalloc(&amp;d, 1024));
+k&lt;&lt;&lt;1, 256&gt;&gt;&gt;(d);
+CUDA_CHECK(cudaGetLastError());       <span class="c">// launch-time errors</span>
+CUDA_CHECK(cudaDeviceSynchronize());  <span class="c">// errors raised while the kernel ran</span></pre>
+<p>This program (<code>src/cuda/host/errors.cu</code>) was compiled and <b>run</b> in the container, which has the CUDA runtime but no GPU and no driver; its real output <span class="rd-pub">run here</span>:</p>
+<pre class="rd-code sass" id="pm-err-out"></pre>
+<p>Without a driver, every call fails with code 35, not with "no CUDA-capable device" (code 100): the runtime cannot even ask. The same program printed the runtime's own name and message for the errors a kernel author meets most, shown with the comment that explains each in <code>driver_types.h</code> (CUDA 13.4.2) where it is quoted here:</p>
+<div class="tw" id="pm-err-tab"></div>
+<div class="co warn"><div class="t">Sticky errors: some errors end the process's use of the GPU</div>
+For an illegal address (700) and an unspecified launch failure (719) the header says: "This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched." In a training job this is the familiar <code>CUDA error: an illegal memory access was encountered</code> that no <code>try</code>/<code>except</code> can recover from: the worker must restart, which is why elastic training restarts processes rather than retrying the step ({{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}).</div>
+<p><b>Finding the line that failed.</b> Because errors surface late, the reported location is often wrong. Three tools fix that:</p>
+<ul>
+<li><code>CUDA_LAUNCH_BLOCKING=1</code> makes every launch synchronous, so the error appears at the guilty launch. PyTorch's {{CUDA semantics notes|https://docs.pytorch.org/docs/2.14/notes/cuda.html}}: set it "to debug GPU errors or force synchronous behavior", for "more accurate" stack traces. Slow; for debugging only.</li>
+<li><code>compute-sanitizer</code> (default tool memcheck: "out of bounds and misaligned memory access errors"; also racecheck, initcheck for reads of uninitialised global memory, synccheck) names the kernel, thread, block and address of the first bad access ({{Compute Sanitizer docs v2026.3.0|https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html}}). It runs the program much more slowly; use it on a small input.</li>
+<li>A device-side <code>assert(i &lt; n)</code> in the kernel stops it with error 710, whose runtime message is exactly <code>device-side assert triggered</code> (printed by the program above), and whose header comment reads "The device cannot be used again. All existing allocations are invalid": another sticky error. PyTorch's kernels assert on their inputs (its loss kernels check <code>CUDA_KERNEL_ASSERT(INDEX &gt;= 0 &amp;&amp; INDEX &lt; N_CLASSES)</code> in {{Loss.cu|https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/Loss.cu}}, read 2026-10-05), which is where this message comes from in training: usually a label outside the number of classes.</li>
+</ul>
+<p><b>When it matters for training:</b> a crash with an illegal-address error mid-run is almost always an out-of-range index (embedding ids, labels, gather indices) or a custom kernel's bounds check. Re-run the failing step with <code>CUDA_LAUNCH_BLOCKING=1</code>, then under compute-sanitizer if it is your kernel.</p>
+</section>
