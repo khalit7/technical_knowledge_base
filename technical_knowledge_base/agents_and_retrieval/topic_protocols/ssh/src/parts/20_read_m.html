@@ -1,0 +1,70 @@
+<section id="s-dbg">
+<h2>14. Debugging, in order</h2>
+<p>Most SSH failures are found by asking, in order: did TCP connect, did the key exchange agree, did the host key check pass, which keys were offered and why were they refused, and did the channel or forward open. <code>ssh -v</code> answers the first four from your side; the server log answers the "why" of authentication. Every message below was recorded in the lab; the {{Error decoder|#t-err}} tab starts from the message and shows the log.</p>
+<div class="tw"><table>
+<tr><th>You see</th><th>First command</th><th>Usual cause and fix</th></tr>
+<tr><td><code>Connection timed out</code> / <code>Connection refused</code></td><td><code>ssh -v</code> (the <code>Connecting to</code> line), <code>nc -vz host 22</code></td><td>Wrong address or port, firewall, no route (a compute node without ProxyJump), sshd not running.</td></tr>
+<tr><td><code>Connection closed by ... port 22</code> right after connecting, or <code>Connection reset</code> before the banner</td><td>server log</td><td>PerSourcePenalties or <code>MaxStartups</code> refusing your address (section 12), TCP wrappers, a firewall.</td></tr>
+<tr><td><code>Unable to negotiate ... no matching key exchange method</code></td><td><code>ssh -vv</code> (both KEXINIT lists), <code>ssh -Q kex</code></td><td>An old server or a hand-written algorithm list; upgrade, or enable one algorithm for that host only.</td></tr>
+<tr><td><code>WARNING: connection is not using a post-quantum key exchange</code></td><td><code>ssh -v | grep kex:</code></td><td>Server without PQ key exchange (section 11).</td></tr>
+<tr><td><code>REMOTE HOST IDENTIFICATION HAS CHANGED</code></td><td>compare the printed fingerprint out of band</td><td>Rebuilt node or attack (section 3). Host certificates remove the routine case.</td></tr>
+<tr><td><code>Host key verification failed.</code></td><td><code>ssh -v</code>, <code>ssh-keygen -F host</code></td><td>Unknown host under <code>StrictHostKeyChecking yes</code> or <code>BatchMode</code>, or a changed key.</td></tr>
+<tr><td><code>Permission denied (publickey).</code></td><td><code>ssh -v</code> (Offering lines), <code>ssh -G host | grep identityfile</code>, then the <b>server log</b></td><td>Wrong key, wrong user, key not in <code>authorized_keys</code>, file permissions on <code>~/.ssh</code>, or a certificate that is expired, for another principal, or revoked (section 4).</td></tr>
+<tr><td><code>Too many authentication failures</code></td><td><code>ssh -v</code>, <code>ssh -Z</code> (10.5)</td><td>Agent holds too many keys: <code>IdentitiesOnly yes</code>.</td></tr>
+<tr><td><code>stdio forwarding failed</code> / <code>channel 0: open failed: connect failed</code></td><td><code>ssh -v</code> on the jump; can the bastion resolve and reach the node?</td><td>Node down or renamed, DNS on the bastion, <code>AllowTcpForwarding no</code> or <code>PermitOpen</code> on the bastion.</td></tr>
+<tr><td><code>bind [127.0.0.1]:8888: Address already in use</code></td><td><code>lsof -nP -iTCP:8888 -sTCP:LISTEN</code></td><td>Port taken; the session continues unless <code>ExitOnForwardFailure yes</code> (section 8).</td></tr>
+<tr><td>Terminal frozen, no error</td><td><code>~.</code> to kill it</td><td>Path died silently: set <code>ServerAliveInterval</code> (section 9).</td></tr>
+<tr><td>Old user, old options after editing the config</td><td><code>ssh -O check host</code></td><td>A multiplexing master predates the change: <code>ssh -O exit host</code> (section 7).</td></tr>
+</table></div>
+<p>Server side: <code>sshd -T</code> prints the effective configuration (with <code>-C user=khalid,host=...,addr=...</code> to evaluate <code>Match</code> blocks), <code>sshd -t</code> checks the file before a reload, <code>LogLevel VERBOSE</code> logs key fingerprints and certificate IDs, and a second <code>sshd -d -p 2222</code> runs one debug connection in the foreground without touching the real service.</p>
+</section>
+
+<section id="s-iv">
+<h2>15. Interview questions</h2>
+<details class="mist"><summary>Walk me through what happens when you type <code>ssh gpu-node-01</code> through a bastion.</summary><div class="b">The client reads its config, finds <code>ProxyJump bastion</code>, and starts a helper <code>ssh -W gpu-node-01:22 bastion</code>. That helper opens TCP to the bastion, exchanges version strings and KEXINIT lists, runs the key exchange (by default the hybrid ML-KEM-768 plus X25519), verifies the bastion's host key signature against <code>known_hosts</code> or a host CA, switches on encryption, authenticates with a key or certificate whose signature covers the session identifier, and opens a <code>direct-tcpip</code> channel to the node's port 22. Through that channel the main client runs a second, independent handshake and authentication with the node, opens a <code>session</code> channel and requests a shell. The bastion only relays ciphertext. About eight round trips per login, doubled by the hop, which is why ControlMaster matters.</div></details>
+<details class="mist"><summary>Why is agent forwarding dangerous, and what do you use instead?</summary><div class="b">The remote sshd exposes a socket that forwards signing requests to your local agent. Anyone with root on that machine, or running as your user, can use it while you are connected to authenticate as you anywhere your key is accepted; your private key never leaves your laptop but it does not need to. Use ProxyJump, which relays an encrypted stream and never gives the bastion signing ability. If forwarding is unavoidable, use destination-constrained keys (<code>ssh-add -h</code>) and confirmation (<code>ssh-add -c</code>).</div></details>
+<details class="mist"><summary>How does SSH prevent a man in the middle, and where is it weak?</summary><div class="b">The server signs the key exchange hash with its host key, and the client checks that key against what it knows. The weak points are the first connection (trust on first use: the user must verify the fingerprint) and habituation to "host key changed" warnings on rebuilt machines. Host certificates fix both: the client trusts a CA key, and any properly signed host key for that name is accepted without a prompt. SSHFP records with DNSSEC are an alternative.</div></details>
+<details class="mist"><summary>What are SSH certificates and why would a company use them?</summary><div class="b">A CA signs a user's public key together with a key ID, principals, a validity window, a serial and options. Servers trust the CA key instead of per-user <code>authorized_keys</code>. Onboarding and offboarding become CA policy, certificates expire on their own (hours), logs name the certificate, and a KRL handles emergencies. Host certificates do the same for server identity. The CA key becomes the crown jewel, usually behind single sign-on (Vault, Teleport).</div></details>
+<details class="mist"><summary>Your notebook tunnel works but a colleague says they can reach your notebook too. How?</summary><div class="b">They are on the same node: loopback is shared by all local users, so binding to <code>127.0.0.1</code> does not isolate you from them, only from other machines. Or the notebook was bound to <code>0.0.0.0</code>. Keep a token, and preferably serve on a Unix socket in a mode-700 directory and forward to it with <code>-L port:/path/socket</code>.</div></details>
+<details class="mist"><summary>What does post-quantum key exchange protect against in SSH today, and what does it not?</summary><div class="b">It protects recorded sessions against future decryption (store now, decrypt later), which is why OpenSSH made a hybrid the default in 2022 and ML-KEM in 2025. It does not protect authentication against a future quantum attacker, but that attack would have to happen live, so there is time; experimental ML-DSA composite signatures arrived in 10.4. The hybrid construction means it is no weaker than X25519 even if ML-KEM were broken.</div></details>
+<details class="mist"><summary>Explain regreSSHion in two minutes.</summary><div class="b">An async-signal-safety bug in sshd's login-grace-time alarm handler, which called syslog (and through it malloc) from a signal handler on glibc Linux. Interrupting an allocation at the right moment corrupts the heap; winning the race about one time in 10,000 led to root code execution before authentication. A 2006 bug reintroduced in 8.5p1 (2020), fixed in 9.8 (July 2024). Mitigation without patching: <code>LoginGraceTime 0</code>. Lesson: pre-auth bugs bypass key-only authentication, so limit exposure of sshd.</div></details>
+</section>
+
+<section id="s-new">
+<h2>Recent changes worth knowing</h2>
+<div class="tw"><table>
+<tr><th>Version and date</th><th>Change that affects you</th></tr>
+<tr><td>9.8 (2024-07-01)</td><td>regreSSHion fixed; PerSourcePenalties on by default; sshd split into listener and per-session binaries.</td></tr>
+<tr><td>9.9 (2024-09-19)</td><td><code>mlkem768x25519-sha256</code> added.</td></tr>
+<tr><td>10.0 (2025-04-09)</td><td>ML-KEM hybrid default; DSA removed; finite-field DH out of sshd defaults; <code>sshd-auth</code> binary; scp and sftp no longer create multiplexing masters; version string <code>OpenSSH_10.0</code> confuses naive <code>OpenSSH_1*</code> matching.</td></tr>
+<tr><td>10.1 (2025-10-06)</td><td>Warning for non-PQ key exchange (<code>WarnWeakCrypto</code>); agent sockets under <code>~/.ssh/agent</code>; <code>ssh-add</code> expires certificates; server logs refused certificates in detail; <code>RefuseConnection</code> config option; XMSS keys removed.</td></tr>
+<tr><td>10.2 (2025-10-10)</td><td>Bug-fix release for the <code>ControlPersist</code> breakage in 10.1.</td></tr>
+<tr><td>10.3 (2026-04-02)</td><td>Agent forwarding uses the IANA names of the agent standard; <code>~I</code>, <code>-O conninfo</code>, <code>-O channels</code>; <code>-J</code> name validation; empty-principal certificate change; <code>invaliduser</code> penalty.</td></tr>
+<tr><td>RFC 9987 (May 2026)</td><td>The SSH agent protocol, Standards Track.</td></tr>
+<tr><td>10.4 (2026-07-06)</td><td>Experimental <code>mldsa44-ed25519</code> signatures; stricter transport during rekey; <code>sshd -G</code> prints mixed-case names.</td></tr>
+<tr><td>RFC 10042 (August 2026)</td><td>ML-KEM hybrid key exchange for SSH.</td></tr>
+<tr><td>10.5 (2026-08-11)</td><td><code>ssh -Z</code>; low-friction FIDO keys tried first; requires ECC with NIST P-521 in libcrypto when built (matters for custom container builds); agent-lock fix.</td></tr>
+</table></div>
+<p class="small mute">All from the {{OpenSSH release notes|https://www.openssh.com/releasenotes.html}} and the RFC Editor, checked 5 October 2026.</p>
+</section>
+
+<section id="s-gl">
+<h2>Glossary</h2>
+<dl class="kv">
+<dt>bastion, jump host</dt><dd>The one machine reachable from outside, through which you reach the private network.</dd>
+<dt>host key</dt><dd>The server's long-term key pair; proves the server's identity in every key exchange.</dd>
+<dt>known_hosts</dt><dd>The client's list of host keys it trusts (trust on first use), or <code>@cert-authority</code> lines.</dd>
+<dt>TOFU</dt><dd>Trust on first use: accept a key the first time, insist on it afterwards.</dd>
+<dt>authorized_keys</dt><dd>The server-side list of user public keys allowed to log in to an account.</dd>
+<dt>agent</dt><dd><code>ssh-agent</code>: holds decrypted private keys and signs on request over a Unix socket.</dd>
+<dt>certificate (SSH)</dt><dd>A public key plus key ID, principals, validity and options, signed by a CA key; not X.509.</dd>
+<dt>principal</dt><dd>A name a certificate is valid for: a user account (user certificates) or a host name (host certificates).</dd>
+<dt>KRL</dt><dd>Key revocation list: a compact file of revoked keys and certificate serials.</dd>
+<dt>channel</dt><dd>One independent stream inside an SSH connection: session, direct-tcpip, forwarded-tcpip, agent, X11.</dd>
+<dt>ProxyJump</dt><dd>Reach a host through another by tunnelling a second, end-to-end SSH session through a direct-tcpip channel.</dd>
+<dt>ControlMaster</dt><dd>Connection multiplexing: later clients reuse one authenticated connection through a control socket.</dd>
+<dt>session identifier</dt><dd>The hash of the first key exchange; signatures in user authentication cover it, binding them to one connection.</dd>
+<dt>strict KEX</dt><dd>OpenSSH 9.6's fix for Terrapin: no unexpected handshake messages, sequence numbers reset at each key exchange.</dd>
+<dt>hybrid key exchange</dt><dd>A classic and a post-quantum exchange run together, the secret derived from both, so it is at least as strong as either.</dd>
+</dl>
+</section>

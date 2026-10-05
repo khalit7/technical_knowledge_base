@@ -1,0 +1,33 @@
+<section id="s-fwd">
+<h2>8. Port forwarding, tunnels and notebooks</h2>
+<p><b>The problem.</b> The notebook, TensorBoard or MLflow you want runs on a node your browser cannot reach. SSH can carry TCP connections through its encrypted pipe as channels, in three directions:</p>
+<div class="card" id="fwd-fig"></div>
+<div class="tw"><table>
+<tr><th>Flag</th><th>Listens on</th><th>Connects to</th><th>Use</th></tr>
+<tr><td><code>-L 30988:127.0.0.1:8888</code></td><td>your laptop, port 30988</td><td><code>127.0.0.1:8888</code> <i>as seen from the server</i></td><td>a notebook or dashboard on the node in your browser</td></tr>
+<tr><td><code>-L 30986:/home/khalid/.nb/nb.sock</code></td><td>your laptop</td><td>a Unix socket on the server</td><td>the safest way to serve a notebook (below)</td></tr>
+<tr><td><code>-D 30989</code></td><td>your laptop: a SOCKS5 proxy</td><td>whatever each request names, from the server</td><td>browse every internal service (Grafana, MLflow, Ray dashboard) with one tunnel</td></tr>
+<tr><td><code>-R 30991:127.0.0.1:30990</code></td><td>the server, port 30991</td><td>your laptop's <code>127.0.0.1:30990</code></td><td>let the cluster reach something on your laptop (a license server, a local API)</td></tr>
+</table></div>
+<p>Recorded: the notebook on <code>gpu-node-01</code> through the bastion with one command, <code>ssh -N -L 30988:127.0.0.1:8888 gpu-node-01</code> (<code>-N</code>: no remote command, just forward; add <code>-f</code> to go to the background):</p>
+<pre class="blk" data-log="fwd_L"></pre>
+<h3>Who else can reach your notebook?</h3>
+<p>The node ran the same notebook three ways: bound to loopback <code>127.0.0.1:8888</code>, bound to all interfaces <code>0.0.0.0:8889</code>, and on a Unix socket inside <code>~/.nb</code> (mode 700). Then another user on the same node (<code>alice</code>) and another node tried to connect:</p>
+<div class="tw" id="reach-tbl"></div>
+<div class="co warn"><div class="t">Correction to the old page: loopback is not private to you</div>The old page said to bind to <code>127.0.0.1</code> "or any other user on that node reaches your kernel". Binding to <code>127.0.0.1</code> keeps <i>other machines</i> out (the second node was refused), but <b>every user on the same node shares its loopback</b>: <code>alice</code> reached the loopback-bound notebook and, with the token, would have run code as Khalid. What protects you on a shared login or compute node is the token (Jupyter's default; never disable it) or, better, a Unix socket in a directory only you can enter: <code>alice</code> got <code>Permission denied</code>. Jupyter Server can listen on a Unix socket (<code>--ServerApp.sock</code>, created with mode <code>0600</code> by default, {{Jupyter Server config|https://jupyter-server.readthedocs.io/en/latest/other/full-config.html}}), and <code>ssh -L port:/path/to/socket</code> forwards straight to it (recorded: <code>fwd_L_unix</code>).</div>
+<h3>One proxy for everything: <code>-D</code></h3>
+<pre class="blk" data-log="fwd_D"></pre>
+<p>Two lessons in three lines. Name resolution must happen on the far side: <code>--socks5-hostname</code> (or the URL scheme <code>socks5h://</code>, as in <code>ALL_PROXY=socks5h://127.0.0.1:30989</code>) sends the name to the bastion, which knows <code>gpu-node-01</code>; plain <code>--socks5</code> resolves on the laptop and fails. And the proxy connects <i>from the bastion</i>, so a service bound to the node's loopback is unreachable through it; use <code>-L</code> to the node for that one.</p>
+<h3>The other direction: <code>-R</code></h3>
+<pre class="blk" data-log="fwd_R"></pre>
+<p>The forwarded port opened on the bastion's loopback only, because the server's <code>GatewayPorts</code> defaults to <code>no</code>. Setting it to <code>yes</code> would expose your laptop's service to the whole network behind the bastion.</p>
+<h3>When forwarding fails silently</h3>
+<pre class="blk" data-log="fwd_port_taken"></pre>
+<p>By default a forward that cannot listen is a warning and the session carries on, so a script believes its tunnel is up. With <code>ExitOnForwardFailure yes</code> it exits 255. One subtlety recorded here: <code>-L 30985:...</code> with no bind address listens on <code>localhost</code> in both IPv4 and IPv6; when only <code>127.0.0.1:30985</code> was taken, the IPv6 listener on <code>[::1]:30985</code> still succeeded, so even <code>ExitOnForwardFailure</code> was satisfied, and <code>http://127.0.0.1:30985</code> reached the <i>other</i> program. Bind explicitly (<code>-L 127.0.0.1:30985:...</code>) and pick ports nobody else uses: deriving the port from your user id (<code>PORT=$((10000 + $(id -u) % 10000))</code>) avoids collisions on shared nodes.</p>
+<ul class="tight">
+<li><b>Escape sequences</b> at the start of a line in an interactive session: <code>~C</code> opens a command line to add or cancel forwards, <code>~.</code> kills a frozen session, <code>~I</code> (10.3) prints connection information, <code>~?</code> lists them.</li>
+<li><b>Kubernetes.</b> <code>kubectl port-forward pod/nb 8888:8888</code> is the same idea through the API server ({{Kubernetes docs|https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/}}).</li>
+<li><b>Server controls</b>: <code>AllowTcpForwarding</code>, <code>PermitOpen</code> (which destinations), <code>PermitListen</code> (which <code>-R</code> ports), <code>AllowStreamLocalForwarding</code>, and per-key <code>restrict</code> or <code>permitopen=</code>. 10.4 and 10.5 fixed cases where <code>DisableForwarding</code> and <code>restrict</code> did not cover tunnel forwarding, which is off by default.</li>
+</ul>
+<details class="mist"><summary>Predict, then reveal: you run <code>ssh -L 8888:localhost:8888 gpu-node-01</code> and the browser shows a different notebook from the one you started. How?</summary><div class="b">Something else on your laptop was already listening on 8888 (another tunnel, a local Jupyter), so ssh's listener failed with only a warning and the browser reached the other program; or the address family trap above. Check with <code>lsof -nP -iTCP:8888 -sTCP:LISTEN</code>, use a unique port, bind <code>127.0.0.1</code> explicitly, and set <code>ExitOnForwardFailure yes</code>.</div></details>
+</section>

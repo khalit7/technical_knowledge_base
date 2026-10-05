@@ -1,0 +1,26 @@
+<section id="s-alive">
+<h2>9. Keeping sessions alive, and noticing when they are dead</h2>
+<p><b>The problem.</b> A VPN, a NAT gateway or a firewall between you and the cluster forgets idle connections after a few minutes (AWS's NAT gateway after 350 seconds, as recorded on {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}); a laptop sleeps; a server freezes. TCP alone will not tell you: with nothing to send, a dead connection looks exactly like a quiet one, and your terminal just hangs.</p>
+<p>Recorded: a session to <code>gpu-node-01</code>; three seconds in, the bastion was frozen (<code>docker pause</code>), so packets vanished without any refusal, as with a dead VPN.</p>
+<pre class="blk" data-log="keepalive"></pre>
+<ul class="tight">
+<li><b><code>ServerAliveInterval 30</code> with <code>ServerAliveCountMax 3</code></b> (client): after 30 s of silence ssh sends a request <i>inside</i> the encrypted connection and expects an answer; after 3 unanswered it disconnects (about 90 s). The probes also keep NAT and firewall state alive. Recorded with 2 and 2: exit after [[keep_sa]] s. Without it (the default is 0, off): still hanging after [[keep_none]] s.</li>
+<li><b><code>TCPKeepAlive</code></b> (on by default) asks the kernel for TCP keepalives, which on Linux start only after 2 hours idle (derived on {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}: 7,200 s, then 9 probes 75 s apart). It is spoofable, does not go through the SSH layer, and is far too slow for a VPN that drops flows in minutes; {{ssh_config(5)|https://man.openbsd.org/ssh_config.5}} itself points to <code>ServerAliveInterval</code> as the more robust mechanism.</li>
+<li><b><code>ClientAliveInterval</code></b> is the server's mirror image (default 0, recorded in <code>sshd -T</code>): it reaps sessions whose client vanished. <code>ChannelTimeout</code> and <code>UnusedConnectionTimeout</code> (both <code>none</code> by default) close idle channels or connections without channels.</li>
+<li><b>Keepalives do not keep a job alive.</b> When the connection dies, the shell and whatever runs in its foreground get a hangup. Run long work as a batch job (<code>sbatch</code>), and keep your interactive orchestration in <code>tmux</code> on the login node (section 13).</li>
+</ul>
+</section>
+
+<section id="s-xfer">
+<h2>10. Moving files: scp, sftp, rsync, tar</h2>
+<p>All of these run over an SSH session channel; they differ in how many round trips each file costs and whether they can resume. Recorded through the bastion with 40 ms added (the same link as section 7), copying to <code>gpu-node-01</code>:</p>
+<div class="card" id="xfer-fig"></div>
+<ul class="tight">
+<li><b>Many small files</b>: <code>scp -r</code> took [[x_scp_small]] s for 1,000 files of 4 KiB (one run), <code>rsync -a</code> [[x_rsync_small]] s, and <code>tar -cf - small | ssh node 'tar -xf -'</code> [[x_tar_small]] s (medians of 3). Since OpenSSH 9.0, <code>scp</code> speaks the SFTP protocol underneath ({{9.0 release notes|https://www.openssh.com/releasenotes.html}}), which pays several request round trips per file; rsync and tar stream.</li>
+<li><b>One large file</b> (64 MiB): <code>scp</code> [[x_scp_big]] s, <code>rsync -a</code> [[x_rsync_big]] s: similar, both bounded by one encrypted TCP stream.</li>
+<li><b>Resuming</b>: an <code>rsync --partial</code> of the 64 MiB file was interrupted after 1.5 s, leaving [[x_partial]] bytes on the node; rerunning it matched [[x_resume_matched]] of them and sent only the rest, in [[x_resume_s]] s against [[x_rsync_big]] s for a full copy. On this fast link resuming saved bytes, not time (rsync still reads and checksums both sides); it pays off on slow, metered or flaky links, which is exactly when checkpoints get interrupted. Use <code>rsync -avhP --partial</code> (<code>-P</code> is <code>--partial --progress</code>). The laptop's rsync was macOS's openrsync (protocol 29); the node ran rsync 3.5.1.</li>
+<li><b>Legacy scp</b> (<code>scp -O</code>) asks the remote shell to expand file names, which has produced a series of bugs; 10.3 fixed one where legacy-mode downloads as root kept setuid bits, and 10.4 fixed two cases where a malicious server could make <code>sftp</code> or a remote-to-remote <code>scp</code> write outside the intended directory ({{release notes|https://www.openssh.com/releasenotes.html}}).</li>
+<li><b>sshfs</b> mounts a remote directory over SFTP: handy for editing, slow for anything with many small reads (each is a round trip), so never point a data loader at it. The project is maintained for fixes but has "no active, regular contributors" ({{sshfs README|https://github.com/libfuse/sshfs}}; latest release 3.7.6, May 2026). For editing remote code, VS Code Remote-SSH runs the editor's server on the node instead (section 13).</li>
+</ul>
+<div class="co"><div class="t">Correction to the old page</div>"sshfs is effectively unmaintained": its README says the maintainer still applies pull requests and makes regular releases, with no development beyond high-impact issues.</div>
+</section>
