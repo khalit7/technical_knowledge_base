@@ -1,0 +1,39 @@
+<section id="rd-one">
+<p class="lead">A GPU can only compute on numbers that have arrived. This page is about how they arrive: what a memory cell is, how cells are packaged into the memories ML hardware uses, why a chip can have a lot of memory or fast memory but rarely both, and what that means for training and serving. The running example is the parent page's: <b>Llama 3.1 8B</b> (16.06 GB of bf16 weights, 128 KiB of KV cache per token), on an H100 and on this laptop's Apple M1 Pro GPU, where everything marked <span class="meas">measured here</span> was run.</p>
+<p>The parent {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}} gives the intuition (its section 3, "Memory: capacity against bandwidth", and the decode animation on four memories); this page goes one level down. It does not repeat the root's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}} (memory for any model and recipe) or its Roofline lab.</p>
+<h3>In one screen: the memories an ML engineer meets</h3>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Memory</th><th>What stores a bit</th><th>Where it sits</th><th>Bandwidth</th><th>Capacity</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td><b>Registers, L1, shared memory, L2</b> (SRAM)</td><td>6 transistors, no refresh</td><td>on the processor die</td><td>highest; tens of PB/s summed over a wafer (Cerebras WSE-3: 21 PB/s)</td><td>H100: about 119 MB in all</td><td>the operands of the next instructions; tiles of a matmul</td></tr>
+<tr><td><b>HBM3, HBM3e, HBM4</b></td><td>1 transistor + 1 capacitor (DRAM)</td><td>stacks of DRAM dies beside the GPU, on a silicon interposer</td><td>819 / 1,229 / 2,048 GB/s per stack at the standard pin rate</td><td>80 to 288 GB per GPU</td><td>weights, activations, optimizer state, KV cache</td></tr>
+<tr><td><b>GDDR7</b></td><td>DRAM</td><td>separate chips around the GPU on the board</td><td>RTX 5090: 1,792 GB/s</td><td>32 GB (RTX 5090)</td><td>consumer and workstation GPUs</td></tr>
+<tr><td><b>LPDDR5 / LPDDR5X</b></td><td>DRAM</td><td>in the processor package or beside it, shared by CPU and GPU</td><td>M1 Pro: 200 GB/s (127 to 165 measured)</td><td>16 GB here; 17 TB in a GB200 NVL72 rack's Grace CPUs</td><td>Apple GPUs; the CPU side of Grace superchips</td></tr>
+<tr><td><b>Host DRAM over PCIe</b></td><td>DRAM (DDR5)</td><td>on the CPU's side of a PCIe link</td><td>PCIe Gen5 x16: 64 GB/s each way</td><td>terabytes per server</td><td>offloaded optimizer state, KV cache, weights</td></tr>
+<tr><td><b>NVMe SSD</b></td><td>NAND flash</td><td>on PCIe</td><td>this laptop: 5.8 GB/s sequential</td><td>terabytes</td><td>checkpoints, datasets, last-resort offload</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources, all fetched 2026-10-05: per-stack HBM figures from {{Rambus's HBM table|https://www.rambus.com/blogs/hbm3-everything-you-need-to-know/}} (updated March 4, 2026); {{Cerebras WSE-3|https://www.cerebras.ai/press-release/cerebras-announces-third-generation-wafer-scale-engine}}, {{RTX Blackwell whitepaper|https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf}}, {{Apple M1 Pro|https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/}}, {{GB200 NVL72|https://www.nvidia.com/en-us/data-center/gb200-nvl72/}}, {{H100 (PCIe Gen5 128 GB/s both directions)|https://www.nvidia.com/en-us/data-center/h100/}} <span class="vend">vendor spec</span>; the H100 on-chip total is derived in section 3; the laptop figures are from the {{Memory lab|#t-lab}} <span class="meas">measured here</span>.</p>
+<div class="co key"><div class="t">Three rules the rest of the page explains</div>
+<ul class="tight">
+<li><b>Moving a byte costs more than computing with it.</b> Reading 32 bits from off-chip DRAM cost 640 pJ in a 45 nm process against 3.7 pJ for a 32-bit float multiply, 173 times more (section 2).</li>
+<li><b>Fast memory is small, big memory is slow.</b> The H100's 119 MB of SRAM is 0.149% of its 80 GB of HBM; on this laptop's GPU the bandwidth falls from 1,239 GB/s to 127.5 GB/s as the data outgrows the caches (section 3).</li>
+<li><b>Whatever is read once per generated token sets the speed of decoding:</b> the weights, plus every sequence's KV cache (sections 6 and 7).</li>
+</ul></div>
+</section>
+
+<section id="rd-s1">
+<h2>1. Why memory, not arithmetic, decides</h2>
+<p><b>The problem.</b> A multiply needs two numbers that are already in registers. Getting them there from DRAM takes hundreds of nanoseconds and a lot of energy, and each generation of accelerator adds arithmetic faster than it adds memory. Gholami et al. measured the gap over 20 years of server hardware: peak FLOPS grew 3.0&times; every two years, DRAM bandwidth 1.6&times; and interconnect bandwidth 1.4&times; ({{AI and Memory Wall, IEEE Micro 2024|https://arxiv.org/abs/2403.14123}}, Figure 1) <span class="indep">independent study</span>. They call it the memory wall.</p>
+<p>For NVIDIA's flagship datacenter GPUs since the A100 the picture is more nuanced. Three views of the same six chips:</p>
+<div class="card" id="rd-gen-card">
+<div class="seg" id="rd-gen-mode"><button data-m="idx" class="on">Growth since A100</button><button data-m="ridge">FLOPs per byte (ridge)</button><button data-m="reads">Full-memory reads per second</button></div>
+<div class="rd-chart" id="rd-gen-svg"></div>
+<p class="small mute" id="rd-gen-note"></p>
+</div>
+<p>From the A100 (2020) to Rubin (in production in 2026), dense BF16 arithmetic grew 12.8&times; and HBM bandwidth 10.8&times;, so NVIDIA's flagships roughly kept bandwidth in step with arithmetic, at a price (sections 4 and 8). <b>Capacity grew only 3.6&times;</b> (80 GB to 288 GB) while the largest models grew from billions to a trillion parameters. That is why the memory question in practice is usually "does it fit?", and why sharding (ZeRO, FSDP, tensor parallelism) and offload exist.</p>
+<div class="pr" id="rd-pr1"><div class="q">Predict: Rubin reads its whole 288 GB about 76 times per second. A model that fills the memory generates at most how many tokens per second per sequence at batch 1?</div>
+<div class="opts"><button data-a="0">About 76</button><button data-a="1">About 4,000 (BF16 FLOPs / 2N)</button><button data-a="2">It depends only on the KV cache</button></div>
+<div class="ans" hidden><b>About 76.</b> At batch 1 every weight is read once per token, so the ceiling is bandwidth divided by the bytes of weights, whatever the FLOPS. Arithmetic would allow thousands of tokens per second; the memory allows 76. Batching shares one read of the weights among many sequences, which is why servers batch.</div></div>
+<div class="cost"><div class="t">The cost</div>Keeping bandwidth in step with arithmetic is what makes accelerators expensive and hot: HBM4 needs about 3,000 wires per stack (Rambus) and its stacks are among the most supply-limited parts of the chip (section 8). Capacity lags because a stack can only be so tall and only so many stacks fit around one die (section 5).</div>
+<div class="deepnote"><b>Go deeper (optional).</b> The roofline and the ridge point for every chip: the parent's Roofline lab and {{Chip atlas|n:3c65c17b0d0d8118beeefaed56da6f8e}} tabs. The full derivations of FLOPs and bytes per step: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}.</div>
+</section>

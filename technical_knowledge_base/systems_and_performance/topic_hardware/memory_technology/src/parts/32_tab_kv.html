@@ -1,0 +1,54 @@
+<div class="tab" id="t-kv" role="tabpanel" hidden>
+<style>
+#t-kv .kv-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-kv .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-kv .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-kv .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-kv .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-kv .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-kv .an-ctl select{padding:3px 6px}#t-kv .an-play{min-width:6.4em}
+#t-kv .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-kv .an-cap .t{font-weight:600;font-size:14px}#t-kv .an-cap p{margin:2px 0;font-size:13.5px}
+#t-kv .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-kv .an-cnt .stat .v{font-size:15px}
+#t-kv .der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-kv .ctl select{width:100%}
+</style>
+<p class="lead" style="margin-top:14px">The KV cache of thirteen released models, computed from their <code>config.json</code> files, and what it does to a GPU's memory. Every model's cache follows one rule: keys and values per token per layer, times the layers that keep them, times the tokens they keep. <span class="der">derived from config.json</span></p>
+
+<h3>1. One conversation grows (before/after on the same input)</h3>
+<p>The same conversation, from 1K to 128K tokens, on one model at a time, drawn to scale inside one GPU's memory with the model's weights. Switch the architecture and replay: the conversation is the same; only how the model stores it changes.</p>
+<div class="card" id="kv-an-card">
+<div class="seg" id="kv-an-model"></div>
+<div class="ctl"><label>GPU <select id="kv-an-chip"></select></label></div>
+<div class="kv-chart" id="kv-an-svg"></div>
+<div class="an-cap" id="kv-an-cap"></div>
+<div class="an-ctl" id="kv-an-ctl"></div>
+<div class="an-cnt" id="kv-an-cnt"></div>
+<p class="small mute">One GPU's memory to scale; the weights are bytes as released (a model larger than the GPU overflows the bar: it needs several GPUs). KV in BF16. Decode time per token at batch 1 = (weights + this conversation's cache) / bandwidth, a ceiling that ignores everything else <span class="der">derived</span>.</p>
+</div>
+
+<h3>2. KV cache against context, all thirteen</h3>
+<div class="card" id="kv-c-card">
+<div class="seg" id="kv-c-pick"></div>
+<div class="kv-chart" id="kv-c-svg"></div>
+<p class="small mute">One sequence, BF16 cache, log scales. Lines that bend flat are windows filling (Mistral at 4,096 tokens) or layers whose cache stops growing (Gemma 3's local layers at 1,024; gpt-oss's at 128); Qwen3-Next starts above zero because of its fixed linear-attention state (assumed 2 bytes per value).</p>
+</div>
+<div class="tw"><table class="tbl-sm" id="kv-tbl"></table></div>
+<p class="small mute" id="kv-tbl-note"></p>
+
+<h3>3. How many conversations fit</h3>
+<div class="card" id="kv-p-card">
+<div class="ctl">
+<label>Model <select id="kv-p-model"></select></label>
+<label>GPU <select id="kv-p-chip"></select></label>
+<label>GPUs <b id="kv-p-nv">8</b><input type="range" id="kv-p-n" min="1" max="72" value="8"></label>
+<label>Context per conversation <b id="kv-p-cv">32,768</b> tokens<input type="range" id="kv-p-ctx" min="10" max="18" value="15" step="0.5"></label>
+<label>KV format <select id="kv-p-kvb"><option value="2">BF16 / FP16 (2 bytes)</option><option value="1">FP8 (1 byte)</option></select></label>
+<label>Weights <select id="kv-p-ws"><option value="1">as released</option><option value="0.5">half the bytes (e.g. BF16 to FP8)</option><option value="0.25">a quarter (e.g. BF16 to 4-bit)</option></select></label>
+<label>Memory the server may use <b id="kv-p-uv">92%</b><input type="range" id="kv-p-u" min="50" max="100" value="92"></label>
+</div>
+<div class="out" id="kv-p-out"></div>
+<div class="bars" id="kv-p-bar"></div>
+<p class="small mute" id="kv-p-note"></p>
+</div>
+<p class="small mute">Assumptions, all ceilings: memory = GPUs &times; capacity &times; the fraction the server may use (vLLM's default <code>gpu_memory_utilization</code> is 0.92), minus the weights, split evenly; activations and the CUDA context are not modelled beyond that fraction. A decode step reads every weight byte once and every sequence's cache once, at the GPUs' combined bandwidth; real servers land below it, and a mixture-of-experts model reads fewer weight bytes at small batch (the parent's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}} models expert routing and tensor-parallel communication; this tab does not). The JavaScript is checked against <code>code/build_data.py</code> on 1,170 cases.</p>
+</div>

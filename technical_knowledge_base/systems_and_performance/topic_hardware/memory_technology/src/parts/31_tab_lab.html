@@ -1,0 +1,48 @@
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>
+#t-lab .lab-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-lab .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-lab .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-lab .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-lab .meas{font-size:11.5px;color:var(--good);font-weight:600}#t-lab .indep{font-size:11.5px;color:var(--c6);font-weight:600}
+#t-lab .xfer{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:8px 0}
+#t-lab .xfer>div{border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13.5px;min-width:0}
+#t-lab .xfer b{display:block}
+</style>
+<p class="lead" style="margin-top:14px">Everything on this tab was run on this laptop: the Apple M1 Pro's 16-core GPU through custom Metal kernels in MLX, and its internal SSD. Each GPU experiment ran 7 timed trials after 2 warm-ups, in three separate runs; the line is the median of the three run medians and the bars their spread. Every kernel was checked against NumPy before it was timed. <span class="meas">measured here</span></p>
+<div class="out" id="lab-meta"></div>
+
+<h3>1. How fast, and how slow, at each size</h3>
+<p><b>Bandwidth:</b> 65,536 threads reading a buffer of the given size over and over (coalesced 16-byte loads). <b>Latency:</b> the time of one read when each read depends on the previous one (a single thread chasing a random pointer cycle, one 128-byte line per hop; launch overhead removed by timing two chain lengths and taking the difference).</p>
+<div class="card" id="lab-ws-card">
+<div class="seg" id="lab-ws-mode"><button data-m="bw" class="on">Bandwidth</button><button data-m="lat">Latency</button><button data-m="tbl">Table</button></div>
+<div class="lab-chart" id="lab-ws"></div>
+<p class="small mute" id="lab-ws-note"></p>
+</div>
+
+<h3>2. Random blocks: why access size matters</h3>
+<p>512 MB read in blocks of a given size at random positions; consecutive threads read consecutive 16-byte pieces of the same block. The y axis counts only the useful bytes.</p>
+<div class="card" id="lab-g-card">
+<div class="lab-chart" id="lab-g"></div>
+<p class="small mute" id="lab-g-note"></p>
+</div>
+
+<h3>3. One decode attention step against the KV cache</h3>
+<p>MLX's fused <code>scaled_dot_product_attention</code> for one new token (32 query heads of 128, FP16) against a cache of 1K to 128K tokens with 32 KV heads (MHA, like Llama 2), 8 (GQA, like Llama 3.1 8B) or 1 (MQA). One layer only; a whole model repeats this per layer.</p>
+<div class="card" id="lab-kv-card">
+<div class="seg" id="lab-kv-mode"><button data-m="bytes" class="on">Time against cache bytes</button><button data-m="ctx">Time against context</button></div>
+<div class="lab-chart" id="lab-kv"></div>
+<p class="small mute" id="lab-kv-note"></p>
+</div>
+
+<h3>4. The SSD, the bottom rung</h3>
+<div class="tw"><table class="tbl-sm" id="lab-ssd"></table></div>
+<p class="small mute">A 4 GiB file of random bytes, written and read with <code>F_NOCACHE</code> so neither the write nor the reads leave pages in memory; one reader, one request at a time (queue depth 1). The first attempt, before the write path also bypassed the cache, read 9.2 to 11.0 GB/s because the just-written pages were still in memory (<code>out/ssd_cached_attempt.txt</code>).</p>
+
+<h3>What transfers to an NVIDIA GPU, and what does not</h3>
+<div class="xfer">
+<div><b>Transfers</b>The shape: bandwidth falls in steps as the working set outgrows each cache; latency rises in steps; Little's law links them; scattered small reads waste most of the bandwidth; decode attention time follows cache bytes when the kernel is good. Luo et al. measured the same staircase in cycles on A100, H800 and RTX 4090 <span class="indep">independent</span>.</div>
+<div><b>Does not transfer</b>The numbers. An H100 has 50 MB of L2 instead of 256 KB plus a 24 MB SLC, and 3.35 TB/s of HBM instead of 200 GB/s of LPDDR5. MLX's attention kernel is not FlashAttention or vLLM's; its MHA and MQA results describe this kernel, not the hardware's limit.</div>
+<div><b>Not measured</b>No GPU performance counters (Instruments) were read, so cache levels are inferred from the curves; HBM, GDDR and NVLink were not run here (no NVIDIA GPU was available).</div>
+</div>
+<p class="small mute">Reproduce: <code>src/run_all.sh</code> (needs a Python with MLX; three GPU runs of about 15 seconds each, then the SSD test and <code>code/build_data.py</code>). Raw outputs in <code>src/out/</code>. The laptop was shared with other jobs during the runs (load averages in the box above), so single slow trials appear in the spreads.</p>
+</div>
