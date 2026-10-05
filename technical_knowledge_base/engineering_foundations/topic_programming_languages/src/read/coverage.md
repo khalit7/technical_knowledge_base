@@ -72,7 +72,7 @@ Status: **verified** (checked against the primary source named, saved in `source
 | Concepts make errors legible | verified (ran: "does not satisfy HasTokens") | Reading 8 |
 | std::expected | verified (ran with Apple clang 17 + macOS 26 SDK) | Reading 6 |
 | Data races are UB, not "sometimes wrong" | verified (TSan; -O0 vs -O2) | Reading 9 |
-| AoS vs SoA "an order of magnitude" | unconfirmed as stated; related measurement: contiguous vs shuffled pointers about 14x | Reading 5 |
+| AoS vs SoA "an order of magnitude" | corrected on the C++ page, Part 2 (cpp/src/cb): 7.2 to 7.8x for an integer field, 1.0x for a float field, about 1.2x with all fields used; the gain is bytes read over bytes used, only when memory-bound. Related root measurement: contiguous vs shuffled pointers about 14x | Reading 5 |
 | Stage lists, traps | child | |
 
 ## C++: modern practice and standards status
