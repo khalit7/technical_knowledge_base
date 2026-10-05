@@ -1,0 +1,61 @@
+<section id="rd-s1">
+<h2>1. Samples, populations, and the estimate as a random number</h2>
+<p class="raise"><b>The question.</b> You computed a validation loss of 0.81 on 10 examples. A colleague, on 10 other examples from the same source, got 1.11. Who is right?</p>
+<p>Both, and neither. Statistics names the pieces so the question can be answered:</p>
+<dl class="sym">
+<dt><dfn id="rd-g-pop">Population</dfn></dt><dd>everything you could have measured: here, the model's loss on every word it could sample, distributed as \(p\). In ML, the stream of inputs the model will meet in use.</dd>
+<dt><dfn id="rd-g-param">Parameter</dfn></dt><dd>a fixed number that describes the population: the mean loss \(\mu = 0.832\) and the standard deviation \(\sigma = 0.651\). Usually unknown; that is the point.</dd>
+<dt><dfn id="rd-g-sample">Sample</dfn></dt><dd>the \(n\) values you actually observed, \(x_1, \dots, x_n\). Usually assumed <dfn id="rd-g-iid">i.i.d.</dfn>: independent, and identically distributed (each drawn from the same population).</dd>
+<dt><dfn id="rd-g-stat">Statistic</dfn></dt><dd>any number computed from the sample: its average, its largest value, its median.</dd>
+<dt><dfn id="rd-g-est">Estimator</dfn>, \(\hat\theta\)</dt><dd>a statistic used to guess a parameter \(\theta\) (theta). The hat means "estimated from data". The <b>estimator</b> is the recipe; the <b>estimate</b> is the number the recipe gives on one sample.</dd>
+<dt><dfn id="rd-g-sdist">Sampling distribution</dfn></dt><dd>the distribution of an estimate over all the samples you might have drawn. Its standard deviation is the <dfn id="rd-g-se">standard error</dfn>.</dd>
+</dl>
+<div class="nums"><div class="t">The numbers <span class="tag2 real">exact</span></div>Ten sampled words, 7 cat, 2 dog and 1 sat, give an average loss of \((7 \times 0.408 + 2 \times 1.408 + 1 \times 2.408)/10 = 0.808\). Ten more, 5 cat, 3 dog and 2 sat, give 1.108. Neither is 0.832; both are honest. The spread you would see over many such samples (the standard error) is \(\sigma/\sqrt{10} = 0.651/3.162 = 0.206\), so a gap of 0.3 between two samples of 10 is ordinary.</div>
+<p class="plain">In plain words: a number computed from data inherits the data's randomness. The population is fixed; your sample, and everything computed from it, is one draw of a random quantity.</p>
+<p><b>When i.i.d. fails.</b> Near-duplicate test items, several items cut from one document, test text that leaked into training, or users who appear in both train and test all make the draws dependent. Dependent draws carry less information than their count suggests, so every error bar computed as if they were independent is too narrow. The eval version (clustered standard errors) is section 3 of {{Eval statistics|n:3ef5c17b0d0d8187a7b4e5b4ec4a546d}}.</p>
+<div class="use"><div class="t">What it is used for in ML</div>The test set is a sample from the deployment population; the training set is another; the trained weights are an estimate (of the best weights for the population), and so is every metric you report. Keeping the two samples apart is what makes a test score an honest estimate.</div>
+</section>
+
+<section id="rd-s2">
+<h2>2. Estimators and their properties: bias, variance, MSE, consistency, efficiency</h2>
+<p class="raise"><b>The question.</b> There are many recipes for guessing a number from data. Which one is good, and what does "good" mean when the guess is random?</p>
+<p>Picture throwing darts at a target whose centre is the true value \(\theta\). Each throw is the estimate from one sample. Two things can go wrong: the throws can be centred off the bullseye (<b>bias</b>), and they can be scattered (<b>variance</b>). The average squared distance from the bullseye, the <b>mean squared error</b>, counts both.</p>
+\[ \operatorname{Bias}(\hat\theta) = \mathbb{E}[\hat\theta] - \theta, \qquad \operatorname{Var}(\hat\theta) = \mathbb{E}\big[(\hat\theta - \mathbb{E}[\hat\theta])^2\big], \qquad \operatorname{MSE}(\hat\theta) = \mathbb{E}\big[(\hat\theta - \theta)^2\big] = \operatorname{Bias}^2 + \operatorname{Var}. \]
+<dl class="sym">
+<dt>\(\mathbb{E}[\hat\theta]\)</dt><dd>the average of the estimate over all possible samples (the centre of the darts).</dd>
+<dt>\(\operatorname{Bias}\)</dt><dd>how far that centre sits from the truth. Zero bias is called <dfn id="rd-g-unb">unbiased</dfn>.</dd>
+<dt>\(\operatorname{Var}\)</dt><dd>the scatter around the centre; its square root is the standard error.</dd>
+</dl>
+<div class="der"><div class="t">Derivation of MSE = bias² + variance, every step</div><ol>
+<li>Write \(m = \mathbb{E}[\hat\theta]\). Add and subtract it: \(\hat\theta - \theta = (\hat\theta - m) + (m - \theta)\).</li>
+<li>Square: \[ (\hat\theta - \theta)^2 = (\hat\theta - m)^2 + 2(\hat\theta - m)(m - \theta) + (m - \theta)^2. \]</li>
+<li>Take the expectation of each term. The first is the variance. In the middle term \(m - \theta\) is a fixed number, so it comes outside the expectation, and what is left has mean zero: \[ \mathbb{E}[2(\hat\theta - m)(m - \theta)] = 2(m - \theta)\,\mathbb{E}[\hat\theta - m] = 2(m - \theta)(m - m) = 0. \] The last term is fixed: \((m - \theta)^2 = \operatorname{Bias}^2\).</li>
+<li>So \(\operatorname{MSE} = \operatorname{Var} + 0 + \operatorname{Bias}^2\).</li>
+</ol></div>
+<p class="plain">In plain words: being unbiased is not the goal; being close is. You can buy a large cut in variance with a small bias, and come out ahead.</p>
+<div class="nums"><div class="t">Worked example: shrinking an estimate <span class="tag2 real">exact</span></div>Estimate a mean \(\mu = 1\) from \(n = 4\) samples of variance \(\sigma^2 = 4\). The sample mean \(\bar{x}\) is unbiased with variance \(\sigma^2/n = 1\), so its MSE is 1. The shrunk estimator \(0.5\,\bar{x}\) has bias \(0.5 - 1 = -0.5\) (bias² 0.25) and variance \(0.5^2 \times 1 = 0.25\), so its MSE is \(0.25 + 0.25 = 0.5\): half the error, bought by accepting bias. For any factor \(c\), \(\operatorname{MSE}(c\bar{x}) = (c - 1)^2\mu^2 + c^2\sigma^2/n\); setting its derivative \(2(c - 1)\mu^2 + 2c\,\sigma^2/n\) to zero gives \(c^\ast = \mu^2/(\mu^2 + \sigma^2/n) = 1/(1 + 1) = 0.5\), so 0.5 is also the best factor here. The catch: \(c^\ast\) depends on the unknown \(\mu\). James and Stein (1961) showed that when three or more means are estimated together, a data-driven shrinkage beats the plain sample means in total MSE whatever the true means are; weight decay and MAP with a prior towards zero ({{Probability for ML|n:3c65c17b0d0d815f9a47d613409b5a0c}}, section 11) are the same trade in ML. (No noise term appears because the target is the fixed number \(\mu\).)</div>
+<p><b>Consistency and efficiency.</b> Two more properties describe what happens as data grow and how well data are used:</p>
+<ul class="tight">
+<li><dfn id="rd-g-cons">Consistent</dfn>: the estimate converges to the truth as \(n \to \infty\) (formally, \(P(|\hat\theta_n - \theta| > \epsilon) \to 0\) for every \(\epsilon > 0\)). An estimator whose bias and variance both go to 0 is consistent, because \(\operatorname{MSE} \to 0\) and, by Chebyshev's inequality (section 10), \(P(|\hat\theta_n - \theta| > \epsilon) \le \operatorname{MSE}/\epsilon^2\).</li>
+<li><dfn id="rd-g-eff">Efficient</dfn>: among unbiased estimators, the one with the smallest variance. There is a floor, the <b>Cramér-Rao bound</b>: \(\operatorname{Var}(\hat\theta) \ge 1/(n\,I(\theta))\), where \(I(\theta)\) is the Fisher information of one observation (the variance of the score, the slope of the log-likelihood, met on the root page's "same object in different hats" and in {{Probability for ML|n:3c65c17b0d0d815f9a47d613409b5a0c}}, section 10). For a coin with heads probability \(q\), \(I = 1/(q(1-q))\), so the bound is \(q(1-q)/n\): exactly the variance of the observed fraction of heads, which is therefore efficient. MLE reaches the bound as \(n \to \infty\) (Wasserman, <i>All of Statistics</i>, chapter 9).</li>
+</ul>
+<h3>Three estimators of the same entropy</h3>
+<p>The tiny model's entropy (0.832 nats) can be estimated from \(n\) sampled words in three ways. (a) <b>Monte Carlo</b>: average \(-\ln p(\text{word})\), which needs the model's probabilities. (b) <b>Plug-in</b>: count the words, turn counts into frequencies \(\hat p\), and compute the entropy of \(\hat p\); needs no model, only samples (how entropy and mutual information of data are usually estimated). (c) <b>Miller-Madow</b>: the plug-in plus \((m - 1)/(2n)\), with \(m\) the number of distinct words seen, a first-order bias correction (Miller 1955; Paninski 2003, <i>Neural Computation</i> 15, section 3). The table is exact: it sums over every possible set of counts, weighted by its multinomial probability. <span class="tag2 real">exact</span></p>
+<div class="tw"><table class="mini">
+<tr><th>\(n\)</th><th>Estimator</th><th class="num">Mean</th><th class="num">Bias</th><th class="num">Variance</th><th class="num">MSE</th></tr>
+<tr><td rowspan="3">5</td><td>Monte Carlo</td><td class="num">0.832</td><td class="num">0</td><td class="num">0.0849</td><td class="num">0.0849</td></tr>
+<tr><td>Plug-in</td><td class="num">0.608</td><td class="num">-0.224</td><td class="num">0.0926</td><td class="num">0.1428</td></tr>
+<tr><td>Miller-Madow</td><td class="num">0.721</td><td class="num">-0.111</td><td class="num">0.1321</td><td class="num">0.1446</td></tr>
+<tr><td rowspan="3">10</td><td>Monte Carlo</td><td class="num">0.832</td><td class="num">0</td><td class="num">0.0424</td><td class="num">0.0424</td></tr>
+<tr><td>Plug-in</td><td class="num">0.718</td><td class="num">-0.114</td><td class="num">0.0509</td><td class="num">0.0639</td></tr>
+<tr><td>Miller-Madow</td><td class="num">0.796</td><td class="num">-0.0365</td><td class="num">0.0615</td><td class="num">0.0629</td></tr>
+<tr><td rowspan="3">30</td><td>Monte Carlo</td><td class="num">0.832</td><td class="num">0</td><td class="num">0.0141</td><td class="num">0.0141</td></tr>
+<tr><td>Plug-in</td><td class="num">0.797</td><td class="num">-0.0356</td><td class="num">0.0157</td><td class="num">0.0169</td></tr>
+<tr><td>Miller-Madow</td><td class="num">0.829</td><td class="num">-0.0032</td><td class="num">0.0161</td><td class="num">0.0161</td></tr>
+<tr><td rowspan="3">100</td><td>Monte Carlo</td><td class="num">0.832</td><td class="num">0</td><td class="num">0.0042</td><td class="num">0.0042</td></tr>
+<tr><td>Plug-in</td><td class="num">0.822</td><td class="num">-0.0101</td><td class="num">0.0044</td><td class="num">0.0045</td></tr>
+<tr><td>Miller-Madow</td><td class="num">0.832</td><td class="num">-0.0001</td><td class="num">0.0044</td><td class="num">0.0044</td></tr>
+</table></div>
+<p>Three lessons in one table. The plug-in is always biased <b>low</b>: a small sample looks more predictable than the population (at \(n = 10\) the bias is \(-0.114\), close to the first-order formula \(-(K - 1)/(2n) = -2/20 = -0.1\) for \(K = 3\) words). The correction removes most of the bias but adds variance, and at \(n = 5\) its MSE (0.1446) is slightly <b>worse</b> than the plug-in's (0.1428): unbiased is not the same as better. And all three are consistent: by \(n = 100\) they agree to 0.01. Estimating the entropy of a large vocabulary from few samples is where this bias bites (Paninski 2003).</p>
+<div class="use"><div class="t">What it is used for in ML</div>Reading papers that propose a new estimator (of a gradient, a mutual information, a KL, a policy value) and claim it is "unbiased" or "lower variance": the right comparison is MSE at your sample size. REINFORCE against the reparameterised gradient ({{Probability for ML|n:3c65c17b0d0d815f9a47d613409b5a0c}}, section 15), baselines in policy gradients, and importance-sampling corrections are all bias-variance trades.</div>
+</section>
