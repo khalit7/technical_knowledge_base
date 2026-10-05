@@ -1,5 +1,5 @@
 # Scratch toolchain paths (never system-wide). PL defaults to this session's scratchpad.
-: "${PL:=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl}"
+: "${PL:=${TMPDIR:-/tmp}/pl}"
 export PL
 export UV_PYTHON_INSTALL_DIR=$PL/py UV_CACHE_DIR=$PL/uvcache UV_TOOL_DIR=$PL/uvtools UV_TOOL_BIN_DIR=$PL/uvtools/bin UV_PYTHON_INSTALL_BIN=0
 export PATH=$PL/bin:$PL/uvtools/bin:$PATH

@@ -104,7 +104,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.close();
 }
 // 2. sandboxed iframe, like Notion's HTML block
-fs.writeFileSync(path.join(tmp, 'frame.html'), `<!doctype html><iframe sandbox="allow-scripts" src="file://${page}" style="width:900px;height:900px"></iframe>`);
+fs.writeFileSync(path.join(tmp, 'frame.html'), `<!doctype html><iframe sandbox="allow-scripts" src="${path.relative(tmp, page).split(path.sep).join("/")}" style="width:900px;height:900px"></iframe>`);
 { const { p, f, errs } = await open('file://' + path.join(tmp, 'frame.html'), 'light', 920, true);
   const st = await f.evaluate(() => document.getElementById('sq-status').innerText);
   console.log('sandboxed iframe:', st.slice(0, 90)); if (!/^Live\./.test(st)) fail('sandbox: engine did not start');

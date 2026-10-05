@@ -1,12 +1,13 @@
 // Screenshot one element of a Part 3 tab: node shots.mjs <tab> <width> <scheme> <selector> [frame] [mode]
 import { createRequire } from 'module';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(path.resolve(here, '../../../../../../..'), 'html_utils/package.json'));
 const puppeteer = require('puppeteer');
 const [tab, w, scheme, sel, frame, mode] = process.argv.slice(2);
-const out = '/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl/tl/shots';
+const out = path.join(process.env.PL || path.join(os.tmpdir(), 'pl'), 'tl/shots');
 const b = await puppeteer.launch({ headless: 'shell' }); const p = await b.newPage();
 await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
 await p.setViewport({ width: +w, height: 900 });

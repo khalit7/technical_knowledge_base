@@ -13,7 +13,7 @@
 #   cmd: <shell command>               (replaces the default run step, shown in the output)
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PL=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 export RUSTUP_HOME=$PL/rust/rustup CARGO_HOME=$PL/rust/cargo UV_CACHE_DIR=$PL/uvcache
 export PATH=$PL/dsbin:$PL/rust/cargo/bin:$PL/ts/node_modules/.bin:$PL/bin:$PATH
 PY=$PL/py/cpython-3.14.8-macos-aarch64-none/bin/python3.14

@@ -1,5 +1,5 @@
 # Toolchains for Part 2 (all in the session scratchpad, nothing system-wide)
-PL=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 B=$PL/cb            # build products and big files stay here, never in the repo
 SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk
 # Apple clang 17 from the Command Line Tools (the default /usr/bin/clang++ is an older clang 14)

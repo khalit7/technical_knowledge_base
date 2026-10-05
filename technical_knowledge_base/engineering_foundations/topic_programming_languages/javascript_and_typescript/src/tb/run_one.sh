@@ -13,7 +13,7 @@
 # Sibling helper files code/<name>__<other> are copied as <other>.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PL=/private/tmp/claude-502/-Users-khalid-technical-knowledge-base/5f6ecf10-514c-4c28-926f-0ee784ea40bd/scratchpad/pl
+PL=${PL:-${TMPDIR:-/tmp}/pl}
 export PATH=$PL/tb/node_modules/.bin:$PL/bin:$PATH
 export NPM_CONFIG_USERCONFIG=$PL/ja/empty.npmrc   # the user's ~/.npmrc is never read
 src="$1"; base="$(basename "$src")"; name="${base%.*}"
