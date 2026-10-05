@@ -1,0 +1,120 @@
+"""Debug lab cases, part A (memory and shared memory). Text is HTML; every recording is quoted by
+reference (raw file, section label) and copied verbatim by build_data.py."""
+
+
+def L(text, url):
+    return f'<a href="{url}" target="_blank" rel="noopener noreferrer">{text}</a>'
+
+
+DOCKER_RUN = "https://docs.docker.com/reference/cli/docker/container/run/"
+CG2 = "https://docs.kernel.org/admin-guide/cgroup-v2.html"
+PT = "https://github.com/pytorch/pytorch/blob/v2.14.1/"
+MAN = "https://man7.org/linux/man-pages/"
+
+CASES = [
+dict(
+  id="shm", title="DataLoader workers run out of /dev/shm",
+  sub=["ipc", "limits"], tools=["df", "cgroup/docker flags"], ostep="5 Process API (fork); 13 Address Spaces",
+  symptom=("shm_small", r"re:RuntimeError: unable to allocate shared memory\(shm\) for file <[^>]+>: No space left on device \(28\)"),
+  rec=[("shm_small", "host"), ("shm_small", "how big is /dev/shm"), ("shm_small", "the running job with batch 4096 and 2 workers"),
+       ("shm_fixed", "host"), ("shm_fixed", "the running job with batch 4096 and 2 workers")],
+  cause="Workers do not send a batch through a pipe byte by byte: they put its tensors in shared memory, files under <code>/dev/shm</code> (a tmpfs, a file system kept in RAM), and send only a handle. Two batches in flight per worker (the default <code>prefetch_factor=2</code>) of 4096 rows x 256 float32 (4 MiB each) need about 16 MiB; this container's <code>/dev/shm</code> is 8 MiB. PyTorch reserves the segment with <code>posix_fallocate</code>, so the shortage shows at once as this error (\"No space left on device\", errno 28). Where <code>posix_fallocate</code> is not used, the shortage shows later, when the worker writes into the segment and the kernel delivers SIGBUS; PyTorch then reports \"DataLoader worker (pid N) is killed by signal: Bus error. It is possible that dataloader's workers are out of shared memory\" (" + L("MapAllocator.cpp L290-312", PT + "aten/src/ATen/MapAllocator.cpp#L290-L312") + ", " + L("DataLoader.cpp L154-166", PT + "torch/csrc/DataLoader.cpp#L154-L166") + "). The Syscall tracer tab shows the <code>/dev/shm/torch_*</code> segments and the POSIX semaphores of the multiprocessing queues living there.",
+  fix="Give the container a bigger <code>/dev/shm</code>: " + L("docker run --shm-size", DOCKER_RUN) + " (the default is 64 MiB, recorded in the environment block above), or in Kubernetes mount an <code>emptyDir</code> with <code>medium: Memory</code> at <code>/dev/shm</code>. With 256 MiB the same job runs. Smaller batches or a lower <code>prefetch_factor</code> also reduce the need. The memory used in <code>/dev/shm</code> counts against the container's memory limit.",
+  ml="The classic first failure of a training container: it works on a laptop and dies in Docker or Kubernetes, where /dev/shm is small by default.",
+  first=dict(opts=["df -h /dev/shm", "nvidia-smi", "ulimit -n", "free -m"], a=0,
+             why="The message names shared memory and ENOSPC: check the size and use of /dev/shm first."),
+),
+dict(
+  id="cow", seen="Memory use climbs during the first epoch and the node or pod runs out, though RSS per worker looks flat. The PSS/USS table shows it (worker 0's row after 500 batches):", title="Worker memory grows: copy-on-write meets reference counts",
+  sub=["memory", "process"], tools=["/proc smaps (psutil)", "ps"], ostep="5 Process API; 13 Address Spaces; 21 Swapping: Mechanisms",
+  symptom=("cow_list", r"re:after 500 batches\n(?:.*\n){2}(  worker 0 .*)"),
+  rec=[("cow_list", "host"), ("cow_list", "copy-on-write in DataLoader workers: dataset as list"),
+       ("cow_numpy", "copy-on-write in DataLoader workers: dataset as numpy"),
+       ("cow_arrow", "copy-on-write in DataLoader workers: dataset as arrow")],
+  cause="After <code>fork</code> parent and worker share every page; the kernel copies a page only when one of them writes to it (copy-on-write). Reading a Python object writes to it: CPython increments and decrements the reference count stored in the object's header. A Dataset holding two million Python strings is two million small objects spread over the heap, so a shuffled epoch touches nearly every page and each worker ends up with its own copy: private memory (USS) of worker 0 went from @@cow_list|after the first batch\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)@@ to @@cow_list|after one epoch.*\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)@@ MiB. The same strings in one numpy buffer or one Arrow buffer are not Python objects, nothing writes to their pages, and USS stays flat (@@cow_numpy|after one epoch.*\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)@@ MiB for numpy, @@cow_arrow|after one epoch.*\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)@@ MiB for Arrow, at the end of the epoch). RSS hides all of this: it stays at @@cow_list|after one epoch.*\n(?:.*\n){2}  worker 0 +(\d+)@@ MiB per worker, because RSS counts a shared page in full in every process. PSS divides each shared page among its sharers, so the PSS sum is what the job really costs.",
+  fix="Keep big per-sample metadata in numpy arrays, Arrow tables or pandas columns rather than Python lists or dicts, as the " + L("PyTorch data docs warn (data.md L278-291)", PT + "docs/source/data.md?plain=1#L278-L291") + ". Measure with PSS or USS (<code>/proc/&lt;pid&gt;/smaps_rollup</code>, psutil's <code>memory_full_info</code>), never by adding RSS.",
+  ml="Image and caption lists of millions of paths in a Dataset; total memory grows like number of workers x size of those lists until the OOM killer steps in. The OS simulators tab animates copy-on-write page by page and measures the same effect in C.",
+  first=dict(opts=["PSS and USS per worker (smaps_rollup)", "RSS per worker in top", "nvidia-smi", "df -h"], a=0,
+             why="RSS counts shared pages in every process and stays flat here; only USS and PSS show the copies."),
+  bars=dict(title="Private memory (USS) per worker, MiB: after the first batch, then after one epoch",
+            src=[("cow_list", r"after the first batch\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)", "list, start"),
+                 ("cow_list", r"after one epoch.*\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)", "list, end"),
+                 ("cow_numpy", r"after the first batch\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)", "numpy, start"),
+                 ("cow_numpy", r"after one epoch.*\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)", "numpy, end"),
+                 ("cow_arrow", r"after the first batch\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)", "arrow, start"),
+                 ("cow_arrow", r"after one epoch.*\n(?:.*\n){2}  worker 0 +\d+ +\d+ +(\d+)", "arrow, end")], unit="MiB"),
+),
+dict(
+  id="oom_kill", seen="The job's log simply stops; the shell or the orchestrator reports:", title="Killed with exit code 137: the cgroup OOM killer",
+  sub=["memory", "limits"], tools=["cgroup files", "exit code", "dmesg"], ostep="21 Swapping: Mechanisms; 22 Swapping: Policies",
+  symptom=("oom_inside", "exit code 137"),
+  rec=[("oom_inside", "host"), ("oom_inside", "the limit this container runs under (cgroup v2 files)"), ("oom_inside", "a job that keeps allocating"),
+       ("oom_inside", "what the cgroup recorded"), ("oom_inside", "the kernel log"), ("oom_pid1", "host"), ("oom_pid1", "body"), ("oom_pid1", "exit")],
+  cause="The container's memory cgroup has a hard limit (<code>memory.max</code>, 512 MiB here, with no swap). When the processes in it need more and the kernel cannot reclaim enough (page cache, swap), it runs the OOM killer inside that cgroup and sends SIGKILL to one process. SIGKILL cannot be caught, so there is no Python traceback: the shell reports exit status 128 + 9 = 137. If the killed process is the container's main process, the container itself exits with 137. The evidence is in " + L("memory.events", CG2) + ": <code>oom_kill 1</code> (and <code>max</code>, the number of times usage hit the limit). The kernel log names the victim, but <code>dmesg</code> needs privileges this container does not have (it failed with EPERM); on a node, <code>journalctl -k</code> or the node's kernel log has it.",
+  fix="Find what grows (per-process PSS, see the copy-on-write case; the allocator, see the Reading tab), then lower it or raise the limit. Kubernetes shows the same event as <code>OOMKilled</code> in the pod status.",
+  ml="Exit code 137 with no traceback, often only in the worker that died (next case) or in the whole pod. The cgroup counter is the proof; the job's own logs simply stop.",
+  first=dict(opts=["cat memory.events (oom_kill)", "py-spy dump", "df -h /dev/shm", "ulimit -n"], a=0,
+             why="137 = 128 + SIGKILL; memory.events says whether the cgroup OOM killer sent it."),
+),
+dict(
+  id="worker_oom", title="\"DataLoader worker exited unexpectedly\": the OOM killer chose a worker",
+  sub=["memory", "process"], tools=["cgroup files", "ps"], ostep="5 Process API; 22 Swapping: Policies",
+  symptom=("wkleak", "RuntimeError: DataLoader worker (pid(s) 14) exited unexpectedly"),
+  rec=[("wkleak", "host"), ("wkleak", "a 1 GiB container; each worker caches 1 MiB per sample it decodes")],
+  cause="Each worker kept every decoded sample in a dict, so the workers, not the main process, became the largest processes in the 1 GiB cgroup. The OOM killer picks the process with the highest badness score, essentially its resident memory plus swap and page tables (" + L("oom_kill.c L226-238 at v5.10", "https://github.com/torvalds/linux/blob/v5.10/mm/oom_kill.c#L226-L238") + "), so it killed a worker. The main process notices that a worker died and raises this error; the message does not say why.",
+  fix="Do not cache unboundedly in workers (bound the cache, or cache in shared storage). Read <code>memory.events</code> to confirm the kill.",
+  ml="Per-worker caches, decoded-image caches and growing Python lists in <code>__getitem__</code> are the usual culprits.",
+  first=dict(opts=["grep oom memory.events", "strace -p main", "nvidia-smi", "py-spy dump"], a=0,
+             why="A worker that dies without its own traceback was killed by a signal; memory.events shows whether it was the OOM killer."),
+),
+dict(
+  id="oom_score", seen='One process of the job vanished, and it was not the one that was growing:', title="Which process the OOM killer picks: oom_score and oom_score_adj",
+  sub=["memory"], tools=["/proc", "cgroup files"], ostep="22 Swapping: Policies",
+  symptom=("oomscore", r"re:pid \d+ gone"),
+  rec=[("oomscore", "host"), ("oomscore", "the limit"), ("oomscore", "before: A holds 450 MiB, B holds 250 MiB and has raised its own oom_score_adj to 500"),
+       ("oomscore", "now C grows to 400 MiB: 450 + 250 + 400 does not fit in 1 GiB"), ("oomscore", "who is still alive")],
+  cause="The victim is not necessarily the process that asked for the last page. The badness score is the process's memory in pages plus <code>oom_score_adj</code> x (total pages / 1000) (" + L("oom_kill.c L226-238", "https://github.com/torvalds/linux/blob/v5.10/mm/oom_kill.c#L226-L238") + "). B held the least memory but had raised its <code>oom_score_adj</code> to 500, so B was killed and both A and C, the process whose growth caused the shortage, survived. <code>/proc/&lt;pid&gt;/oom_score</code> shows the score (" + L("proc docs, oom_score_adj", "https://docs.kernel.org/filesystems/proc.html") + "). Lowering it needs CAP_SYS_RESOURCE; raising it does not.",
+  fix="Protect the process that holds the training state (the main process, the one that checkpoints) and let helpers be chosen first: Kubernetes sets <code>oom_score_adj</code> from the pod's QoS class.",
+  ml="In a pod with a sidecar, a data-prep process and the trainer, which one dies first is decided by this score.",
+  first=dict(opts=["cat /proc/<pid>/oom_score for each process", "top sorted by CPU", "ulimit -a", "df -h"], a=0,
+             why="The score, not the latest allocation, decides the victim."),
+),
+dict(
+  id="memerr", title="MemoryError and \"can't allocate\": a refusal, not a kill",
+  sub=["memory", "limits"], tools=["ulimit", "/proc"], ostep="14 Memory API; 13 Address Spaces",
+  symptom=("memerr", "numpy._core._exceptions._ArrayMemoryError: Unable to allocate 12.0 GiB for an array with shape (12884901888,) and data type uint8"),
+  rec=[("memerr", "host"), ("memerr", "overcommit policy of this kernel (0 heuristic, 1 always, 2 never)"),
+       ("memerr", "a 1 TiB array is granted, because nothing has touched it yet"),
+       ("memerr", "with an address-space limit (ulimit -v, RLIMIT_AS) the same kind of request fails at once")],
+  cause="A Python <code>MemoryError</code> (and numpy's and PyTorch's equivalents) means an allocation call returned failure, so the program can catch it and print a traceback. That happens when the kernel refuses the request up front. How readily it refuses is the overcommit policy (" + L("overcommit accounting", "https://docs.kernel.org/mm/overcommit-accounting.html") + "): this VM runs mode 1 (always grant), so even a 1 TiB <code>np.zeros</code> succeeds, with 1 TiB of virtual size and @@memerr|VmRSS:\s+(\d+) kB@@ kB resident, because no page has been touched. Under an address-space limit (<code>ulimit -v</code>, RLIMIT_AS, " + L("getrlimit(2)", MAN + "man2/getrlimit.2.html") + ") the same requests fail immediately with the three messages shown. Compare the OOM-kill case: there the allocation succeeded and the process died later, on touching the memory, with no traceback.",
+  fix="Read the size in the message: a nonsense size (terabytes) is a shape bug; a plausible one means a real limit (RLIMIT_AS, mode 2 overcommit, or a 32-bit build).",
+  ml="A traceback means the allocator said no; exit code 137 without a traceback means the kernel said yes and then killed the process.",
+  first=dict(opts=["ulimit -v and overcommit_memory", "memory.events", "nvidia-smi", "py-spy dump"], a=0,
+             why="A traceback with MemoryError is a refused request: check what limits requests."),
+),
+dict(
+  id="cuda_oom", seen='On a GPU, from the source that builds the message (not run here):', title="CUDA out of memory (from source; not run here: no GPU)",
+  sub=["memory", "gpu"], tools=["torch.cuda.memory_summary", "nvidia-smi"], ostep="17 Free Space Management",
+  symptom=("@excerpts", '"CUDA out of memory. Tried to allocate ",'),
+  rec=[("@excerpts", "## c10/cuda/CUDACachingAllocator.cpp lines 1927-1952")],
+  cause="GPU memory is not managed by the Linux kernel's OOM killer: PyTorch's caching allocator asks the CUDA driver for memory, keeps freed blocks for reuse, and raises a catchable <code>torch.OutOfMemoryError</code> when even after returning its cached blocks the request cannot be met. The message, built in the source above (" + L("CUDACachingAllocator.cpp L1927-1952 at v2.14.1", PT + "c10/cuda/CUDACachingAllocator.cpp#L1927-L1952") + "), splits the memory into allocated by PyTorch, reserved by PyTorch but unallocated (cached), and free on the device. A large reserved-but-unallocated figure means fragmentation: free memory exists but not as one block big enough, the \"out of memory but memory is free\" story of the Reading tab.",
+  fix="As the message itself says: try <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code> against fragmentation (" + L("PyTorch CUDA memory notes", "https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf") + "); otherwise reduce batch size or activation memory (checkpointing, mixed precision). <code>torch.cuda.memory_summary()</code> prints the breakdown.",
+  ml="Not reproducible in this VM, which has no GPU; the source and the docs are the evidence. It differs from both CPU cases above: a Python exception, not a kill, and not a kernel refusal either.",
+  first=dict(opts=["torch.cuda.memory_summary() (reserved vs allocated)", "free -m", "memory.events", "ulimit -v"], a=0,
+             why="The GPU allocator is PyTorch's, not the kernel's: its own summary separates fragmentation from real exhaustion."),
+),
+dict(
+  id="swap", seen='Steps become many times slower, the CPU is mostly idle, nothing crashes:', title="Not dead, just slow: the working set spills into swap",
+  sub=["memory", "limits"], tools=["getrusage (major faults)", "cgroup files"], ostep="21 Swapping: Mechanisms; 22 Swapping: Policies",
+  symptom=("swap", r"re:(700 MiB working set, pass 1: .*)"),
+  rec=[("swap", "host"), ("swap", "memory limit and swap limit"), ("swap", "a working set that fits, then one that does not")],
+  cause="With swap allowed (<code>memory.swap.max</code> 512 MiB here), a working set of 700 MiB in a 512 MiB limit is not killed: the kernel writes the least recently used pages to swap and reads them back on access. Each read back is a major page fault, a fault the kernel can only satisfy by doing I/O. A pass over the 700 MiB array cost @@swap|700 MiB working set, pass 1: +[\d.]+ s, major faults (\d+)@@ major faults and @@swap|700 MiB working set, pass 1: +([\d.]+) s@@ s; the same pass over 300 MiB, which fits, printed @@swap|300 MiB working set, pass 1: +([\d.]+) s@@ s (under 10 ms). <code>memory.events</code> counts how often usage hit <code>max</code>, but no <code>oom_kill</code>.",
+  fix="Size the job to fit (or raise the limit); for training, prefer failing fast: Kubernetes nodes usually run with swap off, and <code>--memory-swap</code> equal to <code>--memory</code> disables it for a container.",
+  ml="A step time that suddenly grows tenfold with the CPU mostly idle and major faults climbing.",
+  first=dict(opts=["major faults (ps -o maj_flt, getrusage) and memory.swap.current", "nvidia-smi", "ulimit -n", "df -h /dev/shm"], a=0,
+             why="Slow with an idle CPU and rising major faults points to paging."),
+  bars=dict(title="Seconds per pass over the array (touch every page once)",
+            src=[("swap", r"300 MiB working set, pass 1: +([\d.]+) s", "300 MiB fits"),
+                 ("swap", r"700 MiB working set, pass 1: +([\d.]+) s", "700 MiB in 512 MiB")], unit="s"),
+),
+]

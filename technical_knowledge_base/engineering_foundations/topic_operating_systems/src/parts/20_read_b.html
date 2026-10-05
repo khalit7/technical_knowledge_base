@@ -1,0 +1,30 @@
+<section id="rd-s1">
+<h2>1. What an operating system is and does</h2>
+<p class="ostep">ch. 2 Introduction, ch. 6 Limited Direct Execution</p>
+<p><b>The problem.</b> A computer has a few CPUs, one physical memory, and devices (disks, network cards, GPUs). Dozens of programs want to use them at once, none of them trusts the others, and none of them wants to know how an NVMe drive is programmed. Something has to share the hardware fairly, stop one program from reading or corrupting another's memory, and offer one simple interface ("open this file, give me memory, start a thread") over every kind of device. That something is the <dfn id="g-kernel">kernel</dfn>, the core of the operating system that runs with full control of the hardware. (The "operating system" in everyday speech also includes the libraries, shells and tools around the kernel; on this page Linux means the kernel.)</p>
+<p><b>What the kernel owns.</b> Five things: <b>CPU time</b> (who runs, on which core, for how long), <b>memory</b> (which physical bytes belong to which program), <b>devices</b> (disks, network cards, GPUs, each driven by a piece of kernel code called a <dfn id="g-driver">driver</dfn>), <b>files</b> (names, directories and permissions on top of raw storage) and the <b>network</b> (sockets, TCP, see {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}). A program never touches any of them directly.</p>
+<h3>User mode, kernel mode, and the one door between them</h3>
+<p>The CPU itself enforces the separation. It always runs in one of (at least) two <dfn id="g-mode">privilege modes</dfn>: <b>user mode</b>, where your program runs and any attempt to touch a device, change the memory map or disable interrupts is refused by the hardware, and <b>kernel mode</b>, where the kernel runs with no restrictions. On ARM64 (the M1 this page was measured on, and many cloud servers) these are called exception levels EL0 and EL1; on x86-64 they are rings 3 and 0. A program that needs something privileged makes a <dfn id="g-syscall">system call</dfn>: it puts a call number and arguments in registers and executes one special instruction (<code>svc #0</code> on ARM64, <code>syscall</code> on x86-64), which switches the CPU to kernel mode and jumps to a fixed entry point the kernel chose at boot. The kernel checks the request, does the work on the program's behalf, and returns to user mode at the next instruction. There is no other way in: no function call, no pointer, reaches kernel code. OSTEP calls this <i>limited direct execution</i>: your program runs directly on the CPU at full speed, but limited, with the kernel regaining control at every system call, fault and timer interrupt.</p>
+<div class="card" id="rd-sc-card">
+<div class="seg" id="rd-sc-mode"><button data-m="sys" class="on">A system call: read()</button><button data-m="fn">A function call</button></div>
+<div class="rd-chart" id="rd-sc-svg"></div>
+<div class="an-cap" id="rd-sc-cap"></div>
+<div class="an-ctl" id="rd-sc-ctl"></div>
+<div class="an-cnt" id="rd-sc-cnt"></div>
+<div class="rd-chart" id="rd-sc-bars"></div>
+<p class="small mute" id="rd-sc-note"></p>
+</div>
+<p><b>The cost.</b> Crossing the boundary is cheap but not free: the CPU saves the program's registers, switches stacks, and on current CPUs the kernel also flushes or isolates some predictor state as protection against side-channel attacks like Spectre. Measured here, a call to an ordinary function takes about a nanosecond while the cheapest real system call takes a few hundred: a ratio in the hundreds. That one ratio explains several habits of fast code: buffered I/O (collect many small writes in user memory, then make one <code>write()</code>), reading files in large chunks rather than byte by byte, and the <dfn id="g-vdso">vDSO</dfn>, a small piece of kernel-provided code mapped into every process so that asking for the time (<code>clock_gettime</code>, which Python's <code>time.perf_counter()</code> calls) never enters the kernel at all. The {{Syscall tracer|#t-trace}} tab shows buffered against unbuffered writes on the same job.</p>
+<h3>How a language runtime sits on top</h3>
+<p>Python, C++, Rust and Node.js do not talk to the kernel in their own ways: they all end in the same few hundred system calls. On Linux the usual path is through the C library (<dfn id="g-libc">libc</dfn>, here GNU glibc), which wraps each system call in a C function (<code>read()</code>, <code>mmap()</code>, <code>clone()</code>):</p>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>You write</th><th>Runtime layer</th><th>System calls it ends in</th></tr></thead>
+<tbody>
+<tr><td>Python <code>open(p).read()</code></td><td>CPython's <code>_io</code> module, then glibc</td><td><code>openat</code>, <code>newfstatat</code>, <code>read</code>, <code>close</code></td></tr>
+<tr><td>C++ <code>std::ifstream</code></td><td>libstdc++, then glibc</td><td>the same</td></tr>
+<tr><td>Rust <code>std::fs::read</code></td><td>the Rust standard library, then glibc</td><td>the same (plus <code>statx</code> to size the buffer)</td></tr>
+<tr><td>Node <code>fs.readFile</code></td><td>libuv, which runs blocking file calls on a small thread pool</td><td>the same, made from a pool thread</td></tr>
+</tbody></table></div>
+<p class="small mute">Each row was traced in the {{Syscall tracer|#t-trace}} tab ("language to kernel" panel), which shows the exact calls. For Python the threads, the GIL and multiprocessing are on the {{Python page|n:3cd5c17b0d0d81b28acdea39e7a4d998}}; C++'s view of the machine (caches, layout, atomics) is Part 2 of the {{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}.</p>
+<div class="deepnote"><b>Go deeper (optional):</b> OSTEP ch. 6 (Limited Direct Execution) and its measurement homework; the child page on processes and the system-call API (section 10).</div>
+</section>

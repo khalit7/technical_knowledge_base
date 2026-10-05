@@ -1,0 +1,32 @@
+### host: docker run --cpus 2 --memory 3g --cap-add SYS_PTRACE --shm-size 256m --device-read-bps /dev/vda:1mb kb-os-dbg:1 bash /exp/slowio.sh
+
+### the throttle this container runs under (major:minor of the disk, bytes per second)
+$ cat /sys/fs/cgroup/io.max
+254:0 rbps=1048576 wbps=max riops=max wiops=max
+
+### cold: the dataset is not in the page cache
+$ ps -eo pid,ppid,stat,wchan:30,cmd | grep -E 'STAT|train.py' | grep -v grep | cut -c1-100
+  PID  PPID STAT WCHAN                          CMD
+   15     1 Sl   do_sys_poll                    python /job/train.py --steps 30 --workers 2 --start-
+   22    15 Dl   wait_on_page_bit_common        python /job/train.py --steps 30 --workers 2 --start-
+   24    15 Dl   wait_on_page_bit_common        python /job/train.py --steps 30 --workers 2 --start-
+$ py-spy dump --pid 24 2>&1 | grep -v '^Python v' | head -n 7
+Process 24: python /job/train.py --steps 30 --workers 2 --start-method fork --no-ckpt
+
+Thread 24 (idle): "MainThread"
+    __getitem__ (train.py:76)
+    <listcomp> (torch/utils/data/_utils/fetch.py:54)
+    fetch (torch/utils/data/_utils/fetch.py:54)
+    _worker_loop (torch/utils/data/_utils/worker.py:375)
+$ grep -E 'time to first|done at' /tmp/cold.log; grep rbytes /sys/fs/cgroup/io.stat | tr ' ' '\n' | grep -E 'rbytes|rios'
+time to first batch: 7.838s (start method fork)
+done at step 30 (finished), total 10.110s
+rbytes=8421376
+rios=97
+
+### warm: the same run again, the dataset now in the page cache
+$ python /job/train.py --steps 30 --workers 2 --start-method fork --no-ckpt 2>&1 | grep -E 'time to first|done at'
+time to first batch: 0.029s (start method fork)
+done at step 30 (finished), total 1.959s
+
+### host: container exit code 0

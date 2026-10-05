@@ -1,0 +1,28 @@
+### host: docker run --cpus 2 --memory 3g --tmpfs /ckpt:size=10m --cap-add SYS_PTRACE kb-os-dbg:1 bash /exp/ckpt_full.sh
+
+### the checkpoint volume
+$ df -h /ckpt | tail -n 1
+tmpfs            10M     0   10M   0% /ckpt
+
+### saving in place (torch.save straight to ckpt.pt)
+$ python /exp/ckpt_full.py naive
+step 100 checkpoint: 3151999 bytes
+free space before the step 200 save: 2088960 bytes
+step 200 save failed: RuntimeError: [enforce fail at inline_container.cc:672] . unexpected pos 3151680 vs 3151632
+files now: {'ckpt.pt': 5242880, 'logs.bin': 5242880}
+torch.load(ckpt.pt) fails: RuntimeError: PytorchStreamReader failed reading zip archive: failed finding central directory. This is an internal miniz error. If you are seeing this error, there is a high
+
+### write to ckpt.pt.tmp, fsync, rename
+$ python /exp/ckpt_full.py rename
+step 100 checkpoint: 3152093 bytes
+free space before the step 200 save: 2088960 bytes
+step 200 save failed: RuntimeError: [enforce fail at inline_container.cc:672] . unexpected pos 1600 vs 1494
+files now: {'ckpt.pt': 3152093, 'logs.bin': 5242880}
+torch.load(ckpt.pt) works: step 100
+
+### what the error message does not say: strace shows the failing write
+$ strace -f -Z -e trace=write python /exp/ckpt_full.py naive 2>&1 | grep -m 2 ENOSPC | sed -E 's/"([^"\\]|\\.)*"(\.\.\.)?/"..."/'
+[pid    36] write(5, "...", 5952) = -1 ENOSPC (No space left on device)
+[pid    36] write(5, "...", 64) = -1 ENOSPC (No space left on device)
+
+### host: container exit code 0
