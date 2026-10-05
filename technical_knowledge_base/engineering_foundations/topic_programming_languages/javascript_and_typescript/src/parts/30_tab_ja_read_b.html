@@ -1,0 +1,130 @@
+<section id="ja-s2"><h2>2. Values and types</h2>
+<p>JavaScript has seven primitive types (<code>number</code>, <code>bigint</code>, <code>string</code>, <code>boolean</code>, <code>undefined</code>, <code>null</code>, <code>symbol</code>) and objects (everything else: arrays, functions, dates, maps). Primitives are immutable and compared by value; objects are compared by identity. <code>typeof x</code> tells you which, with one historical lie (below).</p>
+<h3>Numbers: everything is a double</h3>
+<p>In Python, <code>7</code> is an <code>int</code> of any size and <code>7.0</code> a <code>float</code>. JavaScript has only the float: an IEEE 754 64-bit double, so integer arithmetic is exact only up to 2<sup>53</sup> &minus; 1 (<code>Number.MAX_SAFE_INTEGER</code>), and <code>/</code> never truncates.</p>
+<div class="ja-snip ja-pred"><div class="ja-file">b1_numbers.mjs</div><pre class="ja-code"><span class="cm">// One number type: a 64-bit IEEE 754 double, exactly like a Python float.</span>
+console.log(0.1 + 0.2);                       <span class="cm">// same as Python</span>
+console.log(7 / 2, -7 / 2);                   <span class="cm">// no integer division: / always gives a double</span>
+console.log(Math.trunc(-7 / 2), Math.floor(-7 / 2), -7 % 2);   <span class="cm">// Python's -7 // 2 is -4, -7 % 2 is 1</span>
+console.log(Number.MAX_SAFE_INTEGER);         <span class="cm">// 2**53 - 1: the last integer every double can hold</span>
+console.log(2 ** 53 + 1);                     <span class="cm">// rounded: the + 1 is lost</span>
+console.log(JSON.parse(<span class="st">'&#123;"id": 1234567890123456789&#125;'</span>).id);   <span class="cm">// a 64-bit id from an API, silently changed</span>
+console.log(1 / 0, -1 / 0, 0 / 0);            <span class="cm">// no ZeroDivisionError: Infinity and NaN</span>
+console.log(NaN === NaN, Number.isNaN(0 / 0));
+console.log(parseInt(<span class="st">"42px"</span>), Number(<span class="st">"42px"</span>), parseInt(<span class="st">"08"</span>), (255).toString(16));</pre><details><summary>Predict the output, then reveal</summary><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="b1_numbers.txt">0.30000000000000004
+3.5 -3.5
+-3 -4 -1
+9007199254740991
+9007199254740992
+1234567890123456800
+Infinity -Infinity NaN
+false true
+42 NaN 8 ff</pre></details></div>
+<div class="ja-cost"><div><div class="t">Problem it solves</div>One numeric type is simple and fast; V8 still stores small integers ("Smis") as real integers internally (section 15).</div><div><div class="t">What it costs</div>64-bit ids from APIs and databases silently lose digits when parsed from JSON; there is no integer division operator.</div><div><div class="t">Do instead</div>Keep ids as strings; use <code>Math.trunc</code> or <code>Math.floor</code> explicitly; parse with <code>Number(s)</code> (strict) rather than <code>parseInt</code> (stops at the first bad character), and give <code>parseInt</code> a radix.</div></div>
+<p><b>BigInt</b> is the exact, arbitrary-size integer (Python's <code>int</code>), written with a trailing <code>n</code>. It refuses to mix with numbers, and <code>JSON.stringify</code> refuses it, because JSON numbers are doubles.</p>
+<div class="ja-snip"><div class="ja-file">b2_bigint.mjs</div><pre class="ja-code"><span class="cm">// BigInt: arbitrary-size integers, written with a trailing n. Python ints behave like this by default.</span>
+<span class="kw">const</span> big = 2n ** 64n;
+console.log(big, <span class="kw">typeof</span> big);
+console.log(9007199254740993n + 1n);          <span class="cm">// exact, unlike the number version</span>
+<span class="kw">try</span> &#123; console.log(1n + 1); &#125;                  <span class="cm">// no silent mixing of the two kinds</span>
+<span class="kw">catch</span> (e) &#123; console.log(e.name + <span class="st">": "</span> + e.message); &#125;
+console.log(BigInt(<span class="st">"1234567890123456789"</span>) + 1n, Number(10n) + 1);
+console.log(JSON.stringify(&#123; n: 5 &#125;), (() =&gt; &#123; <span class="kw">try</span> &#123; <span class="kw">return</span> JSON.stringify(&#123; n: 5n &#125;); &#125; <span class="kw">catch</span> (e) &#123; <span class="kw">return</span> e.message; &#125; &#125;)());</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="b2_bigint.txt">18446744073709551616n bigint
+9007199254740994n
+TypeError: Cannot mix BigInt and other types, use explicit conversions
+1234567890123456790n 11
+&#123;"n":5&#125; Do not know how to serialize a BigInt</pre></div>
+<h3>Strings: UTF-16 code units</h3>
+<p>A Python <code>str</code> is a sequence of Unicode code points, so <code>len("🚀")</code> is 1. A JavaScript string is a sequence of UTF-16 code units: characters outside the Basic Multilingual Plane (emoji, many CJK extensions) take two units, a "surrogate pair". <code>.length</code>, indexing and <code>slice</code> count units; iteration (<code>for...of</code>, <code>[...s]</code>) goes by code point. Strings are immutable, as in Python.</p>
+<div class="ja-snip ja-pred"><div class="ja-file">b3_strings.mjs</div><pre class="ja-code"><span class="cm">// Strings are immutable sequences of UTF-16 code units (Python: sequences of code points).</span>
+<span class="kw">const</span> s = <span class="st">"héllo 🚀"</span>;
+console.log(s.length);                        <span class="cm">// 8: the rocket is TWO UTF-16 units (a surrogate pair)</span>
+console.log([...s].length);                   <span class="cm">// 7: spreading iterates by code point</span>
+console.log(s.slice(0, 7), <span class="st">"|"</span>, s.slice(0, 8)); <span class="cm">// slicing in the middle of the pair leaves half a character</span>
+console.log(s.codePointAt(6).toString(16), s.charCodeAt(6).toString(16));
+console.log(<span class="kw">new</span> TextEncoder().encode(s).length, <span class="st">"bytes in UTF-8"</span>);
+console.log(<span class="st">"a,b,,c"</span>.split(<span class="st">","</span>), <span class="st">"  pad "</span>.trim(), <span class="st">"ab"</span>.repeat(3), <span class="st">"abc"</span>.at(-1));
+console.log(<span class="st">"10"</span> + 1, <span class="st">"10"</span> - 1, <span class="st">"3"</span> * <span class="st">"4"</span>);   <span class="cm">// + concatenates if either side is a string; - * / convert to numbers</span></pre><details><summary>Predict the output, then reveal</summary><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="b3_strings.txt">8
+7
+héllo � | héllo 🚀
+1f680 d83d
+11 bytes in UTF-8
+[ 'a', 'b', '', 'c' ] pad ababab c
+101 9 12</pre></details></div>
+<p>Template strings (backticks) are f-strings: <code>`${a} + ${b} = ${a + b}`</code>. For token counting on LLM text, remember that neither units nor code points are tokens, and that byte lengths (what APIs bill and limit) come from <code>TextEncoder</code>.</p>
+<h3>Two kinds of nothing: <code>undefined</code> and <code>null</code></h3>
+<p>Python has <code>None</code>. JavaScript has <code>undefined</code> ("never set": a missing property, a missing argument, a function with no <code>return</code>) and <code>null</code> ("set to nothing on purpose"). Reading a missing property is <b>not an error</b>; the error comes when you read a property <i>of</i> <code>undefined</code> or <code>null</code>. Optional chaining <code>a?.b</code> stops at either, and <code>x ?? fallback</code> replaces only those two (unlike <code>||</code>, which also replaces <code>0</code> and <code>""</code>).</p>
+<div class="ja-snip ja-pred"><div class="ja-file">b4_nullish.mjs</div><pre class="ja-code"><span class="cm">// Two "nothing" values. undefined: "never set". null: "set to nothing on purpose". Python has only None.</span>
+<span class="kw">let</span> a;                                        <span class="cm">// declared, never assigned</span>
+<span class="kw">const</span> obj = &#123; x: 1 &#125;;
+console.log(a, obj.y, [1, 2][5]);             <span class="cm">// missing things are undefined, not errors</span>
+console.log(<span class="kw">typeof</span> <span class="kw">undefined</span>, <span class="kw">typeof</span> <span class="kw">null</span>);   <span class="cm">// typeof null is "object": a bug kept since 1995 for compatibility</span>
+console.log(<span class="kw">null</span> == <span class="kw">undefined</span>, <span class="kw">null</span> === <span class="kw">undefined</span>);
+<span class="kw">function</span> f(x) &#123; <span class="kw">return</span> x; &#125;
+console.log(f(), f(<span class="kw">null</span>));                    <span class="cm">// a missing argument is undefined, not a TypeError</span>
+console.log(obj.y ?? <span class="st">"default"</span>, 0 ?? <span class="st">"default"</span>, 0 || <span class="st">"default"</span>);  <span class="cm">// ?? replaces only null/undefined; || replaces any falsy</span>
+<span class="kw">const</span> user = &#123; profile: <span class="kw">null</span> &#125;;
+console.log(user.profile?.name, user.settings?.theme?.dark);       <span class="cm">// ?. stops at null/undefined</span>
+<span class="kw">try</span> &#123; console.log(user.profile.name); &#125; <span class="kw">catch</span> (e) &#123; console.log(e.constructor.name + <span class="st">": "</span> + e.message); &#125;</pre><details><summary>Predict the output, then reveal</summary><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="b4_nullish.txt">undefined undefined undefined
+undefined object
+true false
+undefined null
+default 0 default
+undefined undefined
+TypeError: Cannot read properties of null (reading 'name')</pre></details></div>
+<h3>Truthiness and equality</h3>
+<p>The falsy values are <code>false</code>, <code>0</code>, <code>-0</code>, <code>0n</code>, <code>""</code>, <code>null</code>, <code>undefined</code> and <code>NaN</code>. Unlike Python, an empty array or object is <b>truthy</b>: test <code>xs.length</code>, not <code>xs</code>.</p>
+<div class="ja-snip"><div class="ja-file">b5_truthy.mjs</div><pre class="ja-code"><span class="cm">// Falsy: false, 0, -0, 0n, "", null, undefined, NaN. Everything else is truthy, including [] and &#123;&#125;.</span>
+<span class="kw">const</span> cases = &#123; <span class="st">"false"</span>: <span class="kw">false</span>, <span class="st">"0"</span>: 0, <span class="st">'""'</span>: <span class="st">""</span>, <span class="st">"null"</span>: <span class="kw">null</span>, <span class="st">"undefined"</span>: <span class="kw">undefined</span>, <span class="st">"NaN"</span>: NaN,
+                <span class="st">"0n"</span>: 0n, <span class="st">"[]"</span>: [], <span class="st">"&#123;&#125;"</span>: &#123;&#125;, <span class="st">'"0"'</span>: <span class="st">"0"</span>, <span class="st">'"false"'</span>: <span class="st">"false"</span>, <span class="st">"-1"</span>: -1 &#125;;
+<span class="cm">// (the row "0" prints first: integer-like keys always come first in an object, section 3)</span>
+<span class="kw">for</span> (<span class="kw">const</span> [label, v] <span class="kw">of</span> Object.entries(cases)) console.log(label.padEnd(10), Boolean(v));
+<span class="kw">const</span> items = [];
+<span class="kw">if</span> (items) console.log(<span class="st">"[] is truthy: test items.length, not items"</span>);</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="b5_truthy.txt">0          false
+false      false
+""         false
+null       false
+undefined  false
+NaN        false
+0n         false
+[]         true
+&#123;&#125;         true
+"0"        true
+"false"    true
+-1         true
+[] is truthy: test items.length, not items</pre></div>
+<p><code>==</code> ("loose equality") converts both sides by a table of rules before comparing; <code>===</code> ("strict equality") never converts. Always write <code>===</code> and <code>!==</code>; the one common exception is <code>x == null</code>, which is true for exactly <code>null</code> and <code>undefined</code>. Objects and arrays compare by identity under both, like Python's <code>is</code>; there is no built-in deep equality.</p>
+<div class="ja-snip ja-pred"><div class="ja-file">b6_equality.mjs</div><pre class="ja-code"><span class="cm">// == converts types before comparing; === never does. Use === (and !==).</span>
+console.log(1 == <span class="st">"1"</span>, 1 === <span class="st">"1"</span>);
+console.log(0 == <span class="st">""</span>, 0 == <span class="st">"0"</span>, <span class="st">""</span> == <span class="st">"0"</span>);     <span class="cm">// == is not even transitive</span>
+console.log(<span class="kw">null</span> == 0, <span class="kw">null</span> &gt;= 0);              <span class="cm">// and comparisons convert differently again</span>
+console.log([1, 2] === [1, 2], [1, 2] == <span class="st">"1,2"</span>); <span class="cm">// objects compare by identity</span>
+<span class="kw">const</span> a = [1, 2], b = a;
+console.log(a === b);                           <span class="cm">// same object: true (Python's `a is b`)</span>
+console.log(Object.is(NaN, NaN), Object.is(0, -0), 0 === -0);
+console.log(JSON.stringify([1, 2]) === JSON.stringify([1, 2]));  <span class="cm">// a cheap deep compare for plain data</span></pre><details><summary>Predict the output, then reveal</summary><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="b6_equality.txt">true false
+true true false
+false true
+false true
+true
+true false true
+true</pre></details></div>
+<h3>Variables: <code>const</code>, <code>let</code>, never <code>var</code></h3>
+<p>Python has function scope: a name assigned inside an <code>if</code> is visible after it. JavaScript's <code>let</code> and <code>const</code> are scoped to the enclosing block <code>{ ... }</code>; the old <code>var</code> is function scoped and "hoisted" (created at the top of the function), which is why old code is full of bugs. A <code>let</code> used before its line throws (the "temporal dead zone"). <code>const</code> stops rebinding, not mutation: a <code>const</code> object can still change. Default to <code>const</code>, use <code>let</code> when you reassign.</p>
+<div class="ja-snip"><div class="ja-file">b7_scope.mjs</div><pre class="ja-code"><span class="cm">// let and const are block scoped; var is function scoped and hoisted. Never use var.</span>
+<span class="kw">if</span> (<span class="kw">true</span>) &#123; <span class="kw">var</span> v = <span class="st">"var leaks"</span>; <span class="kw">let</span> l = <span class="st">"let stays"</span>; &#125;
+console.log(v);
+<span class="kw">try</span> &#123; console.log(l); &#125; <span class="kw">catch</span> (e) &#123; console.log(e.name + <span class="st">": "</span> + e.message); &#125;
+<span class="kw">try</span> &#123; console.log(early); <span class="kw">let</span> early = 1; &#125; <span class="kw">catch</span> (e) &#123; console.log(e.name + <span class="st">": "</span> + e.message); &#125;  <span class="cm">// the "temporal dead zone"</span>
+<span class="kw">const</span> cfg = &#123; debug: <span class="kw">false</span> &#125;;
+cfg.debug = <span class="kw">true</span>;                               <span class="cm">// const stops rebinding, not mutation</span>
+console.log(cfg);
+<span class="kw">try</span> &#123; cfg = &#123;&#125;; &#125; <span class="kw">catch</span> (e) &#123; console.log(e.name + <span class="st">": "</span> + e.message); &#125;
+console.log(Object.isFrozen(Object.freeze(&#123; a: 1 &#125;)));</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="b7_scope.txt">var leaks
+ReferenceError: l is not defined
+ReferenceError: Cannot access 'early' before initialization
+&#123; debug: true &#125;
+TypeError: Assignment to constant variable.
+true</pre></div>
+<p class="small">More side-by-side pairs with Python (and with C++ and Rust) are in the root's {{Design space tab, False friends|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}: <code>==</code>, empty-list truthiness, number sorting, big ids, string length, <code>const</code>.</p>
+</section>

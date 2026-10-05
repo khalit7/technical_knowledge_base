@@ -1,0 +1,117 @@
+<section id="ja-s9"><h2>9. Asynchronous JavaScript and the event loop</h2>
+<p>A Node process runs your JavaScript on <b>one thread</b>. It never waits: reading a file, a socket or a timer is <i>started</i>, the call returns at once, and the result is delivered later by the <b>event loop</b>, the loop inside Node that runs one piece of your code at a time, to completion, and then picks the next. Python's <code>asyncio</code> is the same design, opt-in; in JavaScript it is the only model, and every I/O API is built for it. Three generations of API sit on top.</p>
+<h3>Callbacks</h3>
+<p>The original style: pass a function to call when the result is ready. Node's convention puts the error first. Each dependent step nests one level deeper ("callback hell"), and errors must be checked by hand at every level.</p>
+<div class="ja-snip"><div class="ja-file">i1_callbacks.mjs</div><pre class="ja-code"><span class="cm">// Before promises: callbacks. The function returns at once; your callback runs later, from the event loop.</span>
+<span class="kw">import</span> &#123; readFile &#125; <span class="kw">from</span> <span class="st">"node:fs"</span>;
+console.log(<span class="st">"1. ask for the file"</span>);
+readFile(<span class="st">"i1_callbacks.mjs"</span>, <span class="st">"utf8"</span>, (err, text) =&gt; &#123;        <span class="cm">// Node's convention: error first, then the result</span>
+  <span class="kw">if</span> (err) <span class="kw">return</span> console.log(<span class="st">"failed:"</span>, err.code);
+  console.log(<span class="st">"3. got"</span>, text.length, <span class="st">"characters"</span>);
+  readFile(<span class="st">"no_such_file.txt"</span>, <span class="st">"utf8"</span>, (err2) =&gt; &#123;             <span class="cm">// the next step nests inside: "callback hell"</span>
+    console.log(<span class="st">"4. second read failed with"</span>, err2.code);
+  &#125;);
+&#125;);
+console.log(<span class="st">"2. readFile has already returned; nothing has been read yet"</span>);</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i1_callbacks.txt">1. ask for the file
+2. readFile has already returned; nothing has been read yet
+3. got 650 characters
+4. second read failed with ENOENT</pre></div>
+<h3>Promises, then <code>async</code>/<code>await</code></h3>
+<p>A <b>promise</b> is an object standing for a result that is not there yet: <i>pending</i>, then once and for all <i>fulfilled</i> with a value or <i>rejected</i> with an error. <code>.then(f)</code> registers what to do next and returns a new promise, so steps chain instead of nesting. <code>async function</code> and <code>await</code> are syntax over promises: an <code>async</code> function always returns a promise, and <code>await p</code> pauses the function until <code>p</code> settles, returning its value or throwing its error, so plain <code>try</code>/<code>catch</code> works. One difference from Python matters: a promise is <b>eager</b>. The work starts when the promise is created; a Python coroutine does nothing until awaited or wrapped in a task.</p>
+<div class="ja-snip"><div class="ja-file">i2_promises.mjs</div><pre class="ja-code"><span class="cm">// A promise is an object for a value that is not there yet: pending, then fulfilled or rejected (once).</span>
+<span class="kw">const</span> p = <span class="kw">new</span> Promise((resolve) =&gt; &#123;
+  console.log(<span class="st">"the executor runs immediately: a promise is eager (a Python coroutine is lazy)"</span>);
+  setTimeout(() =&gt; resolve(42), 10);
+&#125;);
+console.log(<span class="st">"pending now:"</span>, p);
+p.then(v =&gt; v + 1)                               <span class="cm">// .then returns a NEW promise: chains read top to bottom</span>
+ .then(v =&gt; &#123; console.log(<span class="st">"then got"</span>, v); <span class="kw">throw</span> <span class="kw">new</span> Error(<span class="st">"boom"</span>); &#125;)
+ .<span class="kw">catch</span>(e =&gt; console.log(<span class="st">"catch got"</span>, e.message))
+ .<span class="kw">finally</span>(() =&gt; console.log(<span class="st">"finally"</span>));
+<span class="kw">const</span> sleep = (ms, v) =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(() =&gt; r(v), ms));   <span class="cm">// wrap a callback API once</span>
+<span class="kw">async</span> <span class="kw">function</span> main() &#123;                          <span class="cm">// async/await: the same chain, written like synchronous code</span>
+  <span class="kw">const</span> v = <span class="kw">await</span> sleep(20, <span class="st">"awaited value"</span>);
+  console.log(v, <span class="st">"| p is now"</span>, p);
+  <span class="kw">try</span> &#123; <span class="kw">await</span> Promise.reject(<span class="kw">new</span> Error(<span class="st">"rejected"</span>)); &#125; <span class="kw">catch</span> (e) &#123; console.log(<span class="st">"try/catch works with await:"</span>, e.message); &#125;
+&#125;
+main();</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i2_promises.txt">the executor runs immediately: a promise is eager (a Python coroutine is lazy)
+pending now: Promise &#123; &lt;pending&gt; &#125;
+then got 43
+catch got boom
+finally
+awaited value | p is now Promise &#123; 42 &#125;
+try/catch works with await: rejected</pre></div>
+<h3>The two queues</h3>
+<p>When does a callback run? The event loop keeps two kinds of queue. <b>Macrotasks</b> (or just "tasks"): timer callbacks, I/O completions, <code>setImmediate</code>. <b>Microtasks</b>: promise reactions (<code>.then</code> callbacks and the continuation after an <code>await</code>) and <code>queueMicrotask</code>. The rule: run the current piece of synchronous code to the end; then run <b>every</b> microtask, including ones queued meanwhile; only then take the next macrotask. So a resolved promise's callback always beats a <code>setTimeout(f, 0)</code>.</p>
+<div class="ja-snip ja-pred"><div class="ja-file">i3_order.mjs</div><pre class="ja-code"><span class="cm">// The classic ordering question. Predict the order of the seven lines before you look.</span>
+console.log(<span class="st">"sync start"</span>);
+setTimeout(() =&gt; console.log(<span class="st">"setTimeout 0"</span>), 0);
+Promise.resolve().then(() =&gt; console.log(<span class="st">"promise.then"</span>));
+queueMicrotask(() =&gt; console.log(<span class="st">"queueMicrotask"</span>));
+(<span class="kw">async</span> () =&gt; &#123;
+  console.log(<span class="st">"async body, before await"</span>);
+  <span class="kw">await</span> <span class="kw">null</span>;
+  console.log(<span class="st">"async body, after await"</span>);
+&#125;)();
+console.log(<span class="st">"sync end"</span>);</pre><details><summary>Predict the output, then reveal</summary><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i3_order.txt">sync start
+async body, before await
+sync end
+promise.then
+queueMicrotask
+async body, after await
+setTimeout 0</pre></details></div>
+<p>Why "async body, after await" comes after "queueMicrotask": the continuation of an async function is queued when it reaches <code>await</code>, which here is after the <code>.then</code> and <code>queueMicrotask</code> callbacks were queued. Microtasks run in the order they were queued. The {{Event-loop stepper|#t-ja-loop}} tab steps through six such programs with the call stack and every queue drawn, including Node's own extras (<code>process.nextTick</code>, <code>setImmediate</code>) and a difference between CommonJS and ES modules that the Node documentation describes and the recorded runs show.</p>
+
+<h3>Concurrency on one thread, to scale</h3>
+<p>The same three jobs as the {{Python page's asyncio replay|n:3cd5c17b0d0d81b28acdea39e7a4d998}}: A, B and C wait 100, 200 and 300 ms. Run four ways. Every bar below is a real event from <code>i4_trace.mjs</code> (code under the animation), stamped with milliseconds since the start and drawn on the same 0 to 620 ms axis.</p>
+<div class="ja-anim" id="ja-tl-card">
+<div class="seg" id="ja-tl-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="all">2. Promise.all</button><button data-m="all_blocking">3. all, B busy-waits</button><button data-m="all_worker">4. all, B in a worker</button></div>
+<div class="ja-ctl" id="ja-tl-ctl"></div>
+<div class="ja-svg" id="ja-tl-svg"></div>
+<div class="ja-cap" id="ja-tl-cap"></div>
+<div class="ja-counters" id="ja-tl-cnt"></div>
+<div class="ja-src">Thin bar: suspended at an <code>await</code> (the thread is free); dark bar: running on the thread; orange bar: holding the thread in a synchronous loop; ring: the moment a timer is due. Top lane: what the one JavaScript thread is doing.</div>
+</div>
+<div class="co key"><div class="t">What to notice</div><ul class="tight">
+<li><b>1 against 2</b>: <code>await</code> in sequence takes the sum (about 600 ms); <code>Promise.all</code> starts all three, so the waits overlap and the total is the longest (about 300 ms). Unlike Python, no "task" wrapper is needed: calling an async function already starts it.</li>
+<li><b>2 against 3</b>: a 200 ms synchronous loop in B holds the only thread. A's timer is due at 100 ms but runs at 200 ms; C cannot even start before 200 ms. Total about 500 ms, and nothing warns you.</li>
+<li><b>3 against 4</b>: the same busy loop in a worker thread (section 12) runs on another core; B just awaits a message, and the total is back to about 300 ms.</li>
+</ul></div>
+<div class="ja-snip"><div class="ja-olab">real output of i4_trace.mjs, Node 24.21.0 (the animation replays the events it saved)</div><pre class="ja-out" data-ja-src="i4_trace.txt">sequential     606.8 ms  A:start A:await A:resume A:done B:start B:await B:resume B:done C:start C:await C:resume C:done
+all            303.0 ms  A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done
+all_blocking   502.6 ms  A:start A:await B:start B:block B:done C:start C:await A:resume A:done C:resume C:done
+all_worker     302.7 ms  A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done</pre></div>
+<details class="mist"><summary>The code: i4_trace.mjs</summary><div class="b"><div class="ja-snip"><div class="ja-file">i4_trace.mjs</div><pre class="ja-code"><span class="cm">// Three jobs, A, B and C, wait 100, 200 and 300 ms (the same three as the Python page's asyncio replay).</span>
+<span class="cm">// Four ways to run them; every event is stamped with ms since the start. The Reading animation replays this file's output.</span>
+<span class="kw">import</span> &#123; Worker &#125; <span class="kw">from</span> <span class="st">"node:worker_threads"</span>;
+<span class="kw">import</span> &#123; setTimeout as sleep &#125; <span class="kw">from</span> <span class="st">"node:timers/promises"</span>;      <span class="cm">// a promise-returning setTimeout</span>
+<span class="kw">let</span> T0 = 0, EV = [];
+<span class="kw">const</span> ev = (who, what, note = <span class="st">""</span>) =&gt; EV.push([who, what, +(performance.now() - T0).toFixed(1), note]);
+<span class="kw">const</span> busyWait = ms =&gt; &#123; <span class="kw">const</span> end = performance.now() + ms; <span class="kw">while</span> (performance.now() &lt; end); &#125;;  <span class="cm">// holds the thread</span>
+
+<span class="kw">async</span> <span class="kw">function</span> job(name, ms) &#123; ev(name, <span class="st">"start"</span>); ev(name, <span class="st">"await"</span>, <span class="st">`sleep($&#123;ms&#125;)`</span>); <span class="kw">await</span> sleep(ms); ev(name, <span class="st">"resume"</span>); ev(name, <span class="st">"done"</span>); &#125;
+<span class="kw">async</span> <span class="kw">function</span> jobBlocking(name, ms) &#123; ev(name, <span class="st">"start"</span>); ev(name, <span class="st">"block"</span>, <span class="st">`busyWait($&#123;ms&#125;)`</span>); busyWait(ms); ev(name, <span class="st">"done"</span>); &#125;
+<span class="kw">async</span> <span class="kw">function</span> jobWorker(name, ms) &#123;
+  ev(name, <span class="st">"start"</span>); ev(name, <span class="st">"await"</span>, <span class="st">`a worker thread busy-waits $&#123;ms&#125; ms`</span>);
+  <span class="kw">await</span> <span class="kw">new</span> Promise((ok, fail) =&gt; &#123;
+    <span class="kw">const</span> w = <span class="kw">new</span> Worker(<span class="st">`const e = performance.now() + $&#123;ms&#125;; while (performance.now() &lt; e); require("node:worker_threads").parentPort.postMessage(1)`</span>, &#123; eval: <span class="kw">true</span> &#125;);
+    w.once(<span class="st">"message"</span>, ok); w.once(<span class="st">"error"</span>, fail);
+  &#125;);
+  ev(name, <span class="st">"resume"</span>); ev(name, <span class="st">"done"</span>);
+&#125;
+<span class="kw">const</span> MODES = &#123;
+  sequential: <span class="kw">async</span> () =&gt; &#123; <span class="kw">await</span> job(<span class="st">"A"</span>, 100); <span class="kw">await</span> job(<span class="st">"B"</span>, 200); <span class="kw">await</span> job(<span class="st">"C"</span>, 300); &#125;,
+  all: () =&gt; Promise.all([job(<span class="st">"A"</span>, 100), job(<span class="st">"B"</span>, 200), job(<span class="st">"C"</span>, 300)]),
+  all_blocking: () =&gt; Promise.all([job(<span class="st">"A"</span>, 100), jobBlocking(<span class="st">"B"</span>, 200), job(<span class="st">"C"</span>, 300)]),
+  all_worker: () =&gt; Promise.all([job(<span class="st">"A"</span>, 100), jobWorker(<span class="st">"B"</span>, 200), job(<span class="st">"C"</span>, 300)]),
+&#125;;
+<span class="kw">const</span> out = &#123;&#125;;
+<span class="kw">for</span> (<span class="kw">const</span> [mode, run] <span class="kw">of</span> Object.entries(MODES)) &#123;
+  EV = []; T0 = performance.now();
+  <span class="kw">await</span> run();
+  <span class="kw">const</span> total = +(performance.now() - T0).toFixed(1);
+  out[mode] = &#123; events: EV, total_ms: total &#125;;
+  console.log(<span class="st">`$&#123;mode.padEnd(13)&#125; $&#123;total.toFixed(1).padStart(6)&#125; ms  `</span> + EV.map(e =&gt; <span class="st">`$&#123;e[0]&#125;:$&#123;e[1]&#125;`</span>).join(<span class="st">" "</span>));
+&#125;
+<span class="kw">if</span> (process.argv[2]) (<span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs"</span>)).writeFileSync(process.argv[2], JSON.stringify(out));</pre></div></div></details>
+</section>

@@ -1,0 +1,196 @@
+
+<section id="tl-s11">
+<h2>11. Serving an LLM app: stream to the browser, cancel when it leaves</h2>
+<p>A web app puts your server between the browser and the model: the browser calls <code>/ask</code>, your server calls the model with the API key (which must never reach the browser), and forwards each text piece as an SSE event. Two things go wrong in production that never show in a demo.</p>
+<p><b>Cancellation.</b> Users close tabs. If your server does not notice, the model keeps generating, and you pay for every token nobody will read. In Node the response's <code>close</code> event fires when the client goes away; hand an <code>AbortController</code>'s signal to the SDK call and abort it there. The SDK then closes the upstream HTTP request and throws <code>APIUserAbortError</code>, which you catch. (<code>AbortController</code> and <code>AbortSignal</code> themselves are taught in {{Part 1's Reading|#t-ja-read}}, section 10.) The same browser closes after three pieces in both runs below; only the server's handling differs:</p>
+<div class="tl-anim" id="tl-cx-card">
+<div class="seg" id="tl-cx-mode"><button data-m="with" class="on">Server aborts the model call</button><button data-m="without">Server ignores the disconnect</button></div>
+<div class="an-ctl" id="tl-cx-ctl"></div>
+<div id="tl-cx-view"></div>
+<div class="tl-cap" id="tl-cx-cap"></div>
+<div class="tl-counters" id="tl-cx-cnt"></div>
+<div class="tl-src">Times and counts are the recorded run of <code>h1_serve.ts</code> (the mock model sends one event every 20 ms; its answer has 114 events in all). Times are measured from the moment the browser closed.</div>
+</div>
+<div class="tl-snip"><div class="tl-file">h1_serve.ts</div><pre class="tl-code"><span class="tl-cm">// Serving an LLM app: a Node HTTP endpoint that streams the model's tokens to a browser as SSE,</span>
+<span class="tl-cm">// and stops the upstream model call when the browser goes away (AbortController).</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; createServer &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:http"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock(&#123; delayMs: 20 &#125;);                  <span class="tl-cm">// the "model" sends one event every 20 ms</span>
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span>, defaultHeaders: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"long"</span> &#125; &#125;);
+<span class="tl-kw">const</span> t0 = performance.now(); <span class="tl-kw">const</span> log = (s: string) =&gt; console.log(<span class="tl-st">`$&#123;String(Math.round(performance.now() - t0)).padStart(5)&#125; ms  $&#123;s&#125;`</span>);
+<span class="tl-kw">let</span> propagate = <span class="tl-kw">true</span>;
+
+<span class="tl-kw">const</span> app = createServer(<span class="tl-kw">async</span> (req, res) =&gt; &#123;
+  <span class="tl-kw">const</span> ac = <span class="tl-kw">new</span> AbortController();
+  res.on(<span class="tl-st">"close"</span>, () =&gt; &#123; <span class="tl-kw">if</span> (!res.writableFinished) &#123; log(<span class="tl-st">"server: browser went away"</span>); <span class="tl-kw">if</span> (propagate) ac.abort(); &#125; &#125;);
+  res.writeHead(200, &#123; <span class="tl-st">"content-type"</span>: <span class="tl-st">"text/event-stream"</span>, <span class="tl-st">"cache-control"</span>: <span class="tl-st">"no-cache"</span> &#125;);
+  <span class="tl-kw">const</span> q = <span class="tl-kw">new</span> URL(req.url ?? <span class="tl-st">""</span>, <span class="tl-st">"http://x"</span>).searchParams.get(<span class="tl-st">"q"</span>) ?? <span class="tl-st">""</span>;
+  <span class="tl-kw">const</span> stream = client.messages.stream(&#123; model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 1024, messages: [&#123; role: <span class="tl-st">"user"</span>, content: q &#125;] &#125;,
+    &#123; signal: ac.signal &#125;);                                      <span class="tl-cm">// aborting the signal closes the upstream HTTP request</span>
+  <span class="tl-kw">let</span> sent = 0;
+  <span class="tl-kw">try</span> &#123;
+    <span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> ev <span class="tl-kw">of</span> stream) &#123;
+      <span class="tl-kw">if</span> (ev.<span class="tl-kw">type</span> === <span class="tl-st">"content_block_delta"</span> &amp;&amp; ev.delta.<span class="tl-kw">type</span> === <span class="tl-st">"text_delta"</span>) &#123; res.write(<span class="tl-st">`data: $&#123;JSON.stringify(ev.delta.text)&#125;\n\n`</span>); sent++; &#125;
+    &#125;
+    res.end(<span class="tl-st">"event: done\ndata: &#123;&#125;\n\n"</span>);
+    log(<span class="tl-st">`server: upstream finished; $&#123;sent&#125; deltas forwarded$&#123;res.destroyed ? " (most of them to a closed socket)" : ""&#125;`</span>);
+  &#125; <span class="tl-kw">catch</span> (e) &#123;
+    <span class="tl-kw">if</span> (e <span class="tl-kw">instanceof</span> Anthropic.APIUserAbortError) log(<span class="tl-st">`server: upstream call aborted after $&#123;sent&#125; deltas`</span>);
+    <span class="tl-kw">else</span> <span class="tl-kw">throw</span> e;
+  &#125;
+&#125;);
+<span class="tl-kw">await</span> <span class="tl-kw">new</span> Promise&lt;<span class="tl-kw">void</span>&gt;(r =&gt; app.listen(0, <span class="tl-st">"127.0.0.1"</span>, r));
+<span class="tl-kw">const</span> url = <span class="tl-st">`http://127.0.0.1:$&#123;(app.address() as any).port&#125;/ask?q=tell+me+about+TypeScript`</span>;
+
+<span class="tl-cm">// The browser side (this code also runs unchanged in a browser): read events, give up after three.</span>
+<span class="tl-kw">async</span> <span class="tl-kw">function</span> browser(stopAfter: number) &#123;
+  <span class="tl-kw">const</span> ac = <span class="tl-kw">new</span> AbortController(); <span class="tl-kw">const</span> got: string[] = [];
+  <span class="tl-kw">const</span> res = <span class="tl-kw">await</span> fetch(url, &#123; signal: ac.signal &#125;);
+  <span class="tl-kw">const</span> dec = <span class="tl-kw">new</span> TextDecoder(); <span class="tl-kw">let</span> buf = <span class="tl-st">""</span>;
+  <span class="tl-kw">try</span> &#123;
+    <span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> chunk <span class="tl-kw">of</span> res.body!) &#123;
+      buf += dec.decode(chunk, &#123; stream: <span class="tl-kw">true</span> &#125;);
+      <span class="tl-kw">let</span> i; <span class="tl-kw">while</span> ((i = buf.indexOf(<span class="tl-st">"\n\n"</span>)) &gt;= 0) &#123; <span class="tl-kw">const</span> ev = buf.slice(0, i); buf = buf.slice(i + 2); <span class="tl-kw">if</span> (ev.startsWith(<span class="tl-st">"data: "</span>)) got.push(JSON.parse(ev.slice(6))); &#125;
+      <span class="tl-kw">if</span> (got.length &gt;= stopAfter) &#123; log(<span class="tl-st">`browser: got $&#123;got.length&#125; deltas $&#123;JSON.stringify(got.join(""))&#125;, closing the tab`</span>); ac.abort(); &#125;
+    &#125;
+  &#125; <span class="tl-kw">catch</span> (e) &#123; <span class="tl-kw">if</span> ((e <span class="tl-kw">as</span> Error).name !== <span class="tl-st">"AbortError"</span>) <span class="tl-kw">throw</span> e; &#125;
+&#125;
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> p <span class="tl-kw">of</span> [<span class="tl-kw">true</span>, <span class="tl-kw">false</span>]) &#123;
+  propagate = p; mock.log.length = 0;
+  console.log(<span class="tl-st">`\n--- $&#123;p ? "with" : "WITHOUT"&#125; abort propagation`</span>);
+  <span class="tl-kw">await</span> browser(3);
+  <span class="tl-kw">await</span> <span class="tl-kw">new</span> Promise(r =&gt; setTimeout(r, p ? 200 : 2500));
+  <span class="tl-kw">const</span> e = mock.log[0]!;
+  log(<span class="tl-st">`model API: $&#123;e.closedEarly ?? `</span>sent all $&#123;e.sse!.split(<span class="tl-st">"\n\n"</span>).length - 1&#125; events<span class="tl-st">`&#125;`</span>);
+&#125;
+app.close(); <span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="h1_serve.txt">
+--- with abort propagation
+  120 ms  browser: got 3 deltas "Sentence 1 of", closing the tab
+  123 ms  server: browser went away
+  123 ms  server: upstream call aborted after 3 deltas
+  322 ms  model API: client went away after 6 of 114 events
+
+--- WITHOUT abort propagation
+  434 ms  browser: got 3 deltas "Sentence 1 of", closing the tab
+  435 ms  server: browser went away
+ 2727 ms  server: upstream finished; 108 deltas forwarded (most of them to a closed socket)
+ 2936 ms  model API: sent all 114 events</pre></div>
+<p><b>Backpressure.</b> <code>res.write()</code> returns <code>false</code> when the bytes cannot leave as fast as you write them (a slow phone, a congested link); Node then keeps the rest in memory. A server that ignores the <code>false</code> can hold the whole response in RAM for every slow client at once. The fix is one line: when <code>write</code> returns <code>false</code>, <code>await once(res, "drain")</code> before writing more. A client that reads nothing for 300 ms:</p>
+<div class="tl-snip tl-pred"><div class="tl-file">h2_backpressure.ts</div><pre class="tl-code"><span class="tl-cm">// Backpressure: res.write() returns false when the socket cannot keep up. Ignore it and Node queues the bytes in memory.</span>
+<span class="tl-kw">import</span> &#123; createServer, request &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:http"</span>;
+<span class="tl-kw">import</span> &#123; once &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:events"</span>;
+
+<span class="tl-kw">const</span> EVENTS = 20000, EVENT = <span class="tl-st">`data: $&#123;JSON.stringify("x".repeat(90))&#125;\n\n`</span>;   <span class="tl-cm">// about 2 MB in total</span>
+<span class="tl-kw">async</span> <span class="tl-kw">function</span> run(respect: boolean) &#123;
+  <span class="tl-kw">let</span> peak = 0, falses = 0;
+  <span class="tl-kw">const</span> server = createServer(<span class="tl-kw">async</span> (_req, res) =&gt; &#123;
+    res.writeHead(200, &#123; <span class="tl-st">"content-type"</span>: <span class="tl-st">"text/event-stream"</span> &#125;);
+    <span class="tl-kw">for</span> (<span class="tl-kw">let</span> i = 0; i &lt; EVENTS; i++) &#123;
+      <span class="tl-kw">const</span> ok = res.write(EVENT);
+      peak = Math.max(peak, res.writableLength);              <span class="tl-cm">// bytes queued inside this process</span>
+      <span class="tl-kw">if</span> (!ok) &#123; falses++; <span class="tl-kw">if</span> (respect) <span class="tl-kw">await</span> once(res, <span class="tl-st">"drain"</span>); &#125;
+    &#125;
+    res.end();
+  &#125;);
+  <span class="tl-kw">await</span> <span class="tl-kw">new</span> Promise&lt;<span class="tl-kw">void</span>&gt;(r =&gt; server.listen(0, <span class="tl-st">"127.0.0.1"</span>, r));
+  <span class="tl-kw">const</span> t0 = performance.now();
+  <span class="tl-kw">await</span> <span class="tl-kw">new</span> Promise&lt;<span class="tl-kw">void</span>&gt;(done =&gt; request(&#123; port: (server.address() <span class="tl-kw">as</span> any).port, path: <span class="tl-st">"/"</span> &#125;, <span class="tl-kw">async</span> (res) =&gt; &#123;
+    res.pause(); <span class="tl-kw">await</span> <span class="tl-kw">new</span> Promise(r =&gt; setTimeout(r, 300));    <span class="tl-cm">// a slow reader: reads nothing for 300 ms</span>
+    res.resume(); res.on(<span class="tl-st">"end"</span>, done);
+  &#125;).end());
+  server.close();
+  console.log(<span class="tl-st">`$&#123;respect ? "awaits drain " : "ignores false"&#125;: write() returned false $&#123;String(falses).padStart(5)&#125; times, peak queued in the server $&#123;(peak / 1024).toFixed(0).padStart(5)&#125; KiB, $&#123;Math.round(performance.now() - t0)&#125; ms`</span>);
+&#125;
+console.log(<span class="tl-st">`$&#123;EVENTS&#125; events of $&#123;EVENT.length&#125; bytes = $&#123;(EVENTS * EVENT.length / 1024).toFixed(0)&#125; KiB to a client that waits 300 ms before reading`</span>);
+<span class="tl-kw">await</span> run(<span class="tl-kw">false</span>);
+<span class="tl-kw">await</span> run(<span class="tl-kw">true</span>);</pre><div class="tl-q"><b>Predict:</b> about 2 MB goes to a client that pauses for 300 ms. How much does the server hold in memory at its peak when it ignores write()'s return value, and when it awaits "drain"?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="h2_backpressure.txt">20000 events of 100 bytes = 1953 KiB to a client that waits 300 ms before reading
+ignores false: write() returned false 19384 times, peak queued in the server  2070 KiB, 352 ms
+awaits drain : write() returned false    32 times, peak queued in the server    64 KiB, 328 ms</pre></details></div>
+<p>The 64 KiB plateau is Node's default stream buffer size (<code>highWaterMark</code>, 65,536 bytes; printed by <code>stream.getDefaultHighWaterMark(false)</code> on Node 24.21.0). With LLM tokens arriving at tens per second the risk is small for one stream, but a proxy that relays many streams, or a server that forwards a fast upstream to slow clients, needs it. <code>stream.pipeline()</code> and <code>.pipe()</code> handle backpressure for you when both ends are Node streams (Node essentials, including reading files as streams, are in section 12 of {{Part 1's Reading|#t-ja-read}}).</p>
+<p>The browser side is the same <code>fetch</code> and stream-reading code as the Node "browser" in <code>h1_serve.ts</code> (it runs unchanged in a browser); <code><a href="https://developer.mozilla.org/en-US/docs/Web/API/EventSource" target="_blank" rel="noopener noreferrer">EventSource</a></code> also reads SSE but only with <code>GET</code> and no custom headers, so <code>fetch</code> is the usual choice for a chat <code>POST</code>. Bun runs the same server code (it implements <code>node:http</code>: <a href="https://bun.com/docs/runtime/nodejs-compat" target="_blank" rel="noopener noreferrer">Bun's Node.js compatibility list</a>), or its own <code>Bun.serve</code> with web-standard <code>Request</code> and <code>Response</code>; Part 1 measures Bun and Deno start-up in its section 14. API design (validation, errors, idempotency) for such an endpoint: {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}; load and concurrency limits: {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}.</p>
+</section>
+
+<section id="tl-s12">
+<h2>12. Evaluation hooks and logging</h2>
+<p>You cannot improve an LLM app you do not measure, and the measuring starts with two habits. <b>Log every model call</b> as one JSON line: which case, status, latency, how many messages were sent, why it stopped, tokens in and out. <b>Keep a fixed set of cases</b> with checks written in code, and run them on every change of prompt, model or tool. The cheapest hook is the SDK's <code>fetch</code> option: a wrapper that sees every HTTP call, retries included, without touching the agent.</p>
+<div class="tl-snip"><div class="tl-file">i1_eval.ts</div><pre class="tl-code"><span class="tl-cm">// Evaluation hooks: log one JSON line per model call, then score the agent on fixed cases with checks written in code.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; appendFileSync, writeFileSync &#125; <span class="tl-kw">from</span> <span class="tl-st">"node:fs"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+<span class="tl-kw">import</span> &#123; startProfileService &#125; <span class="tl-kw">from</span> <span class="tl-st">"./tools.ts"</span>;
+<span class="tl-kw">import</span> &#123; runAgent &#125; <span class="tl-kw">from</span> <span class="tl-st">"./c1_agent_loop.ts"</span>;
+
+process.chdir(<span class="tl-kw">new</span> URL(<span class="tl-st">"."</span>, <span class="tl-kw">import</span>.meta.url).pathname);
+<span class="tl-kw">const</span> LOG = <span class="tl-st">"calls.jsonl"</span>; writeFileSync(LOG, <span class="tl-st">""</span>);
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-cm">// The hook: a fetch wrapper sees every HTTP call the SDK makes, retries included, without touching the agent's code.</span>
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span>, fetch: <span class="tl-kw">async</span> (url, init) =&gt; &#123;
+  <span class="tl-kw">const</span> t0 = performance.now(); <span class="tl-kw">const</span> res = <span class="tl-kw">await</span> fetch(url, init);
+  <span class="tl-kw">const</span> body = <span class="tl-kw">await</span> res.clone().json(); <span class="tl-kw">const</span> req = JSON.parse(String(init?.body));
+  appendFileSync(LOG, JSON.stringify(&#123; scenario: <span class="tl-kw">new</span> Headers(init?.headers).get(<span class="tl-st">"x-mock-scenario"</span>), status: res.status,
+    ms: Math.round(performance.now() - t0), messages: req.messages.length, stop: body.stop_reason, <span class="tl-kw">in</span>: body.usage?.input_tokens, out: body.usage?.output_tokens &#125;) + <span class="tl-st">"\n"</span>);
+  <span class="tl-kw">return</span> res;
+&#125; &#125;);
+
+<span class="tl-kw">const</span> cases = [
+  &#123; scenario: <span class="tl-st">"happy"</span>,   expect: [<span class="tl-st">"u0029"</span>, <span class="tl-st">"39.8%"</span>, <span class="tl-st">"research"</span>] &#125;,
+  &#123; scenario: <span class="tl-st">"typo"</span>,    expect: [<span class="tl-st">"u0029"</span>, <span class="tl-st">"39.8%"</span>] &#125;,
+  &#123; scenario: <span class="tl-st">"timeout"</span>, expect: [<span class="tl-st">"u0029"</span>, <span class="tl-st">"39.8%"</span>, <span class="tl-st">"timed out"</span>] &#125;,
+  &#123; scenario: <span class="tl-st">"runaway"</span>, expect: [<span class="tl-st">"39.8%"</span>] &#125;,
+];
+console.log(<span class="tl-st">"case      result  steps  in+out tokens  cost(US$)  failed checks"</span>);
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> c <span class="tl-kw">of</span> cases) &#123;
+  <span class="tl-kw">const</span> prof = <span class="tl-kw">await</span> startProfileService(c.scenario === <span class="tl-st">"timeout"</span> ? 2000 : 20);
+  <span class="tl-kw">const</span> r = <span class="tl-kw">await</span> runAgent(client, c.scenario, &#123; profileUrl: prof.url, maxSteps: 5 &#125;);
+  <span class="tl-kw">await</span> prof.close();
+  <span class="tl-kw">const</span> failed = c.expect.filter(e =&gt; !(r.answer ?? <span class="tl-st">""</span>).includes(e));
+  <span class="tl-kw">if</span> (r.steps.length &gt; 3) failed.push(<span class="tl-st">"steps &lt;= 3"</span>);
+  console.log(<span class="tl-st">`$&#123;c.scenario.padEnd(9)&#125; $&#123;failed.length ? "FAIL" : "pass"&#125;    $&#123;String(r.steps.length).padStart(3)&#125;  $&#123;String(r.tot.in + r.tot.out).padStart(13)&#125;  $&#123;r.tot.usd.toFixed(5).padStart(9)&#125;  $&#123;failed.join(", ") || "-"&#125;`</span>);
+&#125;
+<span class="tl-kw">await</span> mock.close();
+console.log(<span class="tl-st">`\n$&#123;LOG&#125;, first 3 of the logged calls:`</span>);
+console.log((<span class="tl-kw">await</span> <span class="tl-kw">import</span>(<span class="tl-st">"node:fs"</span>)).readFileSync(LOG, <span class="tl-st">"utf8"</span>).split(<span class="tl-st">"\n"</span>).slice(0, 3).join(<span class="tl-st">"\n"</span>));</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="i1_eval.txt">case      result  steps  in+out tokens  cost(US$)  failed checks
+happy     pass      3           1086    0.00333  -
+typo      pass      3            981    0.00291  -
+timeout   pass      3           1086    0.00335  -
+runaway   FAIL      5           2048    0.00514  39.8%, steps &lt;= 3
+
+calls.jsonl, first 3 of the logged calls:
+&#123;"scenario":"happy","status":200,"ms":15,"messages":1,"stop":"tool_use","in":189,"out":42&#125;
+&#123;"scenario":"happy","status":200,"ms":2,"messages":3,"stop":"tool_use","in":311,"out":60&#125;
+&#123;"scenario":"happy","status":200,"ms":1,"messages":5,"stop":"end_turn","in":441,"out":43&#125;</pre></div>
+<p>The runaway case fails, as it should: the checks catch a model that never answers, and the step count catches an agent that wanders even when it finally answers. Real evaluations add what this toy cannot: graders for free-text answers (often another model, an "LLM judge", with its biases measured), many more cases with error bars, and traces of every tool call for agents. Those live in {{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}}, especially {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}} and {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}; logs, metrics and traces in general: {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}.</p>
+</section>
+
+<section id="tl-s13">
+<h2>13. Common mistakes</h2>
+<ul>
+<li><b>Reading <code>content[0].text</code></b> without checking the block type or <code>stop_reason</code>. The first block may be <code>thinking</code> or <code>tool_use</code>; a <code>max_tokens</code> stop means the text is cut off. TypeScript's narrowing forces the check if you let it.</li>
+<li><b>An agent loop without a step limit</b> or tool timeouts: the runaway run above, in production, with a real bill.</li>
+<li><b>Trusting tool arguments.</b> They are model output. Validate with zod, and for paths, URLs or shell commands also check what they point at (a valid string can still be <code>../../etc/passwd</code>).</li>
+<li><b>Throwing from a tool</b> instead of returning <code>is_error</code>: the run dies on a problem the model could have fixed (the typo run fixed its own mistake).</li>
+<li><b><code>await</code> in a <code>for</code> loop over tool calls</b>, running them one after another when <code>Promise.all</code> would run them together; and splitting their results over several messages instead of one.</li>
+<li><b>Forgetting that the API is stateless</b>, or never trimming: the bill grows with the square of the conversation's length.</li>
+<li><b>Dropping the zod check</b> because the API constrained the output: patterns and ranges are not enforced by the API (section 7).</li>
+<li><b>Ignoring disconnects and <code>write()</code>'s return value</b> in the server: paying for unread tokens and holding responses in memory.</li>
+<li><b>Logging to stdout in a stdio MCP server</b>: it corrupts the protocol stream.</li>
+<li><b>Putting the API key in browser code</b>, or in a logged request. Keys belong in server-side environment variables; this page's scripts unset them before running.</li>
+<li><b>Catching errors by message text</b> instead of <code>instanceof Anthropic.RateLimitError</code> and friends; and adding your own retry loop around an SDK that already retries (the SDK's 3 attempts inside your 3 attempts is 9 requests).</li>
+<li><b>Relying on a framework default</b> you have not read: <code>generateText</code>'s single step, <code>allowedTools</code> meaning "no approval needed" rather than "only these".</li>
+</ul>
+</section>
+
+<section id="tl-s14">
+<h2>Further reading for Part 3</h2>
+<ul>
+<li>{{Agent loop stepper|#t-tl-loop}} and {{MCP message flow|#t-tl-mcp}} (this part's labs); {{Part 1: JavaScript and its runtime|#t-ja-read}} (event loop, promises, SSE parsing, AbortController); {{Part 2: TypeScript|#t-tb-read}} (narrowing, generics, zod).</li>
+<li>Anthropic: <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview" target="_blank" rel="noopener noreferrer">Tool use</a> (30 min), <a href="https://platform.claude.com/docs/en/build-with-claude/streaming" target="_blank" rel="noopener noreferrer">Streaming</a> (15 min), <a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" target="_blank" rel="noopener noreferrer">Structured outputs</a> (15 min), <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener noreferrer">Prompt caching</a> (20 min), <a href="https://github.com/anthropics/anthropic-sdk-typescript" target="_blank" rel="noopener noreferrer">the TypeScript SDK</a> (README and examples, 30 min).</li>
+<li>OpenAI: <a href="https://developers.openai.com/api/docs/api-reference/responses" target="_blank" rel="noopener noreferrer">Responses API reference</a> (reference), <a href="https://github.com/openai/openai-node" target="_blank" rel="noopener noreferrer">openai-node</a> (20 min).</li>
+<li>MCP: <a href="https://modelcontextprotocol.io/specification/2025-11-25" target="_blank" rel="noopener noreferrer">the specification, 2025-11-25</a> (1 h; transports and lifecycle first), <a href="https://github.com/modelcontextprotocol/typescript-sdk" target="_blank" rel="noopener noreferrer">TypeScript SDK</a> (30 min), <a href="https://github.com/modelcontextprotocol/inspector" target="_blank" rel="noopener noreferrer">Inspector</a> (10 min), <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener noreferrer">reference servers</a> (browse).</li>
+<li><a href="https://ai-sdk.dev/docs" target="_blank" rel="noopener noreferrer">Vercel AI SDK docs</a> (45 min for core and tools); <a href="https://platform.claude.com/docs/en/agent-sdk/overview" target="_blank" rel="noopener noreferrer">Claude Agent SDK</a> (30 min); <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener noreferrer">Building effective agents</a> (Anthropic, 20 min: when a workflow beats an agent).</li>
+<li>In this knowledge base: {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}, {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}, {{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}}, {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}, {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}, {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}} (mocks and CI for code like this), and the language pages for {{Python|n:3cd5c17b0d0d81b28acdea39e7a4d998}} (asyncio, the same ideas in Python) and {{Rust|n:3c65c17b0d0d8156bed9ead8a22f33b0}} (an HTTP service in Rust).</li>
+</ul>
+</section>
+</div>

@@ -1,0 +1,82 @@
+
+<section id="tb-zod">
+<h2>Checking data at run time with zod</h2>
+<p>Types are erased, so nothing checks data that arrives while the program runs: an HTTP body, a file, an environment variable, and above all the JSON an LLM writes. <code>JSON.parse(text) as Reply</code> is a promise you cannot keep. The answer is a <dfn>schema library</dfn>: you describe the shape once as a run-time object, it validates values, and TypeScript derives the static type from it. zod is the most used (4.6.5 here; <a href="https://zod.dev" target="_blank" rel="noopener noreferrer">zod.dev</a>); valibot and ArkType are alternatives with the same idea.</p>
+<div data-tb-s="70_zod_basics"></div>
+<p><code>z.infer&lt;typeof ToolCall&gt;</code> is the static type, computed from the schema, so the two can never drift apart. Here is what <code>tsc</code> derives:</p>
+<div data-tb-s="71_zod_infer"></div>
+<p><code>parse</code> returns the typed value or throws; <code>safeParse</code> returns <code>{ success: true, data }</code> or <code>{ success: false, error }</code>, a discriminated union you <a href="#tb-narrow">narrow</a> on <code>success</code>. Each issue has a <code>path</code> (which field) and a message, and <code>z.prettifyError</code> formats them, as above.</p>
+<div class="tb-bridge"><div class="t">From Python</div>This is pydantic: <code>class ToolCall(BaseModel)</code> is both the type and the validator. zod inverts the direction (the schema is a value and the type is derived from it, because TypeScript types cannot exist at run time), but the use is the same: validate at the boundary, trust the types inside.</div>
+<h3>Parsing LLM output</h3>
+<p>Model output fails in predictable ways: the JSON is wrapped in a Markdown fence or a sentence, a number arrives as a string, a field is missing, the reply is cut off by the token limit. A robust reader has three steps: find the JSON, <code>JSON.parse</code> it inside <code>try</code>, and validate with the schema, returning a typed result or an error message you can send back to the model for a retry.</p>
+<div data-tb-s="72_zod_llm"></div>
+<p>The {{LLM JSON lab|#t-tb-zod}} runs ten such replies through a cast and three zod variants (default, strict, coercing) and shows every real outcome, including the two cases where the cast neither crashes nor complains and the program prints a wrong value.</p>
+<h3>One schema, three uses: the type, the check, and the tool definition</h3>
+<p>Tool use (function calling) needs a JSON Schema for each tool's input. zod 4 writes it from the same schema (<a href="https://zod.dev/json-schema" target="_blank" rel="noopener noreferrer">zod: JSON Schema</a>), so the description sent to the model, the type in your code and the validation of the model's arguments come from one definition:</p>
+<div data-tb-s="73_zod_jsonschema"></div>
+<p>A detail that matters: by default the JSON Schema describes the <b>output</b> of parsing, where <code>unit</code> always exists (the default fills it), so it is listed as required. What a model sends is the <b>input</b>, where <code>unit</code> may be omitted: <code>{ io: "input" }</code> gives that version (last line). Part 3 builds tool calling and structured output on this: {{Part 3 Reading|#t-tl-read}}.</p>
+<h3>Strict, coerce, transform</h3>
+<div data-tb-s="74_zod_extra"></div>
+<ul>
+<li><code>z.object</code> drops unknown keys silently; <code>z.strictObject</code> rejects them (useful to catch a model inventing fields; harmful if the API adds fields later).</li>
+<li><code>z.coerce.number()</code> runs <code>Number(x)</code> first, so <code>"7"</code> becomes 7, but <code>"2.1 million"</code> becomes <code>NaN</code> and fails (see the lab).</li>
+<li><code>.transform</code> converts after validating, and <code>z.infer</code> gives the transformed type.</li>
+</ul>
+<h3>The running program, typed</h3>
+<p>The root page's running program counts tokens per user in a JSONL chat log; <a href="#ja-s12" data-tb-go="t-ja-read">Part 1</a> wrote it in plain JavaScript (<code>count_tokens.mjs</code>) with a hand-written <code>isMessage</code> check. Here it is in TypeScript: the check becomes a zod schema, each line is parsed to <code>unknown</code> and validated, the counters get a <code>Stats</code> type, and the <code>catch</code> narrows the <code>unknown</code> error before reading <code>code</code>. Same input (the root's 2,000-line <code>chat.jsonl</code> with 8 malformed lines), same output as Part 1, now checked by <code>tsc</code>:</p>
+<div data-tb-s="75_count_tokens"></div>
+</section>
+
+<section id="tb-test">
+<h2>Testing with vitest</h2>
+<p>Vitest (5.0.3 here; <a href="https://vitest.dev" target="_blank" rel="noopener noreferrer">vitest.dev</a>) is the common test runner for TypeScript: it runs <code>.ts</code> test files directly, with a Jest-compatible API (<code>describe</code>, <code>it</code>, <code>expect</code>). It does not type-check by default (like Node, it strips types), so keep <code>npx tsc</code> in CI too. One module and its tests, with one test failing on purpose:</p>
+<div data-tb-s="80_vitest" data-tb-no-out></div>
+<div data-tb-s="80_vitest" data-tb-no-code data-tb-no-help></div>
+<p><code>expectTypeOf</code> tests types, not values: it is checked by <code>tsc</code> when the test file is type-checked, and is useful for library code whose types are part of its contract. The failure report shows expected versus received and the exact line.</p>
+<div class="tb-bridge"><div class="t">From Python</div><code>describe</code>/<code>it</code> is pytest's classes and functions; <code>expect(x).toBe(y)</code> is <code>assert x is y</code> (<code>toEqual</code> is <code>==</code> on structure). <code>npx vitest</code> without <code>run</code> stays in watch mode and reruns affected tests on save. The SWE topic's {{testing and quality page|n:3c65c17b0d0d81548848e2ebdd2f63ee}} covers what to test.</div>
+</section>
+
+<section id="tb-lint">
+<h2>Linting and formatting</h2>
+<p><code>tsc</code> checks types; a <dfn>linter</dfn> checks patterns that are legal but usually wrong, and a <dfn>formatter</dfn> fixes layout. Two choices in 2026:</p>
+<ul>
+<li><b>Biome</b> (2.5.15 here; <a href="https://biomejs.dev" target="_blank" rel="noopener noreferrer">biomejs.dev</a>): one Rust binary that lints and formats, with no plugins to install. The ruff of JavaScript.</li>
+<li><b>ESLint</b> with <b>typescript-eslint</b> (<a href="https://typescript-eslint.io" target="_blank" rel="noopener noreferrer">typescript-eslint.io</a>): the long-standing standard, with type-aware rules that ask the TypeScript compiler about each expression, plus Prettier for formatting.</li>
+</ul>
+<p>The same file through both. It has an <code>any</code>, an unused variable and a floating promise (line 6), the bug <code>tsc</code> does not catch:</p>
+<div data-tb-s="81_lint" data-tb-no-out></div>
+<div data-tb-s="81_lint" data-tb-no-code data-tb-no-help></div>
+<p>Biome's recommended rules found the <code>any</code> and the unused variable, not the floating promise. Its type-aware rule for that is still in the nursery group (rules not yet stable) and must be switched on:</p>
+<div data-tb-s="81b_lint_nursery" data-tb-no-help></div>
+<p>typescript-eslint's <code>recommendedTypeChecked</code> preset finds all of them and more (unsafe uses of <code>any</code>, an <code>async</code> function with no <code>await</code>):</p>
+<div data-tb-s="82_eslint"></div>
+<p>Note the first line of that output: <code>Version 6.0.3</code>. typescript-eslint needs the compiler's programmatic API, which TypeScript 7.0 does not have, so it cannot install next to TypeScript 7:</p>
+<div data-tb-s="83_eresolve"></div>
+<p>Hence the setup used here: ESLint and typescript-eslint in their own folder with TypeScript 6.0.3, and TypeScript 7 for <code>tsc</code>. Microsoft's 7.0 post recommends the same pattern with its <code>@typescript/typescript6</code> package (a <code>tsc6</code> binary that can sit next to 7.0). A reasonable default for a new project: Biome for formatting and most linting, plus typescript-eslint with <code>no-floating-promises</code> and the <code>no-unsafe-*</code> rules if your code is async-heavy (an agent harness is).</p>
+</section>
+
+<section id="tb-ts7">
+<h2>The TypeScript 7 transition</h2>
+<p>TypeScript 7.0 was released on 2026-07-08 (npm publish time of 7.0.2 the same day). It is the existing compiler ported from TypeScript to Go, line by line, so the type rules are the same; what changes is speed, the options that were removed, and the missing API (<a href="https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/" target="_blank" rel="noopener noreferrer">Announcing TypeScript 7.0</a>).</p>
+<p><b>Speed.</b> Microsoft reports 8 to 12 times faster full builds on large projects (VS Code 125.7 s to 10.6 s, Sentry 139.8 s to 15.7 s, Playwright 12.8 s to 1.47 s), from native code and shared-memory multithreading. Measured here on a smaller project, zod's own TypeScript sources:</p>
+<div class="tb-bars" id="tb-ts7-bars"></div>
+<p class="small mute" id="tb-ts7-note"></p>
+<p>About 5 times, less than on VS Code-sized projects (start-up is a larger share of a half-second run), and a factor of about 1.4 comes from checking on several threads at once: with <code>--checkers 1</code> TypeScript 7 is still about 3.6 times faster than 6.0 on one checker.</p>
+<p><b>What was removed or changed</b> (all from the 7.0 post): <code>target: es5</code>, <code>downlevelIteration</code>, <code>moduleResolution</code> <code>node</code>/<code>node10</code>/<code>classic</code>, <code>module</code> <code>amd</code>/<code>umd</code>/<code>systemjs</code>/<code>none</code> and <code>baseUrl</code> are errors now; <code>esModuleInterop</code> and <code>alwaysStrict</code> can no longer be turned off. New defaults: <code>strict</code> true, <code>module</code> esnext, <code>noUncheckedSideEffectImports</code> true, <code>types</code> <code>[]</code>, <code>rootDir</code> <code>./</code>. An old project that compiled on 5.x may need its tsconfig updated before 7.0 accepts it.</p>
+<p><b>No API yet.</b> "TypeScript 7.0 does not ship with an API. We expect TypeScript 7.1 to ship with a new (and different) API." Tools built on the compiler API (typescript-eslint, as shown above; also Vue, Svelte, Astro and MDX tooling, per the post) keep running on TypeScript 6 until then. Editors use TypeScript 7 through its new language server.</p>
+<div class="tb-fix"><div class="t">Check on the old page</div>The old page's TypeScript 7 facts (release date, 125.7 s to 10.6 s, 8 to 12 times, no API until 7.1) are confirmed by the 7.0 post. Its "Node 24+ type stripping" was imprecise: stripping is on by default from Node 22.18.0 and 23.6.0 (this page runs on 22.22.2).</div>
+</section>
+
+<section id="tb-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Thinking that running a .ts file checks it</summary><div class="b"><code>node</code>, tsx, Bun and vitest strip types without checking. Run <code>npx tsc</code> (it uses <code>noEmit</code> or an <code>outDir</code>) in CI and in your editor.</div></details>
+<details class="mist"><summary><code>JSON.parse(x) as T</code> on data you did not create</summary><div class="b">A cast checks nothing. Parse to <code>unknown</code> and validate with a zod schema; derive <code>T</code> from it with <code>z.infer</code>.</div></details>
+<details class="mist"><summary>Letting <code>any</code> in</summary><div class="b">From <code>JSON.parse</code>, untyped libraries, <code>catch</code> in old code, or an explicit annotation. It spreads silently. Lint against it (<code>noExplicitAny</code>, <code>no-unsafe-*</code>) and use <code>unknown</code>.</div></details>
+<details class="mist"><summary>Silencing an error with <code>as</code> or <code>!</code></summary><div class="b">Read the error first: it is usually right. If you must assert, assert as late and as narrowly as possible, with a comment saying why it is true.</div></details>
+<details class="mist"><summary>A bag of optional fields instead of a discriminated union</summary><div class="b">Every use then needs a check and nothing tells you when a new kind appears. One member per kind, with a literal tag, and a <code>never</code> check in <code>default</code>.</div></details>
+<details class="mist"><summary>Truthiness checks on numbers and strings</summary><div class="b"><code>if (count)</code> is false for 0 and <code>if (name)</code> for <code>""</code>. Use <code>!== undefined</code> or <code>!= null</code> when 0 or empty are valid.</div></details>
+<details class="mist"><summary>Floating promises</summary><div class="b"><code>tsc</code> does not catch a call to an async function whose promise is dropped. <code>await</code> it, return it, or mark it <code>void</code>; let a linter enforce it.</div></details>
+<details class="mist"><summary>Enums and parameter properties in code that Node runs directly</summary><div class="b">Node's strip-only mode rejects them. Use <code>as const</code> objects and explicit fields; turn on <code>erasableSyntaxOnly</code>.</div></details>
+<details class="mist"><summary>A global TypeScript install, or a caret range</summary><div class="b">Install <code>typescript</code> per project as a dev dependency and run <code>npx tsc</code>, so every machine and CI use the same compiler. Minor releases can add errors to code that compiled before (better inference finds real bugs), so many teams pin with <code>~</code> and upgrade in a dedicated change.</div></details>
+<details class="mist"><summary>Type-level cleverness</summary><div class="b">Recursive conditional types that nobody else can read and that slow the editor. Derive types from one source; stop there.</div></details>
+</section>

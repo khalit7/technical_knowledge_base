@@ -1,0 +1,113 @@
+<section id="ja-s6"><h2>6. Modules: ES modules and CommonJS</h2>
+<p>JavaScript has two module systems, and Node runs both. <b>ES modules</b> (ESM, the standard since 2015): <code>import</code> and <code>export</code>, loaded and linked before any code runs, asynchronous, with top-level <code>await</code>. <b>CommonJS</b> (CJS, Node's original): <code>require()</code> and <code>module.exports</code>, synchronous, still in many packages. Python has one system; its <code>import</code> is closest to <code>require</code> (synchronous, runs the module once, caches it).</p>
+<p>Node decides per file: <code>.mjs</code> is ESM, <code>.cjs</code> is CommonJS, and <code>.js</code> follows the <code>"type"</code> field of the nearest <code>package.json</code> (<code>"module"</code> or the default <code>"commonjs"</code>). In ESM, relative imports need the file extension, and <code>require</code>, <code>__filename</code> and <code>__dirname</code> do not exist (use <code>import.meta.url</code>, <code>import.meta.filename</code>, <code>import.meta.dirname</code>).</p>
+<div class="ja-snip"><div class="ja-file">f_mod/tokens.js</div><pre class="ja-code"><span class="cm">// tokens.js: an ES module (this folder's package.json says "type": "module")</span>
+<span class="kw">export</span> <span class="kw">const</span> TOKEN = /[A-Za-z0-9]+/g;
+<span class="kw">export</span> <span class="kw">function</span> countTokens(text) &#123; <span class="kw">return</span> (text.match(TOKEN) ?? []).length; &#125;
+<span class="kw">export</span> <span class="kw">default</span> <span class="kw">function</span> top(map, k) &#123; <span class="kw">return</span> [...map].sort((a, b) =&gt; b[1] - a[1]).slice(0, k); &#125;
+console.log(<span class="st">"tokens.js evaluated (once, however many times it is imported)"</span>);</pre></div>
+<div class="ja-snip"><div class="ja-file">f_mod/main.js</div><pre class="ja-code"><span class="cm">// main.js: named imports, a default import, a CommonJS import, a dynamic import and top-level await</span>
+<span class="kw">import</span> top, &#123; countTokens &#125; <span class="kw">from</span> <span class="st">"./tokens.js"</span>;     <span class="cm">// the extension is required in Node ESM</span>
+<span class="kw">import</span> &#123; countTokens as again &#125; <span class="kw">from</span> <span class="st">"./tokens.js"</span>; <span class="cm">// a second import does not re-run the module</span>
+<span class="kw">import</span> legacy <span class="kw">from</span> <span class="st">"./legacy.cjs"</span>;                   <span class="cm">// CommonJS: module.exports arrives as the default</span>
+<span class="kw">const</span> &#123; readFile &#125; = <span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs/promises"</span>); <span class="cm">// dynamic import returns a promise; top-level await is fine in ESM</span>
+console.log(countTokens(<span class="st">"x86_64 is 2 tokens"</span>), again === countTokens, legacy.shout(<span class="st">"ok"</span>));
+console.log(top(<span class="kw">new</span> Map([[<span class="st">"u1"</span>, 3], [<span class="st">"u2"</span>, 9]]), 1));
+console.log(JSON.parse(<span class="kw">await</span> readFile(<span class="kw">new</span> URL(<span class="st">"./package.json"</span>, <span class="kw">import</span>.meta.url), <span class="st">"utf8"</span>)).type);
+console.log(<span class="kw">typeof</span> require, <span class="kw">typeof</span> <span class="kw">import</span>.meta.url, <span class="kw">import</span>.meta.filename.split(<span class="st">"/"</span>).pop());</pre></div>
+<div class="ja-snip"><div class="ja-file">f_mod/old.cjs</div><pre class="ja-code"><span class="cm">// old.cjs: CommonJS uses require() and module.exports; require is synchronous</span>
+<span class="kw">const</span> &#123; shout &#125; = require(<span class="st">"./legacy.cjs"</span>);
+<span class="kw">const</span> tokens = require(<span class="st">"./tokens.js"</span>);               <span class="cm">// require() of an ES module: allowed since Node 22.12 and 20.19</span>
+console.log(shout(<span class="st">"cjs"</span>), tokens.countTokens(<span class="st">"a b c"</span>), <span class="kw">typeof</span> tokens.<span class="kw">default</span>);
+console.log(<span class="kw">typeof</span> module, __filename.split(<span class="st">"/"</span>).pop());</pre></div>
+<div class="ja-snip"><div class="ja-file">f_mod.sh</div><pre class="ja-code"><span class="cm"># The f_mod folder: package.json says "type": "module", so .js files are ES modules</span>
+cd f_mod
+echo <span class="st">'$ node main.js'</span>; node main.js
+echo <span class="st">'$ node old.cjs'</span>; node old.cjs
+echo <span class="st">'$ node old_tla.cjs'</span>; node old_tla.cjs</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="f_mod.txt">$ node main.js
+tokens.js evaluated (once, however many times it is imported)
+5 true OK
+[ [ 'u2', 9 ] ]
+module
+undefined string main.js
+$ node old.cjs
+tokens.js evaluated (once, however many times it is imported)
+CJS 3 function
+object old.cjs
+$ node old_tla.cjs
+ERR_REQUIRE_ASYNC_MODULE: require() cannot be used on an ESM graph with top-level await. Use import() instead. To see where the top-level await comes from, use --experimental-print-required-tla.</pre></div>
+<div class="ja-cost"><div><div class="t">Interop, as of Node 24</div>ESM can <code>import</code> CommonJS (you get <code>module.exports</code> as the default export). CommonJS can <code>require()</code> an ES module since Node 22.12 and 20.19, without a flag; the feature became stable in 25.4. It fails with <code>ERR_REQUIRE_ASYNC_MODULE</code> if the module graph uses top-level <code>await</code>, because <code>require</code> must finish synchronously ({{Node docs, Loading ECMAScript modules using require()|https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require}}).</div><div><div class="t">What to do</div>New code: <code>"type": "module"</code> in <code>package.json</code> and <code>import</code> everywhere. Dynamic <code>await import("x")</code> for lazy loading (Python's import inside a function). A library's <code>package.json</code> <code>"exports"</code> map says which file each runtime gets; Part 2 covers publishing with types.</div></div>
+</section>
+
+<section id="ja-s7"><h2>7. Errors</h2>
+<p><code>throw</code>, <code>try</code>/<code>catch</code>/<code>finally</code> work like Python's <code>raise</code>, <code>try</code>/<code>except</code>/<code>finally</code>, with three differences. There is one <code>catch</code> per <code>try</code>, with no type filter: test <code>e instanceof X</code> or <code>e.code</code> inside it and rethrow what you do not handle. Anything can be thrown, but only <code>Error</code> objects carry a <code>stack</code>, so always throw <code>Error</code> or a subclass. And chaining is explicit: <code>new Error(msg, { cause: e })</code> is Python's <code>raise ... from e</code>.</p>
+<div class="ja-snip"><div class="ja-file">g1_errors.mjs</div><pre class="ja-code"><span class="cm">// throw, try/catch/finally, Error subclasses and error chaining with &#123; cause &#125; (Python's raise ... from ...).</span>
+<span class="kw">class</span> ParseError <span class="kw">extends</span> Error &#123;
+  constructor(line, options) &#123; <span class="kw">super</span>(<span class="st">`bad JSON on line $&#123;line&#125;`</span>, options); <span class="kw">this</span>.name = <span class="st">"ParseError"</span>; <span class="kw">this</span>.line = line; &#125;
+&#125;
+<span class="kw">function</span> parseLine(s, n) &#123;
+  <span class="kw">try</span> &#123; <span class="kw">return</span> JSON.parse(s); &#125;
+  <span class="kw">catch</span> (e) &#123; <span class="kw">throw</span> <span class="kw">new</span> ParseError(n, &#123; cause: e &#125;); &#125;      <span class="cm">// keep the original error as the cause</span>
+&#125;
+<span class="kw">try</span> &#123; parseLine(<span class="st">"&#123;oops"</span>, 53); &#125;
+<span class="kw">catch</span> (e) &#123;
+  console.log(e <span class="kw">instanceof</span> ParseError, e <span class="kw">instanceof</span> Error, e.name, e.line);
+  console.log(e.message, <span class="st">"| cause:"</span>, e.cause.name, <span class="st">"-"</span>, e.cause.message);
+&#125; <span class="kw">finally</span> &#123; console.log(<span class="st">"finally always runs"</span>); &#125;
+<span class="kw">try</span> &#123; <span class="kw">throw</span> <span class="st">"a bare string"</span>; &#125; <span class="kw">catch</span> (e) &#123; console.log(<span class="kw">typeof</span> e, e?.stack); &#125;   <span class="cm">// anything can be thrown; only Errors carry a stack</span>
+<span class="kw">try</span> &#123; <span class="kw">null</span>.x; &#125; <span class="kw">catch</span> (e) &#123; console.log(e.name); &#125;            <span class="cm">// no except TypeError: one catch, then test the type</span></pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="g1_errors.txt">true true ParseError 53
+bad JSON on line 53 | cause: SyntaxError - Expected property name or '&#125;' in JSON at position 1 (line 1 column 2)
+finally always runs
+string undefined
+TypeError</pre></div>
+<p>An uncaught error prints the stack (innermost call first, the reverse of a Python traceback) and ends the process with exit code 1. Node errors from the system carry a stable <code>code</code> (<code>ENOENT</code>, <code>ECONNREFUSED</code>, <code>ERR_REQUIRE_ASYNC_MODULE</code>): match on the code, not on the message text.</p>
+<div class="ja-snip"><div class="ja-file">g2_uncaught.mjs</div><pre class="ja-code"><span class="cm">// An uncaught error ends the process with exit code 1 and a stack trace, like a Python traceback.</span>
+<span class="kw">function</span> loadConfig(path) &#123; <span class="kw">return</span> JSON.parse(<span class="st">`&#123;"path": "$&#123;path&#125;", "debug": tru&#125;`</span>); &#125;
+console.log(<span class="st">"starting"</span>);
+loadConfig(<span class="st">"/etc/app.json"</span>);</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="g2_uncaught.txt">starting
+&lt;anonymous_script&gt;:1
+&#123;"path": "/etc/app.json", "debug": tru&#125;
+                                      ^
+
+SyntaxError: Unexpected token '&#125;', ..."ebug": tru&#125;" is not valid JSON
+    at JSON.parse (&lt;anonymous&gt;)
+    at loadConfig (g2_uncaught.mjs:2:41)
+    at g2_uncaught.mjs:4:1
+
+Node.js v24.21.0
+[exit code 1]</pre></div>
+<p>Errors in asynchronous code are the hard part: a rejected promise that nobody awaits or catches does not reach any <code>try</code>. Section 10 shows what Node does with it.</p>
+</section>
+
+<section id="ja-s8"><h2>8. Iteration: iterators and generators</h2>
+<p><code>for (const x of xs)</code> is Python's <code>for x in xs</code>: it works on anything iterable (arrays, strings, maps, sets, generators). <code>for...in</code> is a different, older loop over an object's <b>keys as strings</b>, including inherited ones; it is almost never what you want on an array. The iterator protocol is Python's in disguise: <code>xs[Symbol.iterator]()</code> is <code>iter(xs)</code>, and <code>it.next()</code> returns <code>{ value, done }</code> instead of raising <code>StopIteration</code>.</p>
+<div class="ja-snip ja-pred"><div class="ja-file">h1_iter.mjs</div><pre class="ja-code"><span class="cm">// for...of walks VALUES (Python's for x in xs). for...in walks KEYS, as strings, and is rarely what you want.</span>
+<span class="kw">const</span> xs = [<span class="st">"a"</span>, <span class="st">"b"</span>];
+<span class="kw">for</span> (<span class="kw">const</span> x <span class="kw">of</span> xs) console.log(<span class="st">"of:"</span>, x);
+<span class="kw">for</span> (<span class="kw">const</span> k <span class="kw">in</span> xs) console.log(<span class="st">"in:"</span>, k, <span class="kw">typeof</span> k);
+<span class="kw">for</span> (<span class="kw">const</span> [k, v] <span class="kw">of</span> Object.entries(&#123; u1: 3, u2: 9 &#125;)) console.log(k, v);   <span class="cm">// dict.items()</span>
+<span class="kw">for</span> (<span class="kw">const</span> ch <span class="kw">of</span> <span class="st">"h🚀"</span>) console.log(ch, ch.length);                         <span class="cm">// strings iterate by code point</span>
+<span class="kw">const</span> it = xs[Symbol.iterator]();               <span class="cm">// the iterator protocol, by hand: iter(xs) and next()</span>
+console.log(it.next(), it.next(), it.next());</pre><details><summary>Predict the output, then reveal</summary><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="h1_iter.txt">of: a
+of: b
+in: 0 string
+in: 1 string
+u1 3
+u2 9
+h 1
+🚀 2
+&#123; value: 'a', done: false &#125; &#123; value: 'b', done: false &#125; &#123; value: undefined, done: true &#125;</pre></details></div>
+<p><code>function*</code> defines a <b>generator</b>, exactly Python's function-with-<code>yield</code>: lazy, paused between values, able to describe infinite sequences. Since Node 22 (ES2025 "iterator helpers"), iterators also have lazy <code>map</code>, <code>filter</code>, <code>take</code>, <code>drop</code>, <code>flatMap</code> and <code>toArray</code> methods, which make generator pipelines read like method chains.</p>
+<div class="ja-snip"><div class="ja-file">h2_generators.mjs</div><pre class="ja-code"><span class="cm">// function* makes a generator, exactly like a Python function with yield: lazy, paused between values.</span>
+<span class="kw">function</span>* naturals() &#123; <span class="kw">let</span> n = 0; <span class="kw">while</span> (<span class="kw">true</span>) <span class="kw">yield</span> n++; &#125;
+<span class="kw">function</span>* take(it, k) &#123; <span class="kw">for</span> (<span class="kw">const</span> x <span class="kw">of</span> it) &#123; <span class="kw">if</span> (k-- &lt;= 0) <span class="kw">return</span>; <span class="kw">yield</span> x; &#125; &#125;
+<span class="kw">function</span>* map(it, f) &#123; <span class="kw">for</span> (<span class="kw">const</span> x <span class="kw">of</span> it) <span class="kw">yield</span> f(x); &#125;
+console.log([...take(map(naturals(), n =&gt; n * n), 5)]);
+<span class="kw">const</span> g = naturals();
+console.log(g.next(), g.next(), <span class="kw">typeof</span> g[Symbol.iterator]);
+<span class="cm">// Iterator helpers (ES2025, Node 22+): the same lazy pipeline as methods</span>
+console.log(naturals().map(n =&gt; n * n).filter(n =&gt; n % 2).take(4).toArray());</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="h2_generators.txt">[ 0, 1, 4, 9, 16 ]
+&#123; value: 0, done: false &#125; &#123; value: 1, done: false &#125; function
+[ 1, 9, 25, 49 ]</pre></div>
+<p>The asynchronous versions (<code>async function*</code>, <code>for await...of</code>) are how streams of LLM tokens are consumed: section 11.</p>
+</section>

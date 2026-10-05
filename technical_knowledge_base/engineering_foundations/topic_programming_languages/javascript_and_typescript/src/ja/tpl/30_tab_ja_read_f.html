@@ -1,0 +1,30 @@
+<section id="ja-s10"><h2>10. The async toolbox</h2>
+<p><b>Timers.</b> <code>setTimeout(f, ms)</code> runs <code>f</code> once, no earlier than <code>ms</code> later (later if the thread is busy); <code>setInterval</code> repeats; both return a handle for <code>clearTimeout</code>. <code>import { setTimeout as sleep } from "node:timers/promises"</code> gives Python's <code>asyncio.sleep</code>.</p>
+<p><b>Waiting for several.</b> Python's <code>asyncio.gather</code> is <code>Promise.all</code>: results in input order, rejects as soon as one rejects (the others keep running; nobody cancels them). <code>Promise.allSettled</code> never rejects and reports each outcome (<code>gather(..., return_exceptions=True)</code>). <code>Promise.race</code> settles with the first to settle; <code>Promise.any</code> with the first success, or an <code>AggregateError</code> of all failures.</p>
+[[run:i5_combinators]]
+<p><b>Cancellation and timeouts.</b> A promise cannot be cancelled. Instead, the work accepts an <code>AbortSignal</code> (from an <code>AbortController</code>, or <code>AbortSignal.timeout(ms)</code>) and stops when it fires; <code>fetch</code>, timers, streams and most SDKs accept <code>{ signal }</code>. Aborting is a request, not preemption: code that never looks at the signal runs to the end. (Python's <code>task.cancel()</code> is stronger: it throws <code>CancelledError</code> into the coroutine at its next <code>await</code>.)</p>
+[[run:i6_abort]]
+<p><b>Forgotten promises.</b> Calling an async function without <code>await</code> or <code>.catch</code> ("fire and forget") means its error has nowhere to go. Since Node 15 the default (<code>--unhandled-rejections=throw</code>) is to treat it as an uncaught exception: the process dies, here before a pending timer gets to run ({{Node CLI docs|https://nodejs.org/api/cli.html#--unhandled-rejectionsmode}}).</p>
+[[run:i7_unhandled]]
+<p><b><code>await</code> in loops.</b> <code>forEach</code> ignores the promise its callback returns, so <code>await</code> inside it does not make the loop wait. Use <code>for...of</code> with <code>await</code> for one at a time, or <code>Promise.all(xs.map(...))</code> for all at once.</p>
+[[predict:i8_foreach]]
+<p><b>A concurrency limit.</b> "All at once" is wrong for 10,000 requests to a rate-limited API. The usual fix is a small pool: N workers pulling from a shared index (libraries such as <code>p-limit</code> do the same). Python's equivalent is an <code>asyncio.Semaphore</code>.</p>
+[[run:i9_limit]]
+</section>
+
+<section id="ja-s11"><h2>11. Async iterators and streams: how LLM tokens arrive</h2>
+<p>An <b>async generator</b> (<code>async function*</code>) yields values that arrive over time, and <code>for await...of</code> consumes them, exactly like Python's <code>async def</code> with <code>yield</code> and <code>async for</code>. Breaking out of the loop runs the generator's <code>finally</code>, which is where a stream closes its connection.</p>
+[[run:j2_async_gen]]
+<p>A streaming LLM API sends <b>server-sent events</b> (SSE): an HTTP response that stays open, carrying text lines <code>data: {...}</code>, each event ended by a blank line. With <code>fetch</code>, <code>response.body</code> is a stream of <code>Uint8Array</code> byte chunks that you can <code>for await</code> over. The trap: the network decides where chunks end, not the server. A chunk can end in the middle of an event, and in the middle of a multi-byte UTF-8 character. Code that parses each chunk on its own works on a fast local test and fails in production behind a proxy. The fix is one streaming <code>TextDecoder</code> (<code>{ stream: true }</code> keeps half a character for the next chunk), a text buffer, and parsing only complete events. Official SDKs do this for you; the bug appears when you hand-roll a client, or a proxy, or a test.</p>
+<div class="ja-anim" id="ja-sse-card">
+<div class="seg" id="ja-sse-mode"><button data-m="naive" class="on">Parse each chunk (wrong)</button><button data-m="good">Buffer, then parse (right)</button></div>
+<div class="ja-ctl" id="ja-sse-ctl"></div>
+<div id="ja-sse-view"></div>
+<div class="ja-cap" id="ja-sse-cap"></div>
+<div class="ja-counters" id="ja-sse-cnt"></div>
+<div class="ja-src">The nine chunks are the ones the client really received in the recorded run of <code>j1_sse.mjs</code> (byte lengths saved by the script); the two parsers run <span class="ja-live">live</span> in your browser on those bytes, and their final results are checked against the recorded run.</div>
+</div>
+[[run:j1_sse]]
+<details class="mist"><summary>The code: j1_sse.mjs (a local SSE server and both parsers)</summary><div class="b">[[code:j1_sse]]</div></details>
+<p>Node also has its own older stream classes (<code>Readable</code>, <code>Writable</code>, <code>Transform</code>, <code>pipeline</code>) used by files, sockets and HTTP. They handle <b>backpressure</b>: a fast producer is paused while a slow consumer catches up, so memory stays bounded. Readable streams are async iterable too, which is the easiest way to use them (next section).</p>
+</section>

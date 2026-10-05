@@ -1,0 +1,218 @@
+<section id="ja-s10"><h2>10. The async toolbox</h2>
+<p><b>Timers.</b> <code>setTimeout(f, ms)</code> runs <code>f</code> once, no earlier than <code>ms</code> later (later if the thread is busy); <code>setInterval</code> repeats; both return a handle for <code>clearTimeout</code>. <code>import { setTimeout as sleep } from "node:timers/promises"</code> gives Python's <code>asyncio.sleep</code>.</p>
+<p><b>Waiting for several.</b> Python's <code>asyncio.gather</code> is <code>Promise.all</code>: results in input order, rejects as soon as one rejects (the others keep running; nobody cancels them). <code>Promise.allSettled</code> never rejects and reports each outcome (<code>gather(..., return_exceptions=True)</code>). <code>Promise.race</code> settles with the first to settle; <code>Promise.any</code> with the first success, or an <code>AggregateError</code> of all failures.</p>
+<div class="ja-snip"><div class="ja-file">i5_combinators.mjs</div><pre class="ja-code"><span class="cm">// Waiting for several promises: all (fail fast), allSettled (never rejects), race (first to settle), any (first success).</span>
+<span class="kw">const</span> ok = (ms, v) =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(() =&gt; r(v), ms));
+<span class="kw">const</span> bad = (ms, m) =&gt; <span class="kw">new</span> Promise((_, j) =&gt; setTimeout(() =&gt; j(<span class="kw">new</span> Error(m)), ms));
+<span class="kw">let</span> t0 = 0; <span class="kw">const</span> start = () =&gt; &#123; t0 = performance.now(); &#125;, took = () =&gt; <span class="st">`after $&#123;Math.round(performance.now() - t0)&#125; ms`</span>;
+start(); console.log(<span class="st">"all:"</span>, <span class="kw">await</span> Promise.all([ok(30, <span class="st">"a"</span>), ok(10, <span class="st">"b"</span>)]), took());   <span class="cm">// results in INPUT order</span>
+start(); <span class="kw">try</span> &#123; <span class="kw">await</span> Promise.all([ok(50, <span class="st">"a"</span>), bad(10, <span class="st">"b failed"</span>)]); &#125; <span class="kw">catch</span> (e) &#123; console.log(<span class="st">"all:"</span>, e.message, took()); &#125;
+<span class="kw">const</span> settled = <span class="kw">await</span> Promise.allSettled([ok(10, <span class="st">"a"</span>), bad(10, <span class="st">"b failed"</span>)]);
+console.log(<span class="st">"allSettled:"</span>, settled.map(s =&gt; s.status === <span class="st">"fulfilled"</span> ? <span class="st">`ok $&#123;s.value&#125;`</span> : <span class="st">`error $&#123;s.reason.message&#125;`</span>));
+console.log(<span class="st">"race:"</span>, <span class="kw">await</span> Promise.race([ok(30, <span class="st">"slow"</span>), ok(10, <span class="st">"fast"</span>)]));
+<span class="kw">try</span> &#123; <span class="kw">await</span> Promise.any([bad(5, <span class="st">"x"</span>), bad(5, <span class="st">"y"</span>)]); &#125; <span class="kw">catch</span> (e) &#123; console.log(<span class="st">"any:"</span>, e.constructor.name, e.errors.map(x =&gt; x.message)); &#125;</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i5_combinators.txt">all: [ 'a', 'b' ] after 31 ms
+all: b failed after 11 ms
+allSettled: [ 'ok a', 'error b failed' ]
+race: fast
+any: AggregateError [ 'x', 'y' ]</pre></div>
+<p><b>Cancellation and timeouts.</b> A promise cannot be cancelled. Instead, the work accepts an <code>AbortSignal</code> (from an <code>AbortController</code>, or <code>AbortSignal.timeout(ms)</code>) and stops when it fires; <code>fetch</code>, timers, streams and most SDKs accept <code>{ signal }</code>. Aborting is a request, not preemption: code that never looks at the signal runs to the end. (Python's <code>task.cancel()</code> is stronger: it throws <code>CancelledError</code> into the coroutine at its next <code>await</code>.)</p>
+<div class="ja-snip"><div class="ja-file">i6_abort.mjs</div><pre class="ja-code"><span class="cm">// Cancelling: an AbortController's signal is passed to the work; aborting rejects with an AbortError.</span>
+<span class="cm">// Timeouts are the same mechanism: AbortSignal.timeout(ms). (Python: asyncio.timeout / task.cancel().)</span>
+<span class="kw">import</span> &#123; setTimeout as sleep &#125; <span class="kw">from</span> <span class="st">"node:timers/promises"</span>;
+<span class="kw">const</span> ac = <span class="kw">new</span> AbortController();
+setTimeout(() =&gt; ac.abort(), 50);
+<span class="kw">try</span> &#123; <span class="kw">await</span> sleep(1000, <span class="st">"done"</span>, &#123; signal: ac.signal &#125;); &#125;
+<span class="kw">catch</span> (e) &#123; console.log(e.name, <span class="st">"|"</span>, ac.signal.aborted, ac.signal.reason.name); &#125;
+<span class="kw">try</span> &#123; <span class="kw">await</span> sleep(1000, <span class="st">"done"</span>, &#123; signal: AbortSignal.timeout(30) &#125;); &#125;
+<span class="kw">catch</span> (e) &#123; console.log(e.name, <span class="st">"|"</span>, e.cause?.name ?? <span class="st">""</span>, e.message); &#125;
+<span class="cm">// Work that ignores the signal is NOT stopped: aborting is a request, not preemption.</span>
+<span class="kw">async</span> <span class="kw">function</span> stubborn(signal) &#123; <span class="kw">await</span> sleep(80); <span class="kw">return</span> signal.aborted ? <span class="st">"finished anyway, after the abort"</span> : <span class="st">"finished"</span>; &#125;
+<span class="kw">const</span> ac2 = <span class="kw">new</span> AbortController(); <span class="kw">const</span> p = stubborn(ac2.signal); ac2.abort();
+console.log(<span class="kw">await</span> p);</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i6_abort.txt">AbortError | true AbortError
+AbortError | TimeoutError The operation was aborted
+finished anyway, after the abort</pre></div>
+<p><b>Forgotten promises.</b> Calling an async function without <code>await</code> or <code>.catch</code> ("fire and forget") means its error has nowhere to go. Since Node 15 the default (<code>--unhandled-rejections=throw</code>) is to treat it as an uncaught exception: the process dies, here before a pending timer gets to run ({{Node CLI docs|https://nodejs.org/api/cli.html#--unhandled-rejectionsmode}}).</p>
+<div class="ja-snip"><div class="ja-file">i7_unhandled.mjs</div><pre class="ja-code"><span class="cm">// A rejected promise nobody handles: since Node 15 the process crashes (exit code 1), like an uncaught exception.</span>
+<span class="kw">async</span> <span class="kw">function</span> sendTelemetry() &#123; <span class="kw">throw</span> <span class="kw">new</span> Error(<span class="st">"telemetry server down"</span>); &#125;
+sendTelemetry();                                  <span class="cm">// fire and forget: no await, no .catch</span>
+setTimeout(() =&gt; console.log(<span class="st">"this never prints"</span>), 100);
+console.log(<span class="st">"main code finished"</span>);</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i7_unhandled.txt">main code finished
+i7_unhandled.mjs:2
+async function sendTelemetry() &#123; throw new Error("telemetry server down"); &#125;
+                                       ^
+
+Error: telemetry server down
+    at sendTelemetry (i7_unhandled.mjs:2:40)
+    at i7_unhandled.mjs:3:1
+
+Node.js v24.21.0
+[exit code 1]</pre></div>
+<p><b><code>await</code> in loops.</b> <code>forEach</code> ignores the promise its callback returns, so <code>await</code> inside it does not make the loop wait. Use <code>for...of</code> with <code>await</code> for one at a time, or <code>Promise.all(xs.map(...))</code> for all at once.</p>
+<div class="ja-snip ja-pred"><div class="ja-file">i8_foreach.mjs</div><pre class="ja-code"><span class="cm">// await inside forEach does not wait: forEach ignores the promises its callback returns.</span>
+<span class="kw">const</span> sleep = ms =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(r, ms));
+<span class="kw">let</span> t0 = performance.now(); <span class="kw">const</span> took = () =&gt; <span class="st">`$&#123;Math.round(performance.now() - t0)&#125; ms`</span>;
+<span class="kw">const</span> ids = [1, 2, 3];
+ids.forEach(<span class="kw">async</span> id =&gt; &#123; <span class="kw">await</span> sleep(20); console.log(<span class="st">"  forEach item"</span>, id, <span class="st">"done at"</span>, took()); &#125;);
+console.log(<span class="st">"forEach returned after"</span>, took());     <span class="cm">// prints first: nothing was awaited</span>
+<span class="kw">await</span> sleep(40);
+t0 = performance.now();
+<span class="kw">for</span> (<span class="kw">const</span> id <span class="kw">of</span> ids) &#123; <span class="kw">await</span> sleep(20); &#125;        <span class="cm">// sequential: one after another</span>
+console.log(<span class="st">"for...of with await:"</span>, took());
+t0 = performance.now();
+<span class="kw">await</span> Promise.all(ids.map(id =&gt; sleep(20)));        <span class="cm">// concurrent: all at once</span>
+console.log(<span class="st">"Promise.all over map:"</span>, took());</pre><details><summary>Predict the output, then reveal</summary><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i8_foreach.txt">forEach returned after 0 ms
+  forEach item 1 done at 22 ms
+  forEach item 2 done at 22 ms
+  forEach item 3 done at 22 ms
+for...of with await: 66 ms
+Promise.all over map: 22 ms</pre></details></div>
+<p><b>A concurrency limit.</b> "All at once" is wrong for 10,000 requests to a rate-limited API. The usual fix is a small pool: N workers pulling from a shared index (libraries such as <code>p-limit</code> do the same). Python's equivalent is an <code>asyncio.Semaphore</code>.</p>
+<div class="ja-snip"><div class="ja-file">i9_limit.mjs</div><pre class="ja-code"><span class="cm">// 20 requests of 50 ms each, at most 4 in flight: a worker-pool limiter in eight lines (no library).</span>
+<span class="kw">const</span> sleep = ms =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(r, ms));
+<span class="kw">async</span> <span class="kw">function</span> mapLimit(items, limit, fn) &#123;
+  <span class="kw">const</span> results = <span class="kw">new</span> Array(items.length); <span class="kw">let</span> next = 0, inFlight = 0, peak = 0;
+  <span class="kw">async</span> <span class="kw">function</span> worker() &#123;
+    <span class="kw">while</span> (next &lt; items.length) &#123; <span class="kw">const</span> i = next++; inFlight++; peak = Math.max(peak, inFlight); results[i] = <span class="kw">await</span> fn(items[i]); inFlight--; &#125;
+  &#125;
+  <span class="kw">await</span> Promise.all(Array.<span class="kw">from</span>(&#123; length: limit &#125;, worker));
+  <span class="kw">return</span> &#123; results, peak &#125;;
+&#125;
+<span class="kw">const</span> items = Array.<span class="kw">from</span>(&#123; length: 20 &#125;, (_, i) =&gt; i);
+<span class="kw">for</span> (<span class="kw">const</span> limit <span class="kw">of</span> [1, 4, 20]) &#123;
+  <span class="kw">const</span> t0 = performance.now();
+  <span class="kw">const</span> &#123; results, peak &#125; = <span class="kw">await</span> mapLimit(items, limit, <span class="kw">async</span> i =&gt; &#123; <span class="kw">await</span> sleep(50); <span class="kw">return</span> i * i; &#125;);
+  console.log(<span class="st">`limit $&#123;String(limit).padStart(2)&#125;: $&#123;Math.round(performance.now() - t0)&#125; ms, peak in flight $&#123;peak&#125;, last result $&#123;results.at(-1)&#125;`</span>);
+&#125;</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="i9_limit.txt">limit  1: 1033 ms, peak in flight 1, last result 361
+limit  4: 259 ms, peak in flight 4, last result 361
+limit 20: 51 ms, peak in flight 20, last result 361</pre></div>
+</section>
+
+<section id="ja-s11"><h2>11. Async iterators and streams: how LLM tokens arrive</h2>
+<p>An <b>async generator</b> (<code>async function*</code>) yields values that arrive over time, and <code>for await...of</code> consumes them, exactly like Python's <code>async def</code> with <code>yield</code> and <code>async for</code>. Breaking out of the loop runs the generator's <code>finally</code>, which is where a stream closes its connection.</p>
+<div class="ja-snip"><div class="ja-file">j2_async_gen.mjs</div><pre class="ja-code"><span class="cm">// async function* : an async generator (Python's async def with yield). Consume it with for await...of.</span>
+<span class="kw">const</span> sleep = ms =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(r, ms));
+<span class="kw">async</span> <span class="kw">function</span>* fakeModel(prompt) &#123;
+  <span class="kw">try</span> &#123;
+    <span class="kw">for</span> (<span class="kw">const</span> tok <span class="kw">of</span> [<span class="st">"The"</span>, <span class="st">" answer"</span>, <span class="st">" is"</span>, <span class="st">" 42"</span>, <span class="st">"."</span>]) &#123; <span class="kw">await</span> sleep(10); <span class="kw">yield</span> tok; &#125;
+  &#125; <span class="kw">finally</span> &#123;
+    console.log(<span class="st">"  (generator cleanup: close the HTTP connection here)"</span>);   <span class="cm">// runs on break, return or throw too</span>
+  &#125;
+&#125;
+<span class="kw">let</span> text = <span class="st">""</span>;
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> tok <span class="kw">of</span> fakeModel(<span class="st">"q"</span>)) &#123; text += tok; console.log(<span class="st">"  token"</span>, JSON.stringify(tok)); &#125;
+console.log(<span class="st">"full text:"</span>, JSON.stringify(text));
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> tok <span class="kw">of</span> fakeModel(<span class="st">"q"</span>)) &#123; <span class="kw">if</span> (tok === <span class="st">" is"</span>) <span class="kw">break</span>; &#125;       <span class="cm">// stop early, e.g. the user pressed Stop</span>
+console.log(<span class="st">"stopped early; Array.fromAsync collects a whole stream:"</span>, <span class="kw">await</span> Array.fromAsync(fakeModel(<span class="st">"q"</span>)));</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="j2_async_gen.txt">  token "The"
+  token " answer"
+  token " is"
+  token " 42"
+  token "."
+  (generator cleanup: close the HTTP connection here)
+full text: "The answer is 42."
+  (generator cleanup: close the HTTP connection here)
+  (generator cleanup: close the HTTP connection here)
+stopped early; Array.fromAsync collects a whole stream: [ 'The', ' answer', ' is', ' 42', '.' ]</pre></div>
+<p>A streaming LLM API sends <b>server-sent events</b> (SSE): an HTTP response that stays open, carrying text lines <code>data: {...}</code>, each event ended by a blank line. With <code>fetch</code>, <code>response.body</code> is a stream of <code>Uint8Array</code> byte chunks that you can <code>for await</code> over. The trap: the network decides where chunks end, not the server. A chunk can end in the middle of an event, and in the middle of a multi-byte UTF-8 character. Code that parses each chunk on its own works on a fast local test and fails in production behind a proxy. The fix is one streaming <code>TextDecoder</code> (<code>{ stream: true }</code> keeps half a character for the next chunk), a text buffer, and parsing only complete events. Official SDKs do this for you; the bug appears when you hand-roll a client, or a proxy, or a test.</p>
+<div class="ja-anim" id="ja-sse-card">
+<div class="seg" id="ja-sse-mode"><button data-m="naive" class="on">Parse each chunk (wrong)</button><button data-m="good">Buffer, then parse (right)</button></div>
+<div class="ja-ctl" id="ja-sse-ctl"></div>
+<div id="ja-sse-view"></div>
+<div class="ja-cap" id="ja-sse-cap"></div>
+<div class="ja-counters" id="ja-sse-cnt"></div>
+<div class="ja-src">The nine chunks are the ones the client really received in the recorded run of <code>j1_sse.mjs</code> (byte lengths saved by the script); the two parsers run <span class="ja-live">live</span> in your browser on those bytes, and their final results are checked against the recorded run.</div>
+</div>
+<div class="ja-snip"><div class="ja-file">j1_sse.mjs</div><pre class="ja-code"><span class="cm">// How an LLM token stream arrives: server-sent events (SSE) over HTTP, read with fetch.</span>
+<span class="cm">// A local server stands in for the model API: it sends six "data:" events, but the network</span>
+<span class="cm">// delivers bytes in arbitrary chunks (here: 19-byte slices, 15 ms apart), cutting events and even characters in half.</span>
+<span class="kw">import</span> &#123; createServer &#125; <span class="kw">from</span> <span class="st">"node:http"</span>;
+<span class="kw">const</span> TOKENS = [<span class="st">"Hello"</span>, <span class="st">","</span>, <span class="st">" wörld"</span>, <span class="st">"!"</span>, <span class="st">" 🚀"</span>, <span class="st">" done"</span>];
+<span class="kw">const</span> BODY = Buffer.<span class="kw">from</span>(TOKENS.map(t =&gt; <span class="st">`data: $&#123;JSON.stringify(&#123; delta: t &#125;)&#125;\n\n`</span>).join(<span class="st">""</span>) + <span class="st">"data: [DONE]\n\n"</span>);
+<span class="kw">const</span> server = createServer(<span class="kw">async</span> (req, res) =&gt; &#123;
+  res.writeHead(200, &#123; <span class="st">"content-type"</span>: <span class="st">"text/event-stream"</span> &#125;);
+  <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; BODY.length; i += 19) &#123; res.write(BODY.subarray(i, i + 19)); <span class="kw">await</span> <span class="kw">new</span> Promise(r =&gt; setTimeout(r, 15)); &#125;
+  res.end();
+&#125;).listen(0);
+<span class="kw">const</span> url = <span class="st">`http://127.0.0.1:$&#123;server.address().port&#125;/v1/stream`</span>;
+
+<span class="cm">// Wrong: treat each chunk as text on its own and as whole events</span>
+<span class="kw">const</span> naive = &#123; chunks: [], lens: [], events: [], errors: [] &#125;;
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> chunk <span class="kw">of</span> (<span class="kw">await</span> fetch(url)).body) &#123;        <span class="cm">// a web ReadableStream is an async iterable of Uint8Array</span>
+  <span class="kw">const</span> text = <span class="kw">new</span> TextDecoder().decode(chunk);             <span class="cm">// a fresh decoder per chunk breaks split characters</span>
+  naive.chunks.push(text); naive.lens.push(chunk.length);
+  <span class="kw">for</span> (<span class="kw">const</span> part <span class="kw">of</span> text.split(<span class="st">"\n\n"</span>)) &#123;
+    <span class="kw">if</span> (!part.startsWith(<span class="st">"data: "</span>) || part === <span class="st">"data: [DONE]"</span>) <span class="kw">continue</span>;
+    <span class="kw">try</span> &#123; naive.events.push(JSON.parse(part.slice(6)).delta); &#125; <span class="kw">catch</span> (e) &#123; naive.errors.push(e.message.split(<span class="st">" in JSON"</span>)[0]); &#125;
+  &#125;
+&#125;
+<span class="cm">// Right: one streaming decoder, a buffer, and only complete events (ending in a blank line) are parsed</span>
+<span class="kw">async</span> <span class="kw">function</span>* sseEvents(body) &#123;
+  <span class="kw">const</span> dec = <span class="kw">new</span> TextDecoder(); <span class="kw">let</span> buf = <span class="st">""</span>;
+  <span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> chunk <span class="kw">of</span> body) &#123;
+    buf += dec.decode(chunk, &#123; stream: <span class="kw">true</span> &#125;);              <span class="cm">// stream: true keeps half a character for the next chunk</span>
+    <span class="kw">let</span> end;
+    <span class="kw">while</span> ((end = buf.indexOf(<span class="st">"\n\n"</span>)) &gt;= 0) &#123; <span class="kw">const</span> ev = buf.slice(0, end); buf = buf.slice(end + 2); <span class="kw">yield</span> ev; &#125;
+  &#125;
+&#125;
+<span class="kw">const</span> good = [];
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> ev <span class="kw">of</span> sseEvents((<span class="kw">await</span> fetch(url)).body)) &#123;
+  <span class="kw">const</span> data = ev.slice(6);
+  <span class="kw">if</span> (data === <span class="st">"[DONE]"</span>) <span class="kw">break</span>;
+  good.push(JSON.parse(data).delta);
+&#125;
+server.close();
+console.log(<span class="st">`$&#123;BODY.length&#125; bytes arrived in $&#123;naive.chunks.length&#125; chunks; the first three:`</span>);
+naive.chunks.slice(0, 3).forEach((c, i) =&gt; console.log(<span class="st">`  chunk $&#123;i + 1&#125;: $&#123;JSON.stringify(c)&#125;`</span>));
+console.log(<span class="st">"naive parser, tokens:"</span>, JSON.stringify(naive.events.join(<span class="st">""</span>)), <span class="st">"| errors:"</span>, naive.errors.length, naive.errors.slice(0, 2));
+console.log(<span class="st">"buffered parser, tokens:"</span>, JSON.stringify(good.join(<span class="st">""</span>)));
+<span class="kw">if</span> (process.argv[2]) (<span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs"</span>)).writeFileSync(process.argv[2], JSON.stringify(&#123; body: BODY.toString(), slice: 19, chunks: naive.chunks, lens: naive.lens, naive: naive.events, naiveErrors: naive.errors, good &#125;));</pre><div class="ja-olab">real output, Node 24.21.0</div><pre class="ja-out" data-ja-src="j1_sse.txt">158 bytes arrived in 9 chunks; the first three:
+  chunk 1: "data: &#123;\"delta\":\"Hel"
+  chunk 2: "lo\"&#125;\n\ndata: &#123;\"delta"
+  chunk 3: "\":\",\"&#125;\n\ndata: &#123;\"del"
+naive parser, tokens: "" | errors: 5 [ 'Unterminated string', 'Unterminated string' ]
+buffered parser, tokens: "Hello, wörld! 🚀 done"</pre></div>
+<details class="mist"><summary>The code: j1_sse.mjs (a local SSE server and both parsers)</summary><div class="b"><div class="ja-snip"><div class="ja-file">j1_sse.mjs</div><pre class="ja-code"><span class="cm">// How an LLM token stream arrives: server-sent events (SSE) over HTTP, read with fetch.</span>
+<span class="cm">// A local server stands in for the model API: it sends six "data:" events, but the network</span>
+<span class="cm">// delivers bytes in arbitrary chunks (here: 19-byte slices, 15 ms apart), cutting events and even characters in half.</span>
+<span class="kw">import</span> &#123; createServer &#125; <span class="kw">from</span> <span class="st">"node:http"</span>;
+<span class="kw">const</span> TOKENS = [<span class="st">"Hello"</span>, <span class="st">","</span>, <span class="st">" wörld"</span>, <span class="st">"!"</span>, <span class="st">" 🚀"</span>, <span class="st">" done"</span>];
+<span class="kw">const</span> BODY = Buffer.<span class="kw">from</span>(TOKENS.map(t =&gt; <span class="st">`data: $&#123;JSON.stringify(&#123; delta: t &#125;)&#125;\n\n`</span>).join(<span class="st">""</span>) + <span class="st">"data: [DONE]\n\n"</span>);
+<span class="kw">const</span> server = createServer(<span class="kw">async</span> (req, res) =&gt; &#123;
+  res.writeHead(200, &#123; <span class="st">"content-type"</span>: <span class="st">"text/event-stream"</span> &#125;);
+  <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; BODY.length; i += 19) &#123; res.write(BODY.subarray(i, i + 19)); <span class="kw">await</span> <span class="kw">new</span> Promise(r =&gt; setTimeout(r, 15)); &#125;
+  res.end();
+&#125;).listen(0);
+<span class="kw">const</span> url = <span class="st">`http://127.0.0.1:$&#123;server.address().port&#125;/v1/stream`</span>;
+
+<span class="cm">// Wrong: treat each chunk as text on its own and as whole events</span>
+<span class="kw">const</span> naive = &#123; chunks: [], lens: [], events: [], errors: [] &#125;;
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> chunk <span class="kw">of</span> (<span class="kw">await</span> fetch(url)).body) &#123;        <span class="cm">// a web ReadableStream is an async iterable of Uint8Array</span>
+  <span class="kw">const</span> text = <span class="kw">new</span> TextDecoder().decode(chunk);             <span class="cm">// a fresh decoder per chunk breaks split characters</span>
+  naive.chunks.push(text); naive.lens.push(chunk.length);
+  <span class="kw">for</span> (<span class="kw">const</span> part <span class="kw">of</span> text.split(<span class="st">"\n\n"</span>)) &#123;
+    <span class="kw">if</span> (!part.startsWith(<span class="st">"data: "</span>) || part === <span class="st">"data: [DONE]"</span>) <span class="kw">continue</span>;
+    <span class="kw">try</span> &#123; naive.events.push(JSON.parse(part.slice(6)).delta); &#125; <span class="kw">catch</span> (e) &#123; naive.errors.push(e.message.split(<span class="st">" in JSON"</span>)[0]); &#125;
+  &#125;
+&#125;
+<span class="cm">// Right: one streaming decoder, a buffer, and only complete events (ending in a blank line) are parsed</span>
+<span class="kw">async</span> <span class="kw">function</span>* sseEvents(body) &#123;
+  <span class="kw">const</span> dec = <span class="kw">new</span> TextDecoder(); <span class="kw">let</span> buf = <span class="st">""</span>;
+  <span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> chunk <span class="kw">of</span> body) &#123;
+    buf += dec.decode(chunk, &#123; stream: <span class="kw">true</span> &#125;);              <span class="cm">// stream: true keeps half a character for the next chunk</span>
+    <span class="kw">let</span> end;
+    <span class="kw">while</span> ((end = buf.indexOf(<span class="st">"\n\n"</span>)) &gt;= 0) &#123; <span class="kw">const</span> ev = buf.slice(0, end); buf = buf.slice(end + 2); <span class="kw">yield</span> ev; &#125;
+  &#125;
+&#125;
+<span class="kw">const</span> good = [];
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> ev <span class="kw">of</span> sseEvents((<span class="kw">await</span> fetch(url)).body)) &#123;
+  <span class="kw">const</span> data = ev.slice(6);
+  <span class="kw">if</span> (data === <span class="st">"[DONE]"</span>) <span class="kw">break</span>;
+  good.push(JSON.parse(data).delta);
+&#125;
+server.close();
+console.log(<span class="st">`$&#123;BODY.length&#125; bytes arrived in $&#123;naive.chunks.length&#125; chunks; the first three:`</span>);
+naive.chunks.slice(0, 3).forEach((c, i) =&gt; console.log(<span class="st">`  chunk $&#123;i + 1&#125;: $&#123;JSON.stringify(c)&#125;`</span>));
+console.log(<span class="st">"naive parser, tokens:"</span>, JSON.stringify(naive.events.join(<span class="st">""</span>)), <span class="st">"| errors:"</span>, naive.errors.length, naive.errors.slice(0, 2));
+console.log(<span class="st">"buffered parser, tokens:"</span>, JSON.stringify(good.join(<span class="st">""</span>)));
+<span class="kw">if</span> (process.argv[2]) (<span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs"</span>)).writeFileSync(process.argv[2], JSON.stringify(&#123; body: BODY.toString(), slice: 19, chunks: naive.chunks, lens: naive.lens, naive: naive.events, naiveErrors: naive.errors, good &#125;));</pre></div></div></details>
+<p>Node also has its own older stream classes (<code>Readable</code>, <code>Writable</code>, <code>Transform</code>, <code>pipeline</code>) used by files, sockets and HTTP. They handle <b>backpressure</b>: a fast producer is paused while a slow consumer catches up, so memory stays bounded. Readable streams are async iterable too, which is the easiest way to use them (next section).</p>
+</section>

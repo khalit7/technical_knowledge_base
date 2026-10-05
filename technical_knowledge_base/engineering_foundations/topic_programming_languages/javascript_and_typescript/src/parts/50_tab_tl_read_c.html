@@ -1,0 +1,257 @@
+
+<section id="tl-s5">
+<h2>5. Tool use and the agent loop</h2>
+<p><b>Tool use</b> (OpenAI calls it function calling) works like this. You send, with the messages, a list of <b>tools</b>: a name, a description, and a JSON Schema for the arguments. The model never runs anything. When it wants a tool it stops with <code>stop_reason: "tool_use"</code> and a <code>tool_use</code> block (a name, arguments, an id). <b>Your code</b> runs the function, then sends a new request containing the whole conversation plus a <code>tool_result</code> block with the same id. The model reads the result and either asks for more tools or answers. That repetition is the <b>agent loop</b>, and an "agent" is nothing more than this loop plus tools.</p>
+<p>The loop is small. Everything that makes it safe is in the guards:</p>
+<div class="tl-cost">
+<div><div class="t">Step limit</div>A model can ask for tools forever. Stop after <code>maxSteps</code> model calls and report it.</div>
+<div><div class="t">Timeout per tool</div><code>AbortSignal.timeout(500)</code> gives every tool a deadline; a stuck tool becomes an error result, not a hung agent.</div>
+<div><div class="t">Validate the input</div>The arguments are the model's JSON: untrusted. <code>safeParse</code> them with the same zod schema that produced the JSON Schema.</div>
+<div><div class="t">Errors go to the model</div>A failed tool returns <code>is_error: true</code> with a message the model can act on. Throwing would kill the run.</div>
+<div><div class="t">Run calls concurrently</div>One turn may ask for several tools. <code>Promise.all</code> runs them together, and all results go back in <b>one</b> user message.</div>
+<div><div class="t">Meter the cost</div>Add up <code>usage</code> after every call; a loop multiplies the bill (every step resends everything).</div>
+</div>
+<div class="tl-snip"><div class="tl-file">c1_agent_loop.ts, lines 9-65</div><pre class="tl-code"><span class="tl-kw">const</span> PRICE = &#123; <span class="tl-kw">in</span>: 2, out: 10 &#125;;   <span class="tl-cm">// US$ per million tokens, claude-sonnet-5-5 (Anthropic pricing page, 2026-10-05)</span>
+<span class="tl-kw">const</span> TASK = <span class="tl-st">"Who are the 3 heaviest users in chat.jsonl, and what share of all tokens do they have? Add the team of the top two."</span>;
+
+<span class="tl-kw">const</span> schema = (s: z.ZodType) =&gt; &#123; <span class="tl-kw">const</span> &#123; $schema, ...rest &#125; = z.toJSONSchema(s) <span class="tl-kw">as</span> any; <span class="tl-kw">return</span> rest <span class="tl-kw">as</span> Anthropic.Tool.InputSchema; &#125;;
+<span class="tl-kw">const</span> tools: Anthropic.Tool[] = [
+  &#123; name: <span class="tl-st">"count_tokens"</span>, description: <span class="tl-st">"Count word tokens per user in a JSONL chat log; returns totals and the top users."</span>, input_schema: schema(CountArgs) &#125;,
+  &#123; name: <span class="tl-st">"user_profile"</span>, description: <span class="tl-st">"Look up a user's team."</span>, input_schema: schema(ProfileArgs) &#125;,
+];
+
+<span class="tl-kw">export</span> <span class="tl-kw">async</span> <span class="tl-kw">function</span> runAgent(client: Anthropic, scenario: string, opts: &#123; maxSteps?: number; toolTimeoutMs?: number; profileUrl: string &#125;) &#123;
+  <span class="tl-kw">const</span> &#123; maxSteps = 5, toolTimeoutMs = 500 &#125; = opts;
+  <span class="tl-kw">const</span> messages: Anthropic.MessageParam[] = [&#123; role: <span class="tl-st">"user"</span>, content: TASK &#125;];
+  <span class="tl-kw">const</span> steps: any[] = []; <span class="tl-kw">const</span> tot = &#123; <span class="tl-kw">in</span>: 0, out: 0, usd: 0 &#125;;
+
+  <span class="tl-kw">type</span> Result = Anthropic.ToolResultBlockParam &amp; &#123; ms: number &#125;;
+  <span class="tl-kw">async</span> <span class="tl-kw">function</span> runTool(call: Anthropic.ToolUseBlock): Promise&lt;Result&gt; &#123;
+    <span class="tl-kw">const</span> t0 = performance.now();
+    <span class="tl-kw">const</span> done = (content: string, is_error = <span class="tl-kw">false</span>): Result =&gt;
+      (&#123; <span class="tl-kw">type</span>: <span class="tl-st">"tool_result"</span> <span class="tl-kw">as</span> <span class="tl-kw">const</span>, tool_use_id: call.id, content, ...(is_error ? &#123; is_error &#125; : &#123;&#125;), ms: Math.round(performance.now() - t0) &#125;);
+    <span class="tl-kw">try</span> &#123;
+      <span class="tl-kw">const</span> signal = AbortSignal.timeout(toolTimeoutMs);             <span class="tl-cm">// every tool gets a deadline</span>
+      <span class="tl-kw">if</span> (call.name === <span class="tl-st">"count_tokens"</span>) &#123;
+        <span class="tl-kw">const</span> args = CountArgs.safeParse(call.input);                 <span class="tl-cm">// the model's JSON is untrusted input</span>
+        <span class="tl-kw">if</span> (!args.success) <span class="tl-kw">return</span> done(<span class="tl-st">`invalid input: $&#123;z.prettifyError(args.error)&#125;`</span>, <span class="tl-kw">true</span>);
+        <span class="tl-kw">return</span> done(JSON.stringify(<span class="tl-kw">await</span> countTokens(args.data)));
+      &#125;
+      <span class="tl-kw">if</span> (call.name === <span class="tl-st">"user_profile"</span>) &#123;
+        <span class="tl-kw">const</span> args = ProfileArgs.safeParse(call.input);
+        <span class="tl-kw">if</span> (!args.success) <span class="tl-kw">return</span> done(<span class="tl-st">`invalid input: $&#123;z.prettifyError(args.error)&#125;`</span>, <span class="tl-kw">true</span>);
+        <span class="tl-kw">return</span> done(<span class="tl-kw">await</span> userProfile(opts.profileUrl, args.data, signal));
+      &#125;
+      <span class="tl-kw">return</span> done(<span class="tl-st">`unknown tool $&#123;call.name&#125;`</span>, <span class="tl-kw">true</span>);
+    &#125; <span class="tl-kw">catch</span> (e: any) &#123;                                                  <span class="tl-cm">// errors go back to the model, not up the stack</span>
+      <span class="tl-kw">const</span> why = e.name === <span class="tl-st">"TimeoutError"</span> ? <span class="tl-st">`timed out after $&#123;toolTimeoutMs&#125; ms`</span> : e.code === <span class="tl-st">"ENOENT"</span> ? <span class="tl-st">`cannot open $&#123;(call.input as any).path&#125;: ENOENT`</span> : String(e);
+      <span class="tl-kw">return</span> done(why, <span class="tl-kw">true</span>);
+    &#125;
+  &#125;
+
+  <span class="tl-kw">for</span> (<span class="tl-kw">let</span> step = 1; step &lt;= maxSteps; step++) &#123;
+    <span class="tl-kw">const</span> msg = <span class="tl-kw">await</span> client.messages.create(&#123; model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 2048, tools, messages &#125;,
+      &#123; headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: scenario &#125; &#125;);
+    tot.<span class="tl-kw">in</span> += msg.usage.input_tokens; tot.out += msg.usage.output_tokens;
+    tot.usd = (tot.<span class="tl-kw">in</span> * PRICE.<span class="tl-kw">in</span> + tot.out * PRICE.out) / 1e6;
+    messages.push(&#123; role: <span class="tl-st">"assistant"</span>, content: msg.content &#125;);
+    <span class="tl-kw">const</span> calls = msg.content.filter((b): b is Anthropic.ToolUseBlock =&gt; b.<span class="tl-kw">type</span> === <span class="tl-st">"tool_use"</span>);
+    <span class="tl-kw">const</span> t0 = performance.now();
+    <span class="tl-kw">const</span> results = <span class="tl-kw">await</span> Promise.all(calls.map(runTool));            <span class="tl-cm">// several calls in one turn run concurrently</span>
+    <span class="tl-kw">const</span> wall = Math.round(performance.now() - t0);
+    steps.push(&#123; step, sent: messages.length - 1, content: msg.content, stop: msg.stop_reason, usage: msg.usage, results, wall, tot: &#123; ...tot &#125; &#125;);
+    <span class="tl-kw">if</span> (msg.stop_reason !== <span class="tl-st">"tool_use"</span>) &#123;
+      <span class="tl-kw">const</span> answer = msg.content.filter(b =&gt; b.<span class="tl-kw">type</span> === <span class="tl-st">"text"</span>).map(b =&gt; b.text).join(<span class="tl-st">" "</span>);
+      <span class="tl-kw">return</span> &#123; scenario, outcome: <span class="tl-st">"answered"</span>, answer, steps, tot, messages: messages.length &#125;;
+    &#125;
+    messages.push(&#123; role: <span class="tl-st">"user"</span>, content: results.map((&#123; ms, ...r &#125;) =&gt; r) &#125;);   <span class="tl-cm">// all results in ONE user message</span>
+  &#125;
+  <span class="tl-kw">return</span> &#123; scenario, outcome: <span class="tl-st">`stopped: hit maxSteps=$&#123;maxSteps&#125;`</span>, answer: <span class="tl-kw">null</span>, steps, tot, messages: messages.length &#125;;
+&#125;</pre></div>
+<p>The scripted model plays four scenarios: the happy path; a typo in the file name (the tool fails, the model corrects itself); a slow profile service (both lookups hit the 500 ms timeout); and a "runaway" model that keeps asking for one more user and never answers. Step through every message of every run in the {{Agent loop stepper|#t-tl-loop}}.</p>
+<div class="tl-snip tl-pred"><div class="tl-q"><b>Predict:</b> in the "timeout" run, step 2 asks for two profile lookups, each cut off at 500 ms. Does step 2 take about 500 ms or about 1,000 ms? And how many model calls does the runaway run make before it stops?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="c1_agent_loop.txt">
+=== happy: answered after 3 model calls, 6 messages, mock tokens in 941 out 145, cost at Sonnet 5.5 prices $0.00333
+ step 1 [tool_use] "I'll count the tokens per user first." + count_tokens(&#123;"path":"chat.jsonl","top":3&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"us...
+ step 2 [tool_use] "Now the teams of the top two users." + user_profile(&#123;"user":"u0029"&#125;) + user_profile(&#123;"user":"u0005"&#125;)
+    -&gt; &#123;"user":"u0029","team":"research"&#125;
+    -&gt; &#123;"user":"u0005","team":"platform"&#125;
+ step 3 [end_turn] "The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%. u0029 is on research; u0005 is on platform."
+ answer: The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%. u0029 is on research; u0005 is on platform.
+
+=== typo: answered after 3 model calls, 6 messages, mock tokens in 862 out 119, cost at Sonnet 5.5 prices $0.00291
+ step 1 [tool_use] "I'll count the tokens per user first." + count_tokens(&#123;"path":"chats.jsonl","top":3&#125;)
+    -&gt; ERROR cannot open chats.jsonl: ENOENT
+ step 2 [tool_use] "That file does not exist; the log is chat.jsonl." + count_tokens(&#123;"path":"chat.jsonl","top":3&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"us...
+ step 3 [end_turn] "The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%."
+ answer: The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%.
+
+=== timeout: answered after 3 model calls, 6 messages, mock tokens in 939 out 147, cost at Sonnet 5.5 prices $0.00335
+ step 1 [tool_use] "I'll count the tokens per user first." + count_tokens(&#123;"path":"chat.jsonl","top":3&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"us...
+ step 2 [tool_use] "Now the teams of the top two users." + user_profile(&#123;"user":"u0029"&#125;) + user_profile(&#123;"user":"u0005"&#125;)
+    -&gt; ERROR timed out after 500 ms
+    -&gt; ERROR timed out after 500 ms
+ step 3 [end_turn] "The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%. 2 profile lookups timed out, so I left the team out."
+ answer: The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%. 2 profile lookups timed out, so I left the team out.
+
+=== runaway: stopped: hit maxSteps=5 after 5 model calls, 11 messages, mock tokens in 1918 out 130, cost at Sonnet 5.5 prices $0.00514
+ step 1 [tool_use] count_tokens(&#123;"path":"chat.jsonl","top":1&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;]&#125;
+ step 2 [tool_use] count_tokens(&#123;"path":"chat.jsonl","top":2&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"us...
+ step 3 [tool_use] count_tokens(&#123;"path":"chat.jsonl","top":3&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"us...
+ step 4 [tool_use] count_tokens(&#123;"path":"chat.jsonl","top":4&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"us...
+ step 5 [tool_use] count_tokens(&#123;"path":"chat.jsonl","top":5&#125;)
+    -&gt; &#123;"lines":2000,"ok":1992,"malformed":8,"users":176,"tokens":44698,"top":[&#123;"user":"u0029","tokens":9491&#125;,&#123;"us...</pre></details></div>
+<p class="small">The recorded run measured step 2 of the timeout scenario at about 500 ms (the stepper shows the exact wall time): the two lookups waited at the same time, because <code>Promise.all</code> started both before awaiting either. A <code>for</code> loop with <code>await</code> inside would have taken twice as long (one at a time versus all at once is taught in section 10 of {{Part 1's Reading|#t-ja-read}}). And because <code>runTool</code> catches every error and returns it as a result, <code>Promise.all</code> can never reject halfway and lose the other results. The cost line uses Claude Sonnet 5.5's list price, US$2 per million input tokens and US$10 per million output tokens (<a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic pricing</a>, checked 2026-10-05) applied to the mock's token estimates, so it shows the arithmetic, not a real bill. A real request with tools also carries a hidden tool-use system prompt (286 tokens on Sonnet 5.5, same page).</p>
+<div class="tl-py"><div class="t">From Python</div>The loop is line for line what you would write in Python. The differences are TypeScript's: <code>msg.content.filter((b): b is Anthropic.ToolUseBlock =&gt; b.type === "tool_use")</code> is a <b>type guard</b> (a function whose return type <code>b is T</code> tells the compiler what passed the filter), and the SDK's types (<code>Anthropic.MessageParam</code>, <code>Anthropic.ToolResultBlockParam</code>) make a malformed message a compile error instead of a 400 at run time.</div>
+</section>
+
+<section id="tl-s6">
+<h2>6. The tool runner: the same loop, written by the SDK</h2>
+<p>The SDK ships the loop as a helper (beta in 0.131.0): <code>client.beta.messages.toolRunner</code> with tools made by <code>betaZodTool</code>. You give each tool a zod schema and a <code>run</code> function; the runner sends the schema, validates the model's arguments against it before calling <code>run</code>, sends the results back, and stops when the model answers or after <code>max_iterations</code>.</p>
+<div class="tl-snip"><div class="tl-file">c2_tool_runner.ts</div><pre class="tl-code"><span class="tl-cm">// The same agent with the SDK's tool runner (beta): you write the tools, the SDK writes the loop.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; betaZodTool &#125; <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk/helpers/beta/zod"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+<span class="tl-kw">import</span> &#123; CountArgs, ProfileArgs, countTokens, startProfileService, userProfile &#125; <span class="tl-kw">from</span> <span class="tl-st">"./tools.ts"</span>;
+
+process.chdir(<span class="tl-kw">new</span> URL(<span class="tl-st">"."</span>, <span class="tl-kw">import</span>.meta.url).pathname);
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> prof = <span class="tl-kw">await</span> startProfileService(20);
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span>, defaultHeaders: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"happy"</span> &#125; &#125;);
+
+<span class="tl-kw">const</span> runner = client.beta.messages.toolRunner(&#123;
+  model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 2048, max_iterations: 5,          <span class="tl-cm">// max_iterations is the step limit</span>
+  messages: [&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"Who are the 3 heaviest users in chat.jsonl, and what share of all tokens do they have? Add the team of the top two."</span> &#125;],
+  tools: [
+    betaZodTool(&#123; name: <span class="tl-st">"count_tokens"</span>, description: <span class="tl-st">"Count word tokens per user in a JSONL chat log."</span>, inputSchema: CountArgs,
+      run: <span class="tl-kw">async</span> (args) =&gt; JSON.stringify(<span class="tl-kw">await</span> countTokens(args)) &#125;),          <span class="tl-cm">// args is typed from the zod schema</span>
+    betaZodTool(&#123; name: <span class="tl-st">"user_profile"</span>, description: <span class="tl-st">"Look up a user's team."</span>, inputSchema: ProfileArgs,
+      run: (args) =&gt; userProfile(prof.url, args, AbortSignal.timeout(500)) &#125;),
+  ],
+&#125;);
+<span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> message <span class="tl-kw">of</span> runner) &#123;                                        <span class="tl-cm">// one iteration per model call</span>
+  console.log(<span class="tl-st">`model call: stop_reason $&#123;message.stop_reason&#125;, blocks $&#123;message.content.map(b =&gt; b.type).join(", ")&#125;`</span>);
+&#125;
+<span class="tl-kw">const</span> final = <span class="tl-kw">await</span> runner.done();
+console.log(<span class="tl-st">"final:"</span>, final.content.filter(b =&gt; b.<span class="tl-kw">type</span> === <span class="tl-st">"text"</span>).map(b =&gt; b.text).join(<span class="tl-st">" "</span>));
+console.log(<span class="tl-st">"requests the runner made:"</span>, mock.log.map(e =&gt; e.path).join(<span class="tl-st">", "</span>));
+<span class="tl-kw">await</span> prof.close(); <span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="c2_tool_runner.txt">model call: stop_reason tool_use, blocks text, tool_use
+model call: stop_reason tool_use, blocks text, tool_use, tool_use
+model call: stop_reason end_turn, blocks text
+final: The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%. u0029 is on research; u0005 is on platform.
+requests the runner made: /v1/messages?beta=true, /v1/messages?beta=true, /v1/messages?beta=true</pre></div>
+<p>When to use which: the runner for most custom-tool agents (less code, validation built in). The hand-written loop when you need control the runner does not give, such as your own cost cut-off, a per-step log format, or handling of <code>pause_turn</code> (the SDK's documentation notes the runner does not resume a paused server-tool turn by itself). It is worth writing the loop by hand once, as above, so the runner is not magic.</p>
+</section>
+
+<section id="tl-s7">
+<h2>7. Structured output validated with zod</h2>
+<p>Often you do not want prose but data: <code>{"user": "u0029", "tokens": 9491, "share_pct": 21.2}</code>. Three layers make that reliable, and zod (taught from zero in "Checking data at run time with zod" in {{Part 2's Reading|#t-tb-read}} and its {{LLM JSON lab|#t-tb-zod}}) gives all three from one schema:</p>
+<ol>
+<li><b>Ask with a schema.</b> <code>output_config.format</code> sends a JSON Schema and the API constrains the model to produce matching JSON (Anthropic calls this structured outputs; <a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" target="_blank" rel="noopener noreferrer">docs</a>). <code>zodOutputFormat(schema)</code> converts the zod schema.</li>
+<li><b>Check what came back.</b> <code>client.messages.parse()</code> runs the zod schema on the reply and puts the typed result in <code>parsed_output</code>.</li>
+<li><b>Get the type for free.</b> <code>z.infer&lt;typeof Heaviest&gt;</code> is the TypeScript type, so the rest of your program is checked against the same definition.</li>
+</ol>
+<div class="tl-snip"><div class="tl-file">d1_structured.ts</div><pre class="tl-code"><span class="tl-cm">// Structured output: one zod schema gives the JSON Schema sent to the API, the TypeScript type, and the run-time check.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; zodOutputFormat &#125; <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk/helpers/zod"</span>;
+<span class="tl-kw">import</span> &#123; z &#125; <span class="tl-kw">from</span> <span class="tl-st">"zod"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> Heaviest = z.object(&#123;
+  user: z.string().regex(/^u\d&#123;4&#125;$/),
+  tokens: z.number().int().nonnegative(),
+  share_pct: z.number().min(0).max(100),
+&#125;);
+<span class="tl-kw">type</span> Heaviest = z.infer&lt;<span class="tl-kw">typeof</span> Heaviest&gt;;          <span class="tl-cm">// &#123; user: string; tokens: number; share_pct: number &#125;</span>
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span> &#125;);
+<span class="tl-kw">const</span> ask = (scenario: string) =&gt; client.messages.parse(&#123;
+  model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 1024,
+  messages: [&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"From these stats, who is the heaviest user? ..."</span> &#125;],
+  output_config: &#123; format: zodOutputFormat(Heaviest) &#125;,
+&#125;, &#123; headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: scenario &#125; &#125;);
+
+<span class="tl-kw">const</span> good = <span class="tl-kw">await</span> ask(<span class="tl-st">"extract"</span>);
+<span class="tl-kw">const</span> h: Heaviest | <span class="tl-kw">null</span> = good.parsed_output;    <span class="tl-cm">// typed, and already validated against the schema</span>
+console.log(<span class="tl-st">"1. parsed_output:"</span>, JSON.stringify(h), <span class="tl-st">"| h.tokens + 1 ="</span>, (h?.tokens ?? 0) + 1);
+console.log(<span class="tl-st">"   output_config sent:"</span>, JSON.stringify(mock.log[0]!.request.output_config));
+
+<span class="tl-kw">try</span> &#123;                                             <span class="tl-cm">// the model's JSON does not match: the SDK throws, it does not guess</span>
+  <span class="tl-kw">const</span> bad = <span class="tl-kw">await</span> ask(<span class="tl-st">"extract_bad"</span>);
+  console.log(<span class="tl-st">"2. parsed_output:"</span>, JSON.stringify(bad.parsed_output));
+&#125; <span class="tl-kw">catch</span> (e) &#123;
+  console.log(<span class="tl-st">`2. $&#123;(e as Error).constructor.name&#125;: $&#123;(e as Error).message.split("\n").slice(0, 6).join("\n   ")&#125;`</span>);
+&#125;
+
+<span class="tl-cm">// Without the helper (or with any other provider): parse the text yourself, then validate. safeParse never throws.</span>
+<span class="tl-kw">const</span> raw = <span class="tl-st">'&#123;"user": "u0029", "tokens": "9491"&#125;'</span>;
+<span class="tl-kw">const</span> r = Heaviest.safeParse(JSON.parse(raw));
+console.log(<span class="tl-st">"3. safeParse:"</span>, r.success ? <span class="tl-st">"ok"</span> : <span class="tl-st">"\n"</span> + z.prettifyError(r.error));
+<span class="tl-kw">await</span> mock.close();</pre><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="d1_structured.txt">1. parsed_output: &#123;"user":"u0029","tokens":9491,"share_pct":21.2&#125; | h.tokens + 1 = 9492
+   output_config sent: &#123;"format":&#123;"type":"json_schema","schema":&#123;"type":"object","properties":&#123;"user":&#123;"type":"string","description":"&#123;pattern: \"^u\\\\d&#123;4&#125;$\"&#125;"&#125;,"tokens":&#123;"type":"integer","description":"&#123;minimum: 0, maximum: 9007199254740991&#125;"&#125;,"share_pct":&#123;"type":"number","description":"&#123;minimum: 0, maximum: 100&#125;"&#125;&#125;,"additionalProperties":false,"required":["user","tokens","share_pct"],"description":"&#123;$schema: \"https://json-schema.org/draft/2020-12/schema\"&#125;"&#125;&#125;&#125;
+2. AnthropicError: Failed to parse structured output: Error: Failed to parse structured output: [
+     &#123;
+       "expected": "number",
+       "code": "invalid_type",
+       "path": [
+         "tokens"
+3. safeParse: 
+✖ Invalid input: expected number, received string
+  → at tokens
+✖ Invalid input: expected number, received undefined
+  → at share_pct</pre></div>
+<div class="tl-find"><div class="t">Found by running it: not every rule reaches the API</div>Look at the <code>output_config sent</code> line. The SDK sent <code>user</code> as a plain string and moved the regular expression into the field's <code>description</code> (<code>"{pattern: \"^u\\\\d{4}$\"}"</code>); the same happened to <code>minimum</code>/<code>maximum</code> on the numbers. So the API's constraint guarantees the JSON's <b>shape</b> (fields, types, no extra keys), but rules like a pattern or a range are only hinted to the model and enforced <b>afterwards</b>, by zod, in <code>parse()</code>. That is why case 2 ends in an error raised by the SDK rather than a wrong value in your program. Keep the zod check even when the API constrains output.</div>
+<p>With OpenAI the equivalent is <code>zodTextFormat(schema, name)</code> in <code>text.format</code> with <code>client.responses.parse()</code> (from <code>openai/helpers/zod</code>, 7.28.0). With any other provider, or a model without constrained decoding: ask for JSON in the prompt, <code>JSON.parse</code>, then <code>safeParse</code>. On failure, send the zod error message back to the model and ask again, once or twice; the error text (the last block above) is written for exactly that.</p>
+<p class="small">An alternative you will see in older code: defining a tool whose input schema is the output you want and forcing the model to call it. On Claude Sonnet 5.5 and Opus 5.5, forcing a specific tool (<code>tool_choice</code> <code>any</code> or <code>tool</code>) is rejected with a 400 (<a href="https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide" target="_blank" rel="noopener noreferrer">Sonnet 5.5 migration guide</a>), so use structured outputs instead.</p>
+</section>
+
+<section id="tl-s8">
+<h2>8. Conversation state</h2>
+<p>The Messages API keeps <b>no memory</b> between requests. The conversation is an array in your program; each turn you append the user's message, send the <b>whole</b> array, and append the reply. Forget to resend, and the model has never heard of you:</p>
+<div class="tl-snip tl-pred"><div class="tl-file">e1_state.ts</div><pre class="tl-code"><span class="tl-cm">// The Messages API is stateless: the conversation is an array you keep and resend in full every turn.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span> &#125;);
+<span class="tl-kw">const</span> turn = <span class="tl-kw">async</span> (messages: Anthropic.MessageParam[]) =&gt; &#123;
+  <span class="tl-kw">const</span> r = <span class="tl-kw">await</span> client.messages.create(&#123; model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 256, messages &#125;);
+  <span class="tl-kw">return</span> &#123; text: r.content[0]?.<span class="tl-kw">type</span> === <span class="tl-st">"text"</span> ? r.content[0].text : <span class="tl-st">""</span>, input: r.usage.input_tokens &#125;;
+&#125;;
+
+<span class="tl-cm">// Wrong: two separate calls. The second request does not contain the first, so the "model" cannot know.</span>
+<span class="tl-kw">await</span> turn([&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"My name is Khalid."</span> &#125;]);
+console.log(<span class="tl-st">"forgetful:"</span>, (<span class="tl-kw">await</span> turn([&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"What is my name?"</span> &#125;])).text);
+
+<span class="tl-cm">// Right: keep the history and append both sides of every turn.</span>
+<span class="tl-kw">const</span> history: Anthropic.MessageParam[] = []; <span class="tl-kw">let</span> billed = 0;
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> q <span class="tl-kw">of</span> [<span class="tl-st">"My name is Khalid."</span>, <span class="tl-st">"What is my name?"</span>, <span class="tl-st">"In one sentence, what is TypeScript?"</span>, <span class="tl-st">"In one sentence, what is TypeScript?"</span>, <span class="tl-st">"In one sentence, what is TypeScript?"</span>, <span class="tl-st">"What is my name?"</span>]) &#123;
+  history.push(&#123; role: <span class="tl-st">"user"</span>, content: q &#125;);
+  <span class="tl-kw">const</span> a = <span class="tl-kw">await</span> turn(history);
+  history.push(&#123; role: <span class="tl-st">"assistant"</span>, content: a.text &#125;); billed += a.input;
+  console.log(<span class="tl-st">`turn $&#123;history.length / 2&#125;: sent $&#123;history.length - 1&#125; messages, input $&#123;String(a.input).padStart(3)&#125; (mock est.)  $&#123;JSON.stringify(a.text)&#125;`</span>);
+&#125;
+console.log(<span class="tl-st">`input tokens billed over the 6 turns: $&#123;billed&#125; (each turn pays again for everything before it)`</span>);
+<span class="tl-kw">await</span> mock.close();</pre><div class="tl-q"><b>Predict:</b> the first call says "My name is Khalid." and a second, separate call asks "What is my name?". What does the second call answer? Then, in the kept history, how does the input grow over six turns?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="e1_state.txt">forgetful: I don't know your name: it is not in this conversation.
+turn 1: sent 1 messages, input  15 (mock est.)  "Nice to meet you."
+turn 2: sent 3 messages, input  39 (mock est.)  "Your name is Khalid."
+turn 3: sent 5 messages, input  69 (mock est.)  "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs."
+turn 4: sent 7 messages, input 121 (mock est.)  "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs."
+turn 5: sent 9 messages, input 173 (mock est.)  "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs."
+turn 6: sent 11 messages, input 219 (mock est.)  "Your name is Khalid."
+input tokens billed over the 6 turns: 636 (each turn pays again for everything before it)</pre></details></div>
+<p>The input column grows with every turn because each request carries everything before it, so the total input billed grows with the <b>square</b> of the number of turns: the six turns above billed 636 estimated input tokens for a conversation whose final request was 219. Three tools fight that:</p>
+<ul>
+<li><b>Prompt caching.</b> Mark the stable prefix (<code>cache_control</code>); later requests that start with the same bytes read it from cache at 0.1x the input price on most models (0.05x on Opus 5.5; <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">pricing</a>). Any change early in the prefix (a timestamp in the system prompt) silently defeats it.</li>
+<li><b>Compaction or trimming.</b> Summarise or drop old turns when the context grows (Anthropic offers <a href="https://platform.claude.com/docs/en/build-with-claude/compaction" target="_blank" rel="noopener noreferrer">server-side compaction</a> as a beta).</li>
+<li><b>Server-side state.</b> OpenAI's Responses API can keep the conversation on its servers: pass <code>previous_response_id</code> (<a href="https://developers.openai.com/api/docs/guides/conversation-state" target="_blank" rel="noopener noreferrer">conversation state guide</a>) instead of resending (you are still billed for those input tokens; you just do not send them).</li>
+</ul>
+<p>Where the array lives is an application decision: in memory for a script, in a database row per conversation for a web app (the {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}} page covers storing and versioning such data).</p>
+</section>

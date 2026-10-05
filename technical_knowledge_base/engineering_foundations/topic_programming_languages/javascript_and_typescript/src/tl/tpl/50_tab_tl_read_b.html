@@ -1,0 +1,53 @@
+
+<section id="tl-s2">
+<h2>2. A first call</h2>
+<p>In Python you would write <code>client = anthropic.Anthropic()</code> and <code>client.messages.create(...)</code>. The TypeScript SDK is the same API with one difference you feel at once: <code>create</code> returns a <b>promise</b>, so you <code>await</code> it (promises and <code>await</code> are taught in {{Part 1's Reading|#t-ja-read}}, section 9). Top-level <code>await</code> works because the file is an ES module.</p>
+[[run:a1_first_call]]
+<p>Read the response as data, not as text:</p>
+<ul>
+<li><b><code>content</code> is an array of blocks</b>, each with a <code>type</code>: <code>text</code>, <code>tool_use</code>, <code>thinking</code> and others. TypeScript makes you narrow on <code>block.type === "text"</code> before you may read <code>block.text</code>: the response type is a <b>discriminated union</b>, the feature Part 2 teaches with its narrowing stepper ({{Narrowing stepper|#t-tb-narrow}}). <code>msg.content[0].text</code> is a type error, and it should be: the first block is not always text.</li>
+<li><b><code>stop_reason</code></b> says why the model stopped: <code>end_turn</code> (finished), <code>max_tokens</code> (cut off), <code>tool_use</code> (wants a tool), <code>stop_sequence</code>, <code>pause_turn</code>, <code>refusal</code> and <code>model_context_window_exceeded</code> (the full list from the SDK's <code>StopReason</code> type in 0.131.0). Check it on every response.</li>
+<li><b><code>usage</code></b> counts input and output tokens: the bill. Real responses also carry cache counts (<code>cache_read_input_tokens</code>, <code>cache_creation_input_tokens</code>).</li>
+<li>The wire shows what the SDK added for you: the <code>anthropic-version: 2023-06-01</code> header (the API's version, not the model's), its retry counter, and its timeout (600 s).</li>
+</ul>
+<p>The OpenAI SDK has the same shape of code with different names. Its current API is <b>Responses</b> (<code>client.responses.create</code>); the older Chat Completions API still exists. Same question, same mock:</p>
+[[run:a2_openai_first]]
+<div class="tw"><table class="tl-t">
+<thead><tr><th></th><th>Anthropic Messages</th><th>OpenAI Responses</th></tr></thead>
+<tbody>
+<tr><td>Endpoint</td><td><code>POST /v1/messages</code></td><td><code>POST /v1/responses</code></td></tr>
+<tr><td>Input</td><td><code>messages: [{role, content}]</code>, <code>system</code> separate, <code>max_tokens</code> required</td><td><code>input</code>: a string or a list of items; <code>instructions</code> for the system prompt</td></tr>
+<tr><td>Output</td><td><code>content</code>: blocks (<code>text</code>, <code>tool_use</code>, ...)</td><td><code>output</code>: items (<code>message</code> with <code>output_text</code> parts, <code>function_call</code>, ...); the SDK adds <code>output_text</code></td></tr>
+<tr><td>A tool call / its result</td><td><code>tool_use</code> block / <code>tool_result</code> block in the next user message</td><td><code>function_call</code> item / <code>function_call_output</code> item</td></tr>
+<tr><td>Conversation state</td><td>None on the server: you resend the history</td><td>You resend, or pass <code>previous_response_id</code> and the server keeps it</td></tr>
+<tr><td>Key from</td><td><code>ANTHROPIC_API_KEY</code></td><td><code>OPENAI_API_KEY</code></td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: the type definitions in <code>@anthropic-ai/sdk</code> 0.131.0 and <code>openai</code> 7.28.0 (<code>resources/messages/messages.d.ts</code>, <code>resources/responses/responses.d.ts</code>); <a href="https://platform.claude.com/docs/en/api/messages" target="_blank" rel="noopener noreferrer">Messages API reference</a>; <a href="https://developers.openai.com/api/docs/api-reference/responses" target="_blank" rel="noopener noreferrer">Responses API reference</a>.</p>
+</section>
+
+<section id="tl-s3">
+<h2>3. When the call fails: retries, timeouts, typed errors</h2>
+<p>A model API fails in ordinary ways: rate limits (HTTP 429), overload (529 and other 5xx), a slow or dead connection, or a request you got wrong (400). The SDK already handles the first three. Read from the SDK's source (<code>client.js</code>, 0.131.0): it <b>retries 2 times by default</b> (<code>maxRetries</code>), on 408, 409, 429, every 5xx, and connection errors; it waits with exponential backoff or for the server's <code>retry-after</code> / <code>retry-after-ms</code> header; and its <b>timeout is 10 minutes</b> per attempt (in milliseconds in TypeScript: <code>timeout: 600_000</code>). A 400 is never retried: retrying a wrong request cannot fix it. A local server that fails on purpose shows each case:</p>
+[[predict:a3_errors|the server answers 429 twice, then succeeds. How many requests does it see, and does your code see an error? And when it never answers, with a 300 ms timeout and maxRetries 1, how long until the error?]]
+<p>Two lessons sit in the last block. First, timeouts are retried, so the worst case is about <code>timeout × (maxRetries + 1)</code> plus backoff (here two 300 ms attempts plus about 450 ms of backoff: about one second from the first attempt to the error). Second, catch the <b>specific</b> error classes (<code>RateLimitError</code>, <code>BadRequestError</code>, <code>APIConnectionTimeoutError</code>, all subclasses of <code>Anthropic.APIError</code>) with <code>instanceof</code>, never by matching message strings. In Python the same classes exist with the same names (<code>anthropic.RateLimitError</code>); TypeScript's <code>catch (e)</code> gives <code>e</code> the type <code>unknown</code>, so <code>instanceof</code> is also how you get a typed error back.</p>
+<p class="small">Timeouts, retries with jitter, circuit breakers and retry budgets in general: {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+</section>
+
+<section id="tl-s4">
+<h2>4. Streaming</h2>
+<p>A long answer takes seconds to generate. Streaming sends each piece as it is produced, so the user sees text at once. On the wire it is <b>server-sent events</b>: one HTTP response that stays open and carries <code>event:</code> and <code>data:</code> lines, each event ended by a blank line. How to parse SSE bytes correctly yourself (chunks split events and even UTF-8 characters) is taught with an animation in {{Part 1's Reading|#t-ja-read}}, section 11; the SDK does that parsing for you. What remains is knowing the events.</p>
+<div class="tl-anim" id="tl-sx-card">
+<div class="seg" id="tl-sx-mode"><button data-m="anthropic" class="on">Anthropic Messages</button><button data-m="openai">OpenAI Responses</button><button data-m="tool">Anthropic, a tool call</button></div>
+<div class="an-ctl" id="tl-sx-ctl"></div>
+<div id="tl-sx-view"></div>
+<div class="tl-cap" id="tl-sx-cap"></div>
+<div class="tl-counters" id="tl-sx-cnt"></div>
+<div class="tl-src">Every frame is one the mock really sent in the recorded runs of <code>b1_stream.ts</code> and <code>b2_stream_openai.ts</code> (same answer text in both formats); the "assembled so far" column is computed in your browser from those frames, the way the SDK assembles them.</div>
+</div>
+<p class="small mute">Event references: <a href="https://platform.claude.com/docs/en/build-with-claude/streaming" target="_blank" rel="noopener noreferrer">Anthropic streaming</a>, <a href="https://developers.openai.com/api/reference/resources/responses/streaming-events" target="_blank" rel="noopener noreferrer">OpenAI Responses streaming events</a>.</p>
+<p>The SDK gives three levels. <code>create({ ..., stream: true })</code> returns an async iterable of the raw events, already parsed (note that it drops the <code>ping</code> keep-alive: 23 events arrive, the wire carried 24). <code>messages.stream()</code> is the helper: <code>.on("text", f)</code> for each text piece and <code>await finalMessage()</code> for the assembled <code>Message</code>, identical to what a non-streaming call returns. And for tool calls, the arguments stream as <b>partial JSON</b> (<code>input_json_delta</code>): fragments like <code>"t.jsonl\",\"to"</code> that are not JSON on their own; the helper re-parses the snapshot after each one.</p>
+[[run:b1_stream]]
+[[run:b2_stream_openai]]
+<p>When not to stream: a batch job, or anything that needs the whole answer before acting (a classifier, a JSON extraction you validate as a whole). Then a plain <code>create</code> is simpler. Note that the SDK's documentation recommends streaming for large <code>max_tokens</code> so that long responses do not hit HTTP timeouts, and <code>finalMessage()</code> gives you a complete message anyway.</p>
+<div class="tl-py"><div class="t">From Python</div><code>with client.messages.stream(...) as s: for text in s.text_stream: ...</code> becomes <code>const s = client.messages.stream(...); for await (const ev of s) ...</code> or <code>s.on("text", ...)</code>. <code>async for</code> is <code>for await</code>; the context manager's cleanup is the stream's own <code>abort()</code> (or breaking out of the loop).</div>
+</section>
