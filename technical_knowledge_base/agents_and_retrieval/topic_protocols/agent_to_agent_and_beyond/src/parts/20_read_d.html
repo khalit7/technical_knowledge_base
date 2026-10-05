@@ -1,0 +1,60 @@
+<section id="s5">
+<h2>5. Hearing back: wait, poll, stream, or be called</h2>
+<p><b>The problem.</b> An evaluation takes minutes; an HTTP request that hangs for minutes dies at the first proxy timeout ({{HTTP page, section 8|n:3c65c17b0d0d811bb035fa3f158b0889}}). A2A separates <i>starting</i> work from <i>following</i> it, and gives four ways to follow (spec section 3.5):</p>
+<div class="tw"><table>
+<thead><tr><th>Way</th><th>How</th><th>Good for</th><th>Costs, and how it fails</th></tr></thead>
+<tbody>
+<tr><td><b>Wait</b></td><td><code>SendMessage</code> (blocking default) returns at a terminal or interrupted state</td><td>short tasks</td><td>the request is held open; long tasks hit proxy and client timeouts</td></tr>
+<tr><td><b>Poll</b></td><td><code>GetTask</code> every few seconds (<code>historyLength</code> limits how much comes back)</td><td>simple clients, strict firewalls</td><td>latency of one poll interval, wasted requests</td></tr>
+<tr><td><b>Stream</b></td><td><code>SendStreamingMessage</code> or <code>SubscribeToTask</code>: one HTTP response that stays open and carries Server-Sent Events</td><td>interactive use, progress</td><td>a long-lived connection; it can drop (below); needs <code>capabilities.streaming</code></td></tr>
+<tr><td><b>Push</b></td><td>register a webhook; the agent POSTs each update to it</td><td>server-to-server, hours-long tasks</td><td>you must run a reachable, authenticated endpoint; at-least-once delivery, so duplicates</td></tr>
+</tbody></table></div>
+<p><b>Streaming, as recorded.</b> Each update is one SSE event, <code>data: {"result": {...}}</code>, inside one HTTP response of type <code>text/event-stream</code> (the format is taught on {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}). The stream starts with the Task, then status and artifact updates, and the server closes it when the task is terminal. In the running example the first stream closed right after <code>input-required</code>; Team A's answer opened a second stream. Replay it step by step in {{One job, recorded|#t-run}}.</p>
+<h3>When the stream drops: the task does not care</h3>
+<p>The most common A2A bug is treating the stream as the task. The lab started a six-shard job, read four events, then closed the connection, waited, and came back:</p>
+<div class="card" id="rd-resub"><div id="rd-resub-svg"></div><div class="small" id="rd-resub-txt"></div>
+<p class="small mute"><span class="meas">measured</span> scenario <code>resubscribe</code>: raw httpx streams through the tap (the SDK server as recorded). Times are from the first request.</p></div>
+<ul class="tight">
+<li>While nobody was listening, the task kept <code>working</code> (a <code>GetTask</code> in between said so) and produced two more shards.</li>
+<li><code>SubscribeToTask</code> "MUST return a Task object as the first event", the current state with every artifact so far (spec section 3.1.6). The snapshot held all four shards finished by then, so nothing was lost; live events continued from there.</li>
+<li>Status <i>messages</i> sent while you were away may be gone: only the latest status is in the snapshot. That is why results belong in artifacts.</li>
+</ul>
+<p><b>The failure, named.</b> <i>Symptom:</i> after a client restart, tasks "hang in working forever" in your dashboard. <i>Cause:</i> the client relied on one stream and never resubscribed. <i>Fix:</i> persist task ids; on reconnect call <code>SubscribeToTask</code> (or poll <code>GetTask</code>), and treat the stream as a view of the task, never the task itself.</p>
+<h3>Push notifications</h3>
+<p>For a job that runs for hours, keeping a stream open is wasteful. Team A registered a webhook with the task (<code>taskPushNotificationConfig</code> inside the send configuration) and asked for an immediate return; the agent then POSTed every update to Team A's URL. As received:</p>
+<div class="card"><pre class="raw" id="rd-hook"></pre>
+<p class="small mute"><span class="meas">measured</span> scenario <code>push</code>: the webhook receiver on 127.0.0.1:30821 recorded headers and bodies; seven POSTs for one task (the task, working, four artifact pieces, completed).</p></div>
+<ul class="tight">
+<li>The payload is the same <code>StreamResponse</code> object as a stream event (spec section 4.3.3). The SDK sent it as <code>application/json</code>; the specification's example shows <code>application/a2a+json</code>, so accept both.</li>
+<li>Authentication of the <i>agent</i> to <i>your</i> webhook: the SDK sent the per-task <code>token</code> you registered as <code>X-A2A-Notification-Token</code> and the credentials you registered as <code>Authorization: Bearer ...</code>. Check them on every POST, check the task id is one you created, answer 2xx, and deduplicate: delivery is "at least once" (section 4.3.3). This is the webhook discipline of {{Streaming and real-time, section 10|n:3c65c17b0d0d812daa9fdb38719fc82b}}.</li>
+<li><b>The server-side risk:</b> a webhook URL is a URL your agent will fetch for a stranger, the classic server-side request forgery (SSRF) setup: an attacker registers <code>http://169.254.169.254/...</code> (a cloud metadata service) or an internal host. The spec says agents "SHOULD" reject private, loopback and link-local addresses (section 13.2). The SDK ships <code>validate_push_notification_url</code> but its default is <b>no screening</b>; the lab's first agent accepted a loopback webhook, and a second agent with the validator turned on refused the same registration with <code>InvalidParamsError: Invalid push notification URL</code> (recorded). Turn it on, or put the sender behind an egress proxy.</li>
+</ul>
+</section>
+<section id="s6">
+<h2>6. One meaning, three wire formats, and versions</h2>
+<p>Version 1.0 defines the operations once and maps them onto three <dfn>bindings</dfn> (spec sections 5, 9, 10, 11): <b>JSON-RPC 2.0</b> over HTTP with SSE for streams, <b>gRPC</b> (protobuf over HTTP/2, see {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}), and <b>HTTP+JSON</b>, a REST style whose URLs come from the same protobuf service definition. An agent that offers several "MUST" give identical behaviour on all of them (section 5.1).</p>
+<div class="tw"><table>
+<thead><tr><th>Operation</th><th>JSON-RPC method</th><th>HTTP+JSON</th></tr></thead>
+<tbody>
+<tr><td>Send a message</td><td><code>SendMessage</code></td><td><code>POST /message:send</code></td></tr>
+<tr><td>Send, streaming</td><td><code>SendStreamingMessage</code></td><td><code>POST /message:stream</code></td></tr>
+<tr><td>Get a task</td><td><code>GetTask</code></td><td><code>GET /tasks/{id}</code></td></tr>
+<tr><td>List tasks</td><td><code>ListTasks</code></td><td><code>GET /tasks</code></td></tr>
+<tr><td>Cancel</td><td><code>CancelTask</code></td><td><code>POST /tasks/{id}:cancel</code></td></tr>
+<tr><td>Subscribe</td><td><code>SubscribeToTask</code></td><td><code>POST /tasks/{id}:subscribe</code></td></tr>
+<tr><td>Push configs</td><td><code>Create/Get/List/DeleteTaskPushNotificationConfig</code></td><td><code>/tasks/{id}/pushNotificationConfigs[/{configId}]</code></td></tr>
+<tr><td>Extended card</td><td><code>GetExtendedAgentCard</code></td><td><code>GET /extendedAgentCard</code></td></tr>
+</tbody></table></div>
+<p class="small mute">From the method mapping table, spec section 5.3; gRPC uses the same method names as JSON-RPC.</p>
+<p>The same blocking request ("Evaluate checkpoint step-4000 on gsm-mini") over the two HTTP bindings Team B's card lists:</p>
+<div class="card"><div class="seg" id="rd-bind-seg"><button class="on" data-m="JSONRPC">JSON-RPC</button><button data-m="HTTP+JSON">HTTP+JSON</button></div><div class="out" id="rd-bind-stats"></div><pre class="raw" id="rd-bind-req"></pre>
+<p class="small mute"><span class="meas">measured</span> scenario <code>bindings</code>: the SDK client with one binding allowed each time; bytes counted on the tap, card fetch included. gRPC was not recorded on this page (its bytes are binary HTTP/2 frames; the {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} page dissects one gRPC call).</p></div>
+<p>The byte counts differ by a few percent; the real difference is <b>operational</b>. JSON-RPC answers every A2A error with HTTP 200 and an <code>error</code> object; HTTP+JSON uses HTTP status codes (a missing task is a real <code>404</code>, recorded in section 7). A dashboard that counts HTTP 5xx and 4xx sees JSON-RPC failures as successes. Pick the binding your load balancers, caches and monitors understand, and alert on the error object, not the status line.</p>
+<h3>Versions</h3>
+<ul class="tight">
+<li>Clients "MUST" send <code>A2A-Version: 1.0</code> (major.minor only) on every request; a server that does not support it answers <code>VersionNotSupportedError</code> (section 3.6). Recorded: <code>9.9</code> gave <code>-32009 A2A version '9.9' is not supported by this handler. Expected version '1.0'.</code></li>
+<li>An <b>empty or missing</b> header means 0.3. Recorded: an empty header was read as <code>'0.3'</code> and refused the same way. Old clients that never send the header will be treated as 0.3 clients.</li>
+<li>0.3 and 1.0 differ on the wire: 0.3 method names like <code>message/send</code>, a <code>kind</code> field naming each part and streamed event (section A.2.1), lower-case roles such as <code>"user"</code>. Sending a 0.3 request to a 1.0-only endpoint gave <code>-32601 Method not found</code> (recorded). The SDK can serve both on one endpoint (<code>enable_v0_3_compat=True</code>).</li>
+</ul>
+<div class="corr"><div class="t">Version skew in the wild</div>UCP's own A2A binding page, in the 2026-08-25 release, still shows 0.3-style requests (<code>"method": "message/send"</code>, <code>"kind": "message"</code>, an <code>X-A2A-Extensions</code> header) ({{UCP checkout, A2A binding|https://github.com/Universal-Commerce-Protocol/ucp/blob/v2026-08-25/docs/specification/shopping/checkout/a2a.md}}), while A2A 1.0 names the header <code>A2A-Extensions</code> (spec section 3.2.6). A 1.0-only agent rejects those requests. Check both the version header and the method names when two "A2A" systems cannot talk.</div>
+</section>

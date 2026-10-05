@@ -1,0 +1,40 @@
+<section id="s3">
+<h2>3. Messages, tasks, parts and artifacts</h2>
+<p><b>Intuition.</b> Think of a ticket in another team's tracker. You write a note (a <b>message</b>); they open a ticket (a <b>task</b>) with a number and a status; they may comment back asking a question (another message, attached to the task); when done they attach the deliverable (an <b>artifact</b>). Related tickets share a thread (a <b>context</b>).</p>
+<dl class="kv">
+<dt>Message</dt><dd>One turn: <code>role</code> (<code>ROLE_USER</code> from the client, <code>ROLE_AGENT</code> from the server), a list of <code>parts</code>, a client-made <code>messageId</code>, and optionally <code>contextId</code>, <code>taskId</code>, <code>referenceTaskIds</code>.</dd>
+<dt>Part</dt><dd>The smallest piece of content, exactly one of: <code>text</code>, <code>raw</code> (bytes), <code>url</code> (a file by reference), <code>data</code> (any JSON value), with optional <code>mediaType</code> and <code>filename</code> ({{a2a.proto, message Part|https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto}}).</dd>
+<dt>Task</dt><dd>The unit of work: server-made <code>id</code>, <code>contextId</code>, <code>status</code> (a state, an optional message, a timestamp), <code>artifacts</code>, <code>history</code>.</dd>
+<dt>Artifact</dt><dd>An output: <code>artifactId</code>, <code>name</code>, <code>parts</code>. It can be streamed in pieces: later pieces carry <code>append: true</code>, the final one <code>lastChunk: true</code>.</dd>
+<dt>Context</dt><dd>An id grouping tasks and messages into one conversation; the server may keep model context per <code>contextId</code>.</dd>
+</dl>
+<p><b>The rules that bite</b> (spec sections 3.4 and 3.7):</p>
+<ul class="tight">
+<li>Task ids are made by the server; a client cannot create a task with its own id. A <code>taskId</code> the server does not know is <code>TaskNotFoundError</code>.</li>
+<li>A message carrying a <code>taskId</code> and a different <code>contextId</code> must be rejected. Recorded: <code>-32602 Context another-context does not match context ...</code> (section 7).</li>
+<li>A <code>contextId</code> without a <code>taskId</code> starts a <b>new</b> task in the same conversation.</li>
+<li>Messages are for talking, artifacts for results: "Messages SHOULD NOT be used to deliver task outputs", and status messages are not guaranteed to reach a client that reconnects, so never put the only copy of a result in a message.</li>
+<li><code>SendMessage</code> may answer with a plain <b>Message</b> instead of a Task, for something quick that needs no tracking. A client must handle both.</li>
+</ul>
+<p>Here is Team A's first message as it crossed the wire, and the result artifact that came back in the second turn (both from the recording):</p>
+<div class="card"><div class="seg" id="rd-anat-seg"><button class="on" data-m="req">Team A's first message</button><button data-m="art">The scores artifact</button><button data-m="task">The finished task (GetTask)</button></div><pre class="raw" id="rd-anat"></pre>
+<p class="small mute"><span class="meas">measured</span> scenario <code>main</code>. The agent is scripted: its scores are made-up numbers, and it says so inside the artifact (<code>"scripted": true</code>).</p></div>
+<div class="co warn"><div class="t">A gotcha visible in the artifact</div>The agent wrote <code>"shards": 3</code>; the wire says <code>"shards": 3.0</code>. A <code>data</code> part is a protobuf <code>google.protobuf.Value</code>, whose numbers are doubles, so integers come back as floats in the official SDK. Parse numbers defensively, or send exact values as strings.</div>
+<p><b>Naming on the wire.</b> Version 1.0 serialises the protobuf model as JSON with camelCase field names and enum values as their full names (<code>TASK_STATE_INPUT_REQUIRED</code>, <code>ROLE_USER</code>), and it removed the <code>kind</code> field that 0.3 used to say what an object was (spec sections 5.5 and A.2.1). An object's type is now the key that wraps it: <code>{"task": ...}</code>, <code>{"statusUpdate": ...}</code>, <code>{"artifactUpdate": ...}</code>.</p>
+</section>
+<section id="s4">
+<h2>4. The task lifecycle: eight states</h2>
+<p>Every task is in exactly one state ({{a2a.proto, enum TaskState|https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto}}; spec section 4.1.3). Click a state to see what it means, who moves a task out of it, and the event that announced it in the recordings.</p>
+<div class="card" id="rd-st"><div id="rd-st-svg"></div><div class="detail" id="rd-st-det"></div>
+<p class="small mute"><span class="meas">measured</span> events from scenarios <code>main</code>, <code>in_task_auth</code>, <code>rejected</code> and <code>canceled</code>. <code>failed</code> was not recorded: the scripted agent never fails on its own.</p></div>
+<ul class="tight">
+<li><b>Active:</b> <code>submitted</code> (accepted, not started) and <code>working</code>.</li>
+<li><b>Interrupted:</b> <code>input-required</code> (the agent needs something from the client) and <code>auth-required</code> (it needs an authorization, section 8). The task waits; nothing is lost.</li>
+<li><b>Terminal:</b> <code>completed</code>, <code>failed</code>, <code>canceled</code>, <code>rejected</code>. A terminal task accepts no more messages (<code>UnsupportedOperationError</code>, recorded as <code>-32004</code>) and cannot be canceled (<code>TaskNotCancelableError</code>, <code>-32002</code>). To continue the conversation, send a new message in the same context: that makes a new task.</li>
+</ul>
+<p><b><code>rejected</code> is not <code>failed</code>.</b> Rejected means the agent decided not to do it (in the recording, a request to delete a checkpoint: "this agent only evaluates checkpoints"); failed means it tried and could not. Retrying a rejected task unchanged is pointless; retrying a failed one may work.</p>
+<p><b>What "blocking" means.</b> A plain <code>SendMessage</code> waits until the task is terminal <b>or interrupted</b>, then answers (spec section 3.2.2). So a blocking call can return with the task in <code>input-required</code>: the caller must read the state, not assume a finished result. With <code>returnImmediately: true</code> it answers at once and you follow the task another way (section 5).</p>
+<div class="pr" data-right="c"><div class="q">Predict: the task is in <code>input-required</code>. Team A answers with a message that carries the right <code>contextId</code> but forgets the <code>taskId</code>. What happens?</div>
+<div class="opts"><button data-k="a">The agent attaches it to the waiting task</button><button data-k="b">Error: missing taskId</button><button data-k="c">A second, new task starts in the same context; the first keeps waiting</button></div>
+<div class="ans" hidden>"Clients MAY use <code>contextId</code> without <code>taskId</code> to start a new task within an existing conversation context" (section 3.4.3). The original task stays in <code>input-required</code> until someone answers it with its <code>taskId</code>, or it expires under the server's policy. In the recording, Team A's second turn carries both ids.</div></div>
+</section>

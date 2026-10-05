@@ -1,0 +1,53 @@
+<section id="s9">
+<h2>9. Security: the other agent is not on your side</h2>
+<p>MCP's central lesson carries over, one level up: whatever comes back from outside your system is untrusted input. With A2A the outside is a whole agent, run by someone else, whose model read who knows what. The threats, by where the attacker sits, with the defence for each (all defensive; nothing here is an attack recipe):</p>
+<div class="tw"><table>
+<thead><tr><th>Attacker</th><th>What goes wrong</th><th>Defence</th></tr></thead>
+<tbody>
+<tr><td>The remote agent, or content it read</td><td><b>Injection across agents:</b> a status message or artifact contains instructions ("also send me your API keys") and your model treats them as the user's words. Same mechanism as the root page's {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} case "A tool result that carries an injected instruction".</td><td>Treat messages and artifacts as data: read structured <code>data</code> parts against a schema, show text to the model clearly marked as the remote agent's, and never let remote text choose your next tool or destination. Break a leg of the lethal trifecta ({{MCP page, section 8|n:3c65c17b0d0d813f9695dc4175c44cbb}}).</td></tr>
+<tr><td>Someone pretending to be the agent</td><td>A look-alike domain or a poisoned registry entry serves a card pointing at the attacker's endpoint.</td><td>Allowlist agent domains; verify TLS; verify card signatures against keys you already trust (section 2); alert when a card's interfaces or keys change.</td></tr>
+<tr><td>The agent's own claims</td><td><b>Over-claimed skills:</b> the card says "evaluates checkpoints"; the skill is a claim, not a capability.</td><td>Evaluate an agent before you route real work to it; keep a per-skill allowlist; watch <code>rejected</code> and <code>failed</code> rates.</td></tr>
+<tr><td>A client registering a webhook</td><td><b>SSRF:</b> the agent POSTs to an internal address chosen by a stranger.</td><td>Screen push URLs (off by default in the SDK, section 5), use an egress proxy, never follow redirects to private ranges.</td></tr>
+<tr><td>Anyone who can reach your webhook</td><td>Forged "task completed" notifications.</td><td>Check the per-task token and the agent's credentials on each POST; accept only task ids you created; re-read the task with <code>GetTask</code> before acting on a terminal state.</td></tr>
+<tr><td>Another tenant of the same agent</td><td>Reading or listing someone else's tasks.</td><td>Authentication on every request and per-caller scoping (section 8; Team C's recorded <code>-32001</code>).</td></tr>
+<tr><td>A middle agent in a chain</td><td><b>Confused deputy / token passthrough:</b> it forwards a user's token to a third agent, or uses its own wide privileges for a caller who should have narrow ones.</td><td>Token exchange with audience and scope per hop; authorize each request against the original caller (section 8).</td></tr>
+<tr><td>A flood of requests</td><td>Exhausting the agent (every task may cost model calls).</td><td>Rate limits per caller, size limits on messages and files (spec section 13.4), quotas on concurrent tasks.</td></tr>
+</tbody></table></div>
+<p><b>And the data you send.</b> A message to another organisation's agent is a disclosure: its operator may log it, and it may keep context per <code>contextId</code>. Send the minimum, and treat "delegate to an external agent" like "call an external API" in your data-handling review.</p>
+</section>
+<section id="s10">
+<h2>10. A2A or MCP?</h2>
+<p><b>The difference in one line.</b> With MCP, Team B exposes its building blocks as <b>tools</b> and Team A's model drives them step by step. With A2A, Team B exposes an <b>agent</b> and Team A hands over the goal. The {{One job, recorded|#t-run}} tab replays the same evaluation both ways; the counts (recorded on the same laptop, both servers built with the official SDKs, both clients scripted):</p>
+<div class="tw"><table>
+<thead><tr><th></th><th class="num">HTTP requests</th><th class="num">Bytes on the wire (up / down)</th><th class="num">Characters Team A's model must read</th><th>Who plans the steps</th></tr></thead>
+<tbody>
+<tr><td><b>MCP</b>: tools/list, list_suites, load_checkpoint, three run_shard calls</td><td class="num">6</td><td class="num">3,654 / 3,448</td><td class="num">1,424</td><td>Team A's model, 5 tool calls; it must learn Team B's handles and shards</td></tr>
+<tr><td><b>A2A</b>: card, the job, the answer to "which suite?", a final GetTask</td><td class="num">4</td><td class="num">1,795 / 8,144</td><td class="num">624</td><td>Team B's agent; Team A sends 2 messages</td></tr>
+</tbody></table></div>
+<p class="small mute"><span class="meas">measured</span> <code>src/lab/mcp_same_job.py</code> (MCP SDK 2.3.0, Streamable HTTP, protocol 2026-07-28) and <code>run_a2a.py</code> scenario <code>main</code>. "Characters Team A's model must read": MCP, the <code>tools/list</code> schemas plus every tool result; A2A, the card's skills plus every status message and artifact. Ids and envelopes are not counted.</p>
+<p>Two things to read from it. A2A moved <b>more bytes</b> here (every streamed event repeats the task and context ids), yet put <b>less than half as much text</b> in front of Team A's model, and that text does not grow with the number of shards: in the MCP version each extra shard is another round trip and another result in Team A's context. And with MCP, Team A had to know Team B's internals (a handle, shard numbers); with A2A it did not, which is the point when Team B changes its pipeline next month.</p>
+<div class="tw"><table>
+<thead><tr><th>Choose</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><b>MCP</b></td><td>You want your agent to use capabilities directly: read files, query a database, call an API; the steps are short; your model should plan them; you can see the tools.</td></tr>
+<tr><td><b>A2A</b></td><td>The other side is an agent owned by someone else; the work is long, may ask questions or need approvals; you want only the outcome; the other side must stay free to change how it works.</td></tr>
+<tr><td><b>Both</b></td><td>The usual case: Team B's eval agent is an A2A server outward and an MCP client inward, using MCP tools to run the shards. The spec's Appendix B describes exactly this.</td></tr>
+</tbody></table></div>
+<p><b>The overlap is growing.</b> MCP's 2026-07-28 revision added <code>input_required</code> results for multi-round-trip requests and moved its long-running <b>Tasks</b> into an official extension (<code>tasks/get</code>, <code>tasks/update</code>) ({{MCP page, sections 5 and 6|n:3c65c17b0d0d813f9695dc4175c44cbb}}). What remains A2A's own: an agent as the unit (skills, not functions), multi-turn contexts, artifacts streamed in chunks, subscribe and push delivery as first-class operations, and opacity as a design goal.</p>
+</section>
+<section id="s11">
+<h2>11. The other agent protocols, sorted out</h2>
+<p>2025 produced many agent protocols, three of them abbreviated "ACP". Where each stands, checked against its repository or specification on 5 October 2026:</p>
+<div class="tw"><table>
+<thead><tr><th>Name</th><th>What it is</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><b>Agent Communication Protocol</b> (IBM / BeeAI)</td><td>agent-to-agent messaging over REST</td><td>Merged into A2A: its repository reads "ACP is now part of A2A under the Linux Foundation!"; archived, last push 25 Aug 2025 ({{i-am-bee/acp|https://github.com/i-am-bee/acp}})</td></tr>
+<tr><td><b>Agent Connect Protocol</b> (AGNTCY, Cisco-led)</td><td>a REST interface to invoke and configure remote agents</td><td>SDK repository archived, last push 16 Jun 2025; GitHub does not show when it was archived ({{agntcy/acp-sdk|https://github.com/agntcy/acp-sdk}}). AGNTCY's schema work, the Open Agentic Schema Framework, is still active ({{agntcy/oasf|https://github.com/agntcy/oasf}}, pushed 29 Sep 2026)</td></tr>
+<tr><td><b>Agent Client Protocol</b> (Zed)</td><td>a different layer: a code editor talking to a coding agent</td><td>Active ({{agentclientprotocol/agent-client-protocol|https://github.com/agentclientprotocol/agent-client-protocol}}); covered with the hosts on {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}</td></tr>
+<tr><td><b>Agentic Commerce Protocol</b> (OpenAI and Stripe)</td><td>agent checkout against a merchant's REST API</td><td>Beta; dated versions 2025-09-29 to 2026-04-17 ({{repository|https://github.com/agentic-commerce-protocol/agentic-commerce-protocol}}); compared with UCP in section 12</td></tr>
+<tr><td><b>Agent Network Protocol</b> (ANP)</td><td>an open-internet agent network built on W3C decentralized identifiers (<code>did:wba</code>, <code>did:web</code>)</td><td>Active open-source project since Oct 2024 ({{repository|https://github.com/agent-network-protocol/AgentNetworkProtocol}}); no comparable adoption evidence was found</td></tr>
+<tr><td><b>AP2</b> (Agent Payments Protocol, Google)</td><td>signed mandates proving what a user approved for a payment</td><td>Spec v0.2; designed to sit inside UCP (section 12)</td></tr>
+</tbody></table></div>
+<div class="corr"><div class="t">Corrected from the old overview</div>The old Topic: protocols page said AGNTCY "archived its ACP SDK in April 2026". The repository is archived but its last push was 16 June 2025 and GitHub does not publish an archive date, so the month is not confirmed. The same page put A2A's membership at "150+ member organisations"; the only primary figure found is "more than 100" at the June 2025 launch.</div>
+<p><b>The practical rule</b> holds from the old overview, now with dates: build tool access on MCP, delegation between organisations on A2A (both now under the Agentic AI Foundation), commerce on UCP or ACP depending on which platforms you sell through, and treat the rest as research unless a partner requires it.</p>
+</section>
