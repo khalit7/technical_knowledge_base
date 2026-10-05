@@ -1,0 +1,48 @@
+<section id="rd-s3">
+<h2>3. Protobuf: the bytes inside every gRPC call</h2>
+<p><b>The problem.</b> JSON spells out every field name in every message (<code>"max_tokens":16</code> is 15 bytes to say "16"), stores numbers as text that must be parsed digit by digit, and has no schema, so a typo in a field name is silently ignored. Between your own services, sending millions of messages a second, that costs CPU and bandwidth and hides bugs. <dfn id="g-protobuf">Protocol Buffers</dfn> (protobuf) fix all three: a schema both sides compile, and a binary encoding that sends field <i>numbers</i> and compact values.</p>
+<p><b>The schema.</b> This is the lab's <code>llm.proto</code>, the running request as a message (the full file is in the page's <code>src/lab/</code>):</p>
+<pre class="cd"><span class="k">message</span> GenerateRequest {
+  <span class="k">string</span> model = <span class="n">1</span>;
+  <span class="k">repeated</span> Message messages = <span class="n">2</span>;
+  <span class="k">uint32</span> max_tokens = <span class="n">3</span>;
+  <span class="k">bool</span> stream = <span class="n">4</span>;
+}
+<span class="k">service</span> Inference {
+  <span class="k">rpc</span> Generate(GenerateRequest) <span class="k">returns</span> (<span class="k">stream</span> Token);  <span class="c">// server streaming</span>
+}</pre>
+<p>The numbers after <code>=</code> are the <dfn id="g-fieldnum">field numbers</dfn>. They, not the names, are the contract: names never travel on the wire. <code>protoc</code> turns this file into classes and stubs for each language.</p>
+<h3>How a message becomes bytes</h3>
+<p>Every field is written as a <b>tag</b> then a value. The tag is one number, <code>(field_number &lt;&lt; 3) | wire_type</code>, where the <dfn id="g-wiretype">wire type</dfn> says how to find the value's end: 0 VARINT (integers, booleans, enums), 2 LEN (a length then that many bytes: strings, bytes, nested messages, packed lists), 1 and 5 for fixed 8- and 4-byte values ({{protobuf encoding guide|https://protobuf.dev/programming-guides/encoding/}}). Numbers are <dfn id="g-varint">varints</dfn>: 7 bits per byte, low group first, the top bit set on every byte except the last. So 150 is <code>96 01</code>: 150 is <code>1 0010110</code> in binary; the low 7 bits <code>0010110</code> go first with the "more" bit set (<code>0x96</code>), then the remaining <code>1</code> (<code>0x01</code>). Try any number:</p>
+<div class="card" id="rd-vcard">
+<div class="vin"><label>Value <input type="number" id="rd-vval" value="150" min="0" max="4294967295" step="1"></label><label>Field number <input type="number" id="rd-vfn" value="3" min="1" max="536870911" step="1" style="width:7em"></label></div>
+<div class="vbits" id="rd-vbits"></div>
+<div class="out" id="rd-vout"></div>
+<p class="small mute">The encoder here is 15 lines of JavaScript; its output for 1, 127, 128, 150, 300, 16384 and 2,147,483,647 is checked against the protobuf library's own bytes (<span class="meas">measured</span>, protobuf <span data-sa="meta.protobuf"></span>) when the page loads: <span id="rd-vcheck"></span></p>
+</div>
+<h3>The running request, byte by byte</h3>
+<p>The lab serialised the running request with the protobuf library. Click any byte:</p>
+<div class="card" id="rd-pbcard">
+<div class="bstrip" id="rd-pbstrip"></div>
+<div class="anninfo" id="rd-pbinfo">Each coloured group is one field; bold bytes are tags.</div>
+<div class="out" id="rd-pbout"></div>
+</div>
+<p><span data-sa="pb.request.pb_bytes"></span> bytes of protobuf against <span data-sa="pb.request.json_bytes"></span> bytes of JSON for the same request (<span class="meas">measured</span>). The savings are the names (<code>"max_tokens":</code> becomes the single tag byte <code>18</code>), the quotes and braces, and the number 16 as one byte instead of two characters. Strings cost the same in both: "What colour is the sky?" is 23 bytes either way, which is why protobuf's win on chat text is modest and its win on numbers (token ids, logits, embeddings) is large. Each streamed token is a 5-to-9-byte message (<code>" sky"</code> at index 1 is <code>0a 04 20 73 6b 79 10 01</code>).</p>
+<h3>Three encoding details that bite</h3>
+<ul class="tight">
+<li><b>Negative numbers.</b> An <code>int32</code> of -1 is sign-extended to 64 bits and costs 10 bytes; the <code>sint32</code> type uses zigzag (-1 becomes 1, 1 becomes 2) and costs 1. Measured: <code id="rd-zz1"></code> against <code id="rd-zz2"></code>. Use <code>sint32</code>/<code>sint64</code> for fields that are often negative.</li>
+<li><b>Packed lists.</b> In proto3, <code>repeated</code> numbers are packed by default: one tag and a length for the whole list. Five token ids took <span data-sa="pb.packed.packed_bytes"></span> bytes packed against <span data-sa="pb.packed.unpacked_bytes"></span> one tag per element.</li>
+<li><b>Field numbers 1 to 15</b> cost one tag byte, 16 to 2047 two; give them to the fields you send most. Valid numbers run from 1 to 536,870,911, with 19,000 to 19,999 reserved ({{proto3 guide|https://protobuf.dev/programming-guides/proto3/}}).</li>
+</ul>
+<h3>Schema evolution: why the numbers are sacred</h3>
+<p>Services are deployed one at a time, so for a while a new writer talks to an old reader. Protobuf's rule is that a reader keeps fields it does not know as <i>unknown fields</i> and carries on. The lab tested three changes against the old <code>GenerateRequest</code> reader (<span class="meas">measured</span>):</p>
+<div class="tw"><table id="rd-evo"><thead><tr><th>Change</th><th>What the old reader saw</th><th>Verdict</th></tr></thead><tbody></tbody></table></div>
+<div class="co warn"><div class="t">The failure is silent</div><p>Reusing a number does not raise an error. With the same wire type the old reader reads your new <code>priority = 9</code> as <code>max_tokens = 9</code> and generates nine tokens; with a different wire type it quietly drops the field and <code>max_tokens</code> falls back to its default, 0. The fix is a habit: when you delete a field, write <code>reserved 3; reserved "max_tokens";</code> so the compiler refuses to reuse it ({{protobuf best practices|https://protobuf.dev/best-practices/dos-donts/}}: "Never re-use a tag number").</p></div>
+<p>Protobuf also has a canonical JSON form, used by gateways and logs: the running request becomes <code data-sa="pb.request.proto_json"></code>. Note <code>maxTokens</code>: field names turn into lowerCamelCase ({{ProtoJSON format|https://protobuf.dev/programming-guides/json/}}), a frequent surprise when a REST gateway sits in front of a gRPC service.</p>
+<h3>Tensors: where the format really matters</h3>
+<p>The old page said tensors in protobuf "beat base64-in-JSON by a wide margin". The lab measured one million float32 values (4,000,000 raw bytes) four ways:</p>
+<div class="tw"><table id="rd-tensor"><thead><tr><th>Format</th><th class="num">Bytes</th><th class="num">Encode ms</th><th class="num">Decode ms</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute" data-sa="pb.tensor.note"></p>
+<div class="corr"><div class="t">Correction to the old page</div>Against a JSON list of numbers, protobuf wins by about five times in size and far more in time. Against base64 inside JSON the size gap is only 4/3 (base64's fixed overhead: <span data-sa="pb.tensor.rows.1.bytes"></span> against <span data-sa="pb.tensor.rows.2.bytes"></span> bytes); the bigger win is skipping the text decode. Triton accepts raw binary tensors over plain HTTP for the same reason (its "binary tensor data extension", section 12). Decode times for protobuf are parse-only; turning the values into Python objects costs extra in every format.</div>
+<div class="deepnote"><b>Go deeper (optional).</b> The {{encoding guide|https://protobuf.dev/programming-guides/encoding/}} is short and complete; {{protobuf best practices|https://protobuf.dev/best-practices/dos-donts/}} lists the evolution rules. Every byte of this request inside a real gRPC call: the {{One gRPC call|#t-call}} tab.</div>
+</section>
