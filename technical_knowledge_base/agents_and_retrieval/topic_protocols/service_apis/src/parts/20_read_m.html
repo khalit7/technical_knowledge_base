@@ -1,0 +1,21 @@
+<section id="rd-s12">
+<h2>12. Where each style lives in ML serving</h2>
+<p>Every protocol on this page appears somewhere in a modern inference stack. Versions and ports checked on 5 October 2026 against each project's own repository or docs.</p>
+<div class="tw"><table>
+<thead><tr><th>System</th><th>REST / HTTP</th><th>gRPC</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><b>Public LLM APIs</b> (Anthropic, OpenAI)</td><td>Yes: JSON over HTTPS, SSE for streams</td><td>No</td><td>Date-style version header (<code>anthropic-version</code>), idempotency and rate-limit headers; the root page's running request</td></tr>
+<tr><td><b>vLLM</b> v0.31.0</td><td>OpenAI-compatible server</td><td><code>vllm serve &lt;model&gt; --grpc</code></td><td>The gRPC mode uses the <code>smg-grpc-servicer</code> package (a model-gateway project), registers the standard health service and reflection, sets unlimited message sizes and tolerates frequent pings ({{grpc_server.py|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/launchers/grpc_server.py}})</td></tr>
+<tr><td><b>SGLang</b> v0.5.21</td><td>OpenAI-compatible server</td><td>A gRPC server entry point</td><td><code>python/sglang/srt/entrypoints/grpc_server.py</code> in the release tree</td></tr>
+<tr><td><b>NVIDIA Triton</b> v2.73.0</td><td>Port 8000 (KServe v2 protocol)</td><td>Port 8001</td><td>Metrics on 8002; unary inference recommended, bidirectional stream for sequences; a binary tensor extension puts raw little-endian tensors in HTTP bodies ({{quickstart|https://github.com/triton-inference-server/server/blob/main/docs/getting_started/quickstart.md}}, {{protocols|https://github.com/triton-inference-server/server/blob/main/docs/customization_guide/inference_protocols.md}})</td></tr>
+<tr><td><b>TensorFlow Serving</b></td><td>Port 8501</td><td>Port 8500</td><td>{{TF Serving with Docker|https://github.com/tensorflow/serving/blob/master/tensorflow_serving/g3doc/docker.md}}</td></tr>
+<tr><td><b>Ray Serve</b> (Ray 2.59.0)</td><td>HTTP proxy</td><td>gRPC proxy, port 9000 by default</td><td>Off unless <code>grpc_servicer_functions</code> is set ({{Ray Serve gRPC guide|https://docs.ray.io/en/latest/serve/advanced-guides/grpc-guide.html}})</td></tr>
+<tr><td><b>OpenTelemetry (OTLP)</b></td><td>Port 4318</td><td>Port 4317</td><td>Traces, metrics and logs from your services to a collector ({{OTLP spec|https://opentelemetry.io/docs/specs/otlp/}})</td></tr>
+<tr><td><b>Inference gateways</b> (Gateway API Inference Extension, llm-d)</td><td>Client traffic through Envoy</td><td>Envoy to Endpoint Picker over ext_proc</td><td>Per-request routing on KV cache and load (section 8)</td></tr>
+<tr><td><b>Vector databases</b> (Qdrant)</td><td>REST</td><td>"For faster, production-tier searches"</td><td>{{Qdrant README|https://github.com/qdrant/qdrant}}</td></tr>
+<tr><td><b>Agent protocols</b></td><td>MCP over Streamable HTTP; A2A HTTP+JSON binding</td><td>A2A gRPC binding</td><td>Both carry JSON-RPC 2.0 (section 11)</td></tr>
+</tbody></table></div>
+<p><b>The common shape</b>, and the running example's: REST and SSE at the public edge because every client can speak it; gRPC behind the gateway because both ends are yours and the calls are many; a translating hop in between (your API server, Envoy transcoding, or a model gateway). vLLM and SGLang serve OpenAI-compatible REST first because ecosystem compatibility beats wire efficiency at the edge; their gRPC modes exist for the gateway-to-engine hop, where a router sends many requests and needs health, cancellation and streaming without JSON parsing.</p>
+<p class="small mute">Not carried from the old page because they could not be confirmed from a primary source today: that Ray's internals and the Milvus database use gRPC (only the Ray Serve proxy above is confirmed), and the statements about AWS API Gateway and Lambda not supporting gRPC. ALB's gRPC support is confirmed (section 8).</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Serving systems themselves (batching, KV cache, routing): {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} and the {{PagedAttention paper page|n:3c65c17b0d0d81bf8b90ca93fee19f5f}}. Each protocol's "where you meet it" list: the root's {{Protocol atlas|n:3c65c17b0d0d81ec9355f4eecd6eed02}}.</div>
+</section>

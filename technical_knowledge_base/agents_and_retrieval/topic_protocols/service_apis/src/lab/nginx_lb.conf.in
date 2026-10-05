@@ -1,0 +1,22 @@
+# Service APIs balancer lab: one L4 (stream) and one L7 (HTTP/2, grpc_pass) balancer over the same gRPC backends.
+# @WORK@ and @BACKENDS@ are filled in by lb_run.py; the backend list changes on a reload in the scale-up runs.
+daemon off;
+worker_processes 1;
+pid @WORK@/nginx.pid;
+error_log @WORK@/error.log info;
+events { worker_connections 256; use poll; }  # as in the root Failure lab: kqueue misbehaved on this macOS
+
+http {
+  access_log @WORK@/access.log;
+  client_body_temp_path @WORK@/tmp/body; proxy_temp_path @WORK@/tmp/proxy;
+  fastcgi_temp_path @WORK@/tmp/fcgi; uwsgi_temp_path @WORK@/tmp/uwsgi; scgi_temp_path @WORK@/tmp/scgi;
+  # L7: nginx terminates HTTP/2 from the client and picks a backend for every call (round robin by default)
+  upstream grpc_l7 { @BACKENDS@ keepalive 8; }
+  server { listen 127.0.0.1:30534; http2 on; location / { grpc_pass grpc://grpc_l7; } }
+}
+
+stream {
+  # L4: nginx picks a backend per TCP connection and then only copies bytes
+  upstream grpc_l4 { @BACKENDS@ }
+  server { listen 127.0.0.1:30530; proxy_pass grpc_l4; }
+}
