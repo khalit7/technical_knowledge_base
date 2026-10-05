@@ -1,0 +1,59 @@
+<section id="rd-s2">
+<h2>2. Memory for the model: bytes per parameter</h2>
+<p><b>The problem.</b> Before activations or batch size enter, the model itself must fit. How much memory one parameter costs depends on what training keeps for it.</p>
+<p><b>How it works.</b> Mixed-precision training with the Adam optimizer keeps, for every parameter: the BF16 weight used in the matmuls (2 bytes), its BF16 gradient (2), and the optimizer's state in FP32: a master copy of the weight (4, because tiny updates vanish when added in BF16) and Adam's two running moments m and v (4 + 4). That is 2 + 2 + 12 = <b>16 bytes per parameter</b>, the count the ZeRO paper writes as 2&Psi; + 2&Psi; + K&Psi; with K = 12 ({{ZeRO, section 3 "Where did all the memory go?"|https://arxiv.org/abs/1910.02054}}; {{paper page|n:3c65c17b0d0d81879a7ed90bca007699}}).</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>What is kept per parameter</th><th class="num">Bytes</th><th class="num">Llama 3.1 8B</th><th class="num">Llama 3.1 70B</th></tr>
+<tr><td>Mixed-precision Adam (BF16 weight and gradient, FP32 master, m, v)</td><td class="num">16</td><td class="num">128.5 GB</td><td class="num">1,129 GB</td></tr>
+<tr><td>Same, with FP32 gradients (accumulated in FP32 for stability, as Llama 3 did)</td><td class="num">18</td><td class="num">144.5 GB</td><td class="num">1,270 GB</td></tr>
+<tr><td>8-bit Adam moments, FP32 master</td><td class="num">10</td><td class="num">80.3 GB</td><td class="num">705.5 GB</td></tr>
+<tr><td>Everything BF16, no master copy</td><td class="num">8</td><td class="num">64.2 GB</td><td class="num">564.4 GB</td></tr>
+<tr><td>LoRA rank 16 on every linear (frozen BF16 base + adapters at 16 bytes)</td><td class="num">&asymp; 2</td><td class="num">16.7 GB</td><td class="num">144.4 GB</td></tr>
+<tr><td>QLoRA (NF4 base with double quantisation, 4.127 bits)</td><td class="num">&asymp; 0.5</td><td class="num">4.8 GB</td><td class="num">39.7 GB</td></tr>
+<tr><td>Inference BF16 / FP8 / NVFP4 (4.5 bits with scales) / MXFP4 (4.25)</td><td class="num">2 / 1 / 0.56 / 0.53</td><td class="num">16.1 / 8.0 / 4.5 / 4.3 GB</td><td class="num">141.1 / 70.6 / 39.7 / 37.5 GB</td></tr>
+</table></div>
+<p class="small mute">Parameter counts from the configs (8,030,261,248 and 70,553,706,496); LoRA adapters 41.9M and 207.1M; recipes as in the parent's calculator <span class="der">derived</span>. The FP32-gradient row follows {{Llama 3, section 3.3.2|https://arxiv.org/html/2407.21783v3}} ("FP32 gradient accumulation"). Sharding divides every row: with ZeRO stage 3 (FSDP) over 8 GPUs, the 128.5 GB is 16.1 GB per GPU.</p>
+<p><b>When it matters.</b> 128.5 GB does not fit one 80 GB H100, nor two 32 GB RTX 5090s; it fits an 8-GPU H100 server sharded. 70B's 1.13 TB does not fit an 8-GPU H100 server (640 GB) even sharded: it needs more servers or offloading the optimizer to CPU memory. The sibling {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}} page covers the hardware these bytes live in, and the KV cache that serving adds.</p>
+</section>
+
+<section id="rd-s3">
+<h2>3. Activations: what the backward pass keeps</h2>
+<p><b>The problem.</b> The model state is fixed; activations grow with tokens per GPU, and at long sequences they dominate. Every backward rule needs something from the forward pass (a linear layer's weight gradient needs its input; SiLU needs its input; softmax needs its output), so those tensors stay alive from the moment they are made until the backward pass uses them.</p>
+<h3>The GPT-3 count: 34 bytes per token per hidden unit</h3>
+<p>Korthikanti et al. listed what one GPT-style layer stores, in bytes, for sequence length s, micro-batch b, hidden size h and a attention heads, in 16-bit precision ({{Reducing Activation Recomputation, section 4.1|https://arxiv.org/abs/2205.05198}}):</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Block</th><th>What is stored</th><th class="num">Bytes</th></tr>
+<tr><td>Attention</td><td>input to Q, K, V (2sbh); Q and K for QK<sup>T</sup> (4sbh); softmax output (2as&sup2;b); dropout mask (as&sup2;b); dropout output and V (2as&sup2;b + 2sbh); input to the output projection (2sbh); its dropout mask (sbh)</td><td class="num">11sbh + 5as&sup2;b</td></tr>
+<tr><td>MLP (4h wide)</td><td>inputs to the two linears (2sbh, 8sbh); GeLU input (8sbh); dropout mask (sbh)</td><td class="num">19sbh</td></tr>
+<tr><td>Two layer norms</td><td>their inputs</td><td class="num">4sbh</td></tr>
+<tr><td><b>Per layer</b></td><td></td><td class="num"><b>sbh (34 + 5as/h)</b></td></tr>
+</table></div>
+<p>The 5as/h term is the attention score matrix: quadratic in the sequence. For GPT-3 at 2,048 tokens it is 80, more than the 34 for everything else (the paper's own example). FlashAttention never stores the score matrix (it recomputes it in the backward pass), which removes that term.</p>
+<div class="corr"><div class="t">Correction to the old page</div>The old notes wrote activations as "sbh &times; L &times; c (batch s &times; seq b ...)". In Korthikanti et al. <b>s is the sequence length and b the micro-batch</b>; the per-layer constant is 34 + 5as/h, or about 34 with FlashAttention, and 2 per layer with full recomputation (the layer input only).</div>
+<h3>Llama 3.1 8B, counted: 49 bytes per token per hidden unit</h3>
+<p>Running the real model on the meta device and catching every tensor autograd saves (<code>torch.autograd.graph.saved_tensors_hooks</code>, each underlying tensor counted once, parameters excluded) gives, for one layer:</p>
+<div class="tw"><table class="tbl-sm" id="rd-saved"></table></div>
+<p class="small mute">Bytes per token in units of h = 4,096 (BF16 is 2 bytes per number, so "2h" is one hidden-sized vector). The source line is where the tensor was saved in Transformers' <code>modeling_llama.py</code>; attention uses PyTorch's flash kernels and saves what the flash-attn library saves (q, k, v at their own 8 KV heads, the output and the log-sum-exp) <span class="meas">counted</span>.</p>
+<p>Three differences from GPT-3's 34 explain the 49:</p>
+<ul>
+<li><b>SwiGLU.</b> Llama's MLP has three matrices and an intermediate width of 14,336 = 3.5h, and four 3.5h-wide tensors are saved (gate output, up output, SiLU output, their product): 28h against GPT's 18h.</li>
+<li><b>RMSNorm in FP32.</b> The reference code upcasts to FP32 before normalising, so each norm saves a 4h FP32 copy plus 2h BF16 copies: 16h for two norms against 4h. A fused norm kernel saves only its input and the per-token scale.</li>
+<li><b>Grouped-query attention</b> saves K and V at 8 heads instead of 32 (0.5h each), and there is no dropout.</li>
+</ul>
+<p>For the whole model at 8,192 tokens and micro-batch 1 that is 52.7 GB for the 32 layers plus <b>4.47 GB for the output</b>: the loss needs the logits in FP32, 128,256 &times; 4 bytes per token, more than two whole layers. Total <b>57.1 GB</b>, against the 36.5 GB that the GPT-3 count (34sbh) predicts. With plain ("eager") attention each layer also keeps its scores, 32 heads &times; 8,192 &times; 8,192 in FP32 and again in BF16: 13.0 GB <i>per layer</i>, 473 GB in all. With full recomputation only each layer's 2h input is kept: 6.6 GB, most of it the logits.</p>
+<div class="co warn"><div class="t">For the parent's calculator</div>Its "store all, FlashAttention" option uses 34sbh, the GPT-3 count: for Llama-style models in the Transformers code it is low by about 1.4 times (49h counted), and it leaves out the FP32 logits. Fused RMSNorm and SwiGLU kernels bring the real figure down; the counted number is for the reference code.</div>
+
+<div class="card" id="rd-mem-card">
+<h3 style="margin-top:0">Animation: one training step's memory, three ways to keep activations</h3>
+<p class="small">Llama 3.1 8B, one 8,192-token sequence, model state sharded over 8 H100s (16.1 GB per GPU). The step runs forward through 32 layers, computes the loss, then backward from layer 32 to layer 1. The same step, the same scale, three ways to keep what backward needs.</p>
+<div class="seg" id="rd-mem-mode"><button data-m="eager">Plain attention</button><button data-m="flash" class="on">FlashAttention</button><button data-m="ckpt">Full recompute</button></div>
+<div class="rd-chart" id="rd-mem"></div>
+<div class="mem-legend"><span><i style="background:var(--dim)"></i>model state (16.1 GB)</span><span><i style="background:var(--c1)"></i>activations kept</span><span><i style="background:var(--c2)"></i>logits for the loss</span><span><i style="background:var(--c5)"></i>layer being recomputed</span><span><i style="border-top:2px dashed var(--bad);height:0;border-radius:0"></i>80 GB H100</span></div>
+<div class="an-cap" id="rd-mem-cap"></div>
+<div class="an-cnt" id="rd-mem-cnt"></div>
+<div class="an-ctl" id="rd-mem-ctl"></div>
+<p class="small mute">Per-layer bytes, logits and FLOPs are the counted values of section 1 and this section <span class="meas">counted</span>; time is FLOPs at 40% MFU on one H100 (989.5 TFLOP/s dense BF16) <span class="der">derived</span>. Transient buffers (gathered weights, gradients being reduced, allocator slack) are left out, so real peaks are higher.</p>
+</div>
+<p>What the animation shows: with plain attention the step needs about 490 GB, six times an H100; FlashAttention brings it to about 73 GB, which fits with little to spare; full recomputation holds about 23 GB but does more arithmetic (section 4). Real runs choose between these per layer: Megatron's <dfn>selective recomputation</dfn> recomputes only the attention-score part, which is cheap in FLOPs and expensive in memory ({{Korthikanti et al., section 5|https://arxiv.org/abs/2205.05198}}); with FlashAttention there is nothing quadratic left to recompute, so the choice is between keeping the 49h or recomputing layers. Tensor parallelism with sequence parallelism divides the per-layer figure by the TP degree.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Activation memory for any model, length and checkpointing choice against a GPU's capacity: {{FLOP and memory ledger|#t-ledger}}. Checkpointing from first principles (Chen et al.'s square-root schedule, measured on a small model): {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}. How sharding and parallelism divide these numbers at scale: {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</div>
+</section>

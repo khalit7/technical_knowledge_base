@@ -2943,3 +2943,17 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/programming_model/src/viz_ideas.md`.
 
+### Performance math: FLOPs, memory, MFU, tokens per second, costing a run (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_hardware/performance_math/src/viz_ideas.md`.
+
+| # | Idea | Placement | Moves | Reproduces | Computable | Beyond prose | Misconception | Animation | Score |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | One training step's memory under plain attention, FlashAttention and full recompute: same step, same scale, per-layer counters, FLOPs and time | Reading s3, before/after animation | 2 | 2 (x2, counted values) | 2 (x2) | 2 | 2 (73 GB not 36 GB; recompute is 1.24x not 1.33x) | 2 | 18 |
+| 2 | The traced FLOP ledger by part at 2K/8K/32K/128K against 6N | Reading s1 | 1 | 2 (x2, PyTorch's count) | 2 (x2) | 2 | 2 (6N at long context) | 0 | 15 |
+| 3 | What autograd saves for one Llama layer, tensor by tensor, with the source line | Reading s3 table | 0 | 2 (x2) | 2 (x2) | 2 | 2 (GPT-3's 34 is not Llama's 49) | 0 | 14 |
+| 4 | FLOP and memory ledger tab: any model, length, micro-batch, convention, checkpointing, TP, GPU; curve of FLOPs per token against length with the attention = MLP crossover | tab | 2 | 2 (x2, traced badge) | 2 (x2) | 2 | 2 | 0 | 18 |
+| 5 | M1 Pro GPU: measured step time against an operator-by-operator roofline prediction, and the same operators projected onto an H100 | Reading s6 chart and table | 0 | 1 | 2 (x2) | 2 | 2 (fusion matters more on high-ridge chips) | 0 | 11 |
+| 6 | PaLM HFU rebuilt from Appendix B, Llama 3 step time from Table 4, four MFU cards | Reading s4, s5 | 0 | 2 (x2) | 2 (x2) | 1 | 2 (HFU flatters) | 0 | 11 |
+| 7 | Run planner (chips for a deadline, cost with goodput) and serving frontier (per-user against total tokens/s, $ per M tokens, out-of-memory points) | tab | 2 | 1 | 2 (x2) | 2 | 2 (batching is the economics; MoE loses its bandwidth edge at batch) | 0 | 13 |
+| 8 | Ten predict-then-reveal drills (different from the parent's ten) | Reading s10 | 1 | 1 | 2 (x2) | 1 | 2 | 0 | 10 |

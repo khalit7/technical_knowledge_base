@@ -1,0 +1,51 @@
+<section id="rd-one">
+<p class="lead">Before a training run or a deployment, a handful of numbers decide whether it fits, how long it takes, what it costs and how fast it answers. The parent page's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}} tab computes them for any model and chip. This page derives each one from zero, checks it against PyTorch counting a real model, and rebuilds the figures labs have published. The running example is the parent's: <b>one training step of Llama 3.1 8B on one 8,192-token sequence</b> (8.03 billion parameters, 32 layers, hidden size 4,096).</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Number</th><th>Rule of thumb</th><th>Exact, for the running example</th><th>Section</th></tr>
+<tr><td>Training FLOPs per token</td><td>6N = 48.2 GFLOP</td><td>60.1 GFLOP at 8,192 tokens (attention adds the rest) <span class="meas">counted</span></td><td><a href="#rd-s1">1</a></td></tr>
+<tr><td>Model state</td><td>16 bytes per parameter</td><td>128.5 GB for mixed-precision Adam</td><td><a href="#rd-s2">2</a></td></tr>
+<tr><td>Activations kept for backward</td><td>34 &times; sequence &times; hidden per layer (GPT-3 count)</td><td>57.1 GB with FlashAttention; 473 GB with plain attention; 6.6 GB with full recompute <span class="meas">counted</span></td><td><a href="#rd-s3">3</a></td></tr>
+<tr><td>Cost of recompute</td><td>8N instead of 6N</td><td>the hardware does 1.24 times the model's FLOPs <span class="meas">counted</span></td><td><a href="#rd-s4">4</a></td></tr>
+<tr><td>MFU</td><td>tokens/s &times; FLOPs per token / peak</td><td>Llama 3 405B: 43%; PaLM: 46.2% (57.8% counting recompute)</td><td><a href="#rd-s5">5</a>, <a href="#rd-s6">6</a></td></tr>
+<tr><td>Serving speed</td><td>bandwidth / bytes per step</td><td>4.95 ms per token at batch 1 on an H100, 202 tokens/s</td><td><a href="#rd-s7">7</a></td></tr>
+<tr><td>Cost of a run</td><td>GPU-hours &times; price</td><td>15T tokens: 507K H100-hours, about $2.0M at 40% MFU and list price</td><td><a href="#rd-s9">9</a></td></tr>
+</table></div>
+<p class="small mute">How the numbers were obtained. <span class="meas">counted</span>: PyTorch 2.14.1 ran the real Llama 3.1 8B (Transformers 5.18.0, config from Hugging Face) on its <dfn>meta device</dfn>, which executes every operator on shapes only, so a full 8B (and 70B) step costs nothing; PyTorch's own FLOP formulas and every tensor autograd saved were recorded. <span class="meas">measured</span>: timed on this laptop's Apple M1 Pro GPU. <span class="der">derived</span>: arithmetic on sourced inputs, formula shown. Peaks and bandwidths are vendor specifications from the parent's {{Chip atlas|n:3c65c17b0d0d8118beeefaed56da6f8e}}. No NVIDIA GPU was available: nothing here ran on one.</p>
+</section>
+
+<section id="rd-s1">
+<h2>1. FLOPs: where 6ND comes from, and when it is wrong</h2>
+<p><b>The problem.</b> To know how long training takes you need the number of floating-point operations (<dfn>FLOPs</dfn>: one add or one multiply each). Counting them operator by operator is tedious; one rule gets within a few percent for most runs, and you need to know when it does not.</p>
+<p><b>A matrix multiply.</b> Multiplying an (m &times; k) matrix by a (k &times; n) matrix makes m &times; n outputs, each a sum of k products: k multiplies and k adds, so <b>2mkn FLOPs</b>. In a transformer almost all the work is of this kind: tokens (m) times a weight matrix (k &times; n).</p>
+<div class="fm"><div class="eq">forward &asymp; 2N per token &nbsp;&nbsp; backward &asymp; 4N per token &nbsp;&nbsp; training C &asymp; 6 N D</div>
+<dl><dt>N</dt><dd>parameters that take part in a matrix multiply</dd><dt>D</dt><dd>training tokens</dd><dt>4N</dt><dd>the backward pass multiplies twice for every forward multiply: once for the gradient of the input (to keep backpropagating), once for the gradient of the weight</dd></dl></div>
+<p>Each weight meets each token once going forward (2 FLOPs) and twice going back (4). The math topic's {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}} page derives the factor 2 and measures it on a small model (exactly 2.00 for the matrix products). The rule is Kaplan et al.'s ({{Scaling Laws, section 2.1|https://arxiv.org/abs/2001.08361}}), and PaLM's Appendix B made it the basis of MFU ({{PaLM|https://arxiv.org/abs/2204.02311}}).</p>
+
+<h3>The exact ledger for Llama 3.1 8B</h3>
+<p>What 6N leaves out shows up when you count. Per token, at 8,192 tokens, with the full score square counted (the convention of PaLM's formula and of PyTorch's counter):</p>
+<div class="tw"><table class="tbl-sm led">
+<tr><th>Part</th><th>Formula per token (training, forward + backward)</th><th class="num">GFLOP</th></tr>
+<tr><td>Attention projections (q, k, v, o)</td><td>6 &times; L &times; (2 h&middot;h + 2 h&middot;1,024)</td><td class="num">8.05</td></tr>
+<tr><td>MLP (gate, up, down)</td><td>6 &times; L &times; 3 h&middot;14,336</td><td class="num">33.82</td></tr>
+<tr><td>Output head (vocabulary 128,256)</td><td>6 &times; h &times; V</td><td class="num">3.15</td></tr>
+<tr><td>Attention core forward (QK<sup>T</sup> and AV)</td><td>L &times; 4 &times; T &times; h</td><td class="num">4.29</td></tr>
+<tr><td>Attention core backward, FlashAttention</td><td>2.5 &times; forward (recomputes the scores)</td><td class="num">10.74</td></tr>
+<tr><td>Input embedding</td><td>a table lookup: 0</td><td class="num">0</td></tr>
+<tr><td><b>Total</b>, counted by PyTorch on the real model</td><td></td><td class="num"><b>60.06</b></td></tr>
+<tr><td>6N, with N = 8.03B</td><td></td><td class="num">48.18</td></tr>
+</table></div>
+<p class="small mute">L = 32 layers, h = 4,096, T = 8,192, V = 128,256. The formula column equals the traced count to within 128 FLOPs per token (the RoPE frequency table) at 2,048, 8,192, 32,768 and 131,072 tokens, and for Llama 3.1 70B at 8,192 <span class="meas">counted</span>. Scripts: <code>src/code/trace_llama.py</code>.</p>
+<div class="card" id="rd-led-card"><div class="rd-chart" id="rd-led"></div>
+<p class="small mute">Training FLOPs per token by part, against 6N (dashed). The bars are PyTorch's count on the real model at each sequence length. The FLOP and memory ledger tab draws it for any length and for 70B and 405B.</p></div>
+<p>Four things move it away from 6N:</p>
+<ul>
+<li><b>The input embedding is not a multiply.</b> It looks a row up. Its 525M parameters are 6.5% of N, so 6N over-counts by that much at short sequences. The output head <i>is</i> a multiply and counts.</li>
+<li><b>Attention over the context.</b> Each token's query meets every earlier key: forward 4 &times; T &times; h FLOPs per layer, growing with the sequence while 6N does not. At 2,048 tokens the two effects nearly cancel (+1.3% over 6N); at 8,192 attention adds 24.7%, at 32,768 118%, at 131,072 it is five times 6N.</li>
+<li><b>Causal masking.</b> A causal kernel skips blocks above the diagonal, about half the score square. Counting full squares (PaLM's 12LHQT, PyTorch's counter) gives the upper figure; the work done is nearer half the attention term. At 8,192 tokens the attention term is 26.7% of 6N counted in full, 14.3% of the matmul-only 6N counted causally: both conventions are in use, so say which you mean.</li>
+<li><b>FlashAttention's backward recomputes the scores</b> instead of reading them back, so its attention backward is 2.5 times its forward, not 2 times (counted: 10.74 against 4.29 GFLOP per token).</li>
+</ul>
+<div class="corr"><div class="t">Conventions differ, even on the parent page</div>The parent's calculator adds attention as PaLM's 12LHQT in full (15% for 70B at 8,192); its Reading tab quotes 14% for 8B at 8,192, which is the causal half over matmul-only 6N. Both are right under their own convention. Counted in full with FlashAttention's backward, the whole step is 24.7% above 6N for 8B and 16.3% for 70B.</div>
+<p><b>Mixture of experts.</b> Each token passes through only k of E experts, so FLOPs follow the <dfn>active</dfn> parameters and memory follows the total: DeepSeek-V3 is 671.0B total and 37.55B active, 17.9 times fewer FLOPs per token than a dense model of the same size (parameter counts recounted from its config by the parent's calculator). The router's own FLOPs are tiny; the cost moves to the network (section 8).</p>
+<div class="pr"><div class="q">Predict: training Llama 3.1 8B at 131,072-token sequences. How many times 6N does one token cost?</div><div class="opts"><button data-a="0">About the same</button><button data-a="0">About 1.5 times</button><button data-a="1">About 6 times</button><button data-a="0">About 60 times</button></div><div class="ans" hidden>285.5 GFLOP per token counted, against 48.2 for 6N: <b>5.9 times</b>. The attention core alone is 241 GFLOP per token (counted in full; a causal kernel does about half). This is why long-context training runs as a short final stage (Llama 3 used 131,072 tokens only at the end, at 38% MFU) and why context parallelism exists.</div></div>
+<div class="deepnote"><b>Go deeper (optional).</b> Every part of the ledger for any length, model and attention convention: the {{FLOP and memory ledger|#t-ledger}} tab. Why backward is twice forward, derived: {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}. Kaplan's Table 1 recount: {{Scaling Laws paper page|n:3c65c17b0d0d81b08a1debb0c15cd252}}.</div>
+</section>

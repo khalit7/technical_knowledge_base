@@ -1,0 +1,41 @@
+<div class="tab" id="t-plan" role="tabpanel" hidden>
+<style>
+#t-plan .rd-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-plan .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-plan .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-plan td.oom{color:var(--bad)}
+#t-plan .leg span.oom:before{background:var(--bg);border:1.5px solid var(--bad);box-sizing:border-box}
+</style>
+<h2 style="margin-top:14px">Run and serving planner</h2>
+<p>Two planning questions the parent's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}} leaves open, built on its functions (copied unchanged, so the two pages agree): how many accelerators and how much money a training run needs to finish by a date, and what serving costs per million tokens as the batch grows. Every result is a ceiling or an estimate at the efficiency you set; prices are on-demand list prices fetched 2026-10-05 (Lambda for GPUs, Google Cloud for TPUs), and only chips with a published price show a cost.</p>
+<h3>A training run against a deadline</h3>
+<p class="try"><b>Try:</b> Llama 3.1 8B on 15,000B tokens finishes in 30 days on about 780 H100s; drop MFU to 25% or goodput to 70% and watch the count and the bill; switch to DeepSeek-V3 to see active parameters set the compute.</p>
+<div class="ctl">
+<label>Model <select id="pl-model"></select></label>
+<label>Training tokens (billions) <input type="number" id="pl-tok" min="1" max="100000" step="1" value="15000"></label>
+<label>Chip <select id="pl-chip"></select></label>
+<label>MFU: <b id="pl-mfu-v"></b><input type="range" id="pl-mfu" min="0.1" max="0.6" step="0.01" value="0.40" aria-label="MFU"></label>
+<label>Goodput (useful share of wall-clock): <b id="pl-good-v"></b><input type="range" id="pl-good" min="0.5" max="1" step="0.01" value="0.90" aria-label="Goodput"></label>
+<label>Deadline (days) <input type="number" id="pl-days" min="1" max="730" step="1" value="30"></label>
+<label>Sequence length for the attention term <select id="pl-seq"><option value="0" selected>leave attention out (6N)</option><option value="4096">4,096</option><option value="8192">8,192</option><option value="32768">32,768</option></select></label>
+</div>
+<div class="out" id="pl-out"></div>
+<div class="rd-chart" id="pl-curve"></div>
+<p class="small mute" id="pl-note"></p>
+<h3>Serving: tokens per second against cost</h3>
+<p class="try"><b>Try:</b> start at batch 1 and follow the curve: total throughput rises almost linearly while each user's speed barely falls, until the KV cache or compute takes over. Raise the context and watch the knee move left.</p>
+<div class="ctl">
+<label>Model <select id="sv-model"></select></label>
+<label>Chip <select id="sv-chip"></select></label>
+<label>Chips (tensor parallel) <select id="sv-n"><option>1</option><option>2</option><option>4</option><option selected>8</option></select></label>
+<label>Weights <select id="sv-fmt"><option value="native">as released</option><option value="bf16">BF16</option><option value="fp8">FP8</option><option value="nvfp4">NVFP4</option></select></label>
+<label>KV cache <select id="sv-kv"><option value="2">BF16</option><option value="1">FP8</option></select></label>
+<label>Context per sequence <select id="sv-ctx"><option>1024</option><option selected>4096</option><option>16384</option><option>65536</option></select></label>
+<label>Efficiency (share of peak and bandwidth): <b id="sv-eff-v"></b><input type="range" id="sv-eff" min="0.3" max="1" step="0.05" value="0.7" aria-label="Efficiency"></label>
+<label>Price per chip-hour ($) <input type="number" id="sv-price" min="0" step="0.01" value="3.99"></label>
+</div>
+<div class="rd-chart" id="sv-chart"></div>
+<div class="leg"><span style="--sw:var(--c1)">memory-bound step</span><span style="--sw:var(--c2)">compute-bound step</span><span class="oom">does not fit memory</span></div>
+<div class="tw"><table class="tbl-sm" id="sv-table"></table></div>
+<p class="small mute">Decode only (prefill adds its own compute); each step reads the weights in use (for a mixture of experts, the experts the batch touches under uniform routing) plus every sequence's cache at the given context; the step time is the larger of bytes over bandwidth and FLOPs over peak, both scaled by the efficiency. Cost per million output tokens = price &times; chips / (tokens per second &times; 3,600) &times; 10<sup>6</sup> <span class="der">derived</span>.</p>
+</div>
