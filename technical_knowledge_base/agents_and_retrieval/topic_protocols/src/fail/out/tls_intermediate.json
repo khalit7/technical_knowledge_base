@@ -1,0 +1,49 @@
+{
+ "case": "tls_intermediate",
+ "recorded": "2026-10-05 15:05 BST",
+ "runs": [
+  {
+   "cmd": "curl -sS --resolve api.llm.test:27447:127.0.0.1 --cacert $CA https://api.llm.test:27447/v1/messages -H 'content-type: application/json' --data-binary @../wire/request.json",
+   "out": "curl: (60) SSL certificate problem: unable to get local issuer certificate\nMore details here: https://curl.se/docs/sslcerts.html\n\ncurl failed to verify the legitimacy of the server and therefore could not\nestablish a secure connection to it. To learn more about this situation and\nhow to fix it, please visit the web page mentioned above.",
+   "rc": 60,
+   "ms": 15
+  },
+  {
+   "cmd": "$PY $CL/py_requests.py https://localhost:27447/v1/messages --ca $CA --json ../wire/request.json",
+   "out": "requests.exceptions.SSLError: HTTPSConnectionPool(host='localhost', port=27447): Max retries exceeded with url: /v1/messages (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1032)')))",
+   "rc": 0,
+   "ms": 94
+  },
+  {
+   "cmd": "$PY $CL/py_httpx.py https://localhost:27447/v1/messages --ca $CA --json ../wire/request.json",
+   "out": "httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1032)",
+   "rc": 0,
+   "ms": 97
+  },
+  {
+   "cmd": "NODE_EXTRA_CA_CERTS=$CA node $CL/node_fetch.mjs https://localhost:27447/v1/messages ../wire/request.json",
+   "out": "TypeError: fetch failed\n  cause: UNABLE_TO_VERIFY_LEAF_SIGNATURE unable to verify the first certificate",
+   "rc": 0,
+   "ms": 61
+  },
+  {
+   "cmd": "$OPENSSL s_client -connect 127.0.0.1:27447 -servername api.llm.test -CAfile $CA </dev/null 2>&1 | grep -E '^ *[0-9] s:|^ +i:|Verify return'",
+   "out": " 0 s:CN=api.llm.test\n   i:CN=Wire Lab Issuing CA 1\nVerify return code: 21 (unable to verify the first certificate)",
+   "rc": 0,
+   "ms": 16
+  },
+  {
+   "cmd": "$OPENSSL s_client -connect 127.0.0.1:27448 -servername api.llm.test -CAfile $CA </dev/null 2>&1 | grep -E '^ *[0-9] s:|^ +i:|Verify return'",
+   "out": " 0 s:CN=api.llm.test\n   i:CN=Wire Lab Issuing CA 1\n 1 s:CN=Wire Lab Issuing CA 1\n   i:CN=Wire Lab Root CA\nVerify return code: 0 (ok)",
+   "rc": 0,
+   "ms": 16,
+   "note": "the fix: the server sends leaf plus intermediate (fullchain.pem)"
+  },
+  {
+   "cmd": "curl -sS --resolve api.llm.test:27448:127.0.0.1 --cacert $CA https://api.llm.test:27448/v1/messages -H 'content-type: application/json' --data-binary @../wire/request.json",
+   "out": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_wirelab_0001\",\"model\":\"wire-lab-1\",\"role\":\"assistant\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"The\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" sky\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" is\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" blue\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\".\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}",
+   "rc": 0,
+   "ms": 342
+  }
+ ]
+}
