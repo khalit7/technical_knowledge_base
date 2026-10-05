@@ -1,0 +1,61 @@
+<section id="rd-s2">
+<h2>2. Polling and long polling: asking again and again</h2>
+<p><b>Polling</b> is the obvious first answer and still the right one more often than people admit. The client sends <code>GET /jobs/123</code> every few seconds and the server answers at once with the current state. Every piece of HTTP works unchanged: caching, retries, load balancers, authentication, logs. A status endpoint that sends an <code>ETag</code> lets the client ask "has it changed since version 7?" with <code>If-None-Match</code>, and the answer to most polls becomes an empty <code>304 Not Modified</code> (conditional requests are taught on the {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} page, section 3). Its costs are the two numbers in section 1: latency set by the timer, and a request per tick whether or not anything happened.</p>
+<p><b>Long polling</b> removes the empty answers. The client sends the same request, but the server does not answer until it has something new or a hold timeout passes (then it answers "nothing yet", and the client asks again). It was the standard trick for chat in browsers before WebSockets (the "Comet" era); the IETF wrote down its known problems in {{RFC 6202|https://www.rfc-editor.org/rfc/rfc6202}} (Informational, April 2011).</p>
+<p><b>How it works, step by step.</b></p>
+<ol class="tight">
+<li>The client asks for everything after a <dfn>cursor</dfn>: <code>GET /events?after=3</code>. The cursor is what makes it safe: events that happen while no request is waiting are not lost, they are returned to the next request.</li>
+<li>The server holds the request (an asynchronous server holds thousands cheaply; a thread-per-request server runs out of threads).</li>
+<li>When news exists, or after the hold timeout, it answers with the events and the new cursor.</li>
+<li>The client immediately asks again with the new cursor.</li>
+</ol>
+<p><b>What it costs, and how it fails.</b></p>
+<ul class="tight">
+<li><b>One request per batch of events</b>, each with full headers and, for an authenticated API, a credential check. <span class="meas">measured</span> <span data-k="fw50_lp_req">6</span> requests for 7 events on the running answer.</li>
+<li><b>An extra round trip whenever events come faster than requests</b> (section 1's 100 ms run).</li>
+<li><b>The hold timeout must be shorter than every idle timeout on the path</b>, or a proxy answers for the server: a 504 or a cut connection (nginx's <code>proxy_read_timeout</code> defaults to 60 s; the {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} page's Timeout chain tab has the others). 20 to 30 s is the usual choice.</li>
+<li><b>Each waiting request occupies a connection.</b> In a browser on HTTP/1.1 that is one of only six per host (measured in <a href="#rd-s4">section 4</a>).</li>
+<li><b>Thundering herd</b>: when the server restarts, every held request fails at once and every client re-asks at once. Add random jitter to the client's retry.</li>
+</ul>
+<p><b>Where you still meet both.</b> Asynchronous jobs: a batch inference or fine-tuning API answers <code>202 Accepted</code> with a job id, and the client polls a status URL (or registers a webhook, section 10). A2A, the agent-to-agent protocol, lets a client poll a task's state as well as stream it or receive push notifications ({{Agent-to-agent|n:3f05c17b0d0d81199373d4d0b18706d8}}). And long polling is the fallback that libraries such as Socket.IO use when a network blocks WebSockets.</p>
+<div class="drill" data-ans="b"><div class="t">Predict, then reveal</div>
+<p>Your long-polling endpoint holds requests for 90 s. Behind an nginx with default settings, what do clients see when nothing happens for two minutes?</p>
+<div class="opts"><button data-o="a">One empty answer after 90 s, as designed</button><button data-o="b">A 504 from nginx after 60 s, every time</button><button data-o="c">Nothing: nginx passes long requests through untouched</button></div>
+<div class="rev" hidden>A 504 after 60 s. nginx's default <code>proxy_read_timeout</code> is 60 s ({{nginx docs|https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout}}): it waits that long for the upstream to send something, then gives up and answers 504 Gateway Timeout itself. The root page's Failure lab reproduces exactly this as "Read timeout: connected, then nothing". Hold for less than the shortest timeout on the path, and treat a 504 from a long-poll endpoint as "ask again".</div></div>
+</section>
+
+<section id="rd-s3">
+<h2>3. Server-Sent Events: the format, byte by byte</h2>
+<p><b>The idea.</b> Instead of answering and closing, the server answers once and keeps the response open, writing a new chunk of text whenever it has news. The client reads the body as it arrives rather than waiting for its end. That is all SSE is: an agreed text format for a response that does not end, defined in the HTML standard ({{WHATWG HTML, section 9.2|https://html.spec.whatwg.org/multipage/server-sent-events.html}}, a living standard, last updated 5 October 2026), plus a small browser API, <code>EventSource</code>, that reads it.</p>
+<p><b>The response head.</b> Three header fields matter:</p>
+<ul class="tight">
+<li><code>Content-Type: text/event-stream</code>: the only thing that makes it SSE. A browser's EventSource refuses any other type, and refuses any status other than 200.</li>
+<li><code>Cache-Control: no-cache</code>: an event stream is not a document to cache.</li>
+<li><code>X-Accel-Buffering: no</code>: not part of the standard; it tells nginx-style proxies not to buffer this response (the root's Failure lab case "A buffering proxy delays tokens" shows what buffering does). The standard way to say the same thing is now the <code>Incremental</code> header field ({{RFC 10036|https://www.rfc-editor.org/rfc/rfc10036}}, August 2026).</li>
+</ul>
+<p>There is no <code>Content-Length</code>, because nobody knows how long the answer will be. On HTTP/1.1 the body therefore travels in chunked encoding (each chunk preceded by its size in hex); on HTTP/2 and HTTP/3, in DATA frames. Neither is visible to the SSE parser, which sees only the text.</p>
+<p><b>The body.</b> A sequence of <dfn>events</dfn>. Each event is one or more lines of the form <code>field: value</code>, and a blank line ends it. Here is one token event of the running answer, exactly as sent:</p>
+<div class="ann" id="sse-ann"><span data-p="ev">event: content_block_delta</span><span class="cr">&#9226;</span>
+<span data-p="data">data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The"}}</span><span class="cr">&#9226;</span>
+<span data-p="blank"><span class="cr">&#9226;</span></span></div>
+<div class="anninfo" id="sse-info">Click a line. <span class="meas">measured</span> This event is 118 bytes: 27 for the event line, 90 for the data line (6 for <code>data: </code>, 83 of JSON, 1 newline), 1 for the blank line. The token itself is 3 of them.</div>
+<p><b>The four fields, and comments.</b></p>
+<div class="tw"><table>
+<thead><tr><th>Line</th><th>What the parser does</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td><code>data: ...</code></td><td>Appends the value to the event's data, plus a newline. Several data lines in one event are joined with newlines; the final newline is removed when the event is delivered.</td><td>The payload. LLM APIs put one JSON object here.</td></tr>
+<tr><td><code>event: name</code></td><td>Sets the event's type. Without it the type is <code>message</code>.</td><td>Typed events (<code>message_start</code>, <code>content_block_delta</code>). In a browser, <code>onmessage</code> sees only untyped events; typed ones need <code>addEventListener('name', ...)</code>, a classic "my handler never fires" bug.</td></tr>
+<tr><td><code>id: 42</code></td><td>Sets the <dfn>last event id</dfn>, which the browser sends back as <code>Last-Event-ID</code> when it reconnects. An id containing a NUL character is ignored.</td><td>Resuming after a cut (<a href="#rd-s6">section 6</a>).</td></tr>
+<tr><td><code>retry: 500</code></td><td>Sets the reconnection delay in milliseconds, if the value is all digits; otherwise ignored.</td><td>Telling clients how fast to come back.</td></tr>
+<tr><td><code>: anything</code></td><td>A line starting with a colon is a comment: ignored.</td><td>Keep-alives: the standard suggests one "every 15 seconds or so" against proxies that drop quiet connections.</td></tr>
+<tr><td>(blank line)</td><td>Dispatches the event, if its data is not empty, then starts a new one.</td><td>The end of every event. Forget it and nothing is ever delivered.</td></tr>
+</tbody></table></div>
+<p><b>The parsing rules that bite.</b> Lines may end in LF, CR LF, or a lone CR. Exactly one space after the colon is removed, so <code>data:&nbsp;&nbsp;a</code> carries " a". A line with no colon is a field name with an empty value. A field name the parser does not know is ignored, including <code>data&nbsp;</code> with a space before the colon. An event that the stream ends before its blank line is thrown away. One UTF-8 byte order mark at the very start is stripped. The stream is UTF-8, and a network read can end in the middle of a character or a line, so a parser must buffer bytes, not decode each read on its own.</p>
+<div class="co"><div class="t">Measured: eight real parsers against these rules</div>
+<p><span class="meas">measured</span> The {{Parser test|#t-parse}} tab sends <span data-k="cases_n">18</span> byte streams, each testing one rule, to <span data-k="parsers_n">8</span> parsers and shows what each delivered. Chrome's EventSource and Node's <code>eventsource</code> package followed the standard on all of them. The four Python parsers tried (the parsers inside the official OpenAI and Anthropic SDKs, <code>httpx-sse</code>, <code>sseclient-py</code>) each lost the first event after a byte order mark, and the first three delivered an event that had no data line, which the standard says to skip. <code>sseclient-py</code> also delivered an event cut off by the end of the stream and kept an id containing NUL. None of this hurts with today's LLM APIs, which never send these shapes; it matters when you write the server or a proxy that re-frames events.</p></div>
+<div class="drill" data-ans="a"><div class="t">Predict, then reveal</div>
+<p>A server sends <code>data:{"text":"hi"}</code> with no space after the colon, then a blank line. What does the client's event contain?</p>
+<div class="opts"><button data-o="a"><code>{"text":"hi"}</code></button><button data-o="b"><code>"text":"hi"}</code>: the first character is eaten as the space</button><button data-o="c">Nothing: the line is malformed and ignored</button></div>
+<div class="rev" hidden>The whole JSON. The space after the colon is optional; if it is there, exactly one space is removed. All eight parsers measured agree on this case (the <code>nospace</code> row of the Parser test tab).</div></div>
+<div class="deepnote"><b>Go deeper (optional).</b> Write a parser yourself and feed it real reads that split events mid-line: the {{JavaScript and TypeScript|n:3cd5c17b0d0d81dbac7be3b8686be023}} page, Part 1, has that lab. The root's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab shows the full 1,062-byte HTTP/1.1 response with its chunk sizes.</div>
+</section>
