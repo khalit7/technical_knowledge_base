@@ -2614,3 +2614,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | 11 | HelloRetryRequest table on a 50 ms emulated path | 4x5x3 | `raw/hrr.json` | Reading s2 | built |
 | 12 | Crypto speed bars (openssl speed) and handshake cost bars (full, resumed, kept-alive) | 3x5x3 | `raw/speed.txt`, `raw/hs_cost.json` | Reading s3, s8 | built |
 | 13 | Rotation result (same SSLContext reloaded; old connection keeps old identity) | 4x5x4 | `raw/rotate.json` | Reading s7 | built |
+
+### DNS: resolution, caching and the failure modes (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_protocols/dns/src/viz_ideas.md`.
+
+| Idea | T | D | C | Placement | Data |
+|---|---|---|---|---|---|
+| Pod resolver lab: two recorded getaddrinfo calls replayed packet by packet side by side (ndots:5 vs trailing dot, ndots:5 vs 1, glibc vs musl, lost packet, timeouts, dead server, SERVFAIL, TCP fallback), durations to one scale | 5 | 5 | 2 | own tab | tcpdump in each pod's namespace, `lab/exp_pod.py`; glibc 2.41, musl 1.2.6, CoreDNS 1.12.4, Unbound 1.25.2 |
+| Resolution walk, before/after: cold with QNAME minimisation, cold without, warm; sequence diagram from the authoritative servers' own logs, counters (what the root learned) | 5 | 5 | 3 | Reading 2 | CoreDNS `log` plugin, `lab/exp_walk.py` |
+| Message bytes: a real query, answer and CNAME answer parsed in the browser, every field clickable, compression pointers marked | 5 | 5 | 3 | Reading 3 | `lab/exp_wire.py` (dnspython client to Unbound) |
+| DNSSEC chain stepper with four modes (valid, expired signatures, root key rolled with old anchor, NSEC proof); key tags recomputed in the browser; delv trace | 5 | 5 | 2 | Reading 9 | signed lab tree (`gen_zones.py`, ECDSA P-256), Unbound validating, delv |
+| Real root keys: tags and DS digests recomputed from the root zone file, matched to IANA, plus the live key set over DoT | 4 | 5 | 4 | Reading 9 | InterNIC root.zone, IANA root-anchors.xml, `keytags.py` |
+| Rebinding against an agent fetch tool, before/after (check-then-fetch-by-name vs resolve-once) | 5 | 5 | 3 | Reading 10 | attacker DNS server log and tool output, `lab/exp_sec.py` |
+| Cache timeline: share of clients on the old address after a change, not lowered vs lowered first, 100 caches flipping, JVM and pinned-connection shares; plus negative-cache, failover and NS-move calculators | 5 | 3 | 3 | own tab | illustrative model (`32_js_cache_model.js`, checked against Python in `check_embed.py`); lab recording overlaid |
+| Recorded TTL change and negative caching charts (resolver vs authoritative over 44 s) | 5 | 5 | 4 | Reading 5 | `lab/exp_cache.py` |
+| Serve-stale ladder (default vs serve-expired) | 4 | 5 | 5 | Reading 5 | same |
+| Tables from recordings: lost packet timings, dead server, error texts per libc, HTTP clients' query counts, ndots per name per libc, truncation, loop plugin | 4 | 5 | 5 | Reading 3, 6, 7 | `lab/out/pod.json` |
+| Predict-then-reveal drills (9), interview questions (6) | 4 | 4 | 5 | Reading 13 | page numbers |

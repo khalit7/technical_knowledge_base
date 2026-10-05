@@ -1,0 +1,44 @@
+<div class="tab" id="t-cache" role="tabpanel" hidden>
+<style>
+#t-cache .ctl2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:6px 14px;margin:8px 0}
+#t-cache .ctl2 label{display:flex;flex-direction:column;font-size:13px;min-width:0}
+#t-cache .ctl2 input[type=range]{width:100%}
+#t-cache .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:8px 0}
+#t-cache .grid2>div{min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px}
+#t-cache .cells{display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:2px;margin:6px 0}
+#t-cache .cells span{aspect-ratio:1;border-radius:2px;background:#3f7f56}#t-cache .cells span.o{background:#2f6fb5}#t-cache .cells span.p{background:#8a5cb8}
+#t-cache .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-cache .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-cache .an-play{min-width:6.4em}
+#t-cache .an-cap{min-height:3em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-cache .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin:8px 0}
+#t-cache .calc>div{border:1px solid var(--line);border-radius:8px;padding:8px;min-width:0}
+#t-cache .calc input[type=number]{width:8em}#t-cache .calc label{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0;font-size:13px}
+#t-cache .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-cache .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+</style>
+<h2>Cache timeline: who still sees the old address</h2>
+<p>You are moving <code>api.example.com</code> to a new address. This tab shows, second by second after the change, what share of clients still reach the old one, for the same change made two ways: <b>without</b> lowering the TTL first, and <b>with</b> the TTL lowered some time ahead. Set your numbers; the squares are 100 resolver caches flipping from old (blue) to new (green).</p>
+<div class="ctl2">
+<label>Current TTL: <b id="cc-oldv"></b><input type="range" id="cc-old" min="0" max="5" step="1" value="3"></label>
+<label>Lowered TTL: <b id="cc-newv"></b><input type="range" id="cc-new" min="0" max="4" step="1" value="1"></label>
+<label>Lowered how long before the change: <b id="cc-leadv"></b><input type="range" id="cc-lead" min="0" max="8" step="1" value="8"></label>
+<label>Clients with their own 30 s cache (JVM default): <b id="cc-jvmv"></b><input type="range" id="cc-jvm" min="0" max="50" step="5" value="20"></label>
+<label>Clients on long-lived connections that never re-resolve: <b id="cc-pinv"></b><input type="range" id="cc-pin" min="0" max="20" step="1" value="0"></label>
+</div>
+<div class="grid2">
+<div><b>Not lowered</b><div class="cells" id="cc-ca"></div><div class="small" id="cc-sa"></div></div>
+<div><b>Lowered first</b><div class="cells" id="cc-cb"></div><div class="small" id="cc-sb"></div></div>
+</div>
+<div class="rd-svg" id="cc-chart"></div>
+<div class="leg"><span style="--sw:#2f6fb5">not lowered</span><span style="--sw:#3f7f56">lowered first</span><span style="--sw:#c2703a">lab recording (one cache, TTL 30)</span><span style="--sw:#8a5cb8">squares: never re-resolve</span></div>
+<div class="an-ctl" id="cc-ctl"></div>
+<div class="an-cap" id="cc-cap"></div>
+<p class="small mute"><span class="ill">illustrative model</span>: every resolver cache is assumed to be kept warm by steady traffic, with fetch times spread evenly over one TTL; a real cache that sees little traffic refetches later and flips sooner. The rule it encodes is exact: a cache flips when the entry it held at the moment of the change expires, and an entry keeps the TTL it was fetched with. The orange step is the lab's recorded run from the Reading (section 5): one cache, TTL 30, which kept the old address until its entry expired. Model checked against an independent Python version by <code>check_embed.py</code>.</p>
+<h3>Three more waits, from their formulas</h3>
+<div class="calc">
+<div><b>A name looked up before it existed</b><label>SOA TTL <input type="number" id="nc-ttl" value="1800" min="0"></label> <label>SOA MINIMUM <input type="number" id="nc-min" value="1800" min="0"></label><p id="nc-out"></p></div>
+<div><b>A health-checked failover</b><label>Check interval <input type="number" id="fo-int" value="30" min="1"></label> <label>Failures <input type="number" id="fo-thr" value="3" min="1"></label> <label>Record TTL <input type="number" id="fo-ttl" value="60" min="0"></label><p id="fo-out"></p></div>
+<div><b>Moving to new name servers</b><label>Parent's NS TTL <input type="number" id="ns-ttl" value="172800" min="0"></label> <label>Your zone's NS TTL <input type="number" id="ns-own" value="86400" min="0"></label><p id="ns-out"></p></div>
+</div>
+<p class="small mute">Defaults: anthropic.com's SOA (1,800 and 1,800, measured); Route 53's default 30 s interval and 3 failures with a 60 s record ({{AWS|https://docs.aws.amazon.com/Route53/latest/APIReference/API_HealthCheckConfig.html}}); <code>.com</code> delegations at 172,800 s ({{root zone|https://www.internic.net/domain/root.zone}}).</p>
+</div>
