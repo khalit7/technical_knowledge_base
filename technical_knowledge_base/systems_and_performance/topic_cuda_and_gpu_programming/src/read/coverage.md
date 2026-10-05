@@ -28,7 +28,7 @@ The old root and its six children are saved verbatim in `old/` (fetched read-onl
 | AMD Skills commentary (SKILL.md as procedural anchor, Phi-Bench 5.4%) | dropped: commentary linking other KB pages, not a GPU-programming fact; Phi-Bench figure not checked | n/a |
 | CUDA Rust two tracks (cuda-oxide, cutile-rs), details | verified (NVIDIA blog, Sep 8, 2026), quoted | 10 |
 | HN 968 points | unconfirmed; dropped | n/a |
-| Z.ai infra agent, Dream-RSI (Sep 14, 2026) | unconfirmed; dropped (news, not a mechanism) | n/a |
+| Z.ai infra agent, Dream-RSI (Sep 14, 2026) | Dream-RSI verified: arXiv 2609.14858 (Sep 14, 2026); still dropped (news, not a mechanism) | n/a |
 | Learning path for an RTX 5090 owner | **corrected**: there is no NVIDIA GPU at home; rewritten for the Mac plus rented GPUs (Lambda H100 $3.99/GPU-h, FACTS.md) | 10 |
 | `-arch=sm_120` on CUDA 12.8+ | verified (CUDA 12.8 release notes) | 8 |
 | Best resources list | all kept, link-checked 2026-10-05 | Further reading |
@@ -106,7 +106,7 @@ The old root and its six children are saved verbatim in `old/` (fetched read-onl
 | ncu locks clocks to base by default | **corrected**: default `--clock-control boost`, `--cache-control all` (Nsight Compute CLI docs v2026.3.1) | 9 |
 | Benchmark methodology (events, warmup, clocks, L2, baselines, graphs, env log) | kept; illustrated by the M1 load episode | 9 |
 | `do_bench` has `flush_l2=True` | **corrected**: no such argument; it clears L2 before each run and returns the mean by default (triton/testing.py) | 9 |
-| Hyperloom, Dream-RSI, Phi-Bench commentary | Hyperloom verified (section 10); the rest unconfirmed, dropped | 10 |
+| Hyperloom, Dream-RSI, Phi-Bench commentary | Hyperloom verified (section 10); Dream-RSI verified (arXiv 2609.14858), dropped as news; Phi-Bench not found, dropped | 10 |
 
 ## CUTLASS, cuBLAS, cuDNN, tensor cores (`old/06_cutlass_cublas_cudnn_tensor_cores.md`)
 
