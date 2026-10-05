@@ -3072,3 +3072,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | R3 | Timing compiled vs eager on GPU | rejected: no GPU; CPU timings of a tiny op would mislead (said on the page) |
 | R4 | JIT cache simulator with sizes | rejected: no measured JIT times without a GPU; the env-var table and the Will it run? tab carry the rules |
 | R5 | Register-pressure ladder | rejected: the root and memory hierarchy pages have it |
+
+### Topic: agentic-harnesses (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/src/viz_ideas.md`.
+

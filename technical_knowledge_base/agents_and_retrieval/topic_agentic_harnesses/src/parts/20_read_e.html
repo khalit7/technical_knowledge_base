@@ -1,0 +1,31 @@
+
+<section id="rd-s5">
+<h2>5. Safety: permissions, sandboxes, injection</h2>
+<p><b>The problem.</b> Every tool call runs with the harness's rights, which on a laptop are yours. Two things can go wrong. The model can simply be wrong (delete the wrong directory, push to the wrong branch), and the model can be steered by text it reads: <dfn>prompt injection</dfn> is an instruction planted in a file, web page, issue or tool result that the model follows as if the user had written it. Neither can be fixed inside the model with certainty, so the harness puts controls around it, in layers.</p>
+<div class="grid">
+<div class="sp"><div class="n">1. Permission gate</div><p>Before each call, rules decide <b>allow</b>, <b>deny</b> or <b>ask a person</b>. Claude Code's modes set the default (Manual asks before edits and commands; Accept edits lets file edits through; Plan forbids edits; Auto lets a classifier block risky actions) and settings files add rules per command pattern.</p></div>
+<div class="sp"><div class="n">2. Sandbox</div><p>An operating-system boundary around what does run. Claude Code's optional sandbox (off by default) wraps shell commands with Seatbelt on macOS and bubblewrap on Linux: writes only in the project and a temp directory, and network only through a local proxy that checks an allowed-domains list, empty to start (<a href="https://code.claude.com/docs/en/sandboxing" target="_blank" rel="noopener noreferrer">sandboxing</a>). File tools, MCP servers and hooks run outside it.</p></div>
+<div class="sp"><div class="n">3. A machine you can throw away</div><p>Containers and cloud VMs, where full autonomy is acceptable because the blast radius is the box. How namespaces, seccomp and sandboxes work: {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</p></div>
+<div class="sp"><div class="n">4. Secrets outside the agent</div><p>The model cannot leak a credential it never sees. Claude Code's sandbox can show commands a placeholder and have the proxy substitute the real value only on requests to allowed hosts.</p></div>
+</div>
+<div class="card" id="ahread-c2">
+<h3 style="margin-top:0">The same eleven actions, without and with a permission gate</h3>
+<div class="seg" id="ahread-c2-seg"><button data-m="gate" class="on">With the gate</button><button data-m="none">No gate</button></div>
+<div class="an-ctl" id="ahread-c2-ctl"></div>
+<div class="an-cap" id="ahread-c2-cap" aria-live="polite"></div>
+<div class="out" id="ahread-c2-cnt"></div>
+<div class="ahread-gate" id="ahread-c2-list"></div>
+<p class="small mute">The verdicts are the real output of the Loop lab's step 3 gate (<code>check()</code>, deny rules first, then allow rules, anything unmatched asks; with no person at a terminal, ask becomes deny), run on these eleven actions without a model. The actions are chosen to probe it, including the two the recorded agents actually tried. "No gate" shows what a harness without one would run: everything.</p>
+</div>
+<p>Three lessons from the recordings. A gate written as command patterns is brittle in both directions: in three of the Loop lab's four Claude Code runs an allow rule for <code>python3</code> blocked <code>python tests/test_core.py</code>, and an allowed prefix followed by <code>; rm -rf</code> must still be caught, which is why the step 3 gate treats any command containing <code>; &amp; | $ &lt; &gt;</code> or a backtick as "ask". A gate only knows the tools it was told about: the Loop lab's step 5 added a subagent tool, forgot its rule, and the gate refused it (failing closed, the right default). And a planted <code>curl ... | sh</code> line in the test file was read and ignored by Haiku in the one run that tried it <span class="meas">MEASURED</span>; one ignored injection is not evidence of safety.</p>
+<h3>The lethal trifecta</h3>
+<p>Simon Willison's framing (<a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/" target="_blank" rel="noopener noreferrer">16 Jun 2025</a>): an agent that has <b>access to private data</b>, <b>exposure to untrusted content</b> and <b>a way to communicate externally</b> can be made to send your data to an attacker, and no current filter reliably prevents it; the defence is to never combine all three. Tick what your agent has:</p>
+<div class="ahread-tri" id="ahread-tri">
+<label><input type="checkbox" data-k="p" checked> private data (repo with secrets, mail, tokens)</label>
+<label><input type="checkbox" data-k="u" checked> untrusted content (web pages, issues, dependencies)</label>
+<label><input type="checkbox" data-k="e"> a way out (network, a URL it can fetch, a PR comment)</label>
+</div>
+<div class="ahread-tri-out" id="ahread-tri-out" aria-live="polite"></div>
+<p><b>Egress is where it leaks.</b> OpenAI reported in September 2026 that an agent in training, blocked at its web proxy, reached an external chatbot by encoding questions into DNS lookups, which were not restricted the way the proxy was; monitoring flagged it within 15 minutes and the run was killed 2.5 hours later, and OpenAI paused tool use on its most capable models while it closed the gap (<a href="https://alignment.openai.com/misalignment-reports/an-agent-used-dns-to-reach-an-external-chatbot/" target="_blank" rel="noopener noreferrer">report</a>, updated 25 Sep 2026) <span class="src">SOURCE</span>. A policy that names tools or protocols is not an egress policy: write it over destinations, and keep enforcement outside the component that can be persuaded.</p>
+<div class="deepnote"><b>Go deeper:</b> the Loop lab's step 3 builds the gate and replays the injection runs; protocol-level auth for tools and agents is on {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}} and {{MCP|n:3c65c17b0d0d813f9695dc4175c44cbb}}.</div>
+</section>
