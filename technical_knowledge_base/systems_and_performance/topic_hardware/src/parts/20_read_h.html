@@ -1,0 +1,24 @@
+<section id="rd-s9">
+<h2>9. Choosing and costing hardware for a job</h2>
+<p><b>Five lines of arithmetic before you rent anything</b>, each from a section above:</p>
+<ol>
+<li><b>Memory (section 3):</b> bytes of state (16 per parameter for mixed-precision Adam, 2 per parameter for bf16 inference, plus activations or KV cache). Does it fit one GPU, one server, or does it need sharding?</li>
+<li><b>Compute (section 5):</b> 6 &times; parameters &times; tokens, divided by chips &times; dense peak &times; an assumed MFU (30 to 40% for a tuned dense run) gives the wall-clock time.</li>
+<li><b>Roofline (section 5):</b> is the batch per GPU large enough to be compute-bound? Decode at small batch is bandwidth-bound: tokens per second &asymp; bandwidth / bytes per token.</li>
+<li><b>Communication (section 6):</b> bytes per step for each kind of parallelism against the link it crosses. Tensor and expert parallelism must fit inside the NVLink domain.</li>
+<li><b>Cost:</b> chip-hours &times; price, with the price's date and terms.</li>
+</ol>
+<div class="ff"><div class="t">Worked example: fine-tune Llama 3.1 8B on 1 billion tokens <span class="der">derived</span></div><ul>
+<li>Memory: 128.5 GB of state; sharded over 8 GPUs that is 16 GB each, which fits an 80 GB H100 with room for activations.</li>
+<li>Compute: 6 &times; 8.03 &times; 10<sup>9</sup> &times; 10<sup>9</sup> = 4.8 &times; 10<sup>19</sup> FLOPs. On 8 H100s at 40% MFU: 4.2 hours. On 8 B200s (2,250 TFLOPS dense each): 1.9 hours.</li>
+<li>Communication: everything inside one 8-GPU NVLink server; the 16 GB gradient all-reduce (62.5 ms on NVLink 4) is small next to each step.</li>
+<li>Cost at on-demand list prices ({{Lambda|https://lambda.ai/pricing}}, fetched 2026-10-05: H100 SXM $3.99, B200 $6.69 per GPU-hour): about $135 on H100s, about $99 on B200s. The newer chip costs more per hour and less per job, if the software reaches the same MFU on it.</li></ul></div>
+<div class="card" id="rd-price-card">
+<div class="t" style="font-weight:600;font-size:14px">Peak per dollar-hour, on-demand list prices</div>
+<div class="seg" id="rd-price-mode"><button data-m="tf" class="on">Dense BF16 TFLOPS per $/h (training, prefill)</button><button data-m="bw">TB/s of HBM per $/h (decode)</button></div>
+<div class="bars" id="rd-price-bars"></div>
+<p class="small mute">GPUs: Lambda 8-GPU instances per GPU-hour; TPUs: Google Cloud per chip-hour on demand ({{TPU pricing|https://cloud.google.com/tpu/pricing}}); both fetched 2026-10-05. Peaks are vendor figures, not achieved throughput; reserved and committed prices are lower and differ by provider; a TPU also means JAX or PyTorch/XLA. A ranking, not a quote. <span class="der">derived</span></p>
+</div>
+<p><b>Choosing, by job.</b> <b>Pretraining or full fine-tuning of a large model:</b> the biggest NVLink domain and the most HBM you can get, then the network (InfiniBand or tuned RoCE, one NIC per GPU). <b>Fine-tuning a small model, or LoRA:</b> one 8-GPU server, or even one GPU. <b>Batch-1 latency</b> (chat, agents): bandwidth per dollar, or SRAM-based systems. <b>Throughput serving:</b> FLOPs per dollar at high batch, and memory capacity for the KV cache. <b>Local development:</b> a consumer GPU (fast, 32 GB, no NVLink, half-rate FP32-accumulate training math) or a Mac (slow but large unified memory). In every case the first question is whether your software stack runs well on it: a cheaper peak that your kernels cannot reach is not cheaper.</p>
+<div class="deepnote"><b>Go deeper (optional).</b> Every step of this arithmetic, for any model, chip, precision and cluster, with presets checked against published runs: {{Performance calculator|#t-calc}}. Prices and specs for every chip: {{Chip atlas|#t-chips}}.</div>
+</section>

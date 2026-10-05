@@ -1,3 +1,180 @@
 <div class="tab" id="t-calc" role="tabpanel" hidden>
-<p>Being built.</p>
+<style>
+#t-calc .calc-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:8px 14px;margin:8px 0}
+#t-calc .calc-ctl label{font-size:13px;display:block;min-width:0}
+#t-calc .calc-ctl select,#t-calc .calc-ctl input[type=number]{width:100%;max-width:100%}
+#t-calc .calc-ctl .calc-wide{grid-column:1/-1}
+#t-calc .calc-chk{font-size:13px;display:flex;align-items:center;gap:6px}
+#t-calc .calc-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;min-width:0}
+#t-calc .calc-plot{min-width:0;overflow:hidden;margin:6px 0}
+#t-calc .calc-fx{font-size:13px;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:8px 0;overflow-wrap:anywhere}
+#t-calc .calc-fx code{font-size:12.5px}
+#t-calc .calc-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-calc .calc-leg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-calc .calc-ok{color:var(--good);font-weight:600}#t-calc .calc-no{color:var(--bad);font-weight:600}
+#t-calc .calc-tag{display:inline-block;font-size:11px;border-radius:99px;padding:0 7px;border:1px solid var(--line);white-space:nowrap}
+#t-calc .calc-tag.v{color:var(--closed);border-color:var(--closed)}#t-calc .calc-tag.c{color:var(--c1);border-color:var(--c1)}
+#t-calc .calc-tag.i{color:var(--bad);border-color:var(--bad)}#t-calc .calc-tag.m{color:var(--good);border-color:var(--good)}
+#t-calc .calc-anctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+#t-calc .calc-anctl input[type=range]{flex:1 1 140px;width:auto;min-width:100px}
+#t-calc .calc-cap{min-height:4.6em;font-size:13.5px;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:6px 0}
+#t-calc .calc-pr{border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:10px 0;background:var(--soft)}
+#t-calc .calc-pr .calc-q{font-size:14px;font-weight:600}
+#t-calc .calc-pr .calc-opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-calc .calc-pr .calc-opts button{font-size:13px}
+#t-calc .calc-pr .calc-opts button.calc-right{background:var(--open2);border-color:var(--good)}
+#t-calc .calc-pr .calc-opts button.calc-wrong{background:var(--hl)}
+#t-calc .calc-pr .calc-ans{font-size:13.5px;margin-top:4px}
+#t-calc .calc-tbl td{font-size:12.5px}#t-calc .calc-tbl td.num{white-space:nowrap}
+#t-calc .calc-tbl td small{color:var(--mute)}
+#t-calc .calc-bars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 6.4em}
+#t-calc .calc-bars .row .nm{white-space:normal;line-height:1.2}
+@media (max-width:520px){#t-calc .calc-bars .row{grid-template-columns:minmax(0,7.4em) minmax(0,1fr) 5.6em}}
+</style>
+<h2 style="margin-top:14px">Performance calculator</h2>
+<p class="lead">Before you rent a single GPU, five lines of arithmetic tell you whether a model fits, how long a run takes, what it costs, how fast a deployment can answer, and how much of the time goes to the network. This tab does that arithmetic with every input visible, checks it against figures labs have published, and ends with interview-style drills.</p>
+<div class="co warn"><div class="t">What this tab is, and what it is not</div>Everything here is <span class="calc-tag c">computed</span>: formulas applied to <span class="calc-tag v">vendor</span> peak specifications (dated, sourced in the {{Chip atlas|#t-chips}}) and to real model shapes read from each model's <code>config.json</code> on Hugging Face. Nothing was run on an NVIDIA, AMD or Google chip. A computed number is a <b>ceiling</b> (the best the hardware allows) or an <b>estimate at an efficiency you choose</b>; real systems land below it, and the {{Roofline lab|#t-roof}} measures by how much on a real GPU. The formulas are checked against a Python reference on 507 values (all match), and the defaults are checked against published figures in the <a href="#calc-s-checks" data-calcjump="calc-s-checks">checks table</a>.</div>
+<nav class="nav" id="calc-nav" aria-label="Sections of this tab">
+<a href="#calc-s-terms" data-calcjump="calc-s-terms">Terms</a><a href="#calc-s-train" data-calcjump="calc-s-train">Training</a><a href="#calc-s-step" data-calcjump="calc-s-step">One step on 1, 8, 64 GPUs</a><a href="#calc-s-inf" data-calcjump="calc-s-inf">Inference</a><a href="#calc-s-dec" data-calcjump="calc-s-dec">Decode at batch 1 vs 64</a><a href="#calc-s-comm" data-calcjump="calc-s-comm">Communication</a><a href="#calc-s-checks" data-calcjump="calc-s-checks">Checks</a><a href="#calc-s-drill" data-calcjump="calc-s-drill">Drills</a>
+</nav>
+
+<section id="calc-s-terms">
+<h3>The terms, in one screen</h3>
+<div class="grid">
+<div class="sp"><div class="n">Parameters N, tokens D</div><p>N is the number of learned numbers in the model (8.03 billion for Llama 3.1 8B). D is how many tokens (word pieces) it trains on. For a mixture-of-experts (MoE) model, only some experts run per token: the <b>active</b> parameters set the compute, the <b>total</b> set the memory.</p></div>
+<div class="sp"><div class="n">FLOPs and 6ND</div><p>A FLOP is one floating-point add or multiply. Each weight does one multiply and one add per token going forward (2 FLOPs) and about twice that going backward (4), so training costs about <b>6 N D</b> FLOPs and generating one token about <b>2 N</b>.</p></div>
+<div class="sp"><div class="n">Peak, MFU</div><p>A chip's <b>peak</b> is its datasheet FLOP/s at a given precision (dense, no sparsity). <b>MFU</b>, model FLOPs utilisation, is the useful FLOPs a run actually achieved divided by that peak. 35 to 45% is good for large dense training.</p></div>
+<div class="sp"><div class="n">Memory capacity, bandwidth</div><p>Capacity (GB) decides what fits on the chip; bandwidth (TB/s) decides how fast it can be read. An H100 SXM has 80 GB of HBM (stacked memory next to the chip) read at 3.35 TB/s.</p></div>
+<div class="sp"><div class="n">KV cache, prefill, decode</div><p>While generating, a model keeps every past token's attention keys and values: the <b>KV cache</b>. <b>Prefill</b> processes the whole prompt at once (lots of maths per byte); <b>decode</b> then makes one token per step, rereading all weights and the cache each time (little maths per byte).</p></div>
+<div class="sp"><div class="n">All-reduce, NVLink, InfiniBand</div><p>An <b>all-reduce</b> sums a tensor across GPUs so each ends with the total (how gradients are averaged). Inside a server GPUs talk over <b>NVLink</b> (450 GB/s each way per H100); between servers over <b>InfiniBand</b> or Ethernet NICs, typically 400 Gb/s = 50 GB/s per GPU.</p></div>
+</div>
+</section>
+
+<section id="calc-s-train">
+<h3>Training: does it fit, how long, what does it cost</h3>
+<p>Pick a preset or set every input. The bar is one GPU's memory to scale against its capacity; the numbers below it are the whole run.</p>
+<div class="calc-box">
+<div class="calc-ctl">
+<label class="calc-wide">Preset <select id="calc-tpre"></select></label>
+<label>Model <select id="calc-tmodel"></select></label>
+<label>Chip <select id="calc-tchip"></select></label>
+<label class="calc-wide">Optimizer recipe (bytes per parameter) <select id="calc-trec"></select></label>
+<label>GPUs <select id="calc-tgpus"></select></label>
+<label>Tensor parallel (TP) <select id="calc-ttp"></select></label>
+<label>Pipeline parallel (PP) <select id="calc-tpp"></select></label>
+<label>ZeRO / FSDP stage <select id="calc-tz"><option value="0">0: every GPU keeps a full copy (DDP)</option><option value="1">1: shard optimizer state</option><option value="2">2: + gradients</option><option value="3">3: + weights (FSDP)</option></select></label>
+<label>Sequence length <select id="calc-tseq"></select></label>
+<label>Micro-batch (sequences per GPU) <select id="calc-tmb"></select></label>
+<label>Activations <select id="calc-tck"><option value="none">store all, naive attention</option><option value="flash">store all, FlashAttention</option><option value="full">full checkpointing (recompute)</option></select></label>
+<label>Training tokens <select id="calc-ttok"></select></label>
+<label>MFU you expect <b id="calc-tmfuv"></b><input type="range" id="calc-tmfu" min="0.05" max="0.7" step="0.01"></label>
+<label class="calc-chk"><input type="checkbox" id="calc-tatt"> count attention FLOPs (12 L H Q T per token)</label>
+</div>
+<div class="calc-plot" id="calc-tbar"></div>
+<div class="calc-leg" id="calc-tleg"></div>
+<div class="out" id="calc-tout"></div>
+<div class="calc-fx" id="calc-tfx"></div>
+</div>
+<div class="co"><div class="t">When 6ND is wrong</div><ul class="tight">
+<li><b>Long sequences:</b> attention's score and value matmuls add 12 L H Q T FLOPs per token (PaLM's Appendix B: L layers, H heads, Q head size, T sequence length). Tick the box: it adds 1.1% for PaLM at 2,048 tokens, 15% for Llama 3.1 70B at 8,192 and 61% at 32,768 (the formula counts the full score square; causal kernels skip about half of it, a convention to state).</li>
+<li><b>Mixture of experts:</b> use the active parameters for FLOPs and the total for memory (DeepSeek-V3: 37.6B and 671B).</li>
+<li><b>Recompute:</b> full activation checkpointing runs the forward pass twice, so the hardware does 8ND while the model still only "needs" 6ND. MFU counts 6ND; hardware FLOPs utilisation (HFU) counts 8ND and looks better (PaLM: 46.2% MFU, 57.8% HFU).</li>
+<li><b>LoRA and QLoRA:</b> the frozen base gets no weight gradients, so about 4ND (forward 2, backward through activations 2).</li>
+<li><b>Embeddings:</b> the input embedding is a table lookup, not a matmul. Labs differ on whether N includes it (gpt-oss-120b's 5.13B active excludes it; our recount gives 5.71B with it).</li>
+</ul></div>
+<div class="deepnote"><b>Go deeper:</b> how the layout (TP, PP, data and expert parallelism) is chosen at real scale is the {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} page's Layout calculator; training time for a model size and token budget from scaling laws is the training topic's {{Scaling calculator|n:3c65c17b0d0d81b6876ee72b7056793b}}.</div>
+</section>
+
+<section id="calc-s-step">
+<h3>One training step on 1 GPU, 8 GPUs, and 64 GPUs</h3>
+<p>The same step of Llama 3.1 8B (64 sequences of 8,192 tokens: 524,288 tokens) on H100s, sharded with FSDP (ZeRO stage 3: each GPU keeps 1/n of the weights, gradients and optimizer state and gathers the full weights layer by layer when it needs them). Watch where the time goes when the step moves from one GPU, to a server whose eight GPUs share NVLink, to eight servers joined by 400 Gb/s NICs, and then to the fix (HSDP: shard inside each server, replicate across servers).</p>
+<div class="calc-box">
+<div class="seg" id="calc-smode" role="group" aria-label="Cluster"><button data-v="1">1 GPU</button><button data-v="8" class="on">8 GPUs, NVLink</button><button data-v="64f">64 GPUs, flat FSDP</button><button data-v="64h">64 GPUs, HSDP</button></div>
+<label class="calc-chk"><input type="checkbox" id="calc-sov"> overlap communication with compute (best case)</label>
+<div class="calc-plot" id="calc-sviz"></div>
+<div class="calc-leg"><span><i style="background:var(--c1)"></i>GPU computing</span><span><i style="background:var(--c3)"></i>gather (green server outline: NVLink busy)</span><span><i style="background:var(--c2)"></i>reduce-scatter</span><span><i style="background:var(--bad)"></i>network between servers busy</span><span><i style="background:var(--c4)"></i>model states</span><span><i style="background:var(--c6)"></i>activations</span></div>
+<div class="calc-anctl"><button id="calc-splay">Play</button><button id="calc-sprev" aria-label="Previous step">&#9664;</button><button id="calc-snext" aria-label="Next step">&#9654;</button><input type="range" id="calc-sscrub" min="0" max="1000" value="0" aria-label="Scrub"><select id="calc-sspd" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
+<div class="calc-cap" id="calc-scap"></div>
+<div class="out" id="calc-sout"></div>
+<p class="small mute">Model of the step <span class="calc-tag i">illustrative inputs</span>: 40% MFU while computing (an assumed, typical figure), bf16 weights and gradients gathered and reduce-scattered once per micro-batch (PyTorch FSDP's default re-gathers each micro-batch), a flat ring limited by its slowest link (NCCL's bus-bandwidth model), activations by Korthikanti et al.'s count with FlashAttention, the optimizer step reading and writing 28 bytes per parameter at full HBM bandwidth. Real runs add latency, imperfect overlap and stragglers; the shape of the comparison, not the third digit, is the lesson.</p>
+</div>
+</section>
+
+<section id="calc-s-inf">
+<h3>Inference: memory, speed, and where decode stops being memory-bound</h3>
+<p>Serving has two phases. <b>Prefill</b> runs the prompt through the model in one big batch of tokens: compute-bound, so its time is FLOPs over peak. <b>Decode</b> then makes one token per sequence per step, and every step must read all the weights it uses plus every sequence's KV cache from memory: at small batch it is <b>memory-bound</b>, so its time is bytes over bandwidth.</p>
+<div class="calc-box">
+<div class="calc-ctl">
+<label class="calc-wide">Preset <select id="calc-ipre"></select></label>
+<label>Model <select id="calc-imodel"></select></label>
+<label>Weight format <select id="calc-ifmt"><option value="native">as released</option><option value="bf16">BF16 (2 bytes)</option><option value="fp8">FP8 (1 byte)</option><option value="nvfp4">NVFP4 (4.5 bits)</option><option value="mxfp4">MXFP4 (4.25 bits)</option></select></label>
+<label>KV cache <select id="calc-ikv"><option value="2">BF16</option><option value="1">FP8</option></select></label>
+<label>Chip <select id="calc-ichip"></select></label>
+<label>Chips (tensor parallel) <select id="calc-in"></select></label>
+<label>Math precision <select id="calc-iprec"></select></label>
+<label>Batch (sequences at once) <b id="calc-ibv"></b><input type="range" id="calc-ib" min="0" max="10" step="1"></label>
+<label>Context per sequence <select id="calc-ictx"></select></label>
+<label>Prompt for prefill <select id="calc-ipr"></select></label>
+<label>Efficiency (fraction of peak reached) <b id="calc-iefv"></b><input type="range" id="calc-ief" min="0.3" max="1" step="0.05"></label>
+</div>
+<div class="calc-plot" id="calc-imem"></div>
+<div class="out" id="calc-iout"></div>
+<div class="calc-plot" id="calc-ichart"></div>
+<div class="calc-leg" id="calc-ileg"></div>
+<div class="calc-fx" id="calc-ifx"></div>
+</div>
+<div class="co"><div class="t">Why the batch is your arithmetic intensity</div>At batch 1 each weight read from memory is used for one multiply-add: 2 FLOPs per 2 bytes in BF16, 1 FLOP per byte. An H100 can do 295 FLOPs in the time it reads one byte (989.5 TFLOP/s over 3.35 TB/s), so its tensor cores sit idle over 99% of the time. Batch B reuses each weight B times, so with a short context decode becomes compute-bound only near B = 295 (the chart shows the exact crossover). The KV cache does not share: each sequence reads its own, so at long context the cache, not the weights, dominates, and adding sequences never makes decode compute-bound. That is why grouped-query attention (fewer KV heads), DeepSeek's latent attention (MLA) and FP8 KV caches exist.</div>
+<div class="deepnote"><b>Go deeper:</b> batching schedulers, paged KV caches and speculative decoding are the {{inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} topic; low-bit formats are the {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}} page.</div>
+</section>
+
+<section id="calc-s-dec">
+<h3>One decode step at batch 1 and at batch 64</h3>
+<p>Llama 3.1 8B in BF16 on one H100. The same step, drawn to the same time scale: first one sequence, then 64. The weights are read once either way; each sequence adds its own KV cache.</p>
+<div class="calc-box">
+<div class="seg" id="calc-dmode" role="group" aria-label="Batch"><button data-v="1" class="on">Batch 1</button><button data-v="64">Batch 64</button></div>
+<div class="seg" id="calc-dctx" role="group" aria-label="Context"><button data-v="512">512-token context</button><button data-v="4096" class="on">4,096</button><button data-v="32768">32,768</button></div>
+<div class="calc-plot" id="calc-dviz"></div>
+<div class="calc-anctl"><button id="calc-dplay">Play</button><button id="calc-dprev" aria-label="Previous step">&#9664;</button><button id="calc-dnext" aria-label="Next step">&#9654;</button><input type="range" id="calc-dscrub" min="0" max="1000" value="0" aria-label="Scrub"><select id="calc-dspd" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></div>
+<div class="calc-cap" id="calc-dcap"></div>
+<div class="out" id="calc-dout"></div>
+</div>
+</section>
+
+<section id="calc-s-comm">
+<h3>Communication: the same bytes over NVLink and over the network</h3>
+<p>A ring all-reduce over n GPUs sends each GPU's data around the ring twice (once to sum, once to share the sum), so each GPU moves 2(n&#8722;1)/n times the tensor and the time is set by the slowest link: <b>t = 2(n&#8722;1)/n &#215; S / B</b>, the bus-bandwidth model of {{NCCL's tests|https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md}}. Reduce-scatter and all-gather each move (n&#8722;1)/n.</p>
+<div class="calc-box">
+<div class="calc-ctl">
+<label>Gradient to all-reduce <select id="calc-cS"></select></label>
+<label>GPUs in the ring <select id="calc-cn"></select></label>
+</div>
+<div class="calc-bars bars" id="calc-cbars"></div>
+<p class="small mute" id="calc-cnote"></p>
+</div>
+<h3>Why tensor parallelism stays inside the NVLink domain</h3>
+<p>Data parallelism exchanges gradients once per step. Tensor parallelism (Megatron-style: each layer's matrices split across GPUs) must all-reduce the layer's activations four times per layer per micro-batch (twice forward, twice backward), on the critical path. Its traffic per token is about 16 h bytes per layer against about 6 &#215; 12h&#178;/TP FLOPs of compute, so the ratio does not depend on batch: only a fast link keeps it small.</p>
+<div class="calc-box">
+<div class="calc-ctl">
+<label>Model <select id="calc-pmodel"></select></label>
+<label>Chip <select id="calc-pchip"></select></label>
+<label>TP degree <select id="calc-ptp"></select></label>
+<label>MFU while computing <b id="calc-pmfuv"></b><input type="range" id="calc-pmfu" min="0.1" max="0.7" step="0.05"></label>
+</div>
+<div class="calc-bars bars" id="calc-pbars"></div>
+<p class="small" id="calc-pnote"></p>
+</div>
+</section>
+
+<section id="calc-s-checks">
+<h3>Checks against published figures</h3>
+<p>Every formula on this tab, applied to a case a lab or paper published. "Independent" means our inputs did not come from the figure we compare against; "derived" means we computed something the source does not state.</p>
+<div class="tw"><table class="calc-tbl"><thead><tr><th>What, and how it was checked</th><th class="num">This tab</th><th>Published</th></tr></thead><tbody id="calc-chk"></tbody></table></div>
+</section>
+
+<section id="calc-s-drill">
+<h3>Back-of-the-envelope drills</h3>
+<p>Interview-style questions. Commit to an answer, then reveal the worked arithmetic (computed by the same functions as the calculators above).</p>
+<div id="calc-drills"></div>
+</section>
+<p class="small mute" id="calc-srcs"></p>
 </div>

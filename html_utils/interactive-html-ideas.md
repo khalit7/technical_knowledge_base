@@ -2830,3 +2830,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 | Small files vs one file bars | 3 x 3 | Reading section 3 | `raw/meta.txt` | Metadata cost, 56x cold |
 | Clickable storage stack with "write() returns here" and "flush passes here" lines | 3 x 1 | One screen | none | The map for the whole page |
 | Real debugfs output of an ext4 inode and extent | 3 x 3 | Reading section 3 | `raw/fsimage.txt` | The inode stops being abstract |
+
+### Topic: hardware (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_hardware/src/viz_ideas.md`.
+
