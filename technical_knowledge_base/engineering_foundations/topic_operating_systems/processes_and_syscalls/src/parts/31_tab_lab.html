@@ -1,0 +1,74 @@
+<div class="tab" id="t-lab" role="tabpanel" hidden>
+<style>
+#t-lab .lab-sec{margin:10px 0 26px}
+#t-lab h2{font-size:18px;margin:18px 0 6px}
+#t-lab .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-lab .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-lab .an-play{min-width:6.4em}
+#t-lab .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-lab .an-cap .t{font-weight:600;font-size:13.5px;overflow-wrap:anywhere}#t-lab .an-cap p{margin:2px 0;font-size:13.5px}
+#t-lab .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-lab .an-cnt .stat .v{font-size:15px}
+#t-lab textarea{width:100%;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-height:7em}
+#t-lab input[type=text]{width:100%;font:12.5px ui-monospace,Menlo,Consolas,monospace}
+#t-lab .row{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:6px 0}
+#t-lab .row label{font-size:13px}
+#t-lab .tree{font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--soft);overflow-x:auto;white-space:pre;min-height:3em}
+#t-lab .tree .z{color:var(--bad);font-weight:600}#t-lab .tree .new{background:var(--hl)}
+#t-lab .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+#t-lab .two>div{min-width:0}
+#t-lab h5{margin:4px 0 2px;font-size:12px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+#t-lab .ok{color:var(--good);font-weight:600}#t-lab .bad{color:var(--bad);font-weight:600}
+#t-lab pre.log{font:11.5px/1.45 ui-monospace,Menlo,monospace;background:var(--bg);border:1px dashed var(--line);border-radius:6px;padding:6px 8px;max-height:12em;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+#t-lab .rd-svg{width:100%;overflow:hidden}
+</style>
+<p class="lead">Two small simulators of the kernel's process rules, to run the calls of sections 3 to 7 yourself. The first follows descriptors through <code>pipe</code>, <code>fork</code>, <code>dup2</code>, <code>close</code> and <code>exec</code>; the second follows the process tree through fork, exit and wait, with Linux's rules and OSTEP's, and is checked against OSTEP's own homework simulator. Both are models: they apply the rules this page states, they do not run a kernel. Where a preset matches a real run, the measured result is quoted.</p>
+<div class="lab-sec" id="lab-fd-sec">
+<h2>1. Descriptor tables, step by step</h2>
+<div class="row"><label>Example <select id="lab-fd-pick"><option value="shell">python train.py 2&gt;&amp;1 | tee log</option><option value="redir1">&gt; log 2&gt;&amp;1 (right order)</option><option value="redir2">2&gt;&amp;1 &gt; log (wrong order)</option><option value="leak">leaked write end: pipe()</option><option value="cloexec">the fix: pipe2(O_CLOEXEC)</option><option value="share">fork shares the file offset</option><option value="own">your own script (below)</option></select></label></div>
+<div class="card" id="lab-fd-card">
+<div class="rd-svg" id="lab-fd-svg"></div>
+<div class="an-cap" id="lab-fd-cap"></div>
+<div class="an-ctl" id="lab-fd-ctl"></div>
+</div>
+<details class="xc"><summary>Write your own script</summary><div>
+<p class="small">One operation per line, processes by number: <code>proc 1 sh</code>, <code>tty 1</code>, <code>pipe 1</code> or <code>pipe 1 O_CLOEXEC</code>, <code>open 1 log O_WRONLY|O_CREAT|O_TRUNC</code> (add <code>|O_CLOEXEC</code>), <code>fork 1 2 name</code>, <code>dup2 2 4 1</code> (pid, old, new), <code>close 2 3 4</code>, <code>exec 2 python</code>, <code>write 2 1 text\n</code>, <code>read 3 0</code>, <code>exit 2</code>. Then pick "your own script" above.</p>
+<textarea id="lab-fd-own" spellcheck="false" aria-label="Your own descriptor script">proc 1 sh
+tty 1
+pipe 1
+fork 1 2 producer
+close 2 3
+dup2 2 4 1
+close 2 4
+exec 2 python
+fork 1 3 consumer
+close 3 4
+dup2 3 3 0
+close 3 3
+exec 3 wc
+close 1 3 4
+write 2 1 batch 1\n
+read 3 0
+exit 2
+read 3 0</textarea>
+<div class="row"><button id="lab-fd-run">Run my script</button><span class="small" id="lab-fd-err"></span></div>
+</div></details>
+</div>
+<div class="lab-sec" id="lab-tree-sec">
+<h2>2. The process tree: fork, exit, wait, and who adopts orphans</h2>
+<p class="small">Actions, comma-separated, in OSTEP's <code>fork.py</code> notation: <code>a+b</code> means a forks b, <code>b-</code> means b exits. Added for Linux mode: <code>a*</code> means a calls <code>wait</code> and reaps its exited children. Process <code>a</code> is PID 1.</p>
+<div class="row"><input type="text" id="lab-tree-in" value="a+b,b+c,c+d,b-,c-,a*,d-" spellcheck="false" aria-label="Action list"></div>
+<div class="seg" id="lab-tree-mode"><button data-m="linux" class="on">Linux</button><button data-m="ostep">OSTEP fork.py (default)</button><button data-m="ostepR">fork.py -R</button><button data-m="ostepL">fork.py -L</button></div>
+<div class="row"><label><input type="checkbox" id="lab-tree-reap"> PID 1 reaps orphans (like tini)</label><label><input type="checkbox" id="lab-tree-sub"> b is a subreaper</label><button id="lab-tree-rand">Random actions</button><button id="lab-tree-go">Run</button></div>
+<div class="card" id="lab-tree-card">
+<div class="two"><div><h5>Process tree</h5><div class="tree" id="lab-tree-out"></div></div><div><h5>What happened</h5><div class="an-cnt" id="lab-tree-cnt"></div></div></div>
+<div class="an-cap" id="lab-tree-cap"></div>
+<div class="an-ctl" id="lab-tree-ctl"></div>
+</div>
+<p class="small">The rules. <b>Linux</b>: an exiting process becomes a zombie (Z) until its parent waits; its direct children move to the nearest subreaper ancestor, or to PID 1; grandchildren stay where they are; a zombie whose parent is PID 1 stays until PID 1 waits, unless PID 1 reaps (tini does). <b>fork.py default</b>: every descendant of the exiting process moves directly under the root. <b>fork.py -R</b>: the exiting process's children move to its parent. <b>fork.py -L</b>: only leaves may exit. The real reparenting run in section 5 of the Reading tab shows Linux's rule.</p>
+<div class="row"><button id="lab-tree-check">Check against OSTEP's fork.py</button><span class="small" id="lab-tree-checkout"></span></div>
+<pre class="log" id="lab-tree-checklog" hidden></pre>
+<div class="drill" id="dr-tree"><div class="q">Predict: in Linux mode with nothing ticked, run <code>a+b,b+c,c+d,b-,c-,d-</code>. How many zombies are left at the end?</div>
+<div class="opts"><button>none</button><button>1</button><button data-right>3</button></div>
+<div class="ans" hidden>b's zombie waits for a; when c exits it has been adopted by a, so it is a's zombie too; d was adopted by a when c exited, so its zombie is a's as well. Three zombies under PID 1, which never waits: exactly the training-script-as-PID-1 problem. Tick "PID 1 reaps" and run again.</div></div>
+</div>
+</div>

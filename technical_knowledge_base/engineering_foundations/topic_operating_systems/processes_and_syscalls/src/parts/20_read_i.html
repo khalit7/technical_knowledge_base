@@ -1,0 +1,27 @@
+<section id="rd-s8">
+<h2>8. Process groups, sessions, limits and identity</h2>
+<span class="ostep">beyond OSTEP: {{credentials(7)|https://man7.org/linux/man-pages/man7/credentials.7.html}}, {{getrlimit(2)|https://man7.org/linux/man-pages/man2/getrlimit.2.html}}</span>
+<h3>Process groups and sessions: who gets signalled together</h3>
+<p>Every process belongs to a <dfn id="g-pgrp">process group</dfn> (identified by a PGID, the PID of its first member) and every group to a <dfn id="g-session">session</dfn> (SID). A child inherits both. They exist for job control: a shell puts each pipeline in its own group, and the terminal sends Ctrl-C's SIGINT to every process in the <i>foreground</i> group at once. <code>kill(-pgid, sig)</code> (Python <code>os.killpg</code>) does the same from code. <code>setsid()</code> starts a new session and group, detached from any terminal: what daemons do, and what <code>start_new_session=True</code> does in <code>subprocess</code> ({{credentials(7)|https://man7.org/linux/man-pages/man7/credentials.7.html}} describes both).</p>
+<p>Two consequences for training:</p>
+<ul>
+<li><b>Ctrl-C reaches the workers too.</b> In a terminal, the trainer and its DataLoader workers are one foreground group, so all of them get SIGINT. The workers catch the resulting <code>KeyboardInterrupt</code> and exit quietly ("Main process will raise KeyboardInterrupt anyways", torch 2.14 <code>_utils/worker.py</code> line 396), and the main process unwinds.</li>
+<li><b>torchrun signals groups, not processes.</b> torchrun starts each trainer with <code>start_new_session=True</code> (<code>subprocess_handler.py</code>), so each trainer leads its own session and group, and its DataLoader workers join that group. To stop a trainer it calls <code>os.killpg(trainer_pid, SIGTERM)</code>. In the Shutdown lab's process tree under torchrun, PGID and SID of the trainer and its two workers are all the trainer's PID; the SIGTERM therefore reaches the workers directly, which section 9 shows has a cost.</li>
+</ul>
+<h3>Resource limits</h3>
+<p>Each process carries soft and hard <dfn id="g-rlimit">resource limits</dfn>: the soft one is enforced, and a process may raise it up to the hard one (only a privileged process can raise the hard one). They are inherited across fork and exec, which is why <code>ulimit -n 65536</code> in a launcher script applies to everything it starts. The job's limits, from the snapshot:</p>
+<pre class="cd out" id="rd-limits"></pre>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>Limit</th><th>Here</th><th>Why it matters in training</th></tr></thead>
+<tbody>
+<tr><td>Max open files (<code>RLIMIT_NOFILE</code>)</td><td>1,048,576</td><td>Docker here sets it high; many hosts and Slurm jobs start with a soft limit of 1,024, which the <code>file_descriptor</code> tensor-sharing strategy and many-shard data loaders exceed: <code>Errno 24</code></td></tr>
+<tr><td>Max core file size</td><td>0 soft</td><td>No core dump when a worker segfaults until you raise it (<code>ulimit -c unlimited</code>)</td></tr>
+<tr><td>Max locked memory (<code>RLIMIT_MEMLOCK</code>)</td><td>64 KiB</td><td>RDMA (InfiniBand, RoCE) registers and pins buffers, which counts against this limit; NVIDIA's container guide runs its framework images with <code>--ulimit memlock=-1</code> (unlimited) ({{NGC containers user guide|https://docs.nvidia.com/deeplearning/frameworks/user-guide/index.html}}); not run here</td></tr>
+<tr><td>Max processes (<code>RLIMIT_NPROC</code>)</td><td>unlimited</td><td>Counts threads per user; in containers the cgroup's <code>pids.max</code> usually bites first</td></tr>
+<tr><td>Max pending signals</td><td>39,345</td><td>The real-time signal queue limit of section 6</td></tr>
+<tr><td>Max stack size</td><td>8 MiB</td><td>The main thread's stack; deep recursion in C extensions</td></tr>
+</tbody></table></div>
+<p>Change them with <code>ulimit</code> in a shell, <code>prlimit --pid &lt;pid&gt;</code> for a running process, <code>resource.setrlimit</code> in Python, <code>docker run --ulimit</code>, or Slurm's <code>--propagate</code>.</p>
+<h3>Identity: user ids and capabilities</h3>
+<p>A process has a real user id (who started it), an effective user id (whose permissions it uses), a saved id (so a privileged program can drop and regain privilege), and group ids likewise; the <code>Uid:</code> line in <code>status</code> lists real, effective, saved and file-system ids, all 0 for the job. Root inside a container is not all of root: the effective capability set <code>CapEff 00000000a80425fb</code> is Docker's reduced default set, and <code>Seccomp: 2</code> shows a filter on system calls. Capabilities, user namespaces and seccomp are the {{containers child page|n:3f05c17b0d0d8156a841e4bf28f11293}}. One flag belongs here because it is inherited like a limit: <code>prctl(PR_SET_NO_NEW_PRIVS)</code> makes sure no exec'd program can gain privileges (no set-user-ID), and once set it cannot be cleared; sandboxes for untrusted code rely on it.</p>
+</section>
