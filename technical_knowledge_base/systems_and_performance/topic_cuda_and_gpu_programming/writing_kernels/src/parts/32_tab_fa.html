@@ -1,0 +1,33 @@
+<div class="tab" id="t-fa" role="tabpanel" hidden>
+<style>
+#t-fa .fa-cap{min-height:4.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-fa .fa-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
+#t-fa .fa-cnt .stat .v{font-size:16px}
+#t-fa .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-fa .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-fa .an-play{min-width:6.4em}
+#t-fa .fa-fig{width:100%;overflow:hidden}
+#t-fa .fa-fig svg text{font-size:10.5px}
+#t-fa .seg{flex-wrap:wrap}
+#t-fa .fa-row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-fa .fa-row label{display:flex;align-items:center;gap:6px;flex:1 1 220px;min-width:0}
+#t-fa .fa-row input[type=range]{flex:1 1 90px;min-width:0}
+#t-fa table td,#t-fa table th{font-size:12.5px}
+</style>
+<h2>Attention schedules: who computes what, and when</h2>
+<p>Two pictures of how a FlashAttention kernel is organised inside one GPU core, each a before/after on the same work. Both are models: the shapes of the work are the papers', the counts are ours, labelled <span class="rd-der">derived</span>; nothing here was measured on an NVIDIA GPU.</p>
+
+<h3>1. Inside one thread block: split K, or split Q (FlashAttention-1 against -2)</h3>
+<p>One block holds a tile of 64 query rows and, at each step of its loop, a tile of 64 keys and values (head dimension 128), and has 4 warps. FlashAttention-1 split the keys between the warps ("split-K"); FlashAttention-2 splits the queries ("split-Q"). Play one loop iteration both ways and compare the shared-memory traffic and barriers.</p>
+<div class="seg" id="fa-split" role="group" aria-label="Split"><button data-m="k" class="on">Split K (FA-1)</button><button data-m="q">Split Q (FA-2)</button></div>
+<div class="card" id="fa-card1"><div class="fa-fig" id="fa-fig1"></div><div class="an-ctl" id="fa-ctl1"></div><div class="fa-cap" id="fa-cap1"></div><div class="fa-cnt" id="fa-cnt1"></div></div>
+<p class="small mute">Counts are values (not bytes) per loop iteration, for B<sub>r</sub> = B<sub>c</sub> = 64, d = 128, 4 warps, from the tile shapes alone: split-Q reads 4 times more K and V from shared memory (every warp needs all of it) but never exchanges partial results; split-K must exchange row maxima and then partial outputs through shared memory, with barriers in between. Which costs more on a real GPU depends on bandwidths the model does not have; FlashAttention-2 reports that removing the exchange gave a speedup ({{FA-2, section 3.3|https://arxiv.org/abs/2307.08691}}).</p>
+
+<h3>2. On the tensor cores' time line: FlashAttention-3's overlap</h3>
+<p>Each iteration of the loop is three steps: GEMM0 (S = QK<sup>T</sup>, tensor cores), softmax (exponentials, on the much slower special-function units), GEMM1 (O += PV, tensor cores). On an H100 at head dimension 128 the softmax takes about half as long as the two GEMMs ({{FA-3|https://arxiv.org/abs/2407.08608}}: 989 against 3.9 TFLOPS). Run in order, the tensor cores wait during every softmax. FlashAttention-3 overlaps them two ways: <b>ping-pong</b> between two warpgroups, and <b>pipelining</b> inside one warpgroup (start the next GEMM0 during this softmax).</p>
+<div class="seg" id="fa-sched" role="group" aria-label="Schedule"><button data-m="seq" class="on">In order (one warpgroup)</button><button data-m="pp">Ping-pong (two warpgroups)</button><button data-m="ip">Pipelined (one warpgroup)</button><button data-m="both">Ping-pong + pipelined</button></div>
+<div class="fa-row"><label>Softmax time / GEMM time <input type="range" id="fa-r" min="0.25" max="1.5" step="0.05" value="0.5"><b id="fa-rv">0.50</b></label><span class="small mute">0.5: H100, d = 128 (FA-3). About 1.0: tensor cores twice as fast, exponentials not (the Blackwell case FA-4 describes).</span></div>
+<div class="card" id="fa-card2"><div class="fa-fig" id="fa-fig2"></div><div class="an-ctl" id="fa-ctl2"></div><div class="fa-cap" id="fa-cap2"></div><div class="fa-cnt" id="fa-cnt2"></div></div>
+<div class="tw"><table id="fa-tab"></table></div>
+<p class="small mute">A list-scheduling model: 8 tile iterations in all (one warpgroup does 8; two do 4 each), GEMM0 and GEMM1 one unit each, softmax r &times; 2 units, one tensor-core pipe and one exponential pipe per SM, each task starts when its inputs are ready and its pipe is free, in program order. It ignores loads (TMA producers hide them in FA-3), register limits (pipelining costs registers) and the rescaling work, and it is greedy, not optimal: at a ratio of 1.0 it does worse with both techniques than with ping-pong alone, a reminder that FA-3's order of instructions is tuned by hand. Checked against an independent Python implementation (<code>src/fa_model.py</code>). FlashAttention-3's measured ablation for comparison <span class="rd-pub">published</span>: 570 TFLOPS without warp specialisation, 582 without the pipelining, 661 with both (H100, FP16, head dimension 128, sequence 8,448 in that table).</p>
+</div>

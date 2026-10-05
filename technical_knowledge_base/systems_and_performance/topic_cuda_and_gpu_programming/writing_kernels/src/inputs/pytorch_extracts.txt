@@ -1,0 +1,76 @@
+PyTorch main at 8d1d97217b936545f4d920d764116003b5e773e7 (git ls-remote, 2026-10-05). Excerpts, verbatim.
+
+== aten/src/ATen/native/cuda/ReduceSumProdKernel.cu (sum uses PyTorch's own reduction kernel)
+  void operator()(TensorIterator& iter) {
+    const auto sum_combine = [] GPU_LAMBDA(acc_t a, acc_t b) -> acc_t {
+      return a + b;
+    };
+    constexpr bool is_16_bits = sizeof(scalar_t) == 2;
+    if constexpr (is_16_bits) {
+      gpu_reduce_kernel<scalar_t, out_t, /*vt0=*/4, /*input_vec_size=*/8>(
+        iter, func_wrapper<out_t>(sum_combine)
+      );
+    } else {
+      gpu_reduce_kernel<scalar_t, out_t>(
+        iter, func_wrapper<out_t>(sum_combine)
+      );
+    }
+  }
+};
+
+== aten/src/ATen/native/cuda/ScanUtils.cuh scan_dim (a 1-D cumsum goes to CUB)
+template<typename scalar_t, typename BinaryFunction>
+void scan_dim(const TensorBase& self, const TensorBase& result,
+     int64_t dim, scalar_t init, BinaryFunction binary_op) {
+  int ndim = self.dim();
+  auto self_ = self.expect_contiguous();
+  TORCH_INTERNAL_ASSERT(result.is_contiguous());
+
+  if (self.numel() == self.size(dim)) {
+    if constexpr (std::is_same_v<BinaryFunction, std::plus<scalar_t>>) {
+      if (C10_UNLIKELY(at::globalContext().deterministicAlgorithms()) && (self.is_floating_point() || self.is_complex())) {
+        cuda::cub::inclusive_deterministic_scan(self_->const_data_ptr<scalar_t>(), result.mutable_data_ptr<scalar_t>(), binary_op, self.numel());
+      } else {
+        cuda::cub::inclusive_scan(self_->const_data_ptr<scalar_t>(), result.mutable_data_ptr<scalar_t>(), binary_op, self.numel());
+      }
+    } else {
+      cuda::cub::inclusive_scan(self_->const_data_ptr<scalar_t>(), result.mutable_data_ptr<scalar_t>(), binary_op, self.numel());
+    }
+
+== aten/src/ATen/native/cuda/Reduce.cuh (warp shuffles, then a global reduce across blocks with semaphores)
+
+  func_t combine;
+  static inline __device__ out_scalar_t project(arg_t arg) {
+    return (out_scalar_t) arg;
+  }
+  static inline __device__ arg_t warp_shfl_down(arg_t arg, int offset) {
+    return WARP_SHFL_DOWN(arg, offset);
+  }
+
+  }
+
+  C10_HOST_DEVICE bool should_global_reduce() const {
+    return input_mult[CTA] != 0;
+  }
+
+  C10_DEVICE bool should_store(int output_idx) const {
+    return output_idx < num_outputs &&
+      (!should_block_x_reduce() || threadIdx.x == 0) &&
+      (!should_block_y_reduce() || threadIdx.y == 0);
+  }
+
+  C10_DEVICE bool should_reduce_tail() const {
+    return (!should_block_y_reduce() || threadIdx.y == 0) &&
+      (!should_global_reduce() || blockIdx.y == 0);
+  }
+
+== torch/testing/_comparison.py _DTYPE_PRECISIONS (rtol, atol); check: |actual - expected| <= atol + rtol * |expected|
+_DTYPE_PRECISIONS = {
+    torch.float16: (0.001, 1e-5),
+    torch.bfloat16: (0.016, 1e-5),
+    torch.float32: (1.3e-6, 1e-5),
+    torch.float64: (1e-7, 1e-7),
+    torch.complex32: (0.001, 1e-5),
+    torch.complex64: (1.3e-6, 1e-5),
+    torch.complex128: (1e-7, 1e-7),
+}
