@@ -14,7 +14,11 @@ const parts = src.split(/(<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>)/i);
 let n = 0;
 const conv = (tex, display) => {
   n++;
-  try { return temml.renderToString(tex, { displayMode: display, throwOnError: true, annotate: true }); }
+  try {
+    const m = temml.renderToString(tex, { displayMode: display, throwOnError: true, annotate: true });
+    // Display formulas scroll inside their own box on narrow screens instead of widening the page.
+    return display ? `<div class="dm" style="overflow-x:auto;overflow-y:hidden;max-width:100%">${m}</div>` : m;
+  }
   catch (e) { process.stderr.write(`tex2mathml: error in formula ${n}: ${tex}\n${e.message}\n`); process.exit(1); }
 };
 const out = parts.map((p, i) => (i % 2 === 1) ? p :
