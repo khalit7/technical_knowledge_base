@@ -1,0 +1,45 @@
+<section id="rd-s5">
+<h2>5. Optimisation: how far to step</h2>
+<p class="raise"><b>The question this step raises.</b> The gradient says which way is downhill. How far should the model move? A tiny step wastes time; a huge one might jump over the valley and land higher than it started.</p>
+
+<h3>The picture: one step, before and after</h3>
+<p>The model moves every weight a little against its gradient. Press play to watch one step of the tiny model: the gradient, the new weights, the new scores and the new bet, with the loss falling. Then choose a bigger step size and run it again.</p>
+<div class="card" id="rd-st-card">
+<div class="seg" id="rd-st-seg" role="group" aria-label="Learning rate"><button data-m="0.1" class="on">\(\eta = 0.1\)</button><button data-m="0.3">\(\eta = 0.3\)</button><button data-m="1">\(\eta = 1\)</button></div>
+<div class="rd-svg" id="rd-st-svg"></div>
+<div class="an-ctl" id="rd-st-ctl"></div>
+<div class="an-cap" id="rd-st-cap"></div>
+<div class="an-cnt" id="rd-st-cnt"></div>
+</div>
+
+<h3>The words, then the formula</h3>
+<p><dfn id="rd-g-gd">Gradient descent</dfn> replaces every weight by itself minus a small multiple of its slope:</p>
+\[ W \leftarrow W - \eta\, \nabla_W L \]
+<dl class="sym">
+<dt>\(\leftarrow\)</dt><dd>"replace with": the left side takes the value computed on the right.</dd>
+<dt>\(\eta\)</dt><dd>the <dfn id="rd-g-lr">learning rate</dfn> (Greek "eta"), the step size, a positive number you choose.</dd>
+<dt>\(\nabla_W L\)</dt><dd>the gradient from section 4, the same shape as \(W\).</dd>
+</dl>
+<p class="plain">In plain words: move each number a little in the direction that lowers the loss, in proportion to how much it matters.</p>
+<div class="nums"><div class="t">The numbers</div>With \(\eta = 0.1\) the rows become cat \((0.867, -0.067)\), dog \((-0.049, 0.976)\), sat \((1.182, -1.909)\). The new scores are \((1.667, 0.878, 0.455)\), the bet \((0.571, 0.259, 0.170)\) and the loss 1.773, down from 2.408. A shortcut shows why: the new scores are \(W'x = Wx - \eta\, g\, x^\top x\) \(= z - \eta \lVert x \rVert^2 g\), and \(\lVert x \rVert^2 = 5\), so each score moves by \(-0.5\) times its gradient. With \(\eta = 0.3\) one step already flips the bet to sat (0.459, loss 0.778); with \(\eta = 1\) the loss drops to 0.011. Repeating \(\eta = 0.1\) for 20 steps brings it to 0.083.</div>
+
+<h3>Curvature: why too big a step blows up</h3>
+<p>The slope changes as you move; how fast it changes is the <dfn id="rd-g-curv">curvature</dfn>, the <dfn id="rd-g-second">second derivative</dfn>. Take the simplest bowl, \(L(\theta) = \frac12 \lambda \theta^2\), whose slope is \(\lambda\theta\) and whose curvature is the constant \(\lambda\) (Greek "lambda"). One gradient step gives</p>
+\[ \theta \leftarrow \theta - \eta \lambda \theta = (1 - \eta\lambda)\,\theta \]
+<p>so each step multiplies the distance from the bottom by \(1 - \eta\lambda\). That shrinks the distance only if \(|1 - \eta\lambda| < 1\), that is if \(0 < \eta < 2/\lambda\). Between \(1/\lambda\) and \(2/\lambda\) the steps overshoot to the other side but still shrink; above \(2/\lambda\) every step lands further away than the last. Watch both sides of the line:</p>
+<div class="card" id="rd-lr-card">
+<div class="seg" id="rd-lr-seg" role="group" aria-label="Learning rate"><button data-m="0.1">\(\eta = 0.1\) (smooth)</button><button data-m="0.4" class="on">\(\eta = 0.4\) (below \(2/\lambda\))</button><button data-m="0.6">\(\eta = 0.6\) (above \(2/\lambda\))</button></div>
+<div class="rd-svg" id="rd-lr-svg"></div>
+<div class="an-ctl" id="rd-lr-ctl"></div>
+<div class="an-cap" id="rd-lr-cap"></div>
+</div>
+<p>With many weights, the curvature is a matrix, the <dfn id="rd-g-hessian">Hessian</dfn> \(H\), holding the second derivative for every pair of weights. Its <dfn id="rd-g-eig">eigenvalues</dfn> are the curvatures along its principal directions, the directions in which the bowl is a simple parabola. Gradient descent stays stable only if \(\eta < 2/\lambda_{\max}\), with \(\lambda_{\max}\) the largest eigenvalue: the steepest direction sets the limit for all of them. The <dfn id="rd-g-kappa">condition number</dfn> \(\kappa = \lambda_{\max}/\lambda_{\min}\) says how lopsided the bowl is. Because the step must be small enough for the steepest direction, the flattest one creeps: for curvatures 1 and 10 (\(\kappa = 10\)) the limit is \(\eta = 0.2\), the best fixed step \(2/11 = 0.182\) shrinks the error only to \(9/11 = 0.818\) of itself per step, and cutting it a thousandfold takes 35 steps. That long narrow valley is the picture behind most slow training.</p>
+<div class="nums"><div class="t">The numbers for the tiny model</div>For softmax cross-entropy the Hessian with respect to the scores is \(\operatorname{diag}(p) - p\,p^\top\) (a matrix with \(p_i(1 - p_i)\) on the diagonal and \(-p_i p_j\) elsewhere). At \(p = (0.665, 0.245, 0.090)\) its eigenvalues are 0, 0.119 and 0.371. With respect to \(W\) each is multiplied by \(\lVert x \rVert^2 = 5\), so \(\lambda_{\max} = 1.855\) and the local limit is \(\eta \approx 2/1.855 = 1.08\). The step with \(\eta = 1\) was just inside it. The limit moves as training goes: as the bet grows confident, \(p(1 - p)\) shrinks and the bowl flattens.</div>
+<details class="mist"><summary>Optional: what practical optimisers (Newton, Adam, normalisation) do about curvature, and convexity</summary><div class="b">
+<p><b>What practical optimisers do about it</b> (intuition only). <dfn id="rd-g-newton">Newton's method</dfn> divides the gradient by the curvature, \(-H^{-1} g\), so every direction gets the right step at once; for a billion weights \(H\) has \(10^{18}\) entries, so it is out of reach, but boosted trees use it: each XGBoost leaf takes the Newton step \(-G/(H + \lambda)\) from its summed gradients and curvatures (this \(\lambda\) is a regularisation strength, not an eigenvalue). <dfn id="rd-g-adam">Adam</dfn> gives each weight its own step size, dividing by the square root of an exponential moving average of that weight's squared gradients; its authors relate that average to the diagonal of the Fisher information, a curvature-like quantity met again below, but it is not a Newton step ({{Kingma and Ba 2014|https://arxiv.org/abs/1412.6980}}). Normalisation layers and careful initialisation make the bowl rounder (a smaller \(\kappa\)). In full-batch training of real networks, the top curvature tends to rise until it sits just above \(2/\eta\), and training still progresses at that "edge of stability" ({{Cohen et al. 2021|https://arxiv.org/abs/2103.00065}}).</p>
+<p class="small mute">The softmax cross-entropy loss is <dfn id="rd-g-convex">convex</dfn> in the scores (its Hessian has no negative eigenvalues: every chord lies above the curve, so any minimum is the global one). A deep network's loss in its weights is not, and in high dimensions most points where the gradient is zero are saddles rather than minima ({{Dauphin et al. 2014|https://arxiv.org/abs/1406.2572}}).
+</div></details></p>
+
+<div class="use"><div class="t">What it is used for in ML</div>Choosing and scheduling learning rates (warmup exists partly because curvature is high early); diagnosing a loss that oscillates and then explodes right after the learning rate was raised; why Adam, momentum, normalisation and good initialisation help; second-order methods (Newton, L-BFGS, K-FAC, XGBoost's leaves).</div>
+<div class="deepnote"><b>Go deeper (optional):</b> run many steps and push the learning rate past the limit in the {{Gradient lab|#t-grad}}; momentum, Adam, Muon and schedules: {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}; conditioning in practice: {{Normalisation and initialisation|n:3c65c17b0d0d81369e1cc38ed4e11d48}}; the Hessian, Newton, convexity and Lagrange multipliers in depth: a calculus and optimisation child page is coming.</div>
+</section>
