@@ -1,0 +1,23 @@
+### host: docker run --cpus 2 --memory 3g --shm-size 256m --pids-limit 48 kb-os-dbg:1 bash /exp/pids.sh
+
+### the limit
+$ cat /sys/fs/cgroup/pids.max
+48
+
+### how many tasks the running job uses with 2 workers and 2 torch threads
+$ cat /sys/fs/cgroup/pids.current; for p in $(pgrep -f train.py); do echo pid $p threads $(ls /proc/$p/task | wc -l); done
+16
+pid 14 threads 5
+pid 2356 threads 4
+pid 2358 threads 4
+pid 2600 threads 1
+
+### the running job with 16 DataLoader workers and 4 torch threads
+$ python /job/train.py --steps 5 --workers 16 --threads 4 --start-method fork --no-ckpt > /tmp/log 2>&1; echo exit code $?; grep -E 'Error|error|done at|os.fork' /tmp/log | cut -c1-200 | tail -n 4
+exit code 1
+    self.pid = os.fork()
+BlockingIOError: [Errno 11] Resource temporarily unavailable
+$ cat /sys/fs/cgroup/pids.events
+max 3
+
+### host: container exit code 0

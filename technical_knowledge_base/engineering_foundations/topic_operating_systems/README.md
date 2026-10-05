@@ -1,5 +1,6 @@
 # Topic: operating-systems
 
-Notion: https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140
+Notion: https://app.notion.com/p/3f05c17b0d0d81c5a97ce991644af140 (new topic, created 2026-10-05)
 
-Not migrated yet: a new topic (created 2026-10-05), being built.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). Follows one training job through the operating system, OSTEP's three pieces as the backbone plus the real Linux interfaces and real ML failures: what an OS is, processes and the process API, scheduling, virtual memory, allocators, concurrency, persistence, containers, virtualization and the GPU driver stack, debugging. Tabs: Reading (`src/read/`), OS simulators (`src/sim/`: scheduling, paging and TLB, copy-on-write, races and deadlock, crash consistency; checked against OSTEP's homework simulators), Syscall tracer (`src/trace/`: the running CPU-only PyTorch job in `src/trace/JOB.md`, traced with strace and gdb), Debug lab (`src/debug/`: 27 training-job failures reproduced in containers), Further reading.
+Real runs: Docker Desktop's Linux VM on an Apple M1 Pro (kernel 5.10, cgroups v2, 5 CPUs, no GPU, single NUMA node), 2026-10-05; shared lab image kb-os-lab:1 (Dockerfile in `src/trace/lab/`). Containers were not privileged (no dmesg, no drop_caches). Things that need a GPU, a newer kernel or real NUMA are taught from sources and labelled. Large strace recordings are gzipped in `src/trace/raw/`.

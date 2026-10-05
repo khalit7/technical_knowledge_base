@@ -1,0 +1,105 @@
+# Source excerpts quoted by the Debug lab, fetched 2026-10-05: PyTorch at tag v2.14.1 (the version in kb-os-lab:1) and Linux at tag v5.10 (the VM runs 5.10.104)
+
+## c10/cuda/CUDACachingAllocator.cpp lines 1927-1952 (https://github.com/pytorch/pytorch/blob/v2.14.1/c10/cuda/CUDACachingAllocator.cpp#L1927-L1952)
+      TORCH_CHECK_WITH(
+          OutOfMemoryError,
+          false,
+          "CUDA out of memory. Tried to allocate ",
+          format_size(alloc_size),
+          ". GPU ",
+          static_cast<int>(device_id),
+          " has a total capacity of ",
+          format_size(device_total),
+          " of which ",
+          format_size(device_free),
+          " is free. ",
+          proc_info,
+          allowed_info,
+          "Of the allocated memory ",
+          format_size(allocated_bytes + allocated_in_private_pools),
+          " is allocated by PyTorch, ",
+          private_pool_msg,
+          "and ",
+          format_size(
+              reserved_bytes - allocated_bytes - allocated_in_private_pools),
+          " is reserved by PyTorch but unallocated.",
+          CUDAAllocatorConfig::expandable_segments()
+              ? ""
+              : " If reserved but unallocated memory is large try setting"
+                " PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid"
+
+## torch/csrc/DataLoader.cpp lines 69-73 and 154-166 (https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/DataLoader.cpp#L154-L166)
+SIGNAL_HANDLER(
+    SIGBUS,
+    handler_SIGBUS,
+    "ERROR: Unexpected bus error encountered in worker. "
+    "This might be caused by insufficient shared memory (shm).\n")
+      } else if (
+          infop.si_code == CLD_KILLED ||
+          infop.si_code == CLD_DUMPED) { // killed by signal
+        auto error_msg = fmt::format(
+            "DataLoader worker (pid {}) is killed by signal: {}. ",
+            worker_pid,
+            strsignal(infop.si_status));
+        if (infop.si_status == SIGBUS) {
+          error_msg +=
+              "It is possible that dataloader's workers are out of shared memory. "
+              "Please try to raise your shared memory limit.";
+        }
+        // This is necessary. Otherwise, the runtime error will kill the other
+
+## aten/src/ATen/MapAllocator.cpp lines 290-312 (https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/MapAllocator.cpp#L290-L312)
+        if (flags_) {
+          if (ftruncate(fd, static_cast<off_t>(size)) == -1) {
+            TORCH_CHECK(false, "unable to resize file <", filename_, "> to the right size: ", c10::utils::str_error(errno), " (", errno, ")");
+          }
+
+#ifdef HAVE_POSIX_FALLOCATE
+          if (flags_ & ALLOCATOR_MAPPED_SHAREDMEM) {
+            for (;;) {
+              int err = posix_fallocate(fd, 0, static_cast<off_t>(size));
+              if (err == 0) {
+                break;
+              }
+
+              if (err == EINTR) {
+                continue;
+              }
+
+              if (err == EINVAL || err == EOPNOTSUPP) {
+                // the underlying filesystem does not support the operation
+                break;
+              }
+
+              TORCH_CHECK(false, "unable to allocate shared memory(shm) for file <", filename_, ">: ", c10::utils::str_error(err), " (", err, ")");
+
+## Linux v5.10 mm/oom_kill.c lines 226-238 (https://github.com/torvalds/linux/blob/v5.10/mm/oom_kill.c#L226-L238), the kernel this VM runs
+	/*
+	 * The baseline for the badness score is the proportion of RAM that each
+	 * task's rss, pagetable and swap space use.
+	 */
+	points = get_mm_rss(p->mm) + get_mm_counter(p->mm, MM_SWAPENTS) +
+		mm_pgtables_bytes(p->mm) / PAGE_SIZE;
+	task_unlock(p);
+
+	/* Normalize to oom_score_adj units */
+	adj *= totalpages / 1000;
+	points += adj;
+
+	return points;
+
+## PyTorch v2.14.1 docs/source/data.md lines 278-291 (https://github.com/pytorch/pytorch/blob/v2.14.1/docs/source/data.md?plain=1#L278-L291)
+
+:::{warning}
+After several iterations, the loader worker processes will consume
+the same amount of CPU memory as the parent process for all Python
+objects in the parent process which are accessed from the worker
+processes. This can be problematic if the Dataset contains a lot of
+data (e.g., you are loading a very large list of filenames at Dataset
+construction time) and/or you are using a lot of workers (overall
+memory usage is `number of workers * size of parent process`). The
+simplest workaround is to replace Python objects with non-refcounted
+representations such as Pandas, Numpy or PyArrow objects. Check out
+[issue #13246](https://github.com/pytorch/pytorch/issues/13246#issuecomment-905703662)
+for more details on why this occurs and example code for how to
+workaround these problems.

@@ -2590,3 +2590,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | H7 | **Ambiguous messages table** (smuggling probes) against nginx and hypercorn, plus the two-parser byte picture | Reading s7 | `raw/ambiguous.json`; picture illustrative | 11 (found an RFC 9112 6.3 deviation in hypercorn/h11) |
 | H8 | **SDK retries, every attempt the server saw**, 7 failure kinds x 2 SDKs | Reading s9 | `raw/sdk_retries.json` | 11 (corrects "retry only on connection errors"; shows triple execution on read timeout) |
 | H9 | Message anatomy (tap a part), measured timeout runs table, public LLM hosts' headers table, SETTINGS table, conditional GET output, four predict-then-reveal drills | Reading | raw/ | small |
+
+### Topic: operating-systems (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_operating_systems/src/viz_ideas.md`.
+

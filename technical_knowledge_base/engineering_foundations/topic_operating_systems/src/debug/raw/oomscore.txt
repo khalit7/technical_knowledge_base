@@ -1,0 +1,32 @@
+### host: docker run --cpus 2 --memory 1g --memory-swap 1g kb-os-dbg:1 bash /exp/oomscore.sh
+
+### the limit
+$ cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.swap.max
+1073741824
+0
+
+### before: A holds 450 MiB, B holds 250 MiB and has raised its own oom_score_adj to 500
+$ for p in 9 10; do echo pid $p: $(tr '\0' ' ' < /proc/$p/cmdline | cut -c1-40) oom_score_adj=$(cat /proc/$p/oom_score_adj) oom_score=$(cat /proc/$p/oom_score) rss_kib=$(grep VmRSS /proc/$p/status | tr -s ' ' | cut -d' ' -f2); done
+pid 9: python /exp/hog.py 150 450 600 A oom_score_adj=0 oom_score=695 rss_kib=484820
+pid 10: python /exp/hog.py 125 250 600 B oom_score_adj=500 oom_score=1016 rss_kib=280084
+
+### now C grows to 400 MiB: 450 + 250 + 400 does not fit in 1 GiB
+$ python /exp/hog.py 50 400 2 C | tail -n 2
+C: 400 MiB allocated and touched
+C: done
+/exp/lib.sh: line 5:    10 Killed                  sh -c 'echo 500 > /proc/self/oom_score_adj; exec python /exp/hog.py 125 250 600 B' > /tmp/B.log 2>&1
+
+### who is still alive
+$ for p in 9 10; do if kill -0 $p 2>/dev/null; then echo pid $p alive; else echo pid $p gone; fi; done; tail -n 1 /tmp/A.log /tmp/B.log
+pid 9 alive
+pid 10 gone
+==> /tmp/A.log <==
+A: 450 MiB allocated and touched
+
+==> /tmp/B.log <==
+B: 250 MiB allocated and touched
+$ grep oom /sys/fs/cgroup/memory.events
+oom 1
+oom_kill 1
+
+### host: container exit code 0
