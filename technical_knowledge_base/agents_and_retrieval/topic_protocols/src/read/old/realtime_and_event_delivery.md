@@ -1,0 +1,92 @@
+<!-- title: Real-time and event delivery: WebSockets, SSE, webhooks, long polling | url: https://app.notion.com/p/3c65c17b0d0d812daa9fdb38719fc82b?pvs=204 | page_last_edited_at: 2026-09-22T02:13:29.340Z | fetched read-only 2026-10-05 -->
+Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c65c17b0d0d812daa9fdb38719fc82b as of 2026-09-22T02:13:29.340Z:
+<page url="https://app.notion.com/p/3c65c17b0d0d812daa9fdb38719fc82b">
+<ancestor-path>
+<parent-page url="https://app.notion.com/p/3c65c17b0d0d81ec9355f4eecd6eed02" title="Topic: protocols"/>
+<ancestor-2-page url="https://app.notion.com/p/3c65c17b0d0d81c7b646e548e65d9446" title="Technical knowledge base"/>
+<ancestor-3-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
+</ancestor-path>
+<properties>
+{"title":"Real-time and event delivery: WebSockets, SSE, webhooks, long polling"}
+</properties>
+<iconMetadata>null</iconMetadata>
+<content>
+⏱ 10 min read · +5h resources
+## Best resources
+- [MDN: Server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events) (25 min) and [MDN: WebSockets API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) (30 min): mechanics and API surface.
+- [High Performance Browser Networking, ch. WebSocket/SSE](https://hpbn.co/) (45 min): protocol-level detail (framing, deployment hazards).
+- [RFC 6455 The WebSocket Protocol](https://www.rfc-editor.org/rfc/rfc6455) (1h 45m) and the [WHATWG HTML spec SSE section](https://html.spec.whatwg.org/multipage/server-sent-events.html) (20 min): the primary sources.
+- [Stripe webhooks docs](https://docs.stripe.com/webhooks) (docs, \~30 min for the core pages) and [Svix's webhook security guide](https://www.svix.com/resources/guides/webhook-security-checklist/) (20 min): the industry-standard patterns for signatures, retries, ordering.
+- [Standard Webhooks spec](https://www.standardwebhooks.com/) (25 min): community standardization of signature/metadata conventions.
+## The four mechanisms
+<table header-row="true">
+<tr>
+<td></td>
+<td>Direction</td>
+<td>Transport</td>
+<td>Framing</td>
+<td>Best for</td>
+</tr>
+<tr>
+<td>Long polling</td>
+<td>server to client (simulated)</td>
+<td>plain HTTP</td>
+<td>one response per event batch</td>
+<td>legacy fallback</td>
+</tr>
+<tr>
+<td>SSE</td>
+<td>server to client</td>
+<td>plain HTTP response</td>
+<td>`text/event-stream` lines</td>
+<td>LLM token streams, feeds, progress</td>
+</tr>
+<tr>
+<td>WebSockets</td>
+<td>bidirectional</td>
+<td>upgraded TCP socket</td>
+<td>binary/text messages</td>
+<td>chat, collab editing, voice agents</td>
+</tr>
+<tr>
+<td>Webhooks</td>
+<td>server to *your server*</td>
+<td>separate HTTP POSTs</td>
+<td>one JSON body per event</td>
+<td>async job completion, SaaS integration</td>
+</tr>
+</table>
+### Long polling
+Client sends a request; server holds it until an event exists (or timeout), responds, client immediately re-requests. Works through everything, but costs a full request cycle per event batch, has awkward timeout tuning, and per-event latency jitter. Today it is a fallback when proxies break SSE/WebSockets.
+### Server-Sent Events (SSE)
+A single ordinary HTTP response with `Content-Type: text/event-stream` that never ends; the server writes UTF-8 events separated by blank lines (`data:`, optional `event:`, `id:`, `retry:` fields). Because it is just HTTP: works through most infrastructure, trivially supports auth headers (when using fetch-based clients rather than browser `EventSource`, which cannot set headers), benefits from HTTP/2 multiplexing (the old 6-connection-per-host limit only bites on HTTP/1.1).
+Built-in resumability: browser `EventSource` auto-reconnects and sends `Last-Event-ID`, so a server that assigns event IDs can resume a dropped stream. Text only; one direction only.
+Deployment hazards: buffering proxies (nginx needs `proxy_buffering off` or `X-Accel-Buffering: no`), idle timeouts (send `: keepalive` comment lines every \~15s), compression middleware that buffers.
+**SSE is the LLM streaming standard.** Anthropic/OpenAI streaming responses are SSE over a POST (typed events like `message_start`, `content_block_delta` for Anthropic; `data: [DONE]` sentinel for OpenAI-style). MCP's Streamable HTTP transport is the same move: the client POSTs a JSON-RPC message to one endpoint and the server answers with `application/json` or a `text/event-stream` of progress notifications followed by the result. Since the 2026-07-28 stateless core replaced server-initiated requests with Multi Round-Trip Requests, an SSE stream there is an optimisation for progress and streamed results rather than a session backbone; details in <mention-page url="https://app.notion.com/p/3c65c17b0d0d813f9695dc4175c44cbb"/>. When building LLM proxies, preserve event boundaries; do not re-chunk naively (split multi-byte UTF-8 or split `data:` lines and clients break).
+### WebSockets (RFC 6455)
+Wire-level detail lives in <mention-page url="https://app.notion.com/p/3c65c17b0d0d81bdb2a1caea5d41776e"/> (19 min read · +5h 10m resources) (framing, masking, close codes, extensions, HTTP/2 bootstrapping, scaling, and cross-site WebSocket hijacking (CSWSH)). What follows is the summary you need to choose.
+Starts as HTTP GET with `Upgrade: websocket` (101 Switching Protocols), then becomes a raw full-duplex message protocol over the TCP socket: binary or text frames, ping/pong keepalive, close handshake. Over HTTP/2/3 there are bootstrapping RFCs (8441/9220) but plain HTTP/1.1 upgrade remains the norm.
+Wins when you need **client-to-server messages on the same channel** (interruptible voice agents, OpenAI/Gemini realtime APIs, collaborative editing, games) or binary frames (audio). Costs: no auto-reconnect/resume (you build heartbeats, backoff, replay yourself), stateful connections fight serverless (API Gateway WebSocket API + connection table in DynamoDB is the AWS workaround), some corporate proxies still kill upgrades, load balancing needs connection affinity or a pub/sub backplane (Redis) behind stateless nodes.
+Rule of thumb: if the client only receives, use SSE; you get HTTP semantics, auth, retries, and CDN-compatibility for free. Reach for WebSockets only for true bidirectionality or binary. Realtime voice LLM APIs use WebSockets or WebRTC, with SIP alongside them for telephony, and since the frontier voice models went full duplex in 2026 that channel carries audio both ways at once rather than alternating; text LLM APIs use SSE.
+### DDP, Distributed Data Protocol
+In this knowledge base and in ML generally, "DDP" means PyTorch **DistributedDataParallel** (see <mention-page url="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e"/> and <mention-page url="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab"/>). The *protocol* DDP is unrelated:
+- **Meteor's Distributed Data Protocol** (\~2012): a simple JSON protocol over WebSockets (SockJS fallback) that combines two planes in one connection: RPC (`method` calls with ids and results) and **pub/sub data synchronisation**: the client subscribes to named record sets and the server streams `added` / `changed` / `removed` messages that keep a client-side mini database ("minimongo") live.
+- Two ideas worth keeping: the server tracks what each client already has and sends diffs, not snapshots; and **latency compensation**: the client optimistically simulates a method's effect locally, then reconciles when the authoritative server result arrives.
+- It never standardised beyond Meteor and survives mainly inside Meteor apps, but it is the canonical early example of the **sync-engine pattern** (subscribe to a query, receive diffs) that is having a renaissance: Supabase Realtime, Firebase, Phoenix Channels/LiveView, Replicache/Zero-style sync engines are the same shape.
+### Webhooks
+Inverted control: the provider POSTs events to a URL you host. Not a protocol, a convention; correctness lives in the patterns:
+- **Delivery is at-least-once**: consumers MUST be idempotent (dedupe on event ID; store processed IDs). Never at-most-once or exactly-once.
+- **Ordering is not guaranteed**: retries and fan-out reorder events; treat each event as a hint and re-fetch authoritative state from the API if order matters ("thin payload" pattern, which also reduces data-exposure risk).
+- **Retries**: providers retry failed deliveries (non-2xx or timeout) with exponential backoff for hours to days (Stripe: up to 3 days). Respond 2xx fast (\<\~5-10s): ack, enqueue (SQS), process async. Slow handlers cause duplicate storms.
+- **Signatures**: providers sign payloads with a shared secret, a hash-based message authentication code (HMAC-SHA256) over timestamp + raw body (Stripe `Stripe-Signature`; Standard Webhooks `webhook-signature`; GitHub `X-Hub-Signature-256`). Verify against the **raw** body bytes (JSON re-serialization breaks HMACs), compare in constant time, reject stale timestamps (replay protection, \~5 min tolerance). Never trust unsigned webhooks; the endpoint is a public URL anyone can POST to.
+- Endpoint security: HTTPS only, secret rotation support, optionally IP allowlists/mTLS for high-value flows.
+In ML systems webhooks are the completion channel for async work: batch inference jobs, fine-tune completion, SageMaker Async Inference (SNS notification, same idea), evaluation pipelines. AWS-native equivalent: EventBridge/SNS -\> Lambda, with the same idempotency discipline (Lambda retries deliver duplicates too).
+## Choosing, quickly
+- LLM token streaming to a client: **SSE**.
+- Voice/realtime bidirectional agent: **WebSockets** (or WebRTC for media, SIP for telephony).
+- "Tell me when the job finishes" across service boundaries: **webhook** (or queue/EventBridge inside your own infra).
+- Hostile network where nothing else works: **long polling**.
+- Server-to-server request/response: not this page; see <mention-page url="https://app.notion.com/p/3c65c17b0d0d81cb88a3f1f63e85f27b"/>.
+See also: <mention-page url="https://app.notion.com/p/3c65c17b0d0d811bb035fa3f158b0889"/> for chunked transfer, timeouts, and proxy-buffering mechanics that determine whether your stream actually streams.
+</content>
+</page>

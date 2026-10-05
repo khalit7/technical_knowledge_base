@@ -1,0 +1,39 @@
+{
+ "case": "tls_alpn",
+ "recorded": "2026-10-05 15:05 BST",
+ "runs": [
+  {
+   "cmd": "$PY $CL/grpc_call.py 127.0.0.1:27450 --ca $CA",
+   "out": "StatusCode.UNAVAILABLE: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:27450: Tls handshake failed (TSI_PROTOCOL_FAILURE): SSL_ERROR_SSL: error:10000460:SSL routines:OPENSSL_internal:TLSV1_ALERT_NO_APPLICATION_PROTOCOL: Invalid certificate verification context: OK\nI1005 15:05:31.625074 17414842 ssl_transport_security.cc:2530] Handshake failed with error SSL_ERROR_SSL: error:10000460:SSL routines:OPENSSL_internal:TLSV1_ALERT_NO_APPLICATION_PROTOCOL: Invalid certificate verification context",
+   "rc": 0,
+   "ms": 105
+  },
+  {
+   "cmd": "$OPENSSL s_client -connect 127.0.0.1:27450 -servername api.llm.test -alpn h2 </dev/null 2>&1 | grep -E 'ALPN|alert|Verify return'",
+   "out": "80BF570402000000:error:0A000460:SSL routines:ssl3_read_bytes:tlsv1 alert no application protocol:ssl/record/rec_layer_s3.c:918:SSL alert number 120\nNo ALPN negotiated\nVerify return code: 0 (ok)",
+   "rc": 0,
+   "ms": 20
+  },
+  {
+   "cmd": "$OPENSSL s_client -connect 127.0.0.1:27443 -servername api.llm.test -alpn h2 </dev/null 2>&1 | grep -E 'ALPN|Verify return'",
+   "out": "ALPN protocol: h2\nVerify return code: 21 (unable to verify the first certificate)",
+   "rc": 0,
+   "ms": 21,
+   "note": "a server with http2 on picks h2"
+  },
+  {
+   "cmd": "$PY $CL/grpc_call.py 127.0.0.1:27451 --ca $CA",
+   "out": "StatusCode.UNAVAILABLE: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:27451: Cannot check peer: missing selected ALPN property.",
+   "rc": 0,
+   "ms": 74,
+   "note": "a TLS server that ignores ALPN altogether"
+  },
+  {
+   "cmd": "curl -sS --resolve api.llm.test:27450:127.0.0.1 --cacert $CA --http2 -v -o /dev/null https://api.llm.test:27450/v1/messages -H 'content-type: application/json' --data-binary @../wire/request.json 2>&1 | grep -iE 'ALPN|HTTP/'",
+   "out": "* ALPN: curl offers h2,http/1.1\n* ALPN: server accepted http/1.1\n* using HTTP/1.x\n> POST /v1/messages HTTP/1.1\r\n< HTTP/1.1 200 \r",
+   "rc": 0,
+   "ms": 345,
+   "note": "curl offers h2 and http/1.1, so it falls back quietly"
+  }
+ ]
+}

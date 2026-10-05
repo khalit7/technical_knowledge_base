@@ -1,0 +1,60 @@
+# Failure lab nginx: one server block per failure. @WORK@ and @PKI@ are filled in by cases/c00_setup.py.
+# Upstream: the On the wire tab's LLM stand-in on 127.0.0.1:27080 (normal), 27081 (2.5 s between tokens),
+# 27098 (accepts and never answers), 27099 (nothing listening).
+daemon off;
+worker_processes 1;
+pid @WORK@/nginx.pid;
+error_log @WORK@/nginx_error.log info;
+events { worker_connections 256; use poll; }  # kqueue spun on kevent() errors after failed TLS handshakes on this macOS
+
+http {
+  access_log @WORK@/nginx_access.log;
+  client_body_temp_path @WORK@/ngx_tmp/body;
+  proxy_temp_path @WORK@/ngx_tmp/proxy;
+  fastcgi_temp_path @WORK@/ngx_tmp/fcgi; uwsgi_temp_path @WORK@/ngx_tmp/uwsgi; scgi_temp_path @WORK@/ngx_tmp/scgi;
+  proxy_http_version 1.1;
+
+  # 27100: defaults (proxy_buffering on)
+  server { listen 127.0.0.1:27100; location / { proxy_pass http://127.0.0.1:27080; } }
+  # 27101: the fix for streaming, buffering off
+  server { listen 127.0.0.1:27101; location / { proxy_pass http://127.0.0.1:27080; proxy_buffering off; } }
+  # 27106: gzip on for event streams (a common copy-pasted config)
+  server { listen 127.0.0.1:27106; gzip on; gzip_min_length 1; gzip_types text/event-stream;
+           location / { proxy_pass http://127.0.0.1:27080; proxy_buffering off; } }
+  # 27108: gzip with buffering left on
+  server { listen 127.0.0.1:27108; gzip on; gzip_min_length 1; gzip_types text/event-stream;
+           location / { proxy_pass http://127.0.0.1:27080; } }
+  # 27109: HTTP/1.0 to the upstream and buffering on
+  server { listen 127.0.0.1:27109; location / { proxy_pass http://127.0.0.1:27080; proxy_http_version 1.0; } }
+  # 27102: an idle timeout of 2 s in front of an upstream that pauses 2.5 s between tokens
+  server { listen 127.0.0.1:27102; location / { proxy_pass http://127.0.0.1:27081; proxy_buffering off; proxy_read_timeout 2s; } }
+  # 27107: same, with the timeout raised above the longest pause
+  server { listen 127.0.0.1:27107; location / { proxy_pass http://127.0.0.1:27081; proxy_buffering off; proxy_read_timeout 10s; } }
+  # 27103: a 1 KB body limit (nginx's default is 1m)
+  server { listen 127.0.0.1:27103; client_max_body_size 1k; location / { proxy_pass http://127.0.0.1:27080; } }
+  # 27104: upstream not listening (model server crashed or not started yet)
+  server { listen 127.0.0.1:27104; location / { proxy_pass http://127.0.0.1:27099; } }
+  # 27105: upstream accepts but never answers within proxy_read_timeout
+  server { listen 127.0.0.1:27105; location / { proxy_pass http://127.0.0.1:27098; proxy_read_timeout 3s; } }
+
+  # TLS: one port per certificate problem; all proxy to the LLM stand-in
+  ssl_protocols TLSv1.2 TLSv1.3;
+  server { listen 127.0.0.1:27443 ssl; http2 on; ssl_certificate @PKI@/server.pem; ssl_certificate_key @PKI@/server.key; location / { proxy_pass http://127.0.0.1:27080; proxy_buffering off; } }
+  server { listen 127.0.0.1:27444 ssl; ssl_certificate @PKI@/expired.pem; ssl_certificate_key @PKI@/expired.key; location / { proxy_pass http://127.0.0.1:27080; } }
+  server { listen 127.0.0.1:27445 ssl; ssl_certificate @PKI@/wrongname.pem; ssl_certificate_key @PKI@/wrongname.key; location / { proxy_pass http://127.0.0.1:27080; } }
+  server { listen 127.0.0.1:27446 ssl; ssl_certificate @PKI@/notyet.pem; ssl_certificate_key @PKI@/notyet.key; location / { proxy_pass http://127.0.0.1:27080; } }
+  server { listen 127.0.0.1:27447 ssl; ssl_certificate @PKI@/leaf_inter.pem; ssl_certificate_key @PKI@/leaf_inter.key; location / { proxy_pass http://127.0.0.1:27080; } }
+  server { listen 127.0.0.1:27448 ssl; ssl_certificate @PKI@/fullchain.pem; ssl_certificate_key @PKI@/leaf_inter.key; location / { proxy_pass http://127.0.0.1:27080; } }
+  server { listen 127.0.0.1:27449 ssl; ssl_certificate @PKI@/server.pem; ssl_certificate_key @PKI@/server.key;
+           ssl_client_certificate @PKI@/ca.pem; ssl_verify_client on;
+           location / { proxy_pass http://127.0.0.1:27080; proxy_set_header X-Client-DN $ssl_client_s_dn; } }
+  server { listen 127.0.0.1:27453 ssl; ssl_certificate @PKI@/noaki.pem; ssl_certificate_key @PKI@/noaki.key; location / { proxy_pass http://127.0.0.1:27080; proxy_buffering off; } }
+  # 27450: HTTP/1.1 only (no http2): ALPN offers only http/1.1
+  server { listen 127.0.0.1:27450 ssl; ssl_certificate @PKI@/server.pem; ssl_certificate_key @PKI@/server.key; location / { proxy_pass http://127.0.0.1:27080; } }
+}
+
+# L4 (TCP) load balancer in front of three gRPC backends: it balances connections, not requests.
+stream {
+  upstream grpc_backends { server 127.0.0.1:27301; server 127.0.0.1:27302; server 127.0.0.1:27303; }
+  server { listen 127.0.0.1:27300; proxy_pass grpc_backends; }
+}

@@ -1,3 +1,117 @@
 <div class="tab" id="t-wire" role="tabpanel" hidden>
-<p>Being built.</p>
+<style>
+#t-wire{--wi-dns:var(--c6);--wi-tcp:var(--c1);--wi-tls:var(--c4);--wi-wait:var(--c5);--wi-pre:var(--c2);--wi-str:var(--c3);--wi-code:#f6f6f4}
+@media (prefers-color-scheme:dark){#t-wire{--wi-code:#1f1f1f}}
+#t-wire .wi-lead{font-size:15.5px}
+#t-wire .wi-kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:10px 0}
+#t-wire .wi-kind{border:1px solid var(--line);border-left:4px solid var(--kc);border-radius:8px;padding:7px 10px;font-size:13px;min-width:0}
+#t-wire .wi-kind b{display:block;font-size:13.5px}
+#t-wire .wi-tag{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:0 7px;margin-right:4px;color:var(--bg);background:var(--kc);vertical-align:1px;white-space:nowrap}
+#t-wire pre{margin:0;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--wi-code);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;max-width:100%;white-space:pre}
+#t-wire pre.wrap{white-space:pre-wrap;overflow-wrap:anywhere}
+#t-wire .wi-inv{color:var(--mute);opacity:.8}
+#t-wire .wi-hl{background:var(--hl);border-radius:2px}
+#t-wire .wi-two{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+@media (min-width:760px){#t-wire .wi-two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+#t-wire .wi-cap{font-size:12.5px;color:var(--mute);margin:4px 0 0}
+#t-wire .wi-bar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0}
+#t-wire .wi-bar .seg{margin:0;flex-wrap:wrap}
+#t-wire .wi-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-wire .wi-leg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-wire .wi-panel{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--soft);margin:8px 0;font-size:13.5px;min-width:0}
+#t-wire .wi-panel h4{margin:0 0 4px;font-size:14px}
+#t-wire .wi-panel .k{color:var(--mute)}
+#t-wire .an-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+#t-wire .an-ctl input[type=range]{flex:1 1 140px;min-width:120px;width:auto}
+#t-wire .an-ctl label{font-size:12.5px}
+#t-wire .wi-step{font-size:12px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+#t-wire .wi-src{font-size:12px;color:var(--mute);margin:6px 0 0;overflow-wrap:anywhere}
+#t-wire table.wi-t{font-size:12.5px}
+#t-wire table.wi-t td,#t-wire table.wi-t th{padding:4px 6px}
+#t-wire .wi-svg{margin:6px 0;min-height:40px}
+#t-wire .wi-svg svg text{font-size:11px}
+#t-wire details.wi-d{border:1px solid var(--line);border-radius:8px;margin:8px 0}
+#t-wire details.wi-d>summary{cursor:pointer;padding:6px 10px;font-size:13.5px}
+#t-wire details.wi-d>div{padding:0 10px 10px}
+#t-wire .wi-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin:8px 0}
+</style>
+
+<p class="wi-lead"><b>One request, followed byte by byte.</b> A chat app asks a streaming LLM API "What colour is the sky?" and the answer comes back token by token. This tab follows that one request down through every layer and back up, and every byte and every millisecond on it was recorded from a real run on <span data-wi="date"></span>. The Reading tab explains each layer; this tab is the evidence.</p>
+
+<div class="wi-kinds">
+<div class="wi-kind" style="--kc:var(--c1)"><b><span class="wi-tag">Loopback</span>Both ends on this laptop</b>A small stand-in for an LLM API (the <i>Wire Lab server</i>) and our own clients talk over the machine's internal network, so there is almost no travel time: what is left is the work each protocol does.</div>
+<div class="wi-kind" style="--kc:var(--c2)"><b><span class="wi-tag">Emulated</span>50 ms round trip added</b>The same request through <code>netem.py</code>, our proxy that holds every chunk 25 ms in each direction, like a server a few thousand kilometres away. It can also lose one packet on purpose.</div>
+<div class="wi-kind" style="--kc:var(--c3)"><b><span class="wi-tag">Public</span>Real hosts on the internet</b>Read-only requests (no credentials, a few per host) to real API hosts, for the timings only: their answers to an empty request are not the stream above.</div>
+</div>
+
+<div class="deepnote"><b>Words used below.</b> A <b>packet</b> is one unit the network carries (a few hundred to about 1,500 bytes). A <b>port</b> is a number that picks the program on a machine; an address plus a port is one end of a <b>connection</b>. A <b>round trip</b> (RTT) is the time for a message to go and an answer to come back: every protocol step that must wait for an answer costs one. A <b>handshake</b> is the exchange that sets a connection up before any request can go. A <b>stream</b> is one request and its answer inside a shared connection; a <b>frame</b> is one labelled piece of a stream. The Reading tab defines each one properly.</div>
+
+<section id="wi-s-req">
+<h2>1. The request and the answer, as bytes</h2>
+<p>The app sends a <b>POST</b> to <code>/v1/messages</code> with a JSON body; the server answers <b>200</b> with <code>content-type: text/event-stream</code> and then sends <b>Server-Sent Events</b> (SSE): small text blocks, each an <code>event:</code> line, a <code>data:</code> line and a blank line (WHATWG HTML Standard, section 9.2). The event names and JSON shapes follow Anthropic's Messages API streaming format, trimmed to <code>message_start</code>, one <code>content_block_delta</code> per token, and <code>message_stop</code>. No model runs: the five tokens are fixed, the first comes after <span data-wi="prefill"></span> (standing in for the model reading the prompt) and the rest <span data-wi="gap"></span> apart, so every run sends the same bytes.</p>
+<div class="wi-bar"><span class="seg" id="wi-req-seg"><button data-m="req" class="on">Request</button><button data-m="resp">Response</button></span><label class="chk"><input type="checkbox" id="wi-req-inv"> show invisible bytes (CR LF)</label></div>
+<pre id="wi-req-pre" class="wrap"></pre>
+<p class="wi-cap" id="wi-req-cap"></p>
+<div class="wi-svg" id="wi-req-arr"></div>
+<p class="wi-cap">Each mark is one <code>recv()</code> call returning bytes to the app over plain HTTP/1.1 (port 8080, no encryption), so the timing is the server's, not the network's. Source: <code>raw/h1_arrivals.json</code>.</p>
+</section>
+
+<section id="wi-s-wf">
+<h2>2. Where the time goes: a measured waterfall</h2>
+<p>Before the first byte of the answer can arrive, the client has to find the server (<b>DNS</b>), open a connection (<b>TCP</b>, or <b>QUIC</b> for HTTP/3), and secure it (<b>TLS</b>). Each bar below is the median of repeated runs of our instrumented clients, which timestamp every step; tap a bar for every run.</p>
+<div class="wi-bar"><span class="seg" id="wi-wf-seg"><button data-m="local" class="on">Loopback</button><button data-m="netem">Emulated 50 ms RTT</button><button data-m="public">Public hosts</button></span></div>
+<div class="wi-leg" id="wi-wf-leg"></div>
+<div class="wi-svg" id="wi-wf"></div>
+<div id="wi-wf-note" class="wi-panel"></div>
+<details class="wi-d"><summary>Cross-check with <code>curl -w</code> (medians)</summary><div><div class="tw" id="wi-wf-curl"></div><p class="wi-src">curl measures the same phases from inside a different TLS library (macOS SecureTransport): <code>time_namelookup</code> (DNS), <code>time_connect</code> (TCP done), <code>time_appconnect</code> (TLS done), <code>time_starttransfer</code> (first byte), all from the start. Source: <code>raw/curl_local.tsv</code>, <code>raw/curl_netem.tsv</code>, <code>raw/public_curl.tsv</code>.</p></div></details>
+</section>
+
+<section id="wi-s-an">
+<h2>3. Anatomy: the same request down and up the layers</h2>
+<p>Step through the HTTP/2 run of the request (the version curl and most SDKs pick when the server offers it). The left stack is the client, the right stack the server; the panel shows the real bytes of each step and the time it happened. The last steps draw one token's bytes to scale, layer by layer.</p>
+<div class="card" id="wi-an-card">
+<div class="an-ctl" id="wi-an-ctl"></div>
+<div class="wi-svg" id="wi-an-svg"></div>
+<div class="wi-panel" id="wi-an-panel"></div>
+</div>
+<details class="wi-d"><summary>The same token in HTTP/1.1, HTTP/2 and HTTP/3, to scale</summary><div><div class="wi-svg" id="wi-tok"></div><p class="wi-src" id="wi-tok-src"></p></div></details>
+</section>
+
+<section id="wi-s-hol">
+<h2>4. One lost packet: HTTP/1.1, HTTP/2 and HTTP/3</h2>
+<p>Three copies of the request (call them A, B and C, as when an agent fires three model calls at once) go out 10 ms apart on one connection, over the emulated 50 ms path. Then <b>one packet is lost</b>: the one carrying request A's second token, " sky". Press play to watch the tokens arrive at the app at their measured times, slowed down.</p>
+<div class="wi-bar"><span class="seg" id="wi-hol-seg"><button data-m="loss" class="on">One packet lost</button><button data-m="base">No loss</button></span></div>
+<div class="card" id="wi-hol-card">
+<div class="an-ctl" id="wi-hol-ctl"></div>
+<div class="wi-svg" id="wi-hol"></div>
+<div class="wi-panel" id="wi-hol-panel"></div>
+</div>
+<details class="wi-d"><summary>How the loss was made, and why it is fair</summary><div id="wi-hol-how"></div></details>
+</section>
+
+<section id="wi-s-tls">
+<h2>5. TLS 1.2 against TLS 1.3: counting round trips</h2>
+<p>The same client and server, forced to TLS 1.2 and then to TLS 1.3, over the emulated 50 ms path. Every message below was logged by OpenSSL itself as it went out or came in. TLS 1.2 needs two round trips before the request can go; TLS 1.3 needs one, because the client sends its key share in its very first message instead of waiting to be told which one to use.</p>
+<div class="card" id="wi-tls-card">
+<div class="an-ctl" id="wi-tls-ctl"></div>
+<div class="wi-svg" id="wi-tls"></div>
+<div class="wi-panel" id="wi-tls-panel"></div>
+</div>
+<div class="tw" id="wi-tls-tab"></div>
+</section>
+
+<section id="wi-s-res">
+<h2>6. A cold connection, a resumed one, and a reused one</h2>
+<p>The first request on a new connection pays for TCP and TLS. A <b>resumed</b> TLS session (the client shows a ticket the server gave it last time) skips the certificate; a <b>kept-alive</b> connection (the same open connection, reused) skips the handshakes altogether. Measured on the emulated 50 ms path, HTTP/2:</p>
+<div class="card" id="wi-res-card">
+<div class="an-ctl" id="wi-res-ctl"></div>
+<div class="wi-svg" id="wi-res"></div>
+<div class="wi-panel" id="wi-res-panel"></div>
+</div>
+</section>
+
+<section id="wi-s-repro">
+<h2>7. Reproduce it, and what this does not show</h2>
+<div id="wi-repro"></div>
+</section>
 </div>

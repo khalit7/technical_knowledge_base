@@ -1,0 +1,42 @@
+{
+ "case": "tls_hostname",
+ "recorded": "2026-10-05 15:05 BST",
+ "runs": [
+  {
+   "cmd": "curl -sS --resolve api.llm.test:27445:127.0.0.1 --cacert $CA https://api.llm.test:27445/v1/messages -H 'content-type: application/json' --data-binary @../wire/request.json",
+   "out": "curl: (60) SSL: no alternative certificate subject name matches target host name 'api.llm.test'\nMore details here: https://curl.se/docs/sslcerts.html\n\ncurl failed to verify the legitimacy of the server and therefore could not\nestablish a secure connection to it. To learn more about this situation and\nhow to fix it, please visit the web page mentioned above.",
+   "rc": 60,
+   "ms": 13
+  },
+  {
+   "cmd": "$PY $CL/py_requests.py https://localhost:27445/v1/messages --ca $CA --json ../wire/request.json",
+   "out": "requests.exceptions.SSLError: HTTPSConnectionPool(host='localhost', port=27445): Max retries exceeded with url: /v1/messages (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'localhost'. (_ssl.c:1032)\")))",
+   "rc": 0,
+   "ms": 92
+  },
+  {
+   "cmd": "$PY $CL/py_httpx.py https://localhost:27445/v1/messages --ca $CA --json ../wire/request.json",
+   "out": "httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'localhost'. (_ssl.c:1032)",
+   "rc": 0,
+   "ms": 95
+  },
+  {
+   "cmd": "NODE_EXTRA_CA_CERTS=$CA node $CL/node_fetch.mjs https://localhost:27445/v1/messages ../wire/request.json",
+   "out": "TypeError: fetch failed\n  cause: ERR_TLS_CERT_ALTNAME_INVALID Hostname/IP does not match certificate's altnames: Host: localhost. is not in the cert's altnames: DNS:other.llm.test",
+   "rc": 0,
+   "ms": 63
+  },
+  {
+   "cmd": "$OPENSSL s_client -connect 127.0.0.1:27445 -servername api.llm.test </dev/null 2>&1 | $OPENSSL x509 -noout -subject -ext subjectAltName",
+   "out": "subject=CN=other.llm.test\nX509v3 Subject Alternative Name: \n    DNS:other.llm.test",
+   "rc": 0,
+   "ms": 22
+  },
+  {
+   "cmd": "$OPENSSL s_client -connect 127.0.0.1:27445 -servername api.llm.test -CAfile $CA -verify_hostname api.llm.test </dev/null 2>&1 | grep -E 'verify error|Verify return'",
+   "out": "verify error:num=62:hostname mismatch\nVerify return code: 62 (hostname mismatch)",
+   "rc": 0,
+   "ms": 16
+  }
+ ]
+}

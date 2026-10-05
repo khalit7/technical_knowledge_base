@@ -2518,3 +2518,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/javascript_and_typescript/src/viz_ideas.md`.
 
+### Topic: protocols (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_protocols/src/viz_ideas.md`.
+

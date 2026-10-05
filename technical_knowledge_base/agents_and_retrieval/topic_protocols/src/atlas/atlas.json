@@ -1,0 +1,2932 @@
+{
+ "checked": "2026-10-05",
+ "groups": [
+  {
+   "id": "agent",
+   "label": "Agent protocols",
+   "adds": "Who the agent may talk to, about what: tools, other agents, merchants, devices."
+  },
+  {
+   "id": "auth",
+   "label": "Who is calling",
+   "adds": "Proof of identity and permission carried in headers or certificates."
+  },
+  {
+   "id": "api",
+   "label": "Service API styles",
+   "adds": "How a call is named and its data shaped: resources, procedures, queries."
+  },
+  {
+   "id": "stream",
+   "label": "Streaming and events",
+   "adds": "How data keeps flowing after the first response, or arrives later."
+  },
+  {
+   "id": "http",
+   "label": "HTTP",
+   "adds": "Methods, paths, status codes and headers; the wire format depends on the version."
+  },
+  {
+   "id": "security",
+   "label": "Security",
+   "adds": "Encryption and proof of the server's (and maybe client's) identity."
+  },
+  {
+   "id": "naming",
+   "label": "Naming",
+   "adds": "Turns a name into addresses before anything else can happen."
+  },
+  {
+   "id": "transport",
+   "label": "Transport",
+   "adds": "Ports, and either a reliable byte stream (TCP, QUIC) or loose datagrams (UDP)."
+  },
+  {
+   "id": "net",
+   "label": "Network",
+   "adds": "Addresses, and forwarding of packets hop by hop."
+  },
+  {
+   "id": "fabric",
+   "label": "GPU fabric (brief)",
+   "adds": "Moving tensors between GPUs, bypassing the kernel network stack."
+  }
+ ],
+ "entries": [
+  {
+   "id": "ip",
+   "name": "IP",
+   "full": "Internet Protocol, versions 4 and 6",
+   "group": "net",
+   "year": 1981,
+   "body": "IETF",
+   "cur": "IPv4 (RFC 791) and IPv6 (RFC 8200)",
+   "status": "Internet Standard (both)",
+   "plain": "The postal system of the internet: every machine has an address, and IP carries a **packet** (a chunk of bytes with a header saying where it came from and where it goes) from one address towards another, hop by hop through routers, with no promise that it arrives.",
+   "problem": "Get a packet from any machine to any other machine across many independent networks.",
+   "how": "Each packet carries a source and destination address (32 bits in IPv4, 128 bits in IPv6). Routers forward it one hop closer; packets can be dropped, duplicated or reordered, and a packet bigger than a link's **MTU** (maximum transmission unit, usually 1500 bytes on Ethernet) must be split or rejected.",
+   "runs_on": [],
+   "uses": [],
+   "adds": "An IP header (20 bytes for IPv4 without options, 40 for IPv6) with the two addresses.",
+   "costs": "Nothing is guaranteed: delivery, order and integrity are left to the layers above.",
+   "not_when": "You never choose IP; you choose what runs on it. What you do choose is IPv4 or IPv6 reachability and the MTU of your network.",
+   "replaces": "IPv6 was meant to replace IPv4 (address exhaustion); both run side by side, and clients race them (Happy Eyeballs, RFC 8305).",
+   "competes": "Nothing at this layer on the public internet.",
+   "meet": [
+    "Every request you send: the `A` (IPv4) and `AAAA` (IPv6) records DNS returns are IP addresses.",
+    "Kubernetes pod and service IPs; private ranges such as `10.0.0.0/8` (RFC 1918) inside a VPC.",
+    "MTU problems on overlay networks (VXLAN, VPN tunnels) and on cloud links that allow jumbo frames (9001 bytes inside an AWS VPC)."
+   ],
+   "fail": {
+    "symptom": "Small requests work, large ones hang forever (a TLS handshake or a big POST stalls).",
+    "cause": "A path MTU black hole: a link on the path has a smaller MTU, the router drops the big packets, and the ICMP message that should say so is filtered by a firewall.",
+    "see": "`ping -D -s 1472 host` (macOS, don't-fragment) or `ping -M do -s 1472 host` (Linux) finds the largest packet that gets through."
+   },
+   "wire": [
+    "ip",
+    "ipv6"
+   ],
+   "wire_note": "Three echo requests to Cloudflare's resolver over IPv4 and over IPv6 from the recording machine: about 18 to 20 ms per round trip either way.",
+   "srcs": [
+    {
+     "t": "RFC 791: Internet Protocol (September 1981, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc791.html"
+    },
+    {
+     "t": "RFC 8200: Internet Protocol, Version 6 (IPv6) Specification (July 2017, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8200.html"
+    },
+    {
+     "t": "RFC 1918: Address Allocation for Private Internets (February 1996, Best Current Practice)",
+     "u": "https://www.rfc-editor.org/rfc/rfc1918.html"
+    },
+    {
+     "t": "RFC 8305: Happy Eyeballs Version 2: Better Connectivity Using Concurrency (December 2017, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8305.html"
+    },
+    {
+     "t": "AWS: network MTU for EC2 instances (9001 inside a VPC)",
+     "u": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/network_mtu.html"
+    }
+   ]
+  },
+  {
+   "id": "tcp",
+   "name": "TCP",
+   "full": "Transmission Control Protocol",
+   "group": "transport",
+   "year": 1981,
+   "body": "IETF",
+   "cur": "RFC 9293 (August 2022), which obsoletes RFC 793",
+   "status": "Internet Standard",
+   "plain": "Turns IP's unreliable packets into a reliable, ordered **byte stream** between two programs: what one side writes, the other reads, in order, with nothing missing.",
+   "problem": "Applications want a pipe, not loose packets: reliable, ordered delivery that slows down when the network is congested.",
+   "how": "A **connection** between two **sockets** (IP address plus **port**, a 16-bit number naming the program) starts with a three-way **handshake** (SYN, SYN-ACK, ACK: one **round trip**, the time for a packet to go and an answer to return). Every byte is numbered; the receiver acknowledges what arrived and the sender retransmits what did not. **Flow control** (the receive window) stops a fast sender from flooding a slow reader; **congestion control** (for example CUBIC, RFC 9438) backs off when packets are lost.",
+   "runs_on": [
+    "ip"
+   ],
+   "uses": [],
+   "adds": "A TCP header (20 bytes minimum) with ports, sequence and acknowledgement numbers, and the window.",
+   "costs": "One round trip before any data; one lost packet stalls every byte behind it (**head-of-line blocking**); throughput of one connection is at most window divided by round-trip time.",
+   "not_when": "Real-time media or games where a late packet is worthless (use UDP); many independent streams over a lossy path (QUIC avoids cross-stream stalls).",
+   "replaces": "Nothing older survives; QUIC re-implements its job on top of UDP.",
+   "competes": "QUIC for web traffic; RDMA transports inside GPU clusters.",
+   "meet": [
+    "Under every HTTP/1.1 and HTTP/2 call: the LLM API, vLLM's OpenAI-compatible server, Triton's HTTP and gRPC ports.",
+    "NCCL's socket transport when no InfiniBand or RoCE is available, and `torch.distributed` rendezvous (the TCP store on `MASTER_PORT`).",
+    "Checkpoint uploads to object storage, where one connection cannot fill a fast long link."
+   ],
+   "fail": {
+    "symptom": "`Connection refused` instantly, or a connect that hangs then times out.",
+    "cause": "Refused: the host answered with a reset because nothing listens on that port. Hang: a firewall or security group silently drops the SYN, so the client retries until its timeout.",
+    "see": "`nc -vz host 443` (refused versus timeout), `ss -tn` or `lsof -iTCP` for the connection states."
+   },
+   "wire": [
+    "tcp",
+    "timing"
+   ],
+   "wire_note": "`nc` only opens and closes a TCP connection. The curl timing line splits one request to the API into DNS, TCP connect, TLS and first byte, cumulative seconds from the start.",
+   "srcs": [
+    {
+     "t": "RFC 9293: Transmission Control Protocol (TCP) (August 2022, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9293.html"
+    },
+    {
+     "t": "RFC 793: Transmission Control Protocol (September 1981, Internet Standard; obsoleted by RFC9293)",
+     "u": "https://www.rfc-editor.org/rfc/rfc793.html"
+    },
+    {
+     "t": "RFC 9438: CUBIC for Fast and Long-Distance Networks (August 2023, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9438.html"
+    }
+   ]
+  },
+  {
+   "id": "udp",
+   "name": "UDP",
+   "full": "User Datagram Protocol",
+   "group": "transport",
+   "year": 1980,
+   "body": "IETF",
+   "cur": "RFC 768 (August 1980), updated by RFC 9868 (UDP options, October 2025)",
+   "status": "Internet Standard",
+   "plain": "Ports on top of IP and nothing else: send a **datagram** (one self-contained message), maybe it arrives, maybe not, no connection.",
+   "problem": "Let applications send messages with no setup cost and no retransmission delay, and build their own reliability if they want it.",
+   "how": "An 8-byte header (source port, destination port, length, checksum) on an IP packet. No handshake, no ordering, no retransmission, no congestion control.",
+   "runs_on": [
+    "ip"
+   ],
+   "uses": [],
+   "adds": "8 bytes: two ports, a length and a checksum.",
+   "costs": "Everything TCP does for you, you must do yourself (or accept loss). Middleboxes and NATs forget idle UDP flows quickly.",
+   "not_when": "When you need a reliable stream and are not using a library (QUIC, RTP) that provides one.",
+   "replaces": "Nothing; it is the minimal transport.",
+   "competes": "TCP for anything that needs reliability by default.",
+   "meet": [
+    "Classic DNS queries go over UDP port 53.",
+    "QUIC and therefore HTTP/3 run on UDP port 443.",
+    "RoCEv2 carries RDMA traffic between GPU nodes in UDP datagrams to port 4791."
+   ],
+   "fail": {
+    "symptom": "DNS answers occasionally take seconds, or large DNS answers fail.",
+    "cause": "A lost UDP query is only retried after the resolver's timeout (5 s by default in glibc); large answers are truncated and must be retried over TCP, which some firewalls block.",
+    "see": "`dig +stats` shows the query time; `dig +tcp` retries over TCP."
+   },
+   "wire": [
+    "udp"
+   ],
+   "wire_note": "One DNS question and answer in two UDP datagrams to 1.1.1.1 (62 bytes back).",
+   "srcs": [
+    {
+     "t": "RFC 768: User Datagram Protocol (August 1980, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc768.html"
+    },
+    {
+     "t": "RFC 9868: Transport Options for UDP (October 2025, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9868.html"
+    },
+    {
+     "t": "IANA service names and port numbers: 4791/udp, IP Routable RoCE (registered 2014-10-17)",
+     "u": "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=4791"
+    }
+   ]
+  },
+  {
+   "id": "quic",
+   "name": "QUIC",
+   "full": "QUIC: a UDP-based multiplexed and secure transport",
+   "group": "transport",
+   "year": 2021,
+   "body": "IETF (started at Google)",
+   "cur": "QUIC version 1 (RFC 9000, 9001, 9002, May 2021); QUIC version 2 (RFC 9369, May 2023)",
+   "status": "Proposed Standard",
+   "plain": "A new TCP built on UDP with TLS 1.3 inside it and many independent streams in one connection, so a lost packet only stalls the stream it belonged to.",
+   "problem": "TCP plus TLS costs two round trips before data, stalls every stream on one loss, and is frozen inside operating systems and middleboxes.",
+   "how": "QUIC packets ride in UDP datagrams. The TLS 1.3 handshake is carried inside QUIC (RFC 9001), so transport and encryption are set up in one round trip (zero with 0-RTT resumption). Streams are numbered and flow-controlled separately; loss recovery is per packet with per-stream delivery (RFC 9002). Connections have IDs, so they survive a change of IP address (Wi-Fi to mobile).",
+   "runs_on": [
+    "udp"
+   ],
+   "uses": [
+    "tls"
+   ],
+   "adds": "A short QUIC header (connection ID, packet number) and frames; nearly everything is encrypted, including most of the header.",
+   "costs": "Runs in user space, so more CPU per byte than kernel TCP; UDP is blocked or rate-limited on some corporate networks, so clients must fall back to TCP.",
+   "not_when": "Inside a data centre on a clean network where kernel TCP is cheaper; networks that block UDP 443.",
+   "replaces": "TCP plus TLS for HTTP/3.",
+   "competes": "TCP with TLS 1.3 (HTTP/2).",
+   "meet": [
+    "Browsers reaching Google, Cloudflare and other CDNs over HTTP/3.",
+    "Rarely between your own services: gRPC and most inference servers still use HTTP/2 over TCP."
+   ],
+   "fail": {
+    "symptom": "HTTP/3 works at home but the same client is slow or falls back on the office network.",
+    "cause": "A firewall drops or throttles UDP 443; the client waits for QUIC to fail before using TCP.",
+    "see": "`curl --http3-only -v https://host/` (needs a curl built with HTTP/3) fails fast where UDP is blocked; `curl -sI` shows the `alt-svc: h3` advertisement."
+   },
+   "wire": [
+    "http3"
+   ],
+   "wire_note": "A server advertises QUIC with an `alt-svc` header over HTTP/2; the next connection may switch. The recording machine's curl 8.7.1 has no HTTP/3, so the QUIC handshake itself is in the On the wire tab.",
+   "srcs": [
+    {
+     "t": "RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport (May 2021, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9000.html"
+    },
+    {
+     "t": "RFC 9001: Using TLS to Secure QUIC (May 2021, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9001.html"
+    },
+    {
+     "t": "RFC 9002: QUIC Loss Detection and Congestion Control (May 2021, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9002.html"
+    },
+    {
+     "t": "RFC 9369: QUIC Version 2 (May 2023, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9369.html"
+    }
+   ]
+  },
+  {
+   "id": "dns",
+   "name": "DNS",
+   "full": "Domain Name System, with DoT, DoH and DoQ",
+   "group": "naming",
+   "year": 1987,
+   "body": "IETF",
+   "cur": "RFC 1034 and 1035 (November 1987) plus many updates; encrypted transports DoT (RFC 7858, 2016), DoH (RFC 8484, 2018), DoQ (RFC 9250, 2022)",
+   "status": "Internet Standard (core)",
+   "plain": "The phone book: turns a name like `api.anthropic.com` into IP addresses, through a chain of servers that each know part of the answer, with every answer cached for a number of seconds (its **TTL**, time to live).",
+   "problem": "Humans and configs use names; IP needs addresses; addresses change.",
+   "how": "Your machine asks a **recursive resolver** (your ISP's, 1.1.1.1, or the cluster's CoreDNS). On a cache miss it asks a root server, then the `.com` servers, then the domain's own servers, and caches each answer for its TTL. Records: `A` (IPv4), `AAAA` (IPv6), `CNAME` (alias), `SRV`, `TXT`, `HTTPS` (RFC 9460: tells clients the server speaks HTTP/3). **DoT** wraps queries in TLS on port 853, **DoH** sends them as HTTPS requests, **DoQ** over QUIC, so the network cannot read or alter them.",
+   "runs_on": [
+    "udp",
+    "tcp"
+   ],
+   "uses": [
+    "tls",
+    "http2"
+   ],
+   "adds": "A question and answer section; classic DNS is plain text on UDP 53.",
+   "costs": "One more lookup before any connection (cheap when cached); stale answers until the TTL expires; plain DNS can be read and rewritten by the network.",
+   "not_when": "Service discovery that must react in milliseconds (TTLs and client caches lag); use a service mesh or client-side registry.",
+   "replaces": "The HOSTS.TXT file of the 1970s and 1980s.",
+   "competes": "For encryption: DoT versus DoH versus DoQ.",
+   "meet": [
+    "Every API call starts with a lookup; in Kubernetes each pod's `/etc/resolv.conf` points at CoreDNS with `ndots:5`, so a short name triggers several searches first.",
+    "Multi-node training finds the master by a DNS name of a headless service.",
+    "A deploy that moves an endpoint, while clients still hold the old address until the TTL runs out."
+   ],
+   "fail": {
+    "symptom": "Some requests take exactly 5 s longer than others, or a new endpoint is unreachable for some clients for minutes.",
+    "cause": "5 s: a lost UDP query waits for the resolver's retry timeout (5 s by default in the glibc resolver). Minutes: a cached old answer lives until its TTL, and negative answers and resolution failures are cached too (RFC 9520).",
+    "see": "`dig +noall +answer name` shows the answer and its remaining TTL; `dig +trace` follows the delegation from the root."
+   },
+   "wire": [
+    "dns",
+    "doh",
+    "dohwho"
+   ],
+   "wire_note": "The plain lookup returns both an IPv4 and an IPv6 address with their remaining TTL in seconds. The DoH attempt failed on the recording machine: a device-management DNS filter answers for `cloudflare-dns.com` with its own certificate, and curl refuses it (exit 60). That is encrypted DNS doing its job: the interception is visible instead of silent.",
+   "srcs": [
+    {
+     "t": "RFC 1034: Domain names - concepts and facilities (November 1987, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc1034.html"
+    },
+    {
+     "t": "RFC 1035: Domain names - implementation and specification (November 1987, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc1035.html"
+    },
+    {
+     "t": "RFC 7858: Specification for DNS over Transport Layer Security (TLS) (May 2016, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7858.html"
+    },
+    {
+     "t": "RFC 8484: DNS Queries over HTTPS (DoH) (October 2018, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8484.html"
+    },
+    {
+     "t": "RFC 9250: DNS over Dedicated QUIC Connections (May 2022, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9250.html"
+    },
+    {
+     "t": "RFC 9460: Service Binding and Parameter Specification via the DNS (SVCB and HTTPS Resource Records) (November 2023, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9460.html"
+    },
+    {
+     "t": "RFC 9520: Negative Caching of DNS Resolution Failures (December 2023, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9520.html"
+    },
+    {
+     "t": "Kubernetes: DNS for services and pods (ndots:5 in pod resolv.conf)",
+     "u": "https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/"
+    },
+    {
+     "t": "resolv.conf(5): `timeout:n`, default RES_TIMEOUT, currently 5 s",
+     "u": "https://man7.org/linux/man-pages/man5/resolv.conf.5.html"
+    }
+   ]
+  },
+  {
+   "id": "tls",
+   "name": "TLS 1.3",
+   "full": "Transport Layer Security 1.3 (and the status of 1.2)",
+   "group": "security",
+   "year": 2018,
+   "body": "IETF",
+   "cur": "RFC 9846 (July 2026), which obsoletes RFC 8446 (August 2018) and RFC 5246 (TLS 1.2)",
+   "status": "Proposed Standard",
+   "plain": "The sealed envelope around your bytes: it proves you reached the real server (with a **certificate**) and encrypts everything after the first exchange, in one round trip.",
+   "problem": "Anyone on the path can read and alter plain TCP; you also need to know that `api.anthropic.com` is really Anthropic.",
+   "how": "The client's first message (ClientHello) carries a key share and the name it wants (**SNI**, server name indication) and the protocols it speaks (**ALPN**: `h2`, `http/1.1`). The server answers with its key share, then sends its certificate chain and a signature, all already encrypted. Both sides derive keys; application data flows after one round trip. Hybrid post-quantum key exchange (`X25519MLKEM768`) is now an RFC (RFC 10024, August 2026). TLS 1.2 still works but is frozen (RFC 9851), and new protocols must require 1.3 (RFC 9852).",
+   "runs_on": [
+    "tcp"
+   ],
+   "uses": [
+    "x509"
+   ],
+   "adds": "Record framing (a 5-byte header per record, RFC 9846 §5.1, plus the AEAD tag, 16 bytes with AES-GCM) and one round trip of handshake.",
+   "costs": "One round trip (two with TLS 1.2), some CPU, and certificates to issue, renew and trust.",
+   "not_when": "Almost never skip it; inside a trusted host (localhost, a Unix socket) it adds nothing.",
+   "replaces": "SSL 3.0, TLS 1.0 and 1.1 (deprecated by RFC 8996), and in new protocols TLS 1.2.",
+   "competes": "Within its job, nothing; SSH secures shells with its own protocol.",
+   "meet": [
+    "Every HTTPS call to an LLM API; the recording shows `api.anthropic.com` negotiating TLS 1.3 with the hybrid post-quantum group `X25519MLKEM768`.",
+    "`SSL: CERTIFICATE_VERIFY_FAILED` from Python behind a corporate proxy that re-signs traffic.",
+    "Terminating TLS at a load balancer in front of vLLM or Triton."
+   ],
+   "fail": {
+    "symptom": "`certificate verify failed: unable to get local issuer certificate` (Python, curl exit 60).",
+    "cause": "The client does not trust the CA that signed the server's chain: a corporate interception proxy, a private CA not installed in the client's bundle (`certifi` in Python ships its own), or a server that forgot to send its intermediate certificate.",
+    "see": "`openssl s_client -connect host:443 -servername host -showcerts` shows the chain the server sends; `-brief` shows version, cipher and group."
+   },
+   "wire": [
+    "tls13",
+    "tls12"
+   ],
+   "wire_note": "The same server negotiated TLS 1.3 with the hybrid post-quantum group when allowed, and still accepts TLS 1.2 (plain X25519) when the client forces it. Recorded with OpenSSL 3.6.5.",
+   "srcs": [
+    {
+     "t": "RFC 9846: The Transport Layer Security (TLS) Protocol Version 1.3 (July 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9846.html"
+    },
+    {
+     "t": "RFC 8446: The Transport Layer Security (TLS) Protocol Version 1.3 (August 2018, Proposed Standard; obsoleted by RFC9846)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8446.html"
+    },
+    {
+     "t": "RFC 5246: The Transport Layer Security (TLS) Protocol Version 1.2 (August 2008, Proposed Standard; obsoleted by RFC8446, RFC9846)",
+     "u": "https://www.rfc-editor.org/rfc/rfc5246.html"
+    },
+    {
+     "t": "RFC 8996: Deprecating TLS 1.0 and TLS 1.1 (March 2021, Best Current Practice)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8996.html"
+    },
+    {
+     "t": "RFC 9851: TLS 1.2 is in Feature Freeze (July 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9851.html"
+    },
+    {
+     "t": "RFC 9852: New Protocols Using TLS Must Require TLS 1.3 (July 2026, Best Current Practice)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9852.html"
+    },
+    {
+     "t": "RFC 10024: Post-Quantum Traditional (PQ/T) Hybrid Key Agreement Mechanisms for TLS 1.3 (August 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc10024.html"
+    },
+    {
+     "t": "RFC 9849: TLS Encrypted Client Hello (March 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9849.html"
+    },
+    {
+     "t": "RFC 9850: The SSLKEYLOGFILE Format for TLS (July 2026, Informational)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9850.html"
+    },
+    {
+     "t": "RFC 7301: Transport Layer Security (TLS) Application-Layer Protocol Negotiation Extension (July 2014, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7301.html"
+    }
+   ]
+  },
+  {
+   "id": "x509",
+   "name": "X.509, PKI, ACME",
+   "full": "X.509 certificates, the public key infrastructure, and ACME automation",
+   "group": "security",
+   "year": 2008,
+   "body": "ITU-T X.509; IETF profile (RFC 5280); CA/Browser Forum rules; IETF ACME",
+   "cur": "RFC 5280 profile; CA/Browser Forum Baseline Requirements 2.3.1 (4 October 2026); ACME RFC 8555 (2019)",
+   "status": "Proposed Standard (5280, 8555); BRs are binding on public CAs",
+   "plain": "A certificate is a signed statement: 'the public key K belongs to `api.anthropic.com`, valid from date A to date B, signed by authority C'. Your machine trusts a few hundred root authorities, and trust flows down a **chain** to the server's certificate.",
+   "problem": "TLS can encrypt to a key, but you need to know whose key it is.",
+   "how": "A CA verifies that an applicant controls a domain (ACME automates this with an HTTP or DNS challenge) and signs a certificate for it, usually through an intermediate CA. Clients check the chain up to a trusted root, the name, and the dates. Public certificate lifetimes are shrinking by CA/Browser Forum rule: 200 days from 15 March 2026, 100 days from 15 March 2027, 47 days from 15 March 2029 (domain validation reuse falls to 10 days). Let's Encrypt stopped OCSP in 2025 in favour of CRLs and offers a short-lived profile.",
+   "runs_on": [],
+   "uses": [
+    "tls"
+   ],
+   "adds": "Nothing on the wire beyond the certificate chain sent in the TLS handshake (a few kilobytes).",
+   "costs": "Renewal is now continuous work: with 47-day certificates, anything renewed by hand will expire.",
+   "not_when": "Internal service identity: use a private CA or SPIFFE rather than public certificates.",
+   "replaces": "Manual certificate purchase and installation (ACME); OCSP checks (CRLs, short lifetimes).",
+   "competes": "Within the web PKI, nothing; inside organisations, private CAs and SPIFFE.",
+   "meet": [
+    "The certificate of every API you call; the recording shows `api.anthropic.com` with a 90-day certificate from Google Trust Services.",
+    "cert-manager in Kubernetes speaking ACME to Let's Encrypt for your ingress.",
+    "An outage the day a certificate expires because renewal silently failed."
+   ],
+   "fail": {
+    "symptom": "Everything breaks at once with `certificate has expired`.",
+    "cause": "A renewal job failed weeks ago and nobody was alerted; shorter lifetimes make this more frequent unless renewal is automated and monitored (ACME Renewal Information, RFC 9773, lets the CA tell clients when to renew).",
+    "see": "`openssl s_client -connect host:443 </dev/null | openssl x509 -noout -dates`."
+   },
+   "wire": [
+    "x509",
+    "acme"
+   ],
+   "wire_note": "The API's certificate is valid 21 September to 20 December 2026 (90 days, well inside the 200-day cap). The Let's Encrypt ACME directory lists its endpoints, the `renewalInfo` URL (RFC 9773) and three profiles including `shortlived`.",
+   "srcs": [
+    {
+     "t": "RFC 5280: Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile (May 2008, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc5280.html"
+    },
+    {
+     "t": "RFC 8555: Automatic Certificate Management Environment (ACME) (March 2019, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8555.html"
+    },
+    {
+     "t": "RFC 9773: ACME Renewal Information (ARI) Extension (June 2025, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9773.html"
+    },
+    {
+     "t": "RFC 9162: Certificate Transparency Version 2.0 (December 2021, Experimental)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9162.html"
+    },
+    {
+     "t": "CA/Browser Forum Baseline Requirements v2.3.1, §6.3.2 validity schedule and §4.2.1 reuse",
+     "u": "https://cabforum.org/working-groups/server/baseline-requirements/requirements/"
+    },
+    {
+     "t": "Let's Encrypt: Ending OCSP support in 2025 (5 December 2024)",
+     "u": "https://letsencrypt.org/2024/12/05/ending-ocsp/"
+    }
+   ]
+  },
+  {
+   "id": "mtls",
+   "name": "mTLS and SPIFFE",
+   "full": "Mutual TLS, with SPIFFE workload identities",
+   "group": "security",
+   "year": 2018,
+   "body": "IETF (TLS client certificates; RFC 8705 for OAuth); CNCF (SPIFFE, graduated 2022)",
+   "cur": "TLS 1.3 client authentication; SPIFFE standards in github.com/spiffe/spiffe; RFC 8705 (OAuth certificate-bound tokens)",
+   "status": "TLS: Proposed Standard; SPIFFE: CNCF graduated project (23 August 2022)",
+   "plain": "Ordinary TLS proves the server's identity; mutual TLS also makes the client present a certificate, so each side knows who the other is. SPIFFE gives every workload a name like `spiffe://prod.example/ns/inference/sa/router` and short-lived certificates carrying it.",
+   "problem": "Service-to-service calls inside a network need identity that is stronger than 'it came from an internal IP'.",
+   "how": "In the TLS handshake the server sends a CertificateRequest; the client answers with its certificate and proves it holds the private key. A SPIFFE implementation (SPIRE, or a service mesh such as Istio or Linkerd) issues each workload an X.509 certificate (an SVID) with its SPIFFE ID and rotates it automatically before it expires.",
+   "runs_on": [
+    "tls"
+   ],
+   "uses": [
+    "x509"
+   ],
+   "adds": "The client's certificate chain and a signature in the handshake.",
+   "costs": "Certificate issuance, rotation and trust distribution for every workload: the reason meshes exist.",
+   "not_when": "Public clients you do not control (browsers, customers' scripts): use OAuth or API keys.",
+   "replaces": "IP allow-lists and shared secrets between services.",
+   "competes": "Signed tokens (JWTs) on every request; cloud IAM (SigV4).",
+   "meet": [
+    "A service mesh that wraps calls between your gateway and the inference pods.",
+    "A2A and MCP deployments inside a company: A2A Agent Cards can declare a `MutualTlsSecurityScheme`.",
+    "OAuth tokens bound to a client certificate (RFC 8705), so a stolen token is useless elsewhere."
+   ],
+   "fail": {
+    "symptom": "`tls: certificate required` or `bad certificate` between two services that worked yesterday.",
+    "cause": "A workload certificate expired because the rotation agent stopped, or the two sides trust different CA bundles after a rotation.",
+    "see": "`openssl s_client -connect svc:443 -cert client.pem -key client.key` shows whether the server asks for and accepts the certificate."
+   },
+   "wire": [],
+   "wire_note": "Not recorded here: no public endpoint asks for client certificates. The Failure lab tab reproduces certificate errors with a local CA.",
+   "srcs": [
+    {
+     "t": "RFC 8705: OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens (February 2020, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8705.html"
+    },
+    {
+     "t": "RFC 9846 §4.4.2: The Transport Layer Security (TLS) Protocol Version 1.3 (July 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9846.html#section-4.4.2"
+    },
+    {
+     "t": "SPIFFE ID standard",
+     "u": "https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md"
+    },
+    {
+     "t": "CNCF: SPIFFE project page (accepted 2018-03-29, graduated 2022-08-23)",
+     "u": "https://www.cncf.io/projects/spiffe/"
+    },
+    {
+     "t": "A2A v1.0.1 specification §4.5.6 MutualTlsSecurityScheme",
+     "u": "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md"
+    }
+   ]
+  },
+  {
+   "id": "ssh",
+   "name": "SSH",
+   "full": "Secure Shell, protocol version 2",
+   "group": "security",
+   "year": 2006,
+   "body": "IETF",
+   "cur": "RFC 4251 to 4254 (January 2006) plus updates; OpenSSH 10.5 (11 August 2026)",
+   "status": "Proposed Standard",
+   "plain": "An encrypted remote terminal and tunnel: log in to a GPU box, copy files, or forward a port (a Jupyter notebook) through one authenticated connection.",
+   "problem": "Remote shells and file copies over an untrusted network, authenticated by keys rather than passwords sent in clear.",
+   "how": "Three layers: the transport (key exchange, server host key, encryption), user authentication (public key, certificate, password) and the connection protocol, which multiplexes **channels** (shells, port forwards, `scp`/`sftp`) over one TCP connection. OpenSSH has used a hybrid post-quantum key exchange by default since 9.0 (2022, `sntrup761x25519`) and `mlkem768x25519-sha256` since 10.0 (2025); the ML-KEM method is RFC 10042 (August 2026).",
+   "runs_on": [
+    "tcp"
+   ],
+   "uses": [],
+   "adds": "Its own packet format with encryption and a MAC; port 22.",
+   "costs": "Long-lived keys copied onto many machines (key sprawl); host-key prompts that people click through.",
+   "not_when": "Service-to-service APIs (use TLS); browser access.",
+   "replaces": "telnet, rlogin, rsh, ftp.",
+   "competes": "Cloud session managers (AWS SSM, IAP tunnels) that avoid open port 22.",
+   "meet": [
+    "`ssh -J bastion gpu-node` to reach a training node behind a jump host; `ssh -L 8888:localhost:8888` for a notebook.",
+    "VS Code Remote and `git` over SSH to GitHub.",
+    "SSH certificates signed by a CA instead of `authorized_keys` on every node."
+   ],
+   "fail": {
+    "symptom": "`WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!` after a node is rebuilt.",
+    "cause": "The new machine has a new host key; the client remembers the old one in `known_hosts`. Usually benign on recreated cloud nodes, and exactly what a man-in-the-middle would also produce.",
+    "see": "`ssh -v host` shows the key exchange and host key; `ssh -Q kex` lists the key exchanges your client supports."
+   },
+   "wire": [
+    "ssh",
+    "sshkex"
+   ],
+   "wire_note": "The first line a server sends is its protocol banner (`SSH-2.0-...`). The local OpenSSH 10.3p1 lists both hybrid post-quantum key exchanges.",
+   "srcs": [
+    {
+     "t": "RFC 4251: The Secure Shell (SSH) Protocol Architecture (January 2006, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc4251.html"
+    },
+    {
+     "t": "RFC 4253: The Secure Shell (SSH) Transport Layer Protocol (January 2006, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc4253.html"
+    },
+    {
+     "t": "RFC 4254: The Secure Shell (SSH) Connection Protocol (January 2006, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc4254.html"
+    },
+    {
+     "t": "RFC 9941: Secure Shell (SSH) Key Exchange Method Using Hybrid Streamlined NTRU Prime sntrup761 and X25519 with SHA-512: sntrup761x25519-sha512 (April 2026, Informational)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9941.html"
+    },
+    {
+     "t": "RFC 9987: Secure Shell (SSH) Agent Protocol (May 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9987.html"
+    },
+    {
+     "t": "RFC 10042: Post-Quantum/Traditional Hybrid Key Exchange with the Module-Lattice-Based Key-Encapsulation Mechanism for Use in SSH (August 2026, Informational)",
+     "u": "https://www.rfc-editor.org/rfc/rfc10042.html"
+    },
+    {
+     "t": "OpenSSH release notes (9.0: 2022-04-08 sntrup761x25519 default; 10.0: 2025-04-09 mlkem768x25519 default; 10.5: 2026-08-11)",
+     "u": "https://www.openssh.com/releasenotes.html"
+    }
+   ]
+  },
+  {
+   "id": "http11",
+   "name": "HTTP/1.1",
+   "full": "Hypertext Transfer Protocol 1.1",
+   "group": "http",
+   "year": 1997,
+   "body": "IETF",
+   "cur": "RFC 9110 (semantics) and RFC 9112 (HTTP/1.1 message syntax), June 2022",
+   "status": "Internet Standard",
+   "plain": "A request and a response written as text: a method and path (`POST /v1/messages`), header lines, a blank line, a body. One request at a time per connection.",
+   "problem": "A uniform way for any client to ask any server for something, through caches and proxies.",
+   "how": "The **semantics** (methods such as GET and POST, status codes such as 200, 401, 429, headers, caching) live in RFC 9110 and are shared by every HTTP version. HTTP/1.1's wire format (RFC 9112) is text over one TCP or TLS connection; keep-alive reuses the connection, but responses come back strictly in order, so clients open several connections to the same host to work in parallel. Bodies of unknown length are sent in **chunks** (`Transfer-Encoding: chunked`), which is how a streamed answer travels on HTTP/1.1.",
+   "runs_on": [
+    "tls",
+    "tcp"
+   ],
+   "uses": [],
+   "adds": "Text headers on every request (often hundreds of bytes), repeated in full each time.",
+   "costs": "One outstanding request per connection; header bytes repeated on every call.",
+   "not_when": "Many small parallel calls to the same server (HTTP/2 multiplexes them on one connection).",
+   "replaces": "HTTP/1.0 (one request per connection).",
+   "competes": "HTTP/2 and HTTP/3 carry the same semantics more efficiently.",
+   "meet": [
+    "`curl` without flags to a plain `http://` URL, and many internal health checks.",
+    "Proxies and load balancers that speak only HTTP/1.1 to the backend even when the client used HTTP/2.",
+    "Streaming LLM answers relayed through older proxies as chunked responses."
+   ],
+   "fail": {
+    "symptom": "A streamed answer arrives all at once at the end, or is cut after exactly 60 s.",
+    "cause": "A proxy buffers the response before forwarding it (nginx `proxy_buffering` is on by default), or an idle or read timeout on a proxy hop is shorter than the generation. RFC 10036 (August 2026) adds an `Incremental` header that asks intermediaries to forward a message as it arrives.",
+    "see": "`curl -N -v` against each hop in turn shows which one buffers or cuts."
+   },
+   "wire": [
+    "http11"
+   ],
+   "wire_note": "A real request to the API without a key: the request lines (`>`) and the response headers (`<`), with Cloudflare's own headers filtered out. `Transfer-Encoding: chunked` and `Connection: keep-alive` are HTTP/1.1 at work; the `401` is the API key check (see API keys).",
+   "srcs": [
+    {
+     "t": "RFC 9110: HTTP Semantics (June 2022, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9110.html"
+    },
+    {
+     "t": "RFC 9112: HTTP/1.1 (June 2022, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9112.html"
+    },
+    {
+     "t": "RFC 2616: Hypertext Transfer Protocol -- HTTP/1.1 (June 1999, Draft Standard; obsoleted by RFC7230, RFC7231, RFC7232, RFC7233, RFC7234, RFC7235)",
+     "u": "https://www.rfc-editor.org/rfc/rfc2616.html"
+    },
+    {
+     "t": "RFC 10036: Incremental Forwarding of HTTP Messages (August 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc10036.html"
+    },
+    {
+     "t": "nginx: proxy_buffering (default on)",
+     "u": "https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering"
+    }
+   ]
+  },
+  {
+   "id": "http2",
+   "name": "HTTP/2",
+   "full": "Hypertext Transfer Protocol version 2",
+   "group": "http",
+   "year": 2015,
+   "body": "IETF (from Google's SPDY)",
+   "cur": "RFC 9113 (June 2022), which obsoletes RFC 7540 (May 2015); header compression HPACK, RFC 7541",
+   "status": "Proposed Standard",
+   "plain": "The same requests and responses, cut into binary **frames** and interleaved on one connection, so many requests are in flight at once.",
+   "problem": "HTTP/1.1 needs many connections for parallelism and resends the same headers every time.",
+   "how": "One TCP plus TLS connection (chosen with ALPN `h2`) carries many numbered **streams**, one per request. Each stream's headers and data are sent as frames that can interleave. HPACK compresses headers against a table both sides remember. Flow control is per stream and per connection. Plain-text HTTP/2 (`h2c`, no TLS) exists and is common inside clusters for gRPC.",
+   "runs_on": [
+    "tls",
+    "tcp"
+   ],
+   "uses": [],
+   "adds": "A 9-byte frame header per frame; headers HPACK-compressed.",
+   "costs": "Still on TCP: one lost packet stalls every stream on the connection (TCP head-of-line blocking). One long-lived connection defeats connection-level (L4) load balancing.",
+   "not_when": "Lossy mobile links with many parallel streams (HTTP/3 does better).",
+   "replaces": "HTTP/1.1 for most browser and API traffic.",
+   "competes": "HTTP/3.",
+   "meet": [
+    "Calls to most LLM APIs from modern clients: the recording shows curl and the API agreeing on `h2` through ALPN.",
+    "Every gRPC call (Triton on port 8001, OTLP on 4317, Ray Serve's gRPC proxy).",
+    "Python's `httpx` with `http2=True`; `requests` speaks only HTTP/1.1."
+   ],
+   "fail": {
+    "symptom": "One backend pod is at 100 percent while the others idle, behind a load balancer.",
+    "cause": "A long-lived HTTP/2 (often gRPC) connection is balanced once, when it opens, by an L4 balancer; every later request rides the same connection to the same pod.",
+    "see": "Per-pod request counts; the fix is an L7 balancer that spreads streams, or client-side balancing."
+   },
+   "wire": [
+    "http2"
+   ],
+   "wire_note": "curl offered `h2` and `http/1.1` in the TLS handshake, the server picked `h2`, and the request became stream 1 with its pseudo-headers (`:method`, `:path`, ...).",
+   "srcs": [
+    {
+     "t": "RFC 9113: HTTP/2 (June 2022, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9113.html"
+    },
+    {
+     "t": "RFC 7540: Hypertext Transfer Protocol Version 2 (HTTP/2) (May 2015, Proposed Standard; obsoleted by RFC9113)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7540.html"
+    },
+    {
+     "t": "RFC 7541: HPACK: Header Compression for HTTP/2 (May 2015, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7541.html"
+    },
+    {
+     "t": "RFC 7301: Transport Layer Security (TLS) Application-Layer Protocol Negotiation Extension (July 2014, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7301.html"
+    },
+    {
+     "t": "gRPC blog: gRPC load balancing (L3/L4 versus L7)",
+     "u": "https://grpc.io/blog/grpc-load-balancing/"
+    }
+   ]
+  },
+  {
+   "id": "http3",
+   "name": "HTTP/3",
+   "full": "Hypertext Transfer Protocol version 3",
+   "group": "http",
+   "year": 2022,
+   "body": "IETF",
+   "cur": "RFC 9114 (June 2022); header compression QPACK, RFC 9204",
+   "status": "Proposed Standard",
+   "plain": "HTTP/2's idea (many streams on one connection) moved onto QUIC, so a lost packet only delays its own stream.",
+   "problem": "HTTP/2 still stalls all streams on one TCP loss and pays a TCP plus TLS setup.",
+   "how": "Each request is a QUIC stream; QPACK replaces HPACK because streams can arrive out of order. Servers advertise it with an `Alt-Svc` header or an HTTPS DNS record; clients race it against HTTP/2 and keep whichever works.",
+   "runs_on": [
+    "quic"
+   ],
+   "uses": [],
+   "adds": "QUIC framing instead of TCP plus TLS records.",
+   "costs": "UDP blocked on some networks; more CPU; fewer debugging tools.",
+   "not_when": "Server-to-server inside a data centre, where HTTP/2 over TCP is simpler and as fast.",
+   "replaces": "HTTP/2 on lossy, high-latency client links.",
+   "competes": "HTTP/2.",
+   "meet": [
+    "Browsers and mobile apps talking to CDNs.",
+    "Rarely in ML backends today: inference servers and gRPC use HTTP/2."
+   ],
+   "fail": {
+    "symptom": "Intermittent slowness only on some networks.",
+    "cause": "Clients try QUIC first, UDP is throttled, and they fall back to TCP after a delay.",
+    "see": "`curl -sI https://host/ | grep -i alt-svc` shows the advertisement; `curl --http3-only` tests QUIC alone."
+   },
+   "wire": [
+    "http3"
+   ],
+   "wire_note": "`h3=\":443\"; ma=86400`: the server offers HTTP/3 on UDP 443 and asks the client to remember it for a day.",
+   "srcs": [
+    {
+     "t": "RFC 9114: HTTP/3 (June 2022, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9114.html"
+    },
+    {
+     "t": "RFC 9204: QPACK: Field Compression for HTTP/3 (June 2022, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9204.html"
+    },
+    {
+     "t": "RFC 9460: Service Binding and Parameter Specification via the DNS (SVCB and HTTPS Resource Records) (November 2023, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9460.html"
+    }
+   ]
+  },
+  {
+   "id": "ws",
+   "name": "WebSockets",
+   "full": "The WebSocket protocol",
+   "group": "stream",
+   "year": 2011,
+   "body": "IETF (protocol), WHATWG (browser API)",
+   "cur": "RFC 6455 (December 2011); over HTTP/2 RFC 8441 (2018), over HTTP/3 RFC 9220 (2022)",
+   "status": "Proposed Standard",
+   "plain": "An HTTP request that turns into a two-way pipe: after a short handshake, either side can send messages at any time until one closes it.",
+   "problem": "Browsers had no way to receive data the server decides to send, or to send many small messages, without a new request each time.",
+   "how": "The client sends an ordinary HTTP/1.1 GET with `Upgrade: websocket` and a random `Sec-WebSocket-Key`; the server answers `101 Switching Protocols` with `Sec-WebSocket-Accept`, a hash of that key with a fixed GUID (RFC 6455 §1.3), proving it understood. From then on both sides exchange **frames** (text, binary, ping, pong, close); frames from the client are masked.",
+   "runs_on": [
+    "http11",
+    "tcp"
+   ],
+   "uses": [],
+   "adds": "A 2 to 14 byte frame header per message (plus a 4-byte mask from clients).",
+   "costs": "A long-lived stateful connection per client: load balancers, deploys and reconnects must handle it; no HTTP caching or per-message status codes.",
+   "not_when": "The server only streams to the client (SSE is simpler and works through more proxies); occasional notifications to another service (webhooks).",
+   "replaces": "Long polling and other Comet hacks for two-way browser traffic.",
+   "competes": "SSE (one way), WebRTC (media, peer to peer), WebTransport (IETF draft over HTTP/3).",
+   "meet": [
+    "Realtime voice APIs: OpenAI's Realtime API WebSocket mode and Google's Gemini Live API both use WebSockets.",
+    "Agent UIs that push tool progress and accept interruptions."
+   ],
+   "fail": {
+    "symptom": "Connections drop every 60 s or after a deploy, and clients do not come back.",
+    "cause": "A proxy's idle timeout closes quiet connections (send pings), and clients without reconnect-with-backoff logic stay disconnected.",
+    "see": "`curl -si --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' ...` shows whether the handshake reaches the server and gets a 101."
+   },
+   "wire": [
+    "ws"
+   ],
+   "wire_note": "The request used the sample key from RFC 6455 §1.3 (`dGhlIHNhbXBsZSBub25jZQ==`), and the live server returned exactly the accept value printed in the RFC, `s3pPLMBiTxaQ9kYGzzhZRbK+xOo=`.",
+   "srcs": [
+    {
+     "t": "RFC 6455 §1.3: The WebSocket Protocol (December 2011, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc6455.html#section-1.3"
+    },
+    {
+     "t": "RFC 8441: Bootstrapping WebSockets with HTTP/2 (September 2018, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8441.html"
+    },
+    {
+     "t": "RFC 9220: Bootstrapping WebSockets with HTTP/3 (June 2022, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9220.html"
+    },
+    {
+     "t": "draft-ietf-webtrans-http3-16 (Internet-Draft, revision of 2026-07-06, Datatracker state: I-D Exists)",
+     "u": "https://datatracker.ietf.org/doc/draft-ietf-webtrans-http3/"
+    },
+    {
+     "t": "OpenAI API docs: Realtime API with WebSockets",
+     "u": "https://platform.openai.com/docs/guides/realtime-websocket"
+    },
+    {
+     "t": "Google: Gemini Live API (stateful WebSocket connection)",
+     "u": "https://ai.google.dev/gemini-api/docs/live-api"
+    }
+   ]
+  },
+  {
+   "id": "sse",
+   "name": "SSE",
+   "full": "Server-sent events (EventSource, text/event-stream)",
+   "group": "stream",
+   "year": 2015,
+   "body": "WHATWG (HTML Living Standard §9.2); W3C Recommendation 2015",
+   "cur": "HTML Living Standard §9.2, last updated 5 October 2026",
+   "status": "Living Standard",
+   "plain": "An HTTP response that never finishes: the server keeps writing small text events (`data: ...` followed by a blank line) and the client handles each as it arrives.",
+   "problem": "Push a stream of updates from server to client over plain HTTP, through ordinary proxies, with automatic reconnection.",
+   "how": "The response has `Content-Type: text/event-stream`. Each event is a few lines (`event:`, `data:`, `id:`, `retry:`) ended by a blank line; lines starting with `:` are comments, used as keep-alives. The browser's `EventSource` reconnects on its own and sends `Last-Event-ID`. LLM APIs use the format but not EventSource: the request is a POST with a JSON body (`\"stream\": true`) and the SDK parses the events.",
+   "runs_on": [
+    "http2",
+    "http11",
+    "http3"
+   ],
+   "uses": [],
+   "adds": "A few bytes of `data:` framing per event, as text.",
+   "costs": "One direction only; text only (binary must be encoded); every proxy on the path must forward bytes as they come instead of buffering.",
+   "not_when": "The client must also stream to the server (voice): use WebSockets.",
+   "replaces": "Long polling for server-to-client streams.",
+   "competes": "WebSockets; gRPC server streaming between services.",
+   "meet": [
+    "Every streaming LLM call: Anthropic's Messages API sends named events (`message_start`, `content_block_delta`, `message_stop`).",
+    "vLLM's OpenAI-compatible server (`vllm serve`, port 8000) with `stream=true`.",
+    "MCP's Streamable HTTP transport and A2A's JSON-RPC and REST bindings stream with SSE."
+   ],
+   "fail": {
+    "symptom": "Tokens arrive in bursts, or all at the end, or the stream dies at a round number of seconds.",
+    "cause": "A proxy, CDN or compression layer buffers the stream, or an idle timeout fires during a long pause (a model thinking before its first token). The HTML standard itself suggests a comment line about every 15 seconds against such proxies.",
+    "see": "`curl -N` (no buffering) straight at the server, then through each proxy."
+   },
+   "wire": [
+    "sse"
+   ],
+   "wire_note": "A local stand-in server on 127.0.0.1 streaming three token events, a keep-alive comment and a done event. The real API's version of this exchange is recorded in the On the wire tab.",
+   "srcs": [
+    {
+     "t": "WHATWG HTML Living Standard §9.2 Server-sent events (authoring notes §9.2.7: comment every 15 seconds)",
+     "u": "https://html.spec.whatwg.org/multipage/server-sent-events.html"
+    },
+    {
+     "t": "W3C Server-Sent Events Recommendation, 3 February 2015",
+     "u": "https://www.w3.org/TR/2015/REC-eventsource-20150203/"
+    },
+    {
+     "t": "Anthropic docs: streaming Messages with server-sent events",
+     "u": "https://docs.claude.com/en/docs/build-with-claude/streaming"
+    },
+    {
+     "t": "vLLM docs: OpenAI-compatible server",
+     "u": "https://github.com/vllm-project/vllm/blob/main/docs/serving/online_serving/openai_compatible_server.md"
+    }
+   ]
+  },
+  {
+   "id": "webhook",
+   "name": "Webhooks",
+   "full": "Webhooks, and the Standard Webhooks specification",
+   "group": "stream",
+   "year": 2025,
+   "body": "Convention; Standard Webhooks (open specification, v1.0.0 December 2025)",
+   "cur": "Standard Webhooks v1.0.2 (February 2026)",
+   "status": "Community specification",
+   "plain": "A reverse API call: instead of you polling 'is my batch job done?', the provider sends an HTTP POST to a URL you registered when something happens.",
+   "problem": "Tell another system about an event later, without it polling and without a connection held open.",
+   "how": "The sender POSTs a JSON event to your URL. Standard Webhooks fixes the details: headers `webhook-id`, `webhook-timestamp`, `webhook-signature`; the signature is HMAC-SHA256 over `id.timestamp.body` with a shared secret (`whsec_...`), so you can check it came from the sender and was not replayed. Delivery is retried on any non-2xx answer, with exponential backoff over days.",
+   "runs_on": [
+    "http11",
+    "http2"
+   ],
+   "uses": [],
+   "adds": "Three headers and a signature.",
+   "costs": "At-least-once and unordered: you will see duplicates and must deduplicate on the event id; you need a public HTTPS endpoint.",
+   "not_when": "The caller is waiting for the answer now (return it, or stream it).",
+   "replaces": "Polling a status endpoint.",
+   "competes": "Queues and event buses between your own services; polling for simple cases.",
+   "meet": [
+    "Batch inference and fine-tuning jobs that notify on completion; A2A push notifications are webhooks to a URL the client registers.",
+    "Payment and CI providers calling your service."
+   ],
+   "fail": {
+    "symptom": "Signature verification fails on every webhook although the secret is right.",
+    "cause": "The handler parsed the JSON and re-serialised it before verifying; the signature covers the raw bytes, and any change of spacing or key order breaks it.",
+    "see": "Verify against the raw request body; the recording shows the same body verifying and its re-serialised copy failing."
+   },
+   "wire": [
+    "webhook"
+   ],
+   "wire_note": "Computed locally with a made-up secret, following the spec's signing scheme and its example message id and timestamp.",
+   "srcs": [
+    {
+     "t": "Standard Webhooks specification",
+     "u": "https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md"
+    },
+    {
+     "t": "standard-webhooks/standard-webhooks release v1.0.0 (2025-12-31, GitHub)",
+     "u": "https://github.com/standard-webhooks/standard-webhooks/releases/tag/v1.0.0"
+    },
+    {
+     "t": "standard-webhooks/standard-webhooks release v1.0.2 (2026-02-18, GitHub)",
+     "u": "https://github.com/standard-webhooks/standard-webhooks/releases/tag/v1.0.2"
+    },
+    {
+     "t": "A2A v1.0.1 specification §3.5.3 push notification delivery",
+     "u": "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md"
+    }
+   ]
+  },
+  {
+   "id": "rest",
+   "name": "REST and OpenAPI",
+   "full": "REST over HTTP, described with OpenAPI",
+   "group": "api",
+   "year": 2000,
+   "body": "Fielding's dissertation (2000); OpenAPI Initiative (Linux Foundation)",
+   "cur": "OpenAPI 3.2.1 (10 September 2026); error bodies RFC 9457",
+   "status": "OpenAPI: published specification",
+   "plain": "Resources with URLs (`/v1/models`, `/v1/messages`) acted on with HTTP's own verbs and status codes, usually with JSON bodies. OpenAPI is a machine-readable description of such an API, from which docs, clients and tests are generated.",
+   "problem": "An API any client can call with any HTTP library, that caches, proxies and browsers already understand.",
+   "how": "GET reads, POST creates or triggers, PUT and PATCH update, DELETE removes; status codes carry the outcome (200, 201, 400, 401, 404, 409, 429, 5xx); retries are safe for idempotent methods, and an idempotency key makes a POST safe to retry. Errors can follow RFC 9457 problem details. An OpenAPI document lists paths, parameters, schemas and security schemes.",
+   "runs_on": [
+    "http11",
+    "http2"
+   ],
+   "uses": [
+    "jwt"
+   ],
+   "adds": "Nothing below HTTP: it is a way of using HTTP.",
+   "costs": "Text JSON is larger and slower to parse than protobuf; no built-in streaming (add SSE) or deadlines.",
+   "not_when": "High-volume internal calls between your own services (gRPC); clients that need many shapes of one data graph (GraphQL).",
+   "replaces": "SOAP and ad hoc RPC over HTTP for public APIs.",
+   "competes": "gRPC, GraphQL, JSON-RPC.",
+   "meet": [
+    "Every public LLM API is REST plus SSE; the recordings show `GET /v1/models` answering `401` with a JSON error.",
+    "FastAPI services, which generate an OpenAPI document automatically.",
+    "Triton's HTTP port 8000 (the KServe v2 inference protocol)."
+   ],
+   "fail": {
+    "symptom": "A retried POST creates two charges or two jobs.",
+    "cause": "POST is not idempotent; a timeout after the server acted makes the client retry. Send an idempotency key and have the server deduplicate.",
+    "see": "Server logs keyed by request id; the API returns a `request-id` header for this."
+   },
+   "wire": [
+    "apikey"
+   ],
+   "wire_note": "A REST error answer: JSON with a type and message, plus a request id for support.",
+   "srcs": [
+    {
+     "t": "Fielding (2000), Architectural Styles and the Design of Network-based Software Architectures",
+     "u": "https://ics.uci.edu/~fielding/pubs/dissertation/top.htm"
+    },
+    {
+     "t": "OAI/OpenAPI-Specification release 3.2.0 (2025-09-19, GitHub)",
+     "u": "https://github.com/OAI/OpenAPI-Specification/releases/tag/3.2.0"
+    },
+    {
+     "t": "OAI/OpenAPI-Specification release 3.2.1 (2026-09-10, GitHub)",
+     "u": "https://github.com/OAI/OpenAPI-Specification/releases/tag/3.2.1"
+    },
+    {
+     "t": "RFC 9457: Problem Details for HTTP APIs (August 2023, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9457.html"
+    },
+    {
+     "t": "RFC 9110 §9.2.2: HTTP Semantics (June 2022, Internet Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2"
+    },
+    {
+     "t": "RFC 10008: The HTTP QUERY Method (June 2026, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc10008.html"
+    },
+    {
+     "t": "Triton docs: HTTP/REST and GRPC protocols (KServe v2)",
+     "u": "https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/customization_guide/inference_protocols.html"
+    }
+   ]
+  },
+  {
+   "id": "grpc",
+   "name": "gRPC and protobuf",
+   "full": "gRPC remote procedure calls with Protocol Buffers",
+   "group": "api",
+   "year": 2015,
+   "body": "Google, then CNCF",
+   "cur": "gRPC 1.84.0 (11 September 2026); protobuf v36.2 (17 September 2026)",
+   "status": "Open source; wire format in PROTOCOL-HTTP2.md",
+   "plain": "Call a function on another machine as if it were local: the service and its messages are declared in a `.proto` file, code is generated for each language, and calls travel as compact binary messages over HTTP/2.",
+   "problem": "Fast, typed, streaming calls between your own services, with timeouts that propagate.",
+   "how": "Each call is an HTTP/2 POST to `/package.Service/Method` with `content-type: application/grpc` and `te: trailers`. Messages are protobuf bytes, each prefixed by 5 bytes (a compression flag and a 4-byte length). The status comes in HTTP **trailers** (`grpc-status`, headers sent after the body). Four shapes: unary, server streaming, client streaming, bidirectional. A **deadline** set by the caller travels as `grpc-timeout` and is meant to be propagated so downstream work stops when nobody is waiting; by default gRPC sets none.",
+   "runs_on": [
+    "http2"
+   ],
+   "uses": [
+    "tls"
+   ],
+   "adds": "5 bytes per message plus HTTP/2 framing; protobuf encodes fields by number, so payloads are small.",
+   "costs": "Browsers cannot call it directly (needs gRPC-Web or a gateway); binary payloads are harder to inspect; L4 load balancers pin connections.",
+   "not_when": "Public APIs for arbitrary clients (REST); browsers.",
+   "replaces": "Google's internal Stubby; Thrift and hand-rolled RPC in many shops.",
+   "competes": "REST and JSON over HTTP; Connect; JSON-RPC.",
+   "meet": [
+    "Triton's gRPC port 8001; OTLP traces and metrics to an OpenTelemetry collector on port 4317.",
+    "Ray Serve's gRPC proxy.",
+    "A2A's gRPC binding (A2A v1.0 §10)."
+   ],
+   "fail": {
+    "symptom": "`DEADLINE_EXCEEDED` deep in a call chain, or GPU work that keeps running after the user gave up.",
+    "cause": "No deadline was set (calls wait forever), or deadlines were not propagated to downstream calls.",
+    "see": "Set a deadline on every call; inspect headers with `grpcurl -v` or curl with `--http2-prior-knowledge` as in the recording."
+   },
+   "wire": [
+    "grpc"
+   ],
+   "wire_note": "A real gRPC health check against a local server, made with curl: the request is 5 bytes (flag 0, length 0, an empty message). The answer's last bytes `08 01` are protobuf for field 1 = 1, which is `SERVING`, and `grpc-status: 0` arrives after the body as a trailer.",
+   "srcs": [
+    {
+     "t": "gRPC over HTTP/2 wire specification (PROTOCOL-HTTP2.md)",
+     "u": "https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md"
+    },
+    {
+     "t": "gRPC: About (Stubby; open sourced from March 2015)",
+     "u": "https://grpc.io/about/"
+    },
+    {
+     "t": "gRPC guide: deadlines (no deadline by default; propagation)",
+     "u": "https://grpc.io/docs/guides/deadlines/"
+    },
+    {
+     "t": "grpc/grpc release v1.84.0 (2026-09-11, GitHub)",
+     "u": "https://github.com/grpc/grpc/releases/tag/v1.84.0"
+    },
+    {
+     "t": "protocolbuffers/protobuf release v36.2 (2026-09-17, GitHub)",
+     "u": "https://github.com/protocolbuffers/protobuf/releases/tag/v36.2"
+    },
+    {
+     "t": "OpenTelemetry OTLP specification (gRPC port 4317, HTTP port 4318)",
+     "u": "https://opentelemetry.io/docs/specs/otlp/"
+    },
+    {
+     "t": "Triton quickstart (HTTP 8000, gRPC 8001, metrics 8002)",
+     "u": "https://github.com/triton-inference-server/server/blob/main/docs/getting_started/quickstart.md"
+    },
+    {
+     "t": "Ray Serve: set up a gRPC service",
+     "u": "https://docs.ray.io/en/latest/serve/advanced-guides/grpc-guide.html"
+    }
+   ]
+  },
+  {
+   "id": "graphql",
+   "name": "GraphQL",
+   "full": "GraphQL query language and API",
+   "group": "api",
+   "year": 2015,
+   "body": "GraphQL Foundation (Linux Foundation); created at Facebook",
+   "cur": "GraphQL specification, September 2025 edition",
+   "status": "Published specification edition",
+   "plain": "One endpoint where the client sends a query naming exactly the fields it wants, and gets back JSON of exactly that shape.",
+   "problem": "Many different clients (web, mobile) need different slices of the same data, and REST forces either many calls or bloated responses.",
+   "how": "The server publishes a typed schema. Clients POST a query (`{ country(code: \"FR\") { name capital } }`); resolvers fetch each field. Subscriptions add server push, usually over WebSockets.",
+   "runs_on": [
+    "http11",
+    "http2"
+   ],
+   "uses": [],
+   "adds": "A query document in the request body; responses are JSON with `data` and `errors`.",
+   "costs": "HTTP caching does not apply to POSTed queries; one query can fan out into many backend calls (the N+1 problem); per-field authorisation.",
+   "not_when": "ML serving and internal RPC; simple public APIs.",
+   "replaces": "Ad hoc 'backend for frontend' REST endpoints.",
+   "competes": "REST, gRPC.",
+   "meet": [
+    "Product and data APIs (GitHub's v4 API is GraphQL) that agents call as tools.",
+    "Rarely in model serving."
+   ],
+   "fail": {
+    "symptom": "One innocent-looking query takes seconds and hammers the database.",
+    "cause": "Nested fields resolved one by one (N+1 queries) or an unbounded query depth.",
+    "see": "Query cost limits and resolver tracing; the response's `errors` array, since GraphQL often answers 200 even on failure."
+   },
+   "wire": [
+    "graphql"
+   ],
+   "wire_note": "A public demo API answered with exactly the three fields asked for.",
+   "srcs": [
+    {
+     "t": "graphql/graphql-spec release September2025 (2025-09-04, GitHub)",
+     "u": "https://github.com/graphql/graphql-spec/releases/tag/September2025"
+    },
+    {
+     "t": "graphql/graphql-spec release October2021 (2021-10-27, GitHub)",
+     "u": "https://github.com/graphql/graphql-spec/releases/tag/October2021"
+    },
+    {
+     "t": "GraphQL specification (latest edition)",
+     "u": "https://spec.graphql.org/"
+    },
+    {
+     "t": "GitHub GraphQL API docs",
+     "u": "https://docs.github.com/en/graphql"
+    }
+   ]
+  },
+  {
+   "id": "jsonrpc",
+   "name": "JSON-RPC 2.0",
+   "full": "JSON-RPC 2.0",
+   "group": "api",
+   "year": 2010,
+   "body": "JSON-RPC Working Group (informal)",
+   "cur": "JSON-RPC 2.0 (origin 2010-03-26, updated 2013-01-04)",
+   "status": "Stable informal specification",
+   "plain": "The smallest possible remote call format: a JSON object with a method name, parameters and an id, answered by a JSON object with a result or an error and the same id.",
+   "problem": "Call named methods over any channel (a pipe, a socket, HTTP) without designing URLs and verbs.",
+   "how": "Request `{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{...}}`; response `{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{...}}` or `{\"error\":{\"code\":-32602,\"message\":...}}`. A request without an id is a **notification** (no reply). The spec defines no transport: it runs over stdio, WebSockets or HTTP.",
+   "runs_on": [
+    "http2",
+    "http11"
+   ],
+   "uses": [],
+   "adds": "A few fields of JSON per message.",
+   "costs": "No schema, no streaming, no transport rules: everything around it must be specified by the protocol that uses it (as MCP and A2A do).",
+   "not_when": "Public resource-shaped APIs (REST); high-volume typed internal calls (gRPC).",
+   "replaces": "XML-RPC and JSON-RPC 1.0.",
+   "competes": "gRPC, REST.",
+   "meet": [
+    "Every MCP message (the recording shows an `initialize` request and its result).",
+    "A2A's JSON-RPC binding; the Language Server Protocol between your editor and its language servers."
+   ],
+   "fail": {
+    "symptom": "Responses get matched to the wrong requests, or a client waits forever.",
+    "cause": "Reused or missing ids, or a notification (no id) sent where a reply was expected.",
+    "see": "Log raw messages with their ids; MCP inspectors show the exchange."
+   },
+   "wire": [
+    "mcp"
+   ],
+   "wire_note": "A JSON-RPC 2.0 request and its result with the same `id`, here carried by MCP over Streamable HTTP as one SSE event.",
+   "srcs": [
+    {
+     "t": "JSON-RPC 2.0 specification (origin date 2010-03-26, updated 2013-01-04)",
+     "u": "https://www.jsonrpc.org/specification"
+    },
+    {
+     "t": "Language Server Protocol 3.17 specification (base protocol is JSON-RPC)",
+     "u": "https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/"
+    }
+   ]
+  },
+  {
+   "id": "oauth",
+   "name": "OAuth 2.1",
+   "full": "OAuth 2.1 authorization framework (IETF draft) and OAuth 2.0",
+   "group": "auth",
+   "year": 2012,
+   "body": "IETF",
+   "cur": "OAuth 2.0 is RFC 6749 (2012); OAuth 2.1 is draft-ietf-oauth-v2-1, revision 16 (3 September 2026), still an Internet-Draft",
+   "status": "2.0: Proposed Standard; 2.1: Internet-Draft",
+   "plain": "A way for a program to get a short-lived, limited **access token** to act on someone's behalf, without ever seeing their password: you log in at the provider, the provider hands the program a token scoped to what you approved.",
+   "problem": "Delegated authorization: let an app (or an agent) use your account at another service, for some things, for a while, revocably.",
+   "how": "**Authorization code with PKCE**: the app sends you to the authorization server with a random challenge; you log in and approve; the app gets a one-time code and swaps it, with the secret behind the challenge, for an access token (and maybe a refresh token). **Client credentials**: a service authenticates as itself. **Device grant** (RFC 8628): a headless box shows a code you approve on your phone. OAuth 2.1 folds PKCE, the security BCP (RFC 9700) and bearer token rules into one document and drops the implicit and password grants.",
+   "runs_on": [
+    "http11"
+   ],
+   "uses": [
+    "jwt",
+    "tls"
+   ],
+   "adds": "Redirects and token requests over HTTPS; then an `Authorization: Bearer <token>` header on each API call.",
+   "costs": "Several parties and redirects to get right; bearer tokens work for whoever holds them unless sender-constrained (DPoP, RFC 9449; mTLS, RFC 8705).",
+   "not_when": "Your own backend calling a provider with its own account (an API key or workload identity is simpler).",
+   "replaces": "Password sharing and OAuth 1.0's request signing.",
+   "competes": "API keys for simple server-to-provider calls; cloud IAM inside one cloud.",
+   "meet": [
+    "Connecting a remote MCP server: the client discovers the authorization server from the server's protected resource metadata (RFC 9728) and runs the code flow with PKCE.",
+    "Command line tools that log you in by opening a browser on a loopback redirect, or by showing a device code.",
+    "An agent acting for a user in Gmail, Slack or GitHub."
+   ],
+   "fail": {
+    "symptom": "`invalid_grant` on refresh, so the agent is logged out overnight; or a token accepted by a service it was not meant for.",
+    "cause": "Refresh tokens rotated or expired (public clients must rotate them under OAuth 2.1); or no audience check, so a token for service A is replayed at service B. Resource indicators (RFC 8707) bind a token to one audience.",
+    "see": "Decode the access token if it is a JWT and check `aud`, `exp`, `scope`; read the authorization server metadata at `/.well-known/oauth-authorization-server` (RFC 8414)."
+   },
+   "wire": [
+    "mcpprm"
+   ],
+   "wire_note": "A real remote MCP server's protected resource metadata (RFC 9728): it names the authorization server a client must use and how to send the token.",
+   "srcs": [
+    {
+     "t": "draft-ietf-oauth-v2-1-16 (Internet-Draft, revision of 2026-09-03, Datatracker state: I-D Exists)",
+     "u": "https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/"
+    },
+    {
+     "t": "RFC 6749: The OAuth 2.0 Authorization Framework (October 2012, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc6749.html"
+    },
+    {
+     "t": "RFC 6750: The OAuth 2.0 Authorization Framework: Bearer Token Usage (October 2012, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc6750.html"
+    },
+    {
+     "t": "RFC 7636: Proof Key for Code Exchange by OAuth Public Clients (September 2015, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7636.html"
+    },
+    {
+     "t": "RFC 8628: OAuth 2.0 Device Authorization Grant (August 2019, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8628.html"
+    },
+    {
+     "t": "RFC 9700: Best Current Practice for OAuth 2.0 Security (January 2025, Best Current Practice)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9700.html"
+    },
+    {
+     "t": "RFC 9728: OAuth 2.0 Protected Resource Metadata (April 2025, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9728.html"
+    },
+    {
+     "t": "RFC 8707: Resource Indicators for OAuth 2.0 (February 2020, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8707.html"
+    },
+    {
+     "t": "RFC 8414: OAuth 2.0 Authorization Server Metadata (June 2018, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8414.html"
+    },
+    {
+     "t": "RFC 9449: OAuth 2.0 Demonstrating Proof of Possession (DPoP) (September 2023, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9449.html"
+    },
+    {
+     "t": "RFC 10017: OAuth 2.0 for Browser-Based Applications (August 2026, Best Current Practice)",
+     "u": "https://www.rfc-editor.org/rfc/rfc10017.html"
+    },
+    {
+     "t": "OAuth 2.1 draft-16 §10: differences from OAuth 2.0",
+     "u": "https://www.ietf.org/archive/id/draft-ietf-oauth-v2-1-16.txt"
+    }
+   ]
+  },
+  {
+   "id": "oidc",
+   "name": "OIDC",
+   "full": "OpenID Connect",
+   "group": "auth",
+   "year": 2014,
+   "body": "OpenID Foundation",
+   "cur": "OpenID Connect Core 1.0 incorporating errata set 2 (15 December 2023); first final February 2014",
+   "status": "Final specification",
+   "plain": "Login on top of OAuth: besides the access token, the provider returns an **ID token**, a signed statement of who just logged in and when.",
+   "problem": "OAuth says what an app may do, not who the user is; every provider used to invent its own 'get user' call.",
+   "how": "Add the `openid` scope to an OAuth code flow; the token response includes an ID token (a JWT with `iss`, `sub`, `aud`, `exp`, `nonce`). Clients find endpoints and signing keys from `/.well-known/openid-configuration` and the `jwks_uri` it points to.",
+   "runs_on": [
+    "oauth"
+   ],
+   "uses": [
+    "jwt"
+   ],
+   "adds": "An ID token (a signed JWT) in the token response.",
+   "costs": "All of OAuth's moving parts plus token validation (signature, issuer, audience, expiry, nonce).",
+   "not_when": "Machine-to-machine calls with no user (client credentials or workload identity).",
+   "replaces": "OpenID 2.0 and SAML for most new web and mobile logins.",
+   "competes": "SAML in enterprise single sign-on.",
+   "meet": [
+    "'Sign in with Google' on your tool's dashboard.",
+    "Cloud workload identity federation: a GitHub Actions job presents an OIDC token to AWS or GCP instead of a stored key.",
+    "A2A Agent Cards can declare an `OpenIdConnectSecurityScheme`."
+   ],
+   "fail": {
+    "symptom": "Login works locally and fails in production with `invalid audience` or `invalid issuer`.",
+    "cause": "The ID token's `aud` is a different client id, or the issuer URL differs by a trailing slash or host; validation must match them exactly.",
+    "see": "Fetch `/.well-known/openid-configuration` and compare `issuer` with the token's `iss`."
+   },
+   "wire": [
+    "oidc",
+    "jwks"
+   ],
+   "wire_note": "Google's discovery document (first 420 bytes) and the start of its published signing keys, the keys a client uses to check an ID token offline.",
+   "srcs": [
+    {
+     "t": "OpenID Connect Core 1.0 incorporating errata set 2",
+     "u": "https://openid.net/specs/openid-connect-core-1_0.html"
+    },
+    {
+     "t": "GitHub docs: OpenID Connect in GitHub Actions",
+     "u": "https://docs.github.com/en/actions/concepts/security/openid-connect"
+    },
+    {
+     "t": "A2A v1.0.1 specification §4.5.5 OpenIdConnectSecurityScheme",
+     "u": "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md"
+    }
+   ]
+  },
+  {
+   "id": "jwt",
+   "name": "JWT, JWS, JWK",
+   "full": "JSON Web Token, JSON Web Signature, JSON Web Key",
+   "group": "auth",
+   "year": 2015,
+   "body": "IETF (JOSE)",
+   "cur": "RFC 7519, 7515, 7517, 7518 (May 2015); best practices RFC 8725 (2020), whose revision is in the RFC Editor queue",
+   "status": "Proposed Standard; BCP",
+   "plain": "A token you can check without calling anyone: three base64url pieces, `header.payload.signature`. Anyone can read the payload; only the issuer's key could have produced the signature.",
+   "problem": "Let many services check a caller's identity and permissions locally, without a database lookup on every request.",
+   "how": "The header names the algorithm (`RS256`, `ES256`, `HS256`) and key id (`kid`); the payload holds **claims** (`iss` issuer, `sub` subject, `aud` audience, `exp` expiry, `scope`). The issuer signs `header.payload` (JWS). Verifiers fetch the issuer's public keys as a JWK Set and check signature, issuer, audience and expiry.",
+   "runs_on": [],
+   "uses": [],
+   "adds": "Usually a few hundred bytes to a kilobyte in an `Authorization` header.",
+   "costs": "Cannot be revoked before `exp` without extra machinery; the payload is readable by anyone (never put secrets in it); validation mistakes are common.",
+   "not_when": "You need instant revocation (use opaque tokens and introspection) or confidentiality of the claims.",
+   "replaces": "Opaque session tokens that every service had to look up.",
+   "competes": "Opaque tokens with introspection; PASETO; macaroons.",
+   "meet": [
+    "OAuth access tokens and OIDC ID tokens (RFC 9068 profiles JWT access tokens).",
+    "Kubernetes service account tokens, mounted into pods and presented to cloud IAM.",
+    "ACME signs every request to the CA as a JWS (RFC 8555 §6.2)."
+   ],
+   "fail": {
+    "symptom": "A forged token is accepted.",
+    "cause": "The verifier trusted the token's own `alg` (accepting `none`, or treating an RSA public key as an HMAC secret), or skipped the audience or issuer check (RFC 8725 §2 lists these attacks).",
+    "see": "Decode the two first parts with base64 (as in the recording) and check what the verifier pins: algorithm, issuer, audience, key source."
+   },
+   "wire": [
+    "jwt"
+   ],
+   "wire_note": "A token made locally with a made-up secret: the header and payload decode to plain JSON, which is why a JWT must never carry secrets.",
+   "srcs": [
+    {
+     "t": "RFC 7519: JSON Web Token (JWT) (May 2015, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7519.html"
+    },
+    {
+     "t": "RFC 7515: JSON Web Signature (JWS) (May 2015, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7515.html"
+    },
+    {
+     "t": "RFC 7517: JSON Web Key (JWK) (May 2015, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7517.html"
+    },
+    {
+     "t": "RFC 7518: JSON Web Algorithms (JWA) (May 2015, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc7518.html"
+    },
+    {
+     "t": "RFC 8725 §2: JSON Web Token Best Current Practices (February 2020, Best Current Practice)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8725.html#section-2"
+    },
+    {
+     "t": "draft-ietf-oauth-rfc8725bis-10 (Internet-Draft, revision of 2026-08-31, Datatracker state: RFC Ed Queue)",
+     "u": "https://datatracker.ietf.org/doc/draft-ietf-oauth-rfc8725bis/"
+    },
+    {
+     "t": "RFC 9068: JSON Web Token (JWT) Profile for OAuth 2.0 Access Tokens (October 2021, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9068.html"
+    },
+    {
+     "t": "RFC 9901: Selective Disclosure for JSON Web Tokens (November 2025, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9901.html"
+    },
+    {
+     "t": "RFC 8555 §6.2: Automatic Certificate Management Environment (ACME) (March 2019, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc8555.html#section-6.2"
+    },
+    {
+     "t": "Kubernetes docs: service accounts (tokens are JSON Web Tokens)",
+     "u": "https://kubernetes.io/docs/concepts/security/service-accounts/"
+    }
+   ]
+  },
+  {
+   "id": "apikey",
+   "name": "API keys",
+   "full": "API keys (static bearer secrets)",
+   "group": "auth",
+   "year": null,
+   "body": "No standard; each provider defines its own",
+   "cur": "Provider conventions, e.g. Anthropic's `x-api-key` header; OpenAPI can describe them as an `apiKey` security scheme",
+   "status": "Convention",
+   "plain": "A long random secret that identifies your account; whoever sends it is you.",
+   "problem": "The simplest way for a server program to authenticate to a provider.",
+   "how": "The provider generates a key; you send it on every request in a header (`x-api-key`, or `Authorization: Bearer`). The provider looks it up, applies your limits and bills you.",
+   "runs_on": [
+    "http11"
+   ],
+   "uses": [
+    "tls"
+   ],
+   "adds": "One header per request.",
+   "costs": "Long-lived and all-powerful: if it leaks (a commit, a log line, a notebook output, an agent's context window) it works for the attacker until revoked.",
+   "not_when": "End users acting for themselves (OAuth); workloads inside a cloud (IAM roles, workload identity).",
+   "replaces": "Username and password for APIs.",
+   "competes": "OAuth client credentials; short-lived workload tokens.",
+   "meet": [
+    "Every LLM provider SDK reads one from an environment variable.",
+    "Agents that are handed a key in their tool configuration, where prompt injection can try to make them print it."
+   ],
+   "fail": {
+    "symptom": "A surprise bill or a `401` after the provider auto-revokes a key found in a public repository.",
+    "cause": "The key was committed or logged. Keep keys in a secrets manager, scope them per environment, and rotate.",
+    "see": "The recording shows what the API returns without a key."
+   },
+   "wire": [
+    "apikey"
+   ],
+   "wire_note": "Without the header, the API refuses with an `authentication_error` naming the header it wants.",
+   "srcs": [
+    {
+     "t": "Anthropic API docs: authentication with the x-api-key header",
+     "u": "https://docs.claude.com/en/api/overview"
+    },
+    {
+     "t": "OpenAPI 3.2.0 specification: security scheme type apiKey",
+     "u": "https://spec.openapis.org/oas/v3.2.0.html"
+    }
+   ]
+  },
+  {
+   "id": "sigv4",
+   "name": "SigV4",
+   "full": "AWS Signature Version 4 (cloud request signing)",
+   "group": "auth",
+   "year": null,
+   "body": "AWS (proprietary, documented)",
+   "cur": "SigV4, plus SigV4a for multi-region signing (AWS IAM documentation)",
+   "status": "Vendor specification",
+   "plain": "Instead of sending a secret, sign each request: an HMAC over the method, path, headers, body hash and time, with a key derived from your secret, the date, the region and the service.",
+   "problem": "Authenticate every API call without ever sending the secret, so a captured request cannot be reused for long or altered.",
+   "how": "Build a canonical request, hash it, derive a signing key from the secret plus date, region and service, and send the signature in `Authorization: AWS4-HMAC-SHA256 Credential=..., SignedHeaders=..., Signature=...` with `X-Amz-Date`. AWS recomputes it. Credentials usually come from a role (temporary), not a stored key.",
+   "runs_on": [
+    "http11"
+   ],
+   "uses": [
+    "tls"
+   ],
+   "adds": "Two headers per request.",
+   "costs": "Clock skew breaks signatures; anything that rewrites headers or the path in between breaks them too.",
+   "not_when": "Outside AWS (other clouds have their own schemes; HTTP Message Signatures, RFC 9421, is the IETF's general version).",
+   "replaces": "Earlier AWS signature versions.",
+   "competes": "Bearer tokens (OAuth, JWT) and RFC 9421 HTTP message signatures.",
+   "meet": [
+    "Every boto3 call: S3 checkpoint uploads, Bedrock model invocations, SageMaker endpoints.",
+    "IAM roles for service accounts on EKS, which turn a Kubernetes OIDC token into temporary AWS credentials."
+   ],
+   "fail": {
+    "symptom": "`SignatureDoesNotMatch` or `RequestTimeTooSkewed`.",
+    "cause": "The machine's clock is off, or a proxy changed a signed header or re-encoded the path.",
+    "see": "Compare the client's clock with an NTP source; the recording shows the two headers botocore adds."
+   },
+   "wire": [
+    "sigv4"
+   ],
+   "wire_note": "Signed locally by botocore with AWS's documented example credentials (`AKIDEXAMPLE`); nothing was sent.",
+   "srcs": [
+    {
+     "t": "AWS IAM docs: AWS Signature Version 4 for API requests (SigV4 and SigV4a)",
+     "u": "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html"
+    },
+    {
+     "t": "RFC 9421: HTTP Message Signatures (February 2024, Proposed Standard)",
+     "u": "https://www.rfc-editor.org/rfc/rfc9421.html"
+    },
+    {
+     "t": "Amazon EKS docs: IAM roles for service accounts",
+     "u": "https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html"
+    }
+   ]
+  },
+  {
+   "id": "mcp",
+   "name": "MCP",
+   "full": "Model Context Protocol",
+   "group": "agent",
+   "year": 2024,
+   "body": "Anthropic (November 2024); Agentic AI Foundation under the Linux Foundation since 9 December 2025",
+   "cur": "Specification 2026-07-28 (released 28 July 2026)",
+   "status": "Open specification, dated revisions",
+   "plain": "A standard plug between an AI application and the tools and data it uses: a server written once (GitHub, a database, your internal API) works in every MCP-speaking app.",
+   "problem": "Every agent harness used to need its own integration for every tool.",
+   "how": "A **host** (the app) runs a **client** per **server**. Messages are JSON-RPC 2.0. Servers expose **tools** (functions the model may call), **resources** (data to read) and **prompts**. Two transports: **stdio** (the host starts the server as a subprocess and talks over its stdin and stdout) and **Streamable HTTP** (POSTs to one endpoint, answered with JSON or an SSE stream). Remote servers act as OAuth resource servers: clients discover the authorization server via protected resource metadata (RFC 9728) and must request audience-bound tokens; passing a client's token through to another service is forbidden. The 2026-07-28 revision removed the initialize handshake and sessions (each request carries its protocol version), added `server/discover`, moved tasks into an extension, and deprecated Roots, Sampling, Logging and Dynamic Client Registration (in favour of Client ID Metadata Documents).",
+   "runs_on": [
+    "jsonrpc",
+    "sse"
+   ],
+   "uses": [
+    "oauth"
+   ],
+   "adds": "JSON-RPC messages; on HTTP, `Mcp-Method` and `Mcp-Name` headers (2026-07-28).",
+   "costs": "Every tool result is untrusted text entering the model's context: the main prompt-injection surface. A server with broad credentials acting for many users is a confused-deputy risk.",
+   "not_when": "Agent-to-agent delegation between organisations (A2A); a single fixed integration where a direct API call is simpler.",
+   "replaces": "Per-harness plugin and function-calling glue.",
+   "competes": "Vendor tool and plugin formats; it is complemented by A2A rather than competing with it.",
+   "meet": [
+    "Agent harnesses such as Claude Code connecting to local (stdio) and remote (HTTP) servers.",
+    "Writing a server over your team's internal API so every agent can use it.",
+    "UCP merchants expose their shopping service over MCP (the UCP recording shows `\"transport\":\"mcp\"`)."
+   ],
+   "fail": {
+    "symptom": "The agent follows instructions hidden in a web page, issue or document a tool returned, and uses another tool to leak data.",
+    "cause": "Tool output is treated as trusted input (prompt injection through a tool surface). Mitigations: least-privilege tokens per server, human approval for irreversible actions, never passing tokens through.",
+    "see": "Log every tool call and result; the recording shows a real server's first answer, including the `instructions` text it injects into the model's context."
+   },
+   "wire": [
+    "mcp"
+   ],
+   "wire_note": "A real public MCP server (DeepWiki) answered `initialize` (protocol 2025-11-25) as one SSE event on Streamable HTTP. Note the `instructions` field: text the server asks the host to put in front of the model. Under 2026-07-28 a client would call `server/discover` instead.",
+   "srcs": [
+    {
+     "t": "Anthropic: Introducing the Model Context Protocol (25 November 2024)",
+     "u": "https://www.anthropic.com/news/model-context-protocol"
+    },
+    {
+     "t": "Anthropic: Donating MCP and establishing the Agentic AI Foundation (9 December 2025)",
+     "u": "https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation"
+    },
+    {
+     "t": "MCP specification 2026-07-28",
+     "u": "https://modelcontextprotocol.io/specification/2026-07-28"
+    },
+    {
+     "t": "MCP 2026-07-28 changelog (key changes)",
+     "u": "https://modelcontextprotocol.io/specification/2026-07-28/changelog"
+    },
+    {
+     "t": "MCP blog: The 2026-07-28 specification (28 July 2026)",
+     "u": "https://blog.modelcontextprotocol.io/"
+    },
+    {
+     "t": "MCP 2026-07-28 authorization: security considerations (OAuth 2.1, RFC 8707, token passthrough)",
+     "u": "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations"
+    },
+    {
+     "t": "MCP schema versions on GitHub",
+     "u": "https://github.com/modelcontextprotocol/modelcontextprotocol/tree/main/schema"
+    }
+   ]
+  },
+  {
+   "id": "a2a",
+   "name": "A2A",
+   "full": "Agent2Agent protocol",
+   "group": "agent",
+   "year": 2025,
+   "body": "Google (April 2025); Linux Foundation project since 23 June 2025",
+   "cur": "v1.0.1 (28 May 2026); v1.0.0 released 12 March 2026",
+   "status": "Open specification, semver releases",
+   "plain": "A way for one agent to hand a task to another agent it cannot see inside (another team's, another company's), follow the task's progress and get the results back.",
+   "problem": "Delegation between opaque agents: neither side exposes its tools, prompts or memory, only what it can do.",
+   "how": "An agent publishes an **Agent Card** (JSON at `/.well-known/agent-card.json`) with its skills, endpoints, supported bindings and security schemes. A client sends a message; the work becomes a **task** with states (submitted, working, input-required, auth-required, completed, failed, canceled, rejected). Updates arrive by streaming (SSE), polling or push notifications (webhooks). v1.0 separates the protocol from three bindings: JSON-RPC 2.0, gRPC, and HTTP+JSON/REST; clients send an `A2A-Version` header.",
+   "runs_on": [
+    "jsonrpc",
+    "grpc",
+    "rest"
+   ],
+   "uses": [
+    "sse",
+    "oauth",
+    "oidc",
+    "mtls"
+   ],
+   "adds": "Agent Card discovery plus task messages in the chosen binding.",
+   "costs": "Another trust boundary: the remote agent's output is untrusted input to yours; authentication must be agreed per agent.",
+   "not_when": "Giving one agent tools or data (MCP).",
+   "replaces": "IBM's Agent Communication Protocol (ACP), which joined A2A under the Linux Foundation (its archived repository says so).",
+   "competes": "Bespoke agent APIs; it complements MCP (agent-to-tool) rather than replacing it.",
+   "meet": [
+    "A planner agent in your company delegating to a vendor's research agent.",
+    "UCP lists A2A among the transports it supports for agentic commerce."
+   ],
+   "fail": {
+    "symptom": "Tasks hang in `working` forever after a client restart.",
+    "cause": "The client relied on one SSE stream and lost it; it must resubscribe to the task or poll `GetTask`.",
+    "see": "`curl https://agent.example/.well-known/agent-card.json` shows the bindings and auth an agent supports."
+   },
+   "wire": [],
+   "wire_note": "Not recorded: no stable public A2A agent was found to query. The command shown fetches any agent's card.",
+   "srcs": [
+    {
+     "t": "Google Developers Blog: A2A, a new era of agent interoperability (9 April 2025)",
+     "u": "https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/"
+    },
+    {
+     "t": "Linux Foundation: launch of the Agent2Agent protocol project (23 June 2025)",
+     "u": "https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents"
+    },
+    {
+     "t": "A2A v1.0.1 specification (§4.1.3 task states, §8.2 discovery, §9 to §11 bindings, §3.6 versioning)",
+     "u": "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md"
+    },
+    {
+     "t": "a2aproject/A2A release v1.0.0 (2026-03-12, GitHub)",
+     "u": "https://github.com/a2aproject/A2A/releases/tag/v1.0.0"
+    },
+    {
+     "t": "a2aproject/A2A release v1.0.1 (2026-05-28, GitHub)",
+     "u": "https://github.com/a2aproject/A2A/releases/tag/v1.0.1"
+    },
+    {
+     "t": "IBM ACP repository: 'ACP is now part of A2A under the Linux Foundation' (archived)",
+     "u": "https://github.com/i-am-bee/acp"
+    }
+   ]
+  },
+  {
+   "id": "ucp",
+   "name": "UCP",
+   "full": "Universal Commerce Protocol (agent to merchant)",
+   "group": "agent",
+   "year": 2026,
+   "body": "Co-developed by Shopify and Google; open source (Apache-2.0)",
+   "cur": "Version 2026-08-25",
+   "status": "Open specification, dated versions",
+   "plain": "A standard for an agent to shop at any merchant: discover what the merchant supports, negotiate, check out, and hand the buyer to the merchant's own page when the agent cannot finish.",
+   "problem": "Agents buying things need one way to talk to millions of merchants, each with different payment, fulfilment and policy rules.",
+   "how": "Merchants and agents publish capability profiles (merchants at `/.well-known/ucp`); negotiation is the intersection of the two. Capabilities (Catalog, Checkout, Orders) and extensions version independently; extensions use reverse-domain names (`com.loyaltyprovider.points`) so nobody needs central approval. A checkout moves through `incomplete`, `requires_escalation` and `ready_for_complete`; when a human must finish, the Embedded Checkout Protocol opens a JSON-RPC 2.0 channel to the merchant's page. Transports: REST, JSON-RPC, MCP and A2A, with payments through AP2.",
+   "runs_on": [
+    "rest",
+    "jsonrpc",
+    "mcp"
+   ],
+   "uses": [
+    "oauth",
+    "a2a"
+   ],
+   "adds": "A discovery document and checkout messages in the chosen transport.",
+   "costs": "Irreversible actions with money; the agent acts for a buyer at a merchant it does not control.",
+   "not_when": "Anything that is not a transaction with a business.",
+   "replaces": "Per-merchant scraping and bespoke checkout integrations.",
+   "competes": "The Agentic Commerce Protocol (ACP) maintained by OpenAI and Stripe; Google's Agent Payments Protocol (AP2) covers payment mandates and is used by UCP.",
+   "meet": [
+    "Building a shopping or booking agent; the recording shows a real Shopify store's profile offering its shopping service over MCP.",
+    "The design ideas carry over: well-known discovery, profile intersection, an explicit 'a human must finish this' state."
+   ],
+   "fail": {
+    "symptom": "An agent believes a purchase is complete when the merchant still needs the buyer.",
+    "cause": "The client ignored `requires_escalation` and its `continue_url`.",
+    "see": "`curl -s https://store.example/.well-known/ucp` shows versions, services and transports."
+   },
+   "wire": [
+    "ucp"
+   ],
+   "wire_note": "A real merchant profile (first 640 bytes): current version 2026-08-25, older supported versions, and the shopping service offered over MCP and an embedded transport.",
+   "srcs": [
+    {
+     "t": "UCP site (co-developers, transports, capabilities)",
+     "u": "https://ucp.dev/"
+    },
+    {
+     "t": "Shopify Engineering: Building the Universal Commerce Protocol",
+     "u": "https://shopify.engineering/UCP"
+    },
+    {
+     "t": "Universal-Commerce-Protocol/ucp release v2026-01-11 (2026-01-23, GitHub)",
+     "u": "https://github.com/Universal-Commerce-Protocol/ucp/releases/tag/v2026-01-11"
+    },
+    {
+     "t": "Universal-Commerce-Protocol/ucp release v2026-08-25 (2026-08-25, GitHub)",
+     "u": "https://github.com/Universal-Commerce-Protocol/ucp/releases/tag/v2026-08-25"
+    },
+    {
+     "t": "Agentic Commerce Protocol repository (maintained by OpenAI and Stripe)",
+     "u": "https://github.com/agentic-commerce-protocol/agentic-commerce-protocol"
+    },
+    {
+     "t": "Agent Payments Protocol (AP2) repository",
+     "u": "https://github.com/google-agentic-commerce/AP2"
+    }
+   ]
+  },
+  {
+   "id": "mhs",
+   "name": "MHS",
+   "full": "Model Hardware Standard (agent to instrument), research preview",
+   "group": "agent",
+   "year": 2026,
+   "body": "Anthropic (with HHMI Janelia); research preview",
+   "cur": "Research preview opened 27 August 2026; not yet open source",
+   "status": "Research preview",
+   "plain": "A shared specification for agents to operate physical lab and manufacturing equipment (liquid handlers, plate readers, robotic arms, microscopes) through one interface.",
+   "problem": "Every instrument has its own driver and software; wiring them together for automation takes weeks to months.",
+   "how": "Devices with a programmable interface are described to the agent, which controls them through three mechanisms: MCP, a command line interface and code APIs. It is model-agnostic and reachable from any harness over standard protocols such as MCP, so it sits above MCP as a device layer.",
+   "runs_on": [
+    "mcp"
+   ],
+   "uses": [],
+   "adds": "Device descriptions and commands; transport via MCP, CLI or code.",
+   "costs": "Physical, irreversible actions: errors are spilt reagents and damaged equipment, not a wrong message.",
+   "not_when": "Anything you cannot supervise; it is a research preview with limited access.",
+   "replaces": "Bespoke per-instrument integrations.",
+   "competes": "Lab automation vendors' own orchestration software.",
+   "meet": [
+    "Rarely, unless you work in lab automation; it is in the atlas as a dated example of where agent protocols are heading."
+   ],
+   "fail": {
+    "symptom": "Not documented publicly yet.",
+    "cause": "Anthropic reports partners had to guide the model to treat foaming in samples as a physical failure, not a software bug.",
+    "see": "No public command; access is by application."
+   },
+   "wire": [],
+   "wire_note": "Not recorded: no public endpoint.",
+   "srcs": [
+    {
+     "t": "Anthropic: Previewing the Model Hardware Standard (27 August 2026)",
+     "u": "https://www.anthropic.com/news/model-hardware-standard-research-preview"
+    }
+   ]
+  },
+  {
+   "id": "rdma",
+   "name": "RDMA",
+   "full": "Remote direct memory access",
+   "group": "fabric",
+   "brief": true,
+   "year": null,
+   "body": "InfiniBand Trade Association (verbs); vendors",
+   "plain": "One machine's network card reads and writes another machine's memory directly, without the kernel's network stack copying the data on either side: the reason training traffic avoids TCP when it can.",
+   "runs_on": [],
+   "uses": [],
+   "srcs": [
+    {
+     "t": "NCCL documentation: environment variables (IB and socket transports)",
+     "u": "https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html"
+    }
+   ]
+  },
+  {
+   "id": "roce",
+   "name": "RoCEv2",
+   "full": "RDMA over Converged Ethernet, version 2",
+   "group": "fabric",
+   "brief": true,
+   "year": 2014,
+   "body": "InfiniBand Trade Association",
+   "plain": "RDMA carried in UDP datagrams to port 4791 over routed Ethernet and IP, so RDMA can use ordinary data-centre switches; fabric tuning is on the Training Infrastructure page.",
+   "runs_on": [
+    "udp"
+   ],
+   "uses": [
+    "rdma"
+   ],
+   "srcs": [
+    {
+     "t": "IANA: 4791/udp IP Routable RoCE, InfiniBand Trade Association, 2014-10-17",
+     "u": "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=4791"
+    }
+   ]
+  },
+  {
+   "id": "ib",
+   "name": "InfiniBand",
+   "full": "InfiniBand",
+   "group": "fabric",
+   "brief": true,
+   "year": null,
+   "body": "InfiniBand Trade Association",
+   "plain": "A separate network technology built for RDMA, with its own adapters and switches, common in large GPU training clusters.",
+   "runs_on": [],
+   "uses": [
+    "rdma"
+   ],
+   "srcs": [
+    {
+     "t": "InfiniBand Trade Association",
+     "u": "https://www.infinibandta.org/"
+    }
+   ]
+  },
+  {
+   "id": "nccl",
+   "name": "NCCL",
+   "full": "NVIDIA Collective Communications Library",
+   "group": "fabric",
+   "brief": true,
+   "year": null,
+   "body": "NVIDIA (open source)",
+   "plain": "The library that runs all-reduce and the other collectives between GPUs over NVLink, InfiniBand, RoCE or plain TCP sockets; on AWS its socket transport defaults to 2 threads with 8 sockets each per connection (NCCL docs). Latest release v2.32.3-1 (17 September 2026).",
+   "runs_on": [
+    "tcp",
+    "ib",
+    "roce"
+   ],
+   "uses": [],
+   "srcs": [
+    {
+     "t": "NCCL docs: NCCL_SOCKET_NTHREADS and NCCL_NSOCKS_PERTHREAD (AWS defaults 2 and 8; product at most 64)",
+     "u": "https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html"
+    },
+    {
+     "t": "NVIDIA/nccl release v2.32.3-1 (2026-09-17, GitHub)",
+     "u": "https://github.com/NVIDIA/nccl/releases/tag/v2.32.3-1"
+    }
+   ]
+  }
+ ],
+ "timeline": [
+  {
+   "d": "1980-08",
+   "l": "UDP specified (RFC 768)",
+   "u": "https://www.rfc-editor.org/rfc/rfc768.html",
+   "p": "udp"
+  },
+  {
+   "d": "1981-09",
+   "l": "IPv4 specified (RFC 791)",
+   "u": "https://www.rfc-editor.org/rfc/rfc791.html",
+   "p": "ip"
+  },
+  {
+   "d": "1981-09",
+   "l": "TCP specified (RFC 793)",
+   "u": "https://www.rfc-editor.org/rfc/rfc793.html",
+   "p": "tcp"
+  },
+  {
+   "d": "1987-11",
+   "l": "DNS specified (RFC 1035)",
+   "u": "https://www.rfc-editor.org/rfc/rfc1035.html",
+   "p": "dns"
+  },
+  {
+   "d": "1998-12",
+   "l": "IPv6 first specified (RFC 2460)",
+   "u": "https://www.rfc-editor.org/rfc/rfc2460.html",
+   "p": "ip"
+  },
+  {
+   "d": "1999-06",
+   "l": "HTTP/1.1 (the long-lived 1999 text) (RFC 2616)",
+   "u": "https://www.rfc-editor.org/rfc/rfc2616.html",
+   "p": "http11"
+  },
+  {
+   "d": "2000-01",
+   "l": "Fielding's dissertation defines REST",
+   "u": "https://ics.uci.edu/~fielding/pubs/dissertation/top.htm",
+   "p": "rest"
+  },
+  {
+   "d": "2006-01",
+   "l": "SSH-2 published (RFC 4253)",
+   "u": "https://www.rfc-editor.org/rfc/rfc4253.html",
+   "p": "ssh"
+  },
+  {
+   "d": "2008-05",
+   "l": "X.509 profile for the internet (RFC 5280)",
+   "u": "https://www.rfc-editor.org/rfc/rfc5280.html",
+   "p": "x509"
+  },
+  {
+   "d": "2008-08",
+   "l": "TLS 1.2 published (RFC 5246)",
+   "u": "https://www.rfc-editor.org/rfc/rfc5246.html",
+   "p": "tls"
+  },
+  {
+   "d": "2010-03",
+   "l": "JSON-RPC 2.0 specification",
+   "u": "https://www.jsonrpc.org/specification",
+   "p": "jsonrpc"
+  },
+  {
+   "d": "2011-12",
+   "l": "WebSocket protocol (RFC 6455)",
+   "u": "https://www.rfc-editor.org/rfc/rfc6455.html",
+   "p": "ws"
+  },
+  {
+   "d": "2012-10",
+   "l": "OAuth 2.0 (RFC 6749)",
+   "u": "https://www.rfc-editor.org/rfc/rfc6749.html",
+   "p": "oauth"
+  },
+  {
+   "d": "2014-02",
+   "l": "OpenID Connect Core 1.0 final",
+   "u": "https://openid.net/specs/openid-connect-core-1_0.html",
+   "p": "oidc"
+  },
+  {
+   "d": "2015-02",
+   "l": "Server-Sent Events becomes a W3C Recommendation",
+   "u": "https://www.w3.org/TR/2015/REC-eventsource-20150203/",
+   "p": "sse"
+  },
+  {
+   "d": "2015-03",
+   "l": "Google starts building gRPC as open source",
+   "u": "https://grpc.io/about/",
+   "p": "grpc"
+  },
+  {
+   "d": "2015-05",
+   "l": "HTTP/2 published (RFC 7540)",
+   "u": "https://www.rfc-editor.org/rfc/rfc7540.html",
+   "p": "http2"
+  },
+  {
+   "d": "2015-05",
+   "l": "JWT, JWS, JWK, JWA published (RFC 7519)",
+   "u": "https://www.rfc-editor.org/rfc/rfc7519.html",
+   "p": "jwt"
+  },
+  {
+   "d": "2015-09",
+   "l": "PKCE (RFC 7636)",
+   "u": "https://www.rfc-editor.org/rfc/rfc7636.html",
+   "p": "oauth"
+  },
+  {
+   "d": "2016-05",
+   "l": "DNS over TLS (RFC 7858)",
+   "u": "https://www.rfc-editor.org/rfc/rfc7858.html",
+   "p": "dns"
+  },
+  {
+   "d": "2017-07",
+   "l": "IPv6 becomes an Internet Standard (RFC 8200)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8200.html",
+   "p": "ip"
+  },
+  {
+   "d": "2018-08",
+   "l": "TLS 1.3 published (RFC 8446)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8446.html",
+   "p": "tls"
+  },
+  {
+   "d": "2018-09",
+   "l": "WebSockets over HTTP/2 (RFC 8441)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8441.html",
+   "p": "ws"
+  },
+  {
+   "d": "2018-10",
+   "l": "DNS over HTTPS (RFC 8484)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8484.html",
+   "p": "dns"
+  },
+  {
+   "d": "2019-03",
+   "l": "ACME published (RFC 8555)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8555.html",
+   "p": "x509"
+  },
+  {
+   "d": "2019-08",
+   "l": "Device authorization grant (RFC 8628)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8628.html",
+   "p": "oauth"
+  },
+  {
+   "d": "2020-02",
+   "l": "JWT best current practices (RFC 8725)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8725.html",
+   "p": "jwt"
+  },
+  {
+   "d": "2020-02",
+   "l": "OAuth mTLS client authentication (RFC 8705)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8705.html",
+   "p": "mtls"
+  },
+  {
+   "d": "2021-03",
+   "l": "TLS 1.0 and 1.1 deprecated (RFC 8996)",
+   "u": "https://www.rfc-editor.org/rfc/rfc8996.html",
+   "p": "tls"
+  },
+  {
+   "d": "2021-05",
+   "l": "QUIC v1 published (RFC 9000)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9000.html",
+   "p": "quic"
+  },
+  {
+   "d": "2021-10",
+   "l": "GraphQL spec, October 2021 edition",
+   "u": "https://github.com/graphql/graphql-spec/releases/tag/October2021",
+   "p": "graphql"
+  },
+  {
+   "d": "2021-10",
+   "l": "JWT profile for OAuth access tokens (RFC 9068)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9068.html",
+   "p": "jwt"
+  },
+  {
+   "d": "2022-04",
+   "l": "OpenSSH 9.0: hybrid post-quantum key exchange by default",
+   "u": "https://www.openssh.com/releasenotes.html",
+   "p": "ssh"
+  },
+  {
+   "d": "2022-05",
+   "l": "DNS over QUIC (RFC 9250)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9250.html",
+   "p": "dns"
+  },
+  {
+   "d": "2022-06",
+   "l": "HTTP/1.1 respecified; semantics split into RFC 9110 (RFC 9112)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9112.html",
+   "p": "http11"
+  },
+  {
+   "d": "2022-06",
+   "l": "HTTP/2 respecified (RFC 9113)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9113.html",
+   "p": "http2"
+  },
+  {
+   "d": "2022-06",
+   "l": "HTTP/3 published (RFC 9114)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9114.html",
+   "p": "http3"
+  },
+  {
+   "d": "2022-06",
+   "l": "WebSockets over HTTP/3 (RFC 9220)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9220.html",
+   "p": "ws"
+  },
+  {
+   "d": "2022-08",
+   "l": "SPIFFE graduates in CNCF",
+   "u": "https://www.cncf.io/projects/spiffe/",
+   "p": "mtls"
+  },
+  {
+   "d": "2022-08",
+   "l": "TCP respecified, RFC 793 obsoleted (RFC 9293)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9293.html",
+   "p": "tcp"
+  },
+  {
+   "d": "2023-05",
+   "l": "QUIC v2 published (RFC 9369)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9369.html",
+   "p": "quic"
+  },
+  {
+   "d": "2023-08",
+   "l": "Problem Details for HTTP APIs (RFC 9457)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9457.html",
+   "p": "rest"
+  },
+  {
+   "d": "2023-08",
+   "l": "CUBIC congestion control standardised (RFC 9438)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9438.html",
+   "p": "tcp"
+  },
+  {
+   "d": "2023-11",
+   "l": "SVCB and HTTPS records (RFC 9460)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9460.html",
+   "p": "dns"
+  },
+  {
+   "d": "2023-12",
+   "l": "Core 1.0 errata set 2",
+   "u": "https://openid.net/specs/openid-connect-core-1_0.html",
+   "p": "oidc"
+  },
+  {
+   "d": "2024-02",
+   "l": "HTTP Message Signatures (IETF) (RFC 9421)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9421.html",
+   "p": "sigv4"
+  },
+  {
+   "d": "2024-11",
+   "l": "MCP 2024-11-05 (first revision)",
+   "u": "https://modelcontextprotocol.io/specification/2024-11-05",
+   "p": "mcp"
+  },
+  {
+   "d": "2025-01",
+   "l": "OAuth 2.0 security BCP (RFC 9700)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9700.html",
+   "p": "oauth"
+  },
+  {
+   "d": "2025-03",
+   "l": "MCP 2025-03-26: Streamable HTTP replaces HTTP+SSE",
+   "u": "https://modelcontextprotocol.io/specification/2026-07-28/changelog",
+   "p": "mcp"
+  },
+  {
+   "d": "2025-04",
+   "l": "A2A announced by Google",
+   "u": "https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/",
+   "p": "a2a"
+  },
+  {
+   "d": "2025-04",
+   "l": "Protected resource metadata (RFC 9728)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9728.html",
+   "p": "oauth"
+  },
+  {
+   "d": "2025-04",
+   "l": "OpenSSH 10.0: mlkem768x25519 by default",
+   "u": "https://www.openssh.com/releasenotes.html",
+   "p": "ssh"
+  },
+  {
+   "d": "2025-06",
+   "l": "A2A becomes a Linux Foundation project",
+   "u": "https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents",
+   "p": "a2a"
+  },
+  {
+   "d": "2025-06",
+   "l": "MCP 2025-06-18",
+   "u": "https://modelcontextprotocol.io/specification/2025-06-18",
+   "p": "mcp"
+  },
+  {
+   "d": "2025-06",
+   "l": "ACME Renewal Information (RFC 9773)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9773.html",
+   "p": "x509"
+  },
+  {
+   "d": "2025-07",
+   "l": "A2A v0.3.0",
+   "u": "https://github.com/a2aproject/A2A/releases/tag/v0.3.0",
+   "p": "a2a"
+  },
+  {
+   "d": "2025-09",
+   "l": "GraphQL spec, September 2025 edition",
+   "u": "https://github.com/graphql/graphql-spec/releases/tag/September2025",
+   "p": "graphql"
+  },
+  {
+   "d": "2025-09",
+   "l": "OpenAPI 3.2.0",
+   "u": "https://github.com/OAI/OpenAPI-Specification/releases/tag/3.2.0",
+   "p": "rest"
+  },
+  {
+   "d": "2025-10",
+   "l": "UDP options standardised (RFC 9868)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9868.html",
+   "p": "udp"
+  },
+  {
+   "d": "2025-11",
+   "l": "Selective disclosure JWT (SD-JWT) (RFC 9901)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9901.html",
+   "p": "jwt"
+  },
+  {
+   "d": "2025-11",
+   "l": "MCP 2025-11-25",
+   "u": "https://modelcontextprotocol.io/specification/2025-11-25",
+   "p": "mcp"
+  },
+  {
+   "d": "2025-12",
+   "l": "MCP donated to the Agentic AI Foundation (Linux Foundation)",
+   "u": "https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation",
+   "p": "mcp"
+  },
+  {
+   "d": "2025-12",
+   "l": "Standard Webhooks 1.0",
+   "u": "https://github.com/standard-webhooks/standard-webhooks/releases/tag/v1.0.0",
+   "p": "webhook"
+  },
+  {
+   "d": "2026-01",
+   "l": "UCP first tagged version",
+   "u": "https://github.com/Universal-Commerce-Protocol/ucp/releases/tag/v2026-01-11",
+   "p": "ucp"
+  },
+  {
+   "d": "2026-03",
+   "l": "A2A v1.0.0",
+   "u": "https://github.com/a2aproject/A2A/releases/tag/v1.0.0",
+   "p": "a2a"
+  },
+  {
+   "d": "2026-03",
+   "l": "Encrypted Client Hello (ECH) (RFC 9849)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9849.html",
+   "p": "tls"
+  },
+  {
+   "d": "2026-03",
+   "l": "Public TLS certificates capped at 200 days (CA/B Forum)",
+   "u": "https://cabforum.org/working-groups/server/baseline-requirements/requirements/",
+   "p": "x509"
+  },
+  {
+   "d": "2026-05",
+   "l": "A2A v1.0.1",
+   "u": "https://github.com/a2aproject/A2A/releases/tag/v1.0.1",
+   "p": "a2a"
+  },
+  {
+   "d": "2026-05",
+   "l": "SSH agent protocol standardised (RFC 9987)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9987.html",
+   "p": "ssh"
+  },
+  {
+   "d": "2026-06",
+   "l": "HTTP QUERY method (RFC 10008)",
+   "u": "https://www.rfc-editor.org/rfc/rfc10008.html",
+   "p": "rest"
+  },
+  {
+   "d": "2026-07",
+   "l": "MCP 2026-07-28: stateless core, extensions",
+   "u": "https://modelcontextprotocol.io/specification/2026-07-28/changelog",
+   "p": "mcp"
+  },
+  {
+   "d": "2026-07",
+   "l": "TLS 1.3 respecified (RFC 8446 obsoleted) (RFC 9846)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9846.html",
+   "p": "tls"
+  },
+  {
+   "d": "2026-07",
+   "l": "TLS 1.2 in feature freeze (RFC 9851)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9851.html",
+   "p": "tls"
+  },
+  {
+   "d": "2026-07",
+   "l": "New protocols must require TLS 1.3 (RFC 9852)",
+   "u": "https://www.rfc-editor.org/rfc/rfc9852.html",
+   "p": "tls"
+  },
+  {
+   "d": "2026-08",
+   "l": "Incremental forwarding header (RFC 10036)",
+   "u": "https://www.rfc-editor.org/rfc/rfc10036.html",
+   "p": "http11"
+  },
+  {
+   "d": "2026-08",
+   "l": "Model Hardware Standard research preview",
+   "u": "https://www.anthropic.com/news/model-hardware-standard-research-preview",
+   "p": "mhs"
+  },
+  {
+   "d": "2026-08",
+   "l": "OAuth for browser-based apps BCP (RFC 10017)",
+   "u": "https://www.rfc-editor.org/rfc/rfc10017.html",
+   "p": "oauth"
+  },
+  {
+   "d": "2026-08",
+   "l": "ML-KEM hybrid key exchange for SSH (RFC 10042)",
+   "u": "https://www.rfc-editor.org/rfc/rfc10042.html",
+   "p": "ssh"
+  },
+  {
+   "d": "2026-08",
+   "l": "Hybrid ML-KEM key agreement for TLS 1.3 (RFC 10024)",
+   "u": "https://www.rfc-editor.org/rfc/rfc10024.html",
+   "p": "tls"
+  },
+  {
+   "d": "2026-08",
+   "l": "UCP 2026-08-25",
+   "u": "https://github.com/Universal-Commerce-Protocol/ucp/releases/tag/v2026-08-25",
+   "p": "ucp"
+  },
+  {
+   "d": "2026-09",
+   "l": "gRPC 1.84.0",
+   "u": "https://github.com/grpc/grpc/releases/tag/v1.84.0",
+   "p": "grpc"
+  },
+  {
+   "d": "2026-09",
+   "l": "OAuth 2.1 draft revision 16 (draft-ietf-oauth-v2-1-16)",
+   "u": "https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/",
+   "p": "oauth"
+  }
+ ],
+ "wires": {
+  "ip": "$ ping -c 3 1.1.1.1 | tail -n 2\n3 packets transmitted, 3 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 17.480/18.588/20.250/1.197 ms\n[exit 0]",
+  "ipv6": "$ ping6 -c 3 2606:4700:4700::1111 | tail -n 2\n3 packets transmitted, 3 packets received, 0.0% packet loss\nround-trip min/avg/max/std-dev = 17.587/19.553/20.568/1.391 ms\n[exit 0]",
+  "tcp": "$ nc -vz -w 5 api.anthropic.com 443\nConnection to api.anthropic.com port 443 [tcp/https] succeeded!\n[exit 0]",
+  "timing": "$ curl -s -o /dev/null -w 'dns %{time_namelookup}s  tcp %{time_connect}s  tls %{time_appconnect}s  first byte %{time_starttransfer}s  http %{http_version}\\n' https://api.anthropic.com/v1/models\ndns 0.002814s  tcp 0.022746s  tls 0.050843s  first byte 0.189248s  http 2\n[exit 0]",
+  "udp": "$ dig @1.1.1.1 api.anthropic.com A +noall +answer +stats | grep -v \"^;; WHEN\"\n\n; <<>> DiG 9.10.6 <<>> @1.1.1.1 api.anthropic.com A +noall +answer +stats\n; (1 server found)\n;; global options: +cmd\napi.anthropic.com.\t260\tIN\tA\t160.79.104.10\n;; Query time: 212 msec\n;; SERVER: 1.1.1.1#53(1.1.1.1)\n;; MSG SIZE  rcvd: 62\n\n[exit 0]",
+  "http3": "$ curl -sI https://www.cloudflare.com/ | grep -i \"^alt-svc\"\nalt-svc: h3=\":443\"; ma=86400\n[exit 0]",
+  "dns": "$ dig +noall +answer api.anthropic.com A api.anthropic.com AAAA\napi.anthropic.com.\t260\tIN\tA\t160.79.104.10\napi.anthropic.com.\t32\tIN\tAAAA\t2607:6bc0::10\n[exit 0]",
+  "doh": "$ curl -sS -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=api.anthropic.com&type=A'\ncurl: (60) SSL certificate problem: unable to get local issuer certificate\nMore details here: https://curl.se/docs/sslcerts.html\n\ncurl failed to verify the legitimacy of the server and therefore could not\nestablish a secure connection to it. To learn more about this situation and\nhow to fix it, please visit the web page mentioned above.\n[exit 60]",
+  "dohwho": "$ openssl s_client -connect cloudflare-dns.com:443 -servername cloudflare-dns.com </dev/null 2>/dev/null | openssl x509 -noout -issuer\nissuer=C=US, [redacted: the issuing CA of this machine's device-management DNS filter]\n[exit 0]",
+  "tls13": "$ openssl s_client -connect api.anthropic.com:443 -servername api.anthropic.com -brief </dev/null\nConnecting to 2607:6bc0::10\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.3\nCiphersuite: TLS_AES_256_GCM_SHA384\nPeer certificate: CN=api.anthropic.com\nHash used: SHA256\nSignature type: ecdsa_secp256r1_sha256\nVerification: OK\nNegotiated TLS1.3 group: X25519MLKEM768\nDONE\n[exit 0]",
+  "tls12": "$ openssl s_client -connect api.anthropic.com:443 -servername api.anthropic.com -tls1_2 -brief </dev/null\nConnecting to 2607:6bc0::10\nCONNECTION ESTABLISHED\nProtocol version: TLSv1.2\nCiphersuite: ECDHE-ECDSA-AES128-GCM-SHA256\nPeer certificate: CN=api.anthropic.com\nHash used: SHA256\nSignature type: ecdsa_secp256r1_sha256\nVerification: OK\nSupported Elliptic Curve Point Formats: uncompressed\nPeer Temp Key: X25519, 253 bits\nDONE\n[exit 0]",
+  "x509": "$ openssl s_client -connect api.anthropic.com:443 -servername api.anthropic.com </dev/null 2>/dev/null | openssl x509 -noout -subject -issuer -dates\nsubject=CN=api.anthropic.com\nissuer=C=US, O=Google Trust Services, CN=WE1\nnotBefore=Sep 21 18:15:27 2026 GMT\nnotAfter=Dec 20 19:15:03 2026 GMT\n[exit 0]",
+  "acme": "$ curl -s https://acme-v02.api.letsencrypt.org/directory\n{\n  \"kLxVitbHoa8\": \"https://community.letsencrypt.org/t/adding-random-entries-to-the-directory/33417\",\n  \"keyChange\": \"https://acme-v02.api.letsencrypt.org/acme/key-change\",\n  \"meta\": {\n    \"caaIdentities\": [\n      \"letsencrypt.org\"\n    ],\n    \"profiles\": {\n      \"classic\": \"https://letsencrypt.org/docs/profiles#classic\",\n      \"shortlived\": \"https://letsencrypt.org/docs/profiles#shortlived\",\n      \"tlsserver\": \"https://letsencrypt.org/docs/profiles#tlsserver\"\n    },\n    \"termsOfService\": \"https://letsencrypt.org/documents/LE-SA-v1.8-July-06-2026.pdf\",\n    \"website\": \"https://letsencrypt.org\"\n  },\n  \"newAccount\": \"https://acme-v02.api.letsencrypt.org/acme/new-acct\",\n  \"newNonce\": \"https://acme-v02.api.letsencrypt.org/acme/new-nonce\",\n  \"newOrder\": \"https://acme-v02.api.letsencrypt.org/acme/new-order\",\n  \"renewalInfo\": \"https://acme-v02.api.letsencrypt.org/acme/renewal-info\",\n  \"revokeCert\": \"https://acme-v02.api.letsencrypt.org/acme/revoke-cert\"\n}[exit 0]",
+  "ssh": "$ (sleep 3) | nc github.com 22 | head -n 1\nSSH-2.0-2097ddd\n[exit 0]",
+  "sshkex": "$ ssh -Q kex | grep -E \"mlkem|sntrup\"\nsntrup761x25519-sha512\nsntrup761x25519-sha512@openssh.com\nmlkem768x25519-sha256\n[exit 0]",
+  "http11": "$ curl -sv --http1.1 https://api.anthropic.com/v1/models -o /dev/null 2>&1 | grep -E \"^[<>] \" | grep -viE \"^< (cf-|set-cookie|x-envoy|via|server-timing|strict-transport)\"\n> GET /v1/models HTTP/1.1\n> Host: api.anthropic.com\n> User-Agent: curl/8.7.1\n> Accept: */*\n> \n< HTTP/1.1 401 Unauthorized\n< Date: Mon, 05 Oct 2026 13:37:06 GMT\n< Content-Type: application/json\n< Transfer-Encoding: chunked\n< Connection: keep-alive\n< x-should-retry: false\n< request-id: req_011CfjBRmkRQTorHbkgTPCbr\n< Server: cloudflare\n< vary: Accept-Encoding\n< Content-Security-Policy: default-src 'none'; frame-ancestors 'none'\n< X-Robots-Tag: none\n< \n[exit 0]",
+  "http2": "$ curl -sv --http2 https://api.anthropic.com/v1/models -o /dev/null 2>&1 | grep -E \"ALPN|HTTP/2|^> (POST|GET)|^< HTTP\"\n* ALPN: curl offers h2,http/1.1\n* ALPN: server accepted h2\n* using HTTP/2\n* [HTTP/2] [1] OPENED stream for https://api.anthropic.com/v1/models\n* [HTTP/2] [1] [:method: GET]\n* [HTTP/2] [1] [:scheme: https]\n* [HTTP/2] [1] [:authority: api.anthropic.com]\n* [HTTP/2] [1] [:path: /v1/models]\n* [HTTP/2] [1] [user-agent: curl/8.7.1]\n* [HTTP/2] [1] [accept: */*]\n> GET /v1/models HTTP/2\n< HTTP/2 401 \n[exit 0]",
+  "ws": "$ curl -si --http1.1 --max-time 4 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' https://echo.websocket.org/ | head -n 6\nHTTP/1.1 101 Switching Protocols\nupgrade: websocket\nconnection: Upgrade\nsec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\ndate: Mon, 05 Oct 2026 13:37:07 GMT\nserver: Fly/6d530f8f2 (2026-09-29)\n[exit 0]",
+  "sse": "$ curl -sN http://127.0.0.1:19302/stream\nid: 0\nevent: token\ndata: {\"text\": \"Hel\"}\n\nid: 1\nevent: token\ndata: {\"text\": \"lo\"}\n\nid: 2\nevent: token\ndata: {\"text\": \"!\"}\n\n: keep-alive comment, ignored by the client\n\nevent: done\ndata: {}\n\n[exit 0]",
+  "webhook": "$ python webhook_sign.py\nwebhook-id: msg_2KWPBgLlAfxdpx2AI54pPJ85f4W\nwebhook-timestamp: 1674087231\nwebhook-signature: v1,wfHRd2TdA4ZDcdHhnxEn2JL4iz3QabIsMRRHf9dGQ3s=\nverify raw body:           True\nverify re-serialised JSON: False\n[exit 0]",
+  "apikey": "$ curl -s https://api.anthropic.com/v1/models\n{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"x-api-key header is required\"},\"request_id\":\"req_011CfjBS8VqgqHR6cJvmiwGJ\"}[exit 0]",
+  "grpc": "$ curl -sv --http2-prior-knowledge -H 'content-type: application/grpc' -H 'te: trailers' --data-binary @req.bin http://127.0.0.1:19301/grpc.health.v1.Health/Check -o resp.bin 2>&1 | grep -E '^[<>] |\\[:method|\\[:path' | grep -v '^[<>] $'; xxd resp.bin\n* [HTTP/2] [1] [:method: POST]\n* [HTTP/2] [1] [:path: /grpc.health.v1.Health/Check]\n> POST /grpc.health.v1.Health/Check HTTP/2\n> Host: 127.0.0.1:19301\n> User-Agent: curl/8.7.1\n> Accept: */*\n> content-type: application/grpc\n> te: trailers\n> Content-Length: 5\n> \n< HTTP/2 200 \n< content-type: application/grpc\n< grpc-accept-encoding: identity, deflate, gzip\n< \n< grpc-status: 0\n< grpc-message: \n00000000: 0000 0000 0208 01                        .......\n[exit 0]",
+  "graphql": "$ curl -s https://countries.trevorblades.com/ -H 'content-type: application/json' -d '{\"query\":\"{ country(code: \\\"FR\\\") { name capital currency } }\"}'\n{\"data\":{\"country\":{\"capital\":\"Paris\",\"currency\":\"EUR\",\"name\":\"France\"}}}[exit 0]",
+  "mcp": "$ curl -s https://mcp.deepwiki.com/mcp -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"atlas\",\"version\":\"0\"}}}' | head -c 600\nevent: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"experimental\":{},\"prompts\":{\"listChanged\":true},\"resources\":{\"subscribe\":false,\"listChanged\":true},\"tools\":{\"listChanged\":true}},\"serverInfo\":{\"name\":\"DeepWiki\",\"version\":\"2.14.3\"},\"instructions\":\"DeepWiki MCP provides AI-powered documentation for GitHub repositories.\\n\\nAvailable tools:\\n- read_wiki_structure: Get a list of documentation topics for a repository\\n- read_wiki_contents: View full documentation about a repository\\n- ask_wiki_question: Ask any question about a repository's codeb[exit 0]",
+  "mcpprm": "$ curl -s https://mcp.notion.com/.well-known/oauth-protected-resource\n{\"resource\":\"https://mcp.notion.com\",\"authorization_servers\":[\"https://mcp.notion.com\"],\"scopes_supported\":[\"default\"],\"bearer_methods_supported\":[\"header\"],\"resource_name\":\"Notion MCP (Beta)\"}[exit 0]",
+  "oidc": "$ curl -s https://accounts.google.com/.well-known/openid-configuration | head -c 420\n{\n \"issuer\": \"https://accounts.google.com\",\n \"authorization_endpoint\": \"https://accounts.google.com/o/oauth2/v2/auth\",\n \"device_authorization_endpoint\": \"https://oauth2.googleapis.com/device/code\",\n \"token_endpoint\": \"https://oauth2.googleapis.com/token\",\n \"userinfo_endpoint\": \"https://openidconnect.googleapis.com/v1/userinfo\",\n \"revocation_endpoint\": \"https://oauth2.googleapis.com/revoke\",\n \"jwks_uri\": \"https://www.[exit 0]",
+  "jwks": "$ curl -s https://www.googleapis.com/oauth2/v3/certs | head -c 300\n{\n  \"keys\": [\n    {\n      \"kid\": \"943a3a5d7d919625a454e489b75c29adab57acba\",\n      \"alg\": \"RS256\",\n      \"use\": \"sig\",\n      \"kty\": \"RSA\",\n      \"e\": \"AQAB\",\n      \"n\": \"pIpnzA2ezyEERJSxiqpLBmMeIqATH-V6iuBtKIibXEyYovujrx8niqTeO6RIyXT6uDUUv0V2kJ8V_iWYFxzXY1BqK9IfcAmjg0XUDoyTVkoyLsF0gj299LH-zw5vCvy8jm[exit 0]",
+  "jwt": "$ python jwt_demo.py\neyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJzdWIiOiJ1c2VyXzQyIiwiYXVkIjoiaHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20iLCJleHAiOjE3OTExNTg0MDAsInNjb3BlIjoibWVzc2FnZXM6d3JpdGUifQ.9_3QlKZb91xKKwjicwuKWQgdg_MQy5glQfIRxHLGZVQ\nheader: {\"alg\":\"HS256\",\"typ\":\"JWT\"}\npayload: {\"iss\":\"https://auth.example.com\",\"sub\":\"user_42\",\"aud\":\"https://api.example.com\",\"exp\":1791158400,\"scope\":\"messages:write\"}\nsignature: 32 bytes of HMAC-SHA256 over header.payload\n[exit 0]",
+  "sigv4": "$ python sigv4_demo.py\nX-Amz-Date: 20261005T133935Z\nAuthorization: AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20261005/us-east-1/sts/aws4_request, SignedHeaders=host;x-amz-date, Signature=3f3b11c954cf96f871b377aa62b979334532929ac5b0745270399aa88adf66ec\n[exit 0]",
+  "ucp": "$ curl -s https://www.allbirds.com/.well-known/ucp | head -c 640\n{\"ucp\":{\"version\":\"2026-08-25\",\"supported_versions\":{\"2026-04-08\":\"https:\\/\\/weareallbirds.myshopify.com\\/.well-known\\/ucp\\/2026-04-08\",\"2026-01-23\":\"https:\\/\\/weareallbirds.myshopify.com\\/.well-known\\/ucp\\/2026-01-23\"},\"services\":{\"dev.ucp.shopping\":[{\"version\":\"2026-08-25\",\"spec\":\"https:\\/\\/ucp.dev\\/2026-08-25\\/specification\\/overview\\/\",\"transport\":\"mcp\",\"endpoint\":\"https:\\/\\/weareallbirds.myshopify.com\\/api\\/ucp\\/mcp\",\"schema\":\"https:\\/\\/ucp.dev\\/2026-08-25\\/services\\/shopping\\/mcp.openrpc.json\"},{\"version\":\"2026-04-08\",\"spec\":\"https:\\/\\/ucp.dev\\/2026-04-08\\/specification\\/overview\\/\",\"transport\":\"embedded\",\"schema\":\"https:\\/\\/u[exit 0]"
+ },
+ "questions": [
+  {
+   "id": "who",
+   "q": "Who talks to whom?",
+   "opts": [
+    [
+     "user",
+     "An app or browser calls my service"
+    ],
+    [
+     "internal",
+     "My service calls another of my services"
+    ],
+    [
+     "provider",
+     "My backend calls an outside API (an LLM provider)"
+    ],
+    [
+     "event",
+     "Another system must be told later that something happened"
+    ],
+    [
+     "tools",
+     "A model or agent needs tools or data"
+    ],
+    [
+     "agent",
+     "My agent hands work to another team's or company's agent"
+    ],
+    [
+     "commerce",
+     "An agent buys from a merchant"
+    ],
+    [
+     "gpu",
+     "GPUs exchange tensors during training"
+    ]
+   ]
+  },
+  {
+   "id": "flow",
+   "q": "How does the answer come back?",
+   "only": [
+    "user",
+    "internal",
+    "provider"
+   ],
+   "opts": [
+    [
+     "once",
+     "One request, one answer"
+    ],
+    [
+     "server",
+     "The server streams to the client (tokens)"
+    ],
+    [
+     "both",
+     "Both sides stream at once (voice, interruptions)"
+    ],
+    [
+     "later",
+     "The work takes minutes: the answer comes later"
+    ]
+   ]
+  },
+  {
+   "id": "where",
+   "q": "Where are the two ends?",
+   "only": [
+    "user",
+    "internal",
+    "tools",
+    "event",
+    "agent"
+   ],
+   "opts": [
+    [
+     "public",
+     "Across the public internet or between organisations"
+    ],
+    [
+     "inside",
+     "Inside one network or cluster I control"
+    ]
+   ]
+  },
+  {
+   "id": "client",
+   "q": "Is the caller a web browser?",
+   "only": [
+    "user",
+    "internal"
+   ],
+   "opts": [
+    [
+     "browser",
+     "Yes, browser code"
+    ],
+    [
+     "program",
+     "No, a program (SDK, service, CLI)"
+    ]
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "when": {
+    "who": "gpu"
+   },
+   "pick": [
+    "nccl",
+    "ib",
+    "roce",
+    "tcp"
+   ],
+   "say": "NCCL over InfiniBand or RoCEv2 (RDMA); its TCP socket transport only when no RDMA network exists.",
+   "why": "Collectives move gigabytes per step; RDMA lets network cards read and write memory without kernel copies, and NCCL picks the best path per pair of GPUs.",
+   "avoid": "Hand-written TCP or HTTP between workers.",
+   "auth": "None at this layer: the fabric is a private network."
+  },
+  {
+   "when": {
+    "who": "tools",
+    "where": "inside"
+   },
+   "pick": [
+    "mcp",
+    "jsonrpc"
+   ],
+   "say": "An MCP server: over stdio if it runs on the same machine as the agent, over Streamable HTTP if several agents share it.",
+   "why": "One server works in every MCP harness; stdio needs no network or auth at all.",
+   "avoid": "Passing the user's token through to downstream APIs (forbidden by the MCP spec).",
+   "auth": "stdio: the process boundary. HTTP: OAuth (MCP authorization) or the network's own identity."
+  },
+  {
+   "when": {
+    "who": "tools",
+    "where": "public"
+   },
+   "pick": [
+    "mcp",
+    "oauth",
+    "sse"
+   ],
+   "say": "A remote MCP server on Streamable HTTP, protected as an OAuth resource server (RFC 9728 metadata, audience-bound tokens).",
+   "why": "The spec defines discovery, token audience and the ban on token passthrough, so clients you never met can connect safely.",
+   "avoid": "Static shared keys in every client's config; trusting tool output as instructions.",
+   "auth": "OAuth 2.1 code flow with PKCE; Client ID Metadata Documents for registration (2026-07-28)."
+  },
+  {
+   "when": {
+    "who": "agent"
+   },
+   "pick": [
+    "a2a",
+    "jsonrpc",
+    "grpc"
+   ],
+   "say": "A2A: publish an Agent Card, exchange tasks over the JSON-RPC binding with SSE streaming (gRPC binding between your own services).",
+   "why": "Neither agent sees the other's tools or prompts; tasks give a shared lifecycle and the card says how to authenticate.",
+   "avoid": "Exposing your internal tools to the other agent through MCP.",
+   "auth": "Whatever the Agent Card declares: OAuth or OIDC across organisations, mTLS inside."
+  },
+  {
+   "when": {
+    "who": "commerce"
+   },
+   "pick": [
+    "ucp",
+    "mcp",
+    "oauth"
+   ],
+   "say": "UCP: read the merchant's `/.well-known/ucp`, negotiate capabilities, and honour `requires_escalation` by handing the buyer to `continue_url`.",
+   "why": "It is the protocol merchants publish; profile intersection lets the agent degrade gracefully.",
+   "avoid": "Scraping checkout pages; treating escalation as failure.",
+   "auth": "OAuth 2.0 identity linking; payments through AP2 mandates."
+  },
+  {
+   "when": {
+    "who": "event",
+    "where": "public"
+   },
+   "pick": [
+    "webhook",
+    "http2"
+   ],
+   "say": "Webhooks with Standard Webhooks signatures; the receiver verifies the raw body and deduplicates on `webhook-id`.",
+   "why": "The other side may be offline; retries with backoff over days survive that, signatures prove origin.",
+   "avoid": "Holding a connection open for hours; verifying a re-serialised body.",
+   "auth": "HMAC signature with a shared secret (or an asymmetric signature)."
+  },
+  {
+   "when": {
+    "who": "event",
+    "where": "inside"
+   },
+   "pick": [
+    "webhook",
+    "grpc"
+   ],
+   "say": "A queue or event stream between your own services (see the SWE topic's queues page); webhooks only where the receiver is another team's HTTP service.",
+   "why": "Queues give durable, replayable delivery and backpressure; webhooks are the across-organisation version.",
+   "avoid": "Synchronous chains of calls that all fail when one service is slow.",
+   "auth": "Service identity: mTLS or cloud IAM."
+  },
+  {
+   "when": {
+    "flow": "both"
+   },
+   "pick": [
+    "ws",
+    "http11",
+    "tls"
+   ],
+   "say": "WebSockets (realtime voice APIs use them), with pings and reconnect-with-backoff.",
+   "why": "Both sides send at any time on one connection; audio frames go both ways while the user interrupts.",
+   "avoid": "Opening a new request per audio chunk.",
+   "auth": "A short-lived token obtained over HTTPS first, sent in the handshake, not a long-lived key in browser code."
+  },
+  {
+   "when": {
+    "flow": "later"
+   },
+   "pick": [
+    "rest",
+    "webhook",
+    "sse"
+   ],
+   "say": "Start the job with a REST POST that returns `202 Accepted` and a job id; then poll, receive a webhook, or subscribe to an SSE stream of progress.",
+   "why": "No connection survives every proxy for many minutes; a job id makes the work resumable and idempotent.",
+   "avoid": "One HTTP request held open for the whole job.",
+   "auth": "As for the first call."
+  },
+  {
+   "when": {
+    "who": "provider",
+    "flow": "server"
+   },
+   "pick": [
+    "sse",
+    "http2",
+    "apikey"
+   ],
+   "say": "The provider's REST API with `stream: true`: a POST answered by an SSE stream, read with the SDK, with an API key from a secrets manager.",
+   "why": "That is how LLM APIs stream tokens; HTTP/2 keeps many concurrent streams on few connections.",
+   "avoid": "Proxies with buffering on, or idle timeouts shorter than the longest pause before a token.",
+   "auth": "API key in a secrets manager; OAuth only when acting for a user."
+  },
+  {
+   "when": {
+    "who": "provider"
+   },
+   "pick": [
+    "rest",
+    "http2",
+    "apikey"
+   ],
+   "say": "The provider's REST API over HTTPS with its SDK, an idempotency key on retried POSTs, and an API key from a secrets manager.",
+   "why": "Public APIs are REST; SDKs handle retries and backoff on 429 and 5xx.",
+   "avoid": "Retrying non-idempotent calls blindly.",
+   "auth": "API key; cloud IAM (SigV4) when the model is served by your cloud (Bedrock)."
+  },
+  {
+   "when": {
+    "who": "user",
+    "flow": "server"
+   },
+   "pick": [
+    "sse",
+    "http2",
+    "tls"
+   ],
+   "say": "Answer the POST with an SSE stream (`text/event-stream`) over HTTP/2 or HTTP/3; send a comment line every 15 s or so.",
+   "why": "One-way token streaming is exactly what SSE is; it works through ordinary HTTP infrastructure.",
+   "avoid": "WebSockets for one-way streams; any buffering proxy on the path.",
+   "auth": "Browser: OIDC login and a session or short-lived token. Programs: API keys or OAuth."
+  },
+  {
+   "when": {
+    "who": "internal",
+    "client": "program"
+   },
+   "pick": [
+    "grpc",
+    "http2",
+    "mtls"
+   ],
+   "say": "gRPC with protobuf over HTTP/2, a deadline on every call, and L7 or client-side load balancing.",
+   "why": "Typed contracts, small binary payloads, all four streaming shapes, and deadlines that stop wasted GPU work.",
+   "avoid": "L4 load balancers in front of long-lived gRPC connections; calls without deadlines.",
+   "auth": "mTLS from a mesh or SPIFFE, or cloud workload identity."
+  },
+  {
+   "when": {
+    "who": "internal",
+    "client": "browser"
+   },
+   "pick": [
+    "rest",
+    "http2",
+    "oidc"
+   ],
+   "say": "REST and JSON over HTTPS (or gRPC-Web through a gateway).",
+   "why": "Browsers cannot speak native gRPC; REST works with every tool.",
+   "avoid": "Exposing internal gRPC services directly to browsers.",
+   "auth": "OIDC login, then a session cookie or short-lived token."
+  },
+  {
+   "when": {
+    "who": "user"
+   },
+   "pick": [
+    "rest",
+    "http2",
+    "tls"
+   ],
+   "say": "REST over HTTPS, described with OpenAPI, with problem-details errors (RFC 9457) and idempotency keys on POST.",
+   "why": "Any client can call it; caches and proxies understand it.",
+   "avoid": "GraphQL unless many different clients need different shapes of the same data.",
+   "auth": "Browser users: OIDC with the code flow and PKCE. Programs: API keys or OAuth client credentials."
+  }
+ ],
+ "pairs": {
+  "sse|ws": "SSE is one-way (server to client) over ordinary HTTP and reconnects by itself; WebSockets are two-way after an HTTP upgrade. Token streaming is one-way, so LLM APIs use SSE; voice needs both directions, so realtime APIs use WebSockets.",
+  "grpc|rest": "Same HTTP underneath; REST names resources and uses JSON so anything can call it, gRPC names procedures with generated typed clients, protobuf payloads, streaming and deadlines. Public edge: REST. Between your own services: gRPC.",
+  "http2|http3": "Same semantics and the same idea of many streams on one connection; HTTP/2 rides TCP (one loss stalls all streams), HTTP/3 rides QUIC on UDP (a loss stalls only its stream) and sets up in fewer round trips.",
+  "quic|tcp": "Both give reliable ordered streams with congestion control. TCP is one stream in the kernel, with TLS added on top; QUIC is many streams in user space over UDP, with TLS 1.3 built into its handshake.",
+  "tcp|udp": "TCP: connection, ordering, retransmission, congestion control, one round trip to start. UDP: none of that, 8 bytes of header, nothing to set up.",
+  "oauth|oidc": "OAuth answers 'what may this app do for the user' (an access token for an API). OIDC adds 'who is the user' (an ID token for the app). Login is OIDC; API access is OAuth.",
+  "apikey|jwt": "An API key is an opaque secret looked up by the server and valid until revoked. A JWT is a signed, readable token checked offline and valid until it expires. Both are bearer credentials: whoever holds one can use it.",
+  "a2a|mcp": "MCP connects an agent to tools and data it controls (agent to tool); A2A connects an agent to another agent it cannot see inside (agent to agent). Both use JSON-RPC 2.0 and SSE; A2A also has gRPC and REST bindings.",
+  "mtls|tls": "TLS proves the server's identity to the client; mTLS adds a client certificate so the server knows the caller too. Same handshake, one more certificate.",
+  "jsonrpc|rest": "REST spreads meaning over URLs, methods and status codes; JSON-RPC puts a method name and params in one JSON body sent to one endpoint, so it also works over stdio or WebSockets.",
+  "graphql|rest": "REST returns what each endpoint defines; GraphQL returns exactly the fields the client's query asks for, from one endpoint, at the cost of HTTP caching and query cost control.",
+  "sse|webhook": "SSE keeps a response open while the client waits; a webhook is a new request from the provider to you later, when nobody is waiting.",
+  "ssh|tls": "Both encrypt and authenticate over TCP with their own handshakes. TLS secures other protocols (HTTP, gRPC) and identifies servers by certificates from CAs; SSH is its own protocol for shells, file copies and tunnels, identifying hosts by keys you remember.",
+  "mcp|ucp": "UCP is a commerce protocol that can use MCP as one of its transports (the recorded merchant profile offers `\"transport\":\"mcp\"`); MCP itself knows nothing about checkouts or escalation to a human.",
+  "oauth|sigv4": "OAuth hands out bearer tokens that are sent as they are; SigV4 never sends the secret and signs each request instead, so a captured request is only replayable briefly and cannot be altered.",
+  "http11|http2": "Same requests and responses. HTTP/1.1 is text, one request at a time per connection; HTTP/2 is binary frames with many requests interleaved on one connection and compressed headers."
+ },
+ "corrections": [
+  {
+   "n": 1,
+   "page": "WebSocket protocol (RFC 6455) in depth",
+   "old": "\"RFC 6455: The WebSocket Protocol (STD 34, December 2011)\" and \"has been an Internet Standard\"",
+   "verdict": "wrong",
+   "now": "RFC 6455 is a Proposed Standard, not an Internet Standard, and has no STD number.",
+   "src": "[RFC Editor: RFC 6455 metadata](https://www.rfc-editor.org/rfc/rfc6455.json)",
+   "id": "ws"
+  },
+  {
+   "n": 2,
+   "page": "SSH: protocol, keys, tunnels, and cluster workflows",
+   "old": "\"The IETF hybrid key exchange draft is in the RFC Editor queue rather than published.\"",
+   "verdict": "outdated",
+   "now": "Published as RFC 10042 (August 2026), \"Post-Quantum/Traditional Hybrid Key Exchange with the Module-Lattice-Based Key-Encapsulation Mechanism for Use in SSH\".",
+   "src": "[RFC 10042](https://www.rfc-editor.org/rfc/rfc10042.html)",
+   "id": "ssh"
+  },
+  {
+   "n": 3,
+   "page": "RPC and API styles: REST, gRPC, GraphQL",
+   "old": "\"A2A/MCP: agent protocols chose JSON-RPC over HTTP (+SSE) rather than gRPC\"",
+   "verdict": "outdated",
+   "now": "True of MCP. A2A v1.0 separates the protocol from three bindings: JSON-RPC 2.0 (§9), gRPC (§10) and HTTP+JSON/REST (§11).",
+   "src": "[A2A v1.0.1 specification](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)",
+   "id": "a2a"
+  },
+  {
+   "n": 4,
+   "page": "Topic: protocols (root)",
+   "old": "A2A task \"with an explicit lifecycle (submitted, working, input-required, completed, failed), and receives updates over JSON-RPC on HTTP with SSE\"",
+   "verdict": "incomplete",
+   "now": "v1.0 task states are submitted, working, input-required, auth-required, completed, failed, canceled, rejected; updates come by SSE streaming, polling or push notifications, over any of the three bindings.",
+   "src": "[A2A v1.0.1 a2a.proto, enum TaskState](https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto)",
+   "id": "a2a"
+  },
+  {
+   "n": 5,
+   "page": "Topic: protocols (root)",
+   "old": "\"A2A (Agent2Agent, Google-origin, under the Linux Foundation since June 2025, v1.x ...)\"",
+   "verdict": "confirmed",
+   "now": "Announced 9 April 2025; Linux Foundation project from 23 June 2025; v1.0.0 released 12 March 2026, v1.0.1 on 28 May 2026. The \"150+ member organisations\" figure is not confirmed (see unconfirmed.md).",
+   "src": "[GitHub releases](https://github.com/a2aproject/A2A/releases), [Linux Foundation press release](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)",
+   "id": "a2a"
+  },
+  {
+   "n": 6,
+   "page": "Model Context Protocol (MCP)",
+   "old": "\"Governance moved to community working groups with an SEP (spec enhancement proposal) process\"",
+   "verdict": "incomplete",
+   "now": "Anthropic donated MCP to the Agentic AI Foundation, a directed fund under the Linux Foundation co-founded by Anthropic, Block and OpenAI, on 9 December 2025; the MCP blog footer now reads \"Model Context Protocol a Series of LF Projects, LLC\".",
+   "src": "[Anthropic, 9 December 2025](https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation)",
+   "id": "mcp"
+  },
+  {
+   "n": 7,
+   "page": "Topic: protocols (root)",
+   "old": "\"The 2026-07-28 revision made the core stateless, so an ordinary gateway can route and cache a request, and moved optional features into a formal extensions framework.\"",
+   "verdict": "confirmed",
+   "now": "The changelog removes sessions and the initialize handshake, adds `ttlMs` and `cacheScope` on list results, adds an `extensions` capability field and moves tasks into `io.modelcontextprotocol/tasks`.",
+   "src": "[MCP 2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)",
+   "id": "mcp"
+  },
+  {
+   "n": 8,
+   "page": "Topic: protocols (root)",
+   "old": "\"hybrid post-quantum key exchange has been the default since OpenSSH 9.0\"",
+   "verdict": "incomplete",
+   "now": "True for 9.0 (2022-04-08, `sntrup761x25519-sha512@openssh.com`); since 10.0 (2025-04-09) the default is `mlkem768x25519-sha256`, now RFC 10042.",
+   "src": "[OpenSSH release notes](https://www.openssh.com/releasenotes.html)",
+   "id": "ssh"
+  },
+  {
+   "n": 9,
+   "page": "Topic: protocols (root)",
+   "old": "\"certificate lifetimes fall to 47 days by 2029 with 10-day validation reuse\"",
+   "verdict": "confirmed",
+   "now": "Baseline Requirements 2.3.1 (4 October 2026): 200 days from 2026-03-15, 100 days from 2027-03-15, 47 days and 10-day reuse from 2029-03-15.",
+   "src": "[CA/B Forum Baseline Requirements](https://cabforum.org/working-groups/server/baseline-requirements/requirements/)",
+   "id": "x509"
+  },
+  {
+   "n": 10,
+   "page": "Topic: protocols (root)",
+   "old": "\"NCCL ... opens 16 sockets per peer on AWS\"",
+   "verdict": "imprecise",
+   "now": "NCCL's socket transport defaults on AWS to NCCL_SOCKET_NTHREADS=2 and NCCL_NSOCKS_PERTHREAD=8, so 16 sockets per network connection; this applies only to the socket transport, not to InfiniBand or RoCE.",
+   "src": "[NCCL environment variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)",
+   "id": "nccl"
+  },
+  {
+   "n": 11,
+   "page": "Topic: protocols (root)",
+   "old": "\"RoCEv2 ... remote direct memory access in UDP on port 4791\"",
+   "verdict": "confirmed",
+   "now": "IANA registers 4791/udp \"IP Routable RocE\" to the InfiniBand Trade Association (2014-10-17).",
+   "src": "[IANA port registry](https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=4791)",
+   "id": "roce"
+  },
+  {
+   "n": 12,
+   "page": "Topic: protocols (root)",
+   "old": "UCP \"co-developed by Shopify with Google and supported by Etsy, Target, Walmart and Wayfair\"",
+   "verdict": "outdated",
+   "now": "ucp.dev now lists, for shopping alone, Google, Shopify, Etsy, Wayfair, Target, Walmart, Amazon, Microsoft, Meta, Salesforce and Stripe, plus lodging and food partners. The current version is 2026-08-25 (first tagged 2026-01-11).",
+   "src": "[ucp.dev](https://ucp.dev/), [UCP releases](https://github.com/Universal-Commerce-Protocol/ucp/releases)",
+   "id": "ucp"
+  },
+  {
+   "n": 13,
+   "page": "Topic: protocols (root)",
+   "old": "UCP \"Discovery is a well-known path ... `/.well-known/ucp` ... checkout moves through `incomplete`, `requires_escalation` and `ready_for_complete` ... Embedded Checkout Protocol opens a JSON-RPC 2.0 channel\"",
+   "verdict": "confirmed",
+   "now": "As described in Shopify's engineering post; a real store's `/.well-known/ucp` was fetched (recorded in the atlas).",
+   "src": "[Shopify Engineering](https://shopify.engineering/UCP)",
+   "id": "ucp"
+  },
+  {
+   "n": 14,
+   "page": "Topic: protocols (root)",
+   "old": "MHS \"research preview opened 27 August 2026 ... reachable by any harness over standard protocols including MCP\"",
+   "verdict": "confirmed",
+   "now": "Anthropic's post (27 August 2026) names three control mechanisms: MCP, a command line interface and code files (APIs).",
+   "src": "[Anthropic: Previewing the Model Hardware Standard](https://www.anthropic.com/news/model-hardware-standard-research-preview)",
+   "id": "mhs"
+  },
+  {
+   "n": 15,
+   "page": "Topic: protocols (root)",
+   "old": "\"laser stabilisation on QuEra's quantum computers going from 58% to 99.3%\"",
+   "verdict": "imprecise",
+   "now": "Two different measurements: the overnight loop took the recovery script from 58% (150 s) to 96% (about 6 s); the finished script, tested without the agent, recovered the lock in 695 of 700 trials (99.3%).",
+   "src": "[Anthropic: Previewing the Model Hardware Standard](https://www.anthropic.com/news/model-hardware-standard-research-preview)",
+   "id": "mhs"
+  },
+  {
+   "n": 16,
+   "page": "HTTP: 1.1, 2, 3, and what matters for LLM services",
+   "old": "\"The Idempotency-Key header pattern (Stripe popularized it; an IETF draft exists)\"",
+   "verdict": "outdated",
+   "now": "draft-ietf-httpapi-idempotency-key-header reached revision 07 and is now marked Expired in the Datatracker; there is no RFC.",
+   "src": "[Datatracker](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/)",
+   "id": "rest"
+  },
+  {
+   "n": 17,
+   "page": "Auth: OAuth2/OIDC, JWTs, API keys, service-to-service, and the agent era",
+   "old": "\"OAuth 2.1 draft (... still Standards Track draft as of 2026 but the de facto profile)\"",
+   "verdict": "confirmed",
+   "now": "draft-ietf-oauth-v2-1 revision 16, 3 September 2026, Datatracker state \"I-D Exists\": still a draft. MCP 2026-07-28 cites revision 13.",
+   "src": "[Datatracker](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/)",
+   "id": "oauth"
+  },
+  {
+   "n": 18,
+   "page": "Topic: protocols (root)",
+   "old": "Paper2Agent \"succeeded on 74 of 100 computational biology papers\" (Nature, September 2026)",
+   "verdict": "confirmed",
+   "now": "Published 16 September 2026: \"Among the 100 computational biology papers, 74 were successfully agentified\".",
+   "src": "[Nature](https://www.nature.com/articles/s41586-026-11044-y)",
+   "id": "mcp"
+  },
+  {
+   "n": 19,
+   "page": "TLS and PKI / HTTP",
+   "old": "\"RFC 9846 (July 2026): TLS 1.3 respecified, obsoleting RFC 8446 and RFC 5246\"",
+   "verdict": "confirmed",
+   "now": "RFC Editor metadata: RFC 9846, July 2026, obsoletes RFC 5077, 5246, 6961, 7627, 8422 and 8446. Also July 2026: RFC 9851 (TLS 1.2 feature freeze) and RFC 9852 (new protocols must require TLS 1.3).",
+   "src": "[RFC 9846](https://www.rfc-editor.org/rfc/rfc9846.html)",
+   "id": "tls"
+  },
+  {
+   "n": 20,
+   "page": "Topic: protocols (root)",
+   "old": "\"Move a 140 GB checkpoint quickly: Multi-stream (5 Gbps single-flow cap)\"",
+   "verdict": "confirmed",
+   "now": "AWS: outside a cluster placement group, single-flow traffic is limited to 5 Gbps.",
+   "src": "[AWS EC2 instance network bandwidth](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html)",
+   "id": "tcp"
+  },
+  {
+   "n": 21,
+   "page": "Topic: protocols (root)",
+   "old": "\"IBM's ACP (Agent Communication Protocol) merged into it [A2A]\"",
+   "verdict": "confirmed",
+   "now": "The archived i-am-bee/acp repository: \"ACP is now part of A2A under the Linux Foundation!\"",
+   "src": "[i-am-bee/acp](https://github.com/i-am-bee/acp)",
+   "id": "a2a"
+  },
+  {
+   "n": 22,
+   "page": "Topic: protocols (root)",
+   "old": "Cisco-led AGNTCY \"archived its ACP SDK in April 2026\"",
+   "verdict": "incomplete",
+   "now": "The agntcy/acp-sdk repository is archived (last push 2025-06-16); GitHub does not publish the archive date, so \"April 2026\" is not confirmed.",
+   "src": "[agntcy/acp-sdk](https://github.com/agntcy/acp-sdk)",
+   "id": "a2a"
+  },
+  {
+   "n": 23,
+   "page": "Topic: protocols (root)",
+   "old": "\"Post-quantum hybrid key exchange ... is past 60 percent of client traffic but only about 10 percent of origins\"",
+   "verdict": "incomplete",
+   "now": "The adoption figures are not confirmed here (see unconfirmed.md). What changed: the hybrid groups are now RFC 10024 (August 2026), and `api.anthropic.com` negotiated `X25519MLKEM768` in the atlas recording on 2026-10-05.",
+   "src": "[RFC 10024](https://www.rfc-editor.org/rfc/rfc10024.html)",
+   "id": "tls"
+  }
+ ],
+ "fabric_links": [
+  {
+   "t": "Distributed Training",
+   "u": "https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e"
+  },
+  {
+   "t": "Training Infrastructure",
+   "u": "https://app.notion.com/p/3c65c17b0d0d81c9b2cac997583bf572"
+  },
+  {
+   "t": "Topic: hardware",
+   "u": "https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e"
+  }
+ ],
+ "rec_meta": "Recorded 2026-10-05 between 13:35 and 13:40 UTC on a Mac (x86_64) running macOS 27.0.1, home broadband, load average about 4 to 6 (other agents were working on the same machine). Tools: curl 8.7.1 (system build, no HTTP/3), OpenSSL 3.6.5 (conda-forge build in the session scratchpad), DiG 9.10.6, OpenSSH 10.3p1, CPython 3.13 with grpcio 1.84.0 and botocore 1.43.108. Public endpoints were called read-only, unauthenticated, one request each; local servers listened on 127.0.0.1 only."
+}
