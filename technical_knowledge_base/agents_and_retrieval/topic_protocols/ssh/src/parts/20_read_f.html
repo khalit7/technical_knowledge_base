@@ -1,0 +1,39 @@
+<section id="s-jump">
+<h2>5. Jump hosts and ProxyJump</h2>
+<p><b>The problem.</b> Compute nodes are not routable from your laptop; only the bastion is. You could log in to the bastion and run <code>ssh</code> again from there, but then the second login uses keys on (or forwarded to) the bastion, and every tool (<code>rsync</code>, <code>git</code>, VS Code) would have to do the same dance. <b>ProxyJump</b> (OpenSSH 7.3, August 2016) does it properly: your laptop asks the bastion for a raw TCP stream to <code>gpu-node-01:22</code> and then runs a <i>second, complete</i> SSH session from the laptop to the node through that stream.</p>
+<pre class="blk">ssh -J bastion gpu-node-01                # one hop
+ssh -J bastion,login gpu-node-07          # two hops, in order
+# or in ~/.ssh/config, so every tool gets it:
+Host gpu-node-*
+    ProxyJump bastion</pre>
+<p>Recorded with <code>-vvv</code>: the client turns <code>ProxyJump</code> into a helper <code>ssh -W '[gpu-node-01]:22' bastion</code> (a "stdio forward": its standard input and output become the TCP stream), and the bastion's server log shows only a <code>direct-tcpip</code> channel to port 22 of the node:</p>
+<pre class="blk" data-log="vvv_jump"></pre>
+<pre class="blk" data-log="bastion_log_jump"></pre>
+<p><b>What the bastion sees.</b> The node's session is encrypted end to end between laptop and node; the bastion relays ciphertext. The relay on the laptop's path, during a ProxyJump session that pulled about 27 KB of output, decoded the bastion's handshake and nothing else: the node's banner, its key exchange and everything after travelled inside the outer encryption, [[jw_c2s]] bytes up and [[jw_s2c]] down, unreadable to the observer and to the bastion alike.</p>
+<p><b>What it costs.</b> Two full logins, the second inside the first. Without added delay, <code>ssh bastion true</code> took [[jump_b]] ms and <code>ssh gpu-node-01 true</code> through it [[jump_n]] ms (medians of 10); with 40 ms between laptop and bastion, [[mux_b]] ms against [[mux_n]] ms. Section 7 removes most of that.</p>
+<ul class="tight">
+<li><b>History.</b> Before 7.3 the same thing was written <code>ProxyCommand ssh -W %h:%p bastion</code>, and before 5.4, <code>ProxyCommand ssh bastion nc %h %p</code>. <code>ProxyCommand</code> still matters for non-SSH transports: AWS Session Manager, for example, provides one so that plain <code>ssh</code>, <code>-J</code> and <code>rsync</code> work over it ({{AWS docs|https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-getting-started-enable-ssh-connections.html}}).</li>
+<li><b>Untrusted input in command lines.</b> <b>CVE-2025-61984</b> (fixed in 10.1, 6 October 2025): control characters in a user name from the command line or a <code>%</code>-expansion could lead to code execution when a <code>ProxyCommand</code> using <code>%r</code> was configured ({{CVE record|https://www.cve.org/CVERecord?id=CVE-2025-61984}}); the scenario is a crafted <code>ssh://</code> or git URL. 10.3 added validation of user and host names given to <code>-J</code> on the command line (not in config files). OpenSSH's own advice: never build <code>ssh</code> command lines from untrusted input.</li>
+<li><b>Each hop's options come from its own <code>Host</code> block</b>, so the bastion can use a hardware key and long multiplexing while nodes use a throwaway <code>known_hosts</code>. <code>ProxyJump none</code> disables an inherited jump.</li>
+</ul>
+</section>
+
+<section id="s-agent">
+<h2>6. Agent forwarding against ProxyJump</h2>
+<p><b>Agent forwarding</b> (<code>ssh -A</code>, <code>ForwardAgent yes</code>) solves the same problem the old way: you log in to the bastion, and the bastion's <code>sshd</code> creates a socket there that relays signing requests back to the agent on your laptop, so <code>ssh gpu-node-01</code> typed on the bastion can authenticate as you. The cost: <b>anyone who can open that socket while you are connected can authenticate as you</b>, to any server that trusts your key. That is the bastion's root, or any process running as your user there. Your private key never leaves the laptop, but it does not need to.</p>
+<p>Recorded, three ways to reach the nodes. In each, while the session was open, the lab played a malicious root on the bastion: look for agent sockets, list the keys, and try to log in to both nodes as Khalid.</p>
+<div class="card" id="ag-card">
+<div class="seg" id="ag-seg"><button data-m="forward" class="on">ssh -A bastion</button><button data-m="constrained">-A with ssh-add -h</button><button data-m="proxyjump">ssh -J bastion</button></div>
+<div id="ag-fig"></div>
+<div class="an-cap" id="ag-cap"></div>
+<div class="ctl" id="ag-ctl"></div>
+</div>
+<p>The three results, from <code>src/raw/agent_*.txt</code>: with plain forwarding root found <code>/home/khalid/.ssh/agent/s.…</code>, listed the laptop's key, and logged in to <b>both</b> nodes as Khalid. With a <b>destination-constrained</b> key (<code>ssh-add -h bastion -h 'bastion&gt;gpu-node-01'</code>, OpenSSH 8.9 and later) root could still use it, but only for the hop you allowed: <code>gpu-node-01</code> worked, <code>gpu-node-02</code> was refused, because the agent checks each request against the host keys bound into the session (<code>session-bind@openssh.com</code>). With <b>ProxyJump</b> there was no socket to find.</p>
+<pre class="blk" data-log="agent_forward"></pre>
+<ul class="tight">
+<li><b>Rules.</b> Use ProxyJump. If a workflow truly needs a key on a remote machine (pushing to GitHub from a login node), prefer a separate deploy key there (section 13) over forwarding; if you must forward, forward a constrained key, add <code>ssh-add -c</code> so every use asks you, and never put <code>ForwardAgent yes</code> under <code>Host *</code>.</li>
+<li><b>Agent locking.</b> <code>ssh-add -x</code> locks the agent with a password. 10.5 fixed a bug where a locked agent refused the <code>session-bind</code> messages that identify forwarded use, so operations meant to be local-only (adding PKCS#11 tokens, using destination-restricted keys) could be done remotely ({{10.5 release notes|https://www.openssh.com/releasenotes.html}}).</li>
+<li><b>Server side.</b> <code>AllowAgentForwarding no</code> on a bastion is reasonable when everyone uses ProxyJump; it was enabled here to record the attack. 10.0 fixed <code>DisableForwarding</code>, which had failed to disable agent and X11 forwarding.</li>
+</ul>
+<details class="mist"><summary>Predict, then reveal: with ProxyJump, can a malicious bastion do anything at all?</summary><div class="b">It cannot read or alter the node session (encrypted end to end, and the node's host key is checked by your laptop), cannot use your keys, and cannot replay your signature (bound to the node session). It can refuse to relay, delay traffic, see when and how much you send, and see which node you asked for. If your laptop accepts the node's host key blindly (<code>StrictHostKeyChecking no</code>), the bastion could itself pretend to be the node, which is why host key checking still matters behind a bastion.</div></details>
+</section>

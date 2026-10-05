@@ -1,0 +1,31 @@
+<section id="s-hk">
+<h2>3. Host keys, known_hosts and churn</h2>
+<p><b>The problem.</b> Encryption is worthless if you are encrypting to the attacker. In the key exchange the server signs the exchange hash with its <b>host key</b>; the client must decide whether that key really belongs to <code>gpu-node-01</code>. TLS answers with certificate authorities; plain SSH answers with <b>trust on first use</b> (TOFU): the first time, it shows you the key's fingerprint and asks; after that it remembers the key in <code>~/.ssh/known_hosts</code> and insists on the same one. The first connection is the weak moment; every later one is protected.</p>
+<p>Recorded, first contact with a new node (interactive, answered <code>yes</code>), and the fingerprint read on the node itself, which is the comparison you are supposed to make through some other channel (the cloud console, the admin, a provisioning log):</p>
+<pre class="blk" data-log="hk_first_contact"></pre>
+<p>Note <code>&lt;no hostip for proxy command&gt;</code>: through a jump host the client never learns the node's address, so the entry is filed under the name only.</p>
+<h3>What <code>StrictHostKeyChecking</code> does</h3>
+<div class="tw"><table class="tm">
+<tr><th>Setting</th><th>Unknown host</th><th>Known host, <b>changed</b> key</th></tr>
+<tr><td><code>ask</code> (default)</td><td>shows the fingerprint, asks</td><td>refuses</td></tr>
+<tr><td><code>accept-new</code></td><td>adds silently</td><td>refuses (recorded below)</td></tr>
+<tr><td><code>yes</code></td><td>refuses (recorded: <code>No ED25519 host key is known for gpu-node-02 and you have requested strict checking.</code>)</td><td>refuses</td></tr>
+<tr><td><code>no</code></td><td>adds silently</td><td><b>connects</b>, with some features disabled (recorded below)</td></tr>
+</table></div>
+<p class="small mute">Behaviour from {{ssh_config(5)|https://man.openbsd.org/ssh_config.5}}, each cell confirmed in the lab except "ask, changed".</p>
+<h3>Churn: the node was rebuilt</h3>
+<p>Cloud and cluster nodes are often rebuilt from an image that generates new host keys at first boot. The lab did exactly that to <code>gpu-node-01</code> (a new container: new keys). With <code>accept-new</code>:</p>
+<pre class="blk" data-log="hk_changed_acceptnew"></pre>
+<p>And with <code>StrictHostKeyChecking no</code>, asking for agent forwarding and a port forward too:</p>
+<pre class="blk" data-log="hk_changed_no"></pre>
+<p>It logged in and ran the command. OpenSSH blocks password and keyboard-interactive login (an impostor would capture the password), and agent and port forwarding when requested, but a public-key login proceeds and you are now typing into a machine you have not verified. That is why <code>no</code> must never be a habit. The honest fix after a <i>known</i> rebuild: compare the new fingerprint out of band, then remove the stale line:</p>
+<pre class="blk" data-log="hk_remove"></pre>
+<div class="co warn"><div class="t">The real risk of churn is habituation</div>A team whose nodes change keys weekly learns to run <code>ssh-keygen -R</code> without looking, and the one day it is a real man in the middle it gets the same treatment. Three ways out, best first: <b>host certificates</b> (section 4: nothing changes on the client when a node is rebuilt); a <b>separate, throwaway known_hosts</b> with <code>accept-new</code> scoped to the ephemeral nodes only (<code>Host gpu-node-*</code>, never <code>Host *</code>, never the bastion); or distributing the keys (a managed <code>/etc/ssh/ssh_known_hosts</code>, or SSHFP below).</div>
+<h3>Other knobs</h3>
+<ul class="tight">
+<li><b><code>HashKnownHosts yes</code></b> stores names as hashes so a stolen <code>known_hosts</code> does not list every machine you use (default <code>no</code> upstream; some distributions turn it on). Lookups still work; <code>ssh-keygen -F host</code> finds an entry.</li>
+<li><b><code>UpdateHostKeys</code></b>: after login the server can send all its host keys (signed), so the client learns the others before a key rotation (the "hostkeys" extension in {{PROTOCOL|https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL}}).</li>
+<li><b>SSHFP</b> DNS records publish host key fingerprints; <code>VerifyHostKeyDNS yes</code> makes the client trust them. Only meaningful if the answer is DNSSEC-validated (see {{DNS|n:3c65c17b0d0d812387d8f92b546f07af}}), and it had a real bug: <b>CVE-2025-26465</b>, an on-path attacker could impersonate any server when <code>VerifyHostKeyDNS</code> was on, OpenSSH 6.8p1 to 9.9p1, fixed in 9.9p2 (18 February 2025, found by Qualys; {{release notes|https://www.openssh.com/releasenotes.html}}). Since 10.1 the release notes warn that SHA-1 SSHFP records will be ignored in a future release; publish SHA-256 ones (<code>ssh-keygen -r host</code>).</li>
+</ul>
+<details class="mist"><summary>Predict, then reveal: the bastion's key changed and you are sure nobody rebuilt it. What do you do?</summary><div class="b">Stop. Do not remove the entry. Read the fingerprint the warning printed, get the real one through another channel (console, admin, a colleague on a different network), and compare. If they differ, someone is on the path or the server was compromised; if they match, the key really changed and you can update <code>known_hosts</code>. On a cluster with host certificates this situation becomes rare and therefore alarming, which is the point.</div></details>
+</section>

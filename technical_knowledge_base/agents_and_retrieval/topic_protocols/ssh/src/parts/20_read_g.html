@@ -1,0 +1,30 @@
+<section id="s-mux">
+<h2>7. Multiplexing: one login, many commands</h2>
+<p><b>The problem.</b> Every <code>ssh</code>, <code>scp</code>, <code>rsync -e ssh</code>, <code>git pull</code> and every VS Code helper starts from zero: TCP, key exchange, authentication, through the bastion and then again to the node, plus a two-factor prompt if the cluster has one. <b>Connection multiplexing</b> keeps the first connection (the <b>master</b>) open and lets later clients ask it, over a local Unix socket, for a new channel on the already-authenticated connection.</p>
+<pre class="blk">Host gpu-node-* bastion
+    ControlMaster auto            # use a master if one exists, otherwise become one
+    ControlPath ~/.ssh/cm/%C      # where the socket lives; %C hashes local host, host, port, user and jump host
+    ControlPersist 4h             # keep the master in the background after the first session ends</pre>
+<div class="card" id="mux-card">
+<div class="seg" id="mux-seg"><button data-m="both" class="on">both side by side</button><button data-m="fresh">fresh each time</button><button data-m="mux">through the master</button></div>
+<div id="mux-fig"></div>
+<div class="an-cap" id="mux-cap"></div>
+<div class="out" id="mux-out"></div>
+<div class="ctl" id="mux-ctl"></div>
+<p class="small mute">Recorded: ten <code>ssh gpu-node-01 true</code> in a row through the bastion, 40 ms added between laptop and bastion; each bar is one real run, drawn to scale. The first multiplexed run creates the master ([[mux_first]] ms), the next nine ride it.</p>
+</div>
+<p>Ten commands: [[mux_10_fresh_s]] s fresh against [[mux_10_mux_s]] s multiplexed. A reused channel needs one round trip to the bastion and back for the channel open and request (the node hop is inside the cluster), against roughly eight per hop for a login (section 1). Recorded <code>-vvv</code> of a reuse, and the control commands:</p>
+<pre class="blk" data-log="mux_vvv_reuse"></pre>
+<pre class="blk" data-log="mux_conninfo"></pre>
+<p><code>ssh -O check host</code> says whether a master is running; <code>-O exit</code> stops it; <code>-O conninfo</code> and <code>-O channels</code> are new in 10.3 (above: the negotiated algorithms and traffic, and the open channels).</p>
+<h3>What it costs and how it fails</h3>
+<ul class="tight">
+<li><b>One master, one fate.</b> When the master dies, every session on it dies at once. Recorded: a session running <code>sleep 20</code> on the master ended with exit status 255 within milliseconds of <code>-O exit</code>. A laptop that sleeps and wakes on another network often leaves a master that looks alive but is not: <code>-O check</code>, then <code>-O exit</code>, or a short <code>ServerAliveInterval</code> (section 9) so it notices.</li>
+<li><b>The socket is a key.</b> Anyone who can open the control socket can open sessions as you without authenticating. Keep <code>ControlPath</code> in a directory only you can read (<code>mkdir -m 700 ~/.ssh/cm</code>); never in <code>/tmp</code> on a shared machine.</li>
+<li><b>Socket path length.</b> A Unix socket path is limited (108 bytes on Linux, {{unix(7)|https://man7.org/linux/man-pages/man7/unix.7.html}}; 104 on macOS, <code>sun_path[104]</code> in its <code>sys/un.h</code>). <code>%C</code> is a fixed 40-character hash, which is why it is preferred to the older <code>%r@%h:%p</code> pattern. The lab hit the limit: its working directory alone was 120 characters, so it used the relative path <code>ControlPath cm/%C</code>.</li>
+<li><b>Bandwidth is shared.</b> One TCP connection carries everything: a large <code>rsync</code> on the master slows your interactive shell, and one connection's congestion window caps total throughput. For bulk copies, a separate connection (<code>-o ControlMaster=no -o ControlPath=none</code>) can be faster.</li>
+<li><b>Since 10.0</b>, <code>scp</code> and <code>sftp</code> pass <code>ControlMaster no</code>: they use an existing master but no longer silently create one ({{10.0 release notes|https://www.openssh.com/releasenotes.html}}). 10.2 fixed a 10.1 bug that made sessions unusable with <code>ControlPersist</code> active, so avoid 10.1 with multiplexing.</li>
+<li><b>Authentication happens once</b>, so a revoked key or an expired certificate does not end a master already running; <code>ControlPersist</code> bounds how long that lasts.</li>
+</ul>
+<details class="mist"><summary>Predict, then reveal: you changed <code>User</code> in your config for a host, but <code>ssh host whoami</code> still prints the old name. Why?</summary><div class="b">A master from before the change is still running and serving the request: the new client never authenticated. <code>ssh -O exit host</code> and try again. The same trap catches changed forwarding options and agent forwarding: options of the original master apply.</div></details>
+</section>

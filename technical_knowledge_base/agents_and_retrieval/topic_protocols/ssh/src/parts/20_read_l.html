@@ -1,0 +1,28 @@
+<section id="s-cluster">
+<h2>13. Cluster workflows</h2>
+<h3>A config that encodes all of the above</h3>
+<p>Click a line to see what it does and which recorded result backs it. Host names are placeholders; the lab's own config is <code>src/lab/laptop.conf</code>.</p>
+<div class="card" id="cfg-card"></div>
+<h3>A notebook on a Slurm compute node</h3>
+<pre class="blk"># inside the batch job (sbatch), on the compute node
+PORT=$((10000 + $(id -u) % 10000))
+mkdir -m 700 -p ~/.nb
+jupyter lab --no-browser --ServerApp.sock=$HOME/.nb/nb-$SLURM_JOB_ID.sock &amp;
+echo "on your laptop: ssh -N -L 127.0.0.1:$PORT:$HOME/.nb/nb-$SLURM_JOB_ID.sock $(hostname)"
+# on the laptop (ProxyJump in the config does the hops)
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8888:/home/you/.nb/nb-123.sock gpu-node-07</pre>
+<p>The pieces: a Unix socket in a private directory so other users on the node cannot reach the kernel (section 8), a port derived from your user id so you do not collide with colleagues, the exact command printed into the job's log so you can paste it, <code>ExitOnForwardFailure</code> so a taken port is an error. If the site does not allow SSH to compute nodes at all, use the scheduler's own route (Open OnDemand, or <code>srun</code> with a port forward through the login node).</p>
+<h3>Getting onto a node where your job runs</h3>
+<ul class="tight">
+<li><b><code>srun --overlap --jobid=ID --pty bash</code></b> starts a shell as a new step inside your running job; <code>--overlap</code> lets it share the job's resources with the steps already running ({{srun|https://slurm.schedmd.com/srun.html}}).</li>
+<li><b>Plain <code>ssh</code> to the node</b> works where the site runs <b>pam_slurm_adopt</b>: it refuses SSH to nodes where you have no running job and "adopts" your connection into the job's external step, so its processes are accounted and cleaned up with the job ({{pam_slurm_adopt|https://slurm.schedmd.com/pam_slurm_adopt.html}}).</li>
+<li><b>Keep work in batch jobs.</b> An interactive <code>srun --pty</code> dies with your connection. Run <code>tmux</code> on the <b>login</b> node for the shell you orchestrate from, so a closed laptop or dropped VPN loses nothing; avoid leaving it on compute nodes, where job cleanup kills stray processes.</li>
+</ul>
+<h3>Editors, Git and containers</h3>
+<ul class="tight">
+<li><b>VS Code Remote-SSH</b> installs a server on the remote and runs extensions there. It needs glibc 2.28 or later and libstdc++ 3.4.25 on the remote ({{VS Code docs|https://code.visualstudio.com/docs/remote/linux}}), which excludes CentOS 7 era login nodes. It opens several channels, so pair it with <code>ControlMaster</code> and a long <code>ControlPersist</code> to avoid repeated two-factor prompts.</li>
+<li><b>GitHub from a cluster.</b> Use a per-repository <b>deploy key</b> (read-only by default) on the cluster rather than your personal key or a forwarded agent: a compromised login node then exposes one repository ({{GitHub deploy keys|https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys}}). If outbound port 22 is blocked: <code>Host github.com</code>, <code>Hostname ssh.github.com</code>, <code>Port 443</code>, <code>User git</code> ({{GitHub docs|https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port}}).</li>
+<li><b>Signing commits with SSH keys</b>: <code>git config gpg.format ssh</code> and <code>user.signingkey</code>; GitHub has verified SSH signatures since 23 August 2022 ({{GitHub changelog|https://github.blog/changelog/2022-08-23-ssh-commit-verification-now-supported/}}). An <code>-sk</code> key makes every signature need a touch.</li>
+<li><b>Containers</b>: do not run <code>sshd</code> inside a container to get a shell; use <code>docker exec</code>, <code>kubectl exec</code> or <code>apptainer shell</code>, and <code>kubectl port-forward</code> instead of <code>-L</code>. (This page's lab runs <code>sshd</code> in containers only because SSH is the subject.)</li>
+</ul>
+</section>
