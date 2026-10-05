@@ -1,0 +1,199 @@
+
+<section id="pa-s3"><h2>3. Iterators and generators: laziness as a protocol</h2>
+<p>Two words that are easy to blur. An <dfn>iterable</dfn> is anything you can loop over: it has <code>__iter__</code>, which returns a fresh iterator each time. An <dfn>iterator</dfn> is the cursor: it has <code>__next__</code>, which returns the next item or raises <code>StopIteration</code>, and its <code>__iter__</code> returns itself. A list is an iterable; <code>iter(list)</code> is an iterator. The difference shows up when you loop twice ({{Iterator types|https://docs.python.org/3/library/stdtypes.html#iterator-types}}).</p>
+<div class="pa-snip pa-pred"><div class="pa-file">g1_protocol.py</div><pre class="pa-code">nums = [1, 2, 3]
+it = iter(nums)                 <span class="cm"># list.__iter__ returns a NEW list_iterator</span>
+print(type(it).__name__, next(it), next(it), next(it))
+<span class="kw">try</span>:
+    next(it)
+<span class="kw">except</span> StopIteration:
+    print(<span class="st">"StopIteration: the iterator is used up"</span>)
+
+squares = (n * n <span class="kw">for</span> n <span class="kw">in</span> nums) <span class="cm"># a generator is an iterator: one pass only</span>
+print(sum(squares), sum(squares))
+print(sum(nums), sum(nums))     <span class="cm"># a list is an iterable: each for/sum gets a fresh iterator</span></pre><details><summary>Predict the output, then reveal</summary><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="g1_protocol.txt">list_iterator 1 2 3
+StopIteration: the iterator is used up
+14 0
+6 6</pre></details></div>
+<p>A <dfn>generator function</dfn> is a function containing <code>yield</code>. Calling it runs none of its body; it returns a generator, an iterator whose <code>__next__</code> runs the body until the next <code>yield</code>, hands that value out, and freezes the function's local variables until it is asked again. A <dfn>generator expression</dfn>, <code>(f(x) for x in xs)</code>, is the one-line form.</p>
+<h3>Lazy pipelines: one item at a time through every stage</h3>
+<p>Write each processing stage as a generator and chain them, and items flow through the whole chain one at a time. Write the same stages as functions that return lists, and each stage finishes before the next begins, holding every intermediate result. The program below does both on three lines of a chat log (the root page's running example: count tokens per user). The animation replays its real printed trace.</p>
+<div class="pa-anim" id="pa-lazy-card">
+<div class="seg" id="pa-lazy-mode"><button data-m="eager" class="on">Eager: lists</button><button data-m="lazy">Lazy: generators</button></div>
+<div class="pa-ctl" id="pa-lazy-ctl"></div>
+<div class="pa-svg" id="pa-lazy-svg"></div>
+<div class="pa-cap" id="pa-lazy-cap"></div>
+<div class="pa-counters" id="pa-lazy-cnt"></div>
+<div class="pa-src">Steps are the lines printed by <code>code/g2_order.py</code> (below), in order. "Held" counts items stored in the lists that exist at that moment: the eager version keeps each stage's whole list until the next stage has consumed it.</div>
+</div>
+<div class="pa-snip"><div class="pa-file">g2_order.py</div><pre class="pa-code"><span class="kw">import</span> json
+LINES = [<span class="st">'&#123;"user": "a", "text": "hi there"&#125;'</span>, <span class="st">'oops'</span>, <span class="st">'&#123;"user": "b", "text": "ok"&#125;'</span>]
+
+<span class="cm"># Eager: each stage builds and returns a full list. Lazy: the same stages with yield.</span>
+<span class="kw">def</span> read_list(lines):
+    out = []
+    <span class="kw">for</span> line <span class="kw">in</span> lines:
+        print(<span class="st">"  read  "</span>, line[:12]); out.append(line)
+    <span class="kw">return</span> out
+<span class="kw">def</span> parse_list(lines):
+    out = []
+    <span class="kw">for</span> line <span class="kw">in</span> lines:
+        <span class="kw">try</span>:
+            msg = json.loads(line)
+        <span class="kw">except</span> json.JSONDecodeError:
+            print(<span class="st">"  parse  skip"</span>); <span class="kw">continue</span>
+        print(<span class="st">"  parse "</span>, msg[<span class="st">"user"</span>]); out.append(msg)
+    <span class="kw">return</span> out
+<span class="kw">def</span> count_list(msgs):
+    out = []
+    <span class="kw">for</span> m <span class="kw">in</span> msgs:
+        n = len(m[<span class="st">"text"</span>].split()); print(<span class="st">"  count "</span>, m[<span class="st">"user"</span>], n); out.append(n)
+    <span class="kw">return</span> out
+
+<span class="kw">def</span> read_gen(lines):
+    <span class="kw">for</span> line <span class="kw">in</span> lines:
+        print(<span class="st">"  read  "</span>, line[:12]); <span class="kw">yield</span> line
+<span class="kw">def</span> parse_gen(lines):
+    <span class="kw">for</span> line <span class="kw">in</span> lines:
+        <span class="kw">try</span>:
+            msg = json.loads(line)
+        <span class="kw">except</span> json.JSONDecodeError:
+            print(<span class="st">"  parse  skip"</span>); <span class="kw">continue</span>
+        print(<span class="st">"  parse "</span>, msg[<span class="st">"user"</span>]); <span class="kw">yield</span> msg
+<span class="kw">def</span> count_gen(msgs):
+    <span class="kw">for</span> m <span class="kw">in</span> msgs:
+        n = len(m[<span class="st">"text"</span>].split()); print(<span class="st">"  count "</span>, m[<span class="st">"user"</span>], n); <span class="kw">yield</span> n
+
+print(<span class="st">"eager (lists):"</span>)
+print(<span class="st">"total"</span>, sum(count_list(parse_list(read_list(LINES)))))
+print(<span class="st">"lazy (generators):"</span>)
+print(<span class="st">"total"</span>, sum(count_gen(parse_gen(read_gen(LINES)))))</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="g2_order.txt">eager (lists):
+  read   &#123;"user": "a"
+  read   oops
+  read   &#123;"user": "b"
+  parse  a
+  parse  skip
+  parse  b
+  count  a 2
+  count  b 1
+total 3
+lazy (generators):
+  read   &#123;"user": "a"
+  parse  a
+  count  a 2
+  read   oops
+  parse  skip
+  read   &#123;"user": "b"
+  parse  b
+  count  b 1
+total 3</pre></div>
+<p>At this size the difference is cosmetic. At a million lines it is the difference between fitting in memory and not: the same token count, eager and lazy, with Python's own allocation tracker (<code>tracemalloc</code>) reporting the peak.</p>
+<div class="pa-snip"><div class="pa-file">g3_memory.py</div><pre class="pa-code">"""Peak memory of the same token count, eager lists against a lazy generator pipeline.
+1,000,000 synthetic lines made on the fly; tracemalloc measures Python allocations."""
+<span class="kw">import</span> tracemalloc
+
+N = 1_000_000
+<span class="kw">def</span> lines():
+    <span class="kw">for</span> i <span class="kw">in</span> range(N):
+        <span class="kw">yield</span> <span class="st">f'&#123;&#123;"user": "u&#123;i % 200:04d&#125;", "text": "token number &#123;i&#125; here"&#125;&#125;'</span>
+
+<span class="kw">def</span> eager():
+    rows = list(lines())                         <span class="cm"># every line in memory</span>
+    words = [len(r.split()) <span class="kw">for</span> r <span class="kw">in</span> rows]       <span class="cm"># plus a list of counts</span>
+    <span class="kw">return</span> sum(words)
+
+<span class="kw">def</span> lazy():
+    <span class="kw">return</span> sum(len(r.split()) <span class="kw">for</span> r <span class="kw">in</span> lines())  <span class="cm"># one line at a time</span>
+
+<span class="kw">for</span> fn <span class="kw">in</span> (eager, lazy):
+    tracemalloc.start()
+    total = fn()
+    cur, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    print(<span class="st">f"&#123;fn.__name__:5&#125;  total=&#123;total&#125;  peak=&#123;peak / 1024:9,.1f&#125; KiB"</span>)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="g3_memory.txt">eager  total=7000000  peak=108,190.2 KiB
+lazy   total=7000000  peak=      1.1 KiB</pre></div>
+<p>The lazy pipeline peaked at about 1 KiB because only one line exists at a time; the eager one held a million strings and a million counts (about 106 MiB). Laziness also lets a pipeline start producing before its input ends, which is what streaming is.</p>
+<h3><code>yield from</code>, and generators that receive values</h3>
+<p><code>yield from sub</code> hands control to a sub-generator until it finishes, passing values (and anything sent in) straight through, and evaluates to the sub-generator's <code>return</code> value ({{PEP 380|https://peps.python.org/pep-0380/}}). Generators can also receive: <code>g.send(v)</code> resumes the generator and makes the paused <code>yield</code> expression evaluate to <code>v</code>. This "coroutine" use of generators is how <code>asyncio</code> was first built; today you will meet it mostly in library internals.</p>
+<div class="pa-snip"><div class="pa-file">g4_yield_from.py</div><pre class="pa-code"><span class="kw">def</span> flatten(xs):
+    <span class="kw">for</span> x <span class="kw">in</span> xs:
+        <span class="kw">if</span> isinstance(x, list):
+            <span class="kw">yield</span> <span class="kw">from</span> flatten(x)       <span class="cm"># delegate to a sub-generator</span>
+        <span class="kw">else</span>:
+            <span class="kw">yield</span> x
+
+print(list(flatten([1, [2, [3, 4]], 5])))
+
+<span class="kw">def</span> worker():
+    total = 0
+    <span class="kw">while</span> (x := (<span class="kw">yield</span>)) <span class="kw">is</span> <span class="kw">not</span> <span class="kw">None</span>:   <span class="cm"># receives values sent in</span>
+        total += x
+    <span class="kw">return</span> total                        <span class="cm"># becomes the value of `yield from`</span>
+
+<span class="kw">def</span> manager(results):
+    results.append((<span class="kw">yield</span> <span class="kw">from</span> worker()))
+
+res = []
+g = manager(res)
+next(g)                                 <span class="cm"># run to the first yield</span>
+<span class="kw">for</span> v <span class="kw">in</span> (10, 20, 30):
+    g.send(v)
+<span class="kw">try</span>:
+    g.send(<span class="kw">None</span>)
+<span class="kw">except</span> StopIteration:
+    <span class="kw">pass</span>
+print(res)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="g4_yield_from.txt">[1, 2, 3, 4, 5]
+[60]</pre></div>
+<h3>Streaming tokens like an LLM client</h3>
+<p>An LLM SDK's streaming response is a generator (or, in async code, an async generator, section 10): each iteration waits for the next chunk from the network. The part to get right is cleanup. If the consumer stops early, the generator is left paused inside its loop; its <code>finally</code> block runs when the generator is closed, either explicitly with <code>close()</code> (which raises <code>GeneratorExit</code> at the paused <code>yield</code>) or when it is garbage-collected. Close it yourself, or wrap it in <code>contextlib.closing</code>, when it holds a connection.</p>
+<div class="pa-snip"><div class="pa-file">g5_stream.py</div><pre class="pa-code">"""A generator that streams tokens the way an LLM client does, and what happens
+when the consumer stops early: the generator's finally block still runs."""
+<span class="kw">import</span> time
+
+<span class="kw">def</span> fake_model(prompt):
+    tokens = [<span class="st">"Py"</span>, <span class="st">"thon"</span>, <span class="st">" gener"</span>, <span class="st">"ators"</span>, <span class="st">" stream"</span>, <span class="st">" lazily"</span>, <span class="st">"."</span>]
+    print(<span class="st">"[open connection]"</span>)
+    <span class="kw">try</span>:
+        <span class="kw">for</span> t <span class="kw">in</span> tokens:
+            time.sleep(0.01)          <span class="cm"># stands in for network latency</span>
+            <span class="kw">yield</span> t
+    <span class="kw">finally</span>:
+        print(<span class="st">"[close connection]"</span>)   <span class="cm"># runs on exhaustion, on close(), and on garbage collection</span>
+
+out = []
+<span class="kw">for</span> tok <span class="kw">in</span> fake_model(<span class="st">"hi"</span>):
+    out.append(tok)
+print(repr(<span class="st">""</span>.join(out)))
+
+stream = fake_model(<span class="st">"hi"</span>)
+<span class="kw">for</span> i, tok <span class="kw">in</span> enumerate(stream):
+    <span class="kw">if</span> i == 2:
+        <span class="kw">break</span>                         <span class="cm"># stop after three tokens</span>
+print(<span class="st">"consumer stopped"</span>)
+stream.close()                        <span class="cm"># raises GeneratorExit inside the generator</span>
+print(<span class="st">"after close"</span>)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="g5_stream.txt">[open connection]
+[close connection]
+'Python generators stream lazily.'
+[open connection]
+consumer stopped
+[close connection]
+after close</pre></div>
+<h3>itertools: the standard lazy toolkit</h3>
+<div class="pa-snip pa-pred"><div class="pa-file">g6_itertools.py</div><pre class="pa-code"><span class="kw">import</span> itertools <span class="kw">as</span> it
+
+print(list(it.islice(it.count(10, 5), 4)))         <span class="cm"># lazy slice of an infinite iterator</span>
+print(list(it.batched(range(7), 3)))               <span class="cm"># 3.12+: fixed-size chunks</span>
+print(list(it.chain([1, 2], (3,), <span class="st">"ab"</span>)))
+users = [<span class="st">"b"</span>, <span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"a"</span>]
+print([(k, len(list(g))) <span class="kw">for</span> k, g <span class="kw">in</span> it.groupby(users)])          <span class="cm"># groups RUNS, not keys</span>
+print([(k, len(list(g))) <span class="kw">for</span> k, g <span class="kw">in</span> it.groupby(sorted(users))])  <span class="cm"># sort first</span>
+a, b = it.tee(iter([1, 2, 3]))
+print(list(a), list(b))</pre><details><summary>Predict the output, then reveal</summary><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="g6_itertools.txt">[10, 15, 20, 25]
+[(0, 1, 2), (3, 4, 5), (6,)]
+[1, 2, 3, 'a', 'b']
+[('b', 1), ('a', 1), ('b', 1), ('a', 1)]
+[('a', 2), ('b', 2)]
+[1, 2, 3] [1, 2, 3]</pre></details></div>
+<p><code>itertools.batched</code> is new in 3.12 and is the idiom for "send requests in groups of N". <code>groupby</code> groups consecutive runs, not equal keys, so sort first (the classic bug: per-user totals that list a user twice). <code>tee</code> buffers everything one copy has read and the other has not, so it can quietly hold as much memory as a list.</p>
+<div class="pa-cost"><div><div class="t">What it solves</div>Constant memory over unbounded input; work starts before the input ends; one stage per function.</div><div><div class="t">What it costs</div>Single use (a consumed iterator is silently empty), harder debugging (nothing runs until something consumes), a little per-item overhead.</div><div><div class="t">When not to</div>When you need the data twice, random access, or <code>len</code>: materialise a list once, deliberately.</div></div>
+</section>

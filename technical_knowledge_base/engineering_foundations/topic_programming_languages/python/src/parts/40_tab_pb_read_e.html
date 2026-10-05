@@ -1,0 +1,60 @@
+
+<section id="pb-s5">
+<h2>5. pytest essentials</h2>
+<p>pytest finds files named <code>test_*.py</code>, runs every function named <code>test_*</code>, and treats a plain <code>assert</code> as the check. Five features cover most real test suites; all five are in this one file, testing the root page's token-counting rule:</p>
+<div class="pb-code" id="pb-pt-src"></div>
+<ul class="tight">
+<li><b>Fixtures</b> (<code>chat_file</code>, defined in <code>conftest.py</code> so every test file can use it) are set-up functions that pytest calls for you when a test names them as a parameter. Built-in ones: <code>tmp_path</code> (a fresh folder per test) and <code>monkeypatch</code> (set an environment variable or attribute, undone after the test).</li>
+<li><b><code>@pytest.mark.parametrize</code></b> runs one test per row of inputs, each reported separately.</li>
+<li><b><code>pytest.raises</code></b> asserts that a block raises a given exception.</li>
+<li><b>Subtests</b> (new in pytest 9.0, 2025-11-05) check several values inside one test and report each failure separately, for cases where the values are only known at run time.</li>
+<li><b>Configuration</b> now lives natively in <code>pyproject.toml</code> under <code>[tool.pytest]</code> (pytest 9.0; the older <code>[tool.pytest.ini_options]</code> table still works), and <code>strict = true</code> turns on every strictness option (unknown markers and config keys become errors).</li>
+</ul>
+<div class="pb-code" id="pb-pt-cfg"></div>
+<div class="pb-term" data-pb-tr="pytest" data-pb-cmd="uv run pytest tests/test_tokens.py"></div>
+<p>The <code>u</code> marks are the two passing subtests. Now a test with a wrong belief in it. Predict what pytest prints before you reveal it:</p>
+<div class="pb-drill" id="pb-drill-pt"></div>
+<p>That message is pytest's <b>assertion rewriting</b>: at import time it rewrites each <code>assert</code> in test files so that a failure shows the values of every sub-expression (<code>where 2 = tokens('max_tokens')</code>). This is why pytest needs no <code>assertEqual</code> family.</p>
+<div class="pb-term" data-pb-tr="pytest" data-pb-cmd="uv run pytest -k|uv run --with pytest-xdist"></div>
+<p><code>-k</code> selects tests by name, <code>--co</code> lists what would run (note the parametrize ids, with non-ASCII escaped), and <code>-n 4</code> from the pytest-xdist plugin spreads tests over four worker processes. On nine tests the workers' start-up makes it slower (0.37 s against 0.01 s); it pays off on suites that take minutes.</p>
+<details class="mist"><summary>Common mistakes with pytest</summary><div class="b"><ul class="tight">
+<li>Testing implementation details (private functions, exact call counts) instead of behaviour, so every refactor breaks tests that found no bug.</li>
+<li>A fixture with <code>scope="session"</code> that returns a mutable object: one test's change leaks into the next.</li>
+<li>Forgetting that test files are imported: module-level code in a test file runs at collection time, even for tests you deselected.</li>
+<li>Running <code>pytest</code> instead of <code>uv run pytest</code>, so a global pytest without your dependencies runs the suite.</li>
+</ul></div></details>
+</section>
+
+<section id="pb-s6">
+<h2>6. Packaging and publishing: wheels, tags, ABIs and trusted publishing</h2>
+<p>Building a pure-Python package is one command. The real output of <code>uv build</code> on the library made in section 2, and what is inside each file:</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv build|unzip -l|unzip -p|tar tzf"></div>
+<p>The wheel is a zip with your package and a <code>.dist-info</code> folder (<code>METADATA</code> is what PyPI shows; <code>RECORD</code> lists every file with its hash; <code>WHEEL</code> holds the tag). The sdist carries the source and <code>pyproject.toml</code> so any installer can rebuild it.</p>
+<h3>Reading a wheel's name</h3>
+<p>A wheel's file name says exactly where it can be installed: <code>name-version-python-abi-platform.whl</code>. Pick a real file from PyPI (fetched 2026-10-05):</p>
+<div class="card" id="pb-wh-card">
+<div class="chips" id="pb-wh-chips"></div>
+<div class="pb-code" id="pb-wh-name" style="white-space:normal;overflow-wrap:anywhere"></div>
+<div id="pb-wh-parts"></div>
+</div>
+<ul class="tight">
+<li><b>Python tag</b> (<code>cp314</code>, <code>py3</code>): which interpreter. <code>py3</code> means any Python 3, so pure Python.</li>
+<li><b>ABI tag</b> (<code>cp314</code>, <code>cp314t</code>, <code>abi3</code>, <code>none</code>): the <dfn title="Application binary interface: the layout of C structures and functions a compiled extension relies on.">ABI</dfn> the compiled code was built against. A <code>cp314</code> wheel loads only on CPython 3.14; <code>cp314t</code> only on the free-threaded 3.14t; <code>abi3</code> (the <b>stable ABI</b>) on every CPython from the tagged version on, so one wheel per platform covers future Pythons. But <code>abi3</code> does not load on free-threaded builds, which is why projects that ship <code>abi3</code> wheels must still build a separate <code>cp314t</code> wheel, or their users on 3.14t build from source.</li>
+<li><b>Platform tag</b>: <code>manylinux_2_28_x86_64</code> runs on any Linux with glibc 2.28 or newer (PEP 600); <code>musllinux</code> is for Alpine; <code>macosx_11_0_arm64</code> needs macOS 11 or newer on Apple silicon; <code>win_amd64</code> is 64-bit Windows.</li>
+</ul>
+<div class="co"><div class="t">abi3t: the stable ABI for free-threaded builds (Python 3.15, PEP 803)</div>3.15 adds <code>abi3t</code>, a stable ABI that free-threaded builds can load: one wheel tagged <code>cp315-abi3.abi3t</code> runs on both builds of 3.15 and later. Porting "usually requires some non-trivial changes to the source code" ({{What's New in 3.15|https://docs.python.org/3.15/whatsnew/3.15.html}}), and free-threaded 3.14 predates it, so a project supporting 3.11 and up publishes three wheels per platform: <code>cp311-abi3</code>, <code>cp314-cp314t</code> and <code>cp315-abi3.abi3t</code>. What's New says build tools did not support it "at the time of writing"; the community guide, updated 2026-09-25, lists support released in CMake 4.4 with scikit-build-core 1.0, maturin 1.14 (1.14.1+ for both ABI families) and meson-python 0.21, with setuptools still under development ({{py-free-threading: abi3t|https://py-free-threading.github.io/abi3t/}}). <span id="pb-abi3t-count"></span></div>
+<h3>Build backends, and wheels for every platform</h3>
+<div class="pb-tbl pb-wide"><table>
+<thead><tr><th>Your package contains</th><th>Build backend</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Only Python</td><td><b>uv_build</b> (uv's default) or <b>hatchling</b></td><td>One <code>py3-none-any</code> wheel; nothing per platform</td></tr>
+<tr><td>Rust (PyO3)</td><td><b>maturin</b></td><td>The {{Rust page|n:3c65c17b0d0d8156bed9ead8a22f33b0}} builds the root's token counter this way</td></tr>
+<tr><td>C or C++ (nanobind, pybind11)</td><td><b>scikit-build-core</b> (CMake) or <b>meson-python</b></td><td>The modern replacement for <code>setup.py build_ext</code></td></tr>
+<tr><td>Cython, or a legacy <code>setup.py</code></td><td>setuptools</td><td>Still everywhere; no need to start a new project with it</td></tr>
+</tbody></table></div>
+<p>A compiled package needs one wheel per Python version (or one <code>abi3</code>), times free-threaded or not, times each operating system and processor: numpy 2.5.3 publishes <span id="pb-np-wheels">many</span> wheels. Nobody builds those by hand: <b>cibuildwheel</b> runs the build in CI on Linux (inside manylinux containers), macOS and Windows runners, and <b>maturin-action</b> does the same for Rust. Since cibuildwheel 3.1 (2025-07-23) free-threaded 3.14 wheels are built by default, so a project that does not support free-threading must skip them explicitly (<code>cp31?t-*</code>) ({{cibuildwheel changelog|https://cibuildwheel.pypa.io/en/stable/changelog/}}).</p>
+<h3>Publishing without a stored password: trusted publishing</h3>
+<p>The old way was to create a PyPI API token and store it as a CI secret, where it can leak. <b>Trusted publishing</b> uses OpenID Connect (OIDC): you tell PyPI once "this repository's workflow may publish this project"; at publish time the CI service (GitHub Actions, GitLab CI/CD, Google Cloud and others) issues a short-lived signed token, PyPI verifies it came from that repository and workflow, and no long-lived secret exists ({{PyPI docs|https://docs.pypi.org/trusted-publishers/}}). <code>uv publish</code> tries it first, which is what this output from a laptop (not a CI job) shows:</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv publish --dry-run"></div>
+<div class="pb-cost"><div class="t">What publishing costs</div>A version number on PyPI can never be reused, even after deleting the file, so try uploads on TestPyPI first. Every compiled wheel you publish is a promise to keep building it for each new Python, including the free-threaded ones, and users on a platform you skip will try to compile from your sdist.</div>
+</section>

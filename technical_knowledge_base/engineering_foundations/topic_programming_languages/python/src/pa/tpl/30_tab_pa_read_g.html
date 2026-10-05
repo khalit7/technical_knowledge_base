@@ -1,0 +1,27 @@
+
+<section id="pa-s7"><h2>7. Exceptions done well</h2>
+<p>An exception is an object; <code>raise</code> unwinds the stack until an <code>except</code> clause whose class matches (by <code>isinstance</code>, in the order written). Since 3.11 a <code>try</code> that raises nothing costs nothing ("zero-cost" exceptions, {{What's new in 3.11|https://docs.python.org/3/whatsnew/3.11.html}}), so "ask forgiveness, not permission" (try it and catch the failure) is not a performance sin.</p>
+<h3>The hierarchy, and what <code>except Exception</code> does not catch</h3>
+<p>Everything derives from <code>BaseException</code>. Ordinary errors derive from its subclass <code>Exception</code>; four do not, on purpose, so that a broad <code>except Exception:</code> lets them through: <code>KeyboardInterrupt</code> (Ctrl-C), <code>SystemExit</code> (<code>sys.exit()</code>), <code>GeneratorExit</code> (section 3) and, since 3.8, <code>asyncio.CancelledError</code> (section 10). Give your own library one root exception so callers can catch "anything from this client" with one clause, and specific subclasses carrying data (here <code>retry_after</code>) for the cases callers handle differently.</p>
+[[run:e3_hierarchy]]
+<div class="co warn"><div class="t">Correction to the old page</div>The old page listed as a trap "Catching <code>Exception</code> around a block that includes a <code>KeyboardInterrupt</code>-sensitive call". <code>except Exception</code> does not catch <code>KeyboardInterrupt</code> (output above: <code>False True</code>); the real trap is a bare <code>except:</code> or <code>except BaseException:</code>, which does, and so makes a program impossible to stop with Ctrl-C or to cancel in asyncio.</div>
+<h3>Chaining: <code>raise ... from</code></h3>
+<p>Raising inside an <code>except</code> block records the original exception as <code>__context__</code>, and the traceback says "During handling of the above exception, another exception occurred", which reads like a second bug. <code>raise NewError(...) from e</code> sets <code>__cause__</code> and says "The above exception was the direct cause", which is what you meant: translate a low-level error into your own while keeping the evidence. <code>from None</code> hides the original.</p>
+[[run:e1_chain]]
+<h3>Exception groups, <code>except*</code> and notes</h3>
+<p>Concurrent code can fail in several places at once. Since 3.11 an <code>ExceptionGroup</code> carries several exceptions, <code>except*</code> handles each matching subset ({{PEP 654|https://peps.python.org/pep-0654/}}), and <code>asyncio.TaskGroup</code> raises one when tasks fail. <code>e.add_note(...)</code> ({{PEP 678|https://peps.python.org/pep-0678/}}) attaches context without changing the exception's type.</p>
+[[run:e2_group]]
+<h3><code>else</code> and <code>finally</code></h3>
+[[predict:e4_finally]]
+<p>A <code>return</code> inside <code>finally</code> throws away the exception in flight. Since 3.14 the compiler warns about it: "The compiler now emits a SyntaxWarning when a return, break, or continue statement have the effect of leaving a finally block" ({{PEP 765|https://peps.python.org/pep-0765/}}). The same file under 3.13 prints no warning:</p>
+[[out:e4_finally_313|the same file, real output, Python 3.13.16]]
+<div class="pa-cost"><div><div class="t">Habits</div>Catch the narrowest exception you can handle; let the rest propagate; translate at boundaries with <code>raise ... from</code>; log with the traceback (<code>logger.exception</code>) once, at the top.</div><div><div class="t">Mistakes</div>Bare <code>except:</code>; <code>except Exception: pass</code>; catching around more code than the call that can fail; raising <code>Exception("...")</code> instead of a specific class.</div></div>
+</section>
+
+<section id="pa-s8"><h2>8. Context managers: <code>with</code></h2>
+<p><code>with m as r:</code> calls <code>m.__enter__()</code>, binds its return value to <code>r</code>, runs the body, and then always calls <code>m.__exit__(exc_type, exc, tb)</code>, with the exception if one was raised and <code>None</code>s if not. If <code>__exit__</code> returns a true value the exception is swallowed. It is <code>try/finally</code> packaged as an object, for anything that must be released: files, locks, connections, GPU memory pools, timers, temporary settings such as <code>torch.no_grad()</code>.</p>
+<p><code>contextlib.contextmanager</code> writes the class for you from a generator: the code before <code>yield</code> is <code>__enter__</code>, the code after it (in a <code>finally</code>) is <code>__exit__</code>. Several managers in one <code>with</code> are entered left to right and exited right to left. <code>ExitStack</code> handles a number of resources known only at run time ({{contextlib|https://docs.python.org/3/library/contextlib.html}}).</p>
+[[run:x1_with]]
+<p>The async form, <code>async with</code>, calls <code>__aenter__</code> and <code>__aexit__</code>, which may await (opening a connection, releasing a semaphore); section 10 uses it for <code>asyncio.timeout</code>, <code>TaskGroup</code> and <code>Semaphore</code>.</p>
+<div class="co warn"><div class="t">The mistake</div>Writing <code>@contextmanager</code> without <code>try/finally</code> around the <code>yield</code>. If the body raises, the exception is thrown in at the <code>yield</code>, and any cleanup written after it without <code>finally</code> never runs.</div>
+</section>

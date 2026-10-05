@@ -1,0 +1,167 @@
+
+<section id="pa-s4"><h2>4. Functions, closures and decorators</h2>
+<p><code>def</code> is a statement that runs: it builds a function object (code, defaults, a reference to the enclosing scope) and binds it to a name. Functions are values like any other: you can pass them, return them and store them in dicts. Three consequences follow.</p>
+<h3>Parameters: positional-only, keyword-only and the catch-alls</h3>
+<p>A <code>/</code> in the parameter list makes everything before it positional-only; a <code>*</code> makes everything after it keyword-only. <code>*args</code> collects extra positional arguments into a tuple and <code>**kwargs</code> extra keyword arguments into a dict. Keyword-only parameters are the cheap way to stop callers from passing <code>0.2</code> to the wrong slot.</p>
+<div class="pa-snip pa-pred"><div class="pa-file">f5_params.py</div><pre class="pa-code"><span class="kw">def</span> call(model, /, prompt, *, temperature=1.0, **extra):
+    <span class="cm">#     ^ positional-only  ^ keyword-only after *</span>
+    <span class="kw">return</span> <span class="st">f"&#123;model&#125; &#123;prompt!r&#125; t=&#123;temperature&#125; extra=&#123;extra&#125;"</span>
+
+print(call(<span class="st">"m1"</span>, <span class="st">"hi"</span>, temperature=0.2, top_p=0.9))
+print(call(<span class="st">"m1"</span>, prompt=<span class="st">"hi"</span>))
+<span class="kw">for</span> bad <span class="kw">in</span> (<span class="st">'call(model="m1", prompt="hi")'</span>, <span class="st">'call("m1", "hi", 0.2)'</span>):
+    <span class="kw">try</span>:
+        eval(bad)
+    <span class="kw">except</span> TypeError <span class="kw">as</span> e:
+        print(<span class="st">"TypeError:"</span>, e)
+
+<span class="kw">def</span> forward(*args, **kwargs):            <span class="cm"># collect anything...</span>
+    <span class="kw">return</span> call(*args, **kwargs)         <span class="cm"># ...and spread it back out</span>
+print(forward(<span class="st">"m2"</span>, <span class="st">"yo"</span>, temperature=0))</pre><details><summary>Predict the output, then reveal</summary><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="f5_params.txt">m1 'hi' t=0.2 extra=&#123;'top_p': 0.9&#125;
+m1 'hi' t=1.0 extra=&#123;&#125;
+TypeError: call() missing 1 required positional argument: 'model'
+TypeError: call() takes 2 positional arguments but 3 were given
+m2 'yo' t=0 extra=&#123;&#125;</pre></details></div>
+<p>The first error is worth a second look. Because <code>call</code> has <code>**extra</code>, the keyword <code>model="m1"</code> is not rejected as "positional-only passed as keyword"; it is accepted into <code>extra</code>, and the positional slot is then reported missing.</p>
+<h3>Closures: functions that remember variables</h3>
+<p>A function defined inside another can read the outer function's variables after the outer one has returned; it keeps them in <dfn>cells</dfn>, visible as <code>__closure__</code>. Two rules cause most closure bugs. A closure captures the variable, not its value at the time, so it sees whatever the variable holds when it finally runs (<dfn>late binding</dfn>). And any assignment to a name inside a function makes that name local to the whole function, unless you declare it <code>nonlocal</code> (enclosing function) or <code>global</code> (module).</p>
+<div class="pa-snip pa-pred"><div class="pa-file">f1_closure.py</div><pre class="pa-code"><span class="kw">def</span> make_counter():
+    count = 0
+    <span class="kw">def</span> inc():
+        <span class="kw">nonlocal</span> count            <span class="cm"># without this, count += 1 is an UnboundLocalError</span>
+        count += 1
+        <span class="kw">return</span> count
+    <span class="kw">return</span> inc
+
+c = make_counter()
+print(c(), c(), c(), c.__closure__[0].cell_contents)
+
+fs = [<span class="kw">lambda</span>: i <span class="kw">for</span> i <span class="kw">in</span> range(3)]       <span class="cm"># every lambda reads the SAME variable i, later</span>
+print([f() <span class="kw">for</span> f <span class="kw">in</span> fs])
+fs = [<span class="kw">lambda</span> i=i: i <span class="kw">for</span> i <span class="kw">in</span> range(3)]   <span class="cm"># a default is evaluated now: one value each</span>
+print([f() <span class="kw">for</span> f <span class="kw">in</span> fs])
+
+<span class="kw">def</span> broken():
+    total = 0
+    <span class="kw">def</span> add(x):
+        total += x                       <span class="cm"># assignment makes total local to add</span>
+    add(1)
+<span class="kw">try</span>:
+    broken()
+<span class="kw">except</span> UnboundLocalError <span class="kw">as</span> e:
+    print(<span class="st">"UnboundLocalError:"</span>, e)</pre><details><summary>Predict the output, then reveal</summary><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="f1_closure.txt">1 2 3 3
+[2, 2, 2]
+[0, 1, 2]
+UnboundLocalError: cannot access local variable 'total' where it is not associated with a value</pre></details></div>
+<h3>Decorators</h3>
+<p>A <dfn>decorator</dfn> is a function that takes a function and returns a replacement; <code>@timed</code> above <code>def work</code> means exactly <code>work = timed(work)</code>. Decorators stack bottom-up: the one nearest <code>def</code> is applied first. Always wrap with <code>functools.wraps</code>, or the replacement loses the original's name, docstring and signature (and tools such as pytest, FastAPI and debuggers see "wrapper").</p>
+<div class="pa-snip"><div class="pa-file">f2_decorator.py</div><pre class="pa-code"><span class="kw">import</span> functools, time
+
+<span class="kw">def</span> timed(fn):                                <span class="cm"># a decorator: takes a function, returns one</span>
+    @functools.wraps(fn)                      <span class="cm"># copy __name__, __doc__, __wrapped__ ...</span>
+    <span class="kw">def</span> wrapper(*args, **kwargs):
+        t0 = time.perf_counter()
+        <span class="kw">try</span>:
+            <span class="kw">return</span> fn(*args, **kwargs)
+        <span class="kw">finally</span>:
+            print(<span class="st">f"&#123;fn.__name__&#125; took &#123;time.perf_counter() - t0:.3f&#125; s"</span>)
+    <span class="kw">return</span> wrapper
+
+@timed                                        <span class="cm"># same as: work = timed(work)</span>
+<span class="kw">def</span> work(n):
+    <span class="st">"""Sum of squares."""</span>
+    <span class="kw">return</span> sum(i * i <span class="kw">for</span> i <span class="kw">in</span> range(n))
+
+print(work(1_000_000))
+print(work.__name__, work.__doc__, work.__wrapped__.__name__)
+
+<span class="kw">def</span> no_wraps(fn):
+    <span class="kw">def</span> wrapper(*a, **k):
+        <span class="kw">return</span> fn(*a, **k)
+    <span class="kw">return</span> wrapper
+
+@no_wraps
+<span class="kw">def</span> other():
+    <span class="st">"""Docs that will be lost."""</span>
+print(other.__name__, other.__doc__)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="f2_decorator.txt">work took 0.040 s
+333332833333500000
+work Sum of squares. work
+wrapper None</pre></div>
+<p>A decorator with arguments, <code>@retry(times=4)</code>, is one level deeper: <code>retry(times=4)</code> runs first and returns the actual decorator. This is the shape of a real retry helper for a model API: retry only errors that can succeed on a second try (connection resets, timeouts, rate limits), with exponential backoff and random jitter, and never retry a 400.</p>
+<div class="pa-snip"><div class="pa-file">f3_retry.py</div><pre class="pa-code"><span class="kw">import</span> functools, random, time
+
+<span class="kw">def</span> retry(times=3, base_delay=0.01, on=(ConnectionError, TimeoutError)):
+    <span class="st">"""A decorator WITH arguments is a function that returns a decorator."""</span>
+    <span class="kw">def</span> decorate(fn):
+        @functools.wraps(fn)
+        <span class="kw">def</span> wrapper(*args, **kwargs):
+            <span class="kw">for</span> attempt <span class="kw">in</span> range(1, times + 1):
+                <span class="kw">try</span>:
+                    <span class="kw">return</span> fn(*args, **kwargs)
+                <span class="kw">except</span> on <span class="kw">as</span> e:
+                    <span class="kw">if</span> attempt == times:
+                        <span class="kw">raise</span>                     <span class="cm"># out of attempts: re-raise the last error</span>
+                    delay = base_delay * 2 ** (attempt - 1) * random.uniform(0.5, 1.5)
+                    print(<span class="st">f"attempt &#123;attempt&#125; failed (&#123;e!r&#125;); retrying in &#123;delay * 1000:.0f&#125; ms"</span>)
+                    time.sleep(delay)
+        <span class="kw">return</span> wrapper
+    <span class="kw">return</span> decorate
+
+random.seed(0)
+calls = &#123;<span class="st">"n"</span>: 0&#125;
+
+@retry(times=4)
+<span class="kw">def</span> flaky_completion(prompt):
+    calls[<span class="st">"n"</span>] += 1
+    <span class="kw">if</span> calls[<span class="st">"n"</span>] &lt; 3:
+        <span class="kw">raise</span> ConnectionError(<span class="st">"upstream reset"</span>)
+    <span class="kw">return</span> <span class="st">f"answer to &#123;prompt!r&#125;"</span>
+
+print(flaky_completion(<span class="st">"hello"</span>))
+
+@retry(times=2)
+<span class="kw">def</span> bad_request():
+    <span class="kw">raise</span> ValueError(<span class="st">"400: bad request"</span>)          <span class="cm"># not in `on`: never retried</span>
+<span class="kw">try</span>:
+    bad_request()
+<span class="kw">except</span> ValueError <span class="kw">as</span> e:
+    print(<span class="st">"not retried:"</span>, e)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="f3_retry.txt">attempt 1 failed (ConnectionError('upstream reset')); retrying in 13 ms
+attempt 2 failed (ConnectionError('upstream reset')); retrying in 25 ms
+answer to 'hello'
+not retried: 400: bad request</pre></div>
+<p class="small mute">Backoff, jitter and retry budgets as a reliability pattern (and why retries without them make outages worse) are on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}. In production use a library such as tenacity or the retry built into your SDK client; the point here is that it is twenty lines of ordinary Python.</p>
+<h3>Caching with <code>functools.cache</code> and <code>lru_cache</code></h3>
+<p><code>@functools.cache</code> (unbounded) and <code>@functools.lru_cache(maxsize=N)</code> (least recently used entries evicted) store results keyed by the arguments ({{functools|https://docs.python.org/3/library/functools.html}}). Recursive Fibonacci makes the effect visible: 81 calls instead of 242,785 for a smaller input.</p>
+<div class="pa-snip"><div class="pa-file">f4_cache.py</div><pre class="pa-code"><span class="kw">import</span> functools
+
+calls = 0
+@functools.cache                       <span class="cm"># = lru_cache(maxsize=None)</span>
+<span class="kw">def</span> fib(n):
+    <span class="kw">global</span> calls
+    calls += 1
+    <span class="kw">return</span> n <span class="kw">if</span> n &lt; 2 <span class="kw">else</span> fib(n - 1) + fib(n - 2)
+
+print(fib(80), <span class="st">"calls:"</span>, calls)
+print(fib.cache_info())
+
+calls = 0
+<span class="kw">def</span> fib_plain(n):
+    <span class="kw">global</span> calls
+    calls += 1
+    <span class="kw">return</span> n <span class="kw">if</span> n &lt; 2 <span class="kw">else</span> fib_plain(n - 1) + fib_plain(n - 2)
+fib_plain(25)
+print(<span class="st">"without the cache, fib(25) makes"</span>, calls, <span class="st">"calls"</span>)
+
+@functools.lru_cache(maxsize=128)
+<span class="kw">def</span> embed(text):
+    <span class="kw">return</span> len(text)
+<span class="kw">try</span>:
+    embed([<span class="st">"not"</span>, <span class="st">"hashable"</span>])          <span class="cm"># arguments become a dict key</span>
+<span class="kw">except</span> TypeError <span class="kw">as</span> e:
+    print(<span class="st">"TypeError:"</span>, e)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="f4_cache.txt">23416728348467685 calls: 81
+CacheInfo(hits=78, misses=81, maxsize=None, currsize=81)
+without the cache, fib(25) makes 242785 calls
+TypeError: unhashable type: 'list'</pre></div>
+<div class="co warn"><div class="t">Caching pitfalls</div>Arguments become a dict key, so they must be hashable (the TypeError above). The cache holds strong references to every argument and result, so <code>lru_cache</code> on a method keeps each <code>self</code> alive "until they age out of the cache or until the cache is cleared" (with <code>cache</code>, which never evicts, for the life of the process); for methods without arguments the {{Python FAQ|https://docs.python.org/3/faq/programming.html#how-do-i-cache-method-calls}} suggests <code>functools.cached_property</code>, which lives and dies with the instance. And a cache is invisible state: a function whose result depends on time, a file or a random seed must not be cached.</div>
+<div class="pa-cost"><div><div class="t">What it solves</div>Cross-cutting behaviour (timing, retries, caching, auth, registration in a framework such as FastAPI's <code>@app.get</code>) written once.</div><div><div class="t">What it costs</div>An extra call per invocation, and indirection when reading a stack trace.</div><div><div class="t">When not to</div>When a plain function call at the call site would be clearer, or when the decorator changes the function's signature in ways type checkers cannot follow.</div></div>
+</section>

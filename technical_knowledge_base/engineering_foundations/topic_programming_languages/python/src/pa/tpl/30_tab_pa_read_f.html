@@ -1,0 +1,28 @@
+
+<section id="pa-s6"><h2>6. Typing for real code</h2>
+<p>Annotations (<code>x: int</code>, <code>-&gt; str</code>) are stored on the function and otherwise ignored when the program runs. A separate <dfn>type checker</dfn> reads them and reports contradictions before you run anything. The two used on this page are mypy (the reference checker, written in Python, version 2.4.0) and ty (Astral's checker, written in Rust, beta, version 0.0.84); comparing them, and pyright, across a whole project is {{Part 2|#t-pb-read}}'s job. Here is what the type system can express and what it actually catches.</p>
+<h3>The tools you will actually use</h3>
+<ul class="tight">
+<li><b>Built-in generics and unions</b>: <code>list[str]</code>, <code>dict[str, int]</code>, <code>str | None</code> (no imports since 3.9 and 3.10).</li>
+<li><b>Generic functions and classes</b>, with the 3.12 syntax: <code>def first[T](xs: Sequence[T]) -&gt; T</code> ({{PEP 695|https://peps.python.org/pep-0695/}}). <code>T</code> is a <dfn>type variable</dfn>: whatever type goes in, the same comes out.</li>
+<li><b><code>Protocol</code></b> ({{PEP 544|https://peps.python.org/pep-0544/}}): structural typing, "anything with a <code>close()</code> method", checked statically. It is duck typing made checkable, and usually the right tool where you would have written an abstract base class.</li>
+<li><b><code>TypedDict</code></b> ({{PEP 589|https://peps.python.org/pep-0589/}}): the shape of a plain dict, such as a chat message; <code>NotRequired</code> marks optional keys. Still a plain dict at run time.</li>
+<li><b><code>Literal</code></b>: an exact set of allowed values, <code>Literal["system", "user", "assistant"]</code>.</li>
+<li><b><code>@overload</code></b>: several signatures for one function whose return type depends on the argument type.</li>
+<li><b>Abstract parameter types, concrete return types</b>: accept <code>Iterable</code>, <code>Sequence</code> or <code>Mapping</code> (from <code>collections.abc</code>), return <code>list</code> or <code>dict</code>.</li>
+</ul>
+<p>One file uses all of them, then makes five deliberate mistakes. First, what Python itself does with it:</p>
+[[code:t1_types]]
+[[out:t1_types|python t1_types.py (real output, Python 3.14.8)]]
+<p>Python ran straight past mistakes 1 to 3 (a wrong role, a wrong type assigned, a value that might be None but happened not to be), because annotations are not checked at run time. It stopped at mistake 4 only because that one is also a runtime error. Now the checkers, which never run the code:</p>
+[[out:t1_mypy|mypy --python-version 3.14 t1_types.py (real output, mypy 2.4.0)]]
+[[out:t1_ty|ty check --output-format concise t1_types.py (real output, ty 0.0.84)]]
+<div class="co"><div class="t">Read the results together</div>
+<ul class="tight">
+<li>Both checkers caught mistakes 1, 2, 3 and 5 on the exact lines, including the one that Python only stumbles on at run time by luck (3: <code>find_user</code> can return <code>None</code>; the run happened to find the user).</li>
+<li><b>Neither caught mistake 4</b>, the only one that crashed. <code>legacy</code> has no annotations, so its parameter is treated as "any type", and anything goes. mypy goes further: by default it does not check the bodies of unannotated functions at all ({{mypy: no errors reported for obviously wrong code|https://mypy.readthedocs.io/en/stable/common_issues.html#no-errors-reported-for-obviously-wrong-code}}). Type checking protects only the code you annotate.</li>
+<li><code>reveal_type</code> prints the inferred type: <code>str</code> from both checkers, and, at run time (3.11+), Python prints "Runtime type is 'str'".</li>
+<li><code>Conn</code> never mentions <code>SupportsClose</code> and passes; <code>int</code> fails because it has no <code>close</code>. That is a Protocol at work.</li>
+</ul></div>
+<div class="pa-cost"><div><div class="t">What it solves</div>Whole classes of bugs found before running (None handling, wrong keys, wrong argument order); editor completion; documentation that cannot go stale.</div><div><div class="t">What it costs</div>Time writing annotations; occasional fights with the checker over code that is correct but hard to express; nothing at run time.</div><div><div class="t">Habits</div>Annotate every public function and every boundary; turn on the checker in CI; validate external data at run time with Pydantic, because a <code>TypedDict</code> on <code>json.loads(...)</code> is a promise, not a check (the root's {{Types section|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} makes the same point for TypeScript).</div></div>
+</section>

@@ -1,0 +1,46 @@
+
+<section id="pb-s3">
+<h2>3. ruff: lint and format</h2>
+<p>A <b>linter</b> reads your code without running it and reports likely bugs and style problems; a <b>formatter</b> rewrites layout (spacing, line breaks, quotes) so nobody argues about it. ruff does both, in Rust, and replaced flake8 and its plugins, isort, pyupgrade and black. Here is a file with eight problems you have probably written yourself:</p>
+<div class="pb-code" id="pb-ruff-src"></div>
+<div class="pb-drill" id="pb-drill-ruff"></div>
+<div class="pb-term" data-pb-tr="ruff" data-pb-cmd="uvx ruff@0.16.10 check --output-format concise chatlog.py"></div>
+<div class="co warn"><div class="t">New in ruff 0.16 (2026-07-23): the default set grew from 59 to 413 rules</div>That is why the first run already reports isort (I), pyupgrade (UP), bugbear (B), simplify (SIM) and bandit (S) findings with no configuration at all. The release also removed 18 pycodestyle and pyflakes rules from the default set, among them <code>E711</code> (<code>== None</code>) and <code>E401</code> (two imports on one line), which is why those two appear only once they are selected explicitly below ({{ruff changelog|https://github.com/astral-sh/ruff/blob/main/CHANGELOG.md}}). Pin ruff in your dev group, or one upgrade can fail every CI run.</div>
+<div class="pb-term" data-pb-tr="ruff" data-pb-cmd="uvx ruff@0.16.10 check --output-format concise --select|uvx ruff@0.16.10 check --select"></div>
+<p><code>--fix</code> applied nine safe fixes (sorted and pruned imports, <code>list</code> for <code>List</code>, <code>str | None</code> for <code>Optional[str]</code>, the empty f-string). The five that remain need a human: a mutable default argument (<code>seen=[]</code> is created once and shared by every call), a file opened without <code>with</code> and never closed, a <code>try</code>/<code>except</code>/<code>pass</code> that ruff suggests writing as <code>contextlib.suppress</code>, a bare <code>except</code> that also swallows <code>KeyboardInterrupt</code>, and <code>== None</code> (use <code>is None</code>). "Unsafe" fixes (<code>--unsafe-fixes</code>) are the ones that can change behaviour, so ruff never applies them silently.</p>
+<div class="pb-term" data-pb-tr="ruff" data-pb-cmd="uvx ruff@0.16.10 format chatlog.py"></div>
+<p>A small starting configuration in <code>pyproject.toml</code> (written for this page, not run as shown):</p>
+<div class="pb-code">[tool.ruff]
+target-version = "py314"   # lets UP rules rewrite to the newest syntax you support
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["E711", "E401"]   # add back what 0.16 removed, if you want it
+ignore = ["S101"]                  # assert is fine in tests</div>
+<div class="pb-cost"><div class="t">What it costs</div>Nothing at run time. The cost is noise: a large default rule set on an old codebase reports hundreds of findings. Adopt it with <code>ruff check --add-noqa</code> once (it writes suppression comments for existing findings) and fix new code only, or start from an explicit <code>select</code> list.</div>
+</section>
+
+<section id="pb-s4">
+<h2>4. Type checking in practice: ty, mypy and pyright on the same code</h2>
+<p>Python ignores annotations at run time; a <b>type checker</b> reads them and reports code that would fail. Three are worth knowing: <b>mypy</b> (the original, 2012, now 2.4.0 and actively developed), <b>pyright</b> (Microsoft, written in TypeScript, the engine behind VS Code's Pylance) and <b>ty</b> (Astral, Rust, beta since 2025-12-16, still version 0.0.84). The root page shows all three agreeing on the easy case, passing an <code>int</code> where a <code>str</code> is expected. Here are eight harder ones. Pick a case, guess which checkers flag it, then reveal their real output.</p>
+<div class="card" id="pb-tc-card">
+<div class="chips" id="pb-tc-chips"></div>
+<div class="pb-code" id="pb-tc-src"></div>
+<div class="pb-drill" id="pb-tc-drill"></div>
+<div id="pb-tc-out"></div>
+</div>
+<div class="pb-tbl"><table id="pb-tc-grid"></table></div>
+<p class="small mute">Run with <code>--python-version 3.14</code> on each file separately: ty 0.0.84, mypy 2.4.0 (<code>--no-incremental</code>), pyright 1.1.414, all through <code>uvx</code>. Source: <code>src/pb/types/run_checkers.sh</code>.</p>
+<p>What the grid teaches:</p>
+<ul class="tight">
+<li><b>Unannotated means unchecked.</b> A parameter without an annotation is <code>Any</code>, and no checker reports <code>add_one("a")</code> by default. mypy's <code>--strict</code> reports that the function has no annotations at all, which is the useful complaint.</li>
+<li><b>Defaults differ.</b> pyright reports a possibly unbound variable by default; ty and mypy have the rule but leave it off (<code>--error possibly-unresolved-reference</code>, <code>--enable-error-code possibly-undefined</code>).</li>
+<li><b>Messages differ more than verdicts.</b> On the shared cases they agree; ty and mypy add hints (<code>list</code> is invariant, use <code>Sequence</code>; "Maybe you forgot to use await?").</li>
+<li><b>Invariance</b> surprises everyone once: a <code>list[int]</code> is not a <code>list[float]</code>, because the function could append a float to your list of ints. Accept <code>Sequence[float]</code> when you only read.</li>
+</ul>
+<h3>Speed on a real codebase</h3>
+<p id="pb-ts-note"></p>
+<div class="bars" id="pb-ts-bars"></div>
+<div class="pb-cost"><div class="t">Which one to choose</div>Speed is not the question on most projects: all three are fast enough on a hundred files. Choose by where you read the errors. If your editor is VS Code, pyright is already running (as Pylance), so using pyright in CI means CI says what the editor said. mypy has the largest plugin ecosystem (Django, SQLAlchemy, pydantic) and the most documentation. ty is the fastest and its messages are the clearest here, but it is a 0.0.x beta whose rules still change. Whichever you pick, pin its version and run it in CI; a type checker that only runs on your laptop checks nothing.</div>
+<div class="pb-fix"><div class="t">Corrections to the old page</div><ul class="tight"><li>"mypy is legacy-maintenance only": wrong. mypy shipped 2.3.0 (2026-07-13), 2.3.1 and 2.4.0 (2026-10-01).</li><li>"ty (Astral, Rust) hit beta in 2026": wrong. Astral announced the beta on 2025-12-16; on 2026-10-05 it is version 0.0.84 and still beta.</li><li>"pyright still the correctness reference": an opinion, not a fact; the grid shows each checker's defaults differ, none is the reference.</li></ul>Sources and checks: the root page's corrections table ({{Toolchain atlas|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}), <a href="https://pypi.org/project/mypy/2.4.0/" target="_blank" rel="noopener noreferrer">mypy on PyPI</a>, <a href="https://github.com/astral-sh/ty" target="_blank" rel="noopener noreferrer">ty README</a>.</div>
+</section>

@@ -1,0 +1,195 @@
+
+<section id="pa-s5"><h2>5. Classes: inheritance, the MRO, dataclasses, slots and descriptors</h2>
+<p>A <code>class</code> statement runs its body like a function body, collects the names it defined into a dict, and builds a class object from it. An instance stores its own attributes (usually in <code>obj.__dict__</code>); everything else, methods included, lives on the class and is found by looking up the chain of classes.</p>
+<h3>Multiple inheritance and the MRO</h3>
+<p>That chain is the <dfn>method resolution order</dfn> (MRO), <code>Cls.__mro__</code>, computed by the C3 linearisation algorithm ({{The Python 2.3 MRO|https://docs.python.org/3/howto/mro.html}}): every class appears before its parents, and parents keep the order you listed them. <code>super()</code> means "the next class in the MRO of <code>type(self)</code>", not "my parent", which is what lets several mixins each run their part of <code>setup</code> exactly once (<dfn>cooperative</dfn> multiple inheritance). The same <code>Logging</code> class calls a different "next" depending on the object it is working for:</p>
+<div class="pa-snip pa-pred"><div class="pa-file">c1_mro.py</div><pre class="pa-code"><span class="kw">class</span> Base:
+    <span class="kw">def</span> setup(<span class="kw">self</span>):
+        print(<span class="st">"Base.setup"</span>)
+
+<span class="kw">class</span> Logging(Base):
+    <span class="kw">def</span> setup(<span class="kw">self</span>):
+        print(<span class="st">"Logging.setup -&gt;"</span>); super().setup()
+
+<span class="kw">class</span> Caching(Base):
+    <span class="kw">def</span> setup(<span class="kw">self</span>):
+        print(<span class="st">"Caching.setup -&gt;"</span>); super().setup()
+
+<span class="kw">class</span> Service(Logging, Caching):
+    <span class="kw">def</span> setup(<span class="kw">self</span>):
+        print(<span class="st">"Service.setup -&gt;"</span>); super().setup()
+
+print([c.__name__ <span class="kw">for</span> c <span class="kw">in</span> Service.__mro__])
+Service().setup()            <span class="cm"># super() means "next in the MRO of type(self)", not "my parent"</span>
+print([c.__name__ <span class="kw">for</span> c <span class="kw">in</span> Logging.__mro__])
+Logging().setup()
+
+<span class="kw">try</span>:
+    <span class="kw">class</span> Bad(Base, Logging):    <span class="cm"># Base listed before its own subclass</span>
+        <span class="kw">pass</span>
+<span class="kw">except</span> TypeError <span class="kw">as</span> e:
+    print(<span class="st">"TypeError:"</span>, e)</pre><details><summary>Predict the output, then reveal</summary><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="c1_mro.txt">['Service', 'Logging', 'Caching', 'Base', 'object']
+Service.setup -&gt;
+Logging.setup -&gt;
+Caching.setup -&gt;
+Base.setup
+['Logging', 'Base', 'object']
+Logging.setup -&gt;
+Base.setup
+TypeError: Cannot create a consistent method resolution order (MRO) for bases Base, Logging</pre></details></div>
+<p>Use this sparingly. Mixins with cooperative <code>super()</code> calls are fine; deep hierarchies are rarely worth it. Composition (an object that holds a <code>Cache</code> and a <code>Logger</code>) is usually easier to read and test than inheriting from both.</p>
+<h3>Dataclasses: classes for data, without the boilerplate</h3>
+<p><code>@dataclass</code> reads the annotated class attributes and writes <code>__init__</code>, <code>__repr__</code> and <code>__eq__</code> for you ({{dataclasses|https://docs.python.org/3/library/dataclasses.html}}). <code>frozen=True</code> forbids assignment after construction and makes instances hashable; <code>slots=True</code> (3.10+) gives them <code>__slots__</code>; <code>order=True</code> adds comparisons. Mutable defaults must go through <code>field(default_factory=...)</code>, and the decorator refuses the mistake outright:</p>
+<div class="pa-snip"><div class="pa-file">c2_dataclass.py</div><pre class="pa-code"><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field, asdict, replace
+
+@dataclass(frozen=<span class="kw">True</span>, slots=<span class="kw">True</span>)
+<span class="kw">class</span> Message:
+    role: str
+    text: str
+    tokens: int = 0
+
+@dataclass
+<span class="kw">class</span> Conversation:
+    model: str
+    messages: list[Message] = field(default_factory=list)   <span class="cm"># a fresh list per instance</span>
+
+m = Message(<span class="st">"user"</span>, <span class="st">"hi"</span>, 1)
+print(m, m == Message(<span class="st">"user"</span>, <span class="st">"hi"</span>, 1), hash(m) == hash(Message(<span class="st">"user"</span>, <span class="st">"hi"</span>, 1)))
+print(replace(m, text=<span class="st">"hello"</span>))
+<span class="kw">try</span>:
+    m.text = <span class="st">"changed"</span>
+<span class="kw">except</span> Exception <span class="kw">as</span> e:
+    print(type(e).__name__ + <span class="st">":"</span>, e)
+c = Conversation(<span class="st">"small-model"</span>)
+c.messages.append(m)
+print(asdict(c))
+<span class="kw">try</span>:
+    @dataclass
+    <span class="kw">class</span> Bad:
+        items: list = []
+<span class="kw">except</span> ValueError <span class="kw">as</span> e:
+    print(<span class="st">"ValueError:"</span>, e)
+print(Message.__slots__, hasattr(m, <span class="st">"__dict__"</span>))</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="c2_dataclass.txt">Message(role='user', text='hi', tokens=1) True True
+Message(role='user', text='hello', tokens=1)
+FrozenInstanceError: cannot assign to field 'text'
+&#123;'model': 'small-model', 'messages': [&#123;'role': 'user', 'text': 'hi', 'tokens': 1&#125;]&#125;
+ValueError: mutable default &lt;class 'list'&gt; for field items is not allowed: use default_factory
+('role', 'text', 'tokens') False</pre></div>
+<p>For data that crosses a boundary (JSON from an API, a config file) a dataclass checks nothing; its annotations are not enforced at run time. Use Pydantic there, which validates and converts; use dataclasses inside your program, where the type checker already guards the values.</p>
+<h3><code>__slots__</code> and what an object really costs</h3>
+<p><code>__slots__ = ("user", "n")</code> tells CPython to reserve fixed storage for exactly those attributes and not to create a per-instance <code>__dict__</code>. Measured on 100,000 small records (each figure includes the 8-byte slot in the list that holds them):</p>
+<div class="pa-snip"><div class="pa-file">c3_sizes.py</div><pre class="pa-code"><span class="st">"""Memory for 100,000 small records, measured with tracemalloc (Python allocations only)."""</span>
+<span class="kw">import</span> tracemalloc
+<span class="kw">from</span> collections <span class="kw">import</span> namedtuple
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+
+<span class="kw">class</span> Plain:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, user, n): <span class="kw">self</span>.user, <span class="kw">self</span>.n = user, n
+<span class="kw">class</span> Slotted:
+    __slots__ = (<span class="st">"user"</span>, <span class="st">"n"</span>)
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, user, n): <span class="kw">self</span>.user, <span class="kw">self</span>.n = user, n
+@dataclass
+<span class="kw">class</span> DC:
+    user: str; n: int
+@dataclass(slots=<span class="kw">True</span>)
+<span class="kw">class</span> DCS:
+    user: str; n: int
+NT = namedtuple(<span class="st">"NT"</span>, <span class="st">"user n"</span>)
+
+USERS = [<span class="st">f"u&#123;i:04d&#125;"</span> <span class="kw">for</span> i <span class="kw">in</span> range(200)]       <span class="cm"># shared strings, not counted per record</span>
+N = 100_000
+kinds = [(<span class="st">"class"</span>, Plain), (<span class="st">"class + __slots__"</span>, Slotted), (<span class="st">"dataclass"</span>, DC),
+         (<span class="st">"dataclass(slots=True)"</span>, DCS), (<span class="st">"namedtuple"</span>, NT), (<span class="st">"tuple"</span>, <span class="kw">lambda</span> u, n: (u, n)),
+         (<span class="st">"dict"</span>, <span class="kw">lambda</span> u, n: &#123;<span class="st">"user"</span>: u, <span class="st">"n"</span>: n&#125;)]
+<span class="kw">for</span> name, make <span class="kw">in</span> kinds:
+    tracemalloc.start()
+    rows = [make(USERS[i % 200], i % 250) <span class="kw">for</span> i <span class="kw">in</span> range(N)]   <span class="cm"># small ints are cached: no int allocation</span>
+    cur, _ = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    <span class="kw">del</span> rows
+    print(<span class="st">f"&#123;name:22&#125; &#123;cur / N:6.1f&#125; bytes per record"</span>)</pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="c3_sizes.txt">class                    96.1 bytes per record
+class + __slots__        56.0 bytes per record
+dataclass                96.0 bytes per record
+dataclass(slots=True)    56.0 bytes per record
+namedtuple               80.0 bytes per record
+tuple                    72.0 bytes per record
+dict                    192.0 bytes per record</pre></div>
+<p>Slots save 40 bytes per record here (96 against 56). The gap used to be larger: since 3.11 "Objects now require less memory due to lazily created object namespaces" ({{What's new in 3.11|https://docs.python.org/3/whatsnew/3.11.html}}), so a plain instance no longer builds a full dict up front. A dict per record costs twice a plain object. The costs of slots: no new attributes at run time (an AttributeError, see the Predict tab), and some care with multiple inheritance. Use them for classes with millions of instances; ignore them otherwise.</p>
+<h3>Descriptors: how <code>property</code>, methods and <code>self</code> work</h3>
+<p>A <dfn>descriptor</dfn> is an object stored on a class that defines <code>__get__</code> (and optionally <code>__set__</code> and <code>__delete__</code>). When attribute lookup finds one on the class, it calls it instead of returning it ({{Descriptor guide|https://docs.python.org/3/howto/descriptor.html}}). One with <code>__set__</code> is a <dfn>data descriptor</dfn>, and the order is fixed: "data descriptors always override instance dictionaries. However, non-data descriptors can be overridden by instance dictionaries" ({{Invoking descriptors|https://docs.python.org/3/reference/datamodel.html#invoking-descriptors}}). The full lookup for <code>obj.x</code>:</p>
+<ol class="tight">
+<li>a data descriptor named <code>x</code> on <code>type(obj)</code> or its MRO (for example a <code>property</code>);</li>
+<li>otherwise <code>obj.__dict__["x"]</code>;</li>
+<li>otherwise a non-data descriptor (a plain function, which becomes a bound method) or plain class attribute;</li>
+<li>otherwise <code>__getattr__</code>, if the class defines it; otherwise AttributeError.</li>
+</ol>
+<p>This one mechanism explains a lot of "magic". <code>property</code> is a data descriptor, which is why assigning to a read-only property fails instead of shadowing it. A function is a non-data descriptor: <code>s.describe</code> calls <code>describe.__get__(s, Sampling)</code>, which returns a <dfn>bound method</dfn> that remembers <code>s</code> and passes it as <code>self</code>. Frameworks (Django fields, SQLAlchemy columns, Pydantic) are descriptors with validation inside, like the <code>Positive</code> below.</p>
+<div class="pa-snip"><div class="pa-file">c4_descriptor.py</div><pre class="pa-code"><span class="kw">class</span> Positive:
+    <span class="st">"""A reusable validated attribute: a data descriptor (it defines __set__)."""</span>
+    <span class="kw">def</span> __set_name__(<span class="kw">self</span>, owner, name):
+        <span class="kw">self</span>.name = <span class="st">"_"</span> + name
+    <span class="kw">def</span> __get__(<span class="kw">self</span>, obj, owner):
+        <span class="kw">if</span> obj <span class="kw">is</span> <span class="kw">None</span>:
+            <span class="kw">return</span> <span class="kw">self</span>                    <span class="cm"># accessed on the class itself</span>
+        <span class="kw">return</span> getattr(obj, <span class="kw">self</span>.name)
+    <span class="kw">def</span> __set__(<span class="kw">self</span>, obj, value):
+        <span class="kw">if</span> value &lt;= 0:
+            <span class="kw">raise</span> ValueError(<span class="st">f"&#123;self.name[1:]&#125; must be &gt; 0, got &#123;value&#125;"</span>)
+        setattr(obj, <span class="kw">self</span>.name, value)
+
+<span class="kw">class</span> Sampling:
+    temperature = Positive()
+    max_tokens = Positive()
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, temperature, max_tokens):
+        <span class="kw">self</span>.temperature = temperature     <span class="cm"># goes through Positive.__set__</span>
+        <span class="kw">self</span>.max_tokens = max_tokens
+    @property                              <span class="cm"># property is a data descriptor too</span>
+    <span class="kw">def</span> budget(<span class="kw">self</span>):
+        <span class="kw">return</span> <span class="kw">self</span>.max_tokens * 4
+    <span class="kw">def</span> describe(<span class="kw">self</span>):
+        <span class="kw">return</span> <span class="st">f"t=&#123;self.temperature&#125; max=&#123;self.max_tokens&#125;"</span>
+
+s = Sampling(0.7, 256)
+print(s.describe(), s.budget, vars(s))
+<span class="kw">try</span>:
+    s.temperature = 0
+<span class="kw">except</span> ValueError <span class="kw">as</span> e:
+    print(<span class="st">"ValueError:"</span>, e)
+<span class="kw">try</span>:
+    s.budget = 1
+<span class="kw">except</span> AttributeError <span class="kw">as</span> e:
+    print(<span class="st">"AttributeError:"</span>, e)
+
+<span class="cm"># A method is a function stored on the class; looking it up on an instance binds it.</span>
+f = Sampling.__dict__[<span class="st">"describe"</span>]
+print(type(f).__name__, type(s.describe).__name__)
+bound = f.__get__(s, Sampling)            <span class="cm"># exactly what s.describe does</span>
+print(bound(), bound.__self__ <span class="kw">is</span> s, bound.__func__ <span class="kw">is</span> f)
+print(s.describe <span class="kw">is</span> s.describe, s.describe == s.describe)   <span class="cm"># a new bound method each time</span></pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="c4_descriptor.txt">t=0.7 max=256 1024 &#123;'_temperature': 0.7, '_max_tokens': 256&#125;
+ValueError: temperature must be &gt; 0, got 0
+AttributeError: property 'budget' of 'Sampling' object has no setter
+function method
+t=0.7 max=256 True True
+False True</pre></div>
+<p>The last line explains a small cost you pay on every method call in a loop: <code>s.describe</code> builds a new bound-method object each time (the direct call form <code>obj.method()</code> skips it: the compiler emits one <code>LOAD_ATTR</code> that pushes the function and <code>self</code> separately, shown as <code>describe + NULL|self</code> below, so no bound-method object is built; the optimisation was called <code>LOAD_METHOD</code> when it arrived in 3.7).</p>
+<div class="pa-snip"><div class="pa-file">c6_method_call.py</div><pre class="pa-code"><span class="kw">import</span> dis
+dis.dis(<span class="st">"s.describe()"</span>)            <span class="cm"># the direct call form: method and self pushed separately</span></pre><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="c6_method_call.txt">  0           RESUME                   0
+
+  1           LOAD_NAME                0 (s)
+              LOAD_ATTR                3 (describe + NULL|self)
+              CALL                     0
+              RETURN_VALUE</pre></div>
+<p>And the classic trap, a mutable class attribute, follows from step 3 of the lookup: reading <code>a.tools</code> finds the class's list; assigning <code>a.tools = ...</code> creates an instance entry that shadows it.</p>
+<div class="pa-snip pa-pred"><div class="pa-file">c5_classattr.py</div><pre class="pa-code"><span class="kw">class</span> Agent:
+    tools = []                    <span class="cm"># ONE list, stored on the class, shared by all instances</span>
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, name):
+        <span class="kw">self</span>.name = name
+
+a, b = Agent(<span class="st">"a"</span>), Agent(<span class="st">"b"</span>)
+a.tools.append(<span class="st">"search"</span>)          <span class="cm"># finds Agent.tools via the class, mutates it</span>
+print(b.tools, <span class="st">"tools"</span> <span class="kw">in</span> vars(a))
+a.tools = [<span class="st">"calc"</span>]                <span class="cm"># assignment creates an instance attribute that shadows it</span>
+print(a.tools, b.tools, Agent.tools)</pre><details><summary>Predict the output, then reveal</summary><div class="pa-olab">real output, Python 3.14.8</div><pre class="pa-out" data-src="c5_classattr.txt">['search'] False
+['calc'] ['search'] ['search']</pre></details></div>
+<div class="pa-cost"><div><div class="t">Choose</div>A dataclass for plain records; a frozen dataclass for values and dict keys; Pydantic at trust boundaries; a <code>Protocol</code> (section 6) instead of a base class when you only need "has these methods".</div><div><div class="t">Avoid</div>Inheritance for code reuse alone; metaclasses unless you are writing a framework (<code>__init_subclass__</code> covers most "run code when a subclass is defined" needs); mutable class attributes.</div></div>
+</section>

@@ -1,0 +1,77 @@
+
+<section id="pb-s9">
+<h2>9. Free-threading in practice</h2>
+<p>The <b>GIL</b> (global interpreter lock) is the lock in the standard CPython build that lets only one thread run Python bytecode at a time; threads still help when they wait on I/O, but CPU-bound threads take turns ({{Part 1|#t-pa-read}} explains threads and the GIL from the start). The <b>free-threaded build</b> removes it (PEP 703): experimental in 3.13, officially supported but still optional in 3.14 (PEP 779), installed separately as <code>python3.14t</code> (<code>uv python install 3.14t</code>). Check which one you are on with <code>sys._is_gil_enabled()</code>.</p>
+<p>The workload below is the root page's program: count tokens per user over 100,000 JSONL chat lines (the root's generator, seed 7), split across threads, each thread filling its own <code>Counter</code> that the main thread merges (<code>src/pb/ft/</code>). Every thread recorded when it finished each block of 1,000 lines; this is that recording, to scale, for four threads:</p>
+<div class="card" id="pb-ft-card">
+<div class="seg" id="pb-ft-seg"><button data-m="PY314" class="on">3.14, GIL</button><button data-m="PY314T">3.14t, no GIL</button><button data-m="PY315">3.15rc3, GIL</button><button data-m="PY315T">3.15rc3t, no GIL</button></div>
+<div class="pb-plot" id="pb-ft-plot"></div>
+<div class="pb-cnt" id="pb-ft-cnt"></div>
+<div class="pb-cap" id="pb-ft-cap"></div>
+<div class="pb-ctl" id="pb-ft-ctl"></div>
+<div class="pb-src" id="pb-ft-src"></div>
+</div>
+<p id="pb-ft-scale-p"></p>
+<div class="bars" id="pb-ft-bars"></div>
+<p class="small mute">Speed-up over one thread on the same interpreter, median of five runs. The {{Runtime lab|#t-pb-lab}} has every run, 1 to 8 threads, and the single-thread overhead. {{Part 1|#t-pa-read}} timed a different CPU-bound job on 3.14t (0.94 s serial, 0.37 s on four threads, about 2.5x); this final run of the token counter measured <span id="pb-ft-cmp4"></span> with four threads, under a heavier load. Both are rough: on a busy laptop the same job varies by tens of percent between runs.</p>
+<h3>The bug the GIL was hiding (and was not preventing)</h3>
+<p>Now the same four threads update one shared dictionary instead of their own: <code>shared[user] = shared.get(user, 0) + n</code>. That line reads, adds and writes back in three steps; if two threads read the same old value, one addition is lost.</p>
+<div class="pb-drill" id="pb-drill-race"></div>
+<p>Python's documentation never promised that a read-modify-write like this is atomic under the GIL ({{Python FAQ|https://docs.python.org/3/faq/library.html#what-kinds-of-global-value-mutation-are-thread-safe}}); the GIL only made losing an update rare. Without the GIL the same bug happens on most runs. What the free-threaded build does guarantee is that built-in objects stay internally consistent: the dictionary never crashes or corrupts, it only holds the wrong totals. The fixes are the same on both builds: a <code>threading.Lock</code> around the update (exact in every run above), or, better, no shared state, which is what the scaling run did.</p>
+<h3>Will your dependencies run without the GIL?</h3>
+<p>A C, C++ or Rust extension must declare that it is safe without the GIL. If it does not, importing it on the free-threaded build silently turns the GIL back on for the whole process, with a warning. Real output from two tiny C extensions, identical except for one line that declares support (<code>Py_mod_gil</code>):</p>
+<div class="pb-term" data-pb-tr="cext" data-pb-cmd="python3.14t -u check.py|python3.14t -u -X gil=0"></div>
+<p><code>-X gil=0</code> (or <code>PYTHON_GIL=0</code>) forces it off anyway, at your own risk. Packages that have not been ported may also refuse to build. This is orjson 3.12.0, which has no free-threaded wheel, being built from source for 3.14t:</p>
+<div class="pb-term" id="pb-orjson"></div>
+<p class="pb-src">Real output of <code>uv run --python 3.14t --with orjson==3.12.0</code> on 2026-10-05, filtered to the error lines (paths shortened to ...); the full log is long.</p>
+<p id="pb-ft-wheels"></p>
+<div class="pb-cost"><div class="t">What it costs, and when not to use it</div><ul class="tight">
+<li><b>Single-thread speed.</b> The 3.13 HOWTO measured about 40% overhead; for 3.14, What's New says "roughly 5-10%" and the 3.14 HOWTO "about 1% on macOS aarch64 to 8% on x86-64 Linux" (pyperformance). Measured here on one workload: <span id="pb-ft-ovh">see the Runtime lab</span>.</li>
+<li><b>Memory.</b> PEP 779 set a 20% memory overhead target for phase II; this page did not measure memory.</li>
+<li><b>Your own thread safety.</b> Races that the GIL made rare now happen; audit shared mutable state before switching.</li>
+<li><b>Dependencies.</b> One unported extension turns the GIL back on for everyone (above).</li>
+<li><b>Not for I/O-bound work</b>: threads already overlap waiting under the GIL, and asyncio is the usual tool for many connections.</li>
+</ul>Whether the free-threaded build ever becomes the default ("phase III") is "left for a future PEP" (PEP 779); the old page's forecast of 3.16 to 3.17 is a guess, not a plan.</div>
+<div class="pb-fix"><div class="t">Corrections to the old page</div><ul class="tight">
+<li>"~3x speedups on 4-core CPU-bound thread pools": no source given. Measured here on a busy 10-core laptop: <span id="pb-ft-fix4"></span> with 4 threads on 3.14t.</li>
+<li>"single-digit-percent single-thread overhead (down from ~40% in 3.13)": both figures are the official ones (3.14 What's New, 3.13 HOWTO); this workload measured <span id="pb-ft-fix1"></span>.</li></ul></div>
+</section>
+
+<section id="pb-s10">
+<h2>10. The experimental JIT, on and off</h2>
+<p>A <b>JIT</b> (just-in-time compiler) turns hot code into machine code while the program runs. CPython's (PEP 744, since 3.13) is a <b>copy-and-patch</b> JIT: when the specialising interpreter finds a hot loop, it records a trace of its micro-operations and stitches together machine-code templates ("stencils") that were compiled with LLVM when CPython itself was built, so you need no LLVM at run time. It ships compiled into the official macOS and Windows installers and the uv builds used here, but is off unless you set <code>PYTHON_JIT=1</code>; in 3.14 and later, <code>sys._jit.is_enabled()</code> tells you whether it is on.</p>
+<div class="pb-drill" id="pb-drill-jit"></div>
+<div class="pb-tbl"><table id="pb-jit-tbl"></table></div>
+<p class="small mute" id="pb-jit-note"></p>
+<p>Read it as: on 3.15 the JIT sped up the plain Python loops (character scanning, float arithmetic) by about half or more, helped small-object code less, and did not help (here, slightly slowed) the generator pipeline, inside What's New's own range for 3.15 ("roughly 15% slowdown to over 100% speedup", 11-12% geometric mean on AArch64 macOS). The 3.14 JIT on this machine is mostly a wash, sometimes slower. Trust the direction, not the digits: the final run was made with a load average around 10, and an earlier run the same day (<code>src/pb/out/jit_earlier_run.txt</code>) gave 1.5x instead of 2.4x for <code>json_count</code> on 3.15. It is off by default in 3.15 too, and a 2x speed-up of a Python loop is still far from moving the loop to NumPy or Rust (the root's {{Benchmark|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab measures the token counter in all four languages).</p>
+</section>
+
+<section id="pb-s11">
+<h2>11. Subinterpreters (3.14), measured</h2>
+<p>A <b>subinterpreter</b> is a second, isolated Python interpreter inside the same process: its own modules, its own globals and, since 3.12, its own GIL (PEP 684). 3.14 exposed them in the standard library (PEP 734): <code>concurrent.interpreters</code> and <code>InterpreterPoolExecutor</code>, which has the same interface as the thread and process pools. They sit between threads and processes: parallel on the normal GIL build like processes, but cheaper to start, and like processes they share nothing by default: arguments and results cross by pickling, except immutable built-ins (None, bool, bytes, str, int, float and tuples of these), which are shared or copied cheaply, and <code>memoryview</code> and interpreter queues, which really share mutable data ({{docs|https://docs.python.org/3.14/library/concurrent.interpreters.html}}).</p>
+<div class="pb-code">from concurrent.futures import InterpreterPoolExecutor
+
+with InterpreterPoolExecutor(max_workers=4) as ex:
+    totals = list(ex.map(count_slice, parts))   # same code as with ThreadPoolExecutor</div>
+<div class="pb-tbl"><table id="pb-int-tbl"></table></div>
+<p class="small mute" id="pb-int-note"></p>
+<p>On this job, subinterpreters and processes both clearly beat threads on the GIL build, because each worker has its own GIL; processes were somewhat faster here. Neither reached 4x with 4 workers: each worker receives 25,000 lines by pickling and returns a pickled <code>Counter</code>, and the machine was busy. A new subinterpreter started more than ten times faster than a spawned process, and about a hundred times slower than a thread.</p>
+<p>The mistake everyone makes first: a subinterpreter has its own <code>sys.path</code>, so a module the main interpreter found through a <code>sys.path.insert</code> is invisible to it. Simple arguments can hide this; a list argument has to be pickled together with the function, and then it fails:</p>
+<div class="pb-term" data-pb-tr="interp_mistake" data-pb-cmd="python3.14 -u mistake.py|PYTHONPATH"></div>
+<div class="pb-cost"><div class="t">What it costs, and when not to use it</div>Every extension module must opt in to being loaded in several interpreters, and the most important one has not:<div class="pb-term" data-pb-tr="interp_numpy" data-pb-cmd="uv run"></div>Objects cannot be shared, only copied; and on the free-threaded build plain threads already run in parallel with shared memory. Use them on the normal build for CPU-bound work whose inputs and outputs are small, when process start-up is the problem.</div>
+</section>
+
+<section id="pb-s12">
+<h2>12. Choosing</h2>
+<div class="pb-tbl pb-wide"><table>
+<thead><tr><th>Your situation</th><th>Use</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Many network calls (an LLM API fan-out)</td><td>asyncio, or threads</td><td>The time is waiting, which the GIL never blocked; see Part 1's asyncio section</td></tr>
+<tr><td>CPU-bound pure Python, dependencies all ported</td><td>threads on the free-threaded build</td><td>Shared memory, no pickling; measured above</td></tr>
+<tr><td>CPU-bound pure Python on the normal build</td><td><code>ProcessPoolExecutor</code>, or <code>InterpreterPoolExecutor</code> when start-up matters</td><td>Each worker has its own GIL; inputs and outputs are pickled</td></tr>
+<tr><td>Numeric arrays</td><td>NumPy (or PyTorch)</td><td>The loop runs in C and releases the GIL; neither the JIT nor threads come close</td></tr>
+<tr><td>One hot Python loop you cannot vectorise</td><td>Rust with PyO3 (or C++ with nanobind)</td><td>The {{Rust page|n:3c65c17b0d0d8156bed9ead8a22f33b0}}'s Part 2 builds the token counter as an extension, step by step</td></tr>
+<tr><td>A CLI that starts slowly</td><td><code>lazy import</code> on 3.15, or <code>-X lazy_imports=all</code></td><td>Start-up is imports; measured in section 8</td></tr>
+<tr><td>Minimum Python version for new code</td><td>3.12 for libraries, the newest bugfix line (3.14) for applications</td><td>3.12 has the modern generic syntax; applications control their runtime</td></tr>
+</tbody></table></div>
+</section>

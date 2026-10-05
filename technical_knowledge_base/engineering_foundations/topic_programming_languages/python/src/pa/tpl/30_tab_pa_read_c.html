@@ -1,0 +1,30 @@
+
+<section id="pa-s3"><h2>3. Iterators and generators: laziness as a protocol</h2>
+<p>Two words that are easy to blur. An <dfn>iterable</dfn> is anything you can loop over: it has <code>__iter__</code>, which returns a fresh iterator each time. An <dfn>iterator</dfn> is the cursor: it has <code>__next__</code>, which returns the next item or raises <code>StopIteration</code>, and its <code>__iter__</code> returns itself. A list is an iterable; <code>iter(list)</code> is an iterator. The difference shows up when you loop twice ({{Iterator types|https://docs.python.org/3/library/stdtypes.html#iterator-types}}).</p>
+[[predict:g1_protocol]]
+<p>A <dfn>generator function</dfn> is a function containing <code>yield</code>. Calling it runs none of its body; it returns a generator, an iterator whose <code>__next__</code> runs the body until the next <code>yield</code>, hands that value out, and freezes the function's local variables until it is asked again. A <dfn>generator expression</dfn>, <code>(f(x) for x in xs)</code>, is the one-line form.</p>
+<h3>Lazy pipelines: one item at a time through every stage</h3>
+<p>Write each processing stage as a generator and chain them, and items flow through the whole chain one at a time. Write the same stages as functions that return lists, and each stage finishes before the next begins, holding every intermediate result. The program below does both on three lines of a chat log (the root page's running example: count tokens per user). The animation replays its real printed trace.</p>
+<div class="pa-anim" id="pa-lazy-card">
+<div class="seg" id="pa-lazy-mode"><button data-m="eager" class="on">Eager: lists</button><button data-m="lazy">Lazy: generators</button></div>
+<div class="pa-ctl" id="pa-lazy-ctl"></div>
+<div class="pa-svg" id="pa-lazy-svg"></div>
+<div class="pa-cap" id="pa-lazy-cap"></div>
+<div class="pa-counters" id="pa-lazy-cnt"></div>
+<div class="pa-src">Steps are the lines printed by <code>code/g2_order.py</code> (below), in order. "Held" counts items stored in the lists that exist at that moment: the eager version keeps each stage's whole list until the next stage has consumed it.</div>
+</div>
+[[run:g2_order]]
+<p>At this size the difference is cosmetic. At a million lines it is the difference between fitting in memory and not: the same token count, eager and lazy, with Python's own allocation tracker (<code>tracemalloc</code>) reporting the peak.</p>
+[[run:g3_memory]]
+<p>The lazy pipeline peaked at about 1 KiB because only one line exists at a time; the eager one held a million strings and a million counts (about 106 MiB). Laziness also lets a pipeline start producing before its input ends, which is what streaming is.</p>
+<h3><code>yield from</code>, and generators that receive values</h3>
+<p><code>yield from sub</code> hands control to a sub-generator until it finishes, passing values (and anything sent in) straight through, and evaluates to the sub-generator's <code>return</code> value ({{PEP 380|https://peps.python.org/pep-0380/}}). Generators can also receive: <code>g.send(v)</code> resumes the generator and makes the paused <code>yield</code> expression evaluate to <code>v</code>. This "coroutine" use of generators is how <code>asyncio</code> was first built; today you will meet it mostly in library internals.</p>
+[[run:g4_yield_from]]
+<h3>Streaming tokens like an LLM client</h3>
+<p>An LLM SDK's streaming response is a generator (or, in async code, an async generator, section 10): each iteration waits for the next chunk from the network. The part to get right is cleanup. If the consumer stops early, the generator is left paused inside its loop; its <code>finally</code> block runs when the generator is closed, either explicitly with <code>close()</code> (which raises <code>GeneratorExit</code> at the paused <code>yield</code>) or when it is garbage-collected. Close it yourself, or wrap it in <code>contextlib.closing</code>, when it holds a connection.</p>
+[[run:g5_stream]]
+<h3>itertools: the standard lazy toolkit</h3>
+[[predict:g6_itertools]]
+<p><code>itertools.batched</code> is new in 3.12 and is the idiom for "send requests in groups of N". <code>groupby</code> groups consecutive runs, not equal keys, so sort first (the classic bug: per-user totals that list a user twice). <code>tee</code> buffers everything one copy has read and the other has not, so it can quietly hold as much memory as a list.</p>
+<div class="pa-cost"><div><div class="t">What it solves</div>Constant memory over unbounded input; work starts before the input ends; one stage per function.</div><div><div class="t">What it costs</div>Single use (a consumed iterator is silently empty), harder debugging (nothing runs until something consumes), a little per-item overhead.</div><div><div class="t">When not to</div>When you need the data twice, random access, or <code>len</code>: materialise a list once, deliberately.</div></div>
+</section>

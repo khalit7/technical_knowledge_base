@@ -2502,3 +2502,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/enginee
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/src/viz_ideas.md`.
 
+### Python: the language in depth and the 2026 toolchain (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/engineering_foundations/topic_programming_languages/python/src/viz_ideas.md`.
+
