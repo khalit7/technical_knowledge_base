@@ -3045,3 +3045,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu/src/viz_ideas.md`.
 
+### Profiling, benchmarking and correctness: Nsight, honest timing, numerical checks (2026-10-05)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness/src/viz_ideas.md`.
+
