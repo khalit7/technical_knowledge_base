@@ -1,0 +1,53 @@
+<div class="tab" id="t-map" role="tabpanel" hidden>
+<style>
+#t-map .mapbars .row{display:grid;grid-template-columns:minmax(0,15em) minmax(0,1fr) 4.2em;gap:8px;align-items:center;font-size:12.5px;margin:2px 0}
+#t-map .mapbars .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px}
+#t-map .mapbars .track{height:13px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+#t-map .mapbars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;transition:width .6s ease}
+#t-map .mapbars .fill.in{background:var(--acc)}#t-map .mapbars .fill.out{background:var(--dim)}#t-map .mapbars .fill.chat{background:var(--c3)}
+#t-map .mapbars .val{text-align:right;font-variant-numeric:tabular-nums}
+#t-map .mapbars .row.mv .nm{font-weight:600}
+#t-map pre.maptext{max-height:340px;overflow:auto;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11.5px;line-height:1.4;white-space:pre;margin:6px 0}
+#t-map .lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-map .lg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+@media (prefers-reduced-motion:reduce){#t-map .mapbars .row,#t-map .mapbars .fill{transition:none!important}}
+@media (max-width:520px){#t-map .mapbars .row{grid-template-columns:minmax(0,10.5em) minmax(0,1fr) 3.8em}#t-map .mapbars .nm{direction:rtl;text-align:left}}
+</style>
+<h2>What this tab is: Aider's repository map, computed for real</h2>
+<p>A coding agent has to know what is in a repository before it can change it, but a repository does not fit in a prompt. There are three answers in use. <b>Search on demand</b>: the model runs <code>grep</code>, <code>glob</code> and <code>read</code> itself, one call at a time (Claude Code, Codex, opencode, mini-SWE-agent). <b>An embedding index</b>: chunks of code are turned into vectors and the closest ones to the question are retrieved (Cursor). <b>A ranked summary sent up front</b>: Aider's repository map, which this tab opens up. Aider was built in 2023 for models with small windows and no tool calls, so it could not let the model search; it had to choose for it.</p>
+<p>Everything below is Aider 0.86.2's own <code>RepoMap</code> class run on a real repository, the source of mini-SWE-agent v2.4.6 (59 Python files under <code>src/minisweagent/</code>; paths shown without that prefix). Nothing is simulated: the ranks are the PageRank values Aider computed, the map text is what Aider would put in the prompt. Script: <code>src/repomap_lab.py</code>.</p>
+
+<h2>How the map is built, in five steps</h2>
+<ol>
+<li><b>Tags.</b> tree-sitter parses every file into tags: each <i>definition</i> (a class, function or method name, with its line) and each <i>reference</i> (a use of a name).</li>
+<li><b>A graph of files.</b> For every name that is both defined and referenced, an edge runs from each file that uses it to each file that defines it. Its weight is <code>mul &times; &radic;(number of uses)</code>, where <code>mul</code> starts at 1 and is multiplied by 10 if your message mentions the name, by 10 if the name is a long (8 or more characters) snake_case, kebab-case or camelCase name, by 0.1 if it starts with an underscore, by 0.1 if more than five files define it, and by 50 if the using file is in the chat ({{repomap.py lines 487 to 514|https://github.com/Aider-AI/aider/blob/5dc9490bb35f9729ef2c95d00a19ccd30c26339c/aider/repomap.py#L487-L514}}).</li>
+<li><b>Personalised PageRank.</b> PageRank (the random-surfer score) runs on that graph. "Personalised" means the surfer restarts not uniformly but at files you care about: each file in the chat, each file whose name you typed, and each file whose path contains a word you typed gets 100/N added to its restart weight (N = number of files; here 100/59 = 1.69) ({{lines 383 to 445|https://github.com/Aider-AI/aider/blob/5dc9490bb35f9729ef2c95d00a19ccd30c26339c/aider/repomap.py#L383-L445}}).</li>
+<li><b>Rank flows to definitions.</b> Each file's rank is split across its outgoing edges by weight and summed per (defining file, name), so the map lists the most important definitions, not just files. Files already in the chat are skipped: their full text is sent anyway.</li>
+<li><b>Fit the budget.</b> A binary search finds how many ranked definitions fit the token budget (<code>--map-tokens</code>, default 1,024 when the model's window is unknown, as for a local model) and stops once the map is within 15 percent of it, above or below ({{lines 676 to 703|https://github.com/Aider-AI/aider/blob/5dc9490bb35f9729ef2c95d00a19ccd30c26339c/aider/repomap.py#L676-L703}}). That is why a 2,048-token budget produced a 2,233-token map below.</li>
+</ol>
+
+<h2>Same repository, three situations</h2>
+<div class="card" id="hm-card">
+<div class="seg" id="hm-seg"><button data-m="cold" class="on">Nothing in the chat</button><button data-m="chat">default.py added</button><button data-m="chat_ident">default.py + a message</button></div>
+<div id="hm-anim" class="an-ctl"></div>
+<p id="hm-cap" class="small" style="min-height:3.2em"></p>
+<label class="small">Map budget <select id="hm-bud"><option>256</option><option>512</option><option selected>1024</option><option>2048</option></select> tokens</label>
+<span class="small mute" id="hm-tok"></span>
+<div class="lg"><span><i style="background:var(--acc)"></i>in the map at this budget</span><span><i style="background:var(--dim)"></i>ranked but cut by the budget</span><span><i style="background:var(--c3)"></i>in the chat (sent in full, never in the map)</span></div>
+<div class="mapbars" id="hm-bars"></div>
+<button id="hm-all" class="small">Show all 47 ranked files</button>
+<h3>The map text Aider would send</h3>
+<pre class="maptext" id="hm-text"></pre>
+</div>
+<div class="co key"><div class="t">What the three runs show</div>
+<p>With nothing in the chat, generic utilities win: <code>utils/serialize.py</code> (rank 0.130), whose <code>recursive_merge</code> is called from many files, tops the list. Adding <code>agents/default.py</code> to the chat gives it the restart weight and multiplies its outgoing edges by 50, so the files it uses (<code>agents/interactive.py</code>, <code>exceptions.py</code>) climb. The message "Make DockerEnvironment retry when docker exec times out" pulls in <code>environments/docker.py</code> twice over (its stem matches "docker", and so does a path component) and also <code>models/utils/retry.py</code>, only because the ordinary word "retry" equals that file's name. Name matching is cheap and blunt: it cannot tell a word from an intent.</p></div>
+<div class="co warn"><div class="t">Not reproduced, and what is simplified</div>
+<p>No published figure to reproduce; by construction these are Aider's own numbers. The budgets were passed straight to <code>get_ranked_tags_map</code>; in a real session with no files in the chat Aider first multiplies the budget by <code>--map-multiplier-no-files</code> (default 2). Token counts use the tokenizer Aider attaches to <code>gpt-4o</code>; a different model's tokenizer gives slightly different counts.</p></div>
+<h2>Why this matters when you build a harness</h2>
+<ul class="tight">
+<li><b>It costs no model calls.</b> The map is computed locally by a parser and a graph library, then paid for as input tokens on each request; agentic search pays a model call per <code>grep</code>.</li>
+<li><b>It goes stale in the other direction.</b> The map is recomputed when files change (Aider's <code>--map-refresh</code>), but it can only rank what the parser sees: strings, configs and dynamic dispatch carry no tags.</li>
+<li><b>Agentic search won for strong models.</b> Every tool-calling harness on this page lets the model search instead. Aider's idea survives as a cheap first message: a few hundred tokens of "what is where" before the first <code>grep</code>.</li>
+</ul>
+<div class="try"><b>Predict, then check:</b> which file rises if your message names <code>get_model_class</code>? (The identifier gets the x10 mention multiplier on every edge into <code>models/__init__.py</code>, and no file name matches it.)</div>
+</div>
