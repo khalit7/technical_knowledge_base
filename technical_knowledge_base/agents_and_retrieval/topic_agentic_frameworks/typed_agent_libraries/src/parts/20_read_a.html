@@ -1,0 +1,27 @@
+
+<section id="rd-1">
+<h2>1. From a Python function to a tool schema</h2>
+<p>A model cannot call Python. It can only emit text, and tool calling works because the model was trained to emit a small JSON object (a tool name and its arguments) when the request lists tools, each described by a <dfn>JSON Schema</dfn>: a JSON description of an object's fields, their types, which are required, and a sentence about each. The harness root explains the wire format ({{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}, Reading, section 2; and {{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}}, with a real tokenised tool call). Writing those schemas by hand is tedious and drifts from the code. The first thing a typed library does is <b>derive the schema from the function</b>: the parameter names and type hints give fields and types, defaults decide what is optional, and the docstring gives descriptions.</p>
+<p>Same function, given to each library's own tool decorator, schema printed by the library's code with no model call <span class="meas">MEASURED</span>. The function has three required parameters and one with a default, and a Google-style docstring with an <code>Args:</code> block:</p>
+<pre class="code">def edit_file(path: str, old: str, new: str, count: int = 1) -&gt; str:
+    """Replace the exact text old with new in a file.
+
+    Args:
+        path: File to edit, relative to the repository root.
+        old: Text to find; must occur exactly `count` times.
+        new: Replacement text.
+        count: How many occurrences to expect.
+    """</pre>
+<div class="seg" id="ftyped-sch-seg"><button data-m="pydantic_ai" class="on">Pydantic AI</button><button data-m="openai_agents">OpenAI Agents SDK</button><button data-m="smolagents">smolagents</button><button data-m="google_adk">Google ADK</button></div>
+<div class="sch" id="ftyped-sch"></div>
+<div class="out" id="ftyped-sch-note"></div>
+<p><b>What differs, and why it matters.</b> Four libraries, four schemas for one function:</p>
+<ul class="tight">
+<li><b>Pydantic AI</b> keeps <code>count</code> optional with its default, copies each <code>Args:</code> line into that field's description, and adds <code>"additionalProperties": false</code>. It validates the model's arguments with Pydantic before your function runs; a type error becomes a retry message to the model, not an exception in your code.</li>
+<li><b>The OpenAI Agents SDK</b> marks the schema <code>strict</code> and so lists <b>all four fields as required</b>, <code>count</code> included. That is not a bug: OpenAI's strict mode requires every property to be listed in <code>required</code> and <code>additionalProperties: false</code> ({{function calling guide|https://developers.openai.com/api/docs/guides/function-calling}}). The schema still shows <code>"default": 1</code> as a hint, but the model must always send a value; a default in your Python signature is never used.</li>
+<li><b>smolagents</b> drops the default and marks <code>count</code> <code>"nullable": true</code> instead, a keyword from OpenAPI rather than JSON Schema. Its <code>@tool</code> decorator also refuses a function whose docstring lacks an <code>Args:</code> line for every parameter.</li>
+<li><b>Google ADK</b>, on the path a non-Gemini model takes, sends no per-argument descriptions at all: the whole docstring becomes the tool description, and each field gets only a title. The recorded ADK request on the running example shows the same shape on the wire.</li>
+</ul>
+<p>The lesson is not that one is right. It is that <b>the schema the model sees is generated, so read it</b>: the cheapest debugging step with any of these libraries is to log the first request and look at the tools array. The parent topic's {{Same agent, six ways|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab shows every request each framework sent on one task.</p>
+<div class="drill"><details><summary><b>Predict:</b> with the Agents SDK's strict schema the model always sends <code>count</code>. Which value actually runs if you never meant the model to choose it?</summary><div>Whatever the model sends, usually the hint it was shown (1). Your Python default never runs, because the argument is always present. If the model should not choose the value, keep the parameter out of the tool's signature (pass it through the run's context) rather than giving it a default. Strict schemas move defaults out of the model's reach; if the default matters, say it in the description.</div></details></div>
+</section>

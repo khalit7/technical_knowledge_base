@@ -1,0 +1,36 @@
+
+<section id="rd-pai">
+<h2>3. Pydantic AI: types all the way through</h2>
+<p><b>The idea.</b> Pydantic AI is built by the team behind Pydantic, the validation library that most Python LLM SDKs already use for their request types. Its bet is that an agent is a function with typed inputs and a typed result, so it makes the agent generic in two types: <code>Agent[Deps, Output]</code>. <dfn>Deps</dfn> (dependencies) is any object you want tools and validators to receive at run time (a database handle, an HTTP client, the case being worked on); <dfn>Output</dfn> is the type the run must return. A type checker then catches a tool that expects the wrong deps, or code that treats the result as the wrong type, before anything runs.</p>
+<pre class="code">@dataclass
+class Case:                       # the dependency: whatever tools and validators need
+    code: str
+    test_output: str
+
+agent = Agent(model, deps_type=Case, output_type=Triage, retries=2)
+
+@agent.output_validator
+def check(ctx: RunContext[Case], out: Triage) -&gt; Triage:
+    names = {n.name for n in ast.walk(ast.parse(ctx.deps.code)) if isinstance(n, ast.FunctionDef)}
+    if out.function not in names:
+        raise ModelRetry(f"There is no function named {out.function!r} in mod.py; it defines {sorted(names)}.")
+    ...                           # the line must parse, and must not be a line already in the file
+    return out
+
+result = agent.run_sync(prompt, deps=Case(code, test_output))   # result.output is a Triage</pre>
+<p class="small mute">Excerpt of this page's validator run (full script in the page's source folder). <code>Triage</code> is the result type used throughout this page: the buggy function's name, a category from a fixed list of five, the failing test, a one-line fix, and a confidence from 1 to 5.</p>
+<h3>Validate, then retry</h3>
+<p>Three things can send a <dfn>retry prompt</dfn> back to the model instead of failing the run: arguments that do not fit a tool's types (checked by Pydantic before your function is called; probed with a scripted fake model, the model received an <code>int_parsing</code> error and the function never ran <span class="meas">MEASURED</span>), a tool that raises <code>ModelRetry("...")</code>, and an output that fails validation or an output validator that raises <code>ModelRetry</code>. Each retry message ends with the same sentence, "Fix the errors and try again." (<code>messages.py</code>, line 1854). The budget is small by default: <b>one retry</b> for tools and one for output (<code>agent/__init__.py</code>, line 432; <code>retries=2</code> above raises both), then the run raises <code>UnexpectedModelBehavior: Exceeded maximum output retries</code>.</p>
+<p><b>Measured.</b> The validator above on the ten triage cases, local model, three passes: <span data-fv="val.summary"></span> <span class="meas">MEASURED</span>. A schema can only check shape; a validator with access to deps can check <b>content against the world</b> (the function exists, the line is new), which is where most real failures are.</p>
+<h3>Where the result comes from: the hidden <code>final_result</code> tool</h3>
+<p>By default the output type travels as an extra tool named <code>final_result</code> (<code>_output.py</code>, line 73), described by the output class's docstring when it has one (ours: "Triage of one failing test.") and otherwise as "The final response which ends this conversation" (line 74), and the request sets <code>tool_choice</code> to <code>"required"</code> so the model may not answer in plain text. The run ends when that tool is called with arguments that validate. Two consequences matter in practice. First, a model that ignores <code>tool_choice</code>, or a server that drops it (the local server used here does, section 2), can answer in prose; Pydantic AI then tries to parse the prose as JSON and sends back "Invalid JSON" plus "Fix the errors and try again", which does not say "call <code>final_result</code>". That is exactly how the parent's Same agent tab lost 3 of 4 Pydantic AI runs after the code was already fixed. Second, if the model calls <code>final_result</code> alongside other tools in one reply, the <dfn>end strategy</dfn> decides: <code>'graceful'</code> (the default since 2.0) runs the function tools that came before it, <code>'early'</code> stops at once, <code>'exhaustive'</code> runs everything (<code>_agent_graph.py</code>, line 128). The other two output modes, native and prompted, are compared on real requests in section 2.</p>
+<h3>The run is a graph</h3>
+<p>Under <code>run_sync</code> is a small state machine from the companion package <code>pydantic_graph</code>: <code>UserPromptNode</code> builds the request, <code>ModelRequestNode</code> calls the model, <code>CallToolsNode</code> runs tools and decides whether the output is final, <code>SetFinalResult</code> ends it (<code>_agent_graph.py</code>, lines 600 to 2609). <code>agent.iter(...)</code> hands you those nodes one at a time, so you can log, stop or edit between steps without callbacks. <code>pydantic_graph</code> is also usable on its own for multi-step workflows with typed state, the same school as LangGraph (see {{LangChain and LangGraph|n:3c65c17b0d0d81529358c996382224ac}}).</p>
+<h3>What it does not do for you</h3>
+<ul class="tight">
+<li><b>Memory.</b> There is no session store: a run returns its messages and you pass them back as <code>message_history</code> next time. That is explicit and easy to test; it also means persistence is your job.</li>
+<li><b>Durable execution.</b> Not built in, but the docs list five co-maintained integrations (Temporal, DBOS, Prefect, Restate, AWS Lambda) that checkpoint each model and tool call so a crashed run resumes ({{durable execution overview|https://pydantic.dev/docs/ai/integrations/durable_execution/overview/}}); the 2.54.0 wheel ships the Temporal, DBOS and Prefect modules.</li>
+<li><b>Limits.</b> <code>UsageLimits</code> defaults to 50 requests per run (<code>usage.py</code>, line 482); tokens are unlimited unless you set them.</li>
+<li><b>Tracing.</b> Off until you configure OpenTelemetry or Logfire (Pydantic's hosted tracing product). On the first run in a terminal, 2.54.0 prints a banner advertising Logfire setup; it is shown once per process and suppressed by <code>PYDANTIC_AI_NO_BANNER</code>, in CI and under pytest (<code>_display.py</code>, line 212) <span class="meas">MEASURED</span>.</li>
+</ul>
+</section>
