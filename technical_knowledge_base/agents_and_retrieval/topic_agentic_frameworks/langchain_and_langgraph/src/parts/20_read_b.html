@@ -1,0 +1,61 @@
+<section id="rs2">
+<h2>2. A graph from zero</h2>
+<p>Start from the problem. The running example's tests fail because of two bugs. A sensible workflow: run the tests, diagnose each failure (the two diagnoses are independent, so they can run at the same time), propose one fix from both diagnoses, show the fix to a person, and apply it only if they approve. In plain Python that is five function calls in a row. LangGraph asks you to write the same thing as three kinds of object:</p>
+<ul>
+<li><b>State</b>: a typed dictionary (a <code>TypedDict</code>, Pydantic model or dataclass) that every step reads and updates. Here: the code, the test output, a list of diagnoses, the patch, the decision.</li>
+<li><b>Nodes</b>: plain functions that take the state and return a <em>partial update</em>, a dictionary with only the keys they change. A node never mutates the state it was given.</li>
+<li><b>Edges</b>: which node runs after which. A normal edge always fires; a <dfn>conditional edge</dfn> calls a function on the state and returns the name of the next node (or several, or <code>END</code>).</li>
+</ul>
+<p>This is the graph that the {{Crash lab|#t-crash}} ran with real Claude Haiku 4.5 calls, trimmed to its shape (the full script is in this page's <code>src/code/e6_real.py</code>):</p>
+<pre class="flg-pre">class S(TypedDict, total=False):
+    core: str
+    test_output: str
+    diagnoses: Annotated[list, operator.add]   <span class="cm"># a reducer: parallel writes are concatenated</span>
+    patch: str
+    decision: str
+    passed: bool
+
+b = StateGraph(S)
+b.add_node("read_and_test", read_and_test)            <span class="cm"># returns {"core": ..., "test_output": ...}</span>
+b.add_node("diagnose_word_count", diag("test_word_count"))
+b.add_node("diagnose_top_words", diag("test_top_words"))
+b.add_node("propose_fix", propose_fix)                <span class="cm"># one model call, returns {"patch": ...}</span>
+b.add_node("human_review", human_review)              <span class="cm"># calls interrupt(), returns {"decision": ...}</span>
+b.add_node("apply_and_test", apply_and_test)
+b.add_edge(START, "read_and_test")
+b.add_edge("read_and_test", "diagnose_word_count")    <span class="cm"># two edges out of one node:</span>
+b.add_edge("read_and_test", "diagnose_top_words")     <span class="cm"># both run, in parallel</span>
+b.add_edge(["diagnose_word_count", "diagnose_top_words"], "propose_fix")   <span class="cm"># wait for both</span>
+b.add_edge("propose_fix", "human_review")
+b.add_edge("human_review", "apply_and_test")
+b.add_edge("apply_and_test", END)
+app = b.compile(checkpointer=SqliteSaver(conn))       <span class="cm"># the checkpointer is what makes it durable</span>
+app.invoke({}, {"configurable": {"thread_id": "fix-1"}})</pre>
+<div class="flg-two"><div id="flg-g-real"></div><div>
+<p class="small"><code>compile()</code> checks the wiring (an edge to an unknown node raises <code>ValueError: Found edge ending at unknown node</code>; a node that no edge reaches compiles without complaint <span class="meas">MEASURED</span>) and returns a <code>Pregel</code> object, the runtime of section 3. It has <code>invoke</code> (run to the end or to the next interrupt), <code>stream</code> (the same, yielding events as it goes), <code>get_state</code> and <code>get_state_history</code> (read checkpoints) and <code>update_state</code> (write one, which is how you edit or rewind). Every call carries a <dfn>config</dfn> whose <code>thread_id</code> names the run; with a checkpointer it is required ("you <b>must</b> specify a <code>thread_id</code>", {{docs|https://docs.langchain.com/oss/python/langgraph/checkpointers}}).</p>
+<p class="small">Dashed arrows are conditional edges; solid ones always fire. START and END are not nodes you write: START is where the input enters, and reaching END with nothing else scheduled ends the run.</p></div></div>
+<p><b>A second way to write the same thing</b> is the functional API (stable since langgraph 0.2.74, 19 Feb 2025, {{release notes|https://github.com/langchain-ai/langgraph/releases}}): ordinary Python control flow inside a function marked <code>@entrypoint</code>, calling functions marked <code>@task</code> whose results are saved. Section 9 shows a measured example. Both compile to the same runtime: "Compiling a StateGraph or creating an <code>@entrypoint</code> produces a <code>Pregel</code> instance" ({{docs|https://docs.langchain.com/oss/python/langgraph/pregel}}).</p>
+</section>
+
+<section id="rs3">
+<h2>3. How a graph runs: super-steps</h2>
+<p>LangGraph's README says it "is inspired by Pregel and Apache Beam". Pregel is Google's system for computing over huge graphs ({{Malewicz et al., SIGMOD 2010|https://doi.org/10.1145/1807167.1807184}}); it runs in the <dfn>bulk synchronous parallel</dfn> style that Valiant described in 1990 ({{CACM 33(8)|https://doi.org/10.1145/79173.79181}}): work proceeds in rounds, everything in a round runs in parallel, and results are exchanged only at the barrier between rounds. LangGraph calls a round a <dfn>super-step</dfn>: "a single tick of the graph where all nodes scheduled for that step execute (potentially in parallel)" ({{docs|https://docs.langchain.com/oss/python/langgraph/checkpointers}}). Each super-step has three phases, which you can read straight out of <code>pregel/_algo.py</code>:</p>
+<ol>
+<li><b>Plan.</b> Every state key is a <dfn>channel</dfn> with a version number that goes up each time it is written. Edges are channels too, with names you never typed: <code>branch:to:propose_fix</code>, or <code>join:diagnose_word_count+diagnose_top_words:propose_fix</code> for a wait-for-both edge. Each node remembers the version of each trigger channel it last saw (<code>versions_seen</code>). A node runs in this step if one of its trigger channels has a newer version than it saw.</li>
+<li><b>Execute.</b> All triggered nodes run in parallel. Each reads the state as it was <em>at the start of the step</em>, so no node sees another's output from the same step. What a node returns is not applied yet: it is held, and saved, as a <dfn>pending write</dfn>.</li>
+<li><b>Update.</b> At the barrier, all pending writes are applied together, sorted by task path rather than by finishing time, each through its channel's reducer; written channels get the next version; and a checkpoint is saved. Then the next plan starts. When no node is triggered, the run ends.</li>
+</ol>
+<p>A key with no reducer is a <code>LastValue</code> channel: it accepts exactly one write per step. A key annotated with a reducer (<code>Annotated[list, operator.add]</code>, or <code>add_messages</code> for chat messages) is a <code>BinaryOperatorAggregate</code> channel: any number of writes are folded in. Watch both on the same two-branch graph:</p>
+<div class="card" id="flg-r-card">
+<div class="seg flg-seg" id="flg-r-mode"><button class="on" data-m="fan_reducer">findings with a reducer</button><button data-m="fan_no_reducer">findings without a reducer</button></div>
+<div class="flg-two"><div><div id="flg-r-svg"></div></div><div><div class="out" id="flg-r-cnt" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,110px),1fr))"></div><div id="flg-r-tab"></div></div></div>
+<div class="an-cap" id="flg-r-cap"></div>
+<div class="an-ctl" id="flg-r-ctl"></div>
+<p class="small mute">Recorded <span class="meas">MEASURED</span>: each frame is drawn from the checkpoints and task events of a real run on langgraph 1.2.14 (<code>src/code/e1_supersteps.py</code>), not from a model of the algorithm. Hidden trigger channels are left out here; the {{Super-step lab|#t-steps}} shows them, with versions_seen, on seven graphs.</p>
+</div>
+<p><b>What the toggle shows.</b> With the reducer, the two findings are concatenated in a fixed order: <code>check_top_words</code> finished first, yet its finding comes second, because writes are applied by task path. Without it, the step fails with <code>InvalidUpdateError: At key 'findings': Can receive only one value per step. Use an Annotated key to handle multiple values.</code> One more thing happened that the error message does not say <span class="meas">MEASURED</span>: both writes had already been saved as pending writes, so every later <code>get_state()</code> on that thread raised the same error. The thread is stuck until you write past it: <code>update_state(config, {"findings": [...]}, as_node="check_tokenize")</code> saved a new checkpoint, after which <code>invoke(None, config)</code> finished the run <span class="meas">MEASURED</span>; fix the schema before you run, not after. To bypass a reducer on purpose for one write (reset a list, say), return <code>Overwrite(value)</code> (since langgraph 1.0.2, 29 Oct 2025, {{release|https://github.com/langchain-ai/langgraph/releases/tag/1.0.2}}).</p>
+<div class="drill"><details><summary><b>Predict:</b> branch A is two nodes long (search, then read the hits), branch B one node (lint). Both have a plain edge into <code>join</code>. How many times does <code>join</code> run?</summary><div>Twice <span class="meas">MEASURED</span>. In super-step 3, B's edge has fired and A is still on its second node, so <code>join</code> is triggered by B alone and runs alongside <code>a_read_hits</code>; in super-step 4 A's edge fires and <code>join</code> runs again. The recorded log is <code>read, a_search, b_lint, a_read_hits, join, join</code>. Written as <code>add_edge(["a_read_hits", "b_lint"], "join")</code> the edge becomes one <code>join:</code> channel that fires only when both have written, and <code>join</code> runs once. Plain edges mean "run when any arrives"; the list form means "wait for all". Both runs are in the {{Super-step lab|#t-steps}}.</div></details></div>
+<p><b>Loops and the recursion limit.</b> A conditional edge may point backwards (fix, test, fix again). Each pass is a super-step, and the run stops with <code>GraphRecursionError</code> when it exceeds <code>recursion_limit</code> super-steps. The default was 25 up to langgraph 1.0.x, then 10,000 in 1.1.0 and 10,007 in 1.2.0 <span class="docd">SOURCE</span> (<code>DEFAULT_RECURSION_LIMIT</code> in <code>_internal/_config.py</code> of each wheel on PyPI; override with <code>LANGGRAPH_DEFAULT_RECURSION_LIMIT</code> or per call). Older tutorials that warn about hitting 25 describe the old default; a runaway agent loop now runs for a very long time unless you set a limit or a model-call limit (section 9) yourself.</p>
+<p><b>Map-reduce with <code>Send</code>.</b> When the number of parallel tasks is known only at run time (one review per file), a conditional edge returns a list of <code>Send("review", {"file": f})</code>. Each Send becomes one task in the next super-step, with its own input rather than the shared state. Recorded: three files, three <code>review</code> tasks in one step, results gathered by a reducer, then <code>summarise</code>.</p>
+<div class="deepnote"><b>Go deeper.</b> The {{Super-step lab|#t-steps}} steps through seven recorded graphs (linear, fan-out with and without a reducer, uneven branches with plain edges and with a join, a loop, and Send), showing every channel's value and version, the hidden trigger channels, and each node's versions_seen at every phase.</div>
+</section>
