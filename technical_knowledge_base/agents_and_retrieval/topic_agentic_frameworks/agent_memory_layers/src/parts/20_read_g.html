@@ -1,0 +1,40 @@
+
+<section id="rd-8">
+<h2>8. Choosing, and how this relates to context engineering and RAG</h2>
+<div class="tw"><table>
+<tr><th>If your situation is</th><th>Use</th><th>Why</th></tr>
+<tr><td>History still fits in the window, read a few times</td><td>Nothing: paste it</td><td>The full-history baseline was within one question of the best memory layer here, and beat both Mem0 variants in Mem0's own LOCOMO table (full context 72.90 against Mem0's 66.88 in Mem0's paper).</td></tr>
+<tr><td>A coding or task agent that must survive a session boundary</td><td>Files the agent maintains (progress notes, CLAUDE.md, the memory tool)</td><td>Readable, diffable, editable by a person; the agent reads them at start. See {{Context engineering, section 7|n:3f15c17b0d0d811292cee46514370431}}.</td></tr>
+<tr><td>Many users, preferences and stable facts, cheap reads</td><td>Fact memory (Mem0 or a store of your own)</td><td>One search, a few hundred tokens per answer. Plan for duplicates and stale facts: the 2.x library never deletes; give it a scheduled consolidation or call <code>update</code>/<code>delete</code> yourself.</td></tr>
+<tr><td>Questions about change: what was true when, who replaced whom</td><td>Temporal graph (Graphiti or Zep)</td><td>Validity windows answer "before" and "now" from one store. Budget for many model calls per episode, a graph database, and wrong closures; keep the raw episodes and search them too.</td></tr>
+<tr><td>A long-lived assistant whose model is strong at tools</td><td>Self-managed memory (Letta style, or files plus search tools)</td><td>The model decides what is worth keeping. Only as good as the model's habits: a small model here filed diaries and rarely searched.</td></tr>
+<tr><td>A large corpus of documents, not a conversation</td><td>Retrieval (RAG)</td><td>Memory layers are retrieval over a derived store; when nothing needs consolidating, search the source ({{rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}).</td></tr>
+</table></div>
+<div class="co key"><div class="t">The ownership split, in one paragraph</div>What the model sees in one call (budgets, caching, compaction, memory files, subagents) is context engineering and belongs to the harnesses topic. A memory layer is a separate store a framework plugs in, with its own write and read policy, and belongs here. Retrieval is the read path both reuse. The three meet in one design question: <i>who curates, and when</i>: the harness at write time (Mem0, Graphiti), the model in the hot path (Letta, the memory tool), or a curator at read time ({{Just-in-Time Memory|n:3e95c17b0d0d818f89b3f066f816727b}}).</div>
+<h3>Checking a memory layer before you trust it</h3>
+<ol>
+<li><b>Write a question set like section 5's</b> on your own data, with all five abilities, and keep the full-history baseline in it while history fits.</li>
+<li><b>Measure evidence before answers.</b> Log what the memory put in the prompt; if the evidence is not there, no reader model will fix it.</li>
+<li><b>Read the store after every session</b> for a while: duplicates, wrong dates and wrongly closed facts are visible long before they cause a wrong answer.</li>
+<li><b>Log write failures loudly.</b> An extraction that fails to parse must be an alert, not an empty list.</li>
+<li><b>Swap the writer model</b> and rerun: here the same library with a 4B writer lost episodes the Haiku writer did not.</li>
+</ol>
+</section>
+
+<section id="rd-q">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>"Memory layer X scores 90% on LOCOMO, so it is the best."</summary><div class="b">Ask who ran it, with which answer model, at what retrieval budget, on which version, and against full context. On the {{Published numbers|#t-bench}} tab the same product spans 58.44% to 80.32% on the same benchmark.</div></details>
+<details class="mist"><summary>"Mem0 updates and deletes outdated memories."</summary><div class="b">The 2025 paper and Mem0 1.x did. The open-source library since 2.0.0 is ADD-only; its docs: "Nothing is overwritten or deleted." Old and new versions are both stored and the retrieval ranking has to sort them out.</div></details>
+<details class="mist"><summary>"A temporal graph knows when facts changed."</summary><div class="b">It knows when a model <i>said</i> they changed. Invalidation is an LLM judgement per new fact; here it closed a past measurement because a later one existed, and could never close facts it had failed to date.</div></details>
+<details class="mist"><summary>"Give the agent a search tool and it will remember."</summary><div class="b">Only if it decides to search. The small model here mostly answered from what was already in its prompt; the sibling page {{Personal agents|n:3c75c17b0d0d81bf9462fbeb09593e1c}} measured Haiku never searching until one sentence of instruction told it to.</div></details>
+<details class="mist"><summary>"Replaying old chat logs into a memory layer recreates the memory."</summary><div class="b">Not with dates: the Mem0 open-source <code>add()</code> has no timestamp ("Platform-only"), so every replayed message is dated today and every "yesterday" resolves to the wrong day. Graphiti takes a <code>reference_time</code> per episode; Letta stamps messages when they arrive.</div></details>
+<details class="mist"><summary>"Memory saves tokens."</summary><div class="b">Per answer, yes; per conversation, writing costs model calls (one per session for Mem0, several per episode for Graphiti). Below tens of thousands of tokens of history, pasting it all is cheaper and more accurate.</div></details>
+
+<h2>Interview questions</h2>
+<details class="mist"><summary>Design memory for a support assistant used by a million users.</summary><div class="b">Scope memories per user (and per account); write in the background after each conversation, not in the hot path; store short facts with source message ids and dates; read with hybrid search (embeddings plus BM25) and a small top-k; keep raw transcripts for audit and re-extraction; resolve conflicts explicitly (latest wins with history kept, or validity windows); evaluate with a LongMemEval-style set including abstention and knowledge updates; let users see and delete what is stored.</div></details>
+<details class="mist"><summary>The user says "I moved from Austin to Seattle". What should each design store?</summary><div class="b">Paper-style fact memory: update "lives in Austin" to "lives in Seattle" (history lost unless logged). Mem0 2.x: add "moved to Seattle" beside "lives in Austin" and rely on ranking. Temporal graph: close the LIVES_IN Austin edge at the move date, open LIVES_IN Seattle. Self-managed: the model edits its core block if it notices. Only the graph answers "where did I live in March" directly.</div></details>
+<details class="mist"><summary>How do you know whether a wrong answer is a memory failure or a model failure?</summary><div class="b">Check whether the evidence reached the prompt. If not, the write or read policy failed (never written, written wrongly, or not retrieved); if it did, the reader failed. This page's evidence column separates the two without any model.</div></details>
+<details class="mist"><summary>Why can adding memory make an assistant worse?</summary><div class="b">Stale or duplicated facts outrank current ones, wrong dates get repeated with confidence, and retrieved snippets crowd out the instruction. Without a "say you don't know" rule, a memory layer also turns abstention questions into confident wrong answers built from near misses.</div></details>
+<details class="mist"><summary>What is bi-temporal modelling, and why does an agent memory need it?</summary><div class="b">Two time axes per fact: when it was true in the world (valid_at, invalid_at) and when the system learnt or retired it (created_at, expired_at). An agent needs the first to answer "what was true then" and the second to audit and replay what it knew when it acted.</div></details>
+</section>
+</div>

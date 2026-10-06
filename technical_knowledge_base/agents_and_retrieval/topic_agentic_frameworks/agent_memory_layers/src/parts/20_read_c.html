@@ -1,0 +1,21 @@
+
+<section id="rd-3">
+<h2>3. Temporal graph: Zep and Graphiti</h2>
+<p><b>The idea.</b> Facts are relations between things: Sam <i>uses</i> OpenRouter, Priya <i>manages</i> Sam. Store them as a graph whose nodes are <dfn>entities</dfn> (Sam, OpenRouter, Priya) and whose edges are <dfn>facts</dfn>, each carrying the time it became true and, once something contradicts it, the time it stopped. Nothing is deleted: "LiteLLM is the gateway" stays in the graph, closed on 15 September, so the graph can answer both "what now" and "what before".</p>
+<p><b>Who is who.</b> Zep (the company) published the design (Rasmussen et al., {{arXiv 2501.13956|https://arxiv.org/abs/2501.13956}}, 20 Jan 2025); its open-source engine is <b>Graphiti</b> (Apache-2.0, 31,489 GitHub stars on 6 Oct 2026). Zep stopped maintaining its self-hosted Community Edition on 2 April 2025 ({{announcement|https://blog.getzep.com/announcing-a-new-direction-for-zeps-open-source-strategy/}}); Zep Cloud now runs on a proprietary engine. Graphiti 0.30.2 needs a graph database: Neo4j, FalkorDB, Amazon Neptune, or the embedded Kuzu, which is deprecated ("the upstream Kuzu project is no longer maintained") and here failed on the first episode (<code>'KuzuDriver' object has no attribute '_database'</code>); this run used FalkorDB 4.22 in Docker.</p>
+<h3>Four timestamps per fact</h3>
+<p>The paper's model is <dfn>bi-temporal</dfn>: "t'_created and t'_expired ... monitor when facts are created or invalidated in the system, while t_valid and t_invalid track the temporal range during which facts held true." In Graphiti's edge they are <code>created_at</code>, <code>expired_at</code>, <code>valid_at</code> and <code>invalid_at</code>. The first pair is the database's clock; the second is the world's. In this replay they differ visibly: every closed edge has <code>expired_at</code> 6 October 2026 (the day the run happened) but <code>invalid_at</code> in September (the session date that contradicted it), which is exactly the distinction the design exists for.</p>
+<h3>What one call to add_episode does</h3>
+<p>Each of Sam's sessions went in as one <dfn>episode</dfn> (the raw text, kept as "a non-lossy data store") with <code>reference_time</code> set to the session's date. The recorded calls show the pipeline, prompt by prompt (names as Graphiti logs them, counts from the Haiku run):</p>
+<div class="tw"><table id="fmem-grsteps"></table></div>
+<p><b>Invalidation is a model's judgement.</b> For each new edge, Graphiti finds similar existing edges and asks a model, in one prompt, which are duplicates and which the new fact <i>contradicts</i> ({{prompts/dedupe_edges.py|gr:graphiti_core/prompts/dedupe_edges.py#L43-L100}}). Code then closes each contradicted edge by setting its <code>invalid_at</code> to the new edge's <code>valid_at</code>, provided the old edge started earlier ({{resolve_edge_contradictions|gr:graphiti_core/utils/maintenance/edge_operations.py#L538-L573}}). An edge with no <code>valid_at</code> (the model could not date it) is never closed by that rule.</p>
+<p><b>Reading.</b> <code>Graphiti.search</code> combines cosine similarity over edge embeddings with BM25 full-text search and merges the two lists by reciprocal rank fusion; the paper adds breadth-first graph search and rerankers (maximal marginal relevance, distance from a centre node, episode mentions, a cross-encoder). Only edges come back, so a detail that ended up in an entity's summary rather than on an edge is invisible to this search.</p>
+<p>The timeline below draws every edge Graphiti stored for Sam as a bar from <code>valid_at</code> to <code>invalid_at</code>; step through the sessions to watch edges appear and close. Edges this page judged wrongly closed are marked; click a bar for its fact, its dates and the judgement.</p>
+<div class="card" id="fmem-grcard">
+<div class="small">Writer <span class="seg" id="fmem-grw"><button data-m="haiku" class="on">Claude Haiku 4.5</button><button data-m="local">local Qwen3-4B</button></span></div>
+<div id="fmem-grplot" class="plot"></div>
+<div class="an-ctl" id="fmem-grctl"></div>
+<div class="an-cap" id="fmem-grcap" aria-live="polite"></div>
+</div>
+<div id="fmem-grfind"></div>
+</section>
