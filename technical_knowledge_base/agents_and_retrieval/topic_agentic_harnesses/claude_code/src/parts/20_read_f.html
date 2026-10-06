@@ -1,0 +1,38 @@
+
+<section id="s-mem">
+<h2>5. Memory files: what loads, in what order, and when</h2>
+<p><dfn>Memory files</dfn> are Markdown files of instructions that Claude Code puts into the context for you: CLAUDE.md and its relatives. They are not memory in the database sense; they are text paid for on every call, delivered "as a user message after the system prompt, not as part of the system prompt itself" ({{memory|https://code.claude.com/docs/en/memory}}) <span class="docs">DOCS</span>. The documented rules:</p>
+<ul>
+<li><b>Locations, broadest first:</b> managed policy (<code>/Library/Application Support/ClaudeCode/CLAUDE.md</code> on macOS, <code>/etc/claude-code/CLAUDE.md</code> on Linux), user (<code>~/.claude/CLAUDE.md</code>), project (<code>./CLAUDE.md</code> or <code>./.claude/CLAUDE.md</code>), local (<code>./CLAUDE.local.md</code>, meant to be git-ignored), and rules in <code>.claude/rules/*.md</code>.</li>
+<li><b>Concatenated, not overridden:</b> files in the working directory and every directory above it load at launch, ordered from the filesystem root down, CLAUDE.local.md after CLAUDE.md in each directory; if two instructions contradict each other, "Claude may pick one arbitrarily".</li>
+<li><b>On demand:</b> CLAUDE.md files in subdirectories, and rules with a <code>paths:</code> list in their frontmatter, load only when Claude reads, writes or edits a matching file.</li>
+<li><b>Imports:</b> <code>@path</code> inside a CLAUDE.md pulls in another file at launch, relative to the importing file, at most four hops deep. Imports organise a file; they do not save context.</li>
+<li><b>AGENTS.md</b> (the cross-tool convention other agents read) is read since 2.1.277, but by default only when there is no CLAUDE.md or CLAUDE.local.md at or above the working directory; a <code>/config</code> setting can load both.</li>
+<li><b>Auto memory</b> is the other half: notes Claude writes itself under <code>~/.claude/projects/&lt;project&gt;/memory/</code>, whose index <code>MEMORY.md</code> loads at every start up to 200 lines or 25 KB. Subagents do not get it.</li>
+<li><b>Size advice:</b> under 200 lines per file; a file over 4 MiB is skipped. After <code>/compact</code> the project-root CLAUDE.md is re-read from disk; nested files and path rules load again on demand.</li>
+</ul>
+<h3>Eight canaries</h3>
+<p>To check the order rather than trust it, one recording planted eight files, each containing one unique word ("Canary: ALPHA-ROOT" and so on), then asked Haiku, with only the Read tool, to list every canary in its context, read <code>textstats/core.py</code>, and list them again (run <code>memory</code>). Step through what happened.</p>
+<div class="card" id="hcc-mem-card">
+<div class="an-ctl" id="hcc-mem-ctl"></div>
+<div class="an-cap" id="hcc-mem-cap"></div>
+<div class="hcc-stack" id="hcc-mem-stack"></div>
+<div class="out" id="hcc-mem-stats"></div>
+</div>
+<p>Every outcome matched the documentation <span class="meas">MEASURED</span>: four files at launch (the parent directory's CLAUDE.md, the project CLAUDE.md, its import and the rule without <code>paths</code>), two after the Read (the subdirectory's CLAUDE.md and the path-scoped rule), and two never. CLAUDE.local.md stayed out because these runs pass <code>--setting-sources project</code>, and "CLAUDE.local.md is skipped if you exclude local from --setting-sources"; AGENTS.md stayed out because a CLAUDE.md existed. The parent-directory canary is the one to remember: a CLAUDE.md anywhere above your project, in a home directory or a monorepo root, is in every session started below it.</p>
+<div class="co warn"><div class="t">A memory file is context, not configuration</div>The parent's trace lab measured a four-line CLAUDE.md stating the test command: 184 more tokens per call, and two of three Haiku runs used it while the third explored anyway ({{Trace and context lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}) <span class="meas">MEASURED</span>. Instructions there are followed most of the time; anything that must hold every time is a hook or a permission rule (sections 3 and 4).</div>
+</section>
+
+<section id="s-skills">
+<h2>6. Skills: a description now, the body on demand</h2>
+<p>A <dfn>skill</dfn> is a folder with a <code>SKILL.md</code>: YAML frontmatter (a name and a description of when to use it) and Markdown instructions, plus any scripts or reference files it needs. Claude Code follows the Agent Skills open standard; custom slash commands in <code>.claude/commands/</code> have been merged into skills ({{skills|https://code.claude.com/docs/en/skills}}) <span class="docs">DOCS</span>. The design is <dfn>progressive disclosure</dfn>: only the name and description sit in context from the start; the body loads when the skill is invoked, through the Skill tool or by you typing <code>/name</code>, and then stays in the conversation.</p>
+<ul>
+<li><b>Budget:</b> each description is cut at 1,536 characters in the listing, and the whole listing gets 1% of the context window; past that, descriptions of the least-used skills are dropped (names stay) <span class="docs">DOCS</span>.</li>
+<li><b>Control:</b> <code>disable-model-invocation: true</code> keeps a skill out of Claude's view (you invoke it); <code>user-invocable: false</code> the opposite; <code>allowed-tools</code> pre-approves tools for the turn that invokes it; <code>context: fork</code> runs it in a fresh subagent; <code>paths</code> loads it only near matching files; <code>!`command`</code> in the body runs a shell command first and inlines its output.</li>
+<li><b>After compaction</b> the most recent invocation of each skill is re-attached, up to 5,000 tokens each and 25,000 in total.</li>
+</ul>
+<p>Two one-call recordings measure the startup cost, identical except for one project skill (<code>.claude/skills/run-tests/</code>, a two-sentence description and a body containing the canary KILO-SKILLBODY), and a third gives the running example with the skill available <span class="meas">MEASURED</span>:</p>
+<div class="card" id="hcc-sk-card"><div class="bars hcc-bars" id="hcc-sk-bars"></div><p class="small mute" id="hcc-sk-note"></p></div>
+<p>The skill's description cost 29 tokens at launch. In the task run Haiku listed the files, saw the skill, and called it before anything else: the Skill tool returned "Launching skill: run-tests", and the body arrived as a separate user message ("Base directory for this skill: ... Canary: KILO-SKILLBODY ..."), 329 tokens written to the cache on the next call. The skill told it to run <code>python3 tests/test_core.py</code>, and it did, first time; the run fixed both bugs in 9 model calls. Compare the hooks run without a SessionStart hint, which reached for <code>python</code>: the same fact, delivered three ways (a CLAUDE.md line, a SessionStart hook, a skill), and all three worked here because each put the right command in front of the model before it guessed.</p>
+<p class="small mute">Plugins bundle skills, subagents, hooks and MCP servers as one installable unit; their skill and agent descriptions are also in context on every turn ({{plugins|https://code.claude.com/docs/en/plugins}}). For when skills help and when they misfire, see {{Demystifying Agent Skills|n:3c65c17b0d0d81249a3cf5fda4de5d92}}; the budget arithmetic of what loads when is on {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}.</p>
+</section>

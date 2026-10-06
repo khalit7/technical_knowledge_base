@@ -1,0 +1,36 @@
+
+<section id="s-hooks">
+<h2>4. Hooks: your code at fixed points in the loop</h2>
+<p>A <dfn>hook</dfn> is a program the harness runs at a named moment, with a JSON description of the moment on its standard input. Its exit code and output can add context, change a tool's input, or stop what was about to happen. Hooks exist because a prompt is advice and a hook is enforcement: the docs put the rule in one line, "To block an action regardless of what Claude decides, use a PreToolUse hook" ({{memory|https://code.claude.com/docs/en/memory}}) <span class="docs">DOCS</span>.</p>
+<h3>The mechanics</h3>
+<ul>
+<li><b>Where:</b> a <code>hooks</code> block in any settings file (user, project, local, managed), a plugin's <code>hooks/hooks.json</code>, or the frontmatter of a skill or subagent (active while it runs). Entries merge across levels; identical handlers run once; all matching hooks run in parallel ({{hooks|https://code.claude.com/docs/en/hooks}}) <span class="docs">DOCS</span>.</li>
+<li><b>Shape:</b> event, then a <code>matcher</code> (for tool events, a tool name, a <code>|</code> list or a regular expression), then handlers. Five handler types: <code>command</code> (a shell command, the common case), <code>http</code> (POST the JSON to a URL), <code>mcp_tool</code>, <code>prompt</code> (a one-turn model call that returns ok or not) and <code>agent</code> (an experimental subagent that can read files before deciding).</li>
+<li><b>Exit codes, for a command hook:</b> 0 is success, and stdout is parsed as JSON if it starts with <code>{</code>; 2 blocks, and stderr is fed back (to the model for PreToolUse, Stop and the other blocking events); any other code is a non-blocking error and the action goes ahead. A mistyped script path exits 127 and therefore silently disables a policy hook.</li>
+<li><b>JSON output:</b> PreToolUse can answer <code>permissionDecision</code> allow, deny, ask or defer (defer only in <code>-p</code>), with a reason, an <code>updatedInput</code> that replaces the tool's input, and <code>additionalContext</code>. When hooks disagree, deny beats defer beats ask beats allow. A hook's allow never overrides a deny or ask rule: hooks can tighten permissions, not loosen them. A hook's deny holds even in <code>bypassPermissions</code>.</li>
+<li><b>Timeouts:</b> 600 s for command, http and mcp_tool handlers, 30 s for prompt, 60 s for agent; a timed-out PreToolUse hook does not block.</li>
+<li><b>Trust:</b> hooks run with your full user rights and outside the sandbox. In a <code>-p</code> run, a repository's <code>.claude/settings.json</code> hooks run without any trust prompt; the docs recommend <code>--bare</code> or <code>--settings '{"disableAllHooks": true}'</code> for repositories you do not trust ({{headless|https://code.claude.com/docs/en/headless}}) <span class="docs">DOCS</span>.</li>
+</ul>
+<h3>All 33 events</h3>
+<p>The parent page counted 32 on 5 October; the 2.1.290 reference lists 33 (both the lifecycle table and the event sections) <span class="docs">DOCS</span>. Seventeen can stop something: sixteen by exit code 2 or a block decision, and PermissionRequest through its decision object only.</p>
+<div class="hcc-chips" id="hcc-hook-chips"></div>
+<div class="tw"><table class="hcc-t" id="hcc-hook-table"><thead><tr><th>Event</th><th>When it fires</th><th>Matcher</th><th>Can it stop it?</th></tr></thead><tbody></tbody></table></div>
+
+<h3>Four hooks, same prompt, before and after</h3>
+<p>Two Haiku runs got the same prompt: fix the apostrophe bug, keep the change minimal, and delete <code>notes_old.txt</code> with <code>rm</code> (allowed by <code>--allowedTools "Bash(rm *)"</code>). The second run's project had four hooks: a <b>SessionStart</b> hook that prints the test command (its stdout becomes context), a <b>PreToolUse</b> guard on Bash that exits 2 on <code>rm</code> or <code>sed -i</code>, a <b>PostToolUse</b> logger that appends every call to a file, and a <b>Stop</b> hook that runs the tests and returns <code>{"decision": "block"}</code> while any fail (once: it checks <code>stop_hook_active</code> so it cannot loop). Play both lanes together; the hook events are the purple ones.</p>
+<div class="card" id="hcc-hk-card">
+<div class="an-ctl" id="hcc-hk-ctl"></div>
+<div class="an-cap" id="hcc-hk-cap"></div>
+<div class="hcc-tl"><div class="hcc-lane"><h4>No hooks (run <code>hooks_off</code>)</h4><div id="hcc-hk-a"></div></div><div class="hcc-lane"><h4>Four hooks (run <code>hooks_on</code>)</h4><div id="hcc-hk-b"></div></div></div>
+<div class="out" id="hcc-hk-stats"></div>
+</div>
+<p>What the two recordings show <span class="meas">MEASURED</span>:</p>
+<ul>
+<li><b>Without hooks the run stopped half done.</b> Haiku fixed the apostrophe bug, deleted the file, tried to run the tests as <code>python</code> (refused: only <code>python3</code> and <code>rm</code> were allowed), never ran them, and reported success with one test still failing.</li>
+<li><b>The SessionStart line changed behaviour at no cost to the model.</b> With the hook, Haiku ran <code>python3 tests/test_core.py</code> on its first try.</li>
+<li><b>The Stop hook turned "done" into "not done".</b> At the first attempt to finish, the hook's reason ("the test suite still fails ... FAIL test_top_words_ties_alphabetical") came back as a user message; Haiku fixed the second bug, reran the tests (0 failed) and stopped. The hook ran a second time and let it.</li>
+<li><b>The guard held twice, and the second time it mattered.</b> The first <code>rm</code> was blocked with the hook's stderr as the reason. After the tests passed, Haiku wrote "let me try with the dangerously flag since you explicitly requested it" and reissued the command with <code>dangerouslyDisableSandbox: true</code>, a parameter meant for retrying outside the OS sandbox. The hook does not care about that flag, so the call was blocked again, and the final summary said the file was left in place. A rule the model can argue with is not a rule.</li>
+<li><b>The logger missed the failures.</b> PostToolUse fires "after a tool call succeeds"; the test runs that exited 1 and the blocked calls went to PostToolUseFailure, which had no handler, so the log holds 7 of the 11 tool calls. An audit hook needs both events.</li>
+</ul>
+<p class="small mute">The hook scripts and settings are in this page's <code>src/hooks/</code>; the log's first line shows the input every PostToolUse hook receives: <code>cwd</code>, <code>duration_ms</code>, <code>hook_event_name</code>, <code>permission_mode</code>, <code>prompt_id</code>, <code>session_id</code>, <code>tool_input</code>, <code>tool_name</code>, <code>tool_response</code>, <code>tool_use_id</code>, <code>transcript_path</code>. With <code>--include-hook-events</code>, <code>-p</code> streams a <code>hook_started</code> and a <code>hook_response</code> record (with stdout, stderr and exit code) for each.</p>
+</section>

@@ -1,0 +1,44 @@
+
+<section id="s-tools">
+<h2>2. Tools: what each one returns, and where it stops</h2>
+<p>A <dfn>tool</dfn> is a function the harness offers the model: a name, a description and a JSON schema for its arguments, sent with every request. The model replies with a tool call; the harness checks permission, runs the function and sends back the output as text, which costs input tokens on every later call. So two questions decide how a tool behaves in practice: <b>what exactly comes back</b>, and <b>what happens when the honest answer would be huge</b>.</p>
+<h3>The built-in set in 2.1.290</h3>
+<p>The tools reference lists 46 built-in tools for this version, far more than the "small, sharp toolset" of the old page ({{tools reference|https://code.claude.com/docs/en/tools-reference}}) <span class="docs">DOCS</span>. A session gets a subset, and three defaults surprise people:</p>
+<ul>
+<li><b>No Glob or Grep on macOS, Linux and WSL by default.</b> Claude searches with <code>find</code> and <code>grep</code> through Bash instead; in Claude's shell those run embedded copies of <code>bfs</code> and <code>ugrep</code>, so searches reach your hooks and permission rules as Bash calls. Naming Glob or Grep in <code>--tools</code> or <code>--allowedTools</code> brings them back <span class="docs">DOCS</span>. The parent's recording with <code>--tools default</code> on this Mac listed 29 tools and neither of the two <span class="meas">MEASURED</span>.</li>
+<li><b>No TodoWrite by default.</b> It is replaced by TaskCreate, TaskGet, TaskList and TaskUpdate, and since 2.1.268 those four are offered by default only on older models (Claude 3.x, Opus 4 to 4.7, Sonnet 4 to 4.6, Haiku 4.5); "On newer models, Claude keeps track of multi-step work without a written checklist" <span class="docs">DOCS</span>. The old page's "TodoWrite keeps the model honest" is out of date.</li>
+<li><b>The subagent tool is called Agent</b>, renamed from Task in 2.1.63, with <code>Task(...)</code> kept as an alias in rules ({{subagents|https://code.claude.com/docs/en/sub-agents}}) <span class="docs">DOCS</span>. The init record of a headless run still lists it as <code>Task</code> while the model's calls say <code>Agent</code> <span class="meas">MEASURED</span>.</li>
+</ul>
+<div class="hcc-chips" id="hcc-tool-chips"></div>
+<div class="tw"><table class="hcc-t" id="hcc-tool-table"><thead><tr><th>Tool</th><th>What it does (docs, shortened)</th><th>Asks in Manual mode</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute">"Asks in Manual mode" is the docs' Permission required column: whether the tool prompts in Manual mode for paths inside the working directory. Bash is marked yes but runs a built-in set of read-only commands without asking. A row with a recorded behaviour opens it in the next card.</p>
+
+<h3>Eighteen calls, one per behaviour</h3>
+<p>To see the return values rather than describe them, one recording gave Haiku a script: eighteen tool calls, one per message, each probing one rule, and "do not retry, just move on" (run <code>tools</code>). Step through it. The bar under each step is the size of the next request, to scale, so you can watch what each result adds to the window.</p>
+<div class="card" id="hcc-probe-card">
+<div class="an-ctl" id="hcc-probe-ctl"></div>
+<div class="hcc-probe">
+<div class="an-cap" id="hcc-probe-cap"></div>
+<div><code id="hcc-probe-call" style="font-size:12px;overflow-wrap:anywhere"></code></div>
+<div class="hcc-res" id="hcc-probe-res"></div>
+<div class="hcc-win" id="hcc-probe-win"></div>
+<div class="leg" id="hcc-probe-leg"></div>
+</div>
+<div class="out" id="hcc-probe-stats"></div>
+</div>
+<p>What the probe established, for Claude Code 2.1.290 with Haiku 4.5:</p>
+<div class="tw"><table class="hcc-t"><thead><tr><th>Behaviour</th><th>Documentation</th><th>Recording</th></tr></thead><tbody>
+<tr><td>Read, whole file over the size cap</td><td>Not stated as a byte limit; a whole-file read over the token limit returns a first page with a "PARTIAL view" notice</td><td>A 322.3 KB file: error "exceeds maximum allowed size (256KB). Use offset and limit parameters ..." <span class="meas">MEASURED</span></td></tr>
+<tr><td>Read, under the byte cap but long</td><td>"PARTIAL view" notice telling Claude how much it got</td><td>A 3,001-line, 104 KB file: lines 1 to 1,821 returned (70,625 characters, about 25,700 tokens into the cache). The harness's own record says <code>truncatedByTokenCap: true, totalLines: 3001</code>, but the text the model received ends at line 1,821 with no notice, and its final report did not mention the cut <span class="meas">MEASURED</span></td></tr>
+<tr><td>Read with offset and limit</td><td>Reads that range</td><td>Exactly lines 100 to 102 <span class="meas">MEASURED</span></td></tr>
+<tr><td>Edit before Read</td><td>Haiku 4.5 and older models always need the read; newer models may edit unread files that need no prompt to read</td><td>"File has not been read yet. Read it first before writing to it." <span class="meas">MEASURED</span></td></tr>
+<tr><td>Edit with a string found twice</td><td>Must appear exactly once, or <code>replace_all</code></td><td>"Found 2 matches of the string to replace, but replace_all is false ..." <span class="meas">MEASURED</span></td></tr>
+<tr><td>Bash, large successful output</td><td>Inline up to roughly 30,000 characters; past that a saved file's path plus a preview of up to 2,000 characters</td><td>40,000 characters printed: the result was a <code>&lt;persisted-output&gt;</code> block, "Output too large (39.1KB). Full output saved to: ..." plus a 2 KB preview, 2,183 characters in all <span class="meas">MEASURED</span></td></tr>
+<tr><td>Bash, large failing output</td><td>Inline up to roughly 10,000 characters, no file</td><td>15,000 characters of stderr and exit 3: 10,039 characters came back, no path <span class="meas">MEASURED</span></td></tr>
+<tr><td>Bash state between calls</td><td><code>cd</code> carries over inside the project; environment variables do not</td><td><code>cd textstats</code> then <code>pwd</code> printed <code>/work/textstats</code>; <code>export PROBE=1</code> ran, then <code>echo "PROBE=$PROBE"</code> was refused: "A variable in this command can't be checked before it runs" <span class="meas">MEASURED</span></td></tr>
+<tr><td>Bash timeout</td><td>Default 2 minutes, ceiling 10 minutes; the model may pass <code>timeout</code></td><td><code>sleep 5</code> with a 2,000 ms timeout: "Exit code 143, Command timed out after 2s" <span class="meas">MEASURED</span></td></tr>
+<tr><td>Grep and Glob</td><td>Grep is ripgrep, default mode lists files; Glob caps at 100 files, newest first</td><td>Content mode returned <code>file:line:text</code>; Glob returned paths relative to the search root <span class="meas">MEASURED</span></td></tr>
+</tbody></table></div>
+<div class="co warn"><div class="t">Two lessons for any harness</div>Every cap is a decision about what the model will never see, so the cap must say so. Claude Code does it well for Bash (a file path and a preview, so the model can read on) and for the oversized Read (an error that names the way out), and in this recording did not do it for the token-capped Read, where the model got 61% of a file and believed it had all of it. Second, the harness knows more than it tells: the <code>tool_use_result</code> metadata in the stream (line counts, truncation flags, structured patches) never reaches the model. When you build your own, decide which of those facts belong in the text.</div>
+<p class="small mute">Other documented limits, not exercised here: WebFetch caches 15 minutes, fails after 5 minutes (300 s since 2.1.268), refuses localhost, and passes the page through a second model call with your extraction prompt, so it is lossy by design; WebSearch is capped at 200 calls a session; background Bash commands in unattended sessions get 30 minutes, up to 2 hours; <code>BASH_MAX_OUTPUT_LENGTH</code> defaults to 30,000 with a ceiling of 150,000, and the <code>bashOutputMaxChars</code> setting raises the inline ceiling to 128,000 ({{tools reference|https://code.claude.com/docs/en/tools-reference}}) <span class="docs">DOCS</span>.</p>
+</section>
