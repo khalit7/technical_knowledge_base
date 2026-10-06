@@ -3211,3 +3211,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | Failure lab: event-by-event replay of 11 recorded cases, lanes, counters, per-request table | lets the reader check every claim of sections 3 and 4 | tab |
 | Limits lab: recorded trace vs LiteLLM rule replay (exact) vs calendar window, sliding log, token bucket; limit slider; budget runs per call | the same traffic through four algorithms; algorithms themselves taught on Reliability engineering | tab |
 | Routing lab: E1 swimlanes per strategy, OpenRouter filters (quantisation, context, max price, sort), 48-question table with replies | depth for sections 2, 9, 10 | tab |
+
+### Agent memory layers: fact memory, temporal graphs, paging (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/agent_memory_layers/src/viz_ideas.md`.
+
