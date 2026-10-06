@@ -3155,3 +3155,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | Stream-mode picker with recorded events | 2/3/3 | Reading s7 | e5 streams |
 | create_agent compiled graph with and without middleware; transcript of two local-model runs with different reviewers; first request body; HITL payload | 3/3/3 | Reading s9 | e7, e7b |
 | Tables: interrupt rules measured, subgraph styles, store across threads, durability overhead, kill outcomes | 2/3/2 | Reading | e2, e4, e5 |
+
+### Claude Agent SDK: the Claude Code loop as a library (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/claude_agent_sdk/src/viz_ideas.md`.
+

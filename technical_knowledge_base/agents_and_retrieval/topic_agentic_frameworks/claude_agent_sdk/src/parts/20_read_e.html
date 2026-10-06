@@ -1,0 +1,72 @@
+
+<section id="s-deploy">
+<h2>10. Deployment, authentication, and the alternatives</h2>
+<p><b>Authentication.</b> The SDK reads an API key (<code>ANTHROPIC_API_KEY</code>) or a cloud provider switch: <code>CLAUDE_CODE_USE_BEDROCK=1</code>, <code>CLAUDE_CODE_USE_VERTEX=1</code>, <code>CLAUDE_CODE_USE_FOUNDRY=1</code>, <code>CLAUDE_CODE_USE_ANTHROPIC_AWS=1</code> (Claude Platform on AWS) ({{overview|https://code.claude.com/docs/en/agent-sdk/overview}}) <span class="docs">DOCS</span>. Our recordings ran on a personal Claude subscription (the init record says <code>apiKeySource: "none"</code>), which is fine for personal experiments; a product is a different matter: "Unless previously approved, Anthropic does not allow third party developers to offer claude.ai login or rate limits for their products, including agents built on the Claude Agent SDK. Use the API key authentication methods described in the Quickstart instead." (same page) <span class="docs">DOCS</span>.</p>
+<p><b>Hosting patterns.</b> Because "One agent session maps to one subprocess" that "owns a shell, a working directory, and session files on disk", the hosting page lists four patterns ({{hosting|https://code.claude.com/docs/en/agent-sdk/hosting}}) <span class="docs">DOCS</span>:</p>
+<div class="tw"><table class="fsdk-t">
+<thead><tr><th>Pattern</th><th>Shape</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Ephemeral</td><td>A container per task, destroyed at the end</td><td>"bug investigation and fix, invoice and receipt extraction, document translation"</td></tr>
+<tr><td>Long-running</td><td>Persistent containers, often several SDK processes each</td><td>email agents, chat bots, per-user site builders</td></tr>
+<tr><td>Hybrid</td><td>Ephemeral containers that load the session from a <code>SessionStore</code> and write it back ("the store is required")</td><td>conversations that sit idle between turns</td></tr>
+<tr><td>Multi-agent container</td><td>Several SDK processes in one container</td><td>agents that must collaborate closely</td></tr>
+</tbody></table></div>
+<p>Sizing starts at "1 GiB RAM, 5 GiB disk, and 1 CPU per agent"; a small container costs "roughly $0.05 per hour, while a single long agent session can spend dollars in tokens"; pin a session to one container by hashing its id; the subprocess needs outbound HTTPS to the API and "does not listen on the network". For several customers on one host the docs ask for <code>setting_sources=[]</code>, <code>CLAUDE_CODE_DISABLE_AUTO_MEMORY=1</code>, a separate <code>CLAUDE_CONFIG_DIR</code> and working directory per tenant, and per-tenant egress rules; "Do not rely on default <code>query()</code> options for multi-tenant isolation." Known gaps: no top-level session timeout, memory growth in long sessions, no per-subagent deadline <span class="docs">DOCS</span>.</p>
+<p><b>Observability.</b> "The SDK does not produce telemetry of its own": set <code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code> and OpenTelemetry exporters in the child's environment and Claude Code emits metrics, log events and (beta) spans named <code>claude_code.interaction</code>, <code>claude_code.llm_request</code>, <code>claude_code.tool</code>; the SDK passes the active trace context down so they join your trace ({{observability|https://code.claude.com/docs/en/agent-sdk/observability}}) <span class="docs">DOCS</span>. The span tree was recorded on the frameworks root ({{Production stack|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab) and is taken further on {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}.</p>
+<p><b>Python or TypeScript.</b> Run s8 is run s1 rewritten in TypeScript (zod schemas, the same hook and callback) <span class="meas">MEASURED</span>: same fix, 6 model calls, $0.0247. Its first call was 1,566 tokens against 1,390 in Python, because the TypeScript package bundled the newer Claude Code (2.1.291 against 2.1.286): the context belongs to the binary, not to the language. Differences that matter: TypeScript has 33 hook events to Python's 10, <code>persistSession</code>, an <code>AbortController</code>, and 69 options; Python has <code>ClaudeSDKClient</code>; TypeScript's <code>env</code> replaces the child's environment while Python's merges into it ({{subagents|https://code.claude.com/docs/en/agent-sdk/subagents}}) <span class="docs">DOCS</span>.</p>
+<h3>Against Claude Managed Agents and the OpenAI stack</h3>
+<p><b>Claude Managed Agents</b> (public beta since 8 April 2026) runs the loop in Anthropic's infrastructure: "the SDK runs in a process you operate, while Managed Agents runs in Anthropic's infrastructure. Most of the migration is mapping SDK configuration objects to their API-side equivalents" ({{migration|https://platform.claude.com/docs/en/managed-agents/migration}}) <span class="docs">DOCS</span>. Pricing, permission policies and the OpenAI Agents API are on the root's {{Production stack|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab ("Hosted runtimes"); the mapping is the useful part here:</p>
+<div class="tw"><table class="fsdk-t">
+<thead><tr><th>Agent SDK (your process)</th><th>Managed Agents (Anthropic's)</th></tr></thead>
+<tbody>
+<tr><td><code>ClaudeAgentOptions</code> on every run</td><td>An Agent created once, "persisted and versioned server-side"</td></tr>
+<tr><td><code>query()</code> / <code>ClaudeSDKClient</code></td><td>A session plus events streamed over SSE</td></tr>
+<tr><td><code>@tool</code> in your process</td><td>Custom tools answered through <code>agent.custom_tool_use</code> / <code>user.custom_tool_result</code> events</td></tr>
+<tr><td>Built-in tools on your filesystem</td><td>The agent toolset inside the session sandbox, against <code>/workspace</code></td></tr>
+<tr><td><code>permission_mode</code>, <code>can_use_tool</code></td><td>Per-tool <code>permission_policy</code> (always_allow, always_ask, auto) and confirmation events</td></tr>
+<tr><td>Hooks, plan mode, output styles, slash commands, <code>max_turns</code></td><td>"Features that move to your client"</td></tr>
+</tbody></table></div>
+<p><b>The OpenAI Agents SDK</b> is the closest library on the other side, and the gap is one of kind. Corrected comparison (the old page's table, checked):</p>
+<div class="tw"><table class="fsdk-t">
+<thead><tr><th>Axis</th><th>Claude Agent SDK</th><th>OpenAI Agents SDK</th></tr></thead>
+<tbody>
+<tr><td>What you get</td><td>A finished harness (Claude Code) in a child process, configured by options</td><td>Small primitives in your process: Agent, tool, handoff, guardrail, session, run loop</td></tr>
+<tr><td>Loop</td><td>Claude Code's, not editable; you steer it with options, hooks and callbacks</td><td>A short <code>Runner.run</code> loop you can read end to end</td></tr>
+<tr><td>Environment</td><td>Assumes a computer: files, shell, working directory</td><td>No environment: tools are whatever you register</td></tr>
+<tr><td>Multi-agent</td><td>Subagents (hierarchical, isolated context)</td><td>Handoffs (control passes to another agent) and agents as tools</td></tr>
+<tr><td>Guardrails</td><td>Permission order, callback, hooks, sandbox</td><td>Input and output guardrail functions with tripwires</td></tr>
+<tr><td>Structured output</td><td><code>output_format</code> (JSON schema, validated, retried)</td><td><code>output_type</code> on the agent</td></tr>
+<tr><td>Models</td><td>Claude, through Anthropic, Bedrock, Vertex, Foundry or Claude Platform on AWS</td><td>OpenAI by default; other providers through adapters such as LiteLLM</td></tr>
+<tr><td>Tracing</td><td>Claude Code's OpenTelemetry, off until enabled</td><td>Built-in tracing, on by default</td></tr>
+<tr><td>Hosted counterpart</td><td>Claude Managed Agents</td><td>The Agents API (public beta 10 Sep 2026)</td></tr>
+</tbody></table></div>
+<p>The OpenAI Agents SDK, Pydantic AI, smolagents and Google ADK are read from source on {{Typed agent libraries|n:3f15c17b0d0d819fba89f9ec88feb859}}; the same task in six frameworks, side by side with real runs, is the root's {{Same agent, six ways|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab. <b>Choose the Claude Agent SDK</b> when the job is work on a computer (code, files, shell, research) and Claude is the model you want; you inherit compaction, permissions, subagents and sessions instead of writing them, and you pay with a large process per session, Claude Code's own context (the first call grew from 1,390 tokens with our prompt and tools to 14,703 with the defaults, section 3) and no control over the loop. <b>Choose a typed loop</b> when you need provider choice, a loop you own, or agents that are objects in your process.</p>
+</section>
+
+<section id="s-old">
+<h2>11. The old page, claim by claim</h2>
+<p>The previous version of this page (Notion, last edited 22 Sep 2026) was checked against the docs, the 0.2.163 source and our runs. Every claim, with its fate:</p>
+<div class="tw"><table class="fsdk-t" id="fsdk-old"></table></div>
+</section>
+
+<section id="s-mist">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Trusting <code>subtype: "success"</code></summary><div class="b">It means the loop ended normally, not that the task was done. Run s3 succeeded with six refused calls and failing tests. Check <code>permission_denials</code> and run your own verification.</div></details>
+<details class="mist"><summary>Leaving <code>setting_sources</code> and <code>strict_mcp_config</code> at their defaults in a service</summary><div class="b">Defaults read every settings file, hook, CLAUDE.md and skill on the machine and, with a claude.ai login, the account's connectors (128,306 tokens in one measured call). Pass <code>setting_sources=[]</code>, <code>strict_mcp_config=True</code> and an explicit tool list.</div></details>
+<details class="mist"><summary>Expecting Claude Code's system prompt</summary><div class="b">The default system prompt is empty since v0.1.0. Ask for <code>{"type": "preset", "preset": "claude_code"}</code> if you want Claude Code's behaviour, and measure the context it adds (about 6,200 tokens on Haiku in the root's runs: 7,612 against 1,388).</div></details>
+<details class="mist"><summary>Using <code>can_use_tool</code> as an audit log</summary><div class="b">Calls allowed by a mode, an allow rule or a hook never reach it. Log in a <code>PreToolUse</code> hook, which runs for every call.</div></details>
+<details class="mist"><summary>Writing allow rules for the command you expect</summary><div class="b"><code>Bash(python3 tests/test_core.py)</code> refused <code>python3 tests/test_core.py -v 2>&amp;1</code> and two other variants in s5, and <code>python tests/test_core.py</code> plus four inline test scripts in s9; each refusal is a wasted model call. Prefer a tool of your own (<code>run_tests</code>) over a shell rule when the action is known.</div></details>
+<details class="mist"><summary>Summing <code>total_cost_usd</code> over turns or resumed runs</summary><div class="b">It is already a running total (s4). Take differences, or use <code>usage</code> per turn, deduplicated by <code>message_id</code>; and never bill customers from it.</div></details>
+<details class="mist"><summary>Treating <code>query()</code> as stateless</summary><div class="b">Each call writes a session transcript to the home directory. In a container that is lost on restart; on a shared host it is a data-retention question. Use <code>session_store</code>, a per-tenant <code>CLAUDE_CONFIG_DIR</code>, or turn persistence off.</div></details>
+<details class="mist"><summary>Shipping a product on a subscription login</summary><div class="b">Not allowed without approval; products use API keys or a cloud provider.</div></details>
+</section>
+
+<section id="s-qa">
+<h2>Interview questions</h2>
+<details class="qa"><summary>How does the Claude Agent SDK call your Python tool if the agent runs in another process?</summary><div>The SDK registers an MCP server of type <code>sdk</code> in the Claude Code process's MCP config; when the model calls the tool, Claude Code sends a <code>control_request</code> of subtype <code>mcp_message</code> carrying a JSON-RPC <code>tools/call</code> down stdout; the SDK runs your function and answers with a <code>control_response</code> on stdin. No socket, no extra process.</div></details>
+<details class="qa"><summary>In what order is a tool call checked, and where does your callback sit?</summary><div>Hooks, deny rules, ask rules, permission mode, allow rules, then <code>can_use_tool</code>. The callback only sees calls nothing earlier settled; in <code>dontAsk</code> mode it is skipped and the call denied.</div></details>
+<details class="qa"><summary>An agent built with the SDK reports success but did nothing. What do you check?</summary><div><code>permission_denials</code> in the result, the init record's <code>permissionMode</code> and tool list, whether anything answers "ask" (a mode, allow rules or a callback), then the transcript.</div></details>
+<details class="qa"><summary>How would you compute the cost of one turn of a long session?</summary><div>Difference of consecutive <code>total_cost_usd</code> values, or price that turn's <code>usage</code> (deduplicated by message id) plus subagents from <code>model_usage</code> differences. Remember it is an estimate.</div></details>
+<details class="qa"><summary>When would you pick the Agent SDK over LangGraph, and over Managed Agents?</summary><div>Over LangGraph: when the work needs a computer and Claude Code's loop is good enough, and you do not need your own control flow or provider choice. Over Managed Agents: when the agent must run on your filesystem, network and audit trail, or you need hooks, plan mode and in-process tools.</div></details>
+<details class="qa"><summary>How do you isolate tenants?</summary><div>One process and working directory per session, <code>setting_sources=[]</code>, <code>strict_mcp_config=True</code>, auto memory off, a per-tenant <code>CLAUDE_CONFIG_DIR</code>, a sandbox or container, egress rules, and credentials injected by a proxy rather than given to the agent.</div></details>
+</section>
