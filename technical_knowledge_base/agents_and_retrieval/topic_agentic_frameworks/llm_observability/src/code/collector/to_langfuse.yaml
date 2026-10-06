@@ -1,0 +1,61 @@
+# Replays recorded OTLP JSON to the self-hosted Langfuse. Pipeline "raw" forwards spans untouched (port 4318);
+# pipeline "mapped" first renames Claude Code's own token attributes to the GenAI conventions (port 4319).
+receivers:
+  otlp/raw:
+    protocols: {http: {endpoint: 0.0.0.0:4318}}
+  otlp/mapped:
+    protocols: {http: {endpoint: 0.0.0.0:4319}}
+  otlp/ttl:
+    protocols: {http: {endpoint: 0.0.0.0:4320}}
+processors:
+  transform/cc_to_genai:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        conditions:
+          - name == "claude_code.llm_request"
+        statements:
+          - set(attributes["gen_ai.operation.name"], "chat")
+          - set(attributes["gen_ai.provider.name"], "anthropic")
+          - set(attributes["gen_ai.usage.input_tokens"], attributes["input_tokens"] + attributes["cache_read_tokens"] + attributes["cache_creation_tokens"])
+          - set(attributes["gen_ai.usage.output_tokens"], attributes["output_tokens"])
+          - set(attributes["gen_ai.usage.cache_read.input_tokens"], attributes["cache_read_tokens"])
+          - set(attributes["gen_ai.usage.cache_write.input_tokens"], attributes["cache_creation_tokens"])
+      - context: span
+        conditions:
+          - name == "claude_code.tool"
+        statements:
+          - set(attributes["gen_ai.operation.name"], "execute_tool")
+          - set(attributes["gen_ai.tool.name"], attributes["tool_name"])
+      - context: span
+        conditions:
+          - name == "claude_code.interaction"
+        statements:
+          - set(attributes["gen_ai.operation.name"], "invoke_agent")
+          - set(attributes["gen_ai.agent.name"], "claude-code")
+  transform/cc_usage_1h:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        conditions:
+          - name == "claude_code.llm_request"
+        statements:
+          - set(attributes["gen_ai.operation.name"], "chat")
+          - set(attributes["langfuse.observation.usage_details"], Concat(["{\"input\":", String(attributes["input_tokens"]), ",\"output\":", String(attributes["output_tokens"]), ",\"input_cached_tokens\":", String(attributes["cache_read_tokens"]), ",\"input_cache_creation_1h\":", String(attributes["cache_creation_tokens"]), "}"], ""))
+exporters:
+  otlphttp/langfuse:
+    endpoint: http://langfuse-web:3000/api/public/otel
+    headers:
+      Authorization: "Basic <base64 of public_key:secret_key>"
+      x-langfuse-ingestion-version: "4"
+  file/raw:
+    path: /out/raw.jsonl
+  file/mapped:
+    path: /out/mapped.jsonl
+  file/ttl:
+    path: /out/ttl.jsonl
+service:
+  pipelines:
+    traces/raw: {receivers: [otlp/raw], exporters: [otlphttp/langfuse, file/raw]}
+    traces/mapped: {receivers: [otlp/mapped], processors: [transform/cc_to_genai], exporters: [otlphttp/langfuse, file/mapped]}
+    traces/ttl: {receivers: [otlp/ttl], processors: [transform/cc_usage_1h], exporters: [otlphttp/langfuse, file/ttl]}
