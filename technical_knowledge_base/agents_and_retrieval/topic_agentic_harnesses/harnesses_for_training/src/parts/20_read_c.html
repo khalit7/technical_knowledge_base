@@ -1,0 +1,32 @@
+<section id="rs2">
+<h2>2. An RL environment from zero</h2>
+<p class="lead">Reinforcement learning (RL) trains a <dfn>policy</dfn> (here, the model) by letting it act, scoring the result, and making the actions that led to high scores more likely. It needs an <dfn>environment</dfn>: something that starts in a state, accepts an action, answers with an <dfn>observation</dfn>, and at the end hands out a <dfn>reward</dfn>. One run from start to finish is an <dfn>episode</dfn>, or in LLM work a <dfn>rollout</dfn>. ({{Topic: rl|n:3c65c17b0d0d8195a6c6c11ad093c16e}} teaches these from the beginning; here they get concrete.)</p>
+<p>For a coding agent, almost every part of that environment is something the harness already does. Mapping the words onto textstats-gym:</p>
+<div class="tw"><table class="ht-t">
+<thead><tr><th>RL word</th><th>In a coding environment</th><th>In textstats-gym</th></tr></thead>
+<tbody>
+<tr><td>Initial state</td><td>A repository at the commit before the fix, plus a task statement</td><td>The clean library with one to three bugs planted by exact text replacement, and an issue-style prompt</td></tr>
+<tr><td>Reset</td><td>A fresh copy and a fresh sandbox, so rollouts cannot see each other</td><td>A new workspace folder and a new <code>python:3.13-slim</code> container with <code>--network none</code> and 512 MB of memory, mounted at <code>/work</code></td></tr>
+<tr><td>Action space</td><td>The harness's tools</td><td>One <code>bash</code> tool, or four file tools: the harness <i>is</i> the action space</td></tr>
+<tr><td>Observation</td><td>The tool's result as the harness formats it</td><td>Command output clipped to 3,000 characters (head and tail), exit code appended</td></tr>
+<tr><td>Episode end</td><td>The model stops calling tools, or a cap is hit</td><td>No tool call in a reply, or 16 model calls</td></tr>
+<tr><td>Verifier</td><td>Tests that must flip from failing to passing, and tests that must stay green</td><td>20 checks (9 the agent can see, 11 held out) run in a second, fresh container that mounts the workspace read-only</td></tr>
+<tr><td>Reward</td><td>Usually 1 if the verifier passes, else 0</td><td>Binary (all 20 checks) and partial (fraction of checks): section 3</td></tr>
+</tbody></table></div>
+<p><b>Fail-to-pass and pass-to-pass.</b> SWE-bench's two test lists are worth copying exactly. Run every check against the <i>buggy</i> repository first: the checks that fail there are the <dfn>FAIL_TO_PASS</dfn> set (the fix must flip them), the ones that pass are <dfn>PASS_TO_PASS</dfn> (the fix must not break them). Computing them by running, rather than by deciding which tests "belong" to the bug, matters: the off-by-one bug in <code>top_words</code> (task T04) also breaks the tie-ordering and command-line checks, so its fail-to-pass list has six checks, not two. The full list per task is in the {{Environment lab|#t-env}}.</p>
+<p><b>Why the verifier runs outside the workspace.</b> The tests the agent sees live in its workspace, which the agent can edit. A verifier that ran them would reward a rollout that weakened a test. So the verifier copies only the <code>textstats/</code> package out of the workspace, ignores the workspace's <code>tests/</code>, and runs its own checks in a container the agent never touched. Containers are cheap at this size: a container started in <span data-ht="t_start"></span> s and a full verifier run took <span data-ht="t_verify"></span> s on this laptop (Docker 20.10.17, five timings).</p>
+<pre class="ht-pre">docker run --rm --network none --memory 256m \
+  -v &lt;workspace&gt;:/work:ro -v &lt;hidden checks&gt;:/hidden:ro \
+  python:3.13-slim python3 -B /hidden/hidden_tests.py /work      # prints {"check name": true/false, ...}</pre>
+<div class="card" id="ht-envcard">
+<div class="t"><b>One real rollout through the environment</b></div>
+<p class="small mute">Pick who checks the work. The rollout is the same recording in both modes; only the verifier changes.</p>
+<div class="seg" id="ht-envmode" role="group" aria-label="Verifier"><button data-m="vis" class="on">Before: the agent's own tests decide</button><button data-m="hid">After: hidden checks in a fresh container</button></div>
+<div class="an-ctl" id="ht-envctl"></div>
+<div class="ht-svg" id="ht-envsvg"></div>
+<div class="an-cap" id="ht-envcap"></div>
+</div>
+<p>Two design choices sit under every published environment, and the atlas tab's table of them ({{Harness atlas|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}, "How the published SWE environments are built": SWE-Gym, SWE-smith, R2E-Gym, SWE-rebench and others) shows where each one landed. <b>Where tasks come from:</b> real issues and their fixing commits (SWE-Gym's 2,438 instances took about 200 annotation hours), bugs injected into a repository until tests fail (SWE-smith, and this page), or commits back-translated into issue text (R2E-Gym). <b>How isolation is paid for:</b> an image per task, an image per repository, or no container at all. This page plants bugs because it makes the answer key exact: we know the correct code, so every rollout's diff can be judged against it.</p>
+<div class="drill"><details><summary><b>Predict:</b> the bash harness's container has no network. Which of these still works inside it: <code>python3 tests/test_core.py</code>, <code>pip install pytest</code>, <code>sed -i</code>?</summary><div>The tests and <code>sed -i</code> work (Python and GNU sed are in the image); <code>pip install</code> fails, because it needs the network. That is why the tests here need nothing beyond the standard library, and why real environments bake every dependency into the image before the rollout starts (SWE-Gym's images total about 6 TB).</div></details></div>
+<div class="deepnote"><b>Go deeper:</b> {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} for what <code>--network none</code> and a memory limit do in the kernel; {{DSec|n:3e95c17b0d0d81bd927be047bb0d7b0b}} for a sandbox layer at three million sandboxes a day; the {{Environment lab|#t-env}} for every task, bug and check.</div>
+</section>

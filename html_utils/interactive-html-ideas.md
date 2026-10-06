@@ -3121,3 +3121,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/personal_agents/src/viz_ideas.md`.
 
+### Harnesses for training and evaluation: scaffold sensitivity, RL environments, trajectories, self-improving harnesses (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training/src/viz_ideas.md`.
+
+| Idea | T | D | N | C | Where | Data |
+|---|---|---|---|---|---|---|
+| One real rollout through the environment, before/after: the workspace's own tests decide vs hidden checks in a fresh container | 5 | 5 | 5 | 3 | Reading s2 | a Haiku bash-harness T01 rollout that passed visible tests and failed `h_apos_quotes` |
+| Success and input tokens by harness, per model (small multiples, never across models) | 5 | 5 | 4 | 4 | Reading s1 | `HT.table` from all rollouts |
+| Held-out checks failed by rollouts that passed every visible test | 4 | 5 | 5 | 5 | Reading s3 | `HT.runs[].ho` |
+| Real groups, real advantages: rewards, mean, advantage, tokens; before/after pass/fail vs partial reward; GRPO / Dr. GRPO / RLOO | 5 | 5 | 4 | 3 | Reading s4 | `HT.groups`; token counts from the loss mask (local) or Claude output tokens |
+| Loss mask on a real rollout rendered through Qwen3's own template, before/after (loss on everything vs sampled only), with the server-count check | 5 | 5 | 4 | 3 | Reading s5 | `src/mask.py` output in `inputs/mask.json` |
+| Self-improving papers table (compact) and full comparison | 4 | 4 | 4 | 4 | Reading s7, Self-improvement tab | `inputs/papers.json` from the paper pages |
+| Harness search animation, before/after (keep the best score vs held-out guard) | 5 | 3 | 4 | 3 | Reading s7 | simulation, labelled; start rate = the local model's overall rate |
+| Search simulator with sliders | 4 | 3 | 4 | 4 | Self-improvement tab | same simulator |
+| Scaffold experiment grid with a trajectory viewer, paired-difference table with bootstrap intervals, cost table | 5 | 5 | 5 | 3 | Scaffold experiment tab | all rollouts |
+| Environment lab: bugs, tasks with computed fail-to-pass lists, checks, verifier on real final code (three rewards) | 5 | 5 | 5 | 4 | Environment lab tab | gym source, `res` bit strings |
+| Rollout to dataset: redaction counts, one rollout in three formats, SFT filter funnel, every group's advantages | 4 | 5 | 5 | 4 | Rollout to dataset tab | recordings, `inputs/redaction.json` |
+| RL frameworks table | 3 | 4 | 4 | 5 | Reading s8 | `inputs/frameworks.json` |
