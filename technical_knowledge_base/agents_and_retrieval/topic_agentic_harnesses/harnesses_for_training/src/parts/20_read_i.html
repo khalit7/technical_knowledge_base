@@ -1,0 +1,27 @@
+<section id="rs9">
+<h2>Common mistakes</h2>
+<div class="tw"><table class="ht-t">
+<thead><tr><th>Mistake</th><th>Why it bites</th><th>Do instead</th></tr></thead>
+<tbody>
+<tr><td>Comparing two models run in two different harnesses</td><td>The harness alone moved our 4B model's success by tens of points</td><td>Fix the harness to compare models; fix the model to compare harnesses (section 1)</td></tr>
+<tr><td>One rollout per cell</td><td>Identical settings gave different outcomes; a single run cannot tell a harness effect from luck</td><td>Several rollouts per task, a paired comparison over tasks, an interval</td></tr>
+<tr><td>Letting the workspace's tests decide the reward</td><td>The agent can edit them, and the visible tests are a few examples of the spec</td><td>Hidden checks, run outside the workspace, in a fresh container (sections 2 and 3)</td></tr>
+<tr><td>Fail-to-pass lists chosen by hand</td><td>One bug can break checks in other functions (T04 broke six)</td><td>Compute them by running every check on the buggy repository</td></tr>
+<tr><td>Ending the episode when a reply has no parsable tool call</td><td>A malformed call looks like "done"; <span data-ht="dropped_runs"></span> of our local rollouts ended that way, all failed</td><td>Return the parse error as an observation and let the model retry; count these separately</td></tr>
+<tr><td>Training on groups where every reward is equal</td><td>Zero advantage, zero gradient, full container cost</td><td>Dynamic sampling, a partial reward, tasks near a 50% pass rate (section 4)</td></tr>
+<tr><td>Scoring a run that hit a cap as a plain failure</td><td>Teaches the model that long attempts are bad rather than that the budget ran out</td><td>Mask capped and timed-out rollouts (DeepSWE's compact filtering)</td></tr>
+<tr><td>Loss on tool output, or on re-rendered text</td><td>Trains on tokens the policy did not sample (our template inserted 4 per rollout)</td><td>Record token ids and log-probabilities at sampling time; mask observations (section 5)</td></tr>
+<tr><td>Publishing raw trajectories</td><td>They carry paths, account names, ids, and sometimes credentials</td><td>A whitelist redactor that fails closed (section 6)</td></tr>
+<tr><td>Trusting a self-improvement curve measured on the tuning tasks</td><td>Best-of-many on a noisy score rises with no true gain</td><td>Report held-out, out-of-distribution and other-executor numbers, with runs and intervals (section 7)</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="rs10">
+<h2>Interview questions</h2>
+<details class="qa"><summary>Why do agent benchmark scores need a harness column?</summary><div>The score is a property of the model, the harness (tools, prompt, context policy, limits) and the settings together. The same weights moved by tens of points across harnesses on our ten tasks and by up to about 18 points on Terminal-Bench 2.0's public board. Without the harness, two numbers are not comparable.</div></details>
+<details class="qa"><summary>Design an RL environment for a coding agent.</summary><div>Task: repository snapshot plus statement. Reset: fresh copy and sandbox with no network and resource limits. Action space: the harness's tools. Observation: clipped tool output. Termination: no tool call, a submit tool, or caps on calls, tokens and time. Verifier: fail-to-pass and pass-to-pass checks computed by running them on the buggy repository, executed outside the workspace. Reward: binary on the verifier, maybe partial; mask capped runs. Log full trajectories with token ids.</div></details>
+<details class="qa"><summary>Your GRPO run on agent tasks is not learning. What do you check first?</summary><div>The fraction of groups with zero reward spread (all pass or all fail give no gradient), whether observation tokens are masked, whether the trainer uses the sampled token ids or re-tokenised text, how many rollouts hit caps or infrastructure errors and how they are scored, and whether the verifier can be satisfied without solving the task.</div></details>
+<details class="qa"><summary>What is the difference between rejection sampling fine-tuning and GRPO here?</summary><div>Rejection sampling keeps the successful trajectories and imitates them (only positive examples, every kept token weighted equally). GRPO uses every rollout in a group, weighting each by its reward relative to the group, so failures push probability away too, and it stays on-policy. Rejection sampling is the cheap first step (SWE-Gym, SWE-smith); RL needs the environment in the loop.</div></details>
+<details class="qa"><summary>A paper reports a self-improving harness gained 14 points. What do you ask?</summary><div>Was the score measured on the tasks the search optimised? What is the held-out and out-of-distribution gain, with how many runs and what interval? Does it hold with a different executing model? What did the search cost? Could anything the loop stores reach the reward?</div></details>
+<details class="qa"><summary>Why would you train a model in the same harness you deploy it in?</summary><div>The harness defines the action space, the observation format and the context policy; a model learns those habits. LEGO-RL and Polar both found RL gains differ by harness for the same base model, so train in the deployment harness, or in several to avoid overfitting one.</div></details>
+</section>
