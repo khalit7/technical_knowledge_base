@@ -3109,3 +3109,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/agent_security/src/viz_ideas.md`.
 
+### Other coding harnesses: Codex, Gemini CLI, opencode, Aider, OpenHands, mini-SWE-agent (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses/src/viz_ideas.md`.
+

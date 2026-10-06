@@ -1,0 +1,29 @@
+<section id="rd-ai">
+<h2>5. Aider: no tools, no loop, and it worked best</h2>
+<p><b>What it is.</b> A terminal pair-programmer, first released in May 2023, Apache-2.0, Python. It predates function calling, and it still does not use it. Development has slowed but not stopped: the latest GitHub <i>release</i> is v0.86.0 (9 August 2025), but tags v0.86.1 and v0.86.2 exist, PyPI's latest is 0.86.2 (12 February 2026), and the last commit to <code>main</code> is from 22 May 2026 ({{PyPI|https://pypi.org/project/aider-chat/}}, {{tags|https://github.com/Aider-AI/aider/tags}}). Read here: <code>main</code> at 5dc9490 (its code for the parts cited matches 0.86.2, which is what we ran).</p>
+<dl class="facts">
+<dt>Loop</dt><dd>There is no agent loop. <code>Coder.run()</code> takes one user message; <code>run_one()</code> sends it, applies the edits in the reply, commits, runs the linter and (if asked) the tests, and if anything failed it sends a "reflected" message with the errors, at most <b>3</b> times ({{base_coder.py 924 to 945|ai:aider/coders/base_coder.py#L924-L945}}). The human is the outer loop. The model never calls a tool, and shell commands it suggests in a <code>```bash</code> block need an explicit yes: <code>--yes-always</code> answers <i>no</i> to them ({{io.py|ai:aider/io.py#L866-L867}}).</dd>
+<dt>Edits</dt><dd>The reply carries the edits as text, in an <dfn>edit format</dfn> chosen per model: <code>diff</code> (SEARCH/REPLACE blocks, below), <code>whole</code> (reprint the file), <code>udiff</code>, <code>diff-fenced</code>, a V4A <code>patch</code> format like Codex's, and <code>editor-*</code> variants for architect mode ({{edit formats|https://aider.chat/docs/more/edit-formats.html}}). An unknown model, such as a local one, defaults to <code>whole</code> ({{models.py|ai:aider/models.py#L129}}). SEARCH text must match exactly or after small fixes (leading whitespace, a stray blank line, <code>...</code> elision); the edit-distance matcher many describe sits after an unconditional <code>return</code> and never runs ({{editblock_coder.py 157 to 187|ai:aider/coders/editblock_coder.py#L157-L187}}). A block that fails comes back with a "Did you mean" snippet of the closest lines.</dd>
+<dt>Context</dt><dd>Files you add are sent in full; everything else is summarised by the <b>repository map</b>, a PageRank over the files' definitions and references, cut to a token budget (1,024 by default for an unknown model). The {{Repo map lab|#t-map}} tab runs it for real. Older chat is summarised by a background call ("*Briefly* summarize this partial conversation about programming") once it passes a budget. No memory file is read automatically: conventions are a file you add with <code>--read</code>.</dd>
+<dt>Safety</dt><dd>No sandbox. The safety net is <b>git</b>: dirty files are committed first, every applied edit becomes its own commit with a model-written message, and <code>/undo</code> checks out the previous version of the changed files and soft-resets that commit ({{git docs|https://aider.chat/docs/git.html}}).</dd>
+<dt>Extend</dt><dd>No MCP, hooks, plugins or subagents. Architect mode (one model plans, an editor model writes the edits), watch mode (AI comments in your editor's files), and a Python scripting API.</dd>
+</dl>
+<pre class="code">textstats/core.py
+```python
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; SEARCH
+def tokenize(text):
+    """Split text into lowercase words. Apostrophes inside words are kept."""
+    return re.findall(r"[a-z]+", text.lower())
+=======
+def tokenize(text):
+    """Split text into lowercase words. Apostrophes inside words are kept."""
+    # Use a regex that matches sequences of lowercase letters, including those with apostrophes
+    # This will match "don't" as one word, not split it
+    return re.findall(r"[a-z']+", text.lower())
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; REPLACE
+```</pre>
+<p class="small mute">The local model's second fix, verbatim from our recording (Aider, <code>--edit-format diff</code>). The pattern <code>[a-z']+</code> passes the test but would also keep a leading or trailing apostrophe ("'quoted'"); the tests do not check that.</p>
+<div class="co"><div class="t">Our runs <span class="meas">MEASURED</span></div>
+<p>Aider was the only harness that fixed both bugs with the local 4B model, in both formats we tried. With <code>diff</code> (7 calls, 138 s): the model first named the file it needed, Aider added the files it mentioned, the model fixed <code>top_words</code>, Aider committed and ran the tests (<code>--auto-test</code>), sent back the one remaining failure as a reflection, and the model fixed <code>tokenize</code>. Two calls wrote commit messages and two identical calls summarised the history. With <code>whole</code> (3 calls, 42 s) the model reprinted <code>core.py</code> with both fixes at once; its first request was 879 prompt tokens against 2,655 for <code>diff</code>, because the SEARCH/REPLACE instructions and worked examples are long (5,407 characters of system prompt against 1,191). Through the <code>claude -p</code> adapter, Claude Haiku 4.5 fixed both bugs in 3 calls and 25 s: Aider's protocol needs no observation inside a reply, so the missing stop sequence of section 1 never mattered.</p></div>
+<div class="try"><b>What to steal.</b> When the model is weak or the channel is plain text, do not run an open-ended loop: give it the right files, ask for one structured answer, verify with tests, and feed back only the failure. And make every change a commit.</div>
+</section>
