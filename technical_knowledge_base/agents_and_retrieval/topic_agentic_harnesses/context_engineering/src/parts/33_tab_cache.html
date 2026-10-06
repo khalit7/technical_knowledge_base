@@ -1,0 +1,43 @@
+<div class="tab" id="t-cache" role="tabpanel" hidden>
+<style>
+#t-cache .hcc-req{display:flex;flex-wrap:wrap;gap:2px;margin:8px 0;min-height:28px}
+#t-cache .hcc-req span{display:inline-block;height:22px;border-radius:3px;font-size:10.5px;line-height:22px;padding:0 4px;color:var(--bg);overflow:hidden;white-space:nowrap;min-width:6px}
+#t-cache .hcc-req span.r{background:var(--c1)}#t-cache .hcc-req span.w{background:var(--c5)}#t-cache .hcc-req span.f{background:var(--c2)}#t-cache .hcc-req span.x{background:var(--dim);color:var(--ink)}
+#t-cache .hcc-req span.v{outline:2px solid var(--bad);outline-offset:-2px}
+#t-cache .hcc-req span.bp{box-shadow:inset -4px 0 0 var(--ink)}
+#t-cache .ctl label select,#t-cache .ctl label input{width:100%}
+</style>
+<h2>Cache lab: what a prompt cache reads, writes and charges, call by call</h2>
+<p>This simulator applies Anthropic's documented caching rules (section 2 of the Reading tab) to an agent session you configure: the request is a row of blocks in the order <code>tools</code>, <code>system</code>, <code>messages</code>; a cache entry is written at each breakpoint and keyed on the exact prefix up to it; a read looks back at most 20 block positions from each breakpoint for an unexpired entry; a prefix below the model's minimum is not cached; entries expire after 5 minutes or 1 hour without use. Prices are the list prices of the chosen model. It is a model of the rules, not of Anthropic's servers: block sizes are inputs you set, and the first preset's are taken from the recorded runs.</p>
+<div class="card" id="hcc-card">
+<div class="ctl">
+<label>Layout of the volatile value (a timestamp)<select id="hcc-vol"><option value="none">None: everything stable</option><option value="sys">In the system prompt</option><option value="last" selected>In the newest user message</option><option value="tools6">None, but one tool is added at call 6</option></select></label>
+<label>Breakpoints<select id="hcc-bp"><option value="auto" selected>Automatic: last block</option><option value="two">End of system + last block</option><option value="none">None (no caching)</option></select></label>
+<label>Model<select id="hcc-model"><option value="haiku" selected>Claude Haiku 4.5 (min 4,096)</option><option value="sonnet">Claude Sonnet 5.5 (min 512)</option></select></label>
+<label>Cache lifetime<select id="hcc-ttl"><option value="300">5 minutes (write 1.25x)</option><option value="3600" selected>1 hour (write 2x)</option></select></label>
+<label>Seconds between calls: <b id="hcc-gapv"></b><input type="range" id="hcc-gap" min="2" max="900" step="1" value="8"></label>
+<label>Extra blocks per turn: <b id="hcc-xbv"></b><input type="range" id="hcc-xb" min="0" max="30" step="1" value="0"></label>
+<label>Tool result size per turn (tokens): <b id="hcc-rsv"></b><input type="range" id="hcc-rs" min="50" max="20000" step="50" value="600"></label>
+<label>Calls: <b id="hcc-nv"></b><input type="range" id="hcc-n" min="2" max="40" step="1" value="12"></label>
+</div>
+<div class="chips" id="hcc-pre"><button data-p="cc">Preset: Claude Code start (recorded sizes)</button><button data-p="loop">Preset: one growing text block</button><button data-p="lookback">Preset: 25 blocks per turn</button><button data-p="pause">Preset: 6-minute pauses, 5-minute lifetime</button></div>
+<div class="hc-legend"><span><i style="background:var(--c1)"></i>read from cache</span><span><i style="background:var(--c5)"></i>written to cache</span><span><i style="background:var(--c2)"></i>fresh input</span><span><i style="background:var(--c1);box-shadow:inset -4px 0 0 var(--ink)"></i>block carrying a breakpoint (dark right edge)</span><span><i style="background:var(--bg);outline:2px solid var(--bad);outline-offset:-2px"></i>block holding the volatile value</span></div>
+<div class="small mute">The request on the current call, one box per block (width grows with size, capped):</div>
+<div class="hcc-req" id="hcc-req"></div>
+<div class="an-cap" id="hcc-cap"></div>
+<div class="an-ctl" id="hcc-ctl"></div>
+<div id="hcc-chart"></div>
+<div class="small mute">Bars: tokens per call, split into read, written and fresh (left axis). Lines: cumulative cost with caching (solid) and without (dashed), right axis.</div>
+<div class="out" id="hcc-out"></div>
+</div>
+<h3>Check against the recorded runs</h3>
+<p>With the block sizes measured in the static run (tools plus the fixed part of the system prompt 8,344 tokens, already cached by other sessions; the rest of the system prompt 3,855; the first user message 1,111 plus the 13-token timestamp when present), the rules give the reads and writes below for the first and second call of each recorded variant. This reproduces the recordings <b>by construction</b> for the static run (its sizes are the inputs) and <b>independently</b> for the other three variants.</p>
+<div class="tw"><table class="hc-t" id="hcc-check"></table></div>
+<h3>What the presets teach</h3>
+<ul class="tight">
+<li><b>One growing text block</b> (the parent's Loop lab harness): the transcript is a single block whose content changes every call, so no prefix ever matches past the system prompt; once past the minimum it is written in full every call.</li>
+<li><b>25 blocks per turn:</b> a turn with many separate blocks (for example a harness that splits each tool result into several text blocks) pushes the previous turn's entry out of the 20-position lookback, and the automatic breakpoint finds nothing to read. A second breakpoint at the end of the system prompt limits the damage to the history; placing one at the start of each turn would fix it.</li>
+<li><b>Pauses longer than the lifetime:</b> with 5-minute entries and 6-minute gaps every call rewrites everything; the 1-hour lifetime costs more per write and wins as soon as a session pauses.</li>
+</ul>
+<p class="small mute">Sources: {{prompt caching|https://platform.claude.com/docs/en/build-with-claude/prompt-caching}} (order, breakpoints, 20-position lookback, minimum lengths, lifetimes) and {{pricing|https://platform.claude.com/docs/en/about-claude/pricing}}, read 5 and 6 Oct 2026; recorded runs in <code>src/recordings/cache_*.jsonl</code>. Not modelled: the delay before a new entry becomes readable (it matters only for parallel requests), thinking blocks, images and tool-choice changes.</p>
+</div>
