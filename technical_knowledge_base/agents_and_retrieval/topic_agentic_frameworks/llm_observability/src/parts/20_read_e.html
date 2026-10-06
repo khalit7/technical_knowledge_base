@@ -1,0 +1,48 @@
+
+<section id="rs11">
+<h2>Reliability patterns the trace should show</h2>
+<p>The old version of this page listed production patterns that are not observability themselves but that a trace must make visible. Each is owned elsewhere; what the trace needs is here.</p>
+<div class="tw"><table>
+<thead><tr><th>Pattern</th><th>What to record so you can see it working</th><th>Owned by</th></tr></thead>
+<tbody>
+<tr><td>Structured output: validate, feed the error back, retry two or three times at most</td><td>A span or event per retry with the validation error; a retry-rate metric (a rising rate is a prompt or model regression)</td><td>{{Typed agent libraries|n:3f15c17b0d0d819fba89f9ec88feb859}} (Pydantic AI's <code>ModelRetry</code>)</td></tr>
+<tr><td>Fallbacks, retries and cooldowns at a gateway</td><td>Which deployment answered, how many attempts and fallbacks (LiteLLM returns them as response headers), on the model span; evaluate every model in the fallback chain, or a fallback is a silent quality cliff</td><td>{{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}</td></tr>
+<tr><td>Step, token and wall-clock budgets per run; stop and return partial results</td><td>The stop reason on the root span; model and tool calls per run as metrics; alert on drift of their p95</td><td>{{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}}</td></tr>
+<tr><td>Degrade explicitly when everything fails</td><td>A typed error on the root span with the same trace id the user's request had, so the incident is one query away</td><td>This page, section 1</td></tr>
+<tr><td>Version prompts outside code; promote by label after an eval gate</td><td><code>gen_ai.prompt.name</code> and <code>gen_ai.prompt.version</code> on every model span, so a regression can be traced to a prompt version</td><td>Section 4 (Langfuse prompt labels) and {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}</td></tr>
+</tbody></table></div>
+
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Turning on client auto-instrumentation and calling it agent tracing</summary><div class="b">It gives one trace per model call (section 3). Add the <code>invoke_agent</code> and <code>execute_tool</code> spans yourself or use a framework that does.</div></details>
+<details class="mist"><summary>Reading Anthropic's <code>input_tokens</code> as the input size</summary><div class="b">It excludes cache reads and writes. On our first Claude Code call it was <span class="fobs-v" data-v="cc.c1in"></span> tokens out of <span class="fobs-v" data-v="cc.c1sum"></span>. The GenAI value is the sum (section 2).</div></details>
+<details class="mist"><summary>Trusting a backend's cost without reconciling it</summary><div class="b">Our first two Langfuse totals were $0 and 16% short, both silently (section 6). Compare with a second source on every model you use.</div></details>
+<details class="mist"><summary>Error-based tail sampling on agent traces</summary><div class="b">Successful runs have ERROR spans; long runs outlive <code>decision_wait</code>. Decide on the root's outcome after the root arrives (section 7).</div></details>
+<details class="mist"><summary>Assuming content is off by default</summary><div class="b">The conventions say opt-in; four of the five instrumentation libraries we ran capture it by default, and Claude Code adds the account e-mail to every span regardless (section 8).</div></details>
+<details class="mist"><summary>Redacting with a deny-list only</summary><div class="b">Patterns catch what you anticipated. The login name in <code>ls -la</code> output got through ours. Allow-list keys for anything leaving your network.</div></details>
+<details class="mist"><summary>Not noticing lost telemetry</summary><div class="b">Exporters drop data on errors and print a warning; the application carries on (section 4). Monitor the exporter or the collector's own metrics.</div></details>
+<details class="mist"><summary>Double-counting usage on parent spans</summary><div class="b">If the agent span carries the run's total tokens under the same names as the model spans, a backend that sums all spans counts them twice. Pydantic AI writes the totals on its agent span as <code>gen_ai.aggregated_usage.*</code> for this reason (its <code>use_aggregated_usage_attribute_names</code> setting, default on).</div></details>
+
+<h2>Interview questions</h2>
+<details class="qa"><summary>What is the difference between a trace, a span and an event?</summary><div>A trace is one run (all spans sharing a trace id); a span is one timed operation in it with a parent, attributes and status; an event is a timestamped record inside a span (Claude Code puts tool output in a <code>tool.output</code> event).</div></details>
+<details class="qa"><summary>How do you get one trace across your app, an agent subprocess and the tools it runs?</summary><div>Propagate W3C trace context: inject <code>traceparent</code> into the child's environment or headers and extract it there. Claude Code reads <code>TRACEPARENT</code> in <code>-p</code> and SDK sessions and passes it to Bash subprocesses (section 1).</div></details>
+<details class="qa"><summary>Which GenAI attributes are required on a model-call span, and which do you need for cost?</summary><div>Required: <code>gen_ai.operation.name</code> and <code>gen_ai.provider.name</code> (model if available). For cost: the model and the token counts by kind (input including cache, cache read, cache write, output) plus the cache lifetime where prices differ.</div></details>
+<details class="qa"><summary>Head or tail sampling for agents?</summary><div>Tail, deciding on the root span's outcome shortly after the root arrives, plus a small random share; count with metrics computed before sampling.</div></details>
+<details class="qa"><summary>How do you keep personal data out of traces?</summary><div>Content off by default, on per environment; SDK masking; a collector with an allow-list of keys (or keyed hashing where you need joins) before data leaves your network; short retention and access control where full content is kept.</div></details>
+<details class="qa"><summary>Your trace tool says a run cost $0.035 and the bill says $0.042. Where do you look?</summary><div>Token kinds and prices: cache writes priced at the wrong lifetime (our case), cache reads counted as fresh, a model name that does not match a price entry, or missing spans (sampled or lost).</div></details>
+<details class="qa"><summary>What does an online evaluator add over tracing?</summary><div>Quality: a trace shows what happened; a score says whether it was good. Scores catch soft failures that end with status OK, drive sampling and alerts, and select traces to promote into the regression set.</div></details>
+<details class="qa"><summary>Langfuse or LangSmith?</summary><div>Langfuse if you need to self-host without an Enterprise contract or want MIT; LangSmith if LangGraph is your runtime and a hosted service is fine. Instrument with OpenTelemetry either way.</div></details>
+
+<h2>Corrections to the old version of this page</h2>
+<div class="co warn"><div class="t">Checked against primary sources on 6 October 2026</div><ul>
+<li>"the v3 stack: Postgres + ClickHouse + Redis + S3": Langfuse is on version 4 (GA 17 Aug 2026), same four stores, observations-first storage and OpenTelemetry-only ingestion; v3 gets security fixes until the end of January 2027.</li>
+<li>"Langfuse calls span-tree nodes observations (span/generation/event)": there are now ten observation types, including agent, tool, chain, retriever, evaluator, embedding and guardrail.</li>
+<li>"Arize Phoenix: open source": Elastic License 2.0, source-available. It now also ingests GenAI-convention spans directly (since May 2026).</li>
+<li>"LangSmith ... tracing arbitrary code means adopting their SDK anyway": LangSmith accepts OpenTelemetry at <code>/otel/v1/traces</code>; the SDK is optional.</li>
+<li>"OpenAI's Agents API and Anthropic's Managed Agents both ... since September 2026": Managed Agents entered public beta on 8 April 2026; the Agents API on 10 September 2026. The Agents API exports OTLP JSON traces; for Managed Agents we found an event log, not OpenTelemetry.</li>
+<li>"Native LiteLLM integration: point the proxy's logging callback at Langfuse": still true, but it now goes through OpenTelemetry, and LiteLLM recommends the <code>langfuse_otel</code> callback.</li>
+<li>OpenLLMetry is still Apache 2.0, but Traceloop now belongs to ServiceNow (2026).</li>
+<li>Claude Code 2.1.274's <code>effort</code> span attribute and managed-settings event: confirmed (September 2026).</li>
+</ul></div>
+<p class="small mute">Data as of 6 October 2026. Versions: Langfuse 4.53.0 (Python SDK 4.17.0), OpenTelemetry Collector contrib 0.162.0, opentelemetry-sdk 1.45.1, opentelemetry-instrumentation-openai-v2 2.4b0 with opentelemetry-util-genai 0.4b0 (1.2b0 breaks its import), OpenLLMetry's opentelemetry-instrumentation-openai 0.62.4, openinference-instrumentation-openai 0.1.63, pydantic-ai-slim 2.54.0, openai 3.25.0, Claude Code 2.1.291 (Claude subscription, <code>--setting-sources project --strict-mcp-config --no-session-persistence</code>), local model mlx-community/Qwen3-4B-Instruct-2507-4bit on mlx-lm 0.32.0 (local model on Apple M1 Pro), GenAI conventions at commit cb10b70. Scripts, collector configurations, redacted recordings and data are in this page's <code>src/</code>.</p>
+</section>
+</div>

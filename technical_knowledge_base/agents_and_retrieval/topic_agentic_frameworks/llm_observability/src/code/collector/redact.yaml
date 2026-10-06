@@ -1,0 +1,43 @@
+# Three redaction policies side by side, each on its own port; every pipeline writes what survives to a file.
+receivers:
+  otlp/r1:
+    protocols: {http: {endpoint: 0.0.0.0:4318}}
+  otlp/r2:
+    protocols: {http: {endpoint: 0.0.0.0:4319}}
+  otlp/r3:
+    protocols: {http: {endpoint: 0.0.0.0:4320}}
+processors:
+  redaction/mask:            # keep every key, mask values that match a pattern
+    allow_all_keys: true
+    blocked_values:
+      - "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"   # e-mail addresses
+      - "ACCT-[0-9]{4}-[0-9]{4}"                              # this app's customer ids
+      - "/(?:[U]sers|home)/[^/\\s\"]+"                       # home directories (they contain the OS user name)
+      - "-[U]sers-[A-Za-z0-9]+-"                             # the same, as a dash-joined folder name
+    summary: debug
+  redaction/hash:            # the same, but replace each match with a keyed hash (joinable, not reversible)
+    allow_all_keys: true
+    blocked_values:
+      - "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+      - "ACCT-[0-9]{4}-[0-9]{4}"
+      - "/(?:[U]sers|home)/[^/\\s\"]+"
+      - "-[U]sers-[A-Za-z0-9]+-"
+    hash_function: hmac-sha256
+    hmac_key: "demo-only-key-32-bytes-long-rotate-it"   # at least 32 bytes; keep it secret
+    summary: info
+  redaction/allowlist:       # fail closed: only structural keys survive, no content of any kind
+    allow_all_keys: false
+    allowed_keys: [gen_ai.operation.name, gen_ai.provider.name, gen_ai.system, gen_ai.request.model, gen_ai.response.model,
+      gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, gen_ai.response.finish_reasons, gen_ai.tool.name, gen_ai.tool.call.id,
+      gen_ai.agent.name, error.type, span.type, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
+      tool_name, success, duration_ms, stop_reason, decision, source]
+    summary: info
+exporters:
+  file/r1: {path: /out/mask.jsonl}
+  file/r2: {path: /out/hash.jsonl}
+  file/r3: {path: /out/allowlist.jsonl}
+service:
+  pipelines:
+    traces/r1: {receivers: [otlp/r1], processors: [redaction/mask], exporters: [file/r1]}
+    traces/r2: {receivers: [otlp/r2], processors: [redaction/hash], exporters: [file/r2]}
+    traces/r3: {receivers: [otlp/r3], processors: [redaction/allowlist], exporters: [file/r3]}
