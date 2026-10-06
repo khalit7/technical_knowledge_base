@@ -3139,3 +3139,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | Environment lab: bugs, tasks with computed fail-to-pass lists, checks, verifier on real final code (three rewards) | 5 | 5 | 5 | 4 | Environment lab tab | gym source, `res` bit strings |
 | Rollout to dataset: redaction counts, one rollout in three formats, SFT filter funnel, every group's advantages | 4 | 5 | 5 | 4 | Rollout to dataset tab | recordings, `inputs/redaction.json` |
 | RL frameworks table | 3 | 4 | 4 | 5 | Reading s8 | `inputs/frameworks.json` |
+
+### LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph/src/viz_ideas.md`.
+
+| Idea | Score | Placement | Data |
+|---|---|---|---|
+| Super-step player: graph lit per phase (plan, execute, update), channel table with versions and changes, pending writes, versions_seen, counters; before/after pairs (reducer vs none, plain edges vs join) | 3/3/3 | Super-step lab (7 graphs) and inline in Reading s3 (reducer toggle) | e1_supersteps.json, recorded checkpoints and task events |
+| Real killed-and-resumed run: process lanes to scale, killed call hatched, counters (calls, tokens, cost), caption per event, sync vs exit toggle on the same input | 3/3/3 | Crash lab (animated), Reading s5 (static, both modes) | recordings/e6 |
+| Database contents at the moment of death (pending writes, __error__) | 3/3/3 | Crash lab | e2 raw_after_first |
+| Interrupt re-execution animation: code lines highlighted, e-mail counter, before vs after placement | 3/3/2 | Reading s6 | e4 counters |
+| Storage growth chart: add_messages vs DeltaChannel, SQLite and Postgres | 3/3/3 | Reading s4 | e3 series |
+| Checkpoint inspector (pick a step, see the raw checkpoint) | 2/3/3 | Reading s4 | e1 linear |
+| Stream-mode picker with recorded events | 2/3/3 | Reading s7 | e5 streams |
+| create_agent compiled graph with and without middleware; transcript of two local-model runs with different reviewers; first request body; HITL payload | 3/3/3 | Reading s9 | e7, e7b |
+| Tables: interrupt rules measured, subgraph styles, store across threads, durability overhead, kill outcomes | 2/3/2 | Reading | e2, e4, e5 |
