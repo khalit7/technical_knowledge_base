@@ -1,0 +1,29 @@
+<section id="rd-s4">
+<h2>4. Egress control: the one path out, written over destinations</h2>
+<p>Exfiltration needs a way out. Close it and a compromised agent can read your secrets but cannot send them anywhere; the trifecta is broken. The mistake almost everyone makes first is to write the egress policy over <b>tools or protocols</b> ("deny <code>curl</code>, deny <code>wget</code>") instead of over <b>destinations</b> ("allow connections only to these hosts"). A tool-shaped policy is weak because naming the tools leaves every other way to reach the network untouched; a destination policy asks the one question that matters, <i>where is this going?</i>, and answers it in one place.</p>
+<p>So the control to build is a default-deny allow-list keyed on destination, enforced by a proxy or firewall below the agent. The simulation below is that policy, as a pure function (<code>src/sec/egress_policy.py</code>, no network and no model): ordinary outbound traffic for a coding agent that may install packages is decided request by request. Allowed destinations pass; everything else, including a connection straight to an IP and a lookup of a name nobody put on the list, is denied by default.</p>
+
+<div class="card">
+<h3 style="margin-top:0">A destination allow-list deciding each request</h3>
+<p class="small mute">Each outbound request is evaluated against the allow-list by destination, HTTPS and DNS alike. The verdict does not depend on which tool or command made the request. <span class="meas">MEASURED</span> (policy simulation, no network)</p>
+<div class="an-ctl" id="hsec-eg-ctl"></div>
+<div class="an-cap" id="hsec-eg-cap" aria-live="polite"></div>
+<div class="out" id="hsec-eg-cnt"></div>
+<div class="hsec-gate" id="hsec-eg-list"></div>
+</div>
+
+<p>Two things to read off it. First, the decision is made by <i>where the request is going</i>, not by what opened the socket, so there is nothing to spell around: the model API and the package registry pass, and a fetch to an unlisted host or a raw IP is denied by the same default that denies everything unforeseen. Second, the resolver is on the same allow-list. A lookup of a listed name passes; a lookup of any other name is denied, which is the leg the next note is about.</p>
+<div class="nb"><b>DNS is egress too.</b> The channel people forget is name resolution. A process blocked from HTTP can still ask the resolver a question, and a question can carry bytes outward in the name itself. That is not hypothetical: it is how the September 2026 OpenAI incident moved data out past a web proxy (section <a href="#rd-s8">8</a>). An egress allow-list that covers HTTP but not DNS is a door with a window next to it, which is why the simulation above decides DNS lookups by the same list.</div>
+<p>The rule to remember: <b>enforcement lives outside the component that can be persuaded.</b> The model can be talked into trying to exfiltrate; the harness's gate can be bypassed with cleverness; a kernel-level or network-level allow-list keyed on destination cannot be talked into anything. Put the egress decision as far from the model as you can.</p>
+</section>
+
+<section id="rd-s5">
+<h2>5. Credential isolation: the model cannot leak what it never sees</h2>
+<p>The cheapest way to protect a secret from an agent is to never put it where the agent can read it. Three levels, from weakest to strongest:</p>
+<ul>
+<li><b>In a file or environment variable the agent can read.</b> The default, and the worst: a permission gate has an action policy, not a data policy, so it will <b>allow</b> a read of a file that happens to hold a secret exactly as it allows any other read (the gate decisions in section <a href="#rd-s2">2</a> show reads passing on their action alone). The secret is then one <code>cat</code> away from the context window, and once it is in the context any egress path leaks it.</li>
+<li><b>Behind a broker the agent calls.</b> The agent asks a local helper to "sign this request" or "use credential X"; the helper holds the secret and returns only the result. The secret never enters the model's context. This is how a well-built tool exposes an API key: the key lives in the tool, the model sees a function.</li>
+<li><b>Injected by a proxy on allowed requests only.</b> Claude Code's sandbox can show a shell command a placeholder and have the egress proxy substitute the real value only on requests to allow-listed hosts <span class="src">SOURCE</span>. The model and the command both only ever see a sentinel; the real token is spliced in outside the sandbox, on the way to a host you trust.</li>
+</ul>
+<p>The principle is the same as least privilege in any system: scope the credential to the task, keep it out of the reasoning loop, and make its use observable. An agent that needs to push to one repository should hold a token for one repository, not your personal access token for everything.</p>
+</section>

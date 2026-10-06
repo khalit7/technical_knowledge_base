@@ -1,0 +1,24 @@
+<section id="rd-s2">
+<h2>2. The permission gate: allow, ask, deny</h2>
+<p>The first layer is a function that runs before every tool call and returns one of three verdicts: <b class="pill ok">allow</b> run it, <b class="pill mid">ask</b> a person decides, <b class="pill bad">deny</b> refuse and tell the model why. The root's Loop lab builds exactly this gate in its step 3; this page reuses its real code to show how it decides. The rules are checked in order, first match wins, and the ordering is itself a security decision: <b>deny rules first, then allow rules, and anything that matched nothing is "ask".</b></p>
+<div class="fm"><div class="eq">deny &rarr; ask &rarr; allow, first match wins; unmatched = ask</div><dl><dt>deny first</dt><dd>a dangerous pattern must win even if a later allow rule would also match it</dd><dt>unmatched = ask</dt><dd>the default for anything the author did not foresee</dd><dt>ask with nobody there</dt><dd>in a headless or batch run there is no person, so "ask" becomes "deny": <dfn>fail closed</dfn></dd></dl></div>
+<p><b>Fail closed is the single most important choice here,</b> and the table below shows why: most of the dangerous actions the gate denies are not denied by a rule that names them. They are denied because they matched no allow rule, fell through to "ask," and there was no one to ask. The deny list catches the obvious words; the fail-closed default catches everything the author did not foresee. A gate that defaulted to allow would be a gate in name only.</p>
+
+<div class="card">
+<h3 style="margin-top:0">The gate deciding, one call at a time</h3>
+<p class="small mute">The real <code>check()</code> from the Loop lab's step 3, run with no model on a mix of the task's own actions and clearly-dangerous ones. Each verdict is the gate's actual output; the reason names the rule. <span class="meas">MEASURED</span></p>
+<div class="an-ctl" id="hsec-g-ctl"></div>
+<div class="an-cap" id="hsec-g-cap" aria-live="polite"></div>
+<div class="hsec-gate" id="hsec-g-list"></div>
+</div>
+
+<h3>Why a command-pattern gate is brittle in both directions</h3>
+<p>A gate written as patterns over command strings leaks the real lesson of the Loop lab, and the probe makes each failure concrete:</p>
+<ul>
+<li><b>It blocks work it should allow.</b> In three of the root's four Claude Code runs an allow rule for <code>python3</code> blocked <code>python tests/test_core.py</code>; the models typed <code>python</code>, hit a denial, and in the Haiku runs finished without ever running the tests ({{root Loop lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}) <span class="src">SOURCE</span>. The <dfn>python vs python3</dfn> gap: an allow-list keyed on an exact token is only as right as the author's guess about how the model will spell the command.</li>
+<li><b>An allowed prefix can hide a second command.</b> A shell string that starts with an allowed command but then chains another after a <code>;</code> or <code>&amp;&amp;</code> is really two commands, only one of which the allow rule saw. The gate's defence is to treat any command containing <code>; &amp; | $ &lt; &gt;</code> or a backtick as "ask" (so, headless, deny), which the table above shows denying a chained example. That catches chaining and command substitution, but it is a syntactic proxy for a semantic question ("what will this actually do?") that the string alone cannot answer, which is why the gate is a first layer and not the last.</li>
+<li><b>It only knows the tools it was told about.</b> The Loop lab's step 5 added a subagent tool and forgot to write its rule; the gate refused it, failing closed, which was the right default but a surprise ({{root Loop lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}) <span class="src">SOURCE</span>. A gate is a deny-by-default list of a finite set of actions; a new tool is invisible to it until a rule exists.</li>
+</ul>
+<p>The deeper point: a permission gate decides <b>which commands start</b>, not <b>what a started command can reach</b>. An allowed <code>python3 fix.py</code> can open a socket, read your SSH key and post it anywhere. The gate is necessary (it is the cheap, always-on layer that stops the obvious) and never sufficient. For containment you need the next layer.</p>
+<div class="deepnote"><b>Go deeper:</b> see the full action set and what each verdict depends on in the {{Permission gate decisions|#t-hsgate}} tab. Claude Code's own rule syntax (the <code>allow</code>/<code>ask</code>/<code>deny</code> arrays, settings precedence, why <code>sed -i</code> is refused in accept-edits) is a product feature documented on the {{Claude Code page|n:3c65c17b0d0d81db9c7fc54987c1ab65}}.</div>
+</section>
