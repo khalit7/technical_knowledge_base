@@ -3188,3 +3188,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | 5 | **Pattern picker**: eight small diagrams (control arrows solid, passed content dashed) with who decides / who sees / cost shape / examples | Reading 1 | definitions, sourced | 4/4/2 | The vocabulary of the page in one card |
 | 6 | **Cost by component** stacked bars per design (fresh, written, cached, output), cache-write price implied from the reported total | Reading 9 | result.modelUsage | 4/5/1 | Shows the square-law term is cheap under caching and output/thinking dominate |
 | 7 | **Found/missed matrix**: 16 planted bugs x every run | Audit lab | answers vs key | 3/5/1 | Shows which bugs the single agent never looked at |
+
+### LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/llm_observability/src/viz_ideas.md`.
+

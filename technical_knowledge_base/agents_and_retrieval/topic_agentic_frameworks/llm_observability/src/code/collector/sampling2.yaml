@@ -1,0 +1,25 @@
+# Policy on the outcome of the run (its root span), not on any span: the recorded run has recoverable ERROR spans.
+receivers:
+  otlp/a: {protocols: {http: {endpoint: 0.0.0.0:4318}}}
+  otlp/b: {protocols: {http: {endpoint: 0.0.0.0:4319}}}
+processors:
+  tail_sampling/any_error:
+    decision_wait: 300s
+    decision_wait_after_root_received: 2s
+    policies: [{name: errors, type: status_code, status_code: {status_codes: [ERROR]}}]
+  tail_sampling/root_outcome:
+    decision_wait: 300s
+    decision_wait_after_root_received: 2s
+    policies:
+      - name: failed-runs
+        type: ottl_condition
+        ottl_condition:
+          error_mode: ignore
+          span: ['IsRootSpan() and span.status.code == STATUS_CODE_ERROR']
+exporters:
+  file/a: {path: /out/any_error.jsonl}
+  file/b: {path: /out/root_outcome.jsonl}
+service:
+  pipelines:
+    traces/a: {receivers: [otlp/a], processors: [tail_sampling/any_error], exporters: [file/a]}
+    traces/b: {receivers: [otlp/b], processors: [tail_sampling/root_outcome], exporters: [file/b]}

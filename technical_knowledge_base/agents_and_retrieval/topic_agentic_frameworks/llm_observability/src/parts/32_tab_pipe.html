@@ -1,0 +1,36 @@
+<div class="tab" id="t-pipe" role="tabpanel" hidden>
+<style>
+#t-pipe .fobs-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:8px 0}
+#t-pipe .ok{color:var(--good);font-weight:600}#t-pipe .no{color:var(--bad);font-weight:600}
+#t-pipe .fobs-cfgsel{margin:6px 0}
+#t-pipe select,#t-read select{max-width:100%}
+</style>
+<h2>Pipeline lab: what a collector does to agent traces</h2>
+<p>An OpenTelemetry Collector sits between your services and your backend. This tab gathers the three collector experiments behind the {{Reading|#t-read}} tab (sections 6 to 8): a tail-sampling simulator checked against six real collector runs, the per-call cost table behind the reconciliation, and the exact configurations used, so you can copy them. Collector: <code>otel/opentelemetry-collector-contrib:0.162.0</code> in Docker.</p>
+
+<h3>1. Tail-sampling simulator</h3>
+<p>The input is the recorded Claude Code trace: 49 spans arriving at their real end times over 29 s, the root last. Choose how the collector waits and what it keeps. The simulator applies the processor's documented rules to these arrival times; each preset is an outcome measured on the real collector (six collector pipelines, seven outcomes), and the simulator is checked against every one.</p>
+<div class="card" id="fobs-sim">
+<div class="ctl">
+<label>Trace <select id="fobs-sim-run"><option value="failed">run marked failed</option><option value="ok">run as recorded (succeeded)</option></select></label>
+<label>Policy <select id="fobs-sim-pol"><option value="any">any span ERROR</option><option value="root">root span ERROR</option></select></label>
+<label>decision_wait <b id="fobs-sim-wv"></b> s<input type="range" id="fobs-sim-w" min="1" max="120" step="1" value="5"></label>
+<label><input type="checkbox" id="fobs-sim-ar"> decide 2 s after the root arrives (<code>decision_wait_after_root_received</code>)</label>
+</div>
+<div class="small">Presets measured on the real collector: <span id="fobs-sim-pre"></span></div>
+<div id="fobs-sim-svg"></div>
+<div class="fobs-res" id="fobs-sim-out"></div>
+<div class="small mute" id="fobs-sim-note"></div>
+</div>
+<p class="small mute">Late spans: in our runs the collector still held the trace's decision in memory, so spans arriving after a "drop" were dropped too, with or without the decision cache. Under heavy load, once a trace is evicted from the buffer without a decision cache, late spans are "buffered for decision_wait seconds and then a new sampling decision is made" (processor README), which yields a fragment of the trace instead. The simulator shows the measured behaviour.</p>
+
+<h3>2. The cost reconciliation, call by call</h3>
+<p>The eight model requests of the Claude Code run, with the token counts its spans carried and the cost Langfuse computed under each labelling (section 6 of the Reading tab).</p>
+<div class="tw"><table id="fobs-cost-tab"></table></div>
+<p class="small mute">Haiku 4.5 list prices per million tokens: input $1, 5-minute cache write $1.25, 1-hour cache write $2, cache read $0.10, output $5 ({{Anthropic pricing|https://platform.claude.com/docs/en/about-claude/pricing}}). The "check" column recomputes each call at the 1-hour rate.</p>
+
+<h3>3. The configurations used</h3>
+<p>Each one passed <code>otelcol-contrib validate</code> before use. Two lessons from writing them: an <code>hmac_key</code> shorter than 32 bytes is rejected for <code>hmac-sha256</code>; and an OTTL condition that matches nothing does not fail, so test policies with a trace you know should match.</p>
+<div class="seg fobs-cfgsel" id="fobs-cfg-pick" role="group" aria-label="Configuration"><button data-m="to_langfuse" class="on">Cost mapping to Langfuse</button><button data-m="redact">Redaction, three policies</button><button data-m="sampling">Tail sampling, four waits</button><button data-m="sampling2">Tail sampling, two policies</button></div>
+<pre class="fobs-pre" id="fobs-cfg"></pre>
+</div>
