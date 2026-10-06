@@ -30,6 +30,12 @@ FAMILY = {
 # a short status badge where the product is not plainly active (the cell text carries the evidence)
 BADGE = {"windsurf": "renamed", "roo_code": "shut down", "cursor": "acquired", "amp": "spun out",
          "aider": "slowing", "swe_agent": "maintenance", "kilo_code": "acquired"}
+# child pages of this topic that go deeper on a product (title, Notion page URL)
+_CC = ("Claude Code, taken apart", "https://app.notion.com/p/3c65c17b0d0d81db9c7fc54987c1ab65")
+_OTH = ("Other coding harnesses", "https://app.notion.com/p/3c65c17b0d0d819fa3cefdcd2ccff2f7")
+_PERS = ("Personal agents", "https://app.notion.com/p/3c75c17b0d0d81bf9462fbeb09593e1c")
+DEEPER = {"claude_code": _CC, "openai_codex": _OTH, "gemini_cli": _OTH, "opencode": _OTH, "aider": _OTH,
+          "openhands": _OTH, "mini_swe_agent": _OTH, "openclaw": _PERS, "hermes_agent": _PERS}
 AXES = ["open", "models", "loop", "edit", "context", "perms", "ext", "where", "price"]
 
 
@@ -78,6 +84,7 @@ def harnesses():
             "first": {"v": fr.get("v", ""), "d": fr.get("d", ""), "s": srcs(fr)},
             "latest": {"v": lt.get("v", ""), "date": lt.get("date", ""), "s": srcs(lt)},
             "ax": ax, "notes": h.get("notes", []),
+            "deep": list(DEEPER[h["id"]]) if h["id"] in DEEPER else [],
         })
     order = list(FAMILY)
     out.sort(key=lambda h: order.index(h["id"]))

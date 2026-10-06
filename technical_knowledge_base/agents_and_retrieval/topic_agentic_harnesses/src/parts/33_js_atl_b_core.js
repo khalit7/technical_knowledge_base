@@ -66,6 +66,7 @@ window.ATLX=(function(){
     const fl=[];if(x.first.v)fl.push('first release '+esc(x.first.v)+(x.first.d?' ('+esc(x.first.d)+')':'')+(x.first.s.length?' '+links(x.first.s):''));
     if(x.latest.v)fl.push('latest seen '+esc(x.latest.v)+(x.latest.date?', '+esc(x.latest.date):'')+(x.latest.s.length?' '+links(x.latest.s):''));
     if(fl.length)h+='<p class="small">'+fl.join('; ')+'</p>';
+    if(x.deep&&x.deep.length)h+='<p class="small"><b>Go deeper:</b> <a href="'+x.deep[1]+'" target="_blank" rel="noopener noreferrer">'+esc(x.deep[0])+'</a>, a child page of this topic.</p>';
     if(x.notes&&x.notes.length)h+='<details><summary class="small">Notes on '+esc(x.name)+' ('+x.notes.length+')</summary><ul class="small">'+x.notes.map(n=>'<li>'+esc(String(n)).replace(/(https?:\/\/[^\s;,)]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')+'</li>').join('')+'</ul></details>';
     $('atl-cell').innerHTML=h;
   }
