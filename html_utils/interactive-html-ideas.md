@@ -3117,3 +3117,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/building_a_harness/src/viz_ideas.md`.
 
+### Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/personal_agents/src/viz_ideas.md`.
+
