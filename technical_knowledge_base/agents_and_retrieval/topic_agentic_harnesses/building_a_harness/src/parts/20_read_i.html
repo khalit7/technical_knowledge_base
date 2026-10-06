@@ -1,0 +1,44 @@
+
+<section id="hb-s9">
+<h2>9. The harness, assembled</h2>
+<p><code>src/harness/native.py</code> is 205 lines of standard-library Python (166 without comments and blank lines) and contains every decision on this page. Read top to bottom, it is the checklist:</p>
+<div class="tw"><table>
+<thead><tr><th>Part of native.py</th><th>Decision</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td><code>TOOLS</code>: four JSON-schema definitions</td><td>few tools, descriptions that say what the result looks like ("The first line is the exit code"), exact replacement for edits</td><td>1, 5, 6</td></tr>
+<tr><td><code>post()</code> with <code>urllib</code></td><td>the request is plain JSON you can log and replay; the provider renders it</td><td>1</td></tr>
+<tr><td>the finish-reason checks</td><td>a reply without a tool call is a stop only if it is not truncated and not empty</td><td>2, 7, 8</td></tr>
+<tr><td><code>run_one()</code></td><td>parse, validate, gate, execute; every failure becomes an observation</td><td>5, 7</td></tr>
+<tr><td>the batch rule</td><td>read-only batches run concurrently; anything else in order; one result per call, in call order</td><td>3</td></tr>
+<tr><td><code>RULES</code> and <code>check()</code></td><td>the Loop lab's permission gate; nobody to ask means deny</td><td>parent page, step 3; {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}</td></tr>
+<tr><td><code>--stop-rule verify</code></td><td>the harness runs the tests before accepting "done", at most three times</td><td>8</td></tr>
+<tr><td><code>--max-turns</code>, the token count in every log line</td><td>hard caps, and the data to choose them</td><td>8</td></tr>
+<tr><td><code>log()</code>: one JSON line per turn</td><td>the trajectory, which every number on this page was computed from</td><td>all</td></tr>
+</tbody></table></div>
+<p><b>What it leaves out, on purpose.</b> Context management (it would need clipping, masking and compaction for longer tasks: {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}), a sandbox (the gate decides what may start; it does not contain what runs: {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}} and {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}), streaming and interrupts (section 4), retries for a flaky server, and prompt caching (the parent page's Loop lab shows what one growing text block costs; a native-call harness keeps the system prompt and tools byte-identical at the front of every request). For how Claude Code implements each of these, see {{Claude Code, taken apart|n:3c65c17b0d0d81db9c7fc54987c1ab65}}; for libraries that give you the loop ready-made (LangGraph, Pydantic AI, the OpenAI Agents SDK, the Claude Agent SDK and others), the sibling root {{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}.</p>
+</section>
+
+<section id="hb-mis">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Treating "no tool call" as "done"</summary><div class="b">Truncated, empty and refused replies have no tool call either. Check the finish reason, and before accepting a real stop, run the verifier (section 8). One recorded run here stopped on a reply cut at 1,024 tokens.</div></details>
+<details class="mist"><summary>Parsing text without a stop at the action</summary><div class="b">If the model writes in plain text, generation must end right after the action (a stop sequence, or cutting at the first action line). Otherwise the model writes the observation too (section 2).</div></details>
+<details class="mist"><summary>Running a batch of calls concurrently without looking at it</summary><div class="b">An edit and a test run in the same reply are dependent. Run read-only batches in parallel, everything else in order, and return results in call order (section 3).</div></details>
+<details class="mist"><summary>Leaving a tool call without a result after an interrupt or a skipped call</summary><div class="b">The next API request fails. Write a result that says the call was not run (section 4).</div></details>
+<details class="mist"><summary>Error messages written for people</summary><div class="b">"corrupt patch at line 8" helped the model fix nothing. Say what is wrong in the model's own terms and what to change (section 5).</div></details>
+<details class="mist"><summary>Trusting model-written line numbers</summary><div class="b">Hunk headers were wrong in most of Haiku's unified diffs; recount, or locate hunks by content (section 6).</div></details>
+<details class="mist"><summary>Rewriting whole files to change a line</summary><div class="b">It always applies, which is the problem: dropped lines and normalised line endings go through silently, and output tokens grow with the file (section 6).</div></details>
+<details class="mist"><summary>Retrying infrastructure errors inside the transcript</summary><div class="b">A 529 or a dropped connection is not the model's mistake. Retry it in the client, out of the model's sight, and keep it out of the score (section 7).</div></details>
+</section>
+
+<section id="hb-iq">
+<h2>Interview questions</h2>
+<p class="small mute">Answer aloud first, then open.</p>
+<details class="qa"><summary>What does an open model actually generate when it "calls a tool"?</summary><div>Ordinary tokens in a format it was trained on, bracketed by special tokens: for Qwen3, <code>&lt;tool_call&gt;</code>, a JSON object with name and arguments, <code>&lt;/tool_call&gt;</code>, then the end-of-turn token. The server stops at that token, parses the JSON and returns a structured call. Results go back as text (a user turn of <code>&lt;tool_response&gt;</code> blocks for Qwen3).</div></details>
+<details class="qa"><summary>Why must the harness enforce the action boundary, and how?</summary><div>Because a language model continues text: after an action, the likeliest continuation is an observation, so without a stop it writes one. Enforce it with the API's tool-use stop, the end-of-turn token for open models, or a stop sequence / cut at the first action for text protocols.</div></details>
+<details class="qa"><summary>The model returns three tool calls. How do you execute them?</summary><div>Classify them: independent read-only calls concurrently, writes and anything after a write sequentially in the given order; on a failure, mark later dependent calls "not executed"; return one result per call, in order, in a single message.</div></details>
+<details class="qa"><summary>How would you implement an interrupt?</summary><div>Cancel the stream, kill running tool processes, write a result for every pending call saying it was not run (Claude Code writes that the user rejected the tool use), append the user's new message, and continue the same session.</div></details>
+<details class="qa"><summary>Which edit format would you choose, and how would you decide?</summary><div>Exact string replacement as a tool call for strong models (fails safely, cheap), with lenient diff application if a model prefers diffs; then measure on a fixed set of edits with checks, including traps such as duplicated text, CRLF files and long files, and count refusals, wrong applies and tokens.</div></details>
+<details class="qa"><summary>What makes a good tool error message?</summary><div>It names what was wrong in the input the model wrote, gives the fact needed to fix it (the actual line number, the closest matching lines, the valid values), and says what to do next. It leads with that, and is short.</div></details>
+<details class="qa"><summary>Design the stop conditions for a coding agent.</summary><div>Model says done and the verifier passes; hard caps on turns, tokens, dollars and time checked before each call; truncation and empty replies treated as errors; a loop detector; a cap on verifier nudges; the reason returned as data; the transcript kept for resumption.</div></details>
+<details class="qa"><summary>Your agent's success rate dropped after you switched to a cheaper model. Where do you look first?</summary><div>The trajectories: edit refusals per format, malformed calls, truncations and early stops. A smaller model often fails mechanically before it fails at reasoning: here the 4B model broke the diff and patch formats that Claude handled, and did best rewriting whole files. The fix may be a different format per model plus a check after every edit, not a bigger model.</div></details>
+</section>

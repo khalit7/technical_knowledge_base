@@ -1,0 +1,63 @@
+<div class="tab" id="t-stop" role="tabpanel" hidden>
+<style>
+#t-stop #hbs-pairsel{max-width:100%}#t-stop label.small{display:block;max-width:100%}
+#t-stop .hbs-lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0}
+#t-stop .hbs-lane{border:1px solid var(--line);border-radius:8px;padding:8px;min-width:0}
+#t-stop .hbs-lane h4{margin:0 0 6px;font-size:13.5px}
+#t-stop .hbs-turn{border:1px solid var(--line);border-left:4px solid var(--dim);border-radius:6px;padding:4px 8px;margin:4px 0;font-size:12.5px;line-height:1.35;overflow-wrap:anywhere}
+#t-stop .hbs-turn.pass{border-left-color:var(--good)}#t-stop .hbs-turn.fail{border-left-color:var(--bad)}
+#t-stop .hbs-turn.cur{outline:2px solid var(--acc);outline-offset:1px}
+#t-stop .hbs-turn.ghost{opacity:.25}
+#t-stop .hbs-turn .nt{color:var(--c4);font-style:italic}
+#t-stop .hbs-turn code{font-size:11.5px}
+#t-stop .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-stop .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-stop .an-play{min-width:6.4em}
+#t-stop .an-cap{min-height:3.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-stop table tr.sel td{background:var(--acc2)}
+#t-stop table tbody tr{cursor:pointer}
+#t-stop .hbs-det{max-height:30em;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin:8px 0}
+#t-stop .hbs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+#t-stop .hbs-run{border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px;min-width:0}
+#t-stop .hbs-run .bar{display:flex;gap:1px;margin-top:3px}
+#t-stop .hbs-run .bar i{flex:1 1 0;height:10px;background:var(--dim);border-radius:1px}
+#t-stop .hbs-run .bar i.p{background:var(--good)}#t-stop .hbs-run .bar i.f{background:var(--bad)}#t-stop .hbs-run .bar i.x{background:transparent;border:1px dashed var(--dim)}
+@media (max-width:620px){#t-stop .hbs-lanes{grid-template-columns:minmax(0,1fr)}}
+</style>
+<h2 style="margin-top:14px">Stop lab: when should a loop end?</h2>
+<p>Sixteen recorded runs of <code>src/harness/native.py</code> (the Loop lab's loop on native tool calls, section 1 of the Reading tab) on the running example, with the local model (Qwen3 4B Instruct 2507, 4-bit, mlx-lm 0.32.0 on an Apple M1 Pro), under three stop rules. Each run logged, after every turn, whether the tests pass in the repository at that moment, so any stop rule can be replayed on the record afterwards <span class="meas">MEASURED</span>.</p>
+<div class="grid">
+<div class="sp"><div class="n">naive</div><p>Any reply without a tool call ends the run. This is the loop on the parent page and in most tutorials.</p></div>
+<div class="sp"><div class="n">careful</div><p>As naive, but a reply cut off by the output limit (<code>finish_reason: "length"</code>) or an empty reply is not a stop: the harness says so and calls again.</p></div>
+<div class="sp"><div class="n">verify</div><p>As careful, and before accepting a stop the harness runs the tests itself; if they fail it shows the output and continues, at most three times.</p></div>
+</div>
+<p class="small mute">Five seeds at temperature 0.7 per rule, plus the first run of all (temperature 0, before the rules existed). The same seed was sent with the same rule pair so the runs would be identical until the rule mattered; they were not always, because the shared server batched our requests with other clients' and batched arithmetic is not bit-identical (naive and careful with seed 4 diverge at turn 3, where no rule had acted). Seconds are wall time on a machine that was swapping under other work: compare tokens, not seconds.</p>
+
+<h3>Same seed, two rules</h3>
+<div class="card" id="hbs-pair">
+<label class="small">Pair<br><select id="hbs-pairsel"></select></label>
+<div class="an-ctl" id="hbs-pair-ctl"></div>
+<div class="an-cap" id="hbs-pair-cap"></div>
+<div class="hbs-lanes" id="hbs-lanes"></div>
+<div class="out" id="hbs-pair-stats"></div>
+</div>
+
+<h3>Replay any stop rule on the record</h3>
+<p class="small">The record says, after every turn, whether the tests passed. A stricter rule can only cut a run earlier, so its outcome is read from the record at the cut. (Rules that would let a run go on longer than it did cannot be replayed: those runs ended on the model's own stop.)</p>
+<div class="ctl">
+<label>Turn cap: <b id="hbs-cap-v"></b><input type="range" id="hbs-cap" min="1" max="15" value="15"></label>
+<label>Token budget (input + output, whole run): <b id="hbs-bud-v"></b><input type="range" id="hbs-bud" min="0" max="12" value="12"></label>
+<label><input type="checkbox" id="hbs-rep"> Stop when the same call (same tool, same arguments) is asked for a 3rd time</label>
+</div>
+<div class="out" id="hbs-rep-stats"></div>
+<div class="hbs-grid" id="hbs-rep-grid"></div>
+<p class="small mute">Each box is one run; each cell one turn: green when the tests passed after that turn, red when they failed, dashed where the replayed rule cut the run.</p>
+
+<h3>Every run</h3>
+<div class="tw"><table id="hbs-table"><thead><tr><th>Run</th><th>Rule</th><th class="num">Turns</th><th>Why it stopped</th><th>Tests at the end</th><th class="num">Tokens</th></tr></thead><tbody></tbody></table></div>
+<div class="hbs-det" id="hbs-det"></div>
+
+<h3>What a product reports when a limit stops it</h3>
+<div id="hbs-cc"></div>
+<p class="small mute">Claude Code 2.1.289, <code>claude -p</code>, Claude Haiku 4.5, the running example, recorded 6 Oct 2026 <span class="meas">MEASURED</span>.</p>
+</div>

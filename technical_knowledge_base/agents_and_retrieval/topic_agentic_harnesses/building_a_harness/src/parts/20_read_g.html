@@ -1,0 +1,21 @@
+
+<section id="hb-s7">
+<h2>7. Error recovery: every way a turn can go wrong</h2>
+<p><b>The rule.</b> A harness never crashes on a bad turn and never hides one. Each failure is either turned into an observation the model can act on, or, if it is the infrastructure's fault rather than the model's, retried quietly and kept out of both the transcript and the score. The difficulty is telling the two apart, and noticing some failures at all.</p>
+<div class="tw"><table>
+<thead><tr><th>What went wrong</th><th>How the harness notices</th><th>What it should do</th><th>Seen on this page</th></tr></thead>
+<tbody>
+<tr><td>The call is not valid JSON, or names no tool</td><td>parse error; on mlx-lm the call simply vanishes (empty reply)</td><td>say so as the next message; count it toward a malformed-reply cap</td><td>section 1; local model in the {{Edit format bench|#t-edit}} ("no edit_file tool call")</td></tr>
+<tr><td>Unknown tool, missing or wrong-typed argument</td><td>validation before running</td><td>an error result that lists the valid tools or the schema; strict schemas remove most of these</td><td><code>native.py</code> <code>run_one()</code></td></tr>
+<tr><td>The tool ran and failed</td><td>exit code, exception</td><td>a result with the exit code and the relevant lines first, <code>is_error: true</code></td><td>parent page: <code>command not found: python</code>, fixed on the next call</td></tr>
+<tr><td>The edit did not apply</td><td>the applier refuses</td><td>an instructive error and one retry; never a silent partial apply</td><td>section 5 and the bench</td></tr>
+<tr><td>The edit applied but is wrong</td><td>only a verifier (tests) can tell</td><td>run the verifier after edits and before accepting "done"</td><td>bench (amber cells), {{Stop lab|#t-stop}}</td></tr>
+<tr><td>The reply was cut at <code>max_tokens</code></td><td><code>finish_reason: "length"</code> / <code>stop_reason: "max_tokens"</code></td><td>not a stop: retry with a higher limit, or ask for a shorter reply; never execute a half-written call</td><td>Stop lab, run <code>naive_t0</code></td></tr>
+<tr><td>An empty reply</td><td>no text, no call</td><td>a new user message asking it to continue (Anthropic's advice for empty <code>end_turn</code> replies after tool results)</td><td><code>native.py</code> careful rule</td></tr>
+<tr><td>Permission denied</td><td>the gate</td><td>an observation saying why, so the model can choose another way</td><td>parent page, Loop lab step 3</td></tr>
+<tr><td>The server failed (dropped connection, overload, out of memory)</td><td>HTTP error, a stream <code>error</code> event</td><td>retry with back-off outside the loop; do not show it to the model; do not score it</td><td>this page's runs: the shared local server ran out of GPU memory ("[METAL] ... Insufficient Memory") three times while several clients used it and had to be restarted; our runners retried the dropped requests and scored nothing from them</td></tr>
+</tbody></table></div>
+<p><b>Retry budgets.</b> Every retry needs a ceiling: errors in a row (the Loop lab ended a run after three malformed replies), retries per edit (one in our bench), and the run's overall caps (section 8). Anthropic's docs describe Claude's own behaviour with invalid tool calls: it "will retry 2-3 times with corrections before apologizing to the user" ({{Handle tool calls|https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls}}). Retrying the infrastructure belongs in the client or a gateway; the frameworks root's {{Production stack|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab measures LiteLLM's retry and fallback rules.</p>
+<div class="hb-bars" id="hb-rec-bars"></div>
+<p class="small mute" id="hb-rec-cap"></p>
+</section>

@@ -1,0 +1,24 @@
+
+<section id="hb-s4">
+<h2>4. Streaming and interrupts</h2>
+<p><b>The problem.</b> A model call takes seconds; a turn of an agent can take minutes. Without streaming, the person watching sees nothing until the whole reply exists, and the harness cannot act on the first tool call while the model is still writing the second. Without interrupts, the only way to stop a wrong turn is to kill the process and lose the session. Both are harness features: the model does not know it is being streamed or stopped.</p>
+<p><b>How a stream is shaped.</b> On the Anthropic API a streamed reply is a sequence of server-sent events: <code>message_start</code>; then for each content block a <code>content_block_start</code>, its deltas and a <code>content_block_stop</code>; then <code>message_delta</code> (carrying <code>stop_reason</code> and cumulative usage) and <code>message_stop</code>, with <code>ping</code> events anywhere. A tool call streams its arguments as <code>input_json_delta</code> events whose <code>partial_json</code> strings you concatenate and parse at the block's stop. The docs warn that "current models only support emitting one complete key and value property from input at a time", so a tool call's stream pauses while each value is being produced, and that errors such as <code>overloaded_error</code> can arrive inside a stream that has already started ({{Streaming messages|https://platform.claude.com/docs/en/build-with-claude/streaming}}, read 6 Oct 2026) <span class="src">SOURCE</span>. OpenAI's Responses API streams arguments as <code>response.function_call_arguments.delta</code> events, closed by <code>.done</code>. mlx-lm's server does not stream tool arguments at all: it buffers everything between <code>&lt;tool_call&gt;</code> and <code>&lt;/tool_call&gt;</code> and sends the call whole when the closing tag arrives (<code>server.py</code>, 0.32.0).</p>
+
+<div class="card" id="hb-strm">
+<h3 style="margin-top:0">One Claude Code run, streamed, on a time axis</h3>
+<div id="hb-strm-svg" class="plot"></div>
+<p class="small mute">Claude Sonnet 5.5 (claude-sonnet-5-5) in Claude Code 2.1.289 with <code>--include-partial-messages</code>, on the running example, each line timestamped as it reached our process <span class="meas">MEASURED</span>. Bars: a model call from <code>message_start</code> to <code>message_delta</code>; darker segments: tool-call blocks streaming their arguments (blue, then purple when one reply holds two); dots: the moment the tool's result came back.</p>
+<div id="hb-strm-note"></div>
+</div>
+
+<p><b>Interrupts.</b> Stopping a turn means three things: stop generation (close the stream), stop any tool that is running (kill its process, which is why a harness keeps child process handles), and leave the transcript in a state the API will accept. The last one is the subtle part: on the Anthropic API every <code>tool_use</code> must be followed immediately by its <code>tool_result</code>, or the next request fails with "tool_use ids were found without tool_result blocks immediately after" ({{Handle tool calls|https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls}}). So an interrupted call still needs a result, written by the harness.</p>
+
+<div class="card" id="hb-intr">
+<h3 style="margin-top:0">What Claude Code writes when you interrupt it</h3>
+<div id="hb-intr-body"></div>
+<p class="small mute">Claude Agent SDK 0.2.163 (it drives its bundled Claude Code 2.1.286), Claude Haiku 4.5, the running example; our script called <code>client.interrupt()</code> the instant the first tool call arrived, then asked a follow-up question in the same session <span class="meas">MEASURED</span>. The CLI's text contained one em-dash, shown here as ", ".</p>
+</div>
+
+<p><b>Design rules that follow.</b> Parse tool arguments only at the block's end (or with a partial-JSON parser for display). Execute a call when its block closes, not when the whole message does, if you want the latency win Claude Code gets, and keep the result order equal to the call order. On interrupt, give every pending call a result that says plainly it was not run (Anthropic's parallel-tool docs suggest <code>is_error: true</code> with "Not executed: ..."), then let the person's next message steer. Never resend a half-streamed tool call as if it were complete: a call cut off by <code>max_tokens</code> must be retried with a larger limit, not executed ({{Handling stop reasons|https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons}}).</p>
+<details class="drill"><summary><b>Predict, then reveal.</b> After the interrupt, the follow-up asked "what was the last thing you asked to run, and did you get its result?" What did Haiku answer?</summary><div id="hb-intr-ans"></div></details>
+</section>
