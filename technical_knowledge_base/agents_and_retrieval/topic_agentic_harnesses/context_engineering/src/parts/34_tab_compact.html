@@ -1,0 +1,52 @@
+<div class="tab" id="t-compact" role="tabpanel" hidden>
+<style>
+#t-compact .hcp-log{max-height:24em;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12.5px;background:var(--bg)}
+#t-compact .hcp-log div{padding:2px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+#t-compact .hcp-log .k{display:inline-block;min-width:5.6em;font-weight:600;color:var(--mute)}
+#t-compact .hcp-log .cmp{color:var(--bad);font-weight:600}
+#t-compact .hcp-hit{background:var(--hl)}
+#t-compact .hcp-facts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-compact .ctl label select{width:100%}
+</style>
+<h2>Compaction lab: eight recorded sessions, four summaries</h2>
+<p>Everything here is read from the recordings made for this page (Claude Code 2.1.290, Claude Haiku 4.5, 6 Oct 2026). Section 4 of the Reading tab tells the story; this tab is the evidence, call by call. How the sessions were driven:</p>
+<pre class="hc-pre">claude -p --input-format stream-json --output-format stream-json --verbose \
+  --no-session-persistence --setting-sources project --strict-mcp-config \
+  --model haiku --permission-mode acceptEdits --tools "Read,Edit,Write,Bash,Grep,Glob" \
+  --allowedTools "Bash(python3:*)" "Bash(python:*)" "Bash(ls:*)" "Bash(cat:*)" \
+  --append-system-prompt "Never use the em-dash character." [--autocompact 100000]
+
+# then, on standard input, one JSON line per user turn, each sent after the previous turn's result record:
+{"type":"user","message":{"role":"user","content":"Before we start, note two things ... Do not edit the tests."}}
+{"type":"user","message":{"role":"user","content":"/context"}}
+{"type":"user","message":{"role":"user","content":"/compact"}}
+{"type":"user","message":{"role":"user","content":"/context"}}
+{"type":"user","message":{"role":"user","content":"Without using any tools, answer from memory ..."}}</pre>
+<p class="small mute"><code>/context</code> and <code>/compact</code> are commands, not prompts: <code>/context</code> answers without a model call (its turn costs nothing), <code>/compact</code> runs the summarising call inside Claude Code and emits a <code>compact_boundary</code> record with the token counts before and after. The automatic sessions used the same driver with one task message that also asked for five 75 KB log files to be read in full.</p>
+
+<div class="card" id="hcp-card">
+<div class="ctl"><label>Session<select id="hcp-sel"></select></label></div>
+<div id="hcp-chart"></div>
+<div class="an-cap" id="hcp-cap"></div>
+<div class="an-ctl" id="hcp-ctl"></div>
+<div class="small mute">One column per model call of the main loop, to scale (cache read, cache write, fresh input). Dashed red line: a compaction; grey: the recall question.</div>
+</div>
+<h3>The session's events</h3>
+<div class="hcp-log" id="hcp-log"></div>
+
+<h3>The summaries, verbatim</h3>
+<p>Each compaction injects one user message: a fixed opening sentence, the model-written summary under nine headings, and a closing instruction. Pick one; the chips show which facts from the session made it in.</p>
+<div class="seg" id="hcp-sum-seg"></div>
+<div class="hcp-facts" id="hcp-facts"></div>
+<pre class="hc-pre" id="hcp-sum"></pre>
+
+<h3>The answers, side by side</h3>
+<p>The recall question, asked with tools forbidden after each session's task. Scores are this page's, judged against the recordings; hover a score for the reason when it is not "ok".</p>
+<div class="tw"><table class="hc-t" id="hcp-score"></table></div>
+<div class="seg" id="hcp-ans-seg"></div>
+<pre class="hc-pre" id="hcp-ans"></pre>
+
+<h3>What each compaction cost</h3>
+<div class="tw"><table class="hc-t" id="hcp-cost"></table></div>
+<p class="small mute">"Compaction turn" is the change in the CLI's <code>total_cost_usd</code> across the <code>/compact</code> turn (manual) or, for the automatic run, the input of the hidden summarising call derived as the session's <code>modelUsage</code> input minus every streamed call. "First call after" is the next model call's cache read and cache write: the startup prefix is read back, the summary is written as a new prefix.</p>
+</div>

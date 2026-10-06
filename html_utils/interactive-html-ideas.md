@@ -3100,3 +3100,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | R2 | Sandbox escape or injection demo | | | | | rejected: owned by the Agent security sibling |
 | R3 | bypassPermissions column in the battery | | | | | not recorded: the recording session's own safety classifier refused launching an agent with all permission checks off; the column is documented, not run |
 | R4 | Animated system prompt contents | | | | | rejected: the stream never shows the system prompt; only its size is measurable |
+
+### Context engineering: window budgets, caching, compaction, memory files, subagents (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/context_engineering/src/viz_ideas.md`.
+
