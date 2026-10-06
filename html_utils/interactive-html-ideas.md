@@ -3160,3 +3160,17 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/claude_agent_sdk/src/viz_ideas.md`.
 
+### Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries/src/viz_ideas.md`.
+
+| # | Idea | Score (teach / real data / cost) | Placement | Data |
+|---|---|---|---|---|
+| 1 | **One case through every output route** (step animation, route toggle = before/after on the same input): request (where the schema sits), what the server does with it, the model's reply, the library's verdict and retry | 5 / 5 / 3 | Reading s2 (inline) | recorded wire of each library on the local model; outlines in-process; Claude stream-json |
+| 2 | Results table: route x valid / right function / right category / line parses / calls / first-prompt tokens | 5 / 5 / 1 | Reading s2 and Output modes lab | `recordings/local`, `recordings/claude` |
+| 3 | Route x case heatmap with click-through to request, reply, retry, result | 4 / 5 / 2 | Output modes lab tab | same |
+| 4 | Same function, four schemas, with a "what the model is told about `count`" comparison | 4 / 5 / 1 | Reading s1 | `recordings/demo/schemas.json` (each library's own schema code, no model call) |
+| 5 | Executor probe table (allowed / refused, with the interpreter's own message) | 4 / 5 / 1 | Reading s5 | `recordings/demo/smol_exec.json` |
+| 6 | Request-by-request stepper for handoff, guardrail, session, tracing, ADK transfer and ADK runs | 4 / 5 / 2 | Mechanisms tab | `recordings/demo/wire_*.jsonl` |
+| 7 | Parallel vs blocking guardrail side by side (before/after) | 4 / 5 / 1 | Mechanisms tab | same |
+| 8 | Validator retries table | 3 / 5 / 1 | Output modes lab | `recordings/local/pai_validator_*.jsonl` |
