@@ -1,0 +1,31 @@
+
+<section id="hb-s5">
+<h2>5. Designing tools for a model: the agent-computer interface</h2>
+<p><b>The idea.</b> A tool is an interface whose user is a model that reads every word literally, cannot ask a colleague, and sees the world only through what the tool returns. The SWE-agent paper (Yang et al., May 2024) called this the <dfn>agent-computer interface</dfn> (ACI) and measured it by changing one interface choice at a time on a SWE-bench Lite subset, same model <span class="src">SOURCE</span> (Table 3, {{arXiv 2405.15793|https://arxiv.org/abs/2405.15793}}):</p>
+<div class="tw"><table>
+<thead><tr><th>Interface choice</th><th class="num">Resolved</th><th>Change against the default</th></tr></thead>
+<tbody>
+<tr><td>Default SWE-agent: file viewer of 100 lines, summarised search, edit command with a linter</td><td class="num">18.0%</td><td></td></tr>
+<tr><td>Edit command without the linter (syntax errors are accepted)</td><td class="num">15.0%</td><td>-3.0 points</td></tr>
+<tr><td>No edit command at all (shell only)</td><td class="num">10.3%</td><td>-7.7</td></tr>
+<tr><td>Viewer shows 30 lines</td><td class="num">14.3%</td><td>-3.7</td></tr>
+<tr><td>Viewer shows the whole file</td><td class="num">12.7%</td><td>-5.3</td></tr>
+<tr><td>Iterative search (one result at a time)</td><td class="num">12.0%</td><td>-6.0</td></tr>
+<tr><td>No search command</td><td class="num">15.7%</td><td>-2.3</td></tr>
+</tbody></table></div>
+<p>Two lessons hide in that table. More information is not better (the whole file did worse than 100 lines), and a <dfn>guardrail</dfn>, a check inside the tool that refuses a bad action and says why, pays for itself (the linter). Anthropic's account of its SWE-bench agent (Erik Schluntz; the post is dated 6 Jan 2025) adds a third: <dfn>poka-yoke</dfn>, making mistakes impossible. "Sometimes models could mess up relative file paths after the agent had moved out of the root directory. To prevent this, we simply made the tool always require an absolute path." The same post reports that of the edit strategies it tried, string replacement (<code>old_str</code> to <code>new_str</code>, failing when the old text occurs zero or several times) had "the highest reliability" ({{Raising the bar on SWE-bench Verified|https://www.anthropic.com/engineering/swe-bench-sonnet}}) <span class="src">SOURCE</span>.</p>
+
+<div class="pcs">
+<div><b class="h">Names and descriptions</b>The model chooses a tool from its name and description alone. Anthropic's tool docs call detailed descriptions "by far the most important factor in tool performance" and suggest "at least 3-4 sentences" per tool; OpenAI's suggest keeping fewer than 20 functions available at once ("a soft suggestion"). Overlapping tools invite wrong choices and cost tokens on every call.</div>
+<div><b class="h">Arguments that cannot be wrong</b>Absolute paths; enums instead of free strings; one required field rather than three optional ones that conflict. Strict schemas (Anthropic <code>strict: true</code>, OpenAI <code>strict</code>) guarantee arguments that parse; they cannot guarantee arguments that make sense.</div>
+<div><b class="h">Results that lead with the verdict</b>Exit code and pass or fail on the first line, the informative lines next, a note of what was cut. The parent page's Loop lab measured what happens otherwise: the test results sat at lines 92 to 95 of about 240 and a head-and-tail clip removed them.</div>
+<div><b class="h">Errors that say what to do</b>Anthropic: "Instead of generic errors like "failed", include what went wrong and what Claude should try next." Measured below.</div>
+</div>
+
+<h3>Does the wording of an error change the outcome?</h3>
+<p>The experiment: every edit in the {{Edit format bench|#t-edit}} whose first attempt could not be applied was retried three times from the same first reply, each time with a different error message: <b>terse</b> ("Edit failed."), <b>native</b> (what the applier itself says: <code>git apply</code>'s "corrupt patch at line 8", Codex's "Failed to find expected lines", Aider's SearchReplaceNoExactMatch report), and <b>instructive</b> (a diagnosis our harness computes: the hunk header says 4 old lines but the body has 5, the old lines start at line 12 not 13; the <code>@@</code> line is itself one of the removed lines; the closest lines in the file with numbers; the file uses CRLF line endings).</p>
+<div class="hb-bars" id="hb-aci-bars"></div>
+<div id="hb-aci-note"></div>
+<p class="small mute">Claude Haiku 4.5 with thinking off, through <code>claude -p</code> <span class="meas">MEASURED</span>. Small numbers: read them as a direction, not a rate.</p>
+<div class="co"><div class="t">What to take from it</div>An error is the model's only view of what went wrong. <code>git apply</code>'s "corrupt patch at line 8" is written for a person who will open the patch in an editor; the model, given only that, resent the same broken patch. A message that names the wrong number and the right one fixed some of the same failures. Some failures no wording fixes: a model that cannot see the carriage returns of a CRLF file cannot type them either, so the fix belongs in the tool (match lines without their line endings, as Codex's patch tool does) rather than in the message.</div>
+</section>

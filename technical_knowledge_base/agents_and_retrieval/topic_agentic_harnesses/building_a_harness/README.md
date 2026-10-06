@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3c65c17b0d0d817ca14fc32338707c2f (child of Topic: agentic-harnesses)
 
-Not migrated yet: the old written page is still in Notion.
+Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Replaces the old written page "Harness engineering: the transferable layer" (saved verbatim in `src/live.md`; every claim checked in `src/coverage.json`; no child pages, databases or video on it). Carries the parent root's Loop lab further with recordings made on 6 October 2026: a tool call on the wire in three protocols, down to the tokens of an open model's chat template; the action boundary and what a model writes when it is not enforced; parallel tool calls; streaming and interrupts (a timestamped Claude Code stream and an SDK interrupt); tool and error-message design (a three-way error-wording experiment); five edit formats measured on thirteen fixed edits with eight appliers; error recovery; stop conditions and budgets (sixteen local runs under three stop rules, Claude Code's own limit records). Tabs: Reading, Tool call token by token, Edit format bench, Stop lab, Further reading.

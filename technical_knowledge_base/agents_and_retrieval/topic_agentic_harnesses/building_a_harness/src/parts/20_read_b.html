@@ -1,0 +1,18 @@
+
+<section id="hb-s2">
+<h2>2. The action boundary: the turn must end at the call</h2>
+<p><b>The problem.</b> A language model continues text. After it has written an action, the likeliest continuation of a transcript of actions and results is a result, so a model that is not stopped writes one. The harness must make the model's turn end exactly at its action, and must never read anything generated after it. We call that point the <dfn>action boundary</dfn>.</p>
+<div class="tw"><table>
+<thead><tr><th>Protocol</th><th>Who ends the turn at the action</th><th>What can go wrong</th></tr></thead>
+<tbody>
+<tr><td>Provider API with tools (Anthropic, OpenAI)</td><td>The provider: generation stops with <code>stop_reason: "tool_use"</code> / <code>finish_reason: "tool_calls"</code></td><td>Nothing at the boundary; a reply cut by <code>max_tokens</code> can hold an incomplete call (section 7)</td></tr>
+<tr><td>Open model through its chat template</td><td>The model, by writing its end-of-turn token (<code>&lt;|im_end|&gt;</code>, an end-of-sequence id), and the server, by stopping there</td><td>A raw-text endpoint, a misconfigured stop list, or a template whose end token is not in the server's EOS list</td></tr>
+<tr><td>Your own text protocol (the Loop lab's <code>ACTION {json}</code> line)</td><td>You: a stop sequence such as the result header your harness writes, or cutting the reply at the first action line</td><td>Everything, if you forget: the parent's recordings below</td></tr>
+</tbody></table></div>
+<p><b>What happens without it, recorded.</b> In the parent page's Loop lab, Claude Haiku 4.5 driven through <code>claude -p</code> (which cannot take a stop sequence) wrote fake tool results after its own action and once kept going for 95,162 characters until the 32,000-token output cap; mini-SWE-agent's text mode through the same route invented command output in 7 of 11 replies (Harness atlas tab) <span class="meas">MEASURED</span> (parent page). The local model, asked the same way, behaved differently:</p>
+<div class="hb-bars" id="hb-bnd-bars"></div>
+<div id="hb-bnd-note"></div>
+<div class="co warn"><div class="t">The surprise past the end-of-turn token</div><span id="hb-bnd-warn"></span></div>
+<div class="co key"><div class="t">The rule</div>Enforce the boundary yourself whatever the model usually does: use the provider's tool calls, or keep the server's end-of-turn stop, or add a stop sequence and also cut the reply at the first action; never parse past it; and treat a model that writes the other side's turn as a harness bug, not a model quirk. A model that behaves on one route (the local model in a chat API) can misbehave on another (the same model on a raw endpoint, or Haiku through a CLI without stop sequences).</div>
+<p class="small mute">Local model: Qwen3 4B Instruct 2507 (4-bit) on mlx-lm 0.32.0, temperature 0.7, seeds 1 to 5 per condition. Text protocol: the Loop lab's step-1 system prompt verbatim, sent through the chat endpoint, at turn 1 and at turn 2 (after a real read of <code>textstats/core.py</code>), with and without <code>stop: ["--- turn"]</code>. Native past the boundary: the recorded conversation of the {{Stop lab|#t-stop}}'s run <code>careful_s1</code>, rendered through the template up to and including each of the model's four tool-calling turns and its <code>&lt;|im_end|&gt;</code>, sent as raw text to <code>/v1/completions</code> with token ids returned, so every generated token, special ones included, is visible. Code: <code>src/harness/boundary.py</code>.</p>
+</section>

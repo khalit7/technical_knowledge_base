@@ -3113,3 +3113,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses/src/viz_ideas.md`.
 
+### Building a harness: the loop, tool calling, edit formats, stop conditions (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/building_a_harness/src/viz_ideas.md`.
+
