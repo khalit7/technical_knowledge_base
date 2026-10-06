@@ -1,0 +1,19 @@
+<section id="rd-s3">
+<h2>3. Sandboxes: an operating-system boundary around what runs</h2>
+<p>A sandbox is the layer that assumes the gate let something through. It does not look at the command; it constrains what any process the agent spawns is <i>able</i> to do, enforced by the kernel, not by the harness. The two things worth constraining are the filesystem (writes confined to the project and a temp directory) and the network (blocked, or allowed only through a proxy you control). The mechanisms differ by OS:</p>
+<div class="grid">
+<div class="sp"><div class="n">macOS: Seatbelt</div><p><code>sandbox-exec</code> with a profile, the same mechanism Claude Code and Codex use on macOS (<a href="https://code.claude.com/docs/en/sandboxing" target="_blank" rel="noopener noreferrer">Claude Code sandboxing</a>, read 6 Oct 2026) <span class="src">SOURCE</span>. A profile is a few S-expressions: <code>(allow default)(deny network*)</code> denies all sockets; <code>(deny file-write*)(allow file-write* (subpath ...))</code> confines writes.</p></div>
+<div class="sp"><div class="n">Linux: bubblewrap + Landlock/seccomp</div><p>Claude Code uses bubblewrap (user namespaces) plus a local proxy on Linux. <dfn>Landlock</dfn> (kernel 5.13) lets an unprivileged process restrict its own file access with three syscalls; <dfn>seccomp-bpf</dfn> filters which syscalls are allowed at all. Mechanics: {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</p></div>
+<div class="sp"><div class="n">What it does not cover</div><p>Claude Code's sandbox wraps <b>shell commands only</b> (Bash, PowerShell). File-edit tools, MCP servers and hooks run outside it <span class="src">SOURCE</span>. And it is off by default. A sandbox you did not turn on contains nothing.</p></div>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">The same operation, outside and inside a Seatbelt profile</h3>
+<p class="small mute">Real runs on this machine (macOS 27.0.1, Apple M1 Pro) with <code>sandbox-exec</code>. A benign test command opens a local socket and sends a fixed marker, and writes a small file; the only bytes ever sent are that marker. <span class="meas">MEASURED</span></p>
+<div class="seg" id="hsec-sb-seg"><button data-m="net" class="on">Network</button><button data-m="write">Filesystem write</button></div>
+<div class="hsec-sb" id="hsec-sb-grid"></div>
+<p class="small mute" id="hsec-sb-note"></p>
+</div>
+<p>The kernel refuses the socket and the out-of-tree write regardless of what the process intended, what command spelled it, or whether the model was following an injected instruction. That is the property the gate cannot give you: the gate reasons about a string; the sandbox reasons about the operation. A sandbox turns "the agent could reach anything you can" into "the agent can reach this directory and nothing on the network," which is the difference between a mistake being embarrassing and a mistake being an incident.</p>
+<div class="nb"><b>The honest limit.</b> A sandbox confines the blast radius; it does not make the agent trustworthy. If the one network path you leave open (the proxy to the model API, a package registry) can also carry your data outward, the sandbox has not closed the leak. That is what the next layer is for.</div>
+</section>
