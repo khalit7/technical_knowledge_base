@@ -3174,3 +3174,17 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | 6 | Request-by-request stepper for handoff, guardrail, session, tracing, ADK transfer and ADK runs | 4 / 5 / 2 | Mechanisms tab | `recordings/demo/wire_*.jsonl` |
 | 7 | Parallel vs blocking guardrail side by side (before/after) | 4 / 5 / 1 | Mechanisms tab | same |
 | 8 | Validator retries table | 3 / 5 / 1 | Output modes lab | `recordings/local/pai_validator_*.jsonl` |
+
+### Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt (2026-10-06)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns/src/viz_ideas.md`.
+
+| # | Idea | Where | Data | Score (insight/fidelity/effort) | Why it earns its place |
+|---|---|---|---|---|---|
+| 1 | **Lanes replay**: one row per model loop, one bar per call (height = context sent, to one scale), a time cursor with play/pause/step/scrub/speed; toggle single / lead + 6 / fan-out / blackboard / Sonnet single, all on the same clock | Reading 3 (animated), Audit lab (static, every run) | redacted stream-json: timestamps and per-call usage | 5/5/3 | The before/after of the page: the single agent's bars climb toward the window line while the workers stay low and run side by side |
+| 2 | **Request stacks for handoff vs agent-as-tool**: step through every request the local model received (proxy log), new messages outlined, with what it answered | Reading 6 | logging proxy around mlx_lm.server | 5/5/3 | Shows literally that the specialist gets the whole history in one design and a generated sentence in the other, and the SDK's "Multiple handoffs detected" tool result |
+| 3 | **Two halves side by side** with the names each writer produced and read highlighted, plus the merged output | Reading 7 | the files the writers wrote, the hidden check's output | 5/5/2 | Makes "implicit decision" concrete: `length` against `word_count` |
+| 4 | **Accuracy against tokens** scatter for five aggregation methods on the same calls; exact vote-of-k curve; debate transition counts; puzzle grid with per-call answers diffed letter by letter | Reading 8, Debate lab | 270 recorded calls | 4/5/3 | A paired comparison, so the gaps are not sampling noise between methods |
+| 5 | **Pattern picker**: eight small diagrams (control arrows solid, passed content dashed) with who decides / who sees / cost shape / examples | Reading 1 | definitions, sourced | 4/4/2 | The vocabulary of the page in one card |
+| 6 | **Cost by component** stacked bars per design (fresh, written, cached, output), cache-write price implied from the reported total | Reading 9 | result.modelUsage | 4/5/1 | Shows the square-law term is cheap under caching and output/thinking dominate |
+| 7 | **Found/missed matrix**: 16 planted bugs x every run | Audit lab | answers vs key | 3/5/1 | Shows which bugs the single agent never looked at |
