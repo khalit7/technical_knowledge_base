@@ -1,0 +1,31 @@
+<section id="rs2">
+<h2>2. OpenClaw, taken apart</h2>
+<p>Read from its docs (docs.openclaw.ai, every page also served as markdown) and repository on 6 Oct 2026, release v2026.9.8. The installer provisions Node.js itself; the npm route needs Node 24.16+ or 26.1+, then <code>openclaw onboard --install-daemon</code>, which "verifies model access, creates the workspace, and configures the Gateway" <span class="docd">DOCUMENTED</span> ({{README|https://github.com/openclaw/openclaw}}).</p>
+<h3>Four layers that can be swapped separately</h3>
+<p>OpenClaw separates the <b>provider</b> (who serves the model), the <b>model</b> (written <code>provider/model</code>, split on the first slash, so <code>openrouter/moonshotai/kimi-k2</code> works), the <b>agent runtime</b> (who runs the loop) and the <b>channel</b> (where messages enter and leave) <span class="docd">DOCUMENTED</span> ({{agent runtimes|https://docs.openclaw.ai/concepts/agent-runtimes}}). The runtime layer is the interesting one for this topic:</p>
+<ul class="tight">
+<li><b>Embedded harnesses</b> run inside OpenClaw's own prepared loop: the built-in <code>openclaw</code> runtime, plus plugin runtimes <code>codex</code> and <code>copilot</code> (the latter opt-in, never picked automatically).</li>
+<li><b>CLI backends</b> run a local CLI process: <code>claude-cli</code> means "select the Anthropic model, execute through Claude CLI". The bundled Codex CLI backend was removed in v2026.5.14.</li>
+<li><b>External harnesses</b> attach over ACP (the Agent Client Protocol): "Claude Code, Gemini CLI, OpenCode, Cursor, and similar external harnesses still use ACP."</li>
+</ul>
+<p>For a runtime it does not own, the docs ask a fixed list of compatibility questions: who owns the model loop, who owns the canonical thread history, whether OpenClaw's own tools and its <code>before_tool_call</code>/<code>after_tool_call</code> hooks still fire, whether the context-engine lifecycle runs, what compaction data is exposed, and what is intentionally unsupported. With the Codex runtime, for example, Codex owns the loop and the thread (OpenClaw keeps a mirror) and compaction is Codex's own; channel delivery stays with OpenClaw <span class="docd">DOCUMENTED</span>. That list is the clearest statement anywhere of what "a harness hosted inside another harness" has to settle, and it makes the personal agent a <b>host</b> for coding harnesses rather than a rival (section 9).</p>
+<h3>The workspace: files that become the system prompt</h3>
+<p>Each agent owns one directory, its only working directory for tools. On the first turn of a new session OpenClaw injects these user-editable files into the system prompt's "Project Context" <span class="docd">DOCUMENTED</span> ({{agent|https://docs.openclaw.ai/concepts/agent}}, {{system prompt|https://docs.openclaw.ai/concepts/system-prompt}}, {{workspace|https://docs.openclaw.ai/concepts/agent-workspace}}):</p>
+<div class="tw"><table>
+<tr><th>File</th><th>Role (docs wording)</th><th>Notes</th></tr>
+<tr><td><code>AGENTS.md</code></td><td>"Operating instructions + memory"</td><td>The <code>CLAUDE.md</code> analogue. Its <code>## Tools</code> section holds local conventions (the old separate <code>TOOLS.md</code>) and "does not control which tools exist". Sub-agents get only this file.</td></tr>
+<tr><td><code>SOUL.md</code></td><td>"Persona, boundaries, tone"</td><td>No coding harness has an equivalent file; Hermes Agent reads a <code>SOUL.md</code> for its persona too.</td></tr>
+<tr><td><code>IDENTITY.md</code></td><td>"Agent name/vibe/emoji"</td><td></td></tr>
+<tr><td><code>USER.md</code></td><td>"User profile + preferred address"</td><td>Its own cap: 4,000 characters.</td></tr>
+<tr><td><code>MEMORY.md</code></td><td>"Root long-term memory file, if present"</td><td>Loaded only in the main, private session, never in shared or group contexts.</td></tr>
+<tr><td><code>BOOTSTRAP.md</code></td><td>"One-time first-run ritual (deleted after completion)"</td><td></td></tr>
+</table></div>
+<p>Caps: 20,000 characters per file and 60,000 across all of them (<code>bootstrapMaxChars</code>, <code>bootstrapTotalMaxChars</code>); a longer file is cut with a marker and the prompt says which files were truncated. Day-by-day notes live in <code>memory/YYYY-MM-DD.md</code> and are <b>not</b> injected: the agent reads them on demand through <code>memory_search</code> and <code>memory_get</code> <span class="docd">DOCUMENTED</span>. Two old files are gone: the heartbeat checklist moved from <code>HEARTBEAT.md</code> into a database "monitor scratch" ("The runtime never reads <code>HEARTBEAT.md</code>"), and <code>TOOLS.md</code> became a section of <code>AGENTS.md</code>.</p>
+<h3>Skills, sessions, and messages that arrive mid-run</h3>
+<ul class="tight">
+<li><b>Skills</b> (a folder with a <code>SKILL.md</code>, loaded by description first and body on demand, as in Claude Code) resolve from seven tiers, highest first: workspace <code>skills/</code>, <code>&lt;workspace&gt;/.agents/skills</code>, <code>~/.agents/skills</code>, managed skills in the state directory, the agent's "workshop" skills, bundled skills, then extra directories and plugin skills; the highest source wins a name clash <span class="docd">DOCUMENTED</span> ({{skills|https://docs.openclaw.ai/tools/skills}}). <b>ClawHub</b> (clawhub.ai) is the public registry for skills and plugins; section 8 covers what happened there.</li>
+<li><b>Sessions</b> are owned by the gateway and stored in a per-agent SQLite database (<code>~/.openclaw/agents/&lt;agentId&gt;/agent/openclaw-agent.sqlite</code>); JSONL transcripts are now only legacy imports and exports. The main session's key is <code>agent:&lt;agentId&gt;:main</code> <span class="docd">DOCUMENTED</span>.</li>
+<li><b>Mid-run messages</b> are "steered into the current run by default", with three alternatives (<code>/queue followup</code>, <code>collect</code>, <code>interrupt</code>). Section 4 has the exact rule and our recordings.</li>
+</ul>
+<p class="small mute">Not run here: installing OpenClaw or Hermes Agent on this machine was refused by the session's permission policy (untrusted code from the internet), so both are described from docs and source only; the recorded runs on this page come from the small agent written for it, which borrows their shapes.</p>
+</section>
