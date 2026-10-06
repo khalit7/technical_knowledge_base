@@ -1,0 +1,41 @@
+
+<section id="rd-s11">
+<h2>11. Where your LiteLLM setup at work fits</h2>
+<p>The old notes on the parent page say you run LiteLLM at work and have hand-built a DAG engine over model calls; nothing else about that setup is known here, so this is a checklist of things this page found to be easy to get wrong, each with how to check it on any LiteLLM deployment.</p>
+<div class="tw"><table>
+<thead><tr><th>Check</th><th>Why</th><th>How to see it</th></tr></thead>
+<tbody>
+<tr><td>Which layer retries</td><td>SDK retries times gateway retries times engine retries multiply (section 4: 9 calls for one request)</td><td>Set <code>max_retries=0</code> in the SDK client that talks to the gateway; count upstream calls per request in the spend logs</td></tr>
+<tr><td>Timeouts per deployment</td><td>The default request timeout is 6,000 s; a hung provider holds a worker that long</td><td><code>timeout</code> (and <code>stream_timeout</code>) in each deployment's <code>litellm_params</code>, shorter than the client's</td></tr>
+<tr><td><code>allowed_fails</code></td><td>3 is the default and is treated as unset (section 3)</td><td>Use 2, or <code>allowed_fails_policy</code> per error type</td></tr>
+<tr><td>Single-deployment groups</td><td>Never cooled down: every request pays the full retry chain before falling back</td><td>Give important groups a second deployment, or lower <code>num_retries</code> for them</td></tr>
+<tr><td>Prices for cost routing</td><td>Read from <code>litellm_params</code> only (section 2)</td><td>Send 20 requests, count <code>x-litellm-model-id</code></td></tr>
+<tr><td><code>max_tokens</code> on every call</td><td>Budget reservation assumes 16,384 output tokens without it and serialises small budgets (section 6)</td><td>Look for 422 <code>budget_exceeded</code> while spend is far below the cap</td></tr>
+<tr><td>Redis for more than one replica</td><td>Without it, rate limits, cooldowns and budget counters are per process</td><td><code>router_settings.redis_host</code>; the limiter and cooldowns then share state</td></tr>
+<tr><td>Fallbacks evaluated</td><td>A fallback model nobody evaluated degrades answers silently (the parent page's warning)</td><td>Run the eval set against every model in each fallback chain; tag traces with the model that answered</td></tr>
+<tr><td>Response cache for agents</td><td>Exact keys rarely hit in agent loops and freeze sampled answers (section 7)</td><td><code>mode: default_off</code>, opt in per call type</td></tr>
+<tr><td>Provider prefix</td><td>Decides the wire format sent upstream (section 8)</td><td>Debug-log one outgoing request per deployment</td></tr>
+</tbody></table></div>
+<p><b>A hand-built DAG engine</b> already does the workflow half of what LangGraph would (the parent page's section 10). Behind a gateway it should keep one job for itself: each node's deadline, passed down as the gateway call's timeout, so a slow branch fails fast instead of waiting through the gateway's whole retry chain. Retries belong in one place; with a gateway in front, that place is usually the gateway.</p>
+</section>
+
+<section id="rd-mis">
+<h2>Common mistakes</h2>
+<details class="qa"><summary>Retrying in the SDK, in the agent loop and in the gateway</summary><div>Attempts multiply (section 4). Pick one layer; set the SDK client's <code>max_retries</code> to 0 when a gateway retries for it.</div></details>
+<details class="qa"><summary>Treating a 429 from the gateway like a 429 from the provider</summary><div>A gateway 429 (<code>throttling_error</code>, retry-after 60) is your own key's limit; waiting does not help other keys and a fallback to another model will not help either. A provider 429 is capacity; a fallback or another deployment helps.</div></details>
+<details class="qa"><summary>Expecting a 10 RPM key to mean "at most 10 in any minute"</summary><div>LiteLLM's window starts at the first request and resets whole: 19 in 15 seconds were accepted here (section 5). If the upstream enforces a smooth token bucket, smooth on your side too.</div></details>
+<details class="qa"><summary>Reading a budget as an exact meter, or as a soft cap</summary><div>In 1.104.0 it is neither: parallel calls are held back by worst-case reservations, and the last sequential call can overshoot by its own cost (section 6).</div></details>
+<details class="qa"><summary>Caching agent calls at the gateway</summary><div>Every turn's request differs from the last, so exact hits are rare; when they happen they replay a sampled answer. Cache deterministic, repeated calls only (section 7).</div></details>
+<details class="qa"><summary>Running evals through a router that mixes providers</summary><div>Different quantisations and context limits behind one model name (section 9). Pin the provider and record which one answered.</div></details>
+<details class="qa"><summary>Trusting a learned router without testing it on your own traffic</summary><div>The keyword router tested here sent every question containing code to the strong model and none of the letter puzzles, whatever their difficulty: its features saw code, not difficulty (section 10). Measure its quality-cost curve against random routing on a sample of your requests before turning it on.</div></details>
+</section>
+
+<section id="rd-iq">
+<h2>Interview questions</h2>
+<details class="qa"><summary>Design the gateway for 50 internal teams calling three providers. What goes in it?</summary><div>Virtual keys per team with budgets and rate limits; model groups with several deployments each (regions, providers) and per-deployment timeouts; one retry layer with backoff and a retry budget; cooldowns for broken deployments; fallbacks across model families that were each evaluated; Redis for shared counters across replicas; spend logs and traces tagged with team, model group and the deployment that answered; caching off by default.</div></details>
+<details class="qa"><summary>Retry, cooldown, fallback: what is the difference?</summary><div>Retry: same group again after a wait (blips). Cooldown: stop routing to one deployment for a while (a broken copy). Fallback: switch to another group (the model is unavailable or unsuitable, for example the prompt is too long).</div></details>
+<details class="qa"><summary>A client has a 10 s timeout and 2 retries; the gateway has 5 s per attempt and 2 retries; the provider hangs. How many provider calls, and when does the user hear?</summary><div>Up to 3 &times; 3 = 9 calls (measured: 9, the last starting after the user's error at 32.8 s). Fix: one retry layer, inner timeouts shorter than outer ones, and cancellation propagated when the client goes away.</div></details>
+<details class="qa"><summary>How would you enforce a dollar budget under concurrency?</summary><div>Reserve the worst-case cost of each request atomically before calling (input tokens plus max output tokens at list price), settle to the real cost afterwards, and refuse when the reservation does not fit. Cap the reservation per request so a missing max_tokens does not serialise the caller. This is what LiteLLM 1.104.0 does.</div></details>
+<details class="qa"><summary>Fixed window, sliding window or token bucket for an LLM API?</summary><div>Token bucket (what Anthropic uses): it allows a burst up to the bucket size and then a steady rate, with no boundary double burst. Count tokens, not only requests, and reserve output tokens at admission because they are unknown until the end.</div></details>
+<details class="qa"><summary>When does a learned router pay off?</summary><div>When traffic mixes easy and hard requests, the cheap model is good enough on the easy ones, and the router's features actually predict difficulty on your traffic. Measure the quality against the share sent to the strong model, compared with random routing at the same share.</div></details>
+</section>

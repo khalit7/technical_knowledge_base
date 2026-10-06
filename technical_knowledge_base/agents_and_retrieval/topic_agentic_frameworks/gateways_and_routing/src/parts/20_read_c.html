@@ -1,0 +1,48 @@
+
+<section id="rd-s3">
+<h2>3. When a call fails: retry, cool down, or fall back</h2>
+<p><b>The problem.</b> A failed call can be handled three ways, and they answer different questions. <b>Retry</b>: try again, on the same group, after a short wait (was it a blip?). <b>Cooldown</b>: stop sending traffic to one deployment for a while (is this copy broken?). <b>Fallback</b>: give up on the group and call another one (is this model unusable right now?). LiteLLM decides among them from the error's HTTP status, and the table below is what its code does, not what the docs summarise. <span class="srcl">SOURCE</span></p>
+<div class="tw"><table>
+<thead><tr><th>Upstream answer</th><th>Retried in the group?</th><th>Can cool the deployment down?</th><th>Goes to fallbacks?</th></tr></thead>
+<tbody>
+<tr><td>429 rate limited</td><td>yes</td><td>yes, at once, if the group has another deployment</td><td>yes</td></tr>
+<tr><td>500, 502, 503 and any 5xx</td><td>yes</td><td>yes, once more than half of this minute's calls to it failed and it had at least 5</td><td>yes</td></tr>
+<tr><td>408 timeout, 409</td><td>yes</td><td>408 yes, 409 no</td><td>yes</td></tr>
+<tr><td>401, 403 bad credentials</td><td>only if the group has another deployment</td><td>401 yes</td><td>yes</td></tr>
+<tr><td>400 context window exceeded</td><td>no</td><td>no</td><td>yes: to <code>context_window_fallbacks</code> if set, else to the regular <code>fallbacks</code></td></tr>
+<tr><td>400 content policy</td><td>no</td><td>no</td><td>yes: to <code>content_policy_fallbacks</code> if set, else regular</td></tr>
+<tr><td>other 400s, 404</td><td>no</td><td>404 yes</td><td>regular fallbacks</td></tr>
+</tbody></table></div>
+<p class="small mute">From <code>litellm/utils.py</code> (<code>_should_retry</code>: 408, 409, 429 and 5xx), <code>router.py</code> (<code>should_retry_this_error</code>) and <code>router_utils/cooldown_handlers.py</code> (<code>_is_cooldown_required</code>, <code>_should_cooldown_deployment</code>) in 1.104.0. Defaults: <code>num_retries</code> 2, <code>cooldown_time</code> 5 s, at most 5 fallbacks per request; an error whose text contains "APIConnectionError" never triggers a cooldown.</p>
+<p><b>Two cooldown regimes, and a trap.</b> If you do not set <code>allowed_fails</code>, the router uses the rules in the table: a 429 benches a deployment at once (when the group has an alternative), other errors only once more than 50% of its calls this minute failed and there were at least 5 (<code>DEFAULT_FAILURE_THRESHOLD_PERCENT</code> 0.5, <code>DEFAULT_FAILURE_THRESHOLD_MINIMUM_REQUESTS</code> 5). If you set <code>allowed_fails</code>, it switches to a simpler counter: cool down once failures within <code>cooldown_time</code> exceed it. But the code decides whether you "set" it by comparing with the library default, which is 3 (<code>_is_allowed_fails_set_on_router</code>). <b>Writing <code>allowed_fails: 3</code> in a config therefore changes nothing</b>; the parent page's Production stack config contains exactly that line.</p>
+<p><b>The recording.</b> A group of two: A healthy (0.2 s), C scripted to fail every call. Thirty requests one after another, 0.3 s apart, <code>num_retries: 2</code>. Each mark below is one call that reached C; a red mark is a request whose user got an error. <span class="meas">MEASURED</span></p>
+<div class="card" id="fgw-e2card"><div id="fgw-e2"></div>
+<p class="small mute">Grey bands: more than 4 s in which no call reached C although requests kept coming, which the rules above attribute to a cooldown. Times in seconds from the first request. Every attempt of every request, including the ones that went to A, is in the {{Failure lab|#t-fail}}.</p></div>
+<ul>
+<li><b>429:</b> C was benched after its first 429 and came back every 5 to 6 seconds (calls at 0.1, 5.7, 11.8 and 17.8 s). Users never saw an error.</li>
+<li><b>503, default settings:</b> C was picked about one time in three until its fifth failure in the minute (at 7.3 s), then benched until 14.7 s; after that each new failure benched it again.</li>
+<li><b>503, <code>allowed_fails: 3</code>:</b> the same rules, as the source predicts, and one user error: request 2 picked C, and both retries picked C again. A retry inside a group re-runs the routing choice at random; with two deployments, a request whose first pick is the bad one fails all three tries with probability 1/2 &times; 1/2 = 1/4 while the bad one is not benched. LiteLLM's <code>enable_weighted_failover</code> (async calls, simple-shuffle only) exists to re-pick among the <i>other</i> deployments instead.</li>
+<li><b>503, <code>allowed_fails: 1</code>:</b> benched after its second failure, back 5 s later.</li>
+<li><b>One deployment in the group:</b> no cooldown ever (the "single-deployment model group" exemption: benching the only copy would turn a partial outage into a total one), so every request paid two backoff waits and then fell back: about 5.5 s per request, every time.</li>
+<li><b>Context window error:</b> never retried; with no fallbacks the user got <code>ContextWindowExceededError</code> in 0.1 s; with either <code>fallbacks</code> or <code>context_window_fallbacks</code> the request went straight to the long-context group.</li>
+</ul>
+<div class="drill"><details><summary><b>Predict, then open.</b> A group has two deployments and the bad one returns 500 on every call. You set <code>allowed_fails: 3</code> and <code>cooldown_time: 60</code>, expecting it to be benched after three failures for a minute. What happens?</summary><div>It is benched only after more than half of its calls in the current minute failed and there were at least five (the default regime), and the bench lasts 60 s because <code>cooldown_time</code> is honoured. Write <code>allowed_fails: 2</code> or use <code>allowed_fails_policy</code> (per error type, for example <code>InternalServerErrorAllowedFails</code>) to get a counter that actually applies.</div></details></div>
+</section>
+
+<section id="rd-s4">
+<h2>4. Timeouts and retries across layers</h2>
+<p><b>The problem.</b> An agent's model call passes through several programs, and most of them retry: the provider's SDK in your agent, your own loop, the gateway, sometimes a second gateway or a provider-side router. Each layer's retries run once for <i>every</i> attempt of the layer above, so they multiply:</p>
+<div class="fm"><div class="eq">attempts reaching the provider = (1 + r<sub>1</sub>) &times; (1 + r<sub>2</sub>) &times; &hellip; &times; (1 + r<sub>n</sub>)</div>
+<dl><dt>r<sub>i</sub></dt><dd>retries at layer i (OpenAI and Anthropic Python SDKs: 2 by default, with a 600-second timeout; LiteLLM: <code>num_retries</code>, 2 in this config, and a default request timeout of 6,000 seconds)</dd></dl></div>
+<p class="small mute">Defaults read from <code>openai/_constants.py</code> (openai 2.54.0), <code>anthropic/_constants.py</code> (anthropic 1.11.0) and <code>litellm/constants.py</code> (<code>DEFAULT_REQUEST_TIMEOUT_SECONDS = 6000.0</code>), 6 October 2026. <span class="srcl">SOURCE</span></p>
+<p><b>The recording.</b> Provider C hangs for 30 seconds on every call. The gateway gives each attempt 5 seconds and retries twice. The client is the OpenAI Python SDK, run three ways. <span class="meas">MEASURED</span></p>
+<div class="card" id="fgw-e3card"><div id="fgw-e3"></div>
+<p class="small mute">Each grey bar is one call the provider received and worked on for its full 30 s (it cannot tell that the caller gave up until it writes the answer). Blue ticks: the SDK sending; the red line: when the user got an error. Replayed step by step in the {{Failure lab|#t-fail}}.</p></div>
+<ul>
+<li><b>SDK defaults with a 10-second timeout:</b> the user got <code>APITimeoutError</code> after 32.8 s and three sends; the provider received <b>9 calls</b>, the last one starting at 36.9 s, four seconds <i>after</i> the user had been told it failed. 270 seconds of provider work for one failed request. The gateway does not stop its retry chain when the client hangs up.</li>
+<li><b>The same with <code>max_retries=0</code>:</b> 3 calls, error after 10.2 s.</li>
+<li><b>SDK timeout 60 s:</b> the gateway's own chain finished first (about 20 s), returned 408, and the SDK retried it, twice: 9 calls, error after 61.9 s.</li>
+</ul>
+<p>The sibling page {{Other coding harnesses|n:3c65c17b0d0d819fa3cefdcd2ccff2f7}} hit the same thing from the other side: Gemini CLI 0.62.0 waits 60 s for headers and retries up to 10 times, so against a slow local server its retries overlapped and multiplied the load until the server ran out of memory. <span class="meas">MEASURED there</span></p>
+<div class="co key"><div class="t">The rule</div>Retry at one layer only, the one that knows the most (usually the gateway, which can switch deployments); set the others to 0. Give each layer a timeout shorter than the layer above it, so the inner one gives up first and reports why. And make the total budget visible: a request that has been retried 9 times is a capacity problem, not bad luck. Why retries need a budget (a cap on retries as a share of traffic) and how a retry storm keeps an overloaded service down is measured on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}; which hop's timeout ends a long generation is on {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}} (its Timeout chain tab).</div>
+</section>

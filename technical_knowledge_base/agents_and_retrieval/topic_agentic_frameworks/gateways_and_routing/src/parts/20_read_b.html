@@ -1,0 +1,38 @@
+
+<section id="rd-s1">
+<h2>1. Six words you need first</h2>
+<div class="grid">
+<div class="sp"><div class="n">Deployment</div><p>One concrete endpoint that can answer: a provider, a model id on it, a base URL and a key. In LiteLLM's config each entry of <code>model_list</code> is one deployment.</p></div>
+<div class="sp"><div class="n">Model group</div><p>The name your code asks for (<code>model="chat"</code>). Every deployment that shares a <code>model_name</code> belongs to the group; the router picks one of them per call. A group of one is common, and it changes the failure rules (section 3).</p></div>
+<div class="sp"><div class="n">Provider prefix</div><p>The part before the slash in <code>litellm_params.model</code> (<code>openai/</code>, <code>anthropic/</code>, <code>lm_studio/</code>, <code>bedrock/</code> ...). It chooses the code that speaks to that upstream, so it decides which wire format leaves the gateway (section 8).</p></div>
+<div class="sp"><div class="n">Router and proxy</div><p>LiteLLM is two things: a Python library whose <code>Router</code> class does routing, retries, cooldowns and fallbacks inside your process, and a proxy server (<code>litellm --config</code>) that wraps the same Router behind HTTP and adds keys, budgets, rate limits and spend logs. Sections 2 and 3 are the Router; 5 and 6 need the proxy and its database.</p></div>
+<div class="sp"><div class="n">Virtual key</div><p>A key the gateway issues (<code>sk-...</code>) and checks on every call. It carries limits (models allowed, budget, requests and tokens per minute, parallel requests). The real provider keys never leave the gateway.</p></div>
+<div class="sp"><div class="n">Cooldown</div><p>A deployment the router has decided to stop sending traffic to for a few seconds after failures. Not the same as a fallback: a cooldown moves traffic inside a group, a fallback moves it to another group.</p></div>
+</div>
+</section>
+
+<section id="rd-s2">
+<h2>2. Choosing a deployment: six strategies, one recording</h2>
+<p><b>The problem.</b> When a group has several deployments (the same model on two Azure regions, or on two providers), something must pick one per call. The pick decides latency, cost and how evenly load spreads. LiteLLM offers several <code>routing_strategy</code> values; each is a small file in <code>litellm/router_strategy/</code>, and what each one actually measures is easy to get wrong from its name. <span class="srcl">SOURCE</span></p>
+<div class="tw"><table>
+<thead><tr><th>Strategy</th><th>What the code does (1.104.0)</th></tr></thead>
+<tbody>
+<tr><td><code>simple-shuffle</code> (default)</td><td>Random choice. If deployments carry a <code>weight</code> (or else <code>rpm</code>, or else <code>tpm</code>), the choice is weighted by it (<code>simple_shuffle.py</code>).</td></tr>
+<tr><td><code>least-busy</code></td><td>The deployment with the fewest requests in flight right now (<code>least_busy.py</code>).</td></tr>
+<tr><td><code>latency-based-routing</code></td><td>The lowest average of the last 10 latencies, where a latency is the response time <i>divided by the output tokens</i> (time to first token when streaming). A deployment with no history counts as 0, so it is tried first; a timeout adds a 1,000-second penalty sample. <code>lowest_latency_buffer</code> (default 0) picks at random among deployments within that fraction of the best. History lives for 1 hour (<code>lowest_latency.py</code>).</td></tr>
+<tr><td><code>usage-based-routing-v2</code></td><td>The deployment with the fewest tokens used in the current calendar minute, skipping any over its own <code>tpm</code>/<code>rpm</code> (<code>lowest_tpm_rpm_v2.py</code>; counters keyed by <code>%H-%M</code>).</td></tr>
+<tr><td><code>cost-based-routing</code></td><td>The cheapest deployment by input plus output price per token. Prices come from <code>litellm_params</code>, else from LiteLLM's price map for the model name, else <b>$5.00 per token</b> each (<code>lowest_cost.py</code>).</td></tr>
+<tr><td>Auto routers</td><td><code>auto_router/complexity_router</code>, <code>adaptive_router</code> and others choose between <i>different</i> models from the prompt itself; they are section 10.</td></tr>
+</tbody></table></div>
+<p><b>The recording.</b> One group, two copies of the same fake model: <b>A</b> answers in 0.2 s, <b>B</b> in 1.0 s. Forty requests, four at a time, through <code>litellm.Router</code> under each strategy. <span class="meas">MEASURED</span></p>
+<div class="card" id="fgw-e1card"><div id="fgw-e1"></div>
+<p class="small mute">Bars: share of the 40 requests each copy answered (A fast, B slow); right: wall time for all 40. The cost rows mark B as the cheaper copy ($1 against $2 per million input tokens). Every request, with its timing, is in the {{Routing lab|#t-route}}.</p></div>
+<ul>
+<li><b>Latency-based routing found the fast copy</b> but still sent it only 34 of 40: both copies start at "no history = 0" and B is tried until its own samples push its average up. That exploration is the price of measuring.</li>
+<li><b>Least-busy</b> sent 26 to A without measuring anything: A finishes sooner, so it is idle more often when the next request arrives.</li>
+<li><b>Usage-based</b> balanced tokens per minute (18 to 22), which is what it is for, and ignored that B is five times slower.</li>
+<li><b>Cost-based with prices in <code>model_info</code></b> sent all 40 to A, the expensive copy. The strategy reads prices only from <code>litellm_params</code>; with none there and no entry in the price map, both copies cost the default and the first one wins every tie. Moving the same two numbers into <code>litellm_params</code> sent all 40 to B. The proxy's spend tracking does read <code>model_info</code> prices, so the mistake is invisible on the bill.</li>
+</ul>
+<div class="co warn"><div class="t">Check what your strategy reads</div>A strategy that cannot find its input does not fail; it falls back to random or to the first deployment. After changing a routing setting, send a few dozen requests and count which deployment answered (the proxy returns it in the <code>x-litellm-model-id</code> response header).</div>
+<div class="deepnote"><b>Go deeper.</b> The {{Routing lab|#t-route}} replays the 40 requests per strategy on a time axis. Load balancing in general (layer 4 against layer 7, round robin in the client) is taught on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} (its Balancer lab); this section is only what LiteLLM implements.</div>
+</section>
