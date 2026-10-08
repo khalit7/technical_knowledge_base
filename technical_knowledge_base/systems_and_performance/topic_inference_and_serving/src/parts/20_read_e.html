@@ -1,0 +1,29 @@
+<section id="rd-s4">
+<h2>4. Scheduling and SLOs: who goes next, and how fast is fast enough</h2>
+<p>A <dfn>service level objective</dfn> (SLO) is the latency promise a service tries to keep, usually written on a percentile: "99% of requests see their first token within 2 seconds" is a p99 TTFT target. Percentiles matter because a user who sends twenty messages will meet the slow tail; a mean hides it. The numbers worth knowing, all computed from the timestamps of each streamed token:</p>
+<div class="tw"><table class="rd-tbl">
+<tr><th>Metric</th><th>Definition</th><th>What moves it</th></tr>
+<tr><td>TTFT</td><td>request sent to first token received</td><td>queueing, prompt length, prefix cache hits, other prompts in the same steps</td></tr>
+<tr><td>ITL</td><td>gap between two consecutive tokens (a distribution: one value per gap)</td><td>batch size, context length, someone else's prefill in the same step</td></tr>
+<tr><td>TPOT</td><td>(end-to-end latency &minus; TTFT) / (output tokens &minus; 1): the mean gap for one request</td><td>as ITL</td></tr>
+<tr><td>E2E latency</td><td>request sent to last token</td><td>TTFT + TPOT &times; (tokens &minus; 1); dominated by long answers</td></tr>
+<tr><td>Throughput</td><td>output (or total) tokens per second, or requests per second, for the whole server</td><td>batch size, everything in sections 3 and 6</td></tr>
+<tr><td>Goodput</td><td>requests per second that met every SLO ({{DistServe|https://arxiv.org/abs/2401.09670}}'s term)</td><td>the honest measure: throughput that breaks the SLO is not worth having</td></tr>
+</table></div>
+<p>One real request shows why the definitions matter. Under 16 concurrent users on llama-server (Qwen3-0.6B, a 412-token prompt, 128 tokens out), it saw a TTFT of 0.96 s and a mean TPOT of 43.9 ms, yet its median gap was 31.4 ms and its longest 803 ms <span class="meas">measured here</span> ({{Engine bench|#t-bench}}, "One request alone, and the same request under load"). The mean is not the typical gap and not the worst one: the long gaps are steps where other users' prompts were being read. MLPerf's targets for Llama 3.1 8B are p99 TTFT 2 s and p99 TPOT 100 ms, and 0.5 s and 30 ms in its interactive scenario ({{MLPerf inference rules|https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc}}).</p>
+
+<h3>What the scheduler decides, every step</h3>
+<p>The <dfn>scheduler</dfn> builds each step's batch: which running requests decode, which waiting prompts start, and what to do when memory runs out. Four mechanisms, each a fix for a specific failure:</p>
+<div class="mech">
+<div><b>Admission and order</b>First come, first served by default (vLLM's policy "fcfs", config/scheduler.py line 160; "priority" is the alternative). vLLM admits a waiting request only when its whole prompt fits in free blocks; TensorRT-LLM's default (GUARANTEED_NO_EVICT) admits one only if its maximum length fits, so it never has to evict but runs fewer at once.</div>
+<div><b>Chunked prefill</b>A long prompt read in one step makes that step long, and every user's stream stalls (the 803 ms gap above). Cap the tokens per step and cut prompts into chunks; decodes go first and chunks fill the rest of the budget.</div>
+<div><b>Preemption</b>Answers grow, so a cache that fit at admission can run out. The engine evicts a running request: recompute (drop its cache, prefill it again later) or swap (copy its cache to CPU memory and back). vLLM v1 only recomputes, taking the most recently admitted request and putting it first in the queue.</div>
+<div><b>Priorities and fairness</b>Interactive before batch jobs, short before long, one tenant not starving another. vLLM's priority policy, SGLang's longest-prefix-match policy, which runs first the requests with the most cached tokens ({{schedule_policy.py line 223|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/schedule_policy.py#L223}}), and admission limits per tenant in a gateway in front.</div>
+</div>
+<p><dfn>Chunked prefill</dfn> comes from Sarathi ({{Agrawal et al. 2023|https://arxiv.org/abs/2308.16369}}) and Sarathi-Serve ({{OSDI 2024|https://arxiv.org/abs/2403.02310}}), whose authors report 2.6 times the serving capacity of vLLM at the time for Mistral-7B on one A100 under tail-latency targets. vLLM v0.31.0 turns it on by default ({{config/scheduler.py line 135|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/scheduler.py#L135}}) with a budget of 8,192 tokens per step for its API server on H100-class GPUs; TensorRT-LLM v1.2.1 leaves it off by default ({{llm_args.py line 2006|https://github.com/NVIDIA/TensorRT-LLM/blob/v1.2.1/tensorrt_llm/llmapi/llm_args.py#L2006}}). The budget is the dial: smaller chunks keep streams smooth but take more steps to finish a prompt (higher TTFT). The {{Serving simulator|#t-sim}} shows the stall and the fix on the same requests (section 3). Preemption, measured: vLLM's CPU backend with a 9,344-token cache reached 100% cache use and 8 preemptions at 16 users, and its output throughput fell from 26.5 to 15.6 tokens per second between 8 and 16 users <span class="meas">measured here</span>: work thrown away and redone.</p>
+<div class="ff"><div class="t">How to check</div><ul>
+<li>Engines export these as Prometheus metrics (vLLM's /metrics: running and waiting requests, KV cache usage, preemptions, TTFT and ITL histograms). Waiting requests growing while cache usage sits near 100% means memory, not compute, is the limit.</li>
+<li>Report percentiles (p50, p90, p99) of TTFT and ITL, never only means, and goodput at a stated SLO.</li>
+</ul></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Serving simulator|#t-sim}} (chunked prefill, recompute against swap, admission, latency against load) and the {{Engine bench|#t-bench}}'s goodput chart.</div>
+</section>
