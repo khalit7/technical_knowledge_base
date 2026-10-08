@@ -1,0 +1,27 @@
+<section id="rd-s9">
+<h2>9. Running it in production</h2>
+<h3>Routing: send a conversation back to its cache</h3>
+<p>With several replicas, something in front must pick one for each request. A web load balancer's round-robin spreads the load evenly but ignores the cache: the second turn of a conversation lands on a replica that never saw the first, and its whole history is prefilled again. <dfn>Prefix-aware routing</dfn> (also called cache-aware or KV-aware) sends a request to the replica most likely to hold its prefix, weighed against how busy each replica is.</p>
+<div class="rd-card" id="rd-rt-card">
+<h4>Eight requests, three replicas: round-robin against prefix-aware routing</h4>
+<div class="seg" id="rd-rt-mode"><button class="on" data-m="rr">Round-robin</button><button data-m="pa">Prefix-aware</button></div>
+<div class="rd-svg" id="rd-rt-svg"></div>
+<div class="an-cap" id="rd-rt-cap"></div>
+<div class="an-cnt" id="rd-rt-cnt"></div>
+<div class="an-ctl" id="rd-rt-ctl"></div>
+<p class="small mute"><span class="ann">illustrative</span> traffic: four conversations (A to D) of two turns, arriving in order; first turns are the running example's 1,000-token system prompt plus 1,000 tokens; a second turn resends those 2,000, the 300-token answer and 200 new tokens. Prefill cost per token is the running example's <span class="der">derived</span> 0.21 ms. The prefix-aware router here scores each replica by the tokens of the prefix it holds minus 1,000 per request already sent to it, a toy version of the load-and-cache scoring real routers use; even so replica 1 ends with four requests.</p>
+</div>
+<p>Published gains are vendor or partner measurements: llm-d reports 3 times the output throughput and half the TTFT of round-robin for Llama 3.1 70B on four MI300X ({{llm-d README|https://github.com/llm-d/llm-d}}); NVIDIA Dynamo's KV-aware router, twice as fast a TTFT on Baseten's Qwen3-Coder 480B deployment ({{Dynamo README|https://github.com/ai-dynamo/dynamo}}); AIBrix, prefix- and load-aware routing in a vLLM stack ({{AIBrix, 2025|https://arxiv.org/abs/2504.03648}}). Gateways (authentication, rate limits, provider fallbacks, budgets) are a layer above this and have their own page: {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}. Client-side prompt caching with API providers is on {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}.</p>
+
+<h3>Autoscaling and cold starts</h3>
+<p>Scale on what the users feel and what runs out: queue length, KV cache usage, TTFT. Not on GPU utilization, which reads near 100% during memory-bound decode whether the server is comfortable or drowning. Adding a replica is slow: the weights must be fetched and loaded (72.66 GB for the running example, about 36 s at an assumed 2 GB/s from a local NVMe disk <span class="der">72.66 GB / 2 GB/s</span>, minutes from remote storage), then the engine profiles memory and captures CUDA graphs. Keep a minimum of warm replicas, cache weights on local disk, and scale ahead of known peaks. ServerlessLLM reports 10 to 200 times lower start-up latency from loading-optimised checkpoints on local storage ({{Fu et al. 2024|https://arxiv.org/abs/2401.14351}}, the authors).</p>
+
+<h3>Observability and benchmarking honestly</h3>
+<p>Watch per replica: running and waiting requests, KV cache usage, preemptions, prefix cache hit rate, TTFT and ITL histograms, tokens in and out. Most engines publish these at /metrics for Prometheus. When you benchmark, a number is only meaningful with its conditions:</p>
+<ul class="tight">
+<li><b>Open-loop arrivals</b> (Poisson, as MLPerf's Server scenario) for a service; a closed loop (N users who each wait for their answer) hides overload, because the users slow down with the server.</li>
+<li><b>Real length distributions</b>, not one fixed prompt and output length; state whether end-of-sequence was ignored to force lengths.</li>
+<li><b>Prefix cache state:</b> repeated identical prompts measure the cache, not the model.</li>
+<li><b>Percentiles and goodput at a stated SLO</b>, across a sweep of load to find the knee; warm-up excluded; several runs with their spread; exact versions, flags and hardware. The {{Engine bench|#t-bench}} records every run with its command line and the machine's load, because this laptop was shared.</li>
+</ul>
+</section>

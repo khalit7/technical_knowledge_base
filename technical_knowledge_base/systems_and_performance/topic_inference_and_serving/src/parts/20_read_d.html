@@ -1,0 +1,31 @@
+<section id="rd-s3">
+<h2>3. Batching: one read of the weights, many users served</h2>
+<p><b>The problem.</b> A decode step reads 72.66 GB of weights to produce one token for one user, and the arithmetic units sit idle. <b>The idea:</b> let many users' next tokens ride on the same read. The weights are read once per step whatever the batch; each extra user adds only the bytes of its own cache and a little arithmetic. So the step barely slows while the tokens per step multiply:</p>
+<div class="rd-card" id="rd-bt-card">
+<h4>One decode step with B users at once, the running example on one H200</h4>
+<div class="bars" id="rd-bt-bars"></div>
+<p class="small mute"><span class="der">derived</span> from the Capacity planner's step model (each user at the mean context of the running example; 141 is the most the cache holds). Bar: output tokens per second for the GPU; text: step time and each user's own speed.</p>
+<div class="bars" id="rd-bt-m1"></div>
+<p class="small mute"><span class="meas">measured here</span>: llama-batched-bench, Qwen3-0.6B Q4_K_M on the M1 Pro GPU ({{Engine bench|#t-bench}}, section "Batching"). Here each extra sequence costs about 1.2 ms per step on top of the weight read, so 64 sequences give 7 times the throughput of one, not 64; on the H200 model, 64 users give 42 times.</p>
+</div>
+<p>Throughput climbs almost linearly while the step is dominated by the weight read, then bends as each user's cache read and arithmetic add up; each user's own speed falls as the step lengthens. That trade, more throughput for the owner against slower tokens for each user, is the central dial of serving.</p>
+
+<h3>Static, dynamic and continuous batching</h3>
+<div class="mech">
+<div><b>Static</b>Collect a batch, run it until its longest answer finishes, then start the next. Users whose answers end early leave empty seats; new arrivals wait for the whole batch.</div>
+<div><b>Dynamic</b>Wait up to a time limit to fill a batch, then run it as a unit. Right for models that answer in one pass (classifiers, embeddings; NVIDIA Triton's dynamic batcher); for generation it keeps the static problem.</div>
+<div><b>Continuous</b>Decide the batch again at every step. A finished request leaves immediately and a waiting one joins at the next step. Also called iteration-level scheduling or in-flight batching.</div>
+</div>
+<p><dfn>Continuous batching</dfn> was introduced by Orca ({{Yu et al., OSDI 2022|https://www.usenix.org/conference/osdi22/presentation/yu}}): the scheduler runs the model for one iteration at a time, and "selective batching" batches the matrix multiplications over all tokens of all requests while attention runs per request, since each request has its own cache. The authors reported 36.9 times the throughput of NVIDIA FasterTransformer at the same latency on GPT-3 175B (their measurement). It is why serving got so much cheaper in 2022 to 2023, and every engine on this page now does it by default (llama-server's "continuous batching on", TensorRT-LLM's "in-flight batching", vLLM's and SGLang's schedulers). The {{Serving simulator|#t-sim}} animates the same 20 requests under static and continuous batching in its section 1.</p>
+
+<div class="pr" id="rd-pr2" data-ok="2"><div class="q">Predict: static batching versus continuous batching on chat traffic whose answers range from 10 to 1,000 tokens. Which suffers most under static batching?</div>
+<div class="opts"><button data-a="0">Throughput only</button><button data-a="1">Latency only</button><button data-a="2">Both: empty seats waste throughput, and new requests wait for the slowest answer</button><button data-a="3">Neither, if the batch is large</button></div>
+<div class="ans" hidden><b>Both.</b> A static batch runs as long as its longest answer, so a 10-token answer holds its seat for 1,000 steps (throughput lost), and a request that arrives just after the batch starts waits for all of it before its first token (TTFT lost). A larger batch makes both worse: more seats empty, longer waits. Try it in the {{Serving simulator|#t-sim}}'s lab.</div></div>
+
+<div class="ff"><div class="t">What it costs, when it matters, how to check</div><ul>
+<li><b>Cost:</b> every extra user lengthens every step a little (higher TPOT for all) and holds cache memory; past the knee, adding users adds latency without adding throughput.</li>
+<li><b>When it matters:</b> always for a shared server; not for a single local user, where batch size is one and only fewer bytes per token help.</li>
+<li><b>How to check:</b> sweep concurrency and plot throughput against TPOT and TTFT; the operating point is just before the knee. The {{Engine bench|#t-bench}} measured that curve on real engines (section "The throughput-latency curve").</li>
+</ul></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Serving simulator|#t-sim}} (static against continuous, every switch on your own traffic); the batch-size frontier on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}.</div>
+</section>
