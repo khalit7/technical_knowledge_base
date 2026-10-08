@@ -1,3 +1,171 @@
 <div class="tab" id="t-plan" role="tabpanel" hidden>
-<p>Being built.</p>
+<style>
+#t-plan h2{margin-top:14px}
+#t-plan h3{font-size:16px;margin:22px 0 4px}
+#t-plan fieldset{border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;margin:8px 0;min-width:0}
+#t-plan legend{font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;padding:0 4px}
+#t-plan .ctl{margin:4px 0}
+#t-plan .ctl select,#t-plan .ctl input[type=number]{width:100%;box-sizing:border-box;margin-top:2px}
+#t-plan .pln-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#t-plan .pln-row button{font-size:13px}
+#t-plan .pln-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-plan .pln-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-plan .pln-leg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-plan .pln-tag{display:inline-block;font-size:11px;font-weight:600;border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px;white-space:nowrap}
+#t-plan .pln-ven{background:var(--closed2);color:var(--closed)}
+#t-plan .pln-ind{background:var(--open2);color:var(--open)}
+#t-plan .pln-der{background:var(--acc2);color:var(--acc)}
+#t-plan .pln-asm{background:var(--hl);color:var(--ink)}
+#t-plan .pln-msr{background:var(--soft);color:var(--good);border:1px solid var(--good)}
+#t-plan table.pln-t{border-collapse:collapse;font-size:12.5px;width:100%}
+#t-plan table.pln-t th,#t-plan table.pln-t td{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+#t-plan table.pln-t th{color:var(--mute);font-weight:600;font-size:12px}
+#t-plan table.pln-t td.num,#t-plan table.pln-t th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#t-plan table.pln-wrap td.num{white-space:normal}
+#t-plan .pln-good{color:var(--good);font-weight:600}
+#t-plan .pln-bad{color:var(--bad);font-weight:600}
+#t-plan .pln-verdict{font-size:15px;margin:8px 0}
+#t-plan .pln-an{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0}
+#t-plan .pln-an input[type=range]{flex:1 1 120px;width:auto;min-width:100px}
+#t-plan .pln-cap{font-size:13.5px;min-height:3.2em;margin:6px 0;padding:6px 10px;background:var(--soft);border-radius:6px}
+#t-plan .pln-note{font-size:13px;color:var(--mute)}
+#t-plan details.pln-d{border:1px solid var(--line);border-radius:8px;margin:8px 0;padding:0 12px}
+#t-plan details.pln-d summary{cursor:pointer;padding:8px 0;font-size:14px;font-weight:600}
+#t-plan details.pln-d[open]{padding-bottom:10px}
+#t-plan .pln-ex{border-left:3px solid var(--good);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:10px 0;font-size:13.5px}
+#t-plan .pln-ex h4{margin:0 0 4px;font-size:14px}
+#t-plan .stat .v small{font-size:12px;font-weight:400;color:var(--mute)}
+#t-plan .fm .eq{white-space:normal}
+@media (max-width:520px){#t-plan .stat .v{font-size:17px}#t-plan table.pln-t{font-size:12px}}
+</style>
+<h2>Capacity planner</h2>
+<p>How many GPUs a model needs to serve a given traffic within a latency promise, what that costs per million tokens, and whether an API would be cheaper. You choose the model, the precision, the GPU, how the model is split across GPUs, the traffic and the latency targets; the planner works out the memory each GPU spends, how many conversations fit at once, how long each engine step takes, the most traffic one copy of the model can carry inside the targets, and the bill. The formulas are the hardware root's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}} (FLOPs and bytes per step, KV cache per token, the same functions) and they extend the {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} page's serving frontier with queueing, latency targets and prices. Every result is an estimate from a stated model whose two engine constants are fitted to published MLPerf runs; the residuals are shown below, not hidden.</p>
+<p class="try"><b>Try:</b> start from the running example (a chat assistant on Llama 3.1 70B), then open the worked examples: each one sets every control and says what to notice and how the planner compares with what was published.</p>
+
+<div class="pln-row" id="pln-presets" role="group" aria-label="Worked examples"></div>
+<div class="pln-ex" id="pln-exnote" aria-live="polite"></div>
+
+<fieldset><legend>Model and precision</legend><div class="ctl">
+<label>Model <select id="pln-model"></select></label>
+<label>Weights <select id="pln-fmt"><option value="native">as released</option><option value="bf16">BF16 (2 bytes)</option><option value="fp8">FP8 (1 byte)</option><option value="int4">INT4 weight-only (AWQ/GPTQ, 4.16 bits)</option><option value="q4km">llama.cpp Q4_K_M (5.25 bits, measured)</option></select></label>
+<label>KV cache <select id="pln-kvb"><option value="2">FP16/BF16 (2 bytes)</option><option value="1">FP8 (1 byte)</option></select></label>
+</div><div class="pln-note" id="pln-modelnote"></div></fieldset>
+
+<fieldset><legend>Hardware and parallelism</legend><div class="ctl">
+<label>GPU <select id="pln-chip"></select></label>
+<label id="pln-tpl">Tensor parallel (GPUs per stage) <select id="pln-tp"></select></label>
+<label>Pipeline stages <select id="pln-pp"><option>1</option><option>2</option><option>4</option></select></label>
+<label><input type="checkbox" id="pln-ep"> Expert parallel (MoE only): experts spread over all GPUs of a copy, attention data-parallel</label>
+<label>Price per GPU-hour ($) <input type="number" id="pln-price" min="0" step="0.01"></label>
+</div><div class="pln-note" id="pln-chipnote"></div></fieldset>
+
+<fieldset><legend>Engine</legend><div class="ctl">
+<label>Engine constants <select id="pln-eng"></select></label>
+<label>Max tokens per step (chunked-prefill budget) <select id="pln-tb"><option>512</option><option>1024</option><option>2048</option><option>4096</option><option>8192</option><option>12000</option><option>16384</option></select></label>
+<label>Max sequences per GPU <select id="pln-seqs"><option>8</option><option>64</option><option>128</option><option>256</option><option>512</option><option>1024</option><option>2048</option></select></label>
+<label>Memory the engine may use: <b id="pln-util-v"></b><input type="range" id="pln-util" min="0.5" max="0.99" step="0.01" aria-label="Memory utilisation"></label>
+</div>
+<details class="pln-d"><summary>Advanced: efficiencies, overheads, communication</summary><div class="ctl">
+<label>Compute efficiency (share of dense peak): <b id="pln-effc-v"></b><input type="range" id="pln-effc" min="0.1" max="1" step="0.005" aria-label="Compute efficiency"></label>
+<label>Memory-bandwidth efficiency: <b id="pln-effm-v"></b><input type="range" id="pln-effm" min="0.3" max="1" step="0.01" aria-label="Bandwidth efficiency"></label>
+<label>Fixed overhead per step (ms): <b id="pln-tovh-v"></b><input type="range" id="pln-tovh" min="0" max="30" step="0.1" aria-label="Overhead per step"></label>
+<label>Extra time per decoding sequence per step (ms): <b id="pln-tseq-v"></b><input type="range" id="pln-tseq" min="0" max="2" step="0.01" aria-label="Extra time per sequence"></label>
+<label>Other memory per GPU (CUDA context, graphs, buffers), GB: <b id="pln-ovh-v"></b><input type="range" id="pln-ovh" min="0" max="8" step="0.1" aria-label="Other memory"></label>
+<label>All-reduce latency multiplier: <b id="pln-latx-v"></b><input type="range" id="pln-latx" min="0" max="5" step="0.1" aria-label="All-reduce latency multiplier"></label>
+<label><input type="checkbox" id="pln-overlap"> Overlap communication with compute (two-batch overlap)</label>
+</div></details></fieldset>
+
+<fieldset><legend>Traffic and latency targets</legend><div class="ctl">
+<label>Peak traffic (requests per second) <input type="number" id="pln-lam" min="0.01" step="0.1"></label>
+<label>Prompt tokens per request <input type="number" id="pln-P" min="1" step="1"></label>
+<label>Output tokens per request <input type="number" id="pln-O" min="2" step="1"></label>
+<label>Share of the prompt already cached (shared prefix): <b id="pln-share-v"></b><input type="range" id="pln-share" min="0" max="0.95" step="0.05" aria-label="Prefix share"></label>
+<label>Average traffic as a share of the peak: <b id="pln-avg-v"></b><input type="range" id="pln-avg" min="0.05" max="1" step="0.05" aria-label="Average load"></label>
+<label>TTFT target, p99 (seconds) <input type="number" id="pln-sttft" min="0.05" step="0.05"></label>
+<label>TPOT target, mean (milliseconds) <input type="number" id="pln-stpot" min="1" step="1"></label>
+<label>API price to compare <select id="pln-api"><option value="min">lowest listed provider</option><option value="median">median provider</option></select></label>
+</div></fieldset>
+
+<h3>1. Memory on one GPU</h3>
+<div class="pln-chart" id="pln-mem"></div>
+<div class="pln-leg" id="pln-memleg"></div>
+<div class="out" id="pln-memout"></div>
+<p class="pln-note" id="pln-memnote"></p>
+
+<h3>2. One engine step</h3>
+<div class="out" id="pln-stepout"></div>
+<div class="pln-chart" id="pln-step"></div>
+<p class="pln-note" id="pln-stepnote"></p>
+
+<h3>3. Throughput against latency, one copy of the model</h3>
+<p class="pln-note">Each point is the steady state at one arrival rate: more traffic means more sequences decoding together and more prefill per second, so each step grows. The dashed lines are your targets; the planner takes the highest rate that meets both. Where the curve turns up is where to stop adding load.</p>
+<div class="pln-chart" id="pln-curve"></div>
+<div class="pln-leg"><span><i style="--sw:var(--c1)"></i>TPOT, mean (left axis)</span><span><i style="--sw:var(--c2)"></i>TTFT, p99 (right axis)</span><span><i style="--sw:var(--c3)"></i>operating point at your peak traffic</span></div>
+<div class="out" id="pln-rateout"></div>
+
+<h3>4. Fleet and cost</h3>
+<div class="out" id="pln-costout"></div>
+<p class="pln-note" id="pln-costnote"></p>
+
+<h3>5. Self-host or API</h3>
+<div class="pln-verdict" id="pln-verdict"></div>
+<div class="pln-chart" id="pln-api-chart"></div>
+<div class="pln-leg"><span><i style="--sw:var(--c1)"></i>self-hosted, sized for your peak</span><span><i style="--sw:var(--c2)"></i>API at the chosen price</span><span><i style="--sw:var(--c3)"></i>your average traffic</span></div>
+<p class="pln-note" id="pln-apinote"></p>
+
+<h3>Change one thing: the same deployment before and after</h3>
+<p>One GPU's memory filled step by step (weights, activations, other, then the KV cache), conversations packed into the cache until it is full, one decode step timed, and the fleet that results. The two rows are the same deployment and traffic with one setting changed; both are drawn to the same scale.</p>
+<div class="seg" id="pln-anseg" role="group" aria-label="What to change"><button data-m="fmt" class="on">BF16 to FP8 weights</button><button data-m="kv">FP16 to FP8 KV cache</button><button data-m="tp">TP 1 to TP 2</button></div>
+<div class="card" id="pln-ancard">
+<div class="pln-chart" id="pln-anim"></div>
+<div class="pln-cap" id="pln-ancap" aria-live="polite"></div>
+<div class="pln-an" id="pln-anctl"></div>
+</div>
+
+<h3>How close is the model? Calibration against published runs</h3>
+<p>The planner has two engine constants that no datasheet gives: the share of peak compute the engine reaches, and a fixed overhead per step (scheduling, sampling, kernel launches). They are fitted to MLPerf Inference v5.1 runs of Llama 3.1 8B whose full settings are public (vendor submissions, reviewed by MLCommons): the compute share so the offline ceiling equals the Offline result, the overhead so the simulated mean TPOT at the Server run's arrival rate equals the measured one. Everything else in the table is not fitted and tests the model: the Server throughput inside 2 s and 100 ms, the measured TTFT, another submitter's run, and each GPU's constants applied to the others. A third constant, the share of memory bandwidth reached (80%), is an assumption.</p>
+<div class="tw"><table class="pln-t" id="pln-calib"></table></div>
+<p class="pln-note" id="pln-calibnote"></p>
+
+<h3>How noisy is the simulation?</h3>
+<p>Latencies come from simulating 3,000 requests with one fixed random seed (the same arrivals at every rate, so curves are smooth). Near the knee a different seed gives a different answer, which is a real property of a loaded server, not only of the simulation: a burst lengthens steps, longer steps let more sequences pile up, and the queue takes a while to drain. Five seeds at the calibration points:</p>
+<div class="tw"><table class="pln-t" id="pln-valid"></table></div>
+<p class="pln-note" id="pln-validnote"></p>
+
+<h3>Published GPU results to compare with</h3>
+<p>MLPerf Inference datacenter results, closed division, one machine, output tokens per second per GPU. All are vendor or partner submissions reviewed by MLCommons; the settings differ (precision, engine, accuracy target), so read them as what a tuned stack reached, not as a ranking.</p>
+<div class="seg" id="pln-mlpseg" role="group" aria-label="MLPerf model"></div>
+<div class="tw"><table class="pln-t" id="pln-mlp"></table></div>
+<p class="pln-note" id="pln-mlpnote"></p>
+
+<details class="pln-d" id="pln-modelbox"><summary>The model, every formula and assumption</summary>
+<div class="fm"><div class="eq">KV pool per GPU = memory &times; utilisation &minus; weights per GPU &minus; activations &minus; other</div>
+<dl><dt>weights per GPU</dt><dd>weights / (TP &times; PP); with expert parallelism, all non-expert weights plus experts / GPUs. FP8 and INT4 keep the embedding and LM head at 16 bits, as released checkpoints do: this reproduces the 9.08 GB of RedHatAI's Llama-3.1-8B-Instruct-FP8 (1.05B BF16 plus 6.98B FP8 parameters, Hugging Face API) <span class="pln-tag pln-der">derived</span></dd>
+<dt>activations</dt><dd>tokens per step &times; 2 bytes &times; (2h + 2 &times; FFN width / TP) + sampled positions &times; vocabulary &times; 4 bytes / TP: an estimate of the peak vLLM measures in its profiling run <span class="pln-tag pln-asm">estimate</span></dd>
+<dt>sequences that fit</dt><dd>(pool &minus; shared prefix, stored once) / (KV per token per GPU &times; held tokens), held = uncached prompt + half the output, rounded up to 16-token blocks (vLLM's default block). KV per token per GPU: GQA heads split over TP but never below one head per GPU; DeepSeek's MLA latent is the same on every TP rank; PP splits layers</dd></dl></div>
+<div class="fm"><div class="eq">step = PP &times; [ max( bytes / (bandwidth &times; &eta;<sub>m</sub>), FLOPs / (peak &times; &eta;<sub>c</sub>) ) + communication ] + overhead + B &times; per-sequence cost</div>
+<dl><dt>bytes</dt><dd>weights read once per micro-batch (for MoE, only the experts the step's tokens touch, uniform routing: the parent's formula) + every decoding sequence's cache at its mean context</dd>
+<dt>FLOPs</dt><dd>2 &times; active parameters per token + attention: the parent's decode and prefill counts</dd>
+<dt>communication</dt><dd>TP: two all-reduces per layer, ring time 2(n&minus;1)/n &times; bytes / link + latency (two NVLink hops of 3.33 &micro;s, doubled on PCIe <span class="pln-tag pln-asm">assumption</span>); EP: dispatch (FP8) and combine (BF16) all-to-all per MoE layer</dd>
+<dt>per-sequence cost</dt><dd>an extra fixed time per decoding sequence per step; zero for the GPU engines (their fits do not need it), fitted for llama.cpp on the M1 Pro, whose batched decode costs far more per sequence than the bytes it reads</dd>
+<dt>peak</dt><dd>dense FP8 peak for FP8 weights on chips that have it, otherwise dense BF16 (weight-only INT4 and MXFP4 compute in 16 bits)</dd></dl></div>
+<div class="fm"><div class="eq">offline ceiling: T = step(B = &lambda; &times; O &times; T, c = &lambda; &times; P<sub>u</sub> &times; T)</div>
+<dl><dt>B, c</dt><dd>sequences decoding at once (Little's law) and prompt tokens per step, at arrival rate &lambda; per copy, when every step carries the prompts that arrived during the previous one (the fluid limit)</dd>
+<dt>ceiling</dt><dd>the highest &lambda; with a solution that keeps B within the cache and B + c within the token budget: the most one copy can do with no latency target (MLPerf's Offline scenario)</dd></dl></div>
+<div class="fm"><div class="eq">latencies: simulate the scheduler, step by step</div>
+<dl><dt>arrivals</dt><dd>Poisson, 3,000 requests, one fixed seed (MLPerf's Server scenario also uses Poisson arrivals); the first 15% are warm-up and not counted</dd>
+<dt>each step</dt><dd>every running sequence decodes one token; the budget left goes to waiting prompts first come first served, in chunks (chunked prefill); a new sequence starts only while the cache has room; the step lasts step(B, c) from the formula above</dd>
+<dt>TTFT, TPOT</dt><dd>first token at the end of the step that finishes the prompt; TPOT = (finish &minus; first token) / (O &minus; 1), averaged over requests; the targets are p99 TTFT and mean TPOT</dd>
+<dt>inside targets</dt><dd>bisection on &lambda; between 0 and the offline ceiling; a run whose waiting queue keeps growing counts as a miss</dd></dl></div>
+<div class="fm"><div class="eq">$ per hour = GPUs &times; price; &nbsp; $ per M output = $ per hour &times; (1 &minus; f<sub>prefill</sub>) / output tokens per hour &times; 10<sup>6</sup></div>
+<dl><dt>GPUs</dt><dd>ceil(peak traffic / highest rate per copy inside both targets) &times; GPUs per copy</dd>
+<dt>f<sub>prefill</sub></dt><dd>the prefill share of step time at the operating point (one convention for splitting a shared bill; the blended price per token does not depend on it)</dd>
+<dt>tokens per hour</dt><dd>at the average traffic: a fleet sized for the peak is paid for all day</dd></dl></div>
+<p class="pln-note">Not modelled: speculative decoding, varying prompt and output lengths (fixed here; real spread lengthens the TTFT tail, as the MLPerf check shows), preemption churn, prefill/decode disaggregation, CPU offload of the cache, request routing across copies (assumed perfect), and cold starts.</p>
+</details>
+
+<details class="pln-d"><summary>What transfers from the M1 Pro to a datacenter GPU, and what does not</summary>
+<div id="pln-m1"></div>
+</details>
+<p class="small mute">Prices fetched 2026-10-08: GPU-hours from Lambda, DigitalOcean and RunPod list prices (on demand, before tax); API prices per million tokens from OpenRouter's provider list. Model shapes from each model's config.json; chip figures from the shared facts file used by the hardware root's Chip atlas (dense peaks, vendor pages, fetched 2026-10-05) and the L40S product page (fetched 2026-10-08). Engine defaults from vLLM v0.31.0's source.</p>
 </div>

@@ -1,0 +1,11 @@
+# src/plan: the Capacity planner tab (t-plan)
+
+Everything: `sh run_all.sh` (python3 with no packages, node). Parts: `parts/33_tab_plan.html` (the tab, CSS scoped under `#t-plan`), `parts/33_js_plan_0data.js` (generated), `33_js_plan_1core.js` (the model, a line-for-line mirror of `plan.py`), `33_js_plan_2ui.js` (controls, worked examples, charts), `33_js_plan_3anim.js` (before/after animation), `33_js_plan_4tables.js` (calibration, simulation spread, MLPerf table, M1 notes).
+
+- `plan.py`: the reference model. Imports the hardware root's `src/calc/model.py` unchanged (model shapes, KV bytes, expert routing, decode and prefill FLOPs) so the two pages cannot disagree. Memory per GPU, sequences that fit, step time (roofline with two efficiencies, communication, fixed overhead, optional per-sequence cost), the fluid limit for the offline ceiling, a step-by-step simulation of chunked-prefill continuous batching for TTFT and TPOT (mulberry32 random stream shared with the JavaScript), bisection for the most traffic inside the targets, fleet, cost and API comparison.
+- `calibrate.py`: fits compute efficiency and per-step overhead to MLPerf Inference v5.1 runs of Llama 3.1 8B (vLLM on H100 and L40S, Red Hat; TensorRT-LLM on 8x H200, HPE) and records the unfitted checks: `out/calib.json`.
+- `validate.py`: seed spread of the 3,000-request simulation at the calibration points: `out/validate.json`.
+- `m1_fit.py`: constants for llama.cpp on the M1 Pro from the Engine bench tab's measurements (snapshot `inputs/m1_bench_src.json`, taken 2026-10-08 while that tab was still measuring; rerun with its results folder as the argument to refresh): `inputs/m1_bench.json`.
+- `gen_data.py`: writes the page's data and `out/plan_ref.json`; `check_plan.mjs` runs the page's JavaScript on those cases (901 numbers, identical to 1e-14); `check_embed.py` checks the embedded data and the numbers written in prose.
+- `inputs/`: model config.json files (with sources), `sources.json` (every external number with URL and fetch date: L40S, GPU-hour prices, OpenRouter API prices, vLLM v0.31.0 defaults with file and line, MLPerf rules, SGLang's DeepSeek numbers), MLPerf log summaries and TensorRT-LLM configs, and the MLPerf single-node LLM extract.
+- `viz_ideas.md`: visuals built and rejected.

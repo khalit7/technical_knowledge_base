@@ -1,3 +1,165 @@
 <div class="tab" id="t-sim" role="tabpanel" hidden>
-<p>Being built.</p>
+<style>
+#t-sim .sim-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px 14px;margin:8px 0}
+#t-sim .sim-ctl label{font-size:13px;display:block;min-width:0}
+#t-sim .sim-ctl select,#t-sim .sim-ctl input[type=number]{width:100%;max-width:100%}
+#t-sim .sim-ctl .sim-chk{display:flex;align-items:center;gap:6px}
+#t-sim .sim-grp{font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;margin:12px 0 0}
+#t-sim .sim-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+#t-sim .sim-plot{min-width:0;overflow:hidden;margin:6px 0}
+#t-sim .sim-anctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+#t-sim .sim-anctl input[type=range]{flex:1 1 140px;width:auto;min-width:100px}
+#t-sim .sim-cap{min-height:4.6em;font-size:13.5px;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:6px 0}
+#t-sim .sim-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-sim .sim-leg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-sim .sim-tag{display:inline-block;font-size:11px;border-radius:99px;padding:0 7px;border:1px solid var(--line);white-space:nowrap}
+#t-sim .sim-tag.v{color:var(--closed);border-color:var(--closed)}#t-sim .sim-tag.m{color:var(--good);border-color:var(--good)}
+#t-sim .sim-tag.d{color:var(--c1);border-color:var(--c1)}#t-sim .sim-tag.i{color:var(--bad);border-color:var(--bad)}
+#t-sim .sim-pr{border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin:10px 0;background:var(--soft)}
+#t-sim .sim-pr .sim-q{font-size:14px;font-weight:600}
+#t-sim .sim-pr .sim-opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-sim .sim-pr .sim-opts button{font-size:13px}
+#t-sim .sim-pr .sim-opts button.sim-right{background:var(--open2);border-color:var(--good)}
+#t-sim .sim-pr .sim-opts button.sim-wrong{background:var(--hl)}
+#t-sim .sim-pr .sim-ans{font-size:13.5px;margin-top:4px}
+#t-sim .sim-tbl td,#t-sim .sim-tbl th{font-size:12.5px}#t-sim .sim-tbl td.num,#t-sim .sim-tbl th.num{white-space:nowrap;text-align:right}
+#t-sim .sim-tbl tr.sim-base td{background:var(--soft)}
+#t-sim .sim-better{color:var(--good);font-weight:600}#t-sim .sim-worse{color:var(--bad);font-weight:600}
+#t-sim .sim-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:6px;margin:8px 0}
+#t-sim .sim-cnt .stat .v{font-size:16px}
+#t-sim .sim-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:10px}
+#t-sim .sim-two>div{min-width:0}
+#t-sim details.sim-more{margin:8px 0;font-size:13.5px}#t-sim details.sim-more summary{cursor:pointer;color:var(--acc)}
+#t-sim .sim-btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-sim .sim-btns button{font-size:13px}
+#t-sim svg .sim-ax{stroke:var(--line)}#t-sim svg .sim-axt{fill:var(--mute);font-size:11px}
+</style>
+<h2 style="margin-top:14px">Serving simulator</h2>
+<p class="lead">A serving engine is a loop. Every iteration (a <b>step</b>) it picks which requests run, how many of their tokens to compute, and where their KV cache lives; the GPU then runs one forward pass over that batch. This tab is that loop, written out so you can switch each mechanism off and watch what it was for, on the same requests.</p>
+<p>What is real here: the scheduling decisions in the continuous-batching, paged mode are the same as <b>vLLM v0.31.0's own scheduler</b>, step for step, on every trace we compared (<a href="#sim-val" class="sim-jump">checked below</a>). The time each step takes comes from a roofline model (the larger of compute time and memory time, plus overheads) whose four efficiency numbers were fitted to NVIDIA's published NIM measurements for Llama 3.1 8B on one H100, then checked on rows of that table not used in the fit. The M1 Pro preset is calibrated on llama.cpp runs made on this machine. Everything else (static batching, contiguous allocation, swap, disaggregation) follows the published designs and is labelled <span class="sim-tag i">illustrative</span> where no engine was checked.</p>
+<div class="co"><div class="t">Words used on this tab</div>
+<b>Prefill</b>: processing the whole prompt in one pass, which writes its KV cache and yields the first output token. <b>Decode</b>: one pass per further output token. <b>TTFT</b> (time to first token): arrival to first token. <b>TPOT</b> (time per output token) and <b>ITL</b> (inter-token latency): the gap between later tokens, averaged per request or per gap. <b>Goodput</b>: requests per second that meet both latency targets (an SLO, service-level objective). <b>Block</b>: a fixed-size page of KV cache (16 tokens by default in vLLM). <b>Preemption</b>: evicting a running request's KV cache to make room, then recomputing it (or copying it back) later.</div>
+
+<h3 id="sim-watch">1. Watch 20 requests: static against continuous batching, contiguous against paged memory</h3>
+<p>Twenty chat requests arrive together. Prompts are 20 to 200 tokens, answers 5 to 60 tokens, and every request may ask for up to 64 (its <code>max_tokens</code>). The model is Llama 3.1 8B in BF16 on one H100, but the KV cache is shrunk to <span id="sim-w-cap">1,280</span> tokens so that twenty requests are enough to fill it (a real H100 holds about <span id="sim-w-real">430,000</span> tokens of this model's cache). Both switches replay the same twenty requests, drawn to the same time scale.</p>
+<div class="sim-pr" id="sim-pr1"><div class="sim-q">Predict first: switch from static to continuous batching (memory left as contiguous). What happens to the time the <i>last</i> request finishes?</div>
+<div class="sim-opts"><button data-a="0">Much sooner</button><button data-a="1">About the same</button><button data-a="2">Later</button></div><div class="sim-ans" hidden></div></div>
+<div class="sim-box" id="sim-anim">
+<div class="sim-btns"><span class="small mute">Batching</span><span class="seg" id="sim-a-bat"><button data-v="static" class="on">Static</button><button data-v="cont">Continuous</button></span>
+<span class="small mute">KV memory</span><span class="seg" id="sim-a-kv"><button data-v="contig" class="on">Contiguous</button><button data-v="paged">Paged (16-token blocks)</button></span></div>
+<div class="sim-anctl" id="sim-a-ctl"></div>
+<div class="sim-cap" id="sim-a-cap" aria-live="polite"></div>
+<div class="sim-cnt" id="sim-a-cnt"></div>
+<div class="small mute" style="margin-top:6px">Requests over time (one row each; time on the same scale for all four settings)</div>
+<div class="sim-plot" id="sim-a-tl"></div>
+<div class="sim-leg"><span><i style="background:var(--c2)"></i>prefill (prompt)</span><span><i style="background:var(--c1)"></i>decode (one token)</span><span><i style="background:var(--dim)"></i>idle row (finished, still in the batch)</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>waiting</span></div>
+<div class="small mute" style="margin-top:8px">KV cache at this step: <span id="sim-a-kvcap"></span></div>
+<div class="sim-plot" id="sim-a-kvmap"></div>
+<div class="sim-leg"><span><i style="background:var(--c1)"></i>filled slot (colour = request)</span><span><i style="background:var(--acc2)"></i>reserved, not yet filled</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>free</span></div>
+<div class="tw"><table class="sim-tbl" id="sim-a-sum"></table></div>
+</div>
+<div class="sim-pr" id="sim-pr2"><div class="sim-q">Predict: with continuous batching, switch contiguous to paged memory. How many requests can run at the same time at the busiest step?</div>
+<div class="sim-opts"><button data-a="0">Fewer</button><button data-a="1">The same</button><button data-a="2">More</button></div><div class="sim-ans" hidden></div></div>
+<p class="small mute">Why the shapes differ. <b>Static batching</b> (FasterTransformer-era servers, a plain <code>generate()</code> loop) takes a batch, pads every prompt to the longest, and decodes until the longest answer ends: finished rows sit idle and new requests wait for the whole batch. <b>Continuous batching</b> (Orca's iteration-level scheduling, {{Yu et al., OSDI 2022|https://www.usenix.org/conference/osdi22/presentation/yu}}) re-forms the batch every step, so a finished request leaves and a waiting one joins at once. <b>Contiguous memory</b> reserves prompt plus <code>max_tokens</code> for each request up front in one piece; most of the reservation is never used, and the gaps left between pieces may be too small for the next request. <b>Paged memory</b> (PagedAttention, {{Kwon et al., SOSP 2023|n:3c65c17b0d0d81bf8b90ca93fee19f5f}}) hands out 16-token blocks as tokens are produced, so the only waste is the unfilled tail of each request's last block.</p>
+
+<h3 id="sim-lab">2. The lab: one engine, your traffic, every switch</h3>
+<p>Pick hardware and a traffic pattern, then switch mechanisms on and off. Every run is deterministic (seeded), so a change in the numbers is caused by the switch, not by luck. The <b>Compare</b> buttons run the current setting and the same setting with one mechanism changed, on identical requests.</p>
+<div class="sim-box" id="sim-labbox">
+<div class="sim-ctl">
+<label>Hardware and model <select id="sim-hw"></select></label>
+<label>Traffic <select id="sim-scn"></select></label>
+</div>
+<p class="small mute" id="sim-hwnote"></p>
+<details class="sim-more" id="sim-wdet"><summary>Traffic details</summary>
+<div class="sim-ctl">
+<label>Requests <input type="number" id="sim-n" min="10" max="2000" step="10"></label>
+<label>Arrival rate, requests/s (0 = all at once) <input type="number" id="sim-rate" min="0" max="500" step="0.5"></label>
+<label>New prompt tokens, min <input type="number" id="sim-plo" min="1" max="100000"></label>
+<label>New prompt tokens, max <input type="number" id="sim-phi" min="1" max="100000"></label>
+<label>Output tokens, min <input type="number" id="sim-olo" min="1" max="8000"></label>
+<label>Output tokens, max <input type="number" id="sim-ohi" min="1" max="8000"></label>
+<label>max_tokens (cap, and what reservations hold) <input type="number" id="sim-maxtok" min="1" max="16000"></label>
+<label>Shared system prompt, tokens <input type="number" id="sim-sys" min="0" max="50000"></label>
+<label>Share of chats that use it <input type="number" id="sim-share" min="0" max="1" step="0.1"></label>
+<label>Distinct system prompts <input type="number" id="sim-groups" min="1" max="50"></label>
+<label>Turns per chat <input type="number" id="sim-turns" min="1" max="20"></label>
+<label>Seconds between turns <input type="number" id="sim-gap" min="0" max="600" step="0.5"></label>
+<label>Seed <input type="number" id="sim-seed" min="1" max="999999"></label>
+</div></details>
+<div class="sim-grp">Engine</div>
+<div class="sim-ctl">
+<label>Batching <select id="sim-mode"><option value="cont">Continuous (iteration-level)</option><option value="static">Static (whole batch)</option></select></label>
+<label>KV memory <select id="sim-kv"><option value="paged">Paged blocks</option><option value="contig">Contiguous reservation</option></select></label>
+<label>KV cache size, GB <input type="number" id="sim-kvgb" min="0.01" max="1000" step="0.5"></label>
+<label>Block size, tokens <select id="sim-bs"><option>8</option><option selected>16</option><option>32</option></select></label>
+<label>Max sequences per step <input type="number" id="sim-maxseq" min="1" max="4096"></label>
+<label>Max tokens per step <input type="number" id="sim-budget" min="16" max="65536" step="16"></label>
+<label class="sim-chk"><input type="checkbox" id="sim-chunk"> Chunked prefill</label>
+<label class="sim-chk"><input type="checkbox" id="sim-pc"> Prefix caching</label>
+<label>When blocks run out <select id="sim-pre"><option value="recompute">Preempt, recompute later (vLLM v1)</option><option value="swap">Preempt, swap KV to host memory</option></select></label>
+<label>Admission <select id="sim-admit"><option value="optimistic">Optimistic: admit if the prompt fits (vLLM)</option><option value="reserve">Reserve prompt + max_tokens (TensorRT-LLM default)</option></select></label>
+</div>
+<div class="sim-grp">GPUs and targets</div>
+<div class="sim-ctl">
+<label>Deployment <select id="sim-dep"><option value="1">1 GPU</option><option value="2">2 GPUs, 2 replicas (round robin)</option><option value="pd">2 GPUs: 1 prefill + 1 decode (disaggregated)</option></select></label>
+<label>KV transfer, GB/s (disaggregated) <input type="number" id="sim-xbw" min="1" max="2000" step="5"></label>
+<label>Host link for swap, GB/s <input type="number" id="sim-swbw" min="1" max="500" step="1"></label>
+<label>TTFT target, ms <input type="number" id="sim-slo1" min="1" max="100000" step="10"></label>
+<label>TPOT target, ms <input type="number" id="sim-slo2" min="1" max="10000" step="1"></label>
+</div>
+<div class="sim-btns"><span class="small mute">Compare, same requests:</span>
+<button data-cmp="mode">Static batching</button><button data-cmp="kv">Contiguous memory</button><button data-cmp="pc">Prefix caching flipped</button><button data-cmp="chunk">Chunked prefill flipped</button><button data-cmp="pre">Swap instead of recompute</button><button data-cmp="admit">Reserve admission</button><button data-cmp="dep">Disaggregated vs 2 replicas</button><button data-cmp="clear">Clear comparison</button></div>
+<div class="out" id="sim-stats"></div>
+<div class="tw"><table class="sim-tbl" id="sim-cmp"></table></div>
+<div class="small mute" style="margin-top:8px" id="sim-tl-cap">The engine over time: prompt tokens and decoding sequences per step (averaged over short windows) and the share of the KV cache in use</div>
+<div class="sim-plot" id="sim-tl"></div>
+<div class="sim-leg"><span><i style="background:var(--c2)"></i>prefill tokens per step (top-left number is the peak)</span><span><i style="background:var(--c1)"></i>decoding sequences per step (blue number is the peak)</span><span><i style="background:var(--c3)"></i>KV cache in use (right axis)</span><span><i style="background:var(--c4)"></i>a preemption</span></div>
+<div class="small mute" style="margin-top:8px">Every request: time to first token against time per output token; the box is the target</div>
+<div class="sim-plot" id="sim-sc"></div>
+<div class="sim-leg" id="sim-sc-leg"></div>
+<p class="small mute" id="sim-run-note"></p>
+</div>
+
+<h3 id="sim-stall">3. A long prompt arrives while others are talking: chunked prefill</h3>
+<p>Eight users are mid-answer, each getting a token every few milliseconds. Then one user pastes a <span id="sim-st-p">12,000</span>-token document. Without chunking, the engine computes that whole prompt in one step and the eight answers freeze until it is done. With chunked prefill (Sarathi-Serve, {{Agrawal et al., OSDI 2024|https://arxiv.org/abs/2403.02310}}; on by default in vLLM v1), the prompt is cut into pieces that fit the per-step token budget and each piece rides along with the eight decodes.</p>
+<div class="sim-box" id="sim-stbox">
+<div class="sim-btns"><span class="seg" id="sim-st-mode"><button data-v="0" class="on">Prefill first (no chunking)</button><button data-v="1">Chunked, 512 tokens per step</button><button data-v="2">Chunked, 2,048 tokens per step</button></span></div>
+<div class="sim-plot" id="sim-st-plot"></div>
+<div class="sim-cnt" id="sim-st-cnt"></div>
+<p class="small mute" id="sim-st-note"></p>
+</div>
+
+<h3 id="sim-sweep">4. Where it bends: latency against load</h3>
+<p>Raise the arrival rate and throughput climbs, then flattens; latency stays flat, then shoots up. The knee is where the engine runs out of room: a step can carry more decodes almost for free while it is memory-bound (weights are read once per step whatever the batch), but once the KV cache or the compute is full, extra requests can only wait. This sweep reruns the lab's current setting (hardware, traffic shape, engine) at rates from a tenth to twice the rate you set, and marks where goodput (requests per second within both targets) peaks.</p>
+<div class="sim-box" id="sim-swbox">
+<div class="sim-btns"><button id="sim-sw-run">Run the sweep for the lab's current setting</button><span class="small mute" id="sim-sw-note"></span></div>
+<div class="sim-plot" id="sim-sw-plot"></div>
+<div class="sim-leg"><span><i style="background:var(--c1)"></i>TPOT p50</span><span><i style="background:var(--c2)"></i>TTFT p99</span><span><i style="background:var(--c3)"></i>goodput (right axis)</span></div>
+</div>
+
+<h3 id="sim-val">5. Is the simulator right? Three checks</h3>
+<p><b>Check 1: the scheduler is vLLM's.</b> We ran vLLM's real <code>Scheduler</code> and <code>KVCacheManager</code> (v0.31.0, commit <code>db9527a</code>, Python only, no GPU: a stand-in model runner returns one token per finished prefill or decode) on the traces below, and compared every step with this page's simulator: which requests run, how many tokens each computes, which are preempted. <span id="sim-v-sum"></span> Two details had to match vLLM exactly for that: a new request is admitted only if its <i>whole</i> prompt fits in free blocks (<code>scheduler_reserve_full_isl</code>, default on), and freed blocks without cached content go to the <i>front</i> of the free queue while cached ones go to the back, so prefix-cache entries are evicted least recently used first (<code>block_pool.py</code>, <code>free_blocks</code>). <span class="sim-tag m">checked against the engine's code</span></p>
+<div class="tw"><table class="sim-tbl" id="sim-v-vllm"></table></div>
+<p><b>Check 2: the step time on an H100.</b> NVIDIA publishes TTFT, inter-token latency and throughput for Llama 3.1 8B Instruct on one H100 in FP8 at five prompt and answer lengths and eight concurrency levels (NIM 1.8.0, measured with genai-perf in closed loop: each of <i>C</i> clients sends its next request when the last one ends) <span class="sim-tag v">vendor</span>. We fitted four numbers on part of that table and predicted the rest. <span id="sim-v-fit"></span></p>
+<div class="sim-btns"><span class="seg" id="sim-v-met"><button data-v="1" class="on">Inter-token latency</button><button data-v="2">Throughput</button><button data-v="0">TTFT</button></span></div>
+<div class="sim-plot" id="sim-v-plot"></div>
+<div class="sim-leg"><span><i style="background:var(--c1);border-radius:50%"></i>predicted (not used in the fit)</span><span><i style="border:1px solid var(--mute);border-radius:50%"></i>used in the fit</span><span>the diagonal is a perfect prediction; dashed lines are &plusmn;25%</span></div>
+<p class="small" id="sim-v-read"></p>
+<details class="sim-more"><summary>Every row of NVIDIA's table against the simulator</summary><div class="tw"><table class="sim-tbl" id="sim-v-rows"></table></div></details>
+<p><b>Check 2b: a different engine on the same GPU.</b> <span class="sim-tag v">audited submission (MLPerf Inference v5.1, Red Hat)</span> <span id="sim-v-mlp"></span></p>
+<p><b>Check 3: an engine on this machine.</b> <span class="sim-tag m">measured on Apple M1 Pro</span> The Engine bench tab ran llama.cpp (build 11146, Metal) with Qwen3-0.6B in Q4_K_M. Prefill and single-stream decode calibrate the M1 preset; then llama-server with 16 slots was driven by 1 to 16 closed-loop clients sending about 410-token prompts for 128 tokens each, repeated two or three times on a machine shared with other work (load averages are in the table).</p>
+<div class="tw"><table class="sim-tbl" id="sim-v-m1"></table></div>
+<p class="small" id="sim-v-m1read"></p>
+
+<h3 id="sim-model">6. The step-time model, and what it leaves out</h3>
+<div class="fm"><div class="eq">t<sub>step</sub> = t<sub>0</sub> + s &middot; B + max( F / (e<sub>c</sub> &middot; peak) , bytes / (e<sub>m</sub> &middot; bandwidth) )</div>
+<dl><dt>F</dt><dd>2 &times; (parameters without the output layer) &times; tokens in the step, plus 2 &times; output-layer parameters per sequence (logits only for each sequence's last position), plus attention 4 &times; layers &times; query heads &times; head size &times; context, summed over new tokens</dd>
+<dt>bytes</dt><dd>all weights once per step, plus each scheduled sequence's KV cache (read, and the new tokens written)</dd>
+<dt>B</dt><dd>sequences in the step; t<sub>0</sub> and s are fixed costs per step and per sequence (launches, sampling, scheduling, streaming)</dd>
+<dt>e<sub>c</sub>, e<sub>m</sub></dt><dd>fitted efficiencies: the share of peak compute and of peak bandwidth the engine reaches</dd></dl></div>
+<p class="small mute">The same roofline as the {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} page's serving planner (bytes over bandwidth against FLOPs over peak, the larger wins), applied to each mixed step instead of a pure decode batch, and with overheads that this page fits instead of assuming. Peaks come from the vendors (H100 SXM: 989.5 TFLOP/s BF16 and 1,979 FP8 dense, 3.35 TB/s; M1 Pro: 5.3 TFLOP/s by Philip Turner's count, 200 GB/s).</p>
+<div class="co warn"><div class="t">Not modelled</div>
+CUDA graphs and their batch-size buckets (steps padded to the next captured size); the CPU side running ahead of the GPU (vLLM v0.31.0 turns on async scheduling by default, which prepares the next step while the GPU runs the current one; the harness above used the synchronous <code>Scheduler</code>, and the time model has no CPU-GPU overlap); tokenization and network time except one fixed client latency in the H100 fit; tensor and pipeline parallelism (each GPU here is a whole replica); speculative decoding; sampling cost differences; KV-cache quantization accuracy; attention kernels that are not bandwidth-bound at long context. Static batching, contiguous allocation, swap and disaggregation follow their papers' designs and were not checked against a running engine <span class="sim-tag i">illustrative</span>.</div>
+<div class="co key"><div class="t">What carries over from these numbers, and what does not</div>
+<b>Carries over:</b> the shapes. Decode steps cost about the same for 1 or 50 sequences until compute or KV reads catch up; static batching wastes the gap between the shortest and longest answer; contiguous reservation strands most of the cache; prefix caching removes the shared part of the prefill; chunking caps the stall a long prompt causes; latency turns up sharply once the cache is full. <b>Does not carry over:</b> absolute milliseconds, which depend on kernels, CUDA graphs, the engine version and the GPU; the M1 numbers in particular describe llama.cpp on a laptop GPU with 200 GB/s, about 1/17 of an H100's bandwidth.</div>
 </div>
